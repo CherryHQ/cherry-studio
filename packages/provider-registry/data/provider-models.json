@@ -48,7 +48,7 @@
       "providerId": "302ai"
     },
     {
-      "apiModelId": "claude-haiku-4-5-20251001",
+      "apiModelId": "claude-haiku-4-5",
       "modelId": "claude-haiku-4-5",
       "pricing": {
         "input": {
@@ -78,7 +78,7 @@
       "providerId": "302ai"
     },
     {
-      "apiModelId": "claude-opus-4-1-20250805",
+      "apiModelId": "claude-opus-4-1-20250805-thinking",
       "modelId": "claude-opus-4-1",
       "pricing": {
         "input": {
@@ -93,7 +93,7 @@
       "providerId": "302ai"
     },
     {
-      "apiModelId": "claude-opus-4-5",
+      "apiModelId": "claude-opus-4-5-20251101-thinking",
       "modelId": "claude-opus-4-5",
       "pricing": {
         "input": {
@@ -161,7 +161,7 @@
       "providerId": "302ai"
     },
     {
-      "apiModelId": "claude-sonnet-4-5",
+      "apiModelId": "claude-sonnet-4-5-20250929",
       "modelId": "claude-sonnet-4-5",
       "pricing": {
         "input": {
@@ -176,7 +176,7 @@
       "providerId": "302ai"
     },
     {
-      "apiModelId": "claude-sonnet-4-6-thinking",
+      "apiModelId": "claude-sonnet-4-6",
       "modelId": "claude-sonnet-4-6",
       "pricing": {
         "input": {
@@ -221,7 +221,7 @@
       "providerId": "302ai"
     },
     {
-      "apiModelId": "deepseek-v3.2-thinking",
+      "apiModelId": "deepseek-v3.2",
       "modelId": "deepseek-v3-2",
       "pricing": {
         "input": {
@@ -313,7 +313,7 @@
       "providerId": "302ai"
     },
     {
-      "apiModelId": "gemini-2.5-flash-nothink",
+      "apiModelId": "gemini-2.5-flash",
       "modelId": "gemini-2-5-flash",
       "pricing": {
         "input": {
@@ -345,6 +345,7 @@
     {
       "apiModelId": "gemini-2.5-flash-lite-preview-09-2025",
       "modelId": "gemini-2-5-flash-lite-preview-09-2025",
+      "name": "gemini-2.5-flash-lite-preview-09-2025",
       "pricing": {
         "input": {
           "currency": "USD",
@@ -820,7 +821,7 @@
       "providerId": "302ai"
     },
     {
-      "apiModelId": "gpt-5.4-mini-2026-03-17",
+      "apiModelId": "gpt-5.4-mini",
       "modelId": "gpt-5-4-mini",
       "pricing": {
         "input": {
@@ -835,7 +836,7 @@
       "providerId": "302ai"
     },
     {
-      "apiModelId": "gpt-5.4-nano-2026-03-17",
+      "apiModelId": "gpt-5.4-nano",
       "modelId": "gpt-5-4-nano",
       "pricing": {
         "input": {
@@ -1310,7 +1311,9 @@
                 "type": "text"
               },
               "sequentialImageGeneration": {
-                "type": "switch"
+                "default": "disabled",
+                "options": ["auto", "disabled"],
+                "type": "enum"
               },
               "size": {
                 "default": "2K",
@@ -1341,7 +1344,9 @@
                 "type": "text"
               },
               "sequentialImageGeneration": {
-                "type": "switch"
+                "default": "disabled",
+                "options": ["auto", "disabled"],
+                "type": "enum"
               },
               "size": {
                 "default": "2K",
@@ -2634,7 +2639,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 2.25
         },
         "cacheWrite": {
           "currency": "USD",
@@ -3156,6 +3161,63 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 30
+        }
+      },
+      "providerId": "copilot"
+    },
+    {
+      "apiModelId": "gpt-5.6-luna",
+      "modelId": "gpt-5-6-luna",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "copilot"
+    },
+    {
+      "apiModelId": "gpt-5.6-sol",
+      "modelId": "gpt-5-6-sol",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 30
+        }
+      },
+      "providerId": "copilot"
+    },
+    {
+      "apiModelId": "gpt-5.6-terra",
+      "modelId": "gpt-5-6-terra",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 15
         }
       },
       "providerId": "copilot"
@@ -4490,7 +4552,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.26
+          "perMillionTokens": 0.14
         },
         "input": {
           "currency": "USD",
@@ -4714,29 +4776,6 @@
         }
       },
       "providerId": "fireworks"
-    },
-    {
-      "apiModelId": "anthropic/claude-3.5-haiku",
-      "modelId": "claude-3-5-haiku",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.08
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 1
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.8
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 4
-        }
-      },
-      "providerId": "gateway"
     },
     {
       "apiModelId": "anthropic/claude-3-haiku",
@@ -5105,13 +5144,17 @@
       "apiModelId": "deepseek/deepseek-v3.1",
       "modelId": "deepseek-v3-1",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.13
+        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.6
+          "perMillionTokens": 0.25
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.7
+          "perMillionTokens": 0.95
         }
       },
       "providerId": "gateway"
@@ -5136,16 +5179,20 @@
       "providerId": "gateway"
     },
     {
-      "apiModelId": "deepseek/deepseek-v3.2-thinking",
+      "apiModelId": "deepseek/deepseek-v3.2",
       "modelId": "deepseek-v3-2",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.028
+        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.62
+          "perMillionTokens": 0.28
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.85
+          "perMillionTokens": 0.42
         }
       },
       "providerId": "gateway"
@@ -5156,7 +5203,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0028
+          "perMillionTokens": 0.028
         },
         "input": {
           "currency": "USD",
@@ -5199,21 +5246,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 2
-        }
-      },
-      "providerId": "gateway"
-    },
-    {
-      "apiModelId": "mistral/devstral-small",
-      "modelId": "devstral-small",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.1
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.3
         }
       },
       "providerId": "gateway"
@@ -5519,6 +5551,21 @@
       "providerId": "gateway"
     },
     {
+      "apiModelId": "google/gemini-omni-flash-preview",
+      "modelId": "gemini-omni-flash-preview",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 9
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
       "apiModelId": "google/gemma-4-26b-a4b-it",
       "modelId": "gemma-4-26b-a4b-it",
       "pricing": {
@@ -5763,15 +5810,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.5
+          "perMillionTokens": 0.21
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 3
+          "perMillionTokens": 2.1
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 10.25
+          "perMillionTokens": 6.6
         }
       },
       "providerId": "gateway"
@@ -5825,21 +5872,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 1.5
-        }
-      },
-      "providerId": "gateway"
-    },
-    {
-      "apiModelId": "openai/gpt-3.5-turbo-instruct",
-      "modelId": "gpt-3-5-turbo-instruct",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 1.5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 2
         }
       },
       "providerId": "gateway"
@@ -6330,6 +6362,75 @@
       "providerId": "gateway"
     },
     {
+      "apiModelId": "openai/gpt-5.6-luna",
+      "modelId": "gpt-5-6-luna",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
+      "apiModelId": "openai/gpt-5.6-sol",
+      "modelId": "gpt-5-6-sol",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 6.25
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 30
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
+      "apiModelId": "openai/gpt-5.6-terra",
+      "modelId": "gpt-5-6-terra",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 3.125
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 15
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
       "apiModelId": "openai/gpt-5-chat",
       "modelId": "gpt-5-chat",
       "pricing": {
@@ -6584,6 +6685,25 @@
       "providerId": "gateway"
     },
     {
+      "apiModelId": "openai/gpt-realtime-2.1",
+      "modelId": "gpt-realtime-2-1",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.4
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 4
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 24
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
       "apiModelId": "openai/gpt-realtime-mini",
       "modelId": "gpt-realtime-mini",
       "pricing": {
@@ -6774,6 +6894,25 @@
       "providerId": "gateway"
     },
     {
+      "apiModelId": "xai/grok-4.5",
+      "modelId": "grok-4-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
       "apiModelId": "xai/grok-build-0.1",
       "modelId": "grok-build-0-1",
       "pricing": {
@@ -6803,6 +6942,25 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 3.5
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
+      "apiModelId": "kwaipilot/kat-coder-air-v2.5",
+      "modelId": "kat-coder-air-v2-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.03
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.6
         }
       },
       "providerId": "gateway"
@@ -6846,16 +7004,39 @@
       "providerId": "gateway"
     },
     {
-      "apiModelId": "moonshotai/kimi-k2",
-      "modelId": "kimi-k2",
+      "apiModelId": "kwaipilot/kat-coder-pro-v2.5",
+      "modelId": "kat-coder-pro-v2-5",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.57
+          "perMillionTokens": 0.74
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.3
+          "perMillionTokens": 2.96
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
+      "apiModelId": "moonshotai/kimi-k2-thinking",
+      "modelId": "kimi-k2",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.141
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.47
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2
         }
       },
       "providerId": "gateway"
@@ -7169,44 +7350,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.87
-        }
-      },
-      "providerId": "gateway"
-    },
-    {
-      "apiModelId": "xiaomi/mimo-v2-flash",
-      "modelId": "mimo-v2-flash",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.01
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.1
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.3
-        }
-      },
-      "providerId": "gateway"
-    },
-    {
-      "apiModelId": "xiaomi/mimo-v2-pro",
-      "modelId": "mimo-v2-pro",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.2
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 1
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 3
         }
       },
       "providerId": "gateway"
@@ -7542,6 +7685,25 @@
       "providerId": "gateway"
     },
     {
+      "apiModelId": "meta/muse-spark-1.1",
+      "modelId": "muse-spark-1-1",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.25
+        }
+      },
+      "providerId": "gateway"
+    },
+    {
       "apiModelId": "nvidia/nemotron-3-nano-30b-a3b",
       "modelId": "nemotron-3-nano-30b-a3b",
       "pricing": {
@@ -7817,21 +7979,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.15
-        }
-      },
-      "providerId": "gateway"
-    },
-    {
-      "apiModelId": "mistral/pixtral-large",
-      "modelId": "pixtral-large",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 2
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 6
         }
       },
       "providerId": "gateway"
@@ -8133,7 +8280,7 @@
       "providerId": "gateway"
     },
     {
-      "apiModelId": "alibaba/qwen3-max",
+      "apiModelId": "alibaba/qwen3-max-thinking",
       "modelId": "qwen3-max",
       "pricing": {
         "cacheRead": {
@@ -8337,21 +8484,6 @@
       "providerId": "gateway"
     },
     {
-      "apiModelId": "arcee-ai/trinity-large-preview",
-      "modelId": "trinity-large-preview",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.25
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 1
-        }
-      },
-      "providerId": "gateway"
-    },
-    {
       "apiModelId": "arcee-ai/trinity-mini",
       "modelId": "trinity-mini",
       "pricing": {
@@ -8457,7 +8589,7 @@
       "providerId": "github"
     },
     {
-      "apiModelId": "deepseek/deepseek-r1-0528",
+      "apiModelId": "deepseek/deepseek-r1",
       "modelId": "deepseek-r1",
       "pricing": {
         "input": {
@@ -8747,6 +8879,7 @@
     {
       "apiModelId": "meta/meta-llama-3-8b-instruct",
       "modelId": "llama-3-8b-instruct",
+      "name": "Meta-Llama-3-8B-Instruct",
       "pricing": {
         "input": {
           "currency": "USD",
@@ -9118,7 +9251,7 @@
       "providerId": "github"
     },
     {
-      "apiModelId": "microsoft/phi-4-reasoning",
+      "apiModelId": "microsoft/phi-4",
       "modelId": "phi-4",
       "pricing": {
         "input": {
@@ -9177,6 +9310,153 @@
         }
       },
       "providerId": "github"
+    },
+    {
+      "apiModelId": "grok-4.20-0309-non-reasoning",
+      "capabilities": {
+        "force": ["function-call", "image-recognition"]
+      },
+      "description": "Grok 4.20 Non-Reasoning is xAI's fast non-reasoning model with a 2M-token context window, available through the SuperGrok subscription via the Grok CLI proxy.",
+      "endpointTypes": ["openai-responses"],
+      "family": "grok",
+      "inputModalities": ["text", "image"],
+      "limits": {
+        "contextWindow": 2000000,
+        "maxOutputTokens": 30000
+      },
+      "modelId": "grok-4-20-0309-non-reasoning",
+      "name": "Grok 4.20 Non-Reasoning",
+      "outputModalities": ["text"],
+      "ownedBy": "xai",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        }
+      },
+      "providerId": "grok-cli"
+    },
+    {
+      "apiModelId": "grok-4.20-0309-reasoning",
+      "capabilities": {
+        "force": ["function-call", "reasoning", "image-recognition"]
+      },
+      "description": "Grok 4.20 Reasoning is xAI's always-on reasoning model with a 2M-token context window, available through the SuperGrok subscription via the Grok CLI proxy.",
+      "endpointTypes": ["openai-responses"],
+      "family": "grok",
+      "inputModalities": ["text", "image"],
+      "limits": {
+        "contextWindow": 2000000,
+        "maxOutputTokens": 30000
+      },
+      "modelId": "grok-4-20-0309-reasoning",
+      "name": "Grok 4.20 Reasoning",
+      "outputModalities": ["text"],
+      "ownedBy": "xai",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        }
+      },
+      "providerId": "grok-cli"
+    },
+    {
+      "apiModelId": "grok-4.20-multi-agent-0309",
+      "capabilities": {
+        "force": ["function-call", "reasoning", "image-recognition"]
+      },
+      "description": "Grok 4.20 Multi-Agent runs multiple agents collaborating in parallel for deep research tasks, available through the SuperGrok subscription via the Grok CLI proxy.",
+      "endpointTypes": ["openai-responses"],
+      "family": "grok",
+      "inputModalities": ["text", "image"],
+      "limits": {
+        "contextWindow": 2000000,
+        "maxOutputTokens": 30000
+      },
+      "modelId": "grok-4-20-multi-agent-0309",
+      "name": "Grok 4.20 Multi-Agent",
+      "outputModalities": ["text"],
+      "ownedBy": "xai",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        }
+      },
+      "providerId": "grok-cli"
+    },
+    {
+      "apiModelId": "grok-4.3",
+      "endpointTypes": ["openai-responses"],
+      "limits": {
+        "contextWindow": 1000000,
+        "maxOutputTokens": 30000
+      },
+      "modelId": "grok-4-3",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        }
+      },
+      "providerId": "grok-cli"
+    },
+    {
+      "apiModelId": "grok-4.5",
+      "endpointTypes": ["openai-responses"],
+      "limits": {
+        "contextWindow": 500000,
+        "maxOutputTokens": 30000
+      },
+      "modelId": "grok-4-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "grok-cli"
     },
     {
       "capabilities": {
@@ -9391,16 +9671,16 @@
       "providerId": "groq"
     },
     {
-      "apiModelId": "deepseek-ai/DeepSeek-R1",
+      "apiModelId": "deepseek-ai/DeepSeek-R1-0528",
       "modelId": "deepseek-r1",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.7
+          "perMillionTokens": 3
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.5
+          "perMillionTokens": 5
         }
       },
       "providerId": "huggingface"
@@ -9647,6 +9927,21 @@
       "providerId": "huggingface"
     },
     {
+      "apiModelId": "openai/gpt-oss-20b",
+      "modelId": "gpt-oss-20b",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        }
+      },
+      "providerId": "huggingface"
+    },
+    {
       "apiModelId": "moonshotai/Kimi-K2-Thinking",
       "modelId": "kimi-k2",
       "pricing": {
@@ -9862,16 +10157,16 @@
       "providerId": "huggingface"
     },
     {
-      "apiModelId": "Qwen/Qwen3-235B-A22B-Thinking-2507",
+      "apiModelId": "Qwen/Qwen3-235B-A22B",
       "modelId": "qwen3-235b-a22b",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.3
+          "perMillionTokens": 0.2
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3
+          "perMillionTokens": 0.8
         }
       },
       "providerId": "huggingface"
@@ -10316,21 +10611,6 @@
       "providerId": "modelscope"
     },
     {
-      "apiModelId": "black-forest-labs/flux.1-dev",
-      "modelId": "1-dev",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0
-        }
-      },
-      "providerId": "nvidia"
-    },
-    {
       "apiModelId": "nvidia/active-speaker-detection",
       "modelId": "active-speaker-detection",
       "pricing": {
@@ -10505,6 +10785,21 @@
       "providerId": "nvidia"
     },
     {
+      "apiModelId": "black-forest-labs/flux.1-dev",
+      "modelId": "flux-1-dev",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
+      "providerId": "nvidia"
+    },
+    {
       "apiModelId": "black-forest-labs/flux_1-kontext-dev",
       "modelId": "flux-1-kontext-dev",
       "pricing": {
@@ -10625,8 +10920,8 @@
       "providerId": "nvidia"
     },
     {
-      "apiModelId": "z-ai/glm-5.1",
-      "modelId": "glm-5-1",
+      "apiModelId": "z-ai/glm-5.2",
+      "modelId": "glm-5-2",
       "pricing": {
         "input": {
           "currency": "USD",
@@ -11589,6 +11884,68 @@
       "providerId": "nvidia"
     },
     {
+      "apiModelId": "x/flux2-klein",
+      "capabilities": {
+        "force": ["image-generation"]
+      },
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["512x512", "768x768", "1024x1024"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text"],
+      "modelId": "x/flux2-klein",
+      "name": "FLUX.2 Klein",
+      "outputModalities": ["image"],
+      "providerId": "ollama"
+    },
+    {
+      "apiModelId": "x/z-image-turbo",
+      "capabilities": {
+        "force": ["image-generation"]
+      },
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "numInferenceSteps": {
+                "default": 9,
+                "max": 20,
+                "min": 1,
+                "type": "range"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["512x512", "768x768", "1024x1024"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text"],
+      "modelId": "x/z-image-turbo",
+      "name": "Z-Image Turbo",
+      "outputModalities": ["image"],
+      "providerId": "ollama"
+    },
+    {
       "apiModelId": "gpt-5.3-codex-spark",
       "endpointTypes": ["openai-responses"],
       "modelId": "gpt-5-3-codex-spark",
@@ -11613,36 +11970,31 @@
       "providerId": "openai-codex"
     },
     {
-      "apiModelId": "aion-labs/aion-1.0",
-      "modelId": "aion-1-0",
-      "name": "Aion-1.0",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 4
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 8
-        }
+      "apiModelId": "gpt-5.6-luna",
+      "endpointTypes": ["openai-responses"],
+      "limits": {
+        "contextWindow": 372000
       },
-      "providerId": "openrouter"
+      "modelId": "gpt-5-6-luna",
+      "providerId": "openai-codex"
     },
     {
-      "apiModelId": "aion-labs/aion-1.0-mini",
-      "modelId": "aion-1-0-mini",
-      "name": "Aion-1.0-Mini",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.7
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 1.4
-        }
+      "apiModelId": "gpt-5.6-sol",
+      "endpointTypes": ["openai-responses"],
+      "limits": {
+        "contextWindow": 372000
       },
-      "providerId": "openrouter"
+      "modelId": "gpt-5-6-sol",
+      "providerId": "openai-codex"
+    },
+    {
+      "apiModelId": "gpt-5.6-terra",
+      "endpointTypes": ["openai-responses"],
+      "limits": {
+        "contextWindow": 372000
+      },
+      "modelId": "gpt-5-6-terra",
+      "providerId": "openai-codex"
     },
     {
       "apiModelId": "aion-labs/aion-2.0",
@@ -11665,6 +12017,46 @@
       "providerId": "openrouter"
     },
     {
+      "apiModelId": "aion-labs/aion-3.0",
+      "modelId": "aion-3-0",
+      "name": "Aion-3.0",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.75
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 3
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "aion-labs/aion-3.0-mini",
+      "modelId": "aion-3-0-mini",
+      "name": "Aion-3.0-Mini",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.18
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.7
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.4
+        }
+      },
+      "providerId": "openrouter"
+    },
+    {
       "apiModelId": "aion-labs/aion-rp-llama-3.1-8b",
       "modelId": "aion-rp-llama-3-1-8b",
       "name": "Aion-RP 1.0 (8B)",
@@ -11678,6 +12070,26 @@
           "perMillionTokens": 1.6
         }
       },
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "openrouter/auto",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {}
+          }
+        }
+      },
+      "inputModalities": ["text", "image", "audio", "video"],
+      "modelId": "auto",
+      "name": "Auto Router",
+      "outputModalities": ["text", "image"],
+      "ownedBy": "openrouter",
       "providerId": "openrouter"
     },
     {
@@ -12118,22 +12530,6 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "arcee-ai/coder-large",
-      "modelId": "coder-large",
-      "name": "Coder Large",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.5
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.8
-        }
-      },
-      "providerId": "openrouter"
-    },
-    {
       "apiModelId": "mistralai/codestral-2508",
       "modelId": "codestral",
       "pricing": {
@@ -12272,11 +12668,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.24
+          "perMillionTokens": 0.27
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.9
+          "perMillionTokens": 1.12
         }
       },
       "providerId": "openrouter"
@@ -12291,30 +12687,26 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.21
+          "perMillionTokens": 0.25
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.79
+          "perMillionTokens": 0.95
         }
       },
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "deepseek/deepseek-r1-0528",
+      "apiModelId": "deepseek/deepseek-r1",
       "modelId": "deepseek-r1",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.35
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.5
+          "perMillionTokens": 0.7
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.15
+          "perMillionTokens": 2.5
         }
       },
       "providerId": "openrouter"
@@ -12340,7 +12732,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.13
+          "perMillionTokens": 0.135
         },
         "input": {
           "currency": "USD",
@@ -12348,7 +12740,7 @@
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.95
+          "perMillionTokens": 1
         }
       },
       "providerId": "openrouter"
@@ -12359,15 +12751,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.02288
+          "perMillionTokens": 0.1345
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.2288
+          "perMillionTokens": 0.269
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.3432
+          "perMillionTokens": 0.4
         }
       },
       "providerId": "openrouter"
@@ -12393,15 +12785,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.018
+          "perMillionTokens": 0.02
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.09
+          "perMillionTokens": 0.098
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.18
+          "perMillionTokens": 0.196
         }
       },
       "providerId": "openrouter"
@@ -12445,17 +12837,17 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
+      "apiModelId": "cognitivecomputations/dolphin-mistral-24b-venice-edition",
       "modelId": "dolphin-mistral-24b-venice-edition",
-      "name": "Uncensored (free)",
+      "name": "Uncensored",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.2
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.9
         }
       },
       "providerId": "openrouter"
@@ -12473,6 +12865,206 @@
           "perMillionTokens": 1.25
         }
       },
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "black-forest-labs/flux.2-flex",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 8,
+            "supports": {
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "outputFormat": {
+                "options": ["png", "jpeg"],
+                "type": "enum"
+              },
+              "seed": {
+                "type": "text"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "outputFormat": {
+                "options": ["png", "jpeg"],
+                "type": "enum"
+              },
+              "seed": {
+                "type": "text"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "flux-2-flex",
+      "outputModalities": ["image"],
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "black-forest-labs/flux.2-klein-4b",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 4,
+            "supports": {
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "outputFormat": {
+                "options": ["png", "jpeg"],
+                "type": "enum"
+              },
+              "seed": {
+                "type": "text"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "outputFormat": {
+                "options": ["png", "jpeg"],
+                "type": "enum"
+              },
+              "seed": {
+                "type": "text"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "flux-2-klein-4b",
+      "outputModalities": ["image"],
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "black-forest-labs/flux.2-max",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 8,
+            "supports": {
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "outputFormat": {
+                "options": ["png", "jpeg"],
+                "type": "enum"
+              },
+              "seed": {
+                "type": "text"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "outputFormat": {
+                "options": ["png", "jpeg"],
+                "type": "enum"
+              },
+              "seed": {
+                "type": "text"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "flux-2-max",
+      "outputModalities": ["image"],
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "black-forest-labs/flux.2-pro",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 8,
+            "supports": {
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "outputFormat": {
+                "options": ["png", "jpeg"],
+                "type": "enum"
+              },
+              "seed": {
+                "type": "text"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "outputFormat": {
+                "options": ["png", "jpeg"],
+                "type": "enum"
+              },
+              "seed": {
+                "type": "text"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "flux-2-pro",
+      "outputModalities": ["image"],
       "providerId": "openrouter"
     },
     {
@@ -12535,7 +13127,46 @@
     },
     {
       "apiModelId": "google/gemini-2.5-flash-image",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 3,
+            "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["image", "text"],
       "modelId": "gemini-2-5-flash-image",
+      "outputModalities": ["image", "text"],
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -12557,31 +13188,26 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "google/gemini-2.5-flash-lite",
-      "modelId": "gemini-2-5-flash-lite",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.01
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 0.083333
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.1
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.4
+      "apiModelId": "google/gemini-2.5-flash-image-preview",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {}
+          }
         }
       },
+      "inputModalities": ["image", "text"],
+      "modelId": "gemini-2-5-flash-image-preview",
+      "outputModalities": ["image", "text"],
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "google/gemini-2.5-flash-lite-preview-09-2025",
-      "modelId": "gemini-2-5-flash-lite-preview-09-2025",
+      "apiModelId": "google/gemini-2.5-flash-lite",
+      "modelId": "gemini-2-5-flash-lite",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -12673,7 +13299,84 @@
     },
     {
       "apiModelId": "google/gemini-3.1-flash-image",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 14,
+            "supports": {
+              "aspectRatio": {
+                "options": [
+                  "1:1",
+                  "1:4",
+                  "1:8",
+                  "2:3",
+                  "3:2",
+                  "3:4",
+                  "4:1",
+                  "4:3",
+                  "4:5",
+                  "5:4",
+                  "8:1",
+                  "9:16",
+                  "16:9",
+                  "21:9"
+                ],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "resolution": {
+                "options": ["512", "1K", "2K", "4K"],
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "options": [
+                  "1:1",
+                  "1:4",
+                  "1:8",
+                  "2:3",
+                  "3:2",
+                  "3:4",
+                  "4:1",
+                  "4:3",
+                  "4:5",
+                  "5:4",
+                  "8:1",
+                  "9:16",
+                  "16:9",
+                  "21:9"
+                ],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "resolution": {
+                "options": ["512", "1K", "2K", "4K"],
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["image", "text"],
       "modelId": "gemini-3-1-flash-image",
+      "outputModalities": ["image", "text"],
       "pricing": {
         "input": {
           "currency": "USD",
@@ -12688,7 +13391,84 @@
     },
     {
       "apiModelId": "google/gemini-3.1-flash-image-preview",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 14,
+            "supports": {
+              "aspectRatio": {
+                "options": [
+                  "1:1",
+                  "1:4",
+                  "1:8",
+                  "2:3",
+                  "3:2",
+                  "3:4",
+                  "4:1",
+                  "4:3",
+                  "4:5",
+                  "5:4",
+                  "8:1",
+                  "9:16",
+                  "16:9",
+                  "21:9"
+                ],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "resolution": {
+                "options": ["512", "1K", "2K", "4K"],
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "options": [
+                  "1:1",
+                  "1:4",
+                  "1:8",
+                  "2:3",
+                  "3:2",
+                  "3:4",
+                  "4:1",
+                  "4:3",
+                  "4:5",
+                  "5:4",
+                  "8:1",
+                  "9:16",
+                  "16:9",
+                  "21:9"
+                ],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "resolution": {
+                "options": ["512", "1K", "2K", "4K"],
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["image", "text"],
       "modelId": "gemini-3-1-flash-image-preview",
+      "outputModalities": ["image", "text"],
       "pricing": {
         "input": {
           "currency": "USD",
@@ -12726,7 +13506,84 @@
     },
     {
       "apiModelId": "google/gemini-3.1-flash-lite-image",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 14,
+            "supports": {
+              "aspectRatio": {
+                "options": [
+                  "1:1",
+                  "1:4",
+                  "1:8",
+                  "2:3",
+                  "3:2",
+                  "3:4",
+                  "4:1",
+                  "4:3",
+                  "4:5",
+                  "5:4",
+                  "8:1",
+                  "9:16",
+                  "16:9",
+                  "21:9"
+                ],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "resolution": {
+                "options": ["1K"],
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "options": [
+                  "1:1",
+                  "1:4",
+                  "1:8",
+                  "2:3",
+                  "3:2",
+                  "3:4",
+                  "4:1",
+                  "4:3",
+                  "4:5",
+                  "5:4",
+                  "8:1",
+                  "9:16",
+                  "16:9",
+                  "21:9"
+                ],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "resolution": {
+                "options": ["1K"],
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["image", "text"],
       "modelId": "gemini-3-1-flash-lite-image",
+      "outputModalities": ["image", "text"],
       "pricing": {
         "input": {
           "currency": "USD",
@@ -12856,7 +13713,54 @@
     },
     {
       "apiModelId": "google/gemini-3-pro-image",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 14,
+            "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "resolution": {
+                "options": ["1K", "2K", "4K"],
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "resolution": {
+                "options": ["1K", "2K", "4K"],
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["image", "text"],
       "modelId": "gemini-3-pro-image",
+      "outputModalities": ["image", "text"],
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -12879,7 +13783,54 @@
     },
     {
       "apiModelId": "google/gemini-3-pro-image-preview",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 14,
+            "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "resolution": {
+                "options": ["1K", "2K", "4K"],
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "resolution": {
+                "options": ["1K", "2K", "4K"],
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["image", "text"],
       "modelId": "gemini-3-pro-image-preview",
+      "outputModalities": ["image", "text"],
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -12980,13 +13931,17 @@
       "apiModelId": "google/gemma-3-27b-it",
       "modelId": "gemma-3-27b-it",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.04
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.08
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.16
+          "perMillionTokens": 0.45
         }
       },
       "providerId": "openrouter"
@@ -13022,35 +13977,31 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "google/gemma-4-26b-a4b-it:free",
+      "apiModelId": "google/gemma-4-26b-a4b-it",
       "modelId": "gemma-4-26b-a4b-it",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.1
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.3
         }
       },
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "google/gemma-4-31b-it",
+      "apiModelId": "google/gemma-4-31b-it:free",
       "modelId": "gemma-4-31b-it",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.09
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.12
+          "perMillionTokens": 0
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.35
+          "perMillionTokens": 0
         }
       },
       "providerId": "openrouter"
@@ -13118,15 +14069,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.08
+          "perMillionTokens": 0.1
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.43
+          "perMillionTokens": 0.5
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.74
+          "perMillionTokens": 2
         }
       },
       "providerId": "openrouter"
@@ -13173,13 +14124,9 @@
       "apiModelId": "z-ai/glm-4.7-flash",
       "modelId": "glm-4-7-flash",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.01
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.06
+          "perMillionTokens": 0.0605
         },
         "output": {
           "currency": "USD",
@@ -13194,15 +14141,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.12
+          "perMillionTokens": 0.19
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.6
+          "perMillionTokens": 0.95
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.92
+          "perMillionTokens": 3.15
         }
       },
       "providerId": "openrouter"
@@ -13232,15 +14179,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.18
+          "perMillionTokens": 0.16068
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.93
+          "perMillionTokens": 0.8652
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3
+          "perMillionTokens": 2.7192
         }
       },
       "providerId": "openrouter"
@@ -13431,22 +14378,22 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "openai/gpt-4o",
+      "apiModelId": "openai/gpt-4o-2024-05-13",
       "modelId": "gpt-4o",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 2.5
+          "perMillionTokens": 5
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 10
+          "perMillionTokens": 15
         }
       },
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "openai/gpt-4o-mini-2024-07-18",
+      "apiModelId": "openai/gpt-4o-mini",
       "modelId": "gpt-4o-mini",
       "pricing": {
         "cacheRead": {
@@ -13519,7 +14466,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.13
+          "perMillionTokens": 0.125
         },
         "input": {
           "currency": "USD",
@@ -13538,7 +14485,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.13
+          "perMillionTokens": 0.125
         },
         "input": {
           "currency": "USD",
@@ -13557,7 +14504,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.13
+          "perMillionTokens": 0.125
         },
         "input": {
           "currency": "USD",
@@ -13739,7 +14686,54 @@
     },
     {
       "apiModelId": "openai/gpt-5.4-image-2",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 16,
+            "supports": {
+              "background": {
+                "options": ["auto", "opaque"],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 10,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "background": {
+                "options": ["auto", "opaque"],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 10,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["image", "text"],
       "modelId": "gpt-5-4-image-2",
+      "outputModalities": ["image", "text"],
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -13844,6 +14838,144 @@
       "providerId": "openrouter"
     },
     {
+      "apiModelId": "openai/gpt-5.6-luna",
+      "modelId": "gpt-5-6-luna",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "openai/gpt-5.6-luna-pro",
+      "modelId": "gpt-5-6-luna-pro",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "openai/gpt-5.6-sol",
+      "modelId": "gpt-5-6-sol",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 6.25
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 30
+        }
+      },
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "openai/gpt-5.6-sol-pro",
+      "modelId": "gpt-5-6-sol-pro",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 6.25
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 30
+        }
+      },
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "openai/gpt-5.6-terra",
+      "modelId": "gpt-5-6-terra",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 3.125
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 15
+        }
+      },
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "openai/gpt-5.6-terra-pro",
+      "modelId": "gpt-5-6-terra-pro",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 3.125
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 15
+        }
+      },
+      "providerId": "openrouter"
+    },
+    {
       "apiModelId": "openai/gpt-5-chat",
       "modelId": "gpt-5-chat",
       "pricing": {
@@ -13883,7 +15015,54 @@
     },
     {
       "apiModelId": "openai/gpt-5-image",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 16,
+            "supports": {
+              "background": {
+                "options": ["auto", "transparent", "opaque"],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 10,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "background": {
+                "options": ["auto", "transparent", "opaque"],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 10,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["image", "text"],
       "modelId": "gpt-5-image",
+      "outputModalities": ["image", "text"],
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -13902,7 +15081,54 @@
     },
     {
       "apiModelId": "openai/gpt-5-image-mini",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 16,
+            "supports": {
+              "background": {
+                "options": ["auto", "transparent", "opaque"],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 10,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "background": {
+                "options": ["auto", "transparent", "opaque"],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 10,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["image", "text"],
       "modelId": "gpt-5-image-mini",
+      "outputModalities": ["image", "text"],
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -13944,7 +15170,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.01
+          "perMillionTokens": 0.005
         },
         "input": {
           "currency": "USD",
@@ -14022,12 +15248,172 @@
       "providerId": "openrouter"
     },
     {
+      "apiModelId": "openai/gpt-image-1",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 16,
+            "supports": {
+              "background": {
+                "options": ["auto", "transparent", "opaque"],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 10,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "background": {
+                "options": ["auto", "transparent", "opaque"],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 10,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "gpt-image-1",
+      "outputModalities": ["image"],
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "openai/gpt-image-1-mini",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 16,
+            "supports": {
+              "background": {
+                "options": ["auto", "transparent", "opaque"],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 10,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "background": {
+                "options": ["auto", "transparent", "opaque"],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 10,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "gpt-image-1-mini",
+      "outputModalities": ["image"],
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "openai/gpt-image-2",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 16,
+            "supports": {
+              "background": {
+                "options": ["auto", "opaque"],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 10,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "background": {
+                "options": ["auto", "opaque"],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 10,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "gpt-image-2",
+      "outputModalities": ["image"],
+      "providerId": "openrouter"
+    },
+    {
       "apiModelId": "~openai/gpt-latest",
       "modelId": "gpt-latest",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
           "perMillionTokens": 0.5
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 6.25
         },
         "input": {
           "currency": "USD",
@@ -14060,31 +15446,31 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "openai/gpt-oss-120b:free",
+      "apiModelId": "openai/gpt-oss-120b",
       "modelId": "gpt-oss-120b",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.037
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.17
         }
       },
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "openai/gpt-oss-20b",
+      "apiModelId": "openai/gpt-oss-20b:free",
       "modelId": "gpt-oss-20b",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.029
+          "perMillionTokens": 0
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0
         }
       },
       "providerId": "openrouter"
@@ -14202,6 +15588,25 @@
       "providerId": "openrouter"
     },
     {
+      "apiModelId": "x-ai/grok-4.5",
+      "modelId": "grok-4-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
+        }
+      },
+      "providerId": "openrouter"
+    },
+    {
       "apiModelId": "x-ai/grok-build-0.1",
       "modelId": "grok-build-0-1",
       "pricing": {
@@ -14216,6 +15621,107 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 2
+        }
+      },
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "x-ai/grok-imagine-image-quality",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 3,
+            "supports": {
+              "aspectRatio": {
+                "options": [
+                  "1:1",
+                  "3:4",
+                  "4:3",
+                  "9:16",
+                  "16:9",
+                  "2:3",
+                  "3:2",
+                  "9:19.5",
+                  "19.5:9",
+                  "9:20",
+                  "20:9",
+                  "1:2",
+                  "2:1",
+                  "auto"
+                ],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "resolution": {
+                "options": ["1K", "2K"],
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "options": [
+                  "1:1",
+                  "3:4",
+                  "4:3",
+                  "9:16",
+                  "16:9",
+                  "2:3",
+                  "3:2",
+                  "9:19.5",
+                  "19.5:9",
+                  "9:20",
+                  "20:9",
+                  "1:2",
+                  "2:1",
+                  "auto"
+                ],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "resolution": {
+                "options": ["1K", "2K"],
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "grok-imagine-image-quality",
+      "outputModalities": ["image"],
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "~x-ai/grok-latest",
+      "modelId": "grok-latest",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 6
         }
       },
       "providerId": "openrouter"
@@ -14297,6 +15803,25 @@
       "providerId": "openrouter"
     },
     {
+      "apiModelId": "tencent/hy3",
+      "modelId": "hy3",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.05
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.8
+        }
+      },
+      "providerId": "openrouter"
+    },
+    {
       "apiModelId": "tencent/hy3-preview",
       "modelId": "hy3-preview",
       "pricing": {
@@ -14363,6 +15888,25 @@
       "providerId": "openrouter"
     },
     {
+      "apiModelId": "kwaipilot/kat-coder-air-v2.5",
+      "modelId": "kat-coder-air-v2-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.03
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.6
+        }
+      },
+      "providerId": "openrouter"
+    },
+    {
       "apiModelId": "kwaipilot/kat-coder-pro-v2",
       "modelId": "kat-coder-pro-v2",
       "pricing": {
@@ -14382,16 +15926,35 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "moonshotai/kimi-k2",
+      "apiModelId": "kwaipilot/kat-coder-pro-v2.5",
+      "modelId": "kat-coder-pro-v2-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.74
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.96
+        }
+      },
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "moonshotai/kimi-k2-thinking",
       "modelId": "kimi-k2",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.57
+          "perMillionTokens": 0.6
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.3
+          "perMillionTokens": 2.5
         }
       },
       "providerId": "openrouter"
@@ -14400,13 +15963,17 @@
       "apiModelId": "moonshotai/kimi-k2.5",
       "modelId": "kimi-k2-5",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.095
+        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.375
+          "perMillionTokens": 0.57
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.025
+          "perMillionTokens": 2.85
         }
       },
       "providerId": "openrouter"
@@ -14417,7 +15984,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0.144
         },
         "input": {
           "currency": "USD",
@@ -14436,15 +16003,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.15
+          "perMillionTokens": 0.149
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.74
+          "perMillionTokens": 0.719
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.5
+          "perMillionTokens": 3.49
         }
       },
       "providerId": "openrouter"
@@ -14455,7 +16022,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0.15
         },
         "input": {
           "currency": "USD",
@@ -14464,22 +16031,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 3.41
-        }
-      },
-      "providerId": "openrouter"
-    },
-    {
-      "apiModelId": "sao10k/l3.1-70b-hanami-x1",
-      "modelId": "l3-1-70b-hanami-x1",
-      "name": "Llama 3.1 70B Hanami x1",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 3
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 3
         }
       },
       "providerId": "openrouter"
@@ -14553,74 +16104,9 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "poolside/laguna-xs.2",
-      "modelId": "laguna-xs-2",
-      "name": "Laguna XS.2",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.05
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.1
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.2
-        }
-      },
-      "providerId": "openrouter"
-    },
-    {
       "apiModelId": "poolside/laguna-xs-2.1:free",
       "modelId": "laguna-xs-2-1",
       "name": "Laguna XS 2.1 (free)",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0
-        }
-      },
-      "providerId": "openrouter"
-    },
-    {
-      "apiModelId": "liquid/lfm-2-24b-a2b",
-      "modelId": "lfm-2-24b-a2b",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.03
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.12
-        }
-      },
-      "providerId": "openrouter"
-    },
-    {
-      "apiModelId": "liquid/lfm-2.5-1.2b-thinking:free",
-      "modelId": "lfm-2-5-1-2b",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0
-        }
-      },
-      "providerId": "openrouter"
-    },
-    {
-      "apiModelId": "liquid/lfm-2.5-1.2b-instruct:free",
-      "modelId": "lfm-2-5-1-2b-instruct",
       "pricing": {
         "input": {
           "currency": "USD",
@@ -14690,13 +16176,17 @@
       "apiModelId": "meta-llama/llama-3.1-8b-instruct",
       "modelId": "llama-3-1-8b-instruct",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.025
+        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.02
+          "perMillionTokens": 0.05
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.03
+          "perMillionTokens": 0.08
         }
       },
       "providerId": "openrouter"
@@ -14777,31 +16267,16 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "meta-llama/llama-3-8b-instruct",
-      "modelId": "llama-3-8b-instruct",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.14
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.14
-        }
-      },
-      "providerId": "openrouter"
-    },
-    {
       "apiModelId": "meta-llama/llama-4-maverick",
       "modelId": "llama-4-maverick",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.15
+          "perMillionTokens": 0.2
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.6
+          "perMillionTokens": 0.8
         }
       },
       "providerId": "openrouter"
@@ -14885,6 +16360,50 @@
       "providerId": "openrouter"
     },
     {
+      "apiModelId": "microsoft/mai-image-2.5",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 1,
+            "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3", "auto"],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3", "auto"],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "mai-image-2-5",
+      "outputModalities": ["image"],
+      "providerId": "openrouter"
+    },
+    {
       "apiModelId": "inception/mercury-2",
       "modelId": "mercury-2",
       "pricing": {
@@ -14907,9 +16426,13 @@
       "apiModelId": "xiaomi/mimo-v2.5",
       "modelId": "mimo-v2-5",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.0028
+        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.105
+          "perMillionTokens": 0.14
         },
         "output": {
           "currency": "USD",
@@ -14958,7 +16481,7 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.4
+          "perMillionTokens": 0.55
         },
         "output": {
           "currency": "USD",
@@ -15005,13 +16528,17 @@
       "apiModelId": "minimax/minimax-m2.5",
       "modelId": "minimax-m2-5",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.05
+        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.12
+          "perMillionTokens": 0.15
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.48
+          "perMillionTokens": 0.9
         }
       },
       "providerId": "openrouter"
@@ -15020,13 +16547,17 @@
       "apiModelId": "minimax/minimax-m2.7",
       "modelId": "minimax-m2-7",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.06
+        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.18
+          "perMillionTokens": 0.3
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.72
+          "perMillionTokens": 1.2
         }
       },
       "providerId": "openrouter"
@@ -15127,20 +16658,20 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "mistralai/mistral-large-2407",
+      "apiModelId": "mistralai/mistral-large-2512",
       "modelId": "mistral-large",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.2
+          "perMillionTokens": 0.05
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 2
+          "perMillionTokens": 0.5
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 6
+          "perMillionTokens": 1.5
         }
       },
       "providerId": "openrouter"
@@ -15208,7 +16739,7 @@
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.03
+          "perMillionTokens": 0.04
         }
       },
       "providerId": "openrouter"
@@ -15285,13 +16816,17 @@
       "apiModelId": "mistralai/mistral-small-3.2-24b-instruct",
       "modelId": "mistral-small-3-2-24b-instruct",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.01
+        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.075
+          "perMillionTokens": 0.1
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.2
+          "perMillionTokens": 0.3
         }
       },
       "providerId": "openrouter"
@@ -15422,16 +16957,20 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "nvidia/nemotron-3-ultra-550b-a55b:free",
+      "apiModelId": "nvidia/nemotron-3-ultra-550b-a55b",
       "modelId": "nemotron-3-ultra-550b-a55b",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 0.6
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 3.6
         }
       },
       "providerId": "openrouter"
@@ -15462,6 +17001,26 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0
+        }
+      },
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "nex-agi/nex-n2-mini",
+      "modelId": "nex-n2-mini",
+      "name": "Nex-N2-Mini",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.0025
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.025
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
         }
       },
       "providerId": "openrouter"
@@ -15831,17 +17390,9 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "qwen/qwen-plus",
+      "apiModelId": "qwen/qwen-plus-2025-07-28",
       "modelId": "qwen-plus",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.052
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 0.325
-        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.26
@@ -15888,31 +17439,31 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "qwen/qwen3-235b-a22b-thinking-2507",
+      "apiModelId": "qwen/qwen3-235b-a22b-2507",
       "modelId": "qwen3-235b-a22b",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.1495
+          "perMillionTokens": 0.09
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.495
+          "perMillionTokens": 0.55
         }
       },
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "qwen/qwen3-30b-a3b-thinking-2507",
+      "apiModelId": "qwen/qwen3-30b-a3b",
       "modelId": "qwen3-30b-a3b",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.13
+          "perMillionTokens": 0.12
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.56
+          "perMillionTokens": 0.5
         }
       },
       "providerId": "openrouter"
@@ -15923,11 +17474,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.04815
+          "perMillionTokens": 0.1
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.19305
+          "perMillionTokens": 0.3
         }
       },
       "providerId": "openrouter"
@@ -15981,10 +17532,6 @@
       "apiModelId": "qwen/qwen3.5-35b-a3b",
       "modelId": "qwen3-5-35b-a3b",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.05
-        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.14
@@ -16000,13 +17547,17 @@
       "apiModelId": "qwen/qwen3.5-397b-a17b",
       "modelId": "qwen3-5-397b-a17b",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.225
+        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.385
+          "perMillionTokens": 0.45
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.45
+          "perMillionTokens": 3
         }
       },
       "providerId": "openrouter"
@@ -16081,11 +17632,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.285
+          "perMillionTokens": 0.45
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.4
+          "perMillionTokens": 2.7
         }
       },
       "providerId": "openrouter"
@@ -16286,7 +17837,7 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.11
+          "perMillionTokens": 0.12
         },
         "output": {
           "currency": "USD",
@@ -16319,17 +17870,9 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "qwen/qwen3-max",
+      "apiModelId": "qwen/qwen3-max-thinking",
       "modelId": "qwen3-max",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.156
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 0.975
-        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.78
@@ -16392,15 +17935,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.11
+          "perMillionTokens": 0.1
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.2
+          "perMillionTokens": 0.21
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.88
+          "perMillionTokens": 1.9
         }
       },
       "providerId": "openrouter"
@@ -16478,6 +18021,402 @@
           "perMillionTokens": 0.455
         }
       },
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "recraft/recraft-v3",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 1,
+            "supports": {
+              "numImages": {
+                "max": 6,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "numImages": {
+                "max": 6,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "recraft-v3",
+      "outputModalities": ["image"],
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "recraft/recraft-v4",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 1,
+            "supports": {
+              "numImages": {
+                "max": 6,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "numImages": {
+                "max": 6,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "recraft-v4",
+      "outputModalities": ["image"],
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "recraft/recraft-v4.1",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 1,
+            "supports": {
+              "numImages": {
+                "max": 6,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "numImages": {
+                "max": 6,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "recraft-v4-1",
+      "outputModalities": ["image"],
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "recraft/recraft-v4.1-pro",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 1,
+            "supports": {
+              "numImages": {
+                "max": 6,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "numImages": {
+                "max": 6,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "recraft-v4-1-pro",
+      "outputModalities": ["image"],
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "recraft/recraft-v4.1-pro-vector",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 1,
+            "supports": {
+              "numImages": {
+                "max": 6,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "numImages": {
+                "max": 6,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "recraft-v4-1-pro-vector",
+      "outputModalities": ["image"],
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "recraft/recraft-v4.1-utility",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 1,
+            "supports": {
+              "numImages": {
+                "max": 6,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "numImages": {
+                "max": 6,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "recraft-v4-1-utility",
+      "outputModalities": ["image"],
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "recraft/recraft-v4.1-utility-pro",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 1,
+            "supports": {
+              "numImages": {
+                "max": 6,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "numImages": {
+                "max": 6,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "recraft-v4-1-utility-pro",
+      "outputModalities": ["image"],
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "recraft/recraft-v4.1-vector",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 1,
+            "supports": {
+              "numImages": {
+                "max": 6,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "numImages": {
+                "max": 6,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "recraft-v4-1-vector",
+      "outputModalities": ["image"],
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "recraft/recraft-v4-pro",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 1,
+            "supports": {
+              "numImages": {
+                "max": 6,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "numImages": {
+                "max": 6,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "recraft-v4-pro",
+      "outputModalities": ["image"],
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "recraft/recraft-v4-pro-vector",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 1,
+            "supports": {
+              "numImages": {
+                "max": 6,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "numImages": {
+                "max": 6,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "recraft-v4-pro-vector",
+      "outputModalities": ["image"],
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "recraft/recraft-v4-vector",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 1,
+            "supports": {
+              "numImages": {
+                "max": 6,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "numImages": {
+                "max": 6,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "recraft-v4-vector",
+      "outputModalities": ["image"],
       "providerId": "openrouter"
     },
     {
@@ -16578,6 +18517,268 @@
       "providerId": "openrouter"
     },
     {
+      "apiModelId": "sourceful/riverflow-v2.5-fast",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 4,
+            "supports": {
+              "background": {
+                "options": ["auto", "opaque"],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "outputFormat": {
+                "options": ["jpeg"],
+                "type": "enum"
+              },
+              "resolution": {
+                "options": ["1K", "2K"],
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "background": {
+                "options": ["auto", "opaque"],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "outputFormat": {
+                "options": ["jpeg"],
+                "type": "enum"
+              },
+              "resolution": {
+                "options": ["1K", "2K"],
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "riverflow-v2-5-fast",
+      "outputModalities": ["image"],
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "sourceful/riverflow-v2.5-pro",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 10,
+            "supports": {
+              "background": {
+                "options": ["auto", "transparent", "opaque"],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "outputFormat": {
+                "options": ["png", "jpeg", "webp"],
+                "type": "enum"
+              },
+              "resolution": {
+                "options": ["1K", "2K", "4K"],
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "background": {
+                "options": ["auto", "transparent", "opaque"],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "outputFormat": {
+                "options": ["png", "jpeg", "webp"],
+                "type": "enum"
+              },
+              "resolution": {
+                "options": ["1K", "2K", "4K"],
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "riverflow-v2-5-pro",
+      "outputModalities": ["image"],
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "sourceful/riverflow-v2-fast",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 4,
+            "supports": {
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "resolution": {
+                "options": ["1K", "2K", "4K"],
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "resolution": {
+                "options": ["1K", "2K", "4K"],
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "riverflow-v2-fast",
+      "outputModalities": ["image"],
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "sourceful/riverflow-v2-fast-preview",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {}
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "riverflow-v2-fast-preview",
+      "outputModalities": ["image"],
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "sourceful/riverflow-v2-max-preview",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {}
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "riverflow-v2-max-preview",
+      "outputModalities": ["image"],
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "sourceful/riverflow-v2-pro",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 10,
+            "supports": {
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "resolution": {
+                "options": ["1K", "2K", "4K"],
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "numImages": {
+                "max": 1,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "resolution": {
+                "options": ["1K", "2K", "4K"],
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "riverflow-v2-pro",
+      "outputModalities": ["image"],
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "sourceful/riverflow-v2-standard-preview",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {}
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "riverflow-v2-standard-preview",
+      "outputModalities": ["image"],
+      "providerId": "openrouter"
+    },
+    {
       "apiModelId": "thedrummer/rocinante-12b",
       "modelId": "rocinante-12b",
       "name": "Rocinante 12B",
@@ -16589,22 +18790,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.5
-        }
-      },
-      "providerId": "openrouter"
-    },
-    {
-      "apiModelId": "switchpoint/router",
-      "modelId": "router",
-      "name": "Switchpoint Router",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.85
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 3.4
         }
       },
       "providerId": "openrouter"
@@ -16670,6 +18855,102 @@
           "perMillionTokens": 0.4
         }
       },
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "bytedance-seed/seedream-4.5",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 14,
+            "supports": {
+              "aspectRatio": {
+                "options": [
+                  "1:1",
+                  "1:2",
+                  "2:1",
+                  "2:3",
+                  "3:2",
+                  "3:4",
+                  "4:3",
+                  "4:5",
+                  "5:4",
+                  "9:16",
+                  "16:9",
+                  "9:19.5",
+                  "19.5:9",
+                  "9:20",
+                  "20:9",
+                  "9:21",
+                  "21:9",
+                  "auto"
+                ],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 10,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "resolution": {
+                "options": ["1K", "2K", "4K"],
+                "type": "enum"
+              },
+              "seed": {
+                "type": "text"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "options": [
+                  "1:1",
+                  "1:2",
+                  "2:1",
+                  "2:3",
+                  "3:2",
+                  "3:4",
+                  "4:3",
+                  "4:5",
+                  "5:4",
+                  "9:16",
+                  "16:9",
+                  "9:19.5",
+                  "19.5:9",
+                  "9:20",
+                  "20:9",
+                  "9:21",
+                  "21:9",
+                  "auto"
+                ],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 10,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "resolution": {
+                "options": ["1K", "2K", "4K"],
+                "type": "enum"
+              },
+              "seed": {
+                "type": "text"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["image", "text"],
+      "modelId": "seedream-4-5",
+      "outputModalities": ["image"],
       "providerId": "openrouter"
     },
     {
@@ -16742,7 +19023,7 @@
       "providerId": "openrouter"
     },
     {
-      "apiModelId": "perplexity/sonar-pro",
+      "apiModelId": "perplexity/sonar-pro-search",
       "modelId": "sonar-pro",
       "pricing": {
         "input": {
@@ -16820,21 +19101,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.8
-        }
-      },
-      "providerId": "openrouter"
-    },
-    {
-      "apiModelId": "arcee-ai/trinity-mini",
-      "modelId": "trinity-mini",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.045
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.15
         }
       },
       "providerId": "openrouter"
@@ -19439,6 +21705,21 @@
       "providerId": "vertexai"
     },
     {
+      "apiModelId": "gemini-2.5-flash-image",
+      "modelId": "gemini-2-5-flash-image",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 30
+        }
+      },
+      "providerId": "vertexai"
+    },
+    {
       "apiModelId": "gemini-2.5-flash-lite",
       "modelId": "gemini-2-5-flash-lite",
       "pricing": {
@@ -19502,6 +21783,21 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 20
+        }
+      },
+      "providerId": "vertexai"
+    },
+    {
+      "apiModelId": "gemini-3.1-flash-image",
+      "modelId": "gemini-3-1-flash-image",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 60
         }
       },
       "providerId": "vertexai"
@@ -19621,6 +21917,21 @@
       "providerId": "vertexai"
     },
     {
+      "apiModelId": "gemini-3-pro-image",
+      "modelId": "gemini-3-pro-image",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 120
+        }
+      },
+      "providerId": "vertexai"
+    },
+    {
       "apiModelId": "gemini-embedding-001",
       "modelId": "gemini-embedding-001",
       "pricing": {
@@ -19641,19 +21952,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.075
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 0.383
+          "perMillionTokens": 0.15
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.3
+          "perMillionTokens": 1.5
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.5
+          "perMillionTokens": 9
         }
       },
       "providerId": "vertexai"
@@ -19668,11 +21975,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.1
+          "perMillionTokens": 0.25
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.4
+          "perMillionTokens": 1.5
         }
       },
       "providerId": "vertexai"
@@ -19802,6 +22109,106 @@
       "providerId": "vertexai"
     },
     {
+      "modelId": "rerank-1",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "rerank-2",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "rerank-2-5",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "rerank-2-5-lite",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "rerank-2-lite",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "rerank-lite-1",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-2",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-3",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-3-5",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-3-5-lite",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-3-large",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-3-lite",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-4",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-4-large",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-4-lite",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-4-nano",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-code-2",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-code-3",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-finance-2",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-large-2",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-large-2-instruct",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-law-2",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-multilingual-2",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-multimodal-3",
+      "providerId": "voyageai"
+    },
+    {
+      "modelId": "voyage-multimodal-3-5",
+      "providerId": "voyageai"
+    },
+    {
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -19876,5 +22283,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "18d91a1d8c8707c9"
+  "version": "d377116a5efd650c"
 }

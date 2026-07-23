@@ -9,7 +9,7 @@ import {
 } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
 import { toast } from '@renderer/services/toast'
 import type { Provider } from '@shared/data/types/provider'
-import { canManageProvider, isAgentSupportedProvider } from '@shared/utils/provider'
+import { canManageProvider } from '@shared/utils/provider'
 import { Plus } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -113,9 +113,6 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
       if (filterMode === 'disabled' && provider.isEnabled) {
         return false
       }
-      if (filterMode === 'agent' && !isAgentSupportedProvider(provider)) {
-        return false
-      }
       const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
       return matchKeywordsInProvider(keywords, provider, providerModelsIndex?.get(provider.id))
     })
@@ -209,15 +206,11 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
 
   const handleSubmitEditor = useCallback(
     async (providerInput: SubmitProviderEditorParams) => {
-      const result = await submitEditor(providerInput)
-
-      if (result.notice === 'create-logo-save-failed') {
-        toast.error(t('message.error.save_provider_logo'))
-      } else if (result.notice === 'update-logo-save-failed') {
-        toast.error(t('message.error.update_provider_logo'))
-      }
+      // Logo now saves atomically with the provider row, so any failure rejects
+      // here and is surfaced by the drawer's submit catch — no separate notice.
+      await submitEditor(providerInput)
     },
-    [submitEditor, t]
+    [submitEditor]
   )
 
   const handleDeleteProvider = useCallback(
@@ -289,7 +282,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
             filterMode={filterMode}
             disabled={dragging}
             triggerClassName={providerListClasses.searchInlineAddButton}
-            triggerIconSize={13}
+            triggerIconSize={12}
             onFilterChange={setFilterMode}
           />
         }

@@ -58,7 +58,7 @@ const SelectionAssistantSettings: FC = () => {
   // force disable selection assistant on non-windows systems
   useEffect(() => {
     const checkMacProcessTrust = async () => {
-      const isTrusted = await window.api.mac.isProcessTrusted()
+      const isTrusted = await ipcApi.request('system.mac.is_process_trusted')
       if (!isTrusted) {
         void setSelectionEnabled(false)
       }
@@ -82,7 +82,7 @@ const SelectionAssistantSettings: FC = () => {
     if (!isSupportedOS) return
 
     if (isMac && checked) {
-      const isTrusted = await window.api.mac.isProcessTrusted()
+      const isTrusted = await ipcApi.request('system.mac.is_process_trusted')
       if (!isTrusted) {
         setIsMacTrustModalOpen(true)
         return
@@ -101,7 +101,9 @@ const SelectionAssistantSettings: FC = () => {
             <button
               type="button"
               className="cursor-pointer border-0 bg-transparent p-0 font-normal text-link text-xs hover:text-link-hover hover:underline"
-              onClick={() => window.api.openWebsite('https://github.com/CherryHQ/cherry-studio/issues/6505')}>
+              onClick={() =>
+                ipcApi.request('system.shell.open_website', 'https://github.com/CherryHQ/cherry-studio/issues/6505')
+              }>
               {'FAQ & ' + t('settings.about.feedback.button')}
             </button>
           </div>
@@ -147,10 +149,7 @@ const SelectionAssistantSettings: FC = () => {
                   </SettingDescription>
                   <ChecklistItem style={{ marginTop: 6 }}>
                     {linuxEnvInfo.isLinuxXWaylandMode ? (
-                      <CircleCheck
-                        size={13}
-                        style={{ color: 'var(--color-success-base)', marginRight: 6, flexShrink: 0 }}
-                      />
+                      <CircleCheck size={13} style={{ color: 'var(--color-success)', marginRight: 6, flexShrink: 0 }} />
                     ) : (
                       <CircleX size={13} style={{ color: 'var(--color-error-base)', marginRight: 6, flexShrink: 0 }} />
                     )}
@@ -163,10 +162,7 @@ const SelectionAssistantSettings: FC = () => {
                   </ChecklistItem>
                   <ChecklistItem>
                     {linuxEnvInfo.hasLinuxInputDeviceAccess ? (
-                      <CircleCheck
-                        size={13}
-                        style={{ color: 'var(--color-success-base)', marginRight: 6, flexShrink: 0 }}
-                      />
+                      <CircleCheck size={13} style={{ color: 'var(--color-success)', marginRight: 6, flexShrink: 0 }} />
                     ) : (
                       <CircleX size={13} style={{ color: 'var(--color-error-base)', marginRight: 6, flexShrink: 0 }} />
                     )}

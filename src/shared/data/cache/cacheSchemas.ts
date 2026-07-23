@@ -18,7 +18,7 @@ import type * as CacheValueTypes from './cacheValueTypes'
  * - Template placeholders `${xxx}` are treated as literal string segments
  *
  * Examples:
- * - 'app.user.avatar' (valid)
+ * - 'app.path.resources' (valid)
  * - 'chat.multi_select_mode' (valid)
  * - 'scroll.position.${topicId}' (valid template key)
  * - 'userAvatar' (invalid - missing dot separator)
@@ -59,7 +59,7 @@ import type * as CacheValueTypes from './cacheValueTypes'
  * ```typescript
  * type Test1 = IsTemplateKey<'scroll.position.${id}'>     // true
  * type Test2 = IsTemplateKey<'entity.cache.${a}_${b}'>    // true
- * type Test3 = IsTemplateKey<'app.user.avatar'>           // false
+ * type Test3 = IsTemplateKey<'app.path.resources'>           // false
  * ```
  */
 export type IsTemplateKey<K extends string> = K extends `${string}\${${string}}${string}` ? true : false
@@ -82,8 +82,8 @@ export type IsTemplateKey<K extends string> = K extends `${string}\${${string}}$
  * type Test2 = ExpandTemplateKey<'entity.cache.${type}_${id}'>
  * // Result: `entity.cache.${string}_${string}` (matches 'entity.cache.user_123', etc.)
  *
- * type Test3 = ExpandTemplateKey<'app.user.avatar'>
- * // Result: 'app.user.avatar' (unchanged for non-template keys)
+ * type Test3 = ExpandTemplateKey<'app.path.resources'>
+ * // Result: 'app.path.resources' (unchanged for non-template keys)
  * ```
  */
 export type ExpandTemplateKey<T extends string> = T extends `${infer Prefix}\${${string}}${infer Suffix}`
@@ -102,7 +102,7 @@ export type ExpandTemplateKey<T extends string> = T extends `${infer Prefix}\${$
  * @example
  * ```typescript
  * type Test1 = ProcessKey<'scroll.position.${id}'>  // `scroll.position.${string}`
- * type Test2 = ProcessKey<'app.user.avatar'>        // 'app.user.avatar'
+ * type Test2 = ProcessKey<'app.path.resources'>        // 'app.path.resources'
  * ```
  */
 export type ProcessKey<K extends string> = IsTemplateKey<K> extends true ? ExpandTemplateKey<K> : K
@@ -114,7 +114,6 @@ export type ProcessKey<K extends string> = IsTemplateKey<K> extends true ? Expan
 export type UseCacheSchema = {
   // App state
   'app.dist.update_state': CacheValueTypes.CacheAppUpdateState
-  'app.user.avatar': string
 
   'app.path.resources': string
 
@@ -197,7 +196,6 @@ export const DefaultUseCache: UseCacheSchema = {
     ignore: false,
     manualCheck: false
   },
-  'app.user.avatar': '',
   'app.path.resources': '',
   // Chat context
   'chat.multi_select_mode': false,
@@ -275,6 +273,12 @@ export type SharedCacheSchema = {
   // a concrete job exists. Renderer treats null as cache miss.
   'jobs.state.${jobId}': JobSnapshot | null
   'jobs.progress.${jobId}': JobProgress
+  // Embedding batch progress for a knowledge item, main → all windows. Purely
+  // in-memory: created by the index-documents job only when it actually embeds
+  // chunks (subscribers read-only via useSharedCacheValue), kept TTL-free while
+  // active, then left to linger under a short TTL after the job exits so the
+  // polled item status can reach its terminal state before the value vanishes.
+  'knowledge.item.embedding_progress.${itemId}': number | null
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
@@ -294,7 +298,8 @@ export const DefaultSharedCache: SharedCacheSchema = {
   // Template defaults are placeholders never consumed at runtime — concrete
   // keys are populated by JobManager when actual jobs exist.
   'jobs.state.${jobId}': null,
-  'jobs.progress.${jobId}': { progress: 0 }
+  'jobs.progress.${jobId}': { progress: 0 },
+  'knowledge.item.embedding_progress.${itemId}': null
 }
 
 /**
@@ -308,9 +313,13 @@ export type RendererPersistCacheSchema = {
   'ui.sidebar.width': number
   'ui.chat.sidebar.width': number
   'ui.chat.artifact_pane.width': number
+  // Recent composer inputs shared by chat and agent surfaces (MRU order, capped by the consumer)
+  'ui.composer.input_history': string[]
   'ui.chat.last_used_assistant_id': string | null
   'ui.chat.last_used_topic_id': string | null
-  'ui.chat.right_pane_open': boolean
+  // Per-surface classic-layout right-pane override. Null delegates to the page's position-derived
+  // default; booleans preserve an explicit user choice across page re-entry.
+  'ui.chat.right_pane_open_override': boolean | null
   // Sidebar section/group collapse — one fixed key per display mode so toggling a group in one
   // mode never re-writes the others (avoids the whole-blob cross-mode/cross-window clobber).
   // Stores the flat list of collapsed section/group ids; empty = everything expanded.
@@ -320,16 +329,16 @@ export type RendererPersistCacheSchema = {
   'ui.agent.last_used_session_id': string | null
   'ui.agent.last_used_agent_id': string | null
   'ui.agent.last_used_workspace_id': string | null
-  // Per-surface classic-layout right-pane open state (the agent counterpart of
-  // 'ui.chat.right_pane_open'); kept separate so the assistant and agent surfaces don't bleed.
-  'ui.agent.right_pane_open': boolean
+  // Kept separate so the assistant and agent surfaces don't bleed into each other.
+  'ui.agent.right_pane_open_override': boolean | null
   'ui.agent.session.expansion.time': string[]
   'ui.agent.session.expansion.agent': string[] | null
   'ui.agent.session.expansion.workdir': string[] | null
   'settings.provider.last_selected_provider_id': string | null
-  'settings.provider.openai.alert.dismissed': boolean
   'feature.mcp.is_uv_installed': boolean
   'feature.mcp.is_bun_installed': boolean
+  // MCP marketplace "available servers" fetched per provider; re-fetchable, so cached not stored
+  'feature.mcp.provider_available_servers': CacheValueTypes.McpAvailableServers
   'agent.open_external_app.last_used_target': CacheValueTypes.AgentOpenExternalAppTarget
   // Recently picked emojis (MRU order, capped to 32) shown at the top of the shared emoji picker
   'ui.emoji.recently_used': string[]
@@ -342,22 +351,23 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.sidebar.width': 50, // keep in sync with SIDEBAR_ICON_WIDTH (renderer Sidebar/constants.ts)
   'ui.chat.sidebar.width': 275,
   'ui.chat.artifact_pane.width': 460,
+  'ui.composer.input_history': [],
   'ui.chat.last_used_assistant_id': null,
   'ui.chat.last_used_topic_id': null,
-  'ui.chat.right_pane_open': false,
+  'ui.chat.right_pane_open_override': null,
   'ui.topic.expansion.time': [],
   'ui.topic.expansion.assistant': null,
   'ui.agent.last_used_session_id': null,
   'ui.agent.last_used_agent_id': null,
   'ui.agent.last_used_workspace_id': null,
-  'ui.agent.right_pane_open': false,
+  'ui.agent.right_pane_open_override': null,
   'ui.agent.session.expansion.time': [],
   'ui.agent.session.expansion.agent': null,
   'ui.agent.session.expansion.workdir': null,
   'settings.provider.last_selected_provider_id': null,
-  'settings.provider.openai.alert.dismissed': false,
   'feature.mcp.is_uv_installed': false,
   'feature.mcp.is_bun_installed': false,
+  'feature.mcp.provider_available_servers': {},
   'agent.open_external_app.last_used_target': null,
   'ui.emoji.recently_used': []
 }
@@ -424,7 +434,7 @@ export type InferSharedCacheValue<K extends string> = {
  * Key type for memory cache (supports both fixed and template keys).
  *
  * This type expands all schema keys using ProcessKey, which:
- * - Keeps fixed keys unchanged (e.g., 'app.user.avatar')
+ * - Keeps fixed keys unchanged (e.g., 'app.path.resources')
  * - Expands template keys to match patterns (e.g., 'scroll.position.${id}' -> `scroll.position.${string}`)
  *
  * The resulting union type allows TypeScript to accept any concrete key
@@ -433,13 +443,13 @@ export type InferSharedCacheValue<K extends string> = {
  * @example
  * ```typescript
  * // Given schema:
- * // 'app.user.avatar': string
+ * // 'app.path.resources': string
  * // 'scroll.position.${topicId}': number
  *
- * // UseCacheKey becomes: 'app.user.avatar' | `scroll.position.${string}`
+ * // UseCacheKey becomes: 'app.path.resources' | `scroll.position.${string}`
  *
  * // Valid keys:
- * const k1: UseCacheKey = 'app.user.avatar'       // fixed key
+ * const k1: UseCacheKey = 'app.path.resources'       // fixed key
  * const k2: UseCacheKey = 'scroll.position.123'   // matches template
  * const k3: UseCacheKey = 'scroll.position.abc'   // matches template
  *
@@ -470,10 +480,10 @@ export type UseCacheKey = {
  * @example
  * ```typescript
  * // Given schema:
- * // 'app.user.avatar': string
+ * // 'app.path.resources': string
  * // 'scroll.position.${topicId}': number
  *
- * type T1 = InferUseCacheValue<'app.user.avatar'>       // string
+ * type T1 = InferUseCacheValue<'app.path.resources'>       // string
  * type T2 = InferUseCacheValue<'scroll.position.123'>   // number
  * type T3 = InferUseCacheValue<'scroll.position.abc'>   // number
  * type T4 = InferUseCacheValue<'unknown.key'>           // never
@@ -497,11 +507,11 @@ export type InferUseCacheValue<K extends string> = {
  * @example
  * ```typescript
  * // Given schema:
- * // 'app.user.avatar': string
+ * // 'app.path.resources': string
  * // 'scroll.position.${topicId}': number
  *
  * // These cause compile-time errors (key matches schema):
- * getCasual('app.user.avatar')        // Error: never
+ * getCasual('app.path.resources')        // Error: never
  * getCasual('scroll.position.123')    // Error: never (matches template)
  *
  * // These are allowed (key doesn't match any schema pattern):

@@ -1,8 +1,8 @@
 import { Avatar, AvatarFallback } from '@cherrystudio/ui/components/primitives/avatar'
 import { cn } from '@cherrystudio/ui/lib/utils'
 
-import { OpenCode as OpenCodeGeneral } from '../../general/open-code'
 import { type IconAvatarProps } from '../../types'
+import { OpenCodeGoLight } from './light'
 
 export function OpenCodeGoAvatar({ size = 32, shape = 'circle', className }: Omit<IconAvatarProps, 'icon'>) {
   return (
@@ -10,7 +10,7 @@ export function OpenCodeGoAvatar({ size = 32, shape = 'circle', className }: Omi
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground bg-background">
-        <OpenCodeGeneral style={{ width: size * 0.7, height: size * 0.7 }} />
+        <OpenCodeGoLight style={{ width: size, height: size }} />
       </AvatarFallback>
     </Avatar>
   )

@@ -104,7 +104,7 @@ const HeaderNavbar = ({
         return
       }
       const fileName = activeNode.name.replace('.md', '')
-      await window.api.export.toWord(content, fileName)
+      await ipcApi.request('export.word.from_markdown', { markdown: content, fileName })
     } catch (error) {
       logger.error('Failed to export to Word:', error as Error)
       toast.error(t('notes.export_to_word_failed'))
@@ -298,14 +298,18 @@ const HeaderNavbar = ({
       <RowFlex className="flex-[0_0_auto] items-center">
         {showWorkspace && (
           <Tooltip title={t('navbar.hide_sidebar')} delay={800}>
-            <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-icon" onClick={handleToggleShowWorkspace}>
+            <BaseNavbarIcon
+              className="[&_svg]:size-4.5 [&_svg]:text-foreground-secondary"
+              onClick={handleToggleShowWorkspace}>
               <PanelLeftClose size={18} />
             </BaseNavbarIcon>
           </Tooltip>
         )}
         {!showWorkspace && (
           <Tooltip title={t('navbar.show_sidebar')} delay={800} placement="right">
-            <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-icon" onClick={handleToggleShowWorkspace}>
+            <BaseNavbarIcon
+              className="[&_svg]:size-4.5 [&_svg]:text-foreground-secondary"
+              onClick={handleToggleShowWorkspace}>
               <PanelRightClose size={18} />
             </BaseNavbarIcon>
           </Tooltip>
@@ -360,7 +364,7 @@ const HeaderNavbar = ({
         {canShowStarButton && (
           <Tooltip title={activeNode.isStarred ? t('notes.unstar') : t('notes.star')} delay={800}>
             <div
-              className="flex h-7.5 cursor-pointer flex-row items-center justify-center rounded-lg px-1.75 transition-all duration-200 ease-in-out [-webkit-app-region:none] hover:bg-muted [&_svg]:text-icon"
+              className="flex h-7.5 cursor-pointer flex-row items-center justify-center rounded-lg px-1.75 transition-all duration-200 ease-in-out [-webkit-app-region:none] hover:bg-muted [&_svg]:text-foreground-secondary"
               onClick={handleToggleStarred}>
               {activeNode.isStarred ? (
                 <Star size={18} fill="var(--color-warning-base)" stroke="var(--color-warning-base)" />
@@ -374,7 +378,7 @@ const HeaderNavbar = ({
           <PopoverTrigger asChild>
             <div>
               <Tooltip title={t('notes.settings.title')} delay={800}>
-                <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-icon">
+                <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-foreground-secondary">
                   <MoreHorizontal size={18} />
                 </BaseNavbarIcon>
               </Tooltip>

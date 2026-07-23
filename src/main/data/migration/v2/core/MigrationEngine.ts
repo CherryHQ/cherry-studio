@@ -18,7 +18,13 @@ import {
   assistantMcpServerTable
 } from '@data/db/schemas/assistantRelations'
 import { fileEntryTable } from '@data/db/schemas/file'
-import { chatMessageFileRefTable, paintingFileRefTable } from '@data/db/schemas/fileRelations'
+import {
+  chatMessageFileRefTable,
+  miniAppLogoFileRefTable,
+  paintingFileRefTable,
+  providerLogoFileRefTable
+} from '@data/db/schemas/fileRelations'
+import { groupTable } from '@data/db/schemas/group'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { messageTable } from '@data/db/schemas/message'
@@ -28,6 +34,7 @@ import { paintingTable } from '@data/db/schemas/painting'
 import { pinTable } from '@data/db/schemas/pin'
 import { preferenceTable } from '@data/db/schemas/preference'
 import { promptTable } from '@data/db/schemas/prompt'
+import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { topicTable } from '@data/db/schemas/topic'
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
 import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
@@ -329,6 +336,8 @@ export class MigrationEngine {
     // Order matters: child tables must be cleared before parent tables
     const tables = [
       { table: pinTable, name: 'pin' },
+      { table: entityTagTable, name: 'entity_tag' },
+      { table: tagTable, name: 'tag' },
       { table: userModelTable, name: 'user_model' }, // Must clear before user_provider
       { table: userProviderTable, name: 'user_provider' },
       { table: messageTable, name: 'message' }, // Must clear before topic (FK reference)
@@ -345,6 +354,7 @@ export class MigrationEngine {
       { table: translateLanguageTable, name: 'translate_language' },
       { table: knowledgeItemTable, name: 'knowledge_item' }, // Must clear before knowledge_base (FK reference)
       { table: knowledgeBaseTable, name: 'knowledge_base' },
+      { table: groupTable, name: 'group' }, // Shared parent: topic/assistant/knowledge_base cleared above
       { table: promptTable, name: 'prompt' },
       // Agents-domain tables — child → parent order
       { table: agentSessionMessageTable, name: 'agent_session_message' },
@@ -360,6 +370,8 @@ export class MigrationEngine {
       // File-domain tables. Migration runs with FK checks disabled, but keep ref tables before file_entry for readability.
       { table: chatMessageFileRefTable, name: 'chat_message_file_ref' },
       { table: paintingFileRefTable, name: 'painting_file_ref' },
+      { table: providerLogoFileRefTable, name: 'provider_logo_file_ref' },
+      { table: miniAppLogoFileRefTable, name: 'mini_app_logo_file_ref' },
       { table: fileEntryTable, name: 'file_entry' }
     ]
 

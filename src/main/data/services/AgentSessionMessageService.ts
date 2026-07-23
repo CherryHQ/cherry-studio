@@ -257,7 +257,7 @@ export class AgentSessionMessageService {
       searchableText: row.searchableText,
       status: row.status as AgentSessionMessageEntity['status'],
       modelId: row.modelId,
-      modelSnapshot: row.modelSnapshot,
+      messageSnapshot: row.messageSnapshot,
       stats: row.stats,
       runtimeResumeToken: row.runtimeResumeToken,
       createdAt: timestampToISO(row.createdAt),
@@ -288,6 +288,25 @@ export class AgentSessionMessageService {
       })
       throw error
     }
+  }
+
+  /**
+   * Every external runtime session id (resume token) still referenced by a message row, as one
+   * set. The sweeper materializes this once per pass and probes it in memory rather than issuing an
+   * unindexed lookup per on-disk token (`runtime_resume_token` is not indexed).
+   */
+  getReferencedRuntimeResumeTokens(): Set<string> {
+    const database = application.get('DbService').getDb()
+    const rows = database
+      .selectDistinct({ runtimeResumeToken: sessionMessagesTable.runtimeResumeToken })
+      .from(sessionMessagesTable)
+      .where(isNotNull(sessionMessagesTable.runtimeResumeToken))
+      .all()
+    const tokens = new Set<string>()
+    for (const row of rows) {
+      if (row.runtimeResumeToken) tokens.add(row.runtimeResumeToken)
+    }
+    return tokens
   }
 
   // ── Persistence methods ──────────────────────────────────────────
@@ -326,7 +345,8 @@ export class AgentSessionMessageService {
       const runtimeResumeTokenToPersist = runtimeResumeToken ?? existingRow.runtimeResumeToken ?? null
       const updatedAtMs = timestampMs
       const modelId = message.modelId === undefined ? existingRow.modelId : message.modelId
-      const modelSnapshot = message.modelSnapshot === undefined ? existingRow.modelSnapshot : message.modelSnapshot
+      const messageSnapshot =
+        message.messageSnapshot === undefined ? existingRow.messageSnapshot : message.messageSnapshot
       const stats = message.stats === undefined ? existingRow.stats : message.stats
 
       withSqliteErrors(
@@ -338,7 +358,7 @@ export class AgentSessionMessageService {
               status,
               data: message.data,
               modelId,
-              modelSnapshot,
+              messageSnapshot,
               stats,
               runtimeResumeToken: runtimeResumeTokenToPersist,
               updatedAt: updatedAtMs
@@ -355,7 +375,7 @@ export class AgentSessionMessageService {
         data: message.data,
         searchableText: existingRow.searchableText,
         modelId,
-        modelSnapshot,
+        messageSnapshot,
         stats,
         runtimeResumeToken: runtimeResumeTokenToPersist,
         updatedAt: updatedAtMs
@@ -369,7 +389,7 @@ export class AgentSessionMessageService {
       status,
       data: message.data,
       modelId: message.modelId,
-      modelSnapshot: message.modelSnapshot,
+      messageSnapshot: message.messageSnapshot,
       stats: message.stats,
       runtimeResumeToken,
       createdAt: timestampMs,

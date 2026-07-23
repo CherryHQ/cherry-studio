@@ -21,7 +21,12 @@ import type {
   ReasoningEffort as ReasoningEffortType
 } from '@cherrystudio/provider-registry'
 import type { EndpointType, Modality, ModelCapability } from '@cherrystudio/provider-registry'
-import { buildRuntimeEndpointConfigs, ENDPOINT_TYPE, REASONING_EFFORT } from '@cherrystudio/provider-registry'
+import {
+  buildRuntimeEndpointConfigs,
+  ENDPOINT_TYPE,
+  inferAdapterFamily,
+  REASONING_EFFORT
+} from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { loggerService } from '@logger'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
@@ -40,6 +45,8 @@ export interface ProviderDisplayMetadata {
   modelListSource?: 'api' | 'registry'
   /** Registry capability: accepted credential kinds (default `['api-key']`). */
   authMethods?: ('api-key' | 'oauth' | 'external-cli')[]
+  /** Registry capability: serves requests without any credential (default false). */
+  authOptional?: boolean
 }
 
 export interface ListProviderRegistryModelsOptions {
@@ -416,6 +423,30 @@ class ProviderRegistryService {
       .find((provider) => provider.id === providerId)
   }
 
+  resolveAdapterFamilies(
+    endpointConfigs: Partial<Record<EndpointType, EndpointConfig>> | null | undefined,
+    presetProviderId?: string | null
+  ): Partial<Record<EndpointType, EndpointConfig>> | null {
+    if (!endpointConfigs || Object.keys(endpointConfigs).length === 0) return null
+
+    const presetProvider = presetProviderId ? this.findRegistryProvider(presetProviderId) : undefined
+    const presetConfigs = presetProvider
+      ? (buildRuntimeEndpointConfigs(presetProvider.endpointConfigs) as Partial<
+          Record<EndpointType, EndpointConfig>
+        > | null)
+      : null
+
+    const result: Partial<Record<EndpointType, EndpointConfig>> = {}
+    for (const [key, config] of Object.entries(endpointConfigs)) {
+      if (!config) continue
+      const ep = key as EndpointType
+      result[ep] = config.adapterFamily
+        ? config
+        : { ...config, adapterFamily: presetConfigs?.[ep]?.adapterFamily ?? inferAdapterFamily(ep) }
+    }
+    return result
+  }
+
   /**
    * True when `providerId` is a canonical registry preset row (seeded from
    * providers.json), regardless of its `presetProviderId`. Used to keep
@@ -443,7 +474,8 @@ class ProviderRegistryService {
         description: provider?.description,
         websites: provider?.metadata?.website,
         modelListSource: provider?.modelListSource,
-        authMethods: provider?.authMethods
+        authMethods: provider?.authMethods,
+        authOptional: provider?.authOptional
       }
     } catch (error) {
       logger.warn('Failed to load provider display metadata', { providerId, presetProviderId, error })

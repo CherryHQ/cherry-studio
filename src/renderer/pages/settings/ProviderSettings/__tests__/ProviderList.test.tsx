@@ -130,6 +130,9 @@ const { confirmActionShow } = vi.hoisted(() => ({
 }))
 vi.mock('@renderer/components/popups/ConfirmActionPopup', () => ({ default: { show: confirmActionShow } }))
 
+const { ipcRequest } = vi.hoisted(() => ({ ipcRequest: vi.fn() }))
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequest }, useIpcOn: vi.fn() }))
+
 describe('ProviderList', () => {
   const providers = [
     {
@@ -199,10 +202,9 @@ describe('ProviderList', () => {
       configurable: true,
       value: vi.fn()
     })
-    ;(window as any).api = {
-      ...(window as any).api,
-      getAppInfo: vi.fn().mockResolvedValue({ appDataPath: '' })
-    }
+    ipcRequest.mockImplementation((route: string) =>
+      route === 'app.get_info' ? Promise.resolve({ appDataPath: '' }) : Promise.resolve(undefined)
+    )
   })
 
   it('filters providers by search text and forwards selection', () => {
@@ -319,7 +321,8 @@ describe('ProviderList', () => {
     const addButtons = screen.getAllByRole('button', { name: '添加服务商' })
     const [topAddButton, bottomAddButton] = addButtons
     const filterButton = screen.getByRole('button', { name: '筛选服务商' })
-    const searchWrap = screen.getByPlaceholderText('搜索模型平台...').closest('div')
+    const searchInput = screen.getByPlaceholderText('搜索模型平台...')
+    const searchWrap = searchInput.closest('div')
     const firstProvider = screen.getByTestId('provider-list-item-openai')
     const lastProvider = screen.getByTestId('provider-list-item-anthropic')
 
@@ -328,9 +331,12 @@ describe('ProviderList', () => {
     expect(lastProvider.compareDocumentPosition(bottomAddButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(topAddButton).toHaveClass('h-8', 'w-full', 'border-dashed')
     expect(bottomAddButton).toHaveClass('h-8', 'w-full', 'border-dashed')
-    expect(searchWrap).toHaveClass('h-9')
+    expect(searchWrap).toHaveClass('h-8')
+    expect(searchInput).toHaveClass('text-xs')
+    expect(searchWrap?.querySelector('svg')).toHaveClass('mr-0.5', 'size-3.5')
     expect(searchWrap).toContainElement(filterButton)
     expect(filterButton).toHaveClass('size-[22px]')
+    expect(filterButton.querySelector('svg')).toHaveAttribute('width', '12')
     expect(filterButton).not.toHaveClass('bg-primary/10')
     expect(filterButton.querySelector('svg')).toHaveClass('text-muted-foreground/60')
   })
@@ -381,7 +387,7 @@ describe('ProviderList', () => {
 
     expect(screen.getByText('OpenAI')).toBeInTheDocument()
     expect(screen.getByText('Anthropic')).toBeInTheDocument()
-    expect(screen.queryByText('Gemini')).not.toBeInTheDocument()
+    expect(screen.getByText('Gemini')).toBeInTheDocument()
     const filterButton = screen.getByRole('button', { name: '筛选服务商' })
     expect(filterButton).not.toHaveClass('bg-primary/10')
     expect(filterButton.querySelector('svg')).toHaveClass('text-primary!')

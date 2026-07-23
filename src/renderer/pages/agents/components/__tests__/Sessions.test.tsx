@@ -266,6 +266,7 @@ const tabsContextMocks = vi.hoisted(() => ({
   setActiveTab: vi.fn(),
   tabs: [] as Array<{ id: string; type: string; url: string }>
 }))
+const windowFrameMocks = vi.hoisted(() => ({ mode: 'embedded' as 'embedded' | 'window' }))
 
 const dataApiMocks = vi.hoisted(() => ({
   deleteAgent: vi.fn().mockResolvedValue(undefined),
@@ -332,6 +333,10 @@ vi.mock('@renderer/hooks/tab', () => ({
   useCloseConversationTabs: () => tabsContextMocks.closeConversationTabs,
   useOptionalTabsContext: () => tabsContextMocks,
   useCurrentTabId: () => null
+}))
+
+vi.mock('@renderer/hooks/useWindowFrame', () => ({
+  useWindowFrame: () => ({ mode: windowFrameMocks.mode })
 }))
 
 vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
@@ -490,7 +495,7 @@ vi.mock('react-i18next', () => ({
         'agent.session.display.title': 'Display mode',
         'agent.session.display.workdir': 'Work directory',
         'agent.session.empty.description': 'Tasks will appear here after you start one.',
-        'agent.session.empty.title': 'No tasks yet',
+        'agent.session.empty.title': 'No tasks',
         'agent.manage.title': 'Manage Agents',
         'agent.delete.content': 'Delete this agent and its tasks?',
         'agent.delete.error.failed': 'Failed to delete agent',
@@ -517,7 +522,6 @@ vi.mock('react-i18next', () => ({
         'agent.session.group.yesterday': 'Yesterday',
         'agent.session.list.title': 'Tasks',
         'agent.session.new': 'New task',
-        'agent.skill.manage.title': 'Manage skills',
         'agent.pin.title': 'Pin Agent',
         'agent.session.pin.title': 'Pin task',
         'agent.session.reorder.error.failed': 'Failed to reorder tasks',
@@ -802,6 +806,7 @@ describe('Sessions', () => {
     })
     vi.clearAllMocks()
     tabsContextMocks.openTab.mockClear()
+    windowFrameMocks.mode = 'embedded'
   })
 
   afterEach(() => {
@@ -961,8 +966,22 @@ describe('Sessions', () => {
 
     render(<SessionsForTest onCreateSession={onCreateSession} />)
 
-    expect(screen.getByText('No tasks yet')).toBeInTheDocument()
-    expect(screen.getByText('Tasks will appear here after you start one.')).toBeInTheDocument()
+    const emptyStateText = screen.getByText('No tasks')
+
+    expect(emptyStateText).toHaveClass(
+      'h-full',
+      'w-full',
+      'max-w-sm',
+      'px-5',
+      'py-10',
+      'text-center',
+      'text-xs',
+      'text-muted-foreground',
+      'break-words'
+    )
+    expect(screen.queryByRole('heading', { name: 'No tasks' })).not.toBeInTheDocument()
+    expect(emptyStateText.querySelector('svg')).not.toBeInTheDocument()
+    expect(screen.queryByText('Tasks will appear here after you start one.')).not.toBeInTheDocument()
     expect(getHeaderNewTaskButton()).toBeInTheDocument()
     expect(onCreateSession).not.toHaveBeenCalled()
   })
@@ -1342,7 +1361,7 @@ describe('Sessions', () => {
     expect(screen.getByText('Alpha session').closest('[role="option"]')).not.toHaveAttribute('data-selected')
   })
 
-  it('shows the skill resource menu entry with agent management in the display menu', () => {
+  it('keeps Skill management out of the display menu', () => {
     const onManageAgents = vi.fn()
     const onManageSkills = vi.fn()
     setupSessions({
@@ -1369,9 +1388,8 @@ describe('Sessions', () => {
     expect(screen.queryByRole('button', { name: 'Manage skills' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
     expect(screen.getByRole('button', { name: 'Manage Agents' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Manage skills' }))
-
-    expect(onManageSkills).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: 'Manage skills' })).not.toBeInTheDocument()
+    expect(onManageSkills).not.toHaveBeenCalled()
     expect(onManageAgents).not.toHaveBeenCalled()
   })
 
@@ -1788,6 +1806,19 @@ describe('Sessions', () => {
     })
   })
 
+  it('hides session position actions when pane position is controlled without a setter', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'agent')
+    render(<SessionsForTest panePosition="left" />)
+
+    fireEvent.contextMenu(screen.getByText('Alpha session'))
+    const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+
+    expect(menuContent ?? null).toBeInTheDocument()
+    expect(menuContent).not.toHaveTextContent('Session position')
+    expect(preferenceMocks.setPreference).not.toHaveBeenCalledWith('agent.session.position', expect.anything())
+  })
+
   it('hides topic position actions from the workdir-mode session context menu', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
     render(<SessionsForTest />)
@@ -1833,6 +1864,18 @@ describe('Sessions', () => {
     const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
 
     expect(menuContent).not.toHaveTextContent('Open in new tab')
+  })
+
+  it('hides open-in-new-tab but keeps open-in-new-window for inactive sessions in a detached window', () => {
+    windowFrameMocks.mode = 'window'
+    render(<SessionsForTest />)
+
+    fireEvent.contextMenu(screen.getByText('Beta session'))
+    const betaMenu = screen.getByText('Beta session').closest('[data-testid="context-menu"]')
+    const menuContent = betaMenu?.querySelector('[data-testid="context-menu-content"]')
+
+    expect(menuContent).not.toHaveTextContent('Open in new tab')
+    expect(menuContent).toHaveTextContent('Open in New Window')
   })
 
   it('hides the inline delete action for pinned sessions', () => {

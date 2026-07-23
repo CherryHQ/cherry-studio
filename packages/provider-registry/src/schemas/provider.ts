@@ -190,6 +190,8 @@ export const RegistryEndpointConfigSchema = z.object({
       default: z.url().optional(),
       /** Embedding models listing endpoint (if separate from default) */
       embedding: z.url().optional(),
+      /** Image models listing endpoint (if separate from default) */
+      image: z.url().optional(),
       /** Reranker models listing endpoint (if separate from default) */
       reranker: z.url().optional()
     })
@@ -246,6 +248,15 @@ export const ProviderConfigSchema = z
      * inputs) is the derived `!includes('api-key')`, not a value of its own.
      */
     authMethods: z.array(z.enum(['api-key', 'oauth', 'external-cli'])).optional(),
+    /**
+     * The provider serves requests without any credential — a local server
+     * (ollama / lmstudio / gpustack / ovms) reachable over a baseUrl with no API
+     * key or login. Drives the "no API key required" guards: model sync, painting
+     * and OpenClaw gating skip the missing-key check. Distinct from login-based
+     * (`authMethods` without `'api-key'`), which also suppresses the host UI — a
+     * local provider still needs its baseUrl input. Defaults false.
+     */
+    authOptional: z.boolean().default(false),
     /** API feature flags controlling request construction */
     apiFeatures: ApiFeaturesSchema.optional(),
     /** Additional metadata including website URLs */

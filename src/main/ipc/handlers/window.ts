@@ -37,5 +37,21 @@ export const windowHandlers: IpcHandlersFor<typeof windowRequestSchemas> = {
   'window.is_full_screen': async (_input, { senderId }) =>
     senderId ? application.get('WindowManager').isFullScreen(senderId) : false,
   'window.get_init_data': async (_input, { senderId }) =>
-    senderId ? application.get('WindowManager').getInitData(senderId) : null
+    senderId ? application.get('WindowManager').getInitData(senderId) : null,
+
+  // Sub-window-only contract: reject unless the caller resolves to a SubWindow-type window
+  // (a non-null senderId is insufficient — the main window must not pin itself).
+  'window.sub.set_always_on_top': async (pinned, { senderId }) =>
+    application.get('SubWindowService').setAlwaysOnTop(senderId, pinned),
+
+  // window.main.* — act on the main-window singleton via MainWindowService, not the caller.
+  'window.main.set_minimum_size': async ({ width, height }) => {
+    application.get('MainWindowService').setMainWindowMinimumSize(width, height)
+  },
+  'window.main.reset_minimum_size': async () => {
+    application.get('MainWindowService').resetMainWindowMinimumSize()
+  },
+  'window.main.reload': async () => {
+    application.get('MainWindowService').reloadMainWindow()
+  }
 }

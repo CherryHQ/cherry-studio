@@ -45,7 +45,7 @@ const REASSERT_TOLERANCE_PX = 2
 // places it at the viewport top, so the spacer is redundant. The threshold is
 // applied as `startMargin + ANCHOR_NEAR_TOP_PX` (see `onContentSizeChange`)
 // because the anchor offset includes `startMargin`; a bare constant would never
-// fire under a tall top inset (e.g. a floating immersive navbar).
+// fire under a tall top inset.
 const ANCHOR_NEAR_TOP_PX = 24
 
 export interface ScrollAnchorInputs {
@@ -72,10 +72,20 @@ export interface ScrollAnchor {
    * rendered (otherwise virtua's scrollSize hasn't extended yet).
    */
   pinTo(dataIndex: number): void
-  /** Release the pin (does not reset spacer height; lets content fill it). */
-  release(): void
-  /** Caller invokes on every observed content size change (ResizeObserver). */
-  onContentSizeChange(): void
+  /**
+   * Release the pin.
+   *
+   * By default the spacer is kept so growing content can fill it without a scroll
+   * jump. Pass `clearSpacer` when the caller has already moved the viewport to the
+   * effective bottom and wants to remove the anchor-created blank range.
+   */
+  release(options?: { clearSpacer?: boolean }): void
+  /**
+   * Caller invokes on every observed content size change (ResizeObserver).
+   * Returns the spacer height scheduled for the next React commit so sibling
+   * synchronous range compensation can account for it without one-frame drift.
+   */
+  onContentSizeChange(): number
   /**
    * Caller invokes on every scroll event with current scrollTop. `isUserInitiated`
    * is REQUIRED (no default) so every call site must declare provenance: pass
@@ -103,6 +113,10 @@ export function useScrollAnchor({
   // chunk (hold it, to avoid jitter).
   const lastPinnedNaturalRef = useRef(0)
   const shouldTightenInitialSpacerRef = useRef(false)
+  // Once user scrolling releases a pin, preserve the combined natural-content
+  // plus spacer size that existed at takeover. Streaming growth consumes this
+  // budget; reversible disclosure growth gives it back when collapsed.
+  const releasedSpacerTargetSizeRef = useRef<number | null>(null)
   const [spacerHeight, setSpacerHeight] = useState(0)
   // The spacer is appended after data items, so wrappedIdx for a data
   // item is identical to its data index. The orchestrator passes us the
@@ -152,6 +166,7 @@ export function useScrollAnchor({
       const el = scrollerRef.current
       const handle = vlistHandleRef.current
       if (!el || !handle) return
+      releasedSpacerTargetSizeRef.current = null
       anchorIndexRef.current = dataIndex
       anchorOffsetRef.current = getAnchorScrollOffset(dataIndex) ?? 0
       // The freshly inserted message may not be measured by virtua yet, so
@@ -181,17 +196,22 @@ export function useScrollAnchor({
     [computeNeededSpacer, getAnchorScrollOffset, getNaturalScrollableSize, scrollerRef, vlistHandleRef]
   )
 
-  const release = useCallback(() => {
+  const release = useCallback((options?: { clearSpacer?: boolean }) => {
     anchorIndexRef.current = null
+    releasedSpacerTargetSizeRef.current = null
     shouldTightenInitialSpacerRef.current = false
-    // Don't reset spacerHeight here — content will grow into it (size-change
-    // handler decays it). Snapping to 0 would jump scrollTop downward.
+    // Default release keeps spacerHeight — content will grow into it (size-change
+    // handler decays it). Only clear it once the caller has clamped to the
+    // effective bottom, where removing the spacer leaves scrollTop valid.
+    if (options?.clearSpacer) {
+      setSpacerHeight((height) => (height === 0 ? height : 0))
+    }
   }, [])
 
   const onContentSizeChange = useCallback(() => {
     const el = scrollerRef.current
     const handle = vlistHandleRef.current
-    if (!el || !handle) return
+    if (!el || !handle) return spacerHeight
 
     if (anchorIndexRef.current != null) {
       // Refresh known anchor offset from virtua's measured table.
@@ -206,13 +226,15 @@ export function useScrollAnchor({
       if (anchorOffsetRef.current <= Math.max(0, startMargin) + ANCHOR_NEAR_TOP_PX) {
         if (spacerHeight !== 0) setSpacerHeight(0)
         anchorIndexRef.current = null
+        releasedSpacerTargetSizeRef.current = null
         shouldTightenInitialSpacerRef.current = false
-        return
+        return 0
       }
       const naturalNow = getNaturalScrollableSize()
       const contentGrew = naturalNow > lastPinnedNaturalRef.current
       lastPinnedNaturalRef.current = naturalNow
       const needed = computeNeededSpacer()
+      let nextSpacerHeight = spacerHeight
       if (needed === 0) {
         // The reply outgrew the space below the pinned message (content fills at
         // least a viewport). Release the pin so the caller can hand the turn over
@@ -220,10 +242,13 @@ export function useScrollAnchor({
         // long reply sticks to the bottom instead of staying frozen at the top.
         if (spacerHeight !== 0) setSpacerHeight(0)
         anchorIndexRef.current = null
+        releasedSpacerTargetSizeRef.current = null
         shouldTightenInitialSpacerRef.current = false
+        nextSpacerHeight = 0
       } else if (needed > spacerHeight) {
         setSpacerHeight(needed)
         shouldTightenInitialSpacerRef.current = false
+        nextSpacerHeight = needed
       } else if (needed < spacerHeight && (!contentGrew || shouldTightenInitialSpacerRef.current)) {
         // Content is stable (a measurement settle, not a streaming chunk): the
         // pin's viewport over-allocation can be tightened to exactly the room
@@ -232,6 +257,7 @@ export function useScrollAnchor({
         // initial full-viewport bootstrap once even if the natural size grew.
         setSpacerHeight(needed)
         shouldTightenInitialSpacerRef.current = false
+        nextSpacerHeight = needed
       } else {
         shouldTightenInitialSpacerRef.current = false
       }
@@ -247,11 +273,22 @@ export function useScrollAnchor({
           el.scrollTop = target
         }
       }
-      return
+      return nextSpacerHeight
     }
 
-    // Not pinned: decay leftover spacer as natural content grows into it.
-    if (spacerHeight > 0) {
+    const releasedTargetSize = releasedSpacerTargetSizeRef.current
+    if (releasedTargetSize != null) {
+      // Preserve one total-size budget while the user owns the released pin.
+      // Persistent stream growth consumes spacer; temporary expansion consumes
+      // it only until the block collapses again. This avoids both lost range and
+      // an ever-growing blank tail.
+      const needed = Math.max(0, releasedTargetSize - getNaturalScrollableSize())
+      if (Math.abs(needed - spacerHeight) > REASSERT_TOLERANCE_PX) {
+        setSpacerHeight(needed)
+      }
+      return needed
+    } else if (spacerHeight > 0) {
+      // Runtime-owned release: decay leftover spacer as natural content grows.
       // Heuristic decay: shrink the spacer by however much the natural
       // (non-spacer) scroll size grew. Read scrollSize once.
       // Since we don't have prev natural recorded here, do simple decay:
@@ -261,8 +298,10 @@ export function useScrollAnchor({
       const wouldBeNeeded = Math.max(0, anchorOffsetRef.current + el.clientHeight - naturalAvailable)
       if (wouldBeNeeded < spacerHeight) {
         setSpacerHeight(wouldBeNeeded)
+        return wouldBeNeeded
       }
     }
+    return spacerHeight
   }, [
     computeNeededSpacer,
     getAnchorScrollOffset,
@@ -299,10 +338,11 @@ export function useScrollAnchor({
       // the pin drop mid-stream and the view run off to follow the bottom.
       const willRelease = deviated && isUserInitiated
       if (willRelease) {
+        releasedSpacerTargetSizeRef.current = spacerHeight > 0 ? getNaturalScrollableSize() + spacerHeight : null
         anchorIndexRef.current = null
       }
     },
-    [getAnchorScrollOffset, smoothScroll]
+    [getAnchorScrollOffset, getNaturalScrollableSize, smoothScroll, spacerHeight]
   )
 
   const isPinned = useCallback(() => anchorIndexRef.current != null, [])

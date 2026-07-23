@@ -8,6 +8,10 @@
           "adapterFamily": "cherryin",
           "baseUrl": "https://open.cherryin.net"
         },
+        "google-generate-content": {
+          "adapterFamily": "cherryin",
+          "baseUrl": "https://open.cherryin.net"
+        },
         "openai-chat-completions": {
           "adapterFamily": "cherryin",
           "baseUrl": "https://open.cherryin.net"
@@ -73,6 +77,7 @@
       "name": "AiHubMix"
     },
     {
+      "authOptional": true,
       "description": "OpenVINO Model Server - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
@@ -386,6 +391,15 @@
         },
         "openai-chat-completions": {
           "adapterFamily": "openrouter",
+          "baseUrl": "https://openrouter.ai/api/v1/",
+          "modelsApiUrls": {
+            "default": "https://openrouter.ai/api/v1/models",
+            "embedding": "https://openrouter.ai/api/v1/embeddings/models",
+            "image": "https://openrouter.ai/api/v1/images/models"
+          }
+        },
+        "openai-image-generation": {
+          "adapterFamily": "openrouter",
           "baseUrl": "https://openrouter.ai/api/v1/"
         }
       },
@@ -401,6 +415,7 @@
       "name": "OpenRouter"
     },
     {
+      "authOptional": true,
       "description": "Ollama - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -450,6 +465,7 @@
       "name": "New API"
     },
     {
+      "authOptional": true,
       "description": "LM Studio - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -1190,6 +1206,7 @@
           "official": "https://cloud.tencent.com/product/tokenhub"
         }
       },
+      "modelListSource": "registry",
       "name": "TokenHub"
     },
     {
@@ -1213,6 +1230,7 @@
       "name": "Baidu Cloud"
     },
     {
+      "authOptional": true,
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "GPUStack - AI model provider",
       "endpointConfigs": {
@@ -1248,6 +1266,7 @@
           "official": "https://www.voyageai.com/"
         }
       },
+      "modelListSource": "registry",
       "name": "VoyageAI"
     },
     {
@@ -1267,6 +1286,7 @@
           "official": "https://aws.amazon.com/bedrock/"
         }
       },
+      "modelListSource": "registry",
       "name": "AWS Bedrock"
     },
     {
@@ -1452,5 +1472,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "92482a2571d2ff1e"
+  "version": "bb6e9936637563cd"
 }

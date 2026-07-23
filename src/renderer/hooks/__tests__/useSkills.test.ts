@@ -3,22 +3,47 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const useQueryMock = vi.hoisted(() => vi.fn())
 const invalidateMock = vi.hoisted(() => vi.fn())
-const uninstallSkillMock = vi.hoisted(() => vi.fn())
 const installSkillMock = vi.hoisted(() => vi.fn())
 const installSkillFromZipMock = vi.hoisted(() => vi.fn())
 const installSkillFromDirectoryMock = vi.hoisted(() => vi.fn())
 const listLocalSkillsMock = vi.hoisted(() => vi.fn())
+const discoverSystemSkillsMock = vi.hoisted(() => vi.fn())
+const importSystemSkillMock = vi.hoisted(() => vi.fn())
+const skillMocks = vi.hoisted(() => ({ request: vi.fn() }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useQuery: useQueryMock,
   useInvalidateCache: () => invalidateMock
 }))
 
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: skillMocks.request } }))
+
+function stubSkillRoutes() {
+  skillMocks.request.mockImplementation((route: string, input: unknown) => {
+    switch (route) {
+      case 'skill.list_local':
+        return listLocalSkillsMock(input)
+      case 'skill.install':
+        return installSkillMock(input)
+      case 'skill.install_from_zip':
+        return installSkillFromZipMock(input)
+      case 'skill.install_from_directory':
+        return installSkillFromDirectoryMock(input)
+      case 'skill.discover_system':
+        return discoverSystemSkillsMock(input)
+      case 'skill.import_system':
+        return importSystemSkillMock(input)
+      default:
+        throw new Error(`Unexpected skill route: ${route}`)
+    }
+  })
+}
+
 import { toast } from '@renderer/services/toast'
-import type { InstalledSkill } from '@shared/types/skill'
+import type { InstalledSkill, SystemSkillCandidate } from '@shared/types/skill'
 
 import { SKILL_SEARCH_FAILED_ERROR } from '../../utils/skillSearch'
-import { useAvailableSkills, useInstalledSkills, useSkillInstall, useSkillSearch } from '../useSkills'
+import { useAvailableSkills, useInstalledSkills, useSkillInstall, useSkillSearch, useSystemSkills } from '../useSkills'
 
 function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
   return {
@@ -58,19 +83,9 @@ describe('useInstalledSkills', () => {
     })
 
     invalidateMock.mockResolvedValue(undefined)
-    uninstallSkillMock.mockResolvedValue({ success: true, data: undefined })
     listLocalSkillsMock.mockResolvedValue({ success: true, data: [] })
 
-    vi.stubGlobal('api', {
-      skill: {
-        uninstall: uninstallSkillMock,
-        listLocal: listLocalSkillsMock
-      }
-    })
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
+    stubSkillRoutes()
   })
 
   it('reads skills with DataApi scoped to the agent', () => {
@@ -80,41 +95,21 @@ describe('useInstalledSkills', () => {
     expect(useQueryMock).toHaveBeenCalledWith('/skills', { enabled: true, query: { agentId: 'agent-1' } })
   })
 
-  it('uninstalls skills through IPC and invalidates DataApi cache', async () => {
-    const { result } = renderHook(() => useInstalledSkills())
-
-    let uninstallSuccess = false
-    await act(async () => {
-      uninstallSuccess = await result.current.uninstall('skill-1')
+  it('keeps cached skills visible during background refresh', () => {
+    useQueryMock.mockReturnValue({
+      data: [createSkill()],
+      isLoading: false,
+      isRefreshing: true,
+      error: undefined,
+      refetch: vi.fn(),
+      mutate: vi.fn()
     })
 
-    expect(uninstallSuccess).toBe(true)
-    expect(uninstallSkillMock).toHaveBeenCalledWith('skill-1')
-    expect(invalidateMock).toHaveBeenCalledWith('/skills')
-  })
-
-  it('does not fail uninstall when DataApi cache invalidation fails after IPC success', async () => {
-    invalidateMock.mockRejectedValueOnce(new Error('refresh failed'))
-    const { result } = renderHook(() => useInstalledSkills())
-
-    let uninstallSuccess = false
-    await act(async () => {
-      uninstallSuccess = await result.current.uninstall('skill-1')
-    })
-
-    expect(uninstallSuccess).toBe(true)
-    expect(uninstallSkillMock).toHaveBeenCalledWith('skill-1')
-    expect(invalidateMock).toHaveBeenCalledWith('/skills')
-  })
-
-  it('logs, toasts, and rethrows uninstall failures', async () => {
     const { result } = renderHook(() => useInstalledSkills('agent-1'))
 
-    uninstallSkillMock.mockResolvedValueOnce({ success: false, error: 'uninstall failed' })
-    await act(async () => {
-      await expect(result.current.uninstall('skill-1')).rejects.toThrow('uninstall failed')
-    })
-    expect(toast.error).toHaveBeenCalledWith('uninstall failed')
+    expect(result.current.loading).toBe(false)
+    expect(result.current.refreshing).toBe(true)
+    expect(result.current.skills).toHaveLength(1)
   })
 
   it('combines enabled installed skills with local workspace skills', async () => {
@@ -136,7 +131,7 @@ describe('useInstalledSkills', () => {
 
     const { result } = renderHook(() => useAvailableSkills('agent-1', '/repo'))
 
-    await waitFor(() => expect(listLocalSkillsMock).toHaveBeenCalledWith('/repo'))
+    await waitFor(() => expect(skillMocks.request).toHaveBeenCalledWith('skill.list_local', { workdir: '/repo' }))
     await waitFor(() => expect(result.current.loading).toBe(false))
 
     expect(result.current.skills).toEqual([
@@ -187,17 +182,7 @@ describe('useSkillInstall', () => {
     installSkillFromZipMock.mockResolvedValue({ success: true, data: createSkill({ id: 'skill-zip' }) })
     installSkillFromDirectoryMock.mockResolvedValue({ success: true, data: createSkill({ id: 'skill-directory' }) })
 
-    vi.stubGlobal('api', {
-      skill: {
-        install: installSkillMock,
-        installFromZip: installSkillFromZipMock,
-        installFromDirectory: installSkillFromDirectoryMock
-      }
-    })
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
+    stubSkillRoutes()
   })
 
   it('installs remote skills through IPC with installSource', async () => {
@@ -208,7 +193,7 @@ describe('useSkillInstall', () => {
       expect(skill?.id).toBe('skill-installed')
     })
 
-    expect(installSkillMock).toHaveBeenCalledWith({ installSource: 'skills.sh:owner/repo/my-skill' })
+    expect(skillMocks.request).toHaveBeenCalledWith('skill.install', { installSource: 'skills.sh:owner/repo/my-skill' })
     expect(invalidateMock).toHaveBeenCalledWith('/skills')
   })
 
@@ -269,7 +254,7 @@ describe('useSkillInstall', () => {
 
     expect(installResult?.skill?.id).toBe('skill-installed')
     expect(installResult?.error).toBeUndefined()
-    expect(installSkillMock).toHaveBeenCalledWith({ installSource: 'skills.sh:owner/repo/my-skill' })
+    expect(skillMocks.request).toHaveBeenCalledWith('skill.install', { installSource: 'skills.sh:owner/repo/my-skill' })
     expect(invalidateMock).toHaveBeenCalledWith('/skills')
   })
 
@@ -281,8 +266,8 @@ describe('useSkillInstall', () => {
       await result.current.installFromDirectory('/tmp/my-skill')
     })
 
-    expect(installSkillFromZipMock).toHaveBeenCalledWith({ zipFilePath: '/tmp/my-skill.zip' })
-    expect(installSkillFromDirectoryMock).toHaveBeenCalledWith({ directoryPath: '/tmp/my-skill' })
+    expect(skillMocks.request).toHaveBeenCalledWith('skill.install_from_zip', { zipFilePath: '/tmp/my-skill.zip' })
+    expect(skillMocks.request).toHaveBeenCalledWith('skill.install_from_directory', { directoryPath: '/tmp/my-skill' })
     expect(invalidateMock).toHaveBeenCalledTimes(2)
     expect(invalidateMock).toHaveBeenCalledWith('/skills')
   })
@@ -301,6 +286,79 @@ describe('useSkillInstall', () => {
       await expect(result.current.installFromDirectory('/tmp/bad-dir')).rejects.toThrow('directory failed')
     })
     expect(toast.error).toHaveBeenCalledWith('directory failed')
+  })
+})
+
+describe('useSystemSkills', () => {
+  const candidate: SystemSkillCandidate = {
+    id: 'candidate-1',
+    name: 'System Skill',
+    description: 'Installed by Codex',
+    filename: 'system-skill',
+    directoryPath: '/home/test/.codex/skills/system-skill',
+    placements: [
+      {
+        sourceId: 'codex',
+        sourceName: 'Codex',
+        directoryPath: '/home/test/.codex/skills/system-skill'
+      }
+    ],
+    status: 'available'
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    invalidateMock.mockResolvedValue(undefined)
+    discoverSystemSkillsMock.mockResolvedValue([candidate])
+    importSystemSkillMock.mockResolvedValue(
+      createSkill({
+        id: 'system-skill-id',
+        name: candidate.name,
+        folderName: candidate.filename,
+        source: 'system',
+        sourceUrl: 'file:///home/test/.codex/skills/system-skill',
+        namespace: 'codex',
+        isEnabled: true
+      })
+    )
+    stubSkillRoutes()
+  })
+
+  it('discovers system skills without an agent scope', async () => {
+    const { result } = renderHook(() => useSystemSkills())
+
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    expect(result.current.skills).toEqual([candidate])
+    expect(skillMocks.request).toHaveBeenCalledWith('skill.discover_system', {})
+  })
+
+  it('imports a system skill without enabling it for an agent', async () => {
+    const { result } = renderHook(() => useSystemSkills())
+    await waitFor(() => expect(result.current.skills).toEqual([candidate]))
+
+    await act(async () => {
+      const installed = await result.current.importSkill(candidate)
+      expect(installed?.id).toBe('system-skill-id')
+    })
+
+    expect(skillMocks.request).toHaveBeenCalledWith('skill.import_system', {
+      directoryPath: candidate.directoryPath
+    })
+    expect(invalidateMock).toHaveBeenCalledWith('/skills')
+  })
+
+  it('does not re-import an already imported system skill', async () => {
+    const registered = { ...candidate, status: 'registered' as const, registeredSkillId: 'system-skill-id' }
+    discoverSystemSkillsMock.mockResolvedValue([registered])
+    const { result } = renderHook(() => useSystemSkills())
+    await waitFor(() => expect(result.current.skills).toEqual([registered]))
+
+    await act(async () => {
+      await expect(result.current.importSkill(registered)).resolves.toBeNull()
+    })
+
+    expect(importSystemSkillMock).not.toHaveBeenCalled()
   })
 })
 

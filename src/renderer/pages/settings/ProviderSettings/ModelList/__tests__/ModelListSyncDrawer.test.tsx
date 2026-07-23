@@ -36,9 +36,17 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   }
 })
 
+vi.mock('@cherrystudio/ui/icons', () => ({
+  useIcon: () => ({
+    Avatar: ({ size, shape }: { size: number; shape: string }) => (
+      <span data-testid="model-icon" data-size={size} data-shape={shape} />
+    )
+  })
+}))
+
 vi.mock('@renderer/utils/model', async (importOriginal) => ({
   ...(await importOriginal<typeof ModelModule>()),
-  getModelLogo: () => null
+  getModelLogoRef: () => undefined
 }))
 
 vi.mock('@renderer/components/VirtualList', () => ({
@@ -156,8 +164,16 @@ describe('ModelListSyncDrawer', () => {
     renderDrawer()
 
     expect(screen.getByText('OpenAI common.models')).toBeInTheDocument()
-    expect(screen.getByTestId('drawer-content')).toHaveClass('w-[min(calc(100vw-24px),620px)]')
-    expect(screen.getByTestId('drawer-body')).toHaveClass('pt-0')
+    expect(screen.getAllByTestId('model-icon')).not.toHaveLength(0)
+    expect(screen.getAllByTestId('model-icon').every((icon) => icon.getAttribute('data-size') === '26')).toBe(true)
+    expect(screen.getAllByTestId('model-icon').every((icon) => icon.getAttribute('data-shape') === 'circle')).toBe(true)
+    expect(screen.getAllByTestId('model-icon')[0].parentElement).toHaveClass(
+      'size-6.5',
+      'overflow-hidden',
+      'rounded-full',
+      'border',
+      'border-border'
+    )
     expect(screen.getByText('gpt-5')).toBeInTheDocument()
     expect(screen.getByText('claude-sonnet')).toBeInTheDocument()
     expect(screen.getByText('legacy-model')).toBeInTheDocument()
@@ -167,7 +183,7 @@ describe('ModelListSyncDrawer', () => {
     renderDrawer()
 
     expect(screen.getByText('custom')).toBeInTheDocument()
-    expect(screen.queryByText('assistants.tags.untagged')).not.toBeInTheDocument()
+    expect(screen.queryByText('models.group.ungrouped')).not.toBeInTheDocument()
     expect(screen.queryByText('__ungrouped__')).not.toBeInTheDocument()
   })
 

@@ -171,6 +171,7 @@ vi.mock('../NewMiniAppPanel', () => ({
 }))
 
 vi.mock('react-i18next', () => ({
+  initReactI18next: { type: '3rdParty', init: () => {} },
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
@@ -198,6 +199,8 @@ describe('MiniAppsPage', () => {
 
     expect(screen.getByText('ChatGPT')).toBeInTheDocument()
     expect(screen.getByText('Gemini')).toBeInTheDocument()
+    expect(screen.getByTestId('mini-app-icon-chatgpt')).toHaveAttribute('width', '56')
+    expect(screen.getByTestId('mini-app-icon-chatgpt')).toHaveAttribute('height', '56')
     expect(screen.queryByText('2')).not.toBeInTheDocument()
 
     fireEvent.change(screen.getByPlaceholderText('common.search'), { target: { value: 'chat' } })

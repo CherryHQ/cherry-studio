@@ -22,24 +22,12 @@ afterEach(() => {
 describe('ProviderListItem', () => {
   const provider = { id: 'silicon-flow', name: '硅基流动' } as any
 
-  it('keeps the same medium font weight for idle and selected labels', () => {
-    const { rerender } = render(
-      <ProviderListItem provider={provider} selected={false} dragging={false} onClick={vi.fn()} />
-    )
-
-    expect(screen.getByText('硅基流动')).toHaveClass('font-[weight:500]')
-    expect(screen.getByText('硅基流动')).not.toHaveClass('font-normal')
-
-    rerender(<ProviderListItem provider={provider} selected dragging={false} onClick={vi.fn()} />)
-
-    expect(screen.getByText('硅基流动')).toHaveClass('font-[weight:500]')
-    expect(screen.getByText('硅基流动')).not.toHaveClass('font-medium')
-  })
-
   it('renders provider logos at 26px in the list', () => {
     render(<ProviderListItem provider={provider} selected={false} dragging={false} onClick={vi.fn()} />)
 
-    expect(providerAvatarMock).toHaveBeenCalledWith(expect.objectContaining({ size: 26 }))
+    expect(providerAvatarMock).toHaveBeenCalledWith(
+      expect.objectContaining({ size: 26, displayContext: 'provider-list' })
+    )
   })
 
   it('renders a drag handle before the provider logo', () => {

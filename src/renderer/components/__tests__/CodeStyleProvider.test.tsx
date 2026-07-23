@@ -67,16 +67,27 @@ describe('CodeStyleProvider', () => {
     MockUsePreferenceUtils.resetMocks()
   })
 
+  it('throws when useCodeStyle is used outside CodeStyleProvider', () => {
+    expect(() => render(<Probe />)).toThrow('useCodeStyle must be used within a CodeStyleProvider')
+  })
+
   it('provides cm theme names and resolves the saved cm theme when code editor is enabled', async () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.code.editor.enabled', true)
     MockUsePreferenceUtils.setPreferenceValue('chat.code.editor.theme_light', 'dracula')
 
     renderProvider()
 
-    await waitFor(() => {
-      expect(screen.getByTestId('has-dracula').textContent).toBe('true')
-      expect(screen.getByTestId('cm-theme-type').textContent).toBe('object')
-    })
+    // The first waitFor in this file pays the real (cold) dynamic import of
+    // @uiw/codemirror-themes-all; under a fully loaded worker pool that takes
+    // several seconds, so it needs more than the 1s waitFor default. Later
+    // tests reuse the module-level cmThemesPromise cache and stay fast.
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('has-dracula').textContent).toBe('true')
+        expect(screen.getByTestId('cm-theme-type').textContent).toBe('object')
+      },
+      { timeout: 15000 }
+    )
   })
 
   it('resolves basic string cm themes without loading a themes-all extension', async () => {

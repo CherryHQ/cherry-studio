@@ -8,7 +8,7 @@
 
 import { loggerService } from '@logger'
 import { bootConfigService } from '@main/data/bootConfig'
-import { DefaultBootConfig } from '@shared/data/bootConfig/bootConfigSchemas'
+import { bootConfigSchema, DefaultBootConfig } from '@shared/data/bootConfig/bootConfigSchemas'
 import type { BootConfigKey } from '@shared/data/bootConfig/bootConfigTypes'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 
@@ -92,6 +92,15 @@ export class BootConfigMigrator extends BaseMigrator {
             }
           }
 
+          // v1 data is an untrusted external source — skip values that fail
+          // the boot config schema instead of failing the whole migration in
+          // execute() over one corrupt setting.
+          if (!bootConfigSchema.shape[item.targetKey].safeParse(valueToMigrate).success) {
+            this.skippedCount++
+            warnings.push(`Skipped ${item.originalKey}: v1 value fails boot config schema validation`)
+            continue
+          }
+
           this.preparedItems.push({
             targetKey: item.targetKey,
             value: valueToMigrate,
@@ -154,8 +163,10 @@ export class BootConfigMigrator extends BaseMigrator {
         })
       }
 
-      // Flush to ensure all values are persisted to boot-config.json
-      bootConfigService.flush()
+      // Persist (strict) to ensure all values reach boot-config.json. Unlike
+      // flush(), persist() throws on write failure, so a failed disk write is
+      // surfaced as a migration failure below instead of a silent false-success.
+      bootConfigService.persist()
 
       logger.info('Execute completed', { processedCount })
 

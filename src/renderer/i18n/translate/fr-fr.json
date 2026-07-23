@@ -31,6 +31,11 @@
       "submit": "Soumettre",
       "title": "Questions de l'agent"
     },
+    "builtin": {
+      "cherry_assistant": {
+        "description": "Assistant intégré Cherry Studio. Diagnostiquer les problèmes, guider les opérations, collecter les FAQ, soumettre des bugs/demandes de fonctionnalités, et rechercher/créer des Compétences"
+      }
+    },
     "channels": {
       "add": "Ajouter",
       "bindAgent": "Agent Lier",
@@ -561,7 +566,7 @@
       },
       "prompt": "Paramètres de l'invite",
       "skills": {
-        "addMore": "Ajouter plus de compétences",
+        "addMore": "Gérer les compétences",
         "builtin": "Intégré",
         "noFilterResults": "Aucune compétence correspondante",
         "noSkills": "Aucune compétence installée. Installez des compétences depuis Paramètres > Compétences.",
@@ -881,6 +886,10 @@
         "CherryCron": {
           "description": "Gère le planificateur intégré à l'application",
           "label": "Planificateur"
+        },
+        "CherryGenerateImage": {
+          "description": "Génère une image à partir d'un texte de description en utilisant votre modèle de peinture configuré",
+          "label": "Générer une image"
         },
         "CherryKbManage": {
           "description": "Ajoute, supprime ou actualise des documents dans vos bases de connaissances",
@@ -1392,7 +1401,7 @@
         "title": "Mis en file d’attente ({{count}})"
       },
       "generate_image": "Générer une image",
-      "generate_image_not_supported": "Le modèle ne supporte pas la génération d'images",
+      "generate_image_no_model": "Configurez un modèle de peinture dans Paramètres › Modèle par défaut",
       "knowledge_base": "Base de connaissances",
       "knowledge_base_disabled_by_files": "Supprimez les fichiers joints pour utiliser la base de connaissances",
       "knowledge_base_unavailable": "Sélectionnez un modèle compatible avec les outils ou activez l'utilisation d'outils dans l'invite",
@@ -1460,12 +1469,29 @@
         },
         "unsupported_model": "Le modèle actuel ne prend pas en charge le raisonnement ajustable"
       },
+      "toolbar": {
+        "customize": "Personnaliser la barre d'outils",
+        "drag": {
+          "cancelled": "Réorganisation annulée pour {{name}}.",
+          "dropped": "{{name}} a été abandonné.",
+          "instructions": "Pour réorganiser, appuyez sur Espace ou Entrée pour prendre un outil, utilisez les touches fléchées pour le déplacer, puis Espace ou Entrée pour le déposer, ou Échap pour annuler.",
+          "over": "{{name}} a déplacé plus de {{over}}.",
+          "picked_up": "Ramassé {{name}}."
+        },
+        "drag_handle": "Glisser pour réorganiser {{name}}",
+        "restore_default": "Restaurer les paramètres par défaut"
+      },
       "tools": {
         "collapse": "Réduire",
         "collapse_in": "Ajouter à la réduction",
         "collapse_out": "Retirer de la réduction",
         "expand": "Développer",
         "file_not_found": "Fichier introuvable : {{path}}",
+        "generate_image": {
+          "failed": "La génération d'image a échoué",
+          "generating": "Génération de l'image…",
+          "title": "Image générée"
+        },
         "open_file": "Ouvrir le fichier",
         "open_file_error": "Échec de l'ouverture du fichier : {{path}}",
         "reveal_in_finder": "Afficher dans le Finder"
@@ -1729,6 +1755,7 @@
     "thinking_tokens": "~{{tokens}} jetons",
     "topics": {
       "auto_rename": "Générer un nom de sujet",
+      "auto_rename_failed": "Échec de la génération automatique du nom de la conversation",
       "clear": {
         "title": "Effacer le message"
       },
@@ -1902,7 +1929,8 @@
         "permissions_deny": "Refuser (séparé par des virgules)",
         "permissions_hint": "Pré-approuver ou refuser les modèles d'outils. Prend en charge les caractères génériques comme Read(secrets-*/config.json).",
         "role_column": "Rôle",
-        "sonnet_model": "Sonnet"
+        "sonnet_model": "Sonnet",
+        "subagent_model": "Sous-agent"
       },
       "codex": {
         "disable_response_storage": "Désactiver le stockage des réponses",
@@ -1960,6 +1988,11 @@
         "xhigh": "Extra Haut"
       },
       "select_placeholder": "Sélectionner…"
+    },
+    "api_gateway": {
+      "description": "Toute CLI, tous les modèles",
+      "requires_running": "Gardez Cherry Studio en cours d'exécution après l'activation — l'interface CLI externe se connecte à la passerelle qu'il héberge.",
+      "title": "Passerelle unifiée"
     },
     "apply_failed": "Échec de l'écriture de la configuration CLI dans le fichier système",
     "auto_update_to_latest": "Vérifier les mises à jour et installer la dernière version",
@@ -2040,6 +2073,7 @@
     "model_required": "Veuillez sélectionner le modèle",
     "model_selection": "Sélection de modèle",
     "more": "Plus",
+    "move_provider_to_top": "Déplacer le fournisseur en haut",
     "no_matching_providers": "Aucun fournisseur correspondant",
     "no_model_for_provider": "Aucun modèle disponible pour ce fournisseur",
     "no_providers_description": "Activez un fournisseur pris en charge dans Paramètres → Service de modèle",
@@ -2420,6 +2454,80 @@
     },
     "user": "Utilisateur"
   },
+  "file_preview": {
+    "html": {
+      "empty": {
+        "description": "Ce fichier HTML n'a pas de contenu.",
+        "title": "Fichier vide"
+      },
+      "mode": {
+        "label": "Mode d'affichage HTML",
+        "preview": "Aperçu",
+        "source": "Source"
+      },
+      "read_error": {
+        "title": "Impossible de lire ce fichier"
+      },
+      "too_large": {
+        "description": "Les fichiers HTML de plus de {{limit}} Mo ne peuvent pas être prévisualisés.",
+        "title": "Le fichier est trop volumineux"
+      }
+    },
+    "invalid_path": {
+      "description": "L'aperçu du fichier nécessite un chemin local absolu valide.",
+      "title": "Impossible de prévisualiser ce fichier"
+    },
+    "load_error": {
+      "description": "Le contenu de l'aperçu n'a pas pu être chargé.",
+      "title": "L'aperçu a échoué"
+    },
+    "loading": "Chargement de l'aperçu...",
+    "markdown": {
+      "empty": {
+        "description": "Ce fichier Markdown n'a pas de contenu.",
+        "title": "Fichier vide"
+      },
+      "mode": {
+        "label": "Mode d'affichage Markdown",
+        "preview": "Aperçu",
+        "source": "Source"
+      },
+      "read_error": {
+        "title": "Impossible de lire ce fichier"
+      },
+      "too_large": {
+        "description": "Les fichiers Markdown de plus de {{limit}} Mo ne peuvent pas être prévisualisés.",
+        "title": "Le fichier est trop volumineux"
+      }
+    },
+    "pdf": {
+      "too_large": {
+        "action": "Ouvrir avec l'application par défaut",
+        "description": "Les fichiers PDF de plus de {{limit}} Mo ne peuvent pas être prévisualisés.",
+        "open_error": "Impossible d'ouvrir ce fichier",
+        "title": "Le fichier est trop grand"
+      }
+    },
+    "text": {
+      "empty": {
+        "description": "Ce fichier texte ne contient aucun contenu.",
+        "title": "Fichier vide"
+      },
+      "read_error": {
+        "title": "Impossible de lire ce fichier"
+      },
+      "too_large": {
+        "description": "Les fichiers texte de plus de {{limit}} Mo ne peuvent pas être prévisualisés.",
+        "title": "Le fichier est trop volumineux"
+      }
+    },
+    "unsupported": {
+      "action": "Ouvrir avec l'application par défaut",
+      "description": "Ce type de fichier ne peut pas encore être prévisualisé.",
+      "open_error": "Impossible d'ouvrir ce fichier",
+      "title": "Aperçu indisponible"
+    }
+  },
   "files": {
     "actions": "Actions",
     "all": "Tous les fichiers",
@@ -2767,6 +2875,7 @@
           "title": "Importer une seule page web"
         }
       },
+      "back_to_parent": "Retour",
       "bulk": {
         "delete": "Supprimer",
         "delete_confirm_description": "Supprimer {{count}} sources de données sélectionnées ? Cette action est irréversible.",
@@ -2794,6 +2903,7 @@
         "title": "Téléchargez votre première source de données"
       },
       "empty_description": "Aucune source de données pour l'instant",
+      "empty_folder": "Ce dossier est vide",
       "filters": {
         "all": "Tout",
         "directory": "Dossiers",
@@ -2826,9 +2936,9 @@
           "type": "Type",
           "updated_at": "Mis à jour"
         },
+        "open_row": "Ouvrir {{title}}",
         "select_all": "Tout sélectionner",
-        "select_row": "Sélectionner la ligne",
-        "view_chunks_row": "Afficher les fragments pour {{title}}"
+        "select_row": "Sélectionner la ligne"
       },
       "toolbar": {
         "add": "Ajouter une source de données"
@@ -2839,6 +2949,8 @@
     "embedding_model": "Modèle d'embedding",
     "embedding_model_required": "Un modèle d'embedding de base de connaissances est requis",
     "empty": "Aucune base de connaissances",
+    "empty_action": "Créer une base de connaissances",
+    "empty_description": "Vous n'avez pas encore de bases de connaissances. Créez-en une pour commencer à organiser et rechercher vos documents.",
     "error": {
       "directory_not_migrated": "Échec de la migration du dossier. Veuillez le supprimer et le télécharger à nouveau.",
       "failed_base_unknown": "Cette base de connaissances a échoué lors de la migration. Reconstruisez-la et choisissez un nouveau modèle d'embedding.",
@@ -3145,6 +3257,7 @@
             "no_skills_enabled": "Aucune compétence activée",
             "search_placeholder": "Outils ou serveurs de recherche...",
             "skills_coming_soon": "Associations de compétences à venir",
+            "skills_enable_all": "Tout activer",
             "skills_require_save": "Enregistrer avant d'activer les compétences",
             "tab": {
               "mcp": "Serveur MCP",
@@ -3267,6 +3380,7 @@
       },
       "knowledge": {
         "add": "Ajouter une base de connaissances",
+        "create_first": "Ouvrir la connaissance pour en créer une",
         "desc": "Liez une ou plusieurs bases de connaissances ; des extraits pertinents seront récupérés pendant la conversation",
         "doc_count": "{{count}} docs",
         "empty_desc": "Une fois lié, l'assistant peut répondre en se basant sur le contenu du document",
@@ -3280,6 +3394,7 @@
         "title": "Bases de connaissances"
       },
       "prompt": {
+        "copy_variable": "Copier {{variable}}",
         "create_title": "Nouvelle invite",
         "dblclick_hint": "Double-cliquez sur l'aperçu pour revenir à l'édition",
         "desc": "Le prompt système est envoyé comme contexte d'ouverture de l'assistant",
@@ -3456,8 +3571,10 @@
       "title": "Bibliothèque"
     },
     "skill_add": {
+      "add": "Ajouter une compétence",
       "local_import": "Importation locale",
-      "online_search": "Recherche en ligne"
+      "online_search": "Recherche en ligne",
+      "system_search": "Recherche système"
     },
     "skill_detail": {
       "created_at": "Créé",
@@ -3485,6 +3602,19 @@
       "updated": "Trier par date de mise à jour"
     },
     "subtitle": "Gérez vos assistants, agents et compétences",
+    "system_skill": {
+      "conflict": "Conflit de noms",
+      "description": "Importer les compétences déjà installées sur ce système.",
+      "empty_description": "Aucune compétence importable n'a été trouvée dans d'autres outils de codage sur cet appareil.",
+      "empty_title": "Aucune compétence disponible à importer",
+      "enable_success": "Activé {{name}}",
+      "enabled": "Activé",
+      "import": "Importer",
+      "import_success": "{{name}} importé",
+      "imported": "Importé",
+      "search_placeholder": "Compétences du système de recherche...",
+      "title": "Compétences système"
+    },
     "tag_picker": {
       "no_tags": "Pas encore d'étiquettes",
       "placeholder": "Nouveau nom d'étiquette..."
@@ -3594,6 +3724,7 @@
     },
     "empty_url": "Impossible de télécharger l'image, il est possible que le prompt contienne du contenu sensible ou des mots interdits",
     "error": {
+      "avatar_image_too_large": "L'image est trop grande (max {{limit}})",
       "chunk_overlap_too_large": "Le chevauchement de segment ne peut pas dépasser la taille du segment",
       "copy": "Échec de la copie",
       "dimension_too_large": "Les dimensions du contenu sont trop grandes",
@@ -3615,6 +3746,7 @@
         "text_extraction_failed": "Impossible d'extraire le texte de {{name}}"
       },
       "get_embedding_dimensions": "Impossible d'obtenir les dimensions d'encodage",
+      "image_process_failed": "Échec du traitement de l'image, veuillez réessayer",
       "invalid": {
         "api": {
           "host": "Adresse API invalide",
@@ -3779,6 +3911,8 @@
       "abort_failed": "Échec de l'interruption de l'appel de l'outil",
       "aborted": "Appel de l'outil interrompu",
       "activity": {
+        "analyze": "Analyser",
+        "analyzing": "Analysant",
         "archive": "archive",
         "assistantTask": "tâche",
         "availableFeatures": "fonctionnalités disponibles",
@@ -3786,24 +3920,28 @@
         "branch": "branche de code",
         "build": "Construire",
         "building": "Construction",
+        "calendar": "calendrier",
         "check": "Vérifier",
         "checking": "Vérification",
         "codeFiles": "fichiers de code",
         "codeHostInfo": "informations d'hébergement de code",
-        "commandName": "commande {{name}}",
         "configFiles": "documents du projet et fichiers de configuration",
         "copy": "Copier",
         "copying": "Copie",
         "create": "Créer",
         "creating": "Création",
         "currentFolder": "dossier actuel",
+        "data": "données",
         "delete": "Supprimer",
         "deleting": "Suppression",
         "documentFiles": "fichiers de document",
         "download": "Télécharger",
         "downloading": "Téléchargement",
+        "email": "email",
+        "environmentInfo": "informations sur l'environnement",
         "executeCommand": "Exécuter la commande",
         "executingCommand": "Exécution de la commande",
+        "extensionFailed": "L'extension a échoué",
         "extract": "Extraire",
         "extracting": "Extraction",
         "file": "fichier",
@@ -3832,6 +3970,10 @@
         "repository": "dépôt de code",
         "search": "Trouver",
         "searching": "Trouver",
+        "send": "Envoyer",
+        "sending": "Envoi",
+        "start": "Démarrer",
+        "starting": "Démarrage",
         "switch": "Commutateur",
         "switching": "Commutation",
         "sync": "Synchroniser",
@@ -3841,6 +3983,8 @@
         "translationFiles": "fichiers de traduction",
         "upload": "Téléverser",
         "uploading": "Téléchargement",
+        "usedExtension": "A utilisé une extension",
+        "usingExtension": "En utilisant une extension",
         "view": "Vue",
         "viewing": "Visualisation",
         "webPage": "page web",
@@ -4034,6 +4178,7 @@
   },
   "models": {
     "action": {
+      "configure_custom": "Configurer des modèles personnalisés",
       "pin": "Épingler ce modèle",
       "unpin": "Détacher le modèle"
     },
@@ -4643,6 +4788,7 @@
     "req_error_text": "Le serveur est occupé ou le prompt contient des mots « protégés par droit d'auteur » ou des mots « sensibles », veuillez réessayer.",
     "req_error_token": "Veuillez vérifier la validité du jeton",
     "required_field": "Champ obligatoire",
+    "revealing": "Révélation de l'image générée",
     "safety_tolerance": "Tolérance de sécurité",
     "safety_tolerance_tip": "Plus élevé = filtre plus permissif ; 0 est le plus strict, 6 est le plus permissif",
     "seed": "Graine aléatoire",
@@ -5300,7 +5446,7 @@
         "icon": {
           "error": "Nom d'icône invalide, veuillez vérifier la saisie",
           "label": "Icône",
-          "placeholder": "Saisir le nom de l'icône Lucide",
+          "placeholder": "Nom de l'icône",
           "random": "Icône aléatoire",
           "tooltip": "Le nom de l'icône Lucide est en minuscules, par exemple arrow-right",
           "view_all": "Voir toutes les icônes"
@@ -5532,75 +5678,6 @@
         "siyuan": "Exporter vers Siyuan Notes",
         "title": "Exporter les paramètres du menu",
         "yuque": "Exporter vers Yuque"
-      },
-      "export_to_phone": {
-        "confirm": {
-          "button": "Sélectionner le fichier de sauvegarde"
-        },
-        "content": "Exporter une partie des données, incluant les historiques de discussion et les paramètres. Veuillez noter que le processus de sauvegarde peut prendre un certain temps ; merci pour votre patience.",
-        "file": {
-          "button": "Exporter vers un fichier",
-          "content": "Exporter les données sous forme de fichier de sauvegarde qui peut être importé sur mobile via un fichier.",
-          "export_failed": "L'exportation a échoué",
-          "export_success": "Exportation réussie",
-          "title": "Exporter en tant que fichier"
-        },
-        "lan": {
-          "button": "Démarrer le transfert",
-          "connected": "Connecté",
-          "connection_failed": "Échec de la connexion",
-          "content": "Assurez-vous que l'ordinateur et le téléphone sont connectés au même réseau pour utiliser le transfert en réseau local. Ouvrez l'application Cherry Studio et scannez ce code QR.",
-          "device_list_title": "Périphériques réseau locaux",
-          "discovered_devices": "Appareils découverts",
-          "error": {
-            "file_too_large": "Fichier trop volumineux, taille maximale supportée : 500 Mo",
-            "init_failed": "Échec de l'initialisation",
-            "invalid_file_type": "Seuls les fichiers ZIP sont pris en charge",
-            "no_file": "Aucun fichier sélectionné",
-            "no_ip": "Impossible d'obtenir l'adresse IP",
-            "not_connected": "Veuillez d'abord terminer la poignée de main",
-            "send_failed": "Échec de l'envoi du fichier"
-          },
-          "file_transfer": {
-            "cancelled": "Transfert annulé",
-            "failed": "Le transfert de fichier a échoué : {{message}}",
-            "progress": "Envoi en cours... {{progress}}%",
-            "success": "Fichier envoyé avec succès"
-          },
-          "handshake": {
-            "button": "Poignée de main",
-            "failed": "Échec de la poignée de main : {{message}}",
-            "in_progress": "Établissement de la connexion...",
-            "success": "Poignée de main terminée avec {{device}}",
-            "test_message_received": "Pong reçu de {{device}}",
-            "test_message_sent": "Envoyé la charge utile de test hello world"
-          },
-          "idle_hint": "Analyse en pause. Lancez l’analyse pour détecter les pairs Cherry Studio sur votre réseau local.",
-          "ip_addresses": "Adresses IP",
-          "last_seen": "Vu pour la dernière fois à {{time}}",
-          "metadata": "Métadonnées",
-          "no_connection_warning": "Veuillez ouvrir le transfert LAN sur l'application mobile Cherry Studio.",
-          "no_devices": "Aucun pair LAN trouvé pour l'instant",
-          "scan_devices": "Analyser les appareils",
-          "scanning_hint": "Analyse de votre réseau local à la recherche d’homologues Cherry Studio…",
-          "send_file": "Envoyer le fichier",
-          "status": {
-            "completed": "Transfert terminé",
-            "connected": "Connecté",
-            "connecting": "Connexion...",
-            "disconnected": "Déconnecté",
-            "error": "Erreur de connexion",
-            "initializing": "Initialisation de la connexion...",
-            "preparing": "Préparation du transfert...",
-            "sending": "Transfert {{progress}} %"
-          },
-          "status_badge_idle": "Inactif",
-          "status_badge_scanning": "Numérisation",
-          "stop_scan": "Arrêter le scan",
-          "title": "Transmission en réseau local",
-          "transfer_progress": "Progression du transfert"
-        },
-        "title": "Exporter vers le téléphone"
       },
       "hour_interval_one": "{{count}} heure",
       "hour_interval_other": "{{count}} heures",
@@ -6114,7 +6191,8 @@
           "downloading": "Téléchargement…",
           "ready": "Prêt"
         },
-        "title": "Modèles locaux"
+        "title": "Modèles locaux",
+        "unsupported": "Les modèles locaux ne sont pas pris en charge sur cette plateforme."
       },
       "notInstalled": "Non installé",
       "openBinariesDir": "Open binaries directory",
@@ -6588,10 +6666,10 @@
       "user": "Пользователь"
     },
     "menuGroups": {
-      "automation": "Automatisation",
-      "capabilities": "Capacités et Outils",
+      "automation": "Efficacité",
+      "capabilities": "Outils",
       "models": "Modèles",
-      "personal": "Personnel",
+      "personal": "Préférences",
       "quickAccess": "Accès rapide",
       "system": "Système"
     },
@@ -6797,6 +6875,7 @@
           "confirm": "Êtes-vous sûr de vouloir ajouter tous les modèles à la liste ?",
           "label": "Ajouter tous les modèles"
         },
+        "add_success_enable_failed": "Des modèles ont été ajoutés, mais le fournisseur n'a pas pu être activé.",
         "add_whole_group": "Ajouter tout le groupe",
         "clean_stale_models": "Nettoyer les modèles obsolètes",
         "clean_stale_success": "{{count}} modèle(s) obsolète(s) nettoyé(s)",
@@ -6865,6 +6944,8 @@
       },
       "more_actions": "Plus d'actions pour la liste des modèles",
       "not_enabled_models": "Désactivés",
+      "painting_model": "Modèle de peinture",
+      "painting_model_description": "Modèle utilisé pour la génération d'images",
       "provider_id": "Identifiant du fournisseur",
       "provider_key_add_confirm": "Voulez-vous ajouter une clé API pour {{provider}} ?",
       "provider_key_add_failed_by_empty_data": "Échec de l'ajout de la clé API du fournisseur, les données sont vides",
@@ -7208,6 +7289,7 @@
         "fill_after_create": "Les champs d'authentification peuvent être remplis après la création",
         "menu_label": "Ajouter une instance"
       },
+      "enable_failed_after_connection": "Connexion réussie, mais le fournisseur n'a pas pu être activé.",
       "filter": {
         "agent": "Prise en charge par un agent",
         "all": "Tous les fournisseurs",
@@ -7744,6 +7826,8 @@
   },
   "tab": {
     "close": "Fermer l'onglet",
+    "close_others": "Fermer les autres onglets",
+    "close_to_right": "Fermer les onglets à droite",
     "move_to_first": "Déplacer vers le premier",
     "new": "Nouvel onglet",
     "open_in_new_window": "Ouvrir dans une nouvelle fenêtre",

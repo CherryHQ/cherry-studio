@@ -14,6 +14,7 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
+import { topicTable } from '@data/db/schemas/topic'
 import { setupTestDatabase } from '@test-helpers/db'
 import { asc, eq } from 'drizzle-orm'
 
@@ -116,6 +117,43 @@ describe('ChatMigrator.prepareTopicData', () => {
     const msgMap = toMsgMap(result?.messages ?? [])
     expect(msgMap.get('u1')?.parentId).toBeNull()
     expect(msgMap.get('a1')?.parentId).toBe('u1')
+  })
+
+  it('snapshots the resolved assistant onto assistant-role messages, leaving user rows null', async () => {
+    // Exercises the full lookup wiring (topic→assistant, legacy remap, validAssistantIds,
+    // assistantLookup) that the other prepareTopicData tests leave empty, so a regression in
+    // any of them that dropped the v1 assistant snapshot would be caught here.
+    const migrator = new ChatMigrator()
+    const m = migrator as unknown as Record<string, unknown>
+    const b1 = block('b1', 'u1')
+    const b2 = block('b2', 'a1')
+    m['blockLookup'] = new Map([b1, b2].map((b) => [b.id, b]))
+    m['assistantLookup'] = new Map([['ast-1', { id: 'ast-1', name: 'My Assistant', emoji: '🎯', type: 'assistant' }]])
+    m['topicMetaLookup'] = new Map()
+    m['topicAssistantLookup'] = new Map()
+    m['legacyAssistantIdRemap'] = new Map()
+    m['validAssistantIds'] = new Set(['ast-1'])
+    m['skippedMessages'] = 0
+    m['seenMessageIds'] = new Set()
+    m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
+
+    const model = { id: 'qwen', name: 'Qwen', provider: 'cherryai', group: '' }
+    const messages = [msg('u1', 'user', ['b1'], { model }), msg('a1', 'assistant', ['b2'], { model })]
+
+    const fn = m['prepareTopicData'] as (t: OldTopic, deps?: undefined) => Promise<PreparedTopicData | null>
+    const result = await fn.call(migrator, topic('t1', messages), undefined)
+
+    expect(result).not.toBeNull()
+    const msgMap = toMsgMap(result?.messages ?? [])
+    // Assistant row: frozen author identity with the model nested inside.
+    expect(msgMap.get('a1')?.messageSnapshot).toEqual({
+      id: 'ast-1',
+      name: 'My Assistant',
+      emoji: '🎯',
+      model: { id: 'qwen', name: 'Qwen', provider: 'cherryai', group: '' }
+    })
+    // User row: never snapshotted, even though the source message carried a model.
+    expect(msgMap.get('u1')?.messageSnapshot).toBeNull()
   })
 
   it('resolves parentId through first-pass skipped messages (no blocks)', async () => {
@@ -723,8 +761,8 @@ describe('ChatMigrator.insertStagedTopics phase 3 (pin emission)', () => {
 
   /**
    * Build a minimal NewTopic for staging directly into stagedTopics. The
-   * migrator's insert path only reads {id, name, assistantId, groupId,
-   * orderKey, createdAt, updatedAt} so the activeNodeId/isNameManuallyEdited
+   * migrator's insert path only reads {id, name, assistantId, orderKey,
+   * createdAt, updatedAt} so the activeNodeId/isNameManuallyEdited
    * defaults are fine.
    */
   function newTopic(id: string, updatedAt: number): NewTopic {
@@ -734,7 +772,6 @@ describe('ChatMigrator.insertStagedTopics phase 3 (pin emission)', () => {
       isNameManuallyEdited: false,
       assistantId: null,
       activeNodeId: null,
-      groupId: null,
       orderKey: '', // Stamped by phase 1 of insertStagedTopics
       createdAt: updatedAt,
       updatedAt
@@ -754,7 +791,7 @@ describe('ChatMigrator.insertStagedTopics phase 3 (pin emission)', () => {
     return { db: dbh.db } as unknown as MigrationContext
   }
 
-  it('emits one pin row per pinned topic ordered by topic.updatedAt DESC', async () => {
+  it('stamps one global topic order and emits pinned topics by updatedAt DESC', async () => {
     const migrator = new ChatMigrator()
     stage(migrator, [
       { topic: newTopic('t-old-pin', 100), messages: [], pinned: true },
@@ -768,6 +805,13 @@ describe('ChatMigrator.insertStagedTopics phase 3 (pin emission)', () => {
     const result = await fn.call(migrator, ctxOf())
 
     expect(result.pinsInserted).toBe(2)
+
+    const topics = await dbh.db
+      .select({ id: topicTable.id, orderKey: topicTable.orderKey })
+      .from(topicTable)
+      .orderBy(asc(topicTable.orderKey))
+    expect(topics.map((topic) => topic.id)).toEqual(['t-new-pin', 't-mid', 't-old-pin'])
+    expect(new Set(topics.map((topic) => topic.orderKey)).size).toBe(topics.length)
 
     const pins = await dbh.db
       .select({ entityId: pinTable.entityId, orderKey: pinTable.orderKey })
@@ -841,7 +885,7 @@ describe('ChatMigrator model reference sanitization', () => {
         status: 'success',
         siblingsGroupId: 0,
         modelId: 'cherryai::qwen',
-        modelSnapshot: null,
+        messageSnapshot: null,
         stats: null,
         createdAt: 1,
         updatedAt: 1
@@ -863,16 +907,30 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
 
   /** Seed a minimal file_entry row so FK-constrained chat_message_file_ref inserts succeed. */
   async function seedFileEntry(id: string): Promise<void> {
+    await seedFileEntries([id])
+  }
+
+  /**
+   * Seed many file_entry rows in a few batched multi-row inserts. One insert per id means one autocommit
+   * transaction (and fsync) each — 600 of those is what timed the >500-chunk test out on CI. Chunked well
+   * under SQLite's bound-parameter limit.
+   */
+  async function seedFileEntries(ids: string[]): Promise<void> {
     const now = Date.now()
-    await dbh.db.insert(fileEntryTable).values({
-      id,
-      origin: 'internal',
-      name: `test-${id}`,
-      ext: 'png',
-      size: 1024,
-      createdAt: now,
-      updatedAt: now
-    })
+    const BATCH = 200
+    for (let i = 0; i < ids.length; i += BATCH) {
+      await dbh.db.insert(fileEntryTable).values(
+        ids.slice(i, i + BATCH).map((id) => ({
+          id,
+          origin: 'internal',
+          name: `test-${id}`,
+          ext: 'png',
+          size: 1024,
+          createdAt: now,
+          updatedAt: now
+        }))
+      )
+    }
   }
 
   function newTopic(id: string, updatedAt: number): NewTopic {
@@ -882,7 +940,6 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
       isNameManuallyEdited: false,
       assistantId: null,
       activeNodeId: null,
-      groupId: null,
       orderKey: '',
       createdAt: updatedAt,
       updatedAt
@@ -917,7 +974,7 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
       status: 'success',
       siblingsGroupId: 0,
       modelId: null,
-      modelSnapshot: null,
+      messageSnapshot: null,
       stats: null,
       createdAt: 1,
       updatedAt: 1
@@ -1191,10 +1248,7 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
     it('chunks queries when >500 distinct fileIds are referenced', async () => {
       const count = 600
       const feIds = Array.from({ length: count }, (_, i) => `fe-chunk-${String(i).padStart(4, '0')}`)
-      const SEED_CHUNK = 100
-      for (let i = 0; i < feIds.length; i += SEED_CHUNK) {
-        for (const id of feIds.slice(i, i + SEED_CHUNK)) await seedFileEntry(id)
-      }
+      await seedFileEntries(feIds)
 
       const migrator = new ChatMigrator()
       const m = migrator as unknown as Record<string, unknown>

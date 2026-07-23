@@ -1,6 +1,7 @@
 import { Avatar, AvatarFallback, Button, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { useIcon } from '@cherrystudio/ui/icons'
 import { toast } from '@renderer/services/toast'
-import { getModelLogo } from '@renderer/utils/model'
+import { getModelLogoRef } from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
 import { Bolt, Minus } from 'lucide-react'
 import React, { memo, useCallback } from 'react'
@@ -22,6 +23,7 @@ interface ModelListItemProps {
 
 const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, isDefaultModel, onEdit, onDelete }) => {
   const { t } = useTranslation()
+  const Icon = useIcon(getModelLogoRef(model))
   const deleteTooltip = isDefaultModel
     ? t('settings.models.manage.default_model_cannot_remove')
     : t('settings.models.manage.remove_model')
@@ -46,10 +48,9 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, isD
     <div ref={ref} className={modelListClasses.row}>
       <RowFlex className={modelListClasses.rowMain}>
         {(() => {
-          const Icon = getModelLogo(model)
           return Icon ? (
             <span className={modelListClasses.rowAvatar}>
-              <Icon.Avatar size={30} shape="rounded" />
+              <Icon.Avatar size={26} shape="circle" />
             </span>
           ) : (
             <Avatar className={modelListClasses.rowAvatar}>

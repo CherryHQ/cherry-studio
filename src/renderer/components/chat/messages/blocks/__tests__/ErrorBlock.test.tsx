@@ -5,7 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MessageListActions, MessageListItem } from '../../types'
 
 const mocks = vi.hoisted(() => ({
-  actions: {} as MessageListActions
+  actions: {} as MessageListActions,
+  i18nKeys: new Set<string>()
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -39,7 +40,7 @@ vi.mock('react-i18next', () => ({
     t: (key: string) => key,
     i18n: {
       language: 'en',
-      exists: () => false
+      exists: (key: string) => mocks.i18nKeys.has(key)
     }
   })
 }))
@@ -56,7 +57,7 @@ const message: MessageListItem = {
   topicId: 'topic-1',
   createdAt: '2026-01-01T00:00:00.000Z',
   status: 'success',
-  modelSnapshot: {
+  model: {
     id: 'gpt-test',
     name: 'GPT Test',
     provider: 'openai'
@@ -66,7 +67,36 @@ const message: MessageListItem = {
 describe('ErrorBlock', () => {
   beforeEach(() => {
     mocks.actions = {}
+    mocks.i18nKeys.clear()
     vi.clearAllMocks()
+  })
+
+  it.each([
+    ['tool call limit', 'tool_call_limit_reached'],
+    ['missing web search API host', 'web_search_api_host_missing'],
+    ['invalid web search API host', 'web_search_api_host_invalid'],
+    ['missing web search API key', 'web_search_api_key_missing'],
+    ['unavailable web search provider', 'web_search_provider_unavailable']
+  ])('renders a known app-owned i18nKey for %s without AI diagnosis', (_scenario, i18nKey) => {
+    const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
+    mocks.actions = { diagnoseMessageError }
+    mocks.i18nKeys.add(`error.${i18nKey}`)
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'ToolLoopTerminalError',
+          message: 'fallback message',
+          stack: null,
+          i18nKey
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText(`error.${i18nKey}`)).toBeInTheDocument()
+    expect(diagnoseMessageError).not.toHaveBeenCalled()
   })
 
   it('hides mutation and detail affordances when capabilities are unavailable', () => {
@@ -126,7 +156,12 @@ describe('ErrorBlock', () => {
     render(
       <ErrorBlock
         partId="message-1-part-0"
-        error={{ name: 'UnknownError', message: 'unmapped provider failure', stack: null }}
+        error={{
+          name: 'UnknownError',
+          message: 'unmapped provider failure',
+          stack: null,
+          i18nKey: 'missing_app_error'
+        }}
         message={message}
       />
     )

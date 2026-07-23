@@ -1,10 +1,11 @@
 import { Flex, type MarkdownSource } from '@cherrystudio/ui'
 import type { ChatInputTokenKind } from '@renderer/components/composer/chatTokenView'
-import { ComposerToken } from '@renderer/components/composer/tokenView'
+import { ComposerToken, type ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
 import type { Citation } from '@renderer/types/message'
 import type { Model } from '@renderer/types/model'
 import { determineCitationSource, withCitationTags } from '@renderer/utils/citation'
+import { readComposerFileTokenIdSuffix } from '@renderer/utils/message/composerFileTokenSource'
 import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens'
 import type { CitationReferenceView } from '@renderer/utils/partsToBlocks'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -15,7 +16,7 @@ import React, { useCallback, useEffect, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Components } from 'streamdown'
 
-import ChatMarkdown from '../markdown/ChatMarkdown'
+import ChatMarkdown, { type InlineHtmlPreviewMode } from '../markdown/ChatMarkdown'
 import { useMessageRenderConfig } from '../MessageListProvider'
 import CitationsList from './CitationsList'
 import { useScrollAnchor } from './useScrollAnchor'
@@ -23,12 +24,14 @@ import { useScrollAnchor } from './useScrollAnchor'
 interface Props {
   id: string
   content: string
+  inlineHtmlPreviewMode?: InlineHtmlPreviewMode
   isStreaming: boolean
   citations?: Citation[]
   citationReferences?: CitationReferenceView[]
   mentions?: Model[]
   role: CherryUIMessage['role']
   composer?: ComposerMessageSnapshot
+  readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
   userContentExpanded?: boolean
   onUserContentExpandedChange?: (expanded: boolean) => void
 }
@@ -74,15 +77,28 @@ function LegacyComposerMessageTokenChip({ token }: { token: ComposerMessageToken
   )
 }
 
-function ComposerMessageTokenChip({ token }: { token: ComposerMessageToken }) {
+function ComposerMessageTokenChip({
+  token,
+  readOnlyFilePreviews
+}: {
+  token: ComposerMessageToken
+  readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
+}) {
   if (isComposerTokenBackedMessageToken(token)) {
-    return <ComposerToken token={token} />
+    const fileTokenSourceId = token.kind === 'file' ? readComposerFileTokenIdSuffix(token.id) : undefined
+    const readOnlyFilePreview = fileTokenSourceId ? readOnlyFilePreviews?.get(fileTokenSourceId) : undefined
+
+    return <ComposerToken token={token} readOnly readOnlyFilePreview={readOnlyFilePreview} />
   }
 
   return <LegacyComposerMessageTokenChip token={token} />
 }
 
-function renderComposerMessageContent(content: string, composer: ComposerMessageSnapshot) {
+function renderComposerMessageContent(
+  content: string,
+  composer: ComposerMessageSnapshot,
+  readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
+) {
   const tokens = getDisplayComposerTokens(composer)
   const nodes: React.ReactNode[] = []
   let cursor = 0
@@ -98,7 +114,13 @@ function renderComposerMessageContent(content: string, composer: ComposerMessage
       cursor = offset
     }
 
-    nodes.push(<ComposerMessageTokenChip key={`${token.id}:${token.index}`} token={token} />)
+    nodes.push(
+      <ComposerMessageTokenChip
+        key={`${token.id}:${token.index}`}
+        token={token}
+        readOnlyFilePreviews={readOnlyFilePreviews}
+      />
+    )
 
     if (promptTextMatches) {
       cursor = Math.max(cursor, offset + promptText.length)
@@ -231,12 +253,14 @@ function CollapsibleUserMessageContent({
 const MainTextBlock: React.FC<Props> = ({
   id,
   content,
+  inlineHtmlPreviewMode,
   isStreaming,
   citations = [],
   citationReferences,
   role,
   mentions = [],
   composer,
+  readOnlyFilePreviews,
   userContentExpanded,
   onUserContentExpandedChange
 }) => {
@@ -280,6 +304,10 @@ const MainTextBlock: React.FC<Props> = ({
     content: role === 'user' ? userDisplayContent : smoothedContent,
     status: isStreaming ? 'streaming' : 'success'
   }
+  // Upstream completion can precede the smooth-stream tail. Keep the iframe unmounted
+  // until its first srcDoc contains the complete artifact.
+  const resolvedInlineHtmlPreviewMode =
+    inlineHtmlPreviewMode === 'ready' && smoothedContent !== content ? 'generating' : inlineHtmlPreviewMode
 
   const processContent = useCallback(
     (rawText: string) => {
@@ -302,12 +330,12 @@ const MainTextBlock: React.FC<Props> = ({
         const tokenIndex = typeof rawIndex === 'string' ? Number.parseInt(rawIndex, 10) : NaN
         const token =
           rawBlock === id && Number.isFinite(tokenIndex) ? composerMarkdownContent?.tokens[tokenIndex] : undefined
-        if (token) return <ComposerMessageTokenChip token={token} />
+        if (token) return <ComposerMessageTokenChip token={token} readOnlyFilePreviews={readOnlyFilePreviews} />
 
         return <span {...props}>{children}</span>
       }
     }),
-    [composerMarkdownContent?.tokens, id]
+    [composerMarkdownContent?.tokens, id, readOnlyFilePreviews]
   )
 
   return (
@@ -336,7 +364,7 @@ const MainTextBlock: React.FC<Props> = ({
           ) : shouldRenderComposerTokens || !renderInputMessageAsMarkdown ? (
             <p className="markdown" style={{ whiteSpace: 'pre-wrap' }}>
               {shouldRenderComposerTokens
-                ? renderComposerMessageContent(userDisplayContent, composer)
+                ? renderComposerMessageContent(userDisplayContent, composer, readOnlyFilePreviews)
                 : userDisplayContent}
             </p>
           ) : (
@@ -344,7 +372,11 @@ const MainTextBlock: React.FC<Props> = ({
           )}
         </CollapsibleUserMessageContent>
       ) : (
-        <ChatMarkdown block={block} postProcess={processContent} />
+        <ChatMarkdown
+          block={block}
+          inlineHtmlPreviewMode={resolvedInlineHtmlPreviewMode}
+          postProcess={processContent}
+        />
       )}
       {/* Parts data stores citation refs per text part, so the list is scoped to the text segment that produced it. */}
       {citations.length > 0 && <CitationsList citations={citations} />}

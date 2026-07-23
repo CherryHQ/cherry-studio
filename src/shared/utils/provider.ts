@@ -19,7 +19,7 @@ export function isAwsBedrockProvider(provider: Provider): boolean {
   return provider.authType === 'iam-aws'
 }
 
-export function isOllamaProvider(provider: Provider): boolean {
+export function isOllamaProvider(provider: Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint'>): boolean {
   return (
     provider.id === 'ollama' ||
     provider.presetProviderId === 'ollama' ||
@@ -84,7 +84,7 @@ export function isCherryAIProvider(provider: Provider): boolean {
 }
 
 export function isNewApiProvider(provider: Provider): boolean {
-  return ['new-api', 'cherryin', 'aionly'].includes(provider.id) || provider.presetProviderId === 'new-api'
+  return matchesPreset(provider, 'new-api') || matchesPreset(provider, 'cherryin') || matchesPreset(provider, 'aionly')
 }
 
 export function isAIGatewayProvider(provider: Provider): boolean {
@@ -99,16 +99,8 @@ export function isSystemProvider(provider: Provider): boolean {
   return provider.presetProviderId != null
 }
 
-export function matchesPreset(provider: Provider, presetId: string): boolean {
+export function matchesPreset(provider: Pick<Provider, 'id' | 'presetProviderId'>, presetId: string): boolean {
   return provider.id === presetId || provider.presetProviderId === presetId
-}
-
-export const NO_API_KEY_PROVIDERS = new Set(['ollama', 'lmstudio', 'gpustack'])
-
-export function isNoApiKeyProvider(provider: Pick<Provider, 'id' | 'presetProviderId'> | undefined): boolean {
-  return provider
-    ? NO_API_KEY_PROVIDERS.has(provider.id) || NO_API_KEY_PROVIDERS.has(provider.presetProviderId ?? '')
-    : false
 }
 
 /**
@@ -160,18 +152,13 @@ export function isAnthropicSupportedProvider(provider: Provider): boolean {
   return getProviderHostTopology(provider).hasAnthropicEndpoint
 }
 
-export function isAgentSupportedProvider(provider: Provider): boolean {
-  return !isGeminiProvider(provider)
-}
-
 export function isSupportUrlContextProvider(provider: Provider): boolean {
   return (
     isGeminiProvider(provider) ||
     isVertexProvider(provider) ||
     isAnthropicProvider(provider) ||
     isAzureOpenAIProvider(provider) ||
-    isNewApiProvider(provider) ||
-    provider.id === 'cherryin'
+    isNewApiProvider(provider)
   )
 }
 

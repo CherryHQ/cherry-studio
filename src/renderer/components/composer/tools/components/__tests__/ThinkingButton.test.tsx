@@ -78,6 +78,7 @@ vi.mock('@renderer/components/icons/SvgIcon', () => ({
 
 const DEFAULT_TEST_SETTINGS = {
   customParameters: [],
+  enableGenerateImage: false,
   enableMaxToolCalls: true,
   enableMaxTokens: false,
   enableTemperature: false,
@@ -113,9 +114,9 @@ const createAssistant = (settings: Partial<Assistant['settings']> = {}): Assista
   modelName: null,
   name: 'Assistant',
   orderKey: 'a0',
+  groupId: null,
   prompt: '',
   settings: { ...DEFAULT_TEST_SETTINGS, ...settings },
-  tags: [],
   updatedAt: new Date().toISOString()
 })
 
@@ -178,7 +179,6 @@ describe('ThinkingToolRuntime', () => {
       id: 'thinking',
       kind: 'group',
       sources: ['popover'],
-      showInActiveControls: false,
       suffix: 'Low'
     })
     expect(thinkingLauncher.submenu?.map((item) => item.id)).toEqual([

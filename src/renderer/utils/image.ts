@@ -1,7 +1,9 @@
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n/resolver'
-import type { Options as ImageCompressionOptions } from 'browser-image-compression'
+import { parseDataUrl } from '@shared/utils/dataUrl'
 import type * as HtmlToImage from 'html-to-image'
+import { Base64 } from 'js-base64'
+import mime from 'mime'
 
 const logger = loggerService.withContext('Utils:image')
 
@@ -29,35 +31,50 @@ export const convertToBase64 = (file: File): Promise<string | ArrayBuffer | null
   })
 }
 
-/**
- * 压缩图像文件，限制最大大小和尺寸。
- * @param {File} file 要压缩的图像文件
- * @returns {Promise<File>} 压缩后的图像文件
- */
-export const compressImage = async (file: File, options: ImageCompressionOptions = {}): Promise<File> => {
-  const { default: imageCompression } = await import('browser-image-compression')
+/** Target square dimension for a normalized entity image (mirrors main-side sharp). */
+const ENTITY_IMAGE_DIMENSION = 128
+/** Max original entity-image upload accepted in the renderer (avatar / logo). */
+export const MAX_ENTITY_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024
 
-  return await imageCompression(file, {
-    maxSizeMB: 1,
-    maxWidthOrHeight: 300,
-    useWebWorker: false,
-    ...options
-  })
+/** Localized "too large" message if the file exceeds the cap, else null. */
+export function checkEntityImageSize(file: File): string | null {
+  return file.size > MAX_ENTITY_IMAGE_UPLOAD_BYTES
+    ? i18n.t('message.error.avatar_image_too_large', { limit: '10MB' })
+    : null
 }
 
 /**
- * 将上传的头像图片转换为可直接存储/预览的 base64 data URL。
- * GIF 原样保留以保留动画，其余压缩到头像尺寸。
- * @param {File} file 用户上传的图片文件
- * @returns {Promise<string>} base64 data URL
+ * Normalize an entity image (avatar / logo) to a 128×128 cover-cropped WebP in the
+ * renderer via the native canvas — the same shape main-side sharp produces (short
+ * edge scaled to 128, centered square crop), so the two paths agree. Output is a few
+ * KB, so this (not the raw upload) is what crosses IPC. Throws on any decode/encode
+ * failure — the caller surfaces it so the user can retry; the raw bytes are never
+ * sent to main, which could not decode them either.
  */
-export const fileToAvatarDataUrl = async (file: File): Promise<string> => {
-  const processed = file.type === 'image/gif' ? file : await compressImage(file)
-  const base64 = await convertToBase64(processed)
-  if (typeof base64 !== 'string') {
-    throw new Error('Failed to encode avatar image')
+export async function prepareEntityImageBytes(file: File): Promise<Uint8Array<ArrayBuffer>> {
+  try {
+    const bitmap = await createImageBitmap(file)
+    try {
+      // Cover crop: sample the largest centered square, scale it to 128×128.
+      const side = Math.min(bitmap.width, bitmap.height)
+      const sx = (bitmap.width - side) / 2
+      const sy = (bitmap.height - side) / 2
+      const canvas = document.createElement('canvas')
+      canvas.width = ENTITY_IMAGE_DIMENSION
+      canvas.height = ENTITY_IMAGE_DIMENSION
+      const ctx = canvas.getContext('2d')
+      if (!ctx) throw new Error('no 2d context')
+      ctx.drawImage(bitmap, sx, sy, side, side, 0, 0, ENTITY_IMAGE_DIMENSION, ENTITY_IMAGE_DIMENSION)
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp'))
+      if (!blob) throw new Error('toBlob returned null')
+      return new Uint8Array(await blob.arrayBuffer())
+    } finally {
+      bitmap.close()
+    }
+  } catch (error) {
+    logger.error('Failed to process entity image', error as Error)
+    throw new Error(i18n.t('message.error.image_process_failed'))
   }
-  return base64
 }
 
 /**
@@ -125,6 +142,10 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
 
       const filterHiddenElements = (node: Node) => {
         if (node instanceof HTMLElement) {
+          // Interactive HTML artifacts are intentionally omitted from image exports.
+          if (node.hasAttribute('data-html-artifact')) {
+            return false
+          }
           if (node.style.display === 'none') {
             return false
           }
@@ -676,4 +697,60 @@ export const convertImageToPng = async (blob: Blob): Promise<Blob> => {
 
     img.src = url
   })
+}
+
+/**
+ * Decode the percent-encoded body of a non-base64 `data:` URL into raw bytes,
+ * expanding each `%XX` escape and UTF-8 encoding any literal characters.
+ */
+function decodeDataUrlBytes(data: string): Uint8Array {
+  const encoder = new TextEncoder()
+  const bytes: number[] = []
+
+  for (let index = 0; index < data.length; ) {
+    const hexByte = data[index] === '%' ? data.slice(index + 1, index + 3) : ''
+    if (/^[\da-fA-F]{2}$/.test(hexByte)) {
+      bytes.push(Number.parseInt(hexByte, 16))
+      index += 3
+      continue
+    }
+
+    const codePoint = data.codePointAt(index)
+    if (codePoint == null) {
+      break
+    }
+    const char = String.fromCodePoint(codePoint)
+    bytes.push(...encoder.encode(char))
+    index += char.length
+  }
+
+  return new Uint8Array(bytes)
+}
+
+/**
+ * Resolve an image source (`data:` URL, `file://` path, or remote URL) to a Blob.
+ * Kept here as a pure image util so both the `ImageViewer` component and the
+ * paintings skeleton reveal pipeline can consume it without importing across the
+ * renderer's downward-only layering.
+ */
+export async function getImageBlobFromSource(src: string): Promise<Blob> {
+  if (src.startsWith('data:')) {
+    const parseResult = parseDataUrl(src)
+    if (!parseResult || !parseResult.mediaType) {
+      throw new Error('Invalid image data URL')
+    }
+    const byteArray = parseResult.isBase64
+      ? Base64.toUint8Array(parseResult.data)
+      : decodeDataUrlBytes(parseResult.data)
+    return new Blob([byteArray.slice() as unknown as BlobPart], { type: parseResult.mediaType })
+  }
+
+  if (src.startsWith('file://')) {
+    const bytes = await window.api.fs.read(src)
+    const mimeType = mime.getType(src) || 'application/octet-stream'
+    return new Blob([bytes], { type: mimeType })
+  }
+
+  const response = await fetch(src)
+  return response.blob()
 }

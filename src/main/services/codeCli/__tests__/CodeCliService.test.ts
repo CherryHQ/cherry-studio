@@ -1,4 +1,5 @@
-import { CodeCli } from '@shared/types/codeCli'
+import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
+import { CodeCli, TerminalApp } from '@shared/types/codeCli'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', () => ({
@@ -16,14 +17,6 @@ vi.mock('@application', () => ({
   }
 }))
 
-const providerServiceMock = vi.hoisted(() => ({
-  getByProviderId: vi.fn()
-}))
-
-vi.mock('@main/data/services/ProviderService', () => ({
-  providerService: providerServiceMock
-}))
-
 const loggerMock = vi.hoisted(() => ({
   info: vi.fn(),
   warn: vi.fn(),
@@ -36,6 +29,12 @@ const platformMock = vi.hoisted(() => ({
 }))
 const shellEnvMock = vi.hoisted(() => ({
   getShellEnv: vi.fn()
+}))
+const childProcessMock = vi.hoisted(() => ({
+  exec: vi.fn(),
+  execFile: vi.fn(),
+  execAsync: vi.fn().mockResolvedValue({ stdout: '' }),
+  execFileAsync: vi.fn().mockResolvedValue({ stdout: '' })
 }))
 
 vi.mock('@logger', () => ({
@@ -80,11 +79,14 @@ vi.mock('child_process', () => ({
     },
     on: () => {}
   })),
-  exec: vi.fn()
+  exec: childProcessMock.exec,
+  execFile: childProcessMock.execFile
 }))
 
 vi.mock('util', () => ({
-  promisify: vi.fn().mockReturnValue(vi.fn().mockResolvedValue({ stdout: '' }))
+  promisify: vi.fn((fn) =>
+    fn === childProcessMock.execFile ? childProcessMock.execFileAsync : childProcessMock.execAsync
+  )
 }))
 
 vi.mock('semver', () => ({
@@ -122,6 +124,8 @@ describe('CodeCliService', () => {
     platformMock.isMac = true
     platformMock.isWin = false
     shellEnvMock.getShellEnv.mockResolvedValue({})
+    childProcessMock.execAsync.mockResolvedValue({ stdout: '' })
+    childProcessMock.execFileAsync.mockResolvedValue({ stdout: '' })
   })
 
   it('should extend BaseService', async () => {
@@ -149,6 +153,64 @@ describe('CodeCliService', () => {
     expect(() => new CodeCliService()).toThrow(/already been instantiated/)
   })
 
+  describe('getAvailableTerminalsForPlatform (macOS)', () => {
+    const terminal = expect.objectContaining({ id: TerminalApp.SYSTEM_DEFAULT })
+    const ghostty = expect.objectContaining({ id: TerminalApp.GHOSTTY })
+
+    const mockInstalledBundles = (...bundleIds: string[]) => {
+      const installed = new Set(bundleIds)
+      childProcessMock.execFileAsync.mockImplementation((_file: string, args: string[]) => {
+        const bundleId = args.at(-1)
+        return Promise.resolve({ stdout: bundleId && installed.has(bundleId) ? `/Applications/${bundleId}.app` : '' })
+      })
+    }
+
+    it('uses LaunchServices instead of Spotlight to detect installed terminals', async () => {
+      childProcessMock.execAsync.mockImplementation((command: string) =>
+        Promise.resolve({ stdout: command.includes('com.apple.Terminal') ? '/System/Applications/Terminal.app' : '' })
+      )
+      mockInstalledBundles('com.mitchellh.ghostty')
+      const { codeCliService } = await loadModules()
+
+      await expect(codeCliService.getAvailableTerminalsForPlatform()).resolves.toEqual([terminal, ghostty])
+      expect(childProcessMock.execAsync).not.toHaveBeenCalledWith(expect.stringContaining('mdfind'), expect.anything())
+    })
+
+    it('omits supported terminals that LaunchServices does not resolve', async () => {
+      mockInstalledBundles()
+      const { codeCliService } = await loadModules()
+
+      await expect(codeCliService.getAvailableTerminalsForPlatform()).resolves.toEqual([terminal])
+    })
+
+    it('keeps the last complete cache when a later probe fails', async () => {
+      vi.useFakeTimers()
+      try {
+        vi.setSystemTime(new Date('2026-07-14T00:00:00Z'))
+        mockInstalledBundles('com.mitchellh.ghostty')
+        const { codeCliService } = await loadModules()
+        await expect(codeCliService.getAvailableTerminalsForPlatform()).resolves.toEqual([terminal, ghostty])
+
+        vi.advanceTimersByTime(5 * 60 * 1000 + 1)
+        childProcessMock.execFileAsync.mockRejectedValue(new Error('LaunchServices unavailable'))
+
+        await expect(codeCliService.getAvailableTerminalsForPlatform()).resolves.toEqual([terminal, ghostty])
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('retries after an incomplete uncached probe and recovers installed terminals', async () => {
+      childProcessMock.execFileAsync.mockRejectedValue(new Error('LaunchServices unavailable'))
+      const { codeCliService } = await loadModules()
+      await expect(codeCliService.getAvailableTerminalsForPlatform()).resolves.toEqual([terminal])
+
+      mockInstalledBundles('com.mitchellh.ghostty')
+
+      await expect(codeCliService.getAvailableTerminalsForPlatform()).resolves.toEqual([terminal, ghostty])
+    })
+  })
+
   // macOS keeps the Claude Code login credential in the global Keychain; existence is probed via
   // `security find-generic-password` WITHOUT `-w` so we never read the secret or trip the ACL prompt.
   it('checkClaudeLogin returns true when the macOS keychain entry exists', async () => {
@@ -157,13 +219,8 @@ describe('CodeCliService', () => {
   })
 
   it('checkClaudeLogin returns false when the macOS keychain lookup fails', async () => {
-    const util = await import('util')
     const { codeCliService } = await loadModules()
-    // CodeCliService promisifies exec once at module load; grab that resolver and make it reject.
-    const execAsync = (
-      util.promisify as unknown as { mock: { results: { value: ReturnType<typeof vi.fn> }[] } }
-    ).mock.results.at(-1)?.value
-    execAsync?.mockRejectedValueOnce(new Error('not found'))
+    childProcessMock.execAsync.mockRejectedValueOnce(new Error('not found'))
     await expect(codeCliService.checkClaudeLogin()).resolves.toBe(false)
   })
 
@@ -195,61 +252,119 @@ describe('CodeCliService', () => {
     expect(loggerMock.warn).toHaveBeenCalled()
   })
 
-  // A stale/deleted provider must fail the launch outright — previously the
-  // lookup failure was swallowed, launching OpenCode with a default provider
-  // name ("Studio") that doesn't match the provider key written into
-  // opencode.json, while still reporting success.
-  describe('run (OpenCode provider resolution)', () => {
+  // OpenCode's model selection lives entirely in opencode.json (top-level `model` field
+  // written by the config flow) — the launch command must NOT carry a `--model` flag.
+  // Previously the flag was assembled from provider name + model id here, which could
+  // drift from the provider key written into opencode.json (gateway mode) and made
+  // OpenCode reject the model and fall back to its own last-used one.
+  describe('run (OpenCode launch)', () => {
+    const originalPlatform = process.platform
+
     beforeEach(async () => {
+      Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true })
       const fs = (await import('node:fs')).default
       vi.mocked(fs.existsSync).mockReturnValue(true)
       const resolver = await import('@main/utils/binaryResolver')
       vi.mocked(resolver.isBinaryExists).mockResolvedValue(true)
     })
 
-    it('fails the launch instead of defaulting to a wrong provider name', async () => {
-      providerServiceMock.getByProviderId.mockImplementation(() => {
-        throw new Error('Provider not found: ghost')
-      })
-      const { codeCliService } = await loadModules()
-
-      const result = await codeCliService.run({
-        mode: 'normal',
-        cliTool: CodeCli.OPEN_CODE,
-        model: 'gpt-4o',
-        providerId: 'ghost',
-        directory: '/tmp/project'
-      })
-
-      expect(result).toEqual({
-        success: false,
-        message: expect.stringContaining('OpenCode provider not found: ghost')
-      })
+    afterEach(() => {
+      Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
     })
 
-    // OpenCode is the one CLI that concatenates `model` straight into the launch command, so a model
-    // id carrying shell metacharacters ($(), backticks, ;, quotes, spaces) is rejected before the
-    // command is ever assembled — it can't inject into the sh -c / AppleScript / .bat string.
-    it.each(['gpt-4o; rm -rf ~', 'gpt$(reboot)', 'gpt`whoami`', "gpt'x", 'gpt 4o'])(
-      'rejects a model id carrying shell metacharacters (%j)',
-      async (badModel) => {
-        providerServiceMock.getByProviderId.mockReturnValue({ id: 'deepseek', name: 'DeepSeek' })
+    it('launches without --model and disables OpenCode auto-update via env', async () => {
+      vi.useFakeTimers()
+      try {
+        const { spawn } = await import('child_process')
         const { codeCliService } = await loadModules()
 
         const result = await codeCliService.run({
           mode: 'normal',
           cliTool: CodeCli.OPEN_CODE,
-          model: badModel,
-          providerId: 'deepseek',
+          model: 'deepseek:deepseek-chat',
+          providerId: 'cherry-gateway',
           directory: '/tmp/project'
         })
 
-        expect(result).toEqual({
-          success: false,
-          message: expect.stringContaining('Unsupported model id')
-        })
+        expect(result.success).toBe(true)
+        const call = vi.mocked(spawn).mock.calls.at(-1)
+        expect(call).toBeDefined()
+        const script = (call![1] as string[]).join(' ')
+        expect(script).not.toContain('--model')
+        expect(script).toContain('OPENCODE_DISABLE_AUTOUPDATE=')
+      } finally {
+        vi.useRealTimers()
       }
-    )
+    })
+  })
+
+  // gemini-cli's `resolveModel` rewrites a settings.model.name ending in "flash" to a default Gemini
+  // model, so the intended model is passed on the command line at launch — `--model` outranks settings
+  // and is honored verbatim — and in gateway mode it must carry the providerId prefix the gateway
+  // addresses by plus the @cherry sentinel, or the gateway can't route it.
+  describe('run (gemini-cli passes the model via --model)', () => {
+    const originalPlatform = process.platform
+
+    beforeEach(async () => {
+      Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true })
+      const fs = (await import('node:fs')).default
+      vi.mocked(fs.existsSync).mockReturnValue(true)
+      const resolver = await import('@main/utils/binaryResolver')
+      vi.mocked(resolver.isBinaryExists).mockResolvedValue(true)
+    })
+
+    afterEach(() => {
+      Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+    })
+
+    const launchScript = async (input: CodeCliRunInput) => {
+      vi.useFakeTimers()
+      try {
+        const { spawn } = await import('child_process')
+        const { codeCliService } = await loadModules()
+        const result = await codeCliService.run(input)
+        expect(result.success).toBe(true)
+        const call = vi.mocked(spawn).mock.calls.at(-1)
+        expect(call).toBeDefined()
+        return (call![1] as string[]).join(' ')
+      } finally {
+        vi.useRealTimers()
+      }
+    }
+
+    it('addresses the model as providerId:modelId plus the sentinel suffix in gateway mode', async () => {
+      const script = await launchScript({
+        mode: 'normal',
+        cliTool: CodeCli.GEMINI_CLI,
+        model: 'agent/deepseek-v4-flash',
+        providerId: '618d8838-1791-44df-8802-34f8444c0935',
+        gateway: true,
+        directory: '/tmp/project'
+      })
+      // The @cherry suffix defeats gemini-cli's model normalization, which rewrites
+      // any name satisfying endsWith("flash") to a default Gemini model.
+      expect(script).toContain('--model 618d8838-1791-44df-8802-34f8444c0935:agent/deepseek-v4-flash@cherry')
+      // The gateway serves only /v1beta, so the launch env forces the SDK's API version — a stale
+      // GOOGLE_GENAI_API_VERSION=v1 in the user's shell would otherwise redirect it to /v1. (The
+      // value's quotes are backslash-escaped by the AppleScript wrapper, so match the export + value.)
+      expect(script).toContain('export GOOGLE_GENAI_API_VERSION=')
+      expect(script).toContain('v1beta')
+    })
+
+    it('passes the bare model id in direct (non-gateway) mode', async () => {
+      const script = await launchScript({
+        mode: 'normal',
+        cliTool: CodeCli.GEMINI_CLI,
+        model: 'gemini-2.5-pro',
+        providerId: 'gemini',
+        directory: '/tmp/project'
+      })
+      expect(script).toContain('--model gemini-2.5-pro')
+      expect(script).not.toContain('gemini:gemini-2.5-pro')
+      // Direct launch must not force the gateway-only API version — a user who set
+      // GOOGLE_GENAI_API_VERSION for their own provider keeps it untouched.
+      expect(script).not.toContain('GOOGLE_GENAI_API_VERSION')
+    })
   })
 
   // Reviewer A4: the launch directory is interpolated into a shell string (macOS: wrapped again by
@@ -351,6 +466,35 @@ describe('CodeCliService', () => {
         expect(launch![0]).toBe('cmd')
         expect(launch![1]).toEqual(['/c', batPath])
         expect(launch![2]).toMatchObject({ shell: true, detached: true })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('bases the terminal env on getShellEnv so the bundled MinGit PATH tail reaches the CLI', async () => {
+      // Regression (PR #16402 review): the terminal spawn env used to start from
+      // process.env, so getShellEnv's PATH additions (mise shims, cherry.bin,
+      // bundled git dir last) never reached terminal-launched CLIs on a machine
+      // without system git.
+      const shellPath = 'C:\\Windows;C:\\mise\\shims;C:\\Cherry\\resources\\binaries\\win32-x64\\git\\cmd'
+      shellEnvMock.getShellEnv.mockResolvedValue({ Path: shellPath })
+
+      vi.useFakeTimers()
+      try {
+        const { spawn } = await import('child_process')
+        const { codeCliService } = await loadModules()
+
+        const result = await codeCliService.run({
+          mode: 'login-flow',
+          cliTool: CodeCli.CLAUDE_CODE,
+          directory: 'C:\\Users\\me\\proj'
+        })
+
+        expect(result.success).toBe(true)
+        const launch = vi.mocked(spawn).mock.calls.at(-1)
+        expect(launch).toBeDefined()
+        const spawnEnv = (launch![2] as { env: Record<string, string> }).env
+        expect(spawnEnv.Path).toBe(shellPath)
       } finally {
         vi.useRealTimers()
       }

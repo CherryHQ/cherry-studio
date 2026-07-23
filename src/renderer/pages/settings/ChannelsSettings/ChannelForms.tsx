@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@cherrystudio/ui'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import type { FeishuChannelConfig, FeishuDomain, PermissionMode } from '@renderer/types/agent'
 import { QRCodeSVG } from 'qrcode.react'
 import type { ReactNode } from 'react'
@@ -236,24 +237,21 @@ export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =>
   const [qrUrl, setQrUrl] = useState<string | null>(null)
   const [status, setStatus] = useState<FeishuStatus>(hasCredentials ? 'confirmed' : 'idle')
 
-  useEffect(() => {
-    const cleanup = window.api.feishu.onQrLogin((data) => {
-      if (data.channelId !== channel.id) return
-      if (data.status === 'confirmed') {
-        setQrUrl(null)
-        setStatus('confirmed')
-        // Credentials are saved by main process (saveCredentialsAndReconnect).
-        // ChannelDetail will reload data on statusChange → connected.
-      } else if (data.status === 'expired') {
-        setQrUrl(null)
-        setStatus('expired')
-      } else if (data.url) {
-        setQrUrl(data.url)
-        setStatus('pending')
-      }
-    })
-    return cleanup
-  }, [channel.id])
+  useIpcOn('channel.feishu.qr_login', (data) => {
+    if (data.channelId !== channel.id) return
+    if (data.status === 'confirmed') {
+      setQrUrl(null)
+      setStatus('confirmed')
+      // Credentials are saved by main process (saveCredentialsAndReconnect).
+      // ChannelDetail will reload data on statusChange → connected.
+    } else if (data.status === 'expired') {
+      setQrUrl(null)
+      setStatus('expired')
+    } else if (data.url) {
+      setQrUrl(data.url)
+      setStatus('pending')
+    }
+  })
 
   return (
     <div className="flex flex-col gap-3">
@@ -398,7 +396,7 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ c
   const [qrUrl, setQrUrl] = useState<string | null>(null)
 
   useEffect(() => {
-    void window.api.wechat.hasCredentials(channel.id).then((result) => {
+    void ipcApi.request('channel.wechat.has_credentials', channel.id).then((result) => {
       if (result.exists) {
         setStatus('confirmed')
         if (result.userId) setLoginUserId(result.userId)
@@ -406,25 +404,22 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ c
     })
   }, [channel.id])
 
-  useEffect(() => {
-    const cleanup = window.api.wechat.onQrLogin((data) => {
-      if (data.channelId !== channel.id) return
-      if (data.status === 'confirmed') {
-        setQrUrl(null)
-        setStatus('confirmed')
-        if (data.userId) setLoginUserId(data.userId)
-      } else if (data.status === 'expired') {
-        setQrUrl(null)
-      } else if (data.status === 'disconnected') {
-        setStatus('disconnected')
-        setLoginUserId(null)
-      } else if (data.url) {
-        setQrUrl(data.url)
-        setStatus('pending')
-      }
-    })
-    return cleanup
-  }, [channel.id])
+  useIpcOn('channel.wechat.qr_login', (data) => {
+    if (data.channelId !== channel.id) return
+    if (data.status === 'confirmed') {
+      setQrUrl(null)
+      setStatus('confirmed')
+      if (data.userId) setLoginUserId(data.userId)
+    } else if (data.status === 'expired') {
+      setQrUrl(null)
+    } else if (data.status === 'disconnected') {
+      setStatus('disconnected')
+      setLoginUserId(null)
+    } else if (data.url) {
+      setQrUrl(data.url)
+      setStatus('pending')
+    }
+  })
 
   return (
     <div className="flex flex-col gap-3">

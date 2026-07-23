@@ -22,7 +22,7 @@
   }
 
   .lucide:not(.lucide-custom) {
-    color: var(--color-icon);
+    color: var(--color-foreground-secondary);
   }
 }
 
@@ -50,7 +50,7 @@ body,
 body {
   display: flex;
   min-height: 100vh;
-  color: var(--color-text);
+  color: var(--color-foreground);
   font-size: 14px;
   line-height: 1.6;
   overflow: hidden;
@@ -172,7 +172,7 @@ ul {
   .message-content-container {
   border-radius: 10px;
   padding: 10px 16px 10px 16px;
-  background-color: var(--chat-background-user);
+  background-color: var(--color-secondary);
   align-self: self-end;
 }
 
@@ -192,7 +192,7 @@ ul {
 }
 
 :is(.bubble.messages-container, .bubble .messages-container):not(.multi-select-mode) code {
-  color: var(--color-text);
+  color: var(--color-foreground);
 }
 
 :is(.bubble.messages-container, .bubble .messages-container):not(.multi-select-mode) .markdown {
@@ -200,12 +200,12 @@ ul {
 }
 
 ::highlight(search-matches) {
-  background-color: var(--color-background-highlight);
-  color: var(--color-highlight);
+  background-color: var(--color-warning-bg);
+  color: var(--color-foreground);
 }
 
 ::highlight(current-match) {
-  background-color: var(--color-background-highlight-accent);
+  background-color: var(--color-warning-bg-hover);
 }
 
 textarea::-webkit-resizer {

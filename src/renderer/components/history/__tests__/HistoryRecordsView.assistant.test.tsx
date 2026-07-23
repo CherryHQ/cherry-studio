@@ -6,7 +6,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import enUS from '../../../i18n/locales/en-us.json'
 import zhCN from '../../../i18n/locales/zh-cn.json'
-import zhTW from '../../../i18n/locales/zh-tw.json'
 import deDE from '../../../i18n/translate/de-de.json'
 import elGR from '../../../i18n/translate/el-gr.json'
 import esES from '../../../i18n/translate/es-es.json'
@@ -16,6 +15,7 @@ import ptPT from '../../../i18n/translate/pt-pt.json'
 import roRO from '../../../i18n/translate/ro-ro.json'
 import ruRU from '../../../i18n/translate/ru-ru.json'
 import viVN from '../../../i18n/translate/vi-vn.json'
+import zhTW from '../../../i18n/translate/zh-tw.json'
 
 const hookMocks = vi.hoisted(() => ({
   deleteTopic: vi.fn(),
@@ -356,16 +356,16 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
     modelId: null,
     mcpServerIds: [],
     knowledgeBaseIds: [],
+    groupId: null,
     createdAt: '2026-05-13T08:00:00.000Z',
     updatedAt: '2026-05-14T08:00:00.000Z',
-    tags: [],
     modelName: null,
     ...overrides
   } as Assistant
 }
 
 const flushAnimationFrame = () => new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
-const flushCommandMenuAction = () => new Promise<void>((resolve) => queueMicrotask(resolve))
+const flushCommandMenuAction = flushAnimationFrame
 
 describe('HistoryRecordsView assistant mode', () => {
   beforeEach(() => {

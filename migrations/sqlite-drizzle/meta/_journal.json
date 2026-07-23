@@ -140,6 +140,34 @@
       "when": 1783568946634,
       "tag": "0019_wet_luke_cage",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1783744070030,
+      "tag": "0020_purple_mysterio",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1783909776548,
+      "tag": "0021_noisy_blur",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1784187722341,
+      "tag": "0022_cold_lady_bullseye",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1784270529294,
+      "tag": "0023_last_mac_gargan",
+      "breakpoints": true
     }
   ],
   "version": "7"

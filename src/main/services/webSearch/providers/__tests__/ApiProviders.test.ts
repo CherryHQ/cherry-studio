@@ -5,7 +5,9 @@ import type { WebSearchExecutionConfig } from '@shared/data/types/webSearch'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  extractReadableMarkdown: vi.fn(),
   fetch: vi.fn(),
+  fetchRemoteText: vi.fn(),
   loggerWarn: vi.fn(),
   isInChina: vi.fn()
 }))
@@ -27,6 +29,14 @@ vi.mock('electron', () => ({
   }
 }))
 
+vi.mock('@main/utils/remoteFetch', () => ({
+  fetchRemoteText: mocks.fetchRemoteText
+}))
+
+vi.mock('@main/services/readableContent', () => ({
+  readableContentService: { extractReadableMarkdown: mocks.extractReadableMarkdown }
+}))
+
 vi.mock('@main/services/RegionService', () => ({
   regionService: { isInChina: mocks.isInChina }
 }))
@@ -45,6 +55,7 @@ import { ExaMcpProvider } from '../mcp/ExaMcpProvider'
 
 const { readFileSync } = await vi.importActual<typeof NodeFs>('node:fs')
 const fetchMock = mocks.fetch
+const fetchRemoteTextMock = mocks.fetchRemoteText
 
 const runtimeConfig: WebSearchExecutionConfig = {
   maxResults: 4,
@@ -156,7 +167,14 @@ describe('main web search API providers', () => {
   })
 
   beforeEach(() => {
+    mocks.extractReadableMarkdown.mockReset()
+    mocks.extractReadableMarkdown.mockImplementation(async (html: string) =>
+      html.includes('<div></div>')
+        ? { title: '', content: '' }
+        : { title: 'Resolved Page Title', content: 'Resolved content from the target page.' }
+    )
     fetchMock.mockReset()
+    fetchRemoteTextMock.mockReset()
     mocks.loggerWarn.mockReset()
     mocks.isInChina.mockReset()
     mocks.isInChina.mockResolvedValue(false)
@@ -274,7 +292,7 @@ describe('main web search API providers', () => {
   })
 
   it('fetches a URL without API key or API host', async () => {
-    fetchMock.mockResolvedValue(createTextResponse(loadFixtureText('searxng-page.html'), 'text/html'))
+    fetchRemoteTextMock.mockResolvedValue(loadFixtureText('searxng-page.html'))
 
     const provider = createProviderDriver(
       FetchProvider,
@@ -289,7 +307,7 @@ describe('main web search API providers', () => {
     const result = await provider.fetchUrls('https://example.com/article', runtimeConfig)
 
     expect({
-      request: toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined]),
+      request: toRequestSnapshot(fetchRemoteTextMock.mock.lastCall as [string, RequestInit | undefined]),
       result
     }).toMatchInlineSnapshot(`
       {
@@ -561,9 +579,8 @@ describe('main web search API providers', () => {
   })
 
   it('matches Searxng search requests and parsed content snapshots from fixtures', async () => {
-    fetchMock
-      .mockResolvedValueOnce(createJsonResponse(loadFixtureJson('searxng-search-response.json')))
-      .mockResolvedValueOnce(createTextResponse(loadFixtureText('searxng-page.html'), 'text/html'))
+    fetchMock.mockResolvedValueOnce(createJsonResponse(loadFixtureJson('searxng-search-response.json')))
+    fetchRemoteTextMock.mockResolvedValueOnce(loadFixtureText('searxng-page.html'))
 
     const provider = createProviderDriver(
       SearxngProvider,
@@ -581,7 +598,7 @@ describe('main web search API providers', () => {
 
     expect({
       searchRequest: toRequestSnapshot(fetchMock.mock.calls[0] as [string, RequestInit | undefined]),
-      contentRequest: toRequestSnapshot(fetchMock.mock.calls[1] as [string, RequestInit | undefined]),
+      contentRequest: toRequestSnapshot(fetchRemoteTextMock.mock.calls[0] as [string, RequestInit | undefined]),
       result
     }).toMatchInlineSnapshot(`
       {
@@ -627,7 +644,7 @@ describe('main web search API providers', () => {
     fetchMock
       .mockResolvedValueOnce(createJsonResponse(loadFixtureJson('searxng-config-response.json')))
       .mockResolvedValueOnce(createJsonResponse(loadFixtureJson('searxng-search-response.json')))
-      .mockResolvedValueOnce(createTextResponse(loadFixtureText('searxng-page.html'), 'text/html'))
+    fetchRemoteTextMock.mockResolvedValueOnce(loadFixtureText('searxng-page.html'))
 
     const provider = createProviderDriver(
       SearxngProvider,
@@ -669,9 +686,8 @@ describe('main web search API providers', () => {
   })
 
   it('filters empty fetched content from Searxng results', async () => {
-    fetchMock
-      .mockResolvedValueOnce(createJsonResponse(loadFixtureJson('searxng-search-response.json')))
-      .mockResolvedValueOnce(createTextResponse('<html><body><div></div></body></html>', 'text/html'))
+    fetchMock.mockResolvedValueOnce(createJsonResponse(loadFixtureJson('searxng-search-response.json')))
+    fetchRemoteTextMock.mockResolvedValueOnce('<html><body><div></div></body></html>')
 
     const provider = createProviderDriver(
       SearxngProvider,
@@ -727,24 +743,24 @@ describe('main web search API providers', () => {
   })
 
   it('keeps successful Searxng content fetches when some results fail', async () => {
-    fetchMock
-      .mockResolvedValueOnce(
-        createJsonResponse({
-          query: 'hello',
-          results: [
-            {
-              title: 'First result',
-              url: 'https://searx.example/first'
-            },
-            {
-              title: 'Second result',
-              url: 'https://searx.example/second'
-            }
-          ]
-        })
-      )
-      .mockResolvedValueOnce(createTextResponse(loadFixtureText('searxng-page.html'), 'text/html'))
-      .mockResolvedValueOnce(createTextResponse('server error', 'text/plain', 500))
+    fetchMock.mockResolvedValueOnce(
+      createJsonResponse({
+        query: 'hello',
+        results: [
+          {
+            title: 'First result',
+            url: 'https://searx.example/first'
+          },
+          {
+            title: 'Second result',
+            url: 'https://searx.example/second'
+          }
+        ]
+      })
+    )
+    fetchRemoteTextMock
+      .mockResolvedValueOnce(loadFixtureText('searxng-page.html'))
+      .mockRejectedValueOnce(new Error('HTTP error: 500'))
 
     const provider = createProviderDriver(
       SearxngProvider,
@@ -774,20 +790,104 @@ describe('main web search API providers', () => {
     })
   })
 
+  it('keeps successful Searxng content fetches when one result reports an abort-like failure without caller cancellation', async () => {
+    fetchMock.mockResolvedValueOnce(
+      createJsonResponse({
+        query: 'hello',
+        results: [
+          {
+            title: 'First result',
+            url: 'https://searx.example/first'
+          },
+          {
+            title: 'Second result',
+            url: 'https://searx.example/second'
+          }
+        ]
+      })
+    )
+    const abortLikeError = Object.assign(new Error('The operation was aborted'), { name: 'AbortError' })
+    fetchRemoteTextMock
+      .mockResolvedValueOnce(loadFixtureText('searxng-page.html'))
+      .mockRejectedValueOnce(abortLikeError)
+
+    const provider = createProviderDriver(
+      SearxngProvider,
+      createProvider({
+        id: 'searxng',
+        name: 'Searxng',
+        apiHost: 'https://searx.example',
+        engines: ['google', 'bing']
+      })
+    )
+
+    const result = await provider.searchKeywords('hello', runtimeConfig)
+
+    expect(result.results).toEqual([
+      {
+        title: 'Resolved Page Title',
+        content: 'Resolved content from the target page.',
+        url: 'https://searx.example/first',
+        sourceInput: 'hello'
+      }
+    ])
+    expect(mocks.loggerWarn).toHaveBeenCalledWith('Some Searxng content fetches failed', {
+      query: 'hello',
+      failedCount: 1,
+      totalCount: 2
+    })
+  })
+
+  it('throws Searxng content abort errors when the caller has cancelled the search', async () => {
+    fetchMock.mockResolvedValueOnce(
+      createJsonResponse({
+        query: 'hello',
+        results: [
+          {
+            title: 'First result',
+            url: 'https://searx.example/first'
+          },
+          {
+            title: 'Second result',
+            url: 'https://searx.example/second'
+          }
+        ]
+      })
+    )
+    const controller = new AbortController()
+    const abortError = Object.assign(new Error('Search cancelled'), { name: 'AbortError' })
+    fetchRemoteTextMock.mockResolvedValueOnce(loadFixtureText('searxng-page.html')).mockRejectedValueOnce(abortError)
+
+    const provider = createProviderDriver(
+      SearxngProvider,
+      createProvider({
+        id: 'searxng',
+        name: 'Searxng',
+        apiHost: 'https://searx.example',
+        engines: ['google', 'bing']
+      })
+    )
+
+    controller.abort(abortError)
+
+    await expect(provider.searchKeywords('hello', runtimeConfig, { signal: controller.signal })).rejects.toThrow(
+      'Search cancelled'
+    )
+  })
+
   it('throws when every Searxng content fetch fails', async () => {
-    fetchMock
-      .mockResolvedValueOnce(
-        createJsonResponse({
-          query: 'hello',
-          results: [
-            {
-              title: 'Broken result',
-              url: 'https://searx.example/broken'
-            }
-          ]
-        })
-      )
-      .mockResolvedValueOnce(createTextResponse('server error', 'text/plain', 500))
+    fetchMock.mockResolvedValueOnce(
+      createJsonResponse({
+        query: 'hello',
+        results: [
+          {
+            title: 'Broken result',
+            url: 'https://searx.example/broken'
+          }
+        ]
+      })
+    )
+    fetchRemoteTextMock.mockRejectedValueOnce(new Error('HTTP error: 500'))
 
     const provider = createProviderDriver(
       SearxngProvider,
@@ -1037,7 +1137,7 @@ describe('main web search API providers', () => {
         id: 'exa-mcp',
         name: 'Exa MCP',
         type: 'mcp',
-        apiHost: ''
+        apiHost: 'https://mcp.exa.ai/mcp'
       })
     )
 
@@ -1092,6 +1192,27 @@ describe('main web search API providers', () => {
     `)
   })
 
+  it.each([
+    { apiHost: '', code: 'api_host_missing' },
+    { apiHost: 'not-a-url', code: 'api_host_invalid' }
+  ])('rejects Exa MCP API Host configuration before fetching: $code', async ({ apiHost, code }) => {
+    const provider = createProviderDriver(
+      ExaMcpProvider,
+      createProvider({
+        id: 'exa-mcp',
+        name: 'Exa MCP',
+        type: 'mcp',
+        apiHost
+      })
+    )
+
+    await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toMatchObject({
+      name: 'WebSearchConfigError',
+      code
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('skips malformed Exa MCP SSE frames and keeps parsing later frames', async () => {
     fetchMock.mockResolvedValue(
       createTextResponse(
@@ -1110,7 +1231,7 @@ describe('main web search API providers', () => {
         id: 'exa-mcp',
         name: 'Exa MCP',
         type: 'mcp',
-        apiHost: ''
+        apiHost: 'https://mcp.exa.ai/mcp'
       })
     )
 
@@ -1141,7 +1262,7 @@ describe('main web search API providers', () => {
         id: 'exa-mcp',
         name: 'Exa MCP',
         type: 'mcp',
-        apiHost: ''
+        apiHost: 'https://mcp.exa.ai/mcp'
       })
     )
 
@@ -1172,7 +1293,7 @@ describe('main web search API providers', () => {
         id: 'exa-mcp',
         name: 'Exa MCP',
         type: 'mcp',
-        apiHost: ''
+        apiHost: 'https://mcp.exa.ai/mcp'
       })
     )
 
@@ -1247,7 +1368,7 @@ describe('main web search API providers', () => {
         id: 'exa-mcp',
         name: 'Exa MCP',
         type: 'mcp',
-        apiHost: ''
+        apiHost: 'https://mcp.exa.ai/mcp'
       })
     )
 

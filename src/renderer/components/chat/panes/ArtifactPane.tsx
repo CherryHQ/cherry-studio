@@ -68,7 +68,6 @@ interface ArtifactFilePreviewProps {
   filePath?: string | null
   isText: IsTextState
   fileSize: FileSizeState
-  officeActions?: ReactNode
   pdfLayoutPending?: boolean
   pdfLayoutRefreshKey?: number
   contentRefreshKey?: number
@@ -150,7 +149,6 @@ export function ArtifactFilePreview({
   filePath,
   isText,
   fileSize,
-  officeActions,
   pdfLayoutPending = false,
   pdfLayoutRefreshKey = 0,
   contentRefreshKey = 0
@@ -367,7 +365,6 @@ export function ArtifactFilePreview({
         sourceSize={fileSize.status === 'ok' ? fileSize.size : undefined}
         className="min-h-0"
         refreshKey={contentRefreshKey}
-        actions={officeActions}
       />
     )
   }
@@ -430,9 +427,7 @@ interface ArtifactPaneViewProps {
   pdfLayoutPending?: boolean
   pdfLayoutRefreshKey?: number
   enableFileSearch?: boolean
-  /** The lifted directory-tree model. Owning it above the component lets the
-   *  agent right-pane survive the Host↔Overlay maximize remount without
-   *  rebuilding the tree. */
+  /** Directory-tree model owned by the surrounding artifact capability. */
   model: ArtifactFileTreeModel
   selectedFile: string | null
   onSelectedFileChange: (file: string | null) => void
@@ -626,19 +621,23 @@ export function ArtifactPaneView({
     [availableEditors, fileManagerName, openPath, showInFolder, t, workspacePath]
   )
 
+  const refreshButton = (
+    <Tooltip content={t('agent.preview_pane.refresh')} delay={800}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        className="text-muted-foreground hover:bg-accent hover:text-foreground"
+        aria-label={t('agent.preview_pane.refresh')}
+        onClick={handleRefresh}>
+        <RotateCw size={16} />
+      </Button>
+    </Tooltip>
+  )
+
   const searchToolbar = (
     <div className="flex shrink-0 items-center gap-1">
-      <Tooltip content={t('agent.preview_pane.refresh')} delay={800}>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="text-muted-foreground hover:bg-accent hover:text-foreground"
-          aria-label={t('agent.preview_pane.refresh')}
-          onClick={handleRefresh}>
-          <RotateCw size={16} />
-        </Button>
-      </Tooltip>
+      {refreshButton}
       {workspacePath && <OpenExternalAppButton workdir={workspacePath} />}
     </div>
   )
@@ -657,29 +656,34 @@ export function ArtifactPaneView({
         data-testid="artifact-file-preview-overlay"
         tabIndex={-1}
         onKeyDown={handleOverlayKeyDown}
-        className={cn(
-          'absolute inset-0 z-20 flex min-h-0 flex-col bg-card text-card-foreground',
-          isSelectedHtmlPreview || isSelectedPdfPreview || isSelectedOfficePreview || isSelectedImagePreview
-            ? 'overflow-hidden'
-            : 'overflow-auto'
-        )}>
-        <div className="flex h-9 shrink-0 items-center justify-between gap-2 border-border-subtle border-b px-3">
+        className="absolute inset-0 z-20 flex min-h-0 flex-col overflow-hidden bg-card text-card-foreground">
+        <div className="flex h-10 shrink-0 items-center justify-between gap-2 border-border-subtle border-b pr-2 pl-3">
           <div className="min-w-0 truncate font-medium text-foreground text-sm">
             {getPreviewFileTitle(overlaySelection.filePath)}
           </div>
-          <Tooltip content={t('agent.preview_pane.close')} delay={800}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="text-muted-foreground hover:bg-accent hover:text-foreground"
-              aria-label={t('agent.preview_pane.close')}
-              onClick={handleClosePreview}>
-              <X size={16} />
-            </Button>
-          </Tooltip>
+          <div className="flex shrink-0 items-center gap-1">
+            <OpenExternalAppButton workdir={overlaySelection.workspacePath} filePath={overlaySelection.filePath} />
+            {refreshButton}
+            <Tooltip content={t('agent.preview_pane.close')} delay={800}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="text-muted-foreground hover:bg-accent hover:text-foreground"
+                aria-label={t('agent.preview_pane.close')}
+                onClick={handleClosePreview}>
+                <X size={16} />
+              </Button>
+            </Tooltip>
+          </div>
         </div>
-        <div className="min-h-0 flex-1">
+        <div
+          className={cn(
+            'min-h-0 flex-1',
+            isSelectedHtmlPreview || isSelectedPdfPreview || isSelectedOfficePreview || isSelectedImagePreview
+              ? 'overflow-hidden'
+              : 'overflow-auto'
+          )}>
           <ArtifactFilePreview
             workspacePath={overlaySelection.workspacePath}
             filePath={overlaySelection.filePath}
@@ -688,11 +692,6 @@ export function ArtifactPaneView({
             pdfLayoutPending={pdfLayoutPending}
             pdfLayoutRefreshKey={pdfLayoutRefreshKey}
             contentRefreshKey={contentRefreshToken}
-            officeActions={
-              isOfficeDocumentSelection ? (
-                <OpenExternalAppButton workdir={overlaySelection.workspacePath} filePath={overlaySelection.filePath} />
-              ) : undefined
-            }
           />
         </div>
       </div>
@@ -781,9 +780,9 @@ export function ArtifactPaneView({
 
 /**
  * Standalone artifact pane: owns its own (optionally controlled) selection /
- * file-tree state and builds the tree model internally. The agent right-pane
- * instead lifts the model into a surviving provider and renders
- * `ArtifactPaneView` directly (so maximize/minimize doesn't rebuild the tree).
+ * file-tree state and builds the tree model internally. The agent files
+ * capability owns the same model and renders `ArtifactPaneView` directly; its
+ * stable capability instance survives close, tab, and layout changes.
  */
 const ArtifactPane = ({
   workspacePath,
@@ -853,7 +852,6 @@ const ArtifactPane = ({
     selectedFile,
     onExpandedIdsChange: setExpandedIdsState
   })
-  const { resetLazyChildren } = model
 
   // Reset transient state when the workspace changes.
   useEffect(() => {
@@ -861,7 +859,6 @@ const ArtifactPane = ({
     if (workspaceChanged) {
       if (!selectedFileControlled) setSelectedFile(null)
       if (!previewFileSelectionControlled) setInternalPreviewFileSelection(null)
-      resetLazyChildren()
     }
     previousWorkspacePathRef.current = workspacePath
 
@@ -878,7 +875,6 @@ const ArtifactPane = ({
     setExpandedIdsState,
     setFileSearchKeyword,
     setSelectedFile,
-    resetLazyChildren,
     workspacePath
   ])
 

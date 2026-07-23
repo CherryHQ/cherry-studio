@@ -1,3 +1,4 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
@@ -8,34 +9,72 @@ import { PopupHost } from '@renderer/components/PopupHost'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import ToastHost from '@renderer/components/ToastHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
-import { useAppInit } from '@renderer/hooks/useAppInit'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
+import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
+import { useEffect } from 'react'
 
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
+import { useTopicNamingErrorNotification } from './hooks/useTopicNamingErrorNotification'
+import OnboardingPage from './onboarding/OnboardingPage'
 
 const logger = loggerService.withContext('MainApp')
 
-// Behavior leaf inside the providers: runs the shared per-window init plus the
-// main-only app-update and storage-monitor hooks, and mounts the popup/toast hosts.
-// App-update events only reach the main window and the storage warning must not
-// duplicate across windows, so those two hooks live here, not in useAppInit.
+// Behavior leaf inside the providers: the shared window runtime plus the main-only
+// concerns, then the popup/toast hosts. It sits inside the providers but outside every
+// TabRouter/<Activity>, so these window-scoped subscriptions and DOM sync are never
+// torn down when a background tab hides.
 //
-// REFACTOR(window-runtime-init): the three hooks below are the next refactor target —
-// a mix of one-shot bootstrap, main-only event->notification subscribers, and
-// genuinely reactive effects, all still expressed as React side-effect hooks. Target:
-// move bootstrap to a per-window bootstrap seam, the subscribers to a notification
-// layer, and let subsystem-owned hooks keep the rest — leaving this leaf to just
-// render the hosts. Grep "window-runtime-init" for the cluster.
-function MainWindowRuntime(): React.ReactElement {
-  useAppInit()
+// useAppUpdateHandler / useStorageMonitorNotification / useTopicNamingErrorNotification are
+// intentionally main-only (update events only reach the main window; the storage warning and
+// topic-naming-failed toast must not duplicate across windows) and intentionally React hooks:
+// they depend on React-visible
+// cache/toast state and manage their own effect cleanup, and the renderer has no
+// service lifecycle container, so a service would only add manual start/stop.
+//
+// Headless: it runs hooks and renders nothing. The popup/toast hosts are explicit
+// siblings in the App JSX below, so a window's host composition is visible there.
+function MainWindowRuntime(): null {
+  useWindowRuntime()
+
+  // Main-only: tear down the HTML boot spinner and end the `init` timer. Both are
+  // paired with markup only main/index.html creates (`#spinner`, `console.time`), so
+  // this must never run in another window.
+  useEffect(() => {
+    document.getElementById('spinner')?.remove()
+    // Paired with `console.time('init')` in index.html's bootstrap script; a DevTools
+    // timer for dev DX, not a production log — loggerService is not apt.
+    // eslint-disable-next-line no-restricted-syntax
+    console.timeEnd('init')
+  }, [])
+
   useAppUpdateHandler()
   useStorageMonitorNotification()
+  useTopicNamingErrorNotification()
+
+  return null
+}
+
+export function MainWindowContent(): React.ReactElement {
+  const [providerSetupStatus, setProviderSetupStatus] = usePreference('app.onboarding.provider_setup.status')
+
+  if (providerSetupStatus === 'pending') {
+    return (
+      <>
+        <OnboardingPage onComplete={setProviderSetupStatus} />
+        <MainWindowRuntime />
+        <PopupHost />
+        <ToastHost />
+      </>
+    )
+  }
 
   return (
-    <>
+    <TabsProvider>
+      <AppShell />
+      <MainWindowRuntime />
       <PopupHost />
       <ToastHost />
-    </>
+    </TabsProvider>
   )
 }
 
@@ -50,10 +89,7 @@ function MainApp(): React.ReactElement {
         <CodeStyleProvider>
           <CommandContextKeyProvider>
             <CommandProvider>
-              <TabsProvider>
-                <AppShell />
-                <MainWindowRuntime />
-              </TabsProvider>
+              <MainWindowContent />
             </CommandProvider>
           </CommandContextKeyProvider>
         </CodeStyleProvider>

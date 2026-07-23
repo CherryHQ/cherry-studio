@@ -72,42 +72,6 @@ vi.mock('@data/hooks/useCache', async () => {
   return MockUseCache
 })
 
-// Mock PreferenceService globally for renderer tests
-vi.mock('@data/PreferenceService', async () => {
-  const { MockPreferenceService } = await import('./__mocks__/renderer/PreferenceService')
-  return MockPreferenceService
-})
-
-// Mock DataApiService globally for renderer tests
-vi.mock('@data/DataApiService', async () => {
-  const { MockDataApiService } = await import('./__mocks__/renderer/DataApiService')
-  return MockDataApiService
-})
-
-// Mock CacheService globally for renderer tests
-vi.mock('@data/CacheService', async () => {
-  const { MockCacheService } = await import('./__mocks__/renderer/CacheService')
-  return MockCacheService
-})
-
-// Mock useDataApi hooks globally for renderer tests
-vi.mock('@data/hooks/useDataApi', async () => {
-  const { MockUseDataApi } = await import('./__mocks__/renderer/useDataApi')
-  return MockUseDataApi
-})
-
-// Mock usePreference hooks globally for renderer tests
-vi.mock('@data/hooks/usePreference', async () => {
-  const { MockUsePreference } = await import('./__mocks__/renderer/usePreference')
-  return MockUsePreference
-})
-
-// Mock useCache hooks globally for renderer tests
-vi.mock('@data/hooks/useCache', async () => {
-  const { MockUseCache } = await import('./__mocks__/renderer/useCache')
-  return MockUseCache
-})
-
 // Mock the toast notification surface globally for renderer tests
 vi.mock('@renderer/services/toast', async () => {
   const { MockToast } = await import('./__mocks__/renderer/toast')
@@ -179,6 +143,18 @@ vi.stubGlobal('api', {
   file: {
     read: vi.fn().mockResolvedValue('[]'),
     writeWithId: vi.fn().mockResolvedValue(undefined)
+  },
+  // Legacy `window.api.application.*` bridge — `relaunch` stays on legacy IPC, so tests that
+  // trigger a restart flow reach this stub. Stubbed to a no-op resolving spy.
+  application: {
+    relaunch: vi.fn().mockResolvedValue(undefined)
+  },
+  // Low-level IpcApi bridge — the typed `ipcApi` facade calls through this. Stubbed so
+  // module-level `ipcApi.on(...)` side effects (e.g. the renderer notification singleton)
+  // don't crash tests that transitively import them without a local `@renderer/ipc` mock.
+  ipcApi: {
+    request: vi.fn().mockResolvedValue(undefined),
+    on: vi.fn(() => () => {})
   }
 })
 
@@ -192,6 +168,13 @@ vi.mock('@cherrystudio/ui', () => {
   const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
   const ContextMenuContext = React.createContext({ open: false, onOpenChange: undefined })
   const DropdownMenuOpenContext = React.createContext(null)
+  const AccordionContext = React.createContext({
+    collapsible: false,
+    onValueChange: undefined,
+    type: 'single',
+    value: ''
+  })
+  const AccordionItemContext = React.createContext({ disabled: false, value: '' })
   return {
     // Markdown — `@cherrystudio/ui` barrel re-exports composites/markdown (#16228).
     // Lightweight stand-ins so tests mounting real ChatMarkdown still surface text.
@@ -245,6 +228,17 @@ vi.mock('@cherrystudio/ui', () => {
       }
       return React.createElement('button', buttonProps, startContent, children)
     },
+    ConfirmDialog: ({ cancelText, confirmText, description, onConfirm, open, title }) =>
+      open
+        ? React.createElement(
+            'div',
+            { role: 'dialog' },
+            React.createElement('h2', null, title),
+            description ? React.createElement('p', null, description) : null,
+            React.createElement('button', { type: 'button' }, cancelText),
+            React.createElement('button', { type: 'button', onClick: onConfirm }, confirmText)
+          )
+        : null,
     Input: ({ hasError, 'aria-invalid': ariaInvalid, className, list, ...props }) =>
       React.createElement('input', {
         ...props,
@@ -272,18 +266,73 @@ vi.mock('@cherrystudio/ui', () => {
           }
         })
     },
-    Accordion: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'accordion' }, children),
-    AccordionItem: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'accordion-item' }, children),
-    AccordionTrigger: ({ children, disabled, ...props }) =>
+    Accordion: ({ children, collapsible = false, defaultValue, onValueChange, type = 'single', value, ...props }) => {
+      const [internalValue, setInternalValue] = React.useState(defaultValue ?? (type === 'multiple' ? [] : ''))
+      const currentValue = value ?? internalValue
+      const handleValueChange = (nextValue) => {
+        if (value === undefined) setInternalValue(nextValue)
+        onValueChange?.(nextValue)
+      }
+      return React.createElement(
+        AccordionContext.Provider,
+        { value: { collapsible, onValueChange: handleValueChange, type, value: currentValue } },
+        React.createElement('div', { ...props, 'data-testid': props['data-testid'] ?? 'accordion' }, children)
+      )
+    },
+    AccordionItem: ({ children, disabled = false, value, ...props }) =>
       React.createElement(
-        'button',
-        { ...props, type: 'button', disabled, 'data-testid': 'accordion-trigger' },
-        children
+        AccordionItemContext.Provider,
+        { value: { disabled, value } },
+        React.createElement('div', { ...props, 'data-testid': props['data-testid'] ?? 'accordion-item' }, children)
       ),
-    AccordionContent: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'accordion-content' }, children),
+    AccordionTrigger: ({ children, disabled, onClick, ...props }) => {
+      const accordion = React.use(AccordionContext)
+      const item = React.use(AccordionItemContext)
+      const isOpen =
+        accordion.type === 'multiple' ? accordion.value.includes(item.value) : accordion.value === item.value
+      const handleClick = (event) => {
+        onClick?.(event)
+        if (event.defaultPrevented || disabled || item.disabled) return
+
+        if (accordion.type === 'multiple') {
+          accordion.onValueChange?.(
+            isOpen ? accordion.value.filter((value) => value !== item.value) : [...accordion.value, item.value]
+          )
+        } else if (!isOpen || accordion.collapsible) {
+          accordion.onValueChange?.(isOpen ? '' : item.value)
+        }
+      }
+      return React.createElement(
+        'button',
+        {
+          ...props,
+          type: 'button',
+          disabled: disabled || item.disabled,
+          'aria-expanded': isOpen,
+          'data-testid': props['data-testid'] ?? 'accordion-trigger',
+          onClick: handleClick
+        },
+        children
+      )
+    },
+    AccordionContent: ({ children, className, contentClassName, forceMount = false, ...props }) => {
+      const accordion = React.use(AccordionContext)
+      const item = React.use(AccordionItemContext)
+      const isOpen =
+        accordion.type === 'multiple' ? accordion.value.includes(item.value) : accordion.value === item.value
+      if (!isOpen && !forceMount) return null
+
+      return React.createElement(
+        'div',
+        {
+          ...props,
+          className: [contentClassName, className].filter(Boolean).join(' '),
+          'data-state': isOpen ? 'open' : 'closed',
+          'data-testid': props['data-testid'] ?? 'accordion-content'
+        },
+        children
+      )
+    },
     DropdownMenu: ({ children, onOpenChange }) =>
       React.createElement(
         DropdownMenuOpenContext.Provider,
@@ -526,7 +575,7 @@ vi.mock('@cherrystudio/ui', () => {
     Badge: ({ children, ...props }) => React.createElement('span', { ...props, 'data-testid': 'badge' }, children),
     Separator: (props) => React.createElement('hr', { ...props, 'data-testid': 'separator' }),
     Scrollbar: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'scrollbar' }, children),
+      React.createElement('div', { 'data-testid': 'scrollbar', ...props }, children),
     Dropzone: ({ children, getFilesFromEvent: _getFilesFromEvent, onDrop: _onDrop, maxFiles: _maxFiles, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'dropzone' }, children),
     DropzoneEmptyState: ({ children }) => React.createElement(React.Fragment, null, children),
@@ -766,7 +815,7 @@ vi.mock('@cherrystudio/ui', () => {
     InfoTooltip: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'info-tooltip' }, children),
     Scrollbar: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'scrollbar' }, children),
+      React.createElement('div', { 'data-testid': 'scrollbar', ...props }, children),
     Avatar: ({ children, src, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'avatar' }, src ? null : children),
     AvatarImage: ({ src, ...props }) =>
@@ -787,12 +836,14 @@ vi.mock('@cherrystudio/ui', () => {
         React.createElement('span', { 'aria-hidden': 'true', 'data-testid': 'emoji-icon-background' }, emoji || '⭐️'),
         emoji
       ),
-    Switch: ({ isSelected, onValueChange, ...props }) =>
+    Switch: ({ checked, defaultChecked, onCheckedChange, ...props }) =>
       React.createElement('input', {
         ...props,
         type: 'checkbox',
-        checked: isSelected,
-        onChange: (e) => onValueChange?.(e.target.checked),
+        role: 'switch',
+        checked,
+        defaultChecked,
+        onChange: (e) => onCheckedChange?.(e.target.checked),
         'data-testid': 'switch'
       }),
     // Popover primitives — Radix-style trigger / content split
