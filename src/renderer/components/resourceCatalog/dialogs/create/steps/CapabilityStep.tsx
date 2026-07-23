@@ -24,7 +24,7 @@ type CapabilityStepProps = {
 export function CapabilityStep({ form, portalContainer }: CapabilityStepProps) {
   const { t } = useTranslation()
   const skillIds = form.watch('skillIds')
-  const { skills, loading, uninstall } = useInstalledSkills()
+  const { skills, loading } = useInstalledSkills()
 
   return (
     <SkillCatalogPicker
@@ -35,7 +35,6 @@ export function CapabilityStep({ form, portalContainer }: CapabilityStepProps) {
       onSelectedIdsChange={(ids) => form.setValue('skillIds', ids, { shouldDirty: true })}
       emptyLabel={t('library.config.dialogs.create.capability.no_skills')}
       portalContainer={portalContainer}
-      onRemoveSkill={uninstall}
     />
   )
 }

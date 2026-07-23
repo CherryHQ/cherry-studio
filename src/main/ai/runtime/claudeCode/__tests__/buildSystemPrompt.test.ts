@@ -83,6 +83,7 @@ const { buildSystemPrompt } = await import('../settingsBuilder')
 
 const ARTIFACTS_MARKER = '## Reporting deliverables'
 const RUNTIME_MARKER = '## Available Runtimes'
+const WORKSPACE_MARKER = '## Current Workspace'
 
 beforeEach(() => {
   vi.unstubAllGlobals()
@@ -99,6 +100,41 @@ function makeSession(): AgentSessionEntity {
 function makeAgent(overrides: Partial<AgentEntity> = {}): AgentEntity {
   return { id: 'agent-1', mcps: [], configuration: {}, ...overrides } as unknown as AgentEntity
 }
+
+describe('buildSystemPrompt — current workspace', () => {
+  it('injects the current workspace and default path resolution for regular agents', async () => {
+    const result = await buildSystemPrompt(makeSession(), makeAgent(), '/workspace/project-a')
+
+    expect(result as string).toContain(WORKSPACE_MARKER)
+    expect(result as string).toContain('"/workspace/project-a"')
+    expect(result as string).toContain('resolve unspecified or relative paths against it')
+    expect(result as string).not.toContain('Work outside it only when the user explicitly asks')
+  })
+
+  it('injects the current workspace for the built-in assistant path', async () => {
+    const agent = makeAgent({
+      instructions: 'Assistant instructions.',
+      configuration: { builtin_role: 'assistant' } as never
+    })
+
+    const result = await buildSystemPrompt(makeSession(), agent, '/workspace/assistant')
+
+    expect(result as string).toContain(WORKSPACE_MARKER)
+    expect(result as string).toContain('"/workspace/assistant"')
+  })
+
+  it('resolves the workspace dynamically on every prompt build', async () => {
+    const agent = makeAgent()
+
+    const first = await buildSystemPrompt(makeSession(), agent, '/workspace/project-a')
+    const second = await buildSystemPrompt(makeSession(), agent, '/workspace/project-b')
+
+    expect(first as string).toContain('"/workspace/project-a"')
+    expect(first as string).not.toContain('"/workspace/project-b"')
+    expect(second as string).toContain('"/workspace/project-b"')
+    expect(second as string).not.toContain('"/workspace/project-a"')
+  })
+})
 
 describe('buildSystemPrompt — report_artifacts prompt', () => {
   beforeEach(() => {

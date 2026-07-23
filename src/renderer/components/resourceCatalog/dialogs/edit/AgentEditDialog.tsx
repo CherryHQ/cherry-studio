@@ -17,6 +17,7 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import PromptEditorField from '@renderer/components/PromptEditorField'
+import { SkillCatalogPicker } from '@renderer/components/resourceCatalog/dialogs/skill'
 import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
@@ -40,7 +41,7 @@ import {
 import { AGENT_PROMPT } from '@shared/ai/prompts'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { InstalledSkill } from '@shared/types/skill'
-import { Plus, ToolCase, Wrench } from 'lucide-react'
+import { Plus, Wrench } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -234,7 +235,11 @@ function AgentEditDialogContent({
   const values = form.watch()
   const patchAgentForm = useMemo(() => createAgentPatcher(form, resource), [form, resource])
   const { updateAgent } = useAgentMutationsById(resource.id)
-  const { skills, loading: skillsLoading } = useInstalledSkills(resource.id || undefined, {
+  const {
+    skills,
+    loading: skillsLoading,
+    refreshing: skillsRefreshing
+  } = useInstalledSkills(resource.id || undefined, {
     enabled: open && Boolean(resource.id)
   })
   const skillIdsFromQueryKey = useMemo(
@@ -287,12 +292,14 @@ function AgentEditDialogContent({
     setBaselineSkillAgentId(null)
   }, [defaultValues, form, initialTab, open, resource])
 
+  // Cached rows may render during revalidation, but the editable baseline must
+  // come from the authoritative projection so later toggles diff correctly.
   useEffect(() => {
-    if (!open || skillsLoading || baselineSkillAgentId === resource.id) return
+    if (!open || skillsLoading || skillsRefreshing || baselineSkillAgentId === resource.id) return
     setBaselineSkillIds(skillIdsFromQuery)
     form.setValue('skillIds', skillIdsFromQuery, { shouldDirty: false })
     setBaselineSkillAgentId(resource.id)
-  }, [baselineSkillAgentId, form, open, resource.id, skillIdsFromQuery, skillsLoading])
+  }, [baselineSkillAgentId, form, open, resource.id, skillIdsFromQuery, skillsLoading, skillsRefreshing])
 
   useEffect(() => {
     if (leafTabIds.has(activeTab)) return
@@ -398,6 +405,7 @@ function AgentEditDialogContent({
               portalContainer={dialogContentElement}
               skills={skills}
               skillsLoading={skillsLoading}
+              skillsReady={baselineSkillAgentId === resource.id}
             />
           </TabsContent>
         ) : null}
@@ -672,7 +680,8 @@ function AgentToolsFields({
   activeToolTab,
   portalContainer,
   skills,
-  skillsLoading
+  skillsLoading,
+  skillsReady
 }: {
   agent: AgentDetail
   form: UseFormReturn<AgentEditFormValues>
@@ -680,6 +689,7 @@ function AgentToolsFields({
   portalContainer: HTMLElement | null
   skills: InstalledSkill[]
   skillsLoading: boolean
+  skillsReady: boolean
 }) {
   const { t } = useTranslation()
   const disabledTools = form.watch('disabledTools')
@@ -724,24 +734,6 @@ function AgentToolsFields({
       { shouldDirty: true }
     )
 
-  const skillCatalog = useMemo<CatalogItem[]>(
-    () =>
-      skills.map((skill) => ({
-        id: skill.id,
-        name: skill.name,
-        description: skill.description,
-        icon: <ToolCase size={13} strokeWidth={1.5} className="text-amber-500/60" />
-      })),
-    [skills]
-  )
-  const enabledSkillIds = useMemo(() => new Set(skillIds), [skillIds])
-  const setSkillEnabled = (id: string, enabled: boolean) =>
-    form.setValue(
-      'skillIds',
-      enabled ? Array.from(new Set([...skillIds, id])) : skillIds.filter((skillId) => skillId !== id),
-      { shouldDirty: true }
-    )
-
   return (
     <div className="grid gap-4">
       {activeToolTab === 'tools.builtin' ? (
@@ -770,12 +762,13 @@ function AgentToolsFields({
         />
       ) : null}
       {activeToolTab === 'tools.skills' ? (
-        <CatalogToggleGrid
-          items={skillCatalog}
-          enabledIds={enabledSkillIds}
+        <SkillCatalogPicker
+          mode="edit"
+          skills={skills}
           loading={skillsLoading}
-          disabled={!canManageSkills}
-          onToggle={setSkillEnabled}
+          selectedIds={skillIds}
+          disabled={!canManageSkills || !skillsReady}
+          onSelectedIdsChange={(ids) => form.setValue('skillIds', ids, { shouldDirty: true })}
           emptyLabel={
             canManageSkills
               ? t('library.config.agent.section.tools.no_skills_enabled')
