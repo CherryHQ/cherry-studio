@@ -54,12 +54,12 @@ export const zhCN = {
       saving: '正在保存…',
       privacy:
         '应用日志可能包含文件路径、错误堆栈、用户内容或凭据，请勿分享到公开渠道或提供给 Cherry Studio 支持团队之外的人员。',
-      saved_local: '诊断包已保存到本地，未自动上传。',
+      saved_local: '诊断包已保存到本地，请发送至问题反馈邮箱以协助排查。',
       logs_not_included: '未能加入应用日志，当前诊断包仅包含系统信息。',
       open_folder: '打开文件所在位置',
-      contact: '联系我们：support@cherry-ai.com',
-      copy_success: '复制成功',
-      copy_failed: '复制失败',
+      contact: '复制问题反馈邮箱',
+      copy_success: '问题反馈邮箱已复制',
+      copy_failed: '问题反馈邮箱复制失败',
       save_failed: '诊断包保存失败',
       open_folder_failed: '无法打开文件所在位置'
     },
@@ -198,13 +198,14 @@ export const enUS = {
       saving: 'Saving…',
       privacy:
         'Application logs may contain file paths, error stacks, user content, or credentials. Do not share them publicly or with anyone outside the Cherry Studio support team.',
-      saved_local: 'The diagnostic bundle was saved locally and was not uploaded automatically.',
+      saved_local:
+        'The diagnostic bundle was saved locally. Please send it to the feedback email to help us investigate.',
       logs_not_included:
         'Application logs could not be included. This diagnostic bundle contains only system information.',
       open_folder: 'Open file location',
-      contact: 'Contact us: support@cherry-ai.com',
-      copy_success: 'Copied',
-      copy_failed: 'Copy failed',
+      contact: 'Copy feedback email',
+      copy_success: 'Feedback email copied',
+      copy_failed: 'Failed to copy feedback email',
       save_failed: 'Could not save diagnostic bundle',
       open_folder_failed: 'Could not open file location'
     },

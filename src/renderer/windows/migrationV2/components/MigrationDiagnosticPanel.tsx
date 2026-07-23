@@ -1,6 +1,7 @@
 import { Button } from '@cherrystudio/ui'
 import ToastHost from '@renderer/components/ToastHost'
 import { toast } from '@renderer/services/toast'
+import { Download } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -63,7 +64,7 @@ export function MigrationDiagnosticPanel() {
 
   return (
     <>
-      <section className="space-y-3 rounded-xl border border-warning bg-warning-bg px-4 py-3">
+      <section className="space-y-3 rounded-xl border border-border bg-muted/15 px-4 py-3">
         <p className="text-foreground-secondary text-xs leading-relaxed">{t('migration.diagnostics.privacy')}</p>
         {saved ? (
           <>
@@ -89,6 +90,7 @@ export function MigrationDiagnosticPanel() {
             className="w-full"
             disabled={diagnosticStatus === 'saving'}
             onClick={() => void handleSave()}>
+            <Download className="size-3.5" />
             {t(diagnosticStatus === 'saving' ? 'migration.diagnostics.saving' : 'migration.diagnostics.save')}
           </Button>
         )}
