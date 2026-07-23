@@ -95,13 +95,21 @@ const BINARY_OPERATIONS_CACHE_KEY = 'feature.binary.install_states'
 function parseInstallUrl(value: string, setting: string): string | undefined {
   const trimmed = value.trim()
   if (!trimmed) return undefined
+  let url: URL
   try {
-    const url = new URL(trimmed)
+    url = new URL(trimmed)
     if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error()
-    return url.toString().replace(/\/$/, '')
   } catch {
     throw new Error(`${setting} must be a valid HTTP(S) URL`)
   }
+  // Embedded credentials would flow into mise's environment and could be echoed
+  // back through stderr into renderer-visible operation errors, logs, and the
+  // copyable failure dialog. These settings address public registries/mirrors,
+  // so reject userinfo outright instead of letting secrets transit error text.
+  if (url.username || url.password) {
+    throw new Error(`${setting} must not contain embedded credentials`)
+  }
+  return url.toString().replace(/\/$/, '')
 }
 
 // Ambient PIP_INDEX_URL comes from the user's login shell, not Cherry's install

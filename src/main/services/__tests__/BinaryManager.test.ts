@@ -2308,6 +2308,25 @@ describe('BinaryManager', () => {
       await expect((service as any).buildIsolatedEnv()).rejects.toThrow('pip index must be a valid HTTP(S) URL')
     })
 
+    it('rejects a configured registry URL with embedded credentials without echoing them', async () => {
+      mockInstallPreferences({
+        ...DEFAULT_INSTALL_PREFERENCES,
+        npmRegistry: 'https://user:hunter2@registry.example'
+      })
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+
+      // Credentials in a registry URL could be echoed back through mise stderr
+      // into renderer-visible operation errors and logs — reject at the source,
+      // and keep the secret out of the rejection message itself.
+      const failure = await (service as any).buildIsolatedEnv().then(
+        () => null,
+        (err: Error) => err
+      )
+      expect(failure?.message).toContain('npm registry must not contain embedded credentials')
+      expect(failure?.message).not.toContain('hunter2')
+    })
+
     it('relocates HOME/XDG into the isolated data dir so mise cannot read user-level config/creds', async () => {
       const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
