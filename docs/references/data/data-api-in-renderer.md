@@ -67,6 +67,27 @@ SWR's own `mutate`/`trigger`, changing only when a meaningful input changes
 (e.g. `nextPage` when page availability flips). `useMutation`'s `trigger` reads
 its options through a ref, so inline `options` objects never churn its identity.
 
+### useDataChange (Read-model Change Notifications)
+
+Subscribe to changes affecting one or more GET read-model template endpoints.
+Endpoint matching is exact; the hook only routes matching effects, while each
+consumer decides whether to refetch, reconcile locally, or ignore them.
+
+```typescript
+import { useDataChange, useQuery } from '@data/hooks/useDataApi'
+
+const { refetch } = useQuery('/topics')
+
+useDataChange('/topics', () => {
+  void refetch()
+})
+```
+
+Notifications are best-effort and do not automatically invalidate SWR caches.
+Consumers should keep an active query or refetch when they need authoritative
+facts from SQLite. Consumers that need narrower handling can inspect each
+effect's `kind`, `dimension`, and `entityIds`.
+
 ### useInfiniteQuery (Cursor-based Infinite Scroll)
 
 For infinite scroll UIs with "Load More" pattern. The hook exposes `pages` —

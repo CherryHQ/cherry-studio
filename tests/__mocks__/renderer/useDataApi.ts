@@ -6,7 +6,12 @@ import type {
   ResponseForPath,
   TemplateApiPaths
 } from '@shared/data/api/paths'
-import type { ConcreteApiPaths, PaginationResponse } from '@shared/data/api/types'
+import type {
+  ConcreteApiPaths,
+  DataApiDataChangeEffect,
+  GetTemplateApiPaths,
+  PaginationResponse
+} from '@shared/data/api/types'
 import type { KeyedMutator } from 'swr'
 import { vi } from 'vitest'
 
@@ -285,6 +290,20 @@ export const mockUseInfiniteFlatItems = vi.fn(
 )
 
 /**
+ * Mock useDataChange hook.
+ * Component tests can assert subscriptions through this mock or provide a
+ * custom implementation when they need to simulate delivery.
+ */
+export const mockUseDataChange = vi.fn(
+  (
+    _endpoints: GetTemplateApiPaths | GetTemplateApiPaths[],
+    _listener: (effects: DataApiDataChangeEffect[]) => void
+  ): void => {
+    // No-op by default: notification delivery is opt-in in component tests.
+  }
+)
+
+/**
  * Mock useInvalidateCache hook
  * Matches actual signature: useInvalidateCache() => (keys?) => Promise<any>
  */
@@ -374,6 +393,7 @@ export const MockUseDataApi = {
   useInfiniteQuery: mockUseInfiniteQuery,
   useInfiniteFlatItems: mockUseInfiniteFlatItems,
   usePaginatedQuery: mockUsePaginatedQuery,
+  useDataChange: mockUseDataChange,
   useInvalidateCache: mockUseInvalidateCache,
   useReadCache: mockUseReadCache,
   useWriteCache: mockUseWriteCache,
@@ -393,6 +413,7 @@ export const MockUseDataApiUtils = {
     mockUseInfiniteQuery.mockClear()
     mockUseInfiniteFlatItems.mockClear()
     mockUsePaginatedQuery.mockClear()
+    mockUseDataChange.mockClear()
     mockUseInvalidateCache.mockClear()
     mockUseReadCache.mockClear()
     mockUseWriteCache.mockClear()

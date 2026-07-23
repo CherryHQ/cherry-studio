@@ -245,7 +245,13 @@ export const createMockDataApiService = (customBehavior: Partial<ReturnType<type
           batches.set(listener, batch)
         }
       }
-      for (const [listener, batch] of batches) listener(batch)
+      for (const [listener, batch] of batches) {
+        try {
+          listener(batch)
+        } catch {
+          // Mirror production: one bad consumer must not block the others.
+        }
+      }
     },
 
     // Apply custom behavior overrides
