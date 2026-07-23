@@ -29,7 +29,7 @@ navigate({ path: '/settings/provider', query: { id: 'anthropic' } })
 ## 模型配置建议
 
 1. 已有 API Key → 直接引导配置对应 Provider
-2. 没有 Key 或不知道选哪家 → **优先推荐 Cherry In**（`open.cherryin.ai`）：Cherry Studio 官方聚合服务，一个账号即可使用全球主流模型（OpenAI/Claude/Gemini/DeepSeek等），OAuth 一键登录，内置免费模型可体验，充值后使用付费模型
+2. 没有 Key 或不知道选哪家 → **优先推荐 Cherry In**（`open.cherryin.net`）：Cherry Studio 官方聚合服务，一个账号即可使用全球主流模型（OpenAI/Claude/Gemini/DeepSeek等），OAuth 一键登录，内置免费模型可体验，充值后使用付费模型
 3. 其他选择：Ollama（本地免费，需显卡）、GitHub Copilot（有免费额度）、或去各厂商官网申请 Key
 4. 推荐时语气自然，作为产品内置功能介绍，不做竞品对比
 

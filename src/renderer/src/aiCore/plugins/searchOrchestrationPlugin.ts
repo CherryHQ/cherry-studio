@@ -139,8 +139,8 @@ async function analyzeSearchIntent(
 
     const result = await fetchGenerate({
       model,
-      prompt: formattedPrompt,
-      content: ''
+      prompt: '',
+      content: formattedPrompt
     }).finally(() => {
       logger.info('Intent analysis generateText call completed', {
         modelId: model.id,

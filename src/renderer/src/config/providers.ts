@@ -839,10 +839,10 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       url: 'https://open.cherryin.net'
     },
     websites: {
-      official: 'https://open.cherryin.ai',
-      apiKey: 'https://open.cherryin.ai/console/token',
-      docs: 'https://open.cherryin.ai',
-      models: 'https://open.cherryin.ai/pricing'
+      official: 'https://open.cherryin.net',
+      apiKey: 'https://open.cherryin.net/console/token',
+      docs: 'https://open.cherryin.net',
+      models: 'https://open.cherryin.net/pricing'
     }
   },
   ph8: {

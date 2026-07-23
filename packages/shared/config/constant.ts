@@ -197,25 +197,10 @@ export const MB = 1024 * KB
 export const GB = 1024 * MB
 export const defaultLanguage = 'en-US'
 
-export enum FeedUrl {
-  PRODUCTION = 'https://releases.cherry-ai.com',
-  GITHUB_LATEST = 'https://github.com/CherryHQ/cherry-studio/releases/latest/download'
-}
-
-export enum UpdateConfigUrl {
-  GITHUB = 'https://raw.githubusercontent.com/CherryHQ/cherry-studio/refs/heads/x-files/app-upgrade-config/app-upgrade-config.json',
-  GITCODE = 'https://raw.gitcode.com/CherryHQ/cherry-studio/raw/x-files%2Fapp-upgrade-config/app-upgrade-config.json'
-}
-
 export enum UpgradeChannel {
   LATEST = 'latest', // 最新稳定版本
   RC = 'rc', // 公测版本
   BETA = 'beta' // 预览版本
-}
-
-export enum UpdateMirror {
-  GITHUB = 'github',
-  GITCODE = 'gitcode'
 }
 
 export const DEFAULT_TIMEOUT = 30 * 1000 * 60
@@ -498,7 +483,7 @@ export interface GitBashPathInfo {
 // CherryIN OAuth configuration
 export const CHERRYIN_CONFIG = {
   CLIENT_ID: '2a348c87-bae1-4756-a62f-b2e97200fd6d',
-  ALLOWED_HOSTS: ['https://open.cherryin.ai', 'https://open.cherryin.dev'],
+  ALLOWED_HOSTS: ['https://open.cherryin.net', 'https://open.cherryin.dev'],
   REDIRECT_URI: 'cherrystudio://oauth/callback',
   SCOPES: 'openid profile email offline_access balance:read usage:read tokens:read tokens:write'
 }
