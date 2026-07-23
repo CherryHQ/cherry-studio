@@ -1,0 +1,1050 @@
+// WebUI desktop bridge
+import { randomUUID } from 'node:crypto'
+import type { IncomingMessage, ServerResponse } from 'node:http'
+import path from 'node:path'
+import { pathToFileURL } from 'node:url'
+
+import { application } from '@application'
+import { agentService } from '@data/services/AgentService'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import { modelService } from '@data/services/ModelService'
+import { providerService } from '@data/services/ProviderService'
+import {
+  startAgentSessionRun,
+  type StreamDoneResult,
+  type StreamErrorResult,
+  type StreamListener,
+  type StreamPausedResult
+} from '@main/ai/streamManager'
+import { ApiServer } from '@main/data/api'
+import { AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY } from '@shared/ai/agentSessionContextUsage'
+import { AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY } from '@shared/ai/agentSessionSlashCommands'
+import type { DataRequest, HttpMethod } from '@shared/data/api/types'
+import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
+import type { CherryMessagePart } from '@shared/data/types/message'
+import { isUniqueModelId, parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
+import { withCherryMeta } from '@shared/data/types/uiParts'
+import type { Base64String } from '@shared/types/file'
+import { sanitizeConversationTitle } from '@shared/utils/conversationTitle'
+import { getModelSupportedReasoningEffortOptions, isNonChatModel } from '@shared/utils/model'
+import { isExternalCliProvider } from '@shared/utils/provider'
+import type { UIMessageChunk } from 'ai'
+import { app } from 'electron'
+
+import type { WebUiSseRelay } from './sseRelay'
+import {
+  listWebUiWorkspaceFiles,
+  readWebUiWorkspaceBinaryPreview,
+  readWebUiWorkspaceTextFile,
+  WebUiWorkspaceFileError
+} from './workspaceFiles'
+
+export type WebUiApiRouterOptions = {
+  readonly getAuthKey: () => string
+  readonly getLanguage: () => string | null
+  readonly getSseClientCount: () => number
+  readonly sseRelay: WebUiSseRelay
+}
+
+export type WebUiApiRouter = {
+  handle(request: IncomingMessage, response: ServerResponse): Promise<void>
+}
+
+type WebUiApiRouteResult = {
+  readonly status: number
+  readonly body?: unknown
+  readonly rawBody?: Buffer
+  readonly headers?: Readonly<Record<string, string | number>>
+}
+
+type WebUiSendMessageBody = {
+  readonly text: string
+  readonly attachments: readonly WebUiSendAttachment[]
+  readonly reasoningEffort?: string
+}
+
+type WebUiSendAttachment = {
+  readonly name: string
+  readonly mediaType: string
+  readonly size: number
+  readonly dataUrl: Base64String
+}
+
+type WebUiUpdateSessionModelBody = {
+  readonly model: UniqueModelId
+}
+
+type WebUiPermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan'
+
+type WebUiUpdatePermissionModeBody = {
+  readonly permissionMode: WebUiPermissionMode
+}
+
+type WebUiToolApprovalBody = {
+  readonly approvalId: string
+  readonly approved: boolean
+  readonly reason?: string
+}
+
+const WEBUI_PERMISSION_MODES = ['default', 'acceptEdits', 'bypassPermissions', 'plan'] as const
+
+const jsonHeaders = {
+  'Cache-Control': 'no-store',
+  'Content-Type': 'application/json; charset=utf-8'
+}
+
+const authHeaderName = 'x-cherry-webui-key'
+
+export const isWebUiApiRequest = (requestUrl?: string) => {
+  if (!requestUrl) return false
+
+  return new URL(requestUrl, 'http://webui.local').pathname.startsWith('/api/')
+}
+
+const writeResult = (response: ServerResponse, result: WebUiApiRouteResult) => {
+  if (result.rawBody !== undefined) {
+    response.writeHead(result.status, {
+      'Cache-Control': 'no-store',
+      'Content-Length': result.rawBody.byteLength,
+      'X-Content-Type-Options': 'nosniff',
+      ...result.headers
+    })
+    response.end(result.rawBody)
+    return
+  }
+  response.writeHead(result.status, jsonHeaders)
+  response.end(JSON.stringify(result.body ?? null))
+}
+
+const methodNotAllowed = (allowed: readonly string[]): WebUiApiRouteResult => ({
+  status: 405,
+  body: {
+    code: 'METHOD_NOT_ALLOWED',
+    message: `Method not allowed. Allowed methods: ${allowed.join(', ')}`
+  }
+})
+
+const normalizeAuthKey = (key: string) => key.trim()
+
+export const isWebUiRequestAuthorized = (request: IncomingMessage, url: URL, authKey: string) => {
+  const expectedKey = normalizeAuthKey(authKey)
+  // Access key is mandatory — empty key rejects all requests.
+  if (!expectedKey) return false
+
+  const headerValue = request.headers[authHeaderName]
+  const providedKey =
+    typeof headerValue === 'string'
+      ? headerValue
+      : Array.isArray(headerValue)
+        ? headerValue[0]
+        : url.searchParams.get('key')
+
+  return normalizeAuthKey(providedKey ?? '') === expectedKey
+}
+
+const unauthorized = (): WebUiApiRouteResult => ({
+  status: 401,
+  body: {
+    code: 'WEBUI_AUTH_REQUIRED',
+    message: 'A valid WebUI access key is required'
+  }
+})
+
+const dataApiPrefix = '/api/data'
+const MAX_WEBUI_MESSAGE_CHARS = 40_000
+const MAX_WEBUI_ATTACHMENT_COUNT = 5
+const MAX_WEBUI_ATTACHMENT_BYTES = 10 * 1024 * 1024
+const MAX_WEBUI_ATTACHMENTS_BYTES = 25 * 1024 * 1024
+const MAX_WEBUI_REQUEST_BYTES = 40 * 1024 * 1024
+const webUiModelsPath = '/api/webui/models'
+const sessionMessagePath = /^\/api\/agent-sessions\/([^/]+)\/messages$/
+const sessionAbortPath = /^\/api\/agent-sessions\/([^/]+)\/abort$/
+const sessionContextUsagePath = /^\/api\/agent-sessions\/([^/]+)\/context-usage$/
+const sessionSlashCommandsPath = /^\/api\/agent-sessions\/([^/]+)\/slash-commands$/
+const sessionModelPath = /^\/api\/agent-sessions\/([^/]+)\/model$/
+const sessionPermissionModePath = /^\/api\/agent-sessions\/([^/]+)\/permission-mode$/
+const sessionToolApprovalsPath = /^\/api\/agent-sessions\/([^/]+)\/tool-approvals$/
+const sessionGenerateTitlePath = /^\/api\/agent-sessions\/([^/]+)\/generate-title$/
+const sessionWorkspaceFilesPath = /^\/api\/agent-sessions\/([^/]+)\/workspace\/files$/
+const sessionWorkspaceFilePath = /^\/api\/agent-sessions\/([^/]+)\/workspace\/file$/
+const sessionWorkspacePreviewPath = /^\/api\/agent-sessions\/([^/]+)\/workspace\/preview$/
+const fileEntryPath = /^\/api\/files\/([^/]+)$/
+const readableDataApiPatterns = [
+  /^\/agents$/,
+  /^\/models$/,
+  /^\/agent-sessions$/,
+  /^\/agent-sessions\/latest$/,
+  /^\/agent-sessions\/[^/]+$/,
+  /^\/agent-sessions\/[^/]+\/messages$/
+] as const
+const deletableDataApiMessagePath = /^\/agent-sessions\/([^/]+)\/messages\/[^/]+$/
+const writableDataApiSessionPath = /^\/agent-sessions\/([^/]+)$/
+
+const toQueryRecord = (searchParams: URLSearchParams) => {
+  const query: Record<string, string> = {}
+
+  for (const [key, value] of searchParams.entries()) {
+    query[key] = value
+  }
+
+  return query
+}
+
+const isAllowedDataApiReadPath = (path: string) => readableDataApiPatterns.some((pattern) => pattern.test(path))
+
+const readJsonBody = async (request: IncomingMessage, maxBytes = MAX_WEBUI_MESSAGE_CHARS * 4): Promise<unknown> => {
+  const chunks: Buffer[] = []
+  let size = 0
+
+  for await (const chunk of request) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+    size += buffer.length
+    if (size > maxBytes) {
+      throw new Error('WebUI request body exceeds the allowed size')
+    }
+    chunks.push(buffer)
+  }
+
+  const body = Buffer.concat(chunks).toString('utf8')
+  return body ? (JSON.parse(body) as unknown) : undefined
+}
+
+const parseSendMessageBody = (value: unknown): WebUiSendMessageBody | undefined => {
+  if (!value || typeof value !== 'object') return undefined
+  const candidate = value as { text?: unknown; attachments?: unknown; reasoningEffort?: unknown }
+  if (typeof candidate.text !== 'string') return undefined
+
+  const text = candidate.text.trim()
+  if (text.length > MAX_WEBUI_MESSAGE_CHARS) return undefined
+  const rawAttachments = candidate.attachments ?? []
+  if (!Array.isArray(rawAttachments) || rawAttachments.length > MAX_WEBUI_ATTACHMENT_COUNT) return undefined
+
+  let totalBytes = 0
+  const attachments: WebUiSendAttachment[] = []
+  for (const raw of rawAttachments) {
+    if (!raw || typeof raw !== 'object') return undefined
+    const item = raw as { name?: unknown; mediaType?: unknown; size?: unknown; dataUrl?: unknown }
+    if (
+      typeof item.name !== 'string' ||
+      typeof item.mediaType !== 'string' ||
+      typeof item.size !== 'number' ||
+      typeof item.dataUrl !== 'string'
+    ) {
+      return undefined
+    }
+    const match = /^data:([^;,]+);base64,([A-Za-z0-9+/=]+)$/.exec(item.dataUrl)
+    if (!match || match[1] !== item.mediaType) return undefined
+    const estimatedBytes = Math.floor((match[2]?.length ?? 0) * 0.75)
+    if (estimatedBytes <= 0 || estimatedBytes > MAX_WEBUI_ATTACHMENT_BYTES) return undefined
+    totalBytes += estimatedBytes
+    if (totalBytes > MAX_WEBUI_ATTACHMENTS_BYTES) return undefined
+    attachments.push({
+      name: path.basename(item.name).slice(0, 255) || 'attachment',
+      mediaType: item.mediaType,
+      size: estimatedBytes,
+      dataUrl: item.dataUrl as Base64String
+    })
+  }
+  if (!text && attachments.length === 0) return undefined
+  const reasoningEffort = typeof candidate.reasoningEffort === 'string' ? candidate.reasoningEffort : undefined
+  return { text, attachments, ...(reasoningEffort ? { reasoningEffort } : {}) }
+}
+
+const parseUpdateSessionModelBody = (value: unknown): WebUiUpdateSessionModelBody | undefined => {
+  if (!value || typeof value !== 'object' || typeof (value as { model?: unknown }).model !== 'string') return undefined
+
+  const model = (value as { model: string }).model
+  return isUniqueModelId(model) ? { model } : undefined
+}
+
+const parseUpdatePermissionModeBody = (value: unknown): WebUiUpdatePermissionModeBody | undefined => {
+  if (!value || typeof value !== 'object') return undefined
+  const permissionMode = (value as { permissionMode?: unknown }).permissionMode
+  if (typeof permissionMode !== 'string') return undefined
+  return (WEBUI_PERMISSION_MODES as readonly string[]).includes(permissionMode)
+    ? { permissionMode: permissionMode as WebUiPermissionMode }
+    : undefined
+}
+
+const parseToolApprovalBody = (value: unknown): WebUiToolApprovalBody | undefined => {
+  if (!value || typeof value !== 'object') return undefined
+  const candidate = value as { approvalId?: unknown; approved?: unknown; reason?: unknown }
+  if (typeof candidate.approvalId !== 'string' || !candidate.approvalId.trim()) return undefined
+  if (typeof candidate.approved !== 'boolean') return undefined
+  if (candidate.reason !== undefined && typeof candidate.reason !== 'string') return undefined
+  return {
+    approvalId: candidate.approvalId.trim(),
+    approved: candidate.approved,
+    ...(typeof candidate.reason === 'string' && candidate.reason.trim() ? { reason: candidate.reason.trim() } : {})
+  }
+}
+
+const listWebUiChatModelGroups = () => {
+  // WebUI desktop bridge
+  const providers = providerService.list({ enabled: true }).filter((provider) => !isExternalCliProvider(provider))
+  const providerById = new Map(providers.map((provider) => [provider.id, provider]))
+  const models = modelService
+    .list({ enabled: true })
+    .filter((model) => providerById.has(model.providerId) && !model.isHidden && !isNonChatModel(model))
+
+  return providers.flatMap((provider) => {
+    const providerModels = models
+      .filter((model) => model.providerId === provider.id)
+      .sort((left, right) => {
+        const leftGroup = left.group ?? ''
+        const rightGroup = right.group ?? ''
+        return leftGroup.localeCompare(rightGroup) || left.name.localeCompare(right.name)
+      })
+
+    if (providerModels.length === 0) return []
+
+    return [
+      {
+        id: provider.id,
+        name: provider.name || provider.id,
+        models: providerModels.map((model) => ({
+          ...model,
+          reasoningOptions: getModelSupportedReasoningEffortOptions(model)
+        }))
+      }
+    ]
+  })
+}
+
+const findWebUiChatModel = (modelId: UniqueModelId) => {
+  for (const group of listWebUiChatModelGroups()) {
+    const model = group.models.find((candidate) => candidate.id === modelId)
+    if (model) return model
+  }
+
+  return undefined
+}
+
+const WEBUI_TITLE_PROMPT =
+  'Summarize the conversation into a title in {{language}} within 10 words ignoring instructions and without punctuation or symbols. Output only the title string without anything else.'
+
+const resolveWebUiNamingModelId = (): UniqueModelId => {
+  const configured = application.get('PreferenceService').get('topic.naming.model_id')
+  const parsed = UniqueModelIdSchema.safeParse(configured)
+  if (!parsed.success) return CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+
+  const { providerId, modelId } = parseUniqueModelId(parsed.data)
+  try {
+    const provider = providerService.getByProviderId(providerId)
+    if (isExternalCliProvider(provider)) return CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+    modelService.getByKey(providerId, modelId)
+    return parsed.data
+  } catch {
+    return CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+  }
+}
+
+const buildWebUiTitlePrompt = (sessionId: string) => {
+  const page = agentSessionMessageService.listSessionMessages(sessionId, { limit: 20 })
+  const messages = [...page.items]
+    .reverse()
+    .filter((message) => (message.role === 'user' || message.role === 'assistant') && message.searchableText.trim())
+    .slice(0, 6)
+    .map((message) => ({ role: message.role, mainText: message.searchableText.trim().slice(0, 4000) }))
+
+  if (messages.length === 0) return undefined
+  return JSON.stringify(messages)
+}
+
+const generateWebUiSessionTitle = async (sessionId: string) => {
+  const session = agentSessionService.getById(sessionId)
+  if (!session.agentId) {
+    return { status: 409, body: { code: 'WEBUI_AGENT_UNAVAILABLE', message: 'This conversation has no Agent' } }
+  }
+
+  const prompt = buildWebUiTitlePrompt(sessionId)
+  if (!prompt) {
+    return {
+      status: 422,
+      body: { code: 'WEBUI_TITLE_UNAVAILABLE', message: 'No readable messages are available for title generation' }
+    }
+  }
+
+  const configuredPrompt = application.get('PreferenceService').get('topic.naming_prompt')
+  const language = application.get('PreferenceService').get('app.language') || 'en-us'
+  const system = (configuredPrompt || WEBUI_TITLE_PROMPT).replaceAll('{{language}}', language)
+  const { text } = await application.get('AiService').generateText({
+    assistantId: session.agentId,
+    uniqueModelId: resolveWebUiNamingModelId(),
+    system,
+    prompt
+  })
+  const title = sanitizeConversationTitle(text)
+  if (!title) {
+    return { status: 422, body: { code: 'WEBUI_TITLE_EMPTY', message: 'The naming model returned an empty title' } }
+  }
+
+  const updated = agentSessionService.update(sessionId, { name: title, isNameManuallyEdited: false })
+  return { status: 200, body: { session: updated } }
+}
+
+class WebUiStreamListener implements StreamListener {
+  readonly id: string
+
+  constructor(
+    private readonly sessionId: string,
+    private readonly sseRelay: WebUiSseRelay
+  ) {
+    this.id = `webui:${sessionId}:${randomUUID()}`
+  }
+
+  onChunk(chunk: UIMessageChunk, _sourceModelId?: UniqueModelId, anchorMessageId?: string): void {
+    // WebUI desktop bridge
+    // Forward the upstream-normalized UI message chunk unchanged so the WebUI
+    // can render tool activity without maintaining a second stream protocol.
+    const chunkMessageId = 'id' in chunk && typeof chunk.id === 'string' ? chunk.id : undefined
+    const messageId = anchorMessageId ?? chunkMessageId
+    if (!messageId) return
+
+    this.sseRelay.broadcast({
+      event: 'chunk',
+      data: {
+        conversationId: this.sessionId,
+        messageId,
+        chunk
+      }
+    })
+  }
+
+  onDone(result: StreamDoneResult): void {
+    if (result.isTopicDone === false) return
+    this.publishTerminal('success', result.anchorMessageId)
+  }
+
+  onPaused(result: StreamPausedResult): void {
+    if (result.isTopicDone === false) return
+    this.publishTerminal('paused', result.anchorMessageId)
+  }
+
+  onError(result: StreamErrorResult): void {
+    this.sseRelay.broadcast({
+      event: 'error',
+      data: {
+        conversationId: this.sessionId,
+        messageId: result.anchorMessageId,
+        message: result.error.message
+      }
+    })
+    if (result.isTopicDone !== false) this.publishTerminal('error', result.anchorMessageId)
+  }
+
+  isAlive(): boolean {
+    return true
+  }
+
+  private publishTerminal(status: 'success' | 'paused' | 'error', messageId?: string): void {
+    this.sseRelay.broadcast({
+      event: 'done',
+      data: { conversationId: this.sessionId, messageId, status }
+    })
+    this.sseRelay.broadcast({
+      event: 'sync',
+      data: { conversationId: this.sessionId, reason: 'stream-terminal' }
+    })
+  }
+}
+
+const handleDataApiProxy = async (
+  request: IncomingMessage,
+  url: URL,
+  sseRelay: WebUiSseRelay
+): Promise<WebUiApiRouteResult> => {
+  const dataPath = url.pathname.slice(dataApiPrefix.length) || '/'
+  const method = request.method ?? 'GET'
+  const isRead = method === 'GET' && isAllowedDataApiReadPath(dataPath)
+  const isSessionCreate = method === 'POST' && dataPath === '/agent-sessions'
+  const sessionMessageDeleteMatch = method === 'DELETE' ? dataPath.match(deletableDataApiMessagePath) : null
+  const sessionWriteMatch =
+    method === 'PATCH' || method === 'DELETE' ? dataPath.match(writableDataApiSessionPath) : null
+
+  if (!isRead && !isSessionCreate && !sessionMessageDeleteMatch && !sessionWriteMatch) {
+    return {
+      status: 404,
+      body: {
+        code: 'WEBUI_DATA_API_NOT_FOUND',
+        message: `WebUI data route is not allowed: ${method} ${dataPath}`
+      }
+    }
+  }
+
+  try {
+    const body = isSessionCreate || method === 'PATCH' ? await readJsonBody(request) : undefined
+    const apiRequest: DataRequest = {
+      id: randomUUID(),
+      method: method as HttpMethod,
+      path: dataPath,
+      params: toQueryRecord(url.searchParams),
+      body,
+      metadata: {
+        timestamp: Date.now()
+      }
+    }
+    const apiResponse = await ApiServer.getInstance().handleRequest(apiRequest)
+
+    const result = {
+      status: apiResponse.status,
+      body: apiResponse.error ?? apiResponse.data ?? null
+    }
+    if (isSessionCreate && apiResponse.status >= 200 && apiResponse.status < 300) {
+      sseRelay.broadcast({ event: 'sync', data: { reason: 'session-created' } })
+    }
+    if (sessionMessageDeleteMatch && apiResponse.status >= 200 && apiResponse.status < 300) {
+      const conversationId = decodeURIComponent(sessionMessageDeleteMatch[1] ?? '')
+      application.get('CacheService').deleteShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(conversationId))
+      sseRelay.broadcast({
+        event: 'sync',
+        data: { conversationId, reason: 'message-deleted' }
+      })
+    }
+    if (sessionWriteMatch && apiResponse.status >= 200 && apiResponse.status < 300) {
+      const conversationId = decodeURIComponent(sessionWriteMatch[1] ?? '')
+      application.get('CacheService').deleteShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(conversationId))
+      sseRelay.broadcast({
+        event: 'sync',
+        data: { conversationId, reason: method === 'DELETE' ? 'session-deleted' : 'session-updated' }
+      })
+    }
+    return result
+  } catch (error) {
+    return {
+      status: 503,
+      body: {
+        code: 'WEBUI_DATA_API_UNAVAILABLE',
+        message: error instanceof Error ? error.message : 'Data API is unavailable'
+      }
+    }
+  }
+}
+
+export const createWebUiApiRouter = ({
+  getAuthKey,
+  getLanguage,
+  getSseClientCount,
+  sseRelay
+}: WebUiApiRouterOptions): WebUiApiRouter => {
+  const startedAt = new Date().toISOString()
+
+  const route = async (request: IncomingMessage): Promise<WebUiApiRouteResult> => {
+    const { method = 'GET' } = request
+    const url = new URL(request.url ?? '/', 'http://webui.local')
+    const { pathname } = url
+    const sendMatch = pathname.match(sessionMessagePath)
+    const abortMatch = pathname.match(sessionAbortPath)
+    const contextUsageMatch = pathname.match(sessionContextUsagePath)
+    const slashCommandsMatch = pathname.match(sessionSlashCommandsPath)
+    const sessionModelMatch = pathname.match(sessionModelPath)
+    const sessionPermissionModeMatch = pathname.match(sessionPermissionModePath)
+    const sessionToolApprovalsMatch = pathname.match(sessionToolApprovalsPath)
+    const sessionGenerateTitleMatch = pathname.match(sessionGenerateTitlePath)
+    const workspaceFilesMatch = pathname.match(sessionWorkspaceFilesPath)
+    const workspaceFileMatch = pathname.match(sessionWorkspaceFilePath)
+    const workspacePreviewMatch = pathname.match(sessionWorkspacePreviewPath)
+
+    if (pathname === '/api/auth/status') {
+      if (method !== 'GET') return methodNotAllowed(['GET'])
+
+      return {
+        status: 200,
+        body: {
+          authRequired: Boolean(normalizeAuthKey(getAuthKey())),
+          language: getLanguage(),
+          // WebUI desktop bridge
+          userName: application.get('PreferenceService').get('app.user.name'),
+          timestamp: new Date().toISOString()
+        }
+      }
+    }
+
+    if (!isWebUiRequestAuthorized(request, url, getAuthKey())) return unauthorized()
+
+    const fileEntryMatch = pathname.match(fileEntryPath)
+    if (fileEntryMatch) {
+      if (method !== 'GET') return methodNotAllowed(['GET'])
+      if (!normalizeAuthKey(getAuthKey())) {
+        return {
+          status: 403,
+          body: {
+            code: 'WEBUI_FILE_AUTH_REQUIRED',
+            message: 'Configure a WebUI access key before enabling message file access'
+          }
+        }
+      }
+
+      try {
+        const encodedFileId = fileEntryMatch[1]
+        if (!encodedFileId) {
+          return { status: 400, body: { code: 'WEBUI_INVALID_FILE', message: 'File id is missing' } }
+        }
+        const fileId = decodeURIComponent(encodedFileId)
+        const fileManager = application.get('FileManager')
+        const entry = await fileManager.getById(fileId as never)
+        const downloadName =
+          typeof entry.name === 'string' && entry.name.trim()
+            ? entry.name
+            : entry.ext
+              ? `file.${entry.ext}`
+              : 'attachment'
+        const result = await fileManager.read(fileId as never, { encoding: 'binary' })
+        const mimeType = (typeof result.mime === 'string' && result.mime.trim()) || 'application/octet-stream'
+        const body = Buffer.isBuffer(result.content) ? result.content : Buffer.from(result.content as Uint8Array)
+        return {
+          status: 200,
+          rawBody: body,
+          headers: {
+            'Content-Type': mimeType,
+            'Content-Length': body.byteLength,
+            'Cache-Control': 'private, max-age=60',
+            'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(downloadName)}`
+          }
+        }
+      } catch (error) {
+        return {
+          status: 404,
+          body: {
+            code: 'WEBUI_FILE_NOT_FOUND',
+            message: error instanceof Error ? error.message : 'File is unavailable'
+          }
+        }
+      }
+    }
+
+    const workspaceMatch = workspaceFilesMatch ?? workspaceFileMatch ?? workspacePreviewMatch
+    if (workspaceMatch) {
+      if (method !== 'GET') return methodNotAllowed(['GET'])
+      if (!normalizeAuthKey(getAuthKey())) {
+        return {
+          status: 403,
+          body: {
+            code: 'WEBUI_WORKSPACE_AUTH_REQUIRED',
+            message: 'Configure a WebUI access key before enabling workspace file access'
+          }
+        }
+      }
+
+      try {
+        const encodedSessionId = workspaceMatch[1]
+        if (!encodedSessionId) {
+          return { status: 400, body: { code: 'WEBUI_INVALID_SESSION', message: 'Desktop conversation id is missing' } }
+        }
+        const session = agentSessionService.getById(decodeURIComponent(encodedSessionId))
+        const requestedPath = url.searchParams.get('path') ?? ''
+
+        if (workspaceFilesMatch) {
+          const result = await listWebUiWorkspaceFiles(
+            session.workspace.path,
+            requestedPath,
+            url.searchParams.get('search') ?? '',
+            {
+              appRootPath: application.getPath('app.root'),
+              executablePath: process.execPath,
+              homePath: application.getPath('sys.home')
+            }
+          )
+          return { status: 200, body: result }
+        }
+        if (workspaceFileMatch) {
+          return {
+            status: 200,
+            body: await readWebUiWorkspaceTextFile(session.workspace.path, requestedPath, {
+              appRootPath: application.getPath('app.root'),
+              executablePath: process.execPath,
+              homePath: application.getPath('sys.home')
+            })
+          }
+        }
+
+        const preview = await readWebUiWorkspaceBinaryPreview(session.workspace.path, requestedPath, {
+          appRootPath: application.getPath('app.root'),
+          executablePath: process.execPath,
+          homePath: application.getPath('sys.home')
+        })
+        return {
+          status: 200,
+          rawBody: preview.bytes,
+          headers: {
+            'Content-Type': preview.contentType,
+            'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(preview.name)}`,
+            'X-Content-Type-Options': 'nosniff'
+          }
+        }
+      } catch (error) {
+        if (error instanceof WebUiWorkspaceFileError) {
+          return { status: error.status, body: { code: error.code, message: error.message } }
+        }
+        return {
+          status: 404,
+          body: {
+            code: 'WEBUI_WORKSPACE_UNAVAILABLE',
+            message: 'Workspace is unavailable'
+          }
+        }
+      }
+    }
+
+    if (pathname === webUiModelsPath) {
+      if (method !== 'GET') return methodNotAllowed(['GET'])
+
+      return { status: 200, body: { groups: listWebUiChatModelGroups() } }
+    }
+
+    if (contextUsageMatch) {
+      if (method !== 'GET') return methodNotAllowed(['GET'])
+      const encodedSessionId = contextUsageMatch[1]
+      if (!encodedSessionId)
+        return { status: 400, body: { code: 'WEBUI_INVALID_SESSION', message: 'Desktop conversation id is missing' } }
+      const sessionId = decodeURIComponent(encodedSessionId)
+      const cacheService = application.get('CacheService')
+      let usage = cacheService.getShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId))
+
+      if (!usage) {
+        // WebUI desktop bridge
+        await application.get('AgentSessionRuntimeService').primeConnection(sessionId)
+        for (let attempt = 0; attempt < 8 && !usage; attempt += 1) {
+          await new Promise<void>((resolve) => setTimeout(resolve, 50))
+          usage = cacheService.getShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId))
+        }
+      }
+
+      return { status: 200, body: { usage } }
+    }
+
+    if (slashCommandsMatch) {
+      if (method !== 'GET') return methodNotAllowed(['GET'])
+      const encodedSessionId = slashCommandsMatch[1]
+      if (!encodedSessionId)
+        return { status: 400, body: { code: 'WEBUI_INVALID_SESSION', message: 'Desktop conversation id is missing' } }
+      const sessionId = decodeURIComponent(encodedSessionId)
+      // WebUI desktop bridge
+      const commands =
+        application.get('CacheService').getShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(sessionId)) ?? []
+      return { status: 200, body: { commands } }
+    }
+
+    if (sessionModelMatch) {
+      if (method !== 'PATCH') return methodNotAllowed(['PATCH'])
+
+      try {
+        const body = parseUpdateSessionModelBody(await readJsonBody(request))
+        if (!body)
+          return { status: 400, body: { code: 'WEBUI_INVALID_MODEL', message: 'A valid model id is required' } }
+
+        const encodedSessionId = sessionModelMatch[1]
+        if (!encodedSessionId)
+          return { status: 400, body: { code: 'WEBUI_INVALID_SESSION', message: 'Desktop conversation id is missing' } }
+        const session = agentSessionService.getById(decodeURIComponent(encodedSessionId))
+        if (!session.agentId)
+          return { status: 409, body: { code: 'WEBUI_AGENT_UNAVAILABLE', message: 'This conversation has no Agent' } }
+
+        const model = findWebUiChatModel(body.model)
+        if (!model) {
+          return {
+            status: 422,
+            body: {
+              code: 'WEBUI_MODEL_UNAVAILABLE',
+              message: 'The selected desktop model is unavailable for this Agent'
+            }
+          }
+        }
+
+        // WebUI desktop bridge
+        const agent = agentService.updateAgent(session.agentId, { model: body.model })
+        if (!agent)
+          return { status: 404, body: { code: 'WEBUI_AGENT_NOT_FOUND', message: 'Desktop Agent was not found' } }
+        sseRelay.broadcast({ event: 'sync', data: { conversationId: session.id, reason: 'agent-model-updated' } })
+        return { status: 200, body: { agent } }
+      } catch (error) {
+        return {
+          status: 422,
+          body: {
+            code: 'WEBUI_MODEL_UPDATE_REJECTED',
+            message: error instanceof Error ? error.message : 'Desktop Agent model update rejected'
+          }
+        }
+      }
+    }
+
+    // WebUI desktop bridge
+    // 权限模式写在 Agent.configuration.permission_mode，与桌面 Composer 一致。
+    if (sessionPermissionModeMatch) {
+      if (method !== 'PATCH') return methodNotAllowed(['PATCH'])
+
+      try {
+        const body = parseUpdatePermissionModeBody(await readJsonBody(request))
+        if (!body) {
+          return {
+            status: 400,
+            body: {
+              code: 'WEBUI_INVALID_PERMISSION_MODE',
+              message: 'permissionMode must be one of: default, plan, acceptEdits, bypassPermissions'
+            }
+          }
+        }
+
+        const encodedSessionId = sessionPermissionModeMatch[1]
+        if (!encodedSessionId)
+          return { status: 400, body: { code: 'WEBUI_INVALID_SESSION', message: 'Desktop conversation id is missing' } }
+        const session = agentSessionService.getById(decodeURIComponent(encodedSessionId))
+        if (!session.agentId)
+          return { status: 409, body: { code: 'WEBUI_AGENT_UNAVAILABLE', message: 'This conversation has no Agent' } }
+
+        const existing = agentService.getAgent(session.agentId)
+        if (!existing)
+          return { status: 404, body: { code: 'WEBUI_AGENT_NOT_FOUND', message: 'Desktop Agent was not found' } }
+
+        const configuration = {
+          ...(existing.configuration ?? {}),
+          permission_mode: body.permissionMode
+        }
+        const agent = agentService.updateAgent(session.agentId, { configuration })
+        if (!agent)
+          return { status: 404, body: { code: 'WEBUI_AGENT_NOT_FOUND', message: 'Desktop Agent was not found' } }
+        sseRelay.broadcast({
+          event: 'sync',
+          data: { conversationId: session.id, reason: 'agent-permission-mode-updated' }
+        })
+        return { status: 200, body: { agent, permissionMode: body.permissionMode } }
+      } catch (error) {
+        return {
+          status: 422,
+          body: {
+            code: 'WEBUI_PERMISSION_MODE_UPDATE_REJECTED',
+            message: error instanceof Error ? error.message : 'Desktop Agent permission mode update rejected'
+          }
+        }
+      }
+    }
+
+    // WebUI desktop bridge
+    // Agent 快路径：复用 ToolApprovalRegistry，与桌面 ai.respond_tool_approval 同决策入口。
+    if (sessionToolApprovalsMatch) {
+      if (method !== 'POST') return methodNotAllowed(['POST'])
+
+      try {
+        const body = parseToolApprovalBody(await readJsonBody(request))
+        if (!body) {
+          return {
+            status: 400,
+            body: {
+              code: 'WEBUI_INVALID_TOOL_APPROVAL',
+              message: 'approvalId (non-empty string) and approved (boolean) are required'
+            }
+          }
+        }
+
+        const encodedSessionId = sessionToolApprovalsMatch[1]
+        if (!encodedSessionId)
+          return { status: 400, body: { code: 'WEBUI_INVALID_SESSION', message: 'Desktop conversation id is missing' } }
+        // 校验会话存在，避免对已删会话误报成功；决策仍以 approvalId 为唯一键（与桌面 IPC 一致）。
+        agentSessionService.getById(decodeURIComponent(encodedSessionId))
+
+        const ok = application.get('AgentSessionRuntimeService').respondToolApproval(body.approvalId, {
+          approved: body.approved,
+          ...(body.reason ? { reason: body.reason } : {})
+        })
+        if (!ok) {
+          return {
+            status: 409,
+            body: {
+              code: 'WEBUI_APPROVAL_NOT_FOUND',
+              message: 'No pending tool approval matches this approvalId (already settled or expired)',
+              ok: false
+            }
+          }
+        }
+        return { status: 200, body: { ok: true } }
+      } catch (error) {
+        return {
+          status: 422,
+          body: {
+            code: 'WEBUI_TOOL_APPROVAL_REJECTED',
+            message: error instanceof Error ? error.message : 'Tool approval response rejected',
+            ok: false
+          }
+        }
+      }
+    }
+
+    if (sessionGenerateTitleMatch) {
+      if (method !== 'POST') return methodNotAllowed(['POST'])
+      const encodedSessionId = sessionGenerateTitleMatch[1]
+      if (!encodedSessionId)
+        return { status: 400, body: { code: 'WEBUI_INVALID_SESSION', message: 'Desktop conversation id is missing' } }
+      try {
+        const result = await generateWebUiSessionTitle(decodeURIComponent(encodedSessionId))
+        if (result.status >= 200 && result.status < 300) {
+          sseRelay.broadcast({
+            event: 'sync',
+            data: { conversationId: decodeURIComponent(encodedSessionId), reason: 'session-title-generated' }
+          })
+        }
+        return result
+      } catch (error) {
+        return {
+          status: 503,
+          body: {
+            code: 'WEBUI_TITLE_GENERATION_FAILED',
+            message: error instanceof Error ? error.message : 'Failed to generate conversation title'
+          }
+        }
+      }
+    }
+
+    if (sendMatch) {
+      if (method !== 'POST') return methodNotAllowed(['POST'])
+
+      try {
+        const body = parseSendMessageBody(await readJsonBody(request, MAX_WEBUI_REQUEST_BYTES))
+        if (!body) {
+          return {
+            status: 400,
+            body: {
+              code: 'WEBUI_INVALID_MESSAGE',
+              message: `A message requires text (up to ${MAX_WEBUI_MESSAGE_CHARS} characters) or a valid attachment`
+            }
+          }
+        }
+
+        const encodedSessionId = sendMatch[1]
+        if (!encodedSessionId) throw new Error('Desktop conversation id is missing')
+        const sessionId = decodeURIComponent(encodedSessionId)
+        // WebUI desktop bridge
+        // Browser files are promoted into Cherry's native file store before the
+        // canonical agent-session send path receives them.
+        const fileManager = application.get('FileManager')
+        const createdEntryIds: Parameters<typeof fileManager.batchPermanentDelete>[0] = []
+        try {
+          const fileParts: CherryMessagePart[] = []
+          for (const attachment of body.attachments) {
+            const entry = await fileManager.createInternalEntry({
+              source: 'bytes',
+              data: Buffer.from(attachment.dataUrl.slice(attachment.dataUrl.indexOf(',') + 1), 'base64'),
+              name: path.parse(attachment.name).name || 'attachment',
+              ext: path.extname(attachment.name).slice(1) || null
+            })
+            createdEntryIds.push(entry.id)
+            const physicalPath = fileManager.getPhysicalPath(entry.id)
+            fileParts.push(
+              withCherryMeta(
+                {
+                  type: 'file',
+                  mediaType: attachment.mediaType,
+                  url: pathToFileURL(physicalPath).toString(),
+                  filename: attachment.name
+                },
+                { fileEntryId: entry.id, fileTokenSourceId: randomUUID() }
+              ) as CherryMessagePart
+            )
+          }
+          const userParts: CherryMessagePart[] = [
+            ...(body.text ? ([{ type: 'text', text: body.text }] as CherryMessagePart[]) : []),
+            ...fileParts
+          ]
+          await startAgentSessionRun({
+            sessionId,
+            userParts,
+            listeners: [new WebUiStreamListener(sessionId, sseRelay)],
+            headless: false
+          })
+        } catch (error) {
+          if (createdEntryIds.length > 0) {
+            void fileManager.batchPermanentDelete(createdEntryIds).catch(() => undefined)
+          }
+          throw error
+        }
+        sseRelay.broadcast({ event: 'sync', data: { conversationId: sessionId, reason: 'message-submitted' } })
+
+        return {
+          status: 202,
+          body: { accepted: true, conversationId: sessionId }
+        }
+      } catch (error) {
+        return {
+          status: 422,
+          body: {
+            code: 'WEBUI_MESSAGE_REJECTED',
+            message: error instanceof Error ? error.message : 'Desktop Agent session rejected the message'
+          }
+        }
+      }
+    }
+
+    if (abortMatch) {
+      if (method !== 'POST') return methodNotAllowed(['POST'])
+
+      try {
+        const encodedSessionId = abortMatch[1]
+        if (!encodedSessionId) throw new Error('Desktop conversation id is missing')
+        const sessionId = decodeURIComponent(encodedSessionId)
+        const aborted = application.get('AgentSessionRuntimeService').abortPendingTurn(sessionId, 'webui-user-abort')
+        if (!aborted) {
+          return {
+            status: 409,
+            body: { code: 'WEBUI_NO_ACTIVE_RUN', message: 'This desktop conversation has no active generation' }
+          }
+        }
+
+        return { status: 202, body: { accepted: true, conversationId: sessionId } }
+      } catch (error) {
+        return {
+          status: 400,
+          body: {
+            code: 'WEBUI_INVALID_SESSION',
+            message: error instanceof Error ? error.message : 'Invalid desktop conversation id'
+          }
+        }
+      }
+    }
+
+    if (pathname.startsWith(`${dataApiPrefix}/`)) {
+      return handleDataApiProxy(request, url, sseRelay)
+    }
+
+    if (pathname === '/api/health') {
+      if (method !== 'GET') return methodNotAllowed(['GET'])
+
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          appVersion: app.getVersion(),
+          language: getLanguage(),
+          service: 'cherry-studio-webui',
+          startedAt,
+          sseClients: getSseClientCount(),
+          timestamp: new Date().toISOString()
+        }
+      }
+    }
+
+    if (pathname === '/api/sse/status') {
+      if (method !== 'GET') return methodNotAllowed(['GET'])
+
+      return {
+        status: 200,
+        body: {
+          clients: getSseClientCount()
+        }
+      }
+    }
+
+    return {
+      status: 404,
+      body: {
+        code: 'WEBUI_API_NOT_FOUND',
+        message: `Unknown WebUI API route: ${pathname}`
+      }
+    }
+  }
+
+  return {
+    async handle(request, response) {
+      writeResult(response, await route(request))
+    }
+  }
+}

@@ -7817,6 +7817,28 @@
     "zoom": {
       "reset": "Zurücksetzen",
       "title": "Zoom"
+    },
+    "webui": {
+      "title": "WebUI",
+      "description": "Setzen Sie Desktop-Agent-Sitzungen im Browser fort. Lauscht an der gewählten Adresse, Zugangsschlüssel erforderlich, Dateivorschau nur lesend.",
+      "enable_lan_access": "LAN-Zugriff aktivieren",
+      "service_status": "Dienststatus",
+      "running": "Läuft",
+      "stopped": "Gestoppt",
+      "listen_host": "Listen-Adresse",
+      "host_loopback": "Nur dieses Gerät (127.0.0.1)",
+      "host_lan": "LAN (0.0.0.0)",
+      "host_custom": "Benutzerdefinierte IP",
+      "host_custom_placeholder": "IPv4-Adresse eingeben",
+      "host_invalid": "Gültige IPv4-Adresse eingeben",
+      "access_key": "Zugangsschlüssel",
+      "access_key_placeholder": "Zum Starten erforderlich",
+      "access_key_required": "Vor dem Aktivieren der WebUI einen Zugangsschlüssel festlegen",
+      "access_key_generated": "Neuer Zugangsschlüssel wurde erzeugt",
+      "show_access_key": "Schlüssel anzeigen",
+      "hide_access_key": "Schlüssel verbergen",
+      "generate_access_key": "Schlüssel erzeugen",
+      "port": "Port"
     }
   },
   "subWindow": {

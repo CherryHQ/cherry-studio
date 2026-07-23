@@ -7854,6 +7854,28 @@
     "zoom": {
       "reset": "Reset",
       "title": "Page Zoom"
+    },
+    "webui": {
+      "title": "WebUI",
+      "description": "Continue desktop Agent sessions in a browser. Bind the selected address, require an access key, and keep file previews read-only.",
+      "enable_lan_access": "Enable LAN access",
+      "service_status": "Service status",
+      "running": "Running",
+      "stopped": "Stopped",
+      "listen_host": "Listen address",
+      "host_loopback": "This device only (127.0.0.1)",
+      "host_lan": "LAN (0.0.0.0)",
+      "host_custom": "Custom IP",
+      "host_custom_placeholder": "Enter an IPv4 address",
+      "host_invalid": "Enter a valid IPv4 address",
+      "access_key": "Access key",
+      "access_key_placeholder": "Required to start the service",
+      "access_key_required": "Set an access key before enabling WebUI",
+      "access_key_generated": "A new access key has been generated",
+      "show_access_key": "Show access key",
+      "hide_access_key": "Hide access key",
+      "generate_access_key": "Generate access key",
+      "port": "Port"
     }
   },
   "subWindow": {

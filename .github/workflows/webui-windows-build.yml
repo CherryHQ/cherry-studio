@@ -1,0 +1,154 @@
+name: Build Cherry Studio WebUI Windows
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag. Empty uses webui run number."
+        required: false
+        default: ""
+  push:
+    branches:
+      - webui
+    paths:
+      - webui/**
+      - src/main/**
+      - src/renderer/pages/settings/ChannelsSettings/**
+      - src/renderer/i18n/**
+      - src/shared/data/preference/**
+      - src/shared/data/cache/**
+      - electron-builder.yml
+      - package.json
+      - pnpm-lock.yaml
+      - .node-version
+      - .github/workflows/webui-windows-build.yml
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    env:
+      CI: true
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      NODE_OPTIONS: --max-old-space-size=8192
+      MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}
+      MAIN_VITE_MINERU_API_KEY: ${{ secrets.MAIN_VITE_MINERU_API_KEY }}
+      RENDERER_VITE_AIHUBMIX_SECRET: ${{ secrets.RENDERER_VITE_AIHUBMIX_SECRET }}
+      RENDERER_VITE_PPIO_APP_SECRET: ${{ secrets.RENDERER_VITE_PPIO_APP_SECRET }}
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v6
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.node-version'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: pwsh
+        run: |
+          "STORE_PATH=$(pnpm store path --silent)" >> $env:GITHUB_OUTPUT
+
+      - name: Cache pnpm dependencies
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-webui-windows-${{ hashFiles('pnpm-lock.yaml', 'webui/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-webui-windows-
+            ${{ runner.os }}-pnpm-
+
+      - name: Configure Windows package architectures
+        shell: pwsh
+        run: |
+          $workspaceConfig = Get-Content pnpm-workspace.yaml -Raw
+          $currentArchitectures = "supportedArchitectures:\r?\n  os:\r?\n    - current\r?\n  cpu:\r?\n    - current"
+          $windowsArchitectures = @'
+          supportedArchitectures:
+            os:
+              - current
+            cpu:
+              - current
+              - arm64
+          '@
+          $workspaceConfig = $workspaceConfig -replace $currentArchitectures, $windowsArchitectures
+          Set-Content pnpm-workspace.yaml $workspaceConfig
+
+      - name: Install desktop dependencies
+        run: pnpm install
+
+      - name: Verify Windows arm64 native dependencies
+        shell: pwsh
+        run: |
+          if (!(Test-Path -LiteralPath "node_modules/@napi-rs/system-ocr-win32-arm64-msvc")) {
+            throw "Missing @napi-rs/system-ocr-win32-arm64-msvc after pnpm install."
+          }
+
+      - name: Install WebUI dependencies
+        working-directory: webui
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Typecheck WebUI
+        working-directory: webui
+        run: pnpm typecheck
+
+      - name: Build WebUI
+        working-directory: webui
+        run: pnpm build
+
+      - name: Verify WebUI dist
+        shell: pwsh
+        run: |
+          if (!(Test-Path -LiteralPath "webui/dist/index.html")) {
+            throw "webui/dist/index.html was not generated."
+          }
+          $assetCount = (Get-ChildItem -LiteralPath "webui/dist/assets" -File -ErrorAction Stop | Measure-Object).Count
+          if ($assetCount -eq 0) {
+            throw "webui/dist/assets is empty."
+          }
+
+      - name: Remove WebUI build dependencies
+        shell: pwsh
+        run: |
+          Remove-Item -LiteralPath "webui/node_modules" -Recurse -Force -ErrorAction SilentlyContinue
+
+      - name: Build Windows WebUI packages
+        run: pnpm build:win
+
+      - name: Resolve release tag
+        id: release-tag
+        shell: pwsh
+        run: |
+          $inputTag = "${{ github.event.inputs.release_tag }}"
+          if ([string]::IsNullOrWhiteSpace($inputTag)) {
+            "tag=webui-${{ github.run_number }}" >> $env:GITHUB_OUTPUT
+          } else {
+            "tag=$inputTag" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Upload setup and portable to Release
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          artifacts: "dist/*-setup.exe,dist/*-portable.exe"
+          commit: ${{ github.sha }}
+          makeLatest: false
+          name: Cherry Studio WebUI ${{ steps.release-tag.outputs.tag }}
+          prerelease: true
+          replacesArtifacts: true
+          tag: ${{ steps.release-tag.outputs.tag }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Windows package
+        uses: actions/upload-artifact@v4
+        with:
+          name: cherry-studio-webui-windows-portable-all-arch
+          path: dist/*-portable.exe
+          if-no-files-found: error

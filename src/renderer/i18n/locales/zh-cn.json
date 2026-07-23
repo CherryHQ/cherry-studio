@@ -7854,6 +7854,28 @@
     "zoom": {
       "reset": "重置",
       "title": "缩放"
+    },
+    "webui": {
+      "title": "WebUI",
+      "description": "在浏览器中继续使用本机 Agent 会话。按所选地址监听，必须配置访问密钥，文件预览保持只读。",
+      "enable_lan_access": "开启局域网访问",
+      "service_status": "服务状态",
+      "running": "运行中",
+      "stopped": "已停止",
+      "listen_host": "监听地址",
+      "host_loopback": "仅本机 (127.0.0.1)",
+      "host_lan": "局域网 (0.0.0.0)",
+      "host_custom": "自定义 IP",
+      "host_custom_placeholder": "请输入 IPv4 地址",
+      "host_invalid": "请输入有效的 IPv4 地址",
+      "access_key": "安全验证 KEY",
+      "access_key_placeholder": "开启服务前必须设置",
+      "access_key_required": "请先设置安全验证 KEY 再开启 WebUI",
+      "access_key_generated": "已生成新的安全验证 KEY",
+      "show_access_key": "显示 KEY",
+      "hide_access_key": "隐藏 KEY",
+      "generate_access_key": "随机生成 KEY",
+      "port": "端口"
     }
   },
   "subWindow": {

@@ -7817,6 +7817,28 @@
     "zoom": {
       "reset": "Сбросить",
       "title": "Масштаб страницы"
+    },
+    "webui": {
+      "title": "WebUI",
+      "description": "Продолжайте сессии настольного Agent в браузере. Слушает выбранный адрес, требуется ключ доступа, предпросмотр файлов только для чтения.",
+      "enable_lan_access": "Включить доступ по LAN",
+      "service_status": "Состояние службы",
+      "running": "Запущено",
+      "stopped": "Остановлено",
+      "listen_host": "Адрес прослушивания",
+      "host_loopback": "Только это устройство (127.0.0.1)",
+      "host_lan": "LAN (0.0.0.0)",
+      "host_custom": "Свой IP",
+      "host_custom_placeholder": "Введите IPv4-адрес",
+      "host_invalid": "Введите корректный IPv4-адрес",
+      "access_key": "Ключ доступа",
+      "access_key_placeholder": "Обязателен для запуска",
+      "access_key_required": "Задайте ключ доступа перед включением WebUI",
+      "access_key_generated": "Создан новый ключ доступа",
+      "show_access_key": "Показать ключ",
+      "hide_access_key": "Скрыть ключ",
+      "generate_access_key": "Сгенерировать ключ",
+      "port": "Порт"
     }
   },
   "subWindow": {

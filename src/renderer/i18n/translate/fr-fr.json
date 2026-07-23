@@ -7817,6 +7817,28 @@
     "zoom": {
       "reset": "Réinitialiser",
       "title": "Zoom"
+    },
+    "webui": {
+      "title": "WebUI",
+      "description": "Poursuivez les sessions Agent du bureau dans le navigateur. Écoute sur l'adresse choisie, clé d'accès obligatoire, aperçus de fichiers en lecture seule.",
+      "enable_lan_access": "Activer l'accès LAN",
+      "service_status": "État du service",
+      "running": "En cours",
+      "stopped": "Arrêté",
+      "listen_host": "Adresse d'écoute",
+      "host_loopback": "Cet appareil uniquement (127.0.0.1)",
+      "host_lan": "LAN (0.0.0.0)",
+      "host_custom": "IP personnalisée",
+      "host_custom_placeholder": "Saisir une adresse IPv4",
+      "host_invalid": "Saisir une adresse IPv4 valide",
+      "access_key": "Clé d'accès",
+      "access_key_placeholder": "Requis pour démarrer le service",
+      "access_key_required": "Définissez une clé d'accès avant d'activer WebUI",
+      "access_key_generated": "Une nouvelle clé d'accès a été générée",
+      "show_access_key": "Afficher la clé",
+      "hide_access_key": "Masquer la clé",
+      "generate_access_key": "Générer une clé",
+      "port": "Port"
     }
   },
   "subWindow": {
