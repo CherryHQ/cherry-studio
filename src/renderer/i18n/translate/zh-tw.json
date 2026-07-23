@@ -2780,6 +2780,10 @@
     "code": "程式碼",
     "empty_preview": "沒有內容可顯示",
     "generating": "產生中",
+    "interactive_preview": {
+      "action": "檢視網頁",
+      "description": "此網頁包含指令碼或外部資源，開啟後可能執行程式碼並連線至網路。"
+    },
     "preview": "預覽",
     "split": "分割畫面",
     "view_mode": "檢視模式"

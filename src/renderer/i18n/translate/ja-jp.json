@@ -2780,6 +2780,10 @@
     "code": "コード",
     "empty_preview": "表示するコンテンツがありません",
     "generating": "生成中",
+    "interactive_preview": {
+      "action": "ウェブページを表示",
+      "description": "このウェブページにはスクリプトまたは外部リソースが含まれており、開くとコードが実行され、ネットワークに接続する場合があります。"
+    },
     "preview": "プレビュー",
     "split": "分割",
     "view_mode": "表示モード"

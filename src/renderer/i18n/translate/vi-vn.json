@@ -2780,6 +2780,10 @@
     "code": "Mã",
     "empty_preview": "Không có nội dung để hiển thị",
     "generating": "Tạo",
+    "interactive_preview": {
+      "action": "Xem trang web",
+      "description": "Trang web này chứa tập lệnh hoặc tài nguyên bên ngoài. Khi mở, trang có thể chạy mã và kết nối Internet."
+    },
     "preview": "Xem trước",
     "split": "Tách",
     "view_mode": "Chế độ xem"

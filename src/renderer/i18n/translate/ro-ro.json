@@ -2780,6 +2780,10 @@
     "code": "Cod",
     "empty_preview": "Niciun conținut de afișat",
     "generating": "Se generează",
+    "interactive_preview": {
+      "action": "Vezi pagina web",
+      "description": "Această pagină web conține scripturi sau resurse externe. Deschiderea ei poate rula cod și se poate conecta la internet."
+    },
     "preview": "Previzualizare",
     "split": "Divizat",
     "view_mode": "Mod de vizualizare"
