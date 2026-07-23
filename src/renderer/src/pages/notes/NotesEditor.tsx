@@ -13,7 +13,7 @@ import type { EditorView } from '@renderer/types'
 import { Empty, Tooltip } from 'antd'
 import { SpellCheck } from 'lucide-react'
 import type { FC, RefObject } from 'react'
-import { memo, useCallback, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -40,6 +40,13 @@ const NotesEditor: FC<NotesEditorProps> = memo(
       }
     }, [settings.defaultEditMode, settings.defaultViewMode])
     const [tmpViewMode, setTmpViewMode] = useState(currentViewMode)
+
+    // Sync the active view mode to settings changes. Without this, edits to
+    // defaultViewMode / defaultEditMode in Settings only take effect on the
+    // next note open. See issue #16209.
+    useEffect(() => {
+      setTmpViewMode(currentViewMode)
+    }, [currentViewMode, settings.defaultViewMode, settings.defaultEditMode, activeNodeId])
 
     const handleCommandsReady = useCallback((commandAPI: Pick<RichEditorRef, 'unregisterCommand'>) => {
       const disabledCommands = ['image', 'inlineMath']
