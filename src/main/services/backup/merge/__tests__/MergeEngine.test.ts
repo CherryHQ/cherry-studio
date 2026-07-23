@@ -19,9 +19,9 @@ import { setupTestDatabase } from '@test-helpers/db'
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import type { MergeContext } from '..'
-import { MergeConsistencyCheckError, MergeEngine, MergeStrategyNotImplementedError } from '..'
-import { FtsCentralHelper } from '../FtsCentralHelper'
+import { assertFtsIntegrity } from '../ftsCentral'
+import { MergeConsistencyCheckError, MergeEngine, MergeStrategyNotImplementedError } from '../MergeEngine'
+import type { MergeContext } from '../types'
 
 describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
   // Live test DB = the merge base (work.sqlite). Production migrations + FTS5
@@ -687,10 +687,10 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
 
     await runMerge(topCtx())
 
-    // The pipeline ran FtsCentralHelper.rebuild → integrityCheck in-tx (no throw during merge
+    // The pipeline ran rebuildFts → assertFtsIntegrity in-tx (no throw during merge
     // = the index was consistent at COMMIT). Re-check externally to confirm it still matches
     // the imported content after the connection re-enters autocommit.
-    expect(() => FtsCentralHelper.integrityCheck(dbh.sqlite)).not.toThrow()
+    expect(() => assertFtsIntegrity(dbh.sqlite)).not.toThrow()
   })
 
   it('skips pin rows whose polymorphic entityType maps outside selected domains', async () => {

@@ -22,7 +22,7 @@ import { BACKUP_DOMAINS, type BackupDomain } from '@main/data/db/backup/domains'
 import { ALWAYS_STRIP_TABLES, INFRASTRUCTURE_TABLES } from '@main/data/db/backup/exclusions'
 import { describe, expect, it } from 'vitest'
 
-import { CONTRIBUTORS } from '../index'
+import { CONTRIBUTORS } from '../CONTRIBUTORS'
 
 /** Tables never owned by a contributor (stripped or infrastructure). */
 const EXCLUDED = new Set<string>([...INFRASTRUCTURE_TABLES, ...ALWAYS_STRIP_TABLES])

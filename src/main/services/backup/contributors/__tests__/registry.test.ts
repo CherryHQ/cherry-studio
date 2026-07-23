@@ -11,8 +11,8 @@
 import { BACKUP_DOMAINS } from '@main/data/db/backup/domains'
 import { describe, expect, it } from 'vitest'
 
-import { ContributorManager } from '../ContributorManager'
-import { contributorManager, CONTRIBUTORS } from '../index'
+import { ContributorManager, contributorManager } from '../ContributorManager'
+import { CONTRIBUTORS } from '../CONTRIBUTORS'
 
 describe('CONTRIBUTORS registry — real declarations', () => {
   it('covers every BackupDomain exactly (no missing / extra / duplicate)', () => {

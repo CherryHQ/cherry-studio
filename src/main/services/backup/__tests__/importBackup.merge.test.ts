@@ -36,7 +36,7 @@ import { assembleArchive } from '../archive'
 import { RestoreQuiesceNotImplementedError } from '../errors'
 import { ImportOrchestrator, type ImportOrchestratorDeps } from '../ImportOrchestrator'
 import { BACKUP_FORMAT_VERSION, type BackupManifest } from '../manifest'
-import { MergeEngine } from '../merge'
+import { MergeEngine } from '../merge/MergeEngine'
 
 // Production drizzle migrations folder — same resolution as ImportOrchestrator.test.ts so
 // admitArchive's chain gate + applyMigrations find _journal.json.

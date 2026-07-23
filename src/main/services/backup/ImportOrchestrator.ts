@@ -34,7 +34,7 @@ import { readMigrationFiles } from 'drizzle-orm/migrator'
 import type { ArchiveContext } from './admitArchive'
 import { BackupCancelledError, RestoreFingerprintMismatchError } from './errors'
 import { captureLiveFingerprint } from './fingerprintProducer'
-import { type MergeContext, type MergeResult } from './merge'
+import type { MergeContext, MergeResult } from './merge/types'
 
 const logger = loggerService.withContext('ImportOrchestrator')
 

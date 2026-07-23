@@ -39,7 +39,7 @@ import { admitArchive } from '../../admitArchive'
 import { assembleArchive } from '../../archive'
 import { ImportOrchestrator, type ImportOrchestratorDeps } from '../../ImportOrchestrator'
 import { BACKUP_FORMAT_VERSION, type BackupManifest } from '../../manifest'
-import { MergeEngine } from '../../merge'
+import { MergeEngine } from '../../merge/MergeEngine'
 
 const MIGRATIONS_FOLDER = resolve(
   dirname(fileURLToPath(import.meta.url)),

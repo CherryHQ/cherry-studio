@@ -16,8 +16,8 @@ import { setupTestDatabase } from '@test-helpers/db'
 import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import type { MergeContext } from '..'
-import { MergeEngine } from '..'
+import { MergeEngine } from '../MergeEngine'
+import type { MergeContext } from '../types'
 
 const dbh = setupTestDatabase()
 const registry = contributorManager.getRegistry()
