@@ -54,12 +54,17 @@ explicit semantic role or `data-slot`.
 The pre-transform Vite plugin parses TSX/JSX with SWC before the React compiler. It annotates:
 
 - intrinsic roots rendered by a component or fragment branch;
-- semantic HTML elements such as buttons, inputs, links, regions, lists, and media;
-- nodes with an explicit `data-ui`, `data-slot`, `data-testid`, stable `id`/`name`/`role`/`type`, or event handler;
+- nested nodes with an explicit `data-ui`, `data-slot`, `data-testid`, stable `id`/`name`/`role`, or a directly named
+  business handler such as `handleCopy`;
 - each window body and public `svg` root.
 
-Nested `div` and `span` wrappers without any semantic signal remain unmarked. This avoids turning layout-only DOM into
-a public API.
+Once a parent component boundary exists, ordinary nested HTML remains unmarked. This includes adjacent layout wrappers
+and otherwise semantic tags such as paragraphs, headings, sections, and list items. Consumers can traverse downward
+from the nearest component coordinate without turning every DOM node into a separate selector. If an internal region
+needs independent long-lived styling, prefer extracting an owning component or explicitly promoting a `part:*`.
+
+Directly named business handlers may promote a nested action. Generic event handlers and plumbing such as
+`handleClick`, `handleKeyDown`, `stopPropagation`, and `preventDefault` do not create boundaries.
 
 Reusable component structure is represented by `part:*` tokens in the same attribute. Existing static `data-slot`
 markers remain unchanged throughout the project. The generator treats their values as authored structural semantics:
@@ -74,20 +79,22 @@ remains intact, so existing component styles, tests, and custom CSS continue to 
 Semantic inference uses, in order:
 
 1. an explicit semantic role written as a static `data-ui` value;
-2. `part:*`, `data-testid`, stable `id`/`name`/`role`/`type`, and event-handler names;
-3. source domain, component name, and HTML element role.
+2. a compact source domain and the owning component name;
+3. authored `part:*`, stable semantic attributes, and trusted business-handler names when an internal node is promoted.
 
-For example, a `MessageGroup` component under the chat source domain can produce `chat.message-group`; a copy action
-inside it can produce `chat.message-group.action.copy`. Visible text is never an input, so localization and copy changes
-do not rename selectors. Line numbers, timestamps, random values, and class names are also excluded.
+For example, a `MessageGroup` component under the chat source domain can produce `chat.message-group`; a nested copy
+action bound to `handleCopy` can produce `chat.message-group.action.copy`. Technical path fragments such as
+`components`, `runtime`, and `renderer`, and raw fallback roles such as `element.div`, are excluded. Visible text is
+never an input, so localization and copy changes do not rename selectors. Line numbers, timestamps, random values, and
+class names are also excluded.
 
 File and component names make inferred semantics readable but are not a permanent identity system. Moving or renaming a
 component can change its inferred role. Long-lived themes should use explicit semantic roles or maintained `part:*`
 tokens for selectors that must survive such refactors.
 
 SVG drawing internals such as `path`, `g`, `defs`, gradients, masks, filters, and shapes are implementation details by
-default. They enter the public contract only when they carry `data-ui`, `data-slot`, `data-testid`, `role`, or an event
-handler. HTML descendants of `foreignObject` are processed as a new semantic boundary.
+default. They enter the public contract only when they carry `data-ui`, `data-slot`, `data-testid`, `role`, or a trusted
+business handler. HTML descendants of `foreignObject` are processed as a new semantic boundary.
 
 During source work, resolve a semantic prefix without building the app:
 

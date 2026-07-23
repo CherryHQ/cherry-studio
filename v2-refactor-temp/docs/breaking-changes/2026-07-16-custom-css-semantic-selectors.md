@@ -8,10 +8,11 @@ date: 2026-07-16
 
 ## What changed
 
-Meaningful app-owned DOM boundaries now gain semantic selectors for advanced themes, tests, and automation. Nested
-layout-only `div` and `span` wrappers remain internal. Custom CSS is injected verbatim into every regular renderer
-window, including the selection toolbar. Existing static `data-slot="dialog-content"` structure markers remain
-unchanged and contribute `part:dialog-content` to the unified `data-ui` semantic layer.
+App-owned component boundaries now gain semantic selectors for advanced themes, tests, and automation. Ordinary nested
+HTML remains addressable below its nearest component selector without receiving a separate generated token. Custom CSS
+is injected verbatim into every regular renderer window, including the selection toolbar. Existing static
+`data-slot="dialog-content"` structure markers remain unchanged and contribute `part:dialog-content` to the unified
+`data-ui` semantic layer.
 
 ## Why this matters to the user
 

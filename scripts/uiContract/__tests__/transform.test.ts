@@ -28,7 +28,7 @@ describe('UI contract compiler', () => {
   })
 
   it('emits parseable JSX for self-closing intrinsic elements', () => {
-    const result = transformJsx('const Message = () => <div><input /></div>', {
+    const result = transformJsx('const Message = () => <input />', {
       ...options,
       injectDataUi: true
     })
@@ -36,6 +36,58 @@ describe('UI contract compiler', () => {
     expect(result.code).toContain('<input data-ui=')
     expect(result.code).toContain(' />')
     expect(() => parseSync(result.code, { syntax: 'typescript', tsx: true })).not.toThrow()
+  })
+
+  it('marks component roots without labeling adjacent internal elements', () => {
+    const result = transformJsx(
+      'const Message = () => <article><header /><div><p>Body</p><span>Meta</span></div><footer /></article>',
+      {
+        ...options,
+        injectDataUi: true
+      }
+    )
+
+    expect(result.descriptors.map((descriptor) => descriptor.semanticId)).toEqual(['chat.message'])
+    expect(result.code).toContain('<article data-ui="chat.message">')
+    expect(result.code).toContain('<header />')
+    expect(result.code).toContain('<p>Body</p>')
+    expect(result.code).not.toContain('<header data-ui=')
+    expect(result.code).not.toContain('<p data-ui=')
+  })
+
+  it('promotes named business actions but ignores event-plumbing handlers', () => {
+    const result = transformJsx(
+      `const Message = () => (
+        <div>
+          <button onClick={handleCopy} onKeyDown={handleKeyDown}>Copy</button>
+          <button onClick={handleClick}>Open</button>
+          <div onClick={(event) => event.stopPropagation()} />
+        </div>
+      )`,
+      {
+        ...options,
+        injectDataUi: true
+      }
+    )
+
+    expect(result.descriptors.map((descriptor) => descriptor.semanticId)).toEqual([
+      'chat.message',
+      'chat.message.action.copy'
+    ])
+    expect(result.code).not.toContain('action.click')
+    expect(result.code).not.toContain('action.stop')
+  })
+
+  it('uses compact component ownership instead of implementation path fragments', () => {
+    const sortable = transformJsx('const SortableItemRenderer = () => <div />', {
+      sourceFile: 'src/renderer/components/VirtualList/SortableItemRenderer.tsx'
+    })
+    const markdown = transformJsx('const useChatMarkdownComponents = () => <p />', {
+      sourceFile: 'src/renderer/components/chat/messages/markdown/useChatMarkdownComponents.tsx'
+    })
+
+    expect(sortable.descriptors[0].semanticId).toBe('ui.sortable-item')
+    expect(markdown.descriptors[0].semanticId).toBe('chat.markdown')
   })
 
   it('uses file-relative SWC spans across files with leading comments and multibyte text', () => {
@@ -67,7 +119,7 @@ const Message = () => {
       injectDataUi: true
     })
 
-    expect(callSite.descriptors).toHaveLength(0)
+    expect(callSite.descriptors.map((descriptor) => descriptor.semanticId)).toEqual(['chat.message'])
     expect(implementation.descriptors).toHaveLength(1)
     expect(implementation.code).toContain('__cherryUiContractMergeUiProps(props')
     expect(implementation.code).toContain('part:wrapper')
@@ -99,8 +151,8 @@ const Message = () => {
         injectDataUi: true
       })
 
-      expect(result.descriptors.map((descriptor) => descriptor.element)).toEqual(['a'])
-      expect(result.code).toContain('<__CherryUiContractSlot><a data-ui=')
+      expect(result.descriptors).toHaveLength(0)
+      expect(result.code).toContain('<__CherryUiContractSlot><a href="/settings" />')
       expect(result.code).toContain('</__CherryUiContractSlot></Button>')
       expect(() => parseSync(result.code, { syntax: 'typescript', tsx: true })).not.toThrow()
     }
@@ -115,7 +167,7 @@ const Message = () => {
       }
     )
 
-    expect(result.descriptors.map((descriptor) => descriptor.element)).toEqual(['a', 'span'])
+    expect(result.descriptors).toHaveLength(0)
     expect(result.code).not.toContain('__CherryUiContractSlot')
     expect(() => parseSync(result.code, { syntax: 'typescript', tsx: true })).not.toThrow()
   })
@@ -126,21 +178,21 @@ const Message = () => {
       injectDataUi: true
     })
 
-    expect(result.descriptors.map((descriptor) => descriptor.element)).toEqual(['a'])
-    expect(result.code).toContain('<__CherryUiContractSlot><a data-ui=')
+    expect(result.descriptors).toHaveLength(0)
+    expect(result.code).toContain('<__CherryUiContractSlot><a href="/settings" />')
     expect(result.code).toContain('</__CherryUiContractSlot></Button>')
     expect(() => parseSync(result.code, { syntax: 'typescript', tsx: true })).not.toThrow()
   })
 
-  it('annotates intrinsic DOM but skips unmarked component call sites', () => {
+  it('treats component call sites as parent boundaries for ordinary children', () => {
     const result = transformJsx('const Message = () => <Card><span /></Card>', {
       ...options,
       injectDataUi: true
     })
 
-    expect(result.descriptors).toHaveLength(1)
+    expect(result.descriptors).toHaveLength(0)
     expect(result.code).toContain('<Card>')
-    expect(result.code).toContain('<span data-ui=')
+    expect(result.code).toContain('<span />')
   })
 
   it('annotates SVG roots but skips internal drawing nodes by default', () => {
@@ -175,9 +227,10 @@ const Message = () => {
       }
     )
 
-    expect(result.descriptors.map((descriptor) => descriptor.element)).toEqual(['svg', 'path', 'circle', 'rect', 'div'])
+    expect(result.descriptors.map((descriptor) => descriptor.element)).toEqual(['svg', 'path', 'circle', 'div'])
     expect(result.code).toContain('<path data-ui="')
     expect(result.code).toContain('part:accent')
+    expect(result.code).toContain('<rect onClick={handleClick} />')
     expect(result.code).toContain('<g />')
     expect(result.code).not.toContain('<g data-ui=')
     expect(result.code).toContain('<div data-ui=')
@@ -259,14 +312,14 @@ const Message = () => {
     expect(result.code).toContain('part:app-root')
   })
 
-  it('skips generic internal HTML wrappers without semantic signals', () => {
+  it('keeps ordinary internal HTML under the nearest root boundary', () => {
     const result = transformHtml('<body><div></div><p></p></body>', {
       ...options,
       sourceFile: 'src/renderer/windows/main/index.html',
       windowName: 'main'
     })
 
-    expect(result.descriptors.map((descriptor) => descriptor.element)).toEqual(['body', 'p'])
+    expect(result.descriptors.map((descriptor) => descriptor.element)).toEqual(['body'])
   })
 
   it('applies the same SVG coverage policy to window HTML', () => {
@@ -280,7 +333,8 @@ const Message = () => {
       }
     )
 
-    expect(result.descriptors.map((descriptor) => descriptor.element)).toEqual(['body', 'svg', 'circle', 'div'])
+    expect(result.descriptors.map((descriptor) => descriptor.element)).toEqual(['body', 'circle', 'div'])
+    expect(result.code).not.toContain('<svg data-ui=')
     expect(result.code).not.toContain('<path data-ui=')
     expect(result.code).toContain('<circle data-testid="status-dot" data-ui=')
     expect(result.code).toContain('<div data-ui=')
