@@ -53,7 +53,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
     try {
       const selected = await window.api.file.select({
         properties: ['openFile'],
-        filters: [{ name: t('settings.data.backup.v2.file_filter'), extensions: ['cbu'] }]
+        filters: [{ name: t('settings.data.backup.v2.file_filter'), extensions: ['cherrybackup'] }]
       })
       const path = selected?.[0]?.path
       if (!path) {

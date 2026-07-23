@@ -50,7 +50,7 @@ describe('assembleArchive', () => {
       await writeFile(join(knowledgeDir, 'base-1', 'note.md'), Buffer.from('# note'))
 
       // Act
-      const out = join(dir, 'archive.cbu')
+      const out = join(dir, 'archive.cherrybackup')
       await assembleArchive(out, { manifest: MANIFEST_FULL, dbCopyPath: dbCopy, filesDir, knowledgeDir })
 
       // Assert — the §2 layout entries are all present
@@ -79,7 +79,7 @@ describe('assembleArchive', () => {
     try {
       const dbCopy = join(dir, 'backup.sqlite')
       await writeFile(dbCopy, Buffer.from('x'))
-      const out = join(dir, 'lite.cbu')
+      const out = join(dir, 'lite.cherrybackup')
       await assembleArchive(out, {
         manifest: { ...MANIFEST_FULL, preset: 'lite', includeFiles: false, includeKnowledgeFiles: false },
         dbCopyPath: dbCopy
@@ -104,7 +104,7 @@ describe('assembleArchive', () => {
     try {
       const dbCopy = join(dir, 'backup.sqlite')
       await writeFile(dbCopy, Buffer.from('reopen-me'))
-      const out = join(dir, 'a.cbu')
+      const out = join(dir, 'a.cherrybackup')
       await assembleArchive(out, { manifest: MANIFEST_FULL, dbCopyPath: dbCopy })
 
       // Assert — no throw on open; central directory is well-formed
@@ -118,9 +118,9 @@ describe('assembleArchive', () => {
   it('rejects when dbCopyPath is missing (pre-stat guard — no archive without backup.sqlite)', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'cs-archive-'))
     try {
-      const out = join(dir, 'a.cbu')
+      const out = join(dir, 'a.cherrybackup')
       // Act + Assert — a missing payload rejects loudly instead of producing a
-      // backup.sqlite-less .cbu (archiver would otherwise warn + succeed)
+      // backup.sqlite-less .cherrybackup (archiver would otherwise warn + succeed)
       await expect(
         assembleArchive(out, { manifest: MANIFEST_FULL, dbCopyPath: join(dir, 'missing.sqlite') })
       ).rejects.toThrow()
@@ -138,7 +138,7 @@ describe('assembleArchive', () => {
       // outPath whose PARENT dir does not exist → createWriteStream(tmp) errors
       // (ENOENT) → reject → temp unlinked → outPath never created. Proves a write
       // failure can't leave a partial/corrupt archive at the user-visible path.
-      const out = join(dir, 'nonexistent-subdir', 'a.cbu')
+      const out = join(dir, 'nonexistent-subdir', 'a.cherrybackup')
       await expect(assembleArchive(out, { manifest: MANIFEST_FULL, dbCopyPath: dbCopy })).rejects.toThrow()
       expect(existsSync(out)).toBe(false)
     } finally {
@@ -154,7 +154,7 @@ describe('assembleArchive', () => {
       // A pre-existing outPath MUST be refused, never overwritten — the stat pre-check
       // rejects before archiving starts (defense-in-depth ahead of the link/copyFile
       // EXCL publish path in archive.ts).
-      const out = join(dir, 'a.cbu')
+      const out = join(dir, 'a.cherrybackup')
       await writeFile(out, Buffer.from('prior-good-backup'))
       await expect(assembleArchive(out, { manifest: MANIFEST_FULL, dbCopyPath: dbCopy })).rejects.toThrow(
         OutputPathExistsError
@@ -175,7 +175,7 @@ describe('assembleArchive', () => {
       // fsynced sibling temp over outPath), never refuse. The default (no-clobber) path
       // is covered above; this proves the overwrite branch lands a fresh archive and the
       // prior bytes do not survive.
-      const out = join(dir, 'a.cbu')
+      const out = join(dir, 'a.cherrybackup')
       await writeFile(out, Buffer.from('prior-good-backup'))
       await assembleArchive(out, { manifest: MANIFEST_FULL, dbCopyPath: dbCopy }, undefined, true)
 
@@ -200,7 +200,7 @@ describe('assembleArchive', () => {
     try {
       const dbCopy = join(dir, 'backup.sqlite')
       await writeFile(dbCopy, Buffer.from('durability'))
-      const out = join(dir, 'a.cbu')
+      const out = join(dir, 'a.cherrybackup')
 
       const fsyncCalls: string[] = []
       const fsyncSpy = vi
@@ -228,7 +228,7 @@ describe('assembleArchive', () => {
     try {
       const dbCopy = join(dir, 'backup.sqlite')
       await writeFile(dbCopy, Buffer.from('ok'))
-      const out = join(dir, 'a.cbu')
+      const out = join(dir, 'a.cherrybackup')
 
       const fsyncCalls: string[] = []
       const realFsync = archiveMod.archiveDurability.fsyncPath.bind(archiveMod.archiveDurability)

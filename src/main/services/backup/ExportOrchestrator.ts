@@ -1,4 +1,4 @@
-// ExportOrchestrator — produces a .cbu backup archive from the current app state.
+// ExportOrchestrator — produces a .cherrybackup backup archive from the current app state.
 //
 // Pipeline (the ExportOrchestrator 5-step pipeline):
 //   1. resolvePreset → topo-sorted domain set
@@ -9,7 +9,7 @@
 //      implements it yet; the loop is wired when the first hook lands)
 //   4. collectFileResources per domain + stage file/knowledge blobs →
 //      files/ + knowledge/ in the archive
-//   5. build manifest + assemble the .cbu zip
+//   5. build manifest + assemble the .cherrybackup zip
 //
 // SNAPSHOT CONSISTENCY: step 2 freezes the DB at a single `VACUUM INTO` instant;
 // collect + stage then read from a read-only connection to backup.sqlite (that
@@ -55,7 +55,7 @@ import { LITE_EXCLUDED, resolvePreset } from './presets'
 /** User-facing export options (renderer passes preset; BackupService fills the rest). */
 export interface ExportBackupOptions {
   readonly preset: 'full' | 'lite'
-  /** Final .cbu output path. */
+  /** Final .cherrybackup output path. */
   readonly outputPath: string
   /**
    * Atomic replace an existing file at outputPath (user confirmed overwrite). Default

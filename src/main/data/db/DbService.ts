@@ -249,7 +249,7 @@ export class DbService extends BaseService {
   /**
    * Copy the live database into a fresh file via `VACUUM INTO` — a
    * transaction-consistent snapshot taken on the live connection, used by both
-   * export (backup.sqlite in .cbu archives) and the restore merge base
+   * export (backup.sqlite in .cherrybackup archives) and the restore merge base
    * (work.sqlite, worktree #16714). The target must not exist. Synchronous and
    * blocking by design (export + restore block until the snapshot completes).
    * See src/main/data/db/restore/README.md.

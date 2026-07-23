@@ -43,7 +43,7 @@ const INITIAL: UseBackupV2State = {
 }
 
 /**
- * Trigger a v2 .cbu export. Full = all domains + blobs; lite = 10 domains (no
+ * Trigger a v2 .cherrybackup export. Full = all domains + blobs; lite = 10 domains (no
  * KNOWLEDGE / PAINTINGS / FILE_STORAGE / TRANSLATE_HISTORY, no blobs — the
  * orchestrator's step 2.5 physically strips their rows from the copy).
  *

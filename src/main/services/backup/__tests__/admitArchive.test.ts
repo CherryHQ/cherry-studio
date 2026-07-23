@@ -136,12 +136,12 @@ describe('admitArchive', () => {
     rmSync(folder, { recursive: true, force: true })
   }
 
-  /** Pack a fixture DB + manifest into a .cbu at outPath via the production assembler. */
+  /** Pack a fixture DB + manifest into a .cherrybackup at outPath via the production assembler. */
   const packArchive = async (outPath: string, dbCopyPath: string, manifest: BackupManifest): Promise<void> => {
     await assembleArchive(outPath, { manifest, dbCopyPath })
   }
 
-  /** Pack a .cbu with arbitrary entries (zip-slip / unknown-name fixtures the assembler can't express). */
+  /** Pack a .cherrybackup with arbitrary entries (zip-slip / unknown-name fixtures the assembler can't express). */
   const packCustomArchive = async (
     outPath: string,
     entries: Array<{ name: string; content?: string; file?: string }>
@@ -165,7 +165,7 @@ describe('admitArchive', () => {
   it('equal chain → ArchiveContext, no migration (backup is at bundled tip)', async () => {
     const dbCopy = join(tmpDir, 'backup.sqlite')
     snapshotDbhTo(dbCopy)
-    const archivePath = join(tmpDir, 'equal.cbu')
+    const archivePath = join(tmpDir, 'equal.cherrybackup')
     await packArchive(archivePath, dbCopy, MANIFEST)
     const workDir = join(tmpDir, 'work')
 
@@ -185,7 +185,7 @@ describe('admitArchive', () => {
     const bundledTip = (dbh.sqlite.prepare('SELECT COUNT(*) AS n FROM __drizzle_migrations').get() as { n: number }).n
     const dbCopy = join(tmpDir, 'backup.sqlite')
     buildPrefixBackupDb(bundledTip - 1, dbCopy) // strict prefix (tip−1) → migrate-forward runs
-    const archivePath = join(tmpDir, 'older.cbu')
+    const archivePath = join(tmpDir, 'older.cherrybackup')
     await packArchive(archivePath, dbCopy, MANIFEST)
     const workDir = join(tmpDir, 'work')
 
@@ -214,7 +214,7 @@ describe('admitArchive', () => {
     } finally {
       mutate.close()
     }
-    const archivePath = join(tmpDir, 'forked.cbu')
+    const archivePath = join(tmpDir, 'forked.cherrybackup')
     await packArchive(archivePath, dbCopy, MANIFEST)
     const workDir = join(tmpDir, 'work')
 
@@ -234,7 +234,7 @@ describe('admitArchive', () => {
     } finally {
       mutate.close()
     }
-    const archivePath = join(tmpDir, 'mismatch.cbu')
+    const archivePath = join(tmpDir, 'mismatch.cherrybackup')
     await packArchive(archivePath, dbCopy, MANIFEST)
     const workDir = join(tmpDir, 'work')
 
@@ -252,7 +252,7 @@ describe('admitArchive', () => {
     } finally {
       drop.close()
     }
-    const archivePath = join(tmpDir, 'empty.cbu')
+    const archivePath = join(tmpDir, 'empty.cherrybackup')
     await packArchive(archivePath, dbCopy, MANIFEST)
     const workDir = join(tmpDir, 'work')
 
@@ -264,7 +264,7 @@ describe('admitArchive', () => {
   it('unsupported format version → UnsupportedBackupFormatError BEFORE payload extraction', async () => {
     const dbCopy = join(tmpDir, 'backup.sqlite')
     snapshotDbhTo(dbCopy)
-    const archivePath = join(tmpDir, 'unsupported.cbu')
+    const archivePath = join(tmpDir, 'unsupported.cherrybackup')
     await packArchive(archivePath, dbCopy, { ...MANIFEST, backupFormatVersion: 99 })
     const workDir = join(tmpDir, 'work')
 
@@ -317,7 +317,7 @@ describe('admitArchive', () => {
     for (let j = start; j < Math.min(start + 64, buf.length); j++) buf[j] = 0xff
     writeFileSync(dbCopy, buf)
 
-    const archivePath = join(tmpDir, 'integrity.cbu')
+    const archivePath = join(tmpDir, 'integrity.cherrybackup')
     await packArchive(archivePath, dbCopy, MANIFEST)
     const workDir = join(tmpDir, 'work')
 
@@ -329,7 +329,7 @@ describe('admitArchive', () => {
   it('SQLite sidecar entries (backup.sqlite-wal/-shm/.bak) are NOT extracted (exact match)', async () => {
     const dbCopy = join(tmpDir, 'backup.sqlite')
     snapshotDbhTo(dbCopy)
-    const archivePath = join(tmpDir, 'sidecar.cbu')
+    const archivePath = join(tmpDir, 'sidecar.cherrybackup')
     await packCustomArchive(archivePath, [
       { content: JSON.stringify(MANIFEST), name: 'manifest.json' },
       { file: dbCopy, name: 'backup.sqlite' },
@@ -351,7 +351,7 @@ describe('admitArchive', () => {
   it('unknown top-level entry → admitted (same-major forward-compat, ignored not rejected)', async () => {
     const dbCopy = join(tmpDir, 'backup.sqlite')
     snapshotDbhTo(dbCopy)
-    const archivePath = join(tmpDir, 'unknown.cbu')
+    const archivePath = join(tmpDir, 'unknown.cherrybackup')
     await packCustomArchive(archivePath, [
       { content: JSON.stringify(MANIFEST), name: 'manifest.json' },
       { file: dbCopy, name: 'backup.sqlite' },
@@ -369,7 +369,7 @@ describe('admitArchive', () => {
   it('extracts skills/ tree entries (recognized dir prefix)', async () => {
     const dbCopy = join(tmpDir, 'backup.sqlite')
     snapshotDbhTo(dbCopy)
-    const archivePath = join(tmpDir, 'skills.cbu')
+    const archivePath = join(tmpDir, 'skills.cherrybackup')
     await packCustomArchive(archivePath, [
       { content: JSON.stringify(MANIFEST), name: 'manifest.json' },
       { file: dbCopy, name: 'backup.sqlite' },
@@ -385,7 +385,7 @@ describe('admitArchive', () => {
   it('succeeds from a nonexistent staging dir (admission self-creates workDir)', async () => {
     const dbCopy = join(tmpDir, 'backup.sqlite')
     snapshotDbhTo(dbCopy)
-    const archivePath = join(tmpDir, 'ok.cbu')
+    const archivePath = join(tmpDir, 'ok.cherrybackup')
     await packArchive(archivePath, dbCopy, MANIFEST)
     // workDir sits under a parent that does not exist yet — admission must mkdir -p it.
     const workDir = join(tmpDir, 'deep', 'nested', 'work')
@@ -410,7 +410,7 @@ describe('admitArchive', () => {
   it('entry count over injected limit → BackupArchiveCorruptError before staging payload', async () => {
     const dbCopy = join(tmpDir, 'backup.sqlite')
     snapshotDbhTo(dbCopy)
-    const archivePath = join(tmpDir, 'too-many.cbu')
+    const archivePath = join(tmpDir, 'too-many.cherrybackup')
     // manifest + backup.sqlite + one unknown = 3 entries; limit 2 rejects before extract.
     await packCustomArchive(archivePath, [
       { content: JSON.stringify(MANIFEST), name: 'manifest.json' },
@@ -428,7 +428,7 @@ describe('admitArchive', () => {
   it('entry count exactly at injected limit is allowed', async () => {
     const dbCopy = join(tmpDir, 'backup.sqlite')
     snapshotDbhTo(dbCopy)
-    const archivePath = join(tmpDir, 'count-ok.cbu')
+    const archivePath = join(tmpDir, 'count-ok.cherrybackup')
     await packCustomArchive(archivePath, [
       { content: JSON.stringify(MANIFEST), name: 'manifest.json' },
       { file: dbCopy, name: 'backup.sqlite' }
@@ -442,7 +442,7 @@ describe('admitArchive', () => {
   it('oversized manifest metadata → BackupArchiveCorruptError + workDir cleaned', async () => {
     const dbCopy = join(tmpDir, 'backup.sqlite')
     snapshotDbhTo(dbCopy)
-    const archivePath = join(tmpDir, 'big-manifest.cbu')
+    const archivePath = join(tmpDir, 'big-manifest.cherrybackup')
     const bigManifest = JSON.stringify({ ...MANIFEST, producerAppVersion: 'x'.repeat(200) })
     expect(Buffer.byteLength(bigManifest)).toBeGreaterThan(64)
     await packCustomArchive(archivePath, [
@@ -462,7 +462,7 @@ describe('admitArchive', () => {
     snapshotDbhTo(dbCopy)
     const dbBytes = readFileSync(dbCopy).byteLength
     expect(dbBytes).toBeGreaterThan(100)
-    const archivePath = join(tmpDir, 'big-entry.cbu')
+    const archivePath = join(tmpDir, 'big-entry.cherrybackup')
     await packArchive(archivePath, dbCopy, MANIFEST)
     const workDir = join(tmpDir, 'work')
 
@@ -482,7 +482,7 @@ describe('admitArchive', () => {
     snapshotDbhTo(dbCopy)
     const dbBytes = readFileSync(dbCopy).byteLength
     const manifestBytes = Buffer.byteLength(JSON.stringify(MANIFEST))
-    const archivePath = join(tmpDir, 'total.cbu')
+    const archivePath = join(tmpDir, 'total.cherrybackup')
     await packArchive(archivePath, dbCopy, MANIFEST)
     const workDir = join(tmpDir, 'work')
 
@@ -503,7 +503,7 @@ describe('admitArchive', () => {
   it('compression ratio over injected limit → reject + cleanup', async () => {
     const dbCopy = join(tmpDir, 'backup.sqlite')
     snapshotDbhTo(dbCopy)
-    const archivePath = join(tmpDir, 'ratio.cbu')
+    const archivePath = join(tmpDir, 'ratio.cherrybackup')
     // Highly compressible payload under files/ — zlib level 9 yields ratio >> 2.
     const zeros = Buffer.alloc(64 * 1024, 0)
     const zerosPath = join(tmpDir, 'zeros.bin')
@@ -529,7 +529,7 @@ describe('admitArchive', () => {
   it('unknown huge entry does not count toward byte budget (forward-compat)', async () => {
     const dbCopy = join(tmpDir, 'backup.sqlite')
     snapshotDbhTo(dbCopy)
-    const archivePath = join(tmpDir, 'unknown-huge.cbu')
+    const archivePath = join(tmpDir, 'unknown-huge.cherrybackup')
     const huge = Buffer.alloc(8 * 1024, 0x41)
     const hugePath = join(tmpDir, 'huge.bin')
     writeFileSync(hugePath, huge)

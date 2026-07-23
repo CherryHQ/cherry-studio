@@ -1,4 +1,4 @@
-// Unit tests for ExportOrchestrator — .cbu production (full-preset, DB + blob slice).
+// Unit tests for ExportOrchestrator — .cherrybackup production (full-preset, DB + blob slice).
 import { copyFileSync, existsSync } from 'node:fs'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -89,7 +89,7 @@ describe('ExportOrchestrator (full-preset DB-only slice)', () => {
         await expect(
           orch.exportBackup({
             preset: 'full',
-            outputPath: join(dir, 'out.cbu'),
+            outputPath: join(dir, 'out.cherrybackup'),
             restoreId: malicious,
             producerAppVersion: '1.0.0',
             schemaMigrationId: '0001_x.sql'
@@ -101,12 +101,12 @@ describe('ExportOrchestrator (full-preset DB-only slice)', () => {
     }
   })
 
-  it('exportBackup(full) produces a .cbu with manifest.json + backup.sqlite, all 14 domains, no files/', async () => {
+  it('exportBackup(full) produces a .cherrybackup with manifest.json + backup.sqlite, all 14 domains, no files/', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'cs-export-'))
     try {
       const fixture = join(dir, 'fixture.db')
       await makeFixtureDb(fixture)
-      const out = join(dir, 'full.cbu')
+      const out = join(dir, 'full.cherrybackup')
       const orch = newOrch(dir, fixture)
 
       // Act
@@ -162,7 +162,7 @@ describe('ExportOrchestrator (full-preset DB-only slice)', () => {
     try {
       const fixture = join(dir, 'fixture.db')
       await makeFixtureDb(fixture)
-      const out = join(dir, 'cleanup.cbu')
+      const out = join(dir, 'cleanup.cherrybackup')
       const tempCopyPath = join(dir, 'r3.sqlite')
       const orch = newOrch(dir, fixture)
 
@@ -192,7 +192,7 @@ describe('ExportOrchestrator (full-preset DB-only slice)', () => {
       // emits 'error' (ENOENT) on open; without `output.on('error', reject)` the
       // archive promise would hang. This test exercises that path AND confirms the
       // temp copy is cleaned up despite the failure.
-      const badOutput = join(dir, 'nonexistent-subdir', 'out.cbu')
+      const badOutput = join(dir, 'nonexistent-subdir', 'out.cherrybackup')
       const orch = newOrch(dir, fixture)
 
       await expect(
@@ -219,7 +219,7 @@ describe('ExportOrchestrator (full-preset DB-only slice)', () => {
       const orch = newOrch(dir, fixture)
       await orch.exportBackup({
         preset: 'full',
-        outputPath: join(dir, 'out.cbu'),
+        outputPath: join(dir, 'out.cherrybackup'),
         restoreId: 'rp',
         producerAppVersion: '1.0.0',
         schemaMigrationId: '0001_x.sql',
@@ -251,7 +251,7 @@ describe('ExportOrchestrator (full-preset DB-only slice)', () => {
       await expect(
         orch.exportBackup({
           preset: 'full',
-          outputPath: join(dir, 'out.cbu'),
+          outputPath: join(dir, 'out.cherrybackup'),
           restoreId: 'rc',
           producerAppVersion: '1.0.0',
           schemaMigrationId: '0001_x.sql',
@@ -333,7 +333,7 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
         // Full preset strips ALWAYS_STRIP tables (app_state / job) via step 2.5.
         stripper: new SqliteBackupStripper()
       })
-      const out = join(dir, 'full.cbu')
+      const out = join(dir, 'full.cherrybackup')
       const { manifest } = await orch.exportBackup({
         preset: 'full',
         outputPath: out,
@@ -422,7 +422,7 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
         notesRoot: () => undefined,
         stripper: new SqliteBackupStripper()
       })
-      const out = join(dir, 'missing.cbu')
+      const out = join(dir, 'missing.cherrybackup')
       const { manifest } = await orch.exportBackup({
         preset: 'full',
         outputPath: out,
@@ -511,7 +511,7 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
         notesRoot: () => undefined,
         stripper: new SqliteBackupStripper()
       })
-      const out = join(dir, 'ext.cbu')
+      const out = join(dir, 'ext.cherrybackup')
       const { manifest } = await orch.exportBackup({
         preset: 'full',
         outputPath: out,
@@ -629,7 +629,7 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
         // Real stripper — runs step 2.5 against the copy.
         stripper: new SqliteBackupStripper()
       })
-      const out = join(dir, 'lite.cbu')
+      const out = join(dir, 'lite.cherrybackup')
       const { manifest } = await orch.exportBackup({
         preset: 'lite',
         outputPath: out,
@@ -748,7 +748,7 @@ describe('ExportOrchestrator rowScopes filter (AGENTS job_schedule partition)', 
         // Full preset has no lite exclusions; a no-op isolates the rowScopes filter.
         stripper: { strip: async () => [] }
       })
-      const out = join(dir, 'rowscopes.cbu')
+      const out = join(dir, 'rowscopes.cherrybackup')
       await orch.exportBackup({
         preset: 'full',
         outputPath: out,
@@ -811,7 +811,7 @@ describe('ExportOrchestrator notes body ↔ collect 1:1 (fs-catch)', () => {
       await expect(
         orch.exportBackup({
           preset: 'full',
-          outputPath: join(dir, 'out.cbu'),
+          outputPath: join(dir, 'out.cherrybackup'),
           restoreId: 'rn',
           producerAppVersion: '1.0.0',
           schemaMigrationId: '0001_x.sql'

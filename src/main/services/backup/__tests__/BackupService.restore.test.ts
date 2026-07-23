@@ -138,7 +138,7 @@ describe('BackupService restore journal lifecycle (A7)', () => {
     it('throws BACKUP_RESTORE_PENDING for staged (genuine pending) and does NOT clear', async () => {
       readRestoreJournalMock.mockReturnValue(okJournal('staged'))
       const service = new BackupService()
-      await expect(service.startRestore({ archivePath: '/x.cbu' })).rejects.toMatchObject({
+      await expect(service.startRestore({ archivePath: '/x.cherrybackup' })).rejects.toMatchObject({
         code: 'BACKUP_RESTORE_PENDING'
       })
       expect(clearRestoreJournalMock).not.toHaveBeenCalled()
@@ -147,7 +147,7 @@ describe('BackupService restore journal lifecycle (A7)', () => {
     it('throws BACKUP_RESTORE_PENDING for promoting (genuine pending) and does NOT clear', async () => {
       readRestoreJournalMock.mockReturnValue(okJournal('promoting', 'live-aside'))
       const service = new BackupService()
-      await expect(service.startRestore({ archivePath: '/x.cbu' })).rejects.toMatchObject({
+      await expect(service.startRestore({ archivePath: '/x.cherrybackup' })).rejects.toMatchObject({
         code: 'BACKUP_RESTORE_PENDING'
       })
       expect(clearRestoreJournalMock).not.toHaveBeenCalled()
@@ -156,7 +156,7 @@ describe('BackupService restore journal lifecycle (A7)', () => {
     it('clears + proceeds for completed (same-session second restore)', async () => {
       readRestoreJournalMock.mockReturnValue(okJournal('completed', 'integrity-ok'))
       const service = new BackupService()
-      await service.startRestore({ archivePath: '/x.cbu' })
+      await service.startRestore({ archivePath: '/x.cherrybackup' })
       expect(clearRestoreJournalMock).toHaveBeenCalledTimes(1)
       expect(importBackup).toHaveBeenCalledTimes(1)
     })
@@ -164,7 +164,7 @@ describe('BackupService restore journal lifecycle (A7)', () => {
     it('clears + proceeds for failed/expired terminal', async () => {
       readRestoreJournalMock.mockReturnValue(okJournal('failed', 'live-aside'))
       const service = new BackupService()
-      await service.startRestore({ archivePath: '/x.cbu' })
+      await service.startRestore({ archivePath: '/x.cherrybackup' })
       expect(clearRestoreJournalMock).toHaveBeenCalledTimes(1)
       expect(importBackup).toHaveBeenCalledTimes(1)
     })
@@ -172,7 +172,7 @@ describe('BackupService restore journal lifecycle (A7)', () => {
     it('clears + proceeds for corrupt (belt)', async () => {
       readRestoreJournalMock.mockReturnValue({ kind: 'corrupt', error: 'bad' })
       const service = new BackupService()
-      await service.startRestore({ archivePath: '/x.cbu' })
+      await service.startRestore({ archivePath: '/x.cherrybackup' })
       expect(clearRestoreJournalMock).toHaveBeenCalledTimes(1)
       expect(importBackup).toHaveBeenCalledTimes(1)
     })
@@ -197,7 +197,7 @@ describe('BackupService restore journal lifecycle (A7)', () => {
       jobManagerPause.mockReturnValue({ dispose: holdDispose })
       const service = new BackupService()
 
-      await expect(service.startRestore({ archivePath: '/x.cbu' })).rejects.toSatisfy(
+      await expect(service.startRestore({ archivePath: '/x.cherrybackup' })).rejects.toSatisfy(
         (err: unknown) => err instanceof IpcError && err.code === 'BACKUP_RESTORE_DRAIN_UNCLEAN'
       )
 
@@ -213,7 +213,7 @@ describe('BackupService restore journal lifecycle (A7)', () => {
       jobManagerPause.mockReturnValue({ dispose: holdDispose })
       const service = new BackupService()
 
-      await expect(service.startRestore({ archivePath: '/x.cbu' })).rejects.toSatisfy(
+      await expect(service.startRestore({ archivePath: '/x.cherrybackup' })).rejects.toSatisfy(
         (err: unknown) => err instanceof IpcError && err.code === 'BACKUP_RESTORE_DRAIN_UNCLEAN'
       )
 
@@ -227,7 +227,7 @@ describe('BackupService restore journal lifecycle (A7)', () => {
       drainInFlight.mockResolvedValue({ stragglerIds: [], startupRecoveryPending: false })
       const service = new BackupService()
 
-      await service.startRestore({ archivePath: '/x.cbu' })
+      await service.startRestore({ archivePath: '/x.cherrybackup' })
 
       expect(afterQuiesce).toHaveBeenCalledTimes(1)
       expect(relaunchMock).toHaveBeenCalledTimes(1)

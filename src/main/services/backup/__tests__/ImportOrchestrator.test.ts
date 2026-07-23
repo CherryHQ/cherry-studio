@@ -103,7 +103,7 @@ describe('ImportOrchestrator spine', () => {
   it('writes a staged journal with a valid fingerprint + chain on the happy path', async () => {
     const orch = new ImportOrchestrator(makeDeps())
 
-    const result = await orch.importBackup({ archivePath: '/tmp/fake.cbu', restoreId: 'rst-001' })
+    const result = await orch.importBackup({ archivePath: '/tmp/fake.cherrybackup', restoreId: 'rst-001' })
 
     expect(result.restoreId).toBe('rst-001')
     const read = readRestoreJournal()
@@ -145,7 +145,7 @@ describe('ImportOrchestrator spine', () => {
       })
     )
 
-    await expect(orch.importBackup({ archivePath: '/tmp/fake.cbu', restoreId: 'rst-002' })).rejects.toThrow(
+    await expect(orch.importBackup({ archivePath: '/tmp/fake.cherrybackup', restoreId: 'rst-002' })).rejects.toThrow(
       RestoreFingerprintMismatchError
     )
 
@@ -163,7 +163,7 @@ describe('ImportOrchestrator spine', () => {
       })
     )
 
-    await expect(orch.importBackup({ archivePath: '/tmp/fake.cbu', restoreId: 'rst-003' })).rejects.toThrow(
+    await expect(orch.importBackup({ archivePath: '/tmp/fake.cherrybackup', restoreId: 'rst-003' })).rejects.toThrow(
       RestoreMergeNotImplementedError
     )
 
@@ -180,7 +180,7 @@ describe('ImportOrchestrator spine', () => {
       })
     )
 
-    await expect(orch.importBackup({ archivePath: '/tmp/fake.cbu', restoreId: 'rst-004' })).rejects.toThrow(
+    await expect(orch.importBackup({ archivePath: '/tmp/fake.cherrybackup', restoreId: 'rst-004' })).rejects.toThrow(
       RestoreQuiesceNotImplementedError
     )
 
@@ -192,10 +192,10 @@ describe('ImportOrchestrator spine', () => {
   it('rejects an unsafe restoreId (path-traversal / non-basename)', async () => {
     const orch = new ImportOrchestrator(makeDeps())
 
-    await expect(orch.importBackup({ archivePath: '/tmp/fake.cbu', restoreId: '../escape' })).rejects.toThrow(
+    await expect(orch.importBackup({ archivePath: '/tmp/fake.cherrybackup', restoreId: '../escape' })).rejects.toThrow(
       /invalid restoreId/
     )
-    await expect(orch.importBackup({ archivePath: '/tmp/fake.cbu', restoreId: 'has space' })).rejects.toThrow(
+    await expect(orch.importBackup({ archivePath: '/tmp/fake.cherrybackup', restoreId: 'has space' })).rejects.toThrow(
       /invalid restoreId/
     )
   })
@@ -206,7 +206,7 @@ describe('ImportOrchestrator spine', () => {
     writeFileSync(asideAbs, 'stale')
     try {
       const orch = new ImportOrchestrator(makeDeps())
-      await expect(orch.importBackup({ archivePath: '/tmp/fake.cbu', restoreId: 'rst-005' })).rejects.toThrow(
+      await expect(orch.importBackup({ archivePath: '/tmp/fake.cherrybackup', restoreId: 'rst-005' })).rejects.toThrow(
         /aside target already exists/
       )
       expect(readRestoreJournal().kind).toBe('none')
@@ -220,7 +220,7 @@ describe('ImportOrchestrator spine', () => {
     const ac = new AbortController()
     ac.abort()
     await expect(
-      orch.importBackup({ archivePath: '/tmp/fake.cbu', restoreId: 'rst-006', signal: ac.signal })
+      orch.importBackup({ archivePath: '/tmp/fake.cherrybackup', restoreId: 'rst-006', signal: ac.signal })
     ).rejects.toThrow(BackupCancelledError)
     expect(readRestoreJournal().kind).toBe('none')
   })
@@ -232,7 +232,7 @@ describe('ImportOrchestrator spine', () => {
     const orch = new ImportOrchestrator(makeDeps())
     await expect(
       orch.importBackup({
-        archivePath: '/tmp/fake.cbu',
+        archivePath: '/tmp/fake.cherrybackup',
         restoreId: 'rst-007',
         signal: ac.signal,
         onProgress: (u) => {

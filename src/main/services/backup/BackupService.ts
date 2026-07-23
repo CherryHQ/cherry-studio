@@ -118,7 +118,7 @@ export interface BackupV2StartOptions {
   readonly overwrite?: boolean
 }
 
-/** Renderer-facing restore request (the .cbu path comes from an open dialog). */
+/** Renderer-facing restore request (the .cherrybackup path comes from an open dialog). */
 export interface BackupRestoreStartOptions {
   readonly archivePath: string
 }
@@ -238,7 +238,7 @@ export class BackupService extends BaseService {
   }
 
   /**
-   * Export a .cbu archive (renderer-facing). Returns { backupId, archivePath } —
+   * Export a .cherrybackup archive (renderer-facing). Returns { backupId, archivePath } —
    * backupId is the cancel/progress routing key. Throws BackupCancelledError if the
    * user cancels via backup.cancel; the orchestrator's finally block still
    * cleans up temp + staging. A second startBackup while one is running throws 'busy'.
@@ -312,7 +312,7 @@ export class BackupService extends BaseService {
   }
 
   /**
-   * Restore from a .cbu archive (renderer-facing). Runs the ImportOrchestrator spine:
+   * Restore from a .cherrybackup archive (renderer-facing). Runs the ImportOrchestrator spine:
    * quiesce → snapshot → merge → migrate → seal → 2nd fingerprint → staged journal,
    * then relaunches so the preboot promotion gate (#16884) swaps work.sqlite in.
    *
@@ -562,7 +562,7 @@ export class BackupService extends BaseService {
    *
    * Budget per preset:
    * - DB online copy + DB embedded in archive = 2× (live main + WAL) (both presets).
-   * - full: internal blobs staged to files/ AND embedded in the .cbu while
+   * - full: internal blobs staged to files/ AND embedded in the .cherrybackup while
    *   assembleArchive runs (temp + archive co-exist briefly) = 2× internal blob total.
    *   Full ALSO stages knowledge/ + notes/ source trees (each ~2× under the same
    *   temp + archive co-existence rule) — sized as the whole source dir, a

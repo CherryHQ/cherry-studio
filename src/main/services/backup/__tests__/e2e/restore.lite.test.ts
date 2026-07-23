@@ -4,7 +4,7 @@
  * Scope (intentionally narrow):
  * - Proves the DB restore spine end-to-end: partial quiesce → fingerprint →
  *   snapshot → MergeEngine SKIP/INSERT → migrate → seal → journal.
- * - Uses a synthetic **lite** TOPICS-only `.cbu` (no file / knowledge / notes blobs).
+ * - Uses a synthetic **lite** TOPICS-only `.cherrybackup` (no file / knowledge / notes blobs).
  * - FileStager / KB / Notes resource staging are **deferred** — `stageFileResources`
  *   returns `[]` (same DB-only contract as packaged `BackupService.startRestore`).
  *
@@ -56,7 +56,7 @@ describe('e2e-restore lite / SKIP DB only', () => {
     stagingRoot = join(tmpDir, 'restore-staging')
     journalPath = join(tmpDir, 'restore-journal.json')
     liveDbPath = dbh.sqlite.name
-    archivePath = join(tmpDir, 'backup.cbu')
+    archivePath = join(tmpDir, 'backup.cherrybackup')
     backupDbPath = join(tmpDir, 'backup.sqlite')
     await dbh.sqlite.backup(backupDbPath)
     setBackupInProgress(false)

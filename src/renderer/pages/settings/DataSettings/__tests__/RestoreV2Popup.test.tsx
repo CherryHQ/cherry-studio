@@ -60,7 +60,7 @@ describe('RestoreV2Popup', () => {
   })
 
   it('forwards selected[0].path and enters relaunching before startRestore', async () => {
-    selectMock.mockResolvedValueOnce([{ path: '/tmp/backup.cbu' }])
+    selectMock.mockResolvedValueOnce([{ path: '/tmp/backup.cherrybackup' }])
     confirmMock.mockResolvedValueOnce(true)
     let resolveRestore!: (v: { restoreId: string }) => void
     startRestoreMock.mockImplementationOnce(
@@ -74,20 +74,20 @@ describe('RestoreV2Popup', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'restore.confirm.button' }))
     await waitFor(() => expect(selectMock).toHaveBeenCalled())
-    await waitFor(() => expect(screen.getByText('/tmp/backup.cbu')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('/tmp/backup.cherrybackup')).toBeInTheDocument())
 
     fireEvent.click(screen.getByRole('button', { name: 'common.confirm' }))
     await waitFor(() => expect(confirmMock).toHaveBeenCalled())
     await waitFor(() => {
       expect(screen.getByText('settings.data.backup.v2.restore.relaunching')).toBeInTheDocument()
     })
-    expect(startRestoreMock).toHaveBeenCalledWith('/tmp/backup.cbu')
+    expect(startRestoreMock).toHaveBeenCalledWith('/tmp/backup.cherrybackup')
 
     resolveRestore({ restoreId: 'rst-1' })
   })
 
   it('returns to ready-with-error on reject and shows the code', async () => {
-    selectMock.mockResolvedValueOnce([{ path: '/tmp/backup.cbu' }])
+    selectMock.mockResolvedValueOnce([{ path: '/tmp/backup.cherrybackup' }])
     confirmMock.mockResolvedValueOnce(true)
     const err = Object.assign(new Error('packaged restore unavailable'), {
       code: 'BACKUP_RESTORE_QUIESCE_UNAVAILABLE'
@@ -96,7 +96,7 @@ describe('RestoreV2Popup', () => {
 
     await RestoreV2Popup.show()
     fireEvent.click(screen.getByRole('button', { name: 'restore.confirm.button' }))
-    await waitFor(() => expect(screen.getByText('/tmp/backup.cbu')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('/tmp/backup.cherrybackup')).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: 'common.confirm' }))
 
     await waitFor(() => {
@@ -106,7 +106,7 @@ describe('RestoreV2Popup', () => {
   })
 
   it('maps BACKUP_MERGE_STRATEGY_UNSUPPORTED to the SKIP-only copy', async () => {
-    selectMock.mockResolvedValueOnce([{ path: '/tmp/backup.cbu' }])
+    selectMock.mockResolvedValueOnce([{ path: '/tmp/backup.cherrybackup' }])
     confirmMock.mockResolvedValueOnce(true)
     const err = Object.assign(new Error('userStrategy OVERWRITE'), {
       code: 'BACKUP_MERGE_STRATEGY_UNSUPPORTED'
@@ -115,7 +115,7 @@ describe('RestoreV2Popup', () => {
 
     await RestoreV2Popup.show()
     fireEvent.click(screen.getByRole('button', { name: 'restore.confirm.button' }))
-    await waitFor(() => expect(screen.getByText('/tmp/backup.cbu')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('/tmp/backup.cherrybackup')).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: 'common.confirm' }))
 
     await waitFor(() => {

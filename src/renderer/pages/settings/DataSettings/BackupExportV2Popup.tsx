@@ -115,10 +115,10 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
     setPhase('selecting-target')
     setErrorMessage(null)
     try {
-      const defaultName = `cherry-studio-backup-${dayjs().format('YYYYMMDDHHmmss')}.cbu`
+      const defaultName = `${dayjs().format('YYYYMMDDHHmmss')}.cherrybackup`
       const outputPath = await ipcApi.request('file.select_save', {
         defaultPath: defaultName,
-        filters: [{ name: t('settings.data.backup.v2.file_filter'), extensions: ['cbu'] }],
+        filters: [{ name: t('settings.data.backup.v2.file_filter'), extensions: ['cherrybackup'] }],
         title: t('settings.data.backup.v2.export.save_dialog_title')
       })
       if (runId !== runIdRef.current) return

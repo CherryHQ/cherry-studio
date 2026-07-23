@@ -1,8 +1,8 @@
 // Backup archive assembly — pack manifest + DB copy + file blobs + knowledge
-// folders into a single .cbu (zip) archive.
+// folders into a single .cherrybackup (zip) archive.
 //
 // Layout (backup-architecture.md §2 + the archive file layout):
-//   <archive>.cbu
+//   <archive>.cherrybackup
 //   ├── manifest.json     (at root)
 //   ├── backup.sqlite     (online db.backup() copy of live)
 //   ├── files/<fileId>    (file blobs, includeFiles=true / full preset only)
@@ -69,7 +69,7 @@ export const archiveDurability = {
 }
 
 /**
- * Pack the export inputs into `outPath` (a .cbu zip). Writes to a sibling temp
+ * Pack the export inputs into `outPath` (a .cherrybackup zip). Writes to a sibling temp
  * file then atomically links → a write failure (ENOSPC etc.) can never leave a
  * partial/corrupt archive at the user-visible `outPath`, nor destroy a prior good
  * backup that already lives there. Throws on any archiver error OR warning (every
@@ -83,7 +83,7 @@ export async function assembleArchive(
 ): Promise<void> {
   // Pre-stat the required DB copy so a missing/unreadable payload fails BEFORE
   // archiving. Without this, archiver would emit a 'warning' (not 'error') for the
-  // missing file and finalize successfully — producing a .cbu without backup.sqlite.
+  // missing file and finalize successfully — producing a .cherrybackup without backup.sqlite.
   await stat(inputs.dbCopyPath)
   // No-clobber (default): refuse to overwrite an existing file. archive publishes via
   // link() (EEXIST = no-clobber, atomic) with a rename fallback only on hard-link-unsupported
@@ -106,7 +106,7 @@ export async function assembleArchive(
   const archive = new ZipArchive({ zlib: { level: 1 }, zip64: true })
   // Sibling temp file guarantees the final link is atomic (same filesystem; a
   // cross-filesystem tmp would EXDEV on rename). Hidden name so a crashed run
-  // doesn't leave a visible partial .cbu.
+  // doesn't leave a visible partial .cherrybackup.
   const tmpPath = join(dirname(outPath), `.${basename(outPath)}.${randomBytes(6).toString('hex')}.tmp`)
   const output = createWriteStream(tmpPath)
 
@@ -158,7 +158,7 @@ export async function assembleArchive(
     })
 
     // Durability gate BEFORE publish: flush the tmp inode so a power loss after
-    // link/copy cannot leave a zero-byte / torn .cbu at outPath while the caller
+    // link/copy cannot leave a zero-byte / torn .cherrybackup at outPath while the caller
     // already observed success. Same POSIX fsync-before-rename pattern as
     // writeRestoreJournal (review-M3).
     await archiveDurability.fsyncPath(tmpPath)
@@ -212,7 +212,7 @@ export async function assembleArchive(
     // into the open writeStream, and `unlink(tmpPath)` races with the in-flight
     // write. `destroy()` only STARTS closing the fd, so `finished(output)` waits
     // for the stream to actually close (on Windows unlink-while-open fails + gets
-    // swallowed, leaving a hidden partial .cbu — waiting avoids that).
+    // swallowed, leaving a hidden partial .cherrybackup — waiting avoids that).
     archive.abort()
     output.destroy()
     await finished(output).catch(() => {})

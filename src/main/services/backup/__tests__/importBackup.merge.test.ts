@@ -1,5 +1,5 @@
 // Spine ↔ MergeEngine integration test (PR-5 step 7). Exercises the FULL importBackup
-// spine — admission (real admitArchive unpacks a .cbu) → quiesce (no-op) → fingerprint →
+// spine — admission (real admitArchive unpacks a .cherrybackup) → quiesce (no-op) → fingerprint →
 // snapshot → merge (REAL MergeEngine: SKIP/INSERT + member cascade + junction phase + FTS
 // rebuild + consistency check) → migrate → seal → stage (no-op) → 2nd fingerprint → staged
 // journal — with a synthetic uuid-entity (TOPICS) archive.
@@ -10,7 +10,7 @@
 // file-resource staging stay no-op (their tracks are not landed); the merge engine is the
 // real SKIP/INSERT slice (Stage 4).
 //
-// The synthetic .cbu is built with the production archiver (assembleArchive) from a
+// The synthetic .cherrybackup is built with the production archiver (assembleArchive) from a
 // better-sqlite3 online backup of the live test DB — same schema + migration chain, so the
 // admission chain gate classifies it as equal (no migrate-forward) and integrity_check passes.
 
@@ -62,7 +62,7 @@ describe('importBackup spine ↔ MergeEngine integration', () => {
     stagingRoot = join(tmpDir, 'restore-staging')
     journalPath = join(tmpDir, 'restore-journal.json')
     liveDbPath = dbh.sqlite.name
-    archivePath = join(tmpDir, 'backup.cbu')
+    archivePath = join(tmpDir, 'backup.cherrybackup')
     backupDbPath = join(tmpDir, 'backup.sqlite')
     // Clone the (truncated) live schema into a synthetic backup.sqlite — same schema +
     // migration chain, empty user tables, ready to seed. better-sqlite3 backup() is async
@@ -146,7 +146,7 @@ describe('importBackup spine ↔ MergeEngine integration', () => {
     degraded: { resources: [] }
   })
 
-  /** Pack the synthetic backup.sqlite + manifest into a .cbu at archivePath. */
+  /** Pack the synthetic backup.sqlite + manifest into a .cherrybackup at archivePath. */
   const packArchive = async (): Promise<void> => {
     await assembleArchive(archivePath, { manifest: buildManifest(), dbCopyPath: backupDbPath })
   }

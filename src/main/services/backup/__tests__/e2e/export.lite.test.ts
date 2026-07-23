@@ -101,7 +101,7 @@ describe('e2e-export lite roundtrip', () => {
         stripper: new SqliteBackupStripper()
       })
 
-      const out = join(dir, 'lite.cbu')
+      const out = join(dir, 'lite.cherrybackup')
       const { manifest } = await orch.exportBackup({
         preset: 'lite',
         outputPath: out,

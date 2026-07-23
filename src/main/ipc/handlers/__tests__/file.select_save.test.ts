@@ -41,7 +41,7 @@ describe('file.select_save', () => {
   })
 
   it('returns null on cancel and never writes a file', async () => {
-    const probe = path.join(os.tmpdir(), `select-save-cancel-${Date.now()}.cbu`)
+    const probe = path.join(os.tmpdir(), `select-save-cancel-${Date.now()}.cherrybackup`)
     showSaveDialogMock.mockResolvedValueOnce({ canceled: true })
 
     await expect(fileHandlers['file.select_save'](undefined, { senderId: null })).resolves.toBeNull()
@@ -49,12 +49,12 @@ describe('file.select_save', () => {
   })
 
   it('returns the chosen path without writing', async () => {
-    const chosen = path.join(os.tmpdir(), `select-save-ok-${Date.now()}.cbu`)
+    const chosen = path.join(os.tmpdir(), `select-save-ok-${Date.now()}.cherrybackup`)
     showSaveDialogMock.mockResolvedValueOnce({ canceled: false, filePath: chosen })
 
     await expect(
       fileHandlers['file.select_save'](
-        { defaultPath: 'backup.cbu', filters: [{ name: 'Cherry Backup', extensions: ['cbu'] }] },
+        { defaultPath: 'backup.cherrybackup', filters: [{ name: 'Cherry Backup', extensions: ['cherrybackup'] }] },
         { senderId: null }
       )
     ).resolves.toBe(chosen)

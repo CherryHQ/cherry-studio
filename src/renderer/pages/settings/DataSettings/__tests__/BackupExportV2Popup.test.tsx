@@ -86,8 +86,8 @@ describe('BackupExportV2Popup', () => {
   })
 
   it('starts backup with selected preset and save path', async () => {
-    selectSaveMock.mockResolvedValueOnce('/tmp/out.cbu')
-    startBackupMock.mockResolvedValueOnce({ backupId: 'bk-1', archivePath: '/tmp/out.cbu' })
+    selectSaveMock.mockResolvedValueOnce('/tmp/out.cherrybackup')
+    startBackupMock.mockResolvedValueOnce({ backupId: 'bk-1', archivePath: '/tmp/out.cherrybackup' })
 
     await BackupExportV2Popup.show()
 
@@ -100,10 +100,10 @@ describe('BackupExportV2Popup', () => {
     await waitFor(() => expect(selectSaveMock).toHaveBeenCalled())
     expect(selectSaveMock.mock.calls[0][0].filters[0].name).toBe('settings.data.backup.v2.file_filter')
 
-    await waitFor(() => expect(startBackupMock).toHaveBeenCalledWith('full', '/tmp/out.cbu'))
+    await waitFor(() => expect(startBackupMock).toHaveBeenCalledWith('full', '/tmp/out.cherrybackup'))
     await waitFor(() => {
       expect(screen.getByText('settings.data.backup.v2.export.success')).toBeInTheDocument()
-      expect(screen.getByText('/tmp/out.cbu')).toBeInTheDocument()
+      expect(screen.getByText('/tmp/out.cherrybackup')).toBeInTheDocument()
     })
   })
 
@@ -121,7 +121,7 @@ describe('BackupExportV2Popup', () => {
   })
 
   it('shows cancelled when startBackup rejects with BACKUP_CANCELLED', async () => {
-    selectSaveMock.mockResolvedValueOnce('/tmp/out.cbu')
+    selectSaveMock.mockResolvedValueOnce('/tmp/out.cherrybackup')
     const err = Object.assign(new Error('cancelled'), { code: 'BACKUP_CANCELLED' })
     startBackupMock.mockRejectedValueOnce(err)
     hookState.cancelled = true
@@ -135,7 +135,7 @@ describe('BackupExportV2Popup', () => {
   })
 
   it('shows failure on non-cancel reject', async () => {
-    selectSaveMock.mockResolvedValueOnce('/tmp/out.cbu')
+    selectSaveMock.mockResolvedValueOnce('/tmp/out.cherrybackup')
     startBackupMock.mockRejectedValueOnce(Object.assign(new Error('disk full'), { code: 'BACKUP_DISK_FULL' }))
 
     await BackupExportV2Popup.show()
@@ -172,7 +172,7 @@ describe('BackupExportV2Popup', () => {
   })
 
   it('cancel export waits for startBackup settle and shows cancelled', async () => {
-    selectSaveMock.mockResolvedValueOnce('/tmp/out.cbu')
+    selectSaveMock.mockResolvedValueOnce('/tmp/out.cherrybackup')
     let rejectBackup!: (e: Error) => void
     startBackupMock.mockImplementationOnce(
       () =>
@@ -201,7 +201,7 @@ describe('BackupExportV2Popup', () => {
 
   it('ignores late success after cancel timeout', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
-    selectSaveMock.mockResolvedValueOnce('/tmp/out.cbu')
+    selectSaveMock.mockResolvedValueOnce('/tmp/out.cherrybackup')
     let resolveBackup!: (v: { backupId: string; archivePath: string }) => void
     startBackupMock.mockImplementationOnce(
       () =>
@@ -227,7 +227,7 @@ describe('BackupExportV2Popup', () => {
       expect(screen.getByText('settings.data.backup.v2.export.cancel_timeout')).toBeInTheDocument()
     })
 
-    resolveBackup({ backupId: 'bk-1', archivePath: '/tmp/late.cbu' })
+    resolveBackup({ backupId: 'bk-1', archivePath: '/tmp/late.cherrybackup' })
     await waitFor(() => {
       expect(screen.queryByText('settings.data.backup.v2.export.success')).not.toBeInTheDocument()
     })

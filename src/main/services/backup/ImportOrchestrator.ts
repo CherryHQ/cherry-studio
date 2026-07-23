@@ -59,7 +59,7 @@ export interface ImportProgressUpdate {
 }
 
 export interface ImportBackupOptions {
-  /** Absolute path to the source .cbu archive (untrusted input — archive admission validates it). */
+  /** Absolute path to the source .cherrybackup archive (untrusted input — archive admission validates it). */
   readonly archivePath: string
   /** Caller-generated restore id; MUST be a safe basename (used as the staging subtree name). */
   readonly restoreId: string
@@ -88,7 +88,7 @@ export interface ImportOrchestratorDeps {
   readonly restoreStagingRoot: string
   /** Absolute path to userData — journal paths are stored relative to this. */
   readonly userData: string
-  /** Archive admission — validate + safely unpack the .cbu into the staging subtree BEFORE quiesce (backup-architecture §9 step 0). Returns ArchiveContext; importBackup awaits WITHOUT binding — consumer binding (merge/stage) lands in spine-wiring. */
+  /** Archive admission — validate + safely unpack the .cherrybackup into the staging subtree BEFORE quiesce (backup-architecture §9 step 0). Returns ArchiveContext; importBackup awaits WITHOUT binding — consumer binding (merge/stage) lands in spine-wiring. */
   readonly admitArchive: (archivePath: string, workDir: string, migrationsFolder: string) => Promise<ArchiveContext>
   /** Quiesce all main-side writers + renderer mutation admission. Throws until #16849/#16850 land. */
   readonly quiesceWriters: (signal?: AbortSignal) => Promise<void>
@@ -135,7 +135,7 @@ export class ImportOrchestrator {
 
     try {
       this.emit(options, 'admission', 0, 1, 'archive admission + staging prep')
-      // (横切) Archive admission — validate + safely unpack the .cbu into the staging subtree
+      // (横切) Archive admission — validate + safely unpack the .cherrybackup into the staging subtree
       // BEFORE quiesce (backup-architecture §9 step 0): format gate + schema comparison +
       // migrate-forward + integrity_check (admitArchive.ts). ArchiveContext bound here feeds
       // the merge ctx (backupDbPath + domains) at step (b) below.

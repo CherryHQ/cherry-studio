@@ -25,18 +25,25 @@ describe('backupHandlers', () => {
   it('start_backup forwards preset + outputPath and returns { backupId, archivePath }', async () => {
     // startBackup may resolve a richer result; the handler must surface only the 2
     // route-output fields (the zod output schema is exactly { backupId, archivePath }).
-    backupService.startBackup.mockResolvedValue({ backupId: 'b1', archivePath: '/out/full.cbu', extra: 'ignored' })
-    const result = await backupHandlers['backup.start_backup']({ preset: 'full', outputPath: '/out/full.cbu' }, ctx)
-    expect(backupService.startBackup).toHaveBeenCalledWith({ preset: 'full', outputPath: '/out/full.cbu' })
-    expect(result).toEqual({ backupId: 'b1', archivePath: '/out/full.cbu' })
+    backupService.startBackup.mockResolvedValue({
+      backupId: 'b1',
+      archivePath: '/out/full.cherrybackup',
+      extra: 'ignored'
+    })
+    const result = await backupHandlers['backup.start_backup'](
+      { preset: 'full', outputPath: '/out/full.cherrybackup' },
+      ctx
+    )
+    expect(backupService.startBackup).toHaveBeenCalledWith({ preset: 'full', outputPath: '/out/full.cherrybackup' })
+    expect(result).toEqual({ backupId: 'b1', archivePath: '/out/full.cherrybackup' })
   })
 
   it('start_restore forwards archivePath and returns only restoreId', async () => {
     backupService.startRestore.mockResolvedValue({ restoreId: 'rst-1', journalPath: '/internal/ignored' })
 
-    const result = await backupHandlers['backup.start_restore']({ archivePath: '/backups/full.cbu' }, ctx)
+    const result = await backupHandlers['backup.start_restore']({ archivePath: '/backups/full.cherrybackup' }, ctx)
 
-    expect(backupService.startRestore).toHaveBeenCalledWith({ archivePath: '/backups/full.cbu' })
+    expect(backupService.startRestore).toHaveBeenCalledWith({ archivePath: '/backups/full.cherrybackup' })
     expect(result).toEqual({ restoreId: 'rst-1' })
   })
 

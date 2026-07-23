@@ -20,22 +20,22 @@ describe('useBackupV2', () => {
 
   describe('startBackup', () => {
     it('sets loading then resolves with archivePath on success', async () => {
-      ipcMocks.request.mockResolvedValue({ backupId: 'bk-1', archivePath: '/out/full.cbu' })
+      ipcMocks.request.mockResolvedValue({ backupId: 'bk-1', archivePath: '/out/full.cherrybackup' })
       const { result } = renderHook(() => useBackupV2())
 
       let resolved: { backupId: string; archivePath: string } | undefined
       await act(async () => {
-        resolved = await result.current.startBackup('full', '/out/full.cbu')
+        resolved = await result.current.startBackup('full', '/out/full.cherrybackup')
       })
 
       expect(ipcMocks.request).toHaveBeenCalledWith('backup.start_backup', {
         preset: 'full',
-        outputPath: '/out/full.cbu',
+        outputPath: '/out/full.cherrybackup',
         overwrite: false
       })
-      expect(resolved).toEqual({ backupId: 'bk-1', archivePath: '/out/full.cbu' })
+      expect(resolved).toEqual({ backupId: 'bk-1', archivePath: '/out/full.cherrybackup' })
       expect(result.current.loading).toBe(false)
-      expect(result.current.archivePath).toBe('/out/full.cbu')
+      expect(result.current.archivePath).toBe('/out/full.cherrybackup')
       expect(result.current.error).toBeNull()
     })
 
@@ -53,7 +53,7 @@ describe('useBackupV2', () => {
 
       let pending!: Promise<unknown>
       act(() => {
-        pending = result.current.startBackup('lite', '/out/lite.cbu')
+        pending = result.current.startBackup('lite', '/out/lite.cherrybackup')
       })
 
       expect(result.current.loading).toBe(true)
@@ -67,23 +67,23 @@ describe('useBackupV2', () => {
       expect(result.current.progress).toEqual({ backupId: 'bk-2', phase: 'staging', percent: 40 })
 
       await act(async () => {
-        resolveRequest({ backupId: 'bk-2', archivePath: '/out/lite.cbu' })
+        resolveRequest({ backupId: 'bk-2', archivePath: '/out/lite.cherrybackup' })
         await pending
       })
 
       expect(result.current.loading).toBe(false)
-      expect(result.current.archivePath).toBe('/out/lite.cbu')
+      expect(result.current.archivePath).toBe('/out/lite.cherrybackup')
     })
 
     it('unsubscribes from progress after completion', async () => {
       const unsubscribe = vi.fn()
       ipcMocks.on.mockReturnValue(unsubscribe)
-      ipcMocks.request.mockResolvedValue({ backupId: 'bk-3', archivePath: '/out/a.cbu' })
+      ipcMocks.request.mockResolvedValue({ backupId: 'bk-3', archivePath: '/out/a.cherrybackup' })
 
       const { result } = renderHook(() => useBackupV2())
 
       await act(async () => {
-        await result.current.startBackup('full', '/out/a.cbu')
+        await result.current.startBackup('full', '/out/a.cherrybackup')
       })
 
       expect(unsubscribe).toHaveBeenCalledTimes(1)
@@ -96,7 +96,7 @@ describe('useBackupV2', () => {
       const { result } = renderHook(() => useBackupV2())
 
       await act(async () => {
-        await result.current.startBackup('full', '/out/x.cbu').catch(() => {})
+        await result.current.startBackup('full', '/out/x.cherrybackup').catch(() => {})
       })
 
       expect(result.current.cancelled).toBe(true)
@@ -111,7 +111,7 @@ describe('useBackupV2', () => {
       const { result } = renderHook(() => useBackupV2())
 
       await act(async () => {
-        await result.current.startBackup('full', '/out/x.cbu').catch(() => {})
+        await result.current.startBackup('full', '/out/x.cherrybackup').catch(() => {})
       })
 
       expect(result.current.cancelled).toBe(false)
@@ -136,7 +136,7 @@ describe('useBackupV2', () => {
       const { result } = renderHook(() => useBackupV2())
 
       act(() => {
-        result.current.startBackup('full', '/out/x.cbu').catch(() => {})
+        result.current.startBackup('full', '/out/x.cherrybackup').catch(() => {})
       })
 
       act(() => {
@@ -174,11 +174,13 @@ describe('useBackupV2', () => {
 
       let restoreId: string | undefined
       await act(async () => {
-        const restore = await result.current.startRestore('/backups/full.cbu')
+        const restore = await result.current.startRestore('/backups/full.cherrybackup')
         restoreId = restore.restoreId
       })
 
-      expect(ipcMocks.request).toHaveBeenCalledWith('backup.start_restore', { archivePath: '/backups/full.cbu' })
+      expect(ipcMocks.request).toHaveBeenCalledWith('backup.start_restore', {
+        archivePath: '/backups/full.cherrybackup'
+      })
       expect(restoreId).toBe('rst-123')
       expect(result.current.loading).toBe(false)
       expect(result.current.progress).toBeNull()

@@ -71,7 +71,7 @@ describe('BackupService packaged export path', () => {
   beforeEach(() => {
     BaseService.resetInstances()
     vi.clearAllMocks()
-    exportBackup.mockResolvedValue({ archivePath: '/tmp/out.cbu' })
+    exportBackup.mockResolvedValue({ archivePath: '/tmp/out.cherrybackup' })
     getRegistry.mockReturnValue({ domains: [] })
     readRestoreJournalMock.mockReturnValue({ kind: 'none' })
     clearRestoreJournalMock.mockImplementation(() => {})
@@ -100,25 +100,25 @@ describe('BackupService packaged export path', () => {
 
   it.each(['lite', 'full'] as const)('startBackup(%s) works when packaged', async (preset) => {
     const service = await initPackagedService()
-    const result = await service.startBackup({ preset, outputPath: `/tmp/${preset}.cbu` })
-    expect(result.archivePath).toBe('/tmp/out.cbu')
+    const result = await service.startBackup({ preset, outputPath: `/tmp/${preset}.cherrybackup` })
+    expect(result.archivePath).toBe('/tmp/out.cherrybackup')
     expect(exportBackup).toHaveBeenCalledWith(
       expect.objectContaining({
         preset,
-        outputPath: `/tmp/${preset}.cbu`
+        outputPath: `/tmp/${preset}.cherrybackup`
       })
     )
   })
 
   it('startRestore wires ImportOrchestrator and maps import errors', async () => {
     const service = await initPackagedService()
-    await expect(service.startRestore({ archivePath: '/tmp/in.cbu' })).rejects.toSatisfy(
+    await expect(service.startRestore({ archivePath: '/tmp/in.cherrybackup' })).rejects.toSatisfy(
       (err: unknown) => err instanceof IpcError && err.code === 'BACKUP_ARCHIVE_CORRUPT'
     )
     expect(ImportOrchestrator).toHaveBeenCalled()
     expect(importBackup).toHaveBeenCalledWith(
       expect.objectContaining({
-        archivePath: '/tmp/in.cbu'
+        archivePath: '/tmp/in.cherrybackup'
       })
     )
   })
@@ -140,7 +140,7 @@ describe('BackupService packaged export path', () => {
     })
 
     const service = await initPackagedService()
-    await expect(service.startRestore({ archivePath: '/tmp/in.cbu' })).rejects.toSatisfy(
+    await expect(service.startRestore({ archivePath: '/tmp/in.cherrybackup' })).rejects.toSatisfy(
       (err: unknown) => err instanceof IpcError && err.code === 'BACKUP_ARCHIVE_CORRUPT'
     )
 
@@ -148,7 +148,7 @@ describe('BackupService packaged export path', () => {
     expect(holdDispose).toHaveBeenCalledTimes(1) // JobManager pause hold released
     // And a subsequent restore attempt is not blocked by a stale activeOperation.
     importBackup.mockRejectedValue(new IpcError('BACKUP_ARCHIVE_CORRUPT', 'second attempt'))
-    await expect(service.startRestore({ archivePath: '/tmp/in.cbu' })).rejects.toSatisfy(
+    await expect(service.startRestore({ archivePath: '/tmp/in.cherrybackup' })).rejects.toSatisfy(
       (err: unknown) => err instanceof IpcError && err.code === 'BACKUP_ARCHIVE_CORRUPT'
     )
   })
@@ -158,7 +158,7 @@ describe('BackupService packaged export path', () => {
     // guard is the backstop behind the preboot promotion gate (#16884, one fixed journal file).
     readRestoreJournalMock.mockReturnValue({ kind: 'ok', journal: { state: 'staged' } } as never)
     const service = await initPackagedService()
-    await expect(service.startRestore({ archivePath: '/tmp/in.cbu' })).rejects.toSatisfy(
+    await expect(service.startRestore({ archivePath: '/tmp/in.cherrybackup' })).rejects.toSatisfy(
       (err: unknown) => err instanceof IpcError && err.code === 'BACKUP_RESTORE_PENDING'
     )
   })
@@ -169,7 +169,7 @@ describe('BackupService packaged export path', () => {
     // A corrupt prior journal is cleared (belt — the preboot gate already quarantined it) so a
     // corrupt leftover never locks the user out; startRestore proceeds to ImportOrchestrator,
     // which rejects here via the importBackup mock.
-    await expect(service.startRestore({ archivePath: '/tmp/in.cbu' })).rejects.toThrow()
+    await expect(service.startRestore({ archivePath: '/tmp/in.cherrybackup' })).rejects.toThrow()
     // Cleared twice: once by performRestoreRecovery at onInit (boot belt), once by the startRestore
     // guard — both belt paths, since the preboot gate already quarantined the corrupt journal.
     expect(clearRestoreJournalMock).toHaveBeenCalledTimes(2)

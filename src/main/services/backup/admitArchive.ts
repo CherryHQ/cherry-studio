@@ -1,12 +1,12 @@
 // Archive admission — spine step 0 of the restore pipeline (backup-architecture §9 step 0).
 //
-// Validates + safely unpacks a .cbu archive into the restore staging subtree BEFORE
+// Validates + safely unpacks a .cherrybackup archive into the restore staging subtree BEFORE
 // quiesce/snapshot: format gate (backupFormatVersion major) → unpack (recognized entries,
 // ignore unknown for forward-compat, zip-slip guard on ALL entries) → schema comparison
 // (backup.sqlite applied chain vs bundled, 3 states) → migrate-forward on an independent
 // connection → integrity_check → ArchiveContext.
 //
-// External .cbu is untrusted input (vaayne A3): immutable admission limits bound manifest
+// External .cherrybackup is untrusted input (vaayne A3): immutable admission limits bound manifest
 // size, entry count, per-entry / cumulative uncompressed bytes, and compression ratio.
 // Central-directory metadata is fail-fast advisory; actual stream bytes are authoritative.
 //
@@ -52,7 +52,7 @@ const MiB = 1024 * 1024
 const GiB = 1024 * 1024 * 1024
 
 /**
- * Immutable production admission budget for external .cbu archives.
+ * Immutable production admission budget for external .cherrybackup archives.
  * Units are bytes (except maxEntryCount / maxCompressionRatio). Values are code-owned —
  * never overridden by user settings or manifest self-report.
  */
@@ -120,9 +120,9 @@ interface AdmissionPlan {
 }
 
 /**
- * Admit a .cbu archive into the restore staging subtree (backup-architecture §9 step 0).
+ * Admit a .cherrybackup archive into the restore staging subtree (backup-architecture §9 step 0).
  *
- * @param archivePath - Absolute path to the source .cbu (untrusted input).
+ * @param archivePath - Absolute path to the source .cherrybackup (untrusted input).
  * @param workDir - Absolute staging subtree to unpack into. Self-created here — the
  *   orchestrator's own mkdirSync runs AFTER the admission call, so admission must make it.
  * @param migrationsFolder - Production drizzle migrations folder (the bundled chain source).

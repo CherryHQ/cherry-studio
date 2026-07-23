@@ -5,7 +5,7 @@
 //   - Event schemas are pure *types* (main→renderer, main is the TCB → not parsed).
 //
 // Routes:
-//   - backup.start_backup: kick off a .cbu export (full/lite preset → output path).
+//   - backup.start_backup: kick off a .cherrybackup export (full/lite preset → output path).
 //     Returns the backupId (cancel/progress routing key) + final archive path.
 //   - backup.cancel: abort the active export whose id matches backupId (no-op if no
 //     match or idle). The orchestrator checks the AbortSignal at the next step boundary.

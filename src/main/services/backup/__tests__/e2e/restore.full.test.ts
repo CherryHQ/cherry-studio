@@ -83,7 +83,7 @@ describe('e2e-restore real data / backfill + degrade', () => {
     stagingRoot = join(tmpDir, 'restore-staging')
     journalPath = join(tmpDir, 'restore-journal.json')
     liveDbPath = dbh.sqlite.name
-    archivePath = join(tmpDir, 'backup.cbu')
+    archivePath = join(tmpDir, 'backup.cherrybackup')
     backupDbPath = join(tmpDir, 'backup.sqlite')
     await dbh.sqlite.backup(backupDbPath)
     setBackupInProgress(false)

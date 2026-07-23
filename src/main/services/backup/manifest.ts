@@ -1,5 +1,5 @@
 // Backup archive manifest — the metadata header written as `manifest.json` at
-// the root of every .cbu archive.
+// the root of every .cherrybackup archive.
 //
 // Pure serialization module: writeManifest / readManifest + the BackupManifest
 // type. No validation here — the restore-side manifest gate (backup-architecture
