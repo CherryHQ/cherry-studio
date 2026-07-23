@@ -99,12 +99,16 @@ const MessageErrorInfo: React.FC<{
   const classificationStatus =
     typeof errorStatus === 'number' || typeof errorStatus === 'string' ? errorStatus : undefined
   const classificationResponseBody = typeof errorResponseBody === 'string' ? errorResponseBody : undefined
-  const classificationData =
-    typeof errorData === 'string'
-      ? errorData
-      : errorData === undefined || errorData === null
-        ? undefined
-        : JSON.stringify(errorData)
+  let classificationData: string | undefined
+  if (typeof errorData === 'string') {
+    classificationData = errorData
+  } else if (errorData !== undefined && errorData !== null) {
+    try {
+      classificationData = JSON.stringify(errorData)
+    } catch {
+      // Ignore non-serializable provider data.
+    }
+  }
   const classificationFinishReason = typeof errorFinishReason === 'string' ? errorFinishReason : undefined
 
   const providerId = getMessageListItemModel(message)?.provider ?? errorProviderId
