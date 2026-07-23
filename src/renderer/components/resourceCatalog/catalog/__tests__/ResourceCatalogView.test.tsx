@@ -263,7 +263,7 @@ describe('ResourceCatalogView', () => {
       }
     })
 
-    render(<ResourceCatalogView resourceType="skill" skillAgentId="agent-1" />)
+    render(<ResourceCatalogView resourceType="skill" />)
 
     expect(resourceGridMock).toHaveBeenCalledWith(expect.objectContaining({ onOpenSystemSkills: expect.any(Function) }))
     await vi.waitFor(() =>
