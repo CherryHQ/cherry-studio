@@ -1,6 +1,5 @@
 import {
   Button,
-  ConfirmDialog,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -9,7 +8,7 @@ import {
 } from '@cherrystudio/ui'
 import { ResourceCatalogSearchInput } from '@renderer/components/resourceCatalog/ResourceCatalogSearchInput'
 import type { InstalledSkill } from '@shared/data/types/agent'
-import { ChevronDown, Download, FolderSearch, Plus, Search, Sparkles, Trash2 } from 'lucide-react'
+import { ChevronDown, Download, FolderSearch, Plus, Search, Sparkles } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -27,7 +26,6 @@ type SkillCatalogPickerProps = {
   onSelectedIdsChange: (ids: string[]) => void
   emptyLabel: ReactNode
   portalContainer: HTMLElement | null
-  onRemoveSkill?: (skillId: string) => Promise<boolean | void>
   disabled?: boolean
 }
 
@@ -40,7 +38,6 @@ export function SkillCatalogPicker({
   onSelectedIdsChange,
   emptyLabel,
   portalContainer,
-  onRemoveSkill,
   disabled = false
 }: SkillCatalogPickerProps) {
   const { t } = useTranslation()
@@ -48,8 +45,6 @@ export function SkillCatalogPicker({
   const [marketplaceOpen, setMarketplaceOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [systemSkillOpen, setSystemSkillOpen] = useState(false)
-  const [removeTarget, setRemoveTarget] = useState<InstalledSkill | null>(null)
-  const [removing, setRemoving] = useState(false)
 
   const builtinIds = useMemo(
     () => (mode === 'create' ? skills.filter((skill) => skill.source === 'builtin').map((skill) => skill.id) : []),
@@ -76,48 +71,20 @@ export function SkillCatalogPicker({
           }
         }
 
-        const canRemove = mode === 'create' && ['marketplace', 'system'].includes(skill.source) && onRemoveSkill
-
         return {
           id: skill.id,
           name: skill.name,
           description: mode === 'edit' ? skill.description : undefined,
-          icon: mode === 'edit' ? <Sparkles size={13} strokeWidth={1.5} className="text-amber-500/60" /> : undefined,
-          action: canRemove ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t('library.action.uninstall')}
-              disabled={disabled || removing}
-              onClick={() => setRemoveTarget(skill)}
-              className="shrink-0 text-foreground-muted hover:text-destructive">
-              <Trash2 size={14} />
-            </Button>
-          ) : undefined
+          icon: mode === 'edit' ? <Sparkles size={13} strokeWidth={1.5} className="text-amber-500/60" /> : undefined
         }
       })
-  }, [disabled, mode, onRemoveSkill, query, removing, skills, t])
+  }, [mode, query, skills, t])
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedIdSet.has(id))
 
   const setSelected = (id: string, enabled: boolean) => {
     onSelectedIdsChange(
       enabled ? Array.from(new Set([...selectedIds, id])) : selectedIds.filter((selectedId) => selectedId !== id)
     )
-  }
-
-  const handleRemoveSkill = async () => {
-    if (!removeTarget || !onRemoveSkill) return
-
-    setRemoving(true)
-    try {
-      const removed = await onRemoveSkill(removeTarget.id)
-      if (removed === false) return
-      onSelectedIdsChange(selectedIds.filter((selectedId) => selectedId !== removeTarget.id))
-      setRemoveTarget(null)
-    } finally {
-      setRemoving(false)
-    }
   }
 
   return (
@@ -186,19 +153,6 @@ export function SkillCatalogPicker({
         onOpenChange={setSystemSkillOpen}
         selectedSkillIds={selectedIds}
         onEnabled={(skillId) => onSelectedIdsChange(Array.from(new Set([...selectedIds, skillId])))}
-      />
-      <ConfirmDialog
-        open={Boolean(removeTarget)}
-        onOpenChange={(open) => {
-          if (!open && !removing) setRemoveTarget(null)
-        }}
-        title={t('library.delete.skill.title')}
-        description={t('library.delete.skill.content')}
-        confirmText={t('library.action.uninstall')}
-        cancelText={t('common.cancel')}
-        destructive
-        confirmLoading={removing}
-        onConfirm={handleRemoveSkill}
       />
     </div>
   )

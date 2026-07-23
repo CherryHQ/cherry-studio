@@ -13,9 +13,11 @@ import { EDIT_DIALOG_PROMPT_MAX_HEIGHT, EDIT_DIALOG_PROMPT_MIN_HEIGHT } from '..
 const {
   agentTools,
   fetchGenerateMock,
+  installedSkillsState,
   mcpStatusState,
   openSettingsTabMock,
   settingsNavigateMock,
+  skillCatalogPickerMock,
   updateAgentMock,
   updateAssistantMock,
   useMutationMock,
@@ -49,9 +51,24 @@ const {
     { id: 'Write', name: 'Write', description: 'Write files', origin: 'builtin', approval: 'prompt' }
   ],
   fetchGenerateMock: vi.fn(),
+  installedSkillsState: {
+    current: {
+      skills: [
+        {
+          id: 'skill-1',
+          name: 'Skill One',
+          description: 'Skill description',
+          isEnabled: false
+        }
+      ],
+      loading: false,
+      refreshing: false
+    }
+  },
   mcpStatusState: { current: {} as Record<string, { state: string; lastCheckedAt: number }> },
   openSettingsTabMock: vi.fn(),
   settingsNavigateMock: vi.fn(),
+  skillCatalogPickerMock: vi.fn(),
   updateAgentMock: vi.fn(),
   updateAssistantMock: vi.fn(),
   useMutationMock: vi.fn(),
@@ -151,6 +168,46 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
   )
 }))
 
+vi.mock('@renderer/components/resourceCatalog/dialogs/skill', () => ({
+  SkillCatalogPicker: (props: {
+    mode: 'create' | 'edit'
+    skills: Array<{ id: string; name: string }>
+    loading: boolean
+    selectedIds: readonly string[]
+    disabled?: boolean
+    onSelectedIdsChange: (ids: string[]) => void
+  }) => {
+    skillCatalogPickerMock(props)
+
+    return (
+      <div data-testid="skill-catalog-picker" data-mode={props.mode}>
+        {props.loading
+          ? null
+          : props.skills.map((skill) => {
+              const selected = props.selectedIds.includes(skill.id)
+              return (
+                <button
+                  key={skill.id}
+                  type="button"
+                  role="switch"
+                  aria-checked={selected}
+                  disabled={props.disabled}
+                  onClick={() =>
+                    props.onSelectedIdsChange(
+                      selected
+                        ? props.selectedIds.filter((selectedId) => selectedId !== skill.id)
+                        : [...props.selectedIds, skill.id]
+                    )
+                  }>
+                  {skill.name}
+                </button>
+              )
+            })}
+      </div>
+    )
+  }
+}))
+
 vi.mock('@renderer/hooks/useGroups', () => ({
   useGroups: () => ({
     groups: [
@@ -193,15 +250,7 @@ vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
 
 vi.mock('@renderer/hooks/useSkills', () => ({
   useInstalledSkills: () => ({
-    skills: [
-      {
-        id: 'skill-1',
-        name: 'Skill One',
-        description: 'Skill description',
-        isEnabled: false
-      }
-    ],
-    loading: false,
+    ...installedSkillsState.current,
     refresh: vi.fn()
   })
 }))
@@ -468,6 +517,18 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
+  installedSkillsState.current = {
+    skills: [
+      {
+        id: 'skill-1',
+        name: 'Skill One',
+        description: 'Skill description',
+        isEnabled: false
+      }
+    ],
+    loading: false,
+    refreshing: false
+  }
   mcpStatusState.current = {
     'mcp-1': { state: 'connected', lastCheckedAt: 1 }
   }
@@ -1031,6 +1092,63 @@ describe('edit dialogs', () => {
 
     expect(screen.getByRole('tab', { name: 'Skills' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByText('Skill One')).toBeInTheDocument()
+  })
+
+  it('reuses the shared skill catalog in the agent edit dialog', async () => {
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} initialTab="tools.skills" />)
+
+    await waitFor(() =>
+      expect(skillCatalogPickerMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          mode: 'edit',
+          skills: installedSkillsState.current.skills,
+          loading: false,
+          selectedIds: [],
+          disabled: false
+        })
+      )
+    )
+    expect(screen.getByTestId('skill-catalog-picker')).toHaveAttribute('data-mode', 'edit')
+  })
+
+  it('waits for background skill refresh before initializing the editable baseline', async () => {
+    installedSkillsState.current = {
+      ...installedSkillsState.current,
+      refreshing: true
+    }
+    const onOpenChange = vi.fn()
+    const onSaved = vi.fn()
+    const { rerender } = render(
+      <AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} onSaved={onSaved} initialTab="tools.skills" />
+    )
+
+    expect(screen.getByText('Skill One')).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'Skill One' })).toBeDisabled()
+
+    installedSkillsState.current = {
+      ...installedSkillsState.current,
+      skills: installedSkillsState.current.skills.map((skill) => ({ ...skill, isEnabled: true })),
+      refreshing: false
+    }
+    rerender(
+      <AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} onSaved={onSaved} initialTab="tools.skills" />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('switch', { name: 'Skill One' })).toBeChecked()
+      expect(screen.getByRole('switch', { name: 'Skill One' })).toBeEnabled()
+    })
+    expect(updateAgentMock).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Skill One' }))
+
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({
+          skillUpdates: [{ skillId: 'skill-1', isEnabled: false }]
+        })
+      })
+    )
   })
 
   it('opens the assistant edit dialog directly on the requested initial tab', () => {
