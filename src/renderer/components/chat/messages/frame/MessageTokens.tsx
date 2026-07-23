@@ -1,7 +1,7 @@
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
 import type { MessageStats } from '@shared/data/types/message'
 import type { FC } from 'react'
-import { useMemo } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useMessageListActions } from '../MessageListProvider'
@@ -49,23 +49,30 @@ function AssistantMessageTokens({
   message: MessageListItem
   onLocate: () => void
 }) {
+  const [showAllDetails, setShowAllDetails] = useState(false)
+  const contentId = useId()
+
   return (
     <HoverCard openDelay={200} closeDelay={100}>
       <HoverCardTrigger asChild>
         <button
           type="button"
+          aria-describedby={showAllDetails ? contentId : undefined}
           className="message-tokens cursor-pointer select-text text-right text-foreground-secondary text-xs tabular-nums leading-5 transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          onFocus={() => setShowAllDetails(true)}
+          onBlur={() => setShowAllDetails(false)}
           onClick={onLocate}>
           {label}
         </button>
       </HoverCardTrigger>
       <HoverCardContent
+        id={contentId}
         side="top"
         align="end"
         sideOffset={8}
         collisionPadding={12}
         className="w-80 max-w-(--radix-hover-card-content-available-width) p-0">
-        <MessageTokenDetailsCard message={message} />
+        <MessageTokenDetailsCard message={message} showAllDetails={showAllDetails} />
       </HoverCardContent>
     </HoverCard>
   )

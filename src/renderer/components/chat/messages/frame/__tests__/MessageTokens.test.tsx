@@ -11,8 +11,10 @@ import MessageTokens from '../MessageTokens'
 
 vi.mock('@cherrystudio/ui', () => ({
   HoverCard: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  HoverCardContent: ({ children }: { children: ReactNode }) => (
-    <div data-testid="message-token-hover-card">{children}</div>
+  HoverCardContent: ({ children, className, id }: { children: ReactNode; className?: string; id?: string }) => (
+    <div id={id} className={className} data-testid="message-token-hover-card">
+      {children}
+    </div>
   ),
   HoverCardTrigger: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
@@ -180,7 +182,7 @@ describe('MessageTokens', () => {
     expect(detail).toHaveTextContent('Token usage')
     expect(detail).toHaveTextContent('200 Tokens')
 
-    fireEvent.pointerEnter(within(usageBar).getByRole('button', { name: /^Reasoning:/ }))
+    fireEvent.pointerEnter(screen.getByTestId('metric-segment-token-usage-reasoning'))
 
     expect(detail).toHaveTextContent('Reasoning')
     expect(detail).toHaveTextContent('25 Tokens · 12.5%')
@@ -199,7 +201,7 @@ describe('MessageTokens', () => {
       })
     )
 
-    fireEvent.pointerEnter(screen.getByRole('button', { name: /^Cache read:/ }))
+    fireEvent.pointerEnter(screen.getByTestId('metric-segment-input-breakdown-cache-read'))
 
     expect(screen.getByTestId('metric-detail-input-breakdown')).toHaveTextContent('Cache read')
     expect(screen.getByTestId('metric-detail-input-breakdown')).toHaveTextContent('70 Tokens · 70%')
@@ -217,26 +219,47 @@ describe('MessageTokens', () => {
       })
     )
 
-    expect(screen.getByRole('button', { name: '200 Tokens · 10 Tokens/s' })).toHaveClass('message-tokens')
+    const trigger = screen.getByRole('button', { name: '200 Tokens · 10 Tokens/s' })
+    expect(trigger).toHaveClass('message-tokens')
 
-    const timingBar = screen.getByTestId('metric-bar-request-duration')
-    fireEvent.pointerEnter(within(timingBar).getByRole('button', { name: /^Waiting:/ }))
+    fireEvent.pointerEnter(screen.getByTestId('metric-segment-request-duration-waiting-first-token'))
     expect(screen.getByTestId('metric-detail-request-duration')).toHaveTextContent('1s · 7.1%')
 
-    fireEvent.pointerEnter(within(timingBar).getByRole('button', { name: /^Reasoning:/ }))
+    fireEvent.pointerEnter(screen.getByTestId('metric-segment-request-duration-reasoning-time'))
     expect(screen.getByTestId('metric-detail-request-duration')).toHaveTextContent('3s · 21.4%')
 
-    fireEvent.pointerEnter(within(timingBar).getByRole('button', { name: /^Text generation:/ }))
+    fireEvent.pointerEnter(screen.getByTestId('metric-segment-request-duration-text-generation'))
     expect(screen.getByTestId('metric-detail-request-duration')).toHaveTextContent('10s · 71.4%')
   })
 
   it('omits unavailable performance measurements instead of rendering zero values', () => {
     renderWithProvider(createMessage('assistant', { promptTokens: 10, completionTokens: 2, totalTokens: 12 }))
 
+    const trigger = screen.getByRole('button', { name: '12 Tokens' })
+    expect(trigger).toHaveClass('message-tokens')
+
     const card = screen.getByTestId('message-token-hover-card')
-    expect(screen.getByRole('button', { name: '12 Tokens' })).toHaveClass('message-tokens')
     expect(within(card).queryByTestId('metric-bar-request-duration')).not.toBeInTheDocument()
     expect(within(card).queryByText(/Tokens\/s/)).not.toBeInTheDocument()
+  })
+
+  it('exposes exact read-only values when the hover-card trigger receives keyboard focus', () => {
+    renderWithProvider(
+      createMessage('assistant', {
+        promptTokens: 100,
+        completionTokens: 100,
+        thoughtsTokens: 25,
+        totalTokens: 200
+      })
+    )
+
+    const trigger = screen.getByRole('button', { name: '200 Tokens' })
+    fireEvent.focus(trigger)
+
+    const card = screen.getByTestId('message-token-hover-card')
+    expect(trigger).toHaveAttribute('aria-describedby', card.id)
+    expect(within(screen.getByTestId('metric-bar-token-usage')).getByText('25 Tokens · 12.5%')).toBeInTheDocument()
+    expect(within(card).queryAllByRole('button')).toHaveLength(0)
   })
 
   it('keeps the existing click-to-locate behavior on the compact trigger', () => {

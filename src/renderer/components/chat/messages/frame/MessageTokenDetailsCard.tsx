@@ -1,7 +1,6 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useProviderDisplayName } from '@renderer/hooks/useProvider'
-import type { FocusEvent } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -22,9 +21,18 @@ interface InspectableMetricBarProps {
   segments: MetricSegment[]
   formatValue: (value: number) => string
   formatPercent: (value: number) => string
+  showAllDetails: boolean
 }
 
-function InspectableMetricBar({ id, title, summary, segments, formatValue, formatPercent }: InspectableMetricBarProps) {
+function InspectableMetricBar({
+  id,
+  title,
+  summary,
+  segments,
+  formatValue,
+  formatPercent,
+  showAllDetails
+}: InspectableMetricBarProps) {
   const [activeSegmentId, setActiveSegmentId] = useState<string>()
   const visibleSegments = segments.filter((segment) => segment.value > 0)
   const total = visibleSegments.reduce((sum, segment) => sum + segment.value, 0)
@@ -34,14 +42,8 @@ function InspectableMetricBar({ id, title, summary, segments, formatValue, forma
     return null
   }
 
-  const clearActiveSegmentWhenFocusLeaves = (event: FocusEvent<HTMLElement>) => {
-    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-      setActiveSegmentId(undefined)
-    }
-  }
-
   return (
-    <section data-testid={`metric-bar-${id}`} onBlur={clearActiveSegmentWhenFocusLeaves}>
+    <section data-testid={`metric-bar-${id}`}>
       <div
         data-testid={`metric-detail-${id}`}
         className="flex h-5 min-w-0 items-center justify-between gap-3 text-xs leading-5">
@@ -62,8 +64,7 @@ function InspectableMetricBar({ id, title, summary, segments, formatValue, forma
 
       <div
         className="flex h-10 w-full items-stretch"
-        role="group"
-        aria-label={title}
+        aria-hidden="true"
         onPointerLeave={() => setActiveSegmentId(undefined)}>
         {visibleSegments.map((segment, index) => {
           const isActive = activeSegmentId === segment.id
@@ -71,26 +72,22 @@ function InspectableMetricBar({ id, title, summary, segments, formatValue, forma
           const ratio = segment.value / total
 
           return (
-            <button
+            <div
               key={segment.id}
-              type="button"
-              aria-label={`${segment.label}: ${formatValue(segment.value)}, ${formatPercent(ratio)}`}
-              aria-pressed={isActive}
-              className="group relative h-10 min-w-px appearance-none p-0 focus-visible:outline-none"
+              data-testid={`metric-segment-${id}-${segment.id}`}
+              className="relative h-10 min-w-px"
               style={{ width: `${ratio * 100}%` }}
-              onPointerEnter={() => setActiveSegmentId(segment.id)}
-              onFocus={() => setActiveSegmentId(segment.id)}
-              onClick={() => setActiveSegmentId(segment.id)}>
+              onPointerEnter={() => setActiveSegmentId(segment.id)}>
               <span
                 className={cn(
-                  '-translate-y-1/2 absolute inset-x-0 top-1/2 h-2 transition-opacity duration-150 group-focus-visible:ring-2 group-focus-visible:ring-ring/50',
+                  '-translate-y-1/2 absolute inset-x-0 top-1/2 h-2 transition-opacity duration-150',
                   index === 0 && 'rounded-l-full',
                   index === visibleSegments.length - 1 && 'rounded-r-full',
                   segment.colorClassName,
                   isDimmed && 'opacity-35'
                 )}
               />
-            </button>
+            </div>
           )
         })}
       </div>
@@ -101,7 +98,12 @@ function InspectableMetricBar({ id, title, summary, segments, formatValue, forma
             key={segment.id}
             className="inline-flex items-center gap-1.5 text-[11px] text-foreground-muted leading-4">
             <span className={cn('size-1.5 rounded-full', segment.colorClassName)} aria-hidden="true" />
-            {segment.label}
+            <span>{segment.label}</span>
+            {showAllDetails ? (
+              <span className="text-foreground-secondary tabular-nums">
+                {formatValue(segment.value)} · {formatPercent(segment.value / total)}
+              </span>
+            ) : null}
           </div>
         ))}
       </div>
@@ -124,7 +126,13 @@ function formatDuration(durationMs: number, numberFormatter: Intl.NumberFormat):
   return `${numberFormatter.format(minutes)}m ${numberFormatter.format(Number(seconds.toFixed(1)))}s`
 }
 
-const MessageTokenDetailsCard = ({ message }: { message: MessageListItem }) => {
+const MessageTokenDetailsCard = ({
+  message,
+  showAllDetails = false
+}: {
+  message: MessageListItem
+  showAllDetails?: boolean
+}) => {
   const { t, i18n } = useTranslation()
   const stats = message.stats
   const model = getMessageListItemModel(message)
@@ -260,6 +268,7 @@ const MessageTokenDetailsCard = ({ message }: { message: MessageListItem }) => {
           ]}
           formatValue={formatTokens}
           formatPercent={formatPercent}
+          showAllDetails={showAllDetails}
         />
 
         <InspectableMetricBar
@@ -268,6 +277,7 @@ const MessageTokenDetailsCard = ({ message }: { message: MessageListItem }) => {
           segments={inputBreakdownSegments}
           formatValue={formatTokens}
           formatPercent={formatPercent}
+          showAllDetails={showAllDetails}
         />
 
         {waitingFirstTokenDurationMs !== undefined && textGenerationDurationMs !== undefined ? (
@@ -296,6 +306,7 @@ const MessageTokenDetailsCard = ({ message }: { message: MessageListItem }) => {
             ]}
             formatValue={formatMilliseconds}
             formatPercent={formatPercent}
+            showAllDetails={showAllDetails}
           />
         ) : null}
       </div>

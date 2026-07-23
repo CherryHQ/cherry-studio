@@ -3,9 +3,9 @@
  * `PersistenceListener`. Concrete backends live near the storage domain
  * they write to; stream-manager only owns the generic contract.
  *
- * The listener attaches error parts and composes `MessageStats` before
- * calling the backend — backends never synthesise UIMessages or repeat
- * projection logic.
+ * The listener attaches error parts, terminalizes interrupted parts, and
+ * composes `MessageStats` before calling the backend — backends never
+ * synthesise UIMessages or repeat projection logic.
  */
 
 import type { CherryMessagePart, CherryUIMessage, MessageStats } from '@shared/data/types/message'
