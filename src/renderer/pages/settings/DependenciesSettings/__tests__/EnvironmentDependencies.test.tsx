@@ -205,16 +205,19 @@ describe('EnvironmentDependencies', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 
-  it('does not persist invalid install URLs', async () => {
-    render(<EnvironmentDependencies />)
-    fireEvent.click(await screen.findByTitle('settings.dependencies.installSettings.title'))
-    const mirror = screen.getByPlaceholderText('settings.dependencies.installSettings.githubMirror.placeholder')
-    fireEvent.change(mirror, { target: { value: 'javascript:alert(1)' } })
-    fireEvent.blur(mirror)
+  it.each(['javascript:alert(1)', 'https://user:password@example.com'])(
+    'does not persist invalid install URL %s',
+    async (value) => {
+      render(<EnvironmentDependencies />)
+      fireEvent.click(await screen.findByTitle('settings.dependencies.installSettings.title'))
+      const mirror = screen.getByPlaceholderText('settings.dependencies.installSettings.githubMirror.placeholder')
+      fireEvent.change(mirror, { target: { value } })
+      fireEvent.blur(mirror)
 
-    expect(setInstallSettingsMock).not.toHaveBeenCalled()
-    expect(mirror).toHaveAttribute('aria-invalid', 'true')
-  })
+      expect(setInstallSettingsMock).not.toHaveBeenCalled()
+      expect(mirror).toHaveAttribute('aria-invalid', 'true')
+    }
+  )
 
   it('renders all preset tools from snapshots', async () => {
     render(<EnvironmentDependencies />)
