@@ -73,7 +73,7 @@ import {
   Trash2,
   X
 } from 'lucide-react'
-import { type FC, useCallback, useEffect, useMemo, useState } from 'react'
+import { type FC, useCallback, useEffect, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('TasksSettings')
@@ -140,6 +140,7 @@ const TaskScheduleControls: FC<{
   onCommit?: (patch: ScheduleCommitPatch) => void
 }> = ({ value, disabled, committedTrigger, committedTimeoutMinutes, onChange, onCommit }) => {
   const { t } = useTranslation()
+  const cronErrorId = useId()
   const hasInvalidCronExpression =
     value.kind === 'cron' && value.value.trim().length > 0 && !isValidCronExpression(value.value.trim())
 
@@ -220,10 +221,13 @@ const TaskScheduleControls: FC<{
               placeholder={t('agent.tasks.cronPlaceholder')}
               disabled={disabled}
               aria-invalid={hasInvalidCronExpression}
+              aria-describedby={hasInvalidCronExpression ? cronErrorId : undefined}
               className="w-72 max-w-full"
             />
             {hasInvalidCronExpression && (
-              <p className="text-destructive text-xs">{t('agent.tasks.error.invalidCron')}</p>
+              <p id={cronErrorId} className="text-destructive text-xs">
+                {t('agent.tasks.error.invalidCron')}
+              </p>
             )}
           </>
         )}

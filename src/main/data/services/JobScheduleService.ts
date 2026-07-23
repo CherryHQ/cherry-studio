@@ -5,7 +5,7 @@ import type { DbOrTx } from '@data/db/types'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
+import { isValidCronExpression, JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 import {
   type CatchUpPolicy,
   CatchUpPolicySchema,
@@ -19,6 +19,12 @@ import {
 import { and, asc, eq, type SQL } from 'drizzle-orm'
 
 const logger = loggerService.withContext('JobScheduleService')
+
+function assertValidScheduleTrigger(trigger: Trigger): void {
+  if (trigger.kind === 'cron' && !isValidCronExpression(trigger.expr, trigger.timezone)) {
+    throw new TypeError(`Invalid cron expression: "${trigger.expr}"`)
+  }
+}
 
 export interface JobScheduleListFilter {
   type?: string
@@ -163,6 +169,7 @@ export class JobScheduleService {
   }
 
   create(dto: CreateJobScheduleDto): JobScheduleSnapshot {
+    assertValidScheduleTrigger(dto.trigger)
     if (dto.name) {
       const parsed = JobScheduleNameAtomSchema.safeParse(dto.name)
       if (!parsed.success) {
@@ -201,6 +208,10 @@ export class JobScheduleService {
   }
 
   update(id: string, patch: UpdateJobScheduleDto): JobScheduleSnapshot | null {
+    if (patch.trigger !== undefined) {
+      if (!this.getById(id)) return null
+      assertValidScheduleTrigger(patch.trigger)
+    }
     if (patch.name) {
       const parsed = JobScheduleNameAtomSchema.safeParse(patch.name)
       if (!parsed.success) {

@@ -575,11 +575,16 @@ describe('TasksSettings task logs', () => {
 
     fireEvent.click(screen.getByRole('radio', { name: 'agent.tasks.scheduleType.cron' }))
     const cronInput = await screen.findByPlaceholderText('agent.tasks.cronPlaceholder')
+    expect(cronInput).not.toHaveAttribute('aria-describedby')
+
     fireEvent.change(cronInput, { target: { value: '9' } })
     fireEvent.blur(cronInput)
 
+    const cronError = screen.getByText('agent.tasks.error.invalidCron')
     expect(cronInput).toHaveAttribute('aria-invalid', 'true')
-    expect(screen.getByText('agent.tasks.error.invalidCron')).toHaveClass('text-destructive')
+    expect(cronInput).toHaveAttribute('aria-describedby', cronError.id)
+    expect(cronError).toHaveAttribute('id')
+    expect(cronError).toHaveClass('text-destructive')
     expect(taskMutationMocks.updateTask).not.toHaveBeenCalled()
   })
 
