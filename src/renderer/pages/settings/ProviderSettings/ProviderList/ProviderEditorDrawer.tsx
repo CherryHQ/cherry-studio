@@ -772,13 +772,13 @@ function CustomProviderEndpointFields({
             </span>
           </AccordionTrigger>
           <AccordionContent className="flex flex-col gap-5 pt-3 pb-0">
+            {ADDITIONAL_CUSTOM_PROVIDER_ENDPOINTS.map(renderEndpointControl)}
             {additionalContent && (
               <>
-                {additionalContent}
                 <div className="border-border-muted border-t" />
+                {additionalContent}
               </>
             )}
-            {ADDITIONAL_CUSTOM_PROVIDER_ENDPOINTS.map(renderEndpointControl)}
           </AccordionContent>
         </AccordionItem>
       </Accordion>

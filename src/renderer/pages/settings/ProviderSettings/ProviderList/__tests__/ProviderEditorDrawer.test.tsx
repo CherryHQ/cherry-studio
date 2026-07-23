@@ -467,7 +467,7 @@ describe('ProviderEditorDrawer', () => {
     )
   })
 
-  it('shows common endpoints first and keeps the optional preset inside More options', () => {
+  it('shows common endpoints first and keeps the optional preset last inside More options', () => {
     const source = {
       id: 'anthropic',
       name: 'Anthropic',
@@ -517,9 +517,10 @@ describe('ProviderEditorDrawer', () => {
       name: 'settings.provider.create_custom.preset_instance.placeholder'
     })
     const responsesInput = screen.getByLabelText('settings.provider.more_endpoints.openai_responses')
+    const imageEditInput = screen.getByLabelText('settings.provider.image_endpoints.image_edit_base_url.label')
     expect(moreTrigger).toHaveAttribute('aria-expanded', 'true')
-    expect(moreTrigger.compareDocumentPosition(presetPicker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(presetPicker.compareDocumentPosition(responsesInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(moreTrigger.compareDocumentPosition(responsesInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(imageEditInput.compareDocumentPosition(presetPicker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.queryByText('settings.provider.create_custom.compatibility.label')).not.toBeInTheDocument()
   })
 
