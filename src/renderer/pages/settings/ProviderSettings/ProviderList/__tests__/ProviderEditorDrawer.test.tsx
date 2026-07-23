@@ -590,11 +590,11 @@ describe('ProviderEditorDrawer', () => {
     expect(defaultBadge).toHaveAttribute('data-slot', 'badge')
     expect(setDefaultButton).toHaveClass('h-6', 'rounded-full', 'active:scale-[0.96]')
     expect(
-      screen.getByLabelText('settings.provider.more_endpoints.openai_chat').labels?.[0]?.parentElement
+      screen.getByLabelText('settings.provider.more_endpoints.openai_chat').previousElementSibling
     ).toContainElement(defaultBadge)
-    expect(
-      screen.getByLabelText('settings.provider.more_endpoints.anthropic').labels?.[0]?.parentElement
-    ).toContainElement(setDefaultButton)
+    expect(screen.getByLabelText('settings.provider.more_endpoints.anthropic').previousElementSibling).toContainElement(
+      setDefaultButton
+    )
     fireEvent.click(setDefaultButton)
     toggleMoreSettings()
     fireEvent.change(screen.getByLabelText('settings.provider.image_endpoints.image_generation_base_url.label'), {
