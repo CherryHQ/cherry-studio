@@ -16,7 +16,7 @@ const providerSettingsInputGroupBase = 'h-8 rounded-lg border border-border-mute
 
 /** Softer focus ring than `@cherrystudio/ui` InputGroup default (`ring-[3px]`) — business-layer override only. */
 const providerSettingsInputGroupFocusOverride =
-  'has-[[data-ui~="part:input-group-control"]:focus-visible]:ring-[1px] has-[[data-ui~="part:input-group-control"]:focus-visible]:ring-ring/35'
+  'has-[[data-slot=input-group-control]:focus-visible]:ring-[1px] has-[[data-slot=input-group-control]:focus-visible]:ring-ring/35'
 
 /** Connection and `ProviderSection`: 14px, deepest foreground, section-label line-height. */
 const sectionHeadingBase = 'm-0 text-sm text-foreground leading-[1.3]'
@@ -89,7 +89,7 @@ export const providerListClasses = {
   itemDragHandle:
     'flex w-2.5 shrink-0 items-center justify-center text-muted-foreground/40 opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 group-focus-within/row:opacity-100 data-[dragging=true]:opacity-100',
   itemAvatar:
-    'shrink-0 rounded-md border border-border-muted [&_[data-ui~="part:avatar-fallback"]]:rounded-[inherit] [&_[data-ui~="part:avatar-image"]]:rounded-[inherit]',
+    'shrink-0 rounded-md border border-border-muted [&_[data-slot=avatar-fallback]]:rounded-[inherit] [&_[data-slot=avatar-image]]:rounded-[inherit]',
   itemLabel: 'min-w-0 truncate text-sm leading-[1.35] text-foreground font-[weight:500]',
   itemTrailingSlot: 'relative -mr-1 ml-1 flex shrink-0 items-center justify-center',
   itemTrailingSlotAction: 'size-5',
@@ -170,7 +170,7 @@ export const drawerClasses = {
   footerTextButton:
     'h-auto min-h-0 rounded-md px-0 py-0 text-xs leading-tight text-foreground-muted/60 shadow-none hover:bg-transparent hover:text-foreground-muted',
   healthCostWarning:
-    'shrink-0 rounded-lg border-warning bg-warning-bg px-3 py-2.5 text-xs leading-tight text-warning shadow-none [&_[data-ui~="part:alert-icon"]]:mt-0 [&_[data-ui~="part:alert-icon"]_svg]:size-4 [&_[data-ui~="part:alert-message"]]:font-medium',
+    'shrink-0 rounded-lg border-warning bg-warning-bg px-3 py-2.5 text-xs leading-tight text-warning shadow-none [&_[data-slot=alert-icon]]:mt-0 [&_[data-slot=alert-icon]_svg]:size-4 [&_[data-slot=alert-message]]:font-medium',
   /** Model health-check drawer: determinate progress (scoped neutral track + primary fill). */
   healthProgressTrack:
     'h-1.5 w-full overflow-hidden rounded-full bg-[color:color-mix(in_srgb,var(--color-muted-foreground)_12%,transparent)]',
@@ -375,7 +375,7 @@ export const modelSyncClasses = {
     'inline-flex !h-auto !min-h-0 items-center justify-center rounded-lg px-2 py-[3px] !text-xs !leading-none text-foreground-muted shadow-none hover:bg-destructive/10 hover:text-destructive',
   fetchList: 'space-y-1',
   fetchWarning:
-    'my-2 gap-2 rounded-lg border-[color:color-mix(in_srgb,var(--color-warning-base)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--color-warning-bg)_52%,transparent)] px-2.5 py-2 text-xs leading-tight shadow-none [&_[data-ui~="part:alert-icon"]]:mt-0 [&_[data-ui~="part:alert-icon"]_svg]:size-3.5 [&_[data-ui~="part:alert-message"]]:font-normal',
+    'my-2 gap-2 rounded-lg border-[color:color-mix(in_srgb,var(--color-warning-base)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--color-warning-bg)_52%,transparent)] px-2.5 py-2 text-xs leading-tight shadow-none [&_[data-slot=alert-icon]]:mt-0 [&_[data-slot=alert-icon]_svg]:size-3.5 [&_[data-slot=alert-message]]:font-normal',
   fetchRowNew:
     'flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2.5 py-2 transition-colors hover:border-border/60 hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/30 data-[checked=true]:border-border/40 data-[checked=true]:bg-background',
   fetchRowRemoved:

@@ -223,7 +223,7 @@ describe('ResourceList', () => {
     expect(groups).toHaveLength(2)
     expect(groupHeaders).toHaveLength(2)
     expect(items).toHaveLength(5)
-    expect(container.querySelectorAll('[data-ui~="part:skeleton"]')).toHaveLength(19)
+    expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(19)
   })
 
   it('uses a border-only reveal focus animation without changing row background', () => {

@@ -317,7 +317,7 @@ const HeaderNavbar = ({
       </RowFlex>
       <NavbarCenter className="min-w-0 flex-1">
         <div className="w-full overflow-hidden">
-          <Breadcrumb className="**:data-[ui~='part:breadcrumb-list']:flex-nowrap **:data-[ui~='part:breadcrumb-list']:overflow-hidden **:data-[ui~='part:breadcrumb-list']:whitespace-nowrap [&_[data-ui~='part:breadcrumb-item']:last-child]:min-w-0 [&_[data-ui~='part:breadcrumb-item']:last-child]:flex-1">
+          <Breadcrumb className="**:data-[slot=breadcrumb-list]:flex-nowrap **:data-[slot=breadcrumb-list]:overflow-hidden **:data-[slot=breadcrumb-list]:whitespace-nowrap [&_[data-slot=breadcrumb-item]:last-child]:min-w-0 [&_[data-slot=breadcrumb-item]:last-child]:flex-1">
             <BreadcrumbList className="flex-nowrap gap-0 overflow-hidden">
               {breadcrumbItems.map((item, index) => {
                 const isLastItem = index === breadcrumbItems.length - 1

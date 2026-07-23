@@ -47,7 +47,7 @@ vi.mock('@cherrystudio/ui', () => ({
     void size
 
     return (
-      <button data-ui="part:button" type={type} {...buttonProps}>
+      <button data-slot="button" type={type} {...buttonProps}>
         {children}
       </button>
     )
@@ -112,10 +112,7 @@ describe('ShellTabBarActions', () => {
 
     await user.click(screen.getByRole('button', { name: 'Open global search' }))
 
-    expect(screen.getByRole('button', { name: 'Open global search' })).toHaveAttribute(
-      'data-ui',
-      expect.stringContaining('part:button')
-    )
+    expect(screen.getByRole('button', { name: 'Open global search' })).toHaveAttribute('data-slot', 'button')
     expect(mocks.showSearchPopup).toHaveBeenCalledTimes(1)
   })
 
@@ -130,10 +127,7 @@ describe('ShellTabBarActions', () => {
     render(<SidebarShellActions layout="icon" onSettingsClick={mocks.openSettingsTab} />)
 
     expect(screen.queryByRole('button', { name: 'Light' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /settings/i })).toHaveAttribute(
-      'data-ui',
-      expect.stringContaining('part:button')
-    )
+    expect(screen.getByRole('button', { name: /settings/i })).toHaveAttribute('data-slot', 'button')
     expect(screen.getByRole('button', { name: /settings/i })).toHaveClass(
       'text-muted-foreground',
       'dark:text-muted-foreground'
@@ -154,10 +148,7 @@ describe('ShellTabBarActions', () => {
     render(<SidebarShellActions layout="full" onSettingsClick={mocks.openSettingsTab} />)
 
     expect(screen.queryByRole('button', { name: 'Light' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /settings/i })).toHaveAttribute(
-      'data-ui',
-      expect.stringContaining('part:button')
-    )
+    expect(screen.getByRole('button', { name: /settings/i })).toHaveAttribute('data-slot', 'button')
     expect(screen.getByRole('button', { name: /settings/i })).toHaveClass(
       'justify-start',
       'text-foreground',

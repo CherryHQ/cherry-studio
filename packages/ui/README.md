@@ -245,8 +245,8 @@ Only the runtime surface should be treated as consumable package API.
 
 `packages/ui` keeps Shadcn-compatible `data-slot` attributes for component-internal styling and its standalone build.
 When Cherry Studio consumes the package source, the app's UI-contract compiler mirrors those markers into public
-`data-ui` `part:*` tokens. Renderer code, application tests, and custom themes must use `data-ui`; they must not depend
-on the component library's private `data-slot` markers.
+`data-ui` `part:*` tokens without removing the original attributes. Existing renderer code, application tests, and
+custom themes that use `data-slot` continue to work; new semantic selectors can use the mirrored `data-ui` parts.
 
 ## Directory Structure
 

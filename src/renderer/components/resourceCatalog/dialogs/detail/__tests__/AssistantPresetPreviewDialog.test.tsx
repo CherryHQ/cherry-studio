@@ -57,7 +57,7 @@ describe('AssistantPresetPreviewDialog overlay close', () => {
       />
     )
 
-    const overlay = document.querySelector('[data-ui~="part:dialog-overlay"]')
+    const overlay = document.querySelector('[data-slot="dialog-overlay"]')
     expect(overlay).toBeInTheDocument()
 
     fireEvent.click(overlay!)
@@ -79,7 +79,7 @@ describe('AssistantPresetPreviewDialog overlay close', () => {
       />
     )
 
-    const overlay = document.querySelector('[data-ui~="part:dialog-overlay"]')
+    const overlay = document.querySelector('[data-slot="dialog-overlay"]')
     expect(overlay).toBeInTheDocument()
 
     fireEvent.click(overlay!)

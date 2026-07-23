@@ -107,7 +107,7 @@ describe('ConversationPickerDialog', () => {
       <ConversationPickerDialog open onOpenChange={onOpenChange} items={ITEMS} labels={LABELS} onSelect={vi.fn()} />
     )
 
-    const overlay = document.querySelector('[data-ui~="part:dialog-overlay"]')
+    const overlay = document.querySelector('[data-slot="dialog-overlay"]')
     expect(overlay).toBeInTheDocument()
 
     fireEvent.click(overlay!)

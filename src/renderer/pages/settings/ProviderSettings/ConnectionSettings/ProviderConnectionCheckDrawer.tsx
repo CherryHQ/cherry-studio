@@ -131,7 +131,7 @@ export default function ProviderConnectionCheckDrawer({
                   value={selectedModel?.id ?? ''}
                   onChange={(value) => setSelectedModelId(Array.isArray(value) ? (value[0] ?? '') : value)}
                   placeholder={t('settings.models.empty')}
-                  popoverClassName="w-(--radix-popover-trigger-width) [&_[data-ui~='part:command-list']]:max-h-[280px]"
+                  popoverClassName="w-(--radix-popover-trigger-width) [&_[data-slot=command-list]]:max-h-[280px]"
                   renderOption={(option) => renderModelOptionContent(option.model)}
                   renderValue={(value, options) => {
                     const selectedValue = Array.isArray(value) ? value[0] : value

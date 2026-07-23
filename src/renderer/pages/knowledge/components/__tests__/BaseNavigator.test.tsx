@@ -76,7 +76,7 @@ vi.mock('@cherrystudio/ui', () => {
       const value = React.use(AccordionItemContext)
 
       return value && openValues.includes(value) ? (
-        <div data-ui="part:accordion-content" data-state="open" className={contentClassName}>
+        <div data-slot="accordion-content" data-state="open" className={contentClassName}>
           <div className={className}>{children}</div>
         </div>
       ) : null
@@ -615,7 +615,7 @@ describe('BaseNavigator', () => {
     )
 
     const groupTrigger = screen.getByRole('button', { name: /Research/ })
-    const accordionContent = container.querySelector('[data-ui~="part:accordion-content"]')
+    const accordionContent = container.querySelector('[data-slot="accordion-content"]')
     const accordionContentInner = accordionContent?.firstElementChild
 
     expect(groupTrigger).toHaveClass(

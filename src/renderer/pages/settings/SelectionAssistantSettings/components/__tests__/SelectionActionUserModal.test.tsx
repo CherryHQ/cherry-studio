@@ -110,15 +110,15 @@ describe('SelectionActionUserModal', () => {
     )
 
     const trigger = screen.getByRole('combobox')
-    expect(trigger).toHaveAttribute('data-ui', expect.stringContaining('part:select-trigger'))
+    expect(trigger).toHaveAttribute('data-slot', 'select-trigger')
     expect(trigger).toHaveClass(
       'min-w-0',
       'overflow-hidden',
-      '*:data-[ui~="part:select-value"]:min-w-0',
-      '*:data-[ui~="part:select-value"]:flex-1',
-      '*:data-[ui~="part:select-value"]:overflow-hidden'
+      '*:data-[slot=select-value]:min-w-0',
+      '*:data-[slot=select-value]:flex-1',
+      '*:data-[slot=select-value]:overflow-hidden'
     )
-    expect(trigger.querySelector('[data-ui~="part:select-value"]')).toBeInTheDocument()
+    expect(trigger.querySelector('[data-slot="select-value"]')).toBeInTheDocument()
 
     fireEvent.pointerDown(trigger)
     fireEvent.click(trigger)

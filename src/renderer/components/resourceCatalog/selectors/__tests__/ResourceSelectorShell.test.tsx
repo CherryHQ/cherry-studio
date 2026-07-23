@@ -600,10 +600,7 @@ describe('ResourceSelectorShell', () => {
       )
       openPopover()
 
-      expect(screen.getByRole('button', { name: 'Unpin' })).toHaveAttribute(
-        'data-ui',
-        expect.stringContaining('part:button')
-      )
+      expect(screen.getByRole('button', { name: 'Unpin' })).toHaveAttribute('data-slot', 'button')
       expect(screen.getByRole('button', { name: 'Unpin' })).toHaveClass('text-foreground!')
       expect(screen.getByRole('button', { name: 'Unpin' })).not.toHaveClass('text-primary!')
     })

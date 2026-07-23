@@ -32,7 +32,7 @@ vi.mock('react-i18next', () => ({
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children }: { children: ReactNode }) => <button type="button">{children}</button>,
   Kbd: ({ children, className, ...props }: ComponentProps<'kbd'>) => (
-    <kbd data-ui="part:kbd" className={className} {...props}>
+    <kbd data-slot="kbd" className={className} {...props}>
       {children}
     </kbd>
   ),
@@ -83,7 +83,7 @@ describe('CommandShortcut', () => {
     const shortcut = screen.getByText('⌘N')
 
     expect(shortcut.tagName).toBe('KBD')
-    expect(shortcut).toHaveAttribute('data-ui', expect.stringContaining('part:kbd'))
+    expect(shortcut.getAttribute('data-slot')).toBe('kbd')
     expect(shortcut.className).toContain('rounded-full')
     expect(shortcut.className).not.toContain('font-mono')
   })

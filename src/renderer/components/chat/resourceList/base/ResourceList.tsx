@@ -637,9 +637,9 @@ function LoadingState({ className, ref, ...props }: LoadingStateProps) {
             data-resource-list-loading-group-header="true"
             className={cn('flex items-center gap-1.5 px-1.5 pt-2 pb-1', RESOURCE_LIST_ROW_HEIGHT_CLASS)}>
             <ResourceListLeadingSlot variant="loading">
-              <Skeleton data-ui="part:skeleton" className="size-5 shrink-0 rounded-md" />
+              <Skeleton data-slot="skeleton" className="size-5 shrink-0 rounded-md" />
             </ResourceListLeadingSlot>
-            <Skeleton data-ui="part:skeleton" className={cn('h-3 rounded-sm', group.headerWidth)} />
+            <Skeleton data-slot="skeleton" className={cn('h-3 rounded-sm', group.headerWidth)} />
           </div>
           {group.itemWidths.map((width, index) => (
             <div
@@ -650,10 +650,10 @@ function LoadingState({ className, ref, ...props }: LoadingStateProps) {
                 RESOURCE_LIST_VISUAL_ROW_CLASS
               )}>
               <ResourceListLeadingSlot variant="loading">
-                <Skeleton data-ui="part:skeleton" className="size-5 shrink-0 rounded-md" />
+                <Skeleton data-slot="skeleton" className="size-5 shrink-0 rounded-md" />
               </ResourceListLeadingSlot>
-              <Skeleton data-ui="part:skeleton" className={cn('h-3 rounded-sm', width)} />
-              <Skeleton data-ui="part:skeleton" className="ml-auto size-5 shrink-0 rounded-md opacity-60" />
+              <Skeleton data-slot="skeleton" className={cn('h-3 rounded-sm', width)} />
+              <Skeleton data-slot="skeleton" className="ml-auto size-5 shrink-0 rounded-md opacity-60" />
             </div>
           ))}
         </div>

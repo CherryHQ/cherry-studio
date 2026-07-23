@@ -98,7 +98,7 @@ const HistoryTopBar = ({
       <div className="flex h-11 shrink-0 items-center gap-2 bg-card px-2">
         {toolbarLeading ? <div className="flex shrink-0 items-center">{toolbarLeading}</div> : null}
 
-        <div className="w-[220px] max-w-[38vw] [&_[data-ui~='part:input-group']]:h-8 [&_[data-ui~='part:input-group-control']]:h-8">
+        <div className="w-[220px] max-w-[38vw] [&_[data-slot=input-group-control]]:h-8 [&_[data-slot=input-group]]:h-8">
           <SearchInput
             value={searchText}
             placeholder={searchPlaceholder}

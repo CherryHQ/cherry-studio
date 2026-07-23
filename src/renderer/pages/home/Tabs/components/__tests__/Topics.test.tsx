@@ -2452,7 +2452,7 @@ describe('Topics', () => {
     expect(screen.queryAllByTestId('topic-list-row')).toHaveLength(0)
     expect(document.querySelectorAll('[data-resource-list-loading-group]')).toHaveLength(2)
     expect(document.querySelectorAll('[data-resource-list-loading-item]')).toHaveLength(5)
-    expect(document.querySelectorAll('[data-ui~="part:skeleton"]').length).toBeGreaterThan(0)
+    expect(document.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0)
   })
 
   it('reveals a history-selected topic hidden by show-more', async () => {

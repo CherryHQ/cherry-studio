@@ -82,14 +82,14 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     },
     DropdownMenu: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
     DropdownMenuContent: ({ children, ...props }: { children?: ReactNode }) => (
-      <div data-ui="part:dropdown-menu-content" {...props}>
+      <div data-slot="dropdown-menu-content" {...props}>
         {children}
       </div>
     ),
     DropdownMenuItem: ({ children, disabled, onSelect, variant, ...props }: any) => (
       <button
         data-disabled={disabled ? '' : undefined}
-        data-ui="part:dropdown-menu-item"
+        data-slot="dropdown-menu-item"
         disabled={disabled || undefined}
         role="menuitem"
         type="button"
@@ -107,7 +107,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     DropdownMenuSubTrigger: ({ children, disabled, ...props }: any) => (
       <button
         data-disabled={disabled ? '' : undefined}
-        data-ui="part:dropdown-menu-sub-trigger"
+        data-slot="dropdown-menu-sub-trigger"
         disabled={disabled || undefined}
         role="menuitem"
         type="button"
@@ -1495,7 +1495,7 @@ describe('Sessions', () => {
     expect(screen.queryAllByTestId('agent-session-row')).toHaveLength(0)
     expect(document.querySelectorAll('[data-resource-list-loading-group]')).toHaveLength(2)
     expect(document.querySelectorAll('[data-resource-list-loading-item]')).toHaveLength(5)
-    expect(document.querySelectorAll('[data-ui~="part:skeleton"]').length).toBeGreaterThan(0)
+    expect(document.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0)
   })
 
   it('keeps workdir sessions loading until workspace rows are ready', () => {
@@ -2526,7 +2526,7 @@ describe('Sessions', () => {
     expect(
       screen
         .getAllByRole('menuitem', { name: 'Open in Files' })
-        .some((item) => !item.matches('[data-ui~="part:dropdown-menu-item"]'))
+        .some((item) => item.getAttribute('data-slot') !== 'dropdown-menu-item')
     ).toBe(true)
     expect(workdirGroupButton).toHaveAttribute('aria-expanded', 'true')
   })
@@ -2714,8 +2714,8 @@ describe('Sessions', () => {
 
     const moreButton = within(agentGroup as HTMLElement).getByRole('button', { name: 'More' })
     fireEvent.pointerDown(moreButton)
-    const editMenuItem = (await screen.findAllByRole('menuitem', { name: 'Edit Agent' })).find((button) =>
-      button.matches('[data-ui~="part:dropdown-menu-item"]')
+    const editMenuItem = (await screen.findAllByRole('menuitem', { name: 'Edit Agent' })).find(
+      (button) => button.getAttribute('data-slot') === 'dropdown-menu-item'
     )
     expect(editMenuItem).toBeDefined()
     fireEvent.click(editMenuItem as HTMLElement)
@@ -2731,7 +2731,7 @@ describe('Sessions', () => {
     fireEvent.pointerDown(moreButton)
     const pinMenuItem = screen
       .getAllByRole('menuitem', { name: 'Pin Agent' })
-      .find((button) => button.matches('[data-ui~="part:dropdown-menu-item"]'))
+      .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
     expect(pinMenuItem).toBeDefined()
     fireEvent.click(pinMenuItem as HTMLElement)
 
@@ -2741,11 +2741,11 @@ describe('Sessions', () => {
     fireEvent.pointerDown(moreButton)
     const iconMenuItem = screen
       .getAllByRole('menuitem', { name: 'Agent icon' })
-      .find((button) => button.matches('[data-ui~="part:dropdown-menu-sub-trigger"]'))
+      .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-sub-trigger')
     expect(iconMenuItem).toBeDefined()
     const modelIconMenuItem = screen
       .getAllByRole('menuitem', { name: 'Model' })
-      .find((button) => button.matches('[data-ui~="part:dropdown-menu-item"]'))
+      .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
     expect(modelIconMenuItem).toBeDefined()
     fireEvent.click(modelIconMenuItem as HTMLElement)
 
@@ -2779,7 +2779,7 @@ describe('Sessions', () => {
     expect(screen.queryByRole('menuitem', { name: 'Delete agent tasks' })).not.toBeInTheDocument()
     const deleteAgentMenuItem = screen
       .getAllByRole('menuitem', { name: 'Delete Agent' })
-      .find((button) => button.matches('[data-ui~="part:dropdown-menu-item"]'))
+      .find((button) => button.getAttribute('data-slot') === 'dropdown-menu-item')
     expect(deleteAgentMenuItem).toBeDefined()
     expect(deleteAgentMenuItem?.querySelector('svg')).toHaveClass('lucide-custom', 'text-destructive')
 
@@ -2889,11 +2889,11 @@ describe('Sessions', () => {
 
     const contextEditItem = screen
       .getAllByRole('menuitem', { name: 'Edit Agent' })
-      .find((item) => !item.matches('[data-ui~="part:dropdown-menu-item"]'))
+      .find((item) => item.getAttribute('data-slot') !== 'dropdown-menu-item')
     expect(contextEditItem).toBeDefined()
     const contextPinItem = screen
       .getAllByRole('menuitem', { name: 'Pin Agent' })
-      .find((item) => !item.matches('[data-ui~="part:dropdown-menu-item"]'))
+      .find((item) => item.getAttribute('data-slot') !== 'dropdown-menu-item')
     expect(contextPinItem).toBeDefined()
     fireEvent.click(contextPinItem as HTMLElement)
 

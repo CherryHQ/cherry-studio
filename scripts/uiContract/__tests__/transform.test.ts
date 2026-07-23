@@ -236,10 +236,10 @@ const Message = () => {
     expect(result.code).toContain('<div data-ui=')
   })
 
-  it('mirrors a packages/ui data-slot into data-ui while preserving the library marker', () => {
+  it('mirrors an existing data-slot into data-ui while preserving the marker', () => {
     const result = transformJsx('const Button = (props) => <button data-slot="button" {...props} />', {
       contractForDescriptor: () => ({ id: 'ui-2222222222222222', semanticId: 'ui.button' }),
-      sourceFile: 'packages/ui/src/components/primitives/button.tsx'
+      sourceFile: 'src/renderer/components/Button.tsx'
     })
 
     expect(result.descriptors).toHaveLength(1)
@@ -249,12 +249,12 @@ const Message = () => {
     expect(() => parseSync(result.code, { syntax: 'typescript', tsx: true })).not.toThrow()
   })
 
-  it('forwards a packages/ui data-slot through a component boundary as a part token', () => {
+  it('forwards an existing data-slot through a component boundary as a part token', () => {
     const result = transformJsx(
       'const Trigger = (props) => <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />',
       {
         contractForDescriptor: () => undefined,
-        sourceFile: 'packages/ui/src/components/primitives/dialog.tsx'
+        sourceFile: 'src/renderer/components/Dialog.tsx'
       }
     )
 
@@ -264,18 +264,10 @@ const Message = () => {
     expect(result.code).toContain('__cherryUiContractMergeUiProps(props')
   })
 
-  it('rejects data-slot outside packages/ui', () => {
-    expect(() => transformJsx('const Button = () => <button data-slot="save" />', options)).toThrow(
-      'data-slot is reserved for packages/ui/src'
+  it('rejects dynamic data-slot values', () => {
+    expect(() => transformJsx('const Button = ({ slot }) => <button data-slot={slot} />', options)).toThrow(
+      'data-slot must be a static token'
     )
-  })
-
-  it('rejects dynamic packages/ui data-slot values', () => {
-    expect(() =>
-      transformJsx('const Button = ({ slot }) => <button data-slot={slot} />', {
-        sourceFile: 'packages/ui/src/components/primitives/button.tsx'
-      })
-    ).toThrow('packages/ui data-slot must be a static token')
   })
 
   it('does not register component boundaries that cannot render DOM', () => {
@@ -298,6 +290,18 @@ const Message = () => {
     expect(result.descriptors).toHaveLength(2)
     expect(result.code).toContain('scope:window:main')
     expect(result.code).toContain('const sample = "<span>"')
+  })
+
+  it('mirrors an HTML data-slot into data-ui while preserving the marker', () => {
+    const result = transformHtml('<body><div data-slot="app-root"></div></body>', {
+      ...options,
+      contractForDescriptor: uiContractForDescriptor,
+      sourceFile: 'src/renderer/windows/main/index.html',
+      windowName: 'main'
+    })
+
+    expect(result.code).toContain('data-slot="app-root"')
+    expect(result.code).toContain('part:app-root')
   })
 
   it('anchors HTML siblings to their actual parent instead of the previous opening tag', () => {
