@@ -36,7 +36,7 @@ import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { ApiKeyEntry, AuthConfig, AuthType, EndpointConfig, Provider } from '@shared/data/types/provider'
 import { isEmpty } from 'es-toolkit/compat'
 import { ChevronRight, Eye, EyeOff, ImagePlus, RotateCcw } from 'lucide-react'
-import { type ChangeEvent, type ReactNode, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { type ChangeEvent, type ReactNode, type Ref, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
@@ -148,6 +148,7 @@ export default function ProviderEditorDrawer({
 }: ProviderEditorDrawerProps) {
   const { t } = useTranslation()
   const uploadInputRef = useRef<HTMLInputElement | null>(null)
+  const firstTextEndpointRef = useRef<HTMLInputElement | null>(null)
   const [name, setName] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
   const [apiKey, setApiKey] = useState('')
@@ -335,7 +336,6 @@ export default function ProviderEditorDrawer({
         : ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
     )
     setSecondaryUrls({})
-    setMoreEndpointsOpen(false)
     setEndpointUrls({})
     setInvalidCreationUrl(null)
     onSelectPreset?.(source)
@@ -441,6 +441,9 @@ export default function ProviderEditorDrawer({
       })
       setInvalidCreationUrl(invalidUrl)
       if (invalidUrl) {
+        if (invalidUrl.field === 'textEndpointRequired') {
+          firstTextEndpointRef.current?.focus()
+        }
         if (
           invalidUrl.field === 'endpointUrl' &&
           ADDITIONAL_CUSTOM_PROVIDER_ENDPOINTS.some((endpointType) => endpointType === invalidUrl.endpointType)
@@ -537,6 +540,10 @@ export default function ProviderEditorDrawer({
   const duplicateAdditionalConfiguredCount = ADDITIONAL_CUSTOM_PROVIDER_ENDPOINTS.filter((endpointType) =>
     endpointType === urlForm?.primary ? baseUrl.trim() : secondaryUrls[endpointType]?.trim()
   ).length
+  const presetPicker =
+    onSelectPreset && presetSources.length > 0 ? (
+      <PresetInstancePicker sources={presetSources} value={duplicateSource?.id ?? ''} onSelect={handleSelectPreset} />
+    ) : undefined
 
   const formContent = (
     <div className="flex flex-col gap-5">
@@ -552,11 +559,8 @@ export default function ProviderEditorDrawer({
             invalidUrl={invalidCreationUrl}
             moreOpen={moreEndpointsOpen}
             additionalConfiguredCount={customAdditionalConfiguredCount}
-            additionalContent={
-              onSelectPreset && presetSources.length > 0 ? (
-                <PresetInstancePicker sources={presetSources} onSelect={handleSelectPreset} />
-              ) : undefined
-            }
+            additionalContent={presetPicker}
+            firstTextEndpointRef={firstTextEndpointRef}
             onMoreOpenChange={setMoreEndpointsOpen}
             onEndpointUrlChange={handleEndpointUrlChange}
             onPreferredChatEndpointChange={setPreferredChatEndpoint}
@@ -576,6 +580,7 @@ export default function ProviderEditorDrawer({
                   invalidUrl={null}
                   moreOpen={moreEndpointsOpen}
                   additionalConfiguredCount={duplicateAdditionalConfiguredCount}
+                  additionalContent={presetPicker}
                   onMoreOpenChange={setMoreEndpointsOpen}
                   onEndpointUrlChange={(endpointType, value) => {
                     if (endpointType === urlForm.primary) {
@@ -640,7 +645,7 @@ export default function ProviderEditorDrawer({
         aria-describedby={undefined}
         closeOnOverlayClick={!isSubmitting}
         showCloseButton={!isSubmitting}
-        size="xl"
+        size="lg"
         data-testid="provider-editor-dialog"
         className="grid max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0">
         <DialogHeader className="px-6 pt-6 pb-4">
@@ -671,6 +676,7 @@ interface CustomProviderEndpointFieldsProps {
   moreOpen: boolean
   additionalConfiguredCount: number
   additionalContent?: ReactNode
+  firstTextEndpointRef?: Ref<HTMLInputElement>
   onMoreOpenChange: (open: boolean) => void
   onEndpointUrlChange: (endpointType: CustomProviderEndpoint, value: string) => void
   onPreferredChatEndpointChange?: (endpointType: CustomProviderTextEndpoint) => void
@@ -683,6 +689,7 @@ function CustomProviderEndpointFields({
   moreOpen,
   additionalConfiguredCount,
   additionalContent,
+  firstTextEndpointRef,
   onMoreOpenChange,
   onEndpointUrlChange,
   onPreferredChatEndpointChange
@@ -693,6 +700,7 @@ function CustomProviderEndpointFields({
   const renderEndpointField = (endpointType: CustomProviderEndpoint, labelAccessory?: ReactNode) => {
     const endpointValue = endpointUrls[endpointType] ?? ''
     const invalidEndpoint = invalidUrl?.field === 'endpointUrl' && invalidUrl.endpointType === endpointType
+    const missingTextEndpoint = textEndpointRequired && endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
     const requestPreview = buildCustomProviderEndpointPreview(endpointValue, endpointType)
     const emptyValueHelp = CUSTOM_PROVIDER_TEXT_ENDPOINTS.some((type) => type === endpointType)
       ? t('settings.provider.create_custom.endpoint_fields.url_help')
@@ -707,13 +715,20 @@ function CustomProviderEndpointFields({
         label={t(CUSTOM_PROVIDER_ENDPOINT_LABEL_KEYS[endpointType])}
         placeholder={t('settings.provider.base_url.placeholder')}
         value={endpointValue}
-        error={invalidEndpoint ? t('settings.provider.base_url.invalid') : undefined}
+        error={
+          invalidEndpoint
+            ? t('settings.provider.base_url.invalid')
+            : missingTextEndpoint
+              ? t('settings.provider.create_custom.endpoint_fields.text_endpoint_required')
+              : undefined
+        }
         description={
           requestPreview
             ? t('settings.provider.create_custom.request_preview', { path: requestPreview })
             : emptyValueHelp
         }
         labelAccessory={labelAccessory}
+        inputRef={endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS ? firstTextEndpointRef : undefined}
         onChange={(nextValue) => onEndpointUrlChange(endpointType, nextValue)}
       />
     )
@@ -779,22 +794,21 @@ function CustomProviderEndpointFields({
           </AccordionContent>
         </AccordionItem>
       </Accordion>
-
-      <FieldError
-        className="text-xs"
-        errors={
-          textEndpointRequired
-            ? [{ message: t('settings.provider.create_custom.endpoint_fields.text_endpoint_required') }]
-            : undefined
-        }
-      />
     </section>
   )
 }
 
 type PresetProviderOption = ComboboxOption<{ source: Provider }>
 
-function PresetInstancePicker({ sources, onSelect }: { sources: Provider[]; onSelect: (source: Provider) => void }) {
+function PresetInstancePicker({
+  sources,
+  value,
+  onSelect
+}: {
+  sources: Provider[]
+  value: string
+  onSelect: (source: Provider) => void
+}) {
   const { t } = useTranslation()
   const options = useMemo<PresetProviderOption[]>(
     () =>
@@ -823,7 +837,7 @@ function PresetInstancePicker({ sources, onSelect }: { sources: Provider[]; onSe
       </div>
       <Combobox
         options={options}
-        value=""
+        value={value}
         onChange={(value) => {
           const selectedValue = Array.isArray(value) ? value[0] : value
           const selected = options.find((option) => option.value === selectedValue)
@@ -838,7 +852,8 @@ function PresetInstancePicker({ sources, onSelect }: { sources: Provider[]; onSe
           return haystack.includes(search.trim().toLocaleLowerCase())
         }}
         placeholder={t('settings.provider.create_custom.preset_instance.placeholder')}
-        popoverClassName="w-(--radix-popover-trigger-width) [&_[data-slot=command-list]]:max-h-[280px]"
+        popoverAlign="start"
+        popoverClassName="w-(--radix-popover-trigger-width)! [&_[data-slot=command-list]]:max-h-[280px]"
         searchPlaceholder={t('settings.provider.create_custom.preset_instance.search_placeholder')}
       />
     </div>
@@ -1029,6 +1044,7 @@ interface BaseUrlFieldProps {
   required?: boolean
   error?: string
   description?: string
+  inputRef?: Ref<HTMLInputElement>
   onBlur?: () => void
 }
 
@@ -1041,6 +1057,7 @@ function BaseUrlField({
   required,
   error,
   description,
+  inputRef,
   onBlur
 }: BaseUrlFieldProps) {
   const uid = useId()
@@ -1056,6 +1073,7 @@ function BaseUrlField({
         {labelAccessory}
       </div>
       <Input
+        ref={inputRef}
         id={inputId}
         value={value}
         placeholder={placeholder}

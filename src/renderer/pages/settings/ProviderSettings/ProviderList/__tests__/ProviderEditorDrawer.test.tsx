@@ -105,9 +105,11 @@ vi.mock('@cherrystudio/ui', async () => {
         </div>
       )
     },
-    Combobox: ({ options = [], onChange, placeholder, value }: any) => (
+    Combobox: ({ options = [], onChange, placeholder, popoverAlign, popoverClassName, value }: any) => (
       <select
         aria-label={placeholder}
+        data-popover-align={popoverAlign}
+        data-popover-class-name={popoverClassName}
         value={Array.isArray(value) ? (value[0] ?? '') : (value ?? '')}
         onChange={(event) => onChange?.(event.target.value)}>
         <option value="">{placeholder}</option>
@@ -393,7 +395,7 @@ describe('ProviderEditorDrawer', () => {
     const { rerender } = render(<ProviderEditorDrawer {...commonProps} mode={{ kind: 'create-custom' }} />)
 
     expect(screen.getByTestId('provider-editor-dialog')).toBeInTheDocument()
-    expect(screen.getByTestId('provider-editor-dialog')).toHaveAttribute('data-size', 'xl')
+    expect(screen.getByTestId('provider-editor-dialog')).toHaveAttribute('data-size', 'lg')
     expect(screen.getByTestId('provider-editor-scrollbar')).toHaveAttribute('data-slot', 'scrollbar')
     expect(screen.queryByTestId('provider-editor-drawer')).not.toBeInTheDocument()
 
@@ -406,7 +408,7 @@ describe('ProviderEditorDrawer', () => {
     } as any
     rerender(<ProviderEditorDrawer {...commonProps} mode={{ kind: 'duplicate', source }} />)
     expect(screen.getByTestId('provider-editor-dialog')).toBeInTheDocument()
-    expect(screen.getByTestId('provider-editor-dialog')).toHaveAttribute('data-size', 'xl')
+    expect(screen.getByTestId('provider-editor-dialog')).toHaveAttribute('data-size', 'lg')
     expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
     expect(screen.getByLabelText('settings.provider.more_endpoints.openai_chat')).toBeInTheDocument()
     expect(screen.getByLabelText('settings.provider.more_endpoints.anthropic')).toBeInTheDocument()
@@ -558,6 +560,11 @@ describe('ProviderEditorDrawer', () => {
     expect(moreTrigger.compareDocumentPosition(responsesInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(responsesInput.closest('.text-foreground')).toBeInTheDocument()
     expect(imageEditInput.compareDocumentPosition(presetPicker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(presetPicker).toHaveAttribute('data-popover-align', 'start')
+    expect(presetPicker).toHaveAttribute(
+      'data-popover-class-name',
+      expect.stringContaining('w-(--radix-popover-trigger-width)!')
+    )
     expect(document.querySelector('[data-slot="separator"]')).toBeInTheDocument()
     expect(screen.queryByText('settings.provider.create_custom.compatibility.label')).not.toBeInTheDocument()
   })
@@ -575,20 +582,16 @@ describe('ProviderEditorDrawer', () => {
     )
 
     fireEvent.change(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), {
-      target: { value: 'Images Only' }
+      target: { value: 'Missing Endpoint' }
     })
-    toggleMoreSettings()
-    fireEvent.change(screen.getByLabelText('settings.provider.image_endpoints.image_generation_base_url.label'), {
-      target: { value: 'https://images.example.com' }
-    })
-    toggleMoreSettings()
     fireEvent.click(screen.getByRole('button', { name: 'button.add' }))
 
+    const firstTextEndpoint = screen.getByLabelText('settings.provider.more_endpoints.openai_chat')
+    const endpointError = screen.getByText('settings.provider.create_custom.endpoint_fields.text_endpoint_required')
     expect(onSubmit).not.toHaveBeenCalled()
-    expect(
-      screen.getByText('settings.provider.create_custom.endpoint_fields.text_endpoint_required')
-    ).toBeInTheDocument()
-    expect(screen.getByLabelText('settings.provider.more_endpoints.openai_chat')).toBeInTheDocument()
+    expect(firstTextEndpoint).toHaveFocus()
+    expect(firstTextEndpoint).toHaveAttribute('aria-invalid', 'true')
+    expect(firstTextEndpoint.parentElement).toContainElement(endpointError)
   })
 
   it('submits multiple independent text and image endpoints with an explicit default chat endpoint', () => {
@@ -708,10 +711,20 @@ describe('ProviderEditorDrawer', () => {
       },
       authType: 'api-key'
     } as any
+    const secondSource = {
+      id: 'openai',
+      name: 'OpenAI',
+      presetProviderId: 'openai',
+      defaultChatEndpoint: 'openai-chat-completions',
+      endpointConfigs: {
+        'openai-chat-completions': { baseUrl: 'https://api.openai.com' }
+      },
+      authType: 'api-key'
+    } as any
     const sharedProps = {
       open: true,
       initialLogo: undefined,
-      presetSources: [source],
+      presetSources: [source, secondSource],
       onClose: vi.fn(),
       onSelectPreset,
       onSubmit
@@ -751,25 +764,38 @@ describe('ProviderEditorDrawer', () => {
     expect(
       screen.queryByRole('button', { name: 'settings.provider.create_custom.endpoint_fields.set_default_chat' })
     ).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('settings.provider.more_endpoints.openai_responses')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('settings.provider.more_endpoints.openai_responses')).toBeInTheDocument()
     expect(screen.getByLabelText('settings.provider.api_key.label')).toHaveValue('secret')
     expect(mocks.providerAvatarPrimitive).toHaveBeenCalledWith(
       expect.objectContaining({ logo: 'icon:openai', providerName: 'Claude Gateway' })
     )
+    const presetPicker = screen.getByRole('combobox', {
+      name: 'settings.provider.create_custom.preset_instance.placeholder'
+    })
+    expect(presetPicker).toHaveValue('anthropic')
+    fireEvent.change(presetPicker, { target: { value: 'openai' } })
+    expect(onSelectPreset).toHaveBeenLastCalledWith(secondSource)
+
+    rerender(<ProviderEditorDrawer {...sharedProps} mode={{ kind: 'duplicate', source: secondSource }} />)
     expect(
-      nameInput.compareDocumentPosition(screen.getByText('anthropic')) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy()
+      screen.getByRole('combobox', {
+        name: 'settings.provider.create_custom.preset_instance.placeholder'
+      })
+    ).toHaveValue('openai')
+    expect(screen.getByLabelText('settings.provider.more_endpoints.openai_chat')).toHaveValue(
+      'https://gateway.example.com'
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'settings.provider.duplicate.menu_label' }))
 
     expect(onSubmit).toHaveBeenCalledWith({
       mode: 'create',
       name: 'Claude Gateway',
-      defaultChatEndpoint: 'anthropic-messages',
-      presetProviderId: 'anthropic',
+      defaultChatEndpoint: 'openai-chat-completions',
+      presetProviderId: 'openai',
       authConfig: { type: 'api-key' },
       endpointConfigs: {
-        'anthropic-messages': { baseUrl: 'https://gateway.example.com' }
+        'openai-chat-completions': { baseUrl: 'https://gateway.example.com' }
       },
       apiKeys: [{ id: 'api-key-id', key: 'secret', isEnabled: true }],
       logo: { kind: 'key', key: 'icon:openai' }
