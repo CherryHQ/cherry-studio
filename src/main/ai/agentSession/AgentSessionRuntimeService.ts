@@ -11,7 +11,12 @@ import { serializeError } from '@main/ai/utils/serializeError'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
-import { PREPARE_PROGRESS_PART_ID, type PrepareProgressPartData } from '@shared/ai/agentPrepareTimeline'
+import {
+  PREPARE_PROGRESS_LABEL_MIN_ELAPSED_MS,
+  PREPARE_PROGRESS_PART_ID,
+  PREPARE_TIMELINE_FOOTER_THRESHOLD_MS,
+  type PrepareProgressPartData
+} from '@shared/ai/agentPrepareTimeline'
 import {
   AGENT_SESSION_COMPACTION_CACHE_KEY,
   type AgentSessionCompactionAnchorData,
@@ -112,6 +117,10 @@ type AgentSessionTurn = {
   controller?: ReadableStreamDefaultController<UIMessageChunk>
   /** Turn-owned timing + live sink; never retained as connection-wide state. */
   prepare?: AgentRuntimeTurnPrepare
+  /** Latest coarse phase is held until the live-label threshold, avoiding fast-turn transport noise. */
+  latestPrepareProgress?: PrepareProgressPartData
+  prepareProgressVisible?: boolean
+  prepareProgressTimer?: ReturnType<typeof setTimeout>
   activeToolIds: Set<string>
   headless?: boolean
 }
@@ -546,10 +555,11 @@ export class AgentSessionRuntimeService extends BaseService {
           const prepareStartedAt = performance.now()
           this.clearIdleTimer(entry)
           turn.controller = controller
+          this.startPrepareProgressTimer(turn)
           turn.prepare = {
             turnId: turn.turnId,
             startedAt: prepareStartedAt,
-            onStage: (update) => this.emitPrepareProgress(turn, update)
+            onStage: (update) => this.handlePrepareProgress(turn, update)
           }
 
           // A user Stop is the only abort source now (steer no longer interrupts) — tear the
@@ -570,6 +580,7 @@ export class AgentSessionRuntimeService extends BaseService {
           if (!connected || !this.isCurrentEntry(entry) || turn.terminalStatus) return
           await this.admitTurn(entry, turn)
         } catch (error) {
+          this.clearPrepareProgressTimer(turn)
           controller.error(error)
         }
       },
@@ -625,7 +636,10 @@ export class AgentSessionRuntimeService extends BaseService {
     // and open the continuation (A2) for the post-steer response instead of idling. `currentTurn` is
     // still A1a here (the swap to A2 happens in the scheduled microtask), so we don't mis-mark A2.
     if (entry.rolling) {
-      if (entry.currentTurn) entry.currentTurn.terminalStatus = status
+      if (entry.currentTurn) {
+        this.clearPrepareProgressTimer(entry.currentTurn)
+        entry.currentTurn.terminalStatus = status
+      }
       if (status === 'success') {
         entry.status = 'active'
         entry.lastTerminalStatus = status
@@ -642,7 +656,10 @@ export class AgentSessionRuntimeService extends BaseService {
 
     entry.status = 'idle'
     entry.lastTerminalStatus = status
-    if (entry.currentTurn) entry.currentTurn.terminalStatus = status
+    if (entry.currentTurn) {
+      this.clearPrepareProgressTimer(entry.currentTurn)
+      entry.currentTurn.terminalStatus = status
+    }
 
     // Connection stays warm across turns (no per-turn close) — only `closeSession`/idle TTL tears it
     // down. A queued steer drains into the same warm subprocess via `scheduleNextTurn`.
@@ -830,9 +847,8 @@ export class AgentSessionRuntimeService extends BaseService {
       // connect produces, loop and re-check it — a stale attempt self-discards in `connect()` and a
       // fresh one passes the reconcile above.
       if (entry.connecting) {
-        // A turn opened while a prime/other connect is in flight (pitfall: no per-turn recorder yet).
-        // Surface the generic "starting runtime" progress so the waiting turn isn't a silent gap.
-        prepare?.onStage({ phase: 'starting-runtime' })
+        // The turn-owned transport timer already holds `starting-runtime` while this prime connects.
+        // Do not emit here: fast turns must not create a progress chunk just because they waited.
         await entry.connecting.catch(() => false)
         continue
       }
@@ -1068,6 +1084,7 @@ export class AgentSessionRuntimeService extends BaseService {
       // Mark terminal synchronously: the listener's markTurnTerminal arrives async (after the
       // stream error propagates), so a trailing `chunk` event in the same connection loop would
       // otherwise hit enqueueTurnChunk and throw on the now-errored controller.
+      this.clearPrepareProgressTimer(turn)
       turn.terminalStatus = 'error'
     } else if (isAbortError(error)) {
       // Expected when a turn was interrupted/closed — the connection ending is not a fault.
@@ -1091,12 +1108,45 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   /**
-   * Stream a prepare-progress update to the current turn as a hidden `data-prepare-progress` part
-   * (stable id ⇒ reconciled in place). Invoked from this turn's `onStage` callback during prepare —
-   * the connection's own event queue is not drained until connect resolves, so this host-side
-   * controller path is the only way live progress reaches the renderer while it waits. No-op without
-   * a live turn controller (a turn-less prime just logs its timeline).
+   * Delay prepare-progress transport until the placeholder needs a distinct label. The recorder still
+   * reports every stage to this per-turn gate, so the threshold emits the latest phase even when no
+   * subsequent stage starts; only later stage changes are forwarded live.
    */
+  private startPrepareProgressTimer(turn: AgentSessionTurn): void {
+    this.clearPrepareProgressTimer(turn)
+    turn.latestPrepareProgress = { phase: 'starting-runtime' }
+    turn.prepareProgressTimer = setTimeout(() => {
+      turn.prepareProgressTimer = undefined
+      if (!turn.controller || turn.terminalStatus) return
+      turn.prepareProgressVisible = true
+      this.emitPrepareProgress(turn, turn.latestPrepareProgress ?? { phase: 'starting-runtime' })
+    }, PREPARE_PROGRESS_LABEL_MIN_ELAPSED_MS)
+    turn.prepareProgressTimer.unref?.()
+  }
+
+  /** Accept recorder updates after the live-label gate and discard sub-threshold finalized timelines. */
+  private handlePrepareProgress(turn: AgentSessionTurn, update: PrepareProgressPartData): void {
+    if (!turn.controller || turn.terminalStatus) return
+    if (update.timeline) {
+      this.clearPrepareProgressTimer(turn)
+      if (update.timeline.totalMs > PREPARE_TIMELINE_FOOTER_THRESHOLD_MS) this.emitPrepareProgress(turn, update)
+      return
+    }
+
+    turn.latestPrepareProgress = update
+    if (turn.prepareProgressVisible) this.emitPrepareProgress(turn, update)
+  }
+
+  private clearPrepareProgressTimer(turn: AgentSessionTurn): void {
+    if (turn.prepareProgressTimer) {
+      clearTimeout(turn.prepareProgressTimer)
+      turn.prepareProgressTimer = undefined
+    }
+    turn.prepareProgressVisible = false
+    turn.latestPrepareProgress = undefined
+  }
+
+  /** Stream a gated prepare-progress update as a hidden, stable data part. */
   private emitPrepareProgress(turn: AgentSessionTurn, update: PrepareProgressPartData): void {
     if (!turn.controller || turn.terminalStatus) return
     this.enqueueTurnChunk(turn, {
@@ -1124,6 +1174,7 @@ export class AgentSessionRuntimeService extends BaseService {
   private closeCurrentTurn(entry: AgentSessionRuntimeEntry, status: AgentSessionRuntimeTerminalStatus): void {
     const turn = entry.currentTurn
     if (!turn || turn.terminalStatus) return
+    this.clearPrepareProgressTimer(turn)
     turn.terminalStatus = status
     try {
       turn.controller?.close()

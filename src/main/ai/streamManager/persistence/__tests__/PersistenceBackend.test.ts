@@ -274,10 +274,10 @@ describe('dropSubThresholdPrepareParts', () => {
     expect(dropSubThresholdPrepareParts(parts)).toBe(parts)
   })
 
-  it('drops a finalized timeline at or below the threshold', () => {
+  it('drops a finalized timeline exactly at the threshold', () => {
     const keep = textPart('answer')
     const result = dropSubThresholdPrepareParts([
-      preparePart({ phase: 'waiting-first-response', timeline: { totalMs: 4800, stages: [] } }),
+      preparePart({ phase: 'waiting-first-response', timeline: { totalMs: 5000, stages: [] } }),
       keep
     ])
 

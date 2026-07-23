@@ -198,22 +198,25 @@ with `totalMs` equal to observed wall-clock end minus start. It finalizes
 on the first assistant content-bearing chunk (`text-delta`,
 `reasoning-delta`, or tool-input output), not init metadata/control
 chunks; failures before the query loop finalize too. A turn-less prime
-still records and logs its timeline but has no progress sink.
+still records its timeline but only logs it when it is slow; it has no
+progress sink.
 
 Live progress cannot ride the connection's event queue — the queue is
 only drained after `connect()` resolves, which is after most of the
 prepare window. The turn-owned `onStage` callback therefore goes
-host-side: `AgentSessionRuntimeService` enqueues a
-`data-prepare-progress` part (stable id, reconciled in place) directly
-into that turn's stream controller. The finalized timeline lands on the
-same part; the renderer shows a live phase label past 3s and a post-hoc
-stage breakdown inside the process group past 5s. Persistence mirrors
-that display rule: `dropSubThresholdPrepareParts` strips the part at
-persist time unless it carries a finalized timeline above the 5s
-threshold (fast and never-finalized timelines stay log-only), so no
-message row stores a breakdown the renderer would never show.
-Diagnostics copy only stage timings/counts, app version, and agent type;
-user-controlled MCP labels remain in the live UI and are never copied.
+host-side through a turn-owned transport gate in
+`AgentSessionRuntimeService`. It holds the latest coarse phase and emits
+one `data-prepare-progress` part (stable id, reconciled in place) only at
+3s; later stage changes may update that part. The gate is cleared on turn
+terminal/close, so it cannot leak into a warm successor turn. Finalization
+always reaches this in-process gate to cancel its timer, but the gate only
+forwards timelines strictly above 5s to the stream; structured info logging
+uses the same slow-only rule. Fast recorder data is then discarded. Persistence
+mirrors that display rule: `dropSubThresholdPrepareParts` strips the part
+unless it carries that finalized slow timeline, so no message row stores a
+breakdown the renderer would never show. Diagnostics copy only stage
+timings/counts, app version, and agent type; user-controlled MCP labels
+remain in the live UI and are never copied.
 
 `ClaudeCodeWarmQueryManager.consume(...)` reports its outcome
 (`hit` / `miss-no-entry` / `miss-signature`) so the timeline records

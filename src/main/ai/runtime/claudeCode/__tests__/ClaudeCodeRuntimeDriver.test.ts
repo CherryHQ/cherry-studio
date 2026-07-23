@@ -324,10 +324,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     ).rejects.toThrow('settings failed')
 
     expect(updates.filter((update) => update.timeline)).toHaveLength(1)
-    expect(mockMainLoggerService.info).toHaveBeenCalledWith(
-      'agent turn prepare timeline',
-      expect.objectContaining({ sessionId: 'session-1' })
-    )
+    expect(mockMainLoggerService.info).not.toHaveBeenCalledWith('agent turn prepare timeline', expect.anything())
   })
 
   it('sends supported image attachments as native Claude SDK image blocks', async () => {

@@ -1,9 +1,11 @@
 import type { PrepareProgressPartData } from '@shared/ai/agentPrepareTimeline'
 import { describe, expect, it, vi } from 'vitest'
 
+const mocks = vi.hoisted(() => ({ info: vi.fn() }))
+
 vi.mock('@logger', () => ({
   loggerService: {
-    withContext: vi.fn(() => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }))
+    withContext: vi.fn(() => ({ debug: vi.fn(), info: mocks.info, warn: vi.fn(), error: vi.fn() }))
   }
 }))
 
@@ -39,7 +41,7 @@ describe('PrepareTimelineRecorder', () => {
     expect(timeline?.runtimeType).toBe('claude-code')
   })
 
-  it('emits a coarse phase as each stage opens and finalizes with the timeline', () => {
+  it('emits coarse phases and always notifies the sink when a fast timeline finalizes', () => {
     const { recorder, updates } = makeRecorder(0)
     recorder.begin('workspace', undefined, 0)
     recorder.begin('mcp-warm', { mcpServerName: 'filesystem' }, 100)
@@ -55,10 +57,30 @@ describe('PrepareTimelineRecorder', () => {
     // Only the connecting-mcp update carries the server name.
     expect(updates[1].mcpServerName).toBe('filesystem')
     expect(updates[0].mcpServerName).toBeUndefined()
-    // The finalized update carries the full breakdown; the live ones do not.
-    // workspace 100 + mcp-warm 300 + init-to-first-chunk 500 = 900.
+    // The host gate needs fast finalization to cancel its delayed live-progress timer.
     expect(updates.at(-1)?.timeline?.totalMs).toBe(900)
-    expect(updates[0].timeline).toBeUndefined()
+    expect(mocks.info).not.toHaveBeenCalled()
+  })
+
+  it('info-logs finalized timelines only strictly above the footer threshold', () => {
+    mocks.info.mockClear()
+    const atThreshold = makeRecorder(0)
+    atThreshold.recorder.begin('spawn-to-init', undefined, 0)
+    atThreshold.recorder.finalize(5000)
+
+    expect(atThreshold.updates.at(-1)?.timeline?.totalMs).toBe(5000)
+    expect(mocks.info).not.toHaveBeenCalled()
+
+    const aboveThreshold = makeRecorder(0)
+    aboveThreshold.recorder.begin('spawn-to-init', undefined, 0)
+    aboveThreshold.recorder.finalize(5001)
+
+    expect(aboveThreshold.updates.at(-1)).toMatchObject({
+      phase: 'waiting-first-response',
+      timeline: { totalMs: 5001 }
+    })
+    expect(mocks.info).toHaveBeenCalledOnce()
+    expect(mocks.info).toHaveBeenCalledWith('agent turn prepare timeline', expect.objectContaining({ totalMs: 5001 }))
   })
 
   it('patch merges detail into the open stage and re-emits the label', () => {

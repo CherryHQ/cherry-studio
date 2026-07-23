@@ -82,8 +82,8 @@ export function dropEmptyContentParts(parts: CherryMessagePart[]): CherryMessage
 /**
  * Drop a `data-prepare-progress` part unless it carries a finalized timeline above the renderer's
  * display threshold — the only state the post-hoc breakdown ever shows. Sub-threshold timelines and
- * phase-only leftovers (a turn that errored before finalize) are one-off live-progress data; the
- * structured log line already recorded them, so persisting them would be dead weight in every row.
+ * phase-only leftovers (a turn that errored before finalize) are one-off live-progress data;
+ * persisting them would be dead weight in every row.
  *
  * Returns the original array by reference when nothing is dropped (matching `dropEmptyContentParts`).
  */

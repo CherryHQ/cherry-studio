@@ -66,7 +66,8 @@ export type PreparePhase = 'starting-runtime' | 'connecting-mcp' | 'waiting-firs
 
 /**
  * The streamed data part (`data-prepare-progress`, hidden). Updated in place by a stable part id
- * while the turn prepares, then finalized with the full `timeline` when the first token arrives.
+ * after the live-label delay, then finalized with the full `timeline` only when the completed
+ * prepare window exceeds the footer threshold.
  */
 export interface PrepareProgressPartData {
   phase: PreparePhase

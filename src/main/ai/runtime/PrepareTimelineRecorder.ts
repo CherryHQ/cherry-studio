@@ -8,7 +8,7 @@ import type {
   PrepareTimelineStage,
   PrepareTimelineStageEntry
 } from '@shared/ai/agentPrepareTimeline'
-import { stageToPhase } from '@shared/ai/agentPrepareTimeline'
+import { PREPARE_TIMELINE_FOOTER_THRESHOLD_MS, stageToPhase } from '@shared/ai/agentPrepareTimeline'
 
 const logger = loggerService.withContext('PrepareTimelineRecorder')
 
@@ -24,8 +24,9 @@ export interface PrepareTimelineRecorderContext {
 /**
  * Records the per-turn "prepare response" timeline as `performance.now()` offsets. Stages tile the
  * window contiguously — {@link begin} closes the previously open stage — so `totalMs` is exactly the
- * sum of the recorded stages. Emits a coarse live phase as each stage opens (for the placeholder
- * label) and, on {@link finalize}, the full breakdown (for the footer) plus one structured log.
+ * sum of the recorded stages. Emits a coarse live phase as each stage opens to the turn-owned
+ * transport gate. On {@link finalize}, it always notifies that gate so the live-delay timer can be
+ * cleared, but writes a structured log only when the timeline exceeds the footer threshold.
  *
  * Runtime-agnostic: it knows nothing about claude-code; a driver drives it via `begin`/`patch`/
  * `finalize`. `now` is injectable on every method purely for deterministic tests.
@@ -80,8 +81,9 @@ export class PrepareTimelineRecorder {
   }
 
   /**
-   * Close any open stage, build the timeline, emit the finalized progress part and log it once.
-   * Returns the timeline (undefined if already finalized). Idempotent.
+   * Close any open stage and build the timeline. The sink always receives finalization so its delayed
+   * live-progress timer cannot outlive a fast prepare; that sink owns transport filtering. Structured
+   * logging remains slow-only. Returns undefined after the first call.
    */
   finalize(now: number = performance.now()): PrepareTimeline | undefined {
     if (this.finalized) return undefined
@@ -89,13 +91,15 @@ export class PrepareTimelineRecorder {
     this.finalized = true
     const timeline = this.buildTimeline(now)
     this.progressSink?.({ phase: 'waiting-first-response', timeline })
-    logger.info('agent turn prepare timeline', {
-      sessionId: this.context.sessionId,
-      agentId: this.context.agentId,
-      runtimeType: this.context.runtimeType,
-      totalMs: timeline.totalMs,
-      stages: timeline.stages
-    })
+    if (timeline.totalMs > PREPARE_TIMELINE_FOOTER_THRESHOLD_MS) {
+      logger.info('agent turn prepare timeline', {
+        sessionId: this.context.sessionId,
+        agentId: this.context.agentId,
+        runtimeType: this.context.runtimeType,
+        totalMs: timeline.totalMs,
+        stages: timeline.stages
+      })
+    }
     return timeline
   }
 
