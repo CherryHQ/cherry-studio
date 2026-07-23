@@ -12,6 +12,7 @@ import p_cerebras from './cerebras'
 import p_cherryin from './cherryin'
 import p_claude_code from './claude-code'
 import p_copilot from './copilot'
+import p_daoxe from './daoxe'
 import p_dashscope from './dashscope'
 import p_deepseek from './deepseek'
 import p_dmxapi from './dmxapi'
@@ -86,6 +87,7 @@ export const PROVIDERS: Provider[] = [
   p_ppio,
   p_qiniu,
   p_openrouter,
+  p_daoxe,
   p_ollama,
   p_new_api,
   p_lmstudio,
