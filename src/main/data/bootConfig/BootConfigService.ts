@@ -12,9 +12,8 @@ import path from 'node:path'
 import { loggerService } from '@logger'
 import { BOOT_CONFIG_PATH } from '@main/core/paths/constants'
 import type { BootConfigSchema } from '@shared/data/bootConfig/bootConfigSchemas'
-import { bootConfigSchema, DefaultBootConfig } from '@shared/data/bootConfig/bootConfigSchemas'
+import { DefaultBootConfig } from '@shared/data/bootConfig/bootConfigSchemas'
 import type { BootConfigKey } from '@shared/data/bootConfig/bootConfigTypes'
-import { app } from 'electron'
 
 import type { BootConfigLoadError } from './types'
 
@@ -72,23 +71,13 @@ export class BootConfigService {
 
   /**
    * Set configuration value by key (auto-saves with debounce).
-   *
-   * THROWS on a value that fails schema validation, before any state change.
-   * Callers are typed, but values also arrive from untrusted runtime inputs
-   * (the Preference IPC route, v1 data in BootConfigMigrator) — the throw is
-   * the single enforcement point for all of them.
    */
   public set<K extends BootConfigKey>(key: K, value: BootConfigSchema[K]): void {
-    const parsed = bootConfigSchema.shape[key].safeParse(value)
-    if (!parsed.success) {
-      throw new Error(`Invalid boot config value for "${key}": ${parsed.error.message}`)
-    }
-    const validValue = parsed.data as BootConfigSchema[K]
     const previousValue = this.config[key]
-    this.config[key] = validValue
+    this.config[key] = value
     this.dirty = true
     this.scheduleSave()
-    this.notifyListeners(key, validValue, previousValue)
+    this.notifyListeners(key, value, previousValue)
   }
 
   /**
@@ -109,23 +98,6 @@ export class BootConfigService {
     for (const key of Object.keys(previousConfig) as BootConfigKey[]) {
       this.notifyListeners(key, this.config[key], previousConfig[key])
     }
-  }
-
-  /**
-   * Persist the current in-memory config to disk, replacing the invalid file,
-   * and clear the load error.
-   *
-   * Recovery action for `validation_error`: after a per-key validation load,
-   * memory holds the valid keys plus defaults for the rejected ones — unlike
-   * {@link reset}, repairing keeps the valid keys (one corrupt flag must not
-   * erase a valid `app.user_data_path`). Strict write like {@link persist}:
-   * THROWS on fs failure, with the dirty flag and load error retained.
-   */
-  public repair(): void {
-    this.dirty = true
-    this.persist()
-    this.loadError = null
-    logger.info('Boot config repaired: valid keys persisted, invalid keys reset to defaults')
   }
 
   /**
@@ -252,23 +224,8 @@ export class BootConfigService {
 
       try {
         const parsed = JSON.parse(content)
-        const { config, invalidKeys, invalidRoot } = this.mergeDefaults(parsed)
-        if (invalidRoot || invalidKeys.length > 0) {
-          const message = invalidRoot
-            ? 'root value is not an object'
-            : `values failed schema validation: ${invalidKeys.join(', ')}`
-          this.loadError = {
-            type: 'validation_error',
-            message,
-            filePath: this.filePath,
-            invalidKeys
-          }
-          logger.error(
-            `Boot config file ${this.filePath} contains invalid data (${message}); affected keys reset to defaults`
-          )
-        } else {
-          logger.info(`Boot config loaded from ${this.filePath}`)
-        }
+        const config = this.mergeDefaults(parsed)
+        logger.info(`Boot config loaded from ${this.filePath}`)
         return config
       } catch (parseError) {
         const errorMessage = parseError instanceof Error ? parseError.message : String(parseError)
@@ -328,15 +285,6 @@ export class BootConfigService {
       }
     }
 
-    // The data-reset slot is reconciled against disk instead of trusting
-    // memory — see reconcileDataResetSlot for why.
-    const marker = this.reconcileDataResetSlot()
-    if (marker === null) {
-      delete diff['temp.data_reset']
-    } else {
-      diff['temp.data_reset'] = marker
-    }
-
     if (Object.keys(diff).length === 0) {
       // Delete the file so an all-defaults state leaves no stale non-default
       // config behind. Attempt the unlink directly rather than gating on
@@ -369,102 +317,24 @@ export class BootConfigService {
   }
 
   /**
-   * Decide what the `temp.data_reset` slot of the next write should hold.
-   *
-   * boot-config.json is one file shared by every instance (dev and packaged),
-   * and every write is whole-file last-writer-wins — so an instance that
-   * loaded the file while ANOTHER instance's wipe marker was staged holds a
-   * copy of that marker in memory, and its later writes would either
-   * resurrect a marker the owner already consumed (arming a second wipe of
-   * freshly created data) or erase a marker the owner has not consumed yet
-   * (silently dropping the reset). Both are wrong, and both are fixed the
-   * same way: never write a foreign marker from memory.
-   *
-   * Rule — memory is authoritative for the slot only when the slot is OURS:
-   * the in-memory marker targets this instance's userData (we just staged or
-   * re-armed it), or the on-disk marker does (we just consumed it and are
-   * clearing the slot). In every other case whatever is currently on disk is
-   * a foreign instance's business and is passed through unchanged.
-   */
-  private reconcileDataResetSlot(): BootConfigSchema['temp.data_reset'] {
-    const memory = this.config['temp.data_reset']
-    const disk = this.readDataResetFromDisk()
-    if (JSON.stringify(memory ?? null) === JSON.stringify(disk ?? null)) return memory
-
-    const self = this.currentUserDataPath()
-    if (self !== null && (memory?.userDataPath === self || disk?.userDataPath === self)) {
-      return memory
-    }
-    logger.info('Preserving a foreign data-reset marker across a boot config write', {
-      diskMarkerPath: disk?.userDataPath ?? null
-    })
-    return disk
-  }
-
-  /**
-   * Fresh read of the on-disk `temp.data_reset` value. Anything that
-   * cannot be read, parsed, or validated counts as "no marker" — identical
-   * to how loadSync treats the same states.
-   */
-  private readDataResetFromDisk(): BootConfigSchema['temp.data_reset'] {
-    try {
-      const parsed = JSON.parse(fs.readFileSync(this.filePath, 'utf-8'))
-      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null
-      const result = bootConfigSchema.shape['temp.data_reset'].safeParse(
-        (parsed as Record<string, unknown>)['temp.data_reset']
-      )
-      return result.success ? result.data : null
-    } catch {
-      return null
-    }
-  }
-
-  /**
-   * This instance's userData path — the ownership identity for the
-   * data-reset slot. Null before Electron has one (never the case for the
-   * write paths that matter: the gate and the request both run after userData
-   * resolution); null means "not provably ours", so disk wins.
-   */
-  private currentUserDataPath(): string | null {
-    try {
-      return app.getPath('userData')
-    } catch {
-      return null
-    }
-  }
-
-  /**
-   * Merge loaded config with defaults to handle new/missing keys, validating
-   * every present value against the zod schema. Unknown keys are dropped;
-   * invalid values fall back to defaults and are reported via `invalidKeys`
-   * (or `invalidRoot` when the file root is not an object) so the caller can
-   * surface a validation_error instead of silently adopting corrupt data.
+   * Merge loaded config with defaults to handle new/missing keys.
    * No deep merge needed — flat key-value map with direct assignment.
    */
-  private mergeDefaults(loaded: unknown): {
-    config: BootConfigSchema
-    invalidKeys: BootConfigKey[]
-    invalidRoot: boolean
-  } {
+  private mergeDefaults(loaded: unknown): BootConfigSchema {
     if (typeof loaded !== 'object' || loaded === null || Array.isArray(loaded)) {
-      return { config: { ...DefaultBootConfig }, invalidKeys: [], invalidRoot: true }
+      return { ...DefaultBootConfig }
     }
 
-    const config = { ...DefaultBootConfig }
-    const invalidKeys: BootConfigKey[] = []
+    const result = { ...DefaultBootConfig }
     const loadedRecord = loaded as Record<string, unknown>
 
-    for (const key of Object.keys(config) as BootConfigKey[]) {
-      if (!(key in loadedRecord)) continue
-      const parsed = bootConfigSchema.shape[key].safeParse(loadedRecord[key])
-      if (parsed.success) {
-        ;(config as Record<string, unknown>)[key] = parsed.data
-      } else {
-        invalidKeys.push(key)
+    for (const key of Object.keys(result) as BootConfigKey[]) {
+      if (key in loadedRecord) {
+        ;(result as Record<string, unknown>)[key] = loadedRecord[key]
       }
     }
 
-    return { config, invalidKeys, invalidRoot: false }
+    return result
   }
 }
 
