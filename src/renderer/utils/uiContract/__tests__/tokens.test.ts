@@ -1,29 +1,11 @@
-import { describe, expect, expectTypeOf, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
-import { parseUiTokens, uiSelector, type UiTokenOptions, uiTokens } from '../tokens'
+import { parseUiTokens, uiSelector } from '../tokens'
 
 describe('data-ui tokens', () => {
-  it('limits authored tokens to runtime scopes', () => {
-    expectTypeOf<keyof UiTokenOptions>().toEqualTypeOf<'scopes'>()
-  })
-
-  it('serializes semantic identity and runtime scopes', () => {
-    const value = uiTokens('chat.message', {
-      scopes: ['message:m_817']
-    })
-
-    expect(value).toBe('chat.message scope:message:m_817')
-    expect(parseUiTokens(value)).toEqual({
-      parts: [],
-      scopes: ['message:m_817'],
-      semanticId: 'chat.message'
-    })
-  })
-
-  it('parses semantic and instance selector tokens', () => {
-    expect(parseUiTokens('chat.message part:message-content scope:message:m_817')).toEqual({
+  it('parses semantic and structural selector tokens', () => {
+    expect(parseUiTokens('chat.message part:message-content')).toEqual({
       parts: ['message-content'],
-      scopes: ['message:m_817'],
       semanticId: 'chat.message'
     })
   })
@@ -32,9 +14,8 @@ describe('data-ui tokens', () => {
     expect(
       uiSelector({
         parts: ['message-content'],
-        scopes: ['message:m_817'],
         semanticId: 'chat.message'
       })
-    ).toBe('[data-ui~="chat.message"][data-ui~="part:message-content"][data-ui~="scope:message:m_817"]')
+    ).toBe('[data-ui~="chat.message"][data-ui~="part:message-content"]')
   })
 })

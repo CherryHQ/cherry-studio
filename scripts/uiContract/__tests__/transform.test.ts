@@ -57,21 +57,11 @@ const Message = () => {
     expect(() => parseSync(result.code, { syntax: 'typescript', tsx: true })).not.toThrow()
   })
 
-  it('preserves runtime semantic and scope tokens without adding an exact ID', () => {
-    const result = transformJsx(
-      "const Message = ({ id }) => <div data-ui={uiTokens('chat.message', { scopes: [`message:${id}`] })} />",
-      { ...options, injectDataUi: true }
-    )
-
-    expect(result.code).toContain("uiTokens('chat.message', { scopes: [`message:${id}`] })")
-    expect(result.code).not.toContain('id:ui-')
-  })
-
   it('composes forwarded component semantics onto intrinsic DOM', () => {
-    const callSite = transformJsx(
-      "const App = () => <MessageWrapper data-ui={uiTokens('chat.message', { scopes: ['message:m_817'] })} />",
-      { ...options, injectDataUi: true }
-    )
+    const callSite = transformJsx('const App = () => <MessageWrapper data-ui="chat.message" />', {
+      ...options,
+      injectDataUi: true
+    })
     const implementation = transformJsx('const MessageWrapper = (props) => <div data-ui="part:wrapper" {...props} />', {
       ...options,
       injectDataUi: true
@@ -81,11 +71,9 @@ const Message = () => {
     expect(implementation.descriptors).toHaveLength(1)
     expect(implementation.code).toContain('__cherryUiContractMergeUiProps(props')
     expect(implementation.code).toContain('part:wrapper')
-    expect(mergeDataUi('chat.wrapper part:wrapper', 'chat.message scope:message:m_817 id:ignored')).toBe(
-      'chat.message part:wrapper scope:message:m_817'
-    )
-    expect(mergeUiProps({ 'data-ui': 'chat.message scope:message:m_817' }, 'chat.wrapper part:wrapper')).toEqual({
-      'data-ui': 'chat.message part:wrapper scope:message:m_817'
+    expect(mergeDataUi('chat.wrapper part:wrapper', 'chat.message')).toBe('chat.message part:wrapper')
+    expect(mergeUiProps({ 'data-ui': 'chat.message' }, 'chat.wrapper part:wrapper')).toEqual({
+      'data-ui': 'chat.message part:wrapper'
     })
   })
 
@@ -255,7 +243,7 @@ const Message = () => {
     })
 
     expect(result.descriptors).toHaveLength(2)
-    expect(result.code).toContain('scope:window:main')
+    expect(result.code).toContain('<body data-ui="app.window">')
     expect(result.code).toContain('const sample = "<span>"')
   })
 

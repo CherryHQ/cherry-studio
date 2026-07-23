@@ -3,13 +3,8 @@ const SEMANTIC_ID = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/
 
 export type UiTokenValue = string | false | null | undefined
 
-export interface UiTokenOptions {
-  scopes?: readonly UiTokenValue[]
-}
-
 export interface ParsedUiTokens {
   parts: string[]
-  scopes: string[]
   semanticId?: string
 }
 
@@ -35,19 +30,9 @@ function namespaced(namespace: string, values: readonly UiTokenValue[] | undefin
   return result
 }
 
-export function uiTokens(semanticId: string, options: UiTokenOptions = {}): string {
-  assertSemanticId(semanticId)
-
-  return [semanticId, ...namespaced('scope', options.scopes)]
-    .filter((token): token is string => Boolean(token))
-    .filter((token, index, tokens) => tokens.indexOf(token) === index)
-    .join(' ')
-}
-
 export function parseUiTokens(value: string | null | undefined): ParsedUiTokens {
   const result: ParsedUiTokens = {
-    parts: [],
-    scopes: []
+    parts: []
   }
   for (const token of value?.split(/\s+/).filter(Boolean) ?? []) {
     const separator = token.indexOf(':')
@@ -58,7 +43,6 @@ export function parseUiTokens(value: string | null | undefined): ParsedUiTokens 
     const namespace = token.slice(0, separator)
     const tokenValue = token.slice(separator + 1)
     if (namespace === 'part') result.parts.push(tokenValue)
-    else if (namespace === 'scope') result.scopes.push(tokenValue)
   }
   return result
 }
@@ -70,16 +54,13 @@ function selectorToken(token: string): string {
 
 export interface UiSelectorOptions {
   parts?: readonly UiTokenValue[]
-  scopes?: readonly UiTokenValue[]
   semanticId?: string
 }
 
 export function uiSelector(options: UiSelectorOptions): string {
-  const tokens = [
-    options.semanticId,
-    ...namespaced('part', options.parts),
-    ...namespaced('scope', options.scopes)
-  ].filter((token): token is string => Boolean(token))
+  const tokens = [options.semanticId, ...namespaced('part', options.parts)].filter((token): token is string =>
+    Boolean(token)
+  )
   if (tokens.length === 0) throw new Error('A data-ui selector requires at least one token')
   if (options.semanticId) assertSemanticId(options.semanticId)
   return tokens.map(selectorToken).join('')

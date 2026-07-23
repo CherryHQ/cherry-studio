@@ -9,7 +9,7 @@ import {
 import { Parser } from 'htmlparser2'
 import MagicString from 'magic-string'
 
-import { identifierWords, inferSemanticId } from './semanticId'
+import { inferSemanticId } from './semanticId'
 import type { UiNodeDescriptor, UiSourceTransform } from './types'
 
 const SKIPPED_COMPONENTS = new Set(['Consumer', 'Fragment', 'Provider', 'StrictMode', 'Suspense'])
@@ -253,10 +253,7 @@ function mergeDataUi(existing: string | undefined, semanticId: string): string {
   const existingTokens = (existing ?? '').split(/\s+/).filter(Boolean)
   const semanticTokens = existingTokens.filter((token) => !token.includes(':'))
   const partTokens = existingTokens.filter((token) => token.startsWith('part:'))
-  const remainingTokens = existingTokens.filter(
-    (token) => token.includes(':') && !token.startsWith('id:') && !token.startsWith('part:')
-  )
-  return [...new Set([semanticId, ...semanticTokens, ...partTokens, ...remainingTokens])].join(' ')
+  return [...new Set([semanticId, ...semanticTokens, ...partTokens])].join(' ')
 }
 
 function mergePartsDataUi(existing: string | undefined, parts: string[]): string | undefined {
@@ -267,10 +264,7 @@ function mergePartsDataUi(existing: string | undefined, parts: string[]): string
     ...existingTokens.filter((token) => token.startsWith('part:')),
     ...parts.map((part) => `part:${part}`)
   ]
-  const remainingTokens = existingTokens.filter(
-    (token) => token.includes(':') && !token.startsWith('id:') && !token.startsWith('part:')
-  )
-  return [...new Set([...semanticTokens, ...partTokens, ...remainingTokens])].join(' ')
+  return [...new Set([...semanticTokens, ...partTokens])].join(' ')
 }
 
 interface TransformJsxOptions {
@@ -624,8 +618,7 @@ export function transformHtml(source: string, options: TransformHtmlOptions): Ui
     descriptors.push(descriptor)
 
     if (!options.injectDataUi) continue
-    const rootTokens = tag.name === 'body' ? ` scope:window:${identifierWords(options.windowName).join('-')}` : ''
-    const value = `${mergeDataUi(authoredDataUi, descriptor.semanticId)}${rootTokens}`
+    const value = mergeDataUi(authoredDataUi, descriptor.semanticId)
     if (existing !== undefined) {
       const attribute = tag.source.match(/\sdata-ui\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/i)
       if (attribute?.index !== undefined) {
