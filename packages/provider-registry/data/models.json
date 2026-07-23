@@ -2735,11 +2735,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.13
+          "perMillionTokens": 0.15
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.52
+          "perMillionTokens": 0.6
         }
       }
     },
@@ -4637,7 +4637,7 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "image-recognition", "audio-recognition", "file-input"],
-      "contextWindow": 524288,
+      "contextWindow": 1048576,
       "family": "ling",
       "id": "inkling",
       "inputModalities": ["text", "image", "audio"],
@@ -4731,6 +4731,28 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.03
+        }
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning"],
+      "contextWindow": 262144,
+      "family": "ling",
+      "id": "ling-3-0-flash",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 256000,
+      "metadata": {},
+      "name": "Ling 3.0 Flash",
+      "outputModalities": ["text"],
+      "ownedBy": "bailing",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
         }
       }
     },
@@ -5228,6 +5250,16 @@
     },
     {
       "capabilities": ["function-call"],
+      "contextWindow": 262144,
+      "id": "doubao-1-5-pro-256k",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Doubao 1.5 Pro 256k",
+      "outputModalities": ["text"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["function-call"],
       "contextWindow": 131072,
       "id": "doubao-1-5-pro-32k",
       "inputModalities": ["text"],
@@ -5238,15 +5270,90 @@
       "ownedBy": "bytedance"
     },
     {
+      "capabilities": ["reasoning", "function-call"],
+      "contextWindow": 131072,
       "id": "doubao-1-5-thinking-pro",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 16384,
       "metadata": {},
-      "name": "doubao-1-5-thinking-pro",
+      "name": "Doubao 1.5 Thinking Pro",
+      "outputModalities": ["text"],
       "ownedBy": "bytedance"
     },
     {
-      "id": "doubao-1-5-thinking-vision-pro",
+      "capabilities": ["reasoning", "function-call"],
+      "contextWindow": 131072,
+      "id": "doubao-1-5-thinking-pro-m",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 16384,
       "metadata": {},
-      "name": "doubao-1-5-thinking-vision-pro",
+      "name": "Doubao 1.5 Thinking Pro M",
+      "outputModalities": ["text"],
+      "ownedBy": "bytedance",
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["none", "auto", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
+          }
+        ],
+        "supportedEfforts": ["none", "auto", "high"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
+      }
+    },
+    {
+      "capabilities": ["reasoning", "function-call", "image-recognition"],
+      "contextWindow": 131072,
+      "id": "doubao-1-5-thinking-vision-pro",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 16384,
+      "metadata": {},
+      "name": "Doubao 1.5 Thinking Vision Pro",
+      "outputModalities": ["text"],
+      "ownedBy": "bytedance",
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["none", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
+          }
+        ],
+        "supportedEfforts": ["none", "high"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
+      }
+    },
+    {
+      "capabilities": ["computer-use", "image-recognition", "function-call"],
+      "id": "doubao-1-5-ui-tars",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Doubao 1.5 UI-TARS",
+      "outputModalities": ["text"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["image-recognition", "function-call"],
+      "id": "doubao-1-5-vision-lite",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Doubao 1.5 Vision Lite",
+      "outputModalities": ["text"],
       "ownedBy": "bytedance"
     },
     {
@@ -5258,6 +5365,45 @@
       "metadata": {},
       "name": "Doubao 1.5 Vision Pro",
       "outputModalities": ["text"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["image-recognition", "function-call"],
+      "contextWindow": 32768,
+      "id": "doubao-1-5-vision-pro-32k",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 12288,
+      "metadata": {},
+      "name": "Doubao 1.5 Vision Pro 32k",
+      "outputModalities": ["text"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["embedding"],
+      "id": "doubao-embedding-large-text",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Doubao Embedding Large Text",
+      "outputModalities": ["vector"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["embedding"],
+      "id": "doubao-embedding-text",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Doubao Embedding Text",
+      "outputModalities": ["vector"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["embedding"],
+      "contextWindow": 131072,
+      "id": "doubao-embedding-vision",
+      "inputModalities": ["text", "image", "video"],
+      "metadata": {},
+      "name": "Doubao Embedding Vision",
+      "outputModalities": ["vector"],
       "ownedBy": "bytedance"
     },
     {
@@ -5326,6 +5472,42 @@
           }
         ],
         "supportedEfforts": ["none", "high"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
+      }
+    },
+    {
+      "capabilities": [
+        "reasoning",
+        "function-call",
+        "image-recognition",
+        "video-recognition",
+        "file-input",
+        "structured-output"
+      ],
+      "contextWindow": 262144,
+      "id": "doubao-seed-1-6-lite",
+      "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 32768,
+      "metadata": {},
+      "name": "Doubao Seed 1.6 Lite",
+      "outputModalities": ["text"],
+      "ownedBy": "bytedance",
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["none", "auto", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
+          }
+        ],
+        "supportedEfforts": ["none", "auto", "high"],
         "thinkingTokenLimits": {
           "max": 30720,
           "min": 0
@@ -5544,8 +5726,55 @@
       }
     },
     {
+      "capabilities": [
+        "reasoning",
+        "function-call",
+        "image-recognition",
+        "video-recognition",
+        "file-input",
+        "structured-output"
+      ],
+      "contextWindow": 131072,
+      "id": "doubao-seed-character",
+      "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 32768,
+      "metadata": {},
+      "name": "Doubao Seed Character",
+      "outputModalities": ["text"],
+      "ownedBy": "bytedance"
+    },
+    {
       "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition", "file-input"],
       "contextWindow": 262144,
+      "id": "doubao-seed-code-preview",
+      "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 32768,
+      "metadata": {},
+      "name": "Doubao Seed Code",
+      "outputModalities": ["text"],
+      "ownedBy": "bytedance",
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["none", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
+          }
+        ],
+        "supportedEfforts": ["none", "high"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
+      }
+    },
+    {
+      "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition", "file-input"],
+      "contextWindow": 1024000,
       "id": "doubao-seed-evolving",
       "inputModalities": ["text", "image", "video"],
       "maxOutputTokens": 262144,
@@ -5555,11 +5784,104 @@
       "ownedBy": "bytedance"
     },
     {
+      "capabilities": [],
+      "contextWindow": 4096,
+      "id": "doubao-seed-translation",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 3072,
+      "metadata": {},
+      "name": "Doubao Seed Translation",
+      "outputModalities": ["text"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["image-recognition", "video-generation", "file-input"],
+      "id": "doubao-seedance-1-0-lite-i2v",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Doubao Seedance 1.0 Lite I2V",
+      "outputModalities": ["video"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["video-generation"],
+      "id": "doubao-seedance-1-0-lite-t2v",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Doubao Seedance 1.0 Lite T2V",
+      "outputModalities": ["video"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["image-recognition", "video-generation", "file-input"],
+      "id": "doubao-seedance-1-0-pro",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Doubao Seedance 1.0 Pro",
+      "outputModalities": ["video"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["image-recognition", "video-generation", "file-input"],
+      "id": "doubao-seedance-1-0-pro-fast",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Doubao Seedance 1.0 Pro Fast",
+      "outputModalities": ["video"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["image-recognition", "video-generation", "file-input"],
+      "id": "doubao-seedance-2-0",
+      "inputModalities": ["text", "image", "video", "audio"],
+      "metadata": {},
+      "name": "Doubao Seedance 2.0",
+      "outputModalities": ["video"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["image-recognition", "video-generation", "file-input"],
+      "id": "doubao-seedance-2-0-fast",
+      "inputModalities": ["text", "image", "video", "audio"],
+      "metadata": {},
+      "name": "Doubao Seedance 2.0 Fast",
+      "outputModalities": ["video"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["image-recognition", "video-generation", "file-input"],
+      "id": "doubao-seedance-2-0-mini",
+      "inputModalities": ["text", "image", "video"],
+      "metadata": {},
+      "name": "Doubao Seedance 2.0 Mini",
+      "outputModalities": ["video"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "doubao-seededit-3-0-i2i",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Doubao SeedEdit 3.0 I2I",
+      "outputModalities": ["image"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "doubao-seedream-3-0-t2i",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Doubao Seedream 3.0 T2I",
+      "outputModalities": ["image"],
+      "ownedBy": "bytedance"
+    },
+    {
       "capabilities": ["image-generation"],
       "id": "doubao-seedream-4-0",
       "imageGeneration": {
         "modes": {
           "generate": {
+            "maxInputImages": 14,
             "supports": {
               "addWatermark": {
                 "type": "switch"
@@ -5570,8 +5892,16 @@
                 "render": "chips",
                 "type": "enum"
               },
-              "seed": {
-                "type": "text"
+              "maxImages": {
+                "default": 15,
+                "max": 15,
+                "min": 1,
+                "type": "range"
+              },
+              "sequentialImageGeneration": {
+                "default": "disabled",
+                "options": ["disabled", "auto"],
+                "type": "enum"
               }
             }
           }
@@ -5589,18 +5919,27 @@
       "imageGeneration": {
         "modes": {
           "generate": {
+            "maxInputImages": 14,
             "supports": {
               "addWatermark": {
                 "type": "switch"
               },
               "imageResolution": {
                 "default": "2K",
-                "options": ["1K", "2K", "4K"],
+                "options": ["2K", "4K"],
                 "render": "chips",
                 "type": "enum"
               },
-              "seed": {
-                "type": "text"
+              "maxImages": {
+                "default": 15,
+                "max": 15,
+                "min": 1,
+                "type": "range"
+              },
+              "sequentialImageGeneration": {
+                "default": "disabled",
+                "options": ["disabled", "auto"],
+                "type": "enum"
               }
             }
           }
@@ -5609,6 +5948,81 @@
       "inputModalities": ["text", "image"],
       "metadata": {},
       "name": "Doubao Seedream 4 5",
+      "outputModalities": ["image"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "doubao-seedream-5-0-lite",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "maxInputImages": 14,
+            "supports": {
+              "addWatermark": {
+                "type": "switch"
+              },
+              "imageResolution": {
+                "default": "2K",
+                "options": ["2K", "3K", "4K"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "maxImages": {
+                "default": 15,
+                "max": 15,
+                "min": 1,
+                "type": "range"
+              },
+              "outputFormat": {
+                "default": "jpeg",
+                "options": ["jpeg", "png"],
+                "type": "enum"
+              },
+              "sequentialImageGeneration": {
+                "default": "disabled",
+                "options": ["disabled", "auto"],
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Doubao Seedream 5.0 Lite",
+      "outputModalities": ["image"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "doubao-seedream-5-0-pro",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "maxInputImages": 10,
+            "supports": {
+              "addWatermark": {
+                "type": "switch"
+              },
+              "imageResolution": {
+                "default": "2K",
+                "options": ["1K", "2K"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "outputFormat": {
+                "default": "jpeg",
+                "options": ["jpeg", "png"],
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Doubao Seedream 5.0 Pro",
       "outputModalities": ["image"],
       "ownedBy": "bytedance"
     },
@@ -7848,7 +8262,7 @@
         "web-search"
       ],
       "contextWindow": 1048576,
-      "family": "gemini",
+      "family": "gemini-flash-lite",
       "id": "gemini-3-5-flash-lite",
       "inputModalities": ["text", "image", "video", "audio"],
       "maxOutputTokens": 65536,
@@ -7900,7 +8314,7 @@
         "file-input"
       ],
       "contextWindow": 1048576,
-      "family": "gemini",
+      "family": "gemini-flash",
       "id": "gemini-3-6-flash",
       "inputModalities": ["text", "image", "video", "audio"],
       "maxOutputTokens": 65536,
@@ -10568,6 +10982,15 @@
       "inputModalities": ["text", "image"],
       "metadata": {},
       "name": "Microsoft: MAI-Image-2.5",
+      "outputModalities": ["image"],
+      "ownedBy": "microsoft"
+    },
+    {
+      "capabilities": ["image-recognition", "image-generation"],
+      "id": "mai-image-2-5-pro",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Microsoft: MAI-Image-2.5 Pro",
       "outputModalities": ["image"],
       "ownedBy": "microsoft"
     },
@@ -17317,15 +17740,21 @@
     {
       "capabilities": ["reasoning", "function-call"],
       "contextWindow": 262144,
+      "family": "hy3",
       "id": "hy3",
       "inputModalities": ["text"],
       "maxInputTokens": 196608,
       "maxOutputTokens": 131072,
       "metadata": {},
       "name": "Hunyuan 3",
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "tencent",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.035
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.14
@@ -17334,6 +17763,15 @@
           "currency": "USD",
           "perMillionTokens": 0.58
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["none", "low", "high"]
+          }
+        ],
+        "supportedEfforts": ["none", "low", "high"]
       }
     },
     {
@@ -17557,6 +17995,41 @@
           }
         ],
         "supportedEfforts": ["low", "medium", "high"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning"],
+      "contextWindow": 1048576,
+      "family": "laguna-s",
+      "id": "laguna-s-2-1",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 131072,
+      "metadata": {},
+      "name": "Laguna S 2.1",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "vercel",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.01
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -19858,5 +20331,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "96e79ec0a16c027e"
+  "version": "80b541da43f9349a"
 }

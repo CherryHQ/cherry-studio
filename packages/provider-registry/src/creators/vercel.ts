@@ -5,5 +5,5 @@ export default defineCreator({
   name: 'Vercel',
   modelsDevProviders: ['vercel'],
   idPrefixes: ['v0'],
-  reasoningFamilies: [{ pattern: '^muse-spark' }, { pattern: '^interfaze' }]
+  reasoningFamilies: [{ pattern: '^muse-spark' }, { pattern: '^interfaze' }, { pattern: '^laguna-s' }]
 })

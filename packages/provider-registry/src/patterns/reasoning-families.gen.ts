@@ -206,11 +206,13 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'hunyuan-a13b', budget: { min: 0, max: 30720 }, template: true },
   { pattern: 'hunyuan-t1' },
   { pattern: 'hunyuan-a13b' },
+  { pattern: '^hy3' },
   // upstage
   { pattern: '^solar-pro-?[23]' },
   // vercel
   { pattern: '^muse-spark' },
   { pattern: '^interfaze' },
+  { pattern: '^laguna-s' },
   // xai
   { pattern: '^grok-4\\.3(?!.*non-reasoning)', effort: ['none', 'low', 'medium', 'high'] },
   { pattern: '^grok-3-mini', effort: ['low', 'high'] },
