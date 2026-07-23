@@ -62,6 +62,10 @@ vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/VertexAiSett
   default: ({ providerId }: any) => <div>{`vertexai-settings-${providerId}`}</div>
 }))
 
+vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/RadeonCloudModelCards', () => ({
+  default: () => <div>radeon-cloud-model-cards</div>
+}))
+
 describe('ProviderSpecificSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -110,6 +114,12 @@ describe('ProviderSpecificSettings', () => {
       placement: 'afterAuth' as const,
       meta: { isCherryIN: false, isDmxapi: false },
       expectedText: 'lmstudio-settings-lmstudio'
+    },
+    {
+      providerId: 'radeon-cloud',
+      placement: 'afterAuth' as const,
+      meta: { isCherryIN: false, isDmxapi: false },
+      expectedText: 'radeon-cloud-model-cards'
     },
     {
       providerId: 'gpustack',

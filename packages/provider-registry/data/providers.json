@@ -30,15 +30,15 @@
       "endpointConfigs": {
         "openai-chat-completions": {
           "adapterFamily": "openai-compatible",
-          "baseUrl": "https://developer.amd.com.cn/radeon/api/v1"
+          "baseUrl": "https://developer.amd.com.cn/radeon/v1"
         }
       },
       "id": "radeon-cloud",
       "metadata": {
         "website": {
-          "apiKey": "https://developer.amd.com.cn/radeon/modelapis?source=cherry-studio",
+          "apiKey": "https://developer.amd.com.cn/radeon/tokenfactory?source=cherry-studio",
           "docs": "https://developer.amd.com.cn/radeon/",
-          "models": "https://developer.amd.com.cn/radeon/",
+          "models": "https://developer.amd.com.cn/radeon/tokenfactory?source=cherry-studio",
           "official": "https://developer.amd.com.cn/radeon/"
         }
       },
@@ -1479,5 +1479,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "6f70c87fd196a0b6"
+  "version": "6de5c713662b20f6"
 }

@@ -17,6 +17,7 @@ import LmStudioSettings from './LmStudioSettings'
 import LoginOauthPanel from './LoginOauthPanel'
 import OvmsSettings from './OvmsSettings'
 import ProviderOauth from './ProviderOauth'
+import RadeonCloudModelCards from './RadeonCloudModelCards'
 import VertexAiSettings from './VertexAiSettings'
 
 export type ProviderSpecificPlacement = 'beforeAuth' | 'afterAuth'
@@ -76,6 +77,11 @@ export const PROVIDER_SPECIFIC_SETTINGS_REGISTRY: Record<ProviderSpecificPlaceme
     }
   ],
   afterAuth: [
+    {
+      key: 'radeon-cloud-models',
+      when: ({ provider }) => matchesPreset(provider, 'radeon-cloud'),
+      render: () => <RadeonCloudModelCards />
+    },
     {
       key: 'lmstudio-settings',
       when: ({ provider }) => matchesPreset(provider, 'lmstudio'),

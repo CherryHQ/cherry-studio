@@ -503,6 +503,40 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
   })
 
   describe('generic / openai-compatible fallback', () => {
+    it('adds X-Source only to Radeon Cloud chat request headers', async () => {
+      const radeonProvider = makeProvider({
+        id: 'radeon-cloud',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://developer.amd.com.cn/radeon/api/v1',
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+      const openAIProvider = makeProvider({
+        id: 'openai',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://api.openai.com/v1',
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+      const model = makeModel({ endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+
+      const radeonConfig = await providerToAiSdkConfig(radeonProvider, model)
+      const openAIConfig = await providerToAiSdkConfig(openAIProvider, model)
+      const radeonSettings = radeonConfig.providerSettings as Record<string, unknown>
+      const openAISettings = openAIConfig.providerSettings as Record<string, unknown>
+
+      expect(radeonSettings.headers).toMatchObject({ 'X-Source': 'cherry-studio' })
+      expect(openAISettings.headers).not.toHaveProperty('X-Source')
+      expect(radeonSettings).not.toHaveProperty('source')
+      expect(radeonSettings).not.toHaveProperty('request_source')
+    })
+
     it('routes DashScope openai-compatible endpoints through DashScope config and preserves stream usage support', async () => {
       const provider = makeProvider({
         id: 'dashscope',

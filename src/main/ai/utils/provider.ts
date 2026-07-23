@@ -43,7 +43,17 @@ export function getBaseUrl(provider: Provider, preferredEndpoint?: EndpointType 
 }
 
 export function getExtraHeaders(provider: Provider): Record<string, string> {
-  return provider.settings?.extraHeaders ?? {}
+  const headers = { ...provider.settings?.extraHeaders }
+  if (provider.id !== 'radeon-cloud' && provider.presetProviderId !== 'radeon-cloud') {
+    return headers
+  }
+
+  for (const name of Object.keys(headers)) {
+    if (name.toLowerCase() === 'x-source') {
+      delete headers[name]
+    }
+  }
+  return { ...headers, 'X-Source': 'cherry-studio' }
 }
 
 export function defaultHeaders(provider: Provider): Record<string, string> {
