@@ -12,10 +12,11 @@
  */
 import * as z from 'zod'
 
-import type { ImageGenerationSupport, ModelConfig, SupportSpec } from '../src/schemas/model'
+import type { ImageGenerationSupport, ModelConfig, ReasoningSupport, SupportSpec } from '../src/schemas/model'
+import type { ProviderModelOverride } from '../src/schemas/provider-models'
 
 const MODALITY = new Set(['text', 'image', 'audio', 'video'])
-const VALID_EFFORTS = new Set(['none', 'minimal', 'low', 'medium', 'high', 'max', 'auto'])
+const VALID_EFFORTS = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'auto'])
 export const CAP_ORDER = [
   'function-call',
   'reasoning',
@@ -104,21 +105,29 @@ export function parseMdEntry(raw: unknown): CherryMeta | null {
   if (out.includes('audio')) caps.add('audio-generation')
   if (out.includes('video')) caps.add('video-generation')
 
+  // Lossless controls declaration (the source of truth); the legacy pair
+  // (supportedEfforts / thinkingTokenLimits) is re-derived from it by the
+  // buildModels normalization pass via deriveLegacyReasoningFields.
   const reasoning: NonNullable<CherryMeta['reasoning']> = {}
+  const controls: NonNullable<NonNullable<CherryMeta['reasoning']>['controls']> = []
   for (const op of m.reasoning && m.reasoning_options ? m.reasoning_options : []) {
-    if (op.type === 'effort' && op.values)
-      reasoning.supportedEfforts = op.values.filter((v): v is Effort => VALID_EFFORTS.has(v))
-    else if (
+    if (op.type === 'effort' && op.values) {
+      const values = op.values.filter((v): v is Effort => VALID_EFFORTS.has(v))
+      if (values.length) controls.push({ kind: 'effort', values })
+    } else if (
       op.type === 'budget_tokens' &&
       op.min != null &&
       op.max != null &&
       op.min >= 0 &&
       op.max > 0 &&
       op.min <= op.max
-    )
-      reasoning.thinkingTokenLimits = { min: op.min, max: op.max }
-    else if (op.type === 'toggle') reasoning.supportedEfforts = ['none', 'auto']
+    ) {
+      controls.push({ kind: 'budget', min: op.min, max: op.max })
+    } else if (op.type === 'toggle') {
+      controls.push({ kind: 'toggle' })
+    }
   }
+  if (controls.length) reasoning.controls = controls
   const pricing =
     m.cost?.input != null && m.cost?.output != null
       ? dropUndef({
@@ -152,9 +161,71 @@ const OrEntry = z
       .object({ input_modalities: z.array(z.string()).optional(), output_modalities: z.array(z.string()).optional() })
       .optional(),
     supported_parameters: z.union([z.array(z.string()), z.record(z.string(), z.unknown())]).optional(),
-    pricing: z.object({ prompt: z.string().optional(), completion: z.string().optional() }).optional()
+    pricing: z.object({ prompt: z.string().optional(), completion: z.string().optional() }).optional(),
+    reasoning: z
+      .object({
+        supported_efforts: z.array(z.string()).optional(),
+        default_effort: z.string().optional(),
+        default_enabled: z.boolean().optional(),
+        supports_max_tokens: z.boolean().optional(),
+        mandatory: z.boolean().optional()
+      })
+      .optional()
   })
   .loose()
+
+/** Endpoint-specific reasoning controls published by OpenRouter's model catalog. */
+export function parseOpenRouterReasoning(raw: unknown): ReasoningSupport | null {
+  const parsed = OrEntry.safeParse(raw)
+  if (!parsed.success || !parsed.data.reasoning) return null
+
+  const descriptor = parsed.data.reasoning
+  const hasPublishedCapability =
+    descriptor.supported_efforts !== undefined ||
+    descriptor.default_effort !== undefined ||
+    descriptor.default_enabled !== undefined ||
+    descriptor.supports_max_tokens !== undefined ||
+    descriptor.mandatory !== undefined
+  if (!hasPublishedCapability) return null
+
+  const efforts = (descriptor.supported_efforts ?? []).filter((value): value is Effort => VALID_EFFORTS.has(value))
+  const selectableEfforts = descriptor.mandatory ? efforts.filter((value) => value !== 'none') : efforts
+  const controls: NonNullable<ReasoningSupport['controls']> = []
+  const defaultEffort = VALID_EFFORTS.has(descriptor.default_effort ?? '')
+    ? (descriptor.default_effort as Effort)
+    : undefined
+
+  if (selectableEfforts.length > 0) {
+    controls.push({
+      kind: 'effort',
+      values: selectableEfforts,
+      ...(defaultEffort && selectableEfforts.includes(defaultEffort) ? { default: defaultEffort } : {})
+    })
+  } else if (!descriptor.supports_max_tokens && !descriptor.mandatory && descriptor.default_enabled !== undefined) {
+    controls.push({ kind: 'toggle', default: descriptor.default_enabled })
+  }
+
+  return {
+    controls,
+    ...(selectableEfforts.length > 0 ? { supportedEfforts: selectableEfforts } : {}),
+    ...(defaultEffort && selectableEfforts.includes(defaultEffort) ? { defaultEffort } : {})
+  }
+}
+
+/** Merge generated OpenRouter support with a hand-written exact override. Hand-written fields win. */
+export function mergeOpenRouterReasoningContracts(
+  support: ReasoningSupport,
+  handwritten: ProviderModelOverride['reasoningContracts']
+): NonNullable<ProviderModelOverride['reasoningContracts']> {
+  const endpoint = 'openai-chat-completions'
+  return {
+    ...handwritten,
+    [endpoint]: {
+      support,
+      ...handwritten?.[endpoint]
+    }
+  }
+}
 
 export function parseOrEntry(raw: unknown): CherryMeta | null {
   const p = OrEntry.safeParse(raw)
@@ -175,11 +246,11 @@ export function parseOrEntry(raw: unknown): CherryMeta | null {
   if (out.includes('audio')) caps.add('audio-generation')
 
   return dropUndef({
-    name: m.supported_parameters && !Array.isArray(m.supported_parameters) ? m.name : undefined,
     capabilities: caps.size ? [...caps] : undefined,
     inputModalities: inp.filter((x) => MODALITY.has(x)),
     outputModalities: out.filter((x) => MODALITY.has(x)),
     contextWindow: m.context_length,
+    name: m.name,
     pricing: m.pricing?.prompt
       ? { input: usd(+m.pricing.prompt * 1e6)!, output: usd(+(m.pricing.completion || 0) * 1e6)! }
       : undefined
@@ -283,12 +354,47 @@ export function mergeMeta(a: CherryMeta, b: CherryMeta): CherryMeta {
   if (b.pricing) out.pricing = { ...b.pricing, ...a.pricing }
   if (b.reasoning) {
     out.reasoning = { ...a.reasoning, ...b.reasoning }
+    const controls = mergeReasoningControls(a.reasoning?.controls, b.reasoning.controls)
+    if (controls.length) out.reasoning.controls = controls
     const ef = [...new Set([...(a.reasoning?.supportedEfforts ?? []), ...(b.reasoning.supportedEfforts ?? [])])]
     if (ef.length) out.reasoning.supportedEfforts = ef
   }
   if (b.openWeights) out.openWeights = true
   if (b.family && !a.family) out.family = b.family
   if (b.name && !a.name) out.name = b.name
+  return out
+}
+
+type Controls = NonNullable<NonNullable<CherryMeta['reasoning']>['controls']>
+
+/**
+ * Union reasoning controls per kind across sources (same spirit as the
+ * capability union): effort values union (a's order first), budget range
+ * widens, toggle survives if either side declares it.
+ */
+function mergeReasoningControls(a: Controls | undefined, b: Controls | undefined): Controls {
+  const pick = <K extends Controls[number]['kind']>(list: Controls | undefined, kind: K) =>
+    list?.find((c): c is Extract<Controls[number], { kind: K }> => c.kind === kind)
+  const out: Controls = []
+  const [ea, eb] = [pick(a, 'effort'), pick(b, 'effort')]
+  if (ea || eb) {
+    out.push({
+      kind: 'effort',
+      values: [...new Set([...(ea?.values ?? []), ...(eb?.values ?? [])])],
+      ...((ea?.default ?? eb?.default) != null ? { default: ea?.default ?? eb?.default } : {})
+    })
+  }
+  const [ba, bb] = [pick(a, 'budget'), pick(b, 'budget')]
+  if (ba || bb) {
+    out.push({
+      kind: 'budget',
+      min: Math.min(ba?.min ?? Infinity, bb?.min ?? Infinity),
+      max: Math.max(ba?.max ?? 0, bb?.max ?? 0),
+      ...((ba?.default ?? bb?.default) != null ? { default: ba?.default ?? bb?.default } : {})
+    })
+  }
+  const toggle = pick(a, 'toggle') ?? pick(b, 'toggle')
+  if (toggle) out.push(toggle)
   return out
 }
 

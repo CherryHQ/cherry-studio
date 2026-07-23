@@ -301,6 +301,45 @@ describe('ProviderRegistryService', () => {
       expect(models[0].name).toBe('custom-model')
     })
 
+    it('does not infer controls when a preset model fails the reasoning membership gate', () => {
+      mockReadModels.mockReturnValue({
+        version: '1.0',
+        models: [
+          {
+            id: 'qwen3-coder',
+            name: 'Qwen3 Coder',
+            capabilities: ['function-call']
+          }
+        ]
+      } as ReturnType<typeof readModelRegistry>)
+      mockReadProviderModels.mockReturnValue({
+        version: '1.0',
+        overrides: [{ providerId: 'openai', modelId: 'qwen3-coder' }]
+      } as ReturnType<typeof readProviderModelRegistry>)
+      mockReadProviders.mockReturnValue({
+        version: '1.0',
+        providers: [
+          {
+            id: 'openai',
+            name: 'OpenAI',
+            defaultChatEndpoint: 'openai-chat-completions',
+            endpointConfigs: {
+              'openai-chat-completions': {
+                adapterFamily: 'openai-compatible',
+                reasoningFormat: { type: 'openai-chat' }
+              }
+            },
+            metadata: {}
+          }
+        ]
+      } as ReturnType<typeof readProviderRegistry>)
+
+      const [model] = providerRegistryService.resolveModels('openai', ['qwen3-coder'])
+
+      expect(model.reasoning).toBeUndefined()
+      expect(model.capabilities).not.toContain('reasoning')
+    })
+
     it('should deduplicate by modelId', async () => {
       setupRegistryData()
 
@@ -314,7 +353,7 @@ describe('ProviderRegistryService', () => {
 
       const result = providerRegistryService.lookupModel('openai', 'gpt-4o')
 
-      expect(result.defaultChatEndpoint).toBe('openai-chat-completions')
+      expect(result.reasoningProfile.format).toBe('openai-chat')
       expect(result.presetModel?.id).toBe('gpt-4o')
     })
 
@@ -328,7 +367,7 @@ describe('ProviderRegistryService', () => {
 
       expect(() => providerRegistryService.resolveModels('openai', ['gpt-4o'])).toThrow('database offline')
 
-      expect(loggerSpy).toHaveBeenCalledWith('Failed to fetch provider for reasoning config', error)
+      expect(loggerSpy).toHaveBeenCalledWith('Failed to fetch provider for reasoning profile', error)
       providerSpy.mockRestore()
     })
 
@@ -363,7 +402,7 @@ describe('ProviderRegistryService', () => {
             name: 'OpenAI',
             metadata: {},
             endpointConfigs: {
-              'openai-chat-completions': { reasoningFormatType: 'openai-chat' }
+              'openai-chat-completions': { reasoningFormat: { type: 'openai-chat' } }
             },
             defaultChatEndpoint: 'openai-chat-completions'
           }
@@ -674,7 +713,7 @@ describe('ProviderRegistryService', () => {
       expect(result.registryOverride?.apiModelId).toBe('Qwen/Qwen-Image')
     })
 
-    it('should prefer persisted provider endpoint config over registry reasoning defaults', async () => {
+    it('should ignore a legacy persisted reasoningFormatType field', async () => {
       setupRegistryData()
       await dbh.db.insert(userProviderTable).values({
         providerId: 'openai',
@@ -686,16 +725,13 @@ describe('ProviderRegistryService', () => {
             baseUrl: 'https://proxy.example/v1',
             reasoningFormatType: 'openai-responses'
           }
-        },
+        } as never,
         orderKey: generateOrderKeyBetween(null, null)
       })
 
       const result = providerRegistryService.lookupModel('openai', 'gpt-4o')
 
-      expect(result.defaultChatEndpoint).toBe('openai-chat-completions')
-      expect(result.reasoningFormatTypes).toMatchObject({
-        'openai-chat-completions': 'openai-responses'
-      })
+      expect(result.reasoningProfile.format).toBe('openai-chat')
     })
   })
 })
