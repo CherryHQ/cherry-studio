@@ -388,8 +388,10 @@ vi.mock('../AgentChat', () => ({
     onSidebarToggle,
     sessionPaneOpen,
     onSessionPaneOpenChange,
+    sessionPaneUserOpenIntentSeq,
     onPaneCollapse,
-    onPaneAutoCollapseChange
+    onPaneAutoCollapseChange,
+    paneManualToggle
   }: {
     centerSurface?: { content?: ReactNode } | null
     activeSession?: { id: string } | null
@@ -413,8 +415,10 @@ vi.mock('../AgentChat', () => ({
     onSidebarToggle?: () => void
     sessionPaneOpen?: boolean
     onSessionPaneOpenChange?: (open: boolean) => void
+    sessionPaneUserOpenIntentSeq?: number
     onPaneCollapse?: () => void
     onPaneAutoCollapseChange?: (collapsed: boolean) => void
+    paneManualToggle?: { seq: number; open: boolean }
   }) => (
     <section data-testid="agent-chat">
       <output data-testid="active-session">{activeSession?.id ?? ''}</output>
@@ -424,6 +428,10 @@ vi.mock('../AgentChat', () => ({
       <output data-testid="pane-open">{String(paneOpen)}</output>
       <output data-testid="pane-position">{panePosition ?? ''}</output>
       <output data-testid="session-pane-open">{String(sessionPaneOpen)}</output>
+      <output data-testid="session-pane-user-open-intent-seq">{String(sessionPaneUserOpenIntentSeq ?? 0)}</output>
+      <output data-testid="pane-manual-toggle">
+        {paneManualToggle ? `${paneManualToggle.seq}:${paneManualToggle.open}` : 'none'}
+      </output>
       <output data-testid="show-resource-list-controls">{String(showResourceListControls)}</output>
       {showResourceListControls && onSidebarToggle && (
         <button type="button" onClick={onSidebarToggle}>
@@ -809,6 +817,49 @@ describe('AgentPage', () => {
 
     expect(screen.getByTestId('session-pane-open')).toHaveTextContent('false')
     expect(agentPageMocks.setClassicLayoutRightPaneOpenOverride).not.toHaveBeenCalledWith(true)
+  })
+
+  it('marks the sidebar collapse control as a manual pane toggle', () => {
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
+    activeSessionMocks.sessionSource = 'query'
+
+    render(<AgentPage />)
+
+    expect(screen.getByTestId('pane-manual-toggle')).toHaveTextContent('none')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse pane' }))
+
+    expect(screen.getByTestId('pane-manual-toggle')).toHaveTextContent('1:false')
+  })
+
+  it('records a user open intent when the rail header opens the classic session pane', () => {
+    agentPageMocks.sessionDisplayMode = 'agent'
+    agentPageMocks.classicLayoutRightPaneOpenOverride = false
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
+    activeSessionMocks.sessionSource = 'query'
+
+    render(<AgentPage />)
+
+    expect(screen.getByTestId('session-pane-user-open-intent-seq')).toHaveTextContent('0')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle selected agent pane' }))
+
+    expect(agentPageMocks.setClassicLayoutRightPaneOpenOverride).toHaveBeenCalledWith(true)
+    expect(screen.getByTestId('session-pane-user-open-intent-seq')).toHaveTextContent('1')
+  })
+
+  it('does not record a user open intent when the rail header closes the classic session pane', () => {
+    agentPageMocks.sessionDisplayMode = 'agent'
+    agentPageMocks.classicLayoutRightPaneOpenOverride = true
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
+    activeSessionMocks.sessionSource = 'query'
+
+    render(<AgentPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle selected agent pane' }))
+
+    expect(agentPageMocks.setClassicLayoutRightPaneOpenOverride).toHaveBeenCalledWith(false)
+    expect(screen.getByTestId('session-pane-user-open-intent-seq')).toHaveTextContent('0')
   })
 
   it('toggles the classic session pane when the selected agent is clicked again', () => {
