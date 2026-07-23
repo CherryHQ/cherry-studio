@@ -1803,6 +1803,10 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.rootPanelAdditionalItems).toEqual([
       expect.objectContaining({ id: 'composer:customize-toolbar' })
     ])
+    const skillsLauncher = mocks.registeredLaunchers.get('agent-skills')?.[0]
+    expect(skillsLauncher?.rootPanelPlacement).toBeUndefined()
+    expect(skillsLauncher?.order).toBe(40)
+    expect(skillsLauncher?.rootSearchItems).toEqual([expect.objectContaining({ id: 'skill:pdf' })])
 
     const items = getAgentSkillsPanelItems()
     const skillItem = items[0]
