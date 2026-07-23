@@ -907,16 +907,30 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
 
   /** Seed a minimal file_entry row so FK-constrained chat_message_file_ref inserts succeed. */
   async function seedFileEntry(id: string): Promise<void> {
+    await seedFileEntries([id])
+  }
+
+  /**
+   * Seed many file_entry rows in a few batched multi-row inserts. One insert per id means one autocommit
+   * transaction (and fsync) each — 600 of those is what timed the >500-chunk test out on CI. Chunked well
+   * under SQLite's bound-parameter limit.
+   */
+  async function seedFileEntries(ids: string[]): Promise<void> {
     const now = Date.now()
-    await dbh.db.insert(fileEntryTable).values({
-      id,
-      origin: 'internal',
-      name: `test-${id}`,
-      ext: 'png',
-      size: 1024,
-      createdAt: now,
-      updatedAt: now
-    })
+    const BATCH = 200
+    for (let i = 0; i < ids.length; i += BATCH) {
+      await dbh.db.insert(fileEntryTable).values(
+        ids.slice(i, i + BATCH).map((id) => ({
+          id,
+          origin: 'internal',
+          name: `test-${id}`,
+          ext: 'png',
+          size: 1024,
+          createdAt: now,
+          updatedAt: now
+        }))
+      )
+    }
   }
 
   function newTopic(id: string, updatedAt: number): NewTopic {
@@ -1311,10 +1325,7 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
     it('chunks queries when >500 distinct fileIds are referenced', async () => {
       const count = 600
       const feIds = Array.from({ length: count }, (_, i) => `fe-chunk-${String(i).padStart(4, '0')}`)
-      const SEED_CHUNK = 100
-      for (let i = 0; i < feIds.length; i += SEED_CHUNK) {
-        for (const id of feIds.slice(i, i + SEED_CHUNK)) await seedFileEntry(id)
-      }
+      await seedFileEntries(feIds)
 
       const migrator = new ChatMigrator()
       const m = migrator as unknown as Record<string, unknown>

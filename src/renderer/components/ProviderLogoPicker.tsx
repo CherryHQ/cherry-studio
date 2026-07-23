@@ -4,6 +4,7 @@ import { loadProviderIconCatalog, PROVIDER_ICON_META_CATALOG, type ProviderIconK
 import { loggerService } from '@logger'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import { getProviderLabelKey } from '@renderer/i18n/label'
+import { isSystemProviderId } from '@renderer/types/provider'
 import { Search } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useMemo, useState } from 'react'
@@ -41,7 +42,7 @@ const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
     const providers = (Object.keys(PROVIDER_ICON_META_CATALOG) as ProviderIconKey[]).map((id) => ({
       id,
       icon: iconCatalog?.[id],
-      name: t(getProviderLabelKey(id))
+      name: isSystemProviderId(id) ? t(getProviderLabelKey(id)) : id
     }))
 
     if (!searchText) return providers
