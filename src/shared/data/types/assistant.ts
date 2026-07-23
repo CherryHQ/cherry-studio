@@ -52,6 +52,12 @@ export const AssistantSettingsSchema = z.object({
 
   // -- Context sources --
   enableWebSearch: z.boolean(),
+  /**
+   * Provider-native URL context (Gemini URL context / Anthropic web_fetch) — the
+   * host fetches URLs in the prompt. Optional because it was added after v2
+   * launch: assistant rows created before this field simply lack it (⇒ off).
+   */
+  enableUrlContext: z.boolean().optional(),
   /** Offer the `generate_image` tool to the model (needs a painting model in Settings › Default Model). */
   enableGenerateImage: z.boolean(),
 
@@ -86,6 +92,7 @@ export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
   maxToolCalls: 20,
   enableMaxToolCalls: true,
   enableWebSearch: false,
+  enableUrlContext: false,
   enableGenerateImage: false,
   customParameters: []
 }

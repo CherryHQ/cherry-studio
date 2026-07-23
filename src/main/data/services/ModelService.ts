@@ -155,6 +155,7 @@ export interface UserModelOverlay {
   maxInputTokens?: number | null
   maxOutputTokens?: number | null
   supportsStreaming?: boolean | null
+  serverToolOverrides?: Model['serverToolOverrides'] | null
   // Persisted reasoning rows may have optional fields the runtime type requires;
   // applyUserOverlay narrows it via cast on copy.
   reasoning?: Partial<RuntimeReasoning> | null
@@ -174,6 +175,9 @@ export function applyUserOverlay(baseline: Model, overlay: UserModelOverlay): Mo
 
   if (overlay.capabilities && overlay.capabilities.length > 0) {
     result.capabilities = [...overlay.capabilities]
+  }
+  if (overlay.serverToolOverrides != null) {
+    result.serverToolOverrides = { ...overlay.serverToolOverrides }
   }
   if (overlay.endpointTypes && overlay.endpointTypes.length > 0) {
     result.endpointTypes = [...overlay.endpointTypes]
@@ -251,6 +255,7 @@ export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateM
   'description',
   'group',
   'capabilities',
+  'serverToolOverrides',
   'inputModalities',
   'outputModalities',
   'endpointTypes',
@@ -277,6 +282,7 @@ function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
     description: dto.description ?? null,
     group: dto.group ?? null,
     capabilities: (dto.capabilities ?? []) as ModelCapability[],
+    serverToolOverrides: dto.serverToolOverrides ?? null,
     inputModalities: (dto.inputModalities ?? null) as Modality[] | null,
     outputModalities: (dto.outputModalities ?? null) as Modality[] | null,
     endpointTypes: (dto.endpointTypes ?? null) as EndpointType[] | null,
@@ -308,6 +314,7 @@ function mergedModelToNewUserModel(
     description: merged.description ?? null,
     group: merged.group ?? null,
     capabilities: merged.capabilities,
+    serverToolOverrides: merged.serverToolOverrides ?? null,
     inputModalities: merged.inputModalities ?? null,
     outputModalities: merged.outputModalities ?? null,
     endpointTypes: merged.endpointTypes ?? null,
@@ -341,6 +348,7 @@ function rowToRuntimeModel(row: UserModelRow): Model {
     description: row.description ?? undefined,
     group: row.group ?? undefined,
     capabilities: row.capabilities,
+    serverToolOverrides: row.serverToolOverrides ?? undefined,
     inputModalities: row.inputModalities ?? undefined,
     outputModalities: row.outputModalities ?? undefined,
     contextWindow: row.contextWindow ?? undefined,

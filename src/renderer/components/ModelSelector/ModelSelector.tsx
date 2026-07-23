@@ -174,7 +174,7 @@ function ModelRow({
   t: (key: string) => string
 }) {
   const icon = useIcon(getModelLogoRef(item.model, item.provider.id))
-  const rowTags = useMemo(() => getModelDisplayTags(item.model), [item.model])
+  const rowTags = useMemo(() => getModelDisplayTags(item.model, undefined, item.provider), [item.model, item.provider])
   const providerName = getProviderDisplayName(item.provider)
 
   const leading = icon ? (

@@ -64,6 +64,7 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({ providerId, disab
           })}
         />
         <ModelListSections
+          provider={providerMeta.provider}
           isLoading={modelList.sections.isLoading}
           hasNoModels={modelList.sections.hasNoModels}
           hasVisibleModels={modelList.sections.hasVisibleModels}

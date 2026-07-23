@@ -14,9 +14,9 @@ import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { toast } from '@renderer/services/toast'
 import { getDefaultGroupName } from '@renderer/utils/naming'
-import { CURRENCY, type Currency, type EndpointType, type Model } from '@shared/data/types/model'
+import { CURRENCY, type Currency, type EndpointType, type Model, SERVER_TOOL } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
-import { isNewApiProvider } from '@shared/utils/provider'
+import { isNewApiProvider, isServerToolModelEligible } from '@shared/utils/provider'
 import { ChevronDown, ChevronUp, CircleHelp } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -50,6 +50,7 @@ interface BuildPatchOverrides {
   group?: string
   endpointTypes?: EndpointType[]
   caps?: Set<ModelCapabilityToggle>
+  webSearchEnabled?: boolean
   supportsStreaming?: boolean
   currencySymbol?: ModelDrawerCurrencySymbol
   inputPrice?: string
@@ -100,6 +101,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [endpointTypes, setEndpointTypes] = useState<EndpointType[]>([])
   const [showMoreSettings, setShowMoreSettings] = useState(true)
   const [selectedCaps, setSelectedCaps] = useState<Set<ModelCapabilityToggle>>(new Set())
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false)
   const [hasUserModified, setHasUserModified] = useState(false)
   const [supportsStreaming, setSupportsStreaming] = useState<Model['supportsStreaming']>(true)
   const [currencySymbol, setCurrencySymbol] = useState<ModelDrawerCurrencySymbol>('$')
@@ -117,6 +119,10 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     () => (model ? getInitialSelectedCapabilities(model) : new Set<ModelCapabilityToggle>()),
     [model]
   )
+  const savedWebSearchEnabled = useMemo(
+    () => (model ? isServerToolModelEligible(model, SERVER_TOOL.WEB_SEARCH) : false),
+    [model]
+  )
 
   useEffect(() => {
     if (!open || !model) {
@@ -131,6 +137,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     setEndpointTypes(model.endpointTypes?.length ? [...model.endpointTypes] : [])
     setShowMoreSettings(true)
     setSelectedCaps(getInitialSelectedCapabilities(model))
+    setWebSearchEnabled(isServerToolModelEligible(model, SERVER_TOOL.WEB_SEARCH))
     setHasUserModified(false)
     setSupportsStreaming(model.supportsStreaming)
     setCurrencySymbol(nextCurrencySymbol ?? '$')
@@ -147,6 +154,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         name: patch.name,
         group: patch.group,
         capabilities: patch.capabilities,
+        serverToolOverrides: patch.serverToolOverrides,
         supportsStreaming: patch.supportsStreaming,
         endpointTypes: patch.endpointTypes,
         contextWindow: patch.contextWindow,
@@ -171,6 +179,8 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       const nextGroup = overrides?.group ?? group
       const nextEndpointTypes = overrides?.endpointTypes ?? endpointTypes
 
+      const webSearchOverride = overrides?.webSearchEnabled
+
       return {
         name: nextName || model.name,
         group: nextGroup || model.group,
@@ -179,6 +189,14 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
           model.capabilities ?? [],
           overrides?.caps ?? selectedCaps
         ) as Model['capabilities'],
+        ...(webSearchOverride === undefined
+          ? {}
+          : {
+              serverToolOverrides: {
+                ...model.serverToolOverrides,
+                [SERVER_TOOL.WEB_SEARCH]: webSearchOverride
+              }
+            }),
         supportsStreaming: overrides?.supportsStreaming ?? supportsStreaming,
         contextWindow: Number(overrides?.contextWindow ?? contextWindow) || undefined,
         maxInputTokens: Number(overrides?.maxInputTokens ?? maxInputTokens) || undefined,
@@ -271,9 +289,17 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
 
   const handleResetCapabilities = useCallback(() => {
     setSelectedCaps(new Set(savedCaps))
+    setWebSearchEnabled(savedWebSearchEnabled)
     setHasUserModified(false)
-    autoSave({ caps: new Set(savedCaps) })
-  }, [autoSave, savedCaps])
+    autoSave({ caps: new Set(savedCaps), webSearchEnabled: savedWebSearchEnabled })
+  }, [autoSave, savedCaps, savedWebSearchEnabled])
+
+  const handleToggleWebSearch = useCallback(() => {
+    setHasUserModified(true)
+    const next = !webSearchEnabled
+    setWebSearchEnabled(next)
+    autoSave({ webSearchEnabled: next })
+  }, [autoSave, webSearchEnabled])
 
   if (!provider || !model) {
     return <ProviderSettingsDrawer open={open} onClose={onClose} title={t('models.edit')} />
@@ -349,8 +375,10 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
               <div className={drawerClasses.sectionCard}>
                 <ModelCapabilityToggles
                   selectedCaps={selectedCaps}
+                  webSearchEnabled={webSearchEnabled}
                   hasUserModified={hasUserModified}
                   onToggle={handleToggleCapability}
+                  onWebSearchToggle={handleToggleWebSearch}
                   onReset={handleResetCapabilities}
                 />
               </div>

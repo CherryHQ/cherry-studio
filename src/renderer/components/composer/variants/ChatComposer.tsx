@@ -686,7 +686,8 @@ const ChatComposerInner = ({
       if (!nextModel) return
       if (!assistant) return
 
-      const enabledWebSearch = canModelUseAssistantWebSearch(nextModel)
+      const nextProvider = providers.find((provider) => provider.id === nextModel.providerId)
+      const enabledWebSearch = canModelUseAssistantWebSearch(nextModel, nextProvider)
       const nextReasoningEffort = resolveReasoningEffortForModel(nextModel, reasoningEffort)
       const version = ++reasoningMutationVersionRef.current
       setReasoningOverride({
@@ -711,7 +712,7 @@ const ChatComposerInner = ({
           throw error
         })
     },
-    [assistant, reasoningEffort, reasoningOverride, setModel]
+    [assistant, providers, reasoningEffort, reasoningOverride, setModel]
   )
 
   const reasoningContext = useMemo(

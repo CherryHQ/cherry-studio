@@ -83,7 +83,11 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const { tools, deferredEntries, mcpToolIds } = canModelConsumeTools(model)
     ? await resolveTools(request, assistant, model, hasFileAttachments, knowledgeBaseIds)
     : { tools: undefined, deferredEntries: [] as ToolEntry[], mcpToolIds: new Set<string>() }
-  const capabilities = assistant ? resolveCapabilities(model, provider, assistant) : undefined
+  const capabilities = assistant
+    ? resolveCapabilities(model, provider, assistant, {
+        hasFunctionTools: tools !== undefined && Object.keys(tools).length > 0
+      })
+    : undefined
 
   const { endpointType } = resolveEffectiveEndpoint(provider, model)
   const aiSdkProviderId = resolveAiSdkProviderId(provider, endpointType)

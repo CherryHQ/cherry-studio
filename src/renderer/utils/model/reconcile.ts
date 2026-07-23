@@ -16,10 +16,11 @@
 import type { AssistantSettings } from '@renderer/types/assistant'
 import { deriveThinkingOptions, nearestThinkingOption } from '@shared/ai/reasoning'
 import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import { isBuiltinWebSearchAvailable } from '@shared/utils/provider'
 
 import { isFunctionCallingModel } from './tooluse'
-import { isOpenRouterBuiltInWebSearchModel, isWebSearchModel } from './websearch'
 
 export type ReasoningEffortPatch = {
   reasoning_effort?: ReasoningEffortOption
@@ -37,12 +38,12 @@ export function resolveReasoningEffortForModel(
   return supportedOptions[0]
 }
 
-export function hasModelBuiltinWebSearch(model: Model): boolean {
-  return isWebSearchModel(model) || isOpenRouterBuiltInWebSearchModel(model)
+export function hasModelBuiltinWebSearch(model: Model, provider: Provider | undefined): boolean {
+  return !!provider && isBuiltinWebSearchAvailable(model, provider)
 }
 
-export function canModelUseAssistantWebSearch(model: Model): boolean {
-  return hasModelBuiltinWebSearch(model) || isFunctionCallingModel(model)
+export function canModelUseAssistantWebSearch(model: Model, provider: Provider | undefined): boolean {
+  return hasModelBuiltinWebSearch(model, provider) || isFunctionCallingModel(model)
 }
 
 export function reconcileReasoningEffortForModel(
@@ -56,9 +57,10 @@ export function reconcileReasoningEffortForModel(
 
 export function reconcileWebSearchForModel(
   nextModel: Model,
-  current: Pick<AssistantSettings, 'enableWebSearch'>
+  current: Pick<AssistantSettings, 'enableWebSearch'>,
+  provider: Provider | undefined
 ): { enableWebSearch: false } | null {
   if (!current.enableWebSearch) return null
-  if (canModelUseAssistantWebSearch(nextModel)) return null
+  if (canModelUseAssistantWebSearch(nextModel, provider)) return null
   return { enableWebSearch: false }
 }

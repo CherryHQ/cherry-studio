@@ -6,7 +6,8 @@
  */
 
 import { modelMatchesDisplayTag } from '@renderer/components/tags/Model'
-import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { type Model, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
 import { MODEL_SELECTOR_TAGS } from '../filters'
@@ -42,7 +43,7 @@ describe('MODEL_SELECTOR_TAGS', () => {
   it('lists the tags the selector surfaces in the filter chip row', () => {
     expect(MODEL_SELECTOR_TAGS).toEqual([
       MODEL_CAPABILITY.IMAGE_RECOGNITION,
-      MODEL_CAPABILITY.WEB_SEARCH,
+      SERVER_TOOL.WEB_SEARCH,
       MODEL_CAPABILITY.REASONING,
       MODEL_CAPABILITY.FUNCTION_CALL,
       MODEL_CAPABILITY.EMBEDDING,
@@ -65,12 +66,30 @@ describe('modelMatchesDisplayTag — capability tags', () => {
     expect(modelMatchesDisplayTag(model, MODEL_CAPABILITY.REASONING)).toBe(false)
   })
 
-  it('dispatches each capability to its own predicate (no cross-matching)', () => {
-    const model = makeModel({ capabilities: [MODEL_CAPABILITY.WEB_SEARCH] })
+  it('dispatches server-tool eligibility independently from model capabilities', () => {
+    const model = makeModel({ id: 'openai::gpt-4o', apiModelId: 'gpt-4o' })
 
-    expect(modelMatchesDisplayTag(model, MODEL_CAPABILITY.WEB_SEARCH)).toBe(true)
+    expect(modelMatchesDisplayTag(model, SERVER_TOOL.WEB_SEARCH)).toBe(true)
     expect(modelMatchesDisplayTag(model, MODEL_CAPABILITY.RERANK)).toBe(false)
     expect(modelMatchesDisplayTag(model, MODEL_CAPABILITY.EMBEDDING)).toBe(false)
+  })
+
+  it('shows web search for an untagged model when the provider serves every chat model', () => {
+    const model = makeModel()
+    const provider = {
+      serverTools: [{ id: 'web-search', modelScope: 'all-chat-models' }]
+    } as Provider
+
+    expect(modelMatchesDisplayTag(model, SERVER_TOOL.WEB_SEARCH, provider)).toBe(true)
+  })
+
+  it('does not leak an intrinsic web-search tag through a provider without the server tool', () => {
+    const model = makeModel({
+      serverToolOverrides: { [SERVER_TOOL.WEB_SEARCH]: true }
+    })
+    const provider = { serverTools: [] } as unknown as Provider
+
+    expect(modelMatchesDisplayTag(model, SERVER_TOOL.WEB_SEARCH, provider)).toBe(false)
   })
 })
 

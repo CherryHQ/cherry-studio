@@ -159,6 +159,9 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     modelListSource: presetMetadata.modelListSource,
     authMethods: presetMetadata.authMethods,
     authOptional: presetMetadata.authOptional,
+    // Static provider capability resolved LIVE from the preset registry (not the
+    // stored row) so existing installs pick it up despite the insert-only seeder.
+    serverTools: presetMetadata.serverTools ?? [],
     apiKeys,
     authType,
     apiFeatures,

@@ -15,15 +15,19 @@ import type { ModelCapabilityToggle } from './types'
 
 interface ModelCapabilityTogglesProps {
   selectedCaps: Set<ModelCapabilityToggle>
+  webSearchEnabled: boolean
   hasUserModified: boolean
   onToggle: (type: ModelCapabilityToggle) => void
+  onWebSearchToggle: () => void
   onReset: () => void
 }
 
 export function ModelCapabilityToggles({
   selectedCaps,
+  webSearchEnabled,
   hasUserModified,
   onToggle,
+  onWebSearchToggle,
   onReset
 }: ModelCapabilityTogglesProps) {
   const { t } = useTranslation()
@@ -59,9 +63,9 @@ export function ModelCapabilityToggles({
         />
         <WebSearchTag
           showLabel
-          inactive={isOtherDisabled || !selectedCaps.has(MODEL_CAPABILITY.WEB_SEARCH)}
+          inactive={isOtherDisabled || !webSearchEnabled}
           disabled={isOtherDisabled}
-          onClick={() => onToggle(MODEL_CAPABILITY.WEB_SEARCH)}
+          onClick={onWebSearchToggle}
         />
         <ReasoningTag
           showLabel

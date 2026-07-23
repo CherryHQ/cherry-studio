@@ -44,7 +44,7 @@ export default defineCreator({
     'davinci',
     'babbage'
   ],
-  webSearch: ['gpt-4o', 'gpt-5', 'o3', 'o4'],
+  serverTools: { 'web-search': ['gpt-4o', 'gpt-5', 'o3', 'o4'] },
   models: [
     {
       id: 'gpt-image-1-mini',

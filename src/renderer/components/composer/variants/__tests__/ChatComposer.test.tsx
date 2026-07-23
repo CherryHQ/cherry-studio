@@ -385,9 +385,10 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
 }))
 
 vi.mock('@renderer/utils/model', () => ({
-  // Mirrors the real reconcile logic using the mocked predicates below:
-  // canModelUseAssistantWebSearch = isWebSearchModel || isOpenRouterBuiltInWebSearchModel || isFunctionCallingModel.
-  // The first two predicates are stubbed to false here, so it reduces to the function-call check.
+  // Mirrors the real reconcile logic: canModelUseAssistantWebSearch =
+  // hasModelBuiltinWebSearch(model, provider) || isFunctionCallingModel. The
+  // built-in branch is false for the test provider (no serverTools), so it
+  // reduces to the function-call check.
   canModelUseAssistantWebSearch: (currentModel?: Model) =>
     currentModel?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
   resolveReasoningEffortForModel: (currentModel: Model, currentEffort?: string) => {
@@ -402,15 +403,13 @@ vi.mock('@renderer/utils/model', () => ({
     currentModel?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
   isGenerateImageModel: () => false,
   isGenerateImageModels: () => false,
-  isOpenRouterBuiltInWebSearchModel: () => false,
   isRerankModel: () => false,
   isSupportedReasoningEffortModel: () => false,
   isSupportedThinkingTokenModel: () => false,
   isVideoModel: () => false,
   isVideoModels: () => false,
   isVisionModel: () => false,
-  isVisionModels: () => false,
-  isWebSearchModel: () => false
+  isVisionModels: () => false
 }))
 
 vi.mock('@renderer/data/hooks/useCache', async () => {
@@ -492,8 +491,7 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
 vi.mock('@shared/utils/model', () => ({
   isFunctionCallingModel: (currentModel?: Model) =>
     currentModel?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
-  isNonChatModel: (currentModel?: Model) => currentModel?.capabilities.includes(MODEL_CAPABILITY.RERANK) ?? false,
-  isWebSearchModel: () => false
+  isNonChatModel: (currentModel?: Model) => currentModel?.capabilities.includes(MODEL_CAPABILITY.RERANK) ?? false
 }))
 
 vi.mock('react-i18next', async (importOriginal) => {

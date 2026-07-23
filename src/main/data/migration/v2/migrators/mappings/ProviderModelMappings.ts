@@ -8,13 +8,14 @@ import {
   type EndpointType,
   inferAdapterFamily,
   MODEL_CAPABILITY,
-  type ModelCapability
+  type ModelCapability,
+  SERVER_TOOL
 } from '@cherrystudio/provider-registry'
 import type { InsertUserModelRow } from '@data/db/schemas/userModel'
 import type { InsertUserProviderRow } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
 import type { Model as LegacyModel, ModelType, Provider as LegacyProvider } from '@main/data/migration/legacyTypes'
-import { createUniqueModelId, type RuntimeModelPricing } from '@shared/data/types/model'
+import { createUniqueModelId, type RuntimeModelPricing, type ServerToolOverrides } from '@shared/data/types/model'
 import type {
   ApiFeatures,
   ApiKeyEntry,
@@ -58,7 +59,6 @@ const CAPABILITY_MAP: Partial<Record<ModelType, ModelCapability | undefined>> = 
   reasoning: MODEL_CAPABILITY.REASONING,
   function_calling: MODEL_CAPABILITY.FUNCTION_CALL,
   embedding: MODEL_CAPABILITY.EMBEDDING,
-  web_search: MODEL_CAPABILITY.WEB_SEARCH,
   rerank: MODEL_CAPABILITY.RERANK
 }
 
@@ -441,7 +441,9 @@ function buildProviderSettings(legacy: LegacyProvider, llmSettings: OldLlmSettin
 
 export function transformModel(legacy: LegacyModel, providerId: string): Omit<InsertUserModelRow, 'orderKey'> {
   const hasCustomizedCapabilities =
-    legacy.capabilities?.some((capability) => capability.isUserSelected !== undefined) ?? false
+    legacy.capabilities?.some(
+      (capability) => capability.type !== 'web_search' && capability.isUserSelected !== undefined
+    ) ?? false
   const endpointTypes = mapEndpointTypes(legacy.endpoint_type, legacy.supported_endpoint_types)
 
   return {
@@ -457,6 +459,7 @@ export function transformModel(legacy: LegacyModel, providerId: string): Omit<In
     description: legacy.description ?? null,
     group: legacy.group ?? null,
     capabilities: mapCapabilities(legacy.capabilities, endpointTypes),
+    serverToolOverrides: mapServerToolOverrides(legacy.capabilities),
     inputModalities: null,
     outputModalities: null,
     endpointTypes,
@@ -470,6 +473,13 @@ export function transformModel(legacy: LegacyModel, providerId: string): Omit<In
     isHidden: false,
     userOverrides: hasCustomizedCapabilities ? ['capabilities'] : null
   }
+}
+
+function mapServerToolOverrides(capabilities?: LegacyModel['capabilities']): ServerToolOverrides | null {
+  const webSearch = capabilities?.find(
+    (capability) => capability.type === 'web_search' && capability.isUserSelected !== undefined
+  )
+  return webSearch ? { [SERVER_TOOL.WEB_SEARCH]: webSearch.isUserSelected! } : null
 }
 
 function mapCapabilities(
@@ -490,7 +500,7 @@ function mapCapabilities(
   for (const capability of capabilities ?? []) {
     const result = CAPABILITY_MAP[capability.type]
     if (result === undefined) {
-      if (capability.type !== 'text') {
+      if (capability.type !== 'text' && capability.type !== 'web_search') {
         logger.warn('Unknown capability type dropped during migration', { type: capability.type })
       }
       continue

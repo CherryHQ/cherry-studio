@@ -18,7 +18,7 @@ import {
   CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
   CHERRYAI_PROVIDER_ID
 } from '@shared/data/presets/cherryai'
-import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { createUniqueModelId, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { and, eq, or } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -100,6 +100,7 @@ describe('UPDATE_MODEL_FIELD_MAP completeness', () => {
       'description',
       'group',
       'capabilities',
+      'serverToolOverrides',
       'inputModalities',
       'outputModalities',
       'endpointTypes',
@@ -202,6 +203,24 @@ describe('ModelService.update', () => {
       .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
 
     expect(row.parameters).toEqual(params)
+  })
+
+  it('persists server-tool eligibility overrides independently from model capabilities', async () => {
+    await seedExistingModel()
+
+    modelService.update('openai', 'gpt-4o', {
+      serverToolOverrides: { [SERVER_TOOL.WEB_SEARCH]: false }
+    })
+
+    const [row] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(and(eq(userModelTable.providerId, 'openai'), eq(userModelTable.modelId, 'gpt-4o')))
+    const [model] = modelService.list({ providerId: 'openai' })
+
+    expect(row.serverToolOverrides).toEqual({ [SERVER_TOOL.WEB_SEARCH]: false })
+    expect(model.serverToolOverrides).toEqual({ [SERVER_TOOL.WEB_SEARCH]: false })
+    expect(model.capabilities).toEqual([MODEL_CAPABILITY.FUNCTION_CALL])
   })
 
   it('throws NOT_FOUND when model does not exist', async () => {

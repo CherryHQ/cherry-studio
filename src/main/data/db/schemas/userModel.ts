@@ -17,7 +17,8 @@ import type {
   ModelCapability,
   ParameterSupport,
   ReasoningConfig,
-  RuntimeModelPricing
+  RuntimeModelPricing,
+  ServerToolOverrides
 } from '@shared/data/types/model'
 import { index, integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
 
@@ -96,6 +97,9 @@ export const userModelTable = sqliteTable(
       .$type<ModelCapability[]>()
       .notNull()
       .$defaultFn(() => []),
+
+    /** User overrides for model-dependent provider-native tool eligibility. */
+    serverToolOverrides: text({ mode: 'json' }).$type<ServerToolOverrides>(),
 
     /** Supported input modalities (e.g., TEXT, VISION, AUDIO, VIDEO) */
     inputModalities: text({ mode: 'json' }).$type<Modality[]>(),

@@ -49,16 +49,18 @@ export default defineCreator({
     'text-embedding-005',
     'text-multilingual-embedding'
   ],
-  webSearch: [
-    'gemini-2',
-    'gemini-3-flash',
-    'gemini-3-pro',
-    'gemini-3-5-flash',
-    'gemini-3-5-pro',
-    'gemini-flash-latest',
-    'gemini-pro-latest',
-    'gemini-flash-lite-latest'
-  ],
+  serverTools: {
+    'web-search': [
+      'gemini-2',
+      'gemini-3-flash',
+      'gemini-3-pro',
+      'gemini-3-5-flash',
+      'gemini-3-5-pro',
+      'gemini-flash-latest',
+      'gemini-pro-latest',
+      'gemini-flash-lite-latest'
+    ]
+  },
   models: [
     {
       id: 'gemini-2-5-flash-image',
@@ -91,7 +93,8 @@ export default defineCreator({
       id: 'gemini-3-pro-image-preview',
       name: 'gemini-3-pro-image-preview',
       family: 'gemini-pro',
-      capabilities: ['reasoning', 'image-recognition', 'image-generation', 'file-input', 'web-search'],
+      capabilities: ['reasoning', 'image-recognition', 'image-generation', 'file-input'],
+      serverTools: ['web-search'],
       inputModalities: ['text', 'image'],
       outputModalities: ['text', 'image'],
       imageGeneration: {
@@ -587,9 +590,9 @@ export default defineCreator({
         'image-recognition',
         'image-generation',
         'structured-output',
-        'file-input',
-        'web-search'
+        'file-input'
       ],
+      serverTools: ['web-search'],
       inputModalities: ['image', 'text'],
       outputModalities: ['text', 'image'],
       imageGeneration: {

@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { type Model, MODEL_CAPABILITY, SERVER_TOOL } from '@shared/data/types/model'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
@@ -68,12 +68,19 @@ vi.mock('@renderer/utils/api', () => ({
 vi.mock('@renderer/utils/model', () => {
   const isFunctionCallingModel = (model?: Model) =>
     model?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false
-  const isOpenRouterBuiltInWebSearchModel = () => false
-  const isWebSearchModel = (model?: Model) => model?.capabilities.includes(MODEL_CAPABILITY.WEB_SEARCH) ?? false
-  // Mirror the real reconcile composition over the mocked predicates above.
-  const hasModelBuiltinWebSearch = (model?: Model) => isWebSearchModel(model) || isOpenRouterBuiltInWebSearchModel()
-  const canModelUseAssistantWebSearch = (model?: Model) =>
-    hasModelBuiltinWebSearch(model) || isFunctionCallingModel(model)
+  const isServerToolModelEligible = (model?: Model) => model?.serverToolOverrides?.[SERVER_TOOL.WEB_SEARCH] ?? false
+  // Mirror the real reconcile composition, including provider-wide search.
+  const hasModelBuiltinWebSearch = (
+    model?: Model,
+    provider?: { serverTools?: Array<{ id: string; modelScope: string }> }
+  ) => {
+    const tool = provider?.serverTools?.find(({ id }) => id === 'web-search')
+    return tool?.modelScope === 'all-chat-models' || (!!tool && isServerToolModelEligible(model))
+  }
+  const canModelUseAssistantWebSearch = (
+    model?: Model,
+    provider?: { serverTools?: Array<{ id: string; modelScope: string }> }
+  ) => hasModelBuiltinWebSearch(model, provider) || isFunctionCallingModel(model)
 
   return {
     canModelUseAssistantWebSearch,
@@ -82,11 +89,10 @@ vi.mock('@renderer/utils/model', () => {
     isGemini3Model: () => false,
     isGeminiModel: () => false,
     isGPT5SeriesReasoningModel: () => false,
-    isOpenRouterBuiltInWebSearchModel,
     isOpenAIWebSearchModel: () => false,
     isSupportedReasoningEffortModel: () => false,
     isSupportedThinkingTokenModel: () => false,
-    isWebSearchModel
+    isServerToolModelEligible
   }
 })
 

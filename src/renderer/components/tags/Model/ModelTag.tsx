@@ -1,5 +1,13 @@
-import { type Model, MODEL_CAPABILITY, type ModelCapability, type ModelTag } from '@shared/data/types/model'
+import {
+  type Model,
+  MODEL_CAPABILITY,
+  type ModelCapability,
+  type ModelTag,
+  SERVER_TOOL
+} from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { isFreeModel } from '@shared/utils/model'
+import { isBuiltinWebSearchAvailable, isServerToolModelEligible } from '@shared/utils/provider'
 import type { ComponentType } from 'react'
 
 import type { CustomTagProps } from '../CustomTag'
@@ -15,14 +23,21 @@ export type ModelDisplayTagSource = Pick<Model, 'id' | 'name' | 'providerId' | '
 
 export const MODEL_DISPLAY_CAPABILITY_TAGS = [
   MODEL_CAPABILITY.IMAGE_RECOGNITION,
-  MODEL_CAPABILITY.WEB_SEARCH,
   MODEL_CAPABILITY.REASONING,
   MODEL_CAPABILITY.FUNCTION_CALL,
   MODEL_CAPABILITY.EMBEDDING,
   MODEL_CAPABILITY.RERANK
 ] as const satisfies readonly ModelCapability[]
 
-export const MODEL_DISPLAY_TAGS = [...MODEL_DISPLAY_CAPABILITY_TAGS, 'free'] as const satisfies readonly ModelTag[]
+export const MODEL_DISPLAY_TAGS = [
+  MODEL_CAPABILITY.IMAGE_RECOGNITION,
+  SERVER_TOOL.WEB_SEARCH,
+  MODEL_CAPABILITY.REASONING,
+  MODEL_CAPABILITY.FUNCTION_CALL,
+  MODEL_CAPABILITY.EMBEDDING,
+  MODEL_CAPABILITY.RERANK,
+  'free'
+] as const satisfies readonly ModelTag[]
 
 export type ModelDisplayCapabilityTag = (typeof MODEL_DISPLAY_CAPABILITY_TAGS)[number]
 export type ModelDisplayTag = (typeof MODEL_DISPLAY_TAGS)[number]
@@ -52,16 +67,32 @@ export function isModelTagVisible(
   return true
 }
 
-export function modelMatchesDisplayTag(model: ModelDisplayTagSource, tag: ModelDisplayTag) {
+export function modelMatchesDisplayTag(
+  model: ModelDisplayTagSource,
+  tag: ModelDisplayTag,
+  provider?: Pick<Provider, 'serverTools'>
+) {
   if (tag === 'free') {
     return isFreeModel(model)
+  }
+
+  if (tag === SERVER_TOOL.WEB_SEARCH) {
+    return provider
+      ? isBuiltinWebSearchAvailable(model as Model, provider)
+      : isServerToolModelEligible(model as Model, SERVER_TOOL.WEB_SEARCH)
   }
 
   return model.capabilities.includes(tag)
 }
 
-export function getModelDisplayTags(model: ModelDisplayTagSource, options?: ModelTagVisibilityOptions) {
-  return MODEL_DISPLAY_TAGS.filter((tag) => isModelTagVisible(tag, options) && modelMatchesDisplayTag(model, tag))
+export function getModelDisplayTags(
+  model: ModelDisplayTagSource,
+  options?: ModelTagVisibilityOptions,
+  provider?: Pick<Provider, 'serverTools'>
+) {
+  return MODEL_DISPLAY_TAGS.filter(
+    (tag) => isModelTagVisible(tag, options) && modelMatchesDisplayTag(model, tag, provider)
+  )
 }
 
 export type ModelTagProps = {

@@ -26,6 +26,7 @@ import {
 import { matchReasoningMembership } from '../src/patterns/reasoning-membership'
 import { PROVIDERS } from '../src/providers'
 import type { ProviderEntry } from '../src/providers/types'
+import { SERVER_TOOL, type ServerTool } from '../src/schemas/enums'
 import type { ReasoningFamilyRule } from '../src/schemas/model'
 import { ReasoningFamilyRuleSchema } from '../src/schemas/model'
 import { stripHostReprefix } from '../src/utils/normalize'
@@ -51,6 +52,7 @@ const MODELS_PATH = process.env.MODELS_OUT || path.join(__dirname, '../data/mode
 const PROVIDERS_PATH = path.join(__dirname, '../data/providers.json')
 const PROVIDER_MODELS_PATH = path.join(__dirname, '../data/provider-models.json')
 const REASONING_FAMILIES_GEN_PATH = path.join(__dirname, '../src/patterns/reasoning-families.gen.ts')
+const SERVER_TOOL_MODELS_GEN_PATH = path.join(__dirname, '../src/patterns/server-tool-models.gen.ts')
 const WRITE = process.argv.includes('--write')
 const REPORT = process.argv.includes('--report')
 // Each artifact's `version` is a hash of its own (version-less, key-sorted) content: equal content ⇒
@@ -103,6 +105,52 @@ function buildReasoningFamiliesGen(): string {
   }
   lines.push(']', '')
   return lines.join('\n')
+}
+
+/**
+ * Compile creator-declared server-tool prefixes into exact catalog model ids.
+ * Exact ids keep runtime availability deterministic and prevent a broad family
+ * prefix from leaking onto newly discovered image/TTS/transcription siblings.
+ */
+function collectServerToolModels(models: Map<string, any>): Partial<Record<ServerTool, string[]>> {
+  const result: Partial<Record<ServerTool, string[]>> = {}
+  for (const tool of Object.values(SERVER_TOOL)) {
+    const ids: string[] = []
+    for (const model of models.values()) {
+      const explicitlyEligible = (model.serverTools ?? []).includes(tool)
+      const creator = creatorById.get(model.ownedBy)
+      const matchesCreatorRule = (creator?.serverTools?.[tool] ?? []).some((prefix) => prefixHit(model.id, prefix))
+      if (!explicitlyEligible && !matchesCreatorRule) continue
+
+      const inputModalities = model.inputModalities ?? ['text']
+      const outputModalities = model.outputModalities ?? ['text']
+      if (!inputModalities.includes('text') || !outputModalities.includes('text')) continue
+      if (!explicitlyEligible && tool === SERVER_TOOL.WEB_SEARCH && model.capabilities?.includes('image-generation')) {
+        continue
+      }
+      ids.push(model.id)
+    }
+    if (ids.length > 0) result[tool] = ids.sort()
+  }
+  return result
+}
+
+/** Runtime artifact for model-dependent server-tool eligibility. */
+function buildServerToolModelsGen(models: Map<string, any>): string {
+  const modelIds = collectServerToolModels(models)
+  return [
+    '/**',
+    ' * GENERATED FILE — DO NOT EDIT.',
+    ' *',
+    ' * Compiled from `Creator.serverTools` and exceptional `CreatorModel.serverTools` declarations',
+    ' * by scripts/generate-catalog.ts — edit the creator and run `pnpm generate`.',
+    ' */',
+    "import type { ServerTool } from '../schemas/enums'",
+    '',
+    'export const SERVER_TOOL_MODEL_IDS: Partial<Record<ServerTool, readonly string[]>> =',
+    `  ${JSON.stringify(modelIds, null, 2)}`,
+    ''
+  ].join('\n')
 }
 
 /** Key-sort `body`, stamp `version: contentVersion(body)`, and serialize — the single write shape. */
@@ -334,19 +382,11 @@ function buildModels(index: Index, claimed: Map<string, string>): Map<string, an
     if (kind === 'embedding') m.outputModalities = ['vector']
     if (!m.inputModalities?.length) m.inputModalities = ['text']
   }
-  // Tag web-search — a curated capability upstream never reports (no `inferXxx`): the owning creator declares
-  // which of its models carry it, as DATA, via `webSearch` id-prefixes. Union onto upstream capabilities.
-  const creatorWebSearch = new Map(CREATORS.map((l) => [l.id, l.webSearch ?? []]))
+  // Server-tool eligibility is compiled separately from Creator.serverTools.
+  // Remove any stale/upstream web-search capability so it cannot become a
+  // second runtime source of truth beside that eligibility table.
   for (const m of models.values()) {
-    // web-search is a TEXT-CHAT capability: a non-chat SKU never inherits it just for sharing a chat
-    // sibling's prefix. Skip image rows (`gpt-5-image*` ride `gpt-5`; they output text too, so the
-    // modality gate alone won't catch them) and any row that doesn't converse in text on both sides —
-    // TTS (text→audio) and transcription (audio→text). Hand-listed capabilities are unaffected.
-    if ((m.capabilities ?? []).includes('image-generation')) continue
-    if (!(m.inputModalities ?? ['text']).includes('text') || !(m.outputModalities ?? ['text']).includes('text'))
-      continue
-    if ((creatorWebSearch.get(m.ownedBy) ?? []).some((p) => prefixHit(m.id, p)))
-      m.capabilities = [...new Set([...(m.capabilities ?? []), 'web-search'])]
+    m.capabilities = (m.capabilities ?? []).filter((capability: string) => capability !== 'web-search')
   }
   return models
 }
@@ -520,6 +560,7 @@ void (async () => {
     return
   }
 
+  const serverToolModelsGen = buildServerToolModelsGen(models)
   const list = [...models.values()]
     .sort((a, b) => {
       const aKey = `${a.ownedBy ?? ''}\0${a.id}`
@@ -527,7 +568,10 @@ void (async () => {
       return aKey < bKey ? -1 : aKey > bKey ? 1 : 0
     })
     .map((m) => {
-      const { metadata, ...rest } = m
+      const metadata = m.metadata
+      const rest = { ...m }
+      delete rest.metadata
+      delete rest.serverTools
       return { ...rest, ...(metadata ? { metadata } : {}) }
     })
   fs.writeFileSync(MODELS_PATH, stampAndSerialize({ models: list }))
@@ -544,4 +588,7 @@ void (async () => {
   const familiesGen = buildReasoningFamiliesGen()
   fs.writeFileSync(REASONING_FAMILIES_GEN_PATH, familiesGen)
   console.log(`WROTE ${REASONING_FAMILIES_GEN_PATH}.`)
+
+  fs.writeFileSync(SERVER_TOOL_MODELS_GEN_PATH, serverToolModelsGen)
+  console.log(`WROTE ${SERVER_TOOL_MODELS_GEN_PATH}.`)
 })()

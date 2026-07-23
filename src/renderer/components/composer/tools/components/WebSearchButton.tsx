@@ -8,10 +8,10 @@ import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getEffectiveMcpMode } from '@renderer/utils/mcpMode'
-import { canModelUseAssistantWebSearch, hasModelBuiltinWebSearch } from '@renderer/utils/model'
+import { canModelUseAssistantWebSearch, hasModelBuiltinWebSearch, isOpenAIWebSearchModel } from '@renderer/utils/model'
 import { getWebSearchProviderLogo } from '@renderer/utils/webSearchProviderMeta'
 import type { WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
-import { isGemini3Model, isGeminiModel, isGPT5SeriesReasoningModel, isOpenAIWebSearchModel } from '@shared/utils/model'
+import { isGemini3Model, isGeminiModel, isGPT5SeriesReasoningModel } from '@shared/utils/model'
 import { isGeminiWebSearchProvider } from '@shared/utils/provider'
 import { useNavigate } from '@tanstack/react-router'
 import { Globe } from 'lucide-react'
@@ -35,8 +35,8 @@ const useWebSearchToolController = ({ assistantId, launcher }: Props) => {
   const { defaultSearchKeywordsProvider } = useWebSearchProviders()
 
   const enableWebSearch = assistant?.settings.enableWebSearch ?? false
-  const hasBuiltinWebSearch = model ? hasModelBuiltinWebSearch(model) : false
-  const canUseWebSearch = assistant && model ? canModelUseAssistantWebSearch(model) : false
+  const hasBuiltinWebSearch = model ? hasModelBuiltinWebSearch(model, modelProvider) : false
+  const canUseWebSearch = assistant && model ? canModelUseAssistantWebSearch(model, modelProvider) : false
 
   const activeProviderId = useMemo(() => {
     const p = defaultSearchKeywordsProvider

@@ -12,8 +12,7 @@ import {
   isSpeechToTextModel,
   isTextToSpeechModel,
   isVideoModel,
-  isVisionModel,
-  isWebSearchModel
+  isVisionModel
 } from '@shared/utils/model'
 import { describe, expect, it } from 'vitest'
 
@@ -33,14 +32,12 @@ describe('shared model capability helpers', () => {
     const model = createModel([
       MODEL_CAPABILITY.REASONING,
       MODEL_CAPABILITY.FUNCTION_CALL,
-      MODEL_CAPABILITY.IMAGE_RECOGNITION,
-      MODEL_CAPABILITY.WEB_SEARCH
+      MODEL_CAPABILITY.IMAGE_RECOGNITION
     ])
 
     expect(isReasoningModel(model)).toBe(true)
     expect(isFunctionCallingModel(model)).toBe(true)
     expect(isVisionModel(model)).toBe(true)
-    expect(isWebSearchModel(model)).toBe(true)
   })
 
   it('does not infer capabilities from model id or name at runtime', () => {
@@ -54,7 +51,6 @@ describe('shared model capability helpers', () => {
     expect(isReasoningModel(model)).toBe(false)
     expect(isFunctionCallingModel(model)).toBe(false)
     expect(isVisionModel(model)).toBe(false)
-    expect(isWebSearchModel(model)).toBe(false)
   })
 
   it('keeps embedding, rerank, and image generation as explicit capability checks', () => {

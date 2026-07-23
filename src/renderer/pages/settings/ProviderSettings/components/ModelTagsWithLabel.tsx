@@ -1,5 +1,6 @@
 import { getModelDisplayTags, ModelTag } from '@renderer/components/tags/Model'
 import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import type { FC } from 'react'
 import { memo } from 'react'
 
@@ -8,6 +9,7 @@ export type ModelTagsWithLabelModel = Pick<Model, 'id' | 'name' | 'providerId' |
 
 interface ModelTagsProps {
   model: ModelTagsWithLabelModel
+  provider?: Provider
   showFree?: boolean
   showReasoning?: boolean
   showToolsCalling?: boolean
@@ -18,6 +20,7 @@ interface ModelTagsProps {
 
 const ModelTagsWithLabel: FC<ModelTagsProps> = ({
   model,
+  provider,
   showFree = true,
   showReasoning = true,
   showToolsCalling = true,
@@ -26,7 +29,7 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
   style
 }) => {
   const tagProps = { size, showTooltip, showLabel: false }
-  const tags = getModelDisplayTags(model, { showFree, showReasoning, showToolsCalling })
+  const tags = getModelDisplayTags(model, { showFree, showReasoning, showToolsCalling }, provider)
 
   return (
     <div className="flex min-w-0 max-w-full flex-row flex-wrap items-center gap-0.5 overflow-visible" style={style}>

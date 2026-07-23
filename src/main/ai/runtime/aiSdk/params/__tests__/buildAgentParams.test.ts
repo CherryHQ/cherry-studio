@@ -94,6 +94,71 @@ describe('buildAgentParams provider resolution', () => {
     })
     expect(result.options.providerOptions).not.toHaveProperty('google')
   })
+
+  it('suppresses URL Context when Gemini 2.5 receives actual function tools', async () => {
+    providerToAiSdkConfigMock.mockResolvedValue({
+      providerId: 'google',
+      providerSettings: {}
+    })
+    const provider = makeProvider({
+      id: 'gemini',
+      defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google' }
+      },
+      serverTools: [{ id: 'url-context', modelScope: 'model-dependent' }]
+    })
+    const model = makeModel({
+      id: 'gemini::gemini-2.5-pro',
+      providerId: 'gemini',
+      apiModelId: 'gemini-2.5-pro',
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+    })
+    const assistant = makeAssistant({ settings: { enableUrlContext: true } })
+
+    const result = await buildAgentParams({
+      request: { callOverrides: { tools: { mcp__test__lookup: {} as Tool } } },
+      signal: undefined,
+      provider,
+      model,
+      assistant
+    })
+
+    expect(result.tools).toHaveProperty('mcp__test__lookup')
+    expect(result.plugins.map((plugin) => plugin.name)).not.toContain('urlContext')
+  })
+
+  it('keeps URL Context when Gemini 3 receives function tools', async () => {
+    providerToAiSdkConfigMock.mockResolvedValue({
+      providerId: 'google',
+      providerSettings: {}
+    })
+    const provider = makeProvider({
+      id: 'gemini',
+      defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google' }
+      },
+      serverTools: [{ id: 'url-context', modelScope: 'model-dependent' }]
+    })
+    const model = makeModel({
+      id: 'gemini::gemini-3-pro',
+      providerId: 'gemini',
+      apiModelId: 'gemini-3-pro',
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+    })
+    const assistant = makeAssistant({ settings: { enableUrlContext: true } })
+
+    const result = await buildAgentParams({
+      request: { callOverrides: { tools: { mcp__test__lookup: {} as Tool } } },
+      signal: undefined,
+      provider,
+      model,
+      assistant
+    })
+
+    expect(result.plugins.map((plugin) => plugin.name)).toContain('urlContext')
+  })
 })
 
 describe('resolveReasoningMaxTokens', () => {

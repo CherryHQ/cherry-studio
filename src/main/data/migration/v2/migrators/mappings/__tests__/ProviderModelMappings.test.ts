@@ -1,9 +1,52 @@
-import { ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
+import { ENDPOINT_TYPE, SERVER_TOOL } from '@cherrystudio/provider-registry'
 import { describe, expect, it } from 'vitest'
 
-import { transformProvider } from '../ProviderModelMappings'
+import { transformModel, transformProvider } from '../ProviderModelMappings'
 
 describe('ProviderModelMappings', () => {
+  describe('transformModel', () => {
+    it('migrates explicit v1 web-search selection outside generic model capabilities', () => {
+      const enabled = transformModel(
+        {
+          id: 'private-model',
+          name: 'Private Model',
+          capabilities: [
+            { type: 'function_calling', isUserSelected: true },
+            { type: 'web_search', isUserSelected: true }
+          ]
+        } as never,
+        'custom-provider'
+      )
+      const disabled = transformModel(
+        {
+          id: 'private-model',
+          capabilities: [{ type: 'web_search', isUserSelected: false }]
+        } as never,
+        'custom-provider'
+      )
+
+      expect(enabled.capabilities).toEqual(['function-call'])
+      expect(enabled.serverToolOverrides).toEqual({ [SERVER_TOOL.WEB_SEARCH]: true })
+      expect(enabled.userOverrides).toEqual(['capabilities'])
+      expect(disabled.capabilities).toEqual([])
+      expect(disabled.serverToolOverrides).toEqual({ [SERVER_TOOL.WEB_SEARCH]: false })
+      expect(disabled.userOverrides).toBeNull()
+    })
+
+    it('leaves inferred v1 web-search entries to the v2 registry default', () => {
+      const result = transformModel(
+        {
+          id: 'claude-sonnet-4-6',
+          capabilities: [{ type: 'web_search' }]
+        } as never,
+        'anthropic'
+      )
+
+      expect(result.capabilities).toEqual([])
+      expect(result.serverToolOverrides).toBeNull()
+    })
+  })
+
   describe('transformProvider', () => {
     it('maps custom-id Azure providers to azure-openai preset via type fallback', () => {
       const result = transformProvider(

@@ -25,7 +25,7 @@ import type {
   ReasoningFormatType,
   ReasoningWireProfile
 } from '@cherrystudio/provider-registry'
-import type { EndpointType, Modality, ModelCapability } from '@cherrystudio/provider-registry'
+import type { EndpointType, Modality, ModelCapability, ServerToolConfig } from '@cherrystudio/provider-registry'
 import {
   buildPersistedEndpointConfigs,
   deriveLegacyReasoningFields,
@@ -59,6 +59,8 @@ export interface ProviderDisplayMetadata {
   authMethods?: ('api-key' | 'oauth' | 'external-cli')[]
   /** Registry capability: serves requests without any credential (default false). */
   authOptional?: boolean
+  /** Registry capability: provider-native (server-executed) built-in tools (default `[]`). */
+  serverTools?: ServerToolConfig[]
 }
 
 export interface ListProviderRegistryModelsOptions {
@@ -562,7 +564,8 @@ class ProviderRegistryService {
         websites: provider?.metadata?.website,
         modelListSource: provider?.modelListSource,
         authMethods: provider?.authMethods,
-        authOptional: provider?.authOptional
+        authOptional: provider?.authOptional,
+        serverTools: provider?.serverTools
       }
     } catch (error) {
       logger.warn('Failed to load provider display metadata', { providerId, presetProviderId, error })

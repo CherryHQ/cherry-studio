@@ -16,6 +16,7 @@ import {
   objectValues,
   ParameterSupportDbSchema,
   RuntimeModelPricingSchema,
+  ServerToolOverridesSchema,
   type UniqueModelId,
   UniqueModelIdSchema
 } from '../../types/model'
@@ -47,6 +48,8 @@ export const CreateModelSchema = z.strictObject({
   group: z.string().optional(),
   /** Capabilities */
   capabilities: z.array(z.enum(objectValues(MODEL_CAPABILITY))).optional(),
+  /** Model-dependent provider-native tool eligibility overrides. */
+  serverToolOverrides: ServerToolOverridesSchema.optional(),
   /** Input modalities */
   inputModalities: z.array(z.enum(objectValues(MODALITY))).optional(),
   /** Output modalities */

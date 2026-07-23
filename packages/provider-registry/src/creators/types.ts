@@ -5,6 +5,7 @@
  * LIST (from its own API and/or hand-written entries), and metadata is enriched from
  * models.dev/OpenRouter. You never edit `models.json` by hand — add/override in a creator here instead.
  */
+import type { ServerTool } from '../schemas/enums'
 import type { ModelConfig, ReasoningFamilyRule } from '../schemas/model'
 
 /**
@@ -13,7 +14,11 @@ import type { ModelConfig, ReasoningFamilyRule } from '../schemas/model'
  * re-declared. Use it to ADD models the API/sources miss (new releases, AIGC, `imageGeneration`
  * widget specs models.dev never has) or to override any field.
  */
-export type CreatorModel = Partial<Omit<ModelConfig, 'ownedBy' | 'metadata'>> & { id: string }
+export type CreatorModel = Partial<Omit<ModelConfig, 'ownedBy' | 'metadata'>> & {
+  id: string
+  /** Explicit server-tool eligibility for exceptional hand-listed models. Generation-only. */
+  serverTools?: ServerTool[]
+}
 
 export interface Creator {
   /** Canonical creator id — becomes every model's `ownedBy`. Never a host/gateway. */
@@ -32,12 +37,11 @@ export interface Creator {
   /** Fallback: claim every canonical id matching these prefixes. */
   idPrefixes?: string[]
   /**
-   * Curated web-search capability as DATA (no `inferXxx`): canonical id-prefixes of THIS creator's models
-   * that support web search — a capability upstream (models.dev/OpenRouter) never reports. The generator
-   * unions `web-search` onto every owned model matching one of these prefixes (same `prefixHit` semantics
-   * as `idPrefixes`). e.g. anthropic `['claude-opus-4', 'claude-sonnet-4']`.
+   * Curated provider-native tool eligibility as DATA: canonical id-prefixes of THIS creator's models
+   * that accept each server tool. Generation compiles these declarations into a small exact-model
+   * runtime table; they never become generic model capabilities.
    */
-  webSearch?: string[]
+  serverTools?: Partial<Record<ServerTool, string[]>>
   /**
    * Curated reasoning knowledge as DATA (no runtime regex module): the single
    * rule table for THIS creator's id patterns. PROFILE rules (default) assert

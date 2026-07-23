@@ -20,6 +20,7 @@ import type {
   Modality,
   ModelCapability,
   ReasoningEffort,
+  ServerTool,
   SupportSpec
 } from '@cherrystudio/provider-registry'
 import {
@@ -33,7 +34,8 @@ import {
   MODEL_CAPABILITY,
   objectValues,
   REASONING_EFFORT,
-  ReasoningControlSchema
+  ReasoningControlSchema,
+  SERVER_TOOL
 } from '@cherrystudio/provider-registry'
 import * as z from 'zod'
 
@@ -47,7 +49,8 @@ export {
   MODALITY,
   MODEL_CAPABILITY,
   objectValues,
-  REASONING_EFFORT
+  REASONING_EFFORT,
+  SERVER_TOOL
 }
 
 // Re-export types for consumers
@@ -61,6 +64,7 @@ export type {
   Modality,
   ModelCapability,
   ReasoningEffort,
+  ServerTool,
   SupportSpec
 }
 
@@ -210,18 +214,20 @@ export const UI_CAPABILITY_TAGS = [
   MODEL_CAPABILITY.EMBEDDING,
   MODEL_CAPABILITY.REASONING,
   MODEL_CAPABILITY.FUNCTION_CALL,
-  MODEL_CAPABILITY.WEB_SEARCH,
   MODEL_CAPABILITY.RERANK
 ] as const
+
+/** Provider-native tools surfaced alongside model capability tags. */
+export const UI_SERVER_TOOL_TAGS = [SERVER_TOOL.WEB_SEARCH] as const
 
 /** A capability that is shown as a UI tag */
 export type ModelCapabilityTag = (typeof UI_CAPABILITY_TAGS)[number]
 
 /** All UI-visible model tags: capability-derived + business tags */
-export type ModelTag = ModelCapabilityTag | 'free'
+export type ModelTag = ModelCapabilityTag | (typeof UI_SERVER_TOOL_TAGS)[number] | 'free'
 
 /** All possible ModelTag values (for iteration) */
-export const ALL_MODEL_TAGS: readonly ModelTag[] = [...UI_CAPABILITY_TAGS, 'free'] as const
+export const ALL_MODEL_TAGS: readonly ModelTag[] = [...UI_CAPABILITY_TAGS, ...UI_SERVER_TOOL_TAGS, 'free'] as const
 
 export type ThinkingTokenLimits = z.infer<typeof ThinkingTokenLimitsSchema>
 
@@ -294,6 +300,10 @@ export const RuntimeModelPricingSchema = z.object({
 })
 export type RuntimeModelPricing = z.infer<typeof RuntimeModelPricingSchema>
 
+/** User override for model-dependent provider-native tool eligibility. */
+export const ServerToolOverridesSchema = z.partialRecord(z.enum(objectValues(SERVER_TOOL)), z.boolean())
+export type ServerToolOverrides = z.infer<typeof ServerToolOverridesSchema>
+
 export const ModelSchema = z.object({
   /** Unique identifier: "providerId::modelId" */
   id: UniqueModelIdSchema,
@@ -319,6 +329,8 @@ export const ModelSchema = z.object({
   // Capabilities
   /** Final capability list after all merges */
   capabilities: z.array(z.enum(objectValues(MODEL_CAPABILITY))),
+  /** Explicit user eligibility overrides for provider-native tools. */
+  serverToolOverrides: ServerToolOverridesSchema.optional(),
   /** Supported input modalities */
   inputModalities: z.array(z.enum(objectValues(MODALITY))).optional(),
   /** Supported output modalities */
