@@ -7,6 +7,7 @@ import {
 } from '@data/db/schemas/agentSessionMessage'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
@@ -242,7 +243,7 @@ export class AgentSessionMessageService {
         .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
         .returning()
         .all()
-      this.touchSessionUpdatedAt(tx, sessionId, updatedAt)
+      agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
       return this.rowToEntity(updated)
     })
   }
@@ -429,17 +430,13 @@ export class AgentSessionMessageService {
     return this.rowToEntity(saved)
   }
 
-  private touchSessionUpdatedAt(db: DbOrTx, sessionId: string, timestampMs: number): void {
-    db.update(sessionTable).set({ updatedAt: timestampMs }).where(eq(sessionTable.id, sessionId)).run()
-  }
-
   private saveMessageTx(
     db: DbOrTx,
     params: { sessionId: string; runtimeResumeToken?: string; message: CreateAgentSessionMessageDto },
     timestampMs = Date.now()
   ): AgentSessionMessageEntity {
     const saved = this.upsertMessage(db, params, timestampMs)
-    this.touchSessionUpdatedAt(db, params.sessionId, timestampMs)
+    agentSessionService.touchUpdatedAtTx(db, params.sessionId, timestampMs)
     return saved
   }
 
@@ -461,7 +458,7 @@ export class AgentSessionMessageService {
       for (const message of messages) {
         saved.push(this.upsertMessage(tx, { sessionId, runtimeResumeToken, message }, timestampMs))
       }
-      this.touchSessionUpdatedAt(tx, sessionId, timestampMs)
+      agentSessionService.touchUpdatedAtTx(tx, sessionId, timestampMs)
       return saved
     })
   }
