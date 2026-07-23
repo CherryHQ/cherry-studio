@@ -566,7 +566,7 @@
       },
       "prompt": "Configurações de Prompt",
       "skills": {
-        "addMore": "Adicionar Mais Skills",
+        "addMore": "Gerir Skills",
         "builtin": "Integrado",
         "noFilterResults": "Nenhuma habilidade correspondente",
         "noSkills": "Nenhuma habilidade instalada. Instale habilidades em Configurações > Habilidades.",
