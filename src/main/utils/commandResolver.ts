@@ -329,7 +329,7 @@ function findMiseExecutable(env: Record<string, string>): string | null {
  * refreshShellEnv() explicitly before calling this function.
  *
  * Cross-platform: uses findCommandInShellEnv first, falls back to findExecutable on Windows,
- * and finally tries mise as a last resort on Windows.
+ * then mise, and finally (for `git` only) the bundled MinGit as the last resort.
  */
 export async function findExecutableInEnv(name: string): Promise<string | null> {
   const env = await getShellEnv()
