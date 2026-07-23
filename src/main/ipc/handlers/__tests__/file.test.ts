@@ -81,6 +81,32 @@ describe('fileHandlers', () => {
     expect(getMetadataByPathMock).toHaveBeenCalledWith('/tmp/a.txt')
   })
 
+  it('get_metadata returns file metadata for a regular file path', async () => {
+    getMetadataByPathMock.mockResolvedValueOnce({ ...metadata, size: 42 })
+
+    await expect(fileHandlers['file.get_metadata']({ kind: 'path', path: '/tmp/a.txt' }, ctx)).resolves.toEqual({
+      ...metadata,
+      size: 42
+    })
+    expect(getMetadataByPathMock).toHaveBeenCalledWith('/tmp/a.txt')
+  })
+
+  it('get_metadata returns directory metadata for a directory path', async () => {
+    const directoryMetadata = { kind: 'directory' as const, size: 0, createdAt: 1, modifiedAt: 2 }
+    getMetadataByPathMock.mockResolvedValueOnce(directoryMetadata)
+
+    await expect(fileHandlers['file.get_metadata']({ kind: 'path', path: '/tmp/dir' }, ctx)).resolves.toEqual(
+      directoryMetadata
+    )
+    expect(getMetadataByPathMock).toHaveBeenCalledWith('/tmp/dir')
+  })
+
+  it('get_metadata resolves null for a missing path instead of throwing', async () => {
+    getMetadataByPathMock.mockRejectedValueOnce(new Error('ENOENT'))
+
+    await expect(fileHandlers['file.get_metadata']({ kind: 'path', path: '/tmp/missing.txt' }, ctx)).resolves.toBeNull()
+  })
+
   it('batch_get_physical_paths returns null for per-entry path failures', async () => {
     fileManager.getPhysicalPath.mockReturnValueOnce('/tmp/a.png').mockImplementationOnce(() => {
       throw new Error('ENOENT')

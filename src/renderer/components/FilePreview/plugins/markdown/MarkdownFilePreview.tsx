@@ -2,6 +2,7 @@ import '@cherrystudio/ui/components/composites/markdown/styles'
 
 import { EmptyState, Markdown, withFullMarkdown } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import { createFilePathHandle } from '@shared/utils/file'
 import FileText from 'lucide-react/dist/esm/icons/file-text'
 import FileWarning from 'lucide-react/dist/esm/icons/file-warning'
@@ -36,7 +37,7 @@ function MarkdownPreviewLoading() {
   )
 }
 
-function MarkdownPreviewError({ error }: { error: Error }) {
+function MarkdownPreviewError() {
   const { t } = useTranslation()
 
   return (
@@ -44,8 +45,8 @@ function MarkdownPreviewError({ error }: { error: Error }) {
       <EmptyState
         icon={FileWarning}
         title={t('file_preview.markdown.read_error.title')}
-        description={error.message}
-        className="h-full [&_p]:break-all"
+        description={t('file_preview.load_error.description')}
+        className="h-full"
       />
     </div>
   )
@@ -89,7 +90,7 @@ function MarkdownPreviewContent({ loadState, markdownId, mode }: MarkdownPreview
   const { t } = useTranslation()
 
   if (loadState.status === 'loading') return <MarkdownPreviewLoading />
-  if (loadState.status === 'error') return <MarkdownPreviewError error={loadState.error} />
+  if (loadState.status === 'error') return <MarkdownPreviewError />
   if (loadState.status === 'too_large') return <MarkdownPreviewTooLarge />
 
   if (mode === 'source') {
@@ -129,7 +130,8 @@ export default function MarkdownFilePreview({ filePath, refreshKey }: FilePrevie
 
     void (async () => {
       try {
-        const metadata = await window.api.file.getMetadata(createFilePathHandle(filePath))
+        const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(filePath))
+        if (!metadata) throw new Error('Failed to read file metadata: ' + filePath)
         if (cancelled) return
 
         if (metadata.size > MARKDOWN_PREVIEW_MAX_SIZE_BYTES) {

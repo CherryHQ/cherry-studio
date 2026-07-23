@@ -648,6 +648,18 @@ files: 'id, name, origin_name, path, size, ext, type, created_at, count'
 9. **Painting state 的 Redux-persist 迁移**
    - paintings state 持久化到 electron-store 或类似，里面内嵌 FileMetadata。v2-refactor-temp 的 classification.json 是否覆盖 paintings？需要 data-classify migrator 也处理这层。
 
+10. **`getMetadata` 混层：文件系统事实 vs 内容派生类型（记录于 2026-07-13）**
+    - **观察**：`PhysicalFileMetadata` / `getMetadata` 把两个代价不同的层揉在一起——
+      - 层 1（廉价，一次 `stat` syscall）：`kind`（file/dir）、`size`、时间戳；
+      - 层 2（内容派生，可能读字节）：`type`（`getFileType`，扩展名命中即廉价，**未知才 chardet 读 8KB**）+ `mime`。
+      - 只想问 kind 或 size 的调用（`isDirectory`、size-gate 等）被迫走完层 2。
+    - **Node 参照**：`fs.stat → Stats`（`isFile`/`isDirectory`/`size`/`mtime` 全是一次 syscall 的免费投影），内容类型是 userland 另一件事；两层天然分开。错误就是错误（`fs.stat` 缺失抛 `ENOENT`，调用方各自 `try/catch`）。
+    - **建议方向**：引入 tier-1 `file.stat(handle) → {kind,size,createdAt,modifiedAt}`（`@main/utils/file` 的 `stat` 已接近此形状——实际返回 `{size,createdAt,modifiedAt,isDirectory}`，`isDirectory` 需投影为 `kind`，且尚未跨 IPC），把 `getMetadata` 重定义为 `stat + getFileType(+mime)` 的组合；kind/size-only 消费者回归廉价 `file.stat`。错误模型走 Node 忠实（`stat` 缺失抛错，消费者各自处理）——「渲染层不解释 fs 错误」是 `ClickableFilePath` 的**局部**选择而非全局契约（`AgentComposer` 的 catch 就在解释 fs 错误）。
+    - **决定（2026-07-13）**：**暂不建 `file.stat`**。扩展名未命中场景罕见，层 2 开销很小，当前可接受。C-1 已新增单项 IpcApi route `file.get_metadata`（`PhysicalFileMetadata | null`，缺失→`null`）承接 `isDirectory` 与 size-only 消费者，但它**仍是层1+层2 合体**（纯 kind/size 查询照样跑内容分类）——tier-1 拆分保留为后续项。
+    - **评审补记（C-1，2026-07-14）**：评审发现 entry-arm `FileManager.getMetadata` 把 `type` 硬编码为 `'other'`（path-arm 却派生真 type），同一 route 的 `type` 契约随 handle 分叉——是个 bug。已修：抽出模块内私有 `buildPhysicalFileMetadata(path, statResult)`，两臂共用 → `type` 统一为内容派生（entry-arm 仍保留各自的 `observeExternalAccess` stat）。注意这只统一了**派生逻辑**，层1/层2 仍合体（tier-1 `file.stat` 拆分照旧 defer）。
+    - **AgentComposer 是 reason 区分的被降级潜在消费者**：它对 workspace 做目录校验，理应像 `settingsBuilder`（main，用 `getPathStatus`）那样区分 missing / not_directory / inaccessible 三态、出不同文案，但受限于 boolean/`kind` 探针一直塌成单条 `inaccessible`。C-1 评审确认过一条 Node 式做法——让 `file.get_metadata` 对 stat 失败 `throw` 一个 domain-coded `IpcError`（reason 骑 IpcApi error 通道，而非 `getPathStatus` 的成功值），renderer 按 `e.code` 分支即可拿完整三分。**决定不做**：需求方要求 AgentComposer 保持 v1 行为、以迁移为主；且无其它消费者读 reason → 按 demand-first 不引入错误码。此条与 tier-1 一并 defer，等真有消费者要三分时再落。
+    - **关联**：§8 冗余清单；[`filestorage-consumption-audit.md`](./filestorage-consumption-audit.md) §P4 类型探针；「拍平 `PhysicalFileMetadata` 判别联合」任务。
+
 ---
 
 ## 附录 A：文件清单速查

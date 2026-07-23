@@ -1,6 +1,7 @@
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CodeViewer from '@renderer/components/CodeViewer'
+import { ipcApi } from '@renderer/ipc'
 import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
 import { createFilePathHandle } from '@shared/utils/file'
 import FileText from 'lucide-react/dist/esm/icons/file-text'
@@ -64,7 +65,7 @@ function TextPreviewTooLarge() {
   )
 }
 
-function TextPreviewError({ error }: { error: Error }) {
+function TextPreviewError() {
   const { t } = useTranslation()
 
   return (
@@ -72,8 +73,8 @@ function TextPreviewError({ error }: { error: Error }) {
       <EmptyState
         icon={FileWarning}
         title={t('file_preview.text.read_error.title')}
-        description={error.message}
-        className="h-full [&_p]:break-all"
+        description={t('file_preview.load_error.description')}
+        className="h-full"
       />
     </div>
   )
@@ -88,7 +89,7 @@ function TextPreviewContent({ filePath, loadState }: TextPreviewContentProps): R
   if (loadState.status === 'loading') return <TextPreviewLoading />
   if (loadState.status === 'empty') return <TextPreviewEmpty />
   if (loadState.status === 'too_large') return <TextPreviewTooLarge />
-  if (loadState.status === 'error') return <TextPreviewError error={loadState.error} />
+  if (loadState.status === 'error') return <TextPreviewError />
 
   return (
     <div className="min-h-full w-full">
@@ -111,7 +112,8 @@ export default function TextFilePreview({ filePath, refreshKey }: FilePreviewPlu
 
     void (async () => {
       try {
-        const metadata = await window.api.file.getMetadata(createFilePathHandle(filePath))
+        const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(filePath))
+        if (!metadata) throw new Error('Failed to read file metadata: ' + filePath)
         if (cancelled) return
 
         if (metadata.size === 0) {

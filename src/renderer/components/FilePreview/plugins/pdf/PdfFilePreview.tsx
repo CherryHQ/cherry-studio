@@ -2,6 +2,7 @@ import 'pdfjs-dist/web/pdf_viewer.css'
 
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { safeOpen } from '@renderer/utils/file/safeOpen'
 import type { FilePath } from '@shared/types/file'
@@ -252,7 +253,8 @@ export default function PdfFilePreview({ filePath, fileName, refreshKey }: FileP
       try {
         // Preflight the size via metadata (a stat, not a read) so oversized PDFs are
         // rejected before we read + IPC-transfer the whole file into pdf.js.
-        const metadata = await window.api.file.getMetadata(createFilePathHandle(filePath))
+        const metadata = await ipcApi.request('file.get_metadata', createFilePathHandle(filePath))
+        if (!metadata) throw new Error('Failed to read file metadata: ' + filePath)
         if (cancelled) return
         if (metadata.size > PDF_PREVIEW_MAX_SIZE_BYTES) {
           setStatus('too_large')

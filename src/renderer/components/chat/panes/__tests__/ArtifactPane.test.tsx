@@ -52,7 +52,6 @@ const mocks = vi.hoisted(() => ({
   treeOnMutation: vi.fn(),
   fsRead: vi.fn(),
   fsReadText: vi.fn(),
-  isTextFile: vi.fn(),
   isDirectory: vi.fn(),
   listDirectory: vi.fn(),
   listDirectoryEntries: vi.fn(),
@@ -174,6 +173,15 @@ function mockWorkspaceTree(workspacePath: string, paths: readonly string[]): voi
   const snapshot = pathsToSnapshot(workspacePath, paths)
   mocks.treeCreate.mockResolvedValueOnce({ treeId, snapshot })
 }
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    // `useIsTextFile` / `useFileSize` now read live metadata through this route; delegate to the
+    // existing `getMetadata` mock so per-test size/type overrides keep driving the preview gates.
+    request: (route: string, input: unknown) =>
+      route === 'file.get_metadata' ? mocks.getMetadata(input) : Promise.resolve(undefined)
+  }
+}))
 
 vi.mock('@cherrystudio/ui', async () => {
   return {
@@ -503,10 +511,10 @@ describe('ArtifactPane', () => {
     mocks.showInFolder.mockResolvedValue(undefined)
     mocks.externalApps = []
     mocks.isDirectory.mockResolvedValue(false)
-    // Default: tests select text files; override per-test for binary cases.
-    mocks.isTextFile.mockResolvedValue(true)
-    // Default: tests use tiny files; override per-test to exercise the size gate.
-    mocks.getMetadata.mockResolvedValue({ kind: 'file', size: 1024 })
+    // Default: tiny text files. `getMetadata().type` drives text detection
+    // (via useIsTextFile) and `.size` drives the size gate — override per-test
+    // for binary / large-file cases.
+    mocks.getMetadata.mockResolvedValue({ kind: 'file', size: 1024, type: 'text' })
     mocks.createObjectURL.mockReturnValue('blob:fake-url')
     Object.defineProperty(window, 'api', {
       configurable: true,
@@ -514,11 +522,9 @@ describe('ArtifactPane', () => {
         file: {
           openPath: mocks.openPath,
           showInFolder: mocks.showInFolder,
-          isTextFile: mocks.isTextFile,
           isDirectory: mocks.isDirectory,
           listDirectory: mocks.listDirectory,
-          listDirectoryEntries: mocks.listDirectoryEntries,
-          getMetadata: mocks.getMetadata
+          listDirectoryEntries: mocks.listDirectoryEntries
         },
         fs: {
           read: mocks.fsRead,
@@ -1373,7 +1379,7 @@ describe('ArtifactPane', () => {
   })
 
   it('does not read files the buffer sniff classifies as binary', async () => {
-    mocks.isTextFile.mockResolvedValueOnce(false)
+    mocks.getMetadata.mockResolvedValue({ kind: 'file', size: 1024, type: 'other' })
     mockWorkspaceTree('/tmp/workspace', ['data.bin'])
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
@@ -1398,7 +1404,6 @@ describe('ArtifactPane', () => {
     expect(screen.getByTestId('image-preview')).toHaveAttribute('data-src', 'file:///tmp/workspace/photo.png')
     expect(mocks.fsRead).not.toHaveBeenCalled()
     expect(mocks.fsReadText).not.toHaveBeenCalled()
-    expect(mocks.isTextFile).not.toHaveBeenCalled()
   })
 
   it('remounts the selected image preview when refresh is clicked after a load error', async () => {
@@ -1428,7 +1433,6 @@ describe('ArtifactPane', () => {
     )
     expect(screen.getByTestId('image-preview')).not.toBe(failedImage)
     expect(mocks.fsReadText).not.toHaveBeenCalled()
-    expect(mocks.isTextFile).not.toHaveBeenCalled()
   })
 
   it('renders SVG files as an image preview', async () => {
@@ -1460,7 +1464,7 @@ describe('ArtifactPane', () => {
   })
 
   it('does not read unknown extensions when the sniff says binary', async () => {
-    mocks.isTextFile.mockResolvedValueOnce(false)
+    mocks.getMetadata.mockResolvedValue({ kind: 'file', size: 1024, type: 'other' })
     mockWorkspaceTree('/tmp/workspace', ['archive.custom'])
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
@@ -1473,7 +1477,7 @@ describe('ArtifactPane', () => {
   })
 
   it('shows the file-unavailable state when the size sniff fails (missing/moved file)', async () => {
-    mocks.getMetadata.mockRejectedValueOnce(new Error('ENOENT: no such file'))
+    mocks.getMetadata.mockRejectedValue(new Error('ENOENT: no such file'))
     mockWorkspaceTree('/tmp/workspace', ['gone.ts'])
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
@@ -1515,7 +1519,7 @@ describe('ArtifactPane', () => {
   })
 
   it('skips preview and readText for text files above the 2 MB size cap', async () => {
-    mocks.getMetadata.mockResolvedValueOnce({ kind: 'file', size: 3 * 1024 * 1024 })
+    mocks.getMetadata.mockResolvedValue({ kind: 'file', size: 3 * 1024 * 1024, type: 'text' })
     mockWorkspaceTree('/tmp/workspace', ['huge.json'])
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
@@ -1575,7 +1579,6 @@ describe('ArtifactPane', () => {
       expect(screen.queryByTestId('pdf-preview-panel')).not.toBeInTheDocument()
       expect(mocks.fsRead).not.toHaveBeenCalled()
       expect(mocks.fsReadText).not.toHaveBeenCalled()
-      expect(mocks.isTextFile).not.toHaveBeenCalledWith(`/tmp/workspace/${fileName}`)
     }
   )
 

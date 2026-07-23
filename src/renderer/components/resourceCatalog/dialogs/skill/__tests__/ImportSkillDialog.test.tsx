@@ -7,6 +7,19 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 
 const installFromZip = vi.fn()
 const installFromDirectory = vi.fn()
+const ipcApiRequest = vi.hoisted(() => vi.fn())
+
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcApiRequest } }))
+
+const fileMetadata = {
+  kind: 'file' as const,
+  type: 'other' as const,
+  size: 0,
+  createdAt: 0,
+  modifiedAt: 0,
+  mime: 'application/octet-stream'
+}
+const directoryMetadata = { kind: 'directory' as const, size: 0, createdAt: 0, modifiedAt: 0 }
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof CherryStudioUi>()
@@ -75,13 +88,14 @@ beforeAll(() => {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  ipcApiRequest.mockReset()
+  ipcApiRequest.mockResolvedValue(fileMetadata)
   Object.assign(window, {
     api: {
       ...window.api,
       file: {
         ...window.api?.file,
         getPathForFile: vi.fn((file: File) => `/tmp/${file.name}`),
-        isDirectory: vi.fn(async () => false),
         select: vi.fn(async () => [{ name: 'broken.zip', path: '/tmp/broken.zip' }])
       }
     }
@@ -225,8 +239,8 @@ describe('ImportSkillDialog', () => {
     await waitFor(() => expect(installFromZip).toHaveBeenCalledTimes(2))
     expect(window.api.file.getPathForFile).toHaveBeenNthCalledWith(1, files[0])
     expect(window.api.file.getPathForFile).toHaveBeenNthCalledWith(2, files[1])
-    expect(window.api.file.isDirectory).toHaveBeenNthCalledWith(1, '/tmp/one.zip')
-    expect(window.api.file.isDirectory).toHaveBeenNthCalledWith(2, '/tmp/two.zip')
+    expect(ipcApiRequest).toHaveBeenNthCalledWith(1, 'file.get_metadata', { kind: 'path', path: '/tmp/one.zip' })
+    expect(ipcApiRequest).toHaveBeenNthCalledWith(2, 'file.get_metadata', { kind: 'path', path: '/tmp/two.zip' })
     expect(installFromZip).toHaveBeenNthCalledWith(1, '/tmp/one.zip')
     expect(installFromZip).toHaveBeenNthCalledWith(2, '/tmp/two.zip')
     expect(installFromDirectory).not.toHaveBeenCalled()
@@ -241,7 +255,9 @@ describe('ImportSkillDialog', () => {
       new File(['zip'], 'plugin.zip', { type: 'application/zip' }),
       new File(['readme'], 'readme.txt', { type: 'text/plain' })
     ]
-    vi.mocked(window.api.file.isDirectory).mockImplementation(async (path) => path === '/tmp/skill-dir')
+    ipcApiRequest.mockImplementation(async (_route: string, handle: { path: string }) =>
+      handle.path === '/tmp/skill-dir' ? directoryMetadata : fileMetadata
+    )
     installFromDirectory.mockResolvedValueOnce({ id: 'skill-dir', name: 'Directory Skill' })
     installFromZip.mockResolvedValueOnce({ id: 'skill-zip', name: 'Zip Skill' })
 

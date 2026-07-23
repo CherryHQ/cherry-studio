@@ -13,6 +13,12 @@ const mocks = vi.hoisted(() => ({
   readText: vi.fn()
 }))
 
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: (route: string, input: unknown) => (route === 'file.get_metadata' ? mocks.getMetadata(input) : undefined)
+  }
+}))
+
 vi.mock('@renderer/components/CodeViewer', () => ({
   default: (props: { language: string; value: string; wrapped: boolean }) => {
     mocks.codeViewer(props)
@@ -101,7 +107,6 @@ describe('HtmlFilePreview', () => {
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
-        file: { getMetadata: mocks.getMetadata },
         fs: { readText: mocks.readText }
       }
     })
@@ -150,17 +155,34 @@ describe('HtmlFilePreview', () => {
     expect(mocks.readText).not.toHaveBeenCalled()
   })
 
-  it('shows and logs the actual read error for diagnosis', async () => {
+  it('logs the actual read error but shows only a localized description', async () => {
     const loggerError = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
     mocks.readText.mockRejectedValueOnce(new Error('EACCES: permission denied'))
 
     renderPreview()
 
     expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.html.read_error.title')
-    expect(screen.getByRole('alert')).toHaveTextContent('EACCES: permission denied')
+    expect(screen.getByRole('alert')).toHaveTextContent('file_preview.load_error.description')
+    // The raw (English) error message must not leak into the UI — it is for logs only.
+    expect(screen.queryByText('EACCES: permission denied')).not.toBeInTheDocument()
     expect(loggerError).toHaveBeenCalledWith(
       `Failed to read HTML preview: ${filePath}`,
       expect.objectContaining({ message: 'EACCES: permission denied' })
+    )
+  })
+
+  it('shows the error state and skips the read when metadata is null', async () => {
+    const loggerError = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+    mocks.getMetadata.mockResolvedValueOnce(null)
+
+    renderPreview()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('file_preview.html.read_error.title')
+    expect(screen.getByRole('alert')).toHaveTextContent('file_preview.load_error.description')
+    expect(mocks.readText).not.toHaveBeenCalled()
+    expect(loggerError).toHaveBeenCalledWith(
+      `Failed to read HTML preview: ${filePath}`,
+      expect.objectContaining({ message: `Failed to read file metadata: ${filePath}` })
     )
   })
 

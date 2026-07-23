@@ -110,6 +110,12 @@ const modelBWithFunctionCall = {
   capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
 } satisfies Model
 
+const ipcRequestMock = vi.hoisted(() => vi.fn())
+
+// Send-time attachment metadata (buildFileParts) now resolves through IpcApi instead of
+// `window.api.file.getMetadata`.
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequestMock } }))
+
 vi.mock('@data/CacheService', () => ({
   cacheService: {
     getCasual: vi.fn(() => ''),
@@ -691,13 +697,16 @@ describe('ChatComposer', () => {
         }
       }
     })
+    ipcRequestMock.mockReset()
+    ipcRequestMock.mockImplementation(async (route: string) =>
+      route === 'file.get_metadata' ? { kind: 'file', mime: 'application/pdf', size: 1, mtime: 0 } : {}
+    )
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
         file: {
           createInternalEntry: vi.fn(async () => ({ id: 'fe-1', ext: 'pdf' })),
-          getPhysicalPath: vi.fn(async () => '/p/fe-1.pdf'),
-          getMetadata: vi.fn(async () => ({ kind: 'file', mime: 'application/pdf', size: 1, mtime: 0 }))
+          getPhysicalPath: vi.fn(async () => '/p/fe-1.pdf')
         }
       }
     })

@@ -958,13 +958,13 @@ const AgentComposerInner = ({
     let cancelled = false
     void (async () => {
       try {
-        const isDirectory = await window.api.file.isDirectory(workspacePath)
+        const meta = await ipcApi.request('file.get_metadata', createFilePathHandle(workspacePath as FilePath))
         if (cancelled) return
-        if (isDirectory) {
-          setWorkspaceWarning(undefined)
-          return
-        }
-        setWorkspaceWarning(t('agent.session.workspace_status.inaccessible', { path: workspacePath }))
+        setWorkspaceWarning(
+          meta?.kind === 'directory'
+            ? undefined
+            : t('agent.session.workspace_status.inaccessible', { path: workspacePath })
+        )
       } catch (error) {
         logger.warn('Failed to check agent workspace path status', error as Error)
         if (!cancelled) setWorkspaceWarning(undefined)

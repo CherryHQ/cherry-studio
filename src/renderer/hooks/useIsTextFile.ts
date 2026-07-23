@@ -1,5 +1,8 @@
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import { joinPath } from '@renderer/utils/path'
+import type { FilePath } from '@shared/types/file'
+import { createFilePathHandle } from '@shared/utils/file'
 import { useEffect, useState } from 'react'
 
 const logger = loggerService.withContext('useIsTextFile')
@@ -11,10 +14,15 @@ interface UseIsTextFileOptions {
 }
 
 /**
- * Buffer-sniff whether a file is text via the main-side `isbinaryfile` + chardet
- * pipeline (`window.api.file.isTextFile`). Callers that render a known-binary
+ * Whether a file resolves to text, via the `file.get_metadata` IpcApi route —
+ * which derives the type by extension and, for extension-unknown files, a main-side
+ * `isbinaryfile` + chardet content sniff. Callers that render a known-binary
  * format specially (e.g. PDF or Office documents) can pass `enabled: false` to
- * skip sniffing and receive a synchronous `binary` state.
+ * skip the check and receive a synchronous `binary` state.
+ *
+ * Classification is extension-first: a file whose bytes contradict its
+ * extension is classified by the extension, not sniffed (see `getFileType`).
+ * A mismatch only picks which preview renders — it never corrupts data.
  */
 export function useIsTextFile(
   workspacePath: string | null | undefined,
@@ -41,7 +49,8 @@ export function useIsTextFile(
 
     void (async () => {
       try {
-        const isText = await window.api.file.isTextFile(absPath)
+        const meta = await ipcApi.request('file.get_metadata', createFilePathHandle(absPath as FilePath))
+        const isText = meta?.kind === 'file' && meta.type === 'text'
         if (!cancelled) setState(isText ? 'text' : 'binary')
       } catch (err) {
         if (cancelled) return

@@ -6,7 +6,12 @@ import type { FilePath } from '@shared/types/file'
 import iconv from 'iconv-lite'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { decodeTextBufferIfText, getFileType, isTextFile, mimeToExt } from '../metadata'
+import { decodeTextBufferIfText, getFileType, isTextByContent, mimeToExt } from '../metadata'
+
+// A chunk of UTF-8 text long enough for chardet to detect with high confidence.
+const TEXT_SAMPLE = '这是一段自定义格式的纯文本内容，长度足够让编码检测有信心地判定为文本。\n'.repeat(4)
+// Binary bytes (contains null) so isBinaryFile classifies it as non-text.
+const BINARY_SAMPLE = Buffer.from([0x00, 0x01, 0x02, 0xff, 0xfe, 0x00, 0x10])
 
 describe('getFileType', () => {
   let tmp: string
@@ -29,20 +34,42 @@ describe('getFileType', () => {
     expect(await getFileType(f as FilePath)).toBe('document')
   })
 
-  it('falls back to "other" for unknown extension', async () => {
+  it('falls back to "other" for an unknown extension with binary content', async () => {
     const f = path.join(tmp, 'mystery.xyz123')
-    await writeFile(f, '...')
+    await writeFile(f, BINARY_SAMPLE)
     expect(await getFileType(f as FilePath)).toBe('other')
   })
 
-  it('falls back to "other" for files with no extension', async () => {
+  // Content-sniff upgrade: uncommon / extension-less text files must be
+  // recognized as text so users can attach them in chat (see metadata.ts).
+  it('upgrades an unknown extension with text content to "text"', async () => {
+    const f = path.join(tmp, 'mystery.xyz123')
+    await writeFile(f, TEXT_SAMPLE)
+    expect(await getFileType(f as FilePath)).toBe('text')
+  })
+
+  it('upgrades an extension-less text file to "text"', async () => {
     const f = path.join(tmp, 'no-ext')
-    await writeFile(f, '...')
-    expect(await getFileType(f as FilePath)).toBe('other')
+    await writeFile(f, TEXT_SAMPLE)
+    expect(await getFileType(f as FilePath)).toBe('text')
+  })
+
+  // Extension wins on mismatch (deliberate — see getFileType's contract). A
+  // recognized extension is never content-sniffed, so the bytes are ignored.
+  it('keeps a recognized text extension as "text" even when the content is binary', async () => {
+    const f = path.join(tmp, 'mislabeled.txt')
+    await writeFile(f, BINARY_SAMPLE)
+    expect(await getFileType(f as FilePath)).toBe('text')
+  })
+
+  it('keeps a recognized non-text extension even when the content is text', async () => {
+    const f = path.join(tmp, 'mislabeled.png')
+    await writeFile(f, TEXT_SAMPLE)
+    expect(await getFileType(f as FilePath)).toBe('image')
   })
 })
 
-describe('isTextFile', () => {
+describe('isTextByContent', () => {
   let tmp: string
   beforeEach(async () => {
     tmp = await mkdtemp(path.join(tmpdir(), 'cherry-fm-meta-test-'))
@@ -51,16 +78,20 @@ describe('isTextFile', () => {
     await rm(tmp, { recursive: true, force: true })
   })
 
-  it('returns true for known text extensions', async () => {
-    const f = path.join(tmp, 'note.txt')
-    await writeFile(f, 'plain text')
-    expect(await isTextFile(f as FilePath)).toBe(true)
+  it('returns true for text content regardless of extension', async () => {
+    const f = path.join(tmp, 'weird.bin')
+    await writeFile(f, TEXT_SAMPLE)
+    expect(await isTextByContent(f as FilePath)).toBe(true)
   })
 
-  it('returns false for image extensions', async () => {
-    const f = path.join(tmp, 'pic.png')
-    await writeFile(f, Buffer.from([0x89, 0x50, 0x4e, 0x47]))
-    expect(await isTextFile(f as FilePath)).toBe(false)
+  it('returns false for binary content', async () => {
+    const f = path.join(tmp, 'data.txt')
+    await writeFile(f, BINARY_SAMPLE)
+    expect(await isTextByContent(f as FilePath)).toBe(false)
+  })
+
+  it('returns false (does not throw) for a missing file', async () => {
+    expect(await isTextByContent(path.join(tmp, 'nope') as FilePath)).toBe(false)
   })
 })
 

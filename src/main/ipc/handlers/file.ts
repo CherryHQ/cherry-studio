@@ -28,6 +28,19 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
     )
     return Object.fromEntries(pairs)
   },
+  'file.get_metadata': async (handle) => {
+    const fileManager = application.get('FileManager')
+    try {
+      return await dispatchHandle(handle as FileHandle, (id) => fileManager.getMetadata(id), getMetadataByPath)
+    } catch {
+      // Missing / unreadable → null, mirroring batch_get_metadata's per-item null
+      // and the former FileStorage.isDirectory swallow. Callers treat null as "no
+      // usable file at this path"; genuine transport failures still reject via the
+      // framework. Reason (missing vs inaccessible) is intentionally not surfaced —
+      // no renderer consumes it (see filemetadata-consumer-audit §9(10)).
+      return null
+    }
+  },
   'file.batch_get_physical_paths': async ({ ids }) => {
     const fileManager = application.get('FileManager')
     const pairs = await Promise.all(

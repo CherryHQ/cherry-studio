@@ -1,8 +1,17 @@
+/**
+ * @deprecated LEGACY v1 CODE — being migrated to `FileManager`
+ * (`src/main/services/file/FileManager.ts`). This file will be DELETED once
+ * the migration is complete.
+ *
+ * Do NOT add new features or new call sites here — route new file
+ * functionality through `FileManager` instead. Existing consumers should be
+ * migrated off this module as part of the ongoing migration.
+ */
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { t } from '@main/i18n'
-import { decodeTextBufferIfText } from '@main/utils/file'
+import { getFileType } from '@main/utils/file'
 import {
   checkName,
   getFileType as getFileTypeByExt,
@@ -10,9 +19,8 @@ import {
   readTextFileWithAutoEncoding
 } from '@main/utils/legacyFile'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
-import type { FileType } from '@shared/types/file'
-import { FILE_TYPE } from '@shared/types/file'
-import { KB, MB } from '@shared/utils/constants'
+import type { FilePath } from '@shared/types/file'
+import { MB } from '@shared/utils/constants'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { documentExts, imageExts } from '@shared/utils/file'
 import * as crypto from 'crypto'
@@ -103,7 +111,7 @@ class FileStorage {
         if (originalHash === storedHash) {
           const ext = path.extname(file)
           const id = path.basename(file, ext)
-          const type = await this.getFileType(filePath)
+          const type = await getFileType(filePath as FilePath)
 
           return {
             id,
@@ -121,13 +129,6 @@ class FileStorage {
     }
 
     return null
-  }
-
-  public getFileType = async (filePath: string): Promise<FileType> => {
-    const ext = path.extname(filePath)
-    const fileType = getFileTypeByExt(ext)
-
-    return fileType === FILE_TYPE.OTHER && (await this._isTextFile(filePath)) ? FILE_TYPE.TEXT : fileType
   }
 
   public selectFile = async (
@@ -149,7 +150,7 @@ class FileStorage {
     const fileMetadataPromises = result.filePaths.map(async (filePath) => {
       const stats = fs.statSync(filePath)
       const ext = path.extname(filePath)
-      const fileType = await this.getFileType(filePath)
+      const fileType = await getFileType(filePath as FilePath)
 
       return {
         id: uuidv4(),
@@ -215,7 +216,7 @@ class FileStorage {
     }
 
     const stats = await fs.promises.stat(destPath)
-    const fileType = await this.getFileType(destPath)
+    const fileType = await getFileType(destPath as FilePath)
 
     const fileMetadata: FileMetadata = {
       id: uuid,
@@ -240,7 +241,7 @@ class FileStorage {
     }
 
     const stats = fs.statSync(filePath)
-    const fileType = await this.getFileType(filePath)
+    const fileType = await getFileType(filePath as FilePath)
 
     return {
       id: uuidv4(),
@@ -937,7 +938,7 @@ class FileStorage {
       await fs.promises.writeFile(destPath, buffer)
 
       const stats = await fs.promises.stat(destPath)
-      const fileType = await this.getFileType(destPath)
+      const fileType = await getFileType(destPath as FilePath)
 
       return {
         id: uuid,
@@ -1018,35 +1019,6 @@ class FileStorage {
 
   public getFilePathById(file: FileMetadata): string {
     return path.join(this.storageDir, file.id + file.ext)
-  }
-
-  public isTextFile = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<boolean> => {
-    return this._isTextFile(filePath)
-  }
-
-  private _isTextFile = async (filePath: string): Promise<boolean> => {
-    try {
-      const length = 8 * KB
-      const fileHandle = await fs.promises.open(filePath, 'r')
-      const buffer = Buffer.alloc(length)
-      const { bytesRead } = await fileHandle.read(buffer, 0, length, 0)
-      await fileHandle.close()
-
-      const sampleBuffer = buffer.subarray(0, bytesRead)
-      return decodeTextBufferIfText(sampleBuffer) !== null
-    } catch (error) {
-      logger.error('Failed to check if file is text:', error as Error)
-      return false
-    }
-  }
-
-  public isDirectory = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<boolean> => {
-    try {
-      const stat = await fs.promises.stat(filePath)
-      return stat.isDirectory()
-    } catch {
-      return false
-    }
   }
 
   public showInFolder = async (_: Electron.IpcMainInvokeEvent, path: string): Promise<void> => {

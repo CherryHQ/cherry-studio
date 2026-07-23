@@ -20,6 +20,14 @@
  * inferred `InputFor` / `OutputFor`) as consumers migrate to IpcApi. Do not add
  * new File IPC surface here except temporary legacy-preload compatibility notes.
  *
+ * **Contracts here may be stale.** Because this file is slated for deletion once
+ * the migration completes, individual method signatures below are NOT kept in
+ * lockstep with the routes as they move to IpcApi — a method may already resolve
+ * through `file.get_metadata` & friends with a different (e.g. nullable) shape
+ * than what its JSDoc/type here still declares. For any migrated route, the
+ * schema in `src/shared/ipc/schemas/file.ts` and its handler are authoritative;
+ * treat the declarations here as historical intent, not the live contract.
+ *
  * ## Unified access via FileHandle
  *
  * Most operations accept `FileHandle` (tagged union) so consumers don't have
@@ -229,7 +237,7 @@ export interface BatchCreateResult {
  *
  * | Files page IpcApi — wired | Legacy preload — still wired | Type-only / future |
  * |---|---|---|
- * | `batchCreateInternalEntries`, `batchGetMetadata`, `batchGetPhysicalPaths`, `batchGetDanglingStates`, `batchTrash`, `batchRestore`, `batchPermanentDelete`, entry `rename`, entry `open`, entry `showInFolder` | `createInternalEntry`, `ensureExternalEntry`, `getPhysicalPath`, handle `permanentDelete`, path-handle `getMetadata`, `runSweep` | everything else |
+ * | `batchCreateInternalEntries`, `batchGetMetadata`, `batchGetPhysicalPaths`, `batchGetDanglingStates`, `batchTrash`, `batchRestore`, `batchPermanentDelete`, entry `rename`, entry `open`, entry `showInFolder`, `getMetadata` | `createInternalEntry`, `ensureExternalEntry`, `getPhysicalPath`, handle `permanentDelete`, `runSweep` | everything else |
  *
  * Remaining `@phase 2` method shapes are *design drafts*; signatures may shift
  * when each channel actually lands alongside its first FileManager consumer.
@@ -353,9 +361,10 @@ export interface FileIpcApi {
    *
    * Side effect: updates DanglingCache based on stat outcome (external only).
    *
-   * @phase 2 — path-handle branch wired (`IpcChannel.File_GetMetadata` →
-   * `FileManager.registerIpcHandlers`, direct `fs.stat`); the entry-id branch
-   * is still `@phase 2` (not yet wired).
+   * @phase 2 — wired as IpcApi route `file.get_metadata` (handler in
+   * `src/main/ipc/handlers/file.ts`). Both branches resolve — path handles via
+   * `getMetadataByPath`, entry handles via `FileManager.getMetadata` — sharing
+   * `buildPhysicalFileMetadata`, so `type` is content-derived for either.
    */
   getMetadata(handle: FileHandle): Promise<PhysicalFileMetadata>
 

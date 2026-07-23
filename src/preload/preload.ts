@@ -15,8 +15,7 @@ import type {
   CreateInternalEntryIpcParams,
   EnsureExternalEntryIpcParams,
   FilePath,
-  GetPhysicalPathIpcParams,
-  PhysicalFileMetadata
+  GetPhysicalPathIpcParams
 } from '@shared/types/file'
 import type {
   LanClientEvent,
@@ -153,10 +152,6 @@ const api = {
     savePastedImage: (imageData: Uint8Array, extension?: string) =>
       ipcRenderer.invoke(IpcChannel.File_SavePastedImage, imageData, extension),
     getPathForFile: (file: File) => webUtils.getPathForFile(file),
-    isTextFile: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.File_IsTextFile, filePath),
-    isDirectory: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.File_IsDirectory, filePath),
-    getMetadata: (handle: FileHandle): Promise<PhysicalFileMetadata> =>
-      ipcRenderer.invoke(IpcChannel.File_GetMetadata, handle),
     listDirectory: (dirPath: string, options?: DirectoryListOptions) =>
       ipcRenderer.invoke(IpcChannel.File_ListDirectory, dirPath, options),
     listDirectoryEntries: (dirPath: string, options?: DirectoryListOptions): Promise<DirectoryEntry[]> =>

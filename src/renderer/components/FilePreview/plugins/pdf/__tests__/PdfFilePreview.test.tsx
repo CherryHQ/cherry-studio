@@ -33,6 +33,12 @@ const mocks = vi.hoisted(() => ({
   viewerInstances: [] as Array<{ pageColors: { background?: string; foreground: string } }>
 }))
 
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: (route: string, input: unknown) => (route === 'file.get_metadata' ? mocks.getMetadata(input) : undefined)
+  }
+}))
+
 vi.mock('pdfjs-dist', () => ({
   AnnotationMode: { ENABLE: 1 },
   GlobalWorkerOptions: { workerSrc: '' },
@@ -216,7 +222,7 @@ describe('PdfFilePreview', () => {
     })
     Object.defineProperty(window, 'api', {
       configurable: true,
-      value: { fs: { read: mocks.fsRead }, file: { getMetadata: mocks.getMetadata } }
+      value: { fs: { read: mocks.fsRead } }
     })
   })
 
@@ -312,6 +318,23 @@ describe('PdfFilePreview', () => {
     expect(loggerError).toHaveBeenCalledWith(
       `Failed to load PDF preview: ${filePath}`,
       expect.objectContaining({ message: 'sensitive parser details' })
+    )
+  })
+
+  it('shows the error state and skips the read when metadata is null', async () => {
+    const loggerError = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
+    mocks.getMetadata.mockResolvedValueOnce(null)
+
+    renderPreview()
+
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
+    expect(screen.getByTestId('empty-state')).toHaveTextContent('file_preview.load_error.title')
+    expect(screen.getByTestId('empty-state')).toHaveTextContent('file_preview.load_error.description')
+    expect(mocks.fsRead).not.toHaveBeenCalled()
+    expect(mocks.getDocument).not.toHaveBeenCalled()
+    expect(loggerError).toHaveBeenCalledWith(
+      `Failed to load PDF preview: ${filePath}`,
+      expect.objectContaining({ message: `Failed to read file metadata: ${filePath}` })
     )
   })
 
