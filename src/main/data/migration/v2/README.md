@@ -47,6 +47,20 @@ then passed through `MigrationContext.paths` to all migrators. If you
 need a new path, add it to the `MigrationPaths` interface — do not
 construct it inline.
 
+### Narrow exception: application logger output
+
+Migration diagnostics read the application's own logger output, not v1/v2 migration source data. This change
+records one narrow exception to the rule above: logs **MUST** resolve through `application.getPath('app.logs')`
+and **MUST NOT** be added to `MigrationPaths`. No broader migration filesystem access rule is relaxed.
+
+## Migration Diagnostic Bundle
+
+Only Renderer error/version-incompatible pages can request a bundle; there is no native preboot entry. A bundle
+contains minimal system information plus a stable snapshot for one log date: prefer the failure panel's
+mount-time local date, otherwise choose the latest eligible date, and never mix dates. If a complete snapshot
+cannot be formed, publish metadata only and disclose that result in the UI. Metadata excludes failure stacks,
+paths, and run/process fields. Logs may be sensitive and must not be shared publicly or outside Cherry Studio support.
+
 ## Version Compatibility Gate
 
 Before the migration window is created, the gate validates the upgrade
