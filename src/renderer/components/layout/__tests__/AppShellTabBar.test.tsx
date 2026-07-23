@@ -10,6 +10,7 @@ import type * as ShellTabBarActionsModule from '../ShellTabBarActions'
 
 const mocks = vi.hoisted(() => ({
   emitResourceListReveal: vi.fn(),
+  macTransparentState: { value: false },
   platformState: { isMac: false },
   showSearchPopup: vi.fn()
 }))
@@ -29,7 +30,7 @@ vi.mock('@cherrystudio/ui', () => ({
 }))
 
 vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
-  default: () => false
+  default: () => mocks.macTransparentState.value
 }))
 
 vi.mock('@renderer/utils/platform', () => ({
@@ -44,10 +45,6 @@ vi.mock('@renderer/utils/platform', () => ({
 vi.mock('@renderer/components/icons/miniAppsLogo', () => ({
   getMiniAppsLogoRef: () => undefined,
   useMiniAppLogo: () => undefined
-}))
-
-vi.mock('@renderer/utils/style', () => ({
-  cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({
@@ -132,6 +129,7 @@ const mockCloseAnimation = () => {
     'requestAnimationFrame',
     (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 16) as unknown as number
   )
+  vi.stubGlobal('cancelAnimationFrame', (id: number) => window.clearTimeout(id))
 
   return () => {
     vi.useRealTimers()
@@ -140,9 +138,19 @@ const mockCloseAnimation = () => {
   }
 }
 
+const firePointerDoubleClick = (element: Element, pointerType: 'mouse' | 'touch' | 'pen' = 'mouse') => {
+  for (const detail of [1, 2]) {
+    const click = new MouseEvent('click', { bubbles: true, cancelable: true, detail })
+    Object.defineProperty(click, 'pointerType', { value: pointerType })
+    fireEvent(element, click)
+  }
+  fireEvent(element, new MouseEvent('dblclick', { bubbles: true, cancelable: true, detail: 2 }))
+}
+
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  mocks.macTransparentState.value = false
   mocks.platformState.isMac = false
 })
 
@@ -389,7 +397,7 @@ describe('AppShellTabBar', () => {
     expect(pinnedTab).toHaveClass('nodrag')
   })
 
-  it('renders a dragged tab on an opaque floating surface', () => {
+  it('keeps a dragged inactive tab opaque while hovered in a transparent window', () => {
     const originalSetPointerCapture = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'setPointerCapture')
     Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', {
       configurable: true,
@@ -397,6 +405,7 @@ describe('AppShellTabBar', () => {
     })
 
     try {
+      mocks.macTransparentState.value = true
       renderTabBar()
 
       const tab = screen.getByRole('button', { name: 'A' })
@@ -424,6 +433,14 @@ describe('AppShellTabBar', () => {
       expect(tab).toHaveClass('bg-popover')
       expect(tab).toHaveClass('dark:bg-popover')
       expect(tab).toHaveClass('shadow-md')
+      expect(tab).toHaveClass('hover:bg-popover')
+      expect(tab).toHaveClass('dark:hover:bg-popover')
+      expect(tab).toHaveClass('hover:shadow-md')
+      expect(tab).toHaveClass('dark:hover:shadow-md')
+      expect(tab).not.toHaveClass('hover:bg-black/6')
+      expect(tab).not.toHaveClass('dark:hover:bg-white/6')
+      expect(tab).not.toHaveClass('hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)]')
+      expect(tab).not.toHaveClass('dark:hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]')
     } finally {
       if (originalSetPointerCapture) {
         Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', originalSetPointerCapture)
@@ -678,6 +695,38 @@ describe('AppShellTabBar', () => {
     }
   )
 
+  it.each(['touch', 'pen'] as const)(
+    'closes a tab immediately for a %s double click without freezing the strip',
+    (pointerType) => {
+      const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+        width: 120,
+        height: 30,
+        top: 0,
+        left: 0,
+        right: 120,
+        bottom: 30,
+        x: 0,
+        y: 0,
+        toJSON: () => ({})
+      } as DOMRect)
+
+      try {
+        const closeTab = renderTabBar()
+        const tab = screen.getByRole('button', { name: 'A' })
+        const remainingTab = screen.getByRole('button', { name: 'Chat' })
+
+        firePointerDoubleClick(tab, pointerType)
+
+        expect(closeTab).toHaveBeenCalledOnce()
+        expect(closeTab).toHaveBeenCalledWith('a')
+        expect(tab).toHaveStyle({ flex: '1 1 0px' })
+        expect(remainingTab).toHaveStyle({ flex: '1 1 0px' })
+      } finally {
+        rectSpy.mockRestore()
+      }
+    }
+  )
+
   it('keeps the close button reachable by keyboard', () => {
     const closeTab = renderTabBar()
 
@@ -820,6 +869,50 @@ describe('AppShellTabBar', () => {
       vi.useRealTimers()
       vi.unstubAllGlobals()
       rectSpy.mockRestore()
+    }
+  })
+
+  it.each([0, 16])('cancels deferred close work when unmounted after %d ms', (elapsedMs) => {
+    const restoreAnimation = mockCloseAnimation()
+
+    try {
+      const setActiveTab = vi.fn()
+      const closeTab = vi.fn()
+      const tabs: Tab[] = [
+        { id: 'home', type: 'route', url: '/app/chat', title: 'Chat' },
+        { id: 'a', type: 'route', url: '/app/a', title: 'A' }
+      ]
+
+      const { unmount } = render(
+        <AppShellTabBar
+          tabs={tabs}
+          activeTabId="home"
+          setActiveTab={setActiveTab}
+          closeTab={closeTab}
+          closeTabs={vi.fn()}
+          reorderTabs={vi.fn()}
+          pinTab={vi.fn()}
+          unpinTab={vi.fn()}
+          openTab={vi.fn()}
+        />
+      )
+
+      const closeButton = within(screen.getByRole('button', { name: 'Chat' })).getByRole('button', {
+        name: 'tab.close'
+      })
+      fireEvent.click(closeButton, { detail: 1 })
+      act(() => {
+        vi.advanceTimersByTime(elapsedMs)
+      })
+      unmount()
+
+      act(() => {
+        vi.advanceTimersByTime(500)
+      })
+      expect(setActiveTab).not.toHaveBeenCalled()
+      expect(closeTab).not.toHaveBeenCalled()
+    } finally {
+      restoreAnimation()
     }
   })
 
@@ -1162,13 +1255,8 @@ describe('AppShellTabBar', () => {
     })
     const tabA = screen.getByRole('button', { name: 'A' })
 
-    const doubleClick = new MouseEvent('dblclick', {
-      bubbles: true,
-      cancelable: true
-    })
-    fireEvent(tabA, doubleClick)
+    firePointerDoubleClick(tabA)
     expect(closeTab).toHaveBeenCalledWith('a')
-    expect(doubleClick.defaultPrevented).toBe(true)
     expect(handleDoubleClick).not.toHaveBeenCalled()
 
     closeTab.mockClear()
@@ -1198,11 +1286,7 @@ describe('AppShellTabBar', () => {
     )
     const tabA = screen.getByRole('button', { name: 'A' })
 
-    const doubleClick = new MouseEvent('dblclick', {
-      bubbles: true,
-      cancelable: true
-    })
-    fireEvent(tabA, doubleClick)
+    firePointerDoubleClick(tabA)
 
     const middleClick = new MouseEvent('auxclick', {
       button: 1,
@@ -1213,7 +1297,6 @@ describe('AppShellTabBar', () => {
 
     expect(closeTab).toHaveBeenCalledWith('a')
     expect(closeTab).toHaveBeenCalledTimes(2)
-    expect(doubleClick.defaultPrevented).toBe(true)
     expect(middleClick.defaultPrevented).toBe(true)
     expect(handleDoubleClick).not.toHaveBeenCalled()
     expect(handleAuxClick).not.toHaveBeenCalled()

@@ -58,6 +58,11 @@ interface TabToneProps {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
+// A dragged inactive tab remains hovered, so the matching hover variants must
+// override the transparent-window tone as well as the base background/shadow.
+const DRAGGING_TAB_SURFACE_CLASS =
+  'bg-popover shadow-md hover:bg-popover hover:shadow-md dark:bg-popover dark:hover:bg-popover dark:hover:shadow-md'
+
 const Separator = () => <div className="mx-0.5 h-4 w-px shrink-0 bg-border/50" />
 
 type PinnedTabButtonProps = {
@@ -98,7 +103,7 @@ const PinnedTabButton = ({ tab, isActive, onSelect, drag, tabRef, tone, ref, ...
           'nodrag flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-150 [-webkit-app-region:no-drag]',
           drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
           isActive ? tone.activeClass : tone.hoverClass,
-          drag.isDragging && 'bg-popover shadow-md dark:bg-popover',
+          drag.isDragging && DRAGGING_TAB_SURFACE_CLASS,
           rest.className
         )}>
         <TabIcon tab={tab} size={14} />
@@ -192,7 +197,18 @@ const NormalTabButton = ({
       // tab's accessible name via name-from-content.
       aria-label={tab.title}
       onPointerDown={drag.onPointerDown}
-      onClick={onSelect}
+      onClick={(e) => {
+        // Chromium's click events retain PointerEvent.pointerType, while the
+        // following dblclick is a plain MouseEvent. Close on click #2 so touch
+        // and pen can skip the mouse-only width freeze without closing twice.
+        if (e.detail === 2 && canClose) {
+          e.preventDefault()
+          e.stopPropagation()
+          closeFromPointer(e)
+          return
+        }
+        onSelect()
+      }}
       onAuxClick={(e) => {
         if (e.button === 1 && canClose) {
           e.preventDefault()
@@ -204,7 +220,6 @@ const NormalTabButton = ({
         if (!canClose) return
         e.preventDefault()
         e.stopPropagation()
-        closeFromPointer(e)
       }}
       style={{
         // Frozen tabs pin their flex-basis in px; the unfrozen value keeps the same
@@ -244,7 +259,7 @@ const NormalTabButton = ({
           : isActive
             ? tone.activeClass
             : tone.hoverClass,
-        drag.isDragging && 'bg-popover shadow-md dark:bg-popover',
+        drag.isDragging && DRAGGING_TAB_SURFACE_CLASS,
         isClosing && 'min-w-0 overflow-hidden px-0'
       )}>
       <TabIcon tab={tab} size={14} className="shrink-0" />
@@ -493,14 +508,13 @@ export const AppShellTabBar = ({
             // tab's right-click menu is open, in both cherry and native menu modes.
             hoverClass:
               'text-muted-foreground hover:bg-black/6 hover:text-sidebar-foreground hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)] dark:hover:bg-white/6 dark:hover:text-sidebar-foreground dark:hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)] data-[menu-open=true]:bg-black/6 data-[menu-open=true]:text-sidebar-foreground data-[menu-open=true]:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)] dark:data-[menu-open=true]:bg-white/6 dark:data-[menu-open=true]:text-sidebar-foreground dark:data-[menu-open=true]:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]',
-            closingClass:
-              'bg-black/6 text-sidebar-foreground shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)] dark:bg-white/6 dark:text-sidebar-foreground dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]'
+            closingClass: 'bg-accent text-accent-foreground'
           }
         : {
             activeClass: 'bg-black/8 text-sidebar-foreground dark:bg-sidebar-accent dark:text-sidebar-foreground',
             hoverClass:
               'text-muted-foreground hover:bg-white hover:text-sidebar-foreground dark:hover:bg-white/10 dark:hover:text-sidebar-foreground data-[menu-open=true]:bg-white data-[menu-open=true]:text-sidebar-foreground dark:data-[menu-open=true]:bg-white/10 dark:data-[menu-open=true]:text-sidebar-foreground',
-            closingClass: 'bg-white text-sidebar-foreground dark:bg-white/10 dark:text-sidebar-foreground'
+            closingClass: 'bg-popover text-popover-foreground dark:bg-accent dark:text-accent-foreground'
           },
     [isMacTransparentWindow]
   )
@@ -518,6 +532,7 @@ export const AppShellTabBar = ({
   // deduplicates click/double-click sequences and lets concurrent closes skip
   // every tab that is already on its way out.
   const pendingCloseIdsRef = useRef(new Set<string>())
+  const animationFrameIdsRef = useRef(new Set<number>())
   const closeTimersRef = useRef<number[]>([])
   const thawTimerRef = useRef<number | null>(null)
   const stripRef = useRef<HTMLDivElement | null>(null)
@@ -533,8 +548,17 @@ export const AppShellTabBar = ({
   closeTabRef.current = closeTab
   const setActiveTabRef = useRef(setActiveTab)
   setActiveTabRef.current = setActiveTab
+  const requestTrackedAnimationFrame = useCallback((callback: FrameRequestCallback) => {
+    const frameId = requestAnimationFrame((timestamp) => {
+      animationFrameIdsRef.current.delete(frameId)
+      callback(timestamp)
+    })
+    animationFrameIdsRef.current.add(frameId)
+  }, [])
   useEffect(
     () => () => {
+      animationFrameIdsRef.current.forEach((frameId) => cancelAnimationFrame(frameId))
+      animationFrameIdsRef.current.clear()
       closeTimersRef.current.forEach((timer) => window.clearTimeout(timer))
       if (thawTimerRef.current != null) window.clearTimeout(thawTimerRef.current)
       pendingCloseIdsRef.current.clear()
@@ -857,8 +881,8 @@ export const AppShellTabBar = ({
                     // handover happens in the SAME commit as the tone pinning: doing
                     // it earlier leaves the tab active-less but not yet pinned for a
                     // couple of frames, which flashes the hover tint.
-                    requestAnimationFrame(() =>
-                      requestAnimationFrame(() => {
+                    requestTrackedAnimationFrame(() =>
+                      requestTrackedAnimationFrame(() => {
                         const activeId = activeTabIdRef.current
                         const pendingCloseIds = pendingCloseIdsRef.current
                         if (pendingCloseIds.has(activeId)) {
@@ -881,7 +905,7 @@ export const AppShellTabBar = ({
                         setClosingTabIds((prev) => (prev.has(tab.id) ? prev : new Map(prev).set(tab.id, wasActive)))
                         if (thawAfterCollapseRef.current && !stripPointerInsideRef.current) {
                           thawAfterCollapseRef.current = false
-                          requestAnimationFrame(() => {
+                          requestTrackedAnimationFrame(() => {
                             if (!stripPointerInsideRef.current) handleStripMouseLeaveRef.current()
                           })
                         }
