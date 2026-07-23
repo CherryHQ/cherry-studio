@@ -31,6 +31,15 @@ export const COMMAND_DEFINITIONS = [
     }
   }),
   defineCommand({
+    id: 'app.print',
+    titleKey: 'settings.shortcuts.print',
+    categoryKey: 'settings.shortcuts.general',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'P']
+    }
+  }),
+  defineCommand({
     id: 'app.sidebar.toggle',
     titleKey: 'settings.shortcuts.toggle_left_sidebar',
     categoryKey: 'settings.shortcuts.topic',
@@ -190,42 +199,6 @@ export const COMMAND_DEFINITIONS = [
     scope: 'renderer',
     keybinding: {
       defaultBinding: ['CommandOrControl', ']']
-    }
-  }),
-  defineCommand({
-    id: 'tab.close',
-    titleKey: 'settings.shortcuts.close_tab',
-    categoryKey: 'settings.shortcuts.general',
-    scope: 'renderer',
-    keybinding: {
-      defaultBinding: []
-    }
-  }),
-  defineCommand({
-    id: 'tab.pin',
-    titleKey: 'settings.shortcuts.pin_tab',
-    categoryKey: 'settings.shortcuts.general',
-    scope: 'renderer',
-    keybinding: {
-      defaultBinding: []
-    }
-  }),
-  defineCommand({
-    id: 'tab.move-to-first',
-    titleKey: 'settings.shortcuts.move_tab_to_first',
-    categoryKey: 'settings.shortcuts.general',
-    scope: 'renderer',
-    keybinding: {
-      defaultBinding: []
-    }
-  }),
-  defineCommand({
-    id: 'tab.open-in-new-window',
-    titleKey: 'settings.shortcuts.open_tab_in_new_window',
-    categoryKey: 'settings.shortcuts.general',
-    scope: 'renderer',
-    keybinding: {
-      defaultBinding: []
     }
   })
 ] as const satisfies readonly CommandDefinition[]

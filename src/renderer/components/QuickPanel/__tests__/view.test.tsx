@@ -1,12 +1,18 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import React, { useEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getQuickPanelHeights, QUICK_PANEL_BODY_CHROME_VERTICAL_SPACE, QUICK_PANEL_SAFE_MARGIN } from '../heights'
-import { useQuickPanel } from '../hook'
-import { QuickPanelProvider } from '../provider'
-import type { QuickPanelContextType, QuickPanelInputAdapter, QuickPanelListItem, QuickPanelTriggerInfo } from '../types'
-import { QuickPanelView } from '../view'
+import { QuickPanelProvider } from '../QuickPanelProvider'
+import { QuickPanelView } from '../QuickPanelView'
+import type {
+  QuickPanelContextType,
+  QuickPanelInputAdapter,
+  QuickPanelListItem,
+  QuickPanelOpenOptions,
+  QuickPanelTriggerInfo
+} from '../types'
+import { useQuickPanel } from '../useQuickPanel'
 
 const virtualListMocks = vi.hoisted(() => ({
   scrollToIndex: vi.fn(),
@@ -82,7 +88,11 @@ function PanelHarness({
   readOnly,
   symbol = '/',
   title = 'Actions',
+  triggerInfo,
   trackInputQuery,
+  initialSearchText,
+  queryAnchor,
+  onClose,
   fill = false
 }: {
   captureDispatch: (dispatch: QuickPanelContextType['dispatchKeyDown']) => void
@@ -92,7 +102,11 @@ function PanelHarness({
   readOnly?: boolean
   symbol?: string
   title?: string
+  triggerInfo?: QuickPanelTriggerInfo
   trackInputQuery?: boolean
+  initialSearchText?: string
+  queryAnchor?: number
+  onClose?: QuickPanelOpenOptions['onClose']
   /** Drives the ambient fill flag the composer would push for home placement. */
   fill?: boolean
 }) {
@@ -113,13 +127,31 @@ function PanelHarness({
       readOnly,
       symbol,
       title,
-      triggerInfo: inputAdapter
-        ? ({ type: 'input', position: 0, originalText: inputAdapter.getText() } satisfies QuickPanelTriggerInfo)
-        : { type: 'button' },
+      triggerInfo:
+        triggerInfo ??
+        (inputAdapter
+          ? ({ type: 'input', position: 0, originalText: inputAdapter.getText() } satisfies QuickPanelTriggerInfo)
+          : { type: 'button' }),
+      queryAnchor,
       manageListExternally,
-      trackInputQuery: trackInputQuery ?? Boolean(inputAdapter)
+      trackInputQuery: trackInputQuery ?? Boolean(inputAdapter),
+      initialSearchText,
+      onClose
     })
-  }, [inputAdapter, items, manageListExternally, open, readOnly, symbol, title, trackInputQuery])
+  }, [
+    inputAdapter,
+    initialSearchText,
+    items,
+    manageListExternally,
+    onClose,
+    open,
+    queryAnchor,
+    readOnly,
+    symbol,
+    title,
+    trackInputQuery,
+    triggerInfo
+  ])
 
   return <QuickPanelView inputAdapter={inputAdapter} />
 }
@@ -138,23 +170,23 @@ function ImmediateOpenDispatchHarness({ onHandled }: { onHandled: (handled: bool
   const { dispatchKeyDown, open, registerKeyDownHandler } = useQuickPanel()
 
   useEffect(() => {
-    return registerKeyDownHandler((event) => {
+    open({
+      list: [],
+      symbol: '/'
+    })
+
+    const unregister = registerKeyDownHandler((event) => {
       if (event.key !== 'Escape') return false
 
       event.preventDefault()
       event.stopPropagation()
       return true
     })
-  }, [registerKeyDownHandler])
-
-  useEffect(() => {
-    open({
-      list: [],
-      symbol: '/'
-    })
 
     onHandled(dispatchKeyDown(createKeyDownEvent('Escape').event))
-  }, [dispatchKeyDown, onHandled, open])
+
+    return unregister
+  }, [dispatchKeyDown, onHandled, open, registerKeyDownHandler])
 
   return null
 }
@@ -190,6 +222,61 @@ describe('QuickPanelView', () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 
+  it('passes the current context to onClose callbacks', async () => {
+    const onClose = vi.fn()
+    let quickPanel: QuickPanelContextType | undefined
+
+    render(
+      <QuickPanelProvider>
+        <CaptureQuickPanel onCapture={(context) => (quickPanel = context)} />
+      </QuickPanelProvider>
+    )
+
+    await waitFor(() => {
+      expect(quickPanel).toBeDefined()
+    })
+
+    act(() => {
+      quickPanel?.open({ list: [], symbol: '/', onClose })
+    })
+
+    await waitFor(() => {
+      expect(quickPanel?.symbol).toBe('/')
+    })
+
+    const openContext = quickPanel
+    act(() => {
+      openContext?.close('esc')
+    })
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(onClose.mock.calls[0][0].context).toBe(openContext)
+  })
+
+  it('advances the panel generation when closing without reopening', async () => {
+    let quickPanel: QuickPanelContextType | undefined
+
+    render(
+      <QuickPanelProvider>
+        <CaptureQuickPanel onCapture={(context) => (quickPanel = context)} />
+      </QuickPanelProvider>
+    )
+
+    await waitFor(() => {
+      expect(quickPanel).toBeDefined()
+    })
+
+    act(() => {
+      quickPanel?.open({ list: [], symbol: '/' })
+    })
+    expect(quickPanel?.getPanelGeneration()).toBe(1)
+
+    act(() => {
+      quickPanel?.close('input_prefix_invalid')
+    })
+    expect(quickPanel?.getPanelGeneration()).toBe(2)
+  })
+
   it('dispatches keydown immediately after opening in the same effect tick', async () => {
     const onHandled = vi.fn()
 
@@ -202,6 +289,51 @@ describe('QuickPanelView', () => {
     await waitFor(() => {
       expect(onHandled).toHaveBeenCalledWith(true)
     })
+  })
+
+  it('does not dispatch to the previous visible panel handler while opening the next panel', async () => {
+    let quickPanel: QuickPanelContextType | undefined
+    const panelAAction = vi.fn()
+    const panelBAction = vi.fn()
+
+    render(
+      <QuickPanelProvider>
+        <CaptureQuickPanel onCapture={(context) => (quickPanel = context)} />
+        <QuickPanelView />
+      </QuickPanelProvider>
+    )
+
+    await waitFor(() => {
+      expect(quickPanel).toBeDefined()
+    })
+
+    act(() => {
+      quickPanel?.open({
+        list: [{ id: 'panel-a-action', label: 'Panel A action', icon: 'a', action: panelAAction }],
+        symbol: '/'
+      })
+    })
+
+    await screen.findByText('Panel A action')
+    await waitFor(() => {
+      expect(quickPanel?.getPanelGeneration()).toBe(1)
+    })
+
+    const { event, preventDefault, stopPropagation } = createKeyDownEvent('Enter')
+    let handled = true
+    act(() => {
+      quickPanel?.open({
+        list: [{ id: 'panel-b-action', label: 'Panel B action', icon: 'b', action: panelBAction }],
+        symbol: '@'
+      })
+      handled = quickPanel?.dispatchKeyDown(event) ?? false
+    })
+
+    expect(handled).toBe(false)
+    expect(panelAAction).not.toHaveBeenCalled()
+    expect(panelBAction).not.toHaveBeenCalled()
+    expect(preventDefault).not.toHaveBeenCalled()
+    expect(stopPropagation).not.toHaveBeenCalled()
   })
 
   it('resets the virtual list scroll offset when a panel opens', async () => {
@@ -222,6 +354,239 @@ describe('QuickPanelView', () => {
     expect(virtualListMocks.scrollToOffset).toHaveBeenCalledWith(0, { align: 'start' })
   })
 
+  it('keeps a button-triggered tracked panel open when the cursor is inside a word', async () => {
+    const captureDispatch = vi.fn()
+    const onClose = vi.fn()
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => 'hello world',
+      getCursorOffset: () => 3,
+      insertText: vi.fn(),
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn()
+    }
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          inputAdapter={inputAdapter}
+          items={[{ id: 'action', label: 'Action', icon: 'a' }]}
+          queryAnchor={3}
+          triggerInfo={{ type: 'button', position: 3 }}
+          trackInputQuery
+          onClose={onClose}
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Action')
+
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('keeps a button-triggered tracked panel open when the query contains whitespace', async () => {
+    const captureDispatch = vi.fn()
+    const onClose = vi.fn()
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => 'new chat',
+      getCursorOffset: () => 8,
+      insertText: vi.fn(),
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn()
+    }
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          inputAdapter={inputAdapter}
+          items={[{ id: 'new-chat', label: 'New chat', icon: 'message' }]}
+          queryAnchor={0}
+          triggerInfo={{ type: 'button', position: 0 }}
+          trackInputQuery
+          onClose={onClose}
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('New chat')
+
+    expect(screen.getByTestId('quick-panel')).toHaveClass('visible')
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('filters a button-triggered tracked panel with initial search text', async () => {
+    const captureDispatch = vi.fn()
+    const listeners = new Set<Parameters<NonNullable<QuickPanelInputAdapter['subscribeInput']>>[0]>()
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => '',
+      getCursorOffset: () => 0,
+      insertText: vi.fn(),
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      subscribeInput: (listener) => {
+        listeners.add(listener)
+        return () => listeners.delete(listener)
+      }
+    }
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          inputAdapter={inputAdapter}
+          items={[
+            { id: 'agent-skill', label: 'Agent skill', icon: 'sparkles' },
+            { id: 'attachment', label: 'Attachment', icon: 'paperclip' }
+          ]}
+          queryAnchor={0}
+          triggerInfo={{ type: 'button', position: 0 }}
+          trackInputQuery
+          initialSearchText="skill"
+        />
+      </QuickPanelProvider>
+    )
+
+    expect(await screen.findByText('Agent skill')).toBeInTheDocument()
+    expect(screen.queryByText('Attachment')).not.toBeInTheDocument()
+
+    act(() => {
+      listeners.forEach((listener) => listener())
+    })
+
+    expect(screen.getByText('Agent skill')).toBeInTheDocument()
+    expect(screen.queryByText('Attachment')).not.toBeInTheDocument()
+  })
+
+  it('closes with Escape even when the key event does not come from the input adapter', async () => {
+    const captureDispatch = vi.fn()
+    const onClose = vi.fn()
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => '',
+      getCursorOffset: () => 0,
+      insertText: vi.fn(),
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn()
+    }
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          inputAdapter={inputAdapter}
+          items={[{ id: 'action', label: 'Action', icon: 'a' }]}
+          queryAnchor={0}
+          triggerInfo={{ type: 'button', position: 0 }}
+          trackInputQuery
+          onClose={onClose}
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Action')
+
+    const event = createKeyDownEvent('Escape')
+    act(() => {
+      window.dispatchEvent(event.event)
+    })
+
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(event.stopPropagation).toHaveBeenCalled()
+    expect(onClose).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'esc',
+        searchText: ''
+      })
+    )
+  })
+
+  it('does not delete existing composer text after a button-triggered cursor move', async () => {
+    const captureDispatch = vi.fn()
+    const action = vi.fn()
+    const deleteTriggerRange = vi.fn()
+    let cursorOffset = 5
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => 'keep existing text',
+      getCursorOffset: () => cursorOffset,
+      insertText: vi.fn(),
+      deleteTriggerRange,
+      focus: vi.fn()
+    }
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          inputAdapter={inputAdapter}
+          items={[{ id: 'action', label: 'Action', icon: 'a', action }]}
+          queryAnchor={5}
+          triggerInfo={{ type: 'button', position: 5 }}
+          trackInputQuery
+        />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Action')
+
+    cursorOffset = 14
+    fireEvent.click(screen.getByText('Action'))
+
+    expect(action).toHaveBeenCalledTimes(1)
+    expect(deleteTriggerRange).not.toHaveBeenCalled()
+  })
+
+  it('clears a button-triggered search before opening a child menu panel', async () => {
+    const captureDispatch = vi.fn()
+    const childAction = vi.fn()
+    const insertText = vi.fn()
+    let text = 'knowledge'
+    let cursorOffset = text.length
+    const deleteTriggerRange = vi.fn(({ from, to }: { from: number; to: number }) => {
+      text = text.slice(0, from) + text.slice(to)
+      cursorOffset = from
+    })
+    const inputAdapter: QuickPanelInputAdapter = {
+      getText: () => text,
+      getCursorOffset: () => cursorOffset,
+      insertText,
+      deleteTriggerRange,
+      focus: vi.fn()
+    }
+    const menuAction: QuickPanelListItem['action'] = ({ context, parentPanel, queryAnchor }) => {
+      context.open({
+        list: [{ id: 'knowledge-file', label: 'Knowledge file', icon: 'file', action: childAction }],
+        symbol: 'knowledge-base',
+        parentPanel,
+        queryAnchor,
+        triggerInfo: context.triggerInfo
+      })
+    }
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness
+          captureDispatch={captureDispatch}
+          inputAdapter={inputAdapter}
+          items={[{ id: 'knowledge-base', label: 'Knowledge Base', icon: 'kb', isMenu: true, action: menuAction }]}
+          queryAnchor={0}
+          triggerInfo={{ type: 'button', position: 0 }}
+          trackInputQuery
+        />
+      </QuickPanelProvider>
+    )
+
+    fireEvent.click(await screen.findByText('Knowledge Base'))
+
+    expect(deleteTriggerRange).toHaveBeenCalledOnce()
+    expect(deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 'knowledge'.length })
+    expect(text).toBe('')
+
+    fireEvent.click(await screen.findByText('Knowledge file'))
+
+    expect(childAction).toHaveBeenCalledTimes(1)
+    expect(deleteTriggerRange).toHaveBeenCalledOnce()
+  })
+
   // 集成测试验证 context 的 fill 标志 + DOM 几何测量把高度喂给了 getQuickPanelHeights；
   // 具体数值由 heights.test.ts 的纯单测覆盖，这里不写死像素。
   const measuredItems: QuickPanelListItem[] = Array.from({ length: 10 }, (_, index) => ({
@@ -230,10 +595,6 @@ describe('QuickPanelView', () => {
     icon: `${index}`,
     action: vi.fn()
   }))
-  const visibleShadowClass = 'shadow-[0_18px_44px_rgba(15,23,42,0.16),0_4px_12px_rgba(15,23,42,0.10)]'
-  const darkVisibleShadowClass = 'dark:shadow-[0_22px_48px_rgba(0,0,0,0.46),0_8px_18px_rgba(0,0,0,0.35)]'
-  const homeVisibleShadowClass = 'shadow-[0_12px_30px_rgba(15,23,42,0.08),0_2px_8px_rgba(15,23,42,0.05)]'
-  const darkHomeVisibleShadowClass = 'dark:shadow-[0_14px_34px_rgba(0,0,0,0.26),0_4px_12px_rgba(0,0,0,0.18)]'
   const compactItems = measuredItems.slice(0, 2)
 
   it('keeps the fixed height in a docked composer (no placement, no fill)', async () => {
@@ -272,9 +633,7 @@ describe('QuickPanelView', () => {
       // docked 不撑高 body。
       const body = screen.getByTestId('quick-panel-body')
       expect(body).not.toHaveStyle({ height: `${expected.panelMaxHeight}px` })
-      expect(body).toHaveClass(visibleShadowClass)
-      expect(body).toHaveClass(darkVisibleShadowClass)
-      expect(body).not.toHaveClass('shadow-none')
+      expect(body).toHaveClass('shadow-none')
     } finally {
       getRectSpy.mockRestore()
     }
@@ -320,11 +679,7 @@ describe('QuickPanelView', () => {
       expect(body).not.toHaveStyle({ height: `${expected.panelMaxHeight}px` })
       expect(body).not.toHaveStyle({ height: `${panelBottom - dockTop - QUICK_PANEL_SAFE_MARGIN}px` })
       expect(body).not.toHaveClass('justify-end')
-      expect(body).toHaveClass(homeVisibleShadowClass)
-      expect(body).toHaveClass(darkHomeVisibleShadowClass)
-      expect(body).not.toHaveClass('shadow-none')
-      expect(body).not.toHaveClass(visibleShadowClass)
-      expect(body).not.toHaveClass(darkVisibleShadowClass)
+      expect(body).toHaveClass('shadow-none')
     } finally {
       getRectSpy.mockRestore()
     }
@@ -441,7 +796,7 @@ describe('QuickPanelView', () => {
         expect(panel).toHaveStyle({ maxHeight: `${homeExpected.panelMaxHeight}px` })
       })
       expect(screen.getByTestId('quick-panel-body')).toHaveStyle({ height: `${homeExpected.panelMaxHeight}px` })
-      expect(screen.getByTestId('quick-panel-body')).toHaveClass(homeVisibleShadowClass)
+      expect(screen.getByTestId('quick-panel-body')).toHaveClass('shadow-none')
 
       rerender(renderPanel(false))
 
@@ -450,10 +805,7 @@ describe('QuickPanelView', () => {
       })
       const body = screen.getByTestId('quick-panel-body')
       expect(body).not.toHaveStyle({ height: `${homeExpected.panelMaxHeight}px` })
-      expect(body).toHaveClass(visibleShadowClass)
-      expect(body).toHaveClass(darkVisibleShadowClass)
-      expect(body).not.toHaveClass(homeVisibleShadowClass)
-      expect(body).not.toHaveClass(darkHomeVisibleShadowClass)
+      expect(body).toHaveClass('shadow-none')
     } finally {
       getRectSpy.mockRestore()
       clientHeightSpy.mockRestore()
@@ -496,10 +848,7 @@ describe('QuickPanelView', () => {
       expect(screen.getByTestId('quick-panel-virtual-list')).toHaveAttribute('data-size', String(expected.listHeight))
       const body = screen.getByTestId('quick-panel-body')
       expect(body).not.toHaveStyle({ height: `${expected.panelMaxHeight}px` })
-      expect(body).toHaveClass(visibleShadowClass)
-      expect(body).toHaveClass(darkVisibleShadowClass)
-      expect(body).not.toHaveClass(homeVisibleShadowClass)
-      expect(body).not.toHaveClass(darkHomeVisibleShadowClass)
+      expect(body).toHaveClass('shadow-none')
     } finally {
       getRectSpy.mockRestore()
     }
@@ -586,6 +935,58 @@ describe('QuickPanelView', () => {
       expect.objectContaining({
         action: 'enter',
         item: expect.objectContaining({ id: 'first' })
+      })
+    )
+  })
+
+  it('anchors bottom-fixed items outside the virtual list and keeps them last in keyboard navigation', async () => {
+    const customizeAction = vi.fn()
+    const captureDispatch = vi.fn()
+    const items: QuickPanelListItem[] = [
+      { id: 'first', label: 'First action', icon: '1', action: vi.fn() },
+      { id: 'second', label: 'Second action', icon: '2', action: vi.fn() },
+      {
+        id: 'customize',
+        label: 'Customize toolbar',
+        icon: 'settings',
+        fixedToBottom: true,
+        action: customizeAction
+      }
+    ]
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness captureDispatch={captureDispatch} items={items} />
+      </QuickPanelProvider>
+    )
+
+    const fixedBottom = await screen.findByTestId('quick-panel-fixed-bottom')
+    const virtualList = screen.getByTestId('quick-panel-virtual-list')
+    expect(fixedBottom).toHaveClass('absolute', 'bottom-0')
+    expect(within(fixedBottom).getByText('Customize toolbar')).toBeInTheDocument()
+    expect(within(virtualList).queryByText('Customize toolbar')).not.toBeInTheDocument()
+
+    const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
+    virtualListMocks.scrollToIndex.mockClear()
+    act(() => {
+      dispatchKeyDown(createKeyDownEvent('ArrowUp').event)
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Customize toolbar').closest('[data-id="customize"]')).toHaveAttribute(
+        'data-active',
+        'true'
+      )
+    })
+    expect(virtualListMocks.scrollToIndex).not.toHaveBeenCalled()
+
+    act(() => {
+      dispatchKeyDown(createKeyDownEvent('Tab').event)
+    })
+    expect(customizeAction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'enter',
+        item: expect.objectContaining({ id: 'customize' })
       })
     )
   })
@@ -683,6 +1084,116 @@ describe('QuickPanelView', () => {
     expect(action).not.toHaveBeenCalled()
   })
 
+  it('keeps a bottom-fixed action visible when filtering has no results', async () => {
+    const action = vi.fn()
+    const inputAdapter: QuickPanelInputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: () => 8,
+      getText: () => '/missing',
+      insertText: vi.fn()
+    }
+    const items: QuickPanelListItem[] = [
+      { id: 'regular', label: 'Regular action', icon: 'r' },
+      { id: 'customize', label: 'Customize toolbar', icon: 'settings', fixedToBottom: true, action }
+    ]
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness captureDispatch={vi.fn()} inputAdapter={inputAdapter} items={items} />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('No results')
+    expect(screen.queryByTestId('quick-panel-virtual-list')).not.toBeInTheDocument()
+    expect(within(screen.getByTestId('quick-panel-fixed-bottom')).getByText('Customize toolbar')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('Customize toolbar'))
+    expect(action).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the exit layout stable when closing', async () => {
+    const inputAdapter: QuickPanelInputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: () => 8,
+      getText: () => '/missing',
+      insertText: vi.fn()
+    }
+    const items: QuickPanelListItem[] = [{ id: 'clear', label: 'Clear query', icon: 'x', alwaysVisible: true }]
+    let closePanel: QuickPanelContextType['close'] | undefined
+
+    render(
+      <QuickPanelProvider>
+        <CaptureQuickPanel onCapture={(context) => (closePanel = context.close)} />
+        <PanelHarness captureDispatch={vi.fn()} inputAdapter={inputAdapter} items={items} />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('No results')
+
+    const panel = screen.getByTestId('quick-panel')
+    const expected = getQuickPanelHeights({
+      isVisible: true,
+      collapsed: true,
+      readOnly: false,
+      pageSize: 7,
+      itemCount: items.length,
+      availableHeight: null,
+      fill: false
+    })
+
+    expect(panel).toHaveStyle({ maxHeight: `${expected.panelMaxHeight}px` })
+
+    vi.useFakeTimers()
+    act(() => {
+      closePanel?.('esc')
+    })
+
+    expect(panel).not.toHaveClass('visible')
+    expect(panel).toHaveStyle({ maxHeight: `${expected.panelMaxHeight}px` })
+    expect(panel).toHaveClass('transition-none')
+    expect(screen.getByTestId('quick-panel-body')).toHaveClass('transition-[translate,scale,opacity,box-shadow]')
+    expect(screen.getByText('No results')).toBeInTheDocument()
+    expect(screen.queryByText('Clear query')).not.toBeInTheDocument()
+  })
+
+  it('closes a tracked slash panel before rendering a repeated trigger as a query', async () => {
+    const listeners = new Set<Parameters<NonNullable<QuickPanelInputAdapter['subscribeInput']>>[0]>()
+    let inputText = '/'
+    const inputAdapter: QuickPanelInputAdapter = {
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn(),
+      getCursorOffset: () => inputText.length,
+      getText: () => inputText,
+      insertText: vi.fn(),
+      subscribeInput: (listener) => {
+        listeners.add(listener)
+        return () => listeners.delete(listener)
+      }
+    }
+    const items: QuickPanelListItem[] = [{ id: 'root', label: 'Root action', icon: 'tool', action: vi.fn() }]
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness captureDispatch={vi.fn()} inputAdapter={inputAdapter} items={items} />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Root action')
+
+    inputText = '//'
+    act(() => {
+      listeners.forEach((listener) => listener())
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('quick-panel')).not.toHaveClass('visible')
+    })
+    expect(screen.queryByText('No results')).not.toBeInTheDocument()
+    expect(screen.getByText('Root action')).toBeInTheDocument()
+  })
+
   it('tracks non-slash input queries and consumes the trigger range on selection', async () => {
     const action = vi.fn()
     const captureDispatch = vi.fn()
@@ -699,6 +1210,45 @@ describe('QuickPanelView', () => {
     render(
       <QuickPanelProvider>
         <PanelHarness captureDispatch={captureDispatch} inputAdapter={inputAdapter} items={items} symbol="@" />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('notes.md')
+
+    const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
+    const { event } = createKeyDownEvent('Enter')
+
+    let handled = false
+    act(() => {
+      handled = dispatchKeyDown(event)
+    })
+
+    expect(handled).toBe(true)
+    expect(deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 6 })
+    expect(action).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'enter',
+        searchText: 'notes'
+      })
+    )
+  })
+
+  it('tracks ideographic comma input queries under the root symbol and consumes the trigger range on selection', async () => {
+    const action = vi.fn()
+    const captureDispatch = vi.fn()
+    const deleteTriggerRange = vi.fn()
+    const inputAdapter: QuickPanelInputAdapter = {
+      deleteTriggerRange,
+      focus: vi.fn(),
+      getCursorOffset: () => 6,
+      getText: () => '、notes',
+      insertText: vi.fn()
+    }
+    const items: QuickPanelListItem[] = [{ id: 'notes', label: 'notes.md', icon: 'file', action }]
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness captureDispatch={captureDispatch} inputAdapter={inputAdapter} items={items} symbol="/" />
       </QuickPanelProvider>
     )
 

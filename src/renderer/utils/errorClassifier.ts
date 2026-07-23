@@ -49,6 +49,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     numStatus === 404 ||
     msg.includes('model_not_found') ||
     msg.includes('model not found') ||
+    (msg.includes('model with id') && msg.includes('not found')) ||
     msg.includes('model does not exist')
   ) {
     return { category: 'model', i18nKey: 'error.diagnosis.model', navTarget: `/settings/provider${providerSuffix}` }
@@ -89,7 +90,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     msg.includes('fetch failed') ||
     msg.includes('enotfound')
   ) {
-    return { category: 'network', i18nKey: 'error.diagnosis.network', navTarget: '/settings/general' }
+    return { category: 'network', i18nKey: 'error.diagnosis.network', navTarget: '/settings/system' }
   }
 
   // Proxy / SSL certificate errors
@@ -100,7 +101,7 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     msg.includes('self-signed') ||
     msg.includes('unable_to_verify_leaf_signature')
   ) {
-    return { category: 'proxy', i18nKey: 'error.diagnosis.proxy', navTarget: '/settings/general' }
+    return { category: 'proxy', i18nKey: 'error.diagnosis.proxy', navTarget: '/settings/system' }
   }
 
   // Stream interrupted

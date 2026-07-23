@@ -3,7 +3,9 @@ import type { UpdateInfo } from 'builder-util-runtime'
 
 import type { AgentSessionCompactionState } from '../../ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '../../ai/agentSessionContextUsage'
+import type { AgentSessionSlashCommand } from '../../ai/agentSessionSlashCommands'
 import type { ExternalAppId } from '../../types/externalApp'
+import type { McpServer } from '../types/mcpServer'
 import type { MiniApp } from '../types/miniApp'
 import type { WebSearchStatus } from '../types/webSearch'
 
@@ -31,6 +33,13 @@ export type McpRuntimeStatus = {
   lastCheckedAt: number
   lastError?: string
 }
+
+/**
+ * MCP registry "available servers" fetched per marketplace provider, keyed by
+ * provider key. Re-fetchable network data, so it lives in persist cache rather
+ * than Preference/DataApi.
+ */
+export type McpAvailableServers = Record<string, McpServer[]>
 
 /**
  * Tab type for browser-like tabs
@@ -127,3 +136,26 @@ export type CachePaintingGenerationState = {
 
 export type CacheAgentSessionContextUsage = AgentSessionContextUsage | null
 export type CacheAgentSessionCompactionState = AgentSessionCompactionState | null
+export type CacheAgentSessionSlashCommands = AgentSessionSlashCommand[] | null
+
+/**
+ * Persisted window geometry for the WindowManager "remember bounds" capability.
+ *
+ * Stored in the main-process persist cache under `window.bounds`, keyed by
+ * WindowType. Captured from `getNormalBounds()` (the pre-maximize rect) plus the
+ * maximized flag, so a maximized window restores to maximized while un-maximizing
+ * returns to the saved normal size.
+ */
+export type WindowBoundsState = {
+  x: number
+  y: number
+  width: number
+  height: number
+  /** Whether the window was maximized at capture time. Restored by the consumer
+   *  (e.g. MainWindowService) on its own show schedule, not by WindowManager. */
+  isMaximized: boolean
+  /** Bounds of the display the window was last on — used at restore to put the
+   *  window back onto the same display (clamping into it if the saved rect no
+   *  longer fits), instead of resetting to the primary display. */
+  displayBounds: { x: number; y: number; width: number; height: number }
+}

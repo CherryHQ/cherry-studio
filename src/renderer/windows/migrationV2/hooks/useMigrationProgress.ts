@@ -2,6 +2,7 @@
  * Hook for subscribing to migration progress updates
  */
 
+import { loggerService } from '@logger'
 import {
   MigrationIpcChannels,
   type MigrationProgress,
@@ -13,6 +14,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 // Re-export types for convenience
 export type { MigrationProgress, MigrationStage, MigratorStatus }
+
+const logger = loggerService.withContext('useMigrationProgress')
 
 const initialProgress: MigrationProgress = {
   stage: 'introduction',
@@ -75,7 +78,9 @@ export function useMigrationProgress() {
           setProgress(applyMigrationStageTiming(initialProgress))
         }
       })
-      .catch(console.error)
+      .catch((error) => {
+        logger.error('Failed to get initial migration progress', error)
+      })
 
     // Check for last error
     window.electron.ipcRenderer
@@ -85,26 +90,18 @@ export function useMigrationProgress() {
           setLastError(error)
         }
       })
-      .catch(console.error)
+      .catch((error) => {
+        logger.error('Failed to get last migration error', error)
+      })
 
     return () => {
       window.electron.ipcRenderer.removeAllListeners(MigrationIpcChannels.Progress)
     }
   }, [applyMigrationStageTiming])
 
-  const returnToIntroduction = useCallback(() => {
-    void window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReturnToIntroduction)
-  }, [])
-
-  const returnToBackupChoice = useCallback(() => {
-    void window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReturnToBackupChoice)
-  }, [])
-
   return {
     progress,
-    lastError,
-    returnToIntroduction,
-    returnToBackupChoice
+    lastError
   }
 }
 
@@ -112,18 +109,6 @@ export function useMigrationProgress() {
  * Hook for migration actions
  */
 export function useMigrationActions() {
-  const proceedToBackup = useCallback(() => {
-    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.ProceedToBackup)
-  }, [])
-
-  const confirmBackup = useCallback(() => {
-    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.BackupCompleted)
-  }, [])
-
-  const showBackupDialog = useCallback(() => {
-    return window.electron.ipcRenderer.invoke(MigrationIpcChannels.ShowBackupDialog)
-  }, [])
-
   const startMigration = useCallback(async (payload: StartMigrationPayload) => {
     return window.electron.ipcRenderer.invoke(MigrationIpcChannels.StartMigration, payload)
   }, [])
@@ -145,9 +130,6 @@ export function useMigrationActions() {
   }, [])
 
   return {
-    proceedToBackup,
-    confirmBackup,
-    showBackupDialog,
     startMigration,
     retry,
     cancel,

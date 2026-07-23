@@ -20,13 +20,17 @@ import {
   useInfiniteQuery,
   useInvalidateCache,
   useMutation,
-  useQuery
+  useQuery,
+  useWriteCache
 } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { useCloseConversationTabs } from '@renderer/hooks/tab'
+import { useIpcOn } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Topic as RendererTopic } from '@renderer/types/topic'
-import { ErrorCode } from '@shared/data/api/apiErrors'
+import { ErrorCode } from '@shared/data/api/errors'
+import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateTopicDto, DeleteTopicsResult, UpdateTopicDto } from '@shared/data/api/schemas/topics'
 import { type BranchMessagesResponse, type Message as SharedMessage, toContentRole } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
@@ -59,6 +63,7 @@ export function mapApiTopicToRendererTopic(t: Topic): RendererTopic {
     name: t.name ?? '',
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
+    activeNodeId: t.activeNodeId,
     orderKey: t.orderKey,
     traceId: t.traceId,
     messages: [],
@@ -193,6 +198,8 @@ function convertSharedMessage(shared: SharedMessage, assistantId: string): Messa
     updatedAt: shared.updatedAt,
     parentId: shared.parentId ?? undefined,
     modelId: shared.modelId ?? undefined,
+    // Carry the frozen author so export headers survive assistant/agent rename/delete.
+    ...(shared.messageSnapshot && { messageSnapshot: shared.messageSnapshot }),
     ...(shared.stats && { stats: shared.stats })
   }
 }
@@ -211,13 +218,14 @@ function convertSharedMessage(shared: SharedMessage, assistantId: string): Messa
  *
  * `q` triggers server-side LIKE search on `topic.name`.
  */
-export function useTopics(opts?: { q?: string; loadAll?: boolean; pageSize?: number }) {
+export function useTopics(opts?: { q?: string; loadAll?: boolean; pageSize?: number; enabled?: boolean }) {
   const query = opts?.q?.trim() ? { q: opts.q.trim() } : undefined
   const loadAll = opts?.loadAll === true
   const pageSize = opts?.pageSize ?? (loadAll ? LOAD_ALL_TOPIC_PAGE_SIZE : DEFAULT_TOPIC_PAGE_SIZE)
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh, mutate } = useInfiniteQuery('/topics', {
     query,
-    limit: pageSize
+    limit: pageSize,
+    enabled: opts?.enabled
   })
   const topics = useInfiniteFlatItems(pages)
   const isFullyLoaded = !loadAll || (!isLoading && !hasNext)
@@ -265,10 +273,37 @@ export function useTopicById(topicId: string | undefined) {
 }
 
 /**
+ * The globally most-recently-updated topic, for first-entry restore.
+ *
+ * Backed by a dedicated `updatedAt DESC LIMIT 1` server query, so it resumes the
+ * last-touched conversation without waiting for the full topic history to
+ * paginate in and without depending on the pinned-first `/topics` list order.
+ *
+ * `/topics/latest` is a global MAX(updatedAt) aggregate, so keeping its cache
+ * coherent would mean every updatedAt-bumping write invalidating it (an
+ * unbounded fan-out). It's read-on-demand instead: the first-entry effect reads
+ * it once on mount, and folding `isRefreshing` into `isLoading` makes that read
+ * wait for the on-mount revalidation to settle rather than trust a stale cache.
+ * `latestTopic` is `undefined` while loading and when the library is empty.
+ */
+export function useLatestTopic(opts?: { enabled?: boolean }) {
+  const { data, isLoading, isRefreshing, refetch, mutate } = useQuery('/topics/latest', { enabled: opts?.enabled })
+
+  return {
+    latestTopic: data?.topic ?? undefined,
+    isLoading: isLoading || isRefreshing,
+    refetch,
+    mutate
+  }
+}
+
+/**
  * Topic mutations (create / update / delete) backed by DataApi.
  */
 export function useTopicMutations() {
   const invalidate = useInvalidateCache()
+  const writeCache = useWriteCache()
+  const closeConversationTabs = useCloseConversationTabs()
 
   const { trigger: createTrigger, isLoading: isCreating } = useMutation('POST', '/topics', {
     refresh: ['/topics']
@@ -277,8 +312,8 @@ export function useTopicMutations() {
     refresh: ({ args }) => ['/topics', `/topics/${args!.params.id}`]
   })
   const { trigger: deleteTrigger, isLoading: isDeleting } = useMutation('DELETE', '/topics/:id', {
-    // After delete, only invalidate the list — refreshing `/topics/:id`
-    // would trigger a fetch that 404s and caches an error in SWR.
+    // After delete, only invalidate the list — refreshing `/topics/:id` would
+    // trigger a fetch that 404s and caches an error in SWR.
     refresh: ['/topics']
   })
   const { trigger: deleteManyTrigger, isLoading: isDeletingMany } = useMutation('DELETE', '/topics', {
@@ -311,27 +346,77 @@ export function useTopicMutations() {
   const deleteTopic = useCallback(
     async (topicId: string): Promise<void> => {
       await deleteTrigger({ params: { id: topicId } })
+      closeConversationTabs('assistants', [topicId])
       logger.info('Deleted topic', { id: topicId })
     },
-    [deleteTrigger]
+    [closeConversationTabs, deleteTrigger]
   )
 
   const deleteTopics = useCallback(
     async (ids: string[]): Promise<DeleteTopicsResult> => {
       const result = await deleteManyTrigger({ query: { ids: ids.join(',') } })
+      closeConversationTabs('assistants', result.deletedIds)
       logger.info('Deleted topics', { count: result.deletedCount })
       return result
     },
-    [deleteManyTrigger]
+    [closeConversationTabs, deleteManyTrigger]
   )
 
   const deleteTopicsByAssistantId = useCallback(
     async (assistantId: string): Promise<DeleteTopicsResult> => {
       const result = await deleteByAssistantTrigger({ params: { assistantId } })
+      closeConversationTabs('assistants', result.deletedIds)
       logger.info('Deleted assistant topics', { assistantId, count: result.deletedCount })
       return result
     },
-    [deleteByAssistantTrigger]
+    [closeConversationTabs, deleteByAssistantTrigger]
+  )
+
+  /**
+   * Drag-move a topic: re-home it to another assistant (when `assistantId` is
+   * given) and anchor its position. The cache orchestration lives here so
+   * pages don't track a second active-topic state:
+   *
+   * - The assistant PATCH response is written straight into `/topics/:id`
+   *   before ordering, so an open conversation on the moved topic re-resolves
+   *   its assistant (composer/model/capabilities) immediately. If the topic is
+   *   no longer active this only updates the moved topic's own cache — it
+   *   cannot snap the selection back.
+   * - Revalidation of `/topics` (+ `/topics/:id` on an assistant change) is a
+   *   single combined pass deferred until after both writes, so an optimistic
+   *   reorder overlay clears once at the final position instead of flashing
+   *   the row back to its old order mid-flight.
+   *
+   * Rethrows on failure after reconciling caches with server truth when the
+   * assistant PATCH may have committed.
+   */
+  const moveTopic = useCallback(
+    async (
+      topicId: string,
+      { assistantId, anchor }: { assistantId?: string | null; anchor: OrderRequest }
+    ): Promise<void> => {
+      const assistantChanged = assistantId !== undefined
+      const refreshKeys = assistantChanged ? ['/topics', `/topics/${topicId}`] : '/topics'
+
+      try {
+        if (assistantChanged) {
+          const topic = await dataApiService.patch(`/topics/${topicId}`, { body: { assistantId } })
+          await writeCache(`/topics/${topicId}`, topic)
+        }
+        await dataApiService.patch(`/topics/${topicId}/order`, { body: anchor })
+        await invalidate(refreshKeys)
+      } catch (err) {
+        if (assistantChanged) {
+          try {
+            await invalidate(refreshKeys)
+          } catch (refreshErr) {
+            logger.error('Failed to refresh topics after partial topic move', { refreshErr, topicId })
+          }
+        }
+        throw err
+      }
+    },
+    [invalidate, writeCache]
   )
 
   const batchUpdateTopics = useCallback(
@@ -351,6 +436,7 @@ export function useTopicMutations() {
     deleteTopic,
     deleteTopics,
     deleteTopicsByAssistantId,
+    moveTopic,
     batchUpdateTopics,
     refreshTopics,
     isCreating,
@@ -360,22 +446,13 @@ export function useTopicMutations() {
 }
 
 /**
- * Listens for `IpcChannel.Topic_AutoRenamed` and invalidates the renamed
+ * Listens for `ai.topic_auto_renamed` and invalidates the renamed
  * topic's SWR cache so the new name shows up without manual refetch.
  */
 export function useTopicAutoRenameSync() {
   const invalidate = useInvalidateCache()
 
-  useEffect(() => {
-    const onAutoRenamed = window.api?.topic?.onAutoRenamed
-    if (!onAutoRenamed) return
-    const unsubscribe = onAutoRenamed(({ topicId }) => {
-      void invalidate(['/topics', `/topics/${topicId}`])
-    })
-    return () => {
-      unsubscribe()
-    }
-  }, [invalidate])
+  useIpcOn('ai.topic_auto_renamed', ({ topicId }) => void invalidate(['/topics', `/topics/${topicId}`]))
 }
 
 // ─── Tier 3: composed hook ────────────────────────────────────────────────
@@ -403,10 +480,20 @@ export function useActiveTopic({
   setActiveTopicId,
   passive = false
 }: UseActiveTopicOptions) {
-  const { topics: apiTopics, isLoading } = useTopics({ loadAll: true })
-  const topics = useMemo(() => apiTopics.map(mapApiTopicToRendererTopic), [apiTopics])
-  // Holds the last Topic object passed to setActiveTopic, used as fallback when
-  // the newly-added topic is not yet in `topics` (SWR still refetching).
+  // Resolve the active topic by id (like `useActiveSession`) rather than scanning the
+  // loadAll `/topics` list, so first-entry restore paints from `/latest` immediately
+  // without waiting for the full topic history to paginate in. The rail keeps its own
+  // loadAll source; this hook only needs the one active row.
+  const { topic: apiActiveTopic, isLoading: isActiveTopicQueryLoading } = useTopicById(
+    passive || !activeTopicId ? undefined : activeTopicId
+  )
+  const queryTopic = useMemo<RendererTopic | undefined>(
+    () =>
+      activeTopicId && apiActiveTopic?.id === activeTopicId ? mapApiTopicToRendererTopic(apiActiveTopic) : undefined,
+    [activeTopicId, apiActiveTopic]
+  )
+  // Holds the last Topic object passed to setActiveTopic, used as fallback while the
+  // by-id query for the newly-selected topic is still resolving.
   const [pendingTopic, setPendingTopic] = useState<RendererTopic | undefined>(() => initialTopic ?? undefined)
   const hasAppliedInitialTopicRef = useRef(false)
 
@@ -423,22 +510,21 @@ export function useActiveTopic({
   const activeTopic = useMemo<RendererTopic | undefined>(() => {
     if (passive) return undefined
     if (!activeTopicId) return pendingTopic
-    const fromList = topics.find((t) => t.id === activeTopicId)
-    if (fromList) return fromList
+    if (queryTopic) return queryTopic
     if (pendingTopic?.id === activeTopicId) return pendingTopic
     return undefined
-  }, [activeTopicId, passive, pendingTopic, topics])
+  }, [activeTopicId, passive, pendingTopic, queryTopic])
 
-  // Where the active topic resolved from. 'query' = persisted (in the DataApi
-  // list); 'pending' = optimistic / temporary topic not yet persisted. Mirrors
+  // Where the active topic resolved from. 'query' = persisted (fetched by id);
+  // 'pending' = optimistic / temporary topic not yet persisted. Mirrors
   // `useActiveSession`'s `sessionSource` so callers can gate "last used" writes
   // to persisted topics only.
   const topicSource: ActiveTopicSource = useMemo(() => {
     if (!activeTopic) return 'none'
-    if (topics.some((t) => t.id === activeTopic.id)) return 'query'
+    if (queryTopic?.id === activeTopic.id) return 'query'
     if (pendingTopic?.id === activeTopic.id) return 'pending'
     return 'none'
-  }, [activeTopic, pendingTopic, topics])
+  }, [activeTopic, pendingTopic, queryTopic])
 
   const setActiveTopic = useCallback(
     (next: RendererTopic) => {
@@ -452,6 +538,15 @@ export function useActiveTopic({
     [passive, setActiveTopicId]
   )
 
+  // Clear the active topic entirely. Both `activeTopicId` and the in-memory `pendingTopic`
+  // fallback must be reset, otherwise `activeTopic` would keep resolving to the stale pending
+  // object. Used by post-delete replacement paths that must not strand the view on a topic that
+  // was just deleted when creating its replacement fails.
+  const clearActiveTopic = useCallback(() => {
+    setPendingTopic(undefined)
+    if (!passive) setActiveTopicId(null)
+  }, [passive, setActiveTopicId])
+
   useEffect(() => {
     if (passive) return
     if (activeTopic) {
@@ -459,5 +554,8 @@ export function useActiveTopic({
     }
   }, [activeTopic, passive])
 
-  return { activeTopic, setActiveTopic, isLoading, topicSource }
+  // Mirror `useActiveSession`: once the topic resolves (from the by-id query or the
+  // pending fallback) we are no longer loading, even while a background revalidation runs.
+  const isLoading = !activeTopic && isActiveTopicQueryLoading
+  return { activeTopic, setActiveTopic, clearActiveTopic, isLoading, topicSource }
 }

@@ -1,5 +1,5 @@
 import { Input, Tooltip } from '@cherrystudio/ui'
-import i18n from '@renderer/i18n'
+import i18n from '@renderer/i18n/resolver'
 import { Search, X } from 'lucide-react'
 import { motion } from 'motion/react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
@@ -10,6 +10,8 @@ interface CollapsibleSearchBarProps {
   tooltip?: string
   icon?: React.ReactNode
   maxWidth?: string | number
+  collapsedSize?: number
+  animated?: boolean
   style?: React.CSSProperties
 }
 
@@ -21,14 +23,15 @@ const CollapsibleSearchBar = ({
   onSearch,
   placeholder = i18n.t('common.search'),
   tooltip = i18n.t('common.search'),
-  icon = <Search size={14} color="var(--color-icon)" />,
+  icon = <Search size={14} color="var(--color-foreground-secondary)" />,
   maxWidth = '100%',
+  collapsedSize = 32,
+  animated = true,
   style
 }: CollapsibleSearchBarProps) => {
   const [searchVisible, setSearchVisible] = useState(false)
   const [searchText, setSearchText] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
-  const collapsedWidth = 32
 
   const handleTextChange = useCallback(
     (text: string) => {
@@ -55,15 +58,15 @@ const CollapsibleSearchBar = ({
       initial={false}
       animate={searchVisible ? 'expanded' : 'collapsed'}
       variants={{
-        expanded: { width: maxWidth, transition: { duration: 0.3, ease: 'easeInOut' } },
-        collapsed: { width: collapsedWidth, transition: { duration: 0.3, ease: 'easeInOut' } }
+        expanded: { width: maxWidth, transition: { duration: animated ? 0.3 : 0, ease: 'easeInOut' } },
+        collapsed: { width: collapsedSize, transition: { duration: animated ? 0.3 : 0, ease: 'easeInOut' } }
       }}
       style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'flex-end',
         position: 'relative',
-        height: collapsedWidth,
+        height: collapsedSize,
         minWidth: 0,
         overflow: 'hidden',
         flexShrink: searchVisible ? 1 : 0
@@ -72,8 +75,8 @@ const CollapsibleSearchBar = ({
         initial={false}
         animate={searchVisible ? 'expanded' : 'collapsed'}
         variants={{
-          expanded: { width: '100%', opacity: 1, transition: { duration: 0.3, ease: 'easeInOut' } },
-          collapsed: { width: 0, opacity: 0, transition: { duration: 0.3, ease: 'easeInOut' } }
+          expanded: { width: '100%', opacity: 1, transition: { duration: animated ? 0.3 : 0, ease: 'easeInOut' } },
+          collapsed: { width: 0, opacity: 0, transition: { duration: animated ? 0.3 : 0, ease: 'easeInOut' } }
         }}
         style={{ overflow: 'hidden', flexShrink: 1 }}>
         <div className="relative flex items-center">
@@ -83,7 +86,7 @@ const CollapsibleSearchBar = ({
             placeholder={placeholder}
             value={searchText}
             autoFocus
-            className="h-8 rounded-full pr-8 text-sm shadow-none"
+            className="h-8 rounded-full pr-8 text-sm shadow-none focus-visible:border-border-hover focus-visible:ring-0"
             onChange={(e) => handleTextChange(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
@@ -95,7 +98,7 @@ const CollapsibleSearchBar = ({
             onBlur={() => {
               if (!searchText) setSearchVisible(false)
             }}
-            style={{ width: '100%', height: collapsedWidth, ...style }}
+            style={{ width: '100%', height: collapsedSize, ...style }}
           />
           <button
             type="button"
@@ -112,14 +115,17 @@ const CollapsibleSearchBar = ({
         animate={searchVisible ? 'hidden' : 'visible'}
         className="rounded-lg transition-colors hover:bg-accent"
         variants={{
-          visible: { opacity: 1, transition: { duration: 0.1, delay: 0.3, ease: 'easeInOut' } },
-          hidden: { opacity: 0, transition: { duration: 0.1, ease: 'easeInOut' } }
+          visible: {
+            opacity: 1,
+            transition: { duration: animated ? 0.1 : 0, delay: animated ? 0.3 : 0, ease: 'easeInOut' }
+          },
+          hidden: { opacity: 0, transition: { duration: animated ? 0.1 : 0, ease: 'easeInOut' } }
         }}
         style={{
           position: 'absolute',
           right: 0,
-          width: collapsedWidth,
-          height: collapsedWidth,
+          width: collapsedSize,
+          height: collapsedSize,
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',

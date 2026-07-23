@@ -12,8 +12,19 @@ import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
 import { assistantTable } from '@data/db/schemas/assistant'
-import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
-import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import {
+  agentMcpServerTable,
+  assistantKnowledgeBaseTable,
+  assistantMcpServerTable
+} from '@data/db/schemas/assistantRelations'
+import { fileEntryTable } from '@data/db/schemas/file'
+import {
+  chatMessageFileRefTable,
+  miniAppLogoFileRefTable,
+  paintingFileRefTable,
+  providerLogoFileRefTable
+} from '@data/db/schemas/fileRelations'
+import { groupTable } from '@data/db/schemas/group'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { messageTable } from '@data/db/schemas/message'
@@ -23,6 +34,7 @@ import { paintingTable } from '@data/db/schemas/painting'
 import { pinTable } from '@data/db/schemas/pin'
 import { preferenceTable } from '@data/db/schemas/preference'
 import { promptTable } from '@data/db/schemas/prompt'
+import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { topicTable } from '@data/db/schemas/topic'
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
 import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
@@ -58,6 +70,7 @@ export class MigrationEngine {
   private progressCallback?: (progress: MigrationProgress) => void
   private migrationDb: MigrationDbService | null = null
   private _paths: MigrationPaths | null = null
+  private legacyDataConfirmed = false
 
   get paths(): MigrationPaths {
     if (!this._paths) {
@@ -69,10 +82,16 @@ export class MigrationEngine {
   /**
    * Initialize the migration engine by creating a bare DB connection.
    * Must be called before needsMigration() or run().
+   *
+   * @param legacyDataConfirmed Whether the gate confirmed the resolved userData
+   *   holds v1 data (see MigrationPaths.resolveMigrationPaths). Stored and read
+   *   by needsMigration() so a redirected-but-electron-store-empty directory is
+   *   never markCompleted-locked as a "fresh install".
    */
-  async initialize(paths: MigrationPaths): Promise<void> {
+  initialize(paths: MigrationPaths, legacyDataConfirmed = false): void {
     this._paths = paths
-    this.migrationDb = await MigrationDbService.create(paths)
+    this.legacyDataConfirmed = legacyDataConfirmed
+    this.migrationDb = MigrationDbService.create(paths)
   }
 
   /**
@@ -108,12 +127,19 @@ export class MigrationEngine {
   }
 
   /**
-   * Check if migration is needed
+   * Check if migration is needed.
+   *
+   * With a stored migration status, the status decides. Without one, this is a
+   * first launch: migrate iff there is legacy data. `legacyDataConfirmed` (from
+   * the gate's path resolution) is the authoritative signal — it recognizes v1
+   * data via version.log / Chromium storage / config keys, markers the narrower
+   * `hasLegacyData()` electron-store probe misses. ORing them prevents a
+   * redirected custom directory whose electron-store happens to be empty from
+   * being mis-detected as a fresh install and markCompleted-locked forever.
    */
-  //TODO 不能仅仅判断数据库，如果是全新安装，而不是升级上来的用户，其实并不需要迁移，但是按现在的逻辑，还是会进行迁移，这不正确
   async needsMigration(): Promise<boolean> {
     const db = this.getDb()
-    const status = await db.select().from(appStateTable).where(eq(appStateTable.key, MIGRATION_V2_STATUS)).get()
+    const status = db.select().from(appStateTable).where(eq(appStateTable.key, MIGRATION_V2_STATUS)).get()
 
     if (status?.value) {
       const statusValue = status.value as MigrationStatusValue
@@ -121,13 +147,13 @@ export class MigrationEngine {
     }
 
     // No migration status record — check if this is a fresh install or an upgrade.
-    if (!this.hasLegacyData()) {
-      logger.info('Fresh install detected (no legacy data found), skipping migration')
-      await this.markCompleted()
-      return false
+    if (this.legacyDataConfirmed || this.hasLegacyData()) {
+      return true
     }
 
-    return true
+    logger.info('Fresh install detected (no legacy data found), skipping migration')
+    await this.markCompleted()
+    return false
   }
 
   /**
@@ -152,9 +178,9 @@ export class MigrationEngine {
   /**
    * Get last migration error (for UI display)
    */
-  async getLastError(): Promise<string | null> {
+  getLastError(): string | null {
     const db = this.getDb()
-    const status = await db.select().from(appStateTable).where(eq(appStateTable.key, MIGRATION_V2_STATUS)).get()
+    const status = db.select().from(appStateTable).where(eq(appStateTable.key, MIGRATION_V2_STATUS)).get()
 
     if (status?.value) {
       const statusValue = status.value as MigrationStatusValue
@@ -184,7 +210,7 @@ export class MigrationEngine {
       }
 
       // Safety check: verify new tables status before clearing
-      await this.verifyAndClearNewTables()
+      this.verifyAndClearNewTables()
 
       // Create migration context
       const context = await createMigrationContext(
@@ -259,7 +285,7 @@ export class MigrationEngine {
       }
 
       // Verify FK integrity after all inserts (FK was off during bulk inserts)
-      await this.verifyForeignKeys()
+      this.verifyForeignKeys()
 
       // Mark migration completed
       await this.markCompleted()
@@ -303,13 +329,15 @@ export class MigrationEngine {
    * Verify and clear new architecture tables before migration
    * Safety check: log if tables are not empty (may indicate previous failed migration)
    */
-  private async verifyAndClearNewTables(): Promise<void> {
+  private verifyAndClearNewTables(): void {
     const db = this.getDb()
 
     // Tables to clear - add more as they are created
     // Order matters: child tables must be cleared before parent tables
     const tables = [
       { table: pinTable, name: 'pin' },
+      { table: entityTagTable, name: 'entity_tag' },
+      { table: tagTable, name: 'tag' },
       { table: userModelTable, name: 'user_model' }, // Must clear before user_provider
       { table: userProviderTable, name: 'user_provider' },
       { table: messageTable, name: 'message' }, // Must clear before topic (FK reference)
@@ -326,10 +354,12 @@ export class MigrationEngine {
       { table: translateLanguageTable, name: 'translate_language' },
       { table: knowledgeItemTable, name: 'knowledge_item' }, // Must clear before knowledge_base (FK reference)
       { table: knowledgeBaseTable, name: 'knowledge_base' },
+      { table: groupTable, name: 'group' }, // Shared parent: topic/assistant/knowledge_base cleared above
       { table: promptTable, name: 'prompt' },
       // Agents-domain tables — child → parent order
       { table: agentSessionMessageTable, name: 'agent_session_message' },
       { table: agentChannelTaskTable, name: 'agent_channel_task' },
+      { table: agentMcpServerTable, name: 'agent_mcp_server' },
       { table: agentChannelTable, name: 'agent_channel' },
       // agent_task / agent_task_run_log dropped — migrated to JobManager (aac75929c5)
       { table: agentSkillTable, name: 'agent_skill' },
@@ -337,14 +367,17 @@ export class MigrationEngine {
       { table: agentWorkspaceTable, name: 'agent_workspace' },
       { table: agentGlobalSkillTable, name: 'agent_global_skill' },
       { table: agentTable, name: 'agent' },
-      // File-domain tables — child before parent (file_ref.fileEntryId CASCADEs from file_entry)
-      { table: fileRefTable, name: 'file_ref' },
+      // File-domain tables. Migration runs with FK checks disabled, but keep ref tables before file_entry for readability.
+      { table: chatMessageFileRefTable, name: 'chat_message_file_ref' },
+      { table: paintingFileRefTable, name: 'painting_file_ref' },
+      { table: providerLogoFileRefTable, name: 'provider_logo_file_ref' },
+      { table: miniAppLogoFileRefTable, name: 'mini_app_logo_file_ref' },
       { table: fileEntryTable, name: 'file_entry' }
     ]
 
     // Check if tables have data (safety check)
     for (const { table, name } of tables) {
-      const result = await db.select({ count: sql<number>`count(*)` }).from(table).get()
+      const result = db.select({ count: sql<number>`count(*)` }).from(table).get()
       const count = result?.count ?? 0
       if (count > 0) {
         logger.warn(`Table '${name}' is not empty (${count} rows), clearing for fresh migration`)
@@ -352,9 +385,9 @@ export class MigrationEngine {
     }
 
     // Clear tables atomically in dependency order (children before parents).
-    await db.transaction(async (tx) => {
+    db.transaction((tx) => {
       for (const { table } of tables) {
-        await tx.delete(table)
+        tx.delete(table).run()
       }
     })
 
@@ -366,12 +399,12 @@ export class MigrationEngine {
    * FK constraints were disabled during bulk inserts for performance;
    * this post-insert check ensures referential integrity is correct.
    */
-  private async verifyForeignKeys(): Promise<void> {
+  private verifyForeignKeys(): void {
     const db = this.getDb()
 
     // PRAGMA foreign_key_check scans ALL tables for FK violations.
     // Returns rows: { table, rowid, parent, fkid } for each violation.
-    const violations = await db.all<{ table: string; rowid: number; parent: string; fkid: number }>(
+    const violations = db.all<{ table: string; rowid: number; parent: string; fkid: number }>(
       sql`PRAGMA foreign_key_check`
     )
 

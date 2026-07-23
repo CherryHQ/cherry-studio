@@ -13,6 +13,7 @@ import type {
 import type {
   CherryMessagePart,
   CherryUIMessage,
+  MessageSnapshot,
   MessageStats,
   MessageStatus,
   ModelSnapshot
@@ -20,6 +21,7 @@ import type {
 import type { Model } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
+import type { FileUrlString } from '@shared/types/file'
 import type { ReactNode } from 'react'
 
 export interface MessageUiState {
@@ -63,8 +65,7 @@ export interface MessageActivityState {
 
 export interface MessageFileView {
   displayName: string
-  safePath?: string
-  previewUrl?: string
+  previewUrl?: FileUrlString
 }
 
 export interface MessageMenuExportOptions {
@@ -186,7 +187,10 @@ export interface MessageListItem {
   updatedAt?: string
   status: MessageStatus
   modelId?: string
-  modelSnapshot?: ModelSnapshot
+  /** Resolved model identity (from the author snapshot or the topic fallback). */
+  model?: ModelSnapshot
+  /** Producing-author snapshot (assistant|agent, model nested) frozen at creation. */
+  messageSnapshot?: MessageSnapshot
   siblingsGroupId?: number
   isActiveBranch?: boolean
   stats?: MessageStats
@@ -239,12 +243,25 @@ export type MessageRenderConfigUpdate = Partial<
   Pick<MessageRenderConfig, 'multiModelGridColumns' | 'multiModelGridPopoverTrigger'>
 >
 
+/**
+ * Layered streaming state. `historyPartsByMessageId` holds the persisted
+ * parts used by the sealed history render layer (it never sees per-frame
+ * stream snapshots); `liveMessageIds` marks the mutable streaming tail.
+ */
+export interface MessageStreamingLayers {
+  historyPartsByMessageId: Record<string, CherryMessagePart[]>
+  liveMessageIds: readonly string[]
+}
+
 export interface MessageListState {
   topic: Topic
   messages: MessageListItem[]
   partsByMessageId: Record<string, CherryMessagePart[]>
+  /** When provided, streaming updates stay isolated from historical message subtrees. */
+  streamingLayers?: MessageStreamingLayers
   beforeList?: ReactNode
   isInitialLoading?: boolean
+  isMessagesStale?: boolean
   hasOlder?: boolean
   messageNavigation: string
   estimateSize: number
@@ -261,6 +278,7 @@ export interface MessageListState {
   getMessageUiState?: (messageId: string) => MessageUiState
   getMessageSiblings?: (messageId: string) => MessageSiblingInfo | null
   getMessageActivityState?: (message: MessageListItem) => MessageActivityState
+  isMessageTranslating?: (messageId: string) => boolean
   getFileView?: (file: FileMetadata) => MessageFileView
   isToolAutoApproved?: (tool: McpTool, allowedTools?: string[]) => boolean
   externalCodeEditors?: ExternalAppInfo[]
@@ -290,7 +308,10 @@ export interface MessageListActions {
   exportToJoplin?: (message: MessageExportView) => void | Promise<void>
   exportToSiyuan?: (message: MessageExportView) => void | Promise<void>
   openArtifactFile?: (path: string) => void | Promise<void>
+  openFile?: (file: FileMetadata) => void | Promise<void>
   openPath?: (path: string) => void | Promise<void>
+  /** Probe whether a path points at a directory (fs.stat-backed; resolves false on missing). */
+  isDirectory?: (path: string) => Promise<boolean>
   openCitationsPanel?: (data: { citations: Citation[] }) => void
   openAgentToolFlow?: (input: OpenAgentToolFlowInput) => void
   showInFolder?: (path: string) => void | Promise<void>
@@ -304,7 +325,7 @@ export interface MessageListActions {
     options?: { successMessage?: string }
   ) => void | Promise<void>
   copyImage?: (blob: Blob, options?: { successMessage?: string }) => void | Promise<void>
-  exportTableAsExcel?: (markdown: string) => boolean | Promise<boolean>
+  exportTableAsExcel?: (data: string[][]) => boolean | Promise<boolean>
   notifyInfo?: (message: string) => void
   notifySuccess?: (message: string) => void
   notifyWarning?: (message: string) => void

@@ -1,17 +1,36 @@
-import { defineTool, registerTool, TopicType } from '@renderer/components/composer/tools/types'
-import { isGenerateImageModel } from '@renderer/config/models'
+import { usePreference } from '@data/hooks/usePreference'
+import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
+import { defineTool, type ToolLauncherApi, TopicType } from '@renderer/components/composer/tools/types'
+import { useAssistant } from '@renderer/hooks/useAssistant'
 import { Image } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 
-const useGenerateImageToolController = (context) => {
-  const { model, launcher, t } = context
-  const [enabled, setEnabled] = useState(false)
-  const isSupported = isGenerateImageModel(model)
+interface Props {
+  assistantId: string
+  launcher: ToolLauncherApi
+}
+
+/**
+ * Toggle that flips `assistant.settings.enableGenerateImage`, which gates the `generate_image`
+ * builtin tool on the main side (see `PaintingTool.ts`'s `applies`). The actual image is produced
+ * by a separate painting model configured in Settings › Default Model, so the toggle is disabled
+ * (with a hint) until one is set — there is nothing to generate with otherwise.
+ */
+const useGenerateImageToolController = ({ assistantId, launcher }: Props) => {
+  const { t } = useTranslation()
+  const { assistant, updateAssistant } = useAssistant(assistantId)
+  const [paintingModelId] = usePreference('feature.paintings.default_model_id')
+
+  const enabled = assistant?.settings.enableGenerateImage ?? false
+  const disabledReason = paintingModelId ? undefined : t('chat.input.generate_image_no_model')
+  const isDisabled = Boolean(disabledReason)
 
   const handleToggle = useCallback(() => {
-    if (!isSupported) return
-    setEnabled((prev) => !prev)
-  }, [isSupported])
+    if (!assistant || isDisabled) return
+    void updateAssistant({ settings: { enableGenerateImage: !enabled } })
+  }, [assistant, enabled, isDisabled, updateAssistant])
 
   useEffect(() => {
     return launcher.registerLaunchers([
@@ -22,20 +41,21 @@ const useGenerateImageToolController = (context) => {
         order: 20,
         label: t('chat.input.generate_image'),
         description: '',
-        disabledReason: t('chat.input.generate_image_not_supported'),
+        searchAliases: getQuickPanelSearchAliases(t, 'chat.input.generate_image', ['generate image']),
+        disabledReason,
         icon: <Image size={18} />,
-        active: enabled && isSupported,
-        disabled: !isSupported,
+        active: enabled,
+        disabled: isDisabled,
         action: handleToggle
       }
     ])
-  }, [enabled, handleToggle, isSupported, launcher, t])
+  }, [disabledReason, enabled, handleToggle, isDisabled, launcher, t])
 
   return { enabled, handleToggle }
 }
 
-const GenerateImageComposerRuntime = ({ context }) => {
-  useGenerateImageToolController(context)
+const GenerateImageComposerRuntime: FC<Props> = (props) => {
+  useGenerateImageToolController(props)
   return null
 }
 
@@ -44,10 +64,10 @@ const generateImageTool = defineTool({
   label: (t) => t('chat.input.generate_image'),
   visibleInScopes: [TopicType.Chat],
   composer: {
-    runtime: ({ context }) => <GenerateImageComposerRuntime context={context} />
+    runtime: ({ context }) => (
+      <GenerateImageComposerRuntime assistantId={context.assistant!.id} launcher={context.launcher} />
+    )
   }
 })
-
-registerTool(generateImageTool)
 
 export default generateImageTool

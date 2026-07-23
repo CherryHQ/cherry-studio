@@ -29,9 +29,9 @@ const providerKeyMap = {
   baichuan: 'provider.baichuan',
   'baidu-cloud': 'provider.baidu-cloud',
   burncloud: 'provider.burncloud',
-  cephalon: 'provider.cephalon',
   cherryai: 'provider.cherryai',
   cherryin: 'provider.cherryin',
+  'claude-code': 'provider.claude-code',
   copilot: 'provider.copilot',
   dashscope: 'provider.dashscope',
   deepseek: 'provider.deepseek',
@@ -43,6 +43,7 @@ const providerKeyMap = {
   github: 'provider.github',
   gpustack: 'provider.gpustack',
   grok: 'provider.grok',
+  'grok-cli': 'provider.grok-cli',
   groq: 'provider.groq',
   hunyuan: 'provider.hunyuan',
   hyperbolic: 'provider.hyperbolic',
@@ -61,6 +62,7 @@ const providerKeyMap = {
   ovms: 'provider.ovms',
   ollama: 'provider.ollama',
   openai: 'provider.openai',
+  'openai-codex': 'provider.openai-codex',
   openrouter: 'provider.openrouter',
   perplexity: 'provider.perplexity',
   ph8: 'provider.ph8',
@@ -71,7 +73,7 @@ const providerKeyMap = {
   stepfun: 'provider.stepfun',
   'tencent-cloud-ti': 'provider.tencent-cloud-ti',
   together: 'provider.together',
-  tokenflux: 'provider.tokenflux',
+  tokenhub: 'provider.tokenhub',
   vertexai: 'provider.vertexai',
   voyageai: 'provider.voyageai',
   xirang: 'provider.xirang',
@@ -87,7 +89,9 @@ const providerKeyMap = {
   cerebras: 'provider.cerebras',
   mimo: 'provider.mimo',
   'minimax-global': 'provider.minimax-global',
-  zai: 'provider.zai'
+  zai: 'provider.zai',
+  'local-embedding': 'provider.local-embedding',
+  opencode: 'provider.opencode'
 } as const
 
 /**
@@ -152,20 +156,17 @@ export const getRestoreProgressLabelKey = (key: string): string => {
 
 const titleKeyMap = {
   // TODO: update i18n key
-  store: 'title.store',
   apps: 'title.apps',
   code: 'title.code',
   files: 'title.files',
   home: 'title.home',
   knowledge: 'title.knowledge',
   launchpad: 'title.launchpad',
-  library: 'library.title',
   'mcp-servers': 'title.mcp-servers',
   notes: 'title.notes',
   paintings: 'title.paintings',
   settings: 'title.settings',
   translate: 'title.translate',
-  openclaw: 'openclaw.title',
   agents: 'agent.sidebar_title'
 } as const
 
@@ -184,17 +185,15 @@ export const getThemeModeLabelKey = (key: string): string => {
 }
 
 const sidebarIconKeyMap = {
-  assistants: 'agent.session.group.conversation',
+  assistants: 'title.chat',
   agents: 'title.work',
-  store: 'assistants.presets.title',
-  paintings: 'paintings.title',
+  paintings: 'title.paintings',
   translate: 'translate.title',
   mini_app: 'miniApp.title',
   knowledge: 'knowledge.title',
   files: 'files.title',
   code_tools: 'code.title',
-  notes: 'notes.title',
-  openclaw: 'openclaw.title'
+  notes: 'notes.title'
 } as const
 
 export const getSidebarIconLabelKey = (key: string): string => {
@@ -208,14 +207,13 @@ const sidebarFavoriteKeyMap = {
   assistants: 'assistants.title',
   agents: 'title.work',
   store: 'assistants.presets.title',
-  paintings: 'paintings.title',
+  paintings: 'title.paintings',
   translate: 'translate.title',
   mini_app: 'miniApp.title',
   knowledge: 'knowledge.title',
   files: 'files.title',
   code_tools: 'code.title',
-  notes: 'notes.title',
-  openclaw: 'openclaw.title'
+  notes: 'notes.title'
 } as const
 export const getSidebarFavoriteLabelKey = (key: string): string => {
   return getLabelKey(sidebarFavoriteKeyMap, key)
@@ -278,18 +276,6 @@ const mcpTypeKeyMap = {
 
 export const getMcpTypeLabelKey = (key: string): string => {
   return getLabelKey(mcpTypeKeyMap, key)
-}
-
-const mcpProviderDescriptionKeyMap = {
-  '302ai': 'settings.mcp.sync.providerDescriptions.302ai',
-  bailian: 'settings.mcp.sync.providerDescriptions.bailian',
-  lanyun: 'settings.mcp.sync.providerDescriptions.lanyun',
-  mcprouter: 'settings.mcp.sync.providerDescriptions.mcprouter',
-  modelscope: 'settings.mcp.sync.providerDescriptions.modelscope'
-} as const
-
-export const getMcpProviderDescriptionLabelKey = (key: string): string => {
-  return getLabelKey(mcpProviderDescriptionKeyMap, key)
 }
 
 const miniAppsStatusKeyMap = {

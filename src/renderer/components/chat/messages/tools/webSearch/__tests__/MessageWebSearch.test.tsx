@@ -21,7 +21,7 @@ vi.mock('react-i18next', async (importOriginal) => {
 })
 
 // Favicon fetches remote icons on mount; stub it so the test stays offline and we can assert the hostname.
-vi.mock('@renderer/components/Icons/FallbackFavicon', () => ({
+vi.mock('@renderer/components/icons/FallbackFavicon', () => ({
   default: ({ hostname, alt }: { hostname: string; alt: string }) => (
     <span data-testid="favicon" data-hostname={hostname} aria-label={alt} />
   )
@@ -49,27 +49,6 @@ describe('MessageWebSearchToolTitle', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 
-  it('uses the compact tool-row text while searching', () => {
-    render(
-      <MessageWebSearchToolTitle
-        toolResponse={
-          {
-            id: 'tool-call-1',
-            toolCallId: 'tool-call-1',
-            tool: { id: 'web-search', name: 'web_search', type: 'builtin' },
-            status: 'invoking',
-            arguments: { query: 'Cherry Studio' },
-            response: []
-          } as NormalToolResponse
-        }
-      />
-    )
-
-    const searchingText = screen.getByText('message.searching').closest('span')
-    expect(searchingText).toHaveClass('py-0.5 text-[13px] leading-5')
-    expect(screen.getByText('Cherry Studio')).toHaveClass('truncate')
-  })
-
   it('shows the query in the header and renders each result as a link with favicon and domain', async () => {
     render(
       <MessageWebSearchToolTitle
@@ -95,7 +74,6 @@ describe('MessageWebSearchToolTitle', () => {
 
     fireEvent.click(header)
 
-    expect(screen.getByTestId('collapse-content-tool-call-1')).toHaveClass('rounded-xl bg-muted px-4 py-3')
     const link = await screen.findByRole('link')
     expect(link).toHaveAttribute('href', 'https://www.cherry-ai.com/blog')
     expect(screen.getByTestId('favicon')).toHaveAttribute('data-hostname', 'www.cherry-ai.com')

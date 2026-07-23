@@ -1,3 +1,5 @@
+import { UpdateKnowledgeBaseSchema } from '@shared/data/api/schemas/knowledges'
+import { AbsolutePathSchema } from '@shared/data/types/file'
 import {
   CreateKnowledgeBaseSchema,
   KNOWLEDGE_RUNTIME_ITEMS_MAX,
@@ -62,9 +64,22 @@ export const knowledgeRequestSchemas = {
   }),
   'knowledge.delete_items': defineRoute({ input: itemIdsInputSchema, output: z.void() }),
   'knowledge.reindex_items': defineRoute({ input: itemIdsInputSchema, output: z.void() }),
+  // First-time embedding setup on a BM25-only base that already has items: sets the
+  // model/dimensions in place and backfills embeddings, instead of restoring into a
+  // new base. Switching an already-configured model still goes through restore_base.
+  'knowledge.enable_embedding_model': defineRoute({
+    input: z.strictObject({ baseId: baseIdSchema, patch: UpdateKnowledgeBaseSchema }),
+    output: KnowledgeBaseSchema
+  }),
   'knowledge.search': defineRoute({
     input: z.strictObject({ baseId: baseIdSchema, query: z.string().trim().min(1).max(1000) }),
     output: z.array(KnowledgeSearchResultSchema)
+  }),
+  // Resolve only the knowledge-managed raw copy or captured URL snapshot. `itemId` is the ownership
+  // authority; accepting a separate baseId would make mismatched item/base pairs representable.
+  'knowledge.get_file_path': defineRoute({
+    input: z.strictObject({ itemId: z.string().trim().min(1) }),
+    output: AbsolutePathSchema
   }),
   'knowledge.list_item_chunks': defineRoute({
     input: z.strictObject({ baseId: baseIdSchema, itemId: z.string().trim().min(1) }),

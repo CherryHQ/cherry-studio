@@ -32,8 +32,8 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat', () => ({
-  ConversationShell: (props: any) => {
+vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
+  default: (props: any) => {
     conversationShellProps.current = props
     return (
       <div data-testid="conversation-shell">
@@ -44,8 +44,7 @@ vi.mock('@renderer/components/chat', () => ({
         {props.rightPane}
       </div>
     )
-  },
-  OverlayHost: ({ children }: { children: ReactNode }) => <>{children}</>
+  }
 }))
 
 vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
@@ -56,7 +55,7 @@ vi.mock('@renderer/components/ContentSearch', () => ({
   ContentSearch: () => <div data-testid="content-search" />
 }))
 
-vi.mock('@renderer/components/Popups/PromptPopup', () => ({
+vi.mock('@renderer/components/popups/PromptPopup', () => ({
   default: {
     show: vi.fn()
   }
@@ -90,9 +89,8 @@ vi.mock('../components/ChatNavbar', () => ({
 
 vi.mock('../components/TopicRightPane', () => {
   const TopicRightPane = ({ children }: { children: ReactNode }) => <>{children}</>
-  TopicRightPane.Toggle = () => <div data-testid="topic-right-toggle" />
-  TopicRightPane.Host = () => <div data-testid="topic-right-pane-host" />
-  TopicRightPane.MaximizedOverlay = () => <div data-testid="topic-right-pane-overlay" />
+  TopicRightPane.Shortcuts = () => <div data-testid="topic-right-shortcuts" />
+  TopicRightPane.Viewport = () => <div data-testid="topic-right-pane-viewport" />
 
   return {
     TopicRightPane,
@@ -106,13 +104,13 @@ describe('Chat', () => {
     conversationShellProps.current = null
   })
 
-  it('renders the navbar and right pane toggle in the shared conversation shell', () => {
+  it('renders the navbar and right pane shortcuts in the shared conversation shell', () => {
     render(<Chat activeTopic={topic} showResourceListControls />)
 
     expect(screen.getByTestId('chat-navbar')).toHaveAttribute('data-show-sidebar-controls', 'true')
     expect(conversationShellProps.current?.topBar).toBeTruthy()
     expect(conversationShellProps.current?.topRightTool).toBeTruthy()
-    expect(screen.getByTestId('topic-right-toggle')).toBeInTheDocument()
+    expect(screen.getByTestId('topic-right-shortcuts')).toBeInTheDocument()
   })
 
   it('keeps the navbar mounted while disabling sidebar controls', () => {

@@ -1,0 +1,526 @@
+import type {
+  QuickPanelContextType,
+  QuickPanelFilterFn,
+  QuickPanelInputAdapter,
+  QuickPanelListItem,
+  QuickPanelOpenOptions,
+  QuickPanelSortFn,
+  QuickPanelTriggerInfo
+} from '@renderer/components/QuickPanel'
+import * as tinyPinyin from 'tiny-pinyin'
+
+import type { ComposerToolLauncher, ComposerToolLauncherSource } from '../toolLauncher'
+import { ComposerPanelSymbol } from './symbols'
+
+export type ComposerUnifiedPanelSection = 'primary-tools' | 'commands' | 'resources'
+
+interface ComposerUnifiedPanelSortMetadata {
+  section: ComposerUnifiedPanelSection
+  order: number
+}
+
+const ComposerUnifiedPanelSortMetadataSymbol = Symbol('ComposerUnifiedPanelSortMetadata')
+const ComposerUnifiedPanelRootSearchItemSymbol = Symbol('ComposerUnifiedPanelRootSearchItem')
+
+type ComposerUnifiedPanelSortedItem = QuickPanelListItem & {
+  [ComposerUnifiedPanelSortMetadataSymbol]?: ComposerUnifiedPanelSortMetadata
+  [ComposerUnifiedPanelRootSearchItemSymbol]?: boolean
+}
+
+export interface ComposerUnifiedPanelResourceContext {
+  inputAdapter?: QuickPanelInputAdapter
+  quickPanel: QuickPanelContextType
+  triggerInfo?: QuickPanelTriggerInfo
+  parentPanel?: QuickPanelOpenOptions
+  queryAnchor?: number
+  searchText?: string
+}
+
+export type ComposerUnifiedPanelResourceProvider = (
+  query: string,
+  context: ComposerUnifiedPanelResourceContext
+) => Promise<QuickPanelListItem[]> | QuickPanelListItem[]
+
+export interface ComposerUnifiedPanelControl {
+  available: boolean
+  open: (options?: { launcherId?: string; searchText?: string }) => void
+}
+
+export type ComposerUnifiedPanelSelectHandler = (
+  launcher: ComposerToolLauncher,
+  options: {
+    source: ComposerToolLauncherSource
+    inputAdapter?: QuickPanelInputAdapter
+    quickPanel: QuickPanelContextType
+    triggerInfo?: QuickPanelTriggerInfo
+    parentPanel?: QuickPanelOpenOptions
+    queryAnchor?: number
+    searchText?: string
+  }
+) => void
+
+function createQuickPanelWithParent(
+  quickPanel: QuickPanelContextType,
+  parentPanel?: QuickPanelOpenOptions
+): QuickPanelContextType {
+  if (!parentPanel) return quickPanel
+
+  return {
+    ...quickPanel,
+    open: (options) => {
+      quickPanel.open({
+        ...options,
+        parentPanel: options.parentPanel ?? parentPanel
+      })
+    }
+  }
+}
+
+function getLauncherSearchText(launcher: ComposerToolLauncher) {
+  return [launcher.label, launcher.description, launcher.tooltip, launcher.disabledReason, launcher.suffix]
+    .map((value) => (typeof value === 'string' ? value : ''))
+    .join(' ')
+}
+
+function getLauncherDescription(launcher: ComposerToolLauncher) {
+  if (launcher.disabled && launcher.disabledReason) {
+    return launcher.disabledReason
+  }
+  return launcher.description
+}
+
+function getUnifiedPanelSortLayer(section?: ComposerUnifiedPanelSection) {
+  return section === 'resources' ? 1 : 0
+}
+
+function withUnifiedPanelSortMetadata(
+  item: QuickPanelListItem,
+  metadata: ComposerUnifiedPanelSortMetadata
+): QuickPanelListItem {
+  return {
+    ...item,
+    [ComposerUnifiedPanelSortMetadataSymbol]: metadata
+  } as ComposerUnifiedPanelSortedItem
+}
+
+function getUnifiedPanelSortMetadata(item: QuickPanelListItem) {
+  return (item as ComposerUnifiedPanelSortedItem)[ComposerUnifiedPanelSortMetadataSymbol]
+}
+
+function isUnifiedPanelRootSearchItem(item: QuickPanelListItem) {
+  return Boolean((item as ComposerUnifiedPanelSortedItem)[ComposerUnifiedPanelRootSearchItemSymbol])
+}
+
+function asUnifiedPanelRootSearchItem(item: QuickPanelListItem): QuickPanelListItem {
+  return {
+    ...item,
+    [ComposerUnifiedPanelRootSearchItemSymbol]: true
+  } as ComposerUnifiedPanelSortedItem
+}
+
+function tagUnifiedPanelSectionItems(
+  items: readonly QuickPanelListItem[] | undefined,
+  section: ComposerUnifiedPanelSection,
+  nextOrder: { value: number }
+) {
+  return (items ?? []).map((item) =>
+    withUnifiedPanelSortMetadata(item, {
+      section,
+      order: nextOrder.value++
+    })
+  )
+}
+
+const sortUnifiedQuickPanelItems: QuickPanelSortFn = (items, searchText) => {
+  if (!searchText) return items
+
+  return items
+    .map((item, index) => ({
+      item,
+      index,
+      metadata: getUnifiedPanelSortMetadata(item)
+    }))
+    .sort((a, b) => {
+      const layerDiff = getUnifiedPanelSortLayer(a.metadata?.section) - getUnifiedPanelSortLayer(b.metadata?.section)
+      if (layerDiff !== 0) return layerDiff
+
+      const orderA = a.metadata?.order ?? a.index
+      const orderB = b.metadata?.order ?? b.index
+      if (orderA !== orderB) return orderA - orderB
+
+      return a.index - b.index
+    })
+    .map(({ item }) => item)
+}
+
+function getUnifiedQuickPanelMatchText(item: QuickPanelListItem) {
+  // `filterText`, when set, is the authoritative search field for the item
+  // (e.g. skills set it to their name only). Hidden aliases may still expand search.
+  if (item.filterText) {
+    return item.searchAliases ? `${item.filterText} ${item.searchAliases.join(' ')}` : item.filterText
+  }
+
+  const parts: string[] = []
+  if (typeof item.label === 'string') parts.push(item.label)
+  if (typeof item.description === 'string') parts.push(item.description)
+  if (item.searchAliases) parts.push(...item.searchAliases)
+  return parts.join(' ')
+}
+
+function getPinyinSearchText(matchText: string) {
+  const pinyinWords = tinyPinyin.convertToPinyin(matchText, ' ', true).toLowerCase().split(/\s+/).filter(Boolean)
+  const pinyinText = pinyinWords.join('')
+  const pinyinInitials = pinyinWords.map((word) => word[0] ?? '').join('')
+  return `${pinyinText} ${pinyinInitials}`
+}
+
+/**
+ * Root panel filter: substring match, plus pinyin and pinyin-initial substring
+ * matching for Chinese text. Intentionally avoids loose fuzzy subsequence matching
+ * so unrelated rows (e.g. Quick Phrases) don't surface for another item's query.
+ */
+const filterUnifiedQuickPanelItems: QuickPanelFilterFn = (item, searchText, _fuzzyRegex, pinyinCache) => {
+  if (!searchText) return !isUnifiedPanelRootSearchItem(item)
+
+  const matchText = getUnifiedQuickPanelMatchText(item).toLowerCase()
+  if (!matchText) return false
+
+  const query = searchText.toLowerCase()
+  if (matchText.includes(query)) return true
+
+  if (tinyPinyin.isSupported() && /[\u4e00-\u9fa5]/.test(matchText)) {
+    let pinyinText = pinyinCache.get(item)
+    if (pinyinText === undefined) {
+      pinyinText = getPinyinSearchText(matchText)
+      pinyinCache.set(item, pinyinText)
+    }
+    return pinyinText.includes(query)
+  }
+
+  return false
+}
+
+function launcherSupportsSource(launcher: ComposerToolLauncher, source: ComposerToolLauncherSource) {
+  return !launcher.sources || launcher.sources.includes(source)
+}
+
+function getLauncherPreferredSource(launcher: ComposerToolLauncher): ComposerToolLauncherSource {
+  return launcherSupportsSource(launcher, 'popover') ? 'popover' : 'root-panel'
+}
+
+function getUnifiedChildren(launcher: ComposerToolLauncher, seenLauncherIds?: ReadonlySet<string>) {
+  return (launcher.submenu ?? []).filter(
+    (item) =>
+      !item.hidden &&
+      !seenLauncherIds?.has(item.id) &&
+      (launcherSupportsSource(item, 'popover') || launcherSupportsSource(item, 'root-panel'))
+  )
+}
+
+function getSectionChildren(launcher: ComposerToolLauncher, source: ComposerToolLauncherSource) {
+  return (launcher.submenu ?? []).filter((item) => !item.hidden && launcherSupportsSource(item, source))
+}
+
+function createUnifiedPanelActionOptions(options: {
+  source: ComposerToolLauncherSource
+  inputAdapter?: QuickPanelInputAdapter
+  quickPanel: QuickPanelContextType
+  parentPanel?: QuickPanelOpenOptions
+  queryAnchor?: number
+  searchText?: string
+  triggerInfo?: QuickPanelTriggerInfo
+}) {
+  return {
+    source: options.source,
+    inputAdapter: options.inputAdapter,
+    quickPanel: createQuickPanelWithParent(options.quickPanel, options.parentPanel),
+    triggerInfo: options.triggerInfo ?? options.quickPanel.triggerInfo ?? { type: 'button' as const },
+    parentPanel: options.parentPanel,
+    queryAnchor: options.queryAnchor,
+    searchText: options.searchText
+  }
+}
+
+function createUnifiedPanelListItem(
+  launcher: ComposerToolLauncher,
+  options: {
+    source: ComposerToolLauncherSource
+    inputAdapter?: QuickPanelInputAdapter
+    quickPanel: QuickPanelContextType
+    onToolLauncherSelect?: ComposerUnifiedPanelSelectHandler
+    getRootPanelOptions?: () => QuickPanelOpenOptions
+    ancestorLauncherIds?: ReadonlySet<string>
+  }
+): QuickPanelListItem {
+  const nextAncestorLauncherIds = new Set(options.ancestorLauncherIds)
+  nextAncestorLauncherIds.add(launcher.id)
+  const children = getUnifiedChildren(launcher, nextAncestorLauncherIds)
+
+  return {
+    id: launcher.id,
+    label: launcher.label,
+    description: getLauncherDescription(launcher),
+    icon: launcher.icon,
+    suffix: launcher.suffix,
+    searchAliases: launcher.searchAliases,
+    isSelected: launcher.active,
+    isMenu: launcher.kind === 'panel' || launcher.kind === 'group' || children.length > 0,
+    disabled: launcher.disabled,
+    filterText: getLauncherSearchText(launcher),
+    action: ({ context, parentPanel: actionParentPanel, queryAnchor, searchText }) => {
+      const parentPanel = actionParentPanel ?? options.getRootPanelOptions?.()
+      const triggerInfo = context.triggerInfo ?? options.quickPanel.triggerInfo
+
+      if (children.length > 0) {
+        openUnifiedPanelSubmenu(launcher, {
+          ...options,
+          ancestorLauncherIds: nextAncestorLauncherIds,
+          parentPanel,
+          queryAnchor,
+          searchText,
+          triggerInfo
+        })
+        return
+      }
+
+      options.onToolLauncherSelect?.(
+        launcher,
+        createUnifiedPanelActionOptions({
+          ...options,
+          parentPanel,
+          queryAnchor,
+          searchText,
+          triggerInfo
+        })
+      )
+    }
+  }
+}
+
+function createUnifiedPanelRootSearchItems(
+  launcher: ComposerToolLauncher,
+  options: {
+    inputAdapter?: QuickPanelInputAdapter
+    quickPanel: QuickPanelContextType
+    onToolLauncherSelect?: ComposerUnifiedPanelSelectHandler
+    getRootPanelOptions?: () => QuickPanelOpenOptions
+    ancestorLauncherIds?: ReadonlySet<string>
+  }
+): QuickPanelListItem[] {
+  const ancestorLauncherIds = new Set(options.ancestorLauncherIds)
+  if (ancestorLauncherIds.has(launcher.id)) return []
+  ancestorLauncherIds.add(launcher.id)
+
+  const customPanelItems = (launcher.rootSearchItems ?? [])
+    .filter((item) => !item.hidden && !item.disabled && !item.isMenu && !item.fixedToBottom && Boolean(item.action))
+    .map(asUnifiedPanelRootSearchItem)
+  const submenuItems = getUnifiedChildren(launcher, ancestorLauncherIds).flatMap((child) => {
+    const childAncestorLauncherIds = new Set(ancestorLauncherIds)
+    childAncestorLauncherIds.add(child.id)
+    const isSelectableLeaf =
+      (child.kind === 'command' || child.kind === 'dialog') &&
+      !child.disabled &&
+      Boolean(child.action) &&
+      getUnifiedChildren(child, childAncestorLauncherIds).length === 0
+    const childItems = isSelectableLeaf
+      ? [
+          asUnifiedPanelRootSearchItem(
+            createUnifiedPanelListItem(child, {
+              ...options,
+              ancestorLauncherIds,
+              source: getLauncherPreferredSource(child)
+            })
+          )
+        ]
+      : []
+
+    return childItems
+  })
+
+  return [...customPanelItems, ...submenuItems]
+}
+
+function openUnifiedPanelSubmenu(
+  launcher: ComposerToolLauncher,
+  options: {
+    inputAdapter?: QuickPanelInputAdapter
+    quickPanel: QuickPanelContextType
+    onToolLauncherSelect?: ComposerUnifiedPanelSelectHandler
+    getRootPanelOptions?: () => QuickPanelOpenOptions
+    parentPanel?: QuickPanelOpenOptions
+    queryAnchor?: number
+    searchText?: string
+    triggerInfo?: QuickPanelTriggerInfo
+    ancestorLauncherIds?: ReadonlySet<string>
+  }
+) {
+  const nextAncestorLauncherIds = new Set(options.ancestorLauncherIds)
+  nextAncestorLauncherIds.add(launcher.id)
+  const childItems = getUnifiedChildren(launcher, nextAncestorLauncherIds).map((child) =>
+    createUnifiedPanelListItem(child, {
+      ...options,
+      ancestorLauncherIds: nextAncestorLauncherIds,
+      source: getLauncherPreferredSource(child)
+    })
+  )
+
+  options.quickPanel.open({
+    title: typeof launcher.label === 'string' ? launcher.label : undefined,
+    list: childItems,
+    symbol: launcher.id,
+    parentPanel: options.parentPanel,
+    queryAnchor: options.queryAnchor,
+    triggerInfo: options.triggerInfo ?? { type: 'button' }
+  })
+}
+
+function createUnifiedSectionItems(
+  launchers: readonly ComposerToolLauncher[],
+  options: {
+    source: ComposerToolLauncherSource
+    seenLauncherIds: Set<string>
+    inputAdapter?: QuickPanelInputAdapter
+    quickPanel: QuickPanelContextType
+    onToolLauncherSelect?: ComposerUnifiedPanelSelectHandler
+    getRootPanelOptions?: () => QuickPanelOpenOptions
+  }
+) {
+  return launchers.flatMap((launcher) => {
+    if (launcher.hidden || options.seenLauncherIds.has(launcher.id)) return []
+
+    const children = getSectionChildren(launcher, options.source)
+    const supportsSource = launcherSupportsSource(launcher, options.source)
+
+    if (!supportsSource && children.length === 0) return []
+
+    options.seenLauncherIds.add(launcher.id)
+    const rootItem = createUnifiedPanelListItem(
+      { ...launcher, submenu: getUnifiedChildren(launcher) },
+      {
+        ...options,
+        ancestorLauncherIds: new Set(),
+        source: options.source
+      }
+    )
+    const rootSearchItems = createUnifiedPanelRootSearchItems(launcher, {
+      ...options,
+      ancestorLauncherIds: new Set()
+    })
+
+    return [rootItem, ...rootSearchItems]
+  })
+}
+
+function hasUnifiedSectionItems(
+  launchers: readonly ComposerToolLauncher[],
+  source: ComposerToolLauncherSource,
+  seenLauncherIds: Set<string>
+) {
+  return launchers.some((launcher) => {
+    if (launcher.hidden || seenLauncherIds.has(launcher.id)) return false
+
+    const children = getSectionChildren(launcher, source)
+    const supportsSource = launcherSupportsSource(launcher, source)
+
+    if (!supportsSource && children.length === 0) return false
+
+    seenLauncherIds.add(launcher.id)
+    return true
+  })
+}
+
+export function hasUnifiedQuickPanelRootContent(
+  launchers: readonly ComposerToolLauncher[],
+  options: {
+    leadingItems?: readonly QuickPanelListItem[]
+    additionalItems?: readonly QuickPanelListItem[]
+    resourceItems?: readonly QuickPanelListItem[]
+  } = {}
+) {
+  if ((options.leadingItems?.length ?? 0) > 0) return true
+  if ((options.additionalItems?.length ?? 0) > 0) return true
+  if ((options.resourceItems?.length ?? 0) > 0) return true
+
+  const seenLauncherIds = new Set<string>()
+  return (
+    hasUnifiedSectionItems(launchers, 'popover', seenLauncherIds) ||
+    hasUnifiedSectionItems(launchers, 'root-panel', seenLauncherIds)
+  )
+}
+
+export function createUnifiedQuickPanelOpenOptions(
+  launchers: readonly ComposerToolLauncher[],
+  options: {
+    inputAdapter?: QuickPanelInputAdapter
+    quickPanel: QuickPanelContextType
+    onToolLauncherSelect?: ComposerUnifiedPanelSelectHandler
+    title?: string
+    leadingItems?: readonly QuickPanelListItem[]
+    additionalItems?: readonly QuickPanelListItem[]
+    resourceItems?: readonly QuickPanelListItem[]
+    queryAnchor?: number
+    triggerInfo?: QuickPanelTriggerInfo
+    initialSearchText?: string
+  }
+): QuickPanelOpenOptions {
+  const getRootPanelOptions = () =>
+    createUnifiedQuickPanelOpenOptions(launchers, {
+      ...options
+    })
+  const seenLauncherIds = new Set<string>()
+
+  const primaryItems = createUnifiedSectionItems(launchers, {
+    ...options,
+    source: 'popover',
+    seenLauncherIds,
+    getRootPanelOptions
+  })
+  // Trailing launchers (e.g. slash commands) render after regular root-panel launchers
+  // and caller additional items.
+  const commandItems = createUnifiedSectionItems(
+    launchers.filter((launcher) => launcher.rootPanelPlacement !== 'trailing'),
+    {
+      ...options,
+      source: 'root-panel',
+      seenLauncherIds,
+      getRootPanelOptions
+    }
+  )
+  const trailingCommandItems = createUnifiedSectionItems(
+    launchers.filter((launcher) => launcher.rootPanelPlacement === 'trailing'),
+    {
+      ...options,
+      source: 'root-panel',
+      seenLauncherIds,
+      getRootPanelOptions
+    }
+  )
+  // Bottom-pinned chrome (e.g. the "customize toolbar" action) belongs to the bare root panel. When
+  // the panel is opened as a category view — seeded with a search text by a toolbar shortcut — those
+  // fixedToBottom items would bypass the category filter and still render, so drop them here.
+  const isCategoryView = (options.initialSearchText ?? '').length > 0
+  const additionalItems = isCategoryView
+    ? options.additionalItems?.filter((item) => !item.fixedToBottom)
+    : options.additionalItems
+  const nextSortOrder = { value: 0 }
+  const list = [
+    ...tagUnifiedPanelSectionItems(options.leadingItems, 'primary-tools', nextSortOrder),
+    ...tagUnifiedPanelSectionItems(primaryItems, 'primary-tools', nextSortOrder),
+    ...tagUnifiedPanelSectionItems(commandItems, 'commands', nextSortOrder),
+    ...tagUnifiedPanelSectionItems(additionalItems, 'commands', nextSortOrder),
+    ...tagUnifiedPanelSectionItems(trailingCommandItems, 'commands', nextSortOrder),
+    ...tagUnifiedPanelSectionItems(options.resourceItems, 'resources', nextSortOrder)
+  ]
+
+  return {
+    title: options.title,
+    list,
+    symbol: ComposerPanelSymbol.Root,
+    queryAnchor: options.queryAnchor,
+    triggerInfo: options.triggerInfo ?? { type: 'button' },
+    trackInputQuery: true,
+    initialSearchText: options.initialSearchText,
+    filterFn: filterUnifiedQuickPanelItems,
+    sortFn: sortUnifiedQuickPanelItems
+  }
+}

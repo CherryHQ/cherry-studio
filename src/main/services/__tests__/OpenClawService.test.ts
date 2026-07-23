@@ -1,9 +1,11 @@
-import { ENDPOINT_TYPE, type Model as DataModel, MODEL_CAPABILITY } from '@shared/data/types/model'
-import type { Provider as DataProvider } from '@shared/data/types/provider'
-import type { OperationResult } from '@shared/types/codeTools'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 
-import { parseCurrentVersion, parseUpdateStatus } from '../OpenClawService'
+import { application } from '@application'
+import { ENDPOINT_TYPE, type Model as DataModel, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
+import type { Provider as DataProvider } from '@shared/data/types/provider'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // --- Mocks for OpenClawService dependencies ---
 
@@ -31,22 +33,14 @@ vi.mock('@application', () => ({
       if (name === 'WindowManager') {
         return { broadcastToType: vi.fn(), getWindowsByType: vi.fn(() => []) }
       }
-      if (name === 'BinaryManager') {
-        return {
-          installTool: vi.fn(() => Promise.resolve({ version: 'latest' })),
-          removeTool: vi.fn(() => Promise.resolve())
-        }
-      }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
-    })
+    }),
+    getPath: vi.fn()
   }
 }))
 
-vi.mock('@main/utils/process', () => ({
-  crossPlatformSpawn: vi.fn(),
-  findExecutableInEnv: vi.fn(),
-  getBinaryPath: vi.fn(() => Promise.resolve('/mock/bin/openclaw')),
-  runInstallScript: vi.fn()
+vi.mock('@main/utils/binaryResolver', () => ({
+  getBinaryPath: vi.fn(() => Promise.resolve('/mock/bin/openclaw'))
 }))
 
 vi.mock('@data/services/ModelService', () => ({
@@ -63,8 +57,7 @@ vi.mock('@data/services/ProviderService', () => ({
   }
 }))
 
-vi.mock('@main/utils/shell-env', () => ({
-  default: vi.fn(() => Promise.resolve({ PATH: '/usr/bin' })),
+vi.mock('@main/utils/shellEnv', () => ({
   refreshShellEnv: vi.fn(() => Promise.resolve({ PATH: '/usr/bin' }))
 }))
 
@@ -76,12 +69,8 @@ vi.mock('@main/core/platform', () => ({
   isWin: false
 }))
 
-vi.mock('@shared/IpcChannel', () => ({
-  IpcChannel: { OpenClaw_InstallProgress: 'openclaw:install-progress' }
-}))
-
 vi.mock('@shared/utils', () => ({
-  hasAPIVersion: vi.fn(() => false),
+  hasApiVersion: vi.fn(() => false),
   withoutTrailingSlash: vi.fn((url: string) => url.replace(/\/+$/, ''))
 }))
 
@@ -160,6 +149,7 @@ describe('OpenClawService gateway status state machine', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.restoreAllMocks()
   })
 
@@ -237,57 +227,6 @@ describe('OpenClawService gateway status state machine', () => {
       const result = await service.getStatus()
 
       expect(result).toEqual({ status: 'error', port: 18790 })
-    })
-  })
-
-  // ─── checkHealth ─────────────────────────────────────────────
-
-  describe('checkHealth', () => {
-    it('returns unhealthy immediately when status is stopped', async () => {
-      ;(service as any).gatewayStatus = 'stopped'
-
-      const result = await service.checkHealth()
-
-      expect(result).toEqual({ status: 'unhealthy', gatewayPort: 18790 })
-      expect(checkHealthSpy).not.toHaveBeenCalled()
-    })
-
-    it('returns unhealthy immediately when status is error', async () => {
-      ;(service as any).gatewayStatus = 'error'
-
-      const result = await service.checkHealth()
-
-      expect(result).toEqual({ status: 'unhealthy', gatewayPort: 18790 })
-      expect(checkHealthSpy).not.toHaveBeenCalled()
-    })
-
-    it('returns unhealthy immediately when status is starting', async () => {
-      ;(service as any).gatewayStatus = 'starting'
-
-      const result = await service.checkHealth()
-
-      expect(result).toEqual({ status: 'unhealthy', gatewayPort: 18790 })
-      expect(checkHealthSpy).not.toHaveBeenCalled()
-    })
-
-    it('probes and returns healthy when gateway is running and reachable', async () => {
-      ;(service as any).gatewayStatus = 'running'
-      checkHealthSpy.mockResolvedValue({ status: 'healthy', gatewayPort: 18790 })
-
-      const result = await service.checkHealth()
-
-      expect(result).toEqual({ status: 'healthy', gatewayPort: 18790 })
-      expect((service as any).gatewayStatus).toBe('running')
-    })
-
-    it('transitions running → stopped when probe returns unhealthy', async () => {
-      ;(service as any).gatewayStatus = 'running'
-      checkHealthSpy.mockResolvedValue({ status: 'unhealthy', gatewayPort: 18790 })
-
-      const result = await service.checkHealth()
-
-      expect(result).toEqual({ status: 'unhealthy', gatewayPort: 18790 })
-      expect((service as any).gatewayStatus).toBe('stopped')
     })
   })
 
@@ -400,67 +339,79 @@ describe('OpenClawService gateway status state machine', () => {
     })
 
     it('transitions to error when gateway fails to stop', async () => {
+      vi.useFakeTimers()
       ;(service as any).gatewayStatus = 'running'
       checkHealthSpy.mockResolvedValue({ status: 'healthy', gatewayPort: 18790 }) // still running
 
-      const result = await service.stopGateway()
+      const resultPromise = service.stopGateway()
+      await vi.runAllTimersAsync()
+      const result = await resultPromise
 
       expect(result.success).toBe(false)
       expect((service as any).gatewayStatus).toBe('error')
-    })
-  })
-
-  // ─── install ────────────────────────────────────────────────
-
-  describe('install', () => {
-    it('reuses the pending install operation for concurrent calls', async () => {
-      let finishInstall: (() => void) | undefined
-      const installInternalSpy = vi.spyOn(service as any, 'installInternal').mockImplementation(
-        () =>
-          new Promise<OperationResult>((resolve) => {
-            finishInstall = () => resolve({ success: true })
-          })
-      )
-
-      const firstInstall = service.install()
-      const secondInstall = service.install()
-      await Promise.resolve()
-
-      expect(installInternalSpy).toHaveBeenCalledTimes(1)
-      finishInstall?.()
-
-      await expect(Promise.all([firstInstall, secondInstall])).resolves.toEqual([{ success: true }, { success: true }])
-      expect((service as any).installPromise).toBeNull()
-
-      const thirdInstall = service.install()
-      await Promise.resolve()
-      expect(installInternalSpy).toHaveBeenCalledTimes(2)
-      finishInstall?.()
-      await expect(thirdInstall).resolves.toEqual({ success: true })
-    })
-
-    it('resets the pending install operation after failure', async () => {
-      const installInternalSpy = vi
-        .spyOn(service as any, 'installInternal')
-        .mockRejectedValueOnce(new Error('install failed'))
-        .mockResolvedValueOnce({ success: true })
-
-      await expect(service.install()).rejects.toThrow('install failed')
-      expect((service as any).installPromise).toBeNull()
-
-      await expect(service.install()).resolves.toEqual({ success: true })
-      expect(installInternalSpy).toHaveBeenCalledTimes(2)
+      expect(checkHealthSpy).toHaveBeenCalledTimes(3)
     })
   })
 
   // ─── syncConfig ─────────────────────────────────────────────
 
   describe('syncConfig', () => {
-    it('resolves a unique model id before syncing OpenClaw config', async () => {
+    // Regression: syncProviderConfig writes config.gateway.port from this.gatewayPort, but sync
+    // runs before startGateway(port) updates it. A caller-supplied port must be applied first, or
+    // a custom port is written as the stale default (18790) and the gateway binds the wrong port.
+    it('applies the caller port before syncProviderConfig writes the config', async () => {
       const { modelService } = await import('@data/services/ModelService')
       const { providerService } = await import('@data/services/ProviderService')
       vi.mocked(providerService.getByProviderId).mockResolvedValue(createProvider())
       const model = createModel()
+      vi.mocked(modelService.getByKey).mockResolvedValue(model)
+      vi.mocked(modelService.list).mockResolvedValue([model])
+      vi.mocked(providerService.getApiKeys).mockResolvedValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
+
+      let portAtWrite: number | undefined
+      vi.spyOn(service, 'syncProviderConfig').mockImplementation(async () => {
+        portAtWrite = (service as any).gatewayPort
+        return { success: true }
+      })
+
+      await service.syncConfig('openai::gpt-4o', 20000)
+
+      expect(portAtWrite).toBe(20000)
+      expect((service as any).gatewayPort).toBe(20000)
+    })
+
+    it('leaves the current gateway port unchanged when no port is supplied', async () => {
+      ;(service as any).gatewayPort = 12345
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockResolvedValue(createProvider())
+      const model = createModel()
+      vi.mocked(modelService.getByKey).mockResolvedValue(model)
+      vi.mocked(modelService.list).mockResolvedValue([model])
+      vi.mocked(providerService.getApiKeys).mockResolvedValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
+      vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      await service.syncConfig('openai::gpt-4o')
+
+      expect((service as any).gatewayPort).toBe(12345)
+    })
+
+    it('resolves a unique model id before syncing OpenClaw config', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockResolvedValue(createProvider())
+      const model = createModel({
+        contextWindow: 128000,
+        maxOutputTokens: 16384,
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        inputModalities: ['text', 'image'],
+        pricing: {
+          input: { perMillionTokens: 2 },
+          output: { perMillionTokens: 8 },
+          cacheRead: { perMillionTokens: 0.2 },
+          cacheWrite: { perMillionTokens: 2.5 }
+        }
+      })
       vi.mocked(modelService.getByKey).mockResolvedValue(model)
       vi.mocked(modelService.list).mockResolvedValue([model])
       vi.mocked(providerService.getApiKeys).mockResolvedValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
@@ -475,7 +426,17 @@ describe('OpenClawService gateway status state machine', () => {
           apiKey: 'sk-test',
           apiHost: 'https://api.openai.com',
           anthropicApiHost: undefined,
-          models: [expect.objectContaining({ id: 'gpt-4o', endpoint_type: 'openai' })]
+          models: [
+            expect.objectContaining({
+              id: 'gpt-4o',
+              endpoint_type: 'openai',
+              contextWindow: 128000,
+              maxTokens: 16384,
+              reasoning: true,
+              input: ['text', 'image'],
+              cost: { input: 2, output: 8, cacheRead: 0.2, cacheWrite: 2.5 }
+            })
+          ]
         }),
         expect.objectContaining({ id: 'gpt-4o', endpoint_type: 'openai' })
       )
@@ -571,7 +532,9 @@ describe('OpenClawService gateway status state machine', () => {
     })
 
     it('returns an error for invalid model selections', async () => {
-      const result = await service.syncConfig('invalid-model-id')
+      // Bypasses the compile-time UniqueModelId contract on purpose: the service's
+      // runtime safeParse is the boundary defense for non-IPC callers.
+      const result = await service.syncConfig('invalid-model-id' as UniqueModelId)
 
       expect(result).toEqual({ success: false, message: 'Invalid OpenClaw model selection' })
     })
@@ -806,6 +769,103 @@ describe('OpenClawService gateway status state machine', () => {
     })
   })
 
+  // ─── syncProviderConfig existing-config handling ─────────────
+
+  describe('syncProviderConfig existing-config handling', () => {
+    let configDir: string
+
+    // Minimal legacy-shaped provider/model — syncProviderConfig still takes the
+    // migration legacyTypes shapes, not the Data* ones used by syncConfig.
+    const legacyProvider = {
+      id: 'openai',
+      type: 'openai',
+      name: 'OpenAI',
+      apiKey: 'sk-test',
+      apiHost: 'https://api.openai.com',
+      models: [{ id: 'gpt-4o', name: 'GPT-4o' }]
+    } as any
+    const legacyModel = { id: 'gpt-4o', provider: 'openai', name: 'GPT-4o' } as any
+
+    beforeEach(() => {
+      configDir = fs.mkdtempSync(path.join(os.tmpdir(), 'openclaw-config-'))
+      vi.mocked(application.getPath).mockReturnValue(configDir)
+    })
+
+    afterEach(() => {
+      fs.rmSync(configDir, { recursive: true, force: true })
+    })
+
+    it('aborts the sync when the existing config is not valid JSON', async () => {
+      const configPath = path.join(configDir, 'openclaw.json')
+      fs.writeFileSync(configPath, '{ not json', 'utf-8')
+
+      const result = await service.syncProviderConfig(legacyProvider, legacyModel)
+
+      expect(result.success).toBe(false)
+      expect('message' in result && result.message).toMatch(/not valid JSON/)
+      // The unparseable file must survive so the user can repair it by hand.
+      expect(fs.readFileSync(configPath, 'utf-8')).toBe('{ not json')
+    })
+
+    it('writes a fresh config when none exists yet', async () => {
+      const result = await service.syncProviderConfig(legacyProvider, legacyModel)
+
+      expect(result).toEqual({ success: true })
+      const written = JSON.parse(fs.readFileSync(path.join(configDir, 'openclaw.json'), 'utf-8'))
+      expect(written.models.providers['cherry-openai']).toMatchObject({ apiKey: 'sk-test' })
+      expect(written.agents.defaults.model.primary).toBe('cherry-openai/gpt-4o')
+    })
+
+    it('writes provider headers and model metadata while keeping hand-edited values authoritative', async () => {
+      fs.writeFileSync(
+        path.join(configDir, 'openclaw.json'),
+        JSON.stringify({
+          models: {
+            providers: {
+              'cherry-openai': {
+                headers: { 'User-Agent': 'OpenClaw', 'X-Manual': 'keep' },
+                models: [{ id: 'gpt-4o', name: 'Old', contextWindow: 200000, maxTokens: 32000 }]
+              }
+            }
+          }
+        })
+      )
+      const provider = {
+        ...legacyProvider,
+        headers: { 'User-Agent': 'Cherry Studio', 'X-Synced': 'synced' },
+        models: [
+          {
+            id: 'gpt-4o',
+            name: 'GPT-4o',
+            contextWindow: 128000,
+            maxTokens: 16384,
+            reasoning: true,
+            input: ['text', 'image'],
+            cost: { input: 2, output: 8 }
+          }
+        ]
+      }
+
+      await service.syncProviderConfig(provider, legacyModel)
+
+      const written = JSON.parse(fs.readFileSync(path.join(configDir, 'openclaw.json'), 'utf-8'))
+      expect(written.models.providers['cherry-openai']).toMatchObject({
+        headers: { 'User-Agent': 'OpenClaw', 'X-Synced': 'synced', 'X-Manual': 'keep' },
+        models: [
+          {
+            id: 'gpt-4o',
+            name: 'GPT-4o',
+            contextWindow: 200000,
+            maxTokens: 32000,
+            reasoning: true,
+            input: ['text', 'image'],
+            cost: { input: 2, output: 8 }
+          }
+        ]
+      })
+    })
+  })
+
   // ─── Full state transition scenarios ─────────────────────────
 
   describe('full lifecycle transitions', () => {
@@ -839,134 +899,18 @@ describe('OpenClawService gateway status state machine', () => {
       expect(status.status).toBe('running')
     })
 
-    it('running → checkHealth unhealthy → stopped → getStatus healthy → running', async () => {
+    it('running → getStatus unhealthy → stopped → getStatus healthy → running', async () => {
       ;(service as any).gatewayStatus = 'running'
 
-      // checkHealth detects crash
+      // getStatus detects crash
       checkHealthSpy.mockResolvedValue({ status: 'unhealthy', gatewayPort: 18790 })
-      await service.checkHealth()
-      expect((service as any).gatewayStatus).toBe('stopped')
+      const crashed = await service.getStatus()
+      expect(crashed.status).toBe('stopped')
 
       // getStatus detects recovery
       checkHealthSpy.mockResolvedValue({ status: 'healthy', gatewayPort: 18790 })
-      const status = await service.getStatus()
-      expect(status.status).toBe('running')
+      const recovered = await service.getStatus()
+      expect(recovered.status).toBe('running')
     })
-  })
-})
-
-// ─── Parser tests (preserved from original) ─────────────────────
-
-describe('parseCurrentVersion', () => {
-  const cases = [
-    { name: 'standard version output', input: 'OpenClaw 2026.3.9 (fe96034)', expected: '2026.3.9' },
-    { name: 'version without commit hash', input: 'OpenClaw 2026.3.11', expected: '2026.3.11' },
-    { name: 'lowercase prefix', input: 'openclaw 1.0.0 (abc1234)', expected: '1.0.0' },
-    { name: 'semver format', input: 'OpenClaw 0.12.3 (deadbeef)', expected: '0.12.3' },
-    { name: 'empty string', input: '', expected: null },
-    { name: 'unrelated output', input: 'some random text', expected: null },
-    { name: 'version with extra whitespace', input: '  OpenClaw  2026.3.9  ', expected: '2026.3.9' }
-  ]
-
-  it.each(cases)('$name: "$input"', ({ input, expected }) => {
-    expect(parseCurrentVersion(input)).toBe(expected)
-  })
-
-  it('snapshot: all cases', () => {
-    const results = Object.fromEntries(cases.map((c) => [c.name, parseCurrentVersion(c.input)]))
-    expect(results).toMatchInlineSnapshot(`
-      {
-        "empty string": null,
-        "lowercase prefix": "1.0.0",
-        "semver format": "0.12.3",
-        "standard version output": "2026.3.9",
-        "unrelated output": null,
-        "version with extra whitespace": "2026.3.9",
-        "version without commit hash": "2026.3.11",
-      }
-    `)
-  })
-})
-
-describe('parseUpdateStatus', () => {
-  const cases = [
-    {
-      name: 'binary update via summary line',
-      input: 'Update available (binary 2026.3.12). Run: openclaw update',
-      expected: '2026.3.12'
-    },
-    {
-      name: 'binary update via table row',
-      input: 'available · binary · 2026.3.12',
-      expected: '2026.3.12'
-    },
-    {
-      name: 'binary update with semver',
-      input: 'Update available (binary 1.2.3). Run: openclaw update',
-      expected: '1.2.3'
-    },
-    {
-      name: 'full table output with binary update',
-      input: [
-        'OpenClaw update status',
-        '┌──────────┬─────────────────────────────────┐',
-        '│ Install  │ binary (~/.cherrystudio/bin)     │',
-        '│ Channel  │ stable (default)                 │',
-        '│ Update   │ available · binary · 2026.3.12   │',
-        '└──────────┴─────────────────────────────────┘',
-        '',
-        'Update available (binary 2026.3.12). Run: openclaw update'
-      ].join('\n'),
-      expected: '2026.3.12'
-    },
-    {
-      name: 'ignores npm update (summary)',
-      input: 'Update available (npm 2026.3.11). Run: openclaw update',
-      expected: null
-    },
-    {
-      name: 'ignores pkg update (table row)',
-      input: 'Update available · pkg · npm update 2026.3.11',
-      expected: null
-    },
-    {
-      name: 'ignores pkg update in full table output',
-      input: [
-        'OpenClaw update status',
-        '┌──────────┬─────────────────────────────────┐',
-        '│ Install  │ binary (~/.cherrystudio/bin)     │',
-        '│ Channel  │ stable (default)                 │',
-        '│ Update   │ available · pkg · npm update 2026.3.11 │',
-        '└──────────┴─────────────────────────────────┘',
-        '',
-        'Update available (npm 2026.3.11). Run: openclaw update'
-      ].join('\n'),
-      expected: null
-    },
-    { name: 'no update available', input: 'Already up to date', expected: null },
-    { name: 'empty string', input: '', expected: null },
-    { name: 'unrelated output', input: 'some random text', expected: null }
-  ]
-
-  it.each(cases)('$name', ({ input, expected }) => {
-    expect(parseUpdateStatus(input)).toBe(expected)
-  })
-
-  it('snapshot: all cases', () => {
-    const results = Object.fromEntries(cases.map((c) => [c.name, parseUpdateStatus(c.input)]))
-    expect(results).toMatchInlineSnapshot(`
-      {
-        "binary update via summary line": "2026.3.12",
-        "binary update via table row": "2026.3.12",
-        "binary update with semver": "1.2.3",
-        "empty string": null,
-        "full table output with binary update": "2026.3.12",
-        "ignores npm update (summary)": null,
-        "ignores pkg update (table row)": null,
-        "ignores pkg update in full table output": null,
-        "no update available": null,
-        "unrelated output": null,
-      }
-    `)
   })
 })

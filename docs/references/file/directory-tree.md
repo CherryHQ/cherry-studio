@@ -14,7 +14,7 @@
 
 | Primitive | Resource | State | Backing | Lifecycle |
 |---|---|---|---|---|
-| FileManager | `FileEntry` rows (internal + external) + content bytes | DB + filesystem | `file_entry` / `file_ref` SQLite tables | always-on `WhenReady` service |
+| FileManager | `FileEntry` rows (internal + external) + content bytes | DB + filesystem | `file_entry` + file association tables | always-on `WhenReady` service |
 | DirectoryTreeBuilder | In-memory `TreeDirRoot` mirror + chokidar watcher | Pure runtime | None — FS is the source of truth | per-`(rootPath, options)`; refcounted |
 
 Neither subsumes the other:
@@ -121,7 +121,7 @@ Tear down t-2 → refcount = 0, grace timer queued
 
 ### 3.2 Dispose Grace Window
 
-`DISPOSE_GRACE_MS = 500`. When the last consumer of a builder leaves, the actual teardown is deferred by this window. The motivation is React's commit ordering inside a single render: "deletion effects → insertion effects". When `ArtifactPane` swaps between `Shell.Host` and `Shell.MaximizedOverlay`, the unmount fires `File_TreeDispose(old)` and the mount fires `File_TreeCreate(new)` back-to-back. Without the grace window, the unmount would tear down the watcher and the mount would pay a full rescan microseconds later.
+`DISPOSE_GRACE_MS = 500`. When the last consumer of a builder leaves, the actual teardown is deferred by this window. The motivation is React's commit ordering inside a single render: "deletion effects → insertion effects". When a keyed consumer is replaced or a tab unmounts and immediately remounts, `File_TreeDispose(old)` and `File_TreeCreate(new)` can occur back-to-back. Without the grace window, the unmount would tear down the watcher and the mount would pay a full rescan microseconds later.
 
 500ms is long enough to span any realistic React commit (sub-millisecond in practice) and short enough that a genuine workspace close doesn't keep the watcher FDs alive noticeably.
 
@@ -339,7 +339,7 @@ The hook handles four overlapping concerns:
 
 | Concern | Owner | Cross-reference |
 |---|---|---|
-| Filesystem watching | `createDirectoryWatcher` (transport) | [`watcher/`](../../../src/main/services/file/watcher) |
+| Filesystem watching | `createDirectoryWatcher` (transport) | [`watcher.ts`](../../../src/main/services/file/watcher.ts) |
 | `FileEntry` rows + atomic writes | FileManager | [`file-manager-architecture.md`](./file-manager-architecture.md) |
 | `noteTable` sparse-state metadata | Notes domain (renderer + DataApi) | not part of tree concerns |
 | `.gitignore` parsing | `gitignore.ts` (this module) | private to the tree primitive |

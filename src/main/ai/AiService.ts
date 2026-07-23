@@ -1,27 +1,28 @@
+import { application } from '@application'
 import {
   embedMany as aiCoreEmbedMany,
   generateImage as aiCoreGenerateImage,
   rerank as aiCoreRerank
 } from '@cherrystudio/ai-core'
+import type { ParamValues } from '@cherrystudio/provider-registry'
 import { assistantDataService } from '@data/services/AssistantService'
-import type { PersonGeneration } from '@google/genai'
+import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
 import type { JobHandle } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
-import { type TranslateOpenRequest, translateService } from '@main/services/translate/translateService'
+import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
-import type { FileEntry } from '@shared/data/types/file/fileEntry'
+import type { FileEntry } from '@shared/data/types/file'
+import type { ImageGenerationMode } from '@shared/data/types/model'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
-import { IpcChannel } from '@shared/IpcChannel'
-import type { Base64String, URLString } from '@shared/types/file/common'
-import { isEmbeddingModel, isRerankModel } from '@shared/utils/model'
+import type { Base64String, UrlString } from '@shared/types/file'
+import { isEmbeddingModel, isFunctionCallingModel, isRerankModel } from '@shared/utils/model'
 import {
   type EmbeddingModelUsage,
   isToolUIPart,
@@ -31,24 +32,59 @@ import {
 } from 'ai'
 
 import { isAgentSessionTopic } from './agentSession/topic'
+import { prepareChatMessages } from './messages/attachmentRouting'
 import { resolveMediaCapabilities } from './messages/messageCapabilities'
-import { resolveUIMessageFileUrls } from './messages/messageConverter'
 import { resolveImageTransport } from './provider/custom/imageTransportRegistry'
 import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
+import { buildVendorProviderOptions } from './provider/custom/wire/buildImageRequest'
+import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
 import { listModels as listModelsFromProvider } from './provider/listModels'
-import { Agent } from './runtime/aiSdk/Agent'
-import type { AgentLoopHooks } from './runtime/aiSdk/loop'
-import { mergeUsage, ZERO_USAGE } from './runtime/aiSdk/observers/usage'
-import { buildAgentParams } from './runtime/aiSdk/params/buildAgentParams'
-import type { RequestFeature } from './runtime/aiSdk/params/feature'
-import { WebContentsListener } from './streamManager/listeners/WebContentsListener'
-import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin'
-import type { AppProviderSettingsMap } from './types'
-import type { AiBaseRequest, AiStreamRequest, AiTransportOptions, ListModelsRequest } from './types/requests'
-import { buildImageProviderOptions, normalizeAspectRatio } from './utils/imageOptions'
+import type { AgentLoopHooks, RequestFeature } from './runtime/aiSdk'
+import { Agent, buildAgentParams, mergeUsage, ZERO_USAGE } from './runtime/aiSdk'
+import { skillService } from './skills/SkillService'
+import { WebContentsListener } from './streamManager'
+import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin/registerBuiltinTools'
+import type {
+  AiBaseRequest,
+  AiStreamRequest,
+  AiTransportOptions,
+  AppProviderSettingsMap,
+  ListModelsRequest
+} from './types'
+import { installProviderUserAgentInterceptor } from './utils/customFetch'
+import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
 
 const logger = loggerService.withContext('AiService')
+
+// ── Model listing ──────────────────────────────────────────────────
+
+/**
+ * Bare model id used to dedup a live API list against the registry catalog: the
+ * upstream `/models` strips the publisher prefix (`deepseek-v3.1-maas`) while the
+ * registry keeps it (`deepseek-ai/deepseek-v3.1-maas`), so both collapse to the
+ * last path segment, lowercased.
+ * ponytail: last-segment + lowercase covers the known convention gap (publisher
+ * prefix); widen (e.g. `.`→`-`) only if a real collision surfaces.
+ */
+function bareModelKey(apiModelId: string | undefined): string {
+  const id = apiModelId ?? ''
+  const afterSlash = id.includes('/') ? id.slice(id.lastIndexOf('/') + 1) : id
+  return afterSlash.toLowerCase()
+}
+
+/**
+ * Union a provider's live API models with its registry catalog. Live models win;
+ * registry models the API never returns are appended — vendor-exclusive entries
+ * the upstream `/models` doesn't list (ppio's Z-Image/Jimeng image models,
+ * Claude-on-Vertex). Enrichment-type overrides collapse onto their live twin via
+ * `bareModelKey`, so only genuinely-missing models are added.
+ */
+export function mergeProviderModelsWithRegistry(remote: Partial<Model>[], registry: Model[]): Partial<Model>[] {
+  const seen = new Set(remote.map((m) => bareModelKey(m.apiModelId)))
+  const missing = registry.filter((m) => !seen.has(bareModelKey(m.apiModelId)))
+  return missing.length > 0 ? [...remote, ...missing] : remote
+}
 
 // ── Request types ──────────────────────────────────────────────────
 
@@ -85,21 +121,16 @@ export interface AiImageRequest extends AiBaseRequest {
   inputImages?: string[]
   /** Mask for inpainting (only with inputImages). */
   mask?: string
-  n?: number
-  size?: string
-  negativePrompt?: string
-  seed?: number
-  quality?: string
-  numInferenceSteps?: number
-  guidanceScale?: number
-  promptEnhancement?: boolean
-  personGeneration?: PersonGeneration
-  aspectRatio?: string
-  background?: string
-  moderation?: string
-  style?: string
-  /** Vendor-specific image params keyed by provider id; mapped to AI SDK provider options in main. */
-  providerOptions?: Record<string, Record<string, unknown>>
+  /** Image-generation mode (which tab). main derives per-model transport routing
+   *  (`vendorTransport` → descriptor) from the registry using this. */
+  mode?: ImageGenerationMode
+  /**
+   * Canonical param bag — already a strict, coerced `ParamValues` (the
+   * `ai.generate_image` IPC validated it via the catalog `imageParamsSchema`).
+   * main derives the structured request fields + the vendor bag from it via
+   * `splitParamValues`.
+   */
+  paramValues: ParamValues
 }
 
 /** Image generation result — persisted file entries (main writes the bytes). */
@@ -115,21 +146,22 @@ export interface AiImageResult {
  */
 export function imageInputEntryParams(
   value: string
-): { source: 'base64'; data: Base64String } | { source: 'url'; url: URLString } {
+): { source: 'base64'; data: Base64String } | { source: 'url'; url: UrlString } {
   return value.startsWith('data:')
     ? { source: 'base64', data: value as Base64String }
-    : { source: 'url', url: value as URLString }
+    : { source: 'url', url: value as UrlString }
 }
 
 /**
  * Resolve the wire `size`. `'auto'` is the painting UI sentinel for "let the
- * server pick the size" — like `compact()` drops it from `providerOptions`, it
- * must never reach the request body as a literal, so it's omitted. An absent
- * size keeps the legacy client-side `1024x1024` default.
+ * server pick the size", so it's omitted. An absent size is also omitted — the
+ * provider/server applies its own default. (A blanket client-forced
+ * `1024x1024` was wrong for vendors like Doubao that only accept `1K`/`2K`/`4K`
+ * and reject a pixel size; models that want a concrete default declare it on
+ * their registry `size` param instead.)
  */
 function resolveImageRequestSize(size: string | undefined): string | undefined {
-  if (size === 'auto') return undefined
-  return size ?? '1024x1024'
+  return size === 'auto' ? undefined : size
 }
 
 /** Embedding request. */
@@ -179,15 +211,25 @@ export class AiService extends BaseService {
 
   protected async onInit(): Promise<void> {
     registerBuiltinTools()
-    this.registerIpcHandlers()
+    // Restore provider custom `User-Agent` headers that Chromium's net.fetch stack
+    // would otherwise overwrite (see installProviderUserAgentInterceptor).
+    this.registerDisposable(installProviderUserAgentInterceptor())
     application.get('JobManager').registerHandler('image-generation.generate', imageGenerationJobHandler)
+    // Install built-in skills, then heal the CLAUDE_CONFIG_DIR/skills mirror once at
+    // startup — chained (not two independent fire-and-forgets) so the mirror reconcile
+    // always runs after builtin skills have synced to agent_global_skill this boot,
+    // regardless of whether the install succeeded. Fire-and-forget as a pair so
+    // neither blocks init.
+    void installBuiltinSkills()
+      .catch((error) => {
+        logger.error('Failed to install built-in skills', error as Error)
+      })
+      .then(() =>
+        skillService.reconcileSkills().catch((error) => {
+          logger.error('Failed to reconcile skills', error)
+        })
+      )
     logger.info('AiService initialized')
-  }
-
-  private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.Ai_Translate_Open, async (event, request: TranslateOpenRequest) => {
-      return translateService.open(event.sender, request)
-    })
   }
 
   /**
@@ -258,7 +300,7 @@ export class AiService extends BaseService {
     // stale parts and clobber each other's decision (or both compute a stale "still pending" and
     // neither resume). Returns the committed parts, or null when the anchor row is gone — a stale
     // click on a deleted message, resolved through the result shape instead of throwing.
-    const approvalResult = await messageService.applyToolApprovalDecisions(payload.anchorId, [decision])
+    const approvalResult = messageService.applyToolApprovalDecisions(payload.anchorId, [decision])
     if (approvalResult === null) {
       logger.warn('Tool-approval response anchor is missing or deleted', {
         approvalId: payload.approvalId,
@@ -345,13 +387,17 @@ export class AiService extends BaseService {
       throw new Error(`Agent session stream ${request.chatId} requires an agent-session runtime request`)
     }
 
-    const { sdkConfig, tools, plugins, system, options, model, hookParts } = await this.buildAgentParamsFor(
-      request,
-      signal,
-      extraFeatures
-    )
+    const { sdkConfig, tools, plugins, system, options, model, hookParts, nativeFileSupport, fileAttachments } =
+      await this.buildAgentParamsFor(request, signal, extraFeatures)
 
-    const preparedMessages = await resolveUIMessageFileUrls(request.messages ?? [])
+    // Route attachments: native files stay inline, non-native become capped text
+    // (always visible — never gated on the model calling read_file).
+    const preparedMessages = await prepareChatMessages(request.messages ?? [], {
+      attachments: fileAttachments,
+      nativeSupport: nativeFileSupport,
+      isToolCapable: isFunctionCallingModel(model),
+      signal
+    })
 
     const agent = new Agent({
       providerId: sdkConfig.providerId,
@@ -371,11 +417,23 @@ export class AiService extends BaseService {
 
   private analyticsHookPart(model: Model): Partial<AgentLoopHooks> {
     let total: LanguageModelUsage = ZERO_USAGE
+    let flushed = false
+    const flush = () => {
+      if (flushed) return
+      flushed = true
+      this.trackUsage(model, total)
+    }
+
     return {
       onStepFinish: (step) => {
         if (step.usage) total = mergeUsage(total, step.usage)
       },
-      onFinish: () => this.trackUsage(model, total)
+      onFinish: flush,
+      onAbort: flush,
+      onError: () => {
+        flush()
+        return 'abort'
+      }
     }
   }
 
@@ -444,52 +502,50 @@ export class AiService extends BaseService {
       ? { text: request.prompt, images: request.inputImages, ...(request.mask && { mask: request.mask }) }
       : request.prompt
 
-    // Map the canonical painting params onto each vendor's real image-API field
-    // names (negative_prompt / seed / imageConfig / …). AI SDK image models
-    // spread `providerOptions[<providerId>]` into the request body, so this is
-    // how negativePrompt/seed/steps/guidance/aspectRatio actually reach vendors.
-    const imageProviderOptions = buildImageProviderOptions(sdkConfig.providerId, {
-      negativePrompt: request.negativePrompt,
-      seed: request.seed !== undefined ? String(request.seed) : undefined,
-      numInferenceSteps: request.numInferenceSteps,
-      guidanceScale: request.guidanceScale,
-      promptEnhancement: request.promptEnhancement,
-      personGeneration: request.personGeneration,
-      quality: request.quality,
-      aspectRatio: request.aspectRatio,
-      imageSize: request.size,
-      providerOptions: request.providerOptions,
-      background: request.background,
-      moderation: request.moderation,
-      style: request.style
-    })
+    // `request.paramValues` is already a strict, coerced `ParamValues` — the
+    // `ai.generate_image` IPC validated it via the catalog `imageParamsSchema` at
+    // the boundary (no main-side re-parse / cast). Split it into the structured
+    // fields the AI SDK call consumes (n/size/seed/aspectRatio → imageParams
+    // below) vs the leftover vendor bag (cfg, the diffusion/openai knobs, …) the
+    // WireProfile engine forwards.
+    const params = request.paramValues
+    const { structured, vendorBag } = splitParamValues(params)
+
+    // Vendor body (`providerOptions[providerId]`): the WireProfile engine maps the
+    // canonical bag to each provider's wire — a registered profile for the
+    // OpenAI / google / dashscope / aihubmix / dmxapi families, else the diffusion
+    // catch-all (DEFAULT_DIFFUSION_REGISTRATION).
+    const registration = WIRE_REGISTRY[sdkConfig.providerId] ?? DEFAULT_DIFFUSION_REGISTRATION
+    const imageProviderOptions = buildVendorProviderOptions(sdkConfig.providerId, params, registration, vendorBag)
     // Async custom-provider transports (ppio / dashscope / modelscope /
     // dmxapi-bespoke) run the submit/poll loop on the job system so it survives
-    // a restart (resumes the same remote task instead of re-submitting). Other
-    // providers/models keep the in-SDK path below. The vendor params bag handed
-    // to the transport is identical to what the SDK path forwards.
+    // a restart. Unlike the in-SDK path (whose `providerOptions[id]` IS the wire
+    // body), a transport builds its own request envelope per model, so it receives
+    // the canonical camelCase `vendorBag` directly (native n/size/seed travel via
+    // the job payload → `input.*`). No wire-naming, no casing probes.
     if (
       request.uniqueModelId &&
       resolveImageTransport(sdkConfig.providerId, sdkConfig.modelId, sdkConfig.providerSettings)
     ) {
-      return await this.generateImageViaJob(request, imageProviderOptions[sdkConfig.providerId] ?? {}, signal)
+      return await this.generateImageViaJob(request, structured, vendorBag, signal)
     }
 
-    const aspectRatio = normalizeAspectRatio(request.aspectRatio)
-    const requestSize = resolveImageRequestSize(request.size)
+    // `structured.aspectRatio` is already normalized to `X:Y` by the aspectRatio
+    // native binding's `map` (in `splitParamValues`).
+    const requestSize = resolveImageRequestSize(structured.size)
 
+    // Only the genuine AI SDK `ImageModelV3CallOptions` image params (n/size/seed/
+    // aspectRatio). The vendor knobs (negativePrompt/quality/numInferenceSteps/…)
+    // are NOT typed SDK options — they reach the wire via `providerOptions[id]`
+    // (the WireProfile engine), which the image models read; passing them here is
+    // dropped by `generateImage`, so they're omitted.
     const imageParams = {
       model: sdkConfig.modelId,
       prompt: promptParam,
-      n: request.n ?? 1,
+      n: structured.n ?? 1,
       ...(requestSize !== undefined && { size: requestSize as `${number}x${number}` }),
-      ...(request.negativePrompt ? { negativePrompt: request.negativePrompt } : {}),
-      ...(request.seed !== undefined ? { seed: request.seed } : {}),
-      ...(request.quality ? { quality: request.quality } : {}),
-      ...(request.numInferenceSteps !== undefined ? { numInferenceSteps: request.numInferenceSteps } : {}),
-      ...(request.guidanceScale !== undefined ? { guidanceScale: request.guidanceScale } : {}),
-      ...(request.promptEnhancement !== undefined ? { promptEnhancement: request.promptEnhancement } : {}),
-      ...(aspectRatio ? { aspectRatio: aspectRatio as `${number}:${number}` } : {}),
+      ...(structured.seed !== undefined ? { seed: structured.seed } : {}),
+      ...(structured.aspectRatio ? { aspectRatio: structured.aspectRatio as `${number}:${number}` } : {}),
       ...(Object.keys(imageProviderOptions).length > 0 ? { providerOptions: imageProviderOptions } : {}),
       ...(signal ? { abortSignal: signal } : {}),
       experimental_download: async (downloads) => {
@@ -548,6 +604,7 @@ export class AiService extends BaseService {
    */
   private async generateImageViaJob(
     request: AsInProcess<AiImageRequest>,
+    structured: SplitImageParams['structured'],
     providerParams: Record<string, unknown>,
     signal: AbortSignal | undefined
   ): Promise<AiImageResult> {
@@ -576,19 +633,31 @@ export class AiService extends BaseService {
       if (rejected) throw rejected.reason
       const inputFileIds = settled.length ? settled.map((r) => (r as PromiseFulfilledResult<string>).value) : undefined
       const maskFileId = request.mask ? await persistInputImage(request.mask) : undefined
-      const requestSize = resolveImageRequestSize(request.size)
+      const requestSize = resolveImageRequestSize(structured.size)
+
+      // Per-model transport routing, derived from the registry (main hosts it) —
+      // NOT laundered through paramValues. Persisted in the payload so a restart-
+      // resume reaches the right endpoint / response family.
+      const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+      const mode = request.mode ?? 'generate'
+      const support = providerRegistryService.getImageGenerationSupport(providerId, modelId)
+      const vendorTransport = support?.modes?.[mode]?.vendorTransport
+      const modelDescriptor = vendorTransport?.endpoint
+        ? { id: modelId, endpoint: vendorTransport.endpoint, isSync: vendorTransport.isSync, mode }
+        : undefined
 
       const payload: ImageGenerationJobPayload = {
         uniqueModelId,
         prompt: request.prompt,
-        n: request.n ?? 1,
+        n: structured.n ?? 1,
         ...(requestSize !== undefined && { size: requestSize }),
-        seed: request.seed,
+        seed: structured.seed,
         ...(inputFileIds && { inputFileIds }),
         ...(maskFileId && { maskFileId }),
+        ...(modelDescriptor && { modelDescriptor }),
         providerParams
       }
-      handle = await jobManager.enqueue('image-generation.generate', payload)
+      handle = jobManager.enqueue('image-generation.generate', payload)
     } catch (error) {
       // Setup failed before the job owns the payload — clean up what we created.
       await deleteImageInputEntries(createdEntryIds)
@@ -618,7 +687,10 @@ export class AiService extends BaseService {
     if (snapshot.status === 'cancelled') {
       throw new DOMException('Image generation aborted', 'AbortError')
     }
-    throw new Error(snapshot.error?.message ?? 'Image generation failed')
+    // `||` not `??`: a job can fail with an empty-string error message (a vendor that
+    // returns a non-OK response with no body), which would otherwise surface as a
+    // message-less `Error` the renderer can't show.
+    throw new Error(snapshot.error?.message || 'Image generation failed')
   }
 
   // ── Embedding ──
@@ -681,7 +753,12 @@ export class AiService extends BaseService {
   async listModels(request: ListModelsRequest): Promise<Partial<Model>[]> {
     let providerId = request.providerId
     if (!providerId && request.assistantId) {
-      const assistant = await assistantDataService.getById(request.assistantId).catch(() => undefined)
+      let assistant: Assistant | undefined
+      try {
+        assistant = assistantDataService.getById(request.assistantId)
+      } catch {
+        assistant = undefined
+      }
       if (assistant?.modelId) {
         providerId = parseUniqueModelId(assistant.modelId).providerId
       }
@@ -689,15 +766,26 @@ export class AiService extends BaseService {
     if (!providerId) {
       throw new Error('Cannot resolve providerId: not in request and assistant has no model')
     }
-    const provider = await providerService.getByProviderId(providerId)
-    return listModelsFromProvider(provider, undefined, { throwOnError: request.throwOnError })
+    const provider = providerService.getByProviderId(providerId)
+    // Registry-sourced providers (login-based, no API model list) return their
+    // shipped catalog instead of calling the upstream API. The rest of the pull
+    // flow (enrich → reconcile → enable) is unchanged.
+    if (provider.modelListSource === 'registry') {
+      return providerRegistryService.listProviderRegistryModels({ providerId })
+    }
+    // Union the live API list with the registry catalog so vendor-exclusive models
+    // the upstream `/models` never returns (ppio image models, Claude-on-Vertex)
+    // still surface for the user to enable.
+    const remoteModels = await listModelsFromProvider(provider, undefined, { throwOnError: request.throwOnError })
+    const registryModels = providerRegistryService.listProviderRegistryModels({ providerId })
+    return mergeProviderModelsWithRegistry(remoteModels, registryModels)
   }
 
   // ── API validation ──
 
   /** Dispatches to `rerank` / `embedMany` for those model types, `generateText` otherwise. */
   async checkModel(request: AiBaseRequest & { timeout?: number }): Promise<{ latency: number }> {
-    const { model } = await this.getProviderAndModel(request)
+    const { model } = this.getProviderAndModel(request)
     const start = performance.now()
     const timeout = request.timeout ?? 15000
 
@@ -744,7 +832,7 @@ export class AiService extends BaseService {
     signal: AbortSignal | undefined,
     extraFeatures: readonly RequestFeature[] = []
   ) {
-    const { provider, model, assistant } = await this.getProviderAndModel(request)
+    const { provider, model, assistant } = this.getProviderAndModel(request)
     const built = await buildAgentParams({ request, signal, provider, model, assistant, extraFeatures })
     return { ...built, provider, model, assistant }
   }
@@ -771,10 +859,14 @@ export class AiService extends BaseService {
   }
 
   /** Priority: explicit `uniqueModelId` > `assistant.modelId`. */
-  private async getProviderAndModel(request: AiBaseRequest & { chatId?: string }) {
+  private getProviderAndModel(request: AiBaseRequest & { chatId?: string }) {
     let assistant: Assistant | undefined
     if (request.assistantId) {
-      assistant = await assistantDataService.getById(request.assistantId).catch(() => undefined)
+      try {
+        assistant = assistantDataService.getById(request.assistantId)
+      } catch {
+        assistant = undefined
+      }
     }
 
     let providerId: string | undefined
@@ -791,8 +883,8 @@ export class AiService extends BaseService {
     if (!providerId) throw new Error('Cannot resolve providerId: not in request and assistant has no model')
     if (!modelId) throw new Error('Cannot resolve modelId: not in request and assistant has no model')
 
-    const provider = await providerService.getByProviderId(providerId)
-    const model = await modelService.getByKey(providerId, modelId)
+    const provider = providerService.getByProviderId(providerId)
+    const model = modelService.getByKey(providerId, modelId)
 
     return { provider, model, assistant }
   }

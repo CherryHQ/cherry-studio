@@ -8,6 +8,7 @@ import {
   useComposerTokenReconcile,
   useComposerToolDispatch,
   useComposerToolLauncherActions,
+  useComposerToolLauncherVersion,
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
 import type { ComposerDraftToken } from '@renderer/components/composer/tokens'
@@ -19,17 +20,17 @@ import {
 import { fileToComposerToken } from '@renderer/components/composer/variants/shared/composerTokens'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useModels } from '@renderer/hooks/useModel'
-import type { FileEntry } from '@shared/data/types/file/fileEntry'
+import type { FileEntry } from '@shared/data/types/file'
 import type { Model } from '@shared/data/types/model'
-import { imageExts } from '@shared/utils/file/fileExtensions'
+import { imageExts } from '@shared/utils/file'
 import { isEditImageModel } from '@shared/utils/model'
 import { Settings2 } from 'lucide-react'
 import { type FC, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { BaseConfigItem } from '../form/baseConfigItem'
-import { deriveChipLabel } from '../form/fields/SizeChipsField'
 import { imageGenerationToFields } from '../form/imageGenerationToFields'
+import { SIZE_PREVIEW_KEYS, sizeOptionLabel } from '../form/paintingSize'
 import { resolveOptions } from '../form/resolveOptions'
 import { useImageGenerationSupport } from '../hooks/useImageGenerationSupport'
 import { usePaintingComposerInputFiles } from '../hooks/usePaintingComposerInputFiles'
@@ -41,9 +42,6 @@ import PaintingSettings from './PaintingSettings'
 const PAINTING_MANAGED_TOKEN_KINDS: readonly ComposerDraftToken['kind'][] = ['file']
 const PAINTING_IMAGE_EXTS = imageExts.map((ext) => (ext.startsWith('.') ? ext : `.${ext}`))
 const PAINTING_SCOPE = 'painting' as const
-
-/** Size-bearing canonical keys — formatted as chip-style dimensions. */
-const SIZE_PREVIEW_KEYS = ['size', 'imageResolution', 'aspectRatio'] as const
 
 /** Field types worth surfacing in the compact button summary. */
 const SUMMARY_TYPES = new Set<BaseConfigItem['type']>([
@@ -68,7 +66,9 @@ function formatSummaryValue(
       const h = params?.customSize_height
       return w && h ? `${String(w)}×${String(h)}` : undefined
     }
-    return deriveChipLabel(String(value), String(value))
+    // Localize the selected option (e.g. `auto` → `自动`) the same way the chips
+    // and the artboard prompt bar do, instead of formatting the raw enum.
+    return sizeOptionLabel(item, String(value), params, translate)
   }
   if (item.type === 'slider') return String(value)
   // Option-based: show the selected option's localized label.
@@ -119,10 +119,14 @@ const PaintingParamsButton: FC<{
 }> = ({ painting, onConfigChange, onGenerateRandomSeed }) => {
   const { t } = useTranslation()
   const registrySupport = useImageGenerationSupport(painting.providerId, painting.model)
-  const summary = useMemo(() => {
-    const items = imageGenerationToFields(registrySupport, { mode: tabToImageGenerationMode(painting.mode) })
-    return paramsSummary(painting.params, items, t)
-  }, [registrySupport, painting.mode, painting.params, t])
+  const configItems = useMemo(
+    () => imageGenerationToFields(registrySupport, { mode: tabToImageGenerationMode(painting.mode) }),
+    [registrySupport, painting.mode]
+  )
+  const summary = useMemo(() => paramsSummary(painting.params, configItems, t), [painting.params, configItems, t])
+
+  if (configItems.length === 0) return null
+
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -175,6 +179,7 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   const { files, isExpanded } = useComposerToolState()
   const { setFiles, setIsExpanded } = useComposerToolDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherActions()
+  const toolLaunchersVersion = useComposerToolLauncherVersion()
   const [text, setText] = useState(() => painting.prompt ?? '')
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
@@ -229,12 +234,14 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
         enableDragDrop={config.enableDragDrop ?? true}
         enableSpellCheck={enableSpellCheck}
         fontSize={fontSize}
-        narrowMode={false}
+        narrowMode
         getToolLaunchers={() => getLaunchers()}
+        toolLaunchersVersion={toolLaunchersVersion}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
-        renderLeftControls={(inputAdapter) => (
+        renderLeftControls={(inputAdapter, unifiedPanelControl) => (
           <ComposerToolbarControls
             inputAdapter={inputAdapter}
+            unifiedPanelControl={unifiedPanelControl}
             renderContextControls={() => (
               <>
                 <PaintingModelSelector

@@ -4,8 +4,8 @@ import {
   getTaskTitle,
   isTaskRecord,
   normalizeTaskStatus
-} from '@renderer/components/chat/messages/tools/agent/taskData'
-import { AgentToolsType } from '@renderer/components/chat/messages/tools/agent/types'
+} from '@renderer/components/chat/messages/tools/agent'
+import { AgentToolsType } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import {
   getPartParentToolCallId,
   stripPartParentToolMetadata
@@ -68,6 +68,17 @@ export interface AgentRightPaneStatus {
   totalTaskCount: number
   subagents: AgentSubagent[]
   artifacts: AgentArtifactFile[]
+}
+
+const strippedParentMetadataCache = new WeakMap<object, CherryMessagePart>()
+
+function getPartWithoutParentMetadata(part: CherryMessagePart): CherryMessagePart {
+  if (typeof part !== 'object' || part === null) return stripPartParentToolMetadata(part)
+  const cached = strippedParentMetadataCache.get(part)
+  if (cached) return cached
+  const stripped = stripPartParentToolMetadata(part)
+  strippedParentMetadataCache.set(part, stripped)
+  return stripped
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -275,7 +286,7 @@ export function buildAgentToolFlowProjection(
           if (!parentToolCallId || !selectedToolCallIds.has(parentToolCallId)) continue
         }
 
-        assistantParts.push(stripPartParentToolMetadata(part))
+        assistantParts.push(getPartWithoutParentMetadata(part))
       }
     }
 

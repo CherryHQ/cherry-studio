@@ -34,6 +34,7 @@ import { loggerService } from '@logger'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryUIMessageChunk, CherryUIMessageMetadata } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
+import { isMcpContentBlock } from '@shared/utils/mcp'
 
 import type { McpToolDisplayMetadata } from './types'
 
@@ -133,6 +134,64 @@ function isClaudeCodeTruncationError(error: unknown, bufferedText: string): bool
 
 function isSubagentToolName(toolName: string): boolean {
   return toolName === 'Task' || toolName === 'Agent'
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function stringifyJsonValue(value: unknown): string {
+  if (typeof value === 'string') return value
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+function getContentArray(value: unknown): unknown[] | undefined {
+  if (Array.isArray(value)) return value
+  if (isRecord(value) && Array.isArray(value.content)) return value.content
+  return undefined
+}
+
+function normalizeMcpContentBlock(block: unknown): JSONObject {
+  if (isMcpContentBlock(block)) return block as JSONObject
+
+  if (!isRecord(block)) {
+    return { type: 'text', text: stringifyJsonValue(block) }
+  }
+
+  if (block.type === 'image') {
+    const source = block.source
+    if (isRecord(source) && source.type === 'base64' && typeof source.data === 'string') {
+      return {
+        type: 'image',
+        data: source.data,
+        mimeType: typeof source.media_type === 'string' ? source.media_type : 'image/png'
+      }
+    }
+  }
+
+  return { type: 'text', text: stringifyJsonValue(block) }
+}
+
+function normalizeMcpToolContent(value: unknown): JSONValue[] {
+  const content = getContentArray(value)
+  if (content) return content.map(normalizeMcpContentBlock)
+
+  return [{ type: 'text', text: stringifyJsonValue(value) }]
+}
+
+function hasMcpNonTextContent(value: unknown): boolean {
+  const content = getContentArray(value)
+  if (!content) return false
+
+  return content.some((block) => {
+    if (!isRecord(block)) return false
+    if (block.type === 'image' || block.type === 'audio') return true
+    return block.type === 'resource' && isRecord(block.resource) && typeof block.resource.blob === 'string'
+  })
 }
 
 function createEmptyUsage(): LanguageModelV3Usage {
@@ -725,7 +784,7 @@ export class ClaudeCodeStreamAdapter {
       ctx.sink.enqueue({
         type: 'tool-output-available',
         toolCallId: result.tool_use_id,
-        output: this.buildToolOutput(normalizedResult, state),
+        output: this.buildToolOutput(normalizedResult, state, result.content),
         dynamic: true,
         providerExecuted: true,
         providerMetadata
@@ -1128,10 +1187,14 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
-  private buildToolOutput(result: NonNullable<JSONValue>, state: ToolStreamState): NonNullable<JSONValue> {
+  private buildToolOutput(
+    result: NonNullable<JSONValue>,
+    state: ToolStreamState,
+    rawContent?: ClaudeToolResultBlock['content']
+  ): NonNullable<JSONValue> {
     if (state.toolType !== 'mcp') return result
     return {
-      content: result,
+      content: hasMcpNonTextContent(rawContent) ? normalizeMcpToolContent(rawContent) : result,
       metadata: {
         type: 'mcp',
         ...(state.displayName ? { name: state.displayName } : {}),
@@ -1257,12 +1320,18 @@ export class ClaudeCodeStreamAdapter {
     const promptTokens = usage.inputTokens.total ?? 0
     const completionTokens = usage.outputTokens.total ?? 0
     const thoughtsTokens = usage.outputTokens.reasoning
+    const noCacheTokens = usage.inputTokens.noCache
+    const cacheReadTokens = usage.inputTokens.cacheRead
+    const cacheWriteTokens = usage.inputTokens.cacheWrite
     return {
       modelId: this.modelId,
       totalTokens: promptTokens + completionTokens,
       promptTokens,
       completionTokens,
-      ...(thoughtsTokens !== undefined ? { thoughtsTokens } : {})
+      ...(thoughtsTokens !== undefined ? { thoughtsTokens } : {}),
+      ...(noCacheTokens !== undefined ? { noCacheTokens } : {}),
+      ...(cacheReadTokens !== undefined ? { cacheReadTokens } : {}),
+      ...(cacheWriteTokens !== undefined ? { cacheWriteTokens } : {})
     }
   }
 }

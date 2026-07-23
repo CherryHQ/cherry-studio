@@ -1,7 +1,7 @@
 /**
- * Regression for agents-jobs-3: the CherryClaw prompt/bootstrap drive memory via
- * `mcp__agent-memory__memory`, so Soul Mode must actually inject the `agent-memory`
- * server into the runtime MCP list AND allow its tools — not just reference the name.
+ * Regression for agents-jobs-3: the agent prompt/bootstrap drive memory via
+ * `mcp__agent-memory__memory`, so every agent must actually get the `agent-memory`
+ * server injected into the runtime MCP list AND allow its tools — not just reference the name.
  */
 
 import type * as NodeFs from 'node:fs'
@@ -36,18 +36,18 @@ vi.mock('node:fs', async (importOriginal) => {
   }
 })
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: {
     get: vi.fn(),
     getPath: mockGetPath
   }
 }))
 
-vi.mock('@main/utils/file/pathStatus', () => ({
+vi.mock('@main/utils/file', () => ({
   getPathStatus: mockGetPathStatus
 }))
 
-vi.mock('@main/utils/language', () => ({
+vi.mock('@main/i18n', () => ({
   getAppLanguage: vi.fn(() => 'en-US'),
   t: vi.fn((key: string, vars?: { path?: string }) => `${key}:${vars?.path ?? ''}`)
 }))
@@ -61,7 +61,6 @@ const {
   adjustAllowedToolsForMcp,
   assertClaudeCodeWorkspaceDirectory,
   buildMcpServers,
-  formatNetworkProbeLine,
   prepareClaudeCodeWorkspaceDirectory
 } = await import('../settingsBuilder')
 
@@ -99,37 +98,49 @@ function makeSession(path: string, type: 'user' | 'system' = 'user'): AgentSessi
 }
 
 describe('adjustAllowedToolsForMcp', () => {
-  it('adds the cherry-tools + claw + agent-memory wildcards in Soul Mode', () => {
-    expect(adjustAllowedToolsForMcp(true, false)).toEqual(
-      expect.arrayContaining(['mcp__cherry-tools__*', 'mcp__claw__*', 'mcp__agent-memory__*'])
+  it('lists auto-approved cherry-tools + agent-memory for every agent, excluding the mutating kb_manage', () => {
+    const allowed = adjustAllowedToolsForMcp(false)
+    expect(allowed).toEqual(
+      expect.arrayContaining([
+        'mcp__cherry-tools__kb_search',
+        'mcp__cherry-tools__kb_list',
+        'mcp__cherry-tools__cron',
+        'mcp__cherry-tools__notify',
+        'mcp__cherry-tools__config',
+        'mcp__agent-memory__*'
+      ])
     )
+    // The mutating kb_manage tool must NOT be pre-approved by the SDK allowlist — it requires
+    // per-call approval via canUseTool. A bare wildcard would silently re-include it.
+    expect(allowed).not.toContain('mcp__cherry-tools__kb_manage')
+    expect(allowed).not.toContain('mcp__cherry-tools__*')
   })
 
-  it('adds the cherry-tools + assistant wildcards for the Cherry Assistant', () => {
-    expect(adjustAllowedToolsForMcp(false, true)).toEqual(
-      expect.arrayContaining(['mcp__cherry-tools__*', 'mcp__assistant__*'])
+  it('additionally lists only the navigate assistant tool for the Cherry Assistant', () => {
+    const allowed = adjustAllowedToolsForMcp(true)
+    expect(allowed).toEqual(
+      expect.arrayContaining(['mcp__cherry-tools__kb_search', 'mcp__cherry-tools__kb_list', 'mcp__assistant__navigate'])
     )
-  })
-
-  it('leaves the allowlist undefined for a plain agent (all tools permitted)', () => {
-    expect(adjustAllowedToolsForMcp(false, false)).toBeUndefined()
+    expect(allowed).not.toContain('mcp__cherry-tools__kb_manage')
+    expect(allowed).not.toContain('mcp__cherry-tools__*')
+    // diagnose reads local logs/source/config — it must go through per-call approval, so neither
+    // the tool itself nor an assistant namespace wildcard may appear in the SDK pre-approval list.
+    expect(allowed).not.toContain('mcp__assistant__diagnose')
+    expect(allowed).not.toContain('mcp__assistant__*')
   })
 })
 
 describe('buildMcpServers', () => {
-  it('injects the agent-memory server in Soul Mode (REGRESSION agents-jobs-3)', async () => {
-    const result = await buildMcpServers(session, agent, true, false)
-    expect(Object.keys(result ?? {})).toEqual(expect.arrayContaining(['claw', 'agent-memory']))
+  it('injects the agent-memory server for every agent (REGRESSION agents-jobs-3)', async () => {
+    const result = buildMcpServers(session, agent, false)
+    expect(Object.keys(result ?? {})).toEqual(expect.arrayContaining(['cherry-tools', 'agent-memory']))
+    expect(Object.keys(result ?? {})).not.toContain('skills')
   })
 
-  it('does not inject agent-memory when Soul Mode is off', async () => {
-    const result = await buildMcpServers(session, agent, false, false)
-    expect(result?.['agent-memory']).toBeUndefined()
-  })
-
-  it('injects cherry-tools for every session and no longer injects exa', async () => {
-    const result = await buildMcpServers(session, agent, false, false)
+  it('injects cherry-tools for every session; the standalone cherry server and exa are gone', async () => {
+    const result = buildMcpServers(session, agent, false)
     expect(result?.['cherry-tools']).toBeDefined()
+    expect(result?.cherry).toBeUndefined()
     expect(result?.exa).toBeUndefined()
   })
 })
@@ -198,16 +209,5 @@ describe('prepareClaudeCodeWorkspaceDirectory', () => {
     )
 
     expect(mockMkdir).not.toHaveBeenCalled()
-  })
-})
-
-// claude-code-driver-3: the probe line must not embed volatile latency, or the assistant
-// systemPrompt (and thus the warm-query signature) differs every run and warm queries never reuse.
-describe('formatNetworkProbeLine', () => {
-  it('emits a stable reachable/unreachable line with no latency', () => {
-    expect(formatNetworkProbeLine({ host: 'github.com', ok: true })).toBe('- github.com: reachable')
-    expect(formatNetworkProbeLine({ host: 'github.com', ok: false })).toBe('- github.com: unreachable')
-    // No digits/ms — the line is identical across probe runs regardless of measured latency.
-    expect(formatNetworkProbeLine({ host: 'x', ok: true })).not.toMatch(/\d|ms/)
   })
 })

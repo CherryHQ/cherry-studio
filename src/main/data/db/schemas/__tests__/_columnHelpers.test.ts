@@ -56,16 +56,16 @@ describe('_columnHelpers order key helpers', () => {
     it('produces a stable name for a different table/scope pair', () => {
       // Build an ad-hoc second table to confirm the naming pattern generalises.
       const otherTable = sqliteTable(
-        'topic',
+        'user_model',
         {
           id: text().primaryKey(),
-          groupId: text('group_id'),
+          providerId: text('provider_id'),
           ...orderKeyColumns
         },
-        (t) => [scopedOrderKeyIndex('topic', 'groupId')(t)]
+        (t) => [scopedOrderKeyIndex('user_model', 'providerId')(t)]
       )
       const { indexes } = getTableConfig(otherTable)
-      expect(indexes[0].config.name).toBe('topic_group_id_order_key_idx')
+      expect(indexes[0].config.name).toBe('user_model_provider_id_order_key_idx')
     })
   })
 })

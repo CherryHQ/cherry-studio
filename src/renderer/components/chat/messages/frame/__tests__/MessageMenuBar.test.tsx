@@ -24,25 +24,26 @@ vi.mock('@renderer/utils/style', () => ({
   classNames: (...values: unknown[]) => values.filter(Boolean).join(' ')
 }))
 
+vi.mock('@renderer/services/ExportService', () => ({
+  getMessageTitle: vi.fn(),
+  messageToMarkdown: vi.fn()
+}))
+
 vi.mock('@renderer/utils/export', () => ({
-  messageToMarkdown: vi.fn(),
   messageToPlainText: vi.fn()
 }))
 
 vi.mock('@renderer/utils/image', () => ({
   captureScrollableAsBlob: vi.fn(),
-  captureScrollableAsDataURL: vi.fn()
+  captureScrollableAsDataUrl: vi.fn()
 }))
 
 vi.mock('@renderer/utils/message/partsHelpers', () => ({
+  canEditAssistantMessageParts: () => true,
   getTranslationFromParts: () => undefined,
   getTextFromParts: () => 'hello',
   hasTextParts: () => true,
   hasTranslationParts: () => false
-}))
-
-vi.mock('@renderer/services/MessagesService', () => ({
-  getMessageTitle: vi.fn()
 }))
 
 vi.mock('react-i18next', () => ({

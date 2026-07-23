@@ -1,8 +1,10 @@
 import '@testing-library/jest-dom/vitest'
 
 import { createRequire } from 'node:module'
-import { styleSheetSerializer } from 'jest-styled-components/serializer'
-import { expect, vi } from 'vitest'
+import { beforeAll, beforeEach, expect, vi } from 'vitest'
+
+import { resetPopupMocks } from './__mocks__/renderer/popup'
+import { resetToastMocks } from './__mocks__/renderer/toast'
 
 const require = createRequire(import.meta.url)
 const bufferModule = require('buffer')
@@ -10,7 +12,20 @@ if (!bufferModule.SlowBuffer) {
   bufferModule.SlowBuffer = bufferModule.Buffer
 }
 
-expect.addSnapshotSerializer(styleSheetSerializer)
+// i18n now initializes lazily via initI18n() instead of a module-level side effect,
+// so seed it once per test file for components that render real translations.
+// The whole body is guarded: files that vi.mock('@renderer/i18n/resolver') make the dynamic
+// import invoke their mock factory (which may throw), and files that
+// vi.mock('react-i18next') without initReactI18next make initI18n() reject. Neither
+// needs real initialization, so swallow both the import error and the init rejection.
+beforeAll(async () => {
+  try {
+    const mod = await import('@renderer/i18n/resolver')
+    await mod.initI18n?.()
+  } catch {
+    // Intentionally ignored — mocked-i18n test files don't need real init.
+  }
+})
 
 // Mock LoggerService globally for renderer tests
 vi.mock('@logger', async () => {
@@ -57,40 +72,24 @@ vi.mock('@data/hooks/useCache', async () => {
   return MockUseCache
 })
 
-// Mock PreferenceService globally for renderer tests
-vi.mock('@data/PreferenceService', async () => {
-  const { MockPreferenceService } = await import('./__mocks__/renderer/PreferenceService')
-  return MockPreferenceService
+// Mock the toast notification surface globally for renderer tests
+vi.mock('@renderer/services/toast', async () => {
+  const { MockToast } = await import('./__mocks__/renderer/toast')
+  return MockToast
 })
 
-// Mock DataApiService globally for renderer tests
-vi.mock('@data/DataApiService', async () => {
-  const { MockDataApiService } = await import('./__mocks__/renderer/DataApiService')
-  return MockDataApiService
+// Mock the popup (dialog) surface globally for renderer tests. Infra unit tests that
+// need the real store opt out with vi.mock('@renderer/services/popup', importOriginal).
+vi.mock('@renderer/services/popup', async () => {
+  const { MockPopup } = await import('./__mocks__/renderer/popup')
+  return MockPopup
 })
 
-// Mock CacheService globally for renderer tests
-vi.mock('@data/CacheService', async () => {
-  const { MockCacheService } = await import('./__mocks__/renderer/CacheService')
-  return MockCacheService
-})
-
-// Mock useDataApi hooks globally for renderer tests
-vi.mock('@data/hooks/useDataApi', async () => {
-  const { MockUseDataApi } = await import('./__mocks__/renderer/useDataApi')
-  return MockUseDataApi
-})
-
-// Mock usePreference hooks globally for renderer tests
-vi.mock('@data/hooks/usePreference', async () => {
-  const { MockUsePreference } = await import('./__mocks__/renderer/usePreference')
-  return MockUsePreference
-})
-
-// Mock useCache hooks globally for renderer tests
-vi.mock('@data/hooks/useCache', async () => {
-  const { MockUseCache } = await import('./__mocks__/renderer/useCache')
-  return MockUseCache
+// Reset the toast/popup spies (and restore the confirm-family default) before each
+// test so suites don't need to manage that shared mock state themselves.
+beforeEach(() => {
+  resetToastMocks()
+  resetPopupMocks()
 })
 
 // Mock uuid globally for renderer tests
@@ -144,6 +143,18 @@ vi.stubGlobal('api', {
   file: {
     read: vi.fn().mockResolvedValue('[]'),
     writeWithId: vi.fn().mockResolvedValue(undefined)
+  },
+  // Legacy `window.api.application.*` bridge — `relaunch` stays on legacy IPC, so tests that
+  // trigger a restart flow reach this stub. Stubbed to a no-op resolving spy.
+  application: {
+    relaunch: vi.fn().mockResolvedValue(undefined)
+  },
+  // Low-level IpcApi bridge — the typed `ipcApi` facade calls through this. Stubbed so
+  // module-level `ipcApi.on(...)` side effects (e.g. the renderer notification singleton)
+  // don't crash tests that transitively import them without a local `@renderer/ipc` mock.
+  ipcApi: {
+    request: vi.fn().mockResolvedValue(undefined),
+    on: vi.fn(() => () => {})
   }
 })
 
@@ -157,6 +168,13 @@ vi.mock('@cherrystudio/ui', () => {
   const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
   const ContextMenuContext = React.createContext({ open: false, onOpenChange: undefined })
   const DropdownMenuOpenContext = React.createContext(null)
+  const AccordionContext = React.createContext({
+    collapsible: false,
+    onValueChange: undefined,
+    type: 'single',
+    value: ''
+  })
+  const AccordionItemContext = React.createContext({ disabled: false, value: '' })
   return {
     // Markdown — `@cherrystudio/ui` barrel re-exports composites/markdown (#16228).
     // Lightweight stand-ins so tests mounting real ChatMarkdown still surface text.
@@ -178,6 +196,16 @@ vi.mock('@cherrystudio/ui', () => {
           React.createElement('div', { key: getId(item) }, renderItem(item, index, { dragging: false }))
         )
       ),
+    Sortable: ({ items, itemKey, renderItem, className }) => {
+      const getKey = typeof itemKey === 'function' ? itemKey : (item) => item[itemKey]
+      return React.createElement(
+        'div',
+        { className },
+        items.map((item) =>
+          React.createElement('div', { key: getKey(item) }, renderItem(item, { dragging: false, overlay: false }))
+        )
+      )
+    },
     NormalTooltip: ({ children }) => children,
     Button: ({ children, onPress, disabled, isDisabled, loading, startContent, asChild, ...props }) => {
       const buttonProps = { ...props, onClick: onPress ?? props.onClick, disabled: disabled || isDisabled || loading }
@@ -200,6 +228,17 @@ vi.mock('@cherrystudio/ui', () => {
       }
       return React.createElement('button', buttonProps, startContent, children)
     },
+    ConfirmDialog: ({ cancelText, confirmText, description, onConfirm, open, title }) =>
+      open
+        ? React.createElement(
+            'div',
+            { role: 'dialog' },
+            React.createElement('h2', null, title),
+            description ? React.createElement('p', null, description) : null,
+            React.createElement('button', { type: 'button' }, cancelText),
+            React.createElement('button', { type: 'button', onClick: onConfirm }, confirmText)
+          )
+        : null,
     Input: ({ hasError, 'aria-invalid': ariaInvalid, className, list, ...props }) =>
       React.createElement('input', {
         ...props,
@@ -227,18 +266,73 @@ vi.mock('@cherrystudio/ui', () => {
           }
         })
     },
-    Accordion: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'accordion' }, children),
-    AccordionItem: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'accordion-item' }, children),
-    AccordionTrigger: ({ children, disabled, ...props }) =>
+    Accordion: ({ children, collapsible = false, defaultValue, onValueChange, type = 'single', value, ...props }) => {
+      const [internalValue, setInternalValue] = React.useState(defaultValue ?? (type === 'multiple' ? [] : ''))
+      const currentValue = value ?? internalValue
+      const handleValueChange = (nextValue) => {
+        if (value === undefined) setInternalValue(nextValue)
+        onValueChange?.(nextValue)
+      }
+      return React.createElement(
+        AccordionContext.Provider,
+        { value: { collapsible, onValueChange: handleValueChange, type, value: currentValue } },
+        React.createElement('div', { ...props, 'data-testid': props['data-testid'] ?? 'accordion' }, children)
+      )
+    },
+    AccordionItem: ({ children, disabled = false, value, ...props }) =>
       React.createElement(
-        'button',
-        { ...props, type: 'button', disabled, 'data-testid': 'accordion-trigger' },
-        children
+        AccordionItemContext.Provider,
+        { value: { disabled, value } },
+        React.createElement('div', { ...props, 'data-testid': props['data-testid'] ?? 'accordion-item' }, children)
       ),
-    AccordionContent: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'accordion-content' }, children),
+    AccordionTrigger: ({ children, disabled, onClick, ...props }) => {
+      const accordion = React.use(AccordionContext)
+      const item = React.use(AccordionItemContext)
+      const isOpen =
+        accordion.type === 'multiple' ? accordion.value.includes(item.value) : accordion.value === item.value
+      const handleClick = (event) => {
+        onClick?.(event)
+        if (event.defaultPrevented || disabled || item.disabled) return
+
+        if (accordion.type === 'multiple') {
+          accordion.onValueChange?.(
+            isOpen ? accordion.value.filter((value) => value !== item.value) : [...accordion.value, item.value]
+          )
+        } else if (!isOpen || accordion.collapsible) {
+          accordion.onValueChange?.(isOpen ? '' : item.value)
+        }
+      }
+      return React.createElement(
+        'button',
+        {
+          ...props,
+          type: 'button',
+          disabled: disabled || item.disabled,
+          'aria-expanded': isOpen,
+          'data-testid': props['data-testid'] ?? 'accordion-trigger',
+          onClick: handleClick
+        },
+        children
+      )
+    },
+    AccordionContent: ({ children, className, contentClassName, forceMount = false, ...props }) => {
+      const accordion = React.use(AccordionContext)
+      const item = React.use(AccordionItemContext)
+      const isOpen =
+        accordion.type === 'multiple' ? accordion.value.includes(item.value) : accordion.value === item.value
+      if (!isOpen && !forceMount) return null
+
+      return React.createElement(
+        'div',
+        {
+          ...props,
+          className: [contentClassName, className].filter(Boolean).join(' '),
+          'data-state': isOpen ? 'open' : 'closed',
+          'data-testid': props['data-testid'] ?? 'accordion-content'
+        },
+        children
+      )
+    },
     DropdownMenu: ({ children, onOpenChange }) =>
       React.createElement(
         DropdownMenuOpenContext.Provider,
@@ -420,14 +514,17 @@ vi.mock('@cherrystudio/ui', () => {
       React.createElement('img', { ...props, alt: alt ?? item?.alt, src: item?.src }),
     Dialog: ({ children, onOpenChange: _onOpenChange, open, ...props }) =>
       open ? React.createElement('div', { ...props, role: 'dialog', 'data-testid': 'dialog' }, children) : null,
-    DialogContent: ({ children, ...props }) =>
+    DialogContent: ({ children, closeOnOverlayClick: _closeOnOverlayClick, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'dialog-content' }, children),
     DialogHeader: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'dialog-header' }, children),
     DialogTitle: ({ children, ...props }) =>
       React.createElement('h2', { ...props, 'data-testid': 'dialog-title' }, children),
+    DialogDescription: ({ children, ...props }) =>
+      React.createElement('p', { ...props, 'data-testid': 'dialog-description' }, children),
     DialogFooter: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'dialog-footer' }, children),
+    Form: ({ children }) => React.createElement(React.Fragment, null, children),
     Label: ({ children, ...props }) => React.createElement('label', props, children),
     FieldError: ({ children, errors, ...props }) => {
       const errorMessage = children ?? errors?.find((error) => error?.message)?.message
@@ -478,7 +575,10 @@ vi.mock('@cherrystudio/ui', () => {
     Badge: ({ children, ...props }) => React.createElement('span', { ...props, 'data-testid': 'badge' }, children),
     Separator: (props) => React.createElement('hr', { ...props, 'data-testid': 'separator' }),
     Scrollbar: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'scrollbar' }, children),
+      React.createElement('div', { 'data-testid': 'scrollbar', ...props }, children),
+    Dropzone: ({ children, getFilesFromEvent: _getFilesFromEvent, onDrop: _onDrop, maxFiles: _maxFiles, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'dropzone' }, children),
+    DropzoneEmptyState: ({ children }) => React.createElement(React.Fragment, null, children),
     Kbd: ({ children, ...props }) => React.createElement('kbd', { ...props }, children),
     Checkbox: ({ checked, onCheckedChange, ...props }) =>
       React.createElement('input', {
@@ -715,7 +815,7 @@ vi.mock('@cherrystudio/ui', () => {
     InfoTooltip: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'info-tooltip' }, children),
     Scrollbar: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'scrollbar' }, children),
+      React.createElement('div', { 'data-testid': 'scrollbar', ...props }, children),
     Avatar: ({ children, src, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'avatar' }, src ? null : children),
     AvatarImage: ({ src, ...props }) =>
@@ -736,12 +836,14 @@ vi.mock('@cherrystudio/ui', () => {
         React.createElement('span', { 'aria-hidden': 'true', 'data-testid': 'emoji-icon-background' }, emoji || '⭐️'),
         emoji
       ),
-    Switch: ({ isSelected, onValueChange, ...props }) =>
+    Switch: ({ checked, defaultChecked, onCheckedChange, ...props }) =>
       React.createElement('input', {
         ...props,
         type: 'checkbox',
-        checked: isSelected,
-        onChange: (e) => onValueChange?.(e.target.checked),
+        role: 'switch',
+        checked,
+        defaultChecked,
+        onChange: (e) => onCheckedChange?.(e.target.checked),
         'data-testid': 'switch'
       }),
     // Popover primitives — Radix-style trigger / content split

@@ -58,6 +58,13 @@ describe('classifyError', () => {
     expect(result.category).toBe('model')
   })
 
+  it('classifies a missing configured model id as model', () => {
+    const result = classifyError(makeError({ message: "Model with id 'provider/model' not found" }))
+
+    expect(result.category).toBe('model')
+    expect(result.i18nKey).toBe('error.diagnosis.model')
+  })
+
   // Quota
   it('classifies 429 as quota', () => {
     const result = classifyError(makeError({ statusCode: 429 }))
@@ -78,7 +85,7 @@ describe('classifyError', () => {
   it('classifies econnrefused as network', () => {
     const result = classifyError(makeError({ message: 'connect ECONNREFUSED 127.0.0.1:443' }))
     expect(result.category).toBe('network')
-    expect(result.navTarget).toBe('/settings/general')
+    expect(result.navTarget).toBe('/settings/system')
   })
 
   it('classifies timeout as network', () => {

@@ -1,4 +1,5 @@
-import { DataApiErrorFactory } from '@shared/data/api'
+import { toast } from '@renderer/services/toast'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -23,6 +24,14 @@ vi.mock('@logger', () => ({
   }
 }))
 
+vi.mock('@cherrystudio/ui/icons', () => ({
+  useIcon: () => ({
+    Avatar: ({ size, shape }: { size: number; shape: string }) => (
+      <span data-testid="model-icon" data-size={size} data-shape={shape} />
+    )
+  })
+}))
+
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<object>()
 
@@ -31,24 +40,13 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     Avatar: ({ children }: any) => <span>{children}</span>,
     AvatarFallback: ({ children }: any) => <span>{children}</span>,
     RowFlex: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-    Switch: ({ checked, onCheckedChange, size, ...props }: any) => (
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        data-size={size}
-        onClick={() => onCheckedChange(!checked)}
-        {...props}>
-        {String(checked)}
-      </button>
-    ),
-    Tooltip: ({ children }: any) => <>{children}</>
+    Tooltip: ({ children, content }: any) => <span data-tooltip-content={content}>{children}</span>
   }
 })
 
-vi.mock('@renderer/config/models', async (importOriginal) => ({
+vi.mock('@renderer/utils/model', async (importOriginal) => ({
   ...(await importOriginal<object>()),
-  getModelLogo: () => null
+  getModelLogoRef: () => undefined
 }))
 
 vi.mock('../../components/FreeTrialModelTag', () => ({
@@ -68,14 +66,9 @@ describe('ModelListItem', () => {
         writeText: vi.fn().mockResolvedValue(undefined)
       }
     })
-    ;(window as any).toast = {
-      error: vi.fn()
-    }
   })
 
-  it('shows an error toast when toggling a model fails', async () => {
-    const onToggleEnabled = vi.fn().mockRejectedValue(new Error('toggle failed'))
-
+  it('renders the row without an enabled switch', () => {
     render(
       <ModelListItem
         model={
@@ -89,40 +82,24 @@ describe('ModelListItem', () => {
         }
         onEdit={vi.fn()}
         onDelete={vi.fn()}
-        onToggleEnabled={onToggleEnabled}
       />
     )
 
-    fireEvent.click(screen.getByRole('switch'))
-
-    expect(onToggleEnabled).toHaveBeenCalledWith(expect.objectContaining({ id: 'openai::alpha' }), false)
-    await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
-    })
-  })
-
-  it('uses the smallest switch size for the model row action', () => {
-    render(
-      <ModelListItem
-        model={
-          {
-            id: 'openai::alpha',
-            providerId: 'openai',
-            name: 'Alpha',
-            isEnabled: true,
-            capabilities: []
-          } as any
-        }
-        onEdit={vi.fn()}
-        onDelete={vi.fn()}
-        onToggleEnabled={vi.fn()}
-      />
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+    expect(screen.getByTestId('model-icon')).toHaveAttribute('data-size', '26')
+    expect(screen.getByTestId('model-icon')).toHaveAttribute('data-shape', 'circle')
+    expect(screen.getByTestId('model-icon').parentElement).toHaveClass(
+      'size-6.5',
+      'overflow-hidden',
+      'rounded-full',
+      'border',
+      'border-border'
     )
-
-    expect(screen.getByRole('switch')).toHaveAttribute('data-size', 'xs')
+    expect(screen.getByLabelText('common.settings')).toBeInTheDocument()
+    expect(screen.getByLabelText('settings.models.manage.remove_model')).toBeInTheDocument()
   })
 
-  it('opens the model drawer from the model name and settings button', async () => {
+  it('opens the model drawer only from the settings button', async () => {
     const onEdit = vi.fn()
     const onDelete = vi.fn()
 
@@ -139,16 +116,14 @@ describe('ModelListItem', () => {
         }
         onEdit={onEdit}
         onDelete={onDelete}
-        onToggleEnabled={vi.fn()}
       />
     )
 
     fireEvent.click(screen.getByText('Alpha'))
 
-    expect(onEdit).toHaveBeenCalledWith(expect.objectContaining({ id: 'openai::alpha' }))
+    expect(onEdit).not.toHaveBeenCalled()
     expect(navigator.clipboard.writeText).not.toHaveBeenCalled()
 
-    onEdit.mockClear()
     fireEvent.click(screen.getByLabelText('common.settings'))
 
     expect(onEdit).toHaveBeenCalledWith(expect.objectContaining({ id: 'openai::alpha' }))
@@ -173,7 +148,6 @@ describe('ModelListItem', () => {
         }
         onEdit={onEdit}
         onDelete={onDelete}
-        onToggleEnabled={vi.fn()}
       />
     )
 
@@ -181,6 +155,59 @@ describe('ModelListItem', () => {
 
     expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 'openai::alpha' }))
     expect(onEdit).not.toHaveBeenCalled()
+  })
+
+  it('disables the row delete button when deletion is disabled', () => {
+    const onDelete = vi.fn()
+
+    render(
+      <ModelListItem
+        model={
+          {
+            id: 'openai::alpha',
+            providerId: 'openai',
+            name: 'Alpha',
+            isEnabled: true,
+            capabilities: []
+          } as any
+        }
+        disabled
+        onEdit={vi.fn()}
+        onDelete={onDelete}
+      />
+    )
+
+    const deleteButton = screen.getByLabelText('settings.models.manage.remove_model')
+    expect(deleteButton).toBeDisabled()
+
+    fireEvent.click(deleteButton)
+    expect(onDelete).not.toHaveBeenCalled()
+  })
+
+  it('explains why a default model cannot be removed', () => {
+    render(
+      <ModelListItem
+        model={
+          {
+            id: 'openai::alpha',
+            providerId: 'openai',
+            name: 'Alpha',
+            isEnabled: true,
+            capabilities: []
+          } as any
+        }
+        isDefaultModel
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+      />
+    )
+
+    const deleteButton = screen.getByLabelText('settings.models.manage.remove_model')
+    expect(deleteButton).toBeDisabled()
+    expect(deleteButton.parentElement).toHaveAttribute(
+      'data-tooltip-content',
+      'settings.models.manage.default_model_cannot_remove'
+    )
   })
 
   it('shows an error toast when deleting a model fails', async () => {
@@ -199,7 +226,6 @@ describe('ModelListItem', () => {
         }
         onEdit={vi.fn()}
         onDelete={onDelete}
-        onToggleEnabled={vi.fn()}
       />
     )
 
@@ -207,7 +233,7 @@ describe('ModelListItem', () => {
 
     expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 'openai::alpha' }))
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
+      expect(toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
     })
   })
 
@@ -231,14 +257,13 @@ describe('ModelListItem', () => {
         }
         onEdit={vi.fn()}
         onDelete={onDelete}
-        onToggleEnabled={vi.fn()}
       />
     )
 
     fireEvent.click(screen.getByLabelText('settings.models.manage.remove_model'))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.model_in_use_by_knowledge_base')
+      expect(toast.error).toHaveBeenCalledWith('settings.models.manage.model_in_use_by_knowledge_base')
     })
   })
 })

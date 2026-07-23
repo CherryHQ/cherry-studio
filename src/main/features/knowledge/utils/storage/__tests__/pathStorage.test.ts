@@ -34,7 +34,7 @@ vi.mock('node:fs/promises', () => ({
   default: { lstat: lstatMock, rmdir: rmdirMock }
 }))
 
-vi.mock('@main/utils/file/fs', () => ({
+vi.mock('@main/utils/file', () => ({
   copy: copyMock,
   write: writeMock,
   ensureDir: ensureDirMock,
@@ -214,7 +214,8 @@ describe('pathStorage relative-path safety', () => {
       await expect(copyFileIntoKnowledgeBaseAt(BASE_ID, '/src/a.md', relativePath)).resolves.toBe(relativePath)
       const destPath = path.join(MATERIAL_DIR, relativePath)
       expect(ensureDirMock).toHaveBeenCalledWith(path.dirname(destPath))
-      expect(copyMock).toHaveBeenCalledWith('/src/a.md', destPath)
+      // No signal passed → forwarded as undefined to copy.
+      expect(copyMock).toHaveBeenCalledWith('/src/a.md', destPath, undefined)
     })
 
     it('throws when the target already exists', async () => {
@@ -223,6 +224,20 @@ describe('pathStorage relative-path safety', () => {
         'Knowledge file already exists'
       )
       expect(copyMock).not.toHaveBeenCalled()
+    })
+
+    it('overwrites an existing target without throwing when overwrite is set', async () => {
+      // overwrite skips the availability guard entirely (lstat is never consulted), so a
+      // retry can re-copy over its own orphan from a prior aborted directory expansion.
+      await expect(copyFileIntoKnowledgeBaseAt(BASE_ID, '/src/a.md', 'a.md', { overwrite: true })).resolves.toBe('a.md')
+      expect(lstatMock).not.toHaveBeenCalled()
+      expect(copyMock).toHaveBeenCalledWith('/src/a.md', path.join(MATERIAL_DIR, 'a.md'), undefined)
+    })
+
+    it('forwards the abort signal to copy', async () => {
+      const signal = new AbortController().signal
+      await expect(copyFileIntoKnowledgeBaseAt(BASE_ID, '/src/a.md', 'a.md', { signal })).resolves.toBe('a.md')
+      expect(copyMock).toHaveBeenCalledWith('/src/a.md', path.join(MATERIAL_DIR, 'a.md'), signal)
     })
   })
 

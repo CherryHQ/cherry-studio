@@ -1,11 +1,17 @@
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import type { KnowledgeItem } from '@shared/data/types/knowledge'
-import { useCallback } from 'react'
+import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
+import { getKnowledgeItemDisplayTitle, type KnowledgeItem } from '@shared/data/types/knowledge'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import { knowledgeErrorCodes } from '@shared/ipc/errors/knowledge'
+import { useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { sanitizeUrl } from 'strict-url-sanitise'
 
-import { normalizeKnowledgeError } from '../utils'
+import type { KnowledgeFilePreviewTarget } from '../types'
+import { normalizeKnowledgeError } from '../utils/error'
 
 const logger = loggerService.withContext('usePreviewKnowledgeSource')
 
@@ -20,23 +26,46 @@ const sanitizeHttpUrl = (source: string): string | null => {
   }
 }
 
-export const usePreviewKnowledgeSource = () => {
+export const usePreviewKnowledgeSource = (
+  onPreviewFile: (target: KnowledgeFilePreviewTarget) => void,
+  navigationKey: string | null = null
+) => {
   const { t } = useTranslation()
+  const requestVersionRef = useRef(0)
+  const invalidatePreviewRequests = useCallback(() => {
+    requestVersionRef.current += 1
+  }, [])
+
+  useEffect(() => {
+    return invalidatePreviewRequests
+  }, [invalidatePreviewRequests, navigationKey])
 
   const previewSource = useCallback(
     async (item: KnowledgeItem): Promise<void> => {
+      const requestVersion = ++requestVersionRef.current
+      const isCurrentRequest = () => requestVersionRef.current === requestVersion
       const source = item.data.source.trim()
 
       if (!source) {
-        window.toast.warning(t('knowledge.data_source.preview.unavailable'))
+        toast.warning(t('knowledge.data_source.preview.unavailable'))
         return
       }
 
       try {
+        if (item.type === 'file' || (item.type === 'url' && item.data.relativePath)) {
+          const physicalPath = await ipcApi.request('knowledge.get_file_path', { itemId: item.id })
+          if (!isCurrentRequest()) return
+          onPreviewFile({
+            fileName: getKnowledgeItemDisplayTitle(item),
+            filePath: normalizeFilePreviewPath(physicalPath)
+          })
+          return
+        }
+
         if (item.type === 'url' || item.type === 'note') {
           const previewUrl = sanitizeHttpUrl(source)
           if (!previewUrl) {
-            window.toast.warning(t('knowledge.data_source.preview.unavailable'))
+            toast.warning(t('knowledge.data_source.preview.unavailable'))
             return
           }
 
@@ -46,6 +75,7 @@ export const usePreviewKnowledgeSource = () => {
 
         await window.api.file.openPath(source)
       } catch (error) {
+        if (!isCurrentRequest()) return
         const previewError = normalizeKnowledgeError(error)
 
         logger.error('Failed to preview knowledge source', previewError, {
@@ -53,13 +83,18 @@ export const usePreviewKnowledgeSource = () => {
           itemType: item.type,
           source
         })
-        window.toast.error(formatErrorMessageWithPrefix(previewError, t('knowledge.data_source.preview.failed')))
+        if (error instanceof IpcError && error.code === knowledgeErrorCodes.SOURCE_PATH_UNAVAILABLE) {
+          toast.warning(t('knowledge.data_source.preview.unavailable'))
+          return
+        }
+        toast.error(formatErrorMessageWithPrefix(previewError, t('knowledge.data_source.preview.failed')))
       }
     },
-    [t]
+    [onPreviewFile, t]
   )
 
   return {
+    invalidatePreviewRequests,
     previewSource
   }
 }

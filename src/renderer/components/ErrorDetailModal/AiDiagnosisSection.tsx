@@ -1,8 +1,8 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
-import type { DiagnosisContext, DiagnosisResult } from '@renderer/services/ErrorDiagnosisService'
-import { diagnoseError } from '@renderer/services/ErrorDiagnosisService'
 import type { SerializedError } from '@renderer/types/error'
+import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
+import { diagnoseError } from '@renderer/utils/errorDiagnosis'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { CheckCircle, Loader2 } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
@@ -127,13 +127,13 @@ const AiDiagnosisSectionWithStatus = memo(
           <>
             <div
               className="mb-2.5 flex items-center gap-1.5 font-semibold text-sm"
-              style={{ color: 'var(--color-error)' }}>
+              style={{ color: 'var(--color-error-base)' }}>
               {diagError}
             </div>
             <button
               type="button"
               className="cursor-pointer rounded border px-2 py-1 text-xs"
-              style={{ borderColor: 'var(--color-border)', color: 'var(--color-text)' }}
+              style={{ borderColor: 'var(--color-border)', color: 'var(--color-foreground)' }}
               onClick={() => void runDiagnosis()}>
               {t('common.retry')}
             </button>
@@ -147,7 +147,7 @@ const AiDiagnosisSectionWithStatus = memo(
               <CheckCircle size={14} />
               {t('error.diagnosis.ai_result')}
             </div>
-            <div className="text-[13px] leading-[1.7]" style={{ color: 'var(--color-text-2)' }}>
+            <div className="text-[13px] leading-[1.7]" style={{ color: 'var(--color-foreground-secondary)' }}>
               {result.explanation || result.summary}
             </div>
             {result.steps.length > 0 && (

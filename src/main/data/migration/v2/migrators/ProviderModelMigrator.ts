@@ -12,6 +12,7 @@ import { application } from '@application'
 import type { EndpointType, Modality, ModelCapability } from '@cherrystudio/provider-registry'
 import { buildRuntimeEndpointConfigs } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
+import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { pinTable } from '@data/db/schemas/pin'
 import type { InsertUserModelRow } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -23,9 +24,10 @@ import { applyUserOverlay } from '@data/services/ModelService'
 import { extractReasoningFormatTypes, mergePresetModel } from '@data/services/ProviderRegistryService'
 import { generateOrderKeySequenceBetween } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
-import type { Provider as LegacyProvider } from '@main/data/migration/v2/legacyTypes'
+import type { Provider as LegacyProvider } from '@main/data/migration/legacyTypes'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { providerLogoRef } from '@shared/data/types/file'
 import { createUniqueModelId, isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiFeatures, EndpointConfig } from '@shared/data/types/provider'
 import { desc, eq, ne, sql } from 'drizzle-orm'
@@ -34,10 +36,20 @@ import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
 import { type OldLlmSettings, transformModel, transformProvider } from './mappings/ProviderModelMappings'
 import { legacyChatModelToUniqueId } from './transformers/ModelTransformers'
+import {
+  type EntityImageRef,
+  insertPreparedImageEntryTx,
+  insertPreparedImageRefTx,
+  prepareBase64ImageFileEntry,
+  type PreparedEntityImageFile,
+  unlinkPreparedImages
+} from './utils/logoMigration'
+import { recoverV1ProviderLogoIconKey } from './utils/providerLogoCompat'
 
 const logger = loggerService.withContext('ProviderModelMigrator')
 
 const BATCH_SIZE = 100
+const RETIRED_PROVIDER_IDS = new Set(['cephalon', 'tokenflux'])
 
 const PROVIDER_MODEL_MIGRATION_ERROR_IDS = {
   prepare: 'provider_model_prepare_failed',
@@ -63,6 +75,11 @@ function formatPhaseError(errorId: string, error: Error): string {
 interface LlmState {
   providers?: LegacyProvider[]
   settings?: OldLlmSettings
+}
+
+/** The provider logo slot for a given providerId (mirrors ProviderService). */
+function providerLogoSlot(providerId: string) {
+  return { sourceType: providerLogoRef.sourceType, sourceId: providerId, role: 'logo' }
 }
 
 function createModelId(providerId: string, modelId: string): UniqueModelId | null {
@@ -250,7 +267,9 @@ export class ProviderModelMigrator extends BaseMigrator {
       presetModelId: presetModel.id,
       name: merged.name,
       description: merged.description ?? null,
-      capabilities: merged.capabilities as ModelCapability[],
+      capabilities: row.userOverrides?.includes('capabilities')
+        ? (row.capabilities ?? [])
+        : (merged.capabilities as ModelCapability[]),
       inputModalities: (merged.inputModalities ?? null) as Modality[] | null,
       outputModalities: (merged.outputModalities ?? null) as Modality[] | null,
       endpointTypes: (merged.endpointTypes ?? null) as EndpointType[] | null,
@@ -286,6 +305,7 @@ export class ProviderModelMigrator extends BaseMigrator {
       const dedupedProviders: LegacyProvider[] = []
       let skippedProviders = 0
       let skippedManagedProviders = 0
+      let skippedRetiredProviders = 0
       let skippedInvalidId = 0
       let skippedInvalidModels = 0
       let skippedDuplicateModels = 0
@@ -318,6 +338,10 @@ export class ProviderModelMigrator extends BaseMigrator {
           skippedManagedProviders++
           continue
         }
+        if (RETIRED_PROVIDER_IDS.has(provider.id)) {
+          skippedRetiredProviders++
+          continue
+        }
         if (seenIds.has(provider.id)) {
           skippedProviders++
           logger.warn('Duplicate provider ID skipped', { providerId: provider.id })
@@ -346,6 +370,9 @@ export class ProviderModelMigrator extends BaseMigrator {
       if (skippedManagedProviders > 0) {
         warnings.push(`Skipped ${skippedManagedProviders} managed CherryAI provider(s)`)
       }
+      if (skippedRetiredProviders > 0) {
+        warnings.push(`Skipped ${skippedRetiredProviders} retired provider(s)`)
+      }
       if (skippedProviders > 0) {
         warnings.push(`Skipped ${skippedProviders} duplicate provider(s)`)
       }
@@ -362,6 +389,7 @@ export class ProviderModelMigrator extends BaseMigrator {
       logger.info('Preparation completed', {
         providerCount: this.providers.length,
         skippedManagedProviders,
+        skippedRetiredProviders,
         skippedProviders,
         modelCount: this.totalModelCount,
         pinnedModelCount: this.pinnedModelIds.length
@@ -387,18 +415,51 @@ export class ProviderModelMigrator extends BaseMigrator {
     let processedProviders = 0
     let processedModels = 0
 
+    const providerLogoFiles: PreparedEntityImageFile<EntityImageRef>[] = []
     try {
-      await ctx.db.transaction(async (tx) => {
-        await ensureCherryAiDefaultProviderAndModelTx(tx)
+      const providerRowsWithoutOrderKey: NewUserProviderInput[] = []
+      for (const provider of this.providers) {
+        const row = this.enrichProviderRow(transformProvider(provider, this.settings), provider)
+        // v1 stored custom provider logos in Dexie settings under `image://provider-{id}`:
+        // either a base64 data URL (an uploaded logo, or a small built-in logo vite inlined)
+        // or a built-in-logo asset value from ProviderLogoPicker (`PROVIDER_LOGO_MAP[pickedId]`
+        // — a hashed bundle path for logos over vite's 4 KB inline limit, never an `icon:` ref).
+        // A data URL is promoted to an on-disk WebP file_entry referenced by the logo ref row
+        // (the single source of truth, logoKey nulled). A non-`data:` value is a stale build
+        // asset that no longer exists in v2 and is not a valid v2 icon ref; writing it onto
+        // logoKey verbatim renders a broken image (`ProviderAvatar` treats it as an image URL),
+        // and for a custom provider — whose id doesn't resolve in the icon catalog — that is the
+        // only logo it has. So recover the picked brand from the asset name and re-express it as
+        // a v2 `icon:<catalogKey>` ref; an unrecognized value drops to null (bundled icon by id
+        // for built-in providers, initials for custom ones).
+        const logo = ctx.sources.dexieSettings.get<string>(`image://provider-${provider.id}`)
+        const logoFile = logo
+          ? await prepareBase64ImageFileEntry(ctx.paths.filesDataDir, providerLogoSlot(provider.id), logo)
+          : null
+        if (logoFile) {
+          providerLogoFiles.push(logoFile)
+          providerRowsWithoutOrderKey.push({ ...row, logoKey: null })
+        } else {
+          providerRowsWithoutOrderKey.push({ ...row, logoKey: logo ? recoverV1ProviderLogoIconKey(logo) : null })
+        }
+      }
 
-        const providerRowsWithoutOrderKey = this.providers.map((provider) =>
-          this.enrichProviderRow(transformProvider(provider, this.settings), provider)
-        )
-        const [lastProvider] = await tx
+      ctx.db.transaction((tx) => {
+        ensureCherryAiDefaultProviderAndModelTx(tx)
+
+        // Insert file_entries before the ref rows (their `file_entry_id` FK
+        // needs them); the ref rows themselves go in after the owner rows exist
+        // (their `source_id` FK needs the provider), below.
+        for (const logoFile of providerLogoFiles) {
+          insertPreparedImageEntryTx(tx, logoFile)
+        }
+
+        const [lastProvider] = tx
           .select({ orderKey: userProviderTable.orderKey })
           .from(userProviderTable)
           .orderBy(desc(userProviderTable.orderKey))
           .limit(1)
+          .all()
         const providerOrderKeys = generateOrderKeySequenceBetween(
           lastProvider?.orderKey ?? null,
           null,
@@ -412,7 +473,7 @@ export class ProviderModelMigrator extends BaseMigrator {
         for (let providerIndex = 0; providerIndex < this.providers.length; providerIndex++) {
           const provider = this.providers[providerIndex]
           const providerRow = providerRows[providerIndex]
-          await tx.insert(userProviderTable).values(providerRow)
+          tx.insert(userProviderTable).values(providerRow).run()
           processedProviders++
 
           // Model dedup + invalid-id filtering happens in prepare(); use the
@@ -428,7 +489,7 @@ export class ProviderModelMigrator extends BaseMigrator {
             const batch = modelRows.slice(modelIndex, modelIndex + BATCH_SIZE)
 
             if (batch.length > 0) {
-              await tx.insert(userModelTable).values(batch)
+              tx.insert(userModelTable).values(batch).run()
               processedModels += batch.length
             }
           }
@@ -439,6 +500,12 @@ export class ProviderModelMigrator extends BaseMigrator {
           )
         }
 
+        // Owner rows now exist — insert the logo ref rows (their `source_id` FK
+        // references `user_provider.provider_id`).
+        for (const logoFile of providerLogoFiles) {
+          insertPreparedImageRefTx(tx, logoFile)
+        }
+
         const pinRows = assignOrderKeysInSequence(
           this.pinnedModelIds.map((entityId) => ({
             entityType: 'model' as const,
@@ -446,9 +513,14 @@ export class ProviderModelMigrator extends BaseMigrator {
           }))
         )
         if (pinRows.length > 0) {
-          await tx.insert(pinTable).values(pinRows).onConflictDoNothing()
+          tx.insert(pinTable).values(pinRows).onConflictDoNothing().run()
         }
       })
+
+      // Self-check the logo ref table's FKs (fileEntryId → file_entry, sourceId →
+      // user_provider) now that both sides are inserted — FK enforcement is off during
+      // migration, so this catches referential errors early (v2-migration-guide.md).
+      this.assertOwnedForeignKeys(ctx.db, [providerLogoFileRefTable])
 
       logger.info('Execute completed', {
         processedProviders,
@@ -461,6 +533,8 @@ export class ProviderModelMigrator extends BaseMigrator {
         processedCount: processedProviders
       }
     } catch (error) {
+      // Unlink any logo WebP written before the tx failed — no orphans on retry.
+      await unlinkPreparedImages(providerLogoFiles)
       const phaseError = createPhaseError(
         `Provider/model execution failed after ${processedProviders} provider(s)`,
         error
@@ -478,17 +552,17 @@ export class ProviderModelMigrator extends BaseMigrator {
     try {
       const errors: { key: string; message: string }[] = []
 
-      const providerResult = await ctx.db
+      const providerResult = ctx.db
         .select({ count: sql<number>`count(*)` })
         .from(userProviderTable)
         .where(ne(userProviderTable.providerId, CHERRYAI_PROVIDER_ID))
         .get()
-      const modelResult = await ctx.db
+      const modelResult = ctx.db
         .select({ count: sql<number>`count(*)` })
         .from(userModelTable)
         .where(ne(userModelTable.providerId, CHERRYAI_PROVIDER_ID))
         .get()
-      const pinResult = await ctx.db
+      const pinResult = ctx.db
         .select({ count: sql<number>`count(*)` })
         .from(pinTable)
         .where(eq(pinTable.entityType, 'model'))
@@ -518,7 +592,7 @@ export class ProviderModelMigrator extends BaseMigrator {
         })
       }
 
-      const sampleProviders = await ctx.db.select().from(userProviderTable).limit(5).all()
+      const sampleProviders = ctx.db.select().from(userProviderTable).limit(5).all()
       for (const provider of sampleProviders) {
         const sourceProvider = this.providers.find((item) => item.id === provider.providerId)
         if (sourceProvider?.apiKey && (!provider.apiKeys || provider.apiKeys.length === 0)) {

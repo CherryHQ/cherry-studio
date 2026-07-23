@@ -20,6 +20,7 @@ import {
 } from '@cherrystudio/ui'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { Globe } from 'lucide-react'
 import type { FC } from 'react'
@@ -197,13 +198,13 @@ const SelectionActionSearchModal: FC<SelectionActionSearchModalProps> = ({
     const customUrl = form.getValues('customUrl')
     if (customUrl) {
       const testUrl = customUrl.replace('{{queryString}}', 'cherry studio')
-      void window.api.openWebsite(testUrl)
+      void ipcApi.request('system.shell.open_website', testUrl)
     }
   }
 
   return (
     <Dialog open={isModalOpen} onOpenChange={(next) => !next && onCancel()}>
-      <DialogContent className="sm:max-w-120">
+      <DialogContent closeOnOverlayClick={false} className="sm:max-w-120">
         <DialogHeader>
           <DialogTitle>{t('selection.settings.search_modal.title')}</DialogTitle>
         </DialogHeader>

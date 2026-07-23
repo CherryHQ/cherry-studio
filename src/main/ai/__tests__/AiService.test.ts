@@ -12,11 +12,36 @@ const mockMessageApplyApproval = vi.fn()
 const mockProviderGetByProviderId = vi.fn()
 const mockProviderGetRotatedApiKey = vi.fn()
 const mockModelGetByKey = vi.fn()
+const mockGetImageGenerationSupport = vi.fn()
+const mockListProviderRegistryModels = vi.fn()
+const mockListModelsFromProvider = vi.fn()
+const mockInstallBuiltinSkills = vi.fn()
+const mockReconcileSkills = vi.fn()
+const mockRegisterBuiltinTools = vi.fn()
+const mockInstallProviderUserAgentInterceptor = vi.fn(() => vi.fn())
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: {
     get: mockApplicationGet
   }
+}))
+
+vi.mock('@main/utils/builtinSkills', () => ({
+  installBuiltinSkills: (...args: unknown[]) => mockInstallBuiltinSkills(...args)
+}))
+
+vi.mock('../skills/SkillService', () => ({
+  skillService: {
+    reconcileSkills: (...args: unknown[]) => mockReconcileSkills(...args)
+  }
+}))
+
+vi.mock('../tools/adapters/aiSdk/builtin/registerBuiltinTools', () => ({
+  registerBuiltinTools: (...args: unknown[]) => mockRegisterBuiltinTools(...args)
+}))
+
+vi.mock('../utils/customFetch', () => ({
+  installProviderUserAgentInterceptor: () => mockInstallProviderUserAgentInterceptor()
 }))
 
 vi.mock('@main/data/services/ProviderService', () => ({
@@ -32,6 +57,16 @@ vi.mock('@main/data/services/ModelService', () => ({
   }
 }))
 
+vi.mock('@data/services/ProviderRegistryService', () => ({
+  providerRegistryService: {
+    getImageGenerationSupport: (...args: unknown[]) => mockGetImageGenerationSupport(...args),
+    listProviderRegistryModels: (...args: unknown[]) => mockListProviderRegistryModels(...args)
+  }
+}))
+
+vi.mock('../provider/listModels', () => ({
+  listModels: (...args: unknown[]) => mockListModelsFromProvider(...args)
+}))
 vi.mock('@main/utils/downloadAsBase64', () => ({
   downloadImageAsBase64: (...args: unknown[]) => mockDownloadImageAsBase64(...args)
 }))
@@ -66,8 +101,8 @@ function createService(): InstanceType<typeof AiService> {
 describe('AiService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockProviderGetRotatedApiKey.mockResolvedValue('test-key')
-    mockProviderGetByProviderId.mockResolvedValue({
+    mockProviderGetRotatedApiKey.mockReturnValue('test-key')
+    mockProviderGetByProviderId.mockReturnValue({
       id: 'test-provider',
       name: 'Test Provider',
       apiKeys: [],
@@ -82,7 +117,7 @@ describe('AiService', () => {
       settings: {},
       isEnabled: true
     })
-    mockModelGetByKey.mockResolvedValue({
+    mockModelGetByKey.mockReturnValue({
       id: 'test-provider::test-model',
       providerId: 'test-provider',
       apiModelId: 'test-model',
@@ -133,6 +168,70 @@ describe('AiService', () => {
     expect(mockApplicationGet).not.toHaveBeenCalled()
   })
 
+  it('flushes accumulated token analytics once when an agent run errors', async () => {
+    const service = createService()
+    const trackTokenUsage = vi.fn()
+    mockApplicationGet.mockReturnValue({ trackTokenUsage })
+    const hooks = (service as any).analyticsHookPart({
+      id: 'test-model',
+      providerId: 'test-provider',
+      apiModelId: 'test-api-model'
+    })
+
+    await hooks.onStepFinish({
+      usage: {
+        inputTokens: 3,
+        outputTokens: 5,
+        totalTokens: 8,
+        inputTokenDetails: {},
+        outputTokenDetails: {}
+      }
+    })
+    await hooks.onError({ error: new Error('terminal tool failure') })
+    await hooks.onFinish()
+
+    expect(mockApplicationGet).toHaveBeenCalledWith('AnalyticsService')
+    expect(trackTokenUsage).toHaveBeenCalledOnce()
+    expect(trackTokenUsage).toHaveBeenCalledWith({
+      provider: 'test-provider',
+      model: 'test-api-model',
+      input_tokens: 3,
+      output_tokens: 5
+    })
+  })
+
+  it('flushes accumulated token analytics when a completed step is followed by cancellation', async () => {
+    const service = createService()
+    const trackTokenUsage = vi.fn()
+    mockApplicationGet.mockReturnValue({ trackTokenUsage })
+    const hooks = (service as any).analyticsHookPart({
+      id: 'test-model',
+      providerId: 'test-provider',
+      apiModelId: 'test-api-model'
+    })
+
+    await hooks.onStepFinish({
+      usage: {
+        inputTokens: 3,
+        outputTokens: 5,
+        totalTokens: 8,
+        inputTokenDetails: {},
+        outputTokenDetails: {}
+      }
+    })
+    await hooks.onAbort()
+    await hooks.onFinish()
+
+    expect(mockApplicationGet).toHaveBeenCalledWith('AnalyticsService')
+    expect(trackTokenUsage).toHaveBeenCalledOnce()
+    expect(trackTokenUsage).toHaveBeenCalledWith({
+      provider: 'test-provider',
+      model: 'test-api-model',
+      input_tokens: 3,
+      output_tokens: 5
+    })
+  })
+
   it('normalizes base64 and url images from ai-core generateImage', async () => {
     const service = createService()
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
@@ -166,14 +265,20 @@ describe('AiService', () => {
     const result = await service.generateImage({
       uniqueModelId: 'test-provider::test-model',
       prompt: 'draw a cat',
-      n: 2,
-      size: '1024x1024',
-      negativePrompt: 'blurry',
-      seed: 7,
-      quality: 'high',
-      numInferenceSteps: 30,
-      guidanceScale: 4.5,
-      promptEnhancement: true,
+      // Canonical paramValues bag (`numImages`, not `n`); main re-derives the
+      // wire shape. Only n/size/seed/aspectRatio are AI SDK native options; the
+      // knobs (negativePrompt/quality/…) ride in `providerOptions[id]` (wire-named).
+      paramValues: {
+        numImages: 2,
+        size: '1024x1024',
+        aspectRatio: '9:19.5',
+        negativePrompt: 'blurry',
+        seed: 7,
+        quality: 'high',
+        numInferenceSteps: 30,
+        guidanceScale: 4.5,
+        promptEnhancement: true
+      },
       requestOptions: { signal: new AbortController().signal }
     })
 
@@ -185,12 +290,18 @@ describe('AiService', () => {
         prompt: 'draw a cat',
         n: 2,
         size: '1024x1024',
-        negativePrompt: 'blurry',
+        aspectRatio: '9:19.5',
         seed: 7,
-        quality: 'high',
-        numInferenceSteps: 30,
-        guidanceScale: 4.5,
-        promptEnhancement: true
+        providerOptions: {
+          'test-provider': {
+            negative_prompt: 'blurry',
+            seed: 7,
+            quality: 'high',
+            num_inference_steps: 30,
+            guidance_scale: 4.5,
+            prompt_enhancement: true
+          }
+        }
       })
     )
 
@@ -216,7 +327,7 @@ describe('AiService', () => {
     expect(result).toEqual({ files: [fileEntry] })
   })
 
-  it("omits SDK size when size is the 'auto' sentinel", async () => {
+  it("omits the SDK size for the 'auto' sentinel AND when no size is given (no 1024x1024 default)", async () => {
     const service = createService()
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
       sdkConfig: {
@@ -234,11 +345,91 @@ describe('AiService', () => {
     await service.generateImage({
       uniqueModelId: 'test-provider::test-model',
       prompt: 'draw a cat',
-      size: 'auto'
+      paramValues: { size: 'auto' }
+    })
+    expect(mockGenerateImage.mock.calls[0]?.[2] as Record<string, unknown>).not.toHaveProperty('size')
+
+    // No size at all → omitted too (the provider/server applies its own default),
+    // rather than the old forced 1024x1024.
+    await service.generateImage({
+      uniqueModelId: 'test-provider::test-model',
+      prompt: 'draw a cat',
+      paramValues: {}
+    })
+    expect(mockGenerateImage.mock.calls[1]?.[2] as Record<string, unknown>).not.toHaveProperty('size')
+  })
+
+  it('routes silicon through the WireProfile engine, producing the same providerOptions.silicon', async () => {
+    const service = createService()
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'silicon', providerSettings: {}, modelId: 'Kwai-Kolors/Kolors' }
+    } as never)
+
+    mockGenerateImage.mockResolvedValue({ images: [] })
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
+    )
+
+    await service.generateImage({
+      uniqueModelId: 'silicon::Kwai-Kolors/Kolors',
+      prompt: 'a fox',
+      // numImages is native (→ imageParams.n); the rest form the silicon vendor body.
+      paramValues: {
+        numImages: 2,
+        seed: 42,
+        negativePrompt: 'low quality',
+        numInferenceSteps: 25,
+        guidanceScale: 4.5,
+        cfg: 7.5
+      }
     })
 
-    const callOptions = mockGenerateImage.mock.calls[0]?.[2] as Record<string, unknown>
-    expect(callOptions).not.toHaveProperty('size')
+    expect(mockGenerateImage).toHaveBeenCalledWith(
+      'silicon',
+      {},
+      expect.objectContaining({
+        n: 2,
+        // Byte-identical to the old buildImageProviderOptions diffusion bag.
+        providerOptions: {
+          silicon: { negative_prompt: 'low quality', seed: 42, num_inference_steps: 25, guidance_scale: 4.5, cfg: 7.5 }
+        }
+      })
+    )
+  })
+})
+
+describe('AiService.onInit', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'JobManager' ? { registerHandler: vi.fn() } : undefined
+    )
+    mockReconcileSkills.mockResolvedValue(undefined)
+  })
+
+  it('installs built-in skills before reconciling skills, without blocking init', async () => {
+    const calls: string[] = []
+    mockInstallBuiltinSkills.mockImplementation(async () => {
+      calls.push('installBuiltinSkills')
+    })
+    mockReconcileSkills.mockImplementation(async () => {
+      calls.push('reconcileSkills')
+    })
+    const service = createService()
+
+    // Fire-and-forget: _doInit resolves without waiting on this chain.
+    await service._doInit()
+    await vi.waitFor(() => expect(mockReconcileSkills).toHaveBeenCalled())
+
+    expect(calls).toEqual(['installBuiltinSkills', 'reconcileSkills'])
+  })
+
+  it('logs and continues to reconcile when installBuiltinSkills rejects', async () => {
+    mockInstallBuiltinSkills.mockRejectedValue(new Error('disk full'))
+    const service = createService()
+
+    await expect(service._doInit()).resolves.toBeUndefined()
+    await vi.waitFor(() => expect(mockReconcileSkills).toHaveBeenCalled())
   })
 })
 
@@ -360,7 +551,7 @@ describe('AiService tool approval', () => {
     ]
     const apply = vi
       .spyOn(messageService, 'applyToolApprovalDecisions')
-      .mockResolvedValue(approvalMutationResult(committed, ['mcp-approval-1']) as never)
+      .mockReturnValue(approvalMutationResult(committed, ['mcp-approval-1']) as never)
 
     const handler = getApprovalHandler()
     const result = await handler(fakeEvent(), {
@@ -398,7 +589,7 @@ describe('AiService tool approval', () => {
       return undefined
     })
     const committed = [{ ...pendingToolPart('mcp-approval-1'), state: 'approval-responded' }]
-    vi.spyOn(messageService, 'applyToolApprovalDecisions').mockResolvedValue(
+    vi.spyOn(messageService, 'applyToolApprovalDecisions').mockReturnValue(
       approvalMutationResult(committed, ['mcp-approval-1']) as never
     )
 
@@ -457,7 +648,7 @@ describe('AiService tool approval', () => {
     // Overlay-only: the target part isn't on the row, so the committed parts carry no pending approval.
     const apply = vi
       .spyOn(messageService, 'applyToolApprovalDecisions')
-      .mockResolvedValue(approvalMutationResult([{ type: 'text', text: 'hello' }]) as never)
+      .mockReturnValue(approvalMutationResult([{ type: 'text', text: 'hello' }]) as never)
 
     const handler = getApprovalHandler()
     const result = await handler(fakeEvent(), {
@@ -490,7 +681,7 @@ describe('AiService tool approval', () => {
     })
 
     // Committed parts: this approval decided, but a sibling is still approval-requested.
-    vi.spyOn(messageService, 'applyToolApprovalDecisions').mockResolvedValue(
+    vi.spyOn(messageService, 'applyToolApprovalDecisions').mockReturnValue(
       approvalMutationResult(
         [
           { ...pendingToolPart('mcp-approval-1'), state: 'approval-responded' },
@@ -524,7 +715,7 @@ describe('AiService tool approval', () => {
 
     const apply = vi
       .spyOn(messageService, 'applyToolApprovalDecisions')
-      .mockResolvedValue(
+      .mockReturnValue(
         approvalMutationResult(
           [{ ...pendingToolPart('mcp-approval-1'), state: 'approval-responded' }],
           [],
@@ -555,7 +746,7 @@ describe('AiService tool approval', () => {
     })
 
     // A stale click on a deleted message: the atomic mutation reports the anchor is gone (null).
-    const apply = vi.spyOn(messageService, 'applyToolApprovalDecisions').mockResolvedValue(null)
+    const apply = vi.spyOn(messageService, 'applyToolApprovalDecisions').mockReturnValue(null)
 
     const handler = getApprovalHandler()
     const result = await handler(fakeEvent(), {
@@ -637,7 +828,7 @@ describe('AiService tool approval', () => {
     const embedSpy = vi.spyOn(service, 'embedMany')
     const generateSpy = vi.spyOn(service, 'generateText')
 
-    mockModelGetByKey.mockResolvedValue({
+    mockModelGetByKey.mockReturnValue({
       id: 'test-provider::test-reranker',
       providerId: 'test-provider',
       apiModelId: 'test-reranker',
@@ -663,11 +854,39 @@ describe('AiService tool approval', () => {
     expect(generateSpy).not.toHaveBeenCalled()
   })
 
+  it('passes the selected API key override into text health checks', async () => {
+    const service = createService()
+    const generateSpy = vi.spyOn(service, 'generateText').mockResolvedValue({ text: 'ok' })
+    mockModelGetByKey.mockReturnValue({
+      id: 'test-provider::test-model',
+      providerId: 'test-provider',
+      apiModelId: 'test-model',
+      name: 'Test Model',
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    })
+
+    await service.checkModel({
+      uniqueModelId: 'test-provider::test-model',
+      apiKeyOverride: 'sk-selected'
+    })
+
+    expect(generateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        apiKeyOverride: 'sk-selected',
+        system: 'test',
+        prompt: 'hi'
+      })
+    )
+  })
+
   it('fails rerank health checks when the probe returns an empty ranking', async () => {
     const service = createService()
     vi.spyOn(service, 'rerank').mockResolvedValue({ ranking: [] })
 
-    mockModelGetByKey.mockResolvedValue({
+    mockModelGetByKey.mockReturnValue({
       id: 'test-provider::test-reranker',
       providerId: 'test-provider',
       apiModelId: 'test-reranker',
@@ -719,7 +938,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     const createInternalEntry = vi.fn().mockResolvedValue({ id: 'in-1' })
     const permanentDelete = vi.fn().mockResolvedValue(undefined)
     const outputFiles = [{ id: 'out-1', origin: 'internal', ext: 'png', name: 'img', size: 3, createdAt: 0 }]
-    const enqueue = vi.fn().mockResolvedValue({
+    const enqueue = vi.fn().mockReturnValue({
       id: 'job-1',
       snapshot: {},
       finished: Promise.resolve({ status: 'completed', output: { files: outputFiles }, error: null })
@@ -733,6 +952,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     const result = await service.generateImage({
       uniqueModelId: 'ppio::qwen-image',
       prompt: 'a cat',
+      paramValues: {},
       inputImages: ['data:image/png;base64,AAAA'],
       requestOptions: { signal: new AbortController().signal }
     })
@@ -745,6 +965,99 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     expect(permanentDelete).toHaveBeenCalledWith('in-1')
   })
 
+  it('forwards the vendor knobs to the transport via providerParams (camelCase)', async () => {
+    // Regression guard: negativePrompt / numInferenceSteps / guidanceScale are NOT
+    // AI SDK native options — they must reach the transport in `providerParams`
+    // (the canonical camelCase vendorBag), not get dropped into `structured`.
+    // The boundary tests hand-build providerParams, so only this split→transport
+    // assertion catches a mis-classified native binding.
+    const service = createService()
+    stubResolution(service)
+    const enqueue = vi.fn().mockReturnValue({
+      id: 'job-1',
+      snapshot: {},
+      finished: Promise.resolve({ status: 'completed', output: { files: [] }, error: null })
+    })
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'FileManager') return { createInternalEntry: vi.fn(), permanentDelete: vi.fn() }
+      if (name === 'JobManager') return { enqueue, cancel: vi.fn() }
+      return undefined
+    })
+
+    await service.generateImage({
+      uniqueModelId: 'ppio::qwen-image',
+      prompt: 'a cat',
+      paramValues: {
+        numImages: 1,
+        size: '1024x1024',
+        seed: 9,
+        negativePrompt: 'blurry',
+        numInferenceSteps: 30,
+        guidanceScale: 4.5,
+        promptExtend: true
+      },
+      requestOptions: { signal: new AbortController().signal }
+    })
+
+    expect(enqueue).toHaveBeenCalledWith(
+      'image-generation.generate',
+      expect.objectContaining({
+        n: 1,
+        size: '1024x1024',
+        seed: 9,
+        // native n/size/seed travel as payload fields; the knobs ride the bag
+        providerParams: { negativePrompt: 'blurry', numInferenceSteps: 30, guidanceScale: 4.5, promptExtend: true }
+      })
+    )
+  })
+
+  it('derives modelDescriptor { id, endpoint, isSync, mode } from the registry vendorTransport (non-default mode)', async () => {
+    // Async PPIO/DashScope jobs resume against the endpoint / response-family carried
+    // in the payload; guard that a non-default mode routes through ITS OWN
+    // vendorTransport and the derived descriptor reaches the enqueued job. Without
+    // this, a restart-resume (or an edit-mode job) would hit the wrong endpoint.
+    const service = createService()
+    stubResolution(service)
+    mockGetImageGenerationSupport.mockReturnValueOnce({
+      modes: {
+        edit: { vendorTransport: { endpoint: '/v1/models/qianfan/qwen-image-edit/predictions', isSync: false } }
+      }
+    })
+    const enqueue = vi.fn().mockReturnValue({
+      id: 'job-1',
+      snapshot: {},
+      finished: Promise.resolve({ status: 'completed', output: { files: [] }, error: null })
+    })
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'FileManager') return { createInternalEntry: vi.fn(), permanentDelete: vi.fn() }
+      if (name === 'JobManager') return { enqueue, cancel: vi.fn() }
+      return undefined
+    })
+
+    await service.generateImage({
+      uniqueModelId: 'ppio::qwen-image',
+      prompt: 'a cat',
+      mode: 'edit',
+      paramValues: {},
+      requestOptions: { signal: new AbortController().signal }
+    })
+
+    // The descriptor is derived from the registry (main-hosted), keyed by the
+    // resolved mode — NOT laundered through paramValues.
+    expect(mockGetImageGenerationSupport).toHaveBeenCalledWith('ppio', 'qwen-image')
+    expect(enqueue).toHaveBeenCalledWith(
+      'image-generation.generate',
+      expect.objectContaining({
+        modelDescriptor: {
+          id: 'qwen-image',
+          endpoint: '/v1/models/qianfan/qwen-image-edit/predictions',
+          isSync: false,
+          mode: 'edit'
+        }
+      })
+    )
+  })
+
   it('maps a failed job snapshot to a thrown error', async () => {
     const service = createService()
     stubResolution(service)
@@ -753,7 +1066,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
         return { createInternalEntry: vi.fn(), permanentDelete: vi.fn().mockResolvedValue(undefined) }
       if (name === 'JobManager') {
         return {
-          enqueue: vi.fn().mockResolvedValue({
+          enqueue: vi.fn().mockReturnValue({
             id: 'job-1',
             snapshot: {},
             finished: Promise.resolve({ status: 'failed', output: null, error: { message: 'vendor exploded' } })
@@ -764,9 +1077,9 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
       return undefined
     })
 
-    await expect(service.generateImage({ uniqueModelId: 'ppio::qwen-image', prompt: 'a cat' })).rejects.toThrow(
-      'vendor exploded'
-    )
+    await expect(
+      service.generateImage({ uniqueModelId: 'ppio::qwen-image', prompt: 'a cat', paramValues: {} })
+    ).rejects.toThrow('vendor exploded')
   })
 
   it('cancels the job and throws AbortError when the request is aborted', async () => {
@@ -780,7 +1093,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
         return { createInternalEntry: vi.fn(), permanentDelete: vi.fn().mockResolvedValue(undefined) }
       if (name === 'JobManager') {
         return {
-          enqueue: vi.fn().mockResolvedValue({
+          enqueue: vi.fn().mockReturnValue({
             id: 'job-1',
             snapshot: {},
             finished: Promise.resolve({ status: 'cancelled', output: null, error: null })
@@ -795,6 +1108,7 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
       service.generateImage({
         uniqueModelId: 'ppio::qwen-image',
         prompt: 'a cat',
+        paramValues: {},
         requestOptions: { signal: controller.signal }
       })
     ).rejects.toThrow(/abort/i)
@@ -812,7 +1126,12 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
       // enqueue fails after the temp input entry was already created → the entry is in
       // no payload, so generateImageViaJob's setup catch must delete it.
       if (name === 'JobManager')
-        return { enqueue: vi.fn().mockRejectedValue(new Error('enqueue boom')), cancel: vi.fn() }
+        return {
+          enqueue: vi.fn().mockImplementation(() => {
+            throw new Error('enqueue boom')
+          }),
+          cancel: vi.fn()
+        }
       return undefined
     })
 
@@ -820,9 +1139,63 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
       service.generateImage({
         uniqueModelId: 'ppio::qwen-image',
         prompt: 'edit',
+        paramValues: {},
         inputImages: ['data:image/png;base64,AAAA']
       })
     ).rejects.toThrow('enqueue boom')
     expect(permanentDelete).toHaveBeenCalledWith('in-1')
+  })
+})
+
+describe('AiService.listModels', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('returns the shipped registry catalog for a registry-sourced provider without calling the API', async () => {
+    const service = createService()
+    const registryModels = [{ id: 'claude-code::haiku' }, { id: 'claude-code::sonnet' }]
+    mockProviderGetByProviderId.mockReturnValue({ id: 'claude-code', modelListSource: 'registry' })
+    mockListProviderRegistryModels.mockReturnValue(registryModels)
+
+    const result = await service.listModels({ providerId: 'claude-code' })
+
+    expect(result).toBe(registryModels)
+    expect(mockListProviderRegistryModels).toHaveBeenCalledWith({ providerId: 'claude-code' })
+    expect(mockListModelsFromProvider).not.toHaveBeenCalled()
+  })
+
+  it('pulls the model list over the API for an api-sourced provider, returning it as-is when the registry adds nothing', async () => {
+    const service = createService()
+    const provider = { id: 'openai', modelListSource: 'api' }
+    const apiModels = [{ id: 'openai::gpt-4o-mini', apiModelId: 'gpt-4o-mini' }]
+    mockProviderGetByProviderId.mockReturnValue(provider)
+    mockListModelsFromProvider.mockResolvedValue(apiModels)
+    mockListProviderRegistryModels.mockReturnValue([])
+
+    const result = await service.listModels({ providerId: 'openai' })
+
+    expect(result).toBe(apiModels)
+    expect(mockListModelsFromProvider).toHaveBeenCalledWith(provider, undefined, { throwOnError: undefined })
+    expect(mockListProviderRegistryModels).toHaveBeenCalledWith({ providerId: 'openai' })
+  })
+
+  it('appends registry-only models the API never returns, deduping enrichment twins by bare id (publisher prefix)', async () => {
+    const service = createService()
+    const provider = { id: 'ppio', modelListSource: 'api' }
+    // Live /models returns the chat model with a flat id.
+    const apiModels = [{ id: 'ppio::qwen3-235b-a22b-thinking-2507', apiModelId: 'qwen3-235b-a22b-thinking-2507' }]
+    mockProviderGetByProviderId.mockReturnValue(provider)
+    mockListModelsFromProvider.mockResolvedValue(apiModels)
+    mockListProviderRegistryModels.mockReturnValue([
+      // Same model as the API's, but registry keeps the publisher prefix → must dedup, not double-list.
+      { id: 'ppio::qwen', apiModelId: 'qwen/qwen3-235b-a22b-thinking-2507', name: 'Qwen3 235B A22B Thinking' },
+      // Vendor-exclusive image model the API never lists → must be appended.
+      { id: 'ppio::z-image-turbo', apiModelId: 'z-image-turbo', name: 'Z-Image Turbo' }
+    ])
+
+    const result = await service.listModels({ providerId: 'ppio' })
+
+    expect(result.map((m) => m.apiModelId)).toEqual(['qwen3-235b-a22b-thinking-2507', 'z-image-turbo'])
   })
 })

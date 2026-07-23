@@ -1,5 +1,5 @@
 import { type MarkdownSource } from '@cherrystudio/ui'
-import { type CSSProperties, memo, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ChatMarkdown from '../markdown/ChatMarkdown'
@@ -14,15 +14,17 @@ interface Props {
   content: string
   /** Whether this block is currently streaming */
   isStreaming: boolean
-  /** Thinking duration in milliseconds */
-  thinkingMs: number
-  /** Live estimated reasoning tokens for the current thinking block. */
-  thoughtsTokens?: number
-  /** Thinking start timestamp in epoch ms */
-  startedAt?: number
+  /** Whether to expose a one-line content preview in the title row */
+  showTitlePreview?: boolean
 }
 
-const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs, thoughtsTokens, startedAt }) => {
+interface ThinkingBlockContentProps {
+  id: string
+  content: string
+  isStreaming: boolean
+}
+
+export const ThinkingBlockContent = memo(({ id, content, isStreaming }: ThinkingBlockContentProps) => {
   const block = useMemo<MarkdownSource>(
     () => ({
       id,
@@ -31,12 +33,31 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs, 
     }),
     [id, content, isStreaming]
   )
-  const { messageFont, fontSize, thoughtAutoCollapse } = useMessageRenderConfig()
+  const { messageFont, fontSize } = useMessageRenderConfig()
+
+  if (!content) return null
+
+  return (
+    <div
+      className="relative text-foreground-muted [&_.markdown>p:only-child]:mb-0!"
+      style={{
+        fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+        fontSize
+      }}>
+      <ChatMarkdown block={block} />
+    </div>
+  )
+})
+ThinkingBlockContent.displayName = 'ThinkingBlockContent'
+
+const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePreview = false }) => {
+  const { thoughtAutoCollapse } = useMessageRenderConfig()
   const [isExpanded, setIsExpanded] = useState(false)
   const contentId = useId()
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
 
   const isThinking = isStreaming
+  const previewText = useMemo(() => (content ?? '').replace(/\s+/g, ' ').trim(), [content])
 
   useEffect(() => {
     if (thoughtAutoCollapse) {
@@ -65,15 +86,15 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs, 
           }
         }}>
         <ThinkingEffect
-          expanded={isExpanded}
-          isThinking={isThinking}
-          thinkingTimeText={
-            <ThinkingTimeSeconds
-              blockThinkingTime={thinkingMs}
-              isThinking={isThinking}
-              startedAt={startedAt}
-              thoughtsTokens={thoughtsTokens}
-            />
+          thinkingTimeText={<ThinkingTimeSeconds isThinking={isThinking} />}
+          trailing={
+            showTitlePreview && previewText ? (
+              <span
+                aria-hidden="true"
+                className="min-w-0 flex-1 truncate whitespace-nowrap text-[13px] text-foreground-muted leading-5">
+                {previewText}
+              </span>
+            ) : null
           }
         />
       </div>
@@ -81,107 +102,17 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs, 
         id={contentId}
         hidden={!isExpanded}
         className="mt-1.5 max-h-96 overflow-auto rounded-xl bg-muted px-4 py-3 text-[13px] text-foreground-secondary leading-5">
-        <div
-          className="relative text-foreground-muted [&_.markdown>p:only-child]:mb-0!"
-          style={
-            {
-              '--color-text': 'var(--color-foreground-muted)',
-              '--color-text-light': 'var(--color-foreground-muted)',
-              fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
-              fontSize
-            } as CSSProperties
-          }>
-          <ChatMarkdown block={block} />
-        </div>
+        <ThinkingBlockContent id={id} content={content} isStreaming={isStreaming} />
       </div>
     </div>
   )
 }
 
-const normalizeThinkingTime = (value?: number) => (typeof value === 'number' && Number.isFinite(value) ? value : 0)
-const normalizeThoughtsTokens = (value?: number) =>
-  typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.round(value) : undefined
+const ThinkingTimeSeconds = memo(({ isThinking }: { isThinking: boolean }) => {
+  const { t } = useTranslation()
 
-const ThinkingTimeSeconds = memo(
-  ({
-    blockThinkingTime,
-    isThinking,
-    startedAt,
-    thoughtsTokens
-  }: {
-    blockThinkingTime: number
-    isThinking: boolean
-    startedAt?: number
-    thoughtsTokens?: number
-  }) => {
-    const { t } = useTranslation()
-
-    const safeStartedAt = typeof startedAt === 'number' && Number.isFinite(startedAt) ? startedAt : undefined
-
-    const [displayTime, setDisplayTime] = useState(() => {
-      if (!isThinking) return normalizeThinkingTime(blockThinkingTime)
-      if (safeStartedAt !== undefined) {
-        return Math.max(0, Date.now() - safeStartedAt)
-      }
-      return 0
-    })
-
-    const timer = useRef<NodeJS.Timeout | null>(null)
-
-    useEffect(() => {
-      if (isThinking) {
-        if (safeStartedAt !== undefined) {
-          setDisplayTime(Math.max(0, Date.now() - safeStartedAt))
-        }
-        if (!timer.current) {
-          timer.current = setInterval(() => {
-            if (safeStartedAt !== undefined) {
-              setDisplayTime(Math.max(0, Date.now() - safeStartedAt))
-            } else {
-              setDisplayTime((prev) => prev + 100)
-            }
-          }, 100)
-        }
-      } else {
-        if (timer.current) {
-          clearInterval(timer.current)
-          timer.current = null
-        }
-        const normalized = normalizeThinkingTime(blockThinkingTime)
-        setDisplayTime(normalized)
-      }
-
-      return () => {
-        if (timer.current) {
-          clearInterval(timer.current)
-          timer.current = null
-        }
-      }
-    }, [isThinking, blockThinkingTime, safeStartedAt])
-
-    const thinkingTimeSeconds = useMemo(() => {
-      const safeTime = normalizeThinkingTime(displayTime)
-      return ((safeTime < 100 ? 100 : safeTime) / 1000).toFixed(1)
-    }, [displayTime])
-
-    const statusText =
-      !isThinking && normalizeThinkingTime(blockThinkingTime) <= 0
-        ? t('common.reasoning_content')
-        : isThinking
-          ? t('chat.thinking', {
-              seconds: thinkingTimeSeconds
-            })
-          : t('chat.deeply_thought', {
-              seconds: thinkingTimeSeconds
-            })
-
-    const normalizedTokens = normalizeThoughtsTokens(thoughtsTokens)
-    if (!normalizedTokens) return statusText
-
-    return `${statusText} · ${t('chat.thinking_tokens', {
-      tokens: new Intl.NumberFormat().format(normalizedTokens)
-    })}`
-  }
-)
+  if (isThinking) return t('message.tools.placeholder.thinking')
+  return t('common.reasoning_content')
+})
 
 export default memo(ThinkingBlock)

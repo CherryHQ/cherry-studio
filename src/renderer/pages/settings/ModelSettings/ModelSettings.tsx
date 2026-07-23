@@ -1,23 +1,8 @@
 import { Avatar, AvatarFallback, Button, InfoTooltip, PageSidePanel, Tooltip } from '@cherrystudio/ui'
-import { resolveIcon } from '@cherrystudio/ui/icons'
+import { useIcon } from '@cherrystudio/ui/icons'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { ModelSelector } from '@renderer/components/Selector/model'
-import { getProviderDisplayName } from '@renderer/components/Selector/model/utils'
-import { useTheme } from '@renderer/context/ThemeProvider'
-import { useDefaultModel } from '@renderer/hooks/useModel'
-import { useProviders } from '@renderer/hooks/useProvider'
-import { TranslateSettingsPanelContent } from '@renderer/pages/translate/TranslateSettings'
-import { cn } from '@renderer/utils/style'
-import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
-import { type Model, parseUniqueModelId } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
-import { isNonChatModel } from '@shared/utils/model'
-import { ChevronDown, Languages, MessageSquareMore, Rocket, RotateCcw, Settings2 } from 'lucide-react'
-import type { FC, ReactNode } from 'react'
-import { useCallback, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-
+import { getProviderDisplayName, ModelSelector } from '@renderer/components/ModelSelector'
 import {
   SettingContainer,
   SettingDescription,
@@ -27,15 +12,33 @@ import {
   SettingRowTitle,
   SettingsContentColumn,
   SettingTitle
-} from '..'
-import { TopicNamingSettings } from './QuickModelPopup'
+} from '@renderer/components/SettingsPrimitives'
+import { useDefaultModel } from '@renderer/hooks/useModel'
+import { useProviders } from '@renderer/hooks/useProvider'
+import { useTheme } from '@renderer/hooks/useTheme'
+import { TranslateSettingsPanelContent } from '@renderer/pages/translate/TranslateSettings'
+import { toast } from '@renderer/services/toast'
+import { getModelLogoRef } from '@renderer/utils/model'
+import { cn } from '@renderer/utils/style'
+import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
+import { type Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
+import { isGenerateImageModel, isNonChatModel } from '@shared/utils/model'
+import { ChevronDown, Languages, MessageSquareMore, Palette, Rocket, RotateCcw, Settings2 } from 'lucide-react'
+import type { ComponentProps, FC, ReactNode } from 'react'
+import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { TopicNamingSettings } from './TopicNamingSettings'
 
 const logger = loggerService.withContext('ModelSettings')
 
 interface ModelSettingsProps {
   showSettingsButton?: boolean
   showDescription?: boolean
+  showDividers?: boolean
   compact?: boolean
+  className?: string
 }
 
 interface ModelSettingRowProps {
@@ -61,7 +64,7 @@ const ModelSettingRow: FC<ModelSettingRowProps> = ({ icon, title, description, c
   </SettingRow>
 )
 
-interface ModelSelectorTriggerProps {
+interface ModelSelectorTriggerProps extends Omit<ComponentProps<typeof Button>, 'children' | 'onSelect'> {
   model?: Model
   providers: Provider[]
   placeholder: string
@@ -81,21 +84,31 @@ const SETTINGS_DRAWER_BODY_CLASS = 'space-y-0 px-6 py-5'
 
 const drawerTitleClassName = 'truncate font-semibold text-foreground text-sm leading-4'
 
-const getModelIdentifier = (model: Model) => model.apiModelId ?? parseUniqueModelId(model.id).modelId
-
 const getModelInitial = (model: Model) => model.name.trim().charAt(0) || 'M'
 
-const renderModelSelectorTrigger = ({ model, providers, placeholder, compact }: ModelSelectorTriggerProps) => {
+const ModelSelectorTriggerButton: FC<ModelSelectorTriggerProps> = ({
+  model,
+  providers,
+  placeholder,
+  compact,
+  className,
+  ...props
+}) => {
   const provider = model ? providers.find((item) => item.id === model.providerId) : undefined
   const providerName = provider ? getProviderDisplayName(provider) : undefined
-  const icon = model ? resolveIcon(getModelIdentifier(model), model.providerId) : undefined
+  const icon = useIcon(model ? getModelLogoRef(model) : undefined)
 
   return (
     <Button
+      {...props}
       type="button"
       variant="outline"
       size={compact ? 'lg' : 'default'}
-      className={cn('min-w-0 flex-1 justify-between px-2.5 text-left font-normal', compact ? 'h-9' : 'h-7.5')}>
+      className={cn(
+        'min-w-0 flex-1 justify-between px-2.5 text-left font-normal',
+        compact ? 'h-9' : 'h-7.5',
+        className
+      )}>
       <span className="flex min-w-0 flex-1 items-center gap-2">
         {model && icon ? (
           <icon.Avatar size={20} />
@@ -125,17 +138,29 @@ const DefaultModelSelector: FC<DefaultModelSelectorProps> = ({
     value={model}
     onSelect={onSelect}
     filter={filter}
-    trigger={renderModelSelectorTrigger({ model, providers, placeholder, compact })}
+    trigger={
+      <ModelSelectorTriggerButton model={model} providers={providers} placeholder={placeholder} compact={compact} />
+    }
   />
 )
 
 const ModelSettings: FC<ModelSettingsProps> = ({
   showSettingsButton = true,
   showDescription = true,
-  compact = false
+  showDividers = true,
+  compact = false,
+  className
 }) => {
-  const { defaultModel, quickModel, translateModel, setDefaultModel, setQuickModel, setTranslateModel } =
-    useDefaultModel()
+  const {
+    defaultModel,
+    quickModel,
+    translateModel,
+    paintingModel,
+    setDefaultModel,
+    setQuickModel,
+    setTranslateModel,
+    setPaintingModel
+  } = useDefaultModel()
   const { providers } = useProviders({ enabled: true })
   const [activePanel, setActivePanel] = useState<ModelSettingsPanel>(null)
   const { theme } = useTheme()
@@ -150,7 +175,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
       if (!selected) return
       void setDefaultModel(selected).catch((error) => {
         logger.error('Failed to set default model', { modelId: selected.id, error })
-        window.toast.error(t('settings.models.manage.operation_failed'))
+        toast.error(t('settings.models.manage.operation_failed'))
       })
     },
     [setDefaultModel, t]
@@ -172,6 +197,14 @@ const ModelSettings: FC<ModelSettingsProps> = ({
     [setTranslateModel]
   )
 
+  const onSelectPainting = useCallback(
+    (selected: Model | undefined) => {
+      if (!selected) return
+      void setPaintingModel(selected)
+    },
+    [setPaintingModel]
+  )
+
   const onResetTranslatePrompt = () => {
     void setTranslateModelPrompt(TRANSLATE_PROMPT)
   }
@@ -186,9 +219,9 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const containerProps = compact ? { style: { padding: 0, background: 'transparent' } } : {}
 
   return (
-    <div className="relative flex min-h-0 flex-1">
+    <div className={cn('relative flex min-h-0 flex-1', className)}>
       <ContainerComponent theme={theme} {...containerProps}>
-        <SettingGroup theme={theme} style={groupStyle}>
+        <SettingGroup theme={theme} style={groupStyle} className={compact ? 'space-y-3' : undefined}>
           {!compact && (
             <>
               <SettingTitle>{t('settings.model')}</SettingTitle>
@@ -209,7 +242,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
               placeholder={t('settings.models.empty')}
             />
           </ModelSettingRow>
-          <SettingDivider />
+          {showDividers && <SettingDivider />}
           <ModelSettingRow
             compact={compact}
             icon={<Rocket size={16} className="lucide-custom shrink-0 text-foreground" />}
@@ -239,7 +272,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
               </Button>
             )}
           </ModelSettingRow>
-          <SettingDivider />
+          {showDividers && <SettingDivider />}
           <ModelSettingRow
             compact={compact}
             icon={<Languages size={16} className="lucide-custom shrink-0 text-foreground" />}
@@ -272,6 +305,21 @@ const ModelSettings: FC<ModelSettingsProps> = ({
                 )}
               </>
             )}
+          </ModelSettingRow>
+          <SettingDivider />
+          <ModelSettingRow
+            compact={compact}
+            icon={<Palette size={16} className="lucide-custom shrink-0 text-foreground" />}
+            title={t('settings.models.painting_model')}
+            description={showDescription ? t('settings.models.painting_model_description') : undefined}>
+            <DefaultModelSelector
+              model={paintingModel}
+              providers={providers}
+              filter={isGenerateImageModel}
+              compact={compact}
+              onSelect={onSelectPainting}
+              placeholder={t('settings.models.empty')}
+            />
           </ModelSettingRow>
         </SettingGroup>
       </ContainerComponent>

@@ -20,11 +20,11 @@ vi.mock('@data/hooks/usePreference', () => ({
   usePreference: () => [preferenceMock.showSidebar, preferenceMock.setShowSidebar]
 }))
 
-vi.mock('@renderer/components/app/Navbar', () => ({
+vi.mock('@renderer/components/Navbar', () => ({
   NavbarHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>
 }))
 
-vi.mock('@renderer/components/Icons', () => ({
+vi.mock('@renderer/components/icons/SidebarToggleIcons', () => ({
   SidebarCollapseIcon: () => <span data-testid="collapse-icon" />,
   SidebarExpandIcon: () => <span data-testid="expand-icon" />
 }))
@@ -51,10 +51,20 @@ describe('ChatNavbar', () => {
     expect(toggle).toHaveClass('hover:bg-accent/60')
   })
 
-  it('offers a new-topic button next to the toggle when the sidebar is hidden', () => {
+  it('does not render a new-topic button when the sidebar is hidden', () => {
     render(<ChatNavbar />)
 
-    expect(screen.getByRole('button', { name: 'chat.conversation.new' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
+  })
+
+  it('places the conversation controls host after the sidebar toggle', () => {
+    const { container } = render(<ChatNavbar />)
+
+    const toggle = screen.getByRole('button', { name: 'navbar.show_sidebar' })
+    const controls = container.querySelector('[data-conversation-topbar-controls]')
+
+    expect(toggle.compareDocumentPosition(controls!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
   })
 
   it('hides the new-topic button when the sidebar is visible', () => {

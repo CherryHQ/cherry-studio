@@ -1,19 +1,19 @@
 import { Avatar, AvatarFallback, Button } from '@cherrystudio/ui'
-import { resolveIcon } from '@cherrystudio/ui/icons'
+import { useIcon } from '@cherrystudio/ui/icons'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { ModelSelector } from '@renderer/components/Selector/model'
-import { getProviderDisplayName } from '@renderer/components/Selector/model/utils'
+import { getProviderDisplayName, ModelSelector } from '@renderer/components/ModelSelector'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
+import { getModelLogoRef } from '@renderer/utils/model'
 import { createUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
-import { isGenerateImageModel } from '@shared/utils/model'
-import { first } from 'lodash'
+import { first } from 'es-toolkit/compat'
 import { ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { PaintingData } from '../model/types/paintingData'
+import { supportsImageGenerationEndpoint } from '../model/utils/paintingModelOptions'
 import PaintingSectionTitle from './PaintingSectionTitle'
 
 interface PaintingModelSelectorProps {
@@ -51,12 +51,17 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
 
   const selectedName = selectedModel?.name ?? painting.model
   const selectedProviderName = selectedProvider ? getProviderDisplayName(selectedProvider) : undefined
-  const selectedIcon = useMemo(() => {
-    if (!painting.providerId) return undefined
-    const identifier = selectedModel?.apiModelId ?? painting.model
-    if (!identifier) return undefined
-    return resolveIcon(identifier, painting.providerId) ?? resolveIcon(selectedModel?.name ?? '', painting.providerId)
-  }, [painting.providerId, painting.model, selectedModel])
+  const selectedIconRef = useMemo(
+    () =>
+      painting.providerId
+        ? getModelLogoRef(
+            selectedModel ?? { id: painting.model ?? '', name: painting.model ?? '' },
+            painting.providerId
+          )
+        : undefined,
+    [painting.providerId, painting.model, selectedModel]
+  )
+  const selectedIcon = useIcon(selectedIconRef)
 
   return (
     <div className={hideTitle ? 'contents' : undefined}>
@@ -76,7 +81,7 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
           const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
           onSelect({ providerId, modelId })
         }}
-        filter={isGenerateImageModel}
+        filter={supportsImageGenerationEndpoint}
         showTagFilter={false}
         showPinnedModels={false}
         showPinActions={false}

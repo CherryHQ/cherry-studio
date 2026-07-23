@@ -1,6 +1,7 @@
 # Logs
 logs
-*.log*
+*.log
+*.log.*
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -64,6 +65,7 @@ local
 .zed/*
 !.zed/settings.json.example
 CLAUDE.local.md
+AGENTS.override.md
 
 # vitest
 coverage
@@ -88,3 +90,4 @@ YOUR_MEMORY_FILE_PATH
 
 .sessions/
 .devtools
+.omo/

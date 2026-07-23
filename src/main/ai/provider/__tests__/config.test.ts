@@ -5,6 +5,11 @@ import {
   CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
   CHERRYAI_PROVIDER_ID
 } from '@shared/data/presets/cherryai'
+import {
+  LOCAL_EMBEDDING_MODEL_ID,
+  LOCAL_EMBEDDING_PROVIDER_ID,
+  LOCAL_EMBEDDING_UNIQUE_MODEL_ID
+} from '@shared/data/presets/localEmbedding'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { type AuthConfig, DEFAULT_API_FEATURES } from '@shared/data/types/provider'
 import { net } from 'electron'
@@ -18,8 +23,8 @@ import { customFetch } from '../../utils/customFetch'
 // auth config off the direct-import ProviderService singleton. Mock both at the
 // module boundary so the dispatch builders run without touching the DB.
 const { getRotatedApiKeyMock, getAuthConfigMock, getByProviderIdMock } = vi.hoisted(() => ({
-  getRotatedApiKeyMock: vi.fn<(providerId: string) => Promise<string>>(),
-  getAuthConfigMock: vi.fn<(providerId: string) => Promise<AuthConfig | null>>(),
+  getRotatedApiKeyMock: vi.fn<(providerId: string) => string>(),
+  getAuthConfigMock: vi.fn<(providerId: string) => AuthConfig | null>(),
   getByProviderIdMock: vi.fn()
 }))
 const { generateSignatureMock } = vi.hoisted(() => ({
@@ -43,8 +48,8 @@ const { providerToAiSdkConfig } = await import('../config')
 
 beforeEach(() => {
   vi.clearAllMocks()
-  getRotatedApiKeyMock.mockResolvedValue('sk-test-key')
-  getAuthConfigMock.mockResolvedValue(null)
+  getRotatedApiKeyMock.mockReturnValue('sk-test-key')
+  getAuthConfigMock.mockReturnValue(null)
 })
 
 afterEach(() => {
@@ -52,6 +57,16 @@ afterEach(() => {
 })
 
 describe('providerToAiSdkConfig — builder dispatch matrix', () => {
+  it('uses an explicit API key override instead of the provider rotation key', async () => {
+    const provider = makeProvider({ id: 'openai' })
+    const model = makeModel({ id: 'openai::gpt-4o', apiModelId: 'gpt-4o', providerId: 'openai' })
+
+    const config = await providerToAiSdkConfig(provider, model, { apiKeyOverride: 'sk-selected' })
+
+    expect(getRotatedApiKeyMock).not.toHaveBeenCalled()
+    expect((config.providerSettings as Record<string, unknown>).apiKey).toBe('sk-selected')
+  })
+
   describe('Vertex routing (google-vertex AND google-vertex-anthropic → buildVertexConfig)', () => {
     const vertexAuth: AuthConfig = {
       type: 'iam-gcp',
@@ -70,7 +85,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       // resolveAiSdkProviderId self-maps to the same aiSdkProviderId. Without the
       // 'google-vertex-anthropic' row in the dispatch table this falls through to
       // the generic builder and silently DROPS project/location/googleCredentials.
-      getAuthConfigMock.mockResolvedValue(vertexAuth)
+      getAuthConfigMock.mockReturnValue(vertexAuth)
       const provider = makeProvider({
         id: 'vertex',
         authType: 'iam-gcp',
@@ -107,7 +122,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     })
 
     it('routes a normal google-vertex endpoint to buildVertexConfig with the google publisher baseURL', async () => {
-      getAuthConfigMock.mockResolvedValue(vertexAuth)
+      getAuthConfigMock.mockReturnValue(vertexAuth)
       const provider = makeProvider({
         id: 'vertex',
         authType: 'iam-gcp',
@@ -138,7 +153,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       // Service-account JSON stored with snake_case keys must surface as camelCase
       // `clientEmail` on googleCredentials; otherwise @ai-sdk/google-vertex/edge
       // builds a JWT with iss:undefined and auth fails.
-      getAuthConfigMock.mockResolvedValue({
+      getAuthConfigMock.mockReturnValue({
         type: 'iam-gcp',
         project: 'my-project',
         location: 'us-central1',
@@ -176,7 +191,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       // Standard Vertex providers leave baseUrl empty. The old code appended the publisher
       // suffix to '' → '/publishers/google', a truthy host-less URL the Vertex SDK's `?? `
       // default does NOT override, so every inference request targeted a host-less path.
-      getAuthConfigMock.mockResolvedValue(vertexAuth)
+      getAuthConfigMock.mockReturnValue(vertexAuth)
       const provider = makeProvider({
         id: 'vertex',
         authType: 'iam-gcp',
@@ -205,7 +220,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     })
 
     it('throws when a Vertex-resolved provider lacks iam-gcp auth config', async () => {
-      getAuthConfigMock.mockResolvedValue(null)
+      getAuthConfigMock.mockReturnValue(null)
       const provider = makeProvider({
         id: 'vertex',
         authType: 'iam-gcp',
@@ -227,7 +242,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
   describe('Bedrock row', () => {
     it('routes a bedrock-resolved provider to buildBedrockConfig (iam-aws region/keys)', async () => {
-      getAuthConfigMock.mockResolvedValue({
+      getAuthConfigMock.mockReturnValue({
         type: 'iam-aws',
         region: 'us-east-1',
         accessKeyId: 'AKIA',
@@ -261,7 +276,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     })
 
     it('passes baseURL=undefined (not "") when no host is configured, so the SDK derives the host (upstream #14425)', async () => {
-      getAuthConfigMock.mockResolvedValue({
+      getAuthConfigMock.mockReturnValue({
         type: 'iam-aws',
         region: 'us-east-1',
         accessKeyId: 'AKIA',
@@ -315,7 +330,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(settings.baseURL).not.toMatch(/\/openai$/)
     })
 
-    it('routes an Azure provider on an anthropic-messages endpoint to azure-anthropic even for a non-claude id', async () => {
+    it('uses the provider default endpoint to route an Azure provider to azure-anthropic', async () => {
       const provider = makeProvider({
         id: 'azure-openai',
         authType: 'iam-azure',
@@ -327,7 +342,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const model = makeModel({
         id: 'azure::custom',
         apiModelId: 'some-anthropic-relay-model',
-        endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+        endpointTypes: undefined
       })
 
       const config = await providerToAiSdkConfig(provider, model)
@@ -362,7 +377,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       // The resolver upgrades the default OpenAI chat endpoint to the `cherryin-chat` variant,
       // so the old `id === 'cherryin'` dispatch row never matched and the request fell through
       // to buildGenericProviderConfig — dropping endpointType + the relay anthropic/gemini URLs.
-      getByProviderIdMock.mockResolvedValue(
+      getByProviderIdMock.mockReturnValue(
         makeProvider({
           id: 'cherryin',
           endpointConfigs: {
@@ -384,7 +399,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const model = makeModel({
         id: 'cherryin::gpt-4o',
         apiModelId: 'gpt-4o',
-        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+        endpointTypes: undefined
       })
 
       const config = await providerToAiSdkConfig(provider, model)
@@ -397,11 +412,101 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(settings.anthropicBaseURL).toBeDefined()
       expect(settings.geminiBaseURL).toBeDefined()
     })
+
+    it('routes a CherryIn google-generate-content model (e.g. nano-banana image) to the cherryin extension, not openai-compatible (REGRESSION)', async () => {
+      // CherryIN relays its Google models via Gemini's native `generateContent`; its
+      // registry declares `google-generate-content` → adapterFamily 'cherryin'.
+      // Without that declaration the endpoint fell through to `openai-compatible`,
+      // whose image model POSTs edits to `/v1/images/edits` — which CherryIN serves
+      // only for imagen (500 "only imagen models supported"). The declaration routes
+      // it to the cherryin extension so createImageModel() drives editing through
+      // `generateContent`.
+      const cherryinEndpointConfigs = {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://open.cherryin.net', adapterFamily: 'cherryin' },
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: 'https://open.cherryin.net', adapterFamily: 'cherryin' },
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://open.cherryin.net', adapterFamily: 'cherryin' }
+      }
+      getByProviderIdMock.mockReturnValue(makeProvider({ id: 'cherryin', endpointConfigs: cherryinEndpointConfigs }))
+      const provider = makeProvider({
+        id: 'cherryin',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: cherryinEndpointConfigs
+      })
+      const model = makeModel({
+        providerId: 'cherryin',
+        apiModelId: 'google/gemini-3.1-flash-image-preview',
+        endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT],
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      expect(config.providerId).toBe('cherryin')
+    })
+
+    it('leaves a CherryIn image model on an undeclared endpoint (e.g. imagen via openai-image-generation) on openai-compatible', async () => {
+      // Only `google-generate-content` (Gemini) is declared. An imagen model reports
+      // `openai-image-generation`, which stays undeclared → resolveAiSdkProviderId
+      // returns openai-compatible, keeping imagen on its working `/v1/images/*` path.
+      getByProviderIdMock.mockReturnValue(makeProvider({ id: 'cherryin', endpointConfigs: {} }))
+      const provider = makeProvider({
+        id: 'cherryin',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: 'https://open.cherryin.net', adapterFamily: 'cherryin' },
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://open.cherryin.net', adapterFamily: 'cherryin' }
+        }
+      })
+      const model = makeModel({
+        providerId: 'cherryin',
+        apiModelId: 'imagen-4.0-generate-001',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      expect(config.providerId).toBe('openai-compatible')
+    })
+
+    it('routes a preset-derived CherryIN instance (custom host) through buildCherryinConfig with ITS OWN relay base URLs (REGRESSION)', async () => {
+      // A user-created / enterprise CherryIN instance: UUID id, presetProviderId
+      // 'cherryin', custom host. `matchesPreset` (not a bare `id === 'cherryin'`)
+      // must still dispatch to buildCherryinConfig, and its gemini/anthropic base
+      // URLs must come from THIS instance — reading the hardcoded preset would send
+      // the request to open.cherryin.net instead of the enterprise host.
+      const host = 'https://express-ent-admin.cherryin.ai'
+      const provider = makeProvider({
+        id: 'aa1dff45-uuid',
+        presetProviderId: 'cherryin',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: host, adapterFamily: 'cherryin' },
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: `${host}/v1`, adapterFamily: 'cherryin' },
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: `${host}/v1beta`, adapterFamily: 'cherryin' }
+        }
+      })
+      // Gemini image model with EMPTY endpointTypes (how the instance's models are
+      // stored) → falls back to the chat endpoint → cherryin-chat variant;
+      // createImageModel still dispatches gemini→generateContent by model id.
+      const model = makeModel({
+        providerId: 'aa1dff45-uuid',
+        apiModelId: 'google/gemini-3.1-flash-image-preview',
+        endpointTypes: undefined,
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(config.providerId).toBe('cherryin-chat')
+      // The fix: relay base URLs come from THIS instance, not open.cherryin.net.
+      expect(settings.geminiBaseURL).toBe(`${host}/v1beta`)
+      expect(settings.anthropicBaseURL).toBe(`${host}/v1`)
+    })
   })
 
   describe('CherryAI routing', () => {
     it('uses custom fetch to sign chat completions requests', async () => {
-      getRotatedApiKeyMock.mockResolvedValue('')
+      getRotatedApiKeyMock.mockReturnValue('')
       generateSignatureMock.mockReturnValue({
         'X-Client-ID': 'cherry-studio',
         'X-Timestamp': '1700000000',
@@ -452,6 +557,38 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
           })
         })
       )
+    })
+  })
+
+  describe('Local embedding routing (in-process provider, no endpoint/baseURL/apiKey)', () => {
+    it('routes the local embedding provider to its own provider id instead of the openai-compatible fallback (REGRESSION)', async () => {
+      // The local embedding provider has no endpoint config, so resolveAiSdkProviderId
+      // returns 'openai-compatible'. Without the dedicated dispatch row it would fall
+      // through to buildOpenAICompatibleConfig, which hands ai-core an empty baseURL and
+      // throws "Invalid URL". The id-based row must win and produce empty providerSettings.
+      const provider = makeProvider({
+        id: LOCAL_EMBEDDING_PROVIDER_ID,
+        presetProviderId: LOCAL_EMBEDDING_PROVIDER_ID,
+        // Mirrors the registered row: in-process runtime, no endpoints.
+        endpointConfigs: {}
+      })
+      const model = makeModel({
+        id: LOCAL_EMBEDDING_UNIQUE_MODEL_ID,
+        providerId: LOCAL_EMBEDDING_PROVIDER_ID,
+        apiModelId: LOCAL_EMBEDDING_MODEL_ID,
+        capabilities: [MODEL_CAPABILITY.EMBEDDING]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(config.providerId).toBe(LOCAL_EMBEDDING_PROVIDER_ID)
+      // The local builder returns empty providerSettings: no baseURL/apiKey leak from the
+      // openai-compatible builder (the rotated key is fetched but deliberately discarded).
+      expect(settings.baseURL).toBeUndefined()
+      expect(settings.apiKey).toBeUndefined()
+      // Still defaulted to the proxy-aware fetch by the shared tail of providerToAiSdkConfig.
+      expect(settings.fetch).toBe(customFetch)
     })
   })
 
@@ -637,10 +774,10 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
   })
 
   describe('NewAPI builder', () => {
-    it('uses anthropic endpointConfig baseUrl for anthropic endpoint type', async () => {
+    it('uses the provider default anthropic endpoint when the model has no endpoint types', async () => {
       const provider = makeProvider({
         id: 'my-newapi',
-        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+        defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
         endpointConfigs: {
           [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
             baseUrl: 'https://api.newapi.com/v1',
@@ -652,7 +789,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
           }
         }
       })
-      const model = makeModel({ endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES] })
+      const model = makeModel({ endpointTypes: undefined })
 
       const config = await providerToAiSdkConfig(provider, model)
 

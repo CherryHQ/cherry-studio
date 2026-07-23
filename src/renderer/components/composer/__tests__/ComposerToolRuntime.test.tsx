@@ -5,37 +5,32 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ComposerToolLauncher } from '../toolLauncher'
 import type { ToolRenderContext } from '../tools/types'
 
-const { mockDropdownMenuSelectEvents, mockGetToolsForScope, mockQuickPanelValue, mockUseQuickPanel } = vi.hoisted(
-  () => {
-    const mockQuickPanelValue = {
-      close: vi.fn(),
-      isVisible: false,
-      open: vi.fn(),
-      symbol: '',
-      updateList: vi.fn()
-    }
-
-    return {
-      mockDropdownMenuSelectEvents: [] as Array<{
-        ariaLabel: string | undefined
-        preventDefault: ReturnType<typeof vi.fn>
-        stopPropagation: ReturnType<typeof vi.fn>
-      }>,
-      mockGetToolsForScope: vi.fn(),
-      mockQuickPanelValue,
-      mockUseQuickPanel: vi.fn(() => mockQuickPanelValue)
-    }
+const { mockGetToolsForScope, mockQuickPanelValue, mockUseQuickPanel } = vi.hoisted(() => {
+  const mockQuickPanelValue = {
+    close: vi.fn(),
+    isVisible: false,
+    open: vi.fn(),
+    symbol: '',
+    updateList: vi.fn()
   }
-)
 
-vi.mock('@renderer/components/composer/tools', () => ({}))
+  return {
+    mockGetToolsForScope: vi.fn(),
+    mockQuickPanelValue,
+    mockUseQuickPanel: vi.fn(() => mockQuickPanelValue)
+  }
+})
+
+vi.mock('@renderer/components/composer/tools/builtinTools', () => ({
+  getAllTools: () => [],
+  getToolsForScope: (...args: unknown[]) => mockGetToolsForScope(...args)
+}))
 
 vi.mock('@renderer/components/composer/tools/types', () => ({
   TopicType: {
     Chat: 'chat',
     Session: 'session'
-  },
-  getToolsForScope: (...args: unknown[]) => mockGetToolsForScope(...args)
+  }
 }))
 
 vi.mock('@renderer/components/QuickPanel', () => ({
@@ -50,73 +45,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-const getMenuItemTestId = (label: string) => `menu-item-${label.replace(/\s+/g, '-')}`
-const getMenuItemSuffixTestId = (label: string) => `menu-item-suffix-${label.replace(/\s+/g, '-')}`
-
 vi.mock('@cherrystudio/ui', () => ({
-  ContextMenuItemContent: ({ badge, children, hasSubmenu, icon: _icon }: any) => (
-    <>
-      <span>
-        {_icon ? <span>{_icon}</span> : null}
-        <span>{children}</span>
-      </span>
-      {badge ? <span data-testid={getMenuItemSuffixTestId(String(children))}>{badge}</span> : null}
-      {hasSubmenu ? <svg aria-hidden="true" /> : null}
-    </>
-  ),
-  DropdownMenu: ({ children, onOpenChange, open }: any) => {
-    useEffect(() => {
-      onOpenChange?.(true)
-    }, [onOpenChange])
-
-    return (
-      <div data-open={open ? 'true' : 'false'} data-testid="composer-tool-dropdown-root">
-        {children}
-      </div>
-    )
-  },
-  DropdownMenuContent: ({ children, className, sideOffset }: any) => (
-    <div className={className} data-side-offset={sideOffset} data-testid="composer-tool-dropdown-content">
-      {children}
-    </div>
-  ),
-  DropdownMenuItem: ({ 'aria-label': ariaLabel, className, disabled, onSelect, ...props }: any) => (
-    <div
-      aria-disabled={disabled ? 'true' : undefined}
-      className={className}
-      data-disabled={disabled ? '' : undefined}
-      data-slot="dropdown-menu-item"
-      data-testid={getMenuItemTestId(ariaLabel)}
-      onClick={() => {
-        const selectEvent = {
-          preventDefault: vi.fn(),
-          stopPropagation: vi.fn()
-        }
-        mockDropdownMenuSelectEvents.push({ ariaLabel, ...selectEvent })
-        onSelect?.(selectEvent)
-      }}
-      {...props}>
-      {props.children}
-    </div>
-  ),
-  DropdownMenuSub: ({ children }: any) => <div data-slot="dropdown-menu-sub">{children}</div>,
-  DropdownMenuSubContent: ({ children, className }: any) => (
-    <div className={className} data-slot="dropdown-menu-sub-content" data-testid="dropdown-menu-sub-content">
-      {children}
-    </div>
-  ),
-  DropdownMenuSubTrigger: ({ 'aria-label': ariaLabel, children, className, disabled }: any) => (
-    <button
-      type="button"
-      className={className}
-      data-slot="dropdown-menu-sub-trigger"
-      data-testid={`dropdown-menu-sub-trigger-${ariaLabel}`}
-      disabled={disabled}>
-      {children}
-      <svg aria-hidden="true" />
-    </button>
-  ),
-  DropdownMenuTrigger: ({ children }: any) => <>{children}</>,
   Tooltip: ({ children, content, isOpen }: any) => (
     <div
       data-testid="composer-tool-tooltip"
@@ -129,6 +58,7 @@ vi.mock('@cherrystudio/ui', () => ({
 
 import {
   ComposerActiveToolControls,
+  ComposerPinnedToolsProvider,
   ComposerToolMenu,
   ComposerToolRuntimeHost,
   ComposerToolRuntimeProvider,
@@ -217,7 +147,6 @@ const FileStateWriter = ({ nextFiles }: { nextFiles: any[] }) => {
 }
 
 beforeEach(() => {
-  mockDropdownMenuSelectEvents.length = 0
   mockGetToolsForScope.mockReset()
   mockUseQuickPanel.mockClear()
   mockQuickPanelValue.close.mockClear()
@@ -400,298 +329,20 @@ describe('ComposerToolRuntimeHost', () => {
 })
 
 describe('ComposerToolMenu', () => {
-  it('renders only popover launchers in the plus menu', async () => {
-    renderRuntime(
-      [
-        {
-          key: 'fake-menu-tool',
-          label: 'Fake menu tool',
-          composer: {
-            menuItems: {
-              createItems: vi.fn(() => [
-                {
-                  id: 'popover-only',
-                  kind: 'command',
-                  label: 'Popover only',
-                  icon: 'fake',
-                  sources: ['popover'],
-                  action: vi.fn()
-                },
-                {
-                  id: 'root-only',
-                  kind: 'command',
-                  label: 'Root only',
-                  icon: 'fake',
-                  sources: ['root-panel'],
-                  action: vi.fn()
-                },
-                {
-                  id: 'both',
-                  kind: 'command',
-                  label: 'Both',
-                  icon: 'fake',
-                  sources: ['popover', 'root-panel'],
-                  action: vi.fn()
-                }
-              ])
-            }
-          }
-        }
-      ],
-      <ComposerToolMenu />
-    )
+  it('opens the unified QuickPanel from the plus trigger', async () => {
+    const openUnifiedPanel = vi.fn()
 
-    expect(await screen.findByText('Popover only')).toBeInTheDocument()
-    expect(screen.getByText('Both')).toBeInTheDocument()
-    expect(screen.queryByText('Root only')).not.toBeInTheDocument()
+    renderRuntime([], <ComposerToolMenu unifiedPanelControl={{ available: true, open: openUnifiedPanel }} />)
+
+    fireEvent.click(screen.getByLabelText('settings.quickPanel.title'))
+
+    expect(openUnifiedPanel).toHaveBeenCalledTimes(1)
   })
 
-  it('does not render the plus trigger when there are no popover launchers', async () => {
-    const createItems = vi.fn(() => [
-      {
-        id: 'root-only',
-        kind: 'command',
-        label: 'Root only',
-        icon: 'fake',
-        sources: ['root-panel'],
-        action: vi.fn()
-      }
-    ])
+  it('does not render the plus trigger when the unified panel is unavailable', () => {
+    renderRuntime([], <ComposerToolMenu unifiedPanelControl={{ available: false, open: vi.fn() }} />)
 
-    renderRuntime(
-      [
-        {
-          key: 'fake-menu-tool',
-          label: 'Fake menu tool',
-          composer: {
-            menuItems: { createItems }
-          }
-        }
-      ],
-      <ComposerToolMenu />
-    )
-
-    await waitFor(() => {
-      expect(createItems).toHaveBeenCalled()
-    })
-
-    expect(screen.queryByLabelText('common.add')).not.toBeInTheDocument()
-    expect(screen.queryByText('Root only')).not.toBeInTheDocument()
-  })
-
-  it('keeps disabled reasons in a tooltip instead of the menu row', async () => {
-    renderRuntime(
-      [
-        {
-          key: 'fake-menu-tool',
-          label: 'Fake menu tool',
-          composer: {
-            menuItems: {
-              createItems: vi.fn(() => [
-                {
-                  disabled: true,
-                  disabledReason: 'Requires a compatible model',
-                  id: 'disabled-tool',
-                  kind: 'command',
-                  label: 'Disabled tool',
-                  icon: 'fake',
-                  sources: ['popover'],
-                  action: vi.fn()
-                }
-              ])
-            }
-          }
-        }
-      ],
-      <ComposerToolMenu />
-    )
-
-    expect(await screen.findByText('Disabled tool')).toBeInTheDocument()
-    expect(screen.queryByText('Requires a compatible model')).not.toBeInTheDocument()
-    expect(screen.getByTestId('composer-tool-tooltip')).toHaveAttribute(
-      'data-tooltip-content',
-      'Requires a compatible model'
-    )
-    expect(screen.getByTestId('composer-tool-tooltip')).toHaveAttribute('data-tooltip-open', 'false')
-
-    fireEvent.mouseMove(screen.getByTestId(getMenuItemTestId('Disabled tool')))
-
-    expect(screen.getByTestId('composer-tool-tooltip')).toHaveAttribute('data-tooltip-open', 'true')
-  })
-
-  it('keeps the plus menu single-line while allowing content-sized width', async () => {
-    renderRuntime(
-      [
-        {
-          key: 'fake-menu-tool',
-          label: 'Fake menu tool',
-          composer: {
-            menuItems: {
-              createItems: vi.fn(() => [
-                {
-                  id: 'compact-tool',
-                  kind: 'command',
-                  label: 'CompactTool',
-                  icon: 'fake',
-                  suffix: 'Localized suffix',
-                  sources: ['popover'],
-                  action: vi.fn()
-                }
-              ])
-            }
-          }
-        }
-      ],
-      <ComposerToolMenu />
-    )
-
-    await screen.findByText('CompactTool')
-    expect(screen.getByTestId('composer-tool-dropdown-content')).toHaveClass(
-      'min-w-52',
-      'w-max',
-      'max-w-[calc(100vw-2rem)]'
-    )
-    expect(screen.getByTestId('composer-tool-dropdown-content')).not.toHaveClass('w-52')
-    expect(screen.getByTestId('composer-tool-dropdown-content')).toHaveAttribute('data-side-offset', '4')
-    expect(screen.getByTestId(getMenuItemTestId('CompactTool'))).toHaveAttribute('data-slot', 'dropdown-menu-item')
-    expect(screen.getByText('CompactTool')).toHaveClass('whitespace-nowrap')
-    expect(screen.getByText('Localized suffix')).toHaveClass('shrink-0', 'whitespace-nowrap')
-  })
-
-  it('does not apply active styling to disabled launchers', async () => {
-    renderRuntime(
-      [
-        {
-          key: 'fake-menu-tool',
-          label: 'Fake menu tool',
-          composer: {
-            menuItems: {
-              createItems: vi.fn(() => [
-                {
-                  active: true,
-                  disabled: true,
-                  disabledReason: 'Disabled because unavailable',
-                  id: 'disabled-active-tool',
-                  kind: 'command',
-                  label: 'DisabledActive',
-                  icon: 'fake',
-                  sources: ['popover'],
-                  action: vi.fn()
-                }
-              ])
-            }
-          }
-        }
-      ],
-      <ComposerToolMenu />
-    )
-
-    expect(await screen.findByText('DisabledActive')).toBeInTheDocument()
-    expect(screen.getByTestId(getMenuItemTestId('DisabledActive'))).not.toHaveClass('bg-accent')
-    expect(screen.queryByText('Disabled because unavailable')).not.toBeInTheDocument()
-  })
-
-  it('uses an icon chevron instead of a text arrow for panel launchers', async () => {
-    renderRuntime(
-      [
-        {
-          key: 'fake-menu-tool',
-          label: 'Fake menu tool',
-          composer: {
-            menuItems: {
-              createItems: vi.fn(() => [
-                {
-                  id: 'panel-tool',
-                  kind: 'panel',
-                  label: 'PanelTool',
-                  icon: 'fake',
-                  sources: ['popover'],
-                  action: vi.fn()
-                }
-              ])
-            }
-          }
-        }
-      ],
-      <ComposerToolMenu />
-    )
-
-    expect(await screen.findByText('PanelTool')).toBeInTheDocument()
-    expect(screen.queryByText('›')).not.toBeInTheDocument()
-    expect(screen.getByTestId(getMenuItemTestId('PanelTool')).querySelector('svg')).toBeInTheDocument()
-  })
-
-  it('renders only popover submenu items with shadcn dropdown sub components', async () => {
-    const popoverModeAction = vi.fn()
-
-    renderRuntime(
-      [
-        {
-          key: 'fake-menu-tool',
-          label: 'Fake menu tool',
-          composer: {
-            menuItems: {
-              createItems: vi.fn(() => [
-                {
-                  id: 'mode-parent',
-                  kind: 'group',
-                  label: 'ModeParent',
-                  icon: 'fake',
-                  sources: ['popover'],
-                  submenu: [
-                    {
-                      id: 'mode-child-popover',
-                      kind: 'command',
-                      label: 'PopoverMode',
-                      description: 'Popover mode description',
-                      icon: 'fake',
-                      sources: ['popover'],
-                      action: popoverModeAction
-                    },
-                    {
-                      id: 'mode-child-root',
-                      kind: 'command',
-                      label: 'RootMode',
-                      description: 'Root mode description',
-                      icon: 'fake',
-                      sources: ['root-panel'],
-                      action: vi.fn()
-                    }
-                  ]
-                }
-              ])
-            }
-          }
-        }
-      ],
-      <ComposerToolMenu />
-    )
-
-    expect(await screen.findByTestId('dropdown-menu-sub-trigger-ModeParent')).toBeInTheDocument()
-    await waitFor(() => {
-      expect(screen.getByTestId('composer-tool-dropdown-root')).toHaveAttribute('data-open', 'true')
-    })
-    expect(screen.getByTestId('dropdown-menu-sub-content')).toHaveClass(
-      'min-w-44',
-      'w-max',
-      'max-w-[calc(100vw-2rem)]',
-      'data-[state=closed]:hidden'
-    )
-    expect(screen.getByText('PopoverMode')).toBeInTheDocument()
-    expect(screen.queryByText('RootMode')).not.toBeInTheDocument()
-    expect(screen.queryByText('Popover mode description')).not.toBeInTheDocument()
-    expect(screen.queryByText('RootMode')).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByTestId(getMenuItemTestId('PopoverMode')))
-
-    expect(popoverModeAction).toHaveBeenCalledTimes(1)
-    const [selectEvent] = mockDropdownMenuSelectEvents
-    expect(selectEvent).toMatchObject({ ariaLabel: 'PopoverMode' })
-    expect(selectEvent.preventDefault).toHaveBeenCalledTimes(1)
-    expect(selectEvent.stopPropagation).toHaveBeenCalledTimes(1)
-    await waitFor(() => {
-      expect(screen.getByTestId('composer-tool-dropdown-root')).toHaveAttribute('data-open', 'false')
-    })
+    expect(screen.queryByLabelText('settings.quickPanel.title')).not.toBeInTheDocument()
   })
 })
 
@@ -755,6 +406,68 @@ describe('ComposerActiveToolControls', () => {
     )
 
     await waitFor(() => expect(screen.queryByLabelText('UnpinnedActive')).not.toBeInTheDocument())
+  })
+
+  it('drops active launchers already rendered by the pinned toolbar (dedup)', async () => {
+    renderRuntime(
+      [
+        {
+          key: 'fake-menu-tool',
+          label: 'Fake menu tool',
+          composer: {
+            menuItems: {
+              createItems: vi.fn(() => [
+                {
+                  active: true,
+                  id: 'pinned-active-tool',
+                  kind: 'command',
+                  label: 'PinnedActive',
+                  icon: 'fake',
+                  sources: ['popover'],
+                  action: vi.fn()
+                }
+              ])
+            }
+          }
+        }
+      ],
+      <ComposerPinnedToolsProvider value={['pinned-active-tool']}>
+        <ComposerActiveToolControls />
+      </ComposerPinnedToolsProvider>
+    )
+
+    await waitFor(() => expect(screen.queryByLabelText('PinnedActive')).not.toBeInTheDocument())
+  })
+
+  it('shows an active launcher as a chip when it is not pinned (backfill)', async () => {
+    renderRuntime(
+      [
+        {
+          key: 'fake-menu-tool',
+          label: 'Fake menu tool',
+          composer: {
+            menuItems: {
+              createItems: vi.fn(() => [
+                {
+                  active: true,
+                  id: 'unpinned-active-tool',
+                  kind: 'command',
+                  label: 'BackfilledActive',
+                  icon: 'fake',
+                  sources: ['popover'],
+                  action: vi.fn()
+                }
+              ])
+            }
+          }
+        }
+      ],
+      <ComposerPinnedToolsProvider value={['some-other-tool']}>
+        <ComposerActiveToolControls />
+      </ComposerPinnedToolsProvider>
+    )
+
+    await waitFor(() => expect(screen.queryByLabelText('BackfilledActive')).toBeInTheDocument())
   })
 })
 

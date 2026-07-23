@@ -21,10 +21,15 @@ import type {
   ReasoningEffort as ReasoningEffortType
 } from '@cherrystudio/provider-registry'
 import type { EndpointType, Modality, ModelCapability } from '@cherrystudio/provider-registry'
-import { buildRuntimeEndpointConfigs, ENDPOINT_TYPE, REASONING_EFFORT } from '@cherrystudio/provider-registry'
+import {
+  buildRuntimeEndpointConfigs,
+  ENDPOINT_TYPE,
+  inferAdapterFamily,
+  REASONING_EFFORT
+} from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { loggerService } from '@logger'
-import { ErrorCode, isDataApiError } from '@shared/data/api/apiErrors'
+import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { ImageGenerationSupport, Model, RuntimeModelPricing, RuntimeReasoning } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { EndpointConfig, ProviderWebsites, ReasoningFormatType } from '@shared/data/types/provider'
@@ -36,6 +41,12 @@ const logger = loggerService.withContext('DataApi:ProviderRegistryService')
 export interface ProviderDisplayMetadata {
   description?: string
   websites?: ProviderWebsites
+  /** Registry capability: where the model list comes from (default `'api'`). */
+  modelListSource?: 'api' | 'registry'
+  /** Registry capability: accepted credential kinds (default `['api-key']`). */
+  authMethods?: ('api-key' | 'oauth' | 'external-cli')[]
+  /** Registry capability: serves requests without any credential (default false). */
+  authOptional?: boolean
 }
 
 export interface ListProviderRegistryModelsOptions {
@@ -412,6 +423,30 @@ class ProviderRegistryService {
       .find((provider) => provider.id === providerId)
   }
 
+  resolveAdapterFamilies(
+    endpointConfigs: Partial<Record<EndpointType, EndpointConfig>> | null | undefined,
+    presetProviderId?: string | null
+  ): Partial<Record<EndpointType, EndpointConfig>> | null {
+    if (!endpointConfigs || Object.keys(endpointConfigs).length === 0) return null
+
+    const presetProvider = presetProviderId ? this.findRegistryProvider(presetProviderId) : undefined
+    const presetConfigs = presetProvider
+      ? (buildRuntimeEndpointConfigs(presetProvider.endpointConfigs) as Partial<
+          Record<EndpointType, EndpointConfig>
+        > | null)
+      : null
+
+    const result: Partial<Record<EndpointType, EndpointConfig>> = {}
+    for (const [key, config] of Object.entries(endpointConfigs)) {
+      if (!config) continue
+      const ep = key as EndpointType
+      result[ep] = config.adapterFamily
+        ? config
+        : { ...config, adapterFamily: presetConfigs?.[ep]?.adapterFamily ?? inferAdapterFamily(ep) }
+    }
+    return result
+  }
+
   /**
    * True when `providerId` is a canonical registry preset row (seeded from
    * providers.json), regardless of its `presetProviderId`. Used to keep
@@ -437,7 +472,10 @@ class ProviderRegistryService {
 
       return {
         description: provider?.description,
-        websites: provider?.metadata?.website
+        websites: provider?.metadata?.website,
+        modelListSource: provider?.modelListSource,
+        authMethods: provider?.authMethods,
+        authOptional: provider?.authOptional
       }
     } catch (error) {
       logger.warn('Failed to load provider display metadata', { providerId, presetProviderId, error })
@@ -478,15 +516,15 @@ class ProviderRegistryService {
    * @param providerId - The provider to resolve config for
    * @returns Merged reasoning config with user overrides applied
    */
-  private async getEffectiveReasoningConfig(providerId: string): Promise<{
+  private getEffectiveReasoningConfig(providerId: string): {
     defaultChatEndpoint?: EndpointType
     reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
-  }> {
+  } {
     const registryConfig = this.getRegistryReasoningConfig(providerId)
 
     try {
       const providerService = getDataService('ProviderService')
-      const provider = await providerService.getByProviderId(providerId)
+      const provider = providerService.getByProviderId(providerId)
       const defaultChatEndpoint = provider.defaultChatEndpoint ?? registryConfig.defaultChatEndpoint
       const reasoningFormatTypes =
         extractReasoningFormatTypes(provider.endpointConfigs) ?? registryConfig.reasoningFormatTypes
@@ -516,19 +554,19 @@ class ProviderRegistryService {
    * @param modelId - The model ID to look up (supports normalized fallback)
    * @returns Preset model, provider override, and effective reasoning config
    */
-  async lookupModel(
+  lookupModel(
     providerId: string,
     modelId: string,
     reasoningConfigCache?: Map<
       string,
       { defaultChatEndpoint?: EndpointType; reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>> }
     >
-  ): Promise<{
+  ): {
     presetModel: ProtoModelConfig | null
     registryOverride: ProtoProviderModelOverride | null
     defaultChatEndpoint?: EndpointType
     reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
-  }> {
+  } {
     const loader = this.getLoader()
     const registryOverride = loader.findOverride(providerId, modelId)
     const presetModel = loader.findModel(registryOverride?.modelId ?? modelId)
@@ -537,7 +575,7 @@ class ProviderRegistryService {
     // resolve it once per provider instead of once per model.
     let reasoningConfig = reasoningConfigCache?.get(providerId)
     if (!reasoningConfig) {
-      reasoningConfig = await this.getEffectiveReasoningConfig(providerId)
+      reasoningConfig = this.getEffectiveReasoningConfig(providerId)
       reasoningConfigCache?.set(providerId, reasoningConfig)
     }
 
@@ -561,9 +599,9 @@ class ProviderRegistryService {
    * @param modelIds - Model IDs from SDK listModels()
    * @returns Array of fully resolved Model objects
    */
-  async resolveModels(providerId: string, modelIds: string[]): Promise<Model[]> {
+  resolveModels(providerId: string, modelIds: string[]): Model[] {
     const loader = this.getLoader()
-    const { defaultChatEndpoint, reasoningFormatTypes } = await this.getEffectiveReasoningConfig(providerId)
+    const { defaultChatEndpoint, reasoningFormatTypes } = this.getEffectiveReasoningConfig(providerId)
 
     const results: Model[] = []
     const seen = new Set<string>()
@@ -577,9 +615,25 @@ class ProviderRegistryService {
       const presetModel = loader.findModel(registryOverride?.modelId ?? modelId)
 
       if (presetModel) {
-        results.push(
-          mergePresetModel(presetModel, registryOverride, providerId, reasoningFormatTypes, defaultChatEndpoint)
+        const model = mergePresetModel(
+          presetModel,
+          registryOverride,
+          providerId,
+          reasoningFormatTypes,
+          defaultChatEndpoint
         )
+        // `mergePresetModel` keys `id` off the canonical `presetModel.id`, which collapses providers that
+        // serve one canonical model under several apiModelIds (e.g. tokenhub's dated 原厂直供 variants both
+        // resolve to `deepseek-v4-flash`). Mirror `listProviderRegistryModels`: rebuild the unique id from
+        // the exact apiModelId and keep the canonical `presetModelId`, so sync/reconcile (which key on
+        // `model.id`) don't drop or mis-diff the dated variant against the undated row.
+        const apiModelId = model.apiModelId ?? registryOverride?.apiModelId ?? modelId
+        results.push({
+          ...model,
+          id: createUniqueModelId(providerId, apiModelId),
+          apiModelId,
+          presetModelId: presetModel.id
+        })
       } else {
         results.push(createCustomModel(providerId, modelId))
       }
@@ -588,7 +642,7 @@ class ProviderRegistryService {
     return results
   }
 
-  async listProviderRegistryModels(options: ListProviderRegistryModelsOptions = {}): Promise<Model[]> {
+  listProviderRegistryModels(options: ListProviderRegistryModelsOptions = {}): Model[] {
     const loader = this.getLoader()
     const overrides = options.providerId
       ? loader.getOverridesForProvider(options.providerId)
@@ -654,8 +708,8 @@ class ProviderRegistryService {
    * Used by: GET /providers/:providerId/models/:modelId/image-generation-support
    * (greedy `:modelId` capture for HuggingFace-style ids containing `/`).
    */
-  async getImageGenerationSupport(providerId: string, modelId: string): Promise<ImageGenerationSupport | null> {
-    const { presetModel, registryOverride } = await this.lookupModel(providerId, modelId)
+  getImageGenerationSupport(providerId: string, modelId: string): ImageGenerationSupport | null {
+    const { presetModel, registryOverride } = this.lookupModel(providerId, modelId)
     // Override wins — lets vendor-exclusive overrides declare their own
     // imageGeneration block without polluting the global models.json.
     if (registryOverride?.imageGeneration) return registryOverride.imageGeneration

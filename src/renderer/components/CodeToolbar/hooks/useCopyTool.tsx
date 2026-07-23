@@ -1,7 +1,7 @@
 import type { ActionTool } from '@renderer/components/ActionTools'
 import { TOOL_SPECS, useToolManager } from '@renderer/components/ActionTools'
-import { CopyIcon } from '@renderer/components/Icons'
-import type { BasicPreviewHandles } from '@renderer/components/Preview'
+import CopyIcon from '@renderer/components/icons/CopyIcon'
+import type { BasicPreviewHandles } from '@renderer/components/Preview/types'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { Check, Image } from 'lucide-react'
 import { useCallback, useEffect } from 'react'
@@ -32,7 +32,10 @@ export const useCopyTool = ({ showPreviewTools, previewRef, onCopySource, setToo
 
   const handleCopyImage = useCallback(() => {
     try {
-      void previewRef.current?.copy()
+      const preview = previewRef.current
+      if (!preview) return
+
+      void preview.copy()
       setCopiedImageTemporarily(true)
     } catch (error) {
       setCopiedImageTemporarily(false)
@@ -41,15 +44,11 @@ export const useCopyTool = ({ showPreviewTools, previewRef, onCopySource, setToo
   }, [previewRef, setCopiedImageTemporarily])
 
   useEffect(() => {
-    const includePreviewTools = showPreviewTools && previewRef.current !== null
+    const includePreviewTools = showPreviewTools === true
 
     const baseTool = {
       ...TOOL_SPECS.copy,
-      icon: copied ? (
-        <Check className="tool-icon" color="var(--color-status-success)" />
-      ) : (
-        <CopyIcon className="tool-icon" />
-      ),
+      icon: copied ? <Check className="tool-icon" color="var(--color-success)" /> : <CopyIcon className="tool-icon" />,
       tooltip: t('code_block.copy.source'),
       onClick: handleCopySource
     }
@@ -57,7 +56,7 @@ export const useCopyTool = ({ showPreviewTools, previewRef, onCopySource, setToo
     const copyImageTool = {
       ...TOOL_SPECS['copy-image'],
       icon: copiedImage ? (
-        <Check className="tool-icon" color="var(--color-status-success)" />
+        <Check className="tool-icon" color="var(--color-success)" />
       ) : (
         <Image className="tool-icon" />
       ),

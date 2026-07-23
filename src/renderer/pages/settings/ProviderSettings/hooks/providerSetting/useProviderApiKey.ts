@@ -1,9 +1,10 @@
 import { loggerService } from '@logger'
 import { useProvider, useProviderApiKeys, useProviderMutations } from '@renderer/hooks/useProvider'
-import i18n from '@renderer/i18n'
+import i18n from '@renderer/i18n/resolver'
+import { toast } from '@renderer/services/toast'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
-import { debounce } from 'lodash'
+import { debounce } from 'es-toolkit/compat'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -153,7 +154,7 @@ export function useProviderApiKey(providerId: string) {
       debounce((nextValue: string) => {
         void saveApiKeyRef.current(nextValue).catch((error) => {
           logger.error('Failed to save API keys', error as Error)
-          window.toast.error(i18n.t('settings.provider.api_key.save_failed'))
+          toast.error(i18n.t('settings.provider.api_key.save_failed'))
           setValue((current) => ({ ...current, hasPendingSync: true }))
         })
       }, 150),
@@ -211,7 +212,14 @@ export function useProviderApiKey(providerId: string) {
       return
     }
 
-    await saveApiKeyRef.current(normalizedInputApiKey)
+    try {
+      await saveApiKeyRef.current(normalizedInputApiKey)
+    } catch (error) {
+      logger.error('Failed to save API keys', error as Error)
+      toast.error(i18n.t('settings.provider.api_key.save_failed'))
+      setValue((current) => ({ ...current, hasPendingSync: true }))
+      throw error
+    }
   }, [saveLater])
 
   return useMemo(

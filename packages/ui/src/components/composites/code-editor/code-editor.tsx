@@ -26,6 +26,7 @@ const CodeEditor = ({
   ref,
   value,
   placeholder,
+  autoFocus,
   language,
   languageConfig,
   onSave,
@@ -44,7 +45,8 @@ const CodeEditor = ({
   editable = true,
   readOnly = false,
   expanded = true,
-  wrapped = true
+  wrapped = true,
+  autoScrollToBottom = false
 }: CodeEditorProps) => {
   const basicSetup = useMemo(() => {
     return {
@@ -68,6 +70,10 @@ const CodeEditor = ({
 
   const initialContent = useRef(options?.stream ? (value ?? '').trimEnd() : (value ?? ''))
   const editorViewRef = useRef<EditorView | null>(null)
+  const shouldStickToBottomRef = useRef(true)
+  const autoScrollToBottomRef = useRef(autoScrollToBottom)
+  const expandedRef = useRef(expanded)
+  const scrollCleanupRef = useRef<(() => void) | null>(null)
 
   const langExtensions = useLanguageExtensions(language, options?.lint, languageConfig)
 
@@ -85,6 +91,32 @@ const CodeEditor = ({
     return true
   }, [])
 
+  const focus = useCallback(() => {
+    editorViewRef.current?.focus()
+  }, [])
+
+  useEffect(() => {
+    autoScrollToBottomRef.current = autoScrollToBottom
+    expandedRef.current = expanded
+    if (!autoScrollToBottom || expanded) {
+      shouldStickToBottomRef.current = true
+    }
+  }, [autoScrollToBottom, expanded])
+
+  const updateShouldStickToBottom = useCallback((scrollElement: HTMLElement) => {
+    const distanceToBottom = scrollElement.scrollHeight - scrollElement.scrollTop - scrollElement.clientHeight
+    shouldStickToBottomRef.current = distanceToBottom <= 8
+  }, [])
+
+  const scrollToDocumentBottom = useCallback((view: EditorView) => {
+    view.dispatch({
+      effects: EditorView.scrollIntoView(view.state.doc.length, {
+        y: 'end',
+        x: 'nearest'
+      })
+    })
+  }, [])
+
   // Calculate changes during streaming response to update EditorView
   // Cannot handle user editing code during streaming response (and probably doesn't need to)
   useEffect(() => {
@@ -96,12 +128,21 @@ const CodeEditor = ({
     const changes = prepareCodeChanges(currentDoc, newContent)
 
     if (changes && changes.length > 0) {
+      const shouldScrollToBottom = autoScrollToBottom && !expanded && shouldStickToBottomRef.current
       editorViewRef.current.dispatch({
         changes,
-        annotations: [Annotation.define<boolean>().of(true)]
+        annotations: [Annotation.define<boolean>().of(true)],
+        ...(shouldScrollToBottom
+          ? {
+              effects: EditorView.scrollIntoView(newContent.length, {
+                y: 'end',
+                x: 'nearest'
+              })
+            }
+          : {})
       })
     }
-  }, [options?.stream, value])
+  }, [autoScrollToBottom, expanded, options?.stream, value])
 
   const saveKeymapExtension = useSaveKeymap({ onSave, enabled: options?.keymap })
   const blurExtension = useBlurHandler({ onBlur })
@@ -121,11 +162,25 @@ const CodeEditor = ({
 
   const scrollToLine = useScrollToLine(editorViewRef)
 
+  useEffect(() => {
+    if (!autoScrollToBottom || expanded || !shouldStickToBottomRef.current || !editorViewRef.current) return
+
+    scrollToDocumentBottom(editorViewRef.current)
+  }, [autoScrollToBottom, expanded, scrollToDocumentBottom])
+
+  useEffect(() => {
+    return () => {
+      scrollCleanupRef.current?.()
+      scrollCleanupRef.current = null
+    }
+  }, [])
+
   useImperativeHandle(ref, () => ({
     save: handleSave,
     getContent: () => editorViewRef.current?.state.doc.toString() ?? '',
     scrollToLine,
-    insertText
+    insertText,
+    focus
   }))
 
   return (
@@ -133,6 +188,7 @@ const CodeEditor = ({
       // Set to a stable value to avoid triggering CodeMirror reset
       value={initialContent.current}
       placeholder={placeholder}
+      autoFocus={autoFocus}
       width="100%"
       height={expanded ? undefined : height}
       maxHeight={expanded ? undefined : maxHeight}
@@ -142,8 +198,17 @@ const CodeEditor = ({
       theme={theme}
       extensions={customExtensions}
       onCreateEditor={(view: EditorView) => {
+        scrollCleanupRef.current?.()
         editorViewRef.current = view
         onHeightChange?.(view.scrollDOM?.scrollHeight ?? 0)
+        const scrollElement = view.scrollDOM
+        const handleScroll = () => {
+          if (autoScrollToBottomRef.current && !expandedRef.current) {
+            updateShouldStickToBottom(scrollElement)
+          }
+        }
+        scrollElement.addEventListener('scroll', handleScroll, { passive: true })
+        scrollCleanupRef.current = () => scrollElement.removeEventListener('scroll', handleScroll)
       }}
       onChange={(value, viewUpdate) => {
         if (onChange && viewUpdate.docChanged) onChange(value)

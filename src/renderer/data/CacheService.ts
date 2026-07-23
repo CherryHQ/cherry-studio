@@ -35,7 +35,7 @@ import type {
   CacheSyncMessage,
   CacheTierSummary
 } from '@shared/data/cache/cacheTypes'
-import { isEqual } from 'lodash'
+import { isEqual } from 'es-toolkit/compat'
 
 const STORAGE_PERSIST_KEY = 'cs_cache_persist'
 
@@ -71,6 +71,7 @@ export class CacheService {
   // Persist cache debounce
   private persistSaveTimer?: NodeJS.Timeout
   private persistDirty = false
+  private readonly PERSIST_SAVE_DEBOUNCE_MS = 350
 
   // Shared cache ready state for initialization sync
   private sharedCacheReady = false
@@ -413,6 +414,35 @@ export class CacheService {
   }
 
   /**
+   * Pure physical read of a shared cache entry, for external-store snapshots.
+   *
+   * @internal Hook-layer primitive, not a consumer API. Its only legitimate
+   * caller is `useCache.ts` (the external-store snapshots behind
+   * `useSharedCacheValue` / `useSharedCacheSelector` / `useSharedCache`).
+   * Business code observing a shared value uses those hooks; an imperative
+   * one-shot read uses the TTL-aware `getShared` — calling this instead is a
+   * TTL-blind read and a smell.
+   *
+   * Unlike `getShared`, this reader never evaluates TTL and never mutates the
+   * store (no lazy deletion, no subscriber notification, no broadcast).
+   * `useSyncExternalStore` requires `getSnapshot` to return the same result
+   * until the store emits a change — a time-based flip to `undefined` with no
+   * notification would violate that contract (tearing / "getSnapshot should be
+   * cached" warnings), so the snapshot reflects the local physical Map only.
+   *
+   * Consequence: an expired-but-not-yet-collected entry still returns its old
+   * value; it disappears when Main's tombstone arrives (lazy cleanup / GC) or
+   * when this window's own imperative `getShared` evicts it. Eventual
+   * consistency, upper bound TTL + Main GC interval — see cache-overview.md.
+   *
+   * @param key - Schema-defined shared cache key
+   * @returns Physically stored value, or undefined if absent
+   */
+  getSharedSnapshot<K extends SharedCacheKey>(key: K): InferSharedCacheValue<K> | undefined {
+    return this.sharedCache.get(key)?.value as InferSharedCacheValue<K> | undefined
+  }
+
+  /**
    * Internal implementation for shared cache get
    */
   private getSharedInternal(key: string): any {
@@ -601,15 +631,31 @@ export class CacheService {
   }
 
   /**
-   * Check if key exists in persist cache
+   * Whether the key has been overridden — i.e. its effective value DIFFERS from
+   * the schema default. This is intentionally NOT "is the key in the backing
+   * store": loadPersistCache seeds every key, so store membership is always true
+   * and would be a useless signal. A key whose stored value equals the default
+   * (or was never set) reports false. Mirrors the main-process `hasPersist`.
    * @param key - Persist cache key to check
-   * @returns True if key exists in cache
+   * @returns True if the effective value differs from the schema default
    */
-  hasPersist(key: RendererPersistCacheKey): boolean {
-    return this.persistCache.has(key)
+  hasPersist<K extends RendererPersistCacheKey>(key: K): boolean {
+    return !isEqual(this.getPersist(key), DefaultRendererPersistCache[key])
   }
 
-  // Note: No deletePersist method as discussed
+  /**
+   * Reset a persist key to its schema default ("delete" the override).
+   *
+   * This tier has no absent state — getPersist always returns the default once
+   * the override is gone — so deletion is expressed as restoring the default.
+   * Delegates to setPersist, inheriting its same-value no-op (resetting an
+   * already-default key does nothing), cross-window broadcast, subscriber notify,
+   * and debounced localStorage save. Mirrors the main-process `deletePersist`.
+   * @param key - Persist cache key to reset
+   */
+  deletePersist<K extends RendererPersistCacheKey>(key: K): void {
+    this.setPersist(key, DefaultRendererPersistCache[key])
+  }
 
   // ============ Hook Reference Management ============
 
@@ -1025,7 +1071,7 @@ export class CacheService {
     this.persistSaveTimer = setTimeout(() => {
       this.savePersistCache()
       this.persistDirty = false
-    }, 200) // 200ms debounce
+    }, this.PERSIST_SAVE_DEBOUNCE_MS)
   }
 
   /**
@@ -1051,16 +1097,32 @@ export class CacheService {
     window.api.cache.onSync((message: CacheSyncMessage) => {
       if (message.type === 'shared') {
         if (message.value === undefined) {
-          // Handle deletion
+          // Deletion tombstone: physically remove and always notify so
+          // observers see the value disappear (unlike main's
+          // subscribeSharedChange, renderer hooks must re-render on it).
           this.sharedCache.delete(message.key)
-        } else {
-          // Handle set - use expireAt directly (absolute timestamp from sender)
-          const entry: CacheEntry = {
-            value: message.value,
-            expireAt: message.expireAt
-          }
-          this.sharedCache.set(message.key, entry)
+          this.notifySubscribers(message.key)
+          return
         }
+
+        const existingEntry = this.sharedCache.get(message.key)
+
+        // Equal-value update (e.g. Main's TTL-only refresh): renew expireAt in
+        // place, keep the old value reference, and skip notification. Compared
+        // against the raw local entry value (NOT TTL-aware) — snapshot readers
+        // reflect the physical Map, so their observable value never changed and
+        // notifying would only cause re-renders plus reference churn.
+        if (existingEntry && isEqual(existingEntry.value, message.value)) {
+          existingEntry.expireAt = message.expireAt
+          return
+        }
+
+        // Handle set - use expireAt directly (absolute timestamp from sender)
+        const entry: CacheEntry = {
+          value: message.value,
+          expireAt: message.expireAt
+        }
+        this.sharedCache.set(message.key, entry)
         this.notifySubscribers(message.key)
       } else if (message.type === 'persist') {
         // Update persist cache (other windows only update memory, not localStorage)

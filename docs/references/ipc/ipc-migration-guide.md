@@ -7,8 +7,8 @@ Stage 0 (the framework) ships alongside legacy IPC. Migration is later work — 
 For each domain, in **one atomic PR** (the four actions must land together, or the build breaks mid-way):
 
 1. Add the domain's `*RequestSchemas` + `*EventSchemas` to `src/shared/ipc/schemas/`.
-2. Move the handler logic into `src/main/ipc/handlers/<domain>.ts` (pure function if stateless; otherwise delegate to the existing service via `application.get`). The service keeps its business logic and resource lifecycle; it just stops registering IPC.
-3. Delete the old hand-written `preload/index.ts` method(s) for that domain.
+2. Move the handler logic into `src/main/ipc/handlers/<domain>.ts` (inline pure function if small and stateless; delegate to a lifecycle service via `application.get`; delegate to a non-lifecycle module via a direct import of its curated entry). The service keeps its business logic and resource lifecycle; it just stops registering IPC.
+3. Delete the old hand-written `preload/preload.ts` method(s) for that domain.
 4. Switch renderer call sites to `ipcApi.request(...)` / `useIpcOn(...)`, then delete the old `IpcChannel` enum entries.
 
 Each PR is independently revertible.
@@ -40,12 +40,13 @@ Anti-pattern to avoid: a JSDoc `{@link X}` plus a separate `expectTypeOf` test �
 
 A legacy handler often `return`s an internal status the caller never reads — e.g. WindowManager's `close`/`minimize` return a "was the window found" boolean, but the preload already typed it `Promise<void>` and every call site ignores it. Declare the route `output: z.void()` in that case. Give a non-void output **only** when a caller actually consumes the value (a query like `window.is_maximized → boolean`, `window.get_init_data → unknown`). The handler may still compute the internal value; the thin adapter just discards it. This keeps the typed surface honest about what callers can rely on.
 
-## Two Service Shapes
+## Three Capability Shapes
 
-| Service kind | Migration form |
+| Capability shape | Migration form |
 |---|---|
-| Stateless (app info, fonts) | pure function in `handlers/`, no lifecycle service |
-| Stateful (MCP / Knowledge / Window) | handler in `handlers/` delegating to `application.get('XxxService')`; logic + lifecycle stay in the service |
+| Small stateless logic (app info, fonts) | pure function in `handlers/`, no service |
+| Lifecycle service (MCP / Knowledge / Window — registered in `serviceRegistry.ts`) | handler in `handlers/` delegating to `application.get('XxxService')`; logic + lifecycle stay in the service |
+| Non-lifecycle module (file topic, `printService`, `regionService`) | handler imports the module's curated entry (topic barrel or direct-import singleton) and delegates; never fabricate a lifecycle service to obtain a DI handle |
 
 ## `BaseService.ipcHandle` / `ipcOn` Removal
 
@@ -90,11 +91,11 @@ useIpcOn('ai.stream_chunk', ({ topicId, chunk }) => { if (topicId === current) a
 const [theme] = usePreference('app.theme')
 const [pos] = useSharedCache('scroll.position.x')
 
-// D — special addressing (CherryIN_OAuthResult): reply only to the initiator window
-export type CherryinEventSchemas = { 'cherryin.oauth_result': { ok: boolean; apiKeys?: ApiKey[]; error?: string } }
-'cherryin.oauth_start': (req, { senderId }) => oauth.begin(req, senderId) // remember initiator WindowId
-application.get('IpcApiService').send(savedSenderId, 'cherryin.oauth_result', { ok: true, apiKeys }) // no-op if the window is gone
-useIpcOn('cherryin.oauth_result', (r) => (r.ok ? saveKeys(r.apiKeys) : showError(r.error)))
+// D — special addressing (deep-link OAuth result): reply only to the initiator window
+export type OAuthEventSchemas = { 'oauth.deep_link_result': { ok: boolean; apiKeys?: ApiKey[]; error?: string } }
+'oauth.start_deep_link_flow': (req, { senderId }) => oauth.begin(req, senderId) // remember initiator WindowId
+application.get('IpcApiService').send(savedSenderId, 'oauth.deep_link_result', { ok: true, apiKeys }) // no-op if the window is gone
+useIpcOn('oauth.deep_link_result', (r) => (r.ok ? saveKeys(r.apiKeys) : showError(r.error)))
 ```
 
 ### Known inconsistency to fix during collection
@@ -121,7 +122,7 @@ Does this R→M channel go through IpcApi?
 
 **Two hard conditions for a carve-out** (or it is a hole, not an exception):
 
-- **Still gated** — register with native `ipcMain.on` + `registerDisposable` + an explicit `validateSender` call (mirroring DataApi/Cache native registration). Do **not** use the `this.ipcOn` sugar (slated for removal, see above).
+- **Still gated** — register with native `ipcMain.on` + `registerDisposable` + an explicit `validateSender` call (mirroring the explicit gates in DataApi's `IpcAdapter` and the Preference/Cache handlers). Do **not** use the `this.ipcOn` sugar (slated for removal, see above).
 - **Still documented** — list it in [Not In Scope](#not-in-scope-for-ipcapi) below. A documented carve-out (like `Cache_Sync`) keeps the one-list exposure audit honest; an undocumented omission breaks it.
 
 **Scope discipline** — most of the same feature still migrates in:

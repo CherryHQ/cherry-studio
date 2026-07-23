@@ -5,7 +5,8 @@ import {
   createComposerDocumentContent,
   createComposerMessageSnapshot,
   createComposerUserMessageParts,
-  serializeComposerDocument
+  serializeComposerDocument,
+  trimComposerDraftBoundaryBlankLines
 } from '../composerDraft'
 import { COMPOSER_TOKEN_NODE_NAME } from '../ComposerTokenNode'
 
@@ -17,6 +18,100 @@ function tokenNode(attrs: Record<string, unknown>): JSONContent {
 }
 
 describe('composer draft serialization', () => {
+  it('trims only boundary blank lines while preserving meaningful-line whitespace and internal blank lines', () => {
+    const draft = trimComposerDraftBoundaryBlankLines({
+      text: ' \t\n  first line  \n\nlast line \t\n \t\n',
+      tokens: []
+    })
+
+    expect(draft).toEqual({
+      text: '  first line  \n\nlast line \t',
+      tokens: []
+    })
+  })
+
+  it('keeps token-only boundary lines and shifts token offsets past removed blank lines', () => {
+    const draft = trimComposerDraftBoundaryBlankLines({
+      text: '\n\nbody\n\n',
+      tokens: [
+        { id: 'leading-skill', kind: 'skill', label: 'Browser', index: 0, textOffset: 1 },
+        { id: 'trailing-file', kind: 'file', label: 'notes.md', index: 1, textOffset: 8 }
+      ]
+    })
+
+    expect(draft).toEqual({
+      text: '\nbody\n\n',
+      tokens: [
+        { id: 'leading-skill', kind: 'skill', label: 'Browser', index: 0, textOffset: 0 },
+        { id: 'trailing-file', kind: 'file', label: 'notes.md', index: 1, textOffset: 7 }
+      ]
+    })
+  })
+
+  it('preserves trailing blank lines owned by multiline token prompt text', () => {
+    const draft = trimComposerDraftBoundaryBlankLines({
+      text: '\nvalue\n\n',
+      tokens: [
+        {
+          id: 'prompt-variable:0:value',
+          kind: 'promptVariable',
+          label: 'value',
+          index: 0,
+          textOffset: 1,
+          promptText: 'value\n\n'
+        }
+      ]
+    })
+
+    expect(draft).toEqual({
+      text: 'value\n\n',
+      tokens: [
+        {
+          id: 'prompt-variable:0:value',
+          kind: 'promptVariable',
+          label: 'value',
+          index: 0,
+          textOffset: 0,
+          promptText: 'value\n\n'
+        }
+      ]
+    })
+  })
+
+  it('still trims trailing blank lines outside token prompt text', () => {
+    const draft = trimComposerDraftBoundaryBlankLines({
+      text: '\nvalue\n\n',
+      tokens: [
+        {
+          id: 'prompt-variable:0:value',
+          kind: 'promptVariable',
+          label: 'value',
+          index: 0,
+          textOffset: 1,
+          promptText: 'value'
+        }
+      ]
+    })
+
+    expect(draft).toEqual({
+      text: 'value',
+      tokens: [
+        {
+          id: 'prompt-variable:0:value',
+          kind: 'promptVariable',
+          label: 'value',
+          index: 0,
+          textOffset: 0,
+          promptText: 'value'
+        }
+      ]
+    })
+  })
+
+  it('collapses a draft containing only token-free blank lines to empty text', () => {
+    expect(trimComposerDraftBoundaryBlankLines({ text: ' \t\n\n ', tokens: [] })).toEqual({ text: '', tokens: [] })
+  })
+
   it('serializes tokens before, between, and after text in document order', () => {
     const draft = serializeComposerDocument({
       type: 'doc',
@@ -169,6 +264,65 @@ describe('composer draft serialization', () => {
         origin_name: 'test.pdf',
         size: 2048
       }
+    })
+  })
+
+  it('serializes and restores folder tokens with path prompt text', () => {
+    const folderPath = '/Users/jd/Notes/Project Notes'
+    const draft = serializeComposerDocument({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'Open ' },
+            tokenNode({
+              id: 'folder-1',
+              kind: 'folder',
+              label: 'Project Notes',
+              description: folderPath,
+              promptText: folderPath
+            }),
+            { type: 'text', text: ' today' }
+          ]
+        }
+      ]
+    })
+
+    expect(draft.text).toBe(`Open ${folderPath} today`)
+    expect(createComposerMessageSnapshot(draft)).toEqual({
+      version: 1,
+      tokens: [
+        {
+          id: 'folder-1',
+          kind: 'folder',
+          label: 'Project Notes',
+          description: folderPath,
+          index: 0,
+          textOffset: 5,
+          promptText: folderPath
+        }
+      ]
+    })
+
+    expect(createComposerDocumentContent(`Open ${folderPath} today`, createComposerMessageSnapshot(draft))).toEqual({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'Open ' },
+            tokenNode({
+              id: 'folder-1',
+              kind: 'folder',
+              label: 'Project Notes',
+              description: folderPath,
+              promptText: folderPath
+            }),
+            { type: 'text', text: ' today' }
+          ]
+        }
+      ]
     })
   })
 
@@ -377,6 +531,51 @@ describe('composer draft serialization', () => {
             composer: {
               version: 1,
               tokens: [{ id: 'kb-1', kind: 'knowledge', label: 'Docs', index: 0, textOffset: 5 }]
+            }
+          }
+        }
+      }
+    ])
+  })
+
+  it('builds only a text part for folder tokens', () => {
+    const folderPath = '/Users/jd/Notes/Project Notes'
+    const draft = serializeComposerDocument({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'Read ' },
+            tokenNode({
+              id: 'folder-1',
+              kind: 'folder',
+              label: 'Project Notes',
+              promptText: folderPath
+            })
+          ]
+        }
+      ]
+    })
+
+    expect(createComposerUserMessageParts(draft)).toEqual([
+      {
+        type: 'text',
+        text: `Read ${folderPath}`,
+        providerMetadata: {
+          cherry: {
+            composer: {
+              version: 1,
+              tokens: [
+                {
+                  id: 'folder-1',
+                  kind: 'folder',
+                  label: 'Project Notes',
+                  index: 0,
+                  textOffset: 5,
+                  promptText: folderPath
+                }
+              ]
             }
           }
         }

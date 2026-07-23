@@ -35,10 +35,11 @@ export const DEFAULT_WINDOW_CONFIG: WindowOptions = {
  */
 export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata>> = {
   // Main application window — singleton primary surface.
-  // Managed by MainWindowService: dynamic options (window-state position/size, theme-driven
-  // backgroundColor / backgroundMaterial / frame / icon / zoomFactor) are
-  // injected via wm.open({ options }). showMode 'manual' lets MainWindowService decide first
-  // show in the ready-to-show handler (so tray-on-launch can suppress it).
+  // Managed by MainWindowService: dynamic options (theme-driven backgroundColor /
+  // backgroundMaterial / frame / icon / zoomFactor) are injected via wm.open({ options }).
+  // Window position/size/maximized are restored by WindowManager via `rememberBounds`
+  // (no longer injected by the service). showMode 'manual' lets MainWindowService decide
+  // first show in the ready-to-show handler (so tray-on-launch can suppress it).
   //
   // Intentionally NOT using `singletonConfig` here — MainWindowService's close handler
   // (see `setupWindowLifecycleEvents`) reads tray preferences at runtime, calls
@@ -52,8 +53,10 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     type: WindowType.Main,
     lifecycle: 'singleton',
     htmlPath: 'windows/main/index.html',
-    // preload omitted → defaults to 'index.js' (full API preload).
+    // preload omitted → defaults to 'preload.js' (full API preload).
     showMode: 'manual',
+    // Persist & restore position/size across launches (maximize re-applied by the service).
+    rememberBounds: true,
     windowOptions: {
       width: MIN_WINDOW_WIDTH,
       height: MIN_WINDOW_HEIGHT,
@@ -98,33 +101,32 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     }
   },
 
-  // Settings window — singleton popup surface for application settings.
-  // The renderer consumes initData as the target /settings/* route, so open()
-  // can focus an existing settings window and navigate it in-place.
-  [WindowType.Settings]: {
-    type: WindowType.Settings,
-    lifecycle: 'singleton',
-    singletonConfig: {
-      retentionTime: 300
-    },
-    htmlPath: 'windows/settings/index.html',
+  // Hidden one-shot print surface. PrintService owns loading generated paper HTML
+  // and closes the window after print / PDF export.
+  [WindowType.Print]: {
+    type: WindowType.Print,
+    lifecycle: 'default',
+    htmlPath: '',
+    preload: '',
+    showMode: 'manual',
     windowOptions: {
-      ...DEFAULT_WINDOW_CONFIG,
-      width: 960,
-      height: 680,
-      minWidth: 760,
-      minHeight: 560,
+      skipTaskbar: true,
       autoHideMenuBar: true,
-      transparent: false,
-      vibrancy: 'sidebar',
-      visualEffectState: 'active',
+      frame: false,
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
-        sandbox: false,
-        webSecurity: false,
-        webviewTag: true
+        sandbox: true,
+        webSecurity: false
       }
+    },
+    behavior: {
+      // Hidden helper window: do not bring the macOS Dock icon back in tray mode.
+      macShowInDock: false
     }
   },
 
@@ -158,7 +160,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       warmup: 'eager'
     },
     htmlPath: 'windows/subWindow/index.html',
-    // preload omitted → defaults to 'index.js' (full API preload).
+    // preload omitted → defaults to 'preload.js' (full API preload).
     showMode: 'manual',
     windowOptions: {
       width: 800,
@@ -214,16 +216,19 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
   },
 
   // Quick Assistant window — singleton floating panel.
-  // Managed by QuickAssistantService: stateKeeper bounds are injected via wm.create({ options }),
-  // visibility is driven by showQuickAssistant() (cursor-follow, Windows opacity dance, macOS app.hide).
+  // Managed by QuickAssistantService: visibility is driven by showQuickAssistant()
+  // (cursor-follow, Windows opacity dance, macOS app.hide). Window position/size are
+  // restored by WindowManager via `rememberBounds`.
   [WindowType.QuickAssistant]: {
     type: WindowType.QuickAssistant,
     lifecycle: 'singleton',
     htmlPath: 'windows/quickAssistant/index.html',
-    // preload omitted → defaults to 'index.js' (full API preload).
+    // preload omitted → defaults to 'preload.js' (full API preload).
     // QuickAssistantService.showQuickAssistant controls visibility; showMode: 'manual' also keeps
     // singleton reopen (wm.open) from accidentally re-showing the window before reposition runs.
     showMode: 'manual',
+    // Persist & restore position/size across launches (never maximized — maximizable:false).
+    rememberBounds: true,
     windowOptions: {
       width: 550,
       height: 400,
@@ -286,7 +291,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     type: WindowType.SelectionToolbar,
     lifecycle: 'singleton',
     htmlPath: 'windows/selection/toolbar/index.html',
-    // preload omitted → defaults to 'index.js'.
+    // preload omitted → defaults to 'preload.js'.
     // SelectionService controls visibility itself via showToolbarAtPosition/hideToolbar.
     // showMode: 'manual' also prevents wm.open() from re-showing an existing singleton unexpectedly.
     showMode: 'manual',
@@ -305,7 +310,15 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       movable: true,
       hasShadow: false,
       thickFrame: false,
-      roundedCorners: true,
+      // The toolbar is a transparent, frameless pill that draws its own rounded
+      // background in CSS. Newer macOS enlarged
+      // the system window-corner radius, so with the OS rounding on, the window mask
+      // overrides the pill's own corners — the top (only 2px from the window edge)
+      // takes the larger OS radius while the bottom keeps the CSS radius, producing a
+      // visible top/bottom mismatch. Disable OS rounding and let the pill define its
+      // own shape. NOTE: Electron defaults roundedCorners to true, so this must be an
+      // explicit false — omitting it would fall back to the OS rounding.
+      roundedCorners: false,
 
       // Platform specific settings
       //   [macOS] DO NOT set focusable to false — it causes other windows to bring to front together.
@@ -375,7 +388,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     type: WindowType.SelectionAction,
     lifecycle: 'pooled',
     htmlPath: 'windows/selection/action/index.html',
-    // preload omitted → defaults to 'index.js'.
+    // preload omitted → defaults to 'preload.js'.
     // SelectionService controls visibility itself via showActionWindow (computes bounds + fullscreen handling).
     showMode: 'manual',
     windowOptions: {
@@ -391,7 +404,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       platformOverrides: {
         mac: {
           titleBarStyle: 'hidden', // [macOS]
-          trafficLightPosition: { x: 12, y: 9 } // [macOS]
+          trafficLightPosition: { x: 12, y: 11 } // [macOS]
         }
       },
       webPreferences: {

@@ -1,5 +1,16 @@
 import { Button, ButtonGroup, Flex, InfoTooltip, Input, Label, Tooltip } from '@cherrystudio/ui'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import {
+  SettingDivider,
+  SettingGroup,
+  SettingHelpLink,
+  SettingHelpText,
+  SettingHelpTextRow,
+  SettingsContentColumn,
+  SettingSubtitle,
+  SettingTitle,
+  SettingTitleExternalLink
+} from '@renderer/components/SettingsPrimitives'
+import { useTheme } from '@renderer/hooks/useTheme'
 import type { WebSearchBasicAuthPatch } from '@renderer/hooks/useWebSearch'
 import { formatApiKeys, splitApiKeyString, withoutTrailingSlash } from '@renderer/utils/api'
 import {
@@ -16,23 +27,12 @@ import type {
   WebSearchProviderOverrides
 } from '@shared/data/preference/preferenceTypes'
 import { useNavigate } from '@tanstack/react-router'
-import { isEmpty } from 'lodash'
+import { isEmpty } from 'es-toolkit/compat'
 import { ExternalLink, List } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  SettingDivider,
-  SettingGroup,
-  SettingHelpLink,
-  SettingHelpText,
-  SettingHelpTextRow,
-  SettingsContentColumn,
-  SettingSubtitle,
-  SettingTitle,
-  SettingTitleExternalLink
-} from '../..'
 import { useWebSearchPersist } from '../hooks/useWebSearchPersist'
 import { useWebSearchProviderCheck } from '../hooks/useWebSearchProviderCheck'
 import { WebSearchApiKeyListPopup } from './WebSearchApiKeyList'
@@ -341,7 +341,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    className="text-icon hover:text-foreground"
+                    className="text-foreground-secondary hover:text-foreground"
                     aria-label={t('settings.provider.api.key.list.open')}
                     onClick={openApiKeyList}>
                     <List size={14} />
@@ -412,7 +412,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
                   content={t('settings.provider.basic_auth.tip')}
                   iconProps={{
                     size: 16,
-                    color: 'var(--color-icon)',
+                    color: 'var(--color-foreground-secondary)',
                     className: 'ml-1 cursor-pointer'
                   }}
                 />

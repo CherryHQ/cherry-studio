@@ -249,12 +249,7 @@ describe('QuickPanelView', () => {
 
       const panelBody = screen.getByTestId('quick-panel-body')
       expect(panelBody).toHaveClass('rounded-xl', 'border', 'border-border/80', 'bg-popover', 'text-popover-foreground')
-      expect(panelBody).toHaveClass(
-        'translate-y-0',
-        'scale-100',
-        'opacity-100',
-        'shadow-[0_18px_44px_rgba(15,23,42,0.16),0_4px_12px_rgba(15,23,42,0.10)]'
-      )
+      expect(panelBody).toHaveClass('translate-y-0', 'scale-100', 'opacity-100', 'shadow-none')
       expect(panelBody.className).not.toContain('bg-background')
     })
 
@@ -525,6 +520,65 @@ describe('QuickPanelView', () => {
 
       expect(input.adapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 6 })
       expect(action).toHaveBeenCalledWith(expect.objectContaining({ action: 'enter', searchText: 'Item1' }))
+    })
+
+    it('runs a pinned footer action in a read-only panel while ignoring regular rows', () => {
+      const statusAction = vi.fn()
+      const footerAction = vi.fn()
+      const list: QuickPanelListItem[] = [
+        { id: 'status', label: 'Server 1', description: 'Connected', icon: 'x', action: statusAction },
+        { id: 'footer', label: 'Configure', icon: 'x', fixedToBottom: true, action: footerAction }
+      ]
+
+      render(
+        wrapWithProviders(
+          <>
+            <QuickPanelView inputAdapter={createInputAdapter().adapter} />
+            <OpenPanelOnMount
+              list={list}
+              panelOptions={{ readOnly: true }}
+              triggerInfo={{ type: 'button', position: 0 }}
+            />
+          </>
+        )
+      )
+
+      // Regular status rows stay inert in a read-only panel.
+      fireEvent.click(screen.getByText('Server 1'))
+      expect(statusAction).not.toHaveBeenCalled()
+
+      // The pinned footer keeps its action.
+      fireEvent.click(screen.getByText('Configure'))
+      expect(footerAction).toHaveBeenCalledTimes(1)
+    })
+
+    it('lets keyboard reach the pinned footer action in a read-only panel', () => {
+      const statusAction = vi.fn()
+      const footerAction = vi.fn()
+      const list: QuickPanelListItem[] = [
+        { id: 'status', label: 'Server 1', description: 'Connected', icon: 'x', action: statusAction },
+        { id: 'footer', label: 'Configure', icon: 'x', fixedToBottom: true, action: footerAction }
+      ]
+
+      render(
+        wrapWithProviders(
+          <>
+            <QuickPanelView inputAdapter={createInputAdapter().adapter} />
+            <OpenPanelOnMount
+              list={list}
+              panelOptions={{ readOnly: true }}
+              triggerInfo={{ type: 'button', position: 0 }}
+            />
+          </>
+        )
+      )
+
+      const body = screen.getByTestId('quick-panel-body')
+      fireEvent.keyDown(body, { key: 'ArrowDown' }) // highlights the footer (status rows stay inert)
+      fireEvent.keyDown(body, { key: 'Enter' })
+
+      expect(footerAction).toHaveBeenCalledTimes(1)
+      expect(statusAction).not.toHaveBeenCalled()
     })
 
     it('keeps the root input panel when slash follows whitespace', () => {

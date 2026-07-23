@@ -1,15 +1,12 @@
 import { Tooltip } from '@cherrystudio/ui'
-import {
-  emitResourceListReveal,
-  type ResourceListRevealSource
-} from '@renderer/components/chat/resources/resourceListRevealEvents'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
-import { OpenInNewWindowIcon } from '@renderer/components/Icons'
-import { isMac } from '@renderer/config/constant'
+import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
+import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import type { OpenTabOptions, Tab } from '@renderer/hooks/useTabs'
+import { emitResourceListReveal, type ResourceListRevealSource } from '@renderer/services/resourceListRevealEvents'
+import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
-import { ChevronsLeft, Pin, PinOff, Plus, X } from 'lucide-react'
+import { ArrowRightFromLine, ChevronsLeft, CopyX, Pin, PinOff, Plus, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -17,17 +14,15 @@ import { ShellTabBarActions, useShellTabBarLayout } from './ShellTabBarActions'
 import { TabIcon } from './TabIcon'
 import { useTabDrag } from './useTabDrag'
 
-function isHomeTab(tab: Pick<Tab, 'id'>) {
-  return tab.id === 'home'
-}
-
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 type AppShellTabBarProps = {
   tabs: Tab[]
   activeTabId: string
+  isFullscreen?: boolean
   setActiveTab: (id: string) => void
   closeTab: (id: string) => void
+  closeTabs: (ids: readonly string[], activateId?: string) => void
   addTab?: (tab: Tab) => void
   reorderTabs: (type: 'pinned' | 'normal', oldIndex: number, newIndex: number) => void
   pinTab: (id: string) => void
@@ -103,6 +98,7 @@ const PinnedTabButton = ({ tab, isActive, onSelect, drag, tabRef, tone, ref, ...
 
 // Threshold below which the right-side X is hidden and icon-overlay X is used instead
 const NARROW_TAB_THRESHOLD = 64
+const MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE = 'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px)))'
 
 function getResourceListRevealSourceFromUrl(url: string): ResourceListRevealSource | null {
   if (url === '/app/chat' || url.startsWith('/app/chat?') || url.startsWith('/app/chat/')) return 'assistants'
@@ -157,8 +153,9 @@ const NormalTabButton = ({
     [tabRef, ref]
   )
 
-  const showRightClose = showClose && !isNarrow
-  const showIconOverlayClose = showClose && isNarrow
+  const canClose = showClose
+  const showRightClose = canClose && !isNarrow
+  const showIconOverlayClose = canClose && isNarrow
 
   return (
     // Spread injected ContextMenuTrigger props first; the explicit drag handler
@@ -172,6 +169,19 @@ const NormalTabButton = ({
       type="button"
       onPointerDown={drag.onPointerDown}
       onClick={onSelect}
+      onAuxClick={(e) => {
+        if (e.button === 1 && canClose) {
+          e.preventDefault()
+          e.stopPropagation()
+          onClose()
+        }
+      }}
+      onDoubleClick={(e) => {
+        if (!canClose) return
+        e.preventDefault()
+        e.stopPropagation()
+        onClose()
+      }}
       style={{
         transform: `translateX(${drag.translateX}px)`,
         transition: drag.isDragging || drag.noTransition ? 'none' : 'transform 200ms ease',
@@ -180,13 +190,13 @@ const NormalTabButton = ({
       }}
       className={cn(
         'nodrag group relative flex h-[30px] min-w-[40px] max-w-[160px] flex-1 items-center gap-1.5 rounded-[10px] transition-all duration-150 [-webkit-app-region:no-drag]',
-        showRightClose ? 'pr-1 pl-2' : 'px-2',
+        showRightClose ? 'pr-1.5 pl-2' : 'px-2',
         drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
         isActive ? tone.activeClass : tone.hoverClass
       )}>
       {/* Icon — on narrow tabs, X overlay replaces icon on hover (Chrome-style) */}
-      <div className="relative flex h-[13px] w-[13px] shrink-0 items-center justify-center">
-        <TabIcon tab={tab} size={13} className={cn(showIconOverlayClose && 'group-hover:hidden')} />
+      <div className="relative flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+        <TabIcon tab={tab} size={14} className={cn(showIconOverlayClose && 'group-hover:hidden')} />
         {showIconOverlayClose && (
           <div
             role="button"
@@ -207,8 +217,11 @@ const NormalTabButton = ({
         )}
       </div>
       <span
-        className="min-w-0 flex-1 truncate text-left font-medium text-[11px] leading-none"
-        style={{ maskImage: 'linear-gradient(to right, black 80%, transparent 100%)' }}>
+        className="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left font-normal text-xs leading-none"
+        style={{
+          maskImage: 'linear-gradient(to right, black 80%, transparent 100%)',
+          WebkitMaskImage: 'linear-gradient(to right, black 80%, transparent 100%)'
+        }}>
         {tab.title}
       </span>
       {/* Right-side close button — only on wide tabs */}
@@ -252,34 +265,48 @@ interface TabCapabilities {
   detach: boolean
   /** Close the tab (context-menu item + inline X). */
   close: boolean
+  /** "Close other tabs" — every other normal tab; pinned tabs are exempt. */
+  closeOthers: boolean
+  /** "Close tabs to the right" — normal tabs after this one in the strip. */
+  closeToRight: boolean
 }
 
 /**
  * Single source of truth for what a tab can do, derived from its zone and the
- * tab counts. A window always keeps at least one normal tab, so the last normal
- * tab can't be closed / pinned / detached and therefore shows no menu. Pinned
- * tabs can always be unpinned but never closed directly; reordering is per-zone.
+ * tab counts. Normal tabs can always be closed/pinned/detached; if the last tab
+ * closes, TabsProvider opens Launchpad as the empty-state fallback. Pinned tabs
+ * can be closed via the context menu (no inline X), and the batch close actions
+ * only ever clear the normal zone — pinned tabs are exempt as close *targets*,
+ * matching browser convention. Reordering is per-zone. `normalIndex` is the
+ * tab's position within the normal zone — required to offer "close tabs to the
+ * right"; for a pinned tab every normal tab counts as being to its right.
  */
 export function getTabCapabilities(
   tab: Pick<Tab, 'id' | 'isPinned'>,
-  ctx: { pinnedCount: number; normalCount: number; canDetach: boolean }
+  ctx: { pinnedCount: number; normalCount: number; canDetach: boolean; normalIndex?: number }
 ): TabCapabilities {
-  if (isHomeTab(tab)) {
-    return { menu: false, reorder: false, togglePin: false, detach: false, close: false }
-  }
-
   const detach = ctx.canDetach
   if (tab.isPinned) {
     const hasSiblings = ctx.pinnedCount > 1
-    return { menu: true, reorder: hasSiblings, togglePin: true, detach, close: false }
+    return {
+      menu: true,
+      reorder: hasSiblings,
+      togglePin: true,
+      detach,
+      close: true,
+      closeOthers: ctx.normalCount > 0,
+      closeToRight: ctx.normalCount > 0
+    }
   }
   const hasSiblings = ctx.normalCount > 1
   return {
-    menu: hasSiblings,
+    menu: true,
     reorder: hasSiblings,
-    togglePin: hasSiblings,
-    detach: hasSiblings && detach,
-    close: hasSiblings
+    togglePin: true,
+    detach,
+    close: true,
+    closeOthers: hasSiblings,
+    closeToRight: ctx.normalIndex !== undefined && ctx.normalIndex < ctx.normalCount - 1
   }
 }
 
@@ -290,6 +317,8 @@ const TabRightClickMenu = ({
   onTogglePin,
   onDetach,
   onClose,
+  onCloseOthers,
+  onCloseToRight,
   children
 }: {
   isPinned: boolean
@@ -298,6 +327,8 @@ const TabRightClickMenu = ({
   onTogglePin: () => void
   onDetach: () => void
   onClose: () => void
+  onCloseOthers: () => void
+  onCloseToRight: () => void
   children: React.ReactNode
 }) => {
   const { t } = useTranslation()
@@ -336,6 +367,10 @@ const TabRightClickMenu = ({
       },
       {
         enabled: capabilities.close,
+        item: { type: 'separator' }
+      },
+      {
+        enabled: capabilities.close,
         item: {
           type: 'item',
           id: 'tab.close',
@@ -343,10 +378,30 @@ const TabRightClickMenu = ({
           icon: <X size={14} />,
           onSelect: onClose
         }
+      },
+      {
+        enabled: capabilities.closeOthers,
+        item: {
+          type: 'item',
+          id: 'tab.close-others',
+          label: t('tab.close_others'),
+          icon: <CopyX size={14} />,
+          onSelect: onCloseOthers
+        }
+      },
+      {
+        enabled: capabilities.closeToRight,
+        item: {
+          type: 'item',
+          id: 'tab.close-to-right',
+          label: t('tab.close_to_right'),
+          icon: <ArrowRightFromLine size={14} />,
+          onSelect: onCloseToRight
+        }
       }
     ]
     return entries.filter((entry) => entry.enabled).map((entry) => entry.item)
-  }, [t, isPinned, capabilities, onMoveToFirst, onTogglePin, onDetach, onClose])
+  }, [t, isPinned, capabilities, onMoveToFirst, onTogglePin, onDetach, onClose, onCloseOthers, onCloseToRight])
 
   if (!capabilities.menu || items.length === 0) {
     return <>{children}</>
@@ -364,8 +419,10 @@ const TabRightClickMenu = ({
 export const AppShellTabBar = ({
   tabs,
   activeTabId,
+  isFullscreen = false,
   setActiveTab,
   closeTab,
+  closeTabs,
   reorderTabs,
   pinTab,
   unpinTab,
@@ -405,8 +462,7 @@ export const AppShellTabBar = ({
     return { pinnedTabs: pinned, normalTabs: normal }
   }, [tabs])
   const hasUnpinnedTabs = normalTabs.length > 0
-  const homeTabIndex = normalTabs.findIndex(isHomeTab)
-  const normalReorderStartIndex = homeTabIndex === -1 ? 0 : homeTabIndex + 1
+  const normalReorderStartIndex = 0
   // Shared input for `getTabCapabilities` — every per-tab affordance is derived
   // from this, so the render stays declarative.
   const tabContext = useMemo(
@@ -446,6 +502,32 @@ export const AppShellTabBar = ({
     [tabs, pinnedTabs, normalTabs, normalReorderStartIndex, reorderTabs]
   )
 
+  // Batch close actions only touch the normal zone — pinned tabs are exempt,
+  // matching browser convention. The right-clicked tab is passed as the
+  // preferred survivor so focus lands on it when the active tab gets closed.
+  const handleCloseOthers = useCallback(
+    (tabId: string) => {
+      closeTabs(
+        normalTabs.filter((t) => t.id !== tabId).map((t) => t.id),
+        tabId
+      )
+    },
+    [normalTabs, closeTabs]
+  )
+
+  const handleCloseToRight = useCallback(
+    (tabId: string) => {
+      // A pinned tab is not in normalTabs (index -1): the whole normal zone
+      // sits to its right, so slice(0) closes every normal tab.
+      const index = normalTabs.findIndex((t) => t.id === tabId)
+      closeTabs(
+        normalTabs.slice(index + 1).map((t) => t.id),
+        tabId
+      )
+    },
+    [normalTabs, closeTabs]
+  )
+
   // ─── Drag logic (extracted to useTabDrag) ──────────────────────────────────
 
   const { tabBarRef, tabRefs, noTransition, getTranslateX, handlePointerDown, handleTabClick, isDragging, isGhost } =
@@ -474,7 +556,7 @@ export const AppShellTabBar = ({
   // ─── Action handlers ────────────────────────────────────────────────────────
 
   const handleOpenLaunchpad = () => {
-    openTab('/app/launchpad', { title: t('title.launchpad') })
+    openTab('/app/launchpad', { title: t('title.launchpad'), forceNew: true })
   }
 
   // ─── Render ─────────────────────────────────────────────────────────────────
@@ -487,12 +569,13 @@ export const AppShellTabBar = ({
           'relative flex h-11 w-full select-none items-center gap-1 [-webkit-app-region:drag]',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar',
           rightPaddingClass,
-          isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-3'
+          'pl-0'
         )}>
         {/* Tab buttons are no-drag; empty tabbar space remains available for moving the window. */}
         <div
           data-testid="app-shell-tab-strip"
-          className="flex flex-1 items-center gap-1 overflow-x-auto px-1 [&::-webkit-scrollbar]:hidden">
+          style={isMac && !isFullscreen ? { paddingLeft: MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE } : undefined}
+          className="flex flex-1 items-center gap-1 overflow-x-auto pr-1 [&::-webkit-scrollbar]:hidden">
           {/* Pinned tabs */}
           {pinnedTabs.length > 0 && (
             <div className="flex shrink-0 items-center gap-0 rounded-full bg-sidebar-accent/50 p-0 [-webkit-app-region:no-drag]">
@@ -506,7 +589,9 @@ export const AppShellTabBar = ({
                     onMoveToFirst={() => handleMoveToFirst(tab.id)}
                     onTogglePin={() => handlePinToggle(tab.id)}
                     onDetach={() => detachTab?.(tab.id)}
-                    onClose={() => closeTab(tab.id)}>
+                    onClose={() => closeTab(tab.id)}
+                    onCloseOthers={() => handleCloseOthers(tab.id)}
+                    onCloseToRight={() => handleCloseToRight(tab.id)}>
                     <PinnedTabButton
                       tab={tab}
                       isActive={tab.id === activeTabId}
@@ -537,8 +622,8 @@ export const AppShellTabBar = ({
           {pinnedTabs.length > 0 && hasUnpinnedTabs && <Separator />}
 
           {/* Normal tabs — affordances come entirely from getTabCapabilities. */}
-          {normalTabs.map((tab) => {
-            const caps = getTabCapabilities(tab, tabContext)
+          {normalTabs.map((tab, index) => {
+            const caps = getTabCapabilities(tab, { ...tabContext, normalIndex: index })
             return (
               <TabRightClickMenu
                 key={tab.id}
@@ -547,7 +632,9 @@ export const AppShellTabBar = ({
                 onMoveToFirst={() => handleMoveToFirst(tab.id)}
                 onTogglePin={() => handlePinToggle(tab.id)}
                 onDetach={() => detachTab?.(tab.id)}
-                onClose={() => closeTab(tab.id)}>
+                onClose={() => closeTab(tab.id)}
+                onCloseOthers={() => handleCloseOthers(tab.id)}
+                onCloseToRight={() => handleCloseToRight(tab.id)}>
                 <NormalTabButton
                   tab={tab}
                   isActive={tab.id === activeTabId}

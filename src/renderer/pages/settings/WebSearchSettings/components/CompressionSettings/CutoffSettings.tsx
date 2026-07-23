@@ -1,6 +1,6 @@
 import { InfoTooltip, Input } from '@cherrystudio/ui'
+import { SettingRow, SettingRowTitle } from '@renderer/components/SettingsPrimitives'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
-import { SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import { useWebSearchPersist } from '@renderer/pages/settings/WebSearchSettings/hooks/useWebSearchPersist'
 import { DEFAULT_WEB_SEARCH_CUTOFF_LIMIT } from '@shared/data/types/webSearch'
 import { useTranslation } from 'react-i18next'
@@ -29,7 +29,7 @@ const CutoffSettings = () => {
           content={t('settings.tool.websearch.compression.cutoff.limit.tooltip')}
           iconProps={{
             size: 16,
-            color: 'var(--color-icon)',
+            color: 'var(--color-foreground-secondary)',
             className: 'ml-1 cursor-pointer'
           }}
         />

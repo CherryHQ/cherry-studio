@@ -1,15 +1,18 @@
-import type { MessageMenuBarScope } from '@renderer/config/registry/messageMenuBar'
-import { DEFAULT_MESSAGE_MENUBAR_SCOPE, getMessageMenuBarConfig } from '@renderer/config/registry/messageMenuBar'
+import type { MessageMenuBarScope } from '@renderer/components/chat/messages/frame/messageMenuBarConfig'
+import {
+  DEFAULT_MESSAGE_MENUBAR_SCOPE,
+  getMessageMenuBarConfig
+} from '@renderer/components/chat/messages/frame/messageMenuBarConfig'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import type { Topic } from '@renderer/types/topic'
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
-import { hasTextParts, hasTranslationParts } from '@renderer/utils/message/partsHelpers'
+import { canEditAssistantMessageParts, hasTextParts, hasTranslationParts } from '@renderer/utils/message/partsHelpers'
 import { classNames } from '@renderer/utils/style'
 import type { FC } from 'react'
 import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useMessageParts } from '../blocks'
+import { useMessageParts } from '../blocks/MessagePartsContext'
 import {
   useMessageListActions,
   useMessageListSelection,
@@ -76,23 +79,15 @@ const MessageMenuBar: FC<Props> = (props) => {
 
   const mainTextContent = useMemo(() => getComposerTextFromParts(messageParts), [messageParts])
 
-  const isTranslating = useMemo(
-    () =>
-      messageParts.some((part) => {
-        if (part.type !== 'data-translation') return false
-        const state = (part as { state?: string }).state
-        return state === 'input-streaming' || state === 'input-available'
-      }),
-    [messageParts]
-  )
+  const isTranslating = messageUi.isMessageTranslating?.(message.id) ?? false
 
   const menubarScope: MessageMenuBarScope = topic?.type ?? DEFAULT_MESSAGE_MENUBAR_SCOPE
   const { buttonIds } = getMessageMenuBarConfig(menubarScope)
   const toolbarButtonIds = useMemo(() => new Set(buttonIds), [buttonIds])
 
-  const isEditable = useMemo(() => hasTextParts(messageParts), [messageParts])
+  const isEditable = isAssistantMessage ? canEditAssistantMessageParts(messageParts) : hasTextParts(messageParts)
 
-  const hasTranslationBlocks = useMemo(() => hasTranslationParts(messageParts), [messageParts])
+  const hasTranslationBlocks = hasTranslationParts(messageParts)
   const isUseful = !!messageUi.getMessageUiState?.(message.id).useful
 
   const softHoverBg = isBubbleStyle && !isLastMessage

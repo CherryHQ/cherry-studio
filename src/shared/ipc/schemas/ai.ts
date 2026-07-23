@@ -1,4 +1,4 @@
-import type { PersonGeneration } from '@google/genai'
+import { imageParamsSchema } from '@cherrystudio/provider-registry'
 import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
@@ -7,9 +7,9 @@ import type {
   StreamDonePayload,
   StreamErrorPayload
 } from '@shared/ai/transport'
-import { type FileEntry, FileEntrySchema } from '@shared/data/types/file/fileEntry'
+import { type FileEntry, FileEntrySchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { ModelSchema, type UniqueModelId } from '@shared/data/types/model'
+import { ImageGenerationModeSchema, ModelSchema, UniqueModelIdSchema } from '@shared/data/types/model'
 import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
 import * as z from 'zod'
 
@@ -41,7 +41,11 @@ const aiTransportOptionsSchema = z.object({
 /** Clone-safe subset of `AiBaseRequest` shared by text / embed / image routes. */
 const aiBaseRequestShape = {
   assistantId: z.string().optional(),
-  uniqueModelId: z.custom<UniqueModelId>((v) => typeof v === 'string').optional(),
+  // Strict `providerId::modelId` validation (separator at a real position, both
+  // parts well-formed) — a malformed id is rejected here instead of throwing later
+  // in `parseUniqueModelId`. The brand `z.custom<UniqueModelId>` alone only checked
+  // string-ness, letting a bad id penetrate to the routing code.
+  uniqueModelId: UniqueModelIdSchema.optional(),
   mcpToolIds: z.array(z.string()).optional(),
   requestOptions: aiTransportOptionsSchema.optional()
 }
@@ -49,22 +53,22 @@ const aiBaseRequestShape = {
 const aiImagePayloadSchema = z.strictObject({
   ...aiBaseRequestShape,
   prompt: z.string(),
+  /**
+   * The image-generation mode (which tab). A request property — NOT a param — so
+   * main can derive per-model transport routing (`vendorTransport` → descriptor)
+   * from the registry itself. Defaults to `generate` when absent.
+   */
+  mode: ImageGenerationModeSchema.optional(),
+  /**
+   * The canonical param bag, validated + coerced at the IPC boundary by the
+   * catalog value schema — the router's `safeParse` yields a typed `ParamValues`
+   * (non-catalog keys stripped). Per-model option/range constraints already ran
+   * in the renderer's `buildParamsSchema`; this is the value-type gate.
+   */
+  paramValues: imageParamsSchema,
+  /** Attached images / mask are encoded file bytes (data URLs), not form params. */
   inputImages: z.array(z.string()).optional(),
-  mask: z.string().optional(),
-  n: z.number().optional(),
-  size: z.string().optional(),
-  negativePrompt: z.string().optional(),
-  seed: z.number().optional(),
-  quality: z.string().optional(),
-  numInferenceSteps: z.number().optional(),
-  guidanceScale: z.number().optional(),
-  promptEnhancement: z.boolean().optional(),
-  personGeneration: z.custom<PersonGeneration>().optional(),
-  aspectRatio: z.string().optional(),
-  background: z.string().optional(),
-  moderation: z.string().optional(),
-  style: z.string().optional(),
-  providerOptions: z.record(z.string(), z.record(z.string(), z.unknown())).optional()
+  mask: z.string().optional()
 })
 
 export const aiRequestSchemas = {
@@ -78,7 +82,11 @@ export const aiRequestSchemas = {
     output: z.object({ text: z.string(), usage: z.custom<LanguageModelUsage>().optional() })
   }),
   'ai.check_model': defineRoute({
-    input: z.strictObject({ ...aiBaseRequestShape, timeout: z.number().optional() }),
+    input: z.strictObject({
+      ...aiBaseRequestShape,
+      apiKeyOverride: z.string().optional(),
+      timeout: z.number().optional()
+    }),
     output: z.object({ latency: z.number() })
   }),
   'ai.embed_many': defineRoute({
@@ -114,7 +122,8 @@ export const aiRequestSchemas = {
     input: z.intersection(
       z.object({
         topicId: z.string().min(1),
-        mentionedModelIds: z.array(z.custom<UniqueModelId>()).optional()
+        mentionedModelIds: z.array(UniqueModelIdSchema).optional(),
+        knowledgeBaseIds: z.array(z.string()).optional()
       }),
       z.discriminatedUnion('trigger', [
         z.object({
@@ -182,4 +191,12 @@ export type AiEventSchemas = {
   'ai.stream_chunk': StreamChunkPayload
   'ai.stream_done': StreamDonePayload
   'ai.stream_error': StreamErrorPayload
+  // Auto-rename push (broadcast): a background job renamed a topic / agent session; any
+  // window showing it should invalidate its cache.
+  'ai.topic_auto_renamed': { topicId: string }
+  'ai.agent_session_auto_renamed': { sessionId: string }
+  // Auto-rename failure (broadcastToType Main): a background naming job's summarization call
+  // failed (e.g. the naming model returned an auth error). Delivered to the main window only
+  // — the job has no origin window — which surfaces it as a toast so the failure isn't silent.
+  'ai.topic_naming_failed': { message: string }
 }

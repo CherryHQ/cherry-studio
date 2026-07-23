@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 const hasPendingSteer = vi.fn()
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: { get: vi.fn(() => ({ hasPendingSteer })) }
 }))
 vi.mock('../../../../agentSession/topic', () => ({
@@ -19,14 +19,14 @@ describe('steerYieldFeature', () => {
     expect(steerYieldFeature.applies?.(scope(undefined))).toBe(false)
   })
 
-  it('contributes a stop condition that fires only when the topic has a pending steer', () => {
+  it('contributes a stop condition that fires only when the topic has a pending steer', async () => {
     const [condition] = steerYieldFeature.contributeStopConditions!(scope('topic-1'))
 
     hasPendingSteer.mockReturnValue(false)
-    expect(condition({ steps: [] } as any)).toBe(false)
+    expect(await condition({ steps: [] } as any)).toBe(false)
 
     hasPendingSteer.mockReturnValue(true)
-    expect(condition({ steps: [] } as any)).toBe(true)
+    expect(await condition({ steps: [] } as any)).toBe(true)
     expect(hasPendingSteer).toHaveBeenCalledWith('topic-1')
   })
 

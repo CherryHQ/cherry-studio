@@ -1,10 +1,10 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { ActionIconButton } from '@renderer/components/Buttons'
+import ActionIconButton from '@renderer/components/ActionIconButton'
 import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import { scrollElementIntoView } from '@renderer/utils/dom'
 import { classNames } from '@renderer/utils/style'
-import { debounce } from 'lodash'
+import { debounce } from 'es-toolkit/compat'
 import { CaseSensitive, ChevronDown, ChevronUp, User, WholeWord, X } from 'lucide-react'
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -370,7 +370,10 @@ export function ContentSearch({
                   <ActionIconButton
                     onClick={userOutlinedButtonOnClick}
                     icon={
-                      <User size={18} style={{ color: includeUser ? 'var(--color-primary)' : 'var(--color-icon)' }} />
+                      <User
+                        size={18}
+                        style={{ color: includeUser ? 'var(--color-primary)' : 'var(--color-foreground-secondary)' }}
+                      />
                     }
                   />{' '}
                 </Tooltip>
@@ -381,7 +384,9 @@ export function ContentSearch({
                   icon={
                     <CaseSensitive
                       size={18}
-                      style={{ color: isCaseSensitive ? 'var(--color-primary)' : 'var(--color-icon)' }}
+                      style={{
+                        color: isCaseSensitive ? 'var(--color-primary)' : 'var(--color-foreground-secondary)'
+                      }}
                     />
                   }
                 />{' '}
@@ -392,7 +397,7 @@ export function ContentSearch({
                   icon={
                     <WholeWord
                       size={18}
-                      style={{ color: isWholeWord ? 'var(--color-primary)' : 'var(--color-icon)' }}
+                      style={{ color: isWholeWord ? 'var(--color-primary)' : 'var(--color-foreground-secondary)' }}
                     />
                   }
                 />

@@ -11,22 +11,22 @@ import {
   SelectTrigger,
   SelectValue
 } from '@cherrystudio/ui'
-import { DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/pages/knowledge/utils'
+import { ipcApi } from '@renderer/ipc'
+import { DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/pages/knowledge/utils/group'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { LOCAL_EMBEDDING_DIMENSIONS, LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { Group } from '@shared/data/types/group'
 import type { CreateKnowledgeBaseDto, KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FormEvent, ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useEmbeddingDimensions } from '../hooks/useEmbeddingDimensions'
 import {
   KnowledgeDialogBody,
   KnowledgeDialogField,
   KnowledgeDialogFooter,
   KnowledgeDialogHeader
 } from './KnowledgeDialogLayout'
-import { isEmbeddingModel, KnowledgeModelSelect } from './KnowledgeModelSelect'
 
 interface CreateKnowledgeBaseDialogProps {
   open: boolean
@@ -38,18 +38,18 @@ interface CreateKnowledgeBaseDialogProps {
   onCreated: (base: KnowledgeBase) => void
 }
 
+// The form only collects name + group. A base is created BM25-only unless the
+// optional local embedding model is already downloaded, in which case submit
+// backfills embeddingModelId + dimensions so the base starts as a vector base.
 type CreateKnowledgeBaseInput = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId' | 'embeddingModelId' | 'dimensions'>
-type CreateKnowledgeBaseFormValues = Omit<CreateKnowledgeBaseInput, 'dimensions' | 'embeddingModelId'> & {
-  embeddingModelId: string | null
-}
+type CreateKnowledgeBaseFormValues = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId'>
 
 // Radix Select forbids an empty option value, so represent the default (ungrouped) group with a sentinel.
 const DEFAULT_GROUP_OPTION_VALUE = '__default__'
 
 const createInitialInput = (groupId?: string): CreateKnowledgeBaseFormValues => ({
   name: '',
-  groupId,
-  embeddingModelId: null
+  groupId
 })
 
 const CreateKnowledgeBaseDialogHeader = ({ title }: { title: string }) => {
@@ -110,7 +110,6 @@ const CreateKnowledgeBaseDialogRoot = ({
   )
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const { fetchDimensions, isFetchingDimensions } = useEmbeddingDimensions()
 
   useEffect(() => {
     if (!open) {
@@ -130,37 +129,37 @@ const CreateKnowledgeBaseDialogRoot = ({
     })
   }, [groupIds])
 
-  const handleEmbeddingModelChange = (embeddingModelId: string | null) => {
-    setValues((currentValues) => ({ ...currentValues, embeddingModelId }))
-    setSubmitError(null)
-  }
-
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setHasAttemptedSubmit(true)
     setSubmitError(null)
 
-    if (!values.name.trim() || !values.embeddingModelId) {
-      return
-    }
-
-    let dimensions: number
-
-    try {
-      dimensions = await fetchDimensions(values.embeddingModelId)
-    } catch (error) {
-      setSubmitError(formatErrorMessageWithPrefix(error, t('message.error.get_embedding_dimensions')))
+    if (!values.name.trim()) {
       return
     }
 
     const createInput: CreateKnowledgeBaseInput = {
-      name: values.name,
-      embeddingModelId: values.embeddingModelId,
-      dimensions
+      name: values.name
     }
 
     if (values.groupId && groupIds.has(values.groupId)) {
       createInput.groupId = values.groupId
+    }
+
+    // "Build a vector base when the local model is ready": if the optional local
+    // embedding model is already downloaded, default the new base to it (paired
+    // with its fixed dimensions) so users don't have to enable it afterwards. A
+    // 'ready' status guarantees the user_model row exists, so this can't trip the
+    // embeddingModelId foreign key. The probe is best-effort — on failure fall back
+    // to BM25-only creation rather than blocking.
+    try {
+      const { status } = await ipcApi.request('local_model.get_status', { model: 'embedding' })
+      if (status === 'ready') {
+        createInput.embeddingModelId = LOCAL_EMBEDDING_UNIQUE_MODEL_ID
+        createInput.dimensions = LOCAL_EMBEDDING_DIMENSIONS
+      }
+    } catch {
+      // best-effort probe; fall back to BM25-only creation
     }
 
     let createdBase: KnowledgeBase
@@ -178,7 +177,7 @@ const CreateKnowledgeBaseDialogRoot = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="lg">
+      <DialogContent closeOnOverlayClick={false} size="sm">
         <CreateKnowledgeBaseDialog.Header title={t('knowledge.add.title')} />
 
         <CreateKnowledgeBaseDialog.Form onSubmit={handleSubmit}>
@@ -189,7 +188,6 @@ const CreateKnowledgeBaseDialogRoot = ({
                 id="knowledge-create-name"
                 value={values.name}
                 aria-invalid={hasAttemptedSubmit && !values.name.trim()}
-                placeholder={t('common.name')}
                 onChange={(event) => setValues((currentValues) => ({ ...currentValues, name: event.target.value }))}
               />
               {hasAttemptedSubmit && !values.name.trim() ? (
@@ -223,26 +221,11 @@ const CreateKnowledgeBaseDialogRoot = ({
               </KnowledgeDialogField>
             ) : null}
 
-            <KnowledgeDialogField>
-              <Label>{t('knowledge.embedding_model')}</Label>
-              <KnowledgeModelSelect
-                aria-label={t('knowledge.embedding_model')}
-                value={values.embeddingModelId}
-                placeholder={t('knowledge.not_set')}
-                filter={isEmbeddingModel}
-                invalid={hasAttemptedSubmit && !values.embeddingModelId}
-                onChange={handleEmbeddingModelChange}
-              />
-              {hasAttemptedSubmit && !values.embeddingModelId ? (
-                <FieldError>{t('knowledge.embedding_model_required')}</FieldError>
-              ) : null}
-            </KnowledgeDialogField>
-
             {submitError ? <FieldError>{submitError}</FieldError> : null}
           </KnowledgeDialogBody>
 
           <CreateKnowledgeBaseDialog.Actions
-            isCreating={isCreating || isFetchingDimensions}
+            isCreating={isCreating}
             onCancel={() => onOpenChange(false)}
             cancelLabel={t('common.cancel')}
             submitLabel={t('knowledge.add.submit')}

@@ -1,9 +1,10 @@
-import { defineTool, registerTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
-import { permissionModeCards } from '@renderer/config/agent'
-import { defaultConfiguration } from '@renderer/hooks/agents/agentConfiguration'
-import { useAgent } from '@renderer/hooks/agents/useAgent'
-import { useUpdateAgent } from '@renderer/hooks/agents/useAgent'
+import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
+import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
+import { useAgent } from '@renderer/hooks/agent/useAgent'
+import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import type { PermissionMode } from '@renderer/types/agent'
+import { permissionModeCards } from '@renderer/utils/agent'
+import { defaultConfiguration } from '@renderer/utils/agent/agentConfiguration'
 import { FolderPen, Pointer, RefreshCcw, Route } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo } from 'react'
@@ -42,11 +43,6 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
       const configuration = agent.configuration ?? defaultConfiguration
       const updatedConfiguration = { ...configuration, permission_mode: nextMode }
 
-      // Disable soul mode when switching away from bypassPermissions
-      if (nextMode !== 'bypassPermissions' && configuration.soul_enabled === true) {
-        updatedConfiguration.soul_enabled = false
-      }
-
       void updateAgent({ id: agentId, configuration: updatedConfiguration }, { showSuccessToast: false })
     },
     [currentMode, agent, agentId, updateAgent]
@@ -79,6 +75,7 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
         order: 80,
         label: t('agent.settings.permissionMode.title', 'Permission Mode'),
         description: '',
+        searchAliases: getQuickPanelSearchAliases(t, 'agent.settings.permissionMode.title'),
         icon: getPermissionModeIcon(currentMode),
         suffix: tooltipTitle,
         submenu: modeSubmenu
@@ -103,7 +100,5 @@ const permissionModeTool = defineTool({
     runtime: ({ context }) => <PermissionModeComposerRuntime context={context} />
   }
 })
-
-registerTool(permissionModeTool)
 
 export default permissionModeTool

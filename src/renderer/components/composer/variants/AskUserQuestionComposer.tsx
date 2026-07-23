@@ -1,6 +1,7 @@
 import { Button, Checkbox, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
+import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import { ArrowRight, ChevronLeft, ChevronRight, Pencil, X } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
@@ -98,7 +99,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
           messageId: request.messageId,
           toolCallId: request.toolCallId
         })
-        window.toast.error(t('agent.toolPermission.error.sendFailed'))
+        toast.error(t('agent.toolPermission.error.sendFailed'))
         setIsSubmitting(false)
       }
     },
@@ -195,7 +196,7 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
     <div
       data-composer-viewport-inset-target=""
       className={cn('relative z-2 flex flex-col px-4.5 pt-0 pb-4.5', className)}>
-      <div className="rounded-[17px] border-[0.5px] border-border bg-(--color-background-opacity) p-2.5 backdrop-blur">
+      <div className="rounded-[17px] border-[0.5px] border-border bg-background/90 p-2.5 backdrop-blur">
         <div className="flex items-center justify-between gap-3 px-1">
           <h2 className="line-clamp-1 min-w-0 flex-1 font-semibold text-foreground text-sm leading-5">
             {currentQuestion.question}

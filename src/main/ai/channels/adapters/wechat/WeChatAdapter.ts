@@ -1,7 +1,6 @@
 import { application } from '@application'
 import { WindowType } from '@main/core/window/types'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
-import { IpcChannel } from '@shared/IpcChannel'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
@@ -95,6 +94,19 @@ class WeChatAdapter extends ChannelAdapter {
     }
   }
 
+  override async sendFile(chatId: string, file: FileAttachment): Promise<void> {
+    if (!this.bot) {
+      throw new Error('Bot is not connected')
+    }
+    // The reverse-engineered WeChat protocol only supports outbound images today
+    // (WeixinBot.sendImage). Document upload would need protocol-level CDN work.
+    if (!file.media_type.startsWith('image/')) {
+      throw new Error(`WeChat can only forward image files, not "${file.media_type}" (${file.filename})`)
+    }
+    await this.bot.sendImage(chatId, Buffer.from(file.data, 'base64'))
+    this.log.info('Sent file', { chatId, filename: file.filename, size: file.size })
+  }
+
   async sendTypingIndicator(chatId: string): Promise<void> {
     if (!this.bot) {
       throw new Error('Bot is not connected')
@@ -113,7 +125,7 @@ class WeChatAdapter extends ChannelAdapter {
     status: 'pending' | 'confirmed' | 'expired' | 'disconnected',
     userId?: string
   ): void {
-    application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.WeChat_QrLogin, {
+    application.get('IpcApiService').broadcastToType(WindowType.Main, 'channel.wechat.qr_login', {
       channelId: this.channelId,
       url,
       status,

@@ -3,7 +3,7 @@
  * reply" flow.
  *
  * Drives a stream entirely through main:
- *   - `window.api.translate.open({ ..., messageId })` opens a stream with a
+ *   - `ipcApi.request('translate.open', { ..., messageId })` opens a stream with a
  *     `TranslationBackend` attached on main.
  *   - chunks land via `ai.stream_chunk` → we accumulate locally and write into
  *     the renderer-side `TranslationOverlayContext` (no SWR PATCH).
@@ -21,7 +21,10 @@
  */
 
 import { loggerService } from '@logger'
-import { useOptionalTranslationOverlaySetter, useRefresh } from '@renderer/components/chat/messages/blocks'
+import {
+  useOptionalTranslationOverlaySetter,
+  useRefresh
+} from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import { ipcApi } from '@renderer/ipc'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
@@ -141,7 +144,7 @@ export function useTranslateMessage(messageId: string): UseTranslateMessageResul
       active.unsubscribers = [unsubChunk, unsubDone, unsubError]
 
       try {
-        await window.api.translate.open({
+        await ipcApi.request('translate.open', {
           streamId,
           text,
           targetLangCode: language.langCode,

@@ -1,6 +1,6 @@
 import { Spinner } from '@cherrystudio/ui'
-import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { useTheme } from '@renderer/hooks/useTheme'
 import DOMPurify from 'dompurify'
 import { npxFinder } from 'npx-scope-finder'
 import type { FC } from 'react'
@@ -41,8 +41,8 @@ const McpDescription: FC<McpDescriptionProps> = ({ searchKey }) => {
       <div
         className="rounded-lg border border-border bg-card p-6"
         style={{
-          backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'var(--card)',
-          borderColor: 'var(--border)'
+          backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'var(--color-card)',
+          borderColor: 'var(--color-border)'
         }}>
         {loading ? (
           <Spinner text={t('common.loading')} />

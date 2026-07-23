@@ -4,7 +4,28 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PaintingData } from '../../model/types/paintingData'
 
+// Keep t() returning raw keys: the renderer setup now initializes real i18n, but
+// these assertions match the params button on its stable `common.settings` key.
+vi.mock('react-i18next', () => ({
+  initReactI18next: { type: '3rdParty', init: vi.fn() },
+  useTranslation: () => ({ t: (key: string) => key })
+}))
+
 const captured = { surfaceProps: undefined as ComposerSurfaceProps | undefined }
+const mockUseImageGenerationSupport = vi.hoisted(() => vi.fn())
+
+const imageGenerationSupportWithFields = {
+  modes: {
+    generate: {
+      supports: {
+        background: { type: 'enum', options: ['auto', 'transparent', 'opaque'], default: 'auto' },
+        numImages: { type: 'range', min: 1, max: 10, default: 1 },
+        quality: { type: 'enum', options: ['auto', 'low', 'medium', 'high'], default: 'auto' },
+        size: { type: 'enum', options: ['auto', '1024x1024', '1536x1024', '1024x1536'], default: '1024x1024' }
+      }
+    }
+  }
+}
 
 // Stand in for the Tiptap surface: expose the text + send wiring the variant drives.
 vi.mock('@renderer/components/composer/ComposerSurface', () => ({
@@ -25,7 +46,7 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => ({
           onClick={() => props.onSendDraft({ text: props.text, tokens: [] })}>
           send
         </button>
-        {props.renderLeftControls?.()}
+        {props.renderLeftControls?.(undefined, { available: true, open: () => undefined })}
       </div>
     )
   }
@@ -38,6 +59,7 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
   useComposerToolState: () => ({ files: [], isExpanded: false }),
   useComposerToolDispatch: () => ({ setFiles: vi.fn(), setIsExpanded: vi.fn() }),
   useComposerToolLauncherActions: () => ({ getLaunchers: () => [], dispatchLauncher: vi.fn() }),
+  useComposerToolLauncherVersion: () => 0,
   useComposerTokenReconcile: () => vi.fn()
 }))
 
@@ -48,10 +70,17 @@ vi.mock('@renderer/components/composer/tools/registry', () => ({
 vi.mock('@renderer/components/composer/variants/shared/ComposerControlScaffolding', () => ({
   COMPOSER_SELECTOR_BUTTON_CLASS: '',
   ComposerToolbarControls: ({
-    renderContextControls
+    renderContextControls,
+    unifiedPanelControl
   }: {
     renderContextControls: (a: { side: string; iconOnly: boolean }) => React.ReactNode
-  }) => <div>{renderContextControls({ side: 'bottom', iconOnly: false })}</div>
+    unifiedPanelControl?: { available: boolean }
+  }) => (
+    <div>
+      {renderContextControls({ side: 'bottom', iconOnly: false })}
+      {unifiedPanelControl?.available ? <div data-testid="painting-plus-control" /> : null}
+    </div>
+  )
 }))
 
 vi.mock('@renderer/components/composer/variants/shared/composerTokens', () => ({
@@ -73,18 +102,7 @@ vi.mock('@shared/utils/model', () => ({ isEditImageModel: () => false }))
 vi.mock('../../hooks/usePaintingComposerInputFiles', () => ({ usePaintingComposerInputFiles: vi.fn() }))
 
 vi.mock('../../hooks/useImageGenerationSupport', () => ({
-  useImageGenerationSupport: () => ({
-    modes: {
-      generate: {
-        supports: {
-          background: { type: 'enum', options: ['auto', 'transparent', 'opaque'], default: 'auto' },
-          numImages: { type: 'range', min: 1, max: 10, default: 1 },
-          quality: { type: 'enum', options: ['auto', 'low', 'medium', 'high'], default: 'auto' },
-          size: { type: 'enum', options: ['auto', '1024x1024', '1536x1024', '1024x1536'], default: '1024x1024' }
-        }
-      }
-    }
-  })
+  useImageGenerationSupport: mockUseImageGenerationSupport
 }))
 
 vi.mock('../PaintingModelSelector', () => ({
@@ -131,11 +149,18 @@ const renderComposer = (props: Partial<React.ComponentProps<typeof PaintingCompo
 describe('PaintingComposer', () => {
   beforeEach(() => {
     captured.surfaceProps = undefined
+    mockUseImageGenerationSupport.mockReset()
+    mockUseImageGenerationSupport.mockReturnValue(imageGenerationSupportWithFields)
   })
 
   it('renders the model selector control in the toolbar', () => {
     renderComposer()
     expect(screen.getByTestId('painting-model-selector')).toBeInTheDocument()
+  })
+
+  it('passes the unified panel control to the toolbar', () => {
+    renderComposer()
+    expect(screen.getByTestId('painting-plus-control')).toBeInTheDocument()
   })
 
   it('reports prompt edits to the page', () => {
@@ -155,6 +180,30 @@ describe('PaintingComposer', () => {
     expect(screen.getByLabelText('send')).toBeDisabled()
   })
 
+  it('does not render the image params button when imageGeneration support is missing', () => {
+    mockUseImageGenerationSupport.mockReturnValue(undefined)
+
+    renderComposer({ painting: makePainting({ providerId: 'openrouter', model: 'gpt-5-image' }) })
+
+    expect(screen.queryByRole('button', { name: /common\.settings/ })).not.toBeInTheDocument()
+  })
+
+  it('renders the image params button when imageGeneration support produces fields', () => {
+    mockUseImageGenerationSupport.mockReturnValue({
+      modes: {
+        generate: {
+          supports: {
+            size: { type: 'enum', options: ['1024x1024'], render: 'chips' }
+          }
+        }
+      }
+    })
+
+    renderComposer({ painting: makePainting({ providerId: 'gateway', model: 'gpt-image-1' }) })
+
+    expect(screen.getByRole('button', { name: /common\.settings/ })).toBeInTheDocument()
+  })
+
   // The summary is folded into the params button's accessible name, so match on the
   // stable settings prefix rather than the full label.
   const paramsButton = () => screen.getByRole('button', { name: /common\.settings/ })
@@ -167,6 +216,14 @@ describe('PaintingComposer', () => {
   it('previews registry defaults when nothing is stored', () => {
     renderComposer({ painting: makePainting({ params: {} }) })
     expect(paramsButton()).toHaveTextContent('1024×1024')
+  })
+
+  it('localizes the selected size through the shared option label instead of the raw enum', () => {
+    renderComposer({ painting: makePainting({ params: { size: 'auto' } }) })
+    // The summary must route `auto` through resolveOptions/sizeOptionLabel (its
+    // localized labelKey) like the chips and prompt bar — not surface the bare
+    // `auto` enum that deriveChipLabel(value, value) previously leaked here.
+    expect(paramsButton()).toHaveTextContent('paintings.image_size_options.auto')
   })
 
   it('previews custom dimensions when size is custom', () => {

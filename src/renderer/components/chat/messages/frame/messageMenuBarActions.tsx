@@ -1,15 +1,18 @@
 import { loggerService } from '@logger'
-import { CopyIcon, DeleteIcon, EditIcon, RefreshIcon } from '@renderer/components/Icons'
 import {
   DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS,
   type MessageMenuBarButtonId,
   STREAMING_DISABLED_BUTTON_IDS
-} from '@renderer/config/registry/messageMenuBar'
-import { getMessageTitle } from '@renderer/services/MessagesService'
+} from '@renderer/components/chat/messages/frame/messageMenuBarConfig'
+import CopyIcon from '@renderer/components/icons/CopyIcon'
+import DeleteIcon from '@renderer/components/icons/DeleteIcon'
+import EditIcon from '@renderer/components/icons/EditIcon'
+import RefreshIcon from '@renderer/components/icons/RefreshIcon'
+import { getMessageTitle, messageToMarkdown } from '@renderer/services/ExportService'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { messageToMarkdown, messageToPlainText } from '@renderer/utils/export'
-import { captureScrollableAsBlob, captureScrollableAsDataURL } from '@renderer/utils/image'
+import { messageToPlainText } from '@renderer/utils/export'
+import { captureScrollableAsBlob, captureScrollableAsDataUrl } from '@renderer/utils/image'
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
 import { getTranslationFromParts } from '@renderer/utils/message/partsHelpers'
@@ -227,7 +230,7 @@ registerCommand('message.copyImage', async ({ actions, messageContainerRef }) =>
 })
 
 registerCommand('message.exportImage', async ({ actions, messageContainerRef, messageForExport, t }) => {
-  const imageData = await captureScrollableAsDataURL(messageContainerRef)
+  const imageData = await captureScrollableAsDataUrl(messageContainerRef)
   const title = await getMessageTitle(messageForExport)
   if (!title || !imageData || !actions.saveImage) {
     actions.notifyError?.(t('message.error.unknown'))
@@ -287,7 +290,8 @@ registerToolbarAction({
   icon: <EditIcon size={15} />,
   availability: toolbarAvailability(
     'user-edit',
-    ({ actions, isUserMessage, startEditingMessage }) => isUserMessage && !!actions.editMessage && !!startEditingMessage
+    ({ actions, isTranslating, isUserMessage, startEditingMessage }) =>
+      !isTranslating && isUserMessage && !!actions.editMessage && !!startEditingMessage
   )
 })
 
@@ -400,8 +404,12 @@ registerAction({
   group: 'write',
   order: 10,
   surface: 'menu',
-  availability: ({ actions, isEditable, isUserMessage, startEditingMessage }) =>
-    isEditable && !!actions.editMessage && !!startEditingMessage && isUserMessage
+  availability: ({ actions, isAssistantMessage, isEditable, isTranslating, isUserMessage, startEditingMessage }) =>
+    !isTranslating &&
+    isEditable &&
+    !!actions.editMessage &&
+    !!startEditingMessage &&
+    (isUserMessage || isAssistantMessage)
 })
 
 registerAction({
@@ -412,8 +420,17 @@ registerAction({
   group: 'write',
   order: 20,
   surface: 'menu',
-  availability: ({ actions, isAssistantMessage, isLastMessage }) =>
-    !!actions.startMessageBranch && isAssistantMessage && !isLastMessage
+  availability: ({ actions, isAssistantMessage, isLastMessage, t }) => {
+    if (!actions.startMessageBranch || !isAssistantMessage) return false
+    if (isLastMessage) {
+      return {
+        visible: true,
+        enabled: false,
+        reason: t('chat.message.new.branch.disabled.latest')
+      }
+    }
+    return true
+  }
 })
 
 registerAction({

@@ -336,6 +336,33 @@ describe('atomicWriteFile', () => {
     expect(entries.filter((e) => e.includes('.tmp-'))).toEqual([])
   })
 
+  it('applies options.mode from creation (never on disk under a looser mode)', async () => {
+    if (process.platform === 'win32') return
+    const target = path.join(tmp, 'secret.txt') as FilePath
+    await atomicWriteFile(target, 'sk-secret', { mode: 0o600 })
+    expect(await readFile(target, 'utf-8')).toBe('sk-secret')
+    expect((await fsStatPromise(target)).mode & 0o777).toBe(0o600)
+  })
+
+  it('tightens a pre-existing looser target mode on overwrite', async () => {
+    if (process.platform === 'win32') return
+    const target = path.join(tmp, 'was-open.txt') as FilePath
+    await writeFile(target, 'old', { mode: 0o644 })
+    await atomicWriteFile(target, 'new-secret', { mode: 0o600 })
+    expect(await readFile(target, 'utf-8')).toBe('new-secret')
+    expect((await fsStatPromise(target)).mode & 0o777).toBe(0o600)
+  })
+
+  it('keeps the default (umask) mode when options.mode is omitted', async () => {
+    if (process.platform === 'win32') return
+    const target = path.join(tmp, 'plain.txt') as FilePath
+    await atomicWriteFile(target, 'hello')
+    // Same 0666 & ~umask a plain fs write gets — no accidental tightening.
+    const reference = path.join(tmp, 'reference.txt')
+    await writeFile(reference, 'hello')
+    expect((await fsStatPromise(target)).mode & 0o777).toBe((await fsStatPromise(reference)).mode & 0o777)
+  })
+
   it('cleans up the tmp file when rename fails', async () => {
     // Make the target directory read-only after pre-creating an existing file there,
     // then attempt to overwrite — rename(tmp → target) cannot succeed because the
@@ -490,6 +517,33 @@ describe('copy', () => {
     await fsCopy(src as FilePath, dest as FilePath)
     const out = await readFile(dest)
     expect(out.equals(bytes)).toBe(true)
+  })
+
+  it('rejects with an AbortError when the signal is already aborted', async () => {
+    const src = path.join(tmp, 'src.txt')
+    const dest = path.join(tmp, 'dest.txt')
+    await writeFile(src, 'payload')
+    const controller = new AbortController()
+    controller.abort()
+    await expect(fsCopy(src as FilePath, dest as FilePath, controller.signal)).rejects.toThrow(/abort/i)
+    // No partial dest committed (rename only on successful finish) and no tmp residue.
+    expect(await exists(dest as FilePath)).toBe(false)
+    const entries = await readdir(tmp)
+    expect(entries.filter((e) => e.includes('.tmp-'))).toEqual([])
+  })
+
+  it('interrupts an in-flight copy when aborted (no tmp residue, dest not committed)', async () => {
+    const src = path.join(tmp, 'big.bin')
+    const dest = path.join(tmp, 'dest.bin')
+    // Large enough that the copy is still streaming when we abort on the same tick.
+    await writeFile(src, Buffer.alloc(16 * 1024 * 1024))
+    const controller = new AbortController()
+    const pending = fsCopy(src as FilePath, dest as FilePath, controller.signal)
+    controller.abort()
+    await expect(pending).rejects.toThrow(/abort/i)
+    expect(await exists(dest as FilePath)).toBe(false)
+    const entries = await readdir(tmp)
+    expect(entries.filter((e) => e.includes('.tmp-'))).toEqual([])
   })
 })
 

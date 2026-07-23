@@ -1,4 +1,4 @@
-import { defineTool, registerTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
+import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
 import { isSupportedToolUse } from '@renderer/utils/assistant'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { useCallback } from 'react'
@@ -82,7 +82,5 @@ const knowledgeBaseTool = defineTool({
     }
   }
 })
-
-registerTool(knowledgeBaseTool)
 
 export default knowledgeBaseTool

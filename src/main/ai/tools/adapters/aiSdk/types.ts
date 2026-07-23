@@ -1,4 +1,5 @@
 import type { Assistant } from '@shared/data/types/assistant'
+import type { ImageGenerationSupport, UniqueModelId } from '@shared/data/types/model'
 import type { Tool } from 'ai'
 
 /**
@@ -8,8 +9,21 @@ import type { Tool } from 'ai'
  */
 export interface ToolApplyScope {
   readonly assistant?: Assistant
+  /** Painting model resolved once for this request; dynamic builtins derive their schema from it. */
+  readonly paintingModel?: {
+    readonly uniqueModelId: UniqueModelId
+    readonly support: ImageGenerationSupport | null
+  }
   /** Server allowlist + per-tool disable already applied. */
   readonly mcpToolIds: ReadonlySet<string>
+  /** True when the request carries first-party file attachments — gates the `read_file` tool. Defaults to false. */
+  readonly hasFileAttachments?: boolean
+  /** True when the user has at least one knowledge base — gates the `kb_*` tools. Defaults to false. */
+  readonly hasAnyKnowledgeBase?: boolean
+  /**
+   * Effective knowledge base scope for this request; see `resolveKnowledgeBaseIds`. Defaults to empty.
+   */
+  readonly knowledgeBaseIds?: readonly string[]
 }
 
 /**
@@ -44,6 +58,9 @@ export interface ToolEntry {
   defer: ToolDefer
 
   tool: Tool
+
+  /** Materialize a request-scoped tool (for example, a model-specific input schema). */
+  buildTool?(scope: ToolApplyScope): Tool
 
   applies?(scope: ToolApplyScope): boolean
 }

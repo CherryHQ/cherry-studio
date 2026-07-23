@@ -1,5 +1,6 @@
 import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import type { Model } from '@shared/data/types/model'
+import { parseUniqueModelId } from '@shared/data/types/model'
 import {
   isEmbeddingModel,
   isFreeModel,
@@ -9,16 +10,14 @@ import {
   isVisionModel,
   isWebSearchModel
 } from '@shared/utils/model'
-import { sortBy, toPairs } from 'lodash'
+import { sortBy, toPairs } from 'es-toolkit/compat'
 
 import { normalizeModelGroupName } from './grouping'
 import { filterProviderSettingModelsByKeywords, getDuplicateProviderSettingModelNames } from './utils'
 
 export type ModelGroups = Record<string, Model[]>
-
-export type ModelSections = {
-  enabled: ModelGroups
-  disabled: ModelGroups
+interface GroupModelsOptions {
+  preferModelGroup?: boolean
 }
 
 export const MODEL_LIST_CAPABILITY_FILTERS = [
@@ -40,12 +39,9 @@ export type ModelListDerivedState = {
   capabilityOptions: readonly ModelListCapabilityFilter[]
   capabilityModelCounts: ModelListCapabilityCounts
   duplicateModelNames: Set<string>
-  enabledModelCount: number
-  disabledModelCount: number
   modelCount: number
   hasVisibleModels: boolean
   hasNoModels: boolean
-  allEnabled: boolean
   modelStatusMap: Map<string, ModelWithStatus>
 }
 
@@ -58,9 +54,26 @@ type CalculateModelListDerivedStateInput = {
   modelStatuses: ModelWithStatus[]
 }
 
-export const groupModels = (models: Model[], preserveGroupOrder = false): ModelGroups => {
+function getModelIdGroupName(model: Model): string | undefined {
+  const modelId = model.apiModelId ?? parseUniqueModelId(model.id).modelId
+  const pathParts = modelId.split('/')
+  if (pathParts.length > 1) {
+    return pathParts[0]
+  }
+
+  const familyName = modelId.split('-')[0]?.trim()
+  return familyName !== modelId ? familyName : undefined
+}
+
+export const groupModels = (
+  models: Model[],
+  preserveGroupOrder = false,
+  options: GroupModelsOptions = {}
+): ModelGroups => {
   const grouped = models.reduce<ModelGroups>((acc, model) => {
-    const groupName = normalizeModelGroupName(model.group)
+    const preferredGroup = options.preferModelGroup ? model.group : getModelIdGroupName(model)
+    const fallbackGroup = options.preferModelGroup ? getModelIdGroupName(model) : model.group
+    const groupName = normalizeModelGroupName(preferredGroup, fallbackGroup ?? model.providerId)
     if (!acc[groupName]) {
       acc[groupName] = []
     }
@@ -112,26 +125,6 @@ export const applyModelFilters = (
   return searchedModels.filter((model) => matchesCapabilityFilter(model, selectedCapabilityFilter))
 }
 
-export const calculateModelSections = (
-  models: Model[],
-  searchText: string,
-  selectedCapabilityFilter: ModelListCapabilityFilter
-): ModelSections => {
-  const filteredModels = applyModelFilters(models, searchText, selectedCapabilityFilter)
-  const preserveGroupOrder = Boolean(searchText.trim())
-
-  return {
-    enabled: groupModels(
-      filteredModels.filter((model) => model.isEnabled),
-      preserveGroupOrder
-    ),
-    disabled: groupModels(
-      filteredModels.filter((model) => !model.isEnabled),
-      preserveGroupOrder
-    )
-  }
-}
-
 export const countModelsInGroups = (groups: ModelGroups): number => {
   return Object.values(groups).reduce((acc, group) => acc + group.length, 0)
 }
@@ -176,29 +169,15 @@ export const calculateModelListDerivedState = ({
   modelStatuses
 }: CalculateModelListDerivedStateInput): ModelListDerivedState => {
   const filteredModels = applyModelFilters(models, searchText, selectedCapabilityFilter)
-  const enabledModels: Model[] = []
-  const disabledModels: Model[] = []
-
-  for (const model of filteredModels) {
-    if (model.isEnabled) {
-      enabledModels.push(model)
-      continue
-    }
-
-    disabledModels.push(model)
-  }
 
   return {
     filteredModels,
     capabilityOptions: MODEL_LIST_CAPABILITY_FILTERS,
     capabilityModelCounts: getCapabilityModelCounts(models),
     duplicateModelNames: getDuplicateProviderSettingModelNames(models),
-    enabledModelCount: enabledModels.length,
-    disabledModelCount: disabledModels.length,
     modelCount: filteredModels.length,
     hasVisibleModels: filteredModels.length > 0,
     hasNoModels: models.length === 0,
-    allEnabled: filteredModels.length > 0 && filteredModels.every((model) => model.isEnabled),
     modelStatusMap: new Map(modelStatuses.map((status) => [status.model.id, status]))
   }
 }

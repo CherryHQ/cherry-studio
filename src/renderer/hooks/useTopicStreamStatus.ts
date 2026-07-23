@@ -3,7 +3,7 @@
 // marker is a separate cross-window shared cache key.
 
 import { loggerService } from '@logger'
-import { useSharedCache } from '@renderer/data/hooks/useCache'
+import { useSharedCache, useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { type ActiveExecution, classifyTurn, type TopicStreamStatus } from '@shared/ai/transport'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
@@ -29,7 +29,11 @@ interface TopicStreamStatusView {
 }
 
 export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
-  const [entry] = useSharedCache(`topic.stream.statuses.${topicId}` as const)
+  // Main-owned status entry: read-only observation (consumers below all accept
+  // `undefined` via optional chaining, so no local fallback is needed).
+  // `lastSeenCompletion` stays on the writable hook — this window OWNS the
+  // read-receipt marker and writes it via markSeen.
+  const entry = useSharedCacheValue(`topic.stream.statuses.${topicId}` as const)
   const [lastSeenCompletion, setLastSeenCompletion] = useSharedCache(
     `topic.stream.last_seen_completion.${topicId}` as const
   )
@@ -53,27 +57,29 @@ export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
 }
 
 export function useTopicAwaitingApproval(topicId: string): boolean {
-  const [entry] = useSharedCache(`topic.stream.statuses.${topicId}` as const)
+  const entry = useSharedCacheValue(`topic.stream.statuses.${topicId}` as const)
   return classifyTurn(entry?.status).isAwaitingApproval
 }
 
-// Fire `refresh` once per live→terminal transition. Gate is `classifyTurn`-driven
-// so new TopicStreamStatus values participate by construction.
-export function useTopicDbRefreshOnTerminal(topicId: string, refresh: () => Promise<unknown>): void {
-  const [entry] = useSharedCache(`topic.stream.statuses.${topicId}` as const)
+// Fire `refresh` once when a live turn pauses for approval. The final
+// done/error/aborted handoff is owned by the page-level overlay handoff so it
+// can refresh before dropping live overlay parts.
+export function useTopicDbRefreshOnAwaitingApproval(topicId: string, refresh: () => Promise<unknown>): void {
+  const entry = useSharedCacheValue(`topic.stream.statuses.${topicId}` as const)
   const status = entry?.status
   const refreshRef = useRef(refresh)
   refreshRef.current = refresh
-  const prevRef = useRef<typeof status>(undefined)
+  const prevRef = useRef<{ status: typeof status; topicId: string } | undefined>(undefined)
   useEffect(() => {
-    const prev = prevRef.current
-    prevRef.current = status
-    if (classifyTurn(prev).isStreamLive && classifyTurn(status).isTerminal) {
+    const previous = prevRef.current
+    const prev = previous?.topicId === topicId ? previous.status : undefined
+    prevRef.current = { status, topicId }
+    if (classifyTurn(prev).isStreamLive && classifyTurn(status).isAwaitingApproval) {
       void refreshRef.current().catch(() => {
         // Caller logs; the invalidation signal must not throw out of the effect.
       })
     }
-  }, [status])
+  }, [status, topicId])
 }
 
 /**
@@ -88,17 +94,18 @@ export function useTopicDbRefreshOnTerminal(topicId: string, refresh: () => Prom
  * card — a continue stream will resume it). That distinction lives only here in
  * `classifyTurn`, not inside the status-agnostic overlay hook — hence the
  * handoff is decided at the consumer layer, separate from
- * `useTopicDbRefreshOnTerminal` (whose refresh-on-awaiting-approval is wanted).
+ * `useTopicDbRefreshOnAwaitingApproval` (whose refresh-on-awaiting-approval is wanted).
  */
 export function useTopicOverlayHandoffOnTerminal(topicId: string, onHandoff: () => Promise<void> | void): void {
-  const [entry] = useSharedCache(`topic.stream.statuses.${topicId}` as const)
+  const entry = useSharedCacheValue(`topic.stream.statuses.${topicId}` as const)
   const status = entry?.status
   const onHandoffRef = useRef(onHandoff)
   onHandoffRef.current = onHandoff
-  const prevRef = useRef<typeof status>(undefined)
+  const prevRef = useRef<{ status: typeof status; topicId: string } | undefined>(undefined)
   useEffect(() => {
-    const prev = prevRef.current
-    prevRef.current = status
+    const previous = prevRef.current
+    const prev = previous?.topicId === topicId ? previous.status : undefined
+    prevRef.current = { status, topicId }
     const next = classifyTurn(status)
     if (classifyTurn(prev).isStreamLive && next.isTerminal && !next.isAwaitingApproval) {
       void (async () => {

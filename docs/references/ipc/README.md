@@ -4,7 +4,7 @@ Entry point for **IpcApi** — Cherry Studio's unified, type-safe channel for RP
 
 IpcApi is the **fifth parallel subsystem** alongside BootConfig / Cache / Preference / DataApi. It does **not** absorb any of them — it collects the "business capability IPC" those four cannot cover (window/system/shell/notification/external-service/file commands).
 
-> **Status:** the Stage-0 framework (schema mechanism, `IpcRouter`, `IpcApiService`, preload forwarder, renderer facade, `useIpcOn`) has shipped and coexists with legacy IPC. No business channel is migrated yet; domains are migrated incrementally, one PR per domain (see the migration guide).
+> **Status:** the Stage-0 framework (schema mechanism, `IpcRouter`, `IpcApiService`, preload forwarder, renderer facade, `useIpcOn`) has shipped, and the business-channel migration is essentially complete — `IpcChannel.ts` now holds only the data/IpcApi infrastructure channels plus the intentionally-not-migrated groups (v1-only, the frozen file cluster, deferred lan_transfer / micro-domains / copilot, the skill scaffold, and the `Tab_MoveWindow` / Python escape hatches; each carries a self-contained comment in `IpcChannel.ts`). The endgame collapse (shrinking `IpcChannel.ts` to `ipc/channels.ts`, removing `BaseService.ipcHandle`/`ipcOn`, narrowing `window.electron`) is still pending.
 
 ## Quick Navigation
 
@@ -45,14 +45,14 @@ Decision rule: SQLite data → DataApi; user setting → Preference; losable/sha
 | File | Role |
 |---|---|
 | `src/shared/ipc/define.ts` | `defineRoute` + `RouteDef` |
-| `src/shared/ipc/schemas/index.ts` | `ipcRequestSchemas` / `IpcRoute` / `IpcEventSchemas` / `IpcEventName` |
+| `src/shared/ipc/schemas/ipcSchemas.ts` | `ipcRequestSchemas` / `IpcRoute` / `IpcEventSchemas` / `IpcEventName` |
 | `src/shared/ipc/types.ts` | `InputFor` / `OutputFor` / `EventPayload` / `IpcHandlersFor` / `IpcContext` / `WindowId` |
-| `src/shared/ipc/errors/index.ts` | framework core: `IpcError` / `IpcErrorCode` (framework codes, single source of truth) / `SerializedIpcError` / `IpcResult` |
-| `src/shared/ipc/errors/<domain>.ts` | per-domain error-code maps (`as const`), imported directly by handler + renderer — **not** aggregated through `errors/index.ts` |
+| `src/shared/ipc/errors/IpcError.ts` | framework core: `IpcError` / `IpcErrorCode` (framework codes, single source of truth) / `SerializedIpcError` / `IpcResult` |
+| `src/shared/ipc/errors/<domain>.ts` | per-domain error-code maps (`as const`), imported directly by handler + renderer — `errors/` has no aggregating barrel |
 | `src/main/ipc/IpcRouter.ts` | request router (key lookup + zod parse + dispatch) |
 | `src/main/ipc/IpcApiService.ts` | `BeforeReady` coordinator: handler registration + `broadcast`/`send` |
-| `src/main/ipc/validateSender.ts` | source-trust gate (`validateSender` / `isTrustedSenderUrl`) |
-| `src/main/ipc/handlers/index.ts` | global `ipcHandlers` (exhaustive, the audited exposure surface) |
+| `src/main/core/security/validateSender.ts` | source-trust gate (`validateSender` / `isTrustedSenderUrl`), shared with the DataApi `IpcAdapter` and the Preference/Cache subsystem handlers |
+| `src/main/ipc/handlers/ipcHandlers.ts` | global `ipcHandlers` (exhaustive, the audited exposure surface) |
 | `src/preload/ipc.ts` | generic forwarder → `window.api.ipcApi` |
 | `src/renderer/ipc/index.ts` | typed facade `ipcApi` |
 | `src/renderer/ipc/useIpcOn.ts` | event subscription hook |

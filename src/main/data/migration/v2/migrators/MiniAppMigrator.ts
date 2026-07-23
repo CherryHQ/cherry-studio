@@ -4,21 +4,40 @@
 
 import fs from 'node:fs/promises'
 
+import { miniAppLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import type { InsertMiniAppRow, MiniAppStatus } from '@data/db/schemas/miniApp'
 import { miniAppTable } from '@data/db/schemas/miniApp'
 import { loggerService } from '@logger'
 import { MINI_APP_ID_REGEX } from '@shared/data/api/schemas/miniApps'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
+import { miniAppLogoRef } from '@shared/data/types/file'
 import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { assignOrderKeysByScope } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 import { transformMiniApp } from './mappings/MiniAppMappings'
+import {
+  type EntityImageRef,
+  insertPreparedImageEntryTx,
+  insertPreparedImageRefTx,
+  prepareBase64ImageFileEntry,
+  type PreparedEntityImageFile,
+  unlinkPreparedImages
+} from './utils/logoMigration'
 
 type MiniAppRowWithoutOrderKey = Omit<InsertMiniAppRow, 'orderKey'>
 
 const logger = loggerService.withContext('MiniAppMigrator')
+
+function orderKeyScopeForStatus(status: MiniAppStatus | undefined): 'visible' | 'disabled' {
+  return status === 'disabled' ? 'disabled' : 'visible'
+}
+
+/** The mini-app logo slot for a given appId (mirrors MiniAppService). */
+function miniAppLogoSlot(appId: string) {
+  return { sourceType: miniAppLogoRef.sourceType, sourceId: appId, role: 'logo' }
+}
 
 export class MiniAppMigrator extends BaseMigrator {
   readonly id = 'miniapp'
@@ -136,11 +155,10 @@ export class MiniAppMigrator extends BaseMigrator {
         }
       }
 
-      // Stamp orderKey within each status partition (data-ordering-guide.md §5)
+      // Stamp orderKey in the same visible/hidden scopes used by runtime writes.
       const rowsWithoutOrder: MiniAppRowWithoutOrderKey[] = [...seenIds.values()]
-      this.preparedRows = assignOrderKeysByScope(
-        rowsWithoutOrder,
-        (row) => row.status ?? 'enabled'
+      this.preparedRows = assignOrderKeysByScope(rowsWithoutOrder, (row) =>
+        orderKeyScopeForStatus(row.status)
       ) as InsertMiniAppRow[]
 
       const byStatus = {
@@ -175,17 +193,50 @@ export class MiniAppMigrator extends BaseMigrator {
       return { success: true, processedCount: 0 }
     }
 
+    const logoFiles: PreparedEntityImageFile<EntityImageRef>[] = []
     try {
       let processed = 0
 
       const BATCH_SIZE = 100
-      await ctx.db.transaction(async (tx) => {
+
+      // Promote any base64 data-URL logo to an on-disk WebP file_entry + logo
+      // ref row (the single source of truth); base64 never stays on logoKey,
+      // which is nulled. A non-data-URL logoKey (url / icon ref) is left as-is.
+      for (const row of this.preparedRows) {
+        if (row.logoKey?.startsWith('data:')) {
+          const logoFile = await prepareBase64ImageFileEntry(
+            ctx.paths.filesDataDir,
+            miniAppLogoSlot(row.appId),
+            row.logoKey
+          )
+          row.logoKey = null
+          if (logoFile) logoFiles.push(logoFile)
+        }
+      }
+
+      ctx.db.transaction((tx) => {
+        // Insert file_entries first (the ref rows' `file_entry_id` FK needs
+        // them), then the owner rows, then the ref rows (whose `source_id` FK
+        // needs the owner) — see logoRef ordering.
+        for (const logoFile of logoFiles) {
+          insertPreparedImageEntryTx(tx, logoFile)
+        }
+
         for (let i = 0; i < this.preparedRows.length; i += BATCH_SIZE) {
           const batch = this.preparedRows.slice(i, i + BATCH_SIZE)
-          await tx.insert(miniAppTable).values(batch)
+          tx.insert(miniAppTable).values(batch).run()
           processed += batch.length
         }
+
+        for (const logoFile of logoFiles) {
+          insertPreparedImageRefTx(tx, logoFile)
+        }
       })
+
+      // Self-check the logo ref table's FKs (fileEntryId → file_entry, sourceId →
+      // mini_app) now that both sides are inserted — FK enforcement is off during
+      // migration, so this catches referential errors early (v2-migration-guide.md).
+      this.assertOwnedForeignKeys(ctx.db, [miniAppLogoFileRefTable])
 
       this.reportProgress(100, `Migrated ${processed} miniApps`, {
         key: 'migration.progress.migrated_miniapps',
@@ -196,6 +247,9 @@ export class MiniAppMigrator extends BaseMigrator {
 
       return { success: true, processedCount: processed }
     } catch (error) {
+      // The WebP files are written before the tx; unlink them so a rolled-back
+      // transaction leaves no orphans behind for the retry.
+      await unlinkPreparedImages(logoFiles)
       logger.error('Execute failed', error as Error)
       return {
         success: false,
@@ -207,7 +261,7 @@ export class MiniAppMigrator extends BaseMigrator {
 
   async validate(ctx: MigrationContext): Promise<ValidateResult> {
     try {
-      const result = await ctx.db.select({ count: sql<number>`count(*)` }).from(miniAppTable).get()
+      const result = ctx.db.select({ count: sql<number>`count(*)` }).from(miniAppTable).get()
       const appCount = result?.count ?? 0
       const errors: { key: string; message: string }[] = []
 
@@ -219,7 +273,7 @@ export class MiniAppMigrator extends BaseMigrator {
       }
 
       // All rows must have non-empty appId, name, and url.
-      const badRows = await ctx.db
+      const badRows = ctx.db
         .select({ count: sql<number>`count(*)` })
         .from(miniAppTable)
         .where(sql`${miniAppTable.appId} = '' OR ${miniAppTable.name} = '' OR ${miniAppTable.url} = ''`)

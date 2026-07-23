@@ -6,6 +6,6 @@ export {
   KnowledgeComposerToken,
   PromptVariableComposerToken,
   QuoteComposerToken,
+  type ReadOnlyComposerFileTokenPreview,
   SkillComposerToken
 } from './ComposerToken'
-export { CHAT_INPUT_TOKEN_KINDS, type ChatInputTokenKind, type ChatTokenView } from './tokenView'

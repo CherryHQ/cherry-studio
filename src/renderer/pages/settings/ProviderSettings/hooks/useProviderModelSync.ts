@@ -1,12 +1,13 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
+import { useProvider } from '@renderer/hooks/useProvider'
 import { MODELS_BATCH_MAX_ITEMS } from '@shared/data/api/schemas/models'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { useCallback } from 'react'
 
-import { fetchResolvedProviderModels, toCreateModelDto } from '../ModelList/modelSync'
 import { chunkArray } from '../utils/chunkArray'
+import { fetchResolvedProviderModels, resolveCreateModelEndpointTypes, toCreateModelDto } from '../utils/modelSync'
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from './providerSetting/constants'
 
 const logger = loggerService.withContext('ProviderSettings:ModelSync')
@@ -24,6 +25,7 @@ export function useProviderModelSync(providerId: string, options: UseProviderMod
     }
   )
   const models = options.existingModels ?? fallbackModelsQuery.models
+  const { provider } = useProvider(providerId)
   const { createModels, isCreating } = useModelMutations()
 
   const syncProviderModels = useCallback(async (): Promise<Model[]> => {
@@ -69,7 +71,7 @@ export function useProviderModelSync(providerId: string, options: UseProviderMod
     const existingModelIds = new Set<UniqueModelId>(latestModels.map((model) => model.id))
     const payload = resolvedModels
       .filter((model) => !existingModelIds.has(model.id))
-      .map((model) => toCreateModelDto(providerId, model))
+      .map((model) => toCreateModelDto(providerId, model, resolveCreateModelEndpointTypes(provider, model)))
 
     if (payload.length === 0) {
       logger.info('Skipping provider model creation because resolved models are already present', {
@@ -99,7 +101,7 @@ export function useProviderModelSync(providerId: string, options: UseProviderMod
     })
 
     return [...latestModels, ...createdModels]
-  }, [createModels, models, providerId])
+  }, [createModels, models, provider, providerId])
 
   return {
     syncProviderModels,

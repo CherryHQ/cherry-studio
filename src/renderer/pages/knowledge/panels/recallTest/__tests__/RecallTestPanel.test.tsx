@@ -1,18 +1,32 @@
+import { toast } from '@renderer/services/toast'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type RecallResultCardComponent from '../RecallResultCard'
 import RecallTestPanel from '../RecallTestPanel'
 
 const mockIpcRequest = vi.fn()
 const mockPerformanceNow = vi.spyOn(performance, 'now')
+const mockRecallResultCardRender = vi.hoisted(() => vi.fn())
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: (...args: unknown[]) => mockIpcRequest(...args)
   }
 }))
-const mockToastError = vi.fn()
+
+vi.mock('../RecallResultCard', async (importOriginal) => {
+  const { default: RecallResultCard } = await importOriginal<{ default: typeof RecallResultCardComponent }>()
+
+  return {
+    default: (props: ComponentProps<typeof RecallResultCard>) => {
+      mockRecallResultCardRender(props.item.id)
+      return <RecallResultCard {...props} />
+    }
+  }
+})
+
 const mockClipboardWriteText = vi.fn()
 const mockLogger = vi.hoisted(() => ({
   info: vi.fn(),
@@ -102,9 +116,11 @@ vi.mock('@data/hooks/useCache', async () => {
 
       return [
         value,
-        (nextValue: Record<string, string[]>) => {
-          mockCache.set(nextValue)
-          setValue(nextValue)
+        (nextValue: Record<string, string[]> | ((prev: Record<string, string[]>) => Record<string, string[]>)) => {
+          // Mirror the real hook: resolve a functional updater against the latest value.
+          const resolved = typeof nextValue === 'function' ? nextValue(value) : nextValue
+          mockCache.set(resolved)
+          setValue(resolved)
         }
       ]
     }
@@ -149,11 +165,6 @@ describe('RecallTestPanel', () => {
     }
     mockPerformanceNow.mockReturnValue(100)
     mockIpcRequest.mockResolvedValue(realSearchResults)
-    Object.assign(window, {
-      toast: {
-        error: mockToastError
-      }
-    })
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: {
@@ -286,6 +297,24 @@ describe('RecallTestPanel', () => {
     expect(screen.queryByText('知识库最佳实践.md')).not.toBeInTheDocument()
   })
 
+  it('does not rerender existing result cards while typing a new query', async () => {
+    render(<RecallTestPanel baseId="base-1" />)
+
+    const input = screen.getByPlaceholderText('输入测试 Query...')
+    fireEvent.change(input, { target: { value: 'first query' } })
+    fireEvent.click(screen.getByRole('button', { name: '检索' }))
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: '复制片段' })).toHaveLength(2)
+    })
+    expect(mockRecallResultCardRender).toHaveBeenCalledTimes(2)
+
+    fireEvent.change(input, { target: { value: 'next query' } })
+
+    expect(input).toHaveValue('next query')
+    expect(mockRecallResultCardRender).toHaveBeenCalledTimes(2)
+  })
+
   it('keeps recall results from causing outer horizontal overflow', async () => {
     const longContent = 'x'.repeat(400)
     mockIpcRequest.mockResolvedValueOnce([
@@ -339,7 +368,7 @@ describe('RecallTestPanel', () => {
     expect(mockClipboardWriteText).toHaveBeenCalledWith('real result from file name')
     expect(copyButton.querySelector('.lucide-check')).toBeInTheDocument()
     expect(copyButton).toHaveClass('text-success', 'opacity-100')
-    expect(mockToastError).not.toHaveBeenCalledWith('message.copied')
+    expect(toast.error).not.toHaveBeenCalledWith('message.copied')
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2000)
@@ -489,7 +518,7 @@ describe('RecallTestPanel', () => {
     })
     expect(screen.getByText('0 个结果')).toBeInTheDocument()
     expect(screen.getByText('最高: 0.00')).toBeInTheDocument()
-    expect(mockToastError).toHaveBeenCalledWith('召回测试检索失败: search failed')
+    expect(toast.error).toHaveBeenCalledWith('召回测试检索失败: search failed')
     expect(screen.queryByText('RAG 技术指南.pdf')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '复制片段' })).not.toBeInTheDocument()
   })

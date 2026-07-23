@@ -1,5 +1,5 @@
 import { Combobox, type ComboboxOption, Skeleton } from '@cherrystudio/ui'
-import { useLanguages } from '@renderer/hooks/translate/useTranslateLanguages'
+import { useLanguages } from '@renderer/hooks/translate'
 import { cn } from '@renderer/utils/style'
 import type { TranslateSourceLanguage } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
@@ -178,7 +178,7 @@ const LanguageSelect = (props: Props) => {
         options={displayedOptions}
         placeholder={placeholder ?? t('common.select')}
         popoverClassName={cn(
-          'w-(--radix-popover-trigger-width)',
+          'w-[var(--radix-popover-trigger-width)]',
           listHeight && '[&_[data-slot=command-list]]:max-h-[160px]'
         )}
         renderOption={renderOption}

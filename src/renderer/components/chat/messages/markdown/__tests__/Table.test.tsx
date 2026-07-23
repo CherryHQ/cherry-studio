@@ -29,8 +29,8 @@ const mocks = vi.hoisted(() => {
 })
 
 // Mock dependencies
-vi.mock('@renderer/components/Icons', () => ({
-  CopyIcon: ({ size }: { size: number }) => <div data-testid="copy-icon" style={{ width: size, height: size }} />
+vi.mock('@renderer/components/icons/CopyIcon', () => ({
+  default: ({ size }: { size: number }) => <div data-testid="copy-icon" style={{ width: size, height: size }} />
 }))
 
 vi.mock('lucide-react', () => ({
@@ -162,24 +162,29 @@ describe('Table', () => {
       expect(toolbar?.parentElement).toBe(wrapper)
       expect(toolbar).toHaveClass('absolute', 'top-2', 'right-2')
       expect(toolbar).not.toHaveClass('sticky')
-      expect(table.className).toContain('[&&]:rounded-none')
-      expect(table.className).toContain('[&&]:overflow-visible')
       expect(table.className).toContain('[&&]:min-w-160')
-      expect(table.className).not.toContain('[&&]:min-w-max')
+      expect(table.className).toContain('[&&]:border-separate')
+      expect(table.className).toContain('[&&]:text-[0.9em]')
       expect(table.className).toContain('[&&_td]:wrap-break-word')
       expect(table.className).toContain('[&&_th]:wrap-break-word')
       expect(table.className).toContain('[&&_th]:bg-muted')
+      expect(table.className).toContain('[&&_th]:border-border-muted')
       expect(table.className).toContain('[&&_th]:font-semibold')
-      expect(table.className).toContain('[&&_td]:bg-muted')
+      expect(table.className).toContain('[&&_td]:border-border-muted')
+      expect(table.className).toContain('[&&_td]:bg-transparent')
       expect(table.className).toContain('[&&_thead]:bg-transparent')
       expect(table.className).toContain('[&&_tbody]:bg-transparent')
-      expect(table.className).toContain('[&&_tbody>tr]:border-0')
-      expect(table.className).toContain('[&_td]:rounded-md')
-      expect(table.style.border).toBe('0px')
-      expect(table.style.borderRadius).toBe('0')
-      expect(table.style.borderSpacing).toBe('var(--cs-size-5xs)')
+      expect(table.className).toContain('[&&_tr:hover]:bg-accent')
+      expect(table.className).toContain('[&&_th:last-child]:border-r-0')
+      expect(table.className).toContain('[&&_td:last-child]:border-r-0')
+      expect(table.className).toContain('[&&_tr:last-child_td]:border-b-0')
+      expect(table.className).not.toContain('[&_td]:rounded-md')
+      expect(table.className).not.toContain('[&&_td]:bg-muted')
+      expect(table.style.border).toBe('0.5px solid var(--color-border)')
+      expect(table.style.borderRadius).toBe('var(--radius-md)')
+      expect(table.style.borderSpacing).toBe('0px')
       expect(table.style.margin).toBe('0px')
-      expect(table.style.overflow).toBe('visible')
+      expect(table.style.overflow).toBe('hidden')
       expect(toolbar).toHaveClass('rounded-lg', 'border-border-subtle', 'bg-popover', 'shadow-md')
       expect(copyButton).toHaveClass('rounded-md', 'text-foreground-muted', 'hover:bg-ghost-hover')
     })
@@ -357,13 +362,20 @@ Line 4`
     })
 
     it('should export table to Excel on button click', async () => {
+      mocks.markdownContext.content = `| Header 1 | Header 2 |
+|----------|----------|
+Cell 1 | Cell 2`
+
       render(<Table {...defaultProps} />)
 
       const excelButton = getExcelButton()
       await user.click(excelButton)
 
       await waitFor(() => {
-        expect(mocks.messageListActions.exportTableAsExcel).toHaveBeenCalledWith(defaultTableContent)
+        expect(mocks.messageListActions.exportTableAsExcel).toHaveBeenCalledWith([
+          ['Header 1', 'Header 2'],
+          ['Cell 1', 'Cell 2']
+        ])
       })
     })
 
@@ -393,10 +405,8 @@ Line 4`
       })
     })
 
-    it('should show error toast when extractTableMarkdown returns empty string', async () => {
-      mocks.markdownContext.content = ''
-
-      render(<Table {...defaultProps} />)
+    it('should show error toast when the rendered table has no data', async () => {
+      render(<Table {...defaultProps} children={null} />)
 
       const excelButton = getExcelButton()
       await user.click(excelButton)

@@ -6,22 +6,32 @@ Concept and invariants: [cache-overview.md](./cache-overview.md). Adding keys: [
 
 Import from `@data/hooks/useCache`.
 
-| Hook              | Tier    | Signature                                                                   |
-| ----------------- | ------- | --------------------------------------------------------------------------- |
-| `useCache`        | Memory  | `(key: UseCacheKey, initValue?: V) => [V, (next: V) => void]`               |
-| `useSharedCache`  | Shared  | `(key: SharedCacheKey, initValue?: V) => [V, (next: V) => void]`            |
-| `usePersistCache` | Persist | `(key: RendererPersistCacheKey) => [V, (next: V) => void]`                  |
+| Hook                     | Tier    | Signature                                                                            |
+| ------------------------ | ------- | ------------------------------------------------------------------------------------ |
+| `useCache`               | Memory  | `(key: UseCacheKey, initValue?: V) => [V, (next: V \| ((prev) => V)) => void]`        |
+| `useSharedCache`         | Shared  | `(key: SharedCacheKey, initValue?: V) => [V, (next: V \| ((prev) => V)) => void]`     |
+| `useSharedCacheValue`    | Shared  | `(key: SharedCacheKey) => V \| undefined` — read-only observer                        |
+| `useSharedCacheSelector` | Shared  | `(keys: SharedCacheKey[], selector: (values) => S, isEqual?) => S` — multi-key read-only aggregate |
+| `usePersistCache`        | Persist | `(key: RendererPersistCacheKey) => [V, (next: V \| ((prev) => V)) => void]`           |
 
-Value type is inferred from the schema. Hooks pin the cache entry (refcounted) — the key cannot be `delete`d while any hook is mounted. Hooks do **not** accept a TTL option; using TTL under a hook logs a warning and is discouraged (see [Design Invariant #4](./cache-overview.md#design-invariants)).
+Value type is inferred from the schema. The writable hooks pin the cache entry (refcounted) — the key cannot be `delete`d while any hook is mounted; `useSharedCacheValue` does NOT pin (and never writes a default), so an owner's deletion always passes through. Hooks do **not** accept a TTL option; using TTL under a writable hook logs a warning and is discouraged (see [Design Invariant #4](./cache-overview.md#design-invariants)).
+
+**Pick the shared hook by writer provenance.** If this window writes the key, use `useSharedCache`. If another process owns it (typically a Main service publishing via `setShared`) and this window only displays it, use `useSharedCacheValue` — mounting the writable hook seeds the schema default back into the cache and broadcasts it, which can clobber the owner's value during the mount race. Apply `?? fallback` with a reference-stable default (module-level const, or an unconditionally evaluated `useMemo` — never a hook call on the right side of `??`).
+
+The setter accepts a concrete value **or a functional updater** `(prev) => next`, like React's `useState`. The updater resolves against the **latest stored value** at write time (not the render-time snapshot), so read-modify-write stays correct across an `await` — prefer it whenever the next value derives from the current one. `prev` is shallow-readonly: the updater MUST be pure and return a new value (mutating `prev` in place is short-circuited by `isEqual` and silently skips the re-render — see [Design Invariant #1](./cache-overview.md#design-invariants)). Keep it side-effect-free too: don't smuggle a derived value out of the updater (e.g. into an outer variable) to drive post-write work, and don't rely on how often or when it runs — to react to *what changed* (e.g. dispose resources for removed items), derive it in a `useEffect` that watches the value. For `useSharedCache` the updater resolves against the local window's value only; it is not cross-window atomic.
 
 ```typescript
-import { useCache, useSharedCache, usePersistCache } from '@data/hooks/useCache'
+import { useCache, useSharedCache, useSharedCacheValue, usePersistCache } from '@data/hooks/useCache'
 
 // Memory — single renderer
 const [generating, setGenerating] = useCache('chat.web_search.searching', false)
 
 // Shared — all windows
 const [activeSearches, setActive] = useSharedCache('chat.web_search.active_searches')
+
+// Shared, main-owned — read-only observation with a reference-stable fallback
+const EMPTY_JOB_PROGRESS: JobProgress = { progress: 0 }
+const progress = useSharedCacheValue(`jobs.progress.${jobId}`) ?? EMPTY_JOB_PROGRESS
 
 // Persist — survives restart via localStorage
 const [pinned, setPinned] = usePersistCache('ui.tab.pinned_tabs')
@@ -74,6 +84,8 @@ cacheService.hasSharedTTL(k)
 cacheService.deleteShared(k)
 ```
 
+To observe a shared value reactively, use a hook; for an imperative one-shot read, use the TTL-aware `getShared`. There is no consumer API for TTL-blind physical reads — the hooks' internal snapshot reader is not for business code.
+
 Before the initial sync from Main completes, `getShared()` returns `undefined`. Writes before sync are applied locally and broadcast; Main-priority override applies at sync time (see [Shared Cache Ready State](#shared-cache-ready-state)).
 
 ### Persist
@@ -94,7 +106,7 @@ import { application } from '@application'
 const cacheService = application.get('CacheService')
 ```
 
-Main does not expose casual methods or Persist storage. Persist sync goes through Main as an IPC relay only.
+Main does not expose casual methods. Main has its own persist storage — an independent JSON file (`{userData}/cache.json`) accessed via `getPersist` / `setPersist` / `hasPersist`, separate from the renderer's `localStorage` persist and never shared with it. Renderer-origin persist sync still goes through Main as an IPC relay only.
 
 ### Internal and Shared Access
 
@@ -140,7 +152,7 @@ Fire semantics, re-entrance rules, and the placeholder / character-set contract 
 
 - Fires only on explicit `set` / `delete` / `setShared` / `deleteShared` and renderer-origin writes relayed via IPC
 - Never fires immediately on subscribe — call `get()` / `getShared()` yourself for initial state
-- Same-value writes are suppressed (`lodash.isEqual`)
+- Same-value writes are suppressed (`isEqual` from es-toolkit/compat)
 - Callback errors are caught; other subscribers still fire
 
 ## Shared Cache Ready State
@@ -181,20 +193,70 @@ function useExpensiveData(input: string) {
 ### Cross-window coordination
 
 ```typescript
-// Window A
+// Window A — functional updater derives from this window's latest local value
 const [active, setActive] = useSharedCache('chat.web_search.active_searches')
-setActive({ ...active, [searchId]: state })
+setActive((prev) => ({ ...prev, [searchId]: state }))
 
-// Window B re-renders automatically on next Main relay
-const [active] = useSharedCache('chat.web_search.active_searches')
+// Window B re-renders automatically on next Main relay. It only displays the
+// value, so it observes read-only — no default seeding, no pin.
+const EMPTY_SEARCHES: ActiveSearches = {} // module-level: reference-stable fallback
+const active = useSharedCacheValue('chat.web_search.active_searches') ?? EMPTY_SEARCHES
 ```
+
+### Observe a main-owned key (read-only)
+
+Main publishes; this window only displays. The writable hook would seed the
+schema default back (clobbering the owner during the mount race) and pin the
+key — use the read-only observer with a reference-stable local fallback:
+
+```typescript
+const EMPTY_JOB_PROGRESS: JobProgress = { progress: 0 }
+
+function useJobProgress(jobId: string): JobProgress {
+  return useSharedCacheValue(`jobs.progress.${jobId}` as const) ?? EMPTY_JOB_PROGRESS
+}
+
+// Fallback depends on props? Evaluate the hook UNCONDITIONALLY, then `??`:
+const cached = useSharedCacheValue(key)
+const fallback = useMemo(() => getDefaultStatus(isActive), [isActive])
+return cached ?? fallback // never: cached ?? useMemo(...) — conditional hook call
+```
+
+### Aggregate multiple main-owned keys (read-only selector)
+
+A dynamic number of keys cannot be observed with per-key hooks (Rules of Hooks
+forbid hooks in loops). When N values must merge into one derived result, use
+`useSharedCacheSelector`: `keys` is both the subscription set and the only
+snapshot read set; the selector receives the matching values tuple (same order,
+`undefined` on miss) and must not touch `cacheService` itself:
+
+```typescript
+const EMPTY_TOOLS: McpTool[] = [] // module-level: reference-stable fallback
+
+function useMcpToolsByServer(serverIds: readonly string[]): Record<string, McpTool[]> {
+  // Derive keys AND the zip source from the same memoized array
+  const uniqueIds = useMemo(() => Array.from(new Set(serverIds)).sort(), [serverIds])
+  return useSharedCacheSelector(
+    uniqueIds.map((id) => `mcp.tools.${id}` as const), // no extra useMemo needed
+    (values) => Object.fromEntries(uniqueIds.map((id, i): [string, McpTool[]] => [id, values[i] ?? EMPTY_TOOLS]))
+  )
+}
+```
+
+`isEqual` (default: `Object.is` plus one level of item-wise comparison for
+arrays/plain objects) gates re-renders at the selection level;
+`Map`/`Set` or domain-value selections need an explicit comparator. Same
+zero-side-effect contract as `useSharedCacheValue`: no default write-back, no
+pin. See the hook's JSDoc in `useCache.ts` for the full consumer discipline.
 
 ### Bounded recent list (Persist)
 
 ```typescript
 const [pinned, setPinned] = usePersistCache('ui.tab.pinned_tabs')
+// Functional updater derives from the latest stored value — correct even if
+// pin() races another write (e.g. fires after an await).
 const pin = (tab: Tab) =>
-  setPinned([tab, ...pinned.filter((t) => t.id !== tab.id)].slice(0, 10))
+  setPinned((prev) => [tab, ...prev.filter((t) => t.id !== tab.id)].slice(0, 10))
 ```
 
 ### Observe every instance of a template key (Main only)
@@ -235,7 +297,8 @@ Casual methods type-error if the concrete key matches any schema pattern — tha
 
 1. Pick the tier by lifecycle, not by scope: Memory = regenerable, Shared = cross-window regenerable, Persist = nice-to-keep across restarts.
 2. TTL belongs on non-hook read paths; hook paths log a warn and may expire between renders.
-3. Prefer Fixed > Template > Casual. Promote recurring casual keys to Template.
-4. Keep Persist values small — localStorage is ~5MB per origin.
-5. For Main-process reactions to cache changes, always wrap the `subscribe*` return in `this.registerDisposable(...)` so teardown is automatic.
-6. Same-value writes are free — don't add your own equality guards around `set` / `setShared`.
+3. Pick the shared hook by writer provenance: this window writes → `useSharedCache`; another process owns the key and this window only displays → `useSharedCacheValue` with a reference-stable `??` fallback. Shared expiry is eventually consistent — an observed value may briefly outlive its TTL until Main's tombstone lands (see [Design Invariant #4](./cache-overview.md#design-invariants)).
+4. Prefer Fixed > Template > Casual. Promote recurring casual keys to Template.
+5. Keep Persist values small — localStorage is ~5MB per origin.
+6. For Main-process reactions to cache changes, always wrap the `subscribe*` return in `this.registerDisposable(...)` so teardown is automatic.
+7. Same-value writes are free — don't add your own equality guards around `set` / `setShared`.

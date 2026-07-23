@@ -4,10 +4,11 @@ import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { TraceMethod } from '@mcp-trace/trace-core'
-import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api'
-import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
+import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api/errors'
+import { KNOWLEDGE_BASES_MAX_LIMIT, type UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import {
   type CreateKnowledgeBaseDto,
+  getKnowledgeItemDisplayTitle,
   KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED,
   type KnowledgeAddConflictStrategy,
   type KnowledgeAddItemInput,
@@ -17,10 +18,13 @@ import {
   type KnowledgeItem,
   type KnowledgeItemChunk,
   type KnowledgeItemStatus,
+  type KnowledgeItemType,
   type KnowledgeSearchResult,
   type RestoreKnowledgeBaseDto,
   type RestoreKnowledgeBaseResult
 } from '@shared/data/types/knowledge'
+import { isCompletedVectorKnowledgeBase } from '@shared/data/types/knowledge'
+import type { FilePath } from '@shared/types/file'
 import { estimateTokenCount } from 'tokenx'
 
 import { KnowledgeLockManager } from './KnowledgeLockManager'
@@ -42,6 +46,7 @@ import {
   toKnowledgeItemIds
 } from './types'
 import { embedKnowledgeQuery } from './utils/indexing/embed'
+import { toMaterialRelativePath } from './utils/indexing/materialFields'
 import { rerankKnowledgeSearchResults } from './utils/indexing/rerank'
 import { classifyKnowledgeItemSource } from './utils/items'
 import { applyRelevanceThreshold, getInitialSearchScoreKind, withSearchRanks } from './utils/search'
@@ -63,6 +68,203 @@ const KNOWLEDGE_SEARCH_OVERFETCH_FACTOR = 5
 const KNOWLEDGE_SEARCH_CANDIDATE_CAP = 200
 const REINDEX_ALLOWED_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'failed'])
 const KNOWLEDGE_JOB_TYPE_SET = new Set<string>(KNOWLEDGE_JOB_TYPES)
+
+/** Max characters {@link KnowledgeService.readConcept} returns in one slice, so a large document can't flood the agent's context. */
+const CONCEPT_READ_MAX_CHARS = 20_000
+/** Default returned-match cap for {@link KnowledgeService.grepConcept} (the agent may raise it up to {@link CONCEPT_GREP_MAX_MATCHES}). */
+const CONCEPT_GREP_DEFAULT_MAX_MATCHES = 50
+/** Hard ceiling on returned grep matches, bounding the response size. */
+const CONCEPT_GREP_MAX_MATCHES = 200
+/** Characters of context kept on each side of a grep match in its snippet. */
+const CONCEPT_GREP_SNIPPET_PAD = 60
+/**
+ * Max characters of any single line {@link KnowledgeService.grepConcept} runs the pattern over. Matching one bounded
+ * line at a time keeps a catastrophic-backtracking pattern (e.g. `(a+)+$`) from freezing the main-process event loop
+ * by spanning the whole document; matches past this point on an over-long line are not scanned. This only removes the
+ * whole-document blow-up — a pathological pattern can still backtrack exponentially within one 2000-char line, so it
+ * is not RE2/ripgrep-grade linear-time matching. Reuses the same 2000-char value as the filesystem grep tool (there
+ * it truncates displayed lines; here it bounds the text the pattern actually runs over).
+ */
+const CONCEPT_GREP_MAX_LINE_CHARS = 2000
+/** Hard ceiling on nodes {@link KnowledgeService.getOrganizationTree} returns, bounding the response for a huge base. */
+export const KNOWLEDGE_TREE_MAX_NODES = 1000
+
+/** Verbatim slice of a knowledge concept's indexed text, addressed by Concept ID (the material's relative path, OKF §2). */
+export interface KnowledgeConceptContent {
+  conceptId: string
+  title: string
+  itemType: KnowledgeItemType
+  /** Length of the full document text, so the caller can tell when a slice is partial and page through it. */
+  totalChars: number
+  charStart: number
+  charEnd: number
+  content: string
+  /** True when the returned slice was capped at {@link CONCEPT_READ_MAX_CHARS} and the document continues past `charEnd`. */
+  truncated: boolean
+}
+
+/** One exact-pattern match within a concept's indexed text. */
+export interface KnowledgeConceptGrepMatch {
+  /** 1-based line number of the match start within the document text. */
+  line: number
+  charStart: number
+  charEnd: number
+  /** The matched text with a little surrounding context (see {@link CONCEPT_GREP_SNIPPET_PAD}). */
+  snippet: string
+}
+
+/** Result of grepping a knowledge concept's indexed text for a regular expression. */
+export interface KnowledgeConceptGrep {
+  conceptId: string
+  title: string
+  itemType: KnowledgeItemType
+  /** Total matches found in the document (may exceed `matches.length` when the cap was hit). */
+  totalMatches: number
+  matches: KnowledgeConceptGrepMatch[]
+}
+
+/**
+ * One node of a knowledge base's organization tree, emitted in pre-order DFS so
+ * the flat list reads top-down like an outline. `depth` (0 at the base root)
+ * carries the hierarchy without a recursive shape. `conceptId` is set only for a
+ * readable leaf (a completed file/url/note) so it can be passed to kb_read
+ * (read or grep mode); directories and not-yet-indexed leaves have none.
+ */
+export interface KnowledgeTreeNode {
+  depth: number
+  title: string
+  itemType: KnowledgeItemType
+  status: KnowledgeItemStatus
+  conceptId?: string
+}
+
+/**
+ * A knowledge base's organization tree — the logical groupId hierarchy of
+ * knowledge_item (directories as folders, file/url/note as leaves), NOT the flat
+ * physical `raw/` layout. The synthesized view OKF surfaces as an `index.md`.
+ */
+export interface KnowledgeOrganizationTree {
+  baseId: string
+  /**
+   * Count of non-deleting items in the base. May exceed `nodes.length` for two reasons: the node
+   * list hit the {@link KNOWLEDGE_TREE_MAX_NODES} cap, or a `maxDepth` filter dropped deeper items
+   * (which are still counted here but not emitted as nodes).
+   */
+  totalItems: number
+  /**
+   * True only when the emitted node list was capped at {@link KNOWLEDGE_TREE_MAX_NODES} — it does
+   * NOT flag `maxDepth` filtering. A reliable "whole tree returned" check is therefore
+   * `truncated === false` AND no `maxDepth` was passed.
+   */
+  truncated: boolean
+  nodes: KnowledgeTreeNode[]
+}
+
+/**
+ * Result of a Concept ID-addressed mutation ({@link KnowledgeService.deleteConcepts} /
+ * {@link KnowledgeService.refreshConcepts}). `applied` are the Concept IDs that resolved
+ * to a visible document and were acted on; `notFound` are those that did not resolve in
+ * this base (a no-op, reported back so the agent can re-check the id rather than assume success).
+ */
+export interface KnowledgeConceptMutationResult {
+  applied: string[]
+  notFound: string[]
+}
+
+/**
+ * Concept ID (relative path, OKF §2) of a search hit's source document, or
+ * undefined when it has none: a directory (no material), or a url/note whose
+ * snapshot relativePath was not captured yet. A completed leaf normally has one,
+ * so this only swallows the rare unindexed-snapshot case rather than throwing
+ * out of the whole search.
+ */
+function deriveConceptId(item: KnowledgeItem): string | undefined {
+  if (item.type === 'directory') {
+    return undefined
+  }
+  try {
+    return toMaterialRelativePath(item)
+  } catch (error) {
+    // A completed url/note with no snapshot relativePath is an invariant violation. Swallow it (one
+    // unfollowable hit must not sink the whole search) but leave a diagnostic trail rather than a silent drop.
+    logger.warn('deriveConceptId: completed item has no material relativePath', {
+      itemId: item.id,
+      type: item.type,
+      error: error instanceof Error ? error.message : String(error)
+    })
+    return undefined
+  }
+}
+
+/** Compile a kb_read grep-mode pattern (always global; case-insensitive unless told otherwise), turning a bad pattern into a validation error. */
+function compileGrepRegex(pattern: string, ignoreCase: boolean): RegExp {
+  try {
+    return new RegExp(pattern, ignoreCase ? 'gi' : 'g')
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    throw DataApiErrorFactory.validation({ pattern: [message] }, `Invalid kb_read regular expression: ${message}`)
+  }
+}
+
+/**
+ * Scan `text` for every match of the global `regex`, one line at a time, returning the
+ * total count and the first `limit` matches with 1-based line numbers, document-absolute
+ * offsets, and padded snippets. Each line is matched independently and truncated at
+ * {@link CONCEPT_GREP_MAX_LINE_CHARS}, so a single regex evaluation never runs over more
+ * than one bounded line — a catastrophic-backtracking pattern therefore cannot freeze the
+ * main process by spanning the whole document (this mirrors the line-oriented fallback in
+ * the filesystem grep tool). Anchors (`^`/`$`) consequently bind to each line, and a match
+ * cannot span lines. `lastIndex` is advanced past zero-width matches so an empty-matching
+ * pattern cannot spin. `regex` MUST carry the global flag (the caller compiles it so); it
+ * is reset at the start of every line.
+ */
+function scanConceptMatches(
+  text: string,
+  regex: RegExp,
+  limit: number
+): { totalMatches: number; matches: KnowledgeConceptGrepMatch[] } {
+  const matches: KnowledgeConceptGrepMatch[] = []
+  let totalMatches = 0
+  let lineNumber = 0
+  // Absolute offset of the current line's first character within `text`.
+  let lineStart = 0
+
+  while (lineStart <= text.length) {
+    lineNumber++
+    const newlineIndex = text.indexOf('\n', lineStart)
+    const lineEnd = newlineIndex === -1 ? text.length : newlineIndex
+    // Run the pattern over a single, truncated line so backtracking can't blow up across the
+    // whole document; a match past the per-line cap on an over-long line is dropped.
+    const line = text.slice(lineStart, Math.min(lineEnd, lineStart + CONCEPT_GREP_MAX_LINE_CHARS))
+
+    regex.lastIndex = 0
+    for (let result = regex.exec(line); result !== null; result = regex.exec(line)) {
+      totalMatches++
+      const matchLength = result[0].length
+      const start = lineStart + result.index
+      const end = start + matchLength
+
+      if (matches.length < limit) {
+        matches.push({
+          line: lineNumber,
+          charStart: start,
+          charEnd: end,
+          snippet: text.slice(
+            Math.max(0, start - CONCEPT_GREP_SNIPPET_PAD),
+            Math.min(text.length, end + CONCEPT_GREP_SNIPPET_PAD)
+          )
+        })
+      }
+
+      // Zero-width match: bump lastIndex so exec() advances past the same position.
+      regex.lastIndex = result.index + (matchLength > 0 ? matchLength : 1)
+    }
+
+    lineStart = lineEnd + 1
+  }
+
+  return { totalMatches, matches }
+}
 
 @Injectable('KnowledgeService')
 @ServicePhase(Phase.WhenReady)
@@ -90,12 +292,12 @@ export class KnowledgeService extends BaseService {
   }
 
   protected async onAllReady(): Promise<void> {
-    await this.recoverDeletingItems()
-    await this.recoverInterruptedItems()
+    this.recoverDeletingItems()
+    this.recoverInterruptedItems()
   }
 
   async createBase(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
-    const base = await knowledgeBaseService.create(dto)
+    const base = knowledgeBaseService.create(dto)
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
 
     try {
@@ -122,7 +324,7 @@ export class KnowledgeService extends BaseService {
       logger.warn('Failed to remove index store dir during createBase rollback', cleanupError as Error, { baseId })
     }
     try {
-      await knowledgeBaseService.delete(baseId)
+      knowledgeBaseService.delete(baseId)
     } catch (cleanupError) {
       logger.warn('Failed to delete knowledge base row during createBase rollback', cleanupError as Error, { baseId })
     }
@@ -142,7 +344,7 @@ export class KnowledgeService extends BaseService {
       }
 
       try {
-        await knowledgeBaseService.delete(baseId)
+        knowledgeBaseService.delete(baseId)
       } catch (error) {
         const normalizedError = error instanceof Error ? error : new Error(String(error))
         logger.error('Failed to delete knowledge base SQLite row after artifact cleanup', normalizedError, {
@@ -157,7 +359,7 @@ export class KnowledgeService extends BaseService {
   }
 
   async restoreBase(dto: RestoreKnowledgeBaseDto): Promise<RestoreKnowledgeBaseResult> {
-    const sourceBase = await knowledgeBaseService.getById(dto.sourceBaseId)
+    const sourceBase = knowledgeBaseService.getById(dto.sourceBaseId)
 
     const createDto: CreateKnowledgeBaseDto = {
       name: dto.name?.trim() ?? sourceBase.name,
@@ -169,12 +371,10 @@ export class KnowledgeService extends BaseService {
       chunkOverlap: sourceBase.chunkOverlap,
       threshold: sourceBase.threshold,
       documentCount: sourceBase.documentCount,
-      searchMode: sourceBase.searchMode,
-      hybridAlpha: sourceBase.hybridAlpha,
       groupId: sourceBase.groupId ?? undefined
     }
 
-    const rootItems = await knowledgeItemService.getRootItemsByBaseId(sourceBase.id)
+    const rootItems = knowledgeItemService.getRootItemsByBaseId(sourceBase.id)
 
     // Partial restore: probe each root's source and skip the ones whose source is genuinely gone, so
     // a single missing source no longer aborts the entire restore. This is the common case for a
@@ -241,12 +441,12 @@ export class KnowledgeService extends BaseService {
     items: KnowledgeAddItemInput[],
     conflictStrategy?: KnowledgeAddConflictStrategy
   ): Promise<KnowledgeAddItemsResult> {
-    await this.assertBaseCanRunRuntimeOperation(baseId, 'addItems')
+    this.assertBaseCanRunRuntimeOperation(baseId, 'addItems')
     return await this.workflowService.addItems(baseId, items, conflictStrategy)
   }
 
   async deleteItems(baseId: string, itemIds: string[]): Promise<void> {
-    const rootItemIds = await knowledgeItemService.getOutermostSelectedItemIds(baseId, itemIds)
+    const rootItemIds = knowledgeItemService.getOutermostSelectedItemIds(baseId, itemIds)
     if (rootItemIds.length === 0) {
       return
     }
@@ -255,8 +455,8 @@ export class KnowledgeService extends BaseService {
   }
 
   async reindexItems(baseId: string, itemIds: string[]): Promise<void> {
-    await this.assertBaseCanRunRuntimeOperation(baseId, 'reindexItems')
-    const rootItemIds = await knowledgeItemService.getOutermostSelectedItemIds(baseId, itemIds)
+    this.assertBaseCanRunRuntimeOperation(baseId, 'reindexItems')
+    const rootItemIds = knowledgeItemService.getOutermostSelectedItemIds(baseId, itemIds)
     if (rootItemIds.length === 0) {
       return
     }
@@ -266,18 +466,78 @@ export class KnowledgeService extends BaseService {
     await this.workflowService.reindexItems(baseId, rootItemIds)
   }
 
-  async listBases(): Promise<KnowledgeBase[]> {
-    const { items } = await knowledgeBaseService.list({ page: 1, limit: KNOWLEDGE_BASES_MAX_LIMIT })
+  /**
+   * Configures an embedding model on a base that has never had one (BM25-only), then
+   * backfills embeddings for its existing items in place — no restore-into-a-new-base
+   * needed, since a BM25-only base has no vectors to invalidate. `knowledgeBaseService.
+   * update` still rejects switching an already-configured model this way; that case
+   * keeps going through `restoreBase` because it does invalidate existing vectors.
+   *
+   * Runs the same admission checks `reindexItems` would run, but before committing the
+   * model — a base whose backfill is doomed (missing source, subtree still running, ...)
+   * must never end up with a model set and no vectors to back it, since there is nothing
+   * to roll back to once it is committed.
+   */
+  async enableEmbeddingModel(baseId: string, patch: UpdateKnowledgeBaseDto): Promise<KnowledgeBase> {
+    const rootItems = knowledgeItemService.getRootItemsByBaseId(baseId).filter((item) => item.status !== 'deleting')
+    const rootItemIds = rootItems.map((item) => item.id)
+
+    if (rootItemIds.length > 0) {
+      this.assertBaseCanRunRuntimeOperation(baseId, 'enableEmbeddingModel')
+      await this.assertSubtreesCanReindex(baseId, rootItemIds)
+    }
+
+    const updatedBase = knowledgeBaseService.update(baseId, patch, { allowEmbeddingModelBackfill: true })
+
+    if (rootItemIds.length > 0) {
+      await this.reindexItems(baseId, rootItemIds)
+    }
+
+    return updatedBase
+  }
+
+  listBases(): KnowledgeBase[] {
+    const { items } = knowledgeBaseService.list({ page: 1, limit: KNOWLEDGE_BASES_MAX_LIMIT })
     return items
   }
 
-  async listRootItems(baseId: string): Promise<KnowledgeItem[]> {
-    return await knowledgeItemService.getRootItemsByBaseId(baseId)
+  /** Whether the user has any knowledge base at all — a cheap count (not a full list) for tool-availability gating. */
+  hasAnyBase(): boolean {
+    const { total } = knowledgeBaseService.list({ page: 1, limit: 1 })
+    return total > 0
+  }
+
+  listRootItems(baseId: string): KnowledgeItem[] {
+    return knowledgeItemService.getRootItemsByBaseId(baseId)
+  }
+
+  getFilePath(itemId: string): FilePath {
+    const item = knowledgeItemService.getById(itemId)
+
+    if (item.type === 'file') {
+      return getKnowledgeBaseFilePath(item.baseId, item.data.relativePath)
+    }
+
+    if (item.type === 'url') {
+      if (!item.data.relativePath) {
+        throw DataApiErrorFactory.invalidOperation(
+          'getFilePath',
+          `Knowledge URL item '${itemId}' has no captured snapshot to preview`
+        )
+      }
+
+      return getKnowledgeBaseFilePath(item.baseId, item.data.relativePath)
+    }
+
+    throw DataApiErrorFactory.invalidOperation(
+      'getFilePath',
+      `Knowledge item '${itemId}' must be a file or URL to preview its source`
+    )
   }
 
   @TraceMethod({ spanName: 'Knowledge.search', tag: 'Knowledge' })
   async search(baseId: string, query: string): Promise<KnowledgeSearchResult[]> {
-    await this.assertBaseCanRunRuntimeOperation(baseId, 'search')
+    this.assertBaseCanRunRuntimeOperation(baseId, 'search')
 
     if (!SEARCH_TOKEN_PATTERN.test(query)) {
       throw DataApiErrorFactory.validation(
@@ -286,9 +546,11 @@ export class KnowledgeService extends BaseService {
       )
     }
 
-    const base = await knowledgeBaseService.getById(baseId)
-    // Stored search mode and the index store's mode are the same enum now, so no mapping.
-    const mode = base.searchMode
+    const base = knowledgeBaseService.getById(baseId)
+    // Vector/hybrid retrieval needs an embedding model; a base without one is
+    // BM25-only. This is a fixed runtime policy, not a stored preference — mode is
+    // computed fresh every call, so it can never drift out of sync with the base.
+    const mode = isCompletedVectorKnowledgeBase(base) ? 'hybrid' : 'bm25'
     // BM25 is lexical only; skip the embedding round-trip when the query won't use it.
     const queryEmbedding = mode === 'bm25' ? undefined : await embedKnowledgeQuery(base, query)
 
@@ -302,32 +564,34 @@ export class KnowledgeService extends BaseService {
         queryText: query,
         queryEmbedding,
         mode,
-        topK: candidateLimit,
-        alpha: base.hybridAlpha
+        topK: candidateLimit
       })
     )
 
-    const scoreKind = getInitialSearchScoreKind(base)
-    const visibleSearchResults = await this.toVisibleSearchResults(baseId, matches, scoreKind)
-    const topResults = this.trimToTopK(visibleSearchResults, resolvedTopK, baseId)
+    const scoreKind = getInitialSearchScoreKind(mode)
+    const visibleSearchResults = this.toVisibleSearchResults(baseId, matches, scoreKind)
 
     if (base.rerankModelId) {
-      const rerankedResults = await rerankKnowledgeSearchResults(base, query, topResults)
-      return withSearchRanks(applyRelevanceThreshold(rerankedResults, base.threshold))
+      const rerankedResults = await rerankKnowledgeSearchResults(base, query, visibleSearchResults)
+      // We trim the results after the rerank here, so the reranker can actually do its job and surface the best matches.
+      const topReranked = this.trimToTopK(rerankedResults, resolvedTopK, baseId)
+      return withSearchRanks(applyRelevanceThreshold(topReranked, base.threshold))
+    } else {
+      // If we don't need to rerank, we can just trim the results right here.
+      const topResults = this.trimToTopK(visibleSearchResults, resolvedTopK, baseId)
+      return withSearchRanks(applyRelevanceThreshold(topResults, base.threshold))
     }
-
-    return withSearchRanks(applyRelevanceThreshold(topResults, base.threshold))
   }
 
   async listItemChunks(baseId: string, itemId: string): Promise<KnowledgeItemChunk[]> {
     const knowledgeBaseId = toKnowledgeBaseId(baseId)
     const knowledgeItemId = toKnowledgeItemId(itemId)
-    await this.assertBaseCanRunRuntimeOperation(knowledgeBaseId, 'listItemChunks')
+    this.assertBaseCanRunRuntimeOperation(knowledgeBaseId, 'listItemChunks')
     const item = await this.assertItemCanRunChunkOperation(knowledgeBaseId, knowledgeItemId, 'list chunks')
-    await this.assertCompletedContainerHasNoDeletingChildren(knowledgeBaseId, item)
+    this.assertCompletedContainerHasNoDeletingChildren(knowledgeBaseId, item)
 
-    const base = await knowledgeBaseService.getById(knowledgeBaseId)
-    const leafItems = await knowledgeItemService.getSubtreeItems(knowledgeBaseId, [knowledgeItemId], {
+    const base = knowledgeBaseService.getById(knowledgeBaseId)
+    const leafItems = knowledgeItemService.getSubtreeItems(knowledgeBaseId, [knowledgeItemId], {
       includeRoots: true,
       leafOnly: true
     })
@@ -363,17 +627,260 @@ export class KnowledgeService extends BaseService {
   }
 
   /**
+   * Read a knowledge concept's indexed text by its Concept ID (the material's
+   * relative path, OKF §2), optionally a `[charStart, charEnd)` slice. The slice
+   * is capped at {@link CONCEPT_READ_MAX_CHARS}; `totalChars` + `truncated` let
+   * the caller page through a longer document. Throws NOT_FOUND when the Concept
+   * ID does not resolve to a readable, visible document in this base.
+   */
+  async readConcept(
+    baseId: string,
+    conceptId: string,
+    range?: { charStart?: number; charEnd?: number }
+  ): Promise<KnowledgeConceptContent> {
+    const { item, text } = await this.resolveConcept(baseId, conceptId, 'readConcept')
+
+    const totalChars = text.length
+    const start = Math.min(Math.max(range?.charStart ?? 0, 0), totalChars)
+    // Where the caller would have ended without the cap (an omitted charEnd reads to the document end).
+    const naturalEnd = Math.min(range?.charEnd ?? totalChars, totalChars)
+    const end = Math.max(start, Math.min(naturalEnd, start + CONCEPT_READ_MAX_CHARS))
+
+    return {
+      conceptId,
+      title: getKnowledgeItemDisplayTitle(item),
+      itemType: item.type,
+      totalChars,
+      charStart: start,
+      charEnd: end,
+      content: text.slice(start, end),
+      truncated: end < naturalEnd
+    }
+  }
+
+  /**
+   * Search a knowledge concept's indexed text for a regular expression, returning
+   * the total match count and the first `maxMatches` matches (line, offsets, a
+   * padded snippet). The pattern is compiled global, case-insensitive by default;
+   * an invalid pattern throws a validation error. Throws NOT_FOUND when the
+   * Concept ID does not resolve to a readable, visible document in this base.
+   */
+  async grepConcept(
+    baseId: string,
+    conceptId: string,
+    options: { pattern: string; ignoreCase?: boolean; maxMatches?: number }
+  ): Promise<KnowledgeConceptGrep> {
+    const { item, text } = await this.resolveConcept(baseId, conceptId, 'grepConcept')
+
+    const limit = Math.min(
+      Math.max(options.maxMatches ?? CONCEPT_GREP_DEFAULT_MAX_MATCHES, 1),
+      CONCEPT_GREP_MAX_MATCHES
+    )
+    const regex = compileGrepRegex(options.pattern, options.ignoreCase ?? true)
+    const { totalMatches, matches } = scanConceptMatches(text, regex, limit)
+
+    return {
+      conceptId,
+      title: getKnowledgeItemDisplayTitle(item),
+      itemType: item.type,
+      totalMatches,
+      matches
+    }
+  }
+
+  /**
+   * Delete knowledge documents addressed by Concept ID (the deep-read/kb_manage
+   * write counterpart to {@link readConcept}). Each Concept ID is resolved to its
+   * knowledge item and deleted via {@link deleteItems} (which expands to the
+   * outermost selected subtree); an id that does not resolve to a visible document
+   * in this base is reported in `notFound` rather than failing the whole batch.
+   */
+  async deleteConcepts(baseId: string, conceptIds: string[]): Promise<KnowledgeConceptMutationResult> {
+    const { found, notFound } = await this.resolveConceptItemIds(baseId, conceptIds, 'deleteConcepts')
+    if (found.length > 0) {
+      await this.deleteItems(
+        baseId,
+        found.map((entry) => entry.itemId)
+      )
+    }
+    return { applied: found.map((entry) => entry.conceptId), notFound }
+  }
+
+  /**
+   * Re-index knowledge documents addressed by Concept ID. Each Concept ID is
+   * resolved to its knowledge item and re-indexed via {@link reindexItems}; an id
+   * that does not resolve to a visible document in this base is reported in
+   * `notFound` rather than failing the whole batch.
+   */
+  async refreshConcepts(baseId: string, conceptIds: string[]): Promise<KnowledgeConceptMutationResult> {
+    const { found, notFound } = await this.resolveConceptItemIds(baseId, conceptIds, 'refreshConcepts')
+    if (found.length > 0) {
+      await this.reindexItems(
+        baseId,
+        found.map((entry) => entry.itemId)
+      )
+    }
+    return { applied: found.map((entry) => entry.conceptId), notFound }
+  }
+
+  /**
+   * Resolve a batch of Concept IDs to their knowledge item ids for a Concept
+   * ID-addressed mutation. Mirrors {@link resolveConcept}'s identity boundary —
+   * each relative path is looked up in this base's index store, then re-validated
+   * against the visible knowledge_item (same base, completed) — but resolves many
+   * ids and partitions them into resolved (`found`) vs unresolved (`notFound`)
+   * instead of throwing, so one bad id does not sink the batch. Duplicate ids in
+   * the input are collapsed to a single resolution.
+   */
+  private async resolveConceptItemIds(
+    baseId: string,
+    conceptIds: string[],
+    operation: string
+  ): Promise<{ found: Array<{ conceptId: string; itemId: string }>; notFound: string[] }> {
+    const base = knowledgeBaseService.getById(baseId)
+    const vectorStoreService = application.get('KnowledgeVectorStoreService')
+    const store = await vectorStoreService.getIndexStore(base)
+
+    const found: Array<{ conceptId: string; itemId: string }> = []
+    const notFound: string[] = []
+    const seen = new Set<string>()
+
+    for (const conceptId of conceptIds) {
+      if (seen.has(conceptId)) {
+        continue
+      }
+      seen.add(conceptId)
+
+      const ref = await this.runStoreOperation(store, baseId, operation, () =>
+        store.getMaterialByRelativePath(conceptId)
+      )
+      // Identity re-check: the resolved material id must still be a visible item in this base.
+      const item = ref ? this.loadVisibleItems(baseId, [ref.materialId]).get(ref.materialId) : undefined
+      if (ref && item) {
+        found.push({ conceptId, itemId: ref.materialId })
+      } else {
+        notFound.push(conceptId)
+      }
+    }
+
+    return { found, notFound }
+  }
+
+  /**
+   * Resolve a Concept ID to its content text for the deep-read tools. The tools
+   * address by relative path (a transparent DB key, never an fs path), so this
+   * re-validates the resolved material against the visible knowledge_item (same
+   * base, completed) before returning any text — the identity boundary that keeps
+   * a relative path from reaching another base's or a deleted item's content.
+   * Throws NOT_FOUND when the concept does not resolve to a readable, visible document.
+   */
+  private async resolveConcept(
+    baseId: string,
+    conceptId: string,
+    operation: string
+  ): Promise<{ item: KnowledgeItem; text: string }> {
+    this.assertBaseCanRunRuntimeOperation(baseId, operation)
+
+    const base = knowledgeBaseService.getById(baseId)
+    const vectorStoreService = application.get('KnowledgeVectorStoreService')
+    const store = await vectorStoreService.getIndexStore(base)
+
+    const ref = await this.runStoreOperation(store, baseId, operation, () => store.getMaterialByRelativePath(conceptId))
+    if (!ref) {
+      throw DataApiErrorFactory.notFound('Knowledge concept', conceptId)
+    }
+
+    const item = this.loadVisibleItems(baseId, [ref.materialId]).get(ref.materialId)
+    if (!item) {
+      throw DataApiErrorFactory.notFound('Knowledge concept', conceptId)
+    }
+
+    const text = await this.runStoreOperation(store, baseId, operation, () => store.readMaterialContent(ref.materialId))
+    if (text == null) {
+      // The material resolved and the item is visible + completed, yet it has no content row — an
+      // invariant violation or a reindex TOCTOU race, NOT a bad conceptId. Use a distinct resource so the
+      // tool layer (conceptLookupError) can steer "retry shortly" instead of "verify the conceptId", which
+      // cannot fix a missing content row. The resource string mirrors KNOWLEDGE_CONCEPT_CONTENT_NOT_FOUND_RESOURCE
+      // in knowledgeLookup.ts.
+      logger.warn('resolveConcept: visible completed item has no content row', { baseId, conceptId, operation })
+      throw DataApiErrorFactory.notFound('Knowledge concept content', conceptId)
+    }
+
+    return { item, text }
+  }
+
+  /**
+   * Build a knowledge base's organization tree from the `knowledge_item.groupId`
+   * hierarchy — directories are folders, file/url/note are leaves carrying a
+   * readable `conceptId` (when completed) for kb_read. This is the
+   * logical org layer the OKF `index.md` surfaces, deliberately decoupled from
+   * the flat physical `raw/` layout: no material scan, no path joins. Emitted as
+   * a pre-order DFS node list (each node's `depth` carries the hierarchy),
+   * capped at {@link KNOWLEDGE_TREE_MAX_NODES}. Throws NOT_FOUND if the base does
+   * not exist; available regardless of the base's runtime (search) state.
+   */
+  getOrganizationTree(baseId: string, options: { maxDepth?: number } = {}): KnowledgeOrganizationTree {
+    knowledgeBaseService.getById(baseId)
+
+    const items = knowledgeItemService.getItemsByBaseId(baseId)
+
+    // Index children by their parent groupId (null = base root); each bucket keeps
+    // getItemsByBaseId's createdAt/id order, so siblings emit in a stable order.
+    const childrenByGroupId = new Map<string | null, KnowledgeItem[]>()
+    for (const item of items) {
+      const key = item.groupId ?? null
+      const bucket = childrenByGroupId.get(key)
+      if (bucket) {
+        bucket.push(item)
+      } else {
+        childrenByGroupId.set(key, [item])
+      }
+    }
+
+    const maxDepth = options.maxDepth
+    const nodes: KnowledgeTreeNode[] = []
+    let truncated = false
+
+    const walk = (groupId: string | null, depth: number): void => {
+      if (truncated || (maxDepth !== undefined && depth > maxDepth)) {
+        return
+      }
+      for (const item of childrenByGroupId.get(groupId) ?? []) {
+        if (nodes.length >= KNOWLEDGE_TREE_MAX_NODES) {
+          truncated = true
+          return
+        }
+        nodes.push({
+          depth,
+          title: getKnowledgeItemDisplayTitle(item),
+          itemType: item.type,
+          status: item.status,
+          // Only a completed leaf is readable; directories and pending leaves carry no Concept ID.
+          conceptId: item.type !== 'directory' && item.status === 'completed' ? deriveConceptId(item) : undefined
+        })
+        if (item.type === 'directory') {
+          walk(item.id, depth + 1)
+        }
+      }
+    }
+
+    walk(null, 0)
+
+    return { baseId, totalItems: items.length, truncated, nodes }
+  }
+
+  /**
    * Turn raw index matches into visible search results: fetch each match's
    * knowledge item once, drop any that is missing, in another base, or not
    * completed, and reconstruct the chunk metadata (item type / source from the
    * item; chunk index from the unit; token count recomputed from the body).
    */
-  private async toVisibleSearchResults(
+  private toVisibleSearchResults(
     baseId: string,
     matches: KnowledgeIndexSearchMatch[],
     scoreKind: KnowledgeSearchResult['scoreKind']
-  ): Promise<KnowledgeSearchResult[]> {
-    const itemsById = await this.loadVisibleItems(
+  ): KnowledgeSearchResult[] {
+    const itemsById = this.loadVisibleItems(
       baseId,
       matches.map((match) => match.materialId)
     )
@@ -397,7 +904,10 @@ export class KnowledgeService extends BaseService {
           tokenCount: estimateTokenCount(match.text)
         },
         itemId: match.materialId,
-        chunkId: match.unitId
+        chunkId: match.unitId,
+        // Concept ID + title so a hit can be followed up with kb_read.
+        conceptId: deriveConceptId(item),
+        title: getKnowledgeItemDisplayTitle(item)
       })
     }
     return results
@@ -417,25 +927,23 @@ export class KnowledgeService extends BaseService {
   }
 
   /** Fetch the distinct items behind the matches, keeping only those visible in this base (same base, completed). */
-  private async loadVisibleItems(baseId: string, materialIds: string[]): Promise<Map<string, KnowledgeItem>> {
+  private loadVisibleItems(baseId: string, materialIds: string[]): Map<string, KnowledgeItem> {
     const uniqueIds = [...new Set(materialIds)]
     const visibleItems = new Map<string, KnowledgeItem>()
 
-    await Promise.all(
-      uniqueIds.map(async (materialId) => {
-        try {
-          const item = await knowledgeItemService.getById(materialId)
-          if (item.baseId === baseId && item.status === 'completed') {
-            visibleItems.set(materialId, item)
-          }
-        } catch (error) {
-          if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
-            return
-          }
-          throw error
+    for (const materialId of uniqueIds) {
+      try {
+        const item = knowledgeItemService.getById(materialId)
+        if (item.baseId === baseId && item.status === 'completed') {
+          visibleItems.set(materialId, item)
         }
-      })
-    )
+      } catch (error) {
+        if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+          continue
+        }
+        throw error
+      }
+    }
 
     return visibleItems
   }
@@ -499,9 +1007,9 @@ export class KnowledgeService extends BaseService {
    * kill / crash). Marking them `failed` clears the perpetual spinner and makes
    * them reindexable so the user can finish them on demand.
    */
-  private async recoverInterruptedItems(): Promise<void> {
+  private recoverInterruptedItems(): void {
     try {
-      const failedCount = await knowledgeItemService.failInterruptedItems(KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED)
+      const failedCount = knowledgeItemService.failInterruptedItems(KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED)
       if (failedCount > 0) {
         logger.info('Recovered interrupted knowledge items', { count: failedCount })
       }
@@ -510,10 +1018,10 @@ export class KnowledgeService extends BaseService {
     }
   }
 
-  private async recoverDeletingItems(): Promise<void> {
+  private recoverDeletingItems(): void {
     let deletingRootGroups: Awaited<ReturnType<typeof knowledgeItemService.getDeletingRootGroups>>
     try {
-      deletingRootGroups = await knowledgeItemService.getDeletingRootGroups()
+      deletingRootGroups = knowledgeItemService.getDeletingRootGroups()
     } catch (error) {
       logger.error('Failed to scan deleting knowledge items for recovery', error as Error)
       return
@@ -528,7 +1036,7 @@ export class KnowledgeService extends BaseService {
       for (let i = 0; i < rootItemIds.length; i += DELETE_RECOVERY_ROOT_CHUNK_SIZE) {
         const rootItemIdChunk = rootItemIds.slice(i, i + DELETE_RECOVERY_ROOT_CHUNK_SIZE)
         try {
-          await jobManager.enqueue(
+          jobManager.enqueue(
             'knowledge.delete-subtree',
             { baseId, rootItemIds: rootItemIdChunk },
             {
@@ -549,8 +1057,8 @@ export class KnowledgeService extends BaseService {
     }
   }
 
-  private async assertBaseCanRunRuntimeOperation(baseId: string, operation: string): Promise<void> {
-    const base = await knowledgeBaseService.getById(baseId)
+  private assertBaseCanRunRuntimeOperation(baseId: string, operation: string): void {
+    const base = knowledgeBaseService.getById(baseId)
 
     if (base.status !== 'failed') {
       return
@@ -593,12 +1101,12 @@ export class KnowledgeService extends BaseService {
     return item
   }
 
-  private async assertCompletedContainerHasNoDeletingChildren(baseId: string, item: KnowledgeItem): Promise<void> {
+  private assertCompletedContainerHasNoDeletingChildren(baseId: string, item: KnowledgeItem): void {
     if (item.type !== 'directory') {
       return
     }
 
-    const subtreeItems = await knowledgeItemService.getSubtreeItems(baseId, [item.id])
+    const subtreeItems = knowledgeItemService.getSubtreeItems(baseId, [item.id])
     if (subtreeItems.some((item) => item.status === 'deleting')) {
       throw DataApiErrorFactory.validation(
         { item: [`Knowledge item subtree '${item.id}' is being deleted`] },
@@ -613,7 +1121,7 @@ export class KnowledgeService extends BaseService {
     const unverifiableSourceItemIds: string[] = []
 
     for (const rootItemId of rootItemIds) {
-      const subtreeItems = await knowledgeItemService.getSubtreeItems(baseId, [rootItemId], { includeRoots: true })
+      const subtreeItems = knowledgeItemService.getSubtreeItems(baseId, [rootItemId], { includeRoots: true })
 
       // Reindex deletes the subtree's vectors before re-reading the source (reindexSubtreeJobHandler),
       // so a root whose source is gone would lose its vectors with nothing to rebuild from — reject up

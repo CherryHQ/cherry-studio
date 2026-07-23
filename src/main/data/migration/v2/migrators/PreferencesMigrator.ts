@@ -6,6 +6,7 @@ import { preferenceTable } from '@data/db/schemas/preference'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
+import { tagStoredFileRef } from '@shared/data/types/file'
 import { and, eq, sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
@@ -17,8 +18,24 @@ import {
   LOCALSTORAGE_MAPPINGS,
   REDUX_STORE_MAPPINGS
 } from './mappings/PreferencesMappings'
+import {
+  insertPreparedImageEntryTx,
+  prepareBase64ImageFileEntry,
+  type PreparedEntityImageFile,
+  unlinkPreparedImages
+} from './utils/logoMigration'
 
 const logger = loggerService.withContext('PreferencesMigrator')
+
+/**
+ * Log/name descriptor for the migrated avatar image. The avatar keeps NO ref
+ * row — the `app.user.avatar` preference is its only persisted copy (mirrors
+ * `profile.set_avatar`); only the `file_entry` is inserted.
+ */
+const AVATAR_REF = { sourceType: 'user_avatar', sourceId: 'default', role: 'avatar' }
+
+/** The preference key holding the user avatar (`image://avatar` in v1). */
+const AVATAR_PREFERENCE_KEY = 'app.user.avatar'
 
 interface MigrationItem {
   originalKey: string
@@ -209,13 +226,33 @@ export class PreferencesMigrator extends BaseMigrator {
       return { success: true, processedCount: 0 }
     }
 
+    const avatarFiles: PreparedEntityImageFile[] = []
     try {
       const db = ctx.db
       const scope = 'default'
       const timestamp = Date.now()
 
-      // Use transaction for atomic insert
-      await db.transaction(async (tx) => {
+      // Promote a v1 base64 avatar (`image://avatar`) to an on-disk WebP
+      // file_entry, then store a `file:<id>` ref instead of the raw base64. No
+      // ref row — the preference is the avatar's only persisted copy. Emoji /
+      // preset / '' (and a failed transcode → '') pass through unchanged.
+      for (const item of this.preparedItems) {
+        if (
+          item.targetKey === AVATAR_PREFERENCE_KEY &&
+          typeof item.value === 'string' &&
+          item.value.startsWith('data:')
+        ) {
+          const avatarFile = await prepareBase64ImageFileEntry(ctx.paths.filesDataDir, AVATAR_REF, item.value)
+          item.value = avatarFile ? tagStoredFileRef(avatarFile.id) : ''
+          if (avatarFile) avatarFiles.push(avatarFile)
+        }
+      }
+
+      db.transaction((tx) => {
+        for (const avatarFile of avatarFiles) {
+          insertPreparedImageEntryTx(tx, avatarFile)
+        }
+
         // Batch insert all preferences
         const insertValues = this.preparedItems.map((item) => ({
           scope,
@@ -229,7 +266,7 @@ export class PreferencesMigrator extends BaseMigrator {
         const BATCH_SIZE = 100
         for (let i = 0; i < insertValues.length; i += BATCH_SIZE) {
           const batch = insertValues.slice(i, i + BATCH_SIZE)
-          await tx.insert(preferenceTable).values(batch)
+          tx.insert(preferenceTable).values(batch).run()
 
           // Report progress
           const progress = Math.round(((i + batch.length) / insertValues.length) * 100)
@@ -247,6 +284,8 @@ export class PreferencesMigrator extends BaseMigrator {
         processedCount: this.preparedItems.length
       }
     } catch (error) {
+      // Unlink any avatar WebP written before the tx failed — no orphan on retry.
+      await unlinkPreparedImages(avatarFiles)
       logger.error('Execute failed', error as Error)
       return {
         success: false,
@@ -262,7 +301,7 @@ export class PreferencesMigrator extends BaseMigrator {
 
     try {
       // Count validation
-      const result = await db
+      const result = db
         .select({ count: sql<number>`count(*)` })
         .from(preferenceTable)
         .where(eq(preferenceTable.scope, 'default'))
@@ -273,7 +312,7 @@ export class PreferencesMigrator extends BaseMigrator {
       // Sample validation - check critical keys
       const criticalKeys = ['app.language', 'ui.theme_mode', 'app.zoom_factor']
       for (const key of criticalKeys) {
-        const record = await db
+        const record = db
           .select()
           .from(preferenceTable)
           .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, key)))

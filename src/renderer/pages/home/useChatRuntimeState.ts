@@ -1,10 +1,11 @@
 import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import { type TranslationOverlayEntry, type TranslationOverlaySetter } from '@renderer/components/chat/messages/blocks'
+import { buildTopicMessageFlowLiveState, type TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
 import {
-  buildTopicMessageFlowLiveState,
-  type TopicMessageFlowLiveState
-} from '@renderer/components/chat/messages/flow/topicMessageFlowLiveTree'
+  type TranslationOverlayEntry,
+  type TranslationOverlaySetter
+} from '@renderer/components/chat/messages/blocks/MessagePartsContext'
+import type { MessageStreamingLayers } from '@renderer/components/chat/messages/types'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
@@ -13,6 +14,7 @@ import {
   useConversationTurnController
 } from '@renderer/hooks/useConversationTurnController'
 import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
+import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
 import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import { useTopicOverlayHandoffOnTerminal } from '@renderer/hooks/useTopicStreamStatus'
 import type { Topic } from '@renderer/types/topic'
@@ -23,7 +25,7 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useChatWriteActions } from './hooks/useChatWriteActions'
-import { useStablePartsByMessageId } from './hooks/useStablePartsByMessageId'
+import { useStableMessagePartsLayers } from './hooks/useStablePartsByMessageId'
 import { useTopicMessagesCache, type UseTopicMessagesCacheParams } from './hooks/useTopicMessagesCache'
 
 const logger = loggerService.withContext('useChatRuntimeState')
@@ -162,8 +164,8 @@ export function useChatRuntimeState({
   // Deterministic overlay→DB handoff at terminal (see hook docs). The overlay's
   // `onFinish` is suppressed when an execution leaves `activeExecutions`, so a
   // torn-down turn's live card would otherwise override the finalized DB row.
-  // Refresh-then-dispose off the status edge; branch-rollback/bookkeeping stays
-  // in `handleExecutionFinish`. Excludes awaiting-approval (card must remain).
+  // Refresh-then-reset off the status edge; branch bookkeeping stays in
+  // `handleExecutionFinish`. Excludes awaiting-approval (card must remain).
   useTopicOverlayHandoffOnTerminal(topic.id, async () => {
     try {
       await refresh()
@@ -172,8 +174,29 @@ export function useChatRuntimeState({
     }
   })
 
-  const partsByMessageId = useStablePartsByMessageId(messages, overlay, translationOverlay)
+  const { historyPartsByMessageId, partsByMessageId } = useStableMessagePartsLayers(
+    messages,
+    overlay,
+    translationOverlay
+  )
   const displayMessages = useMemo(() => mergeMessagesById(messages, liveAssistants), [messages, liveAssistants])
+  const liveMessageIdCandidates = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...branchActiveExecutions.flatMap((execution) =>
+            execution.anchorMessageId ? [execution.anchorMessageId] : []
+          ),
+          ...liveAssistants.map((message) => message.id)
+        ])
+      ),
+    [branchActiveExecutions, liveAssistants]
+  )
+  const liveMessageIds = useStableStringArray(liveMessageIdCandidates)
+  const streamingLayers = useMemo<MessageStreamingLayers>(
+    () => ({ historyPartsByMessageId, liveMessageIds }),
+    [historyPartsByMessageId, liveMessageIds]
+  )
 
   // Tool-approval card surface. Awaiting-approval tools render `null` inline
   // (see MessageMcpTool / AgentExecutionTimeline), so the composer override is
@@ -182,6 +205,7 @@ export function useChatRuntimeState({
   const respondToolApproval = useToolApprovalBridge(topic.id)
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
     partsByMessageId,
+    streamingLayers,
     onRespond: respondToolApproval
   })
   const composerContext = useMemo<ComposerContextValue>(
@@ -230,21 +254,13 @@ export function useChatRuntimeState({
       topicId: conversation.topicId,
       parentAnchorId: conversation.parentAnchorId ?? undefined,
       userMessageParts: options?.userMessageParts ?? [{ type: 'text', text }],
-      mentionedModelIds: options?.mentionedModels
+      mentionedModelIds: options?.mentionedModels,
+      knowledgeBaseIds: options?.knowledgeBaseIds
     }),
     refreshMetadata: ({ topicId }) => invalidateCache(['/topics', `/topics/${topicId}`])
   })
 
-  const activeStreamingMessageIds = useMemo(
-    () =>
-      new Set([
-        ...branchActiveExecutions.flatMap((execution) =>
-          execution.anchorMessageId ? [execution.anchorMessageId] : []
-        ),
-        ...liveAssistants.map((message) => message.id)
-      ]),
-    [branchActiveExecutions, liveAssistants]
-  )
+  const activeStreamingMessageIds = useMemo(() => new Set(liveMessageIds), [liveMessageIds])
   const activeAnchorMessages = useMemo(
     () => messages.filter((message) => activeStreamingMessageIds.has(message.id)),
     [activeStreamingMessageIds, messages]
@@ -300,20 +316,25 @@ export function useChatRuntimeState({
         try {
           if (isError || !message.parts?.length) {
             await cache.rollbackBranch()
-          } else {
-            await refresh()
           }
           await invalidateCache(treeCachePath)
         } catch (err) {
           logger.warn('failed to reconcile topic branch flow after execution finish', err as Error)
         } finally {
           finishedBranchExecutionIdsRef.current.add(executionId)
-          disposeOverlay(message.id)
           setBranchLiveExecutions((current) => current.filter((execution) => execution.executionId !== executionId))
           const hasRemainingExecutions = branchActiveExecutions.some(
             (execution) => !finishedBranchExecutionIdsRef.current.has(execution.executionId)
           )
           if (hasRemainingExecutions) {
+            if (!isError && message.parts?.length) {
+              try {
+                await refresh()
+              } catch (err) {
+                logger.warn('failed to refresh messages after branch execution finish', err as Error)
+              }
+            }
+            disposeOverlay(message.id)
             setBranchLiveMessages((current) => current.filter((item) => item.id !== message.id))
           } else {
             setBranchLiveMessages([])
@@ -359,6 +380,7 @@ export function useChatRuntimeState({
   return {
     messages: displayMessages,
     partsByMessageId,
+    streamingLayers,
     shouldRenderHomeComposer,
     chatWriteActions,
     sendMessage,

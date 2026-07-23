@@ -2,11 +2,11 @@ import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../../types'
 const GrokLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
+  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
     <path
-      fill="currentColor"
+      fill="#000"
       fillRule="evenodd"
-      d="M40.1819 48.4474L76.1693 99.4167H60.1733L24.1859 48.4474H40.1819ZM40.1676 76.7557L48.1691 88.0934L40.1747 99.4167H24.168L40.1676 76.7557ZM95.8346 26.2522V99.4167H82.7232V44.821L95.8346 26.2522ZM95.8346 20.5834L60.1733 71.0905L52.1717 59.7564L79.8279 20.5834H95.8346Z"
+      d="M44.1835 49.9746L73.8104 92H60.6416L31.0147 49.9746H44.1835ZM44.1718 73.3154L50.7591 82.6637L44.1776 92H31L44.1718 73.3154ZM90 31.6741V92H79.206V46.9845L90 31.6741ZM90 27L60.6416 68.6444L54.0542 59.2991L76.8224 27H90Z"
       clipRule="evenodd"
     />
   </svg>

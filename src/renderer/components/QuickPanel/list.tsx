@@ -12,6 +12,7 @@ export interface QuickPanelRowData {
   suffix?: ReactNode | string
   disabled?: boolean
   isMenu?: boolean
+  fixedToBottom?: boolean
 }
 
 interface QuickPanelFooterProps {
@@ -144,6 +145,9 @@ export function QuickPanelRow<T extends QuickPanelRowData>({
   rowRef,
   selected = false
 }: QuickPanelRowProps<T>) {
+  // Read-only panels stay non-interactive, except pinned footer actions (e.g. "open config"), which
+  // remain clickable so a status panel can still expose its one affordance.
+  const isReadOnlyLocked = readOnly && !item.fixedToBottom
   const suffixContent = item.suffix ? (
     item.suffix
   ) : selected ? (
@@ -151,17 +155,17 @@ export function QuickPanelRow<T extends QuickPanelRowData>({
   ) : item.isMenu && !item.disabled && !readOnly ? (
     <ChevronRight size={14} />
   ) : null
-  const canHover = hoverEnabled && !readOnly && !item.disabled
+  const canHover = hoverEnabled && !isReadOnlyLocked && !item.disabled
 
   return (
     <div
       ref={rowRef}
       className={cn(
         'mx-[5px] mb-px flex h-[30px] items-center justify-between gap-5 rounded-md p-[5px] transition-colors duration-100',
-        readOnly ? 'cursor-default' : item.disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer',
-        !readOnly && selected && 'bg-muted',
-        !readOnly && selected && active && 'bg-accent',
-        !readOnly && !selected && active && 'bg-accent',
+        isReadOnlyLocked ? 'cursor-default' : item.disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer',
+        !isReadOnlyLocked && selected && 'bg-muted',
+        !isReadOnlyLocked && selected && active && 'bg-accent',
+        !isReadOnlyLocked && !selected && active && 'bg-accent',
         canHover && 'hover:bg-accent',
         className
       )}
@@ -170,7 +174,7 @@ export function QuickPanelRow<T extends QuickPanelRowData>({
       data-selected={selected ? '' : undefined}
       onClick={(event) => {
         event.stopPropagation()
-        if (readOnly) return
+        if (isReadOnlyLocked) return
         onSelect()
       }}>
       <div className={cn('flex flex-1 shrink-0 items-center gap-[5px]', contentClassName)}>

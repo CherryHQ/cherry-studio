@@ -2,6 +2,7 @@ import { Label, RadioGroup, RadioGroupItem } from '@cherrystudio/ui'
 import { Dmxapi } from '@cherrystudio/ui/icons'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { replaceEndpointConfigDomain } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
+import { toast } from '@renderer/services/toast'
 import type { Provider } from '@shared/data/types/provider'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -73,7 +74,7 @@ const DmxapiSettings: FC<DmxapiSettingsProps> = ({ providerId }) => {
         await updateProvider({ endpointConfigs: newEndpointConfigs })
       } catch {
         setSelectedPlatform(previous)
-        window.toast.error(t('settings.provider.save_failed'))
+        toast.error(t('settings.provider.save_failed'))
       }
     },
     [provider, t, updateProvider]
@@ -103,11 +104,7 @@ const DmxapiSettings: FC<DmxapiSettingsProps> = ({ providerId }) => {
                 <Label htmlFor={id} className="max-w-full cursor-pointer font-normal leading-snug">
                   <span>
                     {option.label}{' '}
-                    <a
-                      href={option.apiKeyWebsite}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary underline-offset-4 hover:underline">
+                    <a href={option.apiKeyWebsite} target="_blank" rel="noopener noreferrer" className="text-primary">
                       ({t('settings.provider.get_api_key')})
                     </a>
                   </span>

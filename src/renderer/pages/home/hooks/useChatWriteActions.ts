@@ -17,15 +17,11 @@ import { loggerService } from '@logger'
 import type { ChatWriteActions } from '@renderer/hooks/chat/ChatWriteContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
-import { DataApiError, ErrorCode } from '@shared/data/api'
-import type {
-  BranchMessagesResponse,
-  CherryUIMessage,
-  Message as DbMessage,
-  ModelSnapshot
-} from '@shared/data/types/message'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
+import type { BranchMessagesResponse, CherryUIMessage, Message as DbMessage } from '@shared/data/types/message'
 import { type UniqueModelId } from '@shared/data/types/model'
 import type { ChatRequestOptions } from 'ai'
 import { useCallback, useMemo } from 'react'
@@ -41,7 +37,9 @@ function getDirectAssistantModelIds(messages: CherryUIMessage[], userMessageId: 
     if (message.role !== 'assistant') continue
     if (message.metadata?.parentId !== userMessageId) continue
 
-    const modelId = resolveUniqueModelId(message.metadata?.modelId, message.metadata?.modelSnapshot)
+    const snapshot = message.metadata?.messageSnapshot
+    const model = snapshot?.model
+    const modelId = resolveUniqueModelId(message.metadata?.modelId, model)
     if (modelId) modelIds.add(modelId)
   }
 
@@ -184,7 +182,7 @@ export function useChatWriteActions(params: Params): Result {
 
   /** Regenerate with capability body + target-driven anchor/model. */
   const regenerateWithCapabilities = useCallback(
-    async (messageId?: string, options?: { modelId?: UniqueModelId; modelSnapshot?: ModelSnapshot }) => {
+    async (messageId?: string, options?: { modelId?: UniqueModelId }) => {
       // Anchor semantics depend on the target role:
       //   - assistant: keep parent user intact, spawn sibling — anchor = parentId
       //   - user:      keep the user itself, spawn assistant child — anchor = target.id
@@ -247,6 +245,8 @@ export function useChatWriteActions(params: Params): Result {
       const refreshed = await refresh()
       setMessages(refreshed)
       logger.info('Forked user message', { sourceId: messageId, newId: newMessage.id })
+      const shouldPreserveInheritedModelIds =
+        inheritedModelIds.length > 1 || (!topic.assistantId && inheritedModelIds.length === 1)
 
       // Bypass `regenerateWithCapabilities` here: its `uiMessages`
       // closure is still the pre-fork snapshot in this microtask (the
@@ -257,7 +257,7 @@ export function useChatWriteActions(params: Params): Result {
         trigger: 'regenerate-message',
         topicId: topic.id,
         parentAnchorId: newMessage.id,
-        ...(inheritedModelIds.length > 1 && { mentionedModelIds: inheritedModelIds })
+        ...(shouldPreserveInheritedModelIds && { mentionedModelIds: inheritedModelIds })
       })
 
       if (ack.mode === 'blocked') {
@@ -266,7 +266,7 @@ export function useChatWriteActions(params: Params): Result {
 
       await seedReservedMessages(ack.reservedMessages ?? [])
     },
-    [createSiblingTrigger, seedReservedMessages, refresh, setMessages, topic.id, uiMessages]
+    [createSiblingTrigger, seedReservedMessages, refresh, setMessages, topic.id, topic.assistantId, uiMessages]
   )
 
   const handleResend = useCallback<ChatWriteActions['resend']>(
@@ -310,7 +310,7 @@ export function useChatWriteActions(params: Params): Result {
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
           logger.warn('setActiveNode on unpersisted message', { messageId, topicId: topic.id })
-          window.toast.warning('Message is still syncing — try again in a moment')
+          toast.warning('Message is still syncing — try again in a moment')
           return
         }
         throw err
@@ -332,7 +332,7 @@ export function useChatWriteActions(params: Params): Result {
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
           logger.warn('setActiveBranch on unpersisted message', { throughNodeId, topicId: topic.id })
-          window.toast.warning('Message is still syncing — try again in a moment')
+          toast.warning('Message is still syncing — try again in a moment')
           return
         }
         throw err

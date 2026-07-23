@@ -37,4 +37,20 @@ describe('claudeUserFacingTools', () => {
     expect(byName.get('mcp__cherry-tools__web_search')?.label).toBe('Web Search')
     expect(byName.get('Bash')?.label).toBe('Bash')
   })
+
+  it('exposes the mutating kb_manage and autonomy tools but hides the read-only kb deep tools', () => {
+    expect(byName.has('mcp__cherry-tools__kb_manage')).toBe(true) // user — its own toggle
+    expect(byName.get('mcp__cherry-tools__kb_manage')?.label).toBe('Manage Knowledge')
+    expect(byName.has('mcp__cherry-tools__notify')).toBe(true)
+    expect(byName.get('mcp__cherry-tools__notify')?.label).toBe('Notify')
+    expect(byName.has('mcp__cherry-tools__config')).toBe(true)
+    expect(byName.get('mcp__cherry-tools__config')?.label).toBe('Configuration')
+    expect(byName.has('mcp__cherry-tools__kb_read')).toBe(false) // internal — follows kb capability
+  })
+
+  it('exposes generate_image as a user-facing media tool', () => {
+    const tool = byName.get('mcp__cherry-tools__generate_image')
+    expect(tool?.label).toBe('Generate Image')
+    expect(tool?.category).toBe('media')
+  })
 })

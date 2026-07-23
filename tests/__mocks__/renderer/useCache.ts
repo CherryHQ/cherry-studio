@@ -16,18 +16,26 @@ import { vi } from 'vitest'
  * Provides comprehensive mocks for all cache management hooks
  */
 
+/**
+ * Setter input mirroring production's `CacheSetStateAction` (value or updater).
+ * Lightweight: `prev` is plain (not readonly) — the mock only needs to resolve
+ * functional updaters so functional-update call sites run under the mock.
+ */
+type SetAction<V> = V | ((prev: V) => V)
+
 // Mock cache state storage (using string for memory cache to support template keys)
 const mockMemoryCache = new Map<string, any>()
 const mockSharedCache = new Map<SharedCacheKey, any>()
 const mockPersistCache = new Map<RendererPersistCacheKey, any>()
 
-// Initialize caches with defaults
+// Initialize caches with defaults.
+// The shared map is deliberately NOT pre-populated: production resolves schema
+// defaults in the writable hook's fallback path, never by materializing them
+// into the physical store — pre-seeding would make the read-only
+// mockUseSharedCacheValue return defaults on a physical miss where production
+// returns undefined (hiding missing-key / hydration regressions).
 Object.entries(DefaultUseCache).forEach(([key, value]) => {
   mockMemoryCache.set(key, value)
-})
-
-Object.entries(DefaultSharedCache).forEach(([key, value]) => {
-  mockSharedCache.set(key as SharedCacheKey, value)
 })
 
 Object.entries(DefaultRendererPersistCache).forEach(([key, value]) => {
@@ -139,7 +147,7 @@ export const mockUseCache = vi.fn(
   <K extends UseCacheKey>(
     key: K,
     initValue?: InferUseCacheValue<K>
-  ): [InferUseCacheValue<K>, (value: InferUseCacheValue<K>) => void] => {
+  ): [InferUseCacheValue<K>, (value: SetAction<InferUseCacheValue<K>>) => void] => {
     // Get current value
     let currentValue = mockMemoryCache.get(key)
     if (currentValue === undefined) {
@@ -149,9 +157,15 @@ export const mockUseCache = vi.fn(
       }
     }
 
-    // Mock setValue function
-    const setValue = vi.fn((value: InferUseCacheValue<K>) => {
-      mockMemoryCache.set(key, value)
+    // Mock setValue function (mirrors production: resolves functional updaters
+    // against the latest stored value with the same default fallback)
+    const setValue = vi.fn((value: SetAction<InferUseCacheValue<K>>) => {
+      if (typeof value === 'function') {
+        const prev = (mockMemoryCache.get(key) ?? getDefaultValue(key)) as InferUseCacheValue<K>
+        mockMemoryCache.set(key, value(prev))
+      } else {
+        mockMemoryCache.set(key, value)
+      }
       notifyMemorySubscribers(key)
     })
 
@@ -166,7 +180,7 @@ export const mockUseSharedCache = vi.fn(
   <K extends SharedCacheKey>(
     key: K,
     initValue?: InferSharedCacheValue<K>
-  ): [InferSharedCacheValue<K>, (value: InferSharedCacheValue<K>) => void] => {
+  ): [InferSharedCacheValue<K>, (value: SetAction<InferSharedCacheValue<K>>) => void] => {
     // Get current value
     let currentValue = mockSharedCache.get(key)
     if (currentValue === undefined) {
@@ -178,13 +192,51 @@ export const mockUseSharedCache = vi.fn(
       }
     }
 
-    // Mock setValue function
-    const setValue = vi.fn((value: InferSharedCacheValue<K>) => {
-      mockSharedCache.set(key, value)
+    // Mock setValue function (mirrors production functional-updater handling)
+    const setValue = vi.fn((value: SetAction<InferSharedCacheValue<K>>) => {
+      if (typeof value === 'function') {
+        const prev = (mockSharedCache.get(key) ??
+          DefaultSharedCache[key as keyof SharedCacheSchema]) as InferSharedCacheValue<K>
+        mockSharedCache.set(key, value(prev))
+      } else {
+        mockSharedCache.set(key, value)
+      }
       notifySharedSubscribers(key)
     })
 
     return [currentValue, setValue]
+  }
+)
+
+/**
+ * Mock useSharedCacheValue hook (read-only shared cache observer)
+ *
+ * Mirrors production semantics: returns the stored value or undefined on a
+ * physical miss — it never materializes a default into the cache (consumers
+ * apply their own `?? fallback`). Template-key instances therefore return
+ * undefined until a test seeds them via MockUseCacheUtils.setSharedCacheValue.
+ */
+export const mockUseSharedCacheValue = vi.fn(
+  <K extends SharedCacheKey>(key: K): InferSharedCacheValue<K> | undefined => {
+    return mockSharedCache.get(key)
+  }
+)
+
+/**
+ * Mock useSharedCacheSelector hook (multi-key read-only selector)
+ *
+ * Mirrors production semantics statically: projects the current mock shared
+ * cache values for `keys` (undefined on physical miss, no default) into a
+ * tuple and returns `selector(values)`. Like the other hook mocks it is not
+ * reactive — it re-evaluates per render, not on store change.
+ */
+export const mockUseSharedCacheSelector = vi.fn(
+  <Selection>(
+    keys: readonly SharedCacheKey[],
+    selector: (values: readonly any[]) => Selection,
+    _isEqual?: (a: Selection, b: Selection) => boolean
+  ): Selection => {
+    return selector(keys.map((key) => mockSharedCache.get(key)))
   }
 )
 
@@ -195,7 +247,7 @@ export const mockUsePersistCache = vi.fn(
   <K extends RendererPersistCacheKey>(
     key: K,
     initValue?: RendererPersistCacheSchema[K]
-  ): [RendererPersistCacheSchema[K], (value: RendererPersistCacheSchema[K]) => void] => {
+  ): [RendererPersistCacheSchema[K], (value: SetAction<RendererPersistCacheSchema[K]>) => void] => {
     // Get current value
     let currentValue = mockPersistCache.get(key)
     if (currentValue === undefined) {
@@ -205,9 +257,14 @@ export const mockUsePersistCache = vi.fn(
       }
     }
 
-    // Mock setValue function
-    const setValue = vi.fn((value: RendererPersistCacheSchema[K]) => {
-      mockPersistCache.set(key, value)
+    // Mock setValue function (mirrors production functional-updater handling)
+    const setValue = vi.fn((value: SetAction<RendererPersistCacheSchema[K]>) => {
+      if (typeof value === 'function') {
+        const prev = (mockPersistCache.get(key) ?? DefaultRendererPersistCache[key]) as RendererPersistCacheSchema[K]
+        mockPersistCache.set(key, value(prev))
+      } else {
+        mockPersistCache.set(key, value)
+      }
       notifyPersistSubscribers(key)
     })
 
@@ -221,6 +278,8 @@ export const mockUsePersistCache = vi.fn(
 export const MockUseCache = {
   useCache: mockUseCache,
   useSharedCache: mockUseSharedCache,
+  useSharedCacheValue: mockUseSharedCacheValue,
+  useSharedCacheSelector: mockUseSharedCacheSelector,
   usePersistCache: mockUsePersistCache
 }
 
@@ -234,19 +293,18 @@ export const MockUseCacheUtils = {
   resetMocks: () => {
     mockUseCache.mockClear()
     mockUseSharedCache.mockClear()
+    mockUseSharedCacheValue.mockClear()
+    mockUseSharedCacheSelector.mockClear()
     mockUsePersistCache.mockClear()
 
-    // Reset caches to defaults
+    // Reset caches to defaults (shared stays physically empty — see the
+    // initialization note at the top of this file)
     mockMemoryCache.clear()
     mockSharedCache.clear()
     mockPersistCache.clear()
 
     Object.entries(DefaultUseCache).forEach(([key, value]) => {
       mockMemoryCache.set(key, value)
-    })
-
-    Object.entries(DefaultSharedCache).forEach(([key, value]) => {
-      mockSharedCache.set(key as SharedCacheKey, value)
     })
 
     Object.entries(DefaultRendererPersistCache).forEach(([key, value]) => {

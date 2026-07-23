@@ -71,7 +71,7 @@ vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
   )
 }))
 
-vi.mock('@renderer/components/Tags/Model', () => ({
+vi.mock('@renderer/components/tags/Model', () => ({
   getModelDisplayTags: (model: Model) =>
     model.capabilities.filter((capability) =>
       [MODEL_CAPABILITY.IMAGE_RECOGNITION, MODEL_CAPABILITY.FUNCTION_CALL].includes(capability as any)
@@ -153,6 +153,7 @@ describe('SelectedModelsTrigger', () => {
     expect(within(iconRail).getByTestId('model-avatar-provider-a::model-a')).toBeInTheDocument()
     expect(within(iconRail).getByTestId('model-avatar-provider-b::model-b')).toBeInTheDocument()
     expect(iconRail.className).not.toContain('overflow-x-auto')
+    expect(screen.getByRole('button', { name: 'Selected models' }).querySelector('.lucide-chevron-down')).toBeTruthy()
   })
 
   it('shows model names, providers, capability tags, and context windows in the popover content', () => {
@@ -224,6 +225,8 @@ describe('SelectedModelsTrigger', () => {
     )
 
     expect(screen.queryByLabelText('Remove Model A')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Selected models' })).toHaveTextContent('Model A')
+    expect(screen.getByRole('button', { name: 'Selected models' })).not.toHaveTextContent('Provider A')
     expect(onModelsChange).not.toHaveBeenCalled()
     expect(onRestore).not.toHaveBeenCalled()
   })

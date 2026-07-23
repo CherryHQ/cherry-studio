@@ -1,5 +1,6 @@
 import React from 'react'
 import { useTranslation } from 'react-i18next'
+import { BeatLoader } from 'react-spinners'
 
 interface PlaceholderBlockProps {
   isProcessing: boolean
@@ -24,7 +25,7 @@ function getElapsedMs(createdAt: string): number {
   return Math.max(0, Date.now() - createdAtMs)
 }
 
-function useElapsedMs(isProcessing: boolean, createdAt: string): number {
+export function usePlaceholderElapsedMs(isProcessing: boolean, createdAt: string, updateIntervalMs = 100): number {
   const [elapsedMs, setElapsedMs] = React.useState(() => (isProcessing ? getElapsedMs(createdAt) : 0))
 
   React.useEffect(() => {
@@ -33,21 +34,20 @@ function useElapsedMs(isProcessing: boolean, createdAt: string): number {
     const updateElapsed = () => setElapsedMs(getElapsedMs(createdAt))
     updateElapsed()
 
-    const timer = setInterval(updateElapsed, 100)
+    const timer = setInterval(updateElapsed, updateIntervalMs)
     return () => clearInterval(timer)
-  }, [createdAt, isProcessing])
+  }, [createdAt, isProcessing, updateIntervalMs])
 
   return elapsedMs
 }
 
 export function formatPlaceholderElapsed(elapsedMs: number, t: Translate): string {
   const safeElapsedMs = Math.max(0, Math.floor(elapsedMs))
-  const totalTenths = Math.floor(safeElapsedMs / 100)
-  const totalSeconds = Math.floor(totalTenths / 10)
+  const totalSeconds = Math.round(safeElapsedMs / 1000)
   const days = Math.floor(totalSeconds / 86400)
   const hours = Math.floor((totalSeconds % 86400) / 3600)
   const minutes = Math.floor((totalSeconds % 3600) / 60)
-  const seconds = `${totalSeconds % 60}.${totalTenths % 10}`
+  const seconds = String(totalSeconds % 60)
 
   if (days > 0) return t('message.tools.placeholder.elapsed.days', { days, hours, minutes, seconds })
   if (hours > 0) return t('message.tools.placeholder.elapsed.hours', { hours, minutes, seconds })
@@ -55,32 +55,16 @@ export function formatPlaceholderElapsed(elapsedMs: number, t: Translate): strin
   return t('message.tools.placeholder.elapsed.seconds', { seconds })
 }
 
-const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({ isProcessing, createdAt, status = 'preparing' }) => {
+const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({ isProcessing, status = 'preparing' }) => {
   const { t } = useTranslation()
-  const elapsedMs = useElapsedMs(isProcessing, createdAt)
 
   if (isProcessing) {
     return (
       <div
-        className="-mt-1.25 mb-0.5 flex min-h-6 flex-row items-center gap-1.5 text-[12px] text-muted-foreground/75 leading-4"
+        className="flex min-h-7 select-none flex-row items-center gap-1.5 py-0.5 text-[13px] text-foreground-muted leading-5"
         data-testid="message-status-placeholder">
-        <span
-          className="animation-shimmer motion-reduce:!animate-none"
-          data-testid="message-status-text"
-          style={
-            {
-              '--color-shimmer-mid': 'var(--color-foreground-secondary)',
-              '--color-shimmer-end': 'color-mix(in srgb, var(--color-foreground-secondary) 35%, transparent)'
-            } as React.CSSProperties
-          }>
-          {t(PLACEHOLDER_LABEL_KEYS[status])}
-        </span>
-        <span aria-hidden="true" className="text-muted-foreground/40">
-          ·
-        </span>
-        <span className="text-muted-foreground/55" data-testid="message-status-elapsed">
-          {formatPlaceholderElapsed(elapsedMs, t)}
-        </span>
+        <span data-testid="message-status-text">{t(PLACEHOLDER_LABEL_KEYS[status])}</span>
+        <BeatLoader color="var(--color-foreground-muted)" size={4} speedMultiplier={0.8} />
       </div>
     )
   }

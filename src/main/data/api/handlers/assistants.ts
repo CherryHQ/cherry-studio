@@ -9,54 +9,63 @@
  */
 
 import { assistantDataService } from '@data/services/AssistantService'
-import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import type { AssistantSchemas } from '@shared/data/api/schemas/assistants'
 import {
   CreateAssistantSchema,
+  DeleteAssistantQuerySchema,
+  ImportAssistantSchema,
   ListAssistantsQuerySchema,
   UpdateAssistantSchema
 } from '@shared/data/api/schemas/assistants'
+import type { HandlersFor } from '@shared/data/api/types'
 
 export const assistantHandlers: HandlersFor<AssistantSchemas> = {
   '/assistants': {
     GET: async ({ query }) => {
       const parsed = ListAssistantsQuerySchema.parse(query ?? {})
-      return await assistantDataService.list(parsed)
+      return assistantDataService.list(parsed)
     },
 
     POST: async ({ body }) => {
       const parsed = CreateAssistantSchema.parse(body)
-      return await assistantDataService.create(parsed)
+      return assistantDataService.create(parsed)
+    }
+  },
+
+  '/assistants:import': {
+    POST: async ({ body }) => {
+      const parsed = ImportAssistantSchema.parse(body)
+      return assistantDataService.createFromImport(parsed)
     }
   },
 
   '/assistants/:id': {
     GET: async ({ params }) => {
-      return await assistantDataService.getById(params.id)
+      return assistantDataService.getById(params.id)
     },
 
     PATCH: async ({ params, body }) => {
       const parsed = UpdateAssistantSchema.parse(body)
       // Entity schema fields like `prompt` / `emoji` / `settings` carry `.default()`,
-      // and `.partial()` does not strip those — `.parse({ tagIds: [...] })` would inject
+      // and `.partial()` does not strip those — `.parse({ groupId: ... })` would inject
       // defaults for every omitted field and the service would overwrite the row with them.
       // Keep only keys actually present in the request body so PATCH stays partial.
       const bodyKeys = body && typeof body === 'object' ? new Set(Object.keys(body)) : new Set<string>()
       const patch = Object.fromEntries(Object.entries(parsed).filter(([key]) => bodyKeys.has(key)))
-      return await assistantDataService.update(params.id, patch)
+      return assistantDataService.update(params.id, patch)
     },
 
-    DELETE: async ({ params }) => {
-      await assistantDataService.delete(params.id)
-      return undefined
+    DELETE: async ({ params, query }) => {
+      const parsed = DeleteAssistantQuerySchema.parse(query ?? {})
+      return assistantDataService.delete(params.id, { deleteTopics: parsed.deleteTopics === true })
     }
   },
 
   '/assistants/:id/order': {
     PATCH: async ({ params, body }) => {
       const parsed = OrderRequestSchema.parse(body)
-      await assistantDataService.reorder(params.id, parsed)
+      assistantDataService.reorder(params.id, parsed)
       return undefined
     }
   },
@@ -64,7 +73,7 @@ export const assistantHandlers: HandlersFor<AssistantSchemas> = {
   '/assistants/order:batch': {
     PATCH: async ({ body }) => {
       const parsed = OrderBatchRequestSchema.parse(body)
-      await assistantDataService.reorderBatch(parsed.moves)
+      assistantDataService.reorderBatch(parsed.moves)
       return undefined
     }
   }

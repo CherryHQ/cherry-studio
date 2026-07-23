@@ -1,8 +1,19 @@
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { APICallError } from 'ai'
+import { APICallError, tool } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import * as z from 'zod'
+
+import { markTrustedLocalToolTerminalFailure } from '../localToolTerminalOutcome'
+import { createToolCallLimitStopCondition } from '../toolLoopTermination'
 
 const mockCreateAgent = vi.fn()
+const TEST_USAGE = {
+  inputTokens: 1,
+  outputTokens: 2,
+  totalTokens: 3,
+  inputTokenDetails: {},
+  outputTokenDetails: {}
+}
 
 vi.mock('@cherrystudio/ai-core', () => ({
   createAgent: (...args: unknown[]) => mockCreateAgent(...args)
@@ -11,6 +22,349 @@ vi.mock('@cherrystudio/ai-core', () => ({
 describe('Agent', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  describe('generate', () => {
+    it('routes a trusted terminal tool failure through onError without calling onFinish', async () => {
+      const output = markTrustedLocalToolTerminalFailure({
+        error: 'terminal failure',
+        retryable: false,
+        terminal: true,
+        userMessage: 'Fix the configuration.',
+        i18nKey: 'web_search_provider_unavailable'
+      })
+      mockCreateAgent.mockResolvedValue({
+        generate: vi.fn().mockResolvedValue({
+          text: '',
+          usage: TEST_USAGE,
+          steps: [
+            {
+              toolResults: [{ type: 'tool-result', toolCallId: 'tool-1', toolName: 'local_lookup', output }]
+            }
+          ]
+        })
+      })
+
+      const calls: string[] = []
+      const onFinish = vi.fn(() => void calls.push('finish'))
+      const onError = vi.fn(() => {
+        calls.push('error')
+        return 'abort' as const
+      })
+      const { Agent } = await import('../../Agent')
+      const agent = new Agent({
+        providerId: 'openai' as never,
+        providerSettings: {} as never,
+        modelId: 'test-model',
+        hookParts: [{ onFinish, onError }]
+      })
+
+      await expect(agent.generate({ prompt: 'hello' })).rejects.toMatchObject({
+        name: 'ToolLoopTerminalError',
+        message: 'Fix the configuration.',
+        i18nKey: 'web_search_provider_unavailable'
+      })
+      expect(onFinish).not.toHaveBeenCalled()
+      expect(onError).toHaveBeenCalledOnce()
+      expect(calls).toEqual(['error'])
+    })
+
+    it('routes an actually-triggered cap through onError without calling onFinish', async () => {
+      const steps = [
+        { toolResults: [] },
+        { toolResults: [{ type: 'tool-result', toolCallId: 'tool-2', toolName: 'local_lookup', output: [] }] }
+      ]
+      const stopWhen = createToolCallLimitStopCondition(2)
+      await stopWhen({ steps: steps as never })
+      mockCreateAgent.mockResolvedValue({
+        generate: vi.fn().mockResolvedValue({ text: '', usage: TEST_USAGE, steps })
+      })
+
+      const calls: string[] = []
+      const onFinish = vi.fn(() => void calls.push('finish'))
+      const onError = vi.fn(() => {
+        calls.push('error')
+        return 'abort' as const
+      })
+      const { Agent } = await import('../../Agent')
+      const agent = new Agent({
+        providerId: 'openai' as never,
+        providerSettings: {} as never,
+        modelId: 'test-model',
+        options: { stopWhen },
+        hookParts: [{ onFinish, onError }]
+      })
+
+      await expect(agent.generate({ prompt: 'hello' })).rejects.toMatchObject({
+        name: 'ToolLoopTerminalError',
+        i18nKey: 'tool_call_limit_reached'
+      })
+      expect(onFinish).not.toHaveBeenCalled()
+      expect(onError).toHaveBeenCalledOnce()
+      expect(calls).toEqual(['error'])
+    })
+
+    it('calls only onFinish when generation completes without a terminal outcome', async () => {
+      const stopWhen = createToolCallLimitStopCondition(2)
+      const steps = [{ toolResults: [] }]
+      await expect(stopWhen({ steps: steps as never })).resolves.toBe(false)
+      mockCreateAgent.mockResolvedValue({
+        generate: vi.fn().mockResolvedValue({ text: 'done', usage: TEST_USAGE, steps })
+      })
+
+      const calls: string[] = []
+      const onFinish = vi.fn(() => void calls.push('finish'))
+      const onError = vi.fn(() => {
+        calls.push('error')
+        return 'abort' as const
+      })
+      const { Agent } = await import('../../Agent')
+      const agent = new Agent({
+        providerId: 'openai' as never,
+        providerSettings: {} as never,
+        modelId: 'test-model',
+        options: { stopWhen },
+        hookParts: [{ onFinish, onError }]
+      })
+
+      await expect(agent.generate({ prompt: 'hello' })).resolves.toEqual({ text: 'done', usage: TEST_USAGE })
+      expect(onFinish).toHaveBeenCalledOnce()
+      expect(onError).not.toHaveBeenCalled()
+      expect(calls).toEqual(['finish'])
+    })
+
+    it('routes a clean cancellation through onAbort even when generation resolves during the abort', async () => {
+      const abortError = Object.assign(new Error('cancelled'), { name: 'AbortError' })
+      const controller = new AbortController()
+      mockCreateAgent.mockResolvedValue({
+        generate: vi.fn().mockImplementation(async () => {
+          controller.abort(abortError)
+          return { text: 'ignored', usage: TEST_USAGE, steps: [] }
+        })
+      })
+
+      const calls: string[] = []
+      const onAbort = vi.fn(() => void calls.push('abort'))
+      const onFinish = vi.fn(() => void calls.push('finish'))
+      const onError = vi.fn(() => {
+        calls.push('error')
+        return 'abort' as const
+      })
+      const { Agent } = await import('../../Agent')
+      const agent = new Agent({
+        providerId: 'openai' as never,
+        providerSettings: {} as never,
+        modelId: 'test-model',
+        hookParts: [{ onAbort, onFinish, onError }]
+      })
+
+      await expect(agent.generate({ prompt: 'hello' }, controller.signal)).rejects.toBe(abortError)
+      expect(onAbort).toHaveBeenCalledOnce()
+      expect(onFinish).not.toHaveBeenCalled()
+      expect(onError).not.toHaveBeenCalled()
+      expect(calls).toEqual(['abort'])
+    })
+  })
+
+  it('pairs a terminal API error with its original after an earlier tool error', async () => {
+    const toolError = new Error('Invalid tool input')
+    const apiError = new APICallError({
+      message: 'Upstream unavailable',
+      url: 'https://api.example.com/chat/completions',
+      requestBodyValues: {},
+      statusCode: 503,
+      responseHeaders: {},
+      responseBody: '',
+      isRetryable: true
+    })
+    const uiOnError = vi.fn((onError: (error: unknown) => string, error: unknown) => onError(error))
+    const cancelUiStream = vi.fn()
+
+    mockCreateAgent.mockResolvedValue({
+      stream: vi.fn().mockResolvedValue({
+        toUIMessageStream: (options: { onError: (error: unknown) => string }) => {
+          const toolErrorText = uiOnError(options.onError, toolError)
+          const apiErrorText = uiOnError(options.onError, apiError)
+          return new ReadableStream({
+            start(controller) {
+              controller.enqueue({
+                type: 'tool-input-error',
+                toolCallId: 'tool-1',
+                toolName: 'search',
+                input: {},
+                errorText: toolErrorText
+              })
+              controller.enqueue({ type: 'error', errorText: apiErrorText })
+            },
+            cancel: cancelUiStream
+          })
+        }
+      })
+    })
+
+    const { Agent } = await import('../../Agent')
+    const agent = new Agent({
+      providerId: 'openai' as never,
+      providerSettings: {} as never,
+      modelId: 'test-model'
+    })
+    const reader = agent.stream([], new AbortController().signal).getReader()
+
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'tool-input-error' }, done: false })
+    await expect(reader.read()).rejects.toBe(apiError)
+    expect(uiOnError).toHaveBeenCalledTimes(2)
+    expect(cancelUiStream).toHaveBeenCalledWith(apiError)
+  })
+
+  it('preserves an arrived provider error when the signal aborts after the error chunk is queued', async () => {
+    const providerError = new APICallError({
+      message: 'Upstream unavailable',
+      url: 'https://api.example.com/chat/completions',
+      requestBodyValues: {},
+      statusCode: 503,
+      responseHeaders: {},
+      responseBody: '',
+      isRetryable: true
+    })
+    const controller = new AbortController()
+
+    mockCreateAgent.mockResolvedValue({
+      stream: vi.fn().mockResolvedValue({
+        toUIMessageStream: (options: { onError: (error: unknown) => string }) =>
+          new ReadableStream({
+            start(streamController) {
+              const errorText = options.onError(providerError)
+              streamController.enqueue({ type: 'error', errorText })
+              controller.abort(new Error('cancelled'))
+            }
+          })
+      })
+    })
+
+    const onAbort = vi.fn()
+    const onError = vi.fn()
+    const { Agent } = await import('../../Agent')
+    const agent = new Agent({
+      providerId: 'openai' as never,
+      providerSettings: {} as never,
+      modelId: 'test-model',
+      hookParts: [{ onAbort, onError }]
+    })
+
+    await expect(agent.stream([], controller.signal).getReader().read()).rejects.toBe(providerError)
+    expect(onError).toHaveBeenCalledWith({ error: providerError })
+    expect(onAbort).not.toHaveBeenCalled()
+  })
+
+  it('turns a terminal tool output into an error instead of forwarding a success finish', async () => {
+    const output = markTrustedLocalToolTerminalFailure({
+      error: 'Unsafe remote url',
+      retryable: false,
+      terminal: true,
+      userMessage: 'Check the network connection.',
+      i18nKey: 'web_lookup_network_error'
+    })
+
+    mockCreateAgent.mockResolvedValue({
+      stream: vi.fn().mockResolvedValue({
+        toUIMessageStream: () =>
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue({ type: 'tool-output-available', toolCallId: 'tool-1', output })
+              controller.enqueue({ type: 'finish', finishReason: 'tool-calls' })
+              controller.close()
+            }
+          }),
+        steps: Promise.resolve([
+          {
+            toolResults: [{ type: 'tool-result', toolCallId: 'tool-1', toolName: 'web_fetch', output }]
+          }
+        ]),
+        finishReason: Promise.resolve('tool-calls')
+      })
+    })
+
+    const { Agent } = await import('../../Agent')
+    const agent = new Agent({
+      providerId: 'openai' as never,
+      providerSettings: {} as never,
+      modelId: 'test-model'
+    })
+    const reader = agent.stream([], new AbortController().signal).getReader()
+
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'tool-output-available' }, done: false })
+    await expect(reader.read()).rejects.toMatchObject({
+      name: 'ToolLoopTerminalError',
+      message: 'Check the network connection.',
+      i18nKey: 'web_lookup_network_error'
+    })
+  })
+
+  it('turns cap-triggered tool-loop completion into an explicit error', async () => {
+    const steps = [
+      { toolResults: [] },
+      { toolResults: [{ type: 'tool-result', toolCallId: 'tool-2', toolName: 'web_fetch', output: [] }] }
+    ]
+    const stopWhen = createToolCallLimitStopCondition(2)
+    await stopWhen({ steps: steps as never })
+
+    mockCreateAgent.mockResolvedValue({
+      stream: vi.fn().mockResolvedValue({
+        toUIMessageStream: () =>
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue({ type: 'finish', finishReason: 'tool-calls' })
+              controller.close()
+            }
+          }),
+        steps: Promise.resolve(steps),
+        finishReason: Promise.resolve('tool-calls')
+      })
+    })
+
+    const { Agent } = await import('../../Agent')
+    const agent = new Agent({
+      providerId: 'openai' as never,
+      providerSettings: {} as never,
+      modelId: 'test-model',
+      options: { stopWhen }
+    })
+
+    await expect(agent.stream([], new AbortController().signal).getReader().read()).rejects.toMatchObject({
+      name: 'ToolLoopTerminalError',
+      i18nKey: 'tool_call_limit_reached'
+    })
+  })
+
+  it('forwards an approval finish at maxToolCalls=1 when the cap condition was not evaluated', async () => {
+    const stopWhen = createToolCallLimitStopCondition(1)
+    const steps = [{ toolResults: [] }]
+
+    mockCreateAgent.mockResolvedValue({
+      stream: vi.fn().mockResolvedValue({
+        toUIMessageStream: () =>
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue({ type: 'finish', finishReason: 'tool-calls' })
+              controller.close()
+            }
+          }),
+        steps: Promise.resolve(steps),
+        finishReason: Promise.resolve('tool-calls')
+      })
+    })
+
+    const { Agent } = await import('../../Agent')
+    const agent = new Agent({
+      providerId: 'openai' as never,
+      providerSettings: {} as never,
+      modelId: 'test-model',
+      options: { stopWhen }
+    })
+    const reader = agent.stream([], new AbortController().signal).getReader()
+
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'finish' }, done: false })
+    await expect(reader.read()).resolves.toEqual({ value: undefined, done: true })
   })
 
   it('swallows hooks.onError exceptions so they do not become unhandled rejections', async () => {
@@ -85,6 +439,7 @@ describe('Agent', () => {
     const fakeStep = {
       stepType: 'tool-call',
       content: [],
+      toolResults: [],
       finishReason: 'stop',
       usage: { inputTokens: 1, outputTokens: 2, totalTokens: 3 }
     }
@@ -153,12 +508,14 @@ describe('Agent', () => {
     const fakeStep1 = {
       stepType: 'tool-call',
       content: [],
+      toolResults: [],
       finishReason: 'stop',
       usage: { inputTokens: 3, outputTokens: 5, totalTokens: 8 }
     }
     const fakeStep2 = {
       stepType: 'tool-call',
       content: [],
+      toolResults: [],
       finishReason: 'stop',
       usage: { inputTokens: 2, outputTokens: 4, totalTokens: 6 }
     }
@@ -221,12 +578,14 @@ describe('Agent', () => {
     const fakeStep1 = {
       stepType: 'tool-call',
       content: [],
+      toolResults: [],
       finishReason: 'stop',
       usage: { inputTokens: 3, outputTokens: 5, totalTokens: 8, outputTokenDetails: { reasoningTokens: 10 } }
     }
     const fakeStep2 = {
       stepType: 'tool-call',
       content: [],
+      toolResults: [],
       finishReason: 'stop',
       usage: { inputTokens: 2, outputTokens: 4, totalTokens: 6, outputTokenDetails: { reasoningTokens: 15 } }
     }
@@ -284,6 +643,62 @@ describe('Agent', () => {
     ])
   })
 
+  it('uses configured tools when converting replayed tool results', async () => {
+    const aiSdkStream = vi.fn().mockResolvedValue({
+      toUIMessageStream: () =>
+        new ReadableStream({
+          start(controller) {
+            controller.close()
+          }
+        })
+    })
+    mockCreateAgent.mockResolvedValue({ stream: aiSdkStream })
+
+    const imageData = 'A'.repeat(1024)
+    const screenshot = tool({
+      inputSchema: z.object({}),
+      toModelOutput: () => ({ type: 'text', value: '[Image: image/png, delivered to user]' })
+    })
+    const { Agent } = await import('../../Agent')
+    const agent = new Agent({
+      providerId: 'openai' as never,
+      providerSettings: {} as never,
+      modelId: 'test-model',
+      tools: { screenshot }
+    })
+    const reader = agent
+      .stream(
+        [
+          {
+            id: 'a1',
+            role: 'assistant',
+            parts: [
+              {
+                type: 'tool-screenshot',
+                toolCallId: 'call-1',
+                state: 'output-available',
+                input: {},
+                output: { content: [{ type: 'image', data: imageData, mimeType: 'image/png' }] }
+              }
+            ]
+          },
+          { id: 'u1', role: 'user', parts: [{ type: 'text', text: 'continue' }] }
+        ],
+        new AbortController().signal
+      )
+      .getReader()
+    while (!(await reader.read()).done) {
+      /* drain to completion */
+    }
+
+    const modelMessages = aiSdkStream.mock.calls[0][0].messages
+    expect(modelMessages[1].content[0].output).toEqual({
+      type: 'text',
+      value: '[Image: image/png, delivered to user]'
+    })
+    expect(JSON.stringify(modelMessages)).not.toContain(imageData)
+  })
+
   // ── Abort mid-stream: remaining chunks are dropped and the writer closes cleanly ──
   it('stops forwarding and closes (not errors) when the signal aborts mid-stream', async () => {
     let srcController!: ReadableStreamDefaultController<unknown>
@@ -296,6 +711,7 @@ describe('Agent', () => {
       stream: vi.fn().mockResolvedValue({ toUIMessageStream: () => source })
     })
 
+    const onAbort = vi.fn()
     const onError = vi.fn()
     const { Agent } = await import('../../Agent')
     const controller = new AbortController()
@@ -303,7 +719,7 @@ describe('Agent', () => {
       providerId: 'openai' as never,
       providerSettings: {} as never,
       modelId: 'test-model',
-      hookParts: [{ onError }]
+      hookParts: [{ onAbort, onError }]
     })
     const reader = agent.stream([], controller.signal).getReader()
 
@@ -321,7 +737,146 @@ describe('Agent', () => {
     const next = await reader.read()
     expect(next.done).toBe(true)
     // Abort is not an error: onError must not fire on the abort path.
+    expect(onAbort).toHaveBeenCalledOnce()
     expect(onError).not.toHaveBeenCalled()
+  })
+
+  it('lets abort beat a final finish suspended by downstream backpressure', async () => {
+    mockCreateAgent.mockResolvedValue({
+      stream: vi.fn().mockResolvedValue({
+        toUIMessageStream: () =>
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue({ type: 'finish', finishReason: 'stop' })
+              controller.close()
+            }
+          }),
+        steps: Promise.resolve([])
+      })
+    })
+
+    const controller = new AbortController()
+    const onAbort = vi.fn()
+    const onError = vi.fn()
+    const onFinish = vi.fn()
+    const writeSpy = vi.spyOn(WritableStreamDefaultWriter.prototype, 'write')
+    try {
+      const { Agent } = await import('../../Agent')
+      const agent = new Agent({
+        providerId: 'openai' as never,
+        providerSettings: {} as never,
+        modelId: 'test-model',
+        hookParts: [{ onAbort, onError, onFinish }]
+      })
+      const stream = agent.stream([], controller.signal)
+
+      // Do not read yet: the TransformStream's readable high-water mark is
+      // zero, so the final finish write remains suspended by backpressure.
+      await vi.waitFor(() =>
+        expect(writeSpy.mock.calls.some(([chunk]) => (chunk as { type?: string }).type === 'finish')).toBe(true)
+      )
+      controller.abort(new Error('cancelled'))
+
+      await expect(stream.getReader().read()).resolves.toEqual({ value: undefined, done: true })
+      await vi.waitFor(() => expect(onAbort).toHaveBeenCalledOnce())
+      expect(onFinish).not.toHaveBeenCalled()
+      expect(onError).not.toHaveBeenCalled()
+    } finally {
+      writeSpy.mockRestore()
+    }
+  })
+
+  it('closes cleanly when abort rejects SDK metadata after the UI stream drains', async () => {
+    const abortError = new Error('cancelled')
+    let rejectSteps!: (error: unknown) => void
+    let metadataAccessed!: () => void
+    const didAccessMetadata = new Promise<void>((resolve) => {
+      metadataAccessed = resolve
+    })
+    const steps = new Promise<never>((_resolve, reject) => {
+      rejectSteps = reject
+    })
+
+    mockCreateAgent.mockResolvedValue({
+      stream: vi.fn().mockResolvedValue({
+        toUIMessageStream: () =>
+          new ReadableStream({
+            start(controller) {
+              controller.close()
+            }
+          }),
+        get steps() {
+          metadataAccessed()
+          return steps
+        }
+      })
+    })
+
+    const onAbort = vi.fn()
+    const onError = vi.fn()
+    const { Agent } = await import('../../Agent')
+    const controller = new AbortController()
+    const agent = new Agent({
+      providerId: 'openai' as never,
+      providerSettings: {} as never,
+      modelId: 'test-model',
+      hookParts: [{ onAbort, onError }]
+    })
+    const reader = agent.stream([], controller.signal).getReader()
+    const read = reader.read()
+
+    await didAccessMetadata
+    controller.abort(abortError)
+    rejectSteps(abortError)
+
+    await expect(read).resolves.toEqual({ value: undefined, done: true })
+    expect(onAbort).toHaveBeenCalledOnce()
+    expect(onError).not.toHaveBeenCalled()
+  })
+
+  it('preserves a real metadata error when cancellation races with that failure', async () => {
+    const providerError = new Error('provider failed')
+    let rejectSteps!: (error: unknown) => void
+    let metadataAccessed!: () => void
+    const didAccessMetadata = new Promise<void>((resolve) => {
+      metadataAccessed = resolve
+    })
+    const steps = new Promise<never>((_resolve, reject) => {
+      rejectSteps = reject
+    })
+
+    mockCreateAgent.mockResolvedValue({
+      stream: vi.fn().mockResolvedValue({
+        toUIMessageStream: () =>
+          new ReadableStream({
+            start(controller) {
+              controller.close()
+            }
+          }),
+        get steps() {
+          metadataAccessed()
+          return steps
+        }
+      })
+    })
+
+    const onError = vi.fn()
+    const { Agent } = await import('../../Agent')
+    const controller = new AbortController()
+    const agent = new Agent({
+      providerId: 'openai' as never,
+      providerSettings: {} as never,
+      modelId: 'test-model',
+      hookParts: [{ onError }]
+    })
+    const read = agent.stream([], controller.signal).getReader().read()
+
+    await didAccessMetadata
+    controller.abort(new Error('cancelled'))
+    rejectSteps(providerError)
+
+    await expect(read).rejects.toBe(providerError)
+    expect(onError).toHaveBeenCalledWith({ error: providerError })
   })
 
   // ── writerSettled guard: the terminal signal is emitted exactly once per outcome ──
@@ -399,6 +954,39 @@ describe('Agent', () => {
   })
 
   // ── onError returning 'retry' is not implemented: warn (not error) then abort the writer ──
+  it('aborts rather than closes when the read loop throws undefined', async () => {
+    mockCreateAgent.mockResolvedValue({
+      stream: vi.fn().mockResolvedValue({
+        toUIMessageStream: () =>
+          new ReadableStream({
+            start(controller) {
+              controller.error(undefined)
+            }
+          })
+      })
+    })
+
+    const closeSpy = vi.spyOn(WritableStreamDefaultWriter.prototype, 'close')
+    const abortSpy = vi.spyOn(WritableStreamDefaultWriter.prototype, 'abort')
+    try {
+      const { Agent } = await import('../../Agent')
+      const agent = new Agent({
+        providerId: 'openai' as never,
+        providerSettings: {} as never,
+        modelId: 'test-model'
+      })
+
+      await expect(agent.stream([], new AbortController().signal).getReader().read()).rejects.toBeUndefined()
+      await new Promise((resolve) => setImmediate(resolve))
+
+      expect(abortSpy).toHaveBeenCalledWith(undefined)
+      expect(closeSpy).not.toHaveBeenCalled()
+    } finally {
+      closeSpy.mockRestore()
+      abortSpy.mockRestore()
+    }
+  })
+
   it('logs a WARN (not error) and aborts when the composed onError returns "retry" (REGRESSION agent-loop-2)', async () => {
     const err = new Error('stream blew up')
     mockCreateAgent.mockResolvedValue({

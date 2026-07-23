@@ -1,7 +1,15 @@
 import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import { searchSkills } from '@renderer/services/SkillSearchService'
-import type { InstalledSkill, LocalSkill, SkillResult, SkillSearchResult } from '@shared/types/skill'
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
+import { searchSkills } from '@renderer/utils/skillSearch'
+import type {
+  InstalledSkill,
+  LocalSkill,
+  SkillResult,
+  SkillSearchResult,
+  SystemSkillCandidate
+} from '@shared/types/skill'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useSkills')
@@ -18,7 +26,7 @@ function unwrapSkillResult<T>(result: SkillResult<T>): T {
 function reportSkillMutationError(action: string, error: unknown): string {
   const message = skillErrorMessage(error)
   logger.error(`Failed to ${action}`, { error: message })
-  window.toast.error(message)
+  toast.error(message)
   return message
 }
 
@@ -36,60 +44,28 @@ async function refreshSkillsBestEffort(invalidate: ReturnType<typeof useInvalida
 }
 
 /**
- * Hook to manage installed skills.
+ * Hook to read installed skills.
  *
- * Pass `agentId` to get per-agent enablement state and to scope toggle calls
- * to that agent. Without `agentId`, the hook returns the global skill library
- * with `isEnabled` forced to false — callers without an agent context (e.g.
- * the global Settings → Skills page) should rely on uninstall only.
+ * Pass `agentId` to get per-agent enablement state. Without `agentId`, the
+ * hook returns the global skill library with `isEnabled` forced to false.
+ * Per-agent enablement is edited through the agent form and saved via
+ * PATCH /agents (see `AgentEditDialog`), not through this hook.
+ * `loading` covers the initial fetch; `refreshing` reports background
+ * revalidation separately so cached rows can remain visible while consumers
+ * that initialize editable state wait for the authoritative projection.
  */
-export function useInstalledSkills(agentId?: string) {
-  const { data, isLoading, isRefreshing, error, refetch } = useQuery(
-    '/skills',
-    agentId ? { query: { agentId } } : undefined
-  )
-  const invalidate = useInvalidateCache()
-
-  const toggle = useCallback(
-    async (skillId: string, isEnabled: boolean) => {
-      if (!agentId) {
-        logger.warn('skill.toggle called without agentId; ignoring', { skillId, isEnabled })
-        return false
-      }
-      try {
-        const result = await window.api.skill.toggle({ agentId, skillId, isEnabled })
-        const skill = unwrapSkillResult(result)
-        if (!skill) throw new Error('Skill toggle returned no result')
-        await refreshSkillsBestEffort(invalidate)
-        return skill.isEnabled === isEnabled
-      } catch (error) {
-        reportAndRethrowSkillMutationError('toggle skill', error)
-      }
-    },
-    [agentId, invalidate]
-  )
-
-  const uninstall = useCallback(
-    async (skillId: string) => {
-      try {
-        const result = await window.api.skill.uninstall(skillId)
-        unwrapSkillResult(result)
-        await refreshSkillsBestEffort(invalidate)
-        return true
-      } catch (error) {
-        reportAndRethrowSkillMutationError('uninstall skill', error)
-      }
-    },
-    [invalidate]
-  )
+export function useInstalledSkills(agentId?: string, options: { enabled?: boolean } = {}) {
+  const { data, isLoading, isRefreshing, error, refetch } = useQuery('/skills', {
+    enabled: options.enabled !== false,
+    ...(agentId ? { query: { agentId } } : {})
+  })
 
   return {
     skills: data ?? [],
-    loading: isLoading || isRefreshing,
+    loading: isLoading,
+    refreshing: isRefreshing,
     error: error?.message ?? null,
-    refresh: refetch,
-    toggle,
-    uninstall
+    refresh: refetch
   }
 }
 
@@ -147,7 +123,7 @@ export function useAvailableSkills(agentId?: string, workdir?: string) {
     setLocalError(null)
 
     try {
-      const result = await window.api.skill.listLocal(workdir)
+      const result = await ipcApi.request('skill.list_local', { workdir })
       const data = unwrapSkillResult(result)
       if (requestId === localRequestIdRef.current) setLocalSkills(data)
     } catch (error) {
@@ -180,6 +156,78 @@ export function useAvailableSkills(agentId?: string, workdir?: string) {
     error: installed.error ?? localError,
     refresh
   }
+}
+
+/** Discover and import skills from known system-level CLI directories. */
+export function useSystemSkills(enabled = true) {
+  const [skills, setSkills] = useState<SystemSkillCandidate[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [importing, setImporting] = useState<Set<string>>(() => new Set())
+  const importingRef = useRef<Set<string>>(new Set())
+  const invalidate = useInvalidateCache()
+  const requestIdRef = useRef(0)
+
+  const discover = useCallback(async () => {
+    const requestId = ++requestIdRef.current
+    if (!enabled) {
+      setSkills([])
+      setError(null)
+      setLoading(false)
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+    try {
+      const discovered = await ipcApi.request('skill.discover_system', {})
+      if (requestId === requestIdRef.current) setSkills(discovered)
+    } catch (cause) {
+      if (requestId !== requestIdRef.current) return
+      const message = skillErrorMessage(cause)
+      setSkills([])
+      setError(message)
+      logger.warn('Failed to discover system skills', { error: message })
+    } finally {
+      if (requestId === requestIdRef.current) setLoading(false)
+    }
+  }, [enabled])
+
+  useEffect(() => {
+    void discover()
+    return () => {
+      requestIdRef.current += 1
+    }
+  }, [discover])
+
+  const importSkill = useCallback(
+    async (skill: SystemSkillCandidate): Promise<InstalledSkill | null> => {
+      if (skill.status !== 'available') return null
+      if (importingRef.current.has(skill.id)) return null
+      importingRef.current.add(skill.id)
+      setImporting((current) => new Set(current).add(skill.id))
+      try {
+        const installed = await ipcApi.request('skill.import_system', { directoryPath: skill.directoryPath })
+        await refreshSkillsBestEffort(invalidate)
+        await discover()
+        return installed
+      } catch (cause) {
+        await discover()
+        reportSkillMutationError('import system skill', cause)
+        return null
+      } finally {
+        importingRef.current.delete(skill.id)
+        setImporting((current) => {
+          const next = new Set(current)
+          next.delete(skill.id)
+          return next
+        })
+      }
+    },
+    [discover, invalidate]
+  )
+
+  return { skills, loading, error, importSkill, importing }
 }
 
 /**
@@ -233,64 +281,87 @@ export function useSkillSearch() {
  * Hook for installing a skill from search results.
  */
 export function useSkillInstall() {
-  const [installingKey, setInstallingKey] = useState<string | null>(null)
+  const [installingCounts, setInstallingCounts] = useState<Map<string, number>>(() => new Map())
   const invalidate = useInvalidateCache()
+  const installingKey = useMemo(() => installingCounts.keys().next().value ?? null, [installingCounts])
+
+  const beginInstalling = useCallback((key: string) => {
+    setInstallingCounts((current) => {
+      const next = new Map(current)
+      next.set(key, (next.get(key) ?? 0) + 1)
+      return next
+    })
+  }, [])
+
+  const finishInstalling = useCallback((key: string) => {
+    setInstallingCounts((current) => {
+      const count = current.get(key) ?? 0
+      if (count <= 0) return current
+
+      const next = new Map(current)
+      if (count === 1) {
+        next.delete(key)
+      } else {
+        next.set(key, count - 1)
+      }
+      return next
+    })
+  }, [])
 
   const install = useCallback(
     async (installSource: string): Promise<{ skill: InstalledSkill | null; error?: string }> => {
-      setInstallingKey(installSource)
+      beginInstalling(installSource)
       try {
-        const skill = unwrapSkillResult(await window.api.skill.install({ installSource }))
+        const skill = unwrapSkillResult(await ipcApi.request('skill.install', { installSource }))
         await refreshSkillsBestEffort(invalidate)
         return { skill }
       } catch (err) {
         return { skill: null, error: skillErrorMessage(err) }
       } finally {
-        setInstallingKey(null)
+        finishInstalling(installSource)
       }
     },
-    [invalidate]
+    [beginInstalling, finishInstalling, invalidate]
   )
 
   const installFromZip = useCallback(
     async (zipFilePath: string): Promise<InstalledSkill | null> => {
-      setInstallingKey('zip')
+      beginInstalling('zip')
       try {
-        const skill = unwrapSkillResult(await window.api.skill.installFromZip({ zipFilePath }))
+        const skill = unwrapSkillResult(await ipcApi.request('skill.install_from_zip', { zipFilePath }))
         await refreshSkillsBestEffort(invalidate)
         return skill
       } catch (error) {
         reportAndRethrowSkillMutationError('install skill from zip', error)
       } finally {
-        setInstallingKey(null)
+        finishInstalling('zip')
       }
     },
-    [invalidate]
+    [beginInstalling, finishInstalling, invalidate]
   )
 
   const installFromDirectory = useCallback(
     async (directoryPath: string): Promise<InstalledSkill | null> => {
-      setInstallingKey('directory')
+      beginInstalling('directory')
       try {
-        const skill = unwrapSkillResult(await window.api.skill.installFromDirectory({ directoryPath }))
+        const skill = unwrapSkillResult(await ipcApi.request('skill.install_from_directory', { directoryPath }))
         await refreshSkillsBestEffort(invalidate)
         return skill
       } catch (error) {
         reportAndRethrowSkillMutationError('install skill from directory', error)
       } finally {
-        setInstallingKey(null)
+        finishInstalling('directory')
       }
     },
-    [invalidate]
+    [beginInstalling, finishInstalling, invalidate]
   )
 
   const isInstalling = useCallback(
     (key?: string) => {
-      if (!installingKey) return false
-      if (!key) return !!installingKey
-      return installingKey === key
+      if (!key) return installingCounts.size > 0
+      return installingCounts.has(key)
     },
-    [installingKey]
+    [installingCounts]
   )
 
   return { installingKey, isInstalling, install, installFromZip, installFromDirectory }

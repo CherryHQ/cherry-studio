@@ -9,6 +9,8 @@ const itemHandler = (onSelect: ((event: Event) => void) | undefined, props: Reco
   type: 'button'
 })
 
+const SelectContext = React.createContext<{ onValueChange?: (value: string) => void; value?: string }>({})
+
 export const MockCherrystudioUI = {
   Button: ({ children, loading, ...props }: { children?: ReactNode; loading?: boolean }) => {
     void loading
@@ -30,6 +32,28 @@ export const MockCherrystudioUI = {
       }}
     />
   ),
+  Combobox: ({ options, value, onChange, placeholder, searchPlaceholder, emptyText, ...props }: any) => {
+    void searchPlaceholder
+    void emptyText
+    const selected = options.find((option: { value: string }) => option.value === value)
+    return (
+      <div {...props}>
+        <button type="button" aria-label={placeholder}>
+          {selected ? selected.label : placeholder}
+        </button>
+        {options.map((option: { value: string; label: ReactNode; icon?: ReactNode }) => (
+          <button
+            type="button"
+            key={option.value}
+            aria-pressed={option.value === value}
+            onClick={() => onChange(option.value)}>
+            {option.icon}
+            {option.label}
+          </button>
+        ))}
+      </div>
+    )
+  },
   ConfirmDialog: ({
     cancelText,
     confirmText,
@@ -77,8 +101,10 @@ export const MockCherrystudioUI = {
     </button>
   ),
   ContextMenuTrigger: ({ children }: { children?: ReactNode }) => <>{children}</>,
+  CustomTag: ({ children, ...props }: { children?: ReactNode }) => <span {...props}>{children}</span>,
   Dialog: ({ children, open }: { children?: ReactNode; open?: boolean }) => (open ? <>{children}</> : null),
-  DialogContent: ({ children, showCloseButton, ...props }: any) => {
+  DialogContent: ({ children, closeOnOverlayClick, showCloseButton, ...props }: any) => {
+    void closeOnOverlayClick
     void showCloseButton
     return (
       <div role="dialog" {...props}>
@@ -99,6 +125,14 @@ export const MockCherrystudioUI = {
   Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
   Label: ({ children, ...props }: { children?: ReactNode }) => <label {...props}>{children}</label>,
   RowFlex: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
+  Scrollbar: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
+  Select: ({ children, onValueChange, value, ...props }: any) => (
+    <SelectContext.Provider value={{ onValueChange, value }}>
+      <div data-testid="select" data-value={value} {...props}>
+        {children}
+      </div>
+    </SelectContext.Provider>
+  ),
   SelectDropdown: ({ items, onSelect, renderItem, renderSelected, selectedId, placeholder }: any) => {
     const selected = items.find((item: { id: string }) => item.id === selectedId)
     return (
@@ -114,5 +148,56 @@ export const MockCherrystudioUI = {
       </div>
     )
   },
+  SelectContent: ({ children, ...props }: any) => (
+    <div data-testid="select-content" {...props}>
+      {children}
+    </div>
+  ),
+  SelectItem: ({ children, value, ...props }: any) => {
+    const context = React.useContext(SelectContext)
+    return (
+      <button
+        {...props}
+        type="button"
+        data-testid="select-item"
+        data-value={value}
+        onClick={(event) => {
+          props.onClick?.(event)
+          context.onValueChange?.(value)
+        }}>
+        {children}
+      </button>
+    )
+  },
+  SelectTrigger: ({ children, ...props }: any) => (
+    <button type="button" data-testid="select-trigger" {...props}>
+      {children}
+    </button>
+  ),
+  SelectValue: ({ children, placeholder, ...props }: any) => (
+    <span data-testid="select-value" {...props}>
+      {children ?? placeholder}
+    </span>
+  ),
+  SearchInput: ({ value, onChange, onClear, clearLabel, ...props }: any) => (
+    <div>
+      <input type="search" value={value} onChange={onChange} {...props} />
+      {onClear && clearLabel && value ? <button type="button" aria-label={clearLabel} onClick={onClear} /> : null}
+    </div>
+  ),
+  SegmentedControl: ({ options, value, onValueChange, ...props }: any) => (
+    <div role="radiogroup" {...props}>
+      {options.map((option: { value: string; label: ReactNode }) => (
+        <button
+          type="button"
+          role="radio"
+          aria-checked={option.value === value}
+          key={option.value}
+          onClick={() => onValueChange(option.value)}>
+          {option.label}
+        </button>
+      ))}
+    </div>
+  ),
   Skeleton: (props: Record<string, unknown>) => <div {...props} />
 }

@@ -5,6 +5,7 @@ type MessageLeafStateCapabilities = Pick<MessageListState, 'getFileView' | 'isTo
 type MessageLeafActionCapabilities = Pick<
   MessageListActions,
   | 'previewFile'
+  | 'openFile'
   | 'subscribeToolProgress'
   | 'openExternalUrl'
   | 'openInExternalApp'
@@ -46,6 +47,7 @@ export function pickMessageLeafActions(
   const actions: Partial<MessageLeafActionCapabilities> = {}
 
   if (capabilities.previewFile) actions.previewFile = capabilities.previewFile
+  if (capabilities.openFile) actions.openFile = capabilities.openFile
   if (capabilities.subscribeToolProgress) actions.subscribeToolProgress = capabilities.subscribeToolProgress
   if (capabilities.openExternalUrl) actions.openExternalUrl = capabilities.openExternalUrl
   if (capabilities.openInExternalApp) actions.openInExternalApp = capabilities.openInExternalApp

@@ -33,10 +33,9 @@ vi.mock('@renderer/ipc', () => ({
 // synchronously by calling `setMockStatus`.
 const mockTopicStreamStatus = vi.fn()
 const LIVE_STATUSES = new Set(['streaming', 'pending'])
-const TERMINAL_STATUSES = new Set(['done', 'aborted', 'error'])
 vi.mock('../useTopicStreamStatus', () => ({
   useTopicStreamStatus: (topicId: string) => mockTopicStreamStatus(topicId),
-  useTopicDbRefreshOnTerminal: (topicId: string, refresh: () => Promise<unknown>) => {
+  useTopicDbRefreshOnAwaitingApproval: (topicId: string, refresh: () => Promise<unknown>) => {
     const status = mockTopicStreamStatus(topicId)?.status as string | undefined
     const prevRef = useRef<string | undefined>(undefined)
     const refreshRef = useRef(refresh)
@@ -44,7 +43,7 @@ vi.mock('../useTopicStreamStatus', () => ({
     useEffect(() => {
       const prev = prevRef.current
       prevRef.current = status
-      if (prev && LIVE_STATUSES.has(prev) && status && TERMINAL_STATUSES.has(status)) {
+      if (prev && LIVE_STATUSES.has(prev) && status === 'awaiting-approval') {
         void refreshRef.current().catch(() => {})
       }
     }, [status])
@@ -108,6 +107,20 @@ describe('useChatWithHistory', () => {
     vi.clearAllMocks()
   })
 
+  it('creates a fresh Chat instance when the stable owner switches topics', () => {
+    const refresh = vi.fn().mockResolvedValue(refreshedMessages)
+    const { result, rerender } = renderHook(
+      ({ topicId }: { topicId: string }) => useChatWithHistory(topicId, [], refresh),
+      { initialProps: { topicId: 'topic-1' } }
+    )
+    const firstChat = result.current.chat
+
+    rerender({ topicId: 'topic-2' })
+
+    expect(result.current.chat.id).toBe('topic-2')
+    expect(result.current.chat).not.toBe(firstChat)
+  })
+
   it('refreshes history before resuming the matching topic when another window starts streaming', async () => {
     const refresh = vi.fn().mockResolvedValue(refreshedMessages)
 
@@ -150,7 +163,7 @@ describe('useChatWithHistory', () => {
     expect(refresh.mock.invocationCallOrder[0]).toBeLessThan(resumeStream.mock.invocationCallOrder[1])
   })
 
-  it('refreshes when the topic transitions from a live status to a terminal one', async () => {
+  it('refreshes when the topic transitions from a live status to awaiting approval', async () => {
     const refresh = vi.fn().mockResolvedValue(refreshedMessages)
     setMockStatus('topic-1', 'streaming')
     const { rerender } = renderHook(() => useChatWithHistory('topic-1', [], refresh))
@@ -158,13 +171,11 @@ describe('useChatWithHistory', () => {
     await waitFor(() => expect(resumeStream).toHaveBeenCalled())
     refresh.mockClear()
 
-    // streaming → done: ChatStreamLifecycle.onTerminal broadcasts this only
-    // after persistence, so it is the safe point to pull DB-final rows.
-    setMockStatus('topic-1', 'done')
+    setMockStatus('topic-1', 'awaiting-approval')
     rerender()
     await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
 
-    // Idempotent on re-render at the same terminal status.
+    // Idempotent on re-render at the same paused status.
     rerender()
     await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
   })
@@ -185,7 +196,7 @@ describe('useChatWithHistory', () => {
     expect(stop).toHaveBeenCalledTimes(1)
   })
 
-  it('refreshes on streaming → aborted and → error transitions', async () => {
+  it('does not refresh on streaming → aborted/error because page handoff owns final refresh', async () => {
     for (const terminal of ['aborted', 'error'] as const) {
       const refresh = vi.fn().mockResolvedValue(refreshedMessages)
       setMockStatus('topic-x', 'streaming')
@@ -195,7 +206,7 @@ describe('useChatWithHistory', () => {
 
       setMockStatus('topic-x', terminal)
       rerender()
-      await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
+      expect(refresh).not.toHaveBeenCalled()
       unmount()
     }
   })

@@ -77,7 +77,8 @@ export const ClawhubSearchItemSchema = z.object({
   displayName: z.string(),
   summary: z.string(),
   version: z.string().nullable(),
-  updatedAt: z.number()
+  updatedAt: z.number(),
+  ownerHandle: z.string().optional()
 })
 export type ClawhubSearchItem = z.infer<typeof ClawhubSearchItemSchema>
 
@@ -176,6 +177,10 @@ export interface SkillInstallFromDirectoryOptions {
   directoryPath: string
 }
 
+export interface SkillImportSystemOptions {
+  directoryPath: string
+}
+
 export type SkillResult<T> = { success: true; data: T } | { success: false; error: unknown }
 
 // ============================================================================
@@ -197,4 +202,24 @@ export interface LocalSkill {
   name: string
   description?: string
   filename: string
+}
+
+export interface SystemSkillPlacement {
+  sourceId: string
+  sourceName: string
+  directoryPath: string
+}
+
+export type SystemSkillStatus = 'available' | 'registered' | 'conflict'
+
+/** A skill found in a known system-level CLI skill directory. */
+export interface SystemSkillCandidate {
+  id: string
+  name: string
+  description?: string
+  filename: string
+  directoryPath: string
+  placements: SystemSkillPlacement[]
+  status: SystemSkillStatus
+  registeredSkillId?: string
 }

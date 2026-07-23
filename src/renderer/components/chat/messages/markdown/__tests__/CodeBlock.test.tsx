@@ -31,6 +31,12 @@ const mocks = vi.hoisted(() => {
           Save HTML
         </button>
       </div>
+    )),
+    MessageHtmlArtifact: vi.fn(({ html, isStreaming }) => (
+      <div data-testid="message-html-artifact">
+        <span>{html}</span>
+        <span data-testid="html-streaming-state">{String(isStreaming)}</span>
+      </div>
     ))
   }
 })
@@ -41,7 +47,7 @@ vi.mock('../../MessageListProvider', () => ({
   useOptionalMessageListUi: () => mocks.messageListUi
 }))
 
-vi.mock('@renderer/config/constant', () => ({
+vi.mock('@renderer/utils/platform', () => ({
   get isWin() {
     return mocks.isWin
   }
@@ -55,18 +61,20 @@ vi.mock('streamdown', () => ({
   useIsCodeFenceIncomplete: () => mocks.isCodeFenceIncomplete
 }))
 
-vi.mock('@renderer/components/CodeBlockView', () => ({
-  CodeBlockView: mocks.CodeBlockView,
-  HtmlArtifactsCard: mocks.HtmlArtifactsCard
+vi.mock('@renderer/components/CodeBlockView/CodeBlockView', () => ({
+  CodeBlockView: mocks.CodeBlockView
 }))
 
-// Mock message parts context — returns null by default
-vi.mock('@renderer/components/chat/messages/blocks', () => ({
-  useResolveBlock: vi.fn(() => null)
+vi.mock('@renderer/components/CodeBlockView/HtmlArtifactsCard', () => ({
+  default: mocks.HtmlArtifactsCard
+}))
+
+vi.mock('@renderer/components/chat/messages/blocks/MessageHtmlArtifact', () => ({
+  MessageHtmlArtifact: mocks.MessageHtmlArtifact
 }))
 
 // Mock ClickableFilePath
-vi.mock('@renderer/components/chat/messages/tools/agent/ClickableFilePath', () => ({
+vi.mock('@renderer/components/chat/messages/tools/shared/ClickableFilePath', () => ({
   ClickableFilePath: ({ path }: { path: string }) => <span data-testid="clickable-file-path">{path}</span>
 }))
 
@@ -240,6 +248,32 @@ describe('CodeBlock', () => {
       )
     })
 
+    it('should pass Streamdown incomplete fence state to standard code blocks', () => {
+      mocks.isCodeFenceIncomplete = true
+
+      render(<CodeBlock {...defaultProps} />)
+
+      expect(mocks.CodeBlockView).toHaveBeenCalledWith(
+        expect.objectContaining({
+          isStreaming: true
+        }),
+        undefined
+      )
+    })
+
+    it('should pass parent streaming state to standard code blocks after the fence is complete', () => {
+      mocks.isCodeFenceIncomplete = false
+
+      render(<CodeBlock {...defaultProps} isStreaming />)
+
+      expect(mocks.CodeBlockView).toHaveBeenCalledWith(
+        expect.objectContaining({
+          isStreaming: true
+        }),
+        undefined
+      )
+    })
+
     it('should pass editable=false for HTML artifacts in readonly surfaces', () => {
       mocks.messageListUi = { readonly: true }
       const htmlProps = {
@@ -254,6 +288,23 @@ describe('CodeBlock', () => {
         expect.objectContaining({
           editable: false
         }),
+        undefined
+      )
+    })
+
+    it('renders completed HTML directly in its original Markdown position', () => {
+      render(
+        <CodeBlock
+          {...defaultProps}
+          className="language-html"
+          children="<h1>Hello</h1>"
+          inlineHtmlPreviewMode="ready"
+        />
+      )
+
+      expect(mocks.HtmlArtifactsCard).not.toHaveBeenCalled()
+      expect(mocks.MessageHtmlArtifact).toHaveBeenCalledWith(
+        expect.objectContaining({ html: '<h1>Hello</h1>', isStreaming: false }),
         undefined
       )
     })
@@ -312,6 +363,21 @@ describe('CodeBlock', () => {
       render(<CodeBlock {...htmlProps} />)
 
       expect(screen.getByTestId('html-streaming-state')).toHaveTextContent('true')
+    })
+
+    it('routes streaming HTML to the message artifact without rendering the legacy card', () => {
+      render(
+        <CodeBlock {...defaultProps} className="language-html" inlineHtmlPreviewMode="generating">
+          {'<h1>Hello</h1>'}
+        </CodeBlock>
+      )
+
+      expect(screen.getByTestId('html-streaming-state')).toHaveTextContent('true')
+      expect(mocks.HtmlArtifactsCard).not.toHaveBeenCalled()
+      expect(mocks.MessageHtmlArtifact).toHaveBeenCalledWith(
+        expect.objectContaining({ html: '<h1>Hello</h1>', isStreaming: true }),
+        undefined
+      )
     })
   })
 })

@@ -69,10 +69,12 @@ function TooltipTrigger({ onFocus, ...props }: TooltipTriggerProps) {
   )
 }
 
+// no-drag punches the popup's area out of any titlebar drag region it overlaps,
+// so hover/click reach the items instead of the window-drag hit test (Electron).
 const contentStyles =
-  'z-[80] w-fit max-w-80 origin-(--radix-tooltip-content-transform-origin) animate-in rounded-md bg-neutral-900 px-3 py-1.5 text-neutral-50 text-xs leading-relaxed whitespace-normal break-words fade-in-0 zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95'
+  'z-[80] w-fit max-w-80 origin-(--radix-tooltip-content-transform-origin) animate-in rounded-md bg-neutral-900 px-3 py-1.5 text-neutral-50 text-xs leading-relaxed whitespace-normal break-words fade-in-0 zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 [-webkit-app-region:no-drag]'
 
-const arrowStyles = 'z-[80] fill-neutral-900'
+const arrowStyles = 'z-[80] -translate-y-px fill-neutral-900 stroke-neutral-900 stroke-2 [paint-order:stroke_fill]'
 
 function TooltipContent({
   className,
@@ -91,7 +93,7 @@ function TooltipContent({
         className={cn(contentStyles, className)}
         {...props}>
         {children}
-        {showArrow && <RadixArrow className={arrowStyles} />}
+        {showArrow && <RadixArrow width={12} height={6} className={arrowStyles} />}
       </RadixContent>
     </RadixPortal>
   )
@@ -105,6 +107,7 @@ export interface TooltipProps {
   delay?: number
   sideOffset?: TooltipContentProps['sideOffset']
   showArrow?: boolean
+  fullWidthTrigger?: boolean
   classNames?: {
     content?: string
     placeholder?: string
@@ -125,6 +128,7 @@ export const Tooltip = ({
   delay = 0,
   sideOffset = 0,
   showArrow = true,
+  fullWidthTrigger = false,
   classNames,
   className,
   isDisabled,
@@ -135,9 +139,15 @@ export const Tooltip = ({
 }: TooltipProps) => {
   const tooltipContent = content ?? title
   const defaultPortalContainer = usePortalContainer()
+  const triggerWrapperClassName = cn(
+    'relative z-10',
+    fullWidthTrigger ? 'block w-full min-w-0 max-w-full' : 'inline-block',
+    classNames?.placeholder
+  )
+
   if (!tooltipContent || isDisabled) {
     return (
-      <div className={cn('relative z-10 inline-block', classNames?.placeholder)} onClick={onClick}>
+      <div className={triggerWrapperClassName} onClick={onClick}>
         {children}
       </div>
     )
@@ -157,7 +167,7 @@ export const Tooltip = ({
     <TooltipProvider delayDuration={delay}>
       <RadixRoot delayDuration={delay} {...controlledProps}>
         <TooltipTrigger asChild>
-          <div className={cn('relative z-10 inline-block', classNames?.placeholder)} onClick={onClick}>
+          <div className={triggerWrapperClassName} onClick={onClick}>
             {children}
           </div>
         </TooltipTrigger>
@@ -169,7 +179,7 @@ export const Tooltip = ({
             sideOffset={sideOffset}
             className={cn(contentStyles, classNames?.content, className)}>
             {tooltipContent}
-            {showArrow && <RadixArrow className={arrowStyles} />}
+            {showArrow && <RadixArrow width={12} height={6} className={arrowStyles} />}
           </RadixContent>
         </RadixPortal>
       </RadixRoot>

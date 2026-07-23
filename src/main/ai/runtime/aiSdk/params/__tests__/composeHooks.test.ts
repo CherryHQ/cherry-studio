@@ -1,7 +1,7 @@
 import type { ModelMessage, StepResult, ToolSet } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { AgentLoopHooks, ErrorContext, ToolExecutionEndEvent, ToolExecutionStartEvent } from '../../loop'
+import type { AgentLoopHooks, ErrorContext, ToolExecutionEndEvent, ToolExecutionStartEvent } from '../../loop/types'
 import { composeHooks } from '../composeHooks'
 
 const TOOL_START_EVENT: ToolExecutionStartEvent = {
@@ -28,7 +28,7 @@ describe('composeHooks', () => {
     expect(composeHooks([part])).toBe(part)
   })
 
-  describe('void hooks (onStart / onStepFinish / onTool* / onFinish)', () => {
+  describe('void hooks (onStart / onStepFinish / onTool* / onFinish / onAbort)', () => {
     it('runs all void hooks in declaration order', async () => {
       const calls: string[] = []
       const composed = composeHooks([
@@ -47,6 +47,17 @@ describe('composeHooks', () => {
       await composed.onFinish!()
       expect(a).toHaveBeenCalledTimes(1)
       expect(c).toHaveBeenCalledTimes(1)
+    })
+
+    it('composes clean-abort hooks in declaration order', async () => {
+      const calls: string[] = []
+      const composed = composeHooks([
+        { onAbort: () => void calls.push('a') },
+        { onAbort: async () => void calls.push('b') }
+      ])
+
+      await composed.onAbort!()
+      expect(calls).toEqual(['a', 'b'])
     })
 
     it('returns undefined when no part defines the void hook', () => {

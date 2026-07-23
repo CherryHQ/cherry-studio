@@ -49,16 +49,22 @@ export default function AddModelFormPanel({
   const [formState, setFormState] = useState<ModelBasicFormState>(() =>
     getInitialAddModelFormState(null, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
   )
+  const [modelIdTouched, setModelIdTouched] = useState(false)
   const [endpointTypeTouched, setEndpointTypeTouched] = useState(false)
   const [showMoreSettings, setShowMoreSettings] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const submitInFlightRef = useRef(false)
+  const modelIdInputRef = useRef<HTMLInputElement>(null)
 
   const mode: ModelDrawerMode = provider && isNewApiProvider(provider) ? 'new-api' : 'legacy'
 
   useEffect(() => {
     setFormState(getInitialAddModelFormState(prefill, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS))
+    setModelIdTouched(false)
     setEndpointTypeTouched(false)
     setShowMoreSettings(false)
+    setSubmitError(null)
   }, [prefill])
 
   const handleModelIdChange = useCallback(
@@ -73,6 +79,10 @@ export default function AddModelFormPanel({
         name: value,
         group: getDefaultGroupName(value, provider.id)
       }))
+      setSubmitError(null)
+      if (value.trim()) {
+        setModelIdTouched(false)
+      }
     },
     [provider]
   )
@@ -86,7 +96,7 @@ export default function AddModelFormPanel({
       const modelId = values.modelId.trim()
 
       if (models.some((model) => model.id.endsWith(`::${modelId}`))) {
-        window.toast.error(t('error.model.exists'))
+        setSubmitError(t('error.model.exists'))
         return false
       }
 
@@ -107,7 +117,14 @@ export default function AddModelFormPanel({
   )
 
   const submitAddModel = useCallback(async () => {
-    if (isSubmitting) {
+    if (submitInFlightRef.current) {
+      return
+    }
+
+    const normalizedId = formState.modelId.trim().replaceAll('，', ',')
+    if (!normalizedId) {
+      setModelIdTouched(true)
+      modelIdInputRef.current?.focus()
       return
     }
 
@@ -116,11 +133,11 @@ export default function AddModelFormPanel({
       return
     }
 
+    submitInFlightRef.current = true
     setIsSubmitting(true)
+    setSubmitError(null)
 
     try {
-      const normalizedId = formState.modelId.trim().replaceAll('，', ',')
-
       if (normalizedId.includes(',')) {
         let addedCount = 0
         for (const singleId of splitModelIds(normalizedId)) {
@@ -154,11 +171,12 @@ export default function AddModelFormPanel({
         onSuccess()
       }
     } catch {
-      window.toast.error(t('settings.models.manage.operation_failed'))
+      setSubmitError(t('settings.models.manage.operation_failed'))
     } finally {
+      submitInFlightRef.current = false
       setIsSubmitting(false)
     }
-  }, [addSingleModel, formState, isSubmitting, mode, onSuccess, t])
+  }, [addSingleModel, formState, mode, onSuccess, t])
 
   const handleFormSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -217,6 +235,12 @@ export default function AddModelFormPanel({
           <ModelBasicFields
             values={formState}
             showEndpointType={mode === 'new-api'}
+            showRequiredIndicator
+            layout="horizontal"
+            modelIdInputRef={modelIdInputRef}
+            modelIdError={
+              modelIdTouched && !formState.modelId.trim() ? t('settings.models.add.model_id.required') : undefined
+            }
             endpointTypeError={endpointTypeTouched ? t('settings.models.add.endpoint_type.required') : undefined}
             onModelIdChange={handleModelIdChange}
             onNameChange={(value) => setFormState((current) => ({ ...current, name: value }))}
@@ -228,6 +252,14 @@ export default function AddModelFormPanel({
           />
         </div>
       </ProviderSection>
+
+      {submitError && (
+        <div
+          role="alert"
+          className="rounded-md border border-error-border bg-error-bg px-3 py-2 text-error-text text-xs leading-4">
+          {submitError}
+        </div>
+      )}
 
       <ProviderActions>
         <Button

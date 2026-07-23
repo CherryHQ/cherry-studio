@@ -1,0 +1,996 @@
+import {
+  Button,
+  EditableNumber,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Slider,
+  Switch,
+  TabsContent,
+  Textarea
+} from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+import PromptEditorField from '@renderer/components/PromptEditorField'
+import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
+import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
+import { useGroups } from '@renderer/hooks/useGroups'
+import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
+import { MCP_MODE_OPTIONS, RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
+import {
+  type AssistantFormState,
+  diffAssistantSaveIntent,
+  initialAssistantFormState
+} from '@renderer/utils/resourceCatalog'
+import { AGENT_PROMPT } from '@shared/ai/prompts'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { Sparkles, Trash2 } from 'lucide-react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { useForm, type UseFormReturn } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
+
+import {
+  AvatarField,
+  CompactModelField,
+  EDIT_DIALOG_PROMPT_MAX_HEIGHT,
+  EDIT_DIALOG_PROMPT_MIN_HEIGHT,
+  type EditDialogBaseProps,
+  EditDialogShell,
+  type EditDialogTab,
+  FieldLabelWithHelp,
+  KnowledgeBaseField,
+  type ModelLabels,
+  PromptVariablesPopover,
+  setFormValues,
+  TextInputField,
+  useDebouncedAutoSave
+} from '../components/EditDialogShared'
+import { GroupSelector } from '../components/GroupSelector'
+import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
+import { PromptPolishActions } from '../components/PromptPolishActions'
+
+export type AssistantEditDialogResource = Parameters<typeof initialAssistantFormState>[0]
+
+export type AssistantEditDialogProps = EditDialogBaseProps<AssistantEditDialogResource> & {
+  resource: AssistantEditDialogResource | null
+}
+
+type AssistantEditFormValues = {
+  avatar: string
+  name: string
+  description: string
+  modelId: UniqueModelId | null
+  groupId: string | null
+  prompt: string
+  temperature: number
+  enableTemperature: boolean
+  topP: number
+  enableTopP: boolean
+  maxTokens: number
+  enableMaxTokens: boolean
+  streamOutput: boolean
+  maxToolCalls: number
+  enableMaxToolCalls: boolean
+  customParameters: AssistantFormState['customParameters']
+  mcpMode: AssistantFormState['mcpMode']
+  knowledgeBaseIds: string[]
+  mcpServerIds: string[]
+}
+
+type CustomParameter = AssistantFormState['customParameters'][number]
+type CustomParameterType = CustomParameter['type']
+type AssistantToolTab = 'tools.mcp' | 'tools.knowledge'
+
+const logger = loggerService.withContext('AssistantEditDialog')
+const UI_DEFAULT_MAX_TOKENS = 4096
+const UI_DEFAULT_MAX_TOOL_CALLS = 20
+
+function isAssistantToolTab(value: string): value is AssistantToolTab {
+  return value === 'tools.mcp' || value === 'tools.knowledge'
+}
+
+function defaultValuesForAssistant(resource: AssistantEditDialogResource): AssistantEditFormValues {
+  const form = initialAssistantFormState(resource)
+  return {
+    avatar: form.emoji,
+    name: form.name,
+    description: form.description,
+    modelId: form.modelId ?? null,
+    groupId: form.groupId,
+    prompt: form.prompt,
+    temperature: form.temperature,
+    enableTemperature: form.enableTemperature,
+    topP: form.topP,
+    enableTopP: form.enableTopP,
+    maxTokens: form.maxTokens,
+    enableMaxTokens: form.enableMaxTokens,
+    streamOutput: form.streamOutput,
+    maxToolCalls: form.maxToolCalls,
+    enableMaxToolCalls: form.enableMaxToolCalls,
+    customParameters: form.customParameters.map((parameter) => ({ ...parameter })),
+    mcpMode: form.mcpMode,
+    knowledgeBaseIds: [...form.knowledgeBaseIds],
+    mcpServerIds: [...form.mcpServerIds]
+  }
+}
+
+function modelLabelsForAssistant(resource: AssistantEditDialogResource): ModelLabels {
+  return {
+    modelId: resource.modelName ?? null,
+    planModelId: null,
+    smallModelId: null
+  }
+}
+
+function buildAssistantFormState(baseline: AssistantFormState, values: AssistantEditFormValues): AssistantFormState {
+  return {
+    ...baseline,
+    emoji: values.avatar,
+    name: values.name,
+    description: values.description,
+    modelId: values.modelId,
+    groupId: values.groupId,
+    prompt: values.prompt,
+    temperature: values.temperature,
+    enableTemperature: values.enableTemperature,
+    topP: values.topP,
+    enableTopP: values.enableTopP,
+    maxTokens: values.maxTokens,
+    enableMaxTokens: values.enableMaxTokens,
+    streamOutput: values.streamOutput,
+    maxToolCalls: values.maxToolCalls,
+    enableMaxToolCalls: values.enableMaxToolCalls,
+    customParameters: values.customParameters,
+    mcpMode: values.mcpMode,
+    knowledgeBaseIds: values.knowledgeBaseIds,
+    mcpServerIds: values.mcpServerIds
+  }
+}
+
+export function AssistantEditDialog({
+  resource,
+  open,
+  onOpenChange,
+  onSaved,
+  modelFilter,
+  initialTab
+}: AssistantEditDialogProps) {
+  if (!resource) return null
+
+  return (
+    <AssistantEditDialogContent
+      resource={resource}
+      open={open}
+      onOpenChange={onOpenChange}
+      onSaved={onSaved}
+      modelFilter={modelFilter}
+      initialTab={initialTab}
+    />
+  )
+}
+
+function AssistantEditDialogContent({
+  resource,
+  open,
+  onOpenChange,
+  onSaved,
+  modelFilter,
+  initialTab
+}: EditDialogBaseProps<AssistantEditDialogResource> & { resource: AssistantEditDialogResource }) {
+  const { t } = useTranslation()
+  const [activeTab, setActiveTab] = useState(initialTab ?? 'basic')
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
+  const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
+  const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAssistant(resource))
+  const defaultValues = useMemo(() => defaultValuesForAssistant(resource), [resource])
+  const form = useForm<AssistantEditFormValues>({ defaultValues })
+  const values = form.watch()
+  const { groups, isLoading: isGroupsLoading, error: groupsError } = useGroups('assistant')
+  const { updateAssistant } = useAssistantMutationsById(resource.id)
+  const saveIntent = useMemo(() => {
+    const baseline = initialAssistantFormState(resource)
+    return diffAssistantSaveIntent(buildAssistantFormState(baseline, values), baseline, resource)
+  }, [resource, values])
+  const tabs = useMemo<EditDialogTab[]>(
+    () => [
+      { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
+      { id: 'advanced', label: t('library.config.agent.model_config') },
+      { id: 'prompt', label: t('library.config.dialogs.edit.prompt_tab') },
+      {
+        id: 'tools',
+        label: t('library.config.dialogs.edit.tools_tab'),
+        children: [
+          { id: 'tools.knowledge', label: t('library.config.dialogs.edit.knowledge_tab') },
+          { id: 'tools.mcp', label: t('library.config.agent.section.tools.tab.mcp') }
+        ]
+      }
+    ],
+    [t]
+  )
+
+  const wasOpenRef = useRef(false)
+  useEffect(() => {
+    const justOpened = open && !wasOpenRef.current
+    wasOpenRef.current = open
+    if (!justOpened) return
+
+    form.reset(defaultValues)
+    form.clearErrors()
+    setActiveTab(initialTab ?? 'basic')
+    setEmojiPickerOpen(false)
+    setModelLabels(modelLabelsForAssistant(resource))
+  }, [defaultValues, form, initialTab, open, resource])
+
+  const rootError = form.formState.errors.root?.message
+  const canPersist = Boolean(saveIntent) && values.name.trim().length > 0
+  // Tracks whether the most recent save attempt failed, so the close path can
+  // keep the dialog open (and the error visible) instead of closing over a loss.
+  const saveFailedRef = useRef(false)
+
+  const persist = async () => {
+    const pending = saveIntent
+    if (!pending) return
+
+    form.clearErrors('root')
+    saveFailedRef.current = false
+
+    let updated: Awaited<ReturnType<typeof updateAssistant>>
+    try {
+      updated = await updateAssistant(pending.payload)
+    } catch (error) {
+      logger.error('Failed to auto-save assistant edit dialog', error as Error, { assistantId: resource.id })
+      form.setError('root', { message: t('library.config.dialogs.edit.save_failed') })
+      saveFailedRef.current = true
+      return
+    }
+
+    try {
+      await onSaved(updated)
+    } catch (error) {
+      logger.warn('Failed to run assistant edit dialog post-save callback', { error, assistantId: resource.id })
+    }
+  }
+
+  // Key the debounce on the form values (user input), not on saveIntent: the
+  // update mutation refreshes /assistants/* → resource refetches → saveIntent's
+  // baseline moves, but the values are unchanged, so this never re-fires from our
+  // own save (prevents a save→refetch→save loop).
+  const flush = useDebouncedAutoSave({
+    enabled: open,
+    changeKey: canPersist ? JSON.stringify(values) : null,
+    onSave: persist
+  })
+
+  // On close with a pending edit, flush through the same serialized save queue and
+  // only close once it settles — so a failed final save stays visible instead of
+  // being silently dropped, and we never race a second concurrent save.
+  const handleOpenChange = (next: boolean) => {
+    if (next || !canPersist) {
+      onOpenChange(next)
+      return
+    }
+    void (async () => {
+      await flush()
+      if (saveFailedRef.current) return
+      onOpenChange(false)
+    })()
+  }
+  // Route the settings-navigate close through handleOpenChange so it flushes too.
+  const closeBeforeAction = useCloseBeforeAction(handleOpenChange)
+
+  return (
+    <EditDialogShell
+      activeTab={activeTab}
+      form={form}
+      groupPresentation="inline"
+      onActiveTabChange={setActiveTab}
+      onOpenChange={handleOpenChange}
+      open={open}
+      rootError={rootError}
+      setDialogContentElement={setDialogContentElement}
+      tabs={tabs}
+      title={t('library.config.dialogs.edit.assistant_title')}>
+      <>
+        <TabsContent value="basic" forceMount hidden={activeTab !== 'basic'} className="m-0">
+          <AssistantBasicFields
+            form={form}
+            modelFilter={modelFilter}
+            portalContainer={dialogContentElement}
+            modelLabels={modelLabels}
+            setModelLabels={setModelLabels}
+            groups={groups}
+            groupsLoading={isGroupsLoading}
+            groupsError={groupsError}
+            emojiPickerOpen={emojiPickerOpen}
+            setEmojiPickerOpen={setEmojiPickerOpen}
+            onSettingsNavigate={closeBeforeAction}
+          />
+        </TabsContent>
+        <TabsContent
+          value="prompt"
+          forceMount
+          hidden={activeTab !== 'prompt'}
+          className="m-0 flex h-full min-h-0 flex-col">
+          <AssistantPromptField
+            form={form}
+            resource={resource}
+            modelName={modelLabels.modelId}
+            portalContainer={dialogContentElement}
+          />
+        </TabsContent>
+        {isAssistantToolTab(activeTab) ? (
+          <TabsContent value={activeTab} forceMount className="m-0">
+            {activeTab === 'tools.mcp' ? (
+              <AssistantToolsFields form={form} portalContainer={dialogContentElement} />
+            ) : (
+              <div className="grid gap-4">
+                <KnowledgeBaseField form={form} portalContainer={dialogContentElement} />
+              </div>
+            )}
+          </TabsContent>
+        ) : null}
+        <TabsContent value="advanced" forceMount hidden={activeTab !== 'advanced'} className="m-0">
+          <AssistantAdvancedFields form={form} portalContainer={dialogContentElement} />
+        </TabsContent>
+      </>
+    </EditDialogShell>
+  )
+}
+
+function AssistantBasicFields({
+  form,
+  modelFilter,
+  portalContainer,
+  modelLabels,
+  setModelLabels,
+  groups,
+  groupsLoading,
+  groupsError,
+  emojiPickerOpen,
+  setEmojiPickerOpen,
+  onSettingsNavigate
+}: {
+  form: UseFormReturn<AssistantEditFormValues>
+  modelFilter?: (model: Model) => boolean
+  portalContainer: HTMLElement | null
+  modelLabels: ModelLabels
+  setModelLabels: (labels: ModelLabels) => void
+  groups: ReturnType<typeof useGroups>['groups']
+  groupsLoading: ReturnType<typeof useGroups>['isLoading']
+  groupsError: ReturnType<typeof useGroups>['error']
+  emojiPickerOpen: boolean
+  setEmojiPickerOpen: (open: boolean) => void
+  onSettingsNavigate?: (navigate: () => void) => void
+}) {
+  const { t } = useTranslation()
+  const handleAssistantModelChange = (modelId: UniqueModelId | null, model?: Model) => {
+    const patch: Partial<AssistantEditFormValues> = { modelId }
+    const nameLower = model?.name.toLowerCase() ?? ''
+    if (nameLower.includes('kimi-k2')) {
+      patch.temperature = 0.6
+    } else if (nameLower.includes('moonshot')) {
+      patch.temperature = 0.3
+    }
+    setFormValues(form, patch)
+  }
+
+  return (
+    <div className="grid gap-4">
+      <div className="grid grid-cols-[auto_1fr] gap-4">
+        <AvatarField
+          form={form}
+          emojiPickerOpen={emojiPickerOpen}
+          setEmojiPickerOpen={setEmojiPickerOpen}
+          fallback="💬"
+          portalContainer={portalContainer}
+          size="sm"
+        />
+        <TextInputField
+          form={form}
+          name="name"
+          label={t('common.name')}
+          placeholder={t('library.config.basic.field.name.placeholder')}
+          required
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="min-w-0">
+          <CompactModelField
+            form={form}
+            name="modelId"
+            label={t('common.model')}
+            allowClear
+            filter={modelFilter}
+            portalContainer={portalContainer}
+            modelLabels={modelLabels}
+            setModelLabels={setModelLabels}
+            onModelChange={handleAssistantModelChange}
+            onSettingsNavigate={onSettingsNavigate}
+          />
+        </div>
+        <FormField
+          control={form.control}
+          name="groupId"
+          render={({ field }) => (
+            <FormItem className="min-w-0">
+              <FormLabel className="font-normal">{t('library.config.basic.group')}</FormLabel>
+              <GroupSelector
+                value={field.value}
+                onChange={field.onChange}
+                groups={groups}
+                isLoading={groupsLoading}
+                error={groupsError}
+                portalContainer={portalContainer}
+              />
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </div>
+      <TextInputField
+        form={form}
+        name="description"
+        label={t('common.description')}
+        placeholder={t('library.config.basic.field.description.placeholder')}
+      />
+    </div>
+  )
+}
+
+function AssistantPromptField({
+  form,
+  resource,
+  modelName,
+  portalContainer
+}: {
+  form: UseFormReturn<AssistantEditFormValues>
+  resource: AssistantEditDialogResource
+  modelName: string | null
+  portalContainer: HTMLElement | null
+}) {
+  const { t } = useTranslation()
+  const [resetPreviewKey, setResetPreviewKey] = useState(0)
+  const prompt = form.watch('prompt')
+  const name = form.watch('name')
+  const processedPrompt = usePromptProcessor({
+    prompt,
+    modelName: modelName ?? resource.modelName ?? undefined
+  })
+
+  const handlePromptChange = (nextPrompt: string) => {
+    form.setValue('prompt', nextPrompt, { shouldDirty: true, shouldTouch: true })
+  }
+
+  const handlePromptActionChange = (nextPrompt: string) => {
+    handlePromptChange(nextPrompt)
+    setResetPreviewKey((key) => key + 1)
+  }
+
+  const promptActions = (
+    <PromptPolishActions
+      value={prompt}
+      fallbackSource={name}
+      emptyValueSystemPrompt={AGENT_PROMPT}
+      existingValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
+      onChange={handlePromptActionChange}
+    />
+  )
+
+  return (
+    <FormField
+      control={form.control}
+      name="prompt"
+      render={({ field }) => (
+        <PromptEditorField
+          label={
+            <FieldLabelWithHelp
+              label={t('library.config.prompt.label')}
+              helpTrigger={<PromptVariablesPopover portalContainer={portalContainer} />}
+              formLabel={false}
+            />
+          }
+          value={field.value}
+          onChange={handlePromptChange}
+          placeholder={t('library.config.prompt.placeholder')}
+          previewValue={processedPrompt || prompt}
+          resetPreviewKey={resetPreviewKey}
+          actions={promptActions}
+          fill
+          minHeight={EDIT_DIALOG_PROMPT_MIN_HEIGHT}
+          maxHeight={EDIT_DIALOG_PROMPT_MAX_HEIGHT}
+        />
+      )}
+    />
+  )
+}
+
+function AssistantToolsFields({
+  form,
+  portalContainer
+}: {
+  form: UseFormReturn<AssistantEditFormValues>
+  portalContainer: HTMLElement | null
+}) {
+  const { t } = useTranslation()
+  const mcpMode = form.watch('mcpMode')
+  const mcpServerIds = form.watch('mcpServerIds')
+  const mcpEnabled = mcpMode !== 'disabled'
+  const mcpModeLabel = t('library.config.basic.mcp_mode')
+  const selectableMcpModes = useMemo(() => MCP_MODE_OPTIONS.filter((mode) => mode.id !== 'disabled'), [])
+
+  const enabledIds = useMemo(() => new Set(mcpServerIds), [mcpServerIds])
+  const toggleMcpServer = (id: string, enabled: boolean) =>
+    form.setValue(
+      'mcpServerIds',
+      enabled ? Array.from(new Set([...mcpServerIds, id])) : mcpServerIds.filter((serverId) => serverId !== id),
+      { shouldDirty: true }
+    )
+
+  return (
+    <div className="grid gap-4">
+      <FormField
+        control={form.control}
+        name="mcpMode"
+        render={() => (
+          <FormItem className="grid gap-3">
+            <div className="flex items-center justify-between gap-3">
+              <FormLabel className="font-normal text-[13px]">{`${t('library.action.enable')} MCP`}</FormLabel>
+              <FormControl>
+                <Switch
+                  size="sm"
+                  checked={mcpEnabled}
+                  onCheckedChange={(checked) =>
+                    form.setValue('mcpMode', checked ? 'auto' : 'disabled', { shouldDirty: true })
+                  }
+                  aria-label={`${t('library.action.enable')} MCP`}
+                />
+              </FormControl>
+            </div>
+            {mcpEnabled ? (
+              <div className="flex items-start justify-between gap-3">
+                <FormLabel className="pt-2 font-normal text-[13px]">{mcpModeLabel}</FormLabel>
+                <div className="w-36 shrink-0">
+                  <Select
+                    value={mcpMode === 'manual' ? 'manual' : 'auto'}
+                    onValueChange={(value) =>
+                      form.setValue('mcpMode', value as AssistantFormState['mcpMode'], { shouldDirty: true })
+                    }>
+                    <FormControl>
+                      <SelectTrigger className="w-full" aria-label={mcpModeLabel}>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent portalContainer={portalContainer}>
+                      {selectableMcpModes.map((mode) => (
+                        <SelectItem key={mode.id} value={mode.id}>
+                          {t(mode.labelKey)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            ) : null}
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      {mcpMode === 'manual' ? (
+        <FormField
+          control={form.control}
+          name="mcpServerIds"
+          render={() => (
+            <FormItem>
+              <McpServerCatalogGrid
+                title={t('library.config.tools.added')}
+                enabledIds={enabledIds}
+                onToggle={toggleMcpServer}
+                emptyLabel={t('library.config.tools.empty_title')}
+                portalContainer={portalContainer}
+              />
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      ) : null}
+    </div>
+  )
+}
+
+function AssistantAdvancedFields({
+  form,
+  portalContainer
+}: {
+  form: UseFormReturn<AssistantEditFormValues>
+  portalContainer: HTMLElement | null
+}) {
+  const { t } = useTranslation()
+  const values = form.watch()
+  const temperatureMarks = [
+    { value: 0, label: t('library.config.basic.precise') },
+    { value: 1, label: '1' },
+    { value: 2, label: t('library.config.basic.creative') }
+  ]
+  const topPMarks = [
+    { value: 0, label: '0' },
+    { value: 0.5, label: '0.5' },
+    { value: 1, label: '1' }
+  ]
+
+  return (
+    <div className="grid gap-4">
+      <ToggleFieldGroup
+        label={t('library.config.basic.temperature')}
+        valueLabel={values.enableTemperature ? values.temperature.toFixed(1) : t('library.config.basic.default_value')}
+        description={t('library.config.basic.field.temperature.hint')}
+        enabled={values.enableTemperature}
+        onEnabledChange={(checked) => form.setValue('enableTemperature', checked, { shouldDirty: true })}>
+        <FormField
+          control={form.control}
+          name="temperature"
+          render={({ field }) => (
+            <div className="-mb-2 mt-3 w-full">
+              <Slider
+                min={0}
+                max={2}
+                step={0.1}
+                value={[field.value]}
+                marks={temperatureMarks}
+                onValueChange={([value]) => field.onChange(value)}
+                className="w-full"
+              />
+            </div>
+          )}
+        />
+      </ToggleFieldGroup>
+
+      <ToggleFieldGroup
+        label={t('library.config.basic.top_p')}
+        valueLabel={values.enableTopP ? values.topP.toFixed(2) : t('library.config.basic.default_value')}
+        description={t('library.config.basic.field.top_p.hint')}
+        enabled={values.enableTopP}
+        onEnabledChange={(checked) => form.setValue('enableTopP', checked, { shouldDirty: true })}>
+        <FormField
+          control={form.control}
+          name="topP"
+          render={({ field }) => (
+            <div className="-mb-2 mt-3 w-full">
+              <Slider
+                min={0}
+                max={1}
+                step={0.05}
+                value={[field.value]}
+                marks={topPMarks}
+                onValueChange={([value]) => field.onChange(value)}
+                className="w-full"
+              />
+            </div>
+          )}
+        />
+      </ToggleFieldGroup>
+
+      <ToggleFieldGroup
+        label={t('library.config.basic.max_tokens')}
+        valueLabel={values.enableMaxTokens ? undefined : t('library.config.basic.default_value')}
+        description={t('library.config.basic.field.max_tokens.hint')}
+        enabled={values.enableMaxTokens}
+        onEnabledChange={(checked) => form.setValue('enableMaxTokens', checked, { shouldDirty: true })}
+        control={
+          <FormField
+            control={form.control}
+            name="maxTokens"
+            render={({ field }) => (
+              <EditableNumber
+                block
+                min={1}
+                step={1}
+                precision={0}
+                align="start"
+                changeOnBlur
+                className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-ring focus-visible:ring-[1px] focus-visible:ring-ring/35"
+                value={field.value}
+                onChange={(value) =>
+                  field.onChange(typeof value === 'number' && value > 0 ? value : UI_DEFAULT_MAX_TOKENS)
+                }
+              />
+            )}
+          />
+        }
+      />
+
+      <FormField
+        control={form.control}
+        name="streamOutput"
+        render={({ field }) => (
+          <FormItem>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <FieldLabelWithHelp
+                  label={t('library.config.basic.stream_output')}
+                  help={t('library.config.basic.field.stream_output.hint')}
+                />
+              </div>
+              <FormControl>
+                <Switch
+                  size="sm"
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                  aria-label={t('library.config.basic.stream_output')}
+                />
+              </FormControl>
+            </div>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <ToggleFieldGroup
+        label={t('library.config.basic.max_tool_calls')}
+        valueLabel={values.enableMaxToolCalls ? undefined : t('library.config.basic.unlimited')}
+        description={t('library.config.basic.field.max_tool_calls.hint')}
+        enabled={values.enableMaxToolCalls}
+        onEnabledChange={(checked) => form.setValue('enableMaxToolCalls', checked, { shouldDirty: true })}
+        control={
+          <FormField
+            control={form.control}
+            name="maxToolCalls"
+            render={({ field }) => (
+              <EditableNumber
+                block
+                min={1}
+                step={1}
+                precision={0}
+                align="start"
+                changeOnBlur
+                className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-ring focus-visible:ring-[1px] focus-visible:ring-ring/35"
+                value={field.value}
+                onChange={(value) =>
+                  field.onChange(typeof value === 'number' && value > 0 ? value : UI_DEFAULT_MAX_TOOL_CALLS)
+                }
+              />
+            )}
+          />
+        }
+      />
+
+      <FormField
+        control={form.control}
+        name="customParameters"
+        render={({ field }) => (
+          <CustomParametersField
+            value={field.value}
+            onChange={(customParameters) => field.onChange(customParameters)}
+            portalContainer={portalContainer}
+          />
+        )}
+      />
+    </div>
+  )
+}
+
+function ToggleFieldGroup({
+  label,
+  valueLabel,
+  description,
+  enabled,
+  onEnabledChange,
+  control,
+  children
+}: {
+  label: string
+  valueLabel?: string
+  description: string
+  enabled: boolean
+  onEnabledChange: (checked: boolean) => void
+  /** Compact control rendered beside the switch when enabled (title-left / control-right row). */
+  control?: ReactNode
+  children?: ReactNode
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <FieldLabelWithHelp label={label} help={description} formLabel={false} />
+          {valueLabel ? <span className="text-muted-foreground/60 text-xs">{valueLabel}</span> : null}
+        </div>
+        <div className="flex shrink-0 items-center gap-3">
+          {enabled && control ? <div className="w-36">{control}</div> : null}
+          <Switch size="sm" checked={enabled} onCheckedChange={onEnabledChange} aria-label={label} />
+        </div>
+      </div>
+      {enabled && children ? <div className="mt-2">{children}</div> : null}
+    </div>
+  )
+}
+
+function CustomParametersField({
+  value,
+  onChange,
+  portalContainer
+}: {
+  value: CustomParameter[]
+  onChange: (next: CustomParameter[]) => void
+  portalContainer: HTMLElement | null
+}) {
+  const { t } = useTranslation()
+  const add = () => onChange([...value, { name: '', type: 'string', value: '' }])
+  const remove = (index: number) => onChange(value.filter((_, i) => i !== index))
+  const updateField = (index: number, patch: Partial<CustomParameter>) => {
+    const next = [...value] as CustomParameter[]
+    if (patch.type && patch.type !== next[index].type) {
+      next[index] = {
+        name: next[index].name,
+        type: patch.type,
+        value: defaultValueForType(patch.type)
+      } as CustomParameter
+    } else {
+      next[index] = { ...next[index], ...patch } as CustomParameter
+    }
+    onChange(next)
+  }
+
+  return (
+    <FormItem>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <FieldLabelWithHelp
+            label={t('library.config.basic.custom_params')}
+            help={t('library.config.basic.field.custom_params.hint')}
+          />
+        </div>
+        <Button type="button" variant="secondary" size="sm" onClick={add} className="h-7 gap-1 px-2.5 text-xs">
+          <Sparkles size={11} />
+          {t('library.config.basic.custom_params_add')}
+        </Button>
+      </div>
+
+      {value.length > 0 ? (
+        <div className="mt-2 space-y-2">
+          {value.map((param, index) => (
+            <CustomParameterRow
+              key={index}
+              param={param}
+              portalContainer={portalContainer}
+              onNameChange={(name) => updateField(index, { name })}
+              onTypeChange={(type) => updateField(index, { type })}
+              onValueChange={(nextValue) => updateField(index, { value: nextValue } as Partial<CustomParameter>)}
+              onDelete={() => remove(index)}
+            />
+          ))}
+        </div>
+      ) : null}
+      <FormMessage />
+    </FormItem>
+  )
+}
+
+function defaultValueForType(type: CustomParameterType): CustomParameter['value'] {
+  switch (type) {
+    case 'number':
+      return 0
+    case 'boolean':
+      return false
+    case 'json':
+      return ''
+    default:
+      return ''
+  }
+}
+
+function CustomParameterRow({
+  param,
+  portalContainer,
+  onNameChange,
+  onTypeChange,
+  onValueChange,
+  onDelete
+}: {
+  param: CustomParameter
+  portalContainer: HTMLElement | null
+  onNameChange: (name: string) => void
+  onTypeChange: (type: CustomParameterType) => void
+  onValueChange: (value: CustomParameter['value']) => void
+  onDelete: () => void
+}) {
+  const { t } = useTranslation()
+  const jsonString =
+    param.type === 'json'
+      ? typeof param.value === 'string'
+        ? param.value
+        : JSON.stringify(param.value ?? '', null, 2)
+      : ''
+  const jsonInvalid = (() => {
+    if (param.type !== 'json') return false
+    if (!jsonString.trim()) return false
+    try {
+      JSON.parse(jsonString)
+      return false
+    } catch {
+      return true
+    }
+  })()
+
+  return (
+    <div className="rounded-xs border border-border/20 bg-accent/15 p-2">
+      <div className="flex items-stretch gap-2">
+        <Input
+          placeholder={t('library.config.basic.custom_params_name')}
+          value={param.name}
+          onChange={(event) => onNameChange(event.target.value)}
+          className="flex-1"
+        />
+        <Select value={param.type} onValueChange={(value) => onTypeChange(value as CustomParameterType)}>
+          <SelectTrigger size="sm" className="w-[100px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent portalContainer={portalContainer}>
+            <SelectItem value="string">string</SelectItem>
+            <SelectItem value="number">number</SelectItem>
+            <SelectItem value="boolean">boolean</SelectItem>
+            <SelectItem value="json">json</SelectItem>
+          </SelectContent>
+        </Select>
+        {param.type !== 'json' ? (
+          <div className="flex-1">
+            {param.type === 'number' ? (
+              <Input
+                type="number"
+                value={String(param.value)}
+                onChange={(event) => {
+                  const parsed = parseFloat(event.target.value)
+                  onValueChange(Number.isFinite(parsed) ? parsed : 0)
+                }}
+              />
+            ) : null}
+            {param.type === 'boolean' ? (
+              <Select value={String(param.value)} onValueChange={(value) => onValueChange(value === 'true')}>
+                <SelectTrigger size="sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent portalContainer={portalContainer}>
+                  <SelectItem value="true">true</SelectItem>
+                  <SelectItem value="false">false</SelectItem>
+                </SelectContent>
+              </Select>
+            ) : null}
+            {param.type === 'string' ? (
+              <Input value={String(param.value)} onChange={(event) => onValueChange(event.target.value)} />
+            ) : null}
+          </div>
+        ) : null}
+        <Button
+          type="button"
+          variant="destructive"
+          size="icon"
+          aria-label={t('common.delete')}
+          onClick={onDelete}
+          className="h-8 w-8 shrink-0">
+          <Trash2 size={12} />
+        </Button>
+      </div>
+      {param.type === 'json' ? (
+        <div className="mt-2">
+          <Textarea.Input
+            value={jsonString}
+            onValueChange={onValueChange}
+            rows={4}
+            spellCheck={false}
+            placeholder='{"key": "value"}'
+            hasError={jsonInvalid}
+          />
+          {jsonInvalid ? (
+            <p className="mt-1 text-destructive/80 text-xs">{t('library.config.basic.json_invalid')}</p>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  )
+}

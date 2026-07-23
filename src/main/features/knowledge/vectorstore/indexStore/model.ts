@@ -3,9 +3,15 @@
  * CHECK constraints in schema.ts (§4) and shape the store's write contract.
  */
 
-import type { KnowledgeSearchMode } from '@shared/data/types/knowledge'
-
 export type SearchUnitType = 'chunk'
+
+/**
+ * Retrieval mode for the index store's `search()` primitive. Independent of the
+ * product-level KnowledgeBase policy (KnowledgeService.search() only ever passes
+ * 'bm25' | 'hybrid' — see isCompletedVectorKnowledgeBase); 'vector' remains a
+ * supported engine capability with its own test coverage.
+ */
+export type KnowledgeIndexSearchMode = 'vector' | 'bm25' | 'hybrid'
 
 /** One retrieval unit (chunk/section) with its offsets into the material's content. */
 export interface RebuildMaterialUnitInput {
@@ -37,7 +43,24 @@ export interface RebuildMaterialInput {
     text: string
   }
   units: RebuildMaterialUnitInput[]
+  /**
+   * Whether this base embeds its content. A vector base supplies `embeddings` and
+   * its per-unit vector coverage is verified; a BM25-only base (no embedding
+   * model) supplies none and skips that check — it is searched lexically.
+   */
+  usesEmbeddings: boolean
   embeddings: RebuildMaterialEmbeddingInput[]
+}
+
+/**
+ * A material identified by its Concept ID (the `relative_path`, OKF §2). The
+ * relative path is UNIQUE per index, so this is the addressing primitive behind
+ * the deep-read tool kb_read (read or grep mode); the caller re-validates the resolved
+ * material against the visible knowledge_item before exposing any content.
+ */
+export interface KnowledgeMaterialRef {
+  materialId: string
+  relativePath: string
 }
 
 /** A retrieval unit read back from the index, with its body text. */
@@ -56,7 +79,7 @@ export interface KnowledgeIndexSearchInput {
   queryText: string
   /** Pre-computed query embedding. Required for 'hybrid'/'vector'; ignored for 'bm25'. */
   queryEmbedding?: number[]
-  mode: KnowledgeSearchMode
+  mode: KnowledgeIndexSearchMode
   topK: number
   /** RRF weight for the vector list in 'hybrid' (0 = pure BM25, 1 = pure vector). Default 0.5. */
   alpha?: number

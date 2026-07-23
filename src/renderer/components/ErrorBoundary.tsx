@@ -1,24 +1,28 @@
 import { Alert, Button } from '@cherrystudio/ui'
-import { formatErrorMessage } from '@renderer/utils/error'
-import type { ComponentType, ReactNode } from 'react'
+import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
+import { formatErrorDetails } from '@renderer/utils/errorDetails'
+import type { ComponentType, ErrorInfo, ReactNode } from 'react'
 import type { FallbackProps } from 'react-error-boundary'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('ErrorBoundary')
 const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): ReactNode => {
   const { t } = useTranslation()
   const { error } = props
   const debug = async () => {
-    await window.api.devTools.toggle()
+    await ipcApi.request('system.toggle_dev_tools')
   }
   const reload = async () => {
-    await window.api.reload()
+    await ipcApi.request('window.main.reload')
   }
   return (
     <div className="flex w-full items-center justify-center p-2">
       <Alert
         message={t('error.boundary.default.message')}
         showIcon
-        description={formatErrorMessage(error)}
+        description={formatErrorDetails(error)}
         type="error"
         action={
           <div className="flex items-center gap-2">
@@ -37,12 +41,22 @@ const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): Re
 
 const ErrorBoundaryCustomized = ({
   children,
-  fallbackComponent
+  fallbackComponent,
+  onError
 }: {
   children: ReactNode
   fallbackComponent?: ComponentType<FallbackProps>
+  onError?: (error: Error, info: ErrorInfo) => void
 }) => {
-  return <ErrorBoundary FallbackComponent={fallbackComponent ?? DefaultFallback}>{children}</ErrorBoundary>
+  const handleError = (error: Error, info: ErrorInfo) => {
+    logger.error('Caught a render error', error)
+    onError?.(error, info)
+  }
+  return (
+    <ErrorBoundary FallbackComponent={fallbackComponent ?? DefaultFallback} onError={handleError}>
+      {children}
+    </ErrorBoundary>
+  )
 }
 
 export { ErrorBoundaryCustomized as ErrorBoundary }

@@ -1,14 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock i18n before importing the module
-vi.mock('@renderer/i18n', () => ({
+vi.mock('@renderer/i18n/resolver', () => ({
   default: {
     t: vi.fn((key: string) => {
       const translations: Record<string, string> = {
         'common.chat': '聊天',
         'agent.session.group.conversation': '对话',
         'agent.sidebar_title': '任务',
-        'title.store': '资源',
         'title.work': '工作',
         'title.paintings': '绘画',
         'title.translate': '翻译',
@@ -17,7 +16,6 @@ vi.mock('@renderer/i18n', () => ({
         'title.files': '文件',
         'title.code': 'Code',
         'title.notes': '笔记',
-        'title.openclaw': 'OpenClaw',
         'title.settings': '设置'
       }
       return translations[key] || key
@@ -50,7 +48,6 @@ describe('routeTitle', () => {
         ['/app/files', '文件'],
         ['/app/code', 'Code'],
         ['/app/notes', '笔记'],
-        ['/app/openclaw', 'OpenClaw'],
         ['/settings', '设置']
       ])('should return correct title for %s', (url, expectedTitle) => {
         expect(getDefaultRouteTitle(url)).toBe(expectedTitle)
@@ -85,6 +82,7 @@ describe('routeTitle', () => {
     describe('unknown routes', () => {
       it('should return last segment for unknown routes', () => {
         expect(getDefaultRouteTitle('/unknown')).toBe('unknown')
+        expect(getDefaultRouteTitle('/app/openclaw')).toBe('openclaw')
         expect(getDefaultRouteTitle('/foo/bar/baz')).toBe('baz')
       })
 
@@ -118,7 +116,6 @@ describe('routeTitle', () => {
       it.each([
         ['/app/chat', 'agent.session.group.conversation'],
         ['/app/agents', 'title.work'],
-        ['/app/openclaw', 'title.openclaw'],
         ['/settings', 'title.settings']
       ])('should return i18n key for %s', (url, expectedKey) => {
         expect(getRouteTitleKey(url)).toBe(expectedKey)
@@ -136,6 +133,7 @@ describe('routeTitle', () => {
     describe('unknown routes', () => {
       it('should return undefined for unknown routes', () => {
         expect(getRouteTitleKey('/unknown')).toBeUndefined()
+        expect(getRouteTitleKey('/app/openclaw')).toBeUndefined()
         expect(getRouteTitleKey('/foo/bar')).toBeUndefined()
       })
     })

@@ -1,0 +1,247 @@
+import { dataApiService } from '@data/DataApiService'
+import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
+import { CodeCli } from '@shared/types/codeCli'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { CliConfigFileDraft, CliConfigTarget } from '../index'
+import { extractConfigFromCliConfigDraft, extractConnectionFromCliConfigDraft, readCliConfigDraft } from '../index'
+
+/** Per-path DataApi.get mock (longest-prefix wins so `/api-keys` is not shadowed). */
+function mockGet(handlers: Record<string, () => unknown>) {
+  const prefixes = Object.keys(handlers).sort((a, b) => b.length - a.length)
+  vi.mocked(dataApiService.get).mockImplementation(async (path: string) => {
+    for (const prefix of prefixes) {
+      if (path.startsWith(prefix)) return handlers[prefix]()
+    }
+    return undefined
+  })
+}
+
+const enabledKey: ApiKeyEntry = { id: 'k1', key: 'sk-secret', isEnabled: true }
+
+const anthropicProvider = {
+  id: 'anthropic',
+  name: 'Anthropic',
+  endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } }
+} as unknown as Provider
+const responsesProvider = {
+  id: 'deepseek',
+  name: 'DeepSeek',
+  endpointConfigs: { 'openai-responses': { baseUrl: 'https://api.deepseek.com/v1' } }
+} as unknown as Provider
+const chatProvider = {
+  id: 'deepseek',
+  name: 'DeepSeek',
+  endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://api.deepseek.com/v1' } }
+} as unknown as Provider
+const geminiProvider = {
+  id: 'gemini',
+  name: 'Gemini',
+  endpointConfigs: { 'google-generate-content': { baseUrl: 'https://generativelanguage.googleapis.com' } }
+} as unknown as Provider
+/** Display name is literally "OpenAI" — the exact literal Codex reserves for remote-compaction mode. */
+const openaiNamedProvider = {
+  id: 'openai-official',
+  name: 'OpenAI',
+  endpointConfigs: { 'openai-responses': { baseUrl: 'https://api.openai.com/v1' } }
+} as unknown as Provider
+
+beforeEach(() => {
+  Object.defineProperty(window, 'api', {
+    configurable: true,
+    value: {
+      resolvePath: vi.fn(async (p: string) => `/resolved${p}`),
+      file: { readExternal: vi.fn(async () => ''), write: vi.fn(async () => {}) }
+    }
+  })
+})
+
+/** Build a managed draft via readCliConfigDraft (same builders the write path uses). */
+async function buildDraft(
+  cliTool: CodeCli,
+  provider: Provider,
+  model: string,
+  configBlob: Record<string, unknown> = {}
+): Promise<CliConfigFileDraft[]> {
+  mockGet({
+    [`/providers/${provider.id}/api-keys`]: () => ({ keys: [enabledKey] }),
+    [`/providers/${provider.id}`]: () => provider,
+    '/models/': () => null
+  })
+  return readCliConfigDraft({ cliTool, modelId: `${provider.id}::${model}`, configBlob })
+}
+
+describe('extractConnectionFromCliConfigDraft', () => {
+  // Round-trip: what readCliConfigDraft writes, the parser must read back. This
+  // pins the write path and the read-back path to the same on-disk shape.
+  const cases: Array<[string, CodeCli, Provider, string, string]> = [
+    ['claude', CodeCli.CLAUDE_CODE, anthropicProvider, 'claude-sonnet-4-5', 'https://api.anthropic.com'],
+    ['codex', CodeCli.OPENAI_CODEX, responsesProvider, 'gpt-5', 'https://api.deepseek.com/v1'],
+    ['opencode', CodeCli.OPEN_CODE, chatProvider, 'deepseek-chat', 'https://api.deepseek.com/v1'],
+    ['gemini', CodeCli.GEMINI_CLI, geminiProvider, 'gemini-2.5-pro', 'https://generativelanguage.googleapis.com'],
+    ['qwen', CodeCli.QWEN_CODE, chatProvider, 'qwen3-max', 'https://api.deepseek.com/v1'],
+    ['kimi', CodeCli.KIMI_CODE, chatProvider, 'kimi-k2', 'https://api.deepseek.com/v1']
+  ]
+
+  it.each(cases)('round-trips baseUrl/apiKey/model for %s', async (_name, cliTool, provider, model, baseUrl) => {
+    const files = await buildDraft(cliTool, provider, model)
+    expect(extractConnectionFromCliConfigDraft(cliTool, files)).toEqual({ baseUrl, apiKey: 'sk-secret', model })
+  })
+
+  it('returns null for an unknown tool', () => {
+    expect(extractConnectionFromCliConfigDraft('nope', [])).toBeNull()
+  })
+
+  it('returns null when a draft file is malformed', () => {
+    const badClaude: CliConfigFileDraft = {
+      target: 'claude-settings' as CliConfigTarget,
+      label: '',
+      path: '',
+      language: 'json',
+      content: '{ this is not json'
+    }
+    expect(extractConnectionFromCliConfigDraft(CodeCli.CLAUDE_CODE, [badClaude])).toBeNull()
+  })
+
+  // S4: an existing-but-empty config file parses to an all-`undefined` connection object, which
+  // is truthy — callers doing `if (!connection)` must not misread that as a real foreign connection.
+  const emptyFileCases: Array<[string, CodeCli, CliConfigFileDraft[]]> = [
+    [
+      'claude',
+      CodeCli.CLAUDE_CODE,
+      [{ target: 'claude-settings', label: '', path: '', language: 'json', content: '{}' }]
+    ],
+    [
+      'codex',
+      CodeCli.OPENAI_CODEX,
+      [
+        { target: 'codex-config', label: '', path: '', language: 'toml', content: '' },
+        { target: 'codex-auth', label: '', path: '', language: 'json', content: '{}' }
+      ]
+    ],
+    [
+      'opencode',
+      CodeCli.OPEN_CODE,
+      [{ target: 'opencode-config', label: '', path: '', language: 'json', content: '{}' }]
+    ],
+    [
+      'gemini',
+      CodeCli.GEMINI_CLI,
+      [
+        { target: 'gemini-env', label: '', path: '', language: 'dotenv', content: '' },
+        { target: 'gemini-settings', label: '', path: '', language: 'json', content: '{}' }
+      ]
+    ],
+    ['qwen', CodeCli.QWEN_CODE, [{ target: 'qwen-settings', label: '', path: '', language: 'json', content: '{}' }]],
+    ['kimi', CodeCli.KIMI_CODE, [{ target: 'kimi-config', label: '', path: '', language: 'toml', content: '' }]]
+  ]
+
+  it.each(emptyFileCases)('returns null for an existing-but-empty %s config', (_name, cliTool, files) => {
+    expect(extractConnectionFromCliConfigDraft(cliTool, files)).toBeNull()
+  })
+
+  // The opencode models map key is the addressing id; `name` is only the display label
+  // (gateway mode writes a human-readable one there). Extraction must return the key, or
+  // gateway connection-matching would compare the display name against the addressing id.
+  it('opencode: extracts the model addressing key, not the display name', () => {
+    const files: CliConfigFileDraft[] = [
+      {
+        target: 'opencode-config' as CliConfigTarget,
+        label: '',
+        path: '',
+        language: 'json',
+        content: JSON.stringify({
+          provider: {
+            'cherry-gateway': {
+              npm: '@ai-sdk/anthropic',
+              options: { apiKey: 'cs-sk', baseURL: 'http://127.0.0.1:23333/v1' },
+              models: { 'deepseek:deepseek-chat': { name: 'DeepSeek Chat' } }
+            }
+          }
+        })
+      }
+    ]
+    expect(extractConnectionFromCliConfigDraft(CodeCli.OPEN_CODE, files)).toEqual({
+      baseUrl: 'http://127.0.0.1:23333/v1',
+      apiKey: 'cs-sk',
+      model: 'deepseek:deepseek-chat'
+    })
+  })
+})
+
+describe('extractConfigFromCliConfigDraft', () => {
+  it('round-trips only supported codex managed settings from the config blob', async () => {
+    const blob = {
+      goalMode: true,
+      disableResponseStorage: true,
+      permissionMode: 'fullAccess',
+      reasoningEffort: 'high'
+    }
+    const files = await buildDraft(CodeCli.OPENAI_CODEX, responsesProvider, 'gpt-5', blob)
+    expect(extractConfigFromCliConfigDraft(CodeCli.OPENAI_CODEX, files)).toEqual({
+      goalMode: true,
+      disableResponseStorage: true,
+      permissionMode: 'fullAccess',
+      reasoningEffort: 'high'
+    })
+  })
+
+  // Regression: a provider literally named "OpenAI" must not collide with the
+  // "OpenAI" literal Codex reserves for remote-compaction mode.
+  it('round-trips remoteCompaction for a provider literally named "OpenAI"', async () => {
+    const filesOff = await buildDraft(CodeCli.OPENAI_CODEX, openaiNamedProvider, 'gpt-5', {})
+    expect(extractConfigFromCliConfigDraft(CodeCli.OPENAI_CODEX, filesOff)).toEqual({})
+
+    const filesOn = await buildDraft(CodeCli.OPENAI_CODEX, openaiNamedProvider, 'gpt-5', { remoteCompaction: true })
+    expect(extractConfigFromCliConfigDraft(CodeCli.OPENAI_CODEX, filesOn)).toEqual({ remoteCompaction: true })
+  })
+
+  it('round-trips supported Claude managed settings from the config blob', async () => {
+    const blob = {
+      effortLevel: 'xhigh',
+      permissions: { defaultMode: 'auto', allow: ['Bash(ls)'] }
+    }
+    const files = await buildDraft(CodeCli.CLAUDE_CODE, anthropicProvider, 'claude-sonnet-4-5', blob)
+    expect(extractConfigFromCliConfigDraft(CodeCli.CLAUDE_CODE, files)).toEqual({
+      effortLevel: 'xhigh',
+      permissions: { defaultMode: 'auto' }
+    })
+  })
+
+  it('round-trips gemini managed settings from the config blob', async () => {
+    const blob = { general: { vimMode: true, defaultApprovalMode: 'plan' }, ui: { hideBanner: true } }
+    const files = await buildDraft(CodeCli.GEMINI_CLI, geminiProvider, 'gemini-2.5-pro', blob)
+    expect(extractConfigFromCliConfigDraft(CodeCli.GEMINI_CLI, files)).toEqual(blob)
+  })
+
+  // OpenCode's extractConfig is bespoke (re-derives autoCompact/permissionMode from the nested
+  // provider/model shape) rather than delegating to a sanitize* helper — pin its round-trip.
+  it('round-trips opencode managed settings from the config blob', async () => {
+    const blob = { autoCompact: true, permissionMode: 'ask' }
+    const files = await buildDraft(CodeCli.OPEN_CODE, chatProvider, 'deepseek-chat', blob)
+    expect(extractConfigFromCliConfigDraft(CodeCli.OPEN_CODE, files)).toEqual(blob)
+  })
+
+  it('round-trips qwen managed settings from the config blob', async () => {
+    const blob = { tools: { approvalMode: 'plan' }, permissions: { autoMode: { classifyAllShell: true } } }
+    const files = await buildDraft(CodeCli.QWEN_CODE, chatProvider, 'qwen3-max', blob)
+    expect(extractConfigFromCliConfigDraft(CodeCli.QWEN_CODE, files)).toEqual(blob)
+  })
+
+  it('round-trips kimi managed settings from the config blob', async () => {
+    const blob = { default_permission_mode: 'auto' }
+    const files = await buildDraft(CodeCli.KIMI_CODE, chatProvider, 'kimi-k2', blob)
+    expect(extractConfigFromCliConfigDraft(CodeCli.KIMI_CODE, files)).toEqual(blob)
+  })
+
+  it('returns null when a draft file is malformed', () => {
+    const badKimi: CliConfigFileDraft = {
+      target: 'kimi-config' as CliConfigTarget,
+      label: '',
+      path: '',
+      language: 'toml',
+      content: '= = ='
+    }
+    expect(extractConfigFromCliConfigDraft(CodeCli.KIMI_CODE, [badKimi])).toBeNull()
+  })
+})

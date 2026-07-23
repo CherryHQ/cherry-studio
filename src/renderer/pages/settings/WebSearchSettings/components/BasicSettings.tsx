@@ -9,18 +9,24 @@ import {
   SelectValue,
   Tooltip
 } from '@cherrystudio/ui'
-import { ResetIcon } from '@renderer/components/Icons'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import ResetIcon from '@renderer/components/icons/ResetIcon'
+import {
+  SettingDivider,
+  SettingGroup,
+  SettingRow,
+  SettingRowTitle,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
+import { useTheme } from '@renderer/hooks/useTheme'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
 import type { WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '../..'
 import { useWebSearchPersist } from '../hooks/useWebSearchPersist'
 import { useWebSearchProviderLists } from '../hooks/useWebSearchProviderLists'
-import CompressionSettings from './CompressionSettings'
+import { CompressionSettings } from './CompressionSettings'
 import { WebSearchProviderOption } from './WebSearchProviderOption'
 
 const settingRowClassName = 'items-center justify-between gap-6 py-1'
@@ -148,7 +154,7 @@ const BasicSettings: FC = () => {
             {maxResults > 20 && compressionConfig?.method === 'none' && (
               <InfoTooltip
                 content={t('settings.tool.websearch.search_max_result.tooltip')}
-                iconProps={{ size: 16, color: 'var(--color-icon)', className: 'ml-1 cursor-pointer' }}
+                iconProps={{ size: 16, color: 'var(--color-foreground-secondary)', className: 'ml-1 cursor-pointer' }}
               />
             )}
           </SettingRowTitle>
@@ -159,7 +165,7 @@ const BasicSettings: FC = () => {
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  className="text-icon hover:text-foreground"
+                  className="text-foreground-secondary hover:text-foreground"
                   aria-label={t('common.reset')}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={resetMaxResults}>

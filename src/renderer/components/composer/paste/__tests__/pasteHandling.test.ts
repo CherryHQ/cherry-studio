@@ -1,14 +1,15 @@
-import { LONG_TEXT_PASTE_THRESHOLD } from '@renderer/config/constant'
 import { COMPOSER_FILE_KIND, FILE_TYPE, type FileMetadata } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { LONG_TEXT_PASTE_THRESHOLD } from '../../composerPaste'
 import pasteHandling from '../pasteHandling'
 
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
-      error: vi.fn()
+      error: vi.fn(),
+      verbose: vi.fn()
     })
   }
 }))
@@ -33,6 +34,7 @@ describe('pasteHandling', () => {
         file: {
           createTempFile: vi.fn().mockResolvedValue('/tmp/pasted_text.txt'),
           get: vi.fn().mockResolvedValue(selectedFile),
+          getPathForFile: vi.fn().mockReturnValue(''),
           write: vi.fn()
         }
       }
@@ -101,5 +103,114 @@ describe('pasteHandling', () => {
     expect(handled).toBe(false)
     expect(preventDefault).not.toHaveBeenCalled()
     expect(setFiles).not.toHaveBeenCalled()
+  })
+
+  it('uses the clipboard image basename as the display name for a pasted screenshot', async () => {
+    const tempImageFile: FileMetadata = {
+      ...selectedFile,
+      name: 'temp_file_123_image.png',
+      origin_name: 'temp_file_123_image.png',
+      path: '/tmp/temp_file_123_image.png',
+      ext: '.png',
+      type: FILE_TYPE.IMAGE
+    }
+    const clipboardImage = {
+      name: 'image.png',
+      type: 'image/png',
+      arrayBuffer: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]).buffer)
+    } as unknown as File
+    vi.mocked(window.api.file.createTempFile).mockResolvedValue(tempImageFile.path)
+    vi.mocked(window.api.file.get).mockResolvedValue(tempImageFile)
+
+    let files: ComposerAttachment[] = []
+    const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
+      files = updater(files)
+    })
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: () => '',
+        files: [clipboardImage]
+      }
+    } as unknown as ClipboardEvent
+
+    const handled = await pasteHandling.handlePaste(event, ['.png'], setFiles)
+
+    expect(handled).toBe(true)
+    expect(window.api.file.createTempFile).toHaveBeenCalledWith('image.png')
+    expect(files).toHaveLength(1)
+    expect(files[0]).toMatchObject({
+      path: tempImageFile.path,
+      name: tempImageFile.name,
+      origin_name: 'image',
+      ext: '.png',
+      type: FILE_TYPE.IMAGE
+    })
+  })
+
+  describe('handler registration and lifecycle', () => {
+    it('registers a handler and allows manual unregistration', () => {
+      const handler = vi.fn().mockResolvedValue(true)
+
+      pasteHandling.init()
+
+      // register
+      pasteHandling.registerHandler('inputbar', handler)
+
+      // verify registration
+      const event = new Event('paste') as ClipboardEvent
+      document.dispatchEvent(event)
+      expect(handler).toHaveBeenCalled()
+
+      // unregister via unregisterHandler (matching reference)
+      pasteHandling.unregisterHandler('inputbar', handler)
+
+      // verify unregistration
+      handler.mockClear()
+      document.dispatchEvent(event)
+      expect(handler).not.toHaveBeenCalled()
+    })
+
+    it('does not unregister if a different handler was registered in the meantime', () => {
+      const handler1 = vi.fn().mockResolvedValue(true)
+      const handler2 = vi.fn().mockResolvedValue(true)
+
+      pasteHandling.init()
+
+      // register handler1, then handler2 on the same component key
+      const cleanup1 = pasteHandling.registerHandler('inputbar', handler1)
+      const cleanup2 = pasteHandling.registerHandler('inputbar', handler2)
+
+      // calling cleanup1 should NOT remove handler2 because references differ
+      cleanup1()
+
+      const event = new Event('paste') as ClipboardEvent
+      document.dispatchEvent(event)
+      expect(handler2).toHaveBeenCalled()
+      expect(handler1).not.toHaveBeenCalled()
+
+      // calling cleanup2 should successfully remove handler2
+      cleanup2()
+      handler2.mockClear()
+      document.dispatchEvent(event)
+      expect(handler2).not.toHaveBeenCalled()
+    })
+
+    it('prevents unregisterHandler from removing a newer handler if reference is supplied', () => {
+      const handler1 = vi.fn().mockResolvedValue(true)
+      const handler2 = vi.fn().mockResolvedValue(true)
+
+      pasteHandling.init()
+
+      pasteHandling.registerHandler('inputbar', handler1)
+      pasteHandling.registerHandler('inputbar', handler2)
+
+      // unregisterHandler with handler1 should be ignored since current handler is handler2
+      pasteHandling.unregisterHandler('inputbar', handler1)
+
+      const event = new Event('paste') as ClipboardEvent
+      document.dispatchEvent(event)
+      expect(handler2).toHaveBeenCalled()
+    })
   })
 })

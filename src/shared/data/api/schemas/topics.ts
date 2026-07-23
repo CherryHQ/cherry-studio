@@ -8,7 +8,7 @@
 import * as z from 'zod'
 
 import { type Topic, TopicNameSchema, TopicSchema } from '../../types/topic'
-import type { CursorPaginationResponse } from '../apiTypes'
+import type { CursorPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
 
 // ============================================================================
@@ -20,8 +20,7 @@ import type { OrderEndpoints } from './_endpointHelpers'
  */
 export const CreateTopicSchema = TopicSchema.pick({
   name: true,
-  assistantId: true,
-  groupId: true
+  assistantId: true
 }).partial()
 export type CreateTopicDto = z.infer<typeof CreateTopicSchema>
 
@@ -34,8 +33,7 @@ export type CreateTopicDto = z.infer<typeof CreateTopicSchema>
  */
 export const UpdateTopicSchema = TopicSchema.pick({
   name: true,
-  isNameManuallyEdited: true,
-  groupId: true
+  isNameManuallyEdited: true
 })
   .partial()
   .extend({
@@ -107,6 +105,11 @@ export interface DeleteTopicsResult {
   deletedCount: number
 }
 
+/** Response for `GET /topics/latest` — the globally most-recently-updated topic, or `null` when empty. */
+export interface LatestTopicResponse {
+  topic: Topic | null
+}
+
 const DeleteTopicsIdsQueryValueSchema = z
   .string()
   .transform((value) =>
@@ -130,8 +133,8 @@ export type DeleteTopicsQuery = z.input<typeof DeleteTopicsQuerySchema>
  * Topic API Schema definitions.
  *
  * Reorder endpoints (`/topics/:id/order`, `/topics/order:batch`) are injected
- * via `& OrderEndpoints<'/topics'>`. The reorder is scoped by `groupId`
- * server-side; callers do not include the scope in the request body.
+ * via `& OrderEndpoints<'/topics'>`. Topic order is global across assistants;
+ * callers only provide the relative anchor.
  */
 export type TopicSchemas = {
   /**
@@ -147,9 +150,9 @@ export type TopicSchemas = {
      *
      * The list is a server-composed view: pinned topics first (joining the
      * `pin` table on `entityType = 'topic'` ordered by `pin.orderKey`), then
-     * unpinned topics ordered by `updatedAt DESC, id ASC` (recency + id
-     * tiebreak). The cursor encodes the section + last boundary so paging
-     * across the boundary is seamless.
+     * unpinned topics ordered by `topic.orderKey ASC, id ASC` (manual/creation
+     * order + id tiebreak). The cursor encodes the section + last boundary so
+     * paging across the boundary is seamless.
      */
     GET: {
       query?: ListTopicsQuery
@@ -170,6 +173,22 @@ export type TopicSchemas = {
     DELETE: {
       query: DeleteTopicsQuery
       response: DeleteTopicsResult
+    }
+  }
+
+  /**
+   * Most-recently-updated topic across all assistants.
+   *
+   * First-entry restore reads this to resume the last-touched conversation.
+   * Declared before `/topics/:id` and matched exactly by the server router, so
+   * `latest` is never mistaken for a topic id. Proves global latest via
+   * `updatedAt DESC LIMIT 1`, unlike the pinned-first `/topics` first page.
+   *
+   * @example GET /topics/latest
+   */
+  '/topics/latest': {
+    GET: {
+      response: LatestTopicResponse
     }
   }
 
@@ -232,7 +251,8 @@ export type TopicSchemas = {
    * Delete all topics currently linked to an assistant.
    *
    * This is an explicit scoped collection delete. It does not change
-   * `DELETE /assistants/:id`, which only deletes the assistant itself.
+   * the default `DELETE /assistants/:id` behavior, which only deletes the
+   * assistant itself unless the caller opts into `deleteTopics=true`.
    */
   '/assistants/:assistantId/topics': {
     DELETE: {

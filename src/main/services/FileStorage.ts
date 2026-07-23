@@ -1,22 +1,26 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
-import { checkName, getFileType as getFileTypeByExt, getName, readTextFileWithAutoEncoding } from '@main/utils/file'
-import { t } from '@main/utils/language'
-import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
+import { t } from '@main/i18n'
+import { decodeTextBufferIfText } from '@main/utils/file'
+import {
+  checkName,
+  getFileType as getFileTypeByExt,
+  getName,
+  readTextFileWithAutoEncoding
+} from '@main/utils/legacyFile'
+import type { FileMetadata } from '@shared/data/types/legacyFile'
 import type { FileType } from '@shared/types/file'
 import { FILE_TYPE } from '@shared/types/file'
 import { KB, MB } from '@shared/utils/constants'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { documentExts, imageExts } from '@shared/utils/file'
-import chardet from 'chardet'
 import * as crypto from 'crypto'
 import type { OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'electron'
 import { dialog, net, shell } from 'electron'
 import * as fs from 'fs'
 import { writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'
-import { isBinaryFile } from 'isbinaryfile'
 import officeParser from 'officeparser'
 import * as path from 'path'
 import { PDFDocument } from 'pdf-lib'
@@ -30,13 +34,17 @@ function resolveHomeRelativeFilePath(filePath: string): string {
   return path.join(application.getPath('sys.home'), filePath.slice(2))
 }
 
+function normalizeTrashPath(filePath: string): string {
+  return process.platform === 'win32' ? path.win32.normalize(filePath) : path.posix.normalize(filePath)
+}
+
 class FileStorage {
   // TODO(v2): Lazy getter is a workaround, not a fix.
   //
   // The real problem is that `FileStorage` is exported as a top-level
   // singleton at the bottom of this file
   // (`export const fileStorage = new FileStorage()`). That singleton is
-  // instantiated during the static import graph of `src/main/index.ts`
+  // instantiated during the static import graph of `src/main/main.ts`
   // (via both `ipc.ts` and the `ApiGatewayService → ApiGateway → routes
   // → KnowledgeService` chain), BEFORE `application.bootstrap()` runs
   // and builds the path registry. The previous shape used field
@@ -264,12 +272,15 @@ class FileStorage {
 
   public deleteExternalFile = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<void> => {
     try {
-      if (!fs.existsSync(filePath)) {
+      if (!filePath) return
+
+      const nativePath = normalizeTrashPath(filePath)
+      if (!fs.existsSync(nativePath)) {
         return
       }
 
-      await shell.trashItem(filePath)
-      logger.debug(`External file moved to trash successfully: ${filePath}`)
+      await shell.trashItem(nativePath)
+      logger.debug(`External file moved to trash successfully: ${nativePath}`)
     } catch (error) {
       logger.error('Failed to delete external file:', error as Error)
       throw error
@@ -278,12 +289,15 @@ class FileStorage {
 
   public deleteExternalDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<void> => {
     try {
-      if (!fs.existsSync(dirPath)) {
+      if (!dirPath) return
+
+      const nativePath = normalizeTrashPath(dirPath)
+      if (!fs.existsSync(nativePath)) {
         return
       }
 
-      await shell.trashItem(dirPath)
-      logger.debug(`External directory moved to trash successfully: ${dirPath}`)
+      await shell.trashItem(nativePath)
+      logger.debug(`External directory moved to trash successfully: ${nativePath}`)
     } catch (error) {
       logger.error('Failed to delete external directory:', error as Error)
       throw error
@@ -1012,11 +1026,6 @@ class FileStorage {
 
   private _isTextFile = async (filePath: string): Promise<boolean> => {
     try {
-      const isBinary = await isBinaryFile(filePath)
-      if (isBinary) {
-        return false
-      }
-
       const length = 8 * KB
       const fileHandle = await fs.promises.open(filePath, 'r')
       const buffer = Buffer.alloc(length)
@@ -1024,14 +1033,7 @@ class FileStorage {
       await fileHandle.close()
 
       const sampleBuffer = buffer.subarray(0, bytesRead)
-      const matches = chardet.analyse(sampleBuffer)
-
-      // 如果检测到的编码置信度较高，认为是文本文件
-      if (matches.length > 0 && matches[0].confidence > 0.8) {
-        return true
-      }
-
-      return false
+      return decodeTextBufferIfText(sampleBuffer) !== null
     } catch (error) {
       logger.error('Failed to check if file is text:', error as Error)
       return false

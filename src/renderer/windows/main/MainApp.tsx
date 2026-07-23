@@ -1,49 +1,100 @@
-import { preferenceService } from '@data/PreferenceService'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { AppShell } from '@renderer/components/layout/AppShell'
-import TopViewContainer from '@renderer/components/TopView'
-import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
-import StyleSheetManager from '@renderer/context/StyleSheetManager'
-import { TabsProvider } from '@renderer/context/TabsContext'
-import { ThemeProvider } from '@renderer/context/ThemeProvider'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { TabsProvider } from '@renderer/components/layout/TabsProvider'
+import { PopupHost } from '@renderer/components/PopupHost'
+import { ThemeProvider } from '@renderer/components/ThemeProvider'
+import ToastHost from '@renderer/components/ToastHost'
+import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
+import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
+import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
+import { useEffect } from 'react'
+
+import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
+import { useTopicNamingErrorNotification } from './hooks/useTopicNamingErrorNotification'
+import OnboardingPage from './onboarding/OnboardingPage'
 
 const logger = loggerService.withContext('MainApp')
 
-void preferenceService.preloadAll()
+// Behavior leaf inside the providers: the shared window runtime plus the main-only
+// concerns, then the popup/toast hosts. It sits inside the providers but outside every
+// TabRouter/<Activity>, so these window-scoped subscriptions and DOM sync are never
+// torn down when a background tab hides.
+//
+// useAppUpdateHandler / useStorageMonitorNotification / useTopicNamingErrorNotification are
+// intentionally main-only (update events only reach the main window; the storage warning and
+// topic-naming-failed toast must not duplicate across windows) and intentionally React hooks:
+// they depend on React-visible
+// cache/toast state and manage their own effect cleanup, and the renderer has no
+// service lifecycle container, so a service would only add manual start/stop.
+//
+// Headless: it runs hooks and renders nothing. The popup/toast hosts are explicit
+// siblings in the App JSX below, so a window's host composition is visible there.
+function MainWindowRuntime(): null {
+  useWindowRuntime()
 
-// 创建 React Query 客户端
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      refetchOnWindowFocus: false
-    }
+  // Main-only: tear down the HTML boot spinner and end the `init` timer. Both are
+  // paired with markup only main/index.html creates (`#spinner`, `console.time`), so
+  // this must never run in another window.
+  useEffect(() => {
+    document.getElementById('spinner')?.remove()
+    // Paired with `console.time('init')` in index.html's bootstrap script; a DevTools
+    // timer for dev DX, not a production log — loggerService is not apt.
+    // eslint-disable-next-line no-restricted-syntax
+    console.timeEnd('init')
+  }, [])
+
+  useAppUpdateHandler()
+  useStorageMonitorNotification()
+  useTopicNamingErrorNotification()
+
+  return null
+}
+
+export function MainWindowContent(): React.ReactElement {
+  const [providerSetupStatus, setProviderSetupStatus] = usePreference('app.onboarding.provider_setup.status')
+
+  if (providerSetupStatus === 'pending') {
+    return (
+      <>
+        <OnboardingPage onComplete={setProviderSetupStatus} />
+        <MainWindowRuntime />
+        <PopupHost />
+        <ToastHost />
+      </>
+    )
   }
-})
+
+  return (
+    <TabsProvider>
+      <AppShell />
+      <MainWindowRuntime />
+      <PopupHost />
+      <ToastHost />
+    </TabsProvider>
+  )
+}
 
 function MainApp(): React.ReactElement {
   logger.info('MainApp initialized')
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <StyleSheetManager>
-        <ThemeProvider>
-          <CodeStyleProvider>
-            <CommandContextKeyProvider>
-              <CommandProvider>
-                <TabsProvider>
-                  <TopViewContainer>
-                    <AppShell />
-                  </TopViewContainer>
-                </TabsProvider>
-              </CommandProvider>
-            </CommandContextKeyProvider>
-          </CodeStyleProvider>
-        </ThemeProvider>
-      </StyleSheetManager>
-    </QueryClientProvider>
+    // The boundary must stay the ANCESTOR of every provider so a provider throwing
+    // during render (e.g. reading preferences) falls back instead of white-screening.
+    <ErrorBoundary fallbackComponent={WindowFatalFallback}>
+      <ThemeProvider>
+        <CodeStyleProvider>
+          <CommandContextKeyProvider>
+            <CommandProvider>
+              <MainWindowContent />
+            </CommandProvider>
+          </CommandContextKeyProvider>
+        </CodeStyleProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   )
 }
 

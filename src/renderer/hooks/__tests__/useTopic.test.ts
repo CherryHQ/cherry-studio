@@ -1,10 +1,17 @@
 import { dataApiService } from '@data/DataApiService'
+import type { Topic } from '@renderer/types/topic'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
-import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+import { MockUseDataApiUtils, mockUseInvalidateCache, mockUseWriteCache } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
-import { useTopicMutations } from '../useTopic'
+import { useActiveTopic, useLatestTopic, useTopicMutations } from '../useTopic'
+
+const mockCloseConversationTabs = vi.hoisted(() => vi.fn())
+
+vi.mock('@renderer/hooks/tab', () => ({
+  useCloseConversationTabs: () => mockCloseConversationTabs
+}))
 
 vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: { CHANGE_TOPIC: 'change-topic' },
@@ -18,6 +25,17 @@ describe('useTopicMutations', () => {
     vi.clearAllMocks()
   })
 
+  it('deletes a topic and closes the matching assistant conversation tab', async () => {
+    const deleteTrigger = vi.fn().mockResolvedValue(undefined)
+    MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/topics/:id', deleteTrigger)
+
+    const { result } = renderHook(() => useTopicMutations())
+    await act(async () => result.current.deleteTopic('topic-a'))
+
+    expect(deleteTrigger).toHaveBeenCalledWith({ params: { id: 'topic-a' } })
+    expect(mockCloseConversationTabs).toHaveBeenCalledWith('assistants', ['topic-a'])
+  })
+
   it('deletes selected topics through comma-separated query ids', async () => {
     const response = { deletedIds: ['topic-a', 'topic-b'], deletedCount: 2 }
     const deleteTrigger = vi.fn().mockResolvedValue(response)
@@ -27,6 +45,20 @@ describe('useTopicMutations', () => {
     const deleted = await act(async () => result.current.deleteTopics(['topic-a', 'topic-b']))
 
     expect(deleteTrigger).toHaveBeenCalledWith({ query: { ids: 'topic-a,topic-b' } })
+    expect(mockCloseConversationTabs).toHaveBeenCalledWith('assistants', response.deletedIds)
+    expect(deleted).toBe(response)
+  })
+
+  it('deletes assistant topics and closes the deleted assistant conversation tabs', async () => {
+    const response = { deletedIds: ['topic-a', 'topic-b'], deletedCount: 2 }
+    const deleteTrigger = vi.fn().mockResolvedValue(response)
+    MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/assistants/:assistantId/topics', deleteTrigger)
+
+    const { result } = renderHook(() => useTopicMutations())
+    const deleted = await act(async () => result.current.deleteTopicsByAssistantId('assistant-a'))
+
+    expect(deleteTrigger).toHaveBeenCalledWith({ params: { assistantId: 'assistant-a' } })
+    expect(mockCloseConversationTabs).toHaveBeenCalledWith('assistants', response.deletedIds)
     expect(deleted).toBe(response)
   })
 
@@ -60,5 +92,133 @@ describe('useTopicMutations', () => {
     })
     expect(settled[0]?.status).toBe('fulfilled')
     expect(settled[1]).toEqual({ status: 'rejected', reason: failed })
+  })
+
+  it('re-homes a dragged topic into `/topics/:id` before ordering, then revalidates once', async () => {
+    const movedTopic = { id: 'topic-a', assistantId: 'assistant-2' }
+    const patch = vi
+      .mocked(dataApiService.patch)
+      .mockResolvedValueOnce(movedTopic as never)
+      .mockResolvedValueOnce(undefined as never)
+
+    const { result } = renderHook(() => useTopicMutations())
+    const writeCacheSpy = mockUseWriteCache.mock.results[0].value as Mock
+    const invalidateSpy = mockUseInvalidateCache.mock.results[0].value as Mock
+
+    await act(async () =>
+      result.current.moveTopic('topic-a', { assistantId: 'assistant-2', anchor: { after: 'topic-d' } })
+    )
+
+    expect(patch).toHaveBeenNthCalledWith(1, '/topics/topic-a', { body: { assistantId: 'assistant-2' } })
+    expect(patch).toHaveBeenNthCalledWith(2, '/topics/topic-a/order', { body: { after: 'topic-d' } })
+    // The PATCH response lands in `/topics/:id` before the order write, so an open conversation
+    // on the moved topic re-resolves its assistant immediately instead of waiting out the order
+    // PATCH bound to the old one.
+    expect(writeCacheSpy).toHaveBeenCalledWith('/topics/topic-a', movedTopic)
+    expect(writeCacheSpy.mock.invocationCallOrder[0]).toBeLessThan(patch.mock.invocationCallOrder[1])
+    // A single combined revalidation after both writes — not mid-flight, which would flash the
+    // optimistic reorder overlay back to the old position.
+    expect(invalidateSpy).toHaveBeenCalledTimes(1)
+    expect(invalidateSpy).toHaveBeenCalledWith(['/topics', '/topics/topic-a'])
+    expect(invalidateSpy.mock.invocationCallOrder[0]).toBeGreaterThan(patch.mock.invocationCallOrder[1])
+  })
+
+  it('reorders without an assistant change using only the order write and a list refresh', async () => {
+    const patch = vi.mocked(dataApiService.patch).mockResolvedValueOnce(undefined as never)
+
+    const { result } = renderHook(() => useTopicMutations())
+    const writeCacheSpy = mockUseWriteCache.mock.results[0].value as Mock
+    const invalidateSpy = mockUseInvalidateCache.mock.results[0].value as Mock
+
+    await act(async () => result.current.moveTopic('topic-a', { anchor: { before: 'topic-b' } }))
+
+    expect(patch).toHaveBeenCalledTimes(1)
+    expect(patch).toHaveBeenCalledWith('/topics/topic-a/order', { body: { before: 'topic-b' } })
+    expect(writeCacheSpy).not.toHaveBeenCalled()
+    expect(invalidateSpy).toHaveBeenCalledWith('/topics')
+  })
+
+  it('reconciles caches and rethrows when ordering fails after the assistant change committed', async () => {
+    vi.mocked(dataApiService.patch)
+      .mockResolvedValueOnce({ id: 'topic-a', assistantId: 'assistant-2' } as never)
+      .mockRejectedValueOnce(new Error('order failed'))
+
+    const { result } = renderHook(() => useTopicMutations())
+    const invalidateSpy = mockUseInvalidateCache.mock.results[0].value as Mock
+
+    // `expect(act(...)).rejects` observes the rejection before moveTopic's catch block finishes,
+    // so catch the rethrow manually inside act and assert afterwards.
+    let caught: unknown
+    await act(async () => {
+      try {
+        await result.current.moveTopic('topic-a', { assistantId: 'assistant-2', anchor: { after: 'topic-d' } })
+      } catch (err) {
+        caught = err
+      }
+    })
+
+    // Rethrown so the caller can roll its optimistic UI back.
+    expect(caught).toEqual(new Error('order failed'))
+    // The assistant PATCH committed before the failure — server truth must be pulled back in.
+    expect(invalidateSpy).toHaveBeenCalledWith(['/topics', '/topics/topic-a'])
+  })
+})
+
+describe('useLatestTopic', () => {
+  beforeEach(() => {
+    MockUseDataApiUtils.resetMocks()
+    vi.clearAllMocks()
+  })
+
+  it('keeps first-entry restore gated while cached latest topic is revalidating', () => {
+    MockUseDataApiUtils.mockQueryResult('/topics/latest', {
+      data: { topic: { id: 'topic-a' } } as never,
+      isRefreshing: true
+    })
+
+    const { result } = renderHook(() => useLatestTopic())
+
+    expect(result.current.latestTopic?.id).toBe('topic-a')
+    expect(result.current.isLoading).toBe(true)
+  })
+})
+
+describe('useActiveTopic', () => {
+  beforeEach(() => {
+    MockUseDataApiUtils.resetMocks()
+    vi.clearAllMocks()
+  })
+
+  it('reports not-loading while idle, so first-entry restore is never gated on the topic list', () => {
+    // Core of the /latest fast path: with no active id yet the hook resolves the active
+    // topic by id (not by scanning the loadAll list), so it is not "loading" and the
+    // first-entry effect is free to resume the latest topic immediately.
+    const { result } = renderHook(() => useActiveTopic({ activeTopicId: null, setActiveTopicId: vi.fn() }))
+
+    expect(result.current.activeTopic).toBeUndefined()
+    expect(result.current.isLoading).toBe(false)
+  })
+
+  it('renders the pending topic immediately while the by-id query is still loading', () => {
+    MockUseDataApiUtils.mockQueryLoading('/topics/topic-a')
+    const topic = { id: 'topic-a', name: 'A' } as unknown as Topic
+
+    const { result } = renderHook(() =>
+      useActiveTopic({ initialTopic: topic, activeTopicId: 'topic-a', setActiveTopicId: vi.fn() })
+    )
+
+    expect(result.current.activeTopic?.id).toBe('topic-a')
+    expect(result.current.topicSource).toBe('pending')
+    expect(result.current.isLoading).toBe(false)
+  })
+
+  it('stays loading while a specific active id resolves with no pending fallback (route/tab restore)', () => {
+    // The by-id gate is what keeps first-entry from overriding an in-flight route topic.
+    MockUseDataApiUtils.mockQueryLoading('/topics/topic-a')
+
+    const { result } = renderHook(() => useActiveTopic({ activeTopicId: 'topic-a', setActiveTopicId: vi.fn() }))
+
+    expect(result.current.activeTopic).toBeUndefined()
+    expect(result.current.isLoading).toBe(true)
   })
 })

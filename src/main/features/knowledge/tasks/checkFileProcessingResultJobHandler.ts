@@ -5,13 +5,13 @@ import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { JobContext, JobHandler } from '@main/core/job/types'
 import { JOB_PROGRESS_KEY_PREFIX } from '@main/core/job/types'
-import { isTerminalStatus, type JobSnapshot } from '@shared/data/api/schemas/jobs'
-
 import {
+  type FileProcessingJobPayload,
   getFileProcessingFailureMessage,
   getFileProcessingMarkdownArtifactPath
-} from '../../fileProcessing/persistence/artifacts'
-import type { FileProcessingJobPayload } from '../../fileProcessing/tasks/shared'
+} from '@main/features/fileProcessing'
+import { isTerminalStatus, type JobSnapshot } from '@shared/data/api/schemas/jobs'
+
 import type { KnowledgeLockManager } from '../KnowledgeLockManager'
 import type { KnowledgeWorkflowService } from '../KnowledgeWorkflowService'
 import { knowledgeQueueName, toKnowledgeBaseId, toKnowledgeItemId } from '../types'
@@ -49,7 +49,7 @@ export function createCheckFileProcessingResultJobHandler(
       const workflowParentJobId = ctx.input.parentJobId ?? ctx.jobId
       ctx.signal.throwIfAborted()
 
-      if (await shouldSkipMissingOrDeletingItem(baseId, itemId, ctx.jobId)) {
+      if (shouldSkipMissingOrDeletingItem(baseId, itemId, ctx.jobId)) {
         await cancelJobOrThrow(fileProcessingJobId, FILE_PROCESSING_ITEM_UNAVAILABLE_CANCEL_REASON)
         return
       }
@@ -58,13 +58,13 @@ export function createCheckFileProcessingResultJobHandler(
       const snapshot = await jobManager.get(fileProcessingJobId)
 
       if (!snapshot) {
-        await markItemFailed(itemId, `File processing job not found: ${fileProcessingJobId}`)
+        markItemFailed(itemId, `File processing job not found: ${fileProcessingJobId}`)
         ctx.reportProgress(100, { stage: 'failed' })
         return
       }
 
       if (!isExpectedFileProcessingJob(snapshot, itemId)) {
-        await markItemFailed(itemId, `Invalid file processing job for knowledge item: ${fileProcessingJobId}`)
+        markItemFailed(itemId, `Invalid file processing job for knowledge item: ${fileProcessingJobId}`)
         ctx.reportProgress(100, { stage: 'failed' })
         return
       }
@@ -72,7 +72,7 @@ export function createCheckFileProcessingResultJobHandler(
       if (!isTerminalStatus(snapshot.status)) {
         if (Date.now() - firstScheduledAt >= FILE_PROCESSING_MAX_WAIT_MS) {
           await cancelJobOrThrow(fileProcessingJobId, 'knowledge-file-processing-timeout')
-          await markItemFailed(itemId, `File processing job ${fileProcessingJobId} did not finish within 30 minutes`)
+          markItemFailed(itemId, `File processing job ${fileProcessingJobId} did not finish within 30 minutes`)
           ctx.reportProgress(100, { stage: 'failed' })
           return
         }
@@ -93,7 +93,7 @@ export function createCheckFileProcessingResultJobHandler(
       }
 
       if (snapshot.status !== 'completed') {
-        await markItemFailed(
+        markItemFailed(
           itemId,
           `File processing job ${fileProcessingJobId} ${snapshot.status}: ${getFileProcessingFailureMessage(snapshot)}`
         )
@@ -103,17 +103,17 @@ export function createCheckFileProcessingResultJobHandler(
 
       const indexedRelativePath = parseMarkdownArtifactRelativePathOrNull(baseId, snapshot)
       if (!indexedRelativePath) {
-        await markItemFailed(itemId, `Invalid file processing result for job ${fileProcessingJobId}`)
+        markItemFailed(itemId, `Invalid file processing result for job ${fileProcessingJobId}`)
         ctx.reportProgress(100, { stage: 'failed' })
         return
       }
 
       const canContinue = await knowledgeLockManager.withBaseMutationLock(baseId, async () => {
-        if (await shouldSkipMissingOrDeletingItem(baseId, itemId, ctx.jobId)) {
+        if (shouldSkipMissingOrDeletingItem(baseId, itemId, ctx.jobId)) {
           return false
         }
 
-        await knowledgeItemService.updateIndexedRelativePath(itemId, indexedRelativePath)
+        knowledgeItemService.updateIndexedRelativePath(itemId, indexedRelativePath)
         await workflowService.scheduleIndexing(
           toKnowledgeBaseId(baseId),
           toKnowledgeItemId(itemId),
@@ -167,9 +167,9 @@ function isExpectedFileProcessingJob(snapshot: JobSnapshot, itemId: string): boo
   return input.feature === 'document_to_markdown' && input.context?.dataId === itemId && input.output?.kind === 'path'
 }
 
-async function shouldSkipMissingOrDeletingItem(baseId: string, itemId: string, jobId: string): Promise<boolean> {
+function shouldSkipMissingOrDeletingItem(baseId: string, itemId: string, jobId: string): boolean {
   try {
-    const item = await knowledgeItemService.getById(itemId)
+    const item = knowledgeItemService.getById(itemId)
     if (item.baseId !== baseId) {
       throw new Error(`Knowledge item '${itemId}' does not belong to base '${baseId}'`)
     }
@@ -187,14 +187,14 @@ async function shouldSkipMissingOrDeletingItem(baseId: string, itemId: string, j
   }
 }
 
-async function markItemFailed(itemId: string, error: string): Promise<void> {
+function markItemFailed(itemId: string, error: string): void {
   try {
-    const item = await knowledgeItemService.getById(itemId)
+    const item = knowledgeItemService.getById(itemId)
     if (item.status === 'deleting') {
       logger.info('Skipping mark failed for deleting item', { itemId, error })
       return
     }
-    await knowledgeItemService.updateStatus(itemId, 'failed', { error })
+    knowledgeItemService.updateStatus(itemId, 'failed', { error })
   } catch (updateError) {
     if (isDataApiNotFoundError(updateError)) {
       logger.info('Skipping mark failed for missing item', { itemId, error })

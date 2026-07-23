@@ -6,6 +6,7 @@ export interface PaintingProviderRuntime {
   id: string
   name: string
   presetProviderId?: string
+  defaultChatEndpoint?: Provider['defaultChatEndpoint']
   isEnabled: boolean
   apiHost: string
   getApiKey: () => Promise<string>
@@ -21,13 +22,16 @@ const OPENAI_COMPAT_IMAGE_PROVIDER_IDS = new Set(['new-api', 'cherryin', 'aionly
  * Defaults only when `endpointConfigs` cannot supply a base — painting-local, not shared with global provider presets.
  */
 const OPENAI_COMPAT_DEFAULT_BASE_URLS: Readonly<Record<string, string>> = {
-  cherryin: 'https://open.cherryin.cc',
+  cherryin: 'https://open.cherryin.net',
   'new-api': 'http://localhost:3000',
   aionly: 'https://api.aiionly.com'
 }
 
 export function isPaintingNewApiProvider(provider: Pick<Provider, 'id' | 'presetProviderId'>) {
-  return OPENAI_COMPAT_IMAGE_PROVIDER_IDS.has(provider.id) || provider.presetProviderId === 'new-api'
+  return (
+    OPENAI_COMPAT_IMAGE_PROVIDER_IDS.has(provider.id) ||
+    (provider.presetProviderId != null && OPENAI_COMPAT_IMAGE_PROVIDER_IDS.has(provider.presetProviderId))
+  )
 }
 
 function baseUrlFromEndpointConfigs(provider: Provider): string {
@@ -96,6 +100,7 @@ export function createPaintingProviderRuntime(
     id: provider?.id || providerId,
     name: provider?.name || providerId,
     presetProviderId: provider?.presetProviderId,
+    defaultChatEndpoint: provider?.defaultChatEndpoint,
     isEnabled: provider?.isEnabled ?? false,
     apiHost: resolvePaintingApiHost(provider),
     getApiKey: async () => apiKey

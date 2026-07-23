@@ -1,11 +1,10 @@
 import { TopicType } from '@renderer/types/topic'
-import { captureScrollable, captureScrollableAsDataURL } from '@renderer/utils/image'
+import { captureScrollable, captureScrollableAsDataUrl } from '@renderer/utils/image'
 import { act, render, screen } from '@testing-library/react'
 import type { HTMLAttributes, ReactNode, Ref } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ChatBottomOverlayInsetProvider } from '../../layout/ChatViewportInsetContext'
-import { ImmersiveNarrowReportProvider, ImmersiveNavbarStateProvider } from '../../layout/ImmersiveNavbarContext'
 import type { MessageVirtualListHandle } from '../list/MessageVirtualList'
 import MessageList from '../MessageList'
 import { MessageListProvider } from '../MessageListProvider'
@@ -18,23 +17,26 @@ import {
 } from '../types'
 
 const scrollToBottom = vi.fn()
+const scrollToTop = vi.fn()
 const scrollToKey = vi.fn()
+const scrollToElement = vi.fn()
 const messageVirtualListMocks = vi.hoisted(() => ({
   deferScrollContainerReady: false,
   renderItemLimit: undefined as number | undefined,
   readyCallbacks: [] as ((element: HTMLDivElement) => void)[],
   scrollElement: null as HTMLDivElement | null
 }))
+const messageGroupRenderCounts = vi.hoisted(() => new Map<string, number>())
 
 vi.mock('@renderer/components/chat/layout/ChatLayoutModeContext', () => ({
   useChatLayoutMode: () => ({ setForceWideLayout: vi.fn() })
 }))
 
-vi.mock('@renderer/components/Icons', () => ({
-  LoadingIcon: () => <div data-testid="loading-icon" />
+vi.mock('@renderer/components/icons/LoadingIcon', () => ({
+  default: () => <div data-testid="loading-icon" />
 }))
 
-vi.mock('@renderer/components/Popups/MultiSelectionPopup', () => ({
+vi.mock('@renderer/components/chat/messages/MultiSelectActionPopup', () => ({
   __esModule: true,
   default: () => null
 }))
@@ -52,7 +54,7 @@ vi.mock('@renderer/hooks/useTimer', () => ({
 
 vi.mock('@renderer/utils/image', () => ({
   captureScrollable: vi.fn(),
-  captureScrollableAsDataURL: vi.fn()
+  captureScrollableAsDataUrl: vi.fn()
 }))
 
 vi.mock('@renderer/utils/style', () => ({
@@ -110,23 +112,20 @@ vi.mock('../list/MessageAnchorLine', () => ({
   default: () => null
 }))
 
-vi.mock('../list/MessageGroup', async () => {
-  const { useMessageEnterMotionActive } = await import('../../motion/messageEnterMotion')
+vi.mock('../list/MessageGroup', () => {
+  const MockMessageGroup = ({
+    messages,
+    enteringMessageIds,
+    registerMessageElement
+  }: {
+    messages: MessageListItem[]
+    enteringMessageIds?: ReadonlySet<string>
+    registerMessageElement?: (id: string, element: HTMLElement | null) => void
+  }) => {
+    const groupId = messages.map((message) => message.id).join(',')
+    messageGroupRenderCounts.set(groupId, (messageGroupRenderCounts.get(groupId) ?? 0) + 1)
 
-  const MessageEnterProbe = ({ messageId }: { messageId: string }) => {
-    const active = useMessageEnterMotionActive(messageId)
-    return <span data-testid={`message-enter-${messageId}`}>{String(active)}</span>
-  }
-
-  return {
-    __esModule: true,
-    default: ({
-      messages,
-      registerMessageElement
-    }: {
-      messages: MessageListItem[]
-      registerMessageElement?: (id: string, element: HTMLElement | null) => void
-    }) => (
+    return (
       <div data-testid="message-group">
         {messages.map((message) => {
           const setRef = (element: HTMLDivElement | null) => {
@@ -139,13 +138,20 @@ vi.mock('../list/MessageGroup', async () => {
               ref={setRef}
               className="fold"
               data-testid={`message-node-${message.id}`}>
-              <MessageEnterProbe messageId={message.id} />
+              <span data-testid={`message-enter-${message.id}`}>
+                {String(enteringMessageIds?.has(message.id) ?? false)}
+              </span>
             </div>
           )
         })}
-        {messages.map((message) => message.id).join(',')}
+        {groupId}
       </div>
     )
+  }
+
+  return {
+    __esModule: true,
+    default: MockMessageGroup
   }
 })
 
@@ -168,6 +174,7 @@ vi.mock('../list/MessageVirtualList', async () => {
       forceScrollToBottomKey,
       handleRef,
       items,
+      keepMountedKeys,
       onScrollContainerReady,
       preserveScrollAnchor,
       renderItem,
@@ -179,7 +186,9 @@ vi.mock('../list/MessageVirtualList', async () => {
         handleRef as Ref<MessageVirtualListHandle>,
         () => ({
           scrollToBottom,
+          scrollToTop,
           scrollToKey,
+          scrollToElement,
           isAtBottom: () => false,
           getScrollElement: () => messageVirtualListMocks.scrollElement
         }),
@@ -201,6 +210,7 @@ vi.mock('../list/MessageVirtualList', async () => {
       return (
         <div
           data-force-scroll-key={forceScrollToBottomKey ?? ''}
+          data-keep-mounted-keys={(keepMountedKeys ?? []).join(',')}
           data-preserve-scroll-anchor={String(Boolean(preserveScrollAnchor))}
           data-scroll-to-bottom-button-bottom-offset={scrollToBottomButtonBottomOffset ?? ''}
           data-scroll-to-bottom-button-enabled={String(Boolean(showScrollToBottomButton))}
@@ -259,13 +269,63 @@ const renderMessageList = (messages: MessageListItem[]) =>
 describe('MessageList', () => {
   beforeEach(() => {
     scrollToBottom.mockClear()
+    scrollToTop.mockClear()
     scrollToKey.mockClear()
+    scrollToElement.mockClear()
     vi.mocked(captureScrollable).mockReset()
-    vi.mocked(captureScrollableAsDataURL).mockReset()
+    vi.mocked(captureScrollableAsDataUrl).mockReset()
     messageVirtualListMocks.deferScrollContainerReady = false
     messageVirtualListMocks.renderItemLimit = undefined
     messageVirtualListMocks.readyCallbacks = []
     messageVirtualListMocks.scrollElement = document.createElement('div')
+    messageGroupRenderCounts.clear()
+  })
+
+  it('keeps historical groups sealed while only the live tail changes', () => {
+    const topic = { id: 'topic-1', name: 'Topic' } as MessageListProviderValue['state']['topic']
+    const historyUser = createMessage('user-history', 'user')
+    const historyAssistant = createMessage('assistant-history', 'assistant')
+    const liveAssistant = createMessage('assistant-live', 'assistant', 'pending')
+    const historyParts = {
+      'user-history': [{ type: 'text', text: 'question' }],
+      'assistant-history': [{ type: 'text', text: 'sealed answer' }]
+    } as MessageListProviderValue['state']['partsByMessageId']
+    const streamingLayers = {
+      historyPartsByMessageId: historyParts,
+      liveMessageIds: ['assistant-live']
+    } as NonNullable<MessageListProviderValue['state']['streamingLayers']>
+    const actions: Partial<MessageListActions> = {}
+    const buildValue = (text: string) =>
+      createValue(
+        [historyUser, historyAssistant, { ...liveAssistant }],
+        {
+          topic,
+          streamingLayers,
+          partsByMessageId: {
+            ...historyParts,
+            'assistant-live': [{ type: 'text', text }]
+          } as MessageListProviderValue['state']['partsByMessageId']
+        },
+        actions
+      )
+
+    const view = render(
+      <MessageListProvider value={buildValue('a')}>
+        <MessageList />
+      </MessageListProvider>
+    )
+
+    for (const text of ['ab', 'abc', 'abcd', 'abcde']) {
+      view.rerender(
+        <MessageListProvider value={buildValue(text)}>
+          <MessageList />
+        </MessageListProvider>
+      )
+    }
+
+    expect(messageGroupRenderCounts.get('user-history')).toBe(1)
+    expect(messageGroupRenderCounts.get('assistant-history')).toBe(1)
+    expect(messageGroupRenderCounts.get('assistant-live')).toBe(5)
   })
 
   it('signals the virtual list to scroll after a user message is appended before an assistant placeholder', () => {
@@ -325,13 +385,34 @@ describe('MessageList', () => {
     renderMessageList([createMessage('user-1', 'user'), createMessage('assistant-1', 'assistant', 'pending')])
 
     expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-preserve-scroll-anchor', 'true')
+    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-keep-mounted-keys', 'assistantassistant-1')
     expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-scroll-to-bottom-button-enabled', 'true')
+  })
+
+  it('keeps an active success-row assistant group mounted while approval owns the turn', () => {
+    const assistant = createMessage('assistant-1', 'assistant', 'success')
+    render(
+      <MessageListProvider
+        value={createValue([createMessage('user-1', 'user'), assistant], {
+          getMessageActivityState: (message) => ({
+            isApprovalAnchor: message.id === assistant.id,
+            isProcessing: message.id === assistant.id,
+            isStreamTarget: message.id === assistant.id
+          })
+        })}>
+        <MessageList />
+      </MessageListProvider>
+    )
+
+    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-preserve-scroll-anchor', 'true')
+    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-keep-mounted-keys', 'assistantassistant-1')
   })
 
   it('keeps the scroll-to-bottom button enabled after assistant response completes', () => {
     renderMessageList([createMessage('user-1', 'user'), createMessage('assistant-1', 'assistant')])
 
     expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-preserve-scroll-anchor', 'false')
+    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-keep-mounted-keys', '')
     expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-scroll-to-bottom-button-enabled', 'true')
   })
 
@@ -347,48 +428,34 @@ describe('MessageList', () => {
     expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-scroll-to-bottom-button-bottom-offset', '128')
   })
 
-  it('uses the immersive navbar inset as the virtual-list top padding', () => {
+  it('keeps existing messages visible while history refresh is loading', () => {
     render(
-      <ImmersiveNavbarStateProvider value={{ floating: true, insetHeight: 44 }}>
-        <MessageListProvider value={createValue([createMessage('user-1', 'user')])}>
-          <MessageList />
-        </MessageListProvider>
-      </ImmersiveNavbarStateProvider>
+      <MessageListProvider
+        value={createValue([createMessage('user-1', 'user'), createMessage('assistant-1', 'assistant')], {
+          isInitialLoading: true
+        })}>
+        <MessageList />
+      </MessageListProvider>
     )
 
-    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-top-padding', '44')
+    expect(screen.queryByTestId('message-list-loading')).toBeNull()
+    expect(screen.getByTestId('virtual-list')).toHaveTextContent('user-1')
+    expect(screen.getByTestId('virtual-list')).toHaveTextContent('assistant-1')
   })
 
-  it('reports the narrow flag — including while initial loading (no probe-timing dependency)', () => {
-    const reportNarrow = vi.fn()
+  it('keeps the loading gate while stale cached messages are present', () => {
     render(
-      <ImmersiveNarrowReportProvider value={reportNarrow}>
-        <MessageListProvider
-          value={createValue([], {
-            isInitialLoading: true,
-            renderConfig: { ...defaultMessageRenderConfig, narrowMode: true }
-          })}>
-          <MessageList />
-        </MessageListProvider>
-      </ImmersiveNarrowReportProvider>
+      <MessageListProvider
+        value={createValue([createMessage('user-1', 'user'), createMessage('assistant-1', 'assistant')], {
+          isInitialLoading: true,
+          isMessagesStale: true
+        })}>
+        <MessageList />
+      </MessageListProvider>
     )
 
-    // Narrow is config-derived, so it is published even during loading — the subwindow regression
-    // was that the old probe-based report stayed silent until the probe mounted.
-    expect(reportNarrow).toHaveBeenLastCalledWith(true)
-  })
-
-  it('reports narrow=false when narrow mode is off', () => {
-    const reportNarrow = vi.fn()
-    render(
-      <ImmersiveNarrowReportProvider value={reportNarrow}>
-        <MessageListProvider value={createValue([createMessage('user-1', 'user')])}>
-          <MessageList />
-        </MessageListProvider>
-      </ImmersiveNarrowReportProvider>
-    )
-
-    expect(reportNarrow).toHaveBeenLastCalledWith(false)
+    expect(screen.getByTestId('message-list-loading')).toBeInTheDocument()
+    expect(screen.queryByTestId('virtual-list')).toBeNull()
   })
 
   it('marks newly appended user and assistant messages for enter motion', () => {
@@ -513,7 +580,7 @@ describe('MessageList', () => {
 
   it('exports topic image from a complete non-virtualized capture surface', async () => {
     messageVirtualListMocks.renderItemLimit = 1
-    const captureScrollableAsDataURLMock = vi.mocked(captureScrollableAsDataURL)
+    const captureScrollableAsDataUrlMock = vi.mocked(captureScrollableAsDataUrl)
     const saveImage = vi.fn().mockResolvedValue(true)
     let runtime: MessageListRuntime | undefined
     const actions: Partial<MessageListActions> = {
@@ -526,7 +593,7 @@ describe('MessageList', () => {
       saveImage
     }
 
-    captureScrollableAsDataURLMock.mockImplementation(async (ref) => {
+    captureScrollableAsDataUrlMock.mockImplementation(async (ref) => {
       const capturedText = ref.current?.textContent ?? ''
       expect(capturedText).toContain('user-1')
       expect(capturedText).toContain('assistant-1')
@@ -611,7 +678,7 @@ describe('MessageList', () => {
 
   it('exports a pending topic image after the loading list scroll container is ready', async () => {
     messageVirtualListMocks.renderItemLimit = 0
-    const captureScrollableAsDataURLMock = vi.mocked(captureScrollableAsDataURL)
+    const captureScrollableAsDataUrlMock = vi.mocked(captureScrollableAsDataUrl)
     const saveImage = vi.fn().mockResolvedValue(true)
     let runtime: MessageListRuntime | undefined
     let exportResolved = false
@@ -626,7 +693,7 @@ describe('MessageList', () => {
       saveImage
     }
 
-    captureScrollableAsDataURLMock.mockImplementation(async (ref) => {
+    captureScrollableAsDataUrlMock.mockImplementation(async (ref) => {
       const capturedText = ref.current?.textContent ?? ''
       expect(capturedText).toContain('user-1')
       expect(capturedText).toContain('assistant-1')
@@ -649,7 +716,7 @@ describe('MessageList', () => {
     })
 
     expect(exportResolved).toBe(false)
-    expect(captureScrollableAsDataURLMock).not.toHaveBeenCalled()
+    expect(captureScrollableAsDataUrlMock).not.toHaveBeenCalled()
     expect(saveImage).not.toHaveBeenCalled()
 
     act(() => {
@@ -674,8 +741,8 @@ describe('MessageList', () => {
   })
 
   it('rejects a pending topic image export when the loading list unmounts before it is ready', async () => {
-    const captureScrollableAsDataURLMock = vi.mocked(captureScrollableAsDataURL)
-    captureScrollableAsDataURLMock.mockClear()
+    const captureScrollableAsDataUrlMock = vi.mocked(captureScrollableAsDataUrl)
+    captureScrollableAsDataUrlMock.mockClear()
     const saveImage = vi.fn().mockResolvedValue(true)
     let runtime: MessageListRuntime | undefined
     const actions: Partial<MessageListActions> = {
@@ -688,7 +755,7 @@ describe('MessageList', () => {
       saveImage
     }
 
-    captureScrollableAsDataURLMock.mockImplementation(async (ref) =>
+    captureScrollableAsDataUrlMock.mockImplementation(async (ref) =>
       ref.current ? 'data:image/png;base64,topic' : undefined
     )
 
@@ -713,7 +780,7 @@ describe('MessageList', () => {
     )
 
     await vi.waitFor(() => {
-      expect(captureScrollableAsDataURLMock).not.toHaveBeenCalled()
+      expect(captureScrollableAsDataUrlMock).not.toHaveBeenCalled()
     })
     expect(saveImage).not.toHaveBeenCalled()
   })
@@ -721,7 +788,7 @@ describe('MessageList', () => {
   it('exports a pending topic image when the scroll container becomes ready after runtime binding', async () => {
     messageVirtualListMocks.deferScrollContainerReady = true
     messageVirtualListMocks.scrollElement = null
-    const captureScrollableAsDataURLMock = vi.mocked(captureScrollableAsDataURL)
+    const captureScrollableAsDataUrlMock = vi.mocked(captureScrollableAsDataUrl)
     const saveImage = vi.fn().mockResolvedValue(true)
     let runtime: MessageListRuntime | undefined
     let exportResolved = false
@@ -735,7 +802,7 @@ describe('MessageList', () => {
       saveImage
     }
 
-    captureScrollableAsDataURLMock.mockImplementation(async (ref) =>
+    captureScrollableAsDataUrlMock.mockImplementation(async (ref) =>
       ref.current ? 'data:image/png;base64,topic' : undefined
     )
 
@@ -769,7 +836,7 @@ describe('MessageList', () => {
   })
 
   it('rejects topic image export when capture does not produce image data', async () => {
-    vi.mocked(captureScrollableAsDataURL).mockResolvedValue(undefined)
+    vi.mocked(captureScrollableAsDataUrl).mockResolvedValue(undefined)
     const saveImage = vi.fn().mockResolvedValue(true)
     let runtime: MessageListRuntime | undefined
     const actions: Partial<MessageListActions> = {

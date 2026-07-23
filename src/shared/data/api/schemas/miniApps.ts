@@ -6,10 +6,11 @@
  */
 
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { MiniAppRegionSchema, MiniAppStatusSchema } from '@shared/data/types/miniApp'
+import { MiniAppStatusSchema } from '@shared/data/types/miniApp'
 import * as z from 'zod'
 
 import type { OrderEndpoints } from './_endpointHelpers'
+import { CreateLogoSchema } from './logo'
 
 /**
  * Permitted characters for a custom miniapp id. Exported so the v1→v2 migrator
@@ -18,6 +19,20 @@ import type { OrderEndpoints } from './_endpointHelpers'
  * v2 API would refuse to recreate.
  */
 export const MINI_APP_ID_REGEX = /^[A-Za-z0-9_-]+$/
+export const MINI_APP_ALLOWED_URL_PROTOCOLS = ['http:', 'https:', 'file:'] as const
+
+export const MiniAppUrlSchema = z.string().min(1).refine(isAllowedMiniAppUrl, {
+  message: 'url must be a valid http, https, or file URL'
+})
+
+export function isAllowedMiniAppUrl(value: string): boolean {
+  try {
+    const url = new URL(value)
+    return MINI_APP_ALLOWED_URL_PROTOCOLS.includes(url.protocol as (typeof MINI_APP_ALLOWED_URL_PROTOCOLS)[number])
+  } catch {
+    return false
+  }
+}
 
 /**
  * Zod schema for creating a new custom miniapp
@@ -25,30 +40,28 @@ export const MINI_APP_ID_REGEX = /^[A-Za-z0-9_-]+$/
 export const CreateMiniAppSchema = z.strictObject({
   appId: z.string().regex(MINI_APP_ID_REGEX, 'appId can only contain letters, numbers, underscore, and hyphen'),
   name: z.string().min(1),
-  url: z.string().min(1),
-  // Logos are stored inline (data URLs / SVG / remote URLs) and end up in the
-  // SQLite row alongside the app metadata. Cap at 1 MiB to keep a runaway data
-  // URL from blowing up the row size and the SwR cache value.
-  logo: z
-    .string()
-    .min(1)
-    .max(1024 * 1024),
-  bordered: z.boolean(),
-  supportedRegions: z.array(MiniAppRegionSchema).min(1),
-  background: z.string().nullable().optional(),
-  configuration: z.unknown().nullable().optional()
+  url: MiniAppUrlSchema,
+  /**
+   * Custom logo — a preset key only (`{ kind: 'key', key }`). Uploaded images
+   * go through the `mini_app.set_logo` IpcApi command, not this DTO.
+   */
+  logo: CreateLogoSchema.optional()
 })
 export type CreateMiniAppDto = z.infer<typeof CreateMiniAppSchema>
 
 /**
  * Zod schema for updating an existing miniapp.
  *
- * Only `status` (enabled/disabled/pinned) is mutable. Preset display fields
- * (name/url/logo/...) are owned by the seeder and have no edit UI. Reordering
- * goes through the dedicated `/order` endpoints, not this PATCH.
+ * Preset rows may only update `status`; custom rows can also update their
+ * user-editable fields. Reordering goes through the dedicated `/order`
+ * endpoints, not this PATCH.
  */
 export const UpdateMiniAppSchema = z.strictObject({
-  status: MiniAppStatusSchema.optional()
+  status: MiniAppStatusSchema.optional(),
+  name: z.string().min(1).optional(),
+  url: MiniAppUrlSchema.optional()
+  // Logo edits (preset key / image upload / clear) go through the
+  // `mini_app.set_logo` IpcApi command, not this PATCH body.
 })
 export type UpdateMiniAppDto = z.infer<typeof UpdateMiniAppSchema>
 

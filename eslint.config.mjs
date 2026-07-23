@@ -1,71 +1,361 @@
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
 import tseslint from '@electron-toolkit/eslint-config-ts'
 import eslint from '@eslint/js'
 import eslintReact from '@eslint-react/eslint-plugin'
 import { defineConfig } from 'eslint/config'
+import { createTypeScriptImportResolver } from 'eslint-import-resolver-typescript'
+import importX from 'eslint-plugin-import-x'
 import importZod from 'eslint-plugin-import-zod'
 import oxlint from 'eslint-plugin-oxlint'
 import reactHooks from 'eslint-plugin-react-hooks'
 import simpleImportSort from 'eslint-plugin-simple-import-sort'
 import unusedImports from 'eslint-plugin-unused-imports'
 
-const LEGACY_RENDERER_CSS_VARS = [
-  '--color-text-1',
-  '--color-text-2',
-  '--color-text-3',
-  '--color-text',
-  '--color-text-secondary',
-  '--color-text-soft',
-  '--color-text-light',
-  '--color-background-soft',
-  '--color-background-mute',
-  '--color-background-opacity',
-  '--color-border-soft',
-  '--color-border-mute',
-  '--color-error',
-  '--color-link',
-  '--color-primary-bg',
-  '--color-fill-secondary',
-  '--color-fill-2',
-  '--color-bg-base',
-  '--color-bg-1',
-  '--color-code-background',
-  '--color-inline-code-background',
-  '--color-inline-code-text',
-  '--color-hover',
-  '--color-active',
-  '--color-frame-border',
-  '--color-group-background',
-  '--color-reference',
-  '--color-reference-text',
-  '--color-reference-background',
-  '--color-list-item',
-  '--color-list-item-hover',
-  '--color-highlight',
-  '--color-background-highlight',
-  '--color-background-highlight-accent',
-  '--navbar-background-mac',
-  '--navbar-background',
-  '--modal-background',
-  '--chat-background',
-  '--chat-background-user',
-  '--chat-background-assistant',
-  '--chat-text-user',
-  '--list-item-border-radius',
-  '--color-gray-1',
-  '--color-gray-2',
-  '--color-gray-3',
-  '--color-icon-white',
-  '--color-primary-1',
-  '--color-primary-6',
-  '--color-status-success',
-  '--color-status-error',
-  '--color-status-warning'
-]
+// --- renderer dependency-direction boundary gate (import-x/no-restricted-paths) ---
+const RENDERER_DIRNAME = path.dirname(fileURLToPath(import.meta.url))
+const PAGE_DOMAINS = fs
+  .readdirSync(path.join(RENDERER_DIRNAME, 'src/renderer/pages'), { withFileTypes: true })
+  .filter((d) => d.isDirectory())
+  .map((d) => d.name)
 
-const LEGACY_RENDERER_CSS_VAR_REGEX = new RegExp(
-  `(${LEGACY_RENDERER_CSS_VARS.map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})(?![\\w-])`,
-  'g'
-)
+// A page must not import a sibling page domain; its own subtree is allowed via `except` (resolved relative to `from`).
+const pageSiblingZones = PAGE_DOMAINS.map((p) => ({
+  target: `src/renderer/pages/${p}`,
+  from: 'src/renderer/pages',
+  except: [`./${p}`],
+  message: 'A page must not import another page (cross-page coupling). renderer-architecture.md §7.'
+}))
+
+// Topic barrels under services/: a services/<topic>/ exposes exactly one curated index.ts as its sole
+// external entry (renderer-architecture.md §3.1/§5). Auto-discovered from the filesystem so a new topic dir
+// needs zero rule edits — mirrors pageSiblingZones above. A topic's own subtree is excluded from `target`
+// (extglob negation), so internal `./sibling` imports stay legal while every outside importer is limited to
+// the barrel. Applied in every renderer importer region via blocks L/P/B below.
+const SERVICES_DIR = path.join(RENDERER_DIRNAME, 'src/renderer/services')
+const serviceTopics = fs
+  .readdirSync(SERVICES_DIR, { withFileTypes: true })
+  .filter((d) => d.isDirectory() && d.name !== '__tests__' && d.name !== '__mocks__')
+  .filter((d) => fs.existsSync(path.join(SERVICES_DIR, d.name, 'index.ts')))
+  .map((d) => d.name)
+
+const serviceBarrelZones = serviceTopics.map((topic) => ({
+  target: [
+    `src/renderer/!(services)/**/*`, // importers outside services/ entirely
+    `src/renderer/services/!(${topic})/**/*`, // sibling topic dirs
+    `src/renderer/services/*` // flat files at the services/ root
+  ],
+  from: [
+    `src/renderer/services/${topic}/!(index).{ts,tsx,js,jsx}`,
+    `src/renderer/services/${topic}/!(index)/**/*`
+  ],
+  message: `services/${topic}/ is a topic barrel — import @renderer/services/${topic} (its index.ts), not its internals. renderer-architecture.md §3.1/§5.`
+}))
+
+// Each block's `files` is scoped so the three no-restricted-paths instances (L/P/B) never both apply to one
+// file — flat config merges rules by key (last-wins), which would otherwise drop one block silently.
+const SHARED_BUCKET_FILES = [
+  'src/renderer/components/**/*.{ts,tsx,js,jsx}',
+  'src/renderer/hooks/**/*.{ts,tsx,js,jsx}',
+  'src/renderer/services/**/*.{ts,tsx,js,jsx}',
+  'src/renderer/utils/**/*.{ts,tsx,js,jsx}'
+]
+const PAGE_FILES = ['src/renderer/pages/**/*.{ts,tsx,js,jsx}']
+const RENDERER_IGNORES = ['src/renderer/**/*.test.*', 'src/renderer/**/__tests__/**', 'src/renderer/**/__mocks__/**']
+const boundarySettings = {
+  'import-x/resolver-next': [
+    createTypeScriptImportResolver({ project: path.join(RENDERER_DIRNAME, 'tsconfig.web.json'), alwaysTryTypes: true })
+  ]
+}
+// Two independent gates: block1 (layer edges) is enforced as error — Stage 1 cleared it; block2 (sibling pages) stays warn until features-ization.
+const RENDERER_BOUNDARY = 'error'
+const PAGE_SIBLING = process.env.RENDERER_PAGE_SIBLING_ERROR ? 'error' : 'warn'
+
+// --- barrel / module-boundary rules (naming-conventions.md §6.4) ---
+// An inline custom plugin (like the `lifecycle` plugin below), not no-restricted-paths:
+// full-src barrel closure needs a private boundary per directory at arbitrary depth, which
+// no-restricted-paths cannot express without per-level target globs. Barrel discovery reuses
+// the same "pure re-export index.ts" classifier the audit validated. All rules are `warn`.
+const SRC_DIR = path.join(RENDERER_DIRNAME, 'src')
+const BARREL_BUCKET_ROOT_RE = /[\\/]src[\\/](?:main|renderer|shared)[\\/](?:types|utils|services)[\\/]index\.tsx?$/
+
+const stripCodeComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
+const isPureReexportIndex = (content) => {
+  if (!/\bexport\b[^;]*?\bfrom[ \t]*['"]/.test(content)) return false
+  const rest = stripCodeComments(content)
+    .replace(/(?:^|\n)[ \t]*(?:import|export)\b[^;]*?from[ \t]*['"][^'"]+['"];?/g, '\n')
+    .replace(/(?:^|\n)[ \t]*import[ \t]*['"][^'"]+['"];?/g, '\n')
+  return !/\bexport\b/.test(rest)
+}
+const collectIndexTs = (dir, out = []) => {
+  let entries
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true })
+  } catch {
+    return out
+  }
+  for (const e of entries) {
+    if (e.name === 'node_modules' || e.name === '__tests__' || e.name === '__mocks__') continue
+    const p = path.join(dir, e.name)
+    if (e.isDirectory()) collectIndexTs(p, out)
+    else if (e.name === 'index.ts') out.push(p)
+  }
+  return out
+}
+const BARREL_DIRS = new Set()
+for (const idx of collectIndexTs(SRC_DIR)) {
+  try {
+    if (isPureReexportIndex(fs.readFileSync(idx, 'utf8'))) BARREL_DIRS.add(path.dirname(idx))
+  } catch {}
+}
+const BARREL_DIRS_DEEPEST_FIRST = [...BARREL_DIRS].sort((a, b) => b.length - a.length)
+const innermostBarrelDir = (file) => {
+  for (const d of BARREL_DIRS_DEEPEST_FIRST) if (file === d || file.startsWith(d + path.sep)) return d
+  return null
+}
+// The boundary a reference crosses is the OUTERMOST barrel dir containing the target but not
+// the importer — the innermost would let `A/B` (an inner barrel's index) bypass A's door when
+// barrels are nested.
+const BARREL_DIRS_SHALLOWEST_FIRST = [...BARREL_DIRS_DEEPEST_FIRST].reverse()
+const outermostCrossedBarrelDir = (tgt, from) => {
+  for (const d of BARREL_DIRS_SHALLOWEST_FIRST)
+    if (tgt.startsWith(d + path.sep) && from !== d && !from.startsWith(d + path.sep)) return d
+  return null
+}
+const BARREL_RESOLVE_CACHE = new Map()
+// Unresolved specs are skipped — misses only, never false positives. Deliberately unresolved:
+// `@logger` (single-file target, cannot hide a deep import), `@application` (bare-only usage,
+// zero `@application/` deep paths in src), `@test-helpers`/`@test-mocks` (tests are exempt),
+// `@cherrystudio/*`/`@mcp-trace/*` (packages/*, outside src).
+const resolveBarrelSpec = (spec, fromFile) => {
+  const key = `${fromFile}\0${spec}`
+  if (BARREL_RESOLVE_CACHE.has(key)) return BARREL_RESOLVE_CACHE.get(key)
+  const proc = fromFile.includes(`${path.sep}src${path.sep}main${path.sep}`) ? 'main' : 'renderer'
+  let base = null
+  if (spec.startsWith('./') || spec.startsWith('../')) base = path.resolve(path.dirname(fromFile), spec)
+  else if (spec.startsWith('@renderer/')) base = path.join(SRC_DIR, 'renderer', spec.slice(10))
+  else if (spec.startsWith('@main/')) base = path.join(SRC_DIR, 'main', spec.slice(6))
+  else if (spec.startsWith('@shared/')) base = path.join(SRC_DIR, 'shared', spec.slice(8))
+  else if (spec.startsWith('@data/')) base = path.join(SRC_DIR, proc === 'main' ? 'main' : 'renderer', 'data', spec.slice(6))
+  let resolved = null
+  if (base) {
+    for (const c of [`${base}.ts`, `${base}.tsx`, path.join(base, 'index.ts'), path.join(base, 'index.tsx'), base]) {
+      try {
+        if (fs.statSync(c).isFile()) {
+          resolved = c
+          break
+        }
+      } catch {}
+    }
+  }
+  BARREL_RESOLVE_CACHE.set(key, resolved)
+  return resolved
+}
+const barrelFilename = (ctx) => ctx.filename ?? ctx.getFilename()
+
+const barrelPlugin = {
+  rules: {
+    // 1a — no `export *`; barrels use explicit named re-exports.
+    'no-export-star': {
+      meta: { type: 'problem', schema: [] },
+      create(ctx) {
+        return {
+          ExportAllDeclaration(node) {
+            if (node.source) ctx.report({ node, message: 'No `export *` — use explicit named re-exports (naming-conventions.md §6.4 rule 1).' })
+          }
+        }
+      }
+    },
+    // 1b — an index.ts barrel is pure re-export: no default impl, no local declarations/bindings,
+    // no side-effect imports, no top-level logic.
+    'index-no-impl': {
+      meta: { type: 'problem', schema: [] },
+      create(ctx) {
+        const f = barrelFilename(ctx)
+        if (!/[\\/]index\.ts$/.test(f)) return {}
+        return {
+          Program(node) {
+            const stmt = node.body.find((s) => !/^(?:Import|Export)/.test(s.type))
+            if (stmt) ctx.report({ node: stmt, message: 'A barrel is pure re-export — no top-level statements; move logic to a named file (naming-conventions.md §6.4 rule 1).' })
+          },
+          ImportDeclaration(node) {
+            if (!node.specifiers.length)
+              ctx.report({ node, message: 'A barrel is pure re-export — no side-effect imports; registration belongs in a named module (naming-conventions.md §6.4 rule 1).' })
+          },
+          ExportDefaultDeclaration(node) {
+            ctx.report({ node, message: 'A barrel is pure re-export — no `export default` implementation; use a named file (naming-conventions.md §6.4).' })
+          },
+          ExportNamedDeclaration(node) {
+            if (node.declaration)
+              ctx.report({ node, message: 'A barrel is pure re-export — no local declarations; move implementation to a named file (naming-conventions.md §6.4).' })
+            else if (!node.source && node.specifiers.length)
+              ctx.report({ node, message: 'A barrel re-exports from other modules — it must not export local bindings (naming-conventions.md §6.4).' })
+          }
+        }
+      }
+    },
+    // 1c — no `index.tsx` anywhere: a barrel is `index.ts` (no JSX), a component uses a named
+    // file, and a TanStack index route uses the flat dot form (`<segment>.index.tsx`).
+    'no-index-tsx': {
+      meta: { type: 'problem', schema: [] },
+      create(ctx) {
+        const f = barrelFilename(ctx)
+        if (!/[\\/]index\.tsx$/.test(f)) return {}
+        return {
+          Program(node) {
+            ctx.report({ node, message: 'No `index.tsx` — a barrel is `index.ts` (re-export has no JSX); a component uses a named file; a TanStack index route uses the flat dot form `<segment>.index.tsx` (naming-conventions.md §6.4).' })
+          }
+        }
+      }
+    },
+    // 1d — a barrel exposes named exports, not a forwarded bare default.
+    'named-only': {
+      meta: { type: 'problem', schema: [] },
+      create(ctx) {
+        const f = barrelFilename(ctx)
+        if (!/[\\/]index\.tsx?$/.test(f)) return {}
+        return {
+          ExportNamedDeclaration(node) {
+            if (!node.source) return
+            for (const s of node.specifiers)
+              if (s.exported && s.exported.name === 'default')
+                ctx.report({ node: s, message: 'A barrel exposes named exports — name it (`export { default as Foo } from`), do not forward a bare default (naming-conventions.md §6.4 rule 1).' })
+          }
+        }
+      }
+    },
+    // 2 — closed boundary: outside code must import a barrel's index, never its internals.
+    'closed': {
+      meta: { type: 'problem', schema: [] },
+      create(ctx) {
+        const f = barrelFilename(ctx)
+        const check = (node, spec) => {
+          const tgt = resolveBarrelSpec(spec, f)
+          if (!tgt) return
+          const d = outermostCrossedBarrelDir(tgt, f)
+          if (!d || tgt === path.join(d, 'index.ts')) return
+          ctx.report({ node, message: `Deep import into barrel \`${path.relative(SRC_DIR, d)}\` — import its index, not its internals (naming-conventions.md §6.4 rule 2).` })
+        }
+        return {
+          ImportDeclaration(node) {
+            if (node.source) check(node, node.source.value)
+          },
+          ExportNamedDeclaration(node) {
+            if (node.source) check(node, node.source.value)
+          },
+          ExportAllDeclaration(node) {
+            if (node.source) check(node, node.source.value)
+          },
+          ImportExpression(node) {
+            if (node.source && node.source.type === 'Literal') check(node, node.source.value)
+          }
+        }
+      }
+    },
+    // 3a — no nesting: a barrel index must not re-export another barrel.
+    'no-nesting': {
+      meta: { type: 'problem', schema: [] },
+      create(ctx) {
+        const f = barrelFilename(ctx)
+        if (!/[\\/]index\.ts$/.test(f) || !BARREL_DIRS.has(path.dirname(f))) return {}
+        const db = path.dirname(f)
+        const check = (node, spec) => {
+          const tgt = resolveBarrelSpec(spec, f)
+          if (!tgt) return
+          const d2 = innermostBarrelDir(tgt)
+          if (!d2 || d2 === db) return
+          ctx.report({ node, message: `A barrel must not re-export another barrel \`${path.relative(SRC_DIR, d2)}\` — let each unit own its door (naming-conventions.md §6.4 rule 3).` })
+        }
+        return {
+          ExportNamedDeclaration(node) {
+            if (node.source) check(node, node.source.value)
+          },
+          ExportAllDeclaration(node) {
+            if (node.source) check(node, node.source.value)
+          },
+          ImportDeclaration(node) {
+            if (node.source) check(node, node.source.value)
+          }
+        }
+      }
+    },
+    // 3b — bucket roots (types/utils/services) carry no barrel.
+    'no-bucket-root': {
+      meta: { type: 'problem', schema: [] },
+      create(ctx) {
+        if (!BARREL_BUCKET_ROOT_RE.test(barrelFilename(ctx))) return {}
+        return {
+          Program(node) {
+            ctx.report({ node, message: 'Bucket roots (types/utils/services) carry no barrel — import the specific file/topic (naming-conventions.md §6.4 rule 3 / §4.8).' })
+          }
+        }
+      }
+    }
+  }
+}
+
+// --- directory & file naming rules (naming-conventions.md §3–§4, §6.6) ---
+// Inline custom plugin (like `barrel` above). ESLint is per-file, so a directory name is checked by
+// deriving each ancestor segment from the linted file's path (a dir with no linted file is thus
+// invisible — acceptable: every code dir has a .ts/.tsx). Only zones where path → role is
+// deterministic are enforced; the semantic splits left to review are bucket-vs-domain plural/singular
+// (§4.9) and class-file PascalCase vs function-file camelCase (§3.2). Acronym-internal casing (§6.1)
+// is also out of scope here.
+const isKebabName = (s) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(s)
+const isCamelName = (s) => /^[a-z][a-zA-Z0-9]*$/.test(s)
+const isPascalName = (s) => /^[A-Z][a-zA-Z0-9]*$/.test(s)
+const isRouteToken = (s) => s.startsWith('$') || s.startsWith('_') // $appId, $, __root, _pathless
+const isModuleFileStem = (s) => {
+  const b = s.replace(/^_+/, '') // _columnHelpers.ts: leading-underscore shared construct (§3.2)
+  return isCamelName(b) || isPascalName(b)
+}
+const NAMING_EXEMPT_DIRS = new Set(['__tests__', '__mocks__', '__snapshots__'])
+// First matching prefix wins; unmanaged zones bail before the generic renderer/src zones.
+const NAMING_ZONES = [
+  { prefix: 'packages/ui/', root: 2, label: 'packages/ui', dir: isKebabName, dirExpect: 'kebab-case', file: isKebabName, fileExpect: 'kebab-case' },
+  { prefix: 'src/renderer/routes/', root: 3, label: 'routes', dir: (s) => isKebabName(s) || isRouteToken(s), dirExpect: 'kebab-case', file: (s) => isKebabName(s) || isRouteToken(s), fileExpect: 'kebab-case' },
+  { prefix: 'src/renderer/assets/', unmanaged: true },
+  { prefix: 'src/renderer/', root: 2, label: 'src/renderer', dir: (s) => isCamelName(s) || isPascalName(s), dirExpect: 'camelCase (module) or PascalCase (component)', file: isModuleFileStem, fileExpect: 'camelCase or PascalCase' },
+  { prefix: 'src/main/', root: 2, label: 'src/main', dir: isCamelName, dirExpect: 'camelCase', file: isModuleFileStem, fileExpect: 'camelCase or PascalCase' },
+  { prefix: 'src/shared/', root: 2, label: 'src/shared', dir: isCamelName, dirExpect: 'camelCase', file: isModuleFileStem, fileExpect: 'camelCase or PascalCase' },
+  { prefix: 'src/preload/', root: 2, label: 'src/preload', dir: isCamelName, dirExpect: 'camelCase', file: isModuleFileStem, fileExpect: 'camelCase or PascalCase' }
+]
+const namingReportedDirs = new Set()
+
+const namingPlugin = {
+  rules: {
+    'path-case': {
+      meta: { type: 'problem', schema: [] },
+      create(ctx) {
+        const abs = ctx.filename ?? ctx.getFilename()
+        const rel = path.relative(RENDERER_DIRNAME, abs).split(path.sep).join('/')
+        const zone = NAMING_ZONES.find((z) => rel.startsWith(z.prefix))
+        if (!zone || zone.unmanaged) return {}
+        return {
+          Program(node) {
+            const parts = rel.split('/')
+            const fileName = parts[parts.length - 1]
+            const dirSegs = parts.slice(zone.root, parts.length - 1)
+            for (let i = 0; i < dirSegs.length; i++) {
+              const seg = dirSegs[i]
+              if (seg.startsWith('.') || NAMING_EXEMPT_DIRS.has(seg) || zone.dir(seg)) continue // dotdirs (.storybook, .github) are tool conventions
+              const dirRel = parts.slice(0, zone.root + i + 1).join('/')
+              if (namingReportedDirs.has(dirRel)) continue
+              namingReportedDirs.add(dirRel)
+              ctx.report({ node, message: `Directory \`${dirRel}\`: segment \`${seg}\` must be ${zone.dirExpect} under ${zone.label} (naming-conventions.md §4).` })
+            }
+            if (/^index\.tsx?$/.test(fileName) || /\.d\.ts$/.test(fileName)) return // index.* owned by barrel/*; *.d.ts by §3.5
+            const stem = fileName.split('.')[0]
+            if (!stem || zone.file(stem)) return
+            ctx.report({ node, message: `File \`${fileName}\`: name \`${stem}\` must be ${zone.fileExpect} under ${zone.label} (naming-conventions.md §3).` })
+          }
+        }
+      }
+    }
+  }
+}
 
 export default defineConfig([
   eslint.configs.recommended,
@@ -126,6 +416,7 @@ export default defineConfig([
       'src/renderer/ui/**',
       'src/renderer/routeTree.gen.ts',
       'packages/**/dist',
+      'packages/**/storybook-static/**',
       'v2-refactor-temp/**'
     ]
   },
@@ -144,7 +435,7 @@ export default defineConfig([
         {
           selector: 'CallExpression[callee.object.name="console"]',
           message:
-            '❗CherryStudio uses unified LoggerService: 📖 docs/en/guides/logging.md\n❗CherryStudio 使用统一的日志服务：📖 docs/zh/guides/logging.md\n\n'
+            '❗CherryStudio uses unified LoggerService: 📖 docs/en/guides/logging.md\n\n'
         }
       ]
     }
@@ -245,11 +536,11 @@ export default defineConfig([
             meta: {
               type: 'problem',
               docs: {
-                description: '⚠️不建议在 t() 函数中使用模板字符串，这样会导致渲染结果不可预料',
+                description: '⚠️ Avoid template literals in t() — they make rendering output unpredictable',
                 recommended: true
               },
               messages: {
-                noTemplateInT: '⚠️不建议在 t() 函数中使用模板字符串，这样会导致渲染结果不可预料'
+                noTemplateInT: '⚠️ Avoid template literals in t() — they make rendering output unpredictable'
               }
             },
             create(context) {
@@ -303,9 +594,9 @@ export default defineConfig([
   {
     // Boundary guard: the main process and preload must not import renderer code.
     // Cross-process symbols belong in `@shared`; main-only symbols in `src/main`.
-    // (The relative `../../renderer/i18n` imports in src/main/utils/language.ts are
-    // a known remaining violation, deferred to the i18n migration PR — once that
-    // lands, add `**/renderer/**` to the banned group below.)
+    // Both the `@renderer` alias and relative `**/renderer/**` paths are banned; the
+    // main i18n catalog now lives in `src/main/i18n`, and tests that need renderer
+    // catalog data read it from disk (fs) rather than importing it.
     files: ['src/main/**/*.{ts,tsx,js,jsx}', 'src/preload/**/*.{ts,tsx,js,jsx}'],
     rules: {
       '@typescript-eslint/no-restricted-imports': [
@@ -313,7 +604,7 @@ export default defineConfig([
         {
           patterns: [
             {
-              group: ['@renderer', '@renderer/**'],
+              group: ['@renderer', '@renderer/**', '**/renderer/**'],
               message:
                 'Main/preload must not import renderer code. Use `@shared` for cross-process types, or `src/main` for main-only types. See docs/references/shared-layer-architecture.md.'
             }
@@ -322,63 +613,117 @@ export default defineConfig([
       ]
     }
   },
-  // renderer legacy css var migration warnings
+  // Renderer boundary block L: layer edges into shared buckets — Zone A (shared→pages/windows) + Zone C (utils impurity).
+  // Scoped to shared-bucket files so it never collides with block P on a pages file. Flips to error once A+C clear.
+  {
+    files: SHARED_BUCKET_FILES,
+    ignores: RENDERER_IGNORES,
+    plugins: { 'import-x': importX },
+    settings: boundarySettings,
+    rules: {
+      'import-x/no-restricted-paths': [
+        RENDERER_BOUNDARY,
+        {
+          basePath: RENDERER_DIRNAME,
+          zones: [
+            {
+              target: [
+                'src/renderer/components',
+                'src/renderer/hooks',
+                'src/renderer/services',
+                'src/renderer/utils'
+              ],
+              from: ['src/renderer/pages', 'src/renderer/windows'],
+              message: 'Shared buckets must not import pages/windows (reverse layer edge). renderer-architecture.md §7.'
+            },
+            {
+              target: 'src/renderer/utils',
+              from: ['src/renderer/components', 'src/renderer/hooks'],
+              message: 'utils/ is stateless and may call downward infra (data/ipc) but must not import components/hooks or any higher app layer. renderer-architecture.md §3.'
+            },
+            // @logger is a §2 primitive that physically lives under services/; keep it out of the restricted glob.
+            {
+              target: 'src/renderer/utils',
+              from: [
+                'src/renderer/services/!(LoggerService).{ts,tsx,js,jsx}',
+                'src/renderer/services/!(LoggerService)/**/*'
+              ],
+              message: 'utils/ must not import renderer services (except @logger). renderer-architecture.md §3.'
+            },
+            ...serviceBarrelZones
+          ]
+        }
+      ]
+    }
+  },
+  // Renderer boundary block P: page-targeted edges — B-pw (page→window) + B-pp (page→sibling-page).
+  // Scoped to pages files; both share one severity (one no-restricted-paths instance = one severity), held at warn
+  // until features-ization clears the sibling-page edges.
+  {
+    files: PAGE_FILES,
+    ignores: RENDERER_IGNORES,
+    plugins: { 'import-x': importX },
+    settings: boundarySettings,
+    rules: {
+      'import-x/no-restricted-paths': [
+        PAGE_SIBLING,
+        {
+          basePath: RENDERER_DIRNAME,
+          zones: [
+            {
+              target: 'src/renderer/pages',
+              from: 'src/renderer/windows',
+              message: 'A page must not import a window (reverse edge). renderer-architecture.md §2/§7.'
+            },
+            ...pageSiblingZones,
+            ...serviceBarrelZones
+          ]
+        }
+      ]
+    }
+  },
+  // Renderer boundary block B: topic-barrel guard for the importer regions blocks L/P do not cover
+  // (windows, routes, data, ipc, workers, …). Its `files` ignore the L and P scopes so it never shares a
+  // file with them — avoiding the flat-config last-wins collision noted above. Held at error like block L.
   {
     files: ['src/renderer/**/*.{ts,tsx,js,jsx}'],
-    ignores: [
-      'src/renderer/**/*.test.*',
-      'src/renderer/**/__tests__/**',
-      'src/renderer/**/__mocks__/**'
-    ],
-    plugins: {
-      'renderer-styles': {
-        rules: {
-          'no-legacy-css-vars': {
-            meta: {
-              type: 'suggestion',
-              docs: {
-                description:
-                  'Warn when renderer code references legacy CSS compatibility variables instead of the shared theme contract.',
-                recommended: true
-              },
-              messages: {
-                legacyVar:
-                  'Legacy renderer CSS variable "{{variable}}" is deprecated. Prefer @cherrystudio/ui theme contract variables or Tailwind semantic utilities instead.'
-              }
-            },
-            create(context) {
-              function reportIfLegacyCssVar(node, text) {
-                const matches = text.matchAll(LEGACY_RENDERER_CSS_VAR_REGEX)
-                for (const match of matches) {
-                  const variable = match[1]
-                  if (!variable) continue
-                  context.report({
-                    node,
-                    messageId: 'legacyVar',
-                    data: { variable }
-                  })
-                }
-              }
-
-              return {
-                Literal(node) {
-                  if (typeof node.value !== 'string') return
-                  reportIfLegacyCssVar(node, node.value)
-                },
-                TemplateElement(node) {
-                  reportIfLegacyCssVar(node, node.value.raw)
-                },
-                JSXText(node) {
-                  reportIfLegacyCssVar(node, node.value)
-                }
-              }
-            }
-          }
-        }
-      }
-    },
+    ignores: [...RENDERER_IGNORES, ...SHARED_BUCKET_FILES, ...PAGE_FILES],
+    plugins: { 'import-x': importX },
+    settings: boundarySettings,
     rules: {
-      'renderer-styles/no-legacy-css-vars': process.env.NO_LEGACY_CSS_WARN ? 'off' : 'warn'
+      'import-x/no-restricted-paths': [
+        RENDERER_BOUNDARY,
+        {
+          basePath: RENDERER_DIRNAME,
+          zones: [...serviceBarrelZones]
+        }
+      ]
+    }
+  },
+  // Barrel / module-boundary rules (naming-conventions.md §6.4) — inline custom plugin, all error.
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    // tests are exempt by design: white-box tests may deep-import a barrel's internals
+    ignores: ['src/**/*.test.*', 'src/**/__tests__/**', 'src/**/__mocks__/**'],
+    plugins: { barrel: barrelPlugin },
+    rules: {
+      'barrel/no-export-star': 'error',
+      'barrel/index-no-impl': 'error',
+      'barrel/no-index-tsx': 'error',
+      'barrel/named-only': 'error',
+      'barrel/closed': 'error',
+      'barrel/no-nesting': 'error',
+      'barrel/no-bucket-root': 'error'
+    }
+  },
+  // Directory & file naming rules (naming-conventions.md §3–§4, §6.6) — inline custom plugin.
+  // Not tests-exempt (test file names follow the convention too); the __tests__/__mocks__/__snapshots__
+  // directory segments are allow-listed inside the rule.
+  {
+    files: ['src/**/*.{ts,tsx}', 'packages/ui/**/*.{ts,tsx}'],
+    plugins: { naming: namingPlugin },
+    rules: {
+      'naming/path-case': 'error'
     }
   },
   // Schema key naming convention (cache, preferences, paths & IPC route/event keys)

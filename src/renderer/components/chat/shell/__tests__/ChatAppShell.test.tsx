@@ -1,13 +1,12 @@
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
-import { TITLE_BAR_HEIGHT_PX } from '@renderer/components/layout/titleBar'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { DefaultRendererPersistCache } from '@shared/data/cache/cacheSchemas'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { HTMLAttributes, PropsWithChildren, ReactNode, Ref } from 'react'
 import { useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ChatAppShell } from '../ChatAppShell'
 import {
-  CHAT_CENTER_MIN_USABLE_WIDTH,
   RESOURCE_LIST_PANE_COLLAPSE_DRAG_THRESHOLD,
   RESOURCE_LIST_PANE_DEFAULT_WIDTH,
   RESOURCE_LIST_PANE_MAX_WIDTH,
@@ -25,26 +24,50 @@ interface ResizeObserverMockInstance {
 const resizeObserverMockInstances: ResizeObserverMockInstance[] = []
 
 const persistCacheMock = vi.hoisted(() => {
-  const state = { width: 240 }
+  const state = { width: 240, paneWidth: 460 }
 
   return {
     state,
     setWidth: vi.fn((width: number) => {
       state.width = width
+    }),
+    setPaneWidth: vi.fn((width: number) => {
+      state.paneWidth = width
     })
   }
 })
+
+interface RightPanelStateMockValue {
+  layoutAnimationPending: boolean
+  presentationMaximized: boolean
+  presentationOpen?: boolean
+  fullWidthActive?: boolean
+  paneResizing?: boolean
+  userOpenSeq?: number
+}
+
+const rightPanelStateMock = vi.hoisted(() => ({
+  current: undefined as RightPanelStateMockValue | undefined
+}))
 
 vi.mock('@renderer/utils/style', () => ({
   cn: (...inputs: unknown[]) => inputs.filter(Boolean).join(' ')
 }))
 
 vi.mock('@data/hooks/useCache', () => ({
-  usePersistCache: vi.fn(() => [persistCacheMock.state.width, persistCacheMock.setWidth])
+  usePersistCache: vi.fn((key: string) =>
+    key === 'ui.chat.artifact_pane.width'
+      ? [persistCacheMock.state.paneWidth, persistCacheMock.setPaneWidth]
+      : [persistCacheMock.state.width, persistCacheMock.setWidth]
+  )
 }))
 
 vi.mock('@renderer/components/ErrorBoundary', () => ({
   ErrorBoundary: ({ children }: PropsWithChildren) => <>{children}</>
+}))
+
+vi.mock('../../panes/Shell', () => ({
+  useOptionalRightPanelState: () => rightPanelStateMock.current
 }))
 
 type MotionDivProps = HTMLAttributes<HTMLDivElement> & {
@@ -80,6 +103,7 @@ vi.mock('motion/react', () => {
 
 describe('ChatAppShell', () => {
   beforeEach(() => {
+    rightPanelStateMock.current = undefined
     Object.defineProperty(window, 'innerWidth', {
       configurable: true,
       value: 1200,
@@ -103,7 +127,9 @@ describe('ChatAppShell', () => {
 
   afterEach(() => {
     persistCacheMock.state.width = RESOURCE_LIST_PANE_DEFAULT_WIDTH
+    persistCacheMock.state.paneWidth = 460
     persistCacheMock.setWidth.mockClear()
+    persistCacheMock.setPaneWidth.mockClear()
     document.body.style.cursor = ''
     document.body.style.userSelect = ''
     document.documentElement.style.removeProperty('--assistants-width')
@@ -122,8 +148,12 @@ describe('ChatAppShell', () => {
     )
 
     const chatMain = container.querySelector('#chat-main')
+    const navbarWrapper = screen.getByTestId('navbar').parentElement
 
     expect(chatMain).toContainElement(screen.getByTestId('navbar'))
+    expect(navbarWrapper).toHaveClass('relative', 'shrink-0', 'bg-background')
+    expect(navbarWrapper).not.toHaveClass('absolute')
+    expect(navbarWrapper).not.toHaveAttribute('data-chat-navbar-floating')
     expect(chatMain).not.toContainElement(screen.getByTestId('settings-panel'))
     expect(chatMain).toContainElement(screen.getByTestId('main'))
     expect(chatMain).toHaveClass('relative')
@@ -161,6 +191,20 @@ describe('ChatAppShell', () => {
 
     // Sibling of the center (same wrapper) so it overlays exactly the center box.
     expect(overlayHost?.parentElement).toBe(chatMain?.parentElement)
+  })
+
+  it('releases the center stacking context while the right panel is maximized', () => {
+    rightPanelStateMock.current = { layoutAnimationPending: false, presentationMaximized: true }
+
+    const { container } = render(
+      <ChatAppShell centerClassName="transform-[translateZ(0)]" main={<div data-testid="main" />} />
+    )
+
+    expect(container.querySelector('[data-chat-app-shell-center]')).toHaveClass(
+      'transform-[translateZ(0)]',
+      '!transform-none',
+      '!will-change-auto'
+    )
   })
 
   it('keeps the pane mounted when keyed center content changes', () => {
@@ -218,16 +262,51 @@ describe('ChatAppShell', () => {
     )
   })
 
-  it('insets the left resource pane below the title bar in window mode', () => {
+  it('uses the configured left pane default and minimum widths', () => {
+    expect(RESOURCE_LIST_PANE_DEFAULT_WIDTH).toBe(240)
+    expect(RESOURCE_LIST_PANE_MIN_WIDTH).toBe(200)
+    expect(DefaultRendererPersistCache['ui.chat.sidebar.width']).toBe(275)
+  })
+
+  it('clamps the left splitter Home key to the configured minimum', () => {
+    const { container } = render(<ChatAppShell pane={<aside>topics</aside>} paneOpen main={<div />} />)
+    const handle = container.querySelector('[data-resource-list-pane-resize-handle]')
+
+    if (!handle) throw new Error('Expected resource list pane resize handle')
+
+    fireEvent.keyDown(handle, { key: 'Home' })
+
+    expect(persistCacheMock.setWidth).toHaveBeenCalledWith(RESOURCE_LIST_PANE_MIN_WIDTH)
+  })
+
+  it('keeps a detached conversation navbar inside the center beside the resource pane', () => {
     const { container } = render(
       <WindowFrameProvider value={{ mode: 'window' }}>
-        <ChatAppShell pane={<aside>topics</aside>} paneOpen main={<div />} />
+        <ChatAppShell
+          contentId="conversation-content"
+          centerId="conversation-center"
+          topBar={<header data-testid="conversation-navbar" />}
+          pane={<aside>topics</aside>}
+          paneOpen
+          main={<div />}
+        />
       </WindowFrameProvider>
     )
 
-    expect(container.querySelector('[data-resource-list-pane]')).toHaveStyle({
-      paddingTop: TITLE_BAR_HEIGHT_PX
-    })
+    const pane = container.querySelector<HTMLElement>('[data-resource-list-pane]')
+    const navbar = screen.getByTestId('conversation-navbar')
+    const center = document.getElementById('conversation-center')
+    const content = document.getElementById('conversation-content')
+
+    if (!pane || !center || !content) {
+      throw new Error('Expected resource pane, conversation center, and conversation content')
+    }
+
+    expect(pane.style.paddingTop).toBe('')
+    expect(content).toContainElement(pane)
+    expect(content).toContainElement(center)
+    expect(center).toContainElement(navbar)
+    expect(pane.compareDocumentPosition(center) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('saves drag width at or above the minimum and cleans document resize styles', () => {
@@ -306,7 +385,7 @@ describe('ChatAppShell', () => {
     vi.spyOn(pane, 'getBoundingClientRect').mockReturnValue(new DOMRect(100, 0, RESOURCE_LIST_PANE_MIN_WIDTH, 500))
 
     fireEvent.mouseDown(handle, { clientX: 340 })
-    fireEvent.mouseMove(document, { clientX: 339 })
+    fireEvent.mouseMove(document, { clientX: 100 + RESOURCE_LIST_PANE_MIN_WIDTH - 1 })
 
     expect(persistCacheMock.setWidth).toHaveBeenCalledWith(RESOURCE_LIST_PANE_MIN_WIDTH)
     expect(onPaneCollapse).not.toHaveBeenCalled()
@@ -371,89 +450,350 @@ describe('ChatAppShell', () => {
     expect(pane).toHaveAttribute('data-resizing', 'true')
   })
 
-  it('auto-collapses the open left pane when the shell width crosses below the 540px threshold', () => {
-    const onPaneCollapse = vi.fn()
+  // ── Predicted-center auto-collapse (single source, level + hysteresis) ──
+  // Mock defaults: list width 240 → with the panel closed, predictedCenter =
+  // shell − 240; collapse below shell=600, restore (4px hysteresis) at shell≥604.
 
-    render(<ChatAppShell pane={<aside>topics</aside>} paneOpen onPaneCollapse={onPaneCollapse} main={<div />} />)
+  it('auto-collapses from the first non-zero shell measurement when the predicted center is squeezed', () => {
+    const onPaneAutoCollapseChange = vi.fn()
 
-    notifyObservedShellWidth(540)
-    notifyObservedShellWidth(539)
-
-    expect(onPaneCollapse).toHaveBeenCalledTimes(1)
-  })
-
-  it('auto-collapses the open left pane when the center drops below its minimum usable width', async () => {
-    const onPaneCollapse = vi.fn()
-
-    render(<ChatAppShell pane={<aside>topics</aside>} paneOpen onPaneCollapse={onPaneCollapse} main={<div />} />)
-
-    notifyObservedCenterWidth(CHAT_CENTER_MIN_USABLE_WIDTH - 1)
-
-    await waitFor(() => {
-      expect(onPaneCollapse).toHaveBeenCalledTimes(1)
-    })
-  })
-
-  it('does not collapse from the initial shell width observation even when already below the 540px threshold', () => {
-    const onPaneCollapse = vi.fn()
-
-    render(<ChatAppShell pane={<aside>topics</aside>} paneOpen onPaneCollapse={onPaneCollapse} main={<div />} />)
-
-    notifyObservedShellWidth(539)
-
-    expect(onPaneCollapse).not.toHaveBeenCalled()
-  })
-
-  it('allows manually opening the left pane while the shell is already below the 540px threshold', () => {
-    const onPaneCollapse = vi.fn()
-
-    const { rerender } = render(
-      <ChatAppShell pane={<aside>topics</aside>} paneOpen={false} onPaneCollapse={onPaneCollapse} main={<div />} />
-    )
-
-    notifyObservedShellWidth(539)
-    notifyObservedCenterWidth(CHAT_CENTER_MIN_USABLE_WIDTH - 1)
-    rerender(<ChatAppShell pane={<aside>topics</aside>} paneOpen onPaneCollapse={onPaneCollapse} main={<div />} />)
-    notifyObservedShellWidth(538)
-    notifyObservedCenterWidth(CHAT_CENTER_MIN_USABLE_WIDTH - 2)
-
-    expect(onPaneCollapse).not.toHaveBeenCalled()
-  })
-
-  it('does not auto-collapse when the pane is closed or positioned on the right', () => {
-    const onPaneCollapse = vi.fn()
-    const { rerender } = render(
-      <ChatAppShell pane={<aside>topics</aside>} paneOpen={false} onPaneCollapse={onPaneCollapse} main={<div />} />
-    )
-
-    notifyObservedShellWidth(540)
-    notifyObservedShellWidth(539)
-
-    rerender(
+    render(
       <ChatAppShell
         pane={<aside>topics</aside>}
         paneOpen
-        panePosition="right"
-        onPaneCollapse={onPaneCollapse}
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
         main={<div />}
       />
     )
-    notifyObservedShellWidth(540)
-    notifyObservedShellWidth(539)
 
-    expect(onPaneCollapse).not.toHaveBeenCalled()
+    notifyObservedShellWidth(599)
+
+    expect(onPaneAutoCollapseChange).toHaveBeenCalledTimes(1)
+    expect(onPaneAutoCollapseChange).toHaveBeenCalledWith(true)
   })
 
-  it('does not auto-collapse from window resize alone', () => {
-    const onPaneCollapse = vi.fn()
+  it('ignores zero-width shell measurements', () => {
+    const onPaneAutoCollapseChange = vi.fn()
 
-    render(<ChatAppShell pane={<aside>topics</aside>} paneOpen onPaneCollapse={onPaneCollapse} main={<div />} />)
+    render(
+      <ChatAppShell
+        pane={<aside>topics</aside>}
+        paneOpen
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+        main={<div />}
+      />
+    )
 
-    notifyObservedShellWidth(540)
-    window.innerWidth = 539
-    fireEvent.resize(window)
+    notifyObservedShellWidth(0)
 
-    expect(onPaneCollapse).not.toHaveBeenCalled()
+    expect(onPaneAutoCollapseChange).not.toHaveBeenCalled()
+  })
+
+  it('restores with hysteresis instead of flapping at the threshold', () => {
+    const onPaneAutoCollapseChange = vi.fn()
+
+    render(
+      <ChatAppShell
+        pane={<aside>topics</aside>}
+        paneOpen
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+        main={<div />}
+      />
+    )
+
+    notifyObservedShellWidth(700)
+    expect(onPaneAutoCollapseChange).not.toHaveBeenCalled()
+
+    notifyObservedShellWidth(599)
+    expect(onPaneAutoCollapseChange).toHaveBeenNthCalledWith(1, true)
+
+    // Dead zone: predicted 361 is neither < 360 nor ≥ 364.
+    notifyObservedShellWidth(601)
+    expect(onPaneAutoCollapseChange).toHaveBeenCalledTimes(1)
+
+    notifyObservedShellWidth(604)
+    expect(onPaneAutoCollapseChange).toHaveBeenNthCalledWith(2, false)
+  })
+
+  it('factors an open docked panel into the prediction', () => {
+    const onPaneAutoCollapseChange = vi.fn()
+    rightPanelStateMock.current = {
+      layoutAnimationPending: false,
+      presentationMaximized: false,
+      presentationOpen: true,
+      userOpenSeq: 0
+    }
+
+    render(
+      <ChatAppShell
+        pane={<aside>topics</aside>}
+        paneOpen
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+        main={<div />}
+      />
+    )
+
+    // Panel closed at shell=850 the center would be 610; with the docked panel
+    // open (stored 460) the pane takes 255 and the predicted center is 355.
+    notifyObservedShellWidth(850)
+
+    expect(onPaneAutoCollapseChange).toHaveBeenCalledTimes(1)
+    expect(onPaneAutoCollapseChange).toHaveBeenCalledWith(true)
+  })
+
+  it('does not newly collapse a list the user is not showing', () => {
+    const onPaneAutoCollapseChange = vi.fn()
+
+    render(
+      <ChatAppShell
+        pane={<aside>topics</aside>}
+        paneOpen={false}
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+        main={<div />}
+      />
+    )
+
+    notifyObservedShellWidth(599)
+
+    expect(onPaneAutoCollapseChange).not.toHaveBeenCalled()
+  })
+
+  it('clears the reported auto-collapse when the shell unmounts', () => {
+    const onPaneAutoCollapseChange = vi.fn()
+
+    const { unmount } = render(
+      <ChatAppShell
+        pane={<aside>topics</aside>}
+        paneOpen
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+        main={<div />}
+      />
+    )
+
+    notifyObservedShellWidth(599)
+    unmount()
+
+    expect(onPaneAutoCollapseChange).toHaveBeenNthCalledWith(1, true)
+    expect(onPaneAutoCollapseChange).toHaveBeenNthCalledWith(2, false)
+  })
+
+  it('suppresses collapse after a manual expand until the shell net-narrows past the release threshold', () => {
+    const onPaneAutoCollapseChange = vi.fn()
+    const shellProps = { pane: <aside>topics</aside>, main: <div /> }
+
+    const { rerender } = render(
+      <ChatAppShell {...shellProps} paneOpen onPaneAutoCollapseChange={onPaneAutoCollapseChange} />
+    )
+
+    notifyObservedShellWidth(599)
+    expect(onPaneAutoCollapseChange).toHaveBeenNthCalledWith(1, true)
+
+    // User re-expands manually: the source clears and stays hard-blocked.
+    rerender(
+      <ChatAppShell
+        {...shellProps}
+        paneOpen
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+        paneManualToggle={{ seq: 1, open: true }}
+      />
+    )
+    expect(onPaneAutoCollapseChange).toHaveBeenNthCalledWith(2, false)
+
+    // Narrowing by ≤8px keeps the suppression.
+    notifyObservedShellWidth(595)
+    expect(onPaneAutoCollapseChange).toHaveBeenCalledTimes(2)
+
+    // Net-narrowing past 8px releases and re-evaluates.
+    notifyObservedShellWidth(590)
+    expect(onPaneAutoCollapseChange).toHaveBeenNthCalledWith(3, true)
+  })
+
+  it('keeps the manual-expand suppression across docked open flips but releases on a user panel open', () => {
+    const onPaneAutoCollapseChange = vi.fn()
+    const shellProps = { pane: <aside>topics</aside>, main: <div /> }
+    rightPanelStateMock.current = {
+      layoutAnimationPending: false,
+      presentationMaximized: false,
+      presentationOpen: false,
+      userOpenSeq: 0
+    }
+
+    const { rerender } = render(
+      <ChatAppShell {...shellProps} paneOpen onPaneAutoCollapseChange={onPaneAutoCollapseChange} />
+    )
+
+    notifyObservedShellWidth(599)
+    rerender(
+      <ChatAppShell
+        {...shellProps}
+        paneOpen
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+        paneManualToggle={{ seq: 1, open: true }}
+      />
+    )
+    expect(onPaneAutoCollapseChange).toHaveBeenNthCalledWith(2, false)
+
+    // Non-user docked open (e.g. persisted restore / present flip): still blocked.
+    rightPanelStateMock.current = { ...rightPanelStateMock.current, presentationOpen: true }
+    rerender(
+      <ChatAppShell
+        {...shellProps}
+        paneOpen
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+        paneManualToggle={{ seq: 1, open: true }}
+      />
+    )
+    expect(onPaneAutoCollapseChange).toHaveBeenCalledTimes(2)
+
+    // A user-initiated open releases the suppression and evaluates.
+    rightPanelStateMock.current = { ...rightPanelStateMock.current, userOpenSeq: 1 }
+    rerender(
+      <ChatAppShell
+        {...shellProps}
+        paneOpen
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+        paneManualToggle={{ seq: 1, open: true }}
+      />
+    )
+    expect(onPaneAutoCollapseChange).toHaveBeenNthCalledWith(3, true)
+  })
+
+  it('re-declares the collapse output when the list opens without a manual signal', () => {
+    const onPaneAutoCollapseChange = vi.fn()
+    const shellProps = { pane: <aside>topics</aside>, main: <div /> }
+
+    const { rerender } = render(
+      <ChatAppShell {...shellProps} paneOpen={false} onPaneAutoCollapseChange={onPaneAutoCollapseChange} />
+    )
+
+    notifyObservedShellWidth(599)
+    expect(onPaneAutoCollapseChange).not.toHaveBeenCalled()
+
+    // Programmatic expand (history locate, layout reset): evaluate + declare.
+    rerender(<ChatAppShell {...shellProps} paneOpen onPaneAutoCollapseChange={onPaneAutoCollapseChange} />)
+    expect(onPaneAutoCollapseChange).toHaveBeenNthCalledWith(1, true)
+
+    // Re-opening again re-declares even though the internal source is unchanged,
+    // so a page-side flag reset can never desync from this source.
+    rerender(<ChatAppShell {...shellProps} paneOpen={false} onPaneAutoCollapseChange={onPaneAutoCollapseChange} />)
+    rerender(<ChatAppShell {...shellProps} paneOpen onPaneAutoCollapseChange={onPaneAutoCollapseChange} />)
+    expect(onPaneAutoCollapseChange).toHaveBeenCalledTimes(2)
+    expect(onPaneAutoCollapseChange).toHaveBeenNthCalledWith(2, true)
+  })
+
+  it('re-collapses after a manual collapse cleared the suppression and the list reopens programmatically', () => {
+    const onPaneAutoCollapseChange = vi.fn()
+    const shellProps = { pane: <aside>topics</aside>, main: <div /> }
+
+    const { rerender } = render(
+      <ChatAppShell {...shellProps} paneOpen onPaneAutoCollapseChange={onPaneAutoCollapseChange} />
+    )
+
+    notifyObservedShellWidth(599)
+    rerender(
+      <ChatAppShell
+        {...shellProps}
+        paneOpen
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+        paneManualToggle={{ seq: 1, open: true }}
+      />
+    )
+    // User then collapses the list manually: suppression ends with the intent.
+    rerender(
+      <ChatAppShell
+        {...shellProps}
+        paneOpen={false}
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+        paneManualToggle={{ seq: 2, open: false }}
+      />
+    )
+    onPaneAutoCollapseChange.mockClear()
+
+    // Programmatic reopen must collapse again (trigger 4 not hard-blocked).
+    rerender(
+      <ChatAppShell
+        {...shellProps}
+        paneOpen
+        onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+        paneManualToggle={{ seq: 2, open: false }}
+      />
+    )
+    expect(onPaneAutoCollapseChange).toHaveBeenCalledWith(true)
+  })
+
+  it('freezes on the synchronous maximize flip before the host reports the full-width phase', () => {
+    const onPaneAutoCollapseChange = vi.fn()
+    const shellProps = { pane: <aside>topics</aside>, main: <div /> }
+    rightPanelStateMock.current = {
+      layoutAnimationPending: false,
+      presentationMaximized: false,
+      presentationOpen: true,
+      fullWidthActive: false,
+      userOpenSeq: 0
+    }
+
+    const { rerender } = render(
+      <ChatAppShell {...shellProps} paneOpen onPaneAutoCollapseChange={onPaneAutoCollapseChange} />
+    )
+
+    notifyObservedShellWidth(850)
+    expect(onPaneAutoCollapseChange).toHaveBeenNthCalledWith(1, true)
+
+    // Maximize click: presentationMaximized flips in the same commit while the
+    // host's fullWidthActive report is still one commit behind — the list must
+    // not bounce open here even though the docked prediction would restore it.
+    rightPanelStateMock.current = { ...rightPanelStateMock.current, presentationMaximized: true }
+    rerender(<ChatAppShell {...shellProps} paneOpen onPaneAutoCollapseChange={onPaneAutoCollapseChange} />)
+    expect(onPaneAutoCollapseChange).toHaveBeenCalledTimes(1)
+
+    // Minimize completes: docked again, unfreeze evaluates once and keeps it collapsed.
+    rightPanelStateMock.current = { ...rightPanelStateMock.current, presentationMaximized: false }
+    rerender(<ChatAppShell {...shellProps} paneOpen onPaneAutoCollapseChange={onPaneAutoCollapseChange} />)
+    expect(onPaneAutoCollapseChange).toHaveBeenCalledTimes(1)
+  })
+
+  it('defers evaluation during full-width phases and evaluates once on unfreeze', () => {
+    const onPaneAutoCollapseChange = vi.fn()
+    const shellProps = { pane: <aside>topics</aside>, main: <div /> }
+    rightPanelStateMock.current = {
+      layoutAnimationPending: false,
+      presentationMaximized: true,
+      presentationOpen: true,
+      fullWidthActive: true,
+      userOpenSeq: 0
+    }
+
+    const { rerender } = render(
+      <ChatAppShell {...shellProps} paneOpen onPaneAutoCollapseChange={onPaneAutoCollapseChange} />
+    )
+
+    notifyObservedShellWidth(599)
+    expect(onPaneAutoCollapseChange).not.toHaveBeenCalled()
+
+    rightPanelStateMock.current = {
+      layoutAnimationPending: false,
+      presentationMaximized: false,
+      presentationOpen: true,
+      fullWidthActive: false,
+      userOpenSeq: 0
+    }
+    rerender(<ChatAppShell {...shellProps} paneOpen onPaneAutoCollapseChange={onPaneAutoCollapseChange} />)
+
+    expect(onPaneAutoCollapseChange).toHaveBeenCalledTimes(1)
+    expect(onPaneAutoCollapseChange).toHaveBeenCalledWith(true)
+  })
+
+  it('keeps the resize handle outside the clipped pane content so it does not cover the scrollbar', () => {
+    const { container } = render(<ChatAppShell pane={<aside>topics</aside>} paneOpen main={<div />} />)
+    const pane = container.querySelector('[data-resource-list-pane]')
+    const paneContent = container.querySelector('[data-resource-list-pane-content]')
+    const handle = container.querySelector('[data-resource-list-pane-resize-handle]')
+
+    expect(pane).toHaveClass('overflow-visible')
+    expect(paneContent).toHaveClass('overflow-hidden')
+    expect(handle).toHaveClass('left-full', 'w-2')
+    expect(handle).not.toHaveClass('right-0')
+    expect(handle?.firstElementChild).toHaveClass('left-0')
   })
 
   it('keeps the resize handle below history overlays', () => {
@@ -467,28 +807,17 @@ describe('ChatAppShell', () => {
 
 function notifyObservedShellWidth(width: number) {
   const { instance, target } = findResizeObserverTarget('[data-chat-app-shell-root]')
-  instance.callback(
-    [
-      {
-        target,
-        contentRect: new DOMRect(0, 0, width, 0)
-      } as ResizeObserverEntry
-    ],
-    {} as ResizeObserver
-  )
-}
-
-function notifyObservedCenterWidth(width: number) {
-  const { instance, target } = findResizeObserverTarget('[data-chat-app-shell-center]')
-  instance.callback(
-    [
-      {
-        target,
-        contentRect: new DOMRect(0, 0, width, 0)
-      } as ResizeObserverEntry
-    ],
-    {} as ResizeObserver
-  )
+  act(() => {
+    instance.callback(
+      [
+        {
+          target,
+          contentRect: new DOMRect(0, 0, width, 0)
+        } as ResizeObserverEntry
+      ],
+      {} as ResizeObserver
+    )
+  })
 }
 
 function findResizeObserverTarget(selector: string) {

@@ -50,14 +50,37 @@ jobs:
               - 'vitest.config.ts'
               - 'patches/**'
 
-  changeset-check:
+  basic-checks:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false && github.head_ref != 'changeset-release/main'
+    env:
+      CI: true
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v6
         with:
-          fetch-depth: 0
+          fetch-depth: ${{ github.event_name == 'pull_request' && '0' || '1' }}
+
+      # provider-registry data/*.json are generated from src/creators + src/providers.
+      # The daily catalog workflow regenerates data without source changes, so exempt only
+      # its exact same-repository branch from the hand-edit guard.
+      - name: Detect provider-registry changes
+        if: github.event_name == 'pull_request' && !(github.head_ref == 'auto-update-catalog-daily' && github.event.pull_request.head.repo.full_name == github.repository)
+        id: catalog-filter
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            data:
+              - 'packages/provider-registry/data/**'
+            source:
+              - 'packages/provider-registry/src/**'
+              - 'packages/provider-registry/scripts/**'
+
+      - name: Reject hand-edited catalog
+        if: steps.catalog-filter.outputs.data == 'true' && steps.catalog-filter.outputs.source == 'false'
+        run: |
+          echo "::error::packages/provider-registry/data/*.json changed but no src/ or scripts/ change — that's a hand-edit. The data files are generated: edit src/creators|src/providers and run \`pnpm --filter @cherrystudio/provider-registry generate\`, then commit. Never hand-edit data/*.json."
+          exit 1
 
       - name: Install Node.js
         uses: actions/setup-node@v6
@@ -84,43 +107,10 @@ jobs:
         run: pnpm install
 
       - name: Check changesets
+        if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main'
         env:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: pnpm changeset status --since="origin/$BASE_REF"
-
-  basic-checks:
-    runs-on: ubuntu-latest
-    env:
-      CI: true
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
-
-    steps:
-      - name: Check out Git repository
-        uses: actions/checkout@v6
-
-      - name: Install Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version-file: ".node-version"
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v5
-
-      - name: Get pnpm store directory
-        id: pnpm-cache
-        shell: bash
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
-
-      - name: Cache pnpm dependencies
-        uses: actions/cache@v5
-        with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-
-
-      - name: Install Dependencies
-        run: pnpm install
 
       - name: Lint Check
         run: pnpm test:lint
@@ -209,7 +199,8 @@ jobs:
       - name: Scripts Test
         run: pnpm test:scripts
 
-  render-test:
+  renderer-test-shard:
+    name: renderer-test (${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
     needs: changes
     if: >-
@@ -217,6 +208,10 @@ jobs:
       needs.changes.outputs.shared == 'true' ||
       github.event_name == 'push' ||
       github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     env:
       CI: true
 
@@ -249,7 +244,22 @@ jobs:
         run: pnpm install
 
       - name: Renderer Test
-        run: pnpm test:renderer
+        run: pnpm test:renderer --shard=${{ matrix.shard }}/3
+
+  render-test:
+    runs-on: ubuntu-latest
+    needs: [changes, renderer-test-shard]
+    if: >-
+      always() &&
+      (needs.changes.outputs.renderer == 'true' ||
+      needs.changes.outputs.shared == 'true' ||
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch')
+    steps:
+      - name: Verify renderer test shards
+        env:
+          SHARD_RESULT: ${{ needs.renderer-test-shard.result }}
+        run: test "$SHARD_RESULT" = "success"
 
   notify:
     runs-on: ubuntu-latest

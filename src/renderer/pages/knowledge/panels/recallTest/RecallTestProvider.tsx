@@ -1,24 +1,36 @@
 import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
-import { normalizeKnowledgeError } from '@renderer/pages/knowledge/utils'
+import { normalizeKnowledgeError } from '@renderer/pages/knowledge/utils/error'
+import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { ReactNode } from 'react'
-import { createContext, use, useEffect, useRef, useState } from 'react'
+import { createContext, use, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { RecallResultItem, RecallTestContextValue } from './types'
+import type { RecallQueryContextValue, RecallResultContextValue, RecallResultItem } from './types'
 import { mapRecallResult, prependHistoryQuery } from './utils'
 
 const logger = loggerService.withContext('KnowledgeV2RecallTest')
 
-const RecallTestContext = createContext<RecallTestContextValue | null>(null)
+const RecallQueryContext = createContext<RecallQueryContextValue | null>(null)
+const RecallResultContext = createContext<RecallResultContextValue | null>(null)
 
-export const useRecallTest = () => {
-  const context = use(RecallTestContext)
+export const useRecallQuery = () => {
+  const context = use(RecallQueryContext)
 
   if (!context) {
-    throw new Error('RecallTest components must be used within RecallTestProvider')
+    throw new Error('Recall query components must be used within RecallTestProvider')
+  }
+
+  return context
+}
+
+export const useRecallResult = () => {
+  const context = use(RecallResultContext)
+
+  if (!context) {
+    throw new Error('Recall result components must be used within RecallTestProvider')
   }
 
   return context
@@ -66,11 +78,10 @@ const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
       return
     }
 
-    const currentHistoryQueries = historyQueriesByBaseId[baseId] ?? []
-    setHistoryQueriesByBaseId({
-      ...historyQueriesByBaseId,
-      [baseId]: prependHistoryQuery(currentHistoryQueries, trimmedQuery)
-    })
+    setHistoryQueriesByBaseId((prev) => ({
+      ...prev,
+      [baseId]: prependHistoryQuery(prev[baseId] ?? [], trimmedQuery)
+    }))
 
     const searchId = latestSearchIdRef.current + 1
     latestSearchIdRef.current = searchId
@@ -98,7 +109,7 @@ const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
       if (!isCurrentSearch()) {
         return
       }
-      window.toast.error(formatErrorMessageWithPrefix(normalizedError, t('knowledge.recall.search_failed')))
+      toast.error(formatErrorMessageWithPrefix(normalizedError, t('knowledge.recall.search_failed')))
       setResults([])
     }
 
@@ -111,17 +122,11 @@ const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
     setHasSearched(true)
   }
 
-  const value: RecallTestContextValue = {
+  const queryValue: RecallQueryContextValue = {
     state: {
       query,
       historyItems,
-      isHistoryOpen,
-      isSearching,
-      hasSearched,
-      results,
-      duration,
-      topScore,
-      scoreKind
+      isHistoryOpen
     },
     actions: {
       setQuery,
@@ -132,20 +137,37 @@ const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
         setIsHistoryOpen(false)
       },
       removeHistory: (historyId) =>
-        setHistoryQueriesByBaseId({
-          ...historyQueriesByBaseId,
-          [baseId]: historyQueries.filter((item) => item !== historyId)
-        }),
+        setHistoryQueriesByBaseId((prev) => ({
+          ...prev,
+          [baseId]: (prev[baseId] ?? []).filter((item) => item !== historyId)
+        })),
       clearHistory: () =>
-        setHistoryQueriesByBaseId({
-          ...historyQueriesByBaseId,
+        setHistoryQueriesByBaseId((prev) => ({
+          ...prev,
           [baseId]: []
-        })
+        }))
     },
     meta: { baseId }
   }
+  const resultValue = useMemo<RecallResultContextValue>(
+    () => ({
+      state: {
+        isSearching,
+        hasSearched,
+        results,
+        duration,
+        topScore,
+        scoreKind
+      }
+    }),
+    [duration, hasSearched, isSearching, results, scoreKind, topScore]
+  )
 
-  return <RecallTestContext value={value}>{children}</RecallTestContext>
+  return (
+    <RecallQueryContext value={queryValue}>
+      <RecallResultContext value={resultValue}>{children}</RecallResultContext>
+    </RecallQueryContext>
+  )
 }
 
 export default RecallTestProvider

@@ -1,8 +1,17 @@
-import * as cmThemes from '@uiw/codemirror-themes-all'
+import type * as CmThemes from '@uiw/codemirror-themes-all'
 import type { Extension } from '@uiw/react-codemirror'
 import diff from 'fast-diff'
 
 import type { CodeMirrorTheme, LanguageConfig } from './types'
+
+let cmThemesPromise: Promise<typeof CmThemes> | undefined
+
+// Loaded on demand so the full themes-all package (and the @codemirror/*
+// packages it drags in) stays out of every window's first-screen static graph.
+function loadCmThemes(): Promise<typeof CmThemes> {
+  cmThemesPromise ??= import('@uiw/codemirror-themes-all')
+  return cmThemesPromise
+}
 
 /**
  * Computes code changes using fast-diff and converts them to CodeMirror changes.
@@ -234,7 +243,8 @@ export async function getNormalizedExtension(language: string, languageConfig?: 
  * A more robust approach might be to hardcode the theme list
  * @returns theme name list
  */
-export function getCmThemeNames(): string[] {
+export async function getCmThemeNames(): Promise<string[]> {
+  const cmThemes = await loadCmThemes()
   return ['auto', 'light', 'dark']
     .concat(Object.keys(cmThemes))
     .filter((item) => typeof (cmThemes as any)[item] !== 'function')
@@ -246,8 +256,15 @@ export function getCmThemeNames(): string[] {
  * @param name theme name
  * @returns theme object
  */
-export function getCmThemeByName(name: string): CodeMirrorTheme {
-  // 1. Search for the extension of the corresponding theme in @uiw/codemirror-themes-all
+export async function getCmThemeByName(name: string): Promise<CodeMirrorTheme> {
+  // 1. Basic string theme
+  if (name === 'light' || name === 'dark' || name === 'none') {
+    return name
+  }
+
+  const cmThemes = await loadCmThemes()
+
+  // 2. Search for the extension of the corresponding theme in @uiw/codemirror-themes-all
   const candidate = (cmThemes as Record<string, unknown>)[name]
   if (
     Object.prototype.hasOwnProperty.call(cmThemes, name) &&
@@ -256,11 +273,6 @@ export function getCmThemeByName(name: string): CodeMirrorTheme {
     !/(Style)$/.test(name)
   ) {
     return candidate as Extension
-  }
-
-  // 2. Basic string theme
-  if (name === 'light' || name === 'dark' || name === 'none') {
-    return name
   }
 
   // 3. If not found, fallback to light

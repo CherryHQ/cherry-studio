@@ -12,7 +12,7 @@
  */
 
 import { MODALITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
-import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { CHERRYAI_PROVIDER_ID, isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import type { Model, RuntimeReasoning, ThinkingTokenLimits } from '@shared/data/types/model'
 import { MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 
@@ -65,11 +65,20 @@ export const isGenerateAudioModel = (model: Model): boolean =>
 export const isEditImageModel = (model: Model): boolean =>
   !!(model.capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION) && model.inputModalities?.includes(MODALITY.IMAGE))
 
+// A dedicated speech-to-text model is identified by the explicit AUDIO_TRANSCRIPT
+// capability only. Accepting audio as an *input modality* does NOT make a model
+// speech-to-text — multimodal chat LLMs (Gemini, GPT-4o, …) take audio input yet are
+// still general chat models, and keying on the modality wrongly classified them as
+// non-chat (via `isNonChatModel`) and hid them from every model picker.
 export const isSpeechToTextModel = (model: Model): boolean =>
-  !!(model.capabilities.includes(MODEL_CAPABILITY.AUDIO_TRANSCRIPT) || model.inputModalities?.includes(MODALITY.AUDIO))
+  model.capabilities.includes(MODEL_CAPABILITY.AUDIO_TRANSCRIPT)
 
+// Mirror of `isSpeechToTextModel`: a dedicated text-to-speech model is identified by
+// the explicit AUDIO_GENERATION capability only. Producing audio as an *output
+// modality* does NOT make a model text-to-speech — multimodal chat LLMs can emit audio
+// yet still chat, and keying on the modality wrongly classified them as non-chat.
 export const isTextToSpeechModel = (model: Model): boolean =>
-  !!(model.capabilities.includes(MODEL_CAPABILITY.AUDIO_GENERATION) || model.outputModalities?.includes(MODALITY.AUDIO))
+  model.capabilities.includes(MODEL_CAPABILITY.AUDIO_GENERATION)
 
 /** Check if model is a dedicated text-to-image model (no text chat) */
 export const isTextToImageModel = (model: Model): boolean =>
@@ -84,6 +93,19 @@ export const isNonChatModel = (model: Model): boolean =>
   isGenerateAudioModel(model) ||
   isTextToSpeechModel(model) ||
   isSpeechToTextModel(model)
+
+/**
+ * Models the API gateway can route — the single predicate shared by the gateway's
+ * `/v1/models` listing and the renderer's gateway model picker, so the CLI can only
+ * pick what the gateway will actually serve. Excludes non-chat models (the gateway
+ * only proxies chat dialects), the CherryAI managed default (the gateway's own
+ * guard), and models of a provider whose id contains ':' — the gateway address
+ * ("providerId:apiModelId") splits on the FIRST ':', so such ids cannot round-trip.
+ */
+export const isGatewayRoutableModel = (model: Model): boolean => {
+  if (model.providerId.includes(':') || isNonChatModel(model)) return false
+  return !isManagedCherryAiDefaultModel(model.providerId, getRawModelId(model))
+}
 
 // ---------------------------------------------------------------------------
 // Reasoning configuration

@@ -51,13 +51,6 @@ vi.mock('@main/services/RegionService', () => ({
   regionService: { getCountry: vi.fn(() => 'US') }
 }))
 
-vi.mock('@main/utils/language', () => ({
-  locales: {
-    en: { translation: { update: {} } },
-    'zh-CN': { translation: { update: {} } }
-  }
-}))
-
 vi.mock('@main/utils/systemInfo', () => ({
   generateUserAgent: vi.fn(() => 'test-user-agent'),
   getClientId: vi.fn(() => 'test-client-id')
@@ -106,13 +99,6 @@ import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceServi
 import { app, net } from 'electron'
 
 import { AppUpdaterService, UpdateMirror } from '../AppUpdaterService'
-
-// Mock clientId for ConfigManager since it's not migrated yet
-vi.mock('../ConfigManager', () => ({
-  configManager: {
-    getClientId: vi.fn(() => 'test-client-id')
-  }
-}))
 
 describe('AppUpdaterService', () => {
   let appUpdater: AppUpdaterService

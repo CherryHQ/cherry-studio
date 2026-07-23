@@ -15,11 +15,15 @@ import { loggerService } from '@logger'
 import { providerService } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
 import { defaultAppHeaders } from '@main/utils/http'
-import type { Model } from '@shared/data/types/model'
-import { createUniqueModelId, ENDPOINT_TYPE } from '@shared/data/types/model'
+import type { EndpointType, Model } from '@shared/data/types/model'
+import {
+  createUniqueModelId,
+  ENDPOINT_TYPE,
+  endpointImpliedCapability,
+  MODEL_CAPABILITY
+} from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { formatApiHost } from '@shared/utils/api'
-import { withoutTrailingSlash } from '@shared/utils/api/utils'
+import { formatApiHost, withoutTrailingSlash } from '@shared/utils/api'
 import {
   isAIGatewayProvider,
   isGeminiProvider,
@@ -41,6 +45,7 @@ import {
 } from './listModels/vertex'
 import {
   AIHubMixModelsResponseSchema,
+  AnthropicModelsResponseSchema,
   CopilotModelsResponseSchema,
   GeminiModelsResponseSchema,
   GitHubModelsResponseSchema,
@@ -71,6 +76,10 @@ function handleOptionalModelListFailure<T>(
     throw error
   }
 
+  return recoverOptionalModelListFailure(error, context)
+}
+
+function recoverOptionalModelListFailure<T>(error: unknown, context: Record<string, string>): { data: T[] } {
   logger.warn('Optional model list endpoint failed; continuing with primary models', {
     ...context,
     error
@@ -171,7 +180,7 @@ const ollamaFetcher: ModelFetcher = {
       .replace(/\/api$/, '')
     const response = await getFromApi({
       url: `${baseUrl}/api/tags`,
-      headers: await defaultHeaders(provider),
+      headers: defaultHeaders(provider),
       responseSchema: OllamaTagsResponseSchema,
       abortSignal: signal
     })
@@ -198,7 +207,7 @@ const geminiFetcher: ModelFetcher = {
   fetch: async (provider, signal) => {
     let baseUrl = withoutTrailingSlash(getBaseUrl(provider))
     baseUrl = baseUrl.replace(/\/v1(beta)?$/, '')
-    const apiKey = await providerService.getRotatedApiKey(provider.id)
+    const apiKey = providerService.getRotatedApiKey(provider.id)
     // Pass the key via the `x-goog-api-key` header (same as `@ai-sdk/google`'s chat path)
     // instead of the `?key=` query param: on failure `APICallError.url` is logged, which
     // would persist the key into local logs users attach to bug reports.
@@ -305,9 +314,9 @@ const vertexFetcher: ModelFetcher = {
 }
 
 const githubFetcher: ModelFetcher = {
-  match: (p) => p.id === SystemProviderIds.github,
+  match: (p) => matchesPreset(p, SystemProviderIds.github),
   fetch: async (provider, signal) => {
-    const headers = await defaultHeaders(provider)
+    const headers = defaultHeaders(provider)
     const catalogResponse = await getFromApi({
       url: 'https://models.github.ai/catalog/models',
       headers,
@@ -365,7 +374,7 @@ const ovmsFetcher: ModelFetcher = {
     const baseUrl = formatApiHost(withoutTrailingSlash(getBaseUrl(provider)).replace(/\/v1$/, ''), true, 'v1')
     const response = await getFromApi({
       url: `${baseUrl}/config`,
-      headers: await defaultHeaders(provider),
+      headers: defaultHeaders(provider),
       responseSchema: OVMSConfigResponseSchema,
       abortSignal: signal
     })
@@ -382,7 +391,7 @@ const togetherFetcher: ModelFetcher = {
     const baseUrl = formatApiHost(getBaseUrl(provider))
     const response = await getFromApi({
       url: `${baseUrl}/models`,
-      headers: await defaultHeaders(provider),
+      headers: defaultHeaders(provider),
       responseSchema: TogetherModelsResponseSchema,
       abortSignal: signal
     })
@@ -396,34 +405,75 @@ const togetherFetcher: ModelFetcher = {
   }
 }
 
+type NewApiModelResponseItem = z.infer<typeof NewApiModelsResponseSchema>['data'][number]
+
+const ENDPOINT_TYPE_ALIASES: Record<string, EndpointType> = {
+  anthropic: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  gemini: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+  'image-edit': ENDPOINT_TYPE.OPENAI_IMAGE_EDIT,
+  'image-generation': ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+  'jina-rerank': ENDPOINT_TYPE.JINA_RERANK,
+  openai: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  'openai-response': ENDPOINT_TYPE.OPENAI_RESPONSES,
+  'openai-response-compact': ENDPOINT_TYPE.OPENAI_RESPONSES
+}
+
+function normalizeEndpointTypes(values: string[] | undefined): EndpointType[] | undefined {
+  if (!values?.length) {
+    return undefined
+  }
+
+  const endpointTypes = dedup(
+    values
+      .map((value) => ENDPOINT_TYPE_ALIASES[value.trim().toLowerCase()])
+      .filter((value): value is EndpointType => Boolean(value)),
+    (value) => value
+  )
+
+  return endpointTypes.length > 0 ? endpointTypes : undefined
+}
+
 const newApiFetcher: ModelFetcher = {
   match: (p) =>
-    p.id === SystemProviderIds['new-api'] || p.presetProviderId === 'new-api' || p.id === SystemProviderIds.cherryin,
+    p.id === SystemProviderIds['new-api'] ||
+    p.presetProviderId === 'new-api' ||
+    p.id === SystemProviderIds.cherryin ||
+    p.id === SystemProviderIds.aionly,
   fetch: async (provider, signal) => {
     const baseUrl = formatApiHost(getBaseUrl(provider))
     const response = await getFromApi({
       url: `${baseUrl}/models`,
-      headers: await defaultHeaders(provider),
+      headers: defaultHeaders(provider),
       responseSchema: NewApiModelsResponseSchema,
       abortSignal: signal
     })
-    return dedup(response.data, (m) => m.id).map((m) => toModel(m.id, provider, { ownedBy: m.owned_by }))
+    return dedup(response.data, (m) => m.id).map((m: NewApiModelResponseItem) => {
+      const endpointTypes = normalizeEndpointTypes(m.supported_endpoint_types)
+      const impliedCapability = endpointImpliedCapability(endpointTypes?.[0])
+
+      return toModel(m.id, provider, {
+        ownedBy: m.owned_by,
+        endpointTypes,
+        ...(impliedCapability ? { capabilities: [impliedCapability] } : {})
+      })
+    })
   }
 }
 
 const openRouterFetcher: ModelFetcher = {
   match: (p) => p.id === SystemProviderIds.openrouter,
   fetch: async (provider, signal, options) => {
-    const headers = await defaultHeaders(provider)
-    const [modelsResponse, embedModelsResponse] = await Promise.all([
+    const headers = defaultHeaders(provider)
+    const modelsApiUrls = provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.modelsApiUrls
+    const [modelsResponse, embedModelsResponse, imageModelsResponse] = await Promise.all([
       getFromApi({
-        url: 'https://openrouter.ai/api/v1/models',
+        url: modelsApiUrls?.default ?? 'https://openrouter.ai/api/v1/models',
         headers,
         responseSchema: OpenAIModelsResponseSchema,
         abortSignal: signal
       }),
       getFromApi({
-        url: 'https://openrouter.ai/api/v1/embeddings/models',
+        url: modelsApiUrls?.embedding ?? 'https://openrouter.ai/api/v1/embeddings/models',
         headers,
         responseSchema: OpenAIModelsResponseSchema,
         abortSignal: signal
@@ -432,10 +482,34 @@ const openRouterFetcher: ModelFetcher = {
           providerId: provider.id,
           endpoint: 'openrouter-embedding-models'
         })
+      ),
+      getFromApi({
+        url: modelsApiUrls?.image ?? 'https://openrouter.ai/api/v1/images/models',
+        headers,
+        responseSchema: OpenAIModelsResponseSchema,
+        abortSignal: signal
+      }).catch((error) =>
+        recoverOptionalModelListFailure<OpenAIModelResponseItem>(error, {
+          providerId: provider.id,
+          endpoint: 'openrouter-image-models'
+        })
       )
     ])
-    const all = [...modelsResponse.data, ...embedModelsResponse.data]
-    return dedup(all, (m) => m.id).map((m) => toModel(m.id, provider, { ownedBy: m.owned_by }))
+    const imageModelsById = new Map(imageModelsResponse.data.map((model) => [model.id, model]))
+    const all = [...modelsResponse.data, ...embedModelsResponse.data, ...imageModelsResponse.data]
+    return dedup(all, (m) => m.id).map((m) => {
+      const imageModel = imageModelsById.get(m.id)
+      return toModel(m.id, provider, {
+        name: imageModel?.name ?? m.name,
+        ownedBy: m.owned_by,
+        ...(imageModel
+          ? {
+              capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+              endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+            }
+          : {})
+      })
+    })
   }
 }
 
@@ -443,7 +517,7 @@ const ppioFetcher: ModelFetcher = {
   match: (p) => p.id === SystemProviderIds.ppio,
   fetch: async (provider, signal, options) => {
     const baseUrl = formatApiHost(getBaseUrl(provider))
-    const headers = await defaultHeaders(provider)
+    const headers = defaultHeaders(provider)
     const [chat, embed, reranker] = await Promise.all([
       getFromApi({
         url: `${baseUrl}/models`,
@@ -474,8 +548,27 @@ const ppioFetcher: ModelFetcher = {
         })
       )
     ])
-    const all = [...chat.data, ...embed.data, ...reranker.data]
-    return dedup(all, (m) => m.id).map((m) => toModel(m.id, provider, { ownedBy: m.owned_by }))
+    const modelsById = new Map<string, Partial<Model>>()
+    const mergeModel = (model: OpenAIModelResponseItem, capability?: (typeof MODEL_CAPABILITY.RERANK)[]) => {
+      const id = model.id?.trim()
+      if (!id) return
+
+      const existing = modelsById.get(id)
+      if (!existing) {
+        modelsById.set(id, toModel(id, provider, { ownedBy: model.owned_by, capabilities: capability ?? [] }))
+        return
+      }
+
+      if (capability) {
+        existing.capabilities = Array.from(new Set([...(existing.capabilities ?? []), ...capability]))
+      }
+    }
+
+    for (const model of chat.data) mergeModel(model)
+    for (const model of embed.data) mergeModel(model)
+    for (const model of reranker.data) mergeModel(model, [MODEL_CAPABILITY.RERANK])
+
+    return Array.from(modelsById.values())
   }
 }
 
@@ -483,8 +576,8 @@ const aiHubMixFetcher: ModelFetcher = {
   match: (p) => p.id === SystemProviderIds.aihubmix,
   fetch: async (provider, signal) => {
     const response = await getFromApi({
-      url: `https://aihubmix.com/api/v1/models`,
-      headers: await defaultHeaders(provider),
+      url: `${withoutTrailingSlash(getBaseUrl(provider)).replace(/\/v1$/, '')}/api/v1/models`,
+      headers: defaultHeaders(provider),
       responseSchema: AIHubMixModelsResponseSchema,
       abortSignal: signal
     })
@@ -507,7 +600,7 @@ const gatewayFetcher: ModelFetcher = {
     const response = await getFromApi({
       url: `https://ai-gateway.vercel.sh/v3/ai/config`,
       headers: {
-        ...(await defaultHeaders(provider)),
+        ...defaultHeaders(provider),
         'ai-gateway-protocol-version': '0.0.1'
       },
       responseSchema: VercelGatewayModelsResponseSchema,
@@ -530,13 +623,41 @@ function isSupportedOpenAIModel(modelId: string): boolean {
   return !EXCLUDED_OPENAI_MODEL_KEYWORDS.some((keyword) => id.includes(keyword))
 }
 
+// Anthropic authenticates model listing with `x-api-key` + `anthropic-version`, not
+// `Authorization: Bearer` — the generic OpenAI fetcher's Bearer header would 401. `/v1/models`
+// only returns chat models (no audio/tts), and `limit` maxes at 1000, well above the catalog
+// size, so a single page covers it.
+const ANTHROPIC_VERSION = '2023-06-01'
+
+const anthropicFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.anthropic),
+  fetch: async (provider, signal) => {
+    const baseUrl = formatApiHost(getBaseUrl(provider))
+    const apiKey = providerService.getRotatedApiKey(provider.id)
+    const response = await getFromApi({
+      url: `${baseUrl}/models?limit=1000`,
+      headers: {
+        ...defaultAppHeaders(),
+        'x-api-key': apiKey,
+        'anthropic-version': ANTHROPIC_VERSION,
+        ...provider.settings?.extraHeaders
+      },
+      responseSchema: AnthropicModelsResponseSchema,
+      abortSignal: signal
+    })
+    return dedup(response.data, (m) => m.id).map((m) =>
+      toModel(m.id, provider, { name: m.display_name || m.id, ownedBy: 'anthropic' })
+    )
+  }
+}
+
 const openAIFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.openai),
   fetch: async (provider, signal) => {
     const baseUrl = formatApiHost(getBaseUrl(provider))
     const response = await getFromApi({
       url: `${baseUrl}/models`,
-      headers: await defaultHeaders(provider),
+      headers: defaultHeaders(provider),
       responseSchema: OpenAIModelsResponseSchema,
       abortSignal: signal
     })
@@ -552,7 +673,7 @@ const openAICompatibleFetcher: ModelFetcher = {
     const baseUrl = formatApiHost(getBaseUrl(provider))
     const response = await getFromApi({
       url: `${baseUrl}/models`,
-      headers: await defaultHeaders(provider),
+      headers: defaultHeaders(provider),
       responseSchema: OpenAIModelsResponseSchema,
       abortSignal: signal
     })
@@ -575,15 +696,10 @@ const fetchers: ModelFetcher[] = [
   openRouterFetcher,
   ppioFetcher,
   gatewayFetcher,
+  anthropicFetcher,
   openAIFetcher,
   openAICompatibleFetcher // always-match fallback, must be last
 ]
-
-const UNSUPPORTED_PROVIDERS = new Set<string>([SystemProviderIds['aws-bedrock'], SystemProviderIds.anthropic])
-
-function isUnsupported(provider: Provider): boolean {
-  return UNSUPPORTED_PROVIDERS.has(provider.id) || provider.presetProviderId === 'vertex-anthropic'
-}
 
 // ── Public API ──
 
@@ -593,14 +709,6 @@ export async function listModels(
   options?: { throwOnError?: boolean }
 ): Promise<Partial<Model>[]> {
   try {
-    if (isUnsupported(provider)) {
-      logger.warn('Provider does not support model listing', { providerId: provider.id })
-      if (options?.throwOnError) {
-        throw new Error(`Provider does not support model listing: ${provider.id}`)
-      }
-      return []
-    }
-
     const fetcher = fetchers.find((f) => f.match(provider))!
     return await fetcher.fetch(provider, abortSignal, options)
   } catch (error) {

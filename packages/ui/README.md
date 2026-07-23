@@ -20,7 +20,7 @@ Cherry Studio UI component library for React applications.
 ```bash
 npm install @cherrystudio/ui
 # peer dependencies
-npm install framer-motion react react-dom tailwindcss
+npm install motion react react-dom tailwindcss
 ```
 
 > The recommended integration style in this repository is to use the package export entry points:
@@ -28,7 +28,8 @@ npm install framer-motion react react-dom tailwindcss
 > `@cherrystudio/ui/components`
 > `@cherrystudio/ui/icons`
 > `@cherrystudio/ui/utils`
-> `@cherrystudio/ui/styles/*`
+> `@cherrystudio/ui/styles/tokens.css`
+> `@cherrystudio/ui/styles/theme.css`
 >
 ### Two Integration Modes
 
@@ -43,30 +44,21 @@ Use the full Cherry Studio design system so Tailwind theme tokens resolve to Che
 
 **Characteristics:**
 
-- ✅ Use standard Tailwind utility names directly (`bg-primary`, `bg-red-500`, `p-md`, `rounded-lg`)
+- ✅ Use standard Tailwind utility names directly (`bg-primary`, `bg-red-500`, `p-4`, `rounded-lg`)
 - ✅ Colors resolve to Cherry Studio design values
-- ✅ Includes the extended spacing scale (`p-5xs` through `p-8xl`, 16 semantic sizes)
+- ✅ Uses Tailwind's standard numeric spacing scale
 - ✅ Includes the extended radius scale (`rounded-4xs` through `rounded-3xl`, plus `rounded-round`)
 - ⚠️ Overrides the default Tailwind theme contract for the imported app bundle
 
 **Example:**
 
 ```tsx
-<Button className="bg-primary text-red-500 p-md rounded-lg">
+<Button className="bg-primary text-red-500 p-4 rounded-lg">
   {/* bg-primary -> Cherry Studio brand color */}
   {/* text-red-500 -> Cherry Studio red-500 */}
-  {/* p-md -> semantic spacing token */}
+  {/* p-4 -> Tailwind numeric spacing */}
   {/* rounded-lg -> semantic radius token */}
 </Button>
-
-{/* Extended utility classes */}
-<div className="p-5xs">Tiny spacing (0.5rem)</div>
-<div className="p-xs">Extra small spacing (1rem)</div>
-<div className="p-sm">Small spacing (1.5rem)</div>
-<div className="p-md">Medium spacing (2.5rem)</div>
-<div className="p-lg">Large spacing (3.5rem)</div>
-<div className="p-xl">Extra large spacing (5rem)</div>
-<div className="p-8xl">Maximum spacing (15rem)</div>
 
 <div className="rounded-4xs">Tiny radius (0.03125rem)</div>
 <div className="rounded-xs">Small radius (0.125rem)</div>
@@ -88,7 +80,6 @@ Import only the design tokens and decide which theme mappings your app wants to 
 @theme {
   --color-primary: var(--cs-primary); /* Use the Cherry Studio primary color */
   --color-red-500: oklch(...); /* Keep your own red scale */
-  --spacing-md: var(--cs-size-md); /* Reuse Cherry Studio spacing */
   --radius-lg: 1rem; /* Keep your own radius */
 }
 ```
@@ -118,7 +109,6 @@ Import only the design tokens and decide which theme mappings your app wants to 
   style={{
     color: 'var(--cs-primary)', // Brand color
     backgroundColor: 'var(--cs-red-500)', // Red-500
-    padding: 'var(--cs-size-md)', // Spacing
     borderRadius: 'var(--cs-radius-lg)', // Radius
   }}
 />
@@ -131,7 +121,6 @@ To avoid mixing tokens, theme mappings, and runtime overrides, use the following
 1. `--cs-*` is the design token namespace, sourced from `tokens/*`
 2. `--color-*`, `--radius-*`, and `--font-*` are public theme contracts and should be the default choice for components and external consumers
 3. `--cs-theme-*` is a runtime override input and should only be used for controlled runtime overrides
-4. `--primary` is a compatibility alias kept for shadcn / Tailwind ecosystem compatibility and should not be preferred in new code
 
 Default consumption rules:
 
@@ -184,11 +173,57 @@ pnpm dev
 pnpm build
 
 # Type check
-pnpm type-check
+pnpm type:check
 
 # Run tests
 pnpm test
 ```
+
+### Icon Generation
+
+Use the package command for all icon generation so ESLint fixes and the repository formatter run after the generated files are updated.
+
+In this command, `--type=icons` means general UI icons that are not Provider or Model logos.
+
+```bash
+# Generate general icons, Providers, and Models
+pnpm icons:generate
+
+# General icons
+pnpm icons:generate --type=icons
+
+# Provider icons, Avatars, barrels, and catalogs
+pnpm icons:generate --type=providers
+
+# Model icons, Avatars, barrels, and catalogs
+pnpm icons:generate --type=models
+```
+
+| Type        | SVG source                            | Generated output                                                                 |
+| ----------- | ------------------------------------- | -------------------------------------------------------------------------------- |
+| `icons`     | `icons/general/*.svg`                 | General React icon components and their barrel                                   |
+| `providers` | `icons/providers/{light,dark}/*.svg` | Provider light/dark components, metadata, Avatars, barrels, and catalogs          |
+| `models`    | `icons/models/{light,dark}/*.svg`    | Model light/dark components, metadata, Avatars, barrels, and catalogs             |
+
+Generation uses a hash cache and skips unchanged SVG files. Use the optional arguments when a narrower or clean regeneration is needed:
+
+```bash
+# Regenerate one provider and its Avatar/catalog entries
+pnpm icons:generate --type=providers --only=opencode
+
+# Regenerate multiple models
+pnpm icons:generate --type=models --only=claude,gemini
+
+# Ignore the hash cache and regenerate every provider
+pnpm icons:generate --type=providers --force
+```
+
+- Omitting `--type` generates all three groups in order: `icons`, `providers`, then `models`.
+- `--type=icons|providers|models` limits generation to one source and output group.
+- `--only=<name[,name]>` limits Provider or Model component and Avatar generation to the listed names.
+- `--force` bypasses the SVG hash cache.
+
+Provider and Model generation runs the SVG component stage first and the Avatar/catalog stage second. The `posticons:generate` lifecycle script fixes the generated icon files with ESLint, then runs the repository formatter once after both stages complete. Internal scripts under `scripts/` are still available for pipeline development, but normal usage should go through `pnpm icons:generate`.
 
 ## Package Surface
 

@@ -88,10 +88,10 @@ describe('runStartupRecovery — in-flight exclusion', () => {
     const inFlightId = inserted.find((r) => (r.input as { marker: string }).marker === 'inflight')!.id
     const orphanId = inserted.find((r) => (r.input as { marker: string }).marker === 'orphan')!.id
 
-    await runStartupRecovery(handlersOf(type, 'retry'), (id) => id === inFlightId)
+    runStartupRecovery(handlersOf(type, 'retry'), (id) => id === inFlightId)
 
-    const inFlight = await jobService.getById(inFlightId)
-    const orphan = await jobService.getById(orphanId)
+    const inFlight = jobService.getById(inFlightId)
+    const orphan = jobService.getById(orphanId)
     // The in-flight row is owned by this process — recovery must not touch it.
     expect(inFlight?.status).toBe('running')
     // The genuinely orphaned running row (prior-process leftover) is reset.
@@ -118,9 +118,9 @@ describe('runStartupRecovery — in-flight exclusion', () => {
       })
       .returning()
 
-    await runStartupRecovery(handlersOf(type, 'retry'), (id) => id === row.id)
+    runStartupRecovery(handlersOf(type, 'retry'), (id) => id === row.id)
 
-    const after = await jobService.getById(row.id)
+    const after = jobService.getById(row.id)
     // cancel() owns in-flight cancellation; recovery must leave this process's
     // live execution alone rather than racing a second terminal write.
     expect(after?.status).toBe('running')
@@ -170,10 +170,10 @@ describe('runStartupRecovery — in-flight exclusion', () => {
     const inFlightId = inserted.find((r) => (r.input as { marker: string }).marker === 'inflight')!.id
     const orphanId = inserted.find((r) => (r.input as { marker: string }).marker === 'orphan')!.id
 
-    await runStartupRecovery(handlersOf(type, 'singleton'), (id) => id === inFlightId)
+    runStartupRecovery(handlersOf(type, 'singleton'), (id) => id === inFlightId)
 
-    const inFlight = await jobService.getById(inFlightId)
-    const orphan = await jobService.getById(orphanId)
+    const inFlight = jobService.getById(inFlightId)
+    const orphan = jobService.getById(orphanId)
     // In-flight is excluded from the keep/cancel partition entirely. Without the
     // filter, singleton keeps the newest (orphan) and CANCELS this older
     // in-flight row mid-flight.
@@ -219,10 +219,10 @@ describe('runStartupRecovery — in-flight exclusion', () => {
     const inFlightId = inserted.find((r) => (r.input as { marker: string }).marker === 'inflight')!.id
     const orphanId = inserted.find((r) => (r.input as { marker: string }).marker === 'orphan')!.id
 
-    await runStartupRecovery(handlersOf(type, 'abandon'), (id) => id === inFlightId)
+    runStartupRecovery(handlersOf(type, 'abandon'), (id) => id === inFlightId)
 
-    const inFlight = await jobService.getById(inFlightId)
-    const orphan = await jobService.getById(orphanId)
+    const inFlight = jobService.getById(inFlightId)
+    const orphan = jobService.getById(orphanId)
     // Without the filter, abandon cancels BOTH running rows, terminating this
     // process's live execution mid-flight.
     expect(inFlight?.status).toBe('running')

@@ -6,12 +6,17 @@ import { useKnowledgeRagConfig } from '../useKnowledgeRagConfig'
 
 const mockUseMutation = vi.fn()
 const mockTrigger = vi.fn()
+const mockUsePreference = vi.fn()
 const mockLogger = vi.hoisted(() => ({
   error: vi.fn()
 }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useMutation: (...args: unknown[]) => mockUseMutation(...args)
+}))
+
+vi.mock('@data/hooks/usePreference', () => ({
+  usePreference: (...args: unknown[]) => mockUsePreference(...args)
 }))
 
 vi.mock('@logger', () => ({
@@ -37,14 +42,7 @@ vi.mock('@renderer/i18n/label', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) =>
-      (
-        ({
-          'knowledge.rag.search_mode.hybrid': '混合检索（推荐）',
-          'knowledge.rag.search_mode.vector': '向量检索',
-          'knowledge.rag.search_mode.bm25': '全文检索'
-        }) as Record<string, string>
-      )[key] ?? key
+    t: (key: string) => key
   })
 }))
 
@@ -60,11 +58,10 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   chunkOverlap: 200,
   chunkStrategy: 'structured',
   chunkSeparator: '\\n\\n',
-  threshold: 0,
+  threshold: 0.2,
   documentCount: 6,
   status: 'completed',
   error: null,
-  searchMode: 'hybrid',
   createdAt: '2026-04-15T09:00:00+08:00',
   updatedAt: '2026-04-15T09:00:00+08:00',
   ...overrides
@@ -78,27 +75,35 @@ describe('useKnowledgeRagConfig', () => {
       isLoading: false,
       error: undefined
     })
+    mockUsePreference.mockReturnValue([
+      {
+        paddleocr: {
+          apiKeys: ['paddle-key']
+        },
+        mineru: {
+          apiKeys: []
+        },
+        mistral: {
+          apiKeys: ['   ']
+        }
+      }
+    ])
   })
 
-  it('builds options from shared data and translations and exposes the save mutation', async () => {
+  it('builds options from configured document processors and exposes the save mutation', async () => {
     const base = createKnowledgeBase({
-      fileProcessorId: 'doc2x',
+      fileProcessorId: 'paddleocr',
       rerankModelId: 'jina::jina-reranker-v2-base-multilingual'
     })
     const { result } = renderHook(() => useKnowledgeRagConfig(base))
 
     expect(result.current.fileProcessorOptions).toEqual([
       { value: 'paddleocr', label: 'PaddleOCR' },
-      { value: 'mineru', label: 'MinerU' },
-      { value: 'doc2x', label: 'Doc2X' },
-      { value: 'mistral', label: 'Mistral' },
       { value: 'open-mineru', label: 'Open MinerU' }
     ])
-    expect(result.current.searchModeOptions).toEqual([
-      { value: 'hybrid', label: '混合检索（推荐）' },
-      { value: 'vector', label: '向量检索' },
-      { value: 'bm25', label: '全文检索' }
-    ])
+    expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('mineru')
+    expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('doc2x')
+    expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('mistral')
     expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('tesseract')
     expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('system')
     expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('ovocr')
@@ -116,9 +121,7 @@ describe('useKnowledgeRagConfig', () => {
         embeddingModelId: 'voyage::voyage-3-large',
         rerankModelId: null,
         documentCount: 10,
-        threshold: 0.25,
-        searchMode: 'vector',
-        hybridAlpha: null
+        threshold: 0.4
       })
     })
 
@@ -130,8 +133,44 @@ describe('useKnowledgeRagConfig', () => {
         chunkOverlap: 256,
         rerankModelId: null,
         documentCount: 10,
-        threshold: 0.25,
-        searchMode: 'vector'
+        threshold: 0.4
+      }
+    })
+  })
+
+  it('includes Open MinerU without an API key because authentication is optional', () => {
+    mockUsePreference.mockReturnValue([
+      {
+        'open-mineru': {
+          capabilities: {
+            document_to_markdown: {
+              apiHost: 'http://127.0.0.1:8000'
+            }
+          }
+        }
+      }
+    ])
+
+    const { result } = renderHook(() => useKnowledgeRagConfig(createKnowledgeBase()))
+
+    expect(result.current.fileProcessorOptions).toEqual([{ value: 'open-mineru', label: 'Open MinerU' }])
+  })
+
+  it('includes an explicit embedding model override in the patch body', async () => {
+    const { result } = renderHook(() => useKnowledgeRagConfig(createKnowledgeBase()))
+
+    await act(async () => {
+      await result.current.save(result.current.initialValues, {
+        embeddingModelId: 'voyage::voyage-3-large',
+        dimensions: 2048
+      })
+    })
+
+    expect(mockTrigger).toHaveBeenCalledWith({
+      params: { id: 'base-1' },
+      body: {
+        embeddingModelId: 'voyage::voyage-3-large',
+        dimensions: 2048
       }
     })
   })
@@ -145,24 +184,6 @@ describe('useKnowledgeRagConfig', () => {
     expect(mockLogger.error).toHaveBeenCalledWith('Failed to update knowledge RAG config', saveError, {
       baseId: 'base-1',
       updates: {}
-    })
-  })
-
-  it('builds a patch with only the changed search mode', async () => {
-    const { result } = renderHook(() => useKnowledgeRagConfig(createKnowledgeBase()))
-
-    await act(async () => {
-      await result.current.save({
-        ...result.current.initialValues,
-        searchMode: 'vector'
-      })
-    })
-
-    expect(mockTrigger).toHaveBeenCalledWith({
-      params: { id: 'base-1' },
-      body: {
-        searchMode: 'vector'
-      }
     })
   })
 })
