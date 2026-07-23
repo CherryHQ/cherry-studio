@@ -470,6 +470,35 @@ describe('CodeCliService', () => {
         vi.useRealTimers()
       }
     })
+
+    it('bases the terminal env on getShellEnv so the bundled MinGit PATH tail reaches the CLI', async () => {
+      // Regression (PR #16402 review): the terminal spawn env used to start from
+      // process.env, so getShellEnv's PATH additions (mise shims, cherry.bin,
+      // bundled git dir last) never reached terminal-launched CLIs on a machine
+      // without system git.
+      const shellPath = 'C:\\Windows;C:\\mise\\shims;C:\\Cherry\\resources\\binaries\\win32-x64\\git\\cmd'
+      shellEnvMock.getShellEnv.mockResolvedValue({ Path: shellPath })
+
+      vi.useFakeTimers()
+      try {
+        const { spawn } = await import('child_process')
+        const { codeCliService } = await loadModules()
+
+        const result = await codeCliService.run({
+          mode: 'login-flow',
+          cliTool: CodeCli.CLAUDE_CODE,
+          directory: 'C:\\Users\\me\\proj'
+        })
+
+        expect(result.success).toBe(true)
+        const launch = vi.mocked(spawn).mock.calls.at(-1)
+        expect(launch).toBeDefined()
+        const spawnEnv = (launch![2] as { env: Record<string, string> }).env
+        expect(spawnEnv.Path).toBe(shellPath)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
   })
 
   describe('run (linux launch falls back to a detected terminal emulator)', () => {
