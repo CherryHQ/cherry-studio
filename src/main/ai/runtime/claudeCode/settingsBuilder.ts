@@ -30,11 +30,7 @@ import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import {
-  isProvisioned,
-  loadBuiltinAgentDefinition,
-  provisionBuiltinAgent
-} from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
+import { loadBuiltinAgentDefinition, provisionBuiltinAgent } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { PromptBuilder } from '@main/ai/agents/prompt'
 import AssistantServer from '@main/ai/mcp/servers/assistant'
 import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
@@ -1033,8 +1029,9 @@ export async function buildSystemPrompt(
     }
   }
 
-  // Provision builtin agent workspace resources independently from prompt resolution.
-  if (builtinRole && cwd && !isProvisioned(cwd)) {
+  // Refresh product-managed .claude content on every settings build. The provisioner
+  // preserves user-owned persona and memory files after their first copy.
+  if (builtinRole && cwd) {
     await provisionBuiltinAgent(cwd, builtinRole)
   }
 
@@ -1052,16 +1049,18 @@ export async function buildSystemPrompt(
 
   // Assistant mode
   if (isAssistant) {
+    const memoriesPrompt = await promptBuilder.buildMemoriesSection(cwd)
+    const memoriesBlock = memoriesPrompt ? `${memoriesPrompt}\n\n` : ''
     try {
       const context = buildAssistantContext()
       return instructions
-        ? `${instructions}\n\n${context}${workspaceContextBlock}${channelSecurityBlock}`
-        : `${context}${workspaceContextBlock}${channelSecurityBlock}`
+        ? `${memoriesBlock}${instructions}\n\n${context}${workspaceContextBlock}${channelSecurityBlock}`
+        : `${memoriesBlock}${context}${workspaceContextBlock}${channelSecurityBlock}`
     } catch (error) {
       // Don't silently degrade to generic behavior: a context read failure drops the entire
       // assistant context, so surface it before falling back to the base instructions.
       logger.error('buildAssistantContext failed; falling back to base instructions', error as Error)
-      return `${instructions}${workspaceContextBlock}${channelSecurityBlock}`
+      return `${memoriesBlock}${instructions}${workspaceContextBlock}${channelSecurityBlock}`
     }
   }
 

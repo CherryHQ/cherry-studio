@@ -160,10 +160,3 @@ export async function provisionBuiltinAgent(
     return undefined
   }
 }
-
-/**
- * Check if a workspace has already been provisioned (has .claude/skills/).
- */
-export function isProvisioned(workspacePath: string): boolean {
-  return fs.existsSync(path.join(workspacePath, '.claude', 'skills'))
-}

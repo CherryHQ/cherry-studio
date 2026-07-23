@@ -14,7 +14,7 @@ vi.mock('fs', async () => await vi.importActual('fs'))
 vi.mock('os', async () => await vi.importActual('os'))
 vi.mock('path', async () => await vi.importActual('path'))
 
-import { isProvisioned, loadBuiltinAgentDefinition, provisionBuiltinAgent } from '../BuiltinAgentProvisioner'
+import { loadBuiltinAgentDefinition, provisionBuiltinAgent } from '../BuiltinAgentProvisioner'
 
 const TEMPLATE_AGENT_JSON = JSON.stringify({
   name: { 'en-US': 'Cherry Assistant', 'zh-CN': 'Cherry Assistant CN' },
@@ -132,13 +132,5 @@ describe('BuiltinAgentProvisioner', () => {
 
     expect(await provisionBuiltinAgent(workspace, 'assistant')).toBeUndefined()
     expect(fs.existsSync(path.join(workspace, '.claude', 'skills'))).toBe(true)
-  })
-
-  it('detects whether the workspace has provisioned skills', () => {
-    expect(isProvisioned(workspace)).toBe(false)
-
-    fs.mkdirSync(path.join(workspace, '.claude', 'skills'), { recursive: true })
-
-    expect(isProvisioned(workspace)).toBe(true)
   })
 })

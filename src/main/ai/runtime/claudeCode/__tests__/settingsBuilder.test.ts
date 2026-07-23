@@ -87,13 +87,15 @@ vi.mock('@main/ai/skills/SkillService', () => ({
 }))
 
 vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
-  isProvisioned: vi.fn(() => true),
   loadBuiltinAgentDefinition: vi.fn(),
   provisionBuiltinAgent: vi.fn()
 }))
 
 vi.mock('@main/ai/agents/prompt', () => ({
-  PromptBuilder: vi.fn(() => ({ buildSystemPrompt: vi.fn(async () => 'soul prompt') }))
+  PromptBuilder: vi.fn(() => ({
+    buildSystemPrompt: vi.fn(async () => 'soul prompt'),
+    buildMemoriesSection: vi.fn(async () => undefined)
+  }))
 }))
 
 vi.mock('@main/ai/mcp/servers/assistant', () => ({

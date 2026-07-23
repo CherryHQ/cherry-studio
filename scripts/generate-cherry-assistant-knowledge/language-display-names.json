@@ -1,5 +1,5 @@
 {
-  "comment": "Maps locale codes (filenames under src/renderer/src/i18n/) to display names used in the Cherry Assistant knowledge base. New locales discovered on disk but missing from this map fall through with the raw locale code as their display name. `order` controls the presentation order in SKILL.md.",
+  "comment": "Maps locale codes (filenames under src/renderer/i18n/) to display names used in the Cherry Assistant knowledge base. New locales discovered on disk but missing from this map fall through with the raw locale code as their display name. `order` controls the presentation order in SKILL.md.",
   "displayNames": {
     "en-us": { "zh-CN": "英", "en-US": "English" },
     "zh-cn": { "zh-CN": "简中", "en-US": "Simplified Chinese" },

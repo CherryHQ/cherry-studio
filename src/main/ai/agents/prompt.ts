@@ -229,7 +229,8 @@ ${content}
     return true
   }
 
-  private async buildMemoriesSection(workspacePath: string): Promise<string | undefined> {
+  /** Build the workspace persona and durable-memory section without the base agent prompt. */
+  async buildMemoriesSection(workspacePath: string): Promise<string | undefined> {
     const memoryDir = path.join(workspacePath, 'memory')
 
     const [soulPath, userPath, factPath] = await Promise.all([

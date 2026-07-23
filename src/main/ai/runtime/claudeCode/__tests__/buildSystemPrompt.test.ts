@@ -18,6 +18,8 @@ const {
   mockGetPath,
   mockApplicationGet,
   mockLoadBuiltinAgentDefinition,
+  mockProvisionBuiltinAgent,
+  mockBuildMemoriesSection,
   mockGetAppLanguage
 } = vi.hoisted(() => ({
   mockFindBySessionId: vi.fn(),
@@ -26,6 +28,8 @@ const {
   mockGetPath: vi.fn(() => '/tmp/managed-workspaces'),
   mockApplicationGet: vi.fn(),
   mockLoadBuiltinAgentDefinition: vi.fn(),
+  mockProvisionBuiltinAgent: vi.fn(),
+  mockBuildMemoriesSection: vi.fn(),
   mockGetAppLanguage: vi.fn(() => 'en-US')
 }))
 
@@ -70,13 +74,15 @@ vi.mock('@data/services/ProviderService', () => ({
 }))
 
 vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
-  isProvisioned: vi.fn(() => true),
   loadBuiltinAgentDefinition: mockLoadBuiltinAgentDefinition,
-  provisionBuiltinAgent: vi.fn()
+  provisionBuiltinAgent: mockProvisionBuiltinAgent
 }))
 
 vi.mock('@main/ai/agents/prompt', () => ({
-  PromptBuilder: vi.fn(() => ({ buildSystemPrompt: vi.fn().mockResolvedValue('SOUL_PROMPT') }))
+  PromptBuilder: vi.fn(() => ({
+    buildSystemPrompt: vi.fn().mockResolvedValue('SOUL_PROMPT'),
+    buildMemoriesSection: mockBuildMemoriesSection
+  }))
 }))
 
 const { buildSystemPrompt } = await import('../settingsBuilder')
@@ -90,6 +96,8 @@ beforeEach(() => {
   mockApplicationGet.mockReturnValue({ get: vi.fn(() => undefined) })
   mockFindBySessionId.mockReturnValue(null)
   mockLoadBuiltinAgentDefinition.mockReset()
+  mockProvisionBuiltinAgent.mockReset()
+  mockBuildMemoriesSection.mockReset().mockResolvedValue(undefined)
   mockGetAppLanguage.mockReturnValue('en-US')
 })
 
@@ -212,6 +220,36 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
     expect(en as string).toContain('English bundled instructions')
     expect(zh as string).toContain('中文内置指令')
     expect(mockLoadBuiltinAgentDefinition).toHaveBeenCalledTimes(2)
+  })
+
+  it('refreshes product-managed workspace resources on every build', async () => {
+    const agent = makeAgent({
+      instructions: 'Assistant instructions.',
+      configuration: { builtin_role: 'assistant' } as never
+    })
+
+    await buildSystemPrompt(makeSession(), agent, '/workspace/assistant')
+    await buildSystemPrompt(makeSession(), agent, '/workspace/assistant')
+
+    expect(mockProvisionBuiltinAgent).toHaveBeenCalledTimes(2)
+    expect(mockProvisionBuiltinAgent).toHaveBeenNthCalledWith(1, '/workspace/assistant', 'assistant')
+    expect(mockProvisionBuiltinAgent).toHaveBeenNthCalledWith(2, '/workspace/assistant', 'assistant')
+  })
+
+  it('loads provisioned persona and memory files into the assistant prompt', async () => {
+    mockBuildMemoriesSection.mockResolvedValue('ASSISTANT_MEMORIES')
+    const agent = makeAgent({
+      instructions: 'Assistant instructions.',
+      configuration: { builtin_role: 'assistant' } as never
+    })
+
+    const result = await buildSystemPrompt(makeSession(), agent, '/workspace/assistant')
+
+    expect(result as string).toContain('ASSISTANT_MEMORIES')
+    expect(mockBuildMemoriesSection).toHaveBeenCalledWith('/workspace/assistant')
+    expect(mockProvisionBuiltinAgent.mock.invocationCallOrder[0]).toBeLessThan(
+      mockBuildMemoriesSection.mock.invocationCallOrder[0]
+    )
   })
 
   it('reports the resolved application language in the assistant context', async () => {
