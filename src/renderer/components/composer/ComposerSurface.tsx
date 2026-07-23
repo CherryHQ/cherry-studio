@@ -85,6 +85,8 @@ import {
 } from './useComposerEditorFrameSizing'
 
 const COMPOSER_INPUT_MAX_LENGTH = 40000
+const UNIFIED_RESOURCE_SEARCH_DEBOUNCE_MS = 120
+const UNIFIED_RESOURCE_SEARCH_TIMER_KEY = 'composer-unified-resource-search'
 const ROOT_QUICK_PANEL_TRIGGER_SOURCES = [
   { char: ComposerPanelSymbol.Root, pluginKey: 'composer-root-suggestion' },
   { char: '、', pluginKey: 'composer-root-ideographic-comma-suggestion' }
@@ -1925,19 +1927,34 @@ export default function ComposerSurface({
         triggerInfo: rootQuickPanelTriggerInfo
       })
     }
+    let debouncedSearchCleanup: (() => void) | undefined
+    const scheduleResourceItems = () => {
+      unifiedResourceRequestRef.current += 1
+      debouncedSearchCleanup?.()
+      debouncedSearchCleanup = setTimeoutTimer(
+        UNIFIED_RESOURCE_SEARCH_TIMER_KEY,
+        syncResourceItems,
+        UNIFIED_RESOURCE_SEARCH_DEBOUNCE_MS
+      )
+    }
 
     syncResourceItems()
-    return inputAdapter.subscribeInput?.((event) => {
+    const unsubscribe = inputAdapter.subscribeInput?.((event) => {
       if (event?.isComposing) return
-      syncResourceItems()
+      scheduleResourceItems()
     })
+    return () => {
+      debouncedSearchCleanup?.()
+      unsubscribe?.()
+    }
   }, [
     inputAdapter,
     isRootQuickPanelVisible,
     loadUnifiedResourceItems,
     resourceProvider,
     rootQuickPanelQueryAnchor,
-    rootQuickPanelTriggerInfo
+    rootQuickPanelTriggerInfo,
+    setTimeoutTimer
   ])
 
   useEffect(() => {

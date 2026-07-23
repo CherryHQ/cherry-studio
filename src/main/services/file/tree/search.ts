@@ -58,6 +58,7 @@ const SCORE_FILENAME_STARTS = 100
 const SCORE_CONSECUTIVE_CHAR = 15
 const SCORE_WORD_BOUNDARY = 20
 const PATH_LENGTH_PENALTY_FACTOR = 4
+const MAX_GREEDY_FALLBACK_CANDIDATES = 1000
 
 const EXCLUDED_DIRS = new Set([
   'node_modules',
@@ -468,6 +469,14 @@ async function listDirectoryWithRipgrep(resolvedPath: string, options: ResolvedO
       .split('\n')
       .filter((line) => line.trim())
       .map((line) => line.replace(/\\/g, '/'))
+
+    if (allFiles.length > MAX_GREEDY_FALLBACK_CANDIDATES) {
+      logger.debug('Skipping greedy fallback because candidate set is too large', {
+        count: allFiles.length,
+        maxCandidates: MAX_GREEDY_FALLBACK_CANDIDATES
+      })
+      return []
+    }
 
     return allFiles
       .filter((file) => isGreedySubstringMatch(file, options.searchPattern))
