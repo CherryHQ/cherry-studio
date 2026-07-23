@@ -72,6 +72,26 @@ export const archiveDurability = {
 }
 
 /**
+ * Post-publish mode gate — credential archives must be owner-only (0600).
+ * Exported so unit tests can fail the security path without mocking node:fs bindings.
+ */
+export const archiveFileMode = {
+  async chmodOwnerOnly(target: string): Promise<void> {
+    await chmod(target, 0o600)
+  }
+}
+
+/** No-clobber publish primitives — test seam for link→copyFile fallback. */
+export const archiveNoClobberPublish = {
+  async hardLink(tmpPath: string, outPath: string): Promise<void> {
+    await link(tmpPath, outPath)
+  },
+  async copyExclusive(tmpPath: string, outPath: string): Promise<void> {
+    await copyFile(tmpPath, outPath, constants.COPYFILE_EXCL)
+  }
+}
+
+/**
  * Pack the export inputs into `outPath` (a .cherrybackup zip). Writes to a sibling temp
  * file then atomically links → a write failure (ENOSPC etc.) can never leave a
  * partial/corrupt archive at the user-visible `outPath`, nor destroy a prior good
@@ -179,7 +199,7 @@ export async function assembleArchive(
       await rename(tmpPath, outPath)
     } else {
       try {
-        await link(tmpPath, outPath)
+        await archiveNoClobberPublish.hardLink(tmpPath, outPath)
       } catch (e) {
         const code = (e as NodeJS.ErrnoException).code
         if (code === 'EEXIST') throw new OutputPathExistsError(outPath)
@@ -187,7 +207,7 @@ export async function assembleArchive(
         // Hard-link unsupported on this volume — fallback to copyFile with COPYFILE_EXCL
         // (cross-platform no-clobber; EEXIST re-thrown as OutputPathExistsError).
         try {
-          await copyFile(tmpPath, outPath, constants.COPYFILE_EXCL)
+          await archiveNoClobberPublish.copyExclusive(tmpPath, outPath)
           publishedViaCopy = true
         } catch (e2) {
           if ((e2 as NodeJS.ErrnoException).code === 'EEXIST') throw new OutputPathExistsError(outPath)
@@ -198,16 +218,23 @@ export async function assembleArchive(
         }
       }
     }
-    // Publish (rename/link/copyFile success) is the commit point — outPath holds the
-    // archive (overwrite may already have replaced the prior file). Post-publish
-    // durability fsync is best-effort: failure must NOT report export failure (retry
-    // would hit BACKUP_OUTPUT_PATH_EXISTS on the already-written archive).
+    // Security invariant: copyFile creates a new inode with default umask permissions —
+    // chmod to 0600 MUST succeed before reporting export success (credential archive).
+    // Hard-link/rename preserve the tmp inode mode (already 0600). Failure → unlink the
+    // published file so we never leave a world-readable archive and claim success.
+    if (publishedViaCopy) {
+      try {
+        await archiveFileMode.chmodOwnerOnly(outPath)
+      } catch (e) {
+        await unlink(outPath).catch(() => {})
+        throw e
+      }
+    }
+    // Durability fsync is best-effort after the security gate: archive is already
+    // published at 0600; fsync failure must NOT report export failure (retry would hit
+    // BACKUP_OUTPUT_PATH_EXISTS on the already-written archive).
     try {
-      // copyFile creates a new inode with default umask permissions — chmod to 0600
-      // (hard-link/rename preserve the tmp inode mode). Then fsync the new inode and
-      // parent dir so the directory entry is durable on POSIX.
       if (publishedViaCopy) {
-        await chmod(outPath, 0o600)
         await archiveDurability.fsyncPath(outPath)
       }
       await archiveDurability.fsyncParentDir(outPath)

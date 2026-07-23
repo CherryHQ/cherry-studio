@@ -280,6 +280,31 @@ describe('assembleArchive', () => {
     }
   })
 
+  it('copy-branch chmod failure unlinks the archive and fails the export', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'cs-archive-'))
+    try {
+      const dbCopy = join(dir, 'backup.sqlite')
+      await writeFile(dbCopy, Buffer.from('secret-db'))
+      const out = join(dir, 'leaked.cherrybackup')
+
+      const linkSpy = vi
+        .spyOn(archiveMod.archiveNoClobberPublish, 'hardLink')
+        .mockRejectedValue(Object.assign(new Error('ENOTSUP'), { code: 'ENOTSUP' }))
+      const chmodSpy = vi
+        .spyOn(archiveMod.archiveFileMode, 'chmodOwnerOnly')
+        .mockRejectedValue(Object.assign(new Error('EPERM'), { code: 'EPERM' }))
+
+      await expect(assembleArchive(out, { manifest: MANIFEST_FULL, dbCopyPath: dbCopy })).rejects.toMatchObject({
+        code: 'EPERM'
+      })
+      expect(existsSync(out)).toBe(false)
+      linkSpy.mockRestore()
+      chmodSpy.mockRestore()
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it.skipIf(process.platform === 'win32')('published archive is mode 0600 (owner read/write only)', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'cs-archive-'))
     try {
