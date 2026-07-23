@@ -529,6 +529,7 @@ describe('ProviderEditorDrawer', () => {
     const imageEditInput = screen.getByLabelText('settings.provider.image_endpoints.image_edit_base_url.label')
     expect(moreTrigger).toHaveAttribute('aria-expanded', 'true')
     expect(moreTrigger.compareDocumentPosition(responsesInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(responsesInput.closest('.text-foreground')).toBeInTheDocument()
     expect(imageEditInput.compareDocumentPosition(presetPicker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.queryByText('settings.provider.create_custom.compatibility.label')).not.toBeInTheDocument()
   })
