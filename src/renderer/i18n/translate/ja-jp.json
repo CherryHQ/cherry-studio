@@ -5677,6 +5677,8 @@
           "restore": {
             "confirm_content": "[to be translated]:Restoring will replace current data and relaunch the app. Continue?",
             "failure": "[to be translated]:Restore failed.",
+            "full_button": "[to be translated]:Full restore",
+            "full_unavailable": "[to be translated]:Full restore is temporarily unavailable while resource staging lands (files, knowledge bases, notes, skills). Use Restore for database-only (LITE) archives.",
             "pick_prompt": "[to be translated]:Select a .cbu backup archive to restore.",
             "relaunching": "[to be translated]:Restore staged. The app is relaunching…",
             "selected": "[to be translated]:Selected archive:",
