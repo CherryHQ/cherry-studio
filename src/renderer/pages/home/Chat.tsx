@@ -5,6 +5,7 @@ import { loggerService } from '@logger'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
 import { ResourcePaneCountButton, type ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
+import type { PaneManualToggleSignal } from '@renderer/components/chat/shell/ChatAppShell'
 import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
 import type { ConversationCenterSlot } from '@renderer/components/chat/shell/ConversationPageShell'
 import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
@@ -45,6 +46,7 @@ interface Props {
   onLocateMessageHandled?: () => void
   onPaneCollapse?: () => void
   onPaneAutoCollapseChange?: (collapsed: boolean) => void
+  paneManualToggle?: PaneManualToggleSignal
   resourcePaneCount?: ResourcePaneCountButtonProps
 }
 
@@ -267,6 +269,7 @@ const Chat: FC<Props> = (props) => {
       panePosition={props.panePosition}
       onPaneCollapse={props.onPaneCollapse}
       onPaneAutoCollapseChange={props.onPaneAutoCollapseChange}
+      paneManualToggle={props.paneManualToggle}
       topBar={
         showConversation ? (
           <ChatNavbar
