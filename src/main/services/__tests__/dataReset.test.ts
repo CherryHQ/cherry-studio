@@ -17,7 +17,8 @@ const APP_TEMP = '/mock/tmp/CherryStudio'
 
 const appExitMock = vi.fn()
 const appRelaunchMock = vi.fn()
-const relaunchAfterShutdownMock = vi.fn()
+const applicationShutdownMock = vi.fn()
+const applicationRelaunchMock = vi.fn()
 const showErrorBoxMock = vi.fn()
 const showMessageBoxMock = vi.fn()
 const rmSyncMock = vi.fn()
@@ -133,7 +134,8 @@ function stubApplication(userData: string = USER_DATA) {
         if (key === 'app.temp') return APP_TEMP
         return '/mock/unknown'
       }),
-      relaunchAfterShutdown: relaunchAfterShutdownMock
+      shutdown: applicationShutdownMock,
+      relaunch: applicationRelaunchMock
     }
   }))
 }
@@ -434,7 +436,7 @@ describe('requestDataReset', () => {
 
     expect(bootConfigSetMock).not.toHaveBeenCalled()
     expect(bootConfigPersistMock).not.toHaveBeenCalled()
-    expect(relaunchAfterShutdownMock).not.toHaveBeenCalled()
+    expect(applicationRelaunchMock).not.toHaveBeenCalled()
   })
 
   it('stages the pending marker for the current userData, persists it, then gracefully relaunches', async () => {
@@ -451,12 +453,16 @@ describe('requestDataReset', () => {
         canonicalPath: USER_DATA
       })
     )
-    // Durability ordering: the marker must be on disk before the relaunch fires.
+    // Durability ordering: the marker must be on disk before the shutdown
+    // sequence starts tearing services down.
     expect(bootConfigPersistMock.mock.invocationCallOrder[0]).toBeLessThan(
-      relaunchAfterShutdownMock.mock.invocationCallOrder[0]
+      applicationShutdownMock.mock.invocationCallOrder[0]
     )
     // Graceful shutdown-then-relaunch, not the bare relaunch: running
     // services must release file handles before the next boot's wipe.
+    expect(applicationShutdownMock.mock.invocationCallOrder[0]).toBeLessThan(
+      applicationRelaunchMock.mock.invocationCallOrder[0]
+    )
     expect(appRelaunchMock).not.toHaveBeenCalled()
   })
 
@@ -482,7 +488,19 @@ describe('requestDataReset', () => {
     defaultSession.clearStorageData.mockRejectedValueOnce(new Error('session gone'))
 
     await expect(requestReset()).resolves.toBeUndefined()
-    expect(relaunchAfterShutdownMock).toHaveBeenCalledTimes(1)
+    expect(applicationRelaunchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('still relaunches when the graceful shutdown itself fails', async () => {
+    stubAll(null)
+    applicationShutdownMock.mockRejectedValueOnce(new Error('service hung during stop'))
+
+    await expect(requestReset()).resolves.toBeUndefined()
+
+    // The staged marker must win over a broken teardown: a request that
+    // shut down halfway but never relaunched would leave the app closed
+    // with a pending wipe armed for whenever the user starts it next.
+    expect(applicationRelaunchMock).toHaveBeenCalledTimes(1)
   })
 
   it('rolls the marker back and rejects without relaunching when persist fails', async () => {
@@ -496,7 +514,8 @@ describe('requestDataReset', () => {
     // The dirty in-memory marker is restored to its previous value, so a
     // later flush (e.g. during shutdown) cannot stage the failed request.
     expect(bootConfigSetMock).toHaveBeenLastCalledWith('temp.data_reset', null)
-    expect(relaunchAfterShutdownMock).not.toHaveBeenCalled()
+    expect(applicationShutdownMock).not.toHaveBeenCalled()
+    expect(applicationRelaunchMock).not.toHaveBeenCalled()
     expect(defaultSession.clearStorageData).not.toHaveBeenCalled()
   })
 })

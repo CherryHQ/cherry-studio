@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { SHUTDOWN_TIMEOUT_MS } from '@main/core/lifecycle'
 import { bootConfigService } from '@main/data/bootConfig'
 // Request side only: t resolves the language through PreferenceService,
 // which exists in the live app but NOT at preboot — the execution side's
@@ -184,10 +185,26 @@ export async function requestDataReset(): Promise<void> {
   // durable, and runDataReset's rm pass is the deterministic layer.
   await clearChromiumState()
 
-  // Graceful relaunch, not application.relaunch(): running services (OVMS
-  // and friends) must release their child processes and file handles
-  // before the next boot's wipe deletes the files they may hold open.
-  await application.relaunchAfterShutdown()
+  // Graceful shutdown-then-relaunch, composed here from Application's
+  // public API rather than a bare relaunch(): running services (OVMS and
+  // friends) must release their child processes and file handles before
+  // the next boot's wipe deletes the files they may hold open. NOT
+  // app.quit(): quit-prevention (before-quit gate) could cancel the quit
+  // and leave the app running over the already-staged marker. The timeout
+  // mirrors Application's signal handlers — a hung service must not block
+  // the relaunch.
+  const timer = setTimeout(() => {
+    logger.warn('Shutdown timed out before relaunch — relaunching anyway')
+    application.relaunch()
+  }, SHUTDOWN_TIMEOUT_MS)
+  try {
+    await application.shutdown()
+  } catch (error) {
+    logger.error('Error during shutdown before relaunch:', error as Error)
+  } finally {
+    clearTimeout(timer)
+    application.relaunch()
+  }
 }
 
 /**

@@ -414,32 +414,6 @@ export class Application {
   }
 
   /**
-   * Gracefully stop all lifecycle services, then relaunch.
-   *
-   * Use this instead of {@link relaunch} when running services must release
-   * their resources before the next boot touches them (e.g. a staged factory
-   * reset whose preboot gate deletes files a live child process may hold
-   * open). Deliberately built on shutdown() + relaunch(), NOT app.quit():
-   * quit-prevention (before-quit gate) could cancel a quit and leave the
-   * app running over already-staged boot state. The timeout mirrors the
-   * signal handlers — a hung service must not block the relaunch.
-   */
-  public async relaunchAfterShutdown(options?: Electron.RelaunchOptions): Promise<void> {
-    const timer = setTimeout(() => {
-      logger.warn('Shutdown timed out before relaunch — relaunching anyway')
-      this.relaunch(options)
-    }, SHUTDOWN_TIMEOUT_MS)
-    try {
-      await this.shutdown()
-    } catch (error) {
-      logger.error('Error during shutdown before relaunch:', error as Error)
-    } finally {
-      clearTimeout(timer)
-      this.relaunch(options)
-    }
-  }
-
-  /**
    * Setup process signal handlers for graceful shutdown.
    * Must be called at the very start of bootstrap() so Ctrl+C is handled
    * even before app.whenReady() resolves.
