@@ -3,6 +3,7 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
+  Badge,
   Button,
   Combobox,
   type ComboboxOption,
@@ -692,7 +693,7 @@ function CustomProviderEndpointFields({
   const { t } = useTranslation()
   const textEndpointRequired = invalidUrl?.field === 'textEndpointRequired'
 
-  const renderEndpointField = (endpointType: CustomProviderEndpoint) => {
+  const renderEndpointField = (endpointType: CustomProviderEndpoint, labelAccessory?: ReactNode) => {
     const endpointValue = endpointUrls[endpointType] ?? ''
     const invalidEndpoint = invalidUrl?.field === 'endpointUrl' && invalidUrl.endpointType === endpointType
     const requestPreview = buildCustomProviderEndpointPreview(endpointValue, endpointType)
@@ -715,32 +716,34 @@ function CustomProviderEndpointFields({
             ? t('settings.provider.create_custom.request_preview', { path: requestPreview })
             : emptyValueHelp
         }
+        labelAccessory={labelAccessory}
         onChange={(nextValue) => onEndpointUrlChange(endpointType, nextValue)}
       />
     )
   }
 
-  const renderEndpointControl = (endpointType: CustomProviderEndpoint) => (
-    <div key={endpointType} className="flex flex-col gap-1">
-      {renderEndpointField(endpointType)}
-      {CUSTOM_PROVIDER_TEXT_ENDPOINTS.some((type) => type === endpointType) &&
-        endpointUrls[endpointType]?.trim() &&
-        (preferredChatEndpoint === endpointType ? (
-          <p className="text-foreground-muted text-xs">
-            {t('settings.provider.create_custom.endpoint_fields.default_chat')}
-          </p>
-        ) : onPreferredChatEndpointChange ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="min-h-10 self-start px-2"
-            onClick={() => onPreferredChatEndpointChange(endpointType as CustomProviderTextEndpoint)}>
-            {t('settings.provider.create_custom.endpoint_fields.set_default_chat')}
-          </Button>
-        ) : null)}
-    </div>
-  )
+  const renderEndpointControl = (endpointType: CustomProviderEndpoint) => {
+    const isConfiguredTextEndpoint =
+      CUSTOM_PROVIDER_TEXT_ENDPOINTS.some((type) => type === endpointType) && endpointUrls[endpointType]?.trim()
+    const labelAccessory = isConfiguredTextEndpoint ? (
+      preferredChatEndpoint === endpointType ? (
+        <Badge variant="secondary" className="h-5 border-0 px-1.5 py-0 font-normal text-foreground-muted text-xs">
+          {t('settings.provider.create_custom.endpoint_fields.default_chat')}
+        </Badge>
+      ) : onPreferredChatEndpointChange ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="before:-inset-y-2 relative h-6 min-h-0 rounded-full px-2 text-xs transition-transform before:absolute before:inset-x-0 before:content-[''] active:scale-[0.96]"
+          onClick={() => onPreferredChatEndpointChange(endpointType as CustomProviderTextEndpoint)}>
+          {t('settings.provider.create_custom.endpoint_fields.set_default_chat')}
+        </Button>
+      ) : null
+    ) : null
+
+    return <div key={endpointType}>{renderEndpointField(endpointType, labelAccessory)}</div>
+  }
 
   return (
     <section className="flex flex-col gap-3" aria-labelledby="custom-provider-endpoints-title">
@@ -1025,6 +1028,7 @@ function MoreEndpointsDisclosure({ open, onToggle, primary, values, onChange }: 
 
 interface BaseUrlFieldProps {
   label: string
+  labelAccessory?: ReactNode
   placeholder: string
   value: string
   onChange: (value: string) => void
@@ -1036,6 +1040,7 @@ interface BaseUrlFieldProps {
 
 function BaseUrlField({
   label,
+  labelAccessory,
   placeholder,
   value,
   onChange,
@@ -1050,9 +1055,12 @@ function BaseUrlField({
   const descriptionId = `${uid}-url-description`
   return (
     <Field className="gap-2">
-      <FieldLabel required={required} htmlFor={inputId} className="text-[13px] text-foreground">
-        {label}
-      </FieldLabel>
+      <div className="flex items-center gap-2">
+        <FieldLabel required={required} htmlFor={inputId} className="text-[13px] text-foreground">
+          {label}
+        </FieldLabel>
+        {labelAccessory}
+      </div>
       <Input
         id={inputId}
         value={value}

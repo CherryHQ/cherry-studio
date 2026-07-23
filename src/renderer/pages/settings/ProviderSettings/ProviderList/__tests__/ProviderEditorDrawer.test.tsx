@@ -58,6 +58,15 @@ vi.mock('@cherrystudio/ui', async () => {
       delete domProps.contentClassName
       return accordion.value === itemValue ? <div {...domProps}>{children}</div> : null
     },
+    Badge: ({ children, ...props }: any) => {
+      const domProps = { ...props }
+      delete domProps.variant
+      return (
+        <span data-slot="badge" {...domProps}>
+          {children}
+        </span>
+      )
+    },
     Button: ({ children, onClick, disabled, loading, ...props }: any) => (
       <button type="button" onClick={onClick} disabled={disabled || loading} {...props}>
         {children}
@@ -574,9 +583,19 @@ describe('ProviderEditorDrawer', () => {
     fireEvent.change(screen.getByLabelText('settings.provider.more_endpoints.anthropic'), {
       target: { value: 'https://anthropic.example.com' }
     })
-    fireEvent.click(
-      screen.getByRole('button', { name: 'settings.provider.create_custom.endpoint_fields.set_default_chat' })
-    )
+    const defaultBadge = screen.getByText('settings.provider.create_custom.endpoint_fields.default_chat')
+    const setDefaultButton = screen.getByRole('button', {
+      name: 'settings.provider.create_custom.endpoint_fields.set_default_chat'
+    })
+    expect(defaultBadge).toHaveAttribute('data-slot', 'badge')
+    expect(setDefaultButton).toHaveClass('h-6', 'rounded-full', 'active:scale-[0.96]')
+    expect(
+      screen.getByLabelText('settings.provider.more_endpoints.openai_chat').labels?.[0]?.parentElement
+    ).toContainElement(defaultBadge)
+    expect(
+      screen.getByLabelText('settings.provider.more_endpoints.anthropic').labels?.[0]?.parentElement
+    ).toContainElement(setDefaultButton)
+    fireEvent.click(setDefaultButton)
     toggleMoreSettings()
     fireEvent.change(screen.getByLabelText('settings.provider.image_endpoints.image_generation_base_url.label'), {
       target: { value: 'https://images.example.com' }
