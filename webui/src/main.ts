@@ -316,11 +316,13 @@ const textPacks = {
     verify: 'Verify',
     webui: 'WebUI',
     webUiVersion: 'WebUI',
-    approveTool: 'Approve',
+    approveTool: 'Allow',
     denyTool: 'Deny',
     approvalSubmitting: 'Submitting…',
     approvalReadonly: 'Approval required — open the desktop app if buttons are unavailable.',
     approvalFailed: 'Failed to send tool approval.',
+    toolPermissionConfirmation: 'Tool permission',
+    toolPermissionPending: 'Pending',
     permissionMode: 'Permission mode',
     permissionModeDefault: 'Normal',
     permissionModePlan: 'Plan',
@@ -483,11 +485,13 @@ const textPacks = {
     verify: '验证',
     webui: 'WebUI',
     webUiVersion: 'WebUI',
-    approveTool: '批准',
+    approveTool: '允许',
     denyTool: '拒绝',
     approvalSubmitting: '提交中…',
     approvalReadonly: '需要授权 — 若无按钮请在桌面端处理。',
     approvalFailed: '工具授权提交失败。',
+    toolPermissionConfirmation: '工具权限确认',
+    toolPermissionPending: '待处理',
     permissionMode: '权限模式',
     permissionModeDefault: '标准',
     permissionModePlan: '计划',
@@ -650,11 +654,13 @@ const textPacks = {
     verify: '驗證',
     webui: 'WebUI',
     webUiVersion: 'WebUI',
-    approveTool: '批准',
+    approveTool: '允許',
     denyTool: '拒絕',
     approvalSubmitting: '提交中…',
     approvalReadonly: '需要授權 — 若無按鈕請在桌面端處理。',
     approvalFailed: '工具授權提交失敗。',
+    toolPermissionConfirmation: '工具權限確認',
+    toolPermissionPending: '待處理',
     permissionMode: '權限模式',
     permissionModeDefault: '標準',
     permissionModePlan: '計劃',
@@ -1642,6 +1648,125 @@ const App = defineComponent({
         setApprovalError(message.id, tool.id, localizedErrorMessage(error) || text('approvalFailed'))
       }
     }
+
+    /** Latest tool awaiting approval — drives the composer overlay (desktop-style). */
+    type PendingToolApproval = {
+      readonly message: WebUiMessageSnapshot
+      readonly tool: WebUiToolCallSnapshot
+    }
+    const pendingToolApproval = computed((): PendingToolApproval | null => {
+      let latest: PendingToolApproval | null = null
+      for (const message of messages.value) {
+        for (const tool of message.toolCalls ?? []) {
+          if (tool.state !== 'approval-requested') continue
+          latest = { message, tool }
+        }
+      }
+      return latest
+    })
+
+    const truncateApprovalPreview = (value: string | undefined, max = 1200) => {
+      if (!value) return ''
+      const trimmed = value.trim()
+      if (trimmed.length <= max) return trimmed
+      return `${trimmed.slice(0, max)}…`
+    }
+
+    const renderPermissionRequestPanel = () => {
+      const pending = pendingToolApproval.value
+      if (!pending) return undefined
+
+      const { message, tool } = pending
+      const submitting = isApprovalSubmitting(message.id, tool.id)
+      const approvalError = approvalErrorByKey.value[approvalKey(message.id, tool.id)]
+      const preview = truncateApprovalPreview(tool.input)
+
+      return h(
+        'div',
+        {
+          class: 'permission-request-panel',
+          role: 'dialog',
+          'aria-labelledby': 'permission-request-title',
+          'aria-modal': 'false'
+        },
+        [
+          h('div', { class: 'permission-request-card' }, [
+            h('div', { class: 'permission-request-header' }, [
+              h('div', { class: 'permission-request-heading' }, [
+                h('h2', { id: 'permission-request-title', class: 'permission-request-title' }, [
+                  h(
+                    'svg',
+                    {
+                      class: 'permission-request-title-icon',
+                      width: 16,
+                      height: 16,
+                      viewBox: '0 0 24 24',
+                      fill: 'none',
+                      stroke: 'currentColor',
+                      'stroke-width': 2,
+                      'stroke-linecap': 'round',
+                      'stroke-linejoin': 'round',
+                      'aria-hidden': 'true'
+                    },
+                    [
+                      h('path', {
+                        d: 'M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z'
+                      })
+                    ]
+                  ),
+                  h('span', text('toolPermissionConfirmation'))
+                ]),
+                h('p', { class: 'permission-request-tool-name', title: tool.name }, tool.name)
+              ]),
+              h('span', { class: 'permission-request-badge' }, text('toolPermissionPending'))
+            ]),
+            preview
+              ? h('div', { class: 'permission-request-preview' }, [
+                  h('pre', { class: 'permission-request-preview-body' }, preview)
+                ])
+              : undefined,
+            tool.approvalId
+              ? h('div', { class: 'permission-request-actions' }, [
+                  h(
+                    'button',
+                    {
+                      class: 'permission-request-option',
+                      type: 'button',
+                      disabled: submitting,
+                      'aria-label': text('approveTool'),
+                      onClick: () => void respondToolApproval(tool, message, true)
+                    },
+                    [
+                      h('span', { class: 'permission-request-option-index' }, '1'),
+                      h(
+                        'span',
+                        { class: 'permission-request-option-label' },
+                        submitting ? text('approvalSubmitting') : text('approveTool')
+                      )
+                    ]
+                  ),
+                  h(
+                    'button',
+                    {
+                      class: 'permission-request-option permission-request-option-deny',
+                      type: 'button',
+                      disabled: submitting,
+                      'aria-label': text('denyTool'),
+                      onClick: () => void respondToolApproval(tool, message, false)
+                    },
+                    [
+                      h('span', { class: 'permission-request-option-index' }, '2'),
+                      h('span', { class: 'permission-request-option-label' }, text('denyTool'))
+                    ]
+                  )
+                ])
+              : h('p', { class: 'permission-request-readonly' }, text('approvalReadonly')),
+            approvalError ? h('p', { class: 'permission-request-error' }, approvalError) : undefined
+          ])
+        ]
+      )
+    }
+
     const renderToolCall = (tool: WebUiToolCallSnapshot, message: WebUiMessageSnapshot) => {
       const submitting = isApprovalSubmitting(message.id, tool.id)
       const approvalError = approvalErrorByKey.value[approvalKey(message.id, tool.id)]
@@ -3355,7 +3480,13 @@ const App = defineComponent({
     const submitMessage = async () => {
       const conversationId = selectedConversationId.value
       const messageText = composerText.value.trim()
-      if (!conversationId || (!messageText && attachments.value.length === 0) || activeRunConversationId.value) return
+      if (
+        !conversationId ||
+        (!messageText && attachments.value.length === 0) ||
+        activeRunConversationId.value ||
+        pendingToolApproval.value
+      )
+        return
 
       submitError.value = ''
       activeRunConversationId.value = conversationId
@@ -4167,342 +4298,357 @@ const App = defineComponent({
                     )
                   : undefined,
                 h('footer', { class: 'composer' }, [
-                  h('div', { class: 'composer-surface' }, [
-                    h('input', {
-                      class: 'attachment-input',
-                      ref: attachmentInput,
-                      type: 'file',
-                      multiple: true,
-                      onChange: (event: Event) => {
-                        const input = event.target as HTMLInputElement
-                        addAttachments(input.files)
-                        input.value = ''
-                      }
-                    }),
-                    attachments.value.length
-                      ? h(
-                          'div',
-                          { class: 'attachment-strip' },
-                          attachments.value.map((attachment) =>
-                            h('span', { class: 'attachment-chip', key: attachment.id }, [
-                              h(
-                                'span',
-                                { class: 'attachment-chip-name', title: attachment.file.name },
-                                attachment.file.name
-                              ),
-                              h(
-                                'button',
-                                {
-                                  type: 'button',
-                                  title: text('removeAttachment'),
-                                  'aria-label': `${text('removeAttachment')}: ${attachment.file.name}`,
-                                  onClick: () => {
-                                    attachments.value = attachments.value.filter((item) => item.id !== attachment.id)
-                                  }
-                                },
-                                '×'
-                              )
-                            ])
-                          )
-                        )
-                      : undefined,
-                    h('textarea', {
-                      ref: composerTextarea,
-                      disabled:
-                        !selectedConversation.value || activeRunConversationId.value === selectedConversationId.value,
-                      value: composerText.value,
-                      placeholder: selectedConversation.value ? text('sendPlaceholder') : text('selectFirst'),
-                      rows: 3,
-                      style: { height: `${composerHeight.value}px` },
-                      onInput: (event: Event) => {
-                        composerText.value = (event.target as HTMLTextAreaElement).value
-                      },
-                      onKeydown: (event: KeyboardEvent) => {
-                        if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
-                          event.preventDefault()
-                          void submitMessage()
+                  renderPermissionRequestPanel(),
+                  h(
+                    'div',
+                    {
+                      class: ['composer-surface', { 'composer-surface-dimmed': Boolean(pendingToolApproval.value) }]
+                    },
+                    [
+                      h('input', {
+                        class: 'attachment-input',
+                        ref: attachmentInput,
+                        type: 'file',
+                        multiple: true,
+                        onChange: (event: Event) => {
+                          const input = event.target as HTMLInputElement
+                          addAttachments(input.files)
+                          input.value = ''
                         }
-                      }
-                    }),
-                    h('div', {
-                      class: 'composer-resize-handle',
-                      role: 'separator',
-                      tabindex: 0,
-                      title: text('resizeComposer'),
-                      'aria-label': text('resizeComposer'),
-                      'aria-orientation': 'horizontal',
-                      'aria-valuemin': composerMinHeight,
-                      'aria-valuemax': composerMaxHeight,
-                      'aria-valuenow': composerHeight.value,
-                      onPointerdown: beginComposerResize,
-                      onKeydown: handleComposerResizeKeydown,
-                      onDblclick: () => {
-                        composerHeight.value = composerDefaultHeight
-                      }
-                    }),
-                    h(
-                      'button',
-                      {
-                        class: 'composer-expand-control',
-                        type: 'button',
+                      }),
+                      attachments.value.length
+                        ? h(
+                            'div',
+                            { class: 'attachment-strip' },
+                            attachments.value.map((attachment) =>
+                              h('span', { class: 'attachment-chip', key: attachment.id }, [
+                                h(
+                                  'span',
+                                  { class: 'attachment-chip-name', title: attachment.file.name },
+                                  attachment.file.name
+                                ),
+                                h(
+                                  'button',
+                                  {
+                                    type: 'button',
+                                    title: text('removeAttachment'),
+                                    'aria-label': `${text('removeAttachment')}: ${attachment.file.name}`,
+                                    onClick: () => {
+                                      attachments.value = attachments.value.filter((item) => item.id !== attachment.id)
+                                    }
+                                  },
+                                  '×'
+                                )
+                              ])
+                            )
+                          )
+                        : undefined,
+                      h('textarea', {
+                        ref: composerTextarea,
+                        disabled:
+                          !selectedConversation.value ||
+                          activeRunConversationId.value === selectedConversationId.value ||
+                          Boolean(pendingToolApproval.value),
+                        value: composerText.value,
+                        placeholder: pendingToolApproval.value
+                          ? text('toolPermissionConfirmation')
+                          : selectedConversation.value
+                            ? text('sendPlaceholder')
+                            : text('selectFirst'),
+                        rows: 3,
+                        style: { height: `${composerHeight.value}px` },
+                        onInput: (event: Event) => {
+                          composerText.value = (event.target as HTMLTextAreaElement).value
+                        },
+                        onKeydown: (event: KeyboardEvent) => {
+                          if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+                            event.preventDefault()
+                            void submitMessage()
+                          }
+                        }
+                      }),
+                      h('div', {
+                        class: 'composer-resize-handle',
+                        role: 'separator',
+                        tabindex: 0,
                         title: text('resizeComposer'),
                         'aria-label': text('resizeComposer'),
-                        'aria-pressed': composerHeight.value !== composerDefaultHeight,
-                        onClick: toggleComposerHeight
-                      },
-                      renderActionIcon('resize', composerHeight.value !== composerDefaultHeight)
-                    ),
-                    h('div', { class: 'composer-toolbar' }, [
-                      h('div', { class: 'composer-tools' }, [
-                        h(
-                          'button',
-                          {
-                            class: 'composer-tool-button',
-                            type: 'button',
-                            title: text('newConversationTool'),
-                            'aria-label': text('newConversationTool'),
-                            onClick: () => void openNewConversation()
-                          },
-                          renderComposerToolIcon('newConversation')
-                        ),
-                        h(
-                          'button',
-                          {
-                            class: 'composer-tool-button',
-                            type: 'button',
-                            title: text('attachmentPending'),
-                            'aria-label': text('attachmentPending'),
-                            disabled: attachments.value.length >= maxAttachmentCount,
-                            onClick: () => attachmentInput.value?.click()
-                          },
-                          renderComposerToolIcon('attachment')
-                        ),
-                        h(
-                          'button',
-                          {
-                            class: [
-                              'composer-tool-button',
-                              { 'composer-tool-button-active': reasoningEffort.value !== 'default' }
-                            ],
-                            type: 'button',
-                            disabled: !reasoningConfigurable.value,
-                            title: reasoningConfigurable.value
-                              ? `${text('thinkingPending')}: ${reasoningLabel.value}`
-                              : text('thinkingUnavailable'),
-                            'aria-label': text('thinkingPending'),
-                            'aria-expanded': reasoningPickerOpen.value,
-                            onClick: () => {
-                              reasoningPickerOpen.value = !reasoningPickerOpen.value
-                              modelPickerOpen.value = false
-                              permissionModePickerOpen.value = false
-                            }
-                          },
-                          renderComposerToolIcon('thinking')
-                        ),
-                        h(
-                          'button',
-                          {
-                            class: [
-                              'composer-tool-button',
-                              {
-                                'composer-tool-button-active': selectedPermissionMode.value !== 'default',
-                                'composer-tool-button-caution': selectedPermissionMode.value === 'bypassPermissions'
-                              }
-                            ],
-                            type: 'button',
-                            disabled: !selectedConversation.value || permissionModeUpdateState.value === 'updating',
-                            title: `${text('permissionMode')}: ${permissionModeLabel.value}`,
-                            'aria-label': text('permissionMode'),
-                            'aria-expanded': permissionModePickerOpen.value,
-                            onClick: () => {
-                              permissionModePickerOpen.value = !permissionModePickerOpen.value
-                              modelPickerOpen.value = false
-                              reasoningPickerOpen.value = false
-                            }
-                          },
-                          renderComposerToolIcon('permission')
-                        ),
-                        h(
-                          'button',
-                          {
-                            class: 'model-selector-button',
-                            type: 'button',
-                            disabled:
-                              !selectedConversation.value ||
-                              !models.value.length ||
-                              modelUpdateState.value === 'updating',
-                            title: selectedAgentName.value
-                              ? `${selectedAgentName.value}: ${modelPickerLabel.value}`
-                              : modelPickerLabel.value,
-                            'aria-expanded': modelPickerOpen.value,
-                            onClick: () => {
-                              modelPickerOpen.value = !modelPickerOpen.value
-                              reasoningPickerOpen.value = false
-                              permissionModePickerOpen.value = false
-                            }
-                          },
-                          modelUpdateState.value === 'updating' ? text('generating') : modelPickerLabel.value
-                        )
-                      ]),
+                        'aria-orientation': 'horizontal',
+                        'aria-valuemin': composerMinHeight,
+                        'aria-valuemax': composerMaxHeight,
+                        'aria-valuenow': composerHeight.value,
+                        onPointerdown: beginComposerResize,
+                        onKeydown: handleComposerResizeKeydown,
+                        onDblclick: () => {
+                          composerHeight.value = composerDefaultHeight
+                        }
+                      }),
                       h(
                         'button',
                         {
-                          class: [
-                            'send-button',
-                            { 'send-button-is-stop': activeRunConversationId.value === selectedConversationId.value }
-                          ],
+                          class: 'composer-expand-control',
                           type: 'button',
-                          disabled:
-                            !selectedConversation.value ||
-                            (!composerText.value.trim() &&
-                              attachments.value.length === 0 &&
-                              activeRunConversationId.value !== selectedConversationId.value),
-                          'aria-label':
-                            activeRunConversationId.value === selectedConversationId.value
-                              ? text('stop')
-                              : text('send'),
-                          title:
-                            activeRunConversationId.value === selectedConversationId.value
-                              ? text('stop')
-                              : text('send'),
-                          onClick: () => {
-                            if (activeRunConversationId.value === selectedConversationId.value) {
-                              void abortMessage()
-                              return
-                            }
-                            void submitMessage()
-                          }
+                          title: text('resizeComposer'),
+                          'aria-label': text('resizeComposer'),
+                          'aria-pressed': composerHeight.value !== composerDefaultHeight,
+                          onClick: toggleComposerHeight
                         },
-                        renderActionIcon(
-                          activeRunConversationId.value === selectedConversationId.value ? 'stop' : 'send'
-                        )
-                      )
-                    ]),
-                    reasoningPickerOpen.value
-                      ? h(
-                          'div',
-                          { class: 'reasoning-picker-menu', role: 'listbox' },
-                          reasoningOptions.value.map((option) =>
-                            h(
-                              'button',
-                              {
-                                class: [
-                                  'reasoning-picker-option',
-                                  { 'reasoning-picker-option-selected': option === reasoningEffort.value }
-                                ],
-                                key: option,
-                                type: 'button',
-                                role: 'option',
-                                'aria-selected': option === reasoningEffort.value,
-                                onClick: () => {
-                                  reasoningEffort.value = option
-                                  reasoningPickerOpen.value = false
+                        renderActionIcon('resize', composerHeight.value !== composerDefaultHeight)
+                      ),
+                      h('div', { class: 'composer-toolbar' }, [
+                        h('div', { class: 'composer-tools' }, [
+                          h(
+                            'button',
+                            {
+                              class: 'composer-tool-button',
+                              type: 'button',
+                              title: text('newConversationTool'),
+                              'aria-label': text('newConversationTool'),
+                              onClick: () => void openNewConversation()
+                            },
+                            renderComposerToolIcon('newConversation')
+                          ),
+                          h(
+                            'button',
+                            {
+                              class: 'composer-tool-button',
+                              type: 'button',
+                              title: text('attachmentPending'),
+                              'aria-label': text('attachmentPending'),
+                              disabled: attachments.value.length >= maxAttachmentCount,
+                              onClick: () => attachmentInput.value?.click()
+                            },
+                            renderComposerToolIcon('attachment')
+                          ),
+                          h(
+                            'button',
+                            {
+                              class: [
+                                'composer-tool-button',
+                                { 'composer-tool-button-active': reasoningEffort.value !== 'default' }
+                              ],
+                              type: 'button',
+                              disabled: !reasoningConfigurable.value,
+                              title: reasoningConfigurable.value
+                                ? `${text('thinkingPending')}: ${reasoningLabel.value}`
+                                : text('thinkingUnavailable'),
+                              'aria-label': text('thinkingPending'),
+                              'aria-expanded': reasoningPickerOpen.value,
+                              onClick: () => {
+                                reasoningPickerOpen.value = !reasoningPickerOpen.value
+                                modelPickerOpen.value = false
+                                permissionModePickerOpen.value = false
+                              }
+                            },
+                            renderComposerToolIcon('thinking')
+                          ),
+                          h(
+                            'button',
+                            {
+                              class: [
+                                'composer-tool-button',
+                                {
+                                  'composer-tool-button-active': selectedPermissionMode.value !== 'default',
+                                  'composer-tool-button-caution': selectedPermissionMode.value === 'bypassPermissions'
                                 }
-                              },
-                              text(
-                                (
-                                  {
-                                    default: 'reasoningDefault',
-                                    none: 'reasoningNone',
-                                    minimal: 'reasoningMinimal',
-                                    low: 'reasoningLow',
-                                    medium: 'reasoningMedium',
-                                    high: 'reasoningHigh',
-                                    xhigh: 'reasoningXhigh',
-                                    auto: 'reasoningAuto'
-                                  } as Record<string, TextKey>
-                                )[option] ?? 'reasoningDefault'
-                              )
-                            )
+                              ],
+                              type: 'button',
+                              disabled: !selectedConversation.value || permissionModeUpdateState.value === 'updating',
+                              title: `${text('permissionMode')}: ${permissionModeLabel.value}`,
+                              'aria-label': text('permissionMode'),
+                              'aria-expanded': permissionModePickerOpen.value,
+                              onClick: () => {
+                                permissionModePickerOpen.value = !permissionModePickerOpen.value
+                                modelPickerOpen.value = false
+                                reasoningPickerOpen.value = false
+                              }
+                            },
+                            renderComposerToolIcon('permission')
+                          ),
+                          h(
+                            'button',
+                            {
+                              class: 'model-selector-button',
+                              type: 'button',
+                              disabled:
+                                !selectedConversation.value ||
+                                !models.value.length ||
+                                modelUpdateState.value === 'updating',
+                              title: selectedAgentName.value
+                                ? `${selectedAgentName.value}: ${modelPickerLabel.value}`
+                                : modelPickerLabel.value,
+                              'aria-expanded': modelPickerOpen.value,
+                              onClick: () => {
+                                modelPickerOpen.value = !modelPickerOpen.value
+                                reasoningPickerOpen.value = false
+                                permissionModePickerOpen.value = false
+                              }
+                            },
+                            modelUpdateState.value === 'updating' ? text('generating') : modelPickerLabel.value
+                          )
+                        ]),
+                        h(
+                          'button',
+                          {
+                            class: [
+                              'send-button',
+                              { 'send-button-is-stop': activeRunConversationId.value === selectedConversationId.value }
+                            ],
+                            type: 'button',
+                            disabled:
+                              !selectedConversation.value ||
+                              (Boolean(pendingToolApproval.value) &&
+                                activeRunConversationId.value !== selectedConversationId.value) ||
+                              (!composerText.value.trim() &&
+                                attachments.value.length === 0 &&
+                                activeRunConversationId.value !== selectedConversationId.value),
+                            'aria-label':
+                              activeRunConversationId.value === selectedConversationId.value
+                                ? text('stop')
+                                : text('send'),
+                            title:
+                              activeRunConversationId.value === selectedConversationId.value
+                                ? text('stop')
+                                : text('send'),
+                            onClick: () => {
+                              if (activeRunConversationId.value === selectedConversationId.value) {
+                                void abortMessage()
+                                return
+                              }
+                              void submitMessage()
+                            }
+                          },
+                          renderActionIcon(
+                            activeRunConversationId.value === selectedConversationId.value ? 'stop' : 'send'
                           )
                         )
-                      : undefined,
-                    modelPickerOpen.value
-                      ? h(
-                          'div',
-                          { class: 'model-picker-menu', role: 'listbox' },
-                          modelGroups.value.flatMap((group) => [
-                            h('p', { class: 'model-picker-group', key: `group-${group.id}` }, group.name),
-                            ...group.models.map((model) =>
+                      ]),
+                      reasoningPickerOpen.value
+                        ? h(
+                            'div',
+                            { class: 'reasoning-picker-menu', role: 'listbox' },
+                            reasoningOptions.value.map((option) =>
                               h(
                                 'button',
                                 {
                                   class: [
-                                    'model-picker-option',
-                                    { 'model-picker-option-selected': model.id === selectedAgent.value?.model }
+                                    'reasoning-picker-option',
+                                    { 'reasoning-picker-option-selected': option === reasoningEffort.value }
                                   ],
-                                  key: model.id,
+                                  key: option,
                                   type: 'button',
                                   role: 'option',
-                                  'aria-selected': model.id === selectedAgent.value?.model,
-                                  onClick: () => void updateSessionModel(model)
+                                  'aria-selected': option === reasoningEffort.value,
+                                  onClick: () => {
+                                    reasoningEffort.value = option
+                                    reasoningPickerOpen.value = false
+                                  }
+                                },
+                                text(
+                                  (
+                                    {
+                                      default: 'reasoningDefault',
+                                      none: 'reasoningNone',
+                                      minimal: 'reasoningMinimal',
+                                      low: 'reasoningLow',
+                                      medium: 'reasoningMedium',
+                                      high: 'reasoningHigh',
+                                      xhigh: 'reasoningXhigh',
+                                      auto: 'reasoningAuto'
+                                    } as Record<string, TextKey>
+                                  )[option] ?? 'reasoningDefault'
+                                )
+                              )
+                            )
+                          )
+                        : undefined,
+                      modelPickerOpen.value
+                        ? h(
+                            'div',
+                            { class: 'model-picker-menu', role: 'listbox' },
+                            modelGroups.value.flatMap((group) => [
+                              h('p', { class: 'model-picker-group', key: `group-${group.id}` }, group.name),
+                              ...group.models.map((model) =>
+                                h(
+                                  'button',
+                                  {
+                                    class: [
+                                      'model-picker-option',
+                                      { 'model-picker-option-selected': model.id === selectedAgent.value?.model }
+                                    ],
+                                    key: model.id,
+                                    type: 'button',
+                                    role: 'option',
+                                    'aria-selected': model.id === selectedAgent.value?.model,
+                                    onClick: () => void updateSessionModel(model)
+                                  },
+                                  [
+                                    h('span', { class: 'model-picker-name' }, model.name),
+                                    h('span', { class: 'model-picker-provider' }, model.group ?? model.providerId)
+                                  ]
+                                )
+                              )
+                            ])
+                          )
+                        : undefined,
+                      permissionModePickerOpen.value
+                        ? h(
+                            'div',
+                            { class: 'permission-mode-picker-menu', role: 'listbox' },
+                            permissionModeCards.value.map((card) =>
+                              h(
+                                'button',
+                                {
+                                  class: [
+                                    'permission-mode-option',
+                                    {
+                                      'permission-mode-option-selected': card.mode === selectedPermissionMode.value,
+                                      'permission-mode-option-caution': card.mode === 'bypassPermissions'
+                                    }
+                                  ],
+                                  key: card.mode,
+                                  type: 'button',
+                                  role: 'option',
+                                  'aria-selected': card.mode === selectedPermissionMode.value,
+                                  disabled: permissionModeUpdateState.value === 'updating',
+                                  onClick: () => void updatePermissionMode(card.mode)
                                 },
                                 [
-                                  h('span', { class: 'model-picker-name' }, model.name),
-                                  h('span', { class: 'model-picker-provider' }, model.group ?? model.providerId)
+                                  h('span', { class: 'permission-mode-option-title' }, text(card.titleKey)),
+                                  h('span', { class: 'permission-mode-option-desc' }, text(card.descriptionKey))
                                 ]
                               )
                             )
-                          ])
-                        )
-                      : undefined,
-                    permissionModePickerOpen.value
-                      ? h(
-                          'div',
-                          { class: 'permission-mode-picker-menu', role: 'listbox' },
-                          permissionModeCards.value.map((card) =>
-                            h(
-                              'button',
-                              {
-                                class: [
-                                  'permission-mode-option',
-                                  {
-                                    'permission-mode-option-selected': card.mode === selectedPermissionMode.value,
-                                    'permission-mode-option-caution': card.mode === 'bypassPermissions'
+                          )
+                        : undefined,
+                      slashCommandSuggestions.value.length
+                        ? h(
+                            'div',
+                            { class: 'slash-command-menu', role: 'listbox' },
+                            slashCommandSuggestions.value.map((command) =>
+                              h(
+                                'button',
+                                {
+                                  class: 'slash-command-option',
+                                  key: command.name,
+                                  type: 'button',
+                                  role: 'option',
+                                  onClick: () => {
+                                    composerText.value = `/${command.name} `
                                   }
-                                ],
-                                key: card.mode,
-                                type: 'button',
-                                role: 'option',
-                                'aria-selected': card.mode === selectedPermissionMode.value,
-                                disabled: permissionModeUpdateState.value === 'updating',
-                                onClick: () => void updatePermissionMode(card.mode)
-                              },
-                              [
-                                h('span', { class: 'permission-mode-option-title' }, text(card.titleKey)),
-                                h('span', { class: 'permission-mode-option-desc' }, text(card.descriptionKey))
-                              ]
+                                },
+                                [
+                                  h('span', { class: 'slash-command-name' }, `/${command.name}`),
+                                  command.description
+                                    ? h('span', { class: 'slash-command-description' }, command.description)
+                                    : undefined
+                                ]
+                              )
                             )
                           )
-                        )
-                      : undefined,
-                    slashCommandSuggestions.value.length
-                      ? h(
-                          'div',
-                          { class: 'slash-command-menu', role: 'listbox' },
-                          slashCommandSuggestions.value.map((command) =>
-                            h(
-                              'button',
-                              {
-                                class: 'slash-command-option',
-                                key: command.name,
-                                type: 'button',
-                                role: 'option',
-                                onClick: () => {
-                                  composerText.value = `/${command.name} `
-                                }
-                              },
-                              [
-                                h('span', { class: 'slash-command-name' }, `/${command.name}`),
-                                command.description
-                                  ? h('span', { class: 'slash-command-description' }, command.description)
-                                  : undefined
-                              ]
-                            )
-                          )
-                        )
-                      : undefined
-                  ])
+                        : undefined
+                    ]
+                  )
                 ]),
                 submitError.value ? h('p', { class: 'composer-error', role: 'alert' }, submitError.value) : undefined
               ]),
@@ -7309,6 +7455,173 @@ style.textContent = `
     border-top: 1px solid #e5e7eb;
   }
 
+  .permission-request-panel {
+    margin: 0 0 10px;
+  }
+
+  .permission-request-card {
+    padding: 10px;
+    background: #ffffff;
+    border: 1px solid #dbe1ea;
+    border-radius: 17px;
+    box-shadow: 0 1px 5px rgb(15 23 42 / 5%);
+  }
+
+  .permission-request-header {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    justify-content: space-between;
+  }
+
+  .permission-request-heading {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .permission-request-title {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin: 0;
+    overflow: hidden;
+    color: #111827;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  .permission-request-title-icon {
+    flex: 0 0 auto;
+    color: #6b7280;
+  }
+
+  .permission-request-title span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .permission-request-tool-name {
+    margin: 2px 0 0;
+    overflow: hidden;
+    color: #6b7280;
+    font-size: 12px;
+    line-height: 1.4;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .permission-request-badge {
+    flex: 0 0 auto;
+    padding: 3px 8px;
+    color: #b45309;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+    background: #fffbeb;
+    border-radius: 999px;
+  }
+
+  .permission-request-preview {
+    margin-top: 8px;
+    overflow: hidden;
+    background: #f3f4f6;
+    border-radius: 12px;
+  }
+
+  .permission-request-preview-body {
+    max-height: 160px;
+    margin: 0;
+    padding: 10px 12px;
+    overflow: auto;
+    color: #374151;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .permission-request-actions {
+    display: grid;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .permission-request-option {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    min-height: 44px;
+    padding: 8px 12px;
+    color: #111827;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+    background: transparent;
+    border: 0;
+    border-radius: 12px;
+    cursor: pointer;
+  }
+
+  .permission-request-option:hover:not(:disabled) {
+    background: #f3f4f6;
+  }
+
+  .permission-request-option:disabled {
+    opacity: 0.65;
+    cursor: wait;
+  }
+
+  .permission-request-option-index {
+    display: inline-flex;
+    width: 32px;
+    height: 32px;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    color: #6b7280;
+    font-size: 13px;
+    font-weight: 700;
+    background: #e5e7eb;
+    border-radius: 999px;
+  }
+
+  .permission-request-option:hover:not(:disabled) .permission-request-option-index {
+    color: #ffffff;
+    background: #111827;
+  }
+
+  .permission-request-option-label {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .permission-request-option-deny .permission-request-option-label {
+    color: #b91c1c;
+  }
+
+  .permission-request-readonly {
+    margin: 8px 0 0;
+    color: #92400e;
+    font-size: 12px;
+  }
+
+  .permission-request-error {
+    margin: 8px 0 0;
+    color: #b91c1c;
+    font-size: 12px;
+  }
+
+  .composer-surface-dimmed {
+    opacity: 0.55;
+    pointer-events: none;
+  }
+
   .composer-surface {
     position: relative;
     overflow: visible;
@@ -8200,6 +8513,64 @@ style.textContent = `
   :root[data-webui-theme='dark'] .composer-surface {
     background: #1f2937;
     border-color: #475569;
+  }
+
+  :root[data-webui-theme='dark'] .permission-request-card {
+    background: #1f2937;
+    border-color: #475569;
+    box-shadow: 0 1px 5px rgb(0 0 0 / 20%);
+  }
+
+  :root[data-webui-theme='dark'] .permission-request-title {
+    color: #f3f4f6;
+  }
+
+  :root[data-webui-theme='dark'] .permission-request-title-icon,
+  :root[data-webui-theme='dark'] .permission-request-tool-name {
+    color: #9ca3af;
+  }
+
+  :root[data-webui-theme='dark'] .permission-request-badge {
+    color: #fbbf24;
+    background: rgb(251 191 36 / 12%);
+  }
+
+  :root[data-webui-theme='dark'] .permission-request-preview {
+    background: #111827;
+  }
+
+  :root[data-webui-theme='dark'] .permission-request-preview-body {
+    color: #d1d5db;
+  }
+
+  :root[data-webui-theme='dark'] .permission-request-option {
+    color: #f3f4f6;
+  }
+
+  :root[data-webui-theme='dark'] .permission-request-option:hover:not(:disabled) {
+    background: #374151;
+  }
+
+  :root[data-webui-theme='dark'] .permission-request-option-index {
+    color: #d1d5db;
+    background: #374151;
+  }
+
+  :root[data-webui-theme='dark'] .permission-request-option:hover:not(:disabled) .permission-request-option-index {
+    color: #111827;
+    background: #f3f4f6;
+  }
+
+  :root[data-webui-theme='dark'] .permission-request-option-deny .permission-request-option-label {
+    color: #fca5a5;
+  }
+
+  :root[data-webui-theme='dark'] .permission-request-readonly {
+    color: #fbbf24;
+  }
+
+  :root[data-webui-theme='dark'] .permission-request-error {
+    color: #fca5a5;
   }
 
   :root[data-webui-theme='dark'] .composer-toolbar::before {
