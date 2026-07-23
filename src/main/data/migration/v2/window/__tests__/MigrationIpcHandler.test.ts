@@ -4,8 +4,8 @@ import { dialog, ipcMain, type IpcMainInvokeEvent, shell } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Shared mock fns so each test can configure return values.
+const diagnosticModuleState = vi.hoisted(() => ({ loadCount: 0 }))
 const diagnosticMocks = vi.hoisted(() => ({
-  bundleLoaded: vi.fn(),
   saveBundle: vi.fn(),
   validateSender: vi.fn()
 }))
@@ -30,7 +30,7 @@ const windowClearCloseConfirmMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@main/core/security/validateSender', () => ({ validateSender: diagnosticMocks.validateSender }))
 vi.mock('../../migrationDiagnosticBundle', () => {
-  diagnosticMocks.bundleLoaded()
+  diagnosticModuleState.loadCount += 1
   return { saveMigrationDiagnosticBundle: diagnosticMocks.saveBundle }
 })
 vi.mock('../../core/MigrationEngine', () => ({ migrationEngine: engineMock }))
@@ -104,6 +104,7 @@ describe('MigrationIpcHandler', () => {
         status: 'canceled'
       })
       expect(diagnosticMocks.saveBundle).not.toHaveBeenCalled()
+      expect(diagnosticModuleState.loadCount).toBe(0)
     })
 
     it('rejects an untrusted sender before opening the save dialog', async () => {
@@ -124,10 +125,11 @@ describe('MigrationIpcHandler', () => {
     })
 
     it('rejects an invalid local log date', async () => {
-      for (const logDate of ['2026-02-31', '2026-2-03']) {
+      for (const logDate of ['2026-02-31', '2026-2-03', ['2026-07-23']]) {
         await expect(invoke(MigrationIpcChannels.SaveDiagnosticBundle, { ...savePayload, logDate })).rejects.toThrow()
       }
       expect(dialog.showSaveDialog).not.toHaveBeenCalled()
+      expect(diagnosticMocks.saveBundle).not.toHaveBeenCalled()
     })
 
     it('uses the validated renderer-localized save dialog title', async () => {
@@ -151,7 +153,7 @@ describe('MigrationIpcHandler', () => {
     it('does not load the bundle module before the user confirms a destination', async () => {
       await invoke(MigrationIpcChannels.SaveDiagnosticBundle, savePayload)
 
-      expect(diagnosticMocks.bundleLoaded).not.toHaveBeenCalled()
+      expect(diagnosticModuleState.loadCount).toBe(0)
     })
 
     it('passes the dialog-selected path without adding a custom extension rule', async () => {

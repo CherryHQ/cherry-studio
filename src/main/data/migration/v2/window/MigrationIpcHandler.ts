@@ -50,7 +50,8 @@ function assertMigrationDiagnosticSender(event: IpcMainInvokeEvent): void {
   if (!validateSender(event)) throw new Error('Unauthorized migration diagnostic IPC sender.')
 }
 
-function isValidLocalDate(value: string): boolean {
+function isValidLocalDate(value: unknown): boolean {
+  if (typeof value !== 'string') return false
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
   if (!match) return false
   const [, yearText, monthText, dayText] = match
