@@ -1,6 +1,41 @@
 {
   "overrides": [
     {
+      "apiModelId": "Qwen3.6-35B-A3B",
+      "modelId": "qwen3-6-35b-a3b",
+      "providerId": "radeon-cloud"
+    },
+    {
+      "apiModelId": "DeepSeek-V4-Flash",
+      "modelId": "deepseek-v4-flash",
+      "providerId": "radeon-cloud"
+    },
+    {
+      "apiModelId": "DeepSeek-V4-Pro",
+      "modelId": "deepseek-v4-pro",
+      "providerId": "radeon-cloud"
+    },
+    {
+      "apiModelId": "GLM-5.1",
+      "modelId": "glm-5-1",
+      "providerId": "radeon-cloud"
+    },
+    {
+      "apiModelId": "GLM-5.2",
+      "modelId": "glm-5-2",
+      "providerId": "radeon-cloud"
+    },
+    {
+      "apiModelId": "gpt-oss-120b",
+      "modelId": "gpt-oss-120b",
+      "providerId": "radeon-cloud"
+    },
+    {
+      "apiModelId": "Kimi-K2.6",
+      "modelId": "kimi-k2-6",
+      "providerId": "radeon-cloud"
+    },
+    {
       "apiModelId": "chatgpt-4o-latest",
       "modelId": "chatgpt-4o-latest",
       "name": "chatgpt-4o-latest",
@@ -22283,5 +22318,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "d377116a5efd650c"
+  "version": "15bf40632e9ece97"
 }
