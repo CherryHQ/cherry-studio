@@ -7,6 +7,7 @@ import {
 } from '@renderer/components/chat/panes/Shell'
 import { EmptyState } from '@renderer/components/chat/primitives'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
+import type { PaneManualToggleSignal } from '@renderer/components/chat/shell/ChatAppShell'
 import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
 import { ConversationGreeting } from '@renderer/components/chat/shell/ConversationGreeting'
 import type { ConversationCenterSlot } from '@renderer/components/chat/shell/ConversationPageShell'
@@ -65,6 +66,7 @@ interface AgentChatProps {
   onLocateMessageHandled?: () => void
   onPaneCollapse?: () => void
   onPaneAutoCollapseChange?: (collapsed: boolean) => void
+  paneManualToggle?: PaneManualToggleSignal
   missingAgentSelection?: boolean
   onCreateEmptySession?: (defaults?: CreateAgentSessionDefaults) => void | Promise<unknown>
   onMissingAgentSelectionAgentChange?: (agentId: string | null) => void | Promise<void>
@@ -78,6 +80,7 @@ interface AgentChatProps {
   resourcePaneRevealRequest?: ResourceListRevealRequest
   sessionPaneOpen?: boolean
   onSessionPaneOpenChange?: (open: boolean) => void
+  sessionPaneUserOpenIntentSeq?: number
 }
 
 interface AgentChatLayoutProps {
@@ -91,6 +94,7 @@ interface AgentChatLayoutProps {
   onPaneAutoCollapseChange?: (collapsed: boolean) => void
   onPaneCollapse?: () => void
   pane?: ReactNode
+  paneManualToggle?: PaneManualToggleSignal
   paneOpen?: boolean
   panePosition?: ChatPanePosition
   partsByMessageId: Record<string, CherryMessagePart[]>
@@ -98,6 +102,7 @@ interface AgentChatLayoutProps {
   resourcePaneRevealRequest?: ResourceListRevealRequest
   rightPanelDefaultOpen?: boolean
   onRightPanelOpenChange?: (open: boolean) => void
+  rightPanelUserOpenIntentSeq?: number
   sessionSnapshot: AgentSessionEntity | null
   sidePanel?: ReactNode
   topBar?: ReactNode
@@ -121,6 +126,7 @@ const AgentChat = ({
   onLocateMessageHandled,
   onPaneCollapse,
   onPaneAutoCollapseChange,
+  paneManualToggle,
   missingAgentSelection = false,
   onCreateEmptySession,
   onMissingAgentSelectionAgentChange,
@@ -133,7 +139,8 @@ const AgentChat = ({
   resourcePaneCount,
   resourcePaneRevealRequest,
   sessionPaneOpen,
-  onSessionPaneOpenChange
+  onSessionPaneOpenChange,
+  sessionPaneUserOpenIntentSeq
 }: AgentChatProps) => {
   const { t } = useTranslation()
   const [messageStyle] = usePreference('chat.message.style')
@@ -324,6 +331,8 @@ const AgentChat = ({
     resourcePaneRevealRequest,
     rightPanelDefaultOpen: sessionPaneOpen,
     onRightPanelOpenChange: onSessionPaneOpenChange,
+    rightPanelUserOpenIntentSeq: sessionPaneUserOpenIntentSeq,
+    paneManualToggle,
     sessionSnapshot,
     sidePanel,
     topBar,
@@ -437,6 +446,8 @@ function AgentChatLayout({
   resourcePaneRevealRequest,
   rightPanelDefaultOpen,
   onRightPanelOpenChange,
+  rightPanelUserOpenIntentSeq,
+  paneManualToggle,
   sessionSnapshot,
   sidePanel,
   topBar,
@@ -453,6 +464,7 @@ function AgentChatLayout({
       resourcePane={resourcePane}
       defaultOpen={rightPanelDefaultOpen}
       onOpenChange={onRightPanelOpenChange}
+      userOpenIntentSeq={rightPanelUserOpenIntentSeq}
       sessionId={sessionSnapshot?.id}
       sessionName={sessionSnapshot?.name}
       traceId={sessionSnapshot?.traceId ?? undefined}
@@ -468,6 +480,7 @@ function AgentChatLayout({
         panePosition={panePosition}
         onPaneCollapse={onPaneCollapse}
         onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+        paneManualToggle={paneManualToggle}
         topBar={topBar}
         topRightTool={topRightTool}
         showTopRightToolWhenPaneOpen
