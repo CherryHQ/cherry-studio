@@ -75,6 +75,7 @@ vi.mock('react-i18next', () => ({
 interface TestScope {
   firstKey: string
   firstReadiness: RightPanelReadiness
+  firstHeaderMode?: 'shell' | 'content'
   secondReadiness: RightPanelReadiness
 }
 
@@ -95,6 +96,7 @@ const capabilities = [
       instanceKey: scope.firstKey,
       title: 'First',
       readiness: scope.firstReadiness,
+      headerMode: scope.firstHeaderMode,
       canMaximize: true
     })
   },
@@ -309,6 +311,17 @@ describe('RightPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
     expect(screen.getByTestId('right-pane-host')).toHaveAttribute('data-maximized', 'false')
     expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
+  })
+
+  it('lets a content-composed panel replace the shell header', () => {
+    render(
+      <Harness defaultOpen scope={{ ...readyScope, firstHeaderMode: 'content' }}>
+        <RightPanel />
+      </Harness>
+    )
+
+    expect(screen.queryByTestId('shell-tab-list')).toBeNull()
+    expect(screen.getByText('first:0')).toBeInTheDocument()
   })
 
   it('rejects duplicate panel ids', () => {
