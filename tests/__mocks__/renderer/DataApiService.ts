@@ -159,20 +159,21 @@ export const createMockDataApiService = (customBehavior: Partial<ReturnType<type
     // ============ Data Change Notification ============
 
     onDataChanged: vi.fn((endpoints: GetTemplateApiPaths | GetTemplateApiPaths[], listener: DataChangeListener) => {
-      const list = Array.isArray(endpoints) ? endpoints : [endpoints]
+      const list = Array.isArray(endpoints) ? [...endpoints] : [endpoints]
+      const registeredListener: DataChangeListener = (effects) => listener(effects)
       for (const endpoint of list) {
         let listeners = dataChangeListeners.get(endpoint)
         if (!listeners) {
           listeners = new Set()
           dataChangeListeners.set(endpoint, listeners)
         }
-        listeners.add(listener)
+        listeners.add(registeredListener)
       }
       return () => {
         for (const endpoint of list) {
           const listeners = dataChangeListeners.get(endpoint)
           if (!listeners) continue
-          listeners.delete(listener)
+          listeners.delete(registeredListener)
           if (listeners.size === 0) dataChangeListeners.delete(endpoint)
         }
       }
@@ -206,13 +207,6 @@ export const createMockDataApiService = (customBehavior: Partial<ReturnType<type
     cancelAllRequests: vi.fn((): void => {
       // No-op - direct IPC requests cannot be cancelled
     }),
-
-    // ============ Statistics ============
-
-    getRequestStats: vi.fn(() => ({
-      pendingRequests: 0,
-      activeSubscriptions: dataChangeListeners.size
-    })),
 
     // ============ Internal State Access for Testing ============
 
@@ -328,11 +322,6 @@ export const MockDataApiService = {
 
     cancelAllRequests(): void {
       return mockDataApiService.cancelAllRequests()
-    }
-
-    // ============ Statistics ============
-    getRequestStats() {
-      return mockDataApiService.getRequestStats()
     }
   },
   dataApiService: mockDataApiService

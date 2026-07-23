@@ -6,7 +6,7 @@
  * fixed-channel IPC callback the service attaches at construction; firing it
  * simulates a main-side broadcast.
  */
-import type { DataApiDataChangeEffect } from '@shared/data/api/types'
+import type { DataApiDataChangeEffect, GetTemplateApiPaths } from '@shared/data/api/types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@data/DataApiService')
@@ -123,6 +123,39 @@ describe('DataApiService.onDataChanged', () => {
 
     unsubscribe()
     ipcCallback!([topicsMembership])
+    expect(listener).not.toHaveBeenCalled()
+  })
+
+  it('keeps duplicate listener registrations independently removable', async () => {
+    const service = await createService()
+    const listener = vi.fn()
+    const unsubscribeFirst = service.onDataChanged('/topics', listener)
+    const unsubscribeSecond = service.onDataChanged('/topics', listener)
+
+    ipcCallback!([topicsMembership])
+    expect(listener).toHaveBeenCalledTimes(2)
+
+    listener.mockClear()
+    unsubscribeFirst()
+    ipcCallback!([topicsMembership])
+    expect(listener).toHaveBeenCalledTimes(1)
+
+    listener.mockClear()
+    unsubscribeSecond()
+    ipcCallback!([topicsMembership])
+    expect(listener).not.toHaveBeenCalled()
+  })
+
+  it('unsubscribes from the registered endpoints after the caller mutates its array', async () => {
+    const service = await createService()
+    const listener = vi.fn()
+    const endpoints: GetTemplateApiPaths[] = ['/topics']
+    const unsubscribe = service.onDataChanged(endpoints, listener)
+
+    endpoints.splice(0, 1, '/pins')
+    unsubscribe()
+    ipcCallback!([topicsMembership])
+
     expect(listener).not.toHaveBeenCalled()
   })
 })

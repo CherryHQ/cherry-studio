@@ -368,13 +368,17 @@ export class DataApiService implements ApiClient {
    * (dimension matching, entityIds filtering, revalidate/rebuild/ignore, echo
    * idempotency) is the consumer's policy.
    *
+   * Each call creates an independent registration, even when multiple calls
+   * reuse the same listener function.
+   *
    * @returns Unsubscribe function.
    */
   onDataChanged(
     endpoints: GetTemplateApiPaths | GetTemplateApiPaths[],
     listener: (effects: DataApiDataChangeEffect[]) => void
   ): () => void {
-    const list = Array.isArray(endpoints) ? endpoints : [endpoints]
+    const list = Array.isArray(endpoints) ? [...endpoints] : [endpoints]
+    const registeredListener = (effects: DataApiDataChangeEffect[]) => listener(effects)
 
     for (const endpoint of list) {
       let listeners = this.dataChangeListeners.get(endpoint)
@@ -382,14 +386,14 @@ export class DataApiService implements ApiClient {
         listeners = new Set()
         this.dataChangeListeners.set(endpoint, listeners)
       }
-      listeners.add(listener)
+      listeners.add(registeredListener)
     }
 
     return () => {
       for (const endpoint of list) {
         const listeners = this.dataChangeListeners.get(endpoint)
         if (!listeners) continue
-        listeners.delete(listener)
+        listeners.delete(registeredListener)
         if (listeners.size === 0) this.dataChangeListeners.delete(endpoint)
       }
     }
@@ -404,7 +408,7 @@ export class DataApiService implements ApiClient {
     const batches = new Map<(effects: DataApiDataChangeEffect[]) => void, DataApiDataChangeEffect[]>()
 
     for (const effect of effects) {
-      const listeners = this.dataChangeListeners.get(effect.endpoint as GetTemplateApiPaths)
+      const listeners = this.dataChangeListeners.get(effect.endpoint)
       if (!listeners) continue
       for (const listener of listeners) {
         let batch = batches.get(listener)
@@ -442,16 +446,6 @@ export class DataApiService implements ApiClient {
    */
   cancelAllRequests(): void {
     logger.warn('Request cancellation not supported with direct IPC')
-  }
-
-  /**
-   * Get comprehensive request statistics
-   */
-  getRequestStats() {
-    return {
-      pendingRequests: 0, // No longer tracked with direct IPC
-      activeSubscriptions: this.dataChangeListeners.size
-    }
   }
 }
 

@@ -5,12 +5,9 @@
  * 1. `notifyDataApiDataChange` behavior against the unified `@application` mock
  *    (broadcast wiring, empty-array short-circuit, delivery-boundary guard,
  *    failure isolation).
- * 2. A real-container smoke test: the notifier deliberately uses
- *    `application.get('WindowManager')` rather than `getOptional`. The unified
- *    mock's `get` never throws, so it cannot catch a regression to
- *    `getOptional`. This asserts the real `ServiceContainer` semantics the guard
- *    relies on — `getOptional` throws for a non-`@Conditional` service, and
- *    `get` lazily constructs it.
+ * 2. Real-container smoke tests pin the `ServiceContainer` semantics mirrored
+ *    by the unified mock: `getOptional` throws for a non-`@Conditional` service,
+ *    while `get` lazily constructs it.
  */
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
@@ -44,6 +41,10 @@ describe('notifyDataApiDataChange', () => {
     expect(broadcast).toHaveBeenCalledWith(IpcChannel.DataApi_DataChanged, effects)
   })
 
+  it('models WindowManager as an unconditional service in the unified mock', () => {
+    expect(() => application.getOptional('WindowManager')).toThrow(/is not conditional/)
+  })
+
   it('short-circuits on an empty effects array (no broadcast)', () => {
     notifyDataApiDataChange([])
 
@@ -68,13 +69,13 @@ describe('notifyDataApiDataChange', () => {
 })
 
 /**
- * Real-container semantics the `application.isReady()` + `get('WindowManager')`
- * guard depends on. WindowManager is registered `@Injectable` /
- * `@ServicePhase(Phase.WhenReady)` with no `@Conditional`; a probe service with
- * the same profile stands in for it here so we don't instantiate the real
- * (heavy) WindowManager.
+ * Real-container semantics mirrored by the unified mock and relied on by the
+ * `application.isReady()` + `get('WindowManager')` guard. WindowManager is
+ * registered `@Injectable` / `@ServicePhase(Phase.WhenReady)` with no
+ * `@Conditional`; a probe service with the same profile stands in for it here
+ * so we don't instantiate the real (heavy) WindowManager.
  */
-describe('notifyDataApiDataChange — real container semantics', () => {
+describe('ServiceContainer WindowManager-like semantics', () => {
   @Injectable('WindowManagerProbe')
   @ServicePhase(Phase.WhenReady)
   class WindowManagerProbe extends BaseService {}

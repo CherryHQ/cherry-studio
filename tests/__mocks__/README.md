@@ -14,7 +14,7 @@ Unified test mocks for the project, organized by process type and globally confi
 | Renderer | `useDataApi` | Data API hooks (useQuery, useMutation, etc.) |
 | Renderer | `usePreference` | Preference hooks |
 | Renderer | `useCache` | Cache hooks |
-| Main | `application` | Unified mock application factory with `application.get()` |
+| Main | `application` | Unified mock application factory with `application.get()` / `getOptional()` |
 | Main | `DbService` | Database service with mock db |
 | Main | `CacheService` | Internal + shared cache |
 | Main | `DataApiService` | API coordinator |
@@ -136,7 +136,6 @@ HTTP client with subscriptions and retry configuration.
 | `onDataChanged` | `(endpoints, listener) => () => void` |
 | `configureRetry` | `(options) => void` |
 | `getRetryConfig` | `() => RetryOptions` |
-| `getRequestStats` | `() => { pendingRequests, activeSubscriptions }` |
 
 #### Usage
 
@@ -178,6 +177,7 @@ React hooks for data operations.
 | `useQuery` | `(path, options?)` | `{ data, loading, error, refetch, mutate }` |
 | `useMutation` | `(method, path, options?)` | `{ mutate, loading, error }` |
 | `usePaginatedQuery` | `(path, options?)` | `{ items, total, page, loading, error, hasMore, hasPrev, prevPage, nextPage, refresh, reset }` |
+| `useDataChange` | `(endpoints, listener)` | `void` |
 | `useInvalidateCache` | `()` | `(keys?) => Promise<any>` |
 | `useReadCache` | `()` | `(path, query?) => TResponse \| undefined` |
 | `useWriteCache` | `()` | `async (path, value, query?) => void` |

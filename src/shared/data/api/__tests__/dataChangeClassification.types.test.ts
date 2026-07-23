@@ -15,7 +15,7 @@
  */
 import { describe, expectTypeOf, it } from 'vitest'
 
-import type { CollectionGetPaths } from '../types'
+import type { CollectionGetPaths, DataApiDataChangeEffect } from '../types'
 
 /**
  * Every GET endpoint whose response is an array or a pagination response
@@ -63,5 +63,30 @@ type ExpectedCollectionGetPaths =
 describe('CollectionGetPaths classification snapshot', () => {
   it('matches the explicitly enumerated collection endpoint union', () => {
     expectTypeOf<CollectionGetPaths>().toEqualTypeOf<ExpectedCollectionGetPaths>()
+  })
+})
+
+describe('DataApiDataChangeEffect static guarantees', () => {
+  it('rejects illegal kind, dimension, and endpoint combinations', () => {
+    // @ts-expect-error collection effects require a kind
+    const collectionWithoutKind: DataApiDataChangeEffect = { endpoint: '/topics' }
+    // @ts-expect-error scalar effects do not accept a kind
+    const scalarWithKind: DataApiDataChangeEffect = { endpoint: '/topics/:id', kind: 'projection' }
+    // @ts-expect-error order effects require a dimension
+    const orderWithoutDimension: DataApiDataChangeEffect = { endpoint: '/topics', kind: 'order' }
+    // @ts-expect-error projection effects do not accept a dimension
+    const projectionWithDimension: DataApiDataChangeEffect = {
+      endpoint: '/topics',
+      kind: 'projection',
+      dimension: 'search'
+    }
+    // @ts-expect-error notifications target template paths, not concrete paths
+    const concreteEndpoint: DataApiDataChangeEffect = { endpoint: '/topics/topic-1', kind: 'membership' }
+
+    void collectionWithoutKind
+    void scalarWithKind
+    void orderWithoutDimension
+    void projectionWithDimension
+    void concreteEndpoint
   })
 })

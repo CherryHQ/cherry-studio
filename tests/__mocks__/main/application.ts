@@ -104,6 +104,12 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
       }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     }
+    getOptional(name: string) {
+      if (name in defaultServiceInstances) {
+        throw new Error(`[MockApplication] Service '${name}' is not conditional — use get('${name}').`)
+      }
+      return serviceInstances[name as keyof typeof serviceInstances]
+    }
     has(name: string) {
       return name in serviceInstances
     }
@@ -114,6 +120,7 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
 
   return {
     get: vi.fn((name: string) => container.get(name)),
+    getOptional: vi.fn((name: string) => container.getOptional(name)),
     getContainer: vi.fn(() => container),
     // Deterministic stub for path lookups — returns "/mock/<key>" (or
     // "/mock/<key>/<filename>") so tests that instantiate services with
