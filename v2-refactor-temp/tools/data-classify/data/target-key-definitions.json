@@ -145,6 +145,13 @@
       "description": "Launchpad built-in app tile order, independent from the sidebar favorites order (new v2 preference, no v1 source). Empty defaults to the canonical app order; unknown/missing apps are normalized at read time"
     },
     {
+      "targetKey": "ui.custom_css_v2",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "Fresh v2 custom CSS. The migrated ui.custom_css value is retained only for legacy export."
+    },
+    {
       "targetKey": "chat.default_model_id",
       "type": "string",
       "defaultValue": null,

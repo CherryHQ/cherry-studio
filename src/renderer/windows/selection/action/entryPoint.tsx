@@ -9,7 +9,7 @@ import SelectionActionApp from './SelectionActionApp'
 await prepareWindow({
   preference: [
     'app.language',
-    'ui.custom_css',
+    'ui.custom_css_v2',
     'ui.theme_mode',
     'ui.theme_user.color_primary',
     'feature.selection.auto_close',

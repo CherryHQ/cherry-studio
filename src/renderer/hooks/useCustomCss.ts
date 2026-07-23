@@ -33,13 +33,13 @@ export function useCustomCssInjection(cssText: string | undefined): void {
 }
 
 /**
- * Inject the user's `ui.custom_css` preference verbatim. The standard custom-CSS owner
+ * Inject the user's `ui.custom_css_v2` preference verbatim. The standard custom-CSS owner
  * for the windows that render the full app chrome (main / subWindow / quickAssistant /
  * selection-action). The selection toolbar does not use this: it strips background
  * declarations first, so it calls `useCustomCssInjection` directly with the filtered
  * CSS.
  */
 export function useCustomCss(): void {
-  const [customCss] = usePreference('ui.custom_css')
+  const [customCss] = usePreference('ui.custom_css_v2')
   useCustomCssInjection(customCss)
 }

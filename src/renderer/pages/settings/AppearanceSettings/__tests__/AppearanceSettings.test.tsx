@@ -2,7 +2,7 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { MenuPresentationMode } from '@shared/data/preference/preferenceTypes'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AppearanceSettings, { confirmMenuPresentationModeChange } from '../AppearanceSettings'
@@ -325,5 +325,36 @@ describe('AppearanceSettings selectors', () => {
       expect.stringContaining('w-(--radix-popover-trigger-width)'),
       expect.stringContaining('w-(--radix-popover-trigger-width)')
     ])
+  })
+
+  it('uses the v2 custom CSS while exporting the migrated v1 CSS', async () => {
+    const legacyCustomCss = 'body { color: tomato; }'
+    const customCssV2 = 'body { color: rebeccapurple; }'
+    const save = vi.fn().mockResolvedValue('/tmp/cherry-studio-v1-custom.css')
+    window.api.file.save = save
+    MockUsePreferenceUtils.setPreferenceValue('ui.custom_css', legacyCustomCss)
+    MockUsePreferenceUtils.setPreferenceValue('ui.custom_css_v2', customCssV2)
+
+    render(<AppearanceSettings />)
+
+    expect(screen.getByDisplayValue(customCssV2)).toBeInTheDocument()
+    expect(screen.queryByText('settings.display.custom.css.cherrycss')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.display.custom.css.export' }))
+
+    await waitFor(() => {
+      expect(save).toHaveBeenCalledWith('cherry-studio-v1-custom.css', legacyCustomCss, {
+        filters: [{ name: 'CSS', extensions: ['css'] }]
+      })
+      expect(toast.success).toHaveBeenCalledWith('settings.display.custom.css.export_success')
+    })
+  })
+
+  it('hides the legacy custom CSS export when no migrated value exists', () => {
+    MockUsePreferenceUtils.setPreferenceValue('ui.custom_css', '   ')
+
+    render(<AppearanceSettings />)
+
+    expect(screen.queryByRole('button', { name: 'settings.display.custom.css.export' })).not.toBeInTheDocument()
   })
 })

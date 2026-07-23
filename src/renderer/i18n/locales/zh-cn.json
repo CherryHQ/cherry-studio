@@ -6334,6 +6334,9 @@
       "custom": {
         "css": {
           "cherrycss": "从 cherrycss.com 获取",
+          "export": "导出旧版样式",
+          "export_error": "旧版自定义 CSS 导出失败",
+          "export_success": "旧版自定义 CSS 已导出",
           "label": "自定义 CSS",
           "placeholder": "/* 这里写自定义 CSS */"
         }

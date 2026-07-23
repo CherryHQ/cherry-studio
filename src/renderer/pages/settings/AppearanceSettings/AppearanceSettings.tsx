@@ -40,7 +40,7 @@ import { cn } from '@renderer/utils/style'
 import type { LanguageVarious, MenuPresentationMode } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { defaultLanguage } from '@shared/utils/languages'
-import { Minus, Monitor, Moon, Plus, Sun } from 'lucide-react'
+import { Download, Minus, Monitor, Moon, Plus, Sun } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -115,7 +115,8 @@ const AppearanceSettings: FC = () => {
   const [language, setLanguage] = usePreference('app.language')
   const [windowStyle, setWindowStyle] = usePreference('ui.window_style')
   const [menuPresentationMode, setMenuPresentationMode] = usePreference('menu.presentation_mode')
-  const [customCss, setCustomCss] = usePreference('ui.custom_css')
+  const [legacyCustomCss] = usePreference('ui.custom_css')
+  const [customCss, setCustomCss] = usePreference('ui.custom_css_v2')
   const [fontSize] = usePreference('chat.message.font_size')
   const [useSystemTitleBar, setUseSystemTitleBar] = usePreference('app.use_system_title_bar')
   const [codeExecution, setCodeExecution] = useMultiplePreferences({
@@ -127,6 +128,20 @@ const AppearanceSettings: FC = () => {
   const [currentZoom, setCurrentZoom] = useState(1.0)
   const [fontList, setFontList] = useState<string[]>([])
   const isDefaultZoom = Math.abs(currentZoom - DEFAULT_ZOOM_FACTOR) < 0.001
+
+  const handleExportCustomCss = async () => {
+    try {
+      const savedPath = await window.api.file.save('cherry-studio-v1-custom.css', legacyCustomCss, {
+        filters: [{ name: 'CSS', extensions: ['css'] }]
+      })
+      if (savedPath) {
+        toast.success(t('settings.display.custom.css.export_success'))
+      }
+    } catch (error) {
+      logger.error('Failed to export legacy custom CSS', error as Error)
+      toast.error(t('settings.display.custom.css.export_error'))
+    }
+  }
 
   const resolvedLanguage = i18n.resolvedLanguage ?? i18n.language
   const displayLanguage = isAppLanguage(language)
@@ -539,9 +554,12 @@ const AppearanceSettings: FC = () => {
       <SettingGroup theme={theme} className={appearanceSectionClassName}>
         <SettingTitle>
           {t('settings.display.custom.css.label')}
-          <TitleExtra onClick={() => ipcApi.request('system.shell.open_website', 'https://cherrycss.com/')}>
-            {t('settings.display.custom.css.cherrycss')}
-          </TitleExtra>
+          {legacyCustomCss.trim() ? (
+            <Button variant="outline" size="sm" onClick={handleExportCustomCss}>
+              <Download size={14} />
+              {t('settings.display.custom.css.export')}
+            </Button>
+          ) : null}
         </SettingTitle>
         <SettingDescription>{t('settings.display.custom.css.placeholder')}</SettingDescription>
         <div className="mt-4 overflow-hidden rounded-lg border border-border/60">
@@ -567,10 +585,6 @@ const AppearanceSettings: FC = () => {
     </SettingsContentColumn>
   )
 }
-
-const TitleExtra = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('cursor-pointer text-xs underline opacity-70', className)} {...props} />
-)
 
 const ZoomButtonGroup = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div className={cn('flex w-full min-w-0 max-w-52.5 items-center justify-end', className)} {...props} />
