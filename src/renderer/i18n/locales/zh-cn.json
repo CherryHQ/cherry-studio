@@ -566,7 +566,7 @@
       },
       "prompt": "提示词设置",
       "skills": {
-        "addMore": "添加更多技能",
+        "addMore": "管理技能",
         "builtin": "内置",
         "noFilterResults": "没有匹配的技能",
         "noSkills": "暂无已安装的技能。前往 设置 > 技能 安装技能。",
@@ -640,11 +640,6 @@
       }
     },
     "sidebar_title": "智能体",
-    "skill": {
-      "manage": {
-        "title": "管理技能"
-      }
-    },
     "tasks": {
       "add": "添加任务",
       "cancel": "取消",
@@ -1590,8 +1585,7 @@
     "resource_view": {
       "menu": {
         "agent": "智能体",
-        "assistant": "助手",
-        "skill": "技能"
+        "assistant": "助手"
       }
     },
     "save": {
@@ -2426,13 +2420,19 @@
     "text": "文本",
     "toolInput": "工具输入",
     "toolName": "工具名",
+    "tool_call_limit_reached": "助手在生成最终回复前已达到工具调用上限。请重试，或缩小任务范围。",
     "truncated": "数据已截断，原始大小",
     "truncatedBadge": "已截断",
     "unknown": "未知错误",
     "usage": "用量",
     "user_message_not_found": "无法找到原始用户消息",
     "value": "值",
-    "values": "值"
+    "values": "值",
+    "web_lookup_network_error": "联网访问失败，请检查网络连接后重试。",
+    "web_search_api_host_invalid": "联网搜索不可用，因为已配置服务提供商的 API 地址无效。请在“设置 → 联网搜索”中填写有效的 HTTP(S) 地址后重试。",
+    "web_search_api_host_missing": "联网搜索不可用，因为已配置的服务提供商缺少 API 地址。请前往“设置 → 联网搜索”补充后重试。",
+    "web_search_api_key_missing": "联网搜索不可用，因为已配置的服务提供商缺少 API 密钥。请前往“设置 → 联网搜索”补充后重试。",
+    "web_search_provider_unavailable": "联网搜索不可用，因为尚未配置兼容的服务提供商。请前往“设置 → 联网搜索”完成配置后重试。"
   },
   "export": {
     "assistant": "助手",
@@ -3254,7 +3254,7 @@
             "skills_require_save": "保存后才能启用技能",
             "tab": {
               "mcp": "MCP",
-              "skills": "Skills",
+              "skills": "技能",
               "tools": "内置工具"
             },
             "title": "能力扩展"
@@ -3575,7 +3575,7 @@
       "title": "资源库"
     },
     "skill_add": {
-      "add": "添加 Skill",
+      "add": "添加技能",
       "local_import": "本地导入",
       "online_search": "在线搜索",
       "system_search": "系统搜索"
@@ -4439,23 +4439,31 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "provider_setup": {
+      "missing_model": "请先启用该服务商下的至少一个模型",
+      "missing_provider": "请先启用一个服务商",
+      "next": "下一步",
+      "subtitle": "添加 API Key 或登录 CherryIN，然后启用一个服务商。",
+      "title": "选择服务商"
+    },
     "select_model": {
       "change_later": "您可以随时在设置中更改",
       "start": "开始使用",
       "subtitle": "为每个场景选择默认模型",
-      "title": "选择你的默认模型"
+      "title": "选择默认模型"
     },
-    "skip": "跳过引导",
+    "skip": "稍后设置",
     "toast": {
+      "complete_failed": "无法完成引导，请重试",
       "connected": "成功连接 CherryIN"
     },
     "welcome": {
-      "login_cherryin": "登录 CherryIN",
-      "or_continue_with": "或使用其他方式",
-      "other_provider": "选择其他服务商",
+      "login_cherryin": "连接 CherryIN",
+      "or_continue_with": "或",
+      "other_provider": "配置其他服务商",
       "select_other_provider": "选择其他服务商",
-      "setup_hint": "请您先至少配置一个服务商，以获得最佳使用体验",
-      "subtitle": "使用 CherryIN 服务商可畅享顶级 AI 服务",
+      "setup_hint": "您可以随时在设置中更换服务商",
+      "subtitle": "连接服务商，开启您的 AI 工作空间",
       "title": "欢迎使用 Cherry Studio"
     }
   },

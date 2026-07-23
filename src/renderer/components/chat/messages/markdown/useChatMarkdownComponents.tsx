@@ -11,7 +11,7 @@
  *   - `<svg>` → MarkdownSvgRenderer (adaptive sizing + context menu)
  *   - `<style>` → MarkdownShadowDomRenderer (shadow DOM isolation)
  *
- * The returned map identity is memoized per `(blockId, hasStyleElement)`, so
+ * The returned map identity is memoized per render option, so
  * the generic `<Markdown>` / `<StreamingMarkdown>` upstream gets a stable
  * `components` prop reference across re-renders.
  */
@@ -21,6 +21,7 @@ import MarkdownShadowDomRenderer from '@renderer/components/MarkdownShadowDomRen
 import { useMemo } from 'react'
 import type { Components } from 'streamdown'
 
+import type { InlineHtmlPreviewMode } from './ChatMarkdown'
 import CodeBlock from './CodeBlock'
 import Link from './Link'
 import MarkdownSvgRenderer from './MarkdownSvgRenderer'
@@ -28,6 +29,8 @@ import Table from './Table'
 
 interface Options {
   blockId: string
+  /** Render assistant HTML fences inline, either as a placeholder or completed preview. */
+  inlineHtmlPreviewMode?: InlineHtmlPreviewMode
   /** Set true when the source contains a `<style>` element to enable shadow-DOM isolation. */
   hasStyleElement?: boolean
   /** True while the owning markdown block is still receiving stream chunks. */
@@ -36,13 +39,21 @@ interface Options {
 
 export function useChatMarkdownComponents({
   blockId,
+  inlineHtmlPreviewMode,
   hasStyleElement = false,
   isStreaming = false
 }: Options): Partial<Components> {
   return useMemo(() => {
     const result: Partial<Components> = {
       a: (props: any) => <Link {...props} />,
-      code: (props: any) => <CodeBlock {...props} blockId={blockId} isStreaming={isStreaming} />,
+      code: (props: any) => (
+        <CodeBlock
+          {...props}
+          blockId={blockId}
+          inlineHtmlPreviewMode={inlineHtmlPreviewMode}
+          isStreaming={isStreaming}
+        />
+      ),
       table: (props: any) => <Table {...props} blockId={blockId} />,
       img: (props: any) => <ImageViewer style={{ maxWidth: 500, maxHeight: 500 }} {...props} />,
       pre: (props: any) => <pre style={{ overflow: 'visible' }} {...props} />,
@@ -57,5 +68,5 @@ export function useChatMarkdownComponents({
       result.style = MarkdownShadowDomRenderer as Components['style']
     }
     return result
-  }, [blockId, hasStyleElement, isStreaming])
+  }, [blockId, hasStyleElement, inlineHtmlPreviewMode, isStreaming])
 }
