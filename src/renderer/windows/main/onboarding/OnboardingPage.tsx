@@ -1,4 +1,13 @@
-import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tooltip } from '@cherrystudio/ui'
+import {
+  Button,
+  Checkbox,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Tooltip
+} from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import AppLogo from '@renderer/assets/images/logo.png'
 import { WindowControls } from '@renderer/components/WindowControls'
@@ -18,15 +27,18 @@ import { ArrowLeft, Check, KeyRound, Languages, LogIn } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { PrivacyPolicyDialog } from '../privacy/PrivacyPolicyDialog'
+
 type OnboardingStep = 'welcome' | 'provider' | 'select-model'
 type OnboardingCompletionStatus = Exclude<OnboardingProviderSetupStatus, 'pending'>
 
 interface OnboardingPageProps {
-  onComplete: (status: OnboardingCompletionStatus) => void | Promise<void>
+  onComplete: (status: OnboardingCompletionStatus, dataCollectionEnabled: boolean) => void | Promise<void>
 }
 
 const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
 const CHERRYIN_LOGIN_LOADING_TIMEOUT_MS = 10_000
+const PESSIMISTIC_PREFERENCE_OPTIONS = { optimistic: false } as const
 
 function OnboardingProviderSettings() {
   const router = useMemo(() => {
@@ -41,6 +53,10 @@ function OnboardingProviderSettings() {
 export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
   const { t } = useTranslation()
   const [language, setLanguage] = usePreference('app.language')
+  const [dataCollectionEnabled, setDataCollectionEnabled] = usePreference(
+    'app.privacy.data_collection.enabled',
+    PESSIMISTIC_PREFERENCE_OPTIONS
+  )
   const { addApiKey, updateProvider } = useProvider('cherryin')
   const { syncProviderModels } = useProviderModelSync('cherryin')
   const { providers: enabledProviders, isLoading: isProvidersLoading } = useProviders({ enabled: true })
@@ -49,6 +65,8 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
   const [step, setStep] = useState<OnboardingStep>('welcome')
   const [isLoggingIn, setIsLoggingIn] = useState(false)
   const [isCompleting, setIsCompleting] = useState(false)
+  const [isUpdatingPrivacy, setIsUpdatingPrivacy] = useState(false)
+  const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false)
   const loginAttemptRef = useRef(0)
   const loginLoadingTimeoutRef = useRef<number | null>(null)
   const canCompleteModelSetup = Boolean(defaultModel && quickModel && translateModel)
@@ -81,18 +99,43 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
     void setLanguage(value)
   }
 
+  const updateDataCollection = useCallback(
+    async (enabled: boolean): Promise<boolean> => {
+      setIsUpdatingPrivacy(true)
+      try {
+        await setDataCollectionEnabled(enabled)
+        return true
+      } catch {
+        toast.error(t('onboarding.privacy.update_failed'))
+        return false
+      } finally {
+        setIsUpdatingPrivacy(false)
+      }
+    },
+    [setDataCollectionEnabled, t]
+  )
+
+  const handlePrivacyPolicyChoice = useCallback(
+    async (enabled: boolean) => {
+      if (await updateDataCollection(enabled)) {
+        setShowPrivacyPolicy(false)
+      }
+    },
+    [updateDataCollection]
+  )
+
   const complete = useCallback(
     async (status: OnboardingCompletionStatus) => {
       setIsCompleting(true)
       try {
-        await onComplete(status)
+        await onComplete(status, dataCollectionEnabled)
       } catch {
         toast.error(t('onboarding.toast.complete_failed'))
       } finally {
         setIsCompleting(false)
       }
     },
-    [onComplete, t]
+    [dataCollectionEnabled, onComplete, t]
   )
 
   useEffect(
@@ -190,7 +233,7 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
             size="sm"
             className="nodrag text-foreground-secondary hover:text-foreground"
             onClick={() => void complete('skipped')}
-            disabled={isCompleting}>
+            disabled={isCompleting || isUpdatingPrivacy}>
             {t('onboarding.skip')}
           </Button>
         </div>
@@ -198,106 +241,147 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
       </div>
 
       <div className="flex min-h-0 flex-1 px-2 pb-2">
-        <section className="relative flex min-h-0 flex-1 overflow-hidden rounded-[12px] border-[0.5px] border-border bg-background">
-          {step === 'welcome' && (
-            <div className="flex h-full w-full items-center justify-center px-6 pb-20">
-              <div className="flex w-full max-w-[420px] flex-col items-center">
-                <img src={AppLogo} alt="Cherry Studio" className="size-16 rounded-xl" />
-                <div className="mt-5 space-y-3 text-center">
-                  <h1 className="m-0 font-semibold text-2xl text-foreground">{t('onboarding.welcome.title')}</h1>
-                  <p className="m-0 text-foreground-secondary text-sm">{t('onboarding.welcome.subtitle')}</p>
+        <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[12px] border-[0.5px] border-border bg-background">
+          <div className="relative min-h-0 flex-1 overflow-hidden">
+            {step === 'welcome' && (
+              <div className="flex h-full w-full items-center justify-center px-6 pb-20">
+                <div className="flex w-full max-w-[420px] flex-col items-center">
+                  <img src={AppLogo} alt="Cherry Studio" className="size-16 rounded-xl" />
+                  <div className="mt-5 space-y-3 text-center">
+                    <h1 className="m-0 font-semibold text-2xl text-foreground">{t('onboarding.welcome.title')}</h1>
+                    <p className="m-0 text-foreground-secondary text-sm">{t('onboarding.welcome.subtitle')}</p>
+                  </div>
+                  <div className="mt-8 flex w-full flex-col gap-3">
+                    <Button
+                      type="button"
+                      size="lg"
+                      className="h-11 w-full rounded-xl"
+                      loading={isLoggingIn}
+                      onClick={() => void handleCherryInLogin()}>
+                      {!isLoggingIn && <LogIn size={16} />}
+                      {t('onboarding.welcome.login_cherryin')}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="lg"
+                      className="h-11 w-full rounded-xl"
+                      onClick={() => setStep('provider')}>
+                      <KeyRound size={16} />
+                      {t('onboarding.welcome.other_provider')}
+                    </Button>
+                  </div>
+                  <p className="mt-4 mb-0 text-center text-foreground-muted text-xs">
+                    {t('onboarding.welcome.setup_hint')}
+                  </p>
                 </div>
-                <div className="mt-8 flex w-full flex-col gap-3">
-                  <Button
-                    type="button"
-                    size="lg"
-                    className="h-11 w-full rounded-xl"
-                    loading={isLoggingIn}
-                    onClick={() => void handleCherryInLogin()}>
-                    {!isLoggingIn && <LogIn size={16} />}
-                    {t('onboarding.welcome.login_cherryin')}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="lg"
-                    className="h-11 w-full rounded-xl"
-                    onClick={() => setStep('provider')}>
-                    <KeyRound size={16} />
-                    {t('onboarding.welcome.other_provider')}
-                  </Button>
+              </div>
+            )}
+
+            {step === 'provider' && (
+              <div className="flex h-full min-h-0 w-full flex-col">
+                <OnboardingHeader
+                  title={t('onboarding.provider_setup.title')}
+                  onBack={() => setStep('welcome')}
+                  padded
+                />
+                <div className="min-h-0 flex-1 border-border border-y">
+                  <OnboardingProviderSettings />
                 </div>
-                <p className="mt-4 mb-0 text-center text-foreground-muted text-xs">
-                  {t('onboarding.welcome.setup_hint')}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {step === 'provider' && (
-            <div className="flex h-full min-h-0 w-full flex-col">
-              <OnboardingHeader title={t('onboarding.provider_setup.title')} onBack={() => setStep('welcome')} padded />
-              <div className="min-h-0 flex-1 border-border border-y">
-                <OnboardingProviderSettings />
-              </div>
-              <div className="flex shrink-0 justify-end gap-2 px-5 py-3">
-                <Button type="button" variant="outline" onClick={() => setStep('welcome')}>
-                  {t('common.back')}
-                </Button>
-                <Tooltip
-                  content={providerSetupHint}
-                  placement="top"
-                  classNames={{
-                    content:
-                      'dark:bg-neutral-100 dark:text-neutral-900 dark:[&_svg]:fill-neutral-100! dark:[&_svg]:stroke-neutral-100!'
-                  }}>
-                  <Button
-                    type="button"
-                    aria-disabled={!canContinueProviderSetup}
-                    className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-                    onClick={() => canContinueProviderSetup && setStep('select-model')}>
-                    {t('onboarding.provider_setup.next')}
+                <div className="flex shrink-0 justify-end gap-2 px-5 py-3">
+                  <Button type="button" variant="outline" onClick={() => setStep('welcome')}>
+                    {t('common.back')}
                   </Button>
-                </Tooltip>
+                  <Tooltip
+                    content={providerSetupHint}
+                    placement="top"
+                    classNames={{
+                      content:
+                        'dark:bg-neutral-100 dark:text-neutral-900 dark:[&_svg]:fill-neutral-100! dark:[&_svg]:stroke-neutral-100!'
+                    }}>
+                    <Button
+                      type="button"
+                      aria-disabled={!canContinueProviderSetup}
+                      className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                      onClick={() => canContinueProviderSetup && setStep('select-model')}>
+                      {t('onboarding.provider_setup.next')}
+                    </Button>
+                  </Tooltip>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {step === 'select-model' && (
-            <div className="flex h-full min-h-0 w-full flex-col">
-              <OnboardingHeader title={t('onboarding.select_model.title')} onBack={() => setStep('provider')} padded />
-              <div className="flex min-h-0 flex-1 justify-center overflow-y-auto border-border border-t px-6 py-8">
-                <div className="flex w-full max-w-[440px] items-center">
-                  <div className="w-full">
-                    <ModelSettings
-                      showSettingsButton={false}
-                      showDescription={false}
-                      showDividers={false}
-                      compact
-                      className="mt-4 min-h-0 w-full flex-none overflow-visible"
-                    />
-                    <div className="mt-5 flex flex-col items-center gap-3">
-                      <Button
-                        type="button"
-                        size="lg"
-                        className="w-full"
-                        loading={isCompleting}
-                        disabled={!canCompleteModelSetup}
-                        onClick={() => void complete('completed')}>
-                        <Check size={16} />
-                        {t('onboarding.select_model.start')}
-                      </Button>
-                      <p className="m-0 text-center text-foreground-muted text-xs">
-                        {t('onboarding.select_model.change_later')}
-                      </p>
+            {step === 'select-model' && (
+              <div className="flex h-full min-h-0 w-full flex-col">
+                <OnboardingHeader
+                  title={t('onboarding.select_model.title')}
+                  onBack={() => setStep('provider')}
+                  padded
+                />
+                <div className="flex min-h-0 flex-1 justify-center overflow-y-auto border-border border-t px-6 py-8">
+                  <div className="flex w-full max-w-[440px] items-center">
+                    <div className="w-full">
+                      <ModelSettings
+                        showSettingsButton={false}
+                        showDescription={false}
+                        showDividers={false}
+                        compact
+                        className="mt-4 min-h-0 w-full flex-none overflow-visible"
+                      />
+                      <div className="mt-5 flex flex-col items-center gap-3">
+                        <Button
+                          type="button"
+                          size="lg"
+                          className="w-full"
+                          loading={isCompleting}
+                          disabled={!canCompleteModelSetup || isUpdatingPrivacy}
+                          onClick={() => void complete('completed')}>
+                          <Check size={16} />
+                          {t('onboarding.select_model.start')}
+                        </Button>
+                        <p className="m-0 text-center text-foreground-muted text-xs">
+                          {t('onboarding.select_model.change_later')}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
+            )}
+          </div>
+
+          <div className="nodrag flex shrink-0 justify-center px-6 py-3">
+            <div className="flex max-w-full items-center gap-2 text-center text-foreground-muted text-xs leading-relaxed">
+              <Checkbox
+                id="onboarding-data-collection"
+                size="sm"
+                checked={dataCollectionEnabled}
+                disabled={isUpdatingPrivacy}
+                aria-label={t('onboarding.privacy.data_collection')}
+                onCheckedChange={(checked) => void updateDataCollection(checked === true)}
+              />
+              <div>
+                <span>{t('onboarding.privacy.notice')}</span>
+                <button
+                  type="button"
+                  className="ml-1 cursor-pointer border-0 bg-transparent p-0 text-primary text-xs hover:underline"
+                  onClick={() => setShowPrivacyPolicy(true)}>
+                  {t('onboarding.privacy.policy')}
+                </button>
+                <span>{t('onboarding.privacy.period')}</span>
+              </div>
             </div>
-          )}
+          </div>
         </section>
       </div>
+
+      <PrivacyPolicyDialog
+        open={showPrivacyPolicy}
+        onAccept={() => handlePrivacyPolicyChoice(true)}
+        onDecline={() => handlePrivacyPolicyChoice(false)}
+        acceptButtonText={t('onboarding.privacy.accept_and_continue')}
+        isPending={isUpdatingPrivacy}
+      />
     </div>
   )
 }

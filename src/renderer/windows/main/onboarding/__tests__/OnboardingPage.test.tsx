@@ -78,6 +78,28 @@ vi.mock('@renderer/pages/settings/ModelSettings/ModelSettings', () => ({
   default: () => <div data-testid="model-settings" />
 }))
 
+vi.mock('../../privacy/PrivacyPolicyDialog', () => ({
+  PrivacyPolicyDialog: ({
+    open,
+    onAccept,
+    onDecline
+  }: {
+    open: boolean
+    onAccept: () => void
+    onDecline?: () => void
+  }) =>
+    open ? (
+      <div data-testid="privacy-policy-dialog">
+        <button type="button" onClick={onAccept}>
+          accept-policy
+        </button>
+        <button type="button" onClick={onDecline}>
+          decline-policy
+        </button>
+      </div>
+    ) : null
+}))
+
 import OnboardingPage from '../OnboardingPage'
 
 describe('OnboardingPage', () => {
@@ -98,6 +120,7 @@ describe('OnboardingPage', () => {
     selectedModelsMock.defaultModel = { id: 'default-model' }
     selectedModelsMock.quickModel = { id: 'quick-model' }
     selectedModelsMock.translateModel = { id: 'translate-model' }
+    MockUsePreferenceUtils.setPreferenceValue('app.privacy.data_collection.enabled', true)
   })
 
   afterEach(() => {
@@ -126,7 +149,7 @@ describe('OnboardingPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /onboarding\.select_model\.start/ }))
 
-    await waitFor(() => expect(onComplete).toHaveBeenCalledWith('completed'))
+    await waitFor(() => expect(onComplete).toHaveBeenCalledWith('completed', true))
   })
 
   it('does not allow CherryAI to satisfy the provider setup requirements', async () => {
@@ -179,7 +202,50 @@ describe('OnboardingPage', () => {
 
     fireEvent.click(skipButton)
 
-    await waitFor(() => expect(onComplete).toHaveBeenCalledWith('skipped'))
+    await waitFor(() => expect(onComplete).toHaveBeenCalledWith('skipped', true))
+  })
+
+  it('shows the privacy control on every onboarding step', async () => {
+    render(<OnboardingPage onComplete={vi.fn()} />)
+
+    expect(screen.getByRole('checkbox', { name: 'onboarding.privacy.data_collection' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /onboarding\.welcome\.other_provider/ }))
+    await screen.findByTestId('provider-settings')
+    expect(screen.getByRole('checkbox', { name: 'onboarding.privacy.data_collection' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'onboarding.provider_setup.next' }))
+    await screen.findByTestId('model-settings')
+    expect(screen.getByRole('checkbox', { name: 'onboarding.privacy.data_collection' })).toBeInTheDocument()
+  })
+
+  it('lets the user disable anonymous data collection without blocking onboarding', async () => {
+    const onComplete = vi.fn()
+    render(<OnboardingPage onComplete={onComplete} />)
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'onboarding.privacy.data_collection' }))
+
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.data_collection.enabled')).toBe(false)
+    )
+    expect(screen.getByRole('button', { name: 'onboarding.skip' })).toBeEnabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'onboarding.skip' }))
+    await waitFor(() => expect(onComplete).toHaveBeenCalledWith('skipped', false))
+  })
+
+  it('opens the full policy and persists the selected privacy choice before closing', async () => {
+    render(<OnboardingPage onComplete={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'onboarding.privacy.policy' }))
+    expect(screen.getByTestId('privacy-policy-dialog')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'decline-policy' }))
+
+    await waitFor(() =>
+      expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.data_collection.enabled')).toBe(false)
+    )
+    expect(screen.queryByTestId('privacy-policy-dialog')).not.toBeInTheDocument()
   })
 
   it('shows an error when completing onboarding fails', async () => {

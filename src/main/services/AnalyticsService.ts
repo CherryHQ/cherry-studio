@@ -5,7 +5,7 @@ import { loggerService } from '@logger'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
-import { APP_NAME } from '@shared/utils/constants'
+import { APP_NAME, LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 import { app } from 'electron'
 
 const logger = loggerService.withContext('AnalyticsService')
@@ -14,7 +14,9 @@ const logger = loggerService.withContext('AnalyticsService')
 @ServicePhase(Phase.WhenReady)
 export class AnalyticsService extends BaseService implements Activatable {
   private client: AnalyticsClient | null = null
-  /** Latest desired running state — mirrors the `app.privacy.data_collection.enabled` preference. */
+  private dataCollectionEnabled = false
+  private policyVersion = ''
+  /** Analytics runs only after the latest policy is acknowledged and data collection remains enabled. */
   private desiredEnabled = false
   /**
    * Converges the client's running state to `desiredEnabled`. It is the SOLE caller of
@@ -45,16 +47,29 @@ export class AnalyticsService extends BaseService implements Activatable {
     const preferenceService = application.get('PreferenceService')
     this.registerDisposable(
       preferenceService.subscribeChange('app.privacy.data_collection.enabled', (enabled: boolean) => {
-        this.desiredEnabled = enabled
-        this.reconciler.request()
+        this.dataCollectionEnabled = enabled
+        this.updateDesiredEnabled()
+      })
+    )
+    this.registerDisposable(
+      preferenceService.subscribeChange('app.privacy.policy_version', (version: string) => {
+        this.policyVersion = version
+        this.updateDesiredEnabled()
       })
     )
   }
 
   protected async onReady() {
-    this.desiredEnabled = application.get('PreferenceService').get('app.privacy.data_collection.enabled')
-    this.reconciler.request()
+    const preferenceService = application.get('PreferenceService')
+    this.dataCollectionEnabled = preferenceService.get('app.privacy.data_collection.enabled')
+    this.policyVersion = preferenceService.get('app.privacy.policy_version')
+    this.updateDesiredEnabled()
     await this.reconciler.flush()
+  }
+
+  private updateDesiredEnabled(): void {
+    this.desiredEnabled = this.dataCollectionEnabled && this.policyVersion === LATEST_PRIVACY_POLICY_VERSION
+    this.reconciler.request()
   }
 
   onActivate(): void {
@@ -99,9 +114,7 @@ export class AnalyticsService extends BaseService implements Activatable {
   }
 
   public async trackAppUpdate(): Promise<void> {
-    if (!this.client || !application.get('PreferenceService').get('app.privacy.data_collection.enabled')) {
-      return
-    }
+    if (!this.isActivated || !this.client) return
 
     await this.client.trackAppUpdate()
   }

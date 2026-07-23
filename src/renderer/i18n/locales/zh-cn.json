@@ -2163,6 +2163,7 @@
     "copy_failed": "复制失败",
     "create_success": "创建成功",
     "current": "当前",
+    "decline": "不同意",
     "default": "默认",
     "delete": "删除",
     "delete_confirm": "确定要删除吗？",
@@ -4439,6 +4440,14 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "privacy": {
+      "accept_and_continue": "同意并继续",
+      "data_collection": "共享匿名使用数据",
+      "notice": "继续即表示你已阅读并同意",
+      "period": "。",
+      "policy": "隐私协议",
+      "update_failed": "无法更新隐私设置，请重试"
+    },
     "provider_setup": {
       "missing_model": "请先启用该服务商下的至少一个模型",
       "missing_provider": "请先启用一个服务商",
@@ -4955,6 +4964,16 @@
     "source": "查看源代码",
     "zoom_in": "放大",
     "zoom_out": "缩小"
+  },
+  "privacy_policy": {
+    "load_failed": "无法加载隐私协议",
+    "title": "隐私协议"
+  },
+  "privacy_policy_update": {
+    "acknowledge_failed": "无法保存确认状态，请重试",
+    "description_before_link": "我们更新了隐私协议。请查看最新的",
+    "policy": "隐私协议",
+    "title": "隐私协议更新"
   },
   "prompts": {
     "explanation": "帮我解释一下这个概念",

@@ -1,4 +1,4 @@
-import { usePreference } from '@data/hooks/usePreference'
+import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
@@ -11,13 +11,21 @@ import ToastHost from '@renderer/components/ToastHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
+import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 import { useEffect } from 'react'
 
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
 import { useTopicNamingErrorNotification } from './hooks/useTopicNamingErrorNotification'
 import OnboardingPage from './onboarding/OnboardingPage'
+import { PrivacyPolicyUpdateGate } from './privacy/PrivacyPolicyUpdateGate'
 
 const logger = loggerService.withContext('MainApp')
+const MAIN_WINDOW_PREFERENCE_KEYS = {
+  providerSetupStatus: 'app.onboarding.provider_setup.status',
+  dataCollectionEnabled: 'app.privacy.data_collection.enabled',
+  policyVersion: 'app.privacy.policy_version'
+} as const
+const PESSIMISTIC_PREFERENCE_OPTIONS = { optimistic: false } as const
 
 // Behavior leaf inside the providers: the shared window runtime plus the main-only
 // concerns, then the popup/toast hosts. It sits inside the providers but outside every
@@ -55,12 +63,23 @@ function MainWindowRuntime(): null {
 }
 
 export function MainWindowContent(): React.ReactElement {
-  const [providerSetupStatus, setProviderSetupStatus] = usePreference('app.onboarding.provider_setup.status')
+  const [{ providerSetupStatus, policyVersion }, updatePreferences] = useMultiplePreferences(
+    MAIN_WINDOW_PREFERENCE_KEYS,
+    PESSIMISTIC_PREFERENCE_OPTIONS
+  )
 
   if (providerSetupStatus === 'pending') {
     return (
       <>
-        <OnboardingPage onComplete={setProviderSetupStatus} />
+        <OnboardingPage
+          onComplete={(status, onboardingDataCollectionEnabled) =>
+            updatePreferences({
+              policyVersion: LATEST_PRIVACY_POLICY_VERSION,
+              dataCollectionEnabled: onboardingDataCollectionEnabled,
+              providerSetupStatus: status
+            })
+          }
+        />
         <MainWindowRuntime />
         <PopupHost />
         <ToastHost />
@@ -74,6 +93,15 @@ export function MainWindowContent(): React.ReactElement {
       <MainWindowRuntime />
       <PopupHost />
       <ToastHost />
+      <PrivacyPolicyUpdateGate
+        open={policyVersion !== LATEST_PRIVACY_POLICY_VERSION}
+        onAcknowledge={() =>
+          updatePreferences({
+            dataCollectionEnabled: true,
+            policyVersion: LATEST_PRIVACY_POLICY_VERSION
+          })
+        }
+      />
     </TabsProvider>
   )
 }

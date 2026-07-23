@@ -1900,10 +1900,18 @@
         {
           "originalKey": "enableDataCollection",
           "type": "boolean",
-          "defaultValue": false,
+          "defaultValue": true,
           "status": "classified",
           "category": "preferences",
           "targetKey": "app.privacy.data_collection.enabled"
+        },
+        {
+          "originalKey": "privacyPolicyVersion",
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.privacy.policy_version"
         },
         {
           "originalKey": "enableSpellCheck",

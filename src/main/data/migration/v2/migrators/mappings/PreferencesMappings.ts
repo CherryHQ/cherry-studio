@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-07-23T04:59:30.589Z
+ * Generated at: 2026-07-23T06:26:15.072Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in src/shared/data/preferences.ts
@@ -447,6 +447,10 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'feature.mini_app.region'
     },
     {
+      originalKey: 'privacyPolicyVersion',
+      targetKey: 'app.privacy.policy_version'
+    },
+    {
       originalKey: 'enableSpellCheck',
       targetKey: 'app.spell_check.enabled'
     },
@@ -803,11 +807,11 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 176
+ * - Redux Store项: 177
  * - Redux分类: settings, selectionStore, llm, nutstore, preprocess, translate, websearch, ocr, note
  * - DexieSettings项: 5
  * - localStorage项: 0
- * - 总配置项: 182
+ * - 总配置项: 183
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)

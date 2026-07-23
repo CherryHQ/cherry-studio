@@ -1,21 +1,45 @@
 import '@testing-library/jest-dom/vitest'
 
-import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
+import { mockUseMultiplePreferences, MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../onboarding/OnboardingPage', () => ({
-  default: ({ onComplete }: { onComplete: (status: 'completed' | 'skipped') => void }) => (
+  default: ({
+    onComplete
+  }: {
+    onComplete: (status: 'completed' | 'skipped', dataCollectionEnabled: boolean) => Promise<void>
+  }) => (
     <>
-      <button type="button" data-testid="onboarding-page" onClick={() => onComplete('completed')}>
+      <button
+        type="button"
+        data-testid="onboarding-page"
+        onClick={() => {
+          void onComplete('completed', false).catch(() => {})
+        }}>
         onboarding
       </button>
-      <button type="button" data-testid="skip-onboarding" onClick={() => onComplete('skipped')}>
+      <button
+        type="button"
+        data-testid="skip-onboarding"
+        onClick={() => {
+          void onComplete('skipped', true).catch(() => {})
+        }}>
         skip
       </button>
     </>
   )
+}))
+
+vi.mock('../privacy/PrivacyPolicyUpdateGate', () => ({
+  PrivacyPolicyUpdateGate: ({ open, onAcknowledge }: { open: boolean; onAcknowledge: () => Promise<void> }) =>
+    open ? (
+      <button type="button" data-testid="privacy-policy-gate" onClick={() => void onAcknowledge()}>
+        privacy-policy-gate
+      </button>
+    ) : null
 }))
 
 vi.mock('@renderer/components/layout/TabsProvider', () => ({
@@ -57,10 +81,12 @@ describe('MainWindowContent', () => {
 
     expect(screen.getByTestId('onboarding-page')).toBeInTheDocument()
     expect(screen.queryByTestId('app-shell')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('privacy-policy-gate')).not.toBeInTheDocument()
   })
 
-  it('marks onboarding complete when the flow completes', async () => {
+  it('atomically records completion, the latest policy, and the current data collection choice', async () => {
     MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', 'pending')
+    MockUsePreferenceUtils.setPreferenceValue('app.privacy.data_collection.enabled', false)
 
     const { rerender } = render(<MainWindowContent />)
     fireEvent.click(screen.getByTestId('onboarding-page'))
@@ -68,6 +94,8 @@ describe('MainWindowContent', () => {
     await waitFor(() => {
       expect(MockUsePreferenceUtils.getPreferenceValue('app.onboarding.provider_setup.status')).toBe('completed')
     })
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.policy_version')).toBe(LATEST_PRIVACY_POLICY_VERSION)
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.data_collection.enabled')).toBe(false)
 
     rerender(<MainWindowContent />)
     expect(screen.getByTestId('app-shell')).toBeInTheDocument()
@@ -82,19 +110,67 @@ describe('MainWindowContent', () => {
     await waitFor(() => {
       expect(MockUsePreferenceUtils.getPreferenceValue('app.onboarding.provider_setup.status')).toBe('skipped')
     })
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.policy_version')).toBe(LATEST_PRIVACY_POLICY_VERSION)
 
     rerender(<MainWindowContent />)
     expect(screen.getByTestId('app-shell')).toBeInTheDocument()
   })
 
+  it('stays on onboarding when the completion batch fails', async () => {
+    const updatePreferences = vi.fn().mockRejectedValue(new Error('write failed'))
+    mockUseMultiplePreferences.mockReturnValueOnce([
+      {
+        providerSetupStatus: 'pending',
+        dataCollectionEnabled: true,
+        policyVersion: ''
+      },
+      updatePreferences
+    ])
+
+    render(<MainWindowContent />)
+    fireEvent.click(screen.getByTestId('onboarding-page'))
+
+    await waitFor(() => expect(updatePreferences).toHaveBeenCalled())
+    expect(screen.getByTestId('onboarding-page')).toBeInTheDocument()
+    expect(screen.queryByTestId('app-shell')).not.toBeInTheDocument()
+  })
+
   it.each(['completed', 'skipped'] as const)('renders the normal app shell when onboarding is %s', (status) => {
     MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', status)
+    MockUsePreferenceUtils.setPreferenceValue('app.privacy.policy_version', LATEST_PRIVACY_POLICY_VERSION)
 
     render(<MainWindowContent />)
 
     expect(screen.getByTestId('tabs-provider')).toBeInTheDocument()
     expect(screen.getByTestId('app-shell')).toBeInTheDocument()
     expect(screen.queryByTestId('onboarding-page')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('privacy-policy-gate')).not.toBeInTheDocument()
+  })
+
+  it('shows the non-dismissible privacy update gate over the normal app for an outdated policy', () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', 'completed')
+    MockUsePreferenceUtils.setPreferenceValue('app.privacy.policy_version', '20240101')
+
+    render(<MainWindowContent />)
+
+    expect(screen.getByTestId('app-shell')).toBeInTheDocument()
+    expect(screen.getByTestId('privacy-policy-gate')).toBeInTheDocument()
+  })
+
+  it('acknowledges the latest policy and resets data collection to enabled', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', 'completed')
+    MockUsePreferenceUtils.setPreferenceValue('app.privacy.policy_version', '')
+    MockUsePreferenceUtils.setPreferenceValue('app.privacy.data_collection.enabled', false)
+
+    render(<MainWindowContent />)
+    fireEvent.click(screen.getByTestId('privacy-policy-gate'))
+
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.policy_version')).toBe(
+        LATEST_PRIVACY_POLICY_VERSION
+      )
+    })
+    expect(MockUsePreferenceUtils.getPreferenceValue('app.privacy.data_collection.enabled')).toBe(true)
   })
 })
 

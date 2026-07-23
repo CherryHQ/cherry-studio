@@ -2182,6 +2182,7 @@
     "delete_confirm": "確定要刪除嗎？",
     "delete_failed": "刪除失敗",
     "delete_success": "刪除成功",
+    "decline": "不同意",
     "description": "描述",
     "detail": "詳細資訊",
     "disabled": "已停用",
@@ -4432,6 +4433,14 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "privacy": {
+      "accept_and_continue": "同意並繼續",
+      "data_collection": "分享匿名使用資料",
+      "notice": "繼續即表示你已閱讀並同意",
+      "period": "。",
+      "policy": "隱私協議",
+      "update_failed": "無法更新隱私設定，請重試"
+    },
     "provider_setup": {
       "missing_model": "請先啟用該服務商下的至少一個模型",
       "missing_provider": "請先啟用一個服務商",
@@ -4945,6 +4954,16 @@
     "source": "檢視原始碼",
     "zoom_in": "放大",
     "zoom_out": "縮小"
+  },
+  "privacy_policy": {
+    "load_failed": "無法載入隱私協議",
+    "title": "隱私協議"
+  },
+  "privacy_policy_update": {
+    "acknowledge_failed": "無法儲存確認狀態，請重試",
+    "description_before_link": "我們更新了隱私協議。請查看最新的",
+    "policy": "隱私協議",
+    "title": "隱私協議更新"
   },
   "prompts": {
     "explanation": "幫我解釋一下這個概念",

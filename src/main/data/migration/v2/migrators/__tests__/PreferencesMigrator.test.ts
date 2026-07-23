@@ -121,13 +121,50 @@ describe('PreferencesMigrator', () => {
       await migrator.prepare(ctx)
       await migrator.execute(ctx)
 
-      // ui.theme_mode default is 'system'; app.zoom_factor default is 1
+      // Representative scalar defaults, including the new privacy defaults.
       const theme = await selectByKey(dbh.db, 'ui.theme_mode')
       expect(theme).toHaveLength(1)
       expect(theme[0].value).toBe('system')
       const zoom = await selectByKey(dbh.db, 'app.zoom_factor')
       expect(zoom).toHaveLength(1)
       expect(zoom[0].value).toBe(1)
+      const policyVersion = await selectByKey(dbh.db, 'app.privacy.policy_version')
+      expect(policyVersion[0]?.value).toBe('')
+      const dataCollection = await selectByKey(dbh.db, 'app.privacy.data_collection.enabled')
+      expect(dataCollection[0]?.value).toBe(true)
+    })
+
+    it.each(['20260531', '20240101'])(
+      'migrates v1 privacy policy version %s and data collection choice',
+      async (version) => {
+        const ctx = createTestContext(
+          {
+            redux: {
+              settings: {
+                privacyPolicyVersion: version,
+                enableDataCollection: false
+              }
+            }
+          },
+          dbh.db
+        )
+        await migrator.prepare(ctx)
+        await migrator.execute(ctx)
+
+        const policyVersion = await selectByKey(dbh.db, 'app.privacy.policy_version')
+        expect(policyVersion[0]?.value).toBe(version)
+        const dataCollection = await selectByKey(dbh.db, 'app.privacy.data_collection.enabled')
+        expect(dataCollection[0]?.value).toBe(false)
+      }
+    )
+
+    it('does not treat the legacy popup flag as privacy policy acknowledgement', async () => {
+      const ctx = createTestContext({ localStorage: [{ key: 'privacy-popup-accepted', value: 'true' }] }, dbh.db)
+      await migrator.prepare(ctx)
+      await migrator.execute(ctx)
+
+      const policyVersion = await selectByKey(dbh.db, 'app.privacy.policy_version')
+      expect(policyVersion[0]?.value).toBe('')
     })
 
     it('skips items whose source is empty AND default is null', async () => {
