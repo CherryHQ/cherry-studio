@@ -1,4 +1,4 @@
-import type { QuickPanelContextType, QuickPanelListItem } from '@renderer/components/QuickPanel'
+import type { QuickPanelContextType, QuickPanelListItem, QuickPanelOpenOptions } from '@renderer/components/QuickPanel'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerToolLauncher } from '../../toolLauncher'
@@ -23,6 +23,20 @@ const quickPanel = {
 } satisfies QuickPanelContextType
 
 const labels = (items: QuickPanelListItem[]) => items.map((item) => item.label)
+
+const getVisibleItems = (options: QuickPanelOpenOptions, searchText: string) => {
+  const fuzzyRegex = new RegExp(
+    searchText
+      .toLowerCase()
+      .split('')
+      .map((character) => character.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .join('.*'),
+    'ig'
+  )
+  const pinyinCache = new WeakMap<QuickPanelListItem, string>()
+  const filteredItems = options.list.filter((item) => options.filterFn!(item, searchText, fuzzyRegex, pinyinCache))
+  return options.sortFn!(filteredItems, searchText)
+}
 
 beforeEach(() => {
   quickPanel.open.mockReset()
@@ -79,9 +93,16 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
     ])
   })
 
-  it('renders trailing-placement command items after caller additional items', () => {
+  it('renders skills above trailing command items', () => {
     const options = createUnifiedQuickPanelOpenOptions(
       [
+        {
+          id: 'agent-skills',
+          kind: 'panel',
+          label: 'Skills',
+          icon: 'skill',
+          sources: ['root-panel']
+        },
         {
           id: 'mcp-status',
           kind: 'panel',
@@ -98,14 +119,103 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
           rootPanelPlacement: 'trailing'
         }
       ],
-      {
-        quickPanel,
-        additionalItems: [{ id: 'skill:pdf', label: 'Agent skill', icon: 'skill' }]
-      }
+      { quickPanel }
     )
 
-    // Non-trailing command items (MCP) stay above skills; trailing ones (slash) below.
-    expect(labels(options.list)).toEqual(['MCP', 'Agent skill', 'Slash command'])
+    expect(labels(options.list)).toEqual(['Skills', 'MCP', 'Slash command'])
+  })
+
+  it('flattens actionable submenu and skill items into root search without exposing status rows', () => {
+    const onToolLauncherSelect = vi.fn()
+    const insertSkill = vi.fn()
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'permission-mode',
+          kind: 'group',
+          label: 'Permission Mode',
+          icon: 'shield',
+          sources: ['popover'],
+          submenu: [
+            {
+              id: 'permission-plan',
+              kind: 'command',
+              label: 'Plan mode',
+              icon: 'plan',
+              sources: ['popover'],
+              action: vi.fn()
+            },
+            {
+              id: 'permission-disabled',
+              kind: 'command',
+              label: 'Disabled mode',
+              icon: 'disabled',
+              sources: ['popover'],
+              disabled: true,
+              action: vi.fn()
+            }
+          ]
+        },
+        {
+          id: 'agent-skills',
+          kind: 'panel',
+          label: 'Skills',
+          icon: 'skill',
+          sources: ['root-panel'],
+          rootSearchItems: [
+            { id: 'skill:pdf', label: 'pdf', icon: 'pdf', filterText: 'pdf', action: insertSkill },
+            {
+              id: 'agent-skills:manage',
+              label: 'Manage skills',
+              icon: 'settings',
+              fixedToBottom: true,
+              action: vi.fn()
+            }
+          ],
+          action: vi.fn()
+        },
+        {
+          id: 'mcp-status',
+          kind: 'panel',
+          label: 'MCP',
+          description: 'View status',
+          icon: 'plug',
+          sources: ['root-panel'],
+          action: vi.fn()
+        }
+      ],
+      { quickPanel, onToolLauncherSelect }
+    )
+
+    expect(labels(getVisibleItems(options, ''))).toEqual(['Permission Mode', 'Skills', 'MCP'])
+    expect(labels(getVisibleItems(options, 'plan'))).toEqual(['Plan mode'])
+    expect(labels(getVisibleItems(options, 'pdf'))).toEqual(['pdf'])
+    expect(labels(getVisibleItems(options, 'disabled'))).toEqual([])
+    expect(labels(getVisibleItems(options, 'connected-server'))).toEqual([])
+
+    const actionContext = { ...quickPanel, triggerInfo: options.triggerInfo } satisfies QuickPanelContextType
+    const planMode = getVisibleItems(options, 'plan')[0]
+    planMode.action?.({
+      action: 'enter',
+      context: actionContext,
+      item: planMode,
+      parentPanel: options,
+      searchText: 'plan'
+    })
+    expect(onToolLauncherSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'permission-plan' }),
+      expect.objectContaining({ source: 'popover', parentPanel: options, searchText: 'plan' })
+    )
+
+    const pdfSkill = getVisibleItems(options, 'pdf')[0]
+    pdfSkill.action?.({
+      action: 'enter',
+      context: actionContext,
+      item: pdfSkill,
+      parentPanel: options,
+      searchText: 'pdf'
+    })
+    expect(insertSkill).toHaveBeenCalledOnce()
   })
 
   it('drops bottom-pinned chrome from category views seeded with a search text', () => {
@@ -380,7 +490,7 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
     expect(options.list).toHaveLength(1)
     expect(options.list[0]).toEqual(expect.objectContaining({ label: 'Parent' }))
     expect(options.list[0].filterText).toContain('Parent')
-    expect(options.list[0].filterText).toContain('Child')
+    expect(options.list[0].filterText).not.toContain('Child')
     expect(() =>
       options.list[0].action?.({
         action: 'enter',

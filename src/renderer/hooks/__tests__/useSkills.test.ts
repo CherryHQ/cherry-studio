@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const useQueryMock = vi.hoisted(() => vi.fn())
 const invalidateMock = vi.hoisted(() => vi.fn())
-const uninstallSkillMock = vi.hoisted(() => vi.fn())
 const installSkillMock = vi.hoisted(() => vi.fn())
 const installSkillFromZipMock = vi.hoisted(() => vi.fn())
 const installSkillFromDirectoryMock = vi.hoisted(() => vi.fn())
@@ -22,8 +21,6 @@ vi.mock('@renderer/ipc', () => ({ ipcApi: { request: skillMocks.request } }))
 function stubSkillRoutes() {
   skillMocks.request.mockImplementation((route: string, input: unknown) => {
     switch (route) {
-      case 'skill.uninstall':
-        return uninstallSkillMock(input)
       case 'skill.list_local':
         return listLocalSkillsMock(input)
       case 'skill.install':
@@ -86,7 +83,6 @@ describe('useInstalledSkills', () => {
     })
 
     invalidateMock.mockResolvedValue(undefined)
-    uninstallSkillMock.mockResolvedValue({ success: true, data: undefined })
     listLocalSkillsMock.mockResolvedValue({ success: true, data: [] })
 
     stubSkillRoutes()
@@ -99,41 +95,21 @@ describe('useInstalledSkills', () => {
     expect(useQueryMock).toHaveBeenCalledWith('/skills', { enabled: true, query: { agentId: 'agent-1' } })
   })
 
-  it('uninstalls skills through IPC and invalidates DataApi cache', async () => {
-    const { result } = renderHook(() => useInstalledSkills())
-
-    let uninstallSuccess = false
-    await act(async () => {
-      uninstallSuccess = await result.current.uninstall('skill-1')
+  it('keeps cached skills visible during background refresh', () => {
+    useQueryMock.mockReturnValue({
+      data: [createSkill()],
+      isLoading: false,
+      isRefreshing: true,
+      error: undefined,
+      refetch: vi.fn(),
+      mutate: vi.fn()
     })
 
-    expect(uninstallSuccess).toBe(true)
-    expect(skillMocks.request).toHaveBeenCalledWith('skill.uninstall', { skillId: 'skill-1' })
-    expect(invalidateMock).toHaveBeenCalledWith('/skills')
-  })
-
-  it('does not fail uninstall when DataApi cache invalidation fails after IPC success', async () => {
-    invalidateMock.mockRejectedValueOnce(new Error('refresh failed'))
-    const { result } = renderHook(() => useInstalledSkills())
-
-    let uninstallSuccess = false
-    await act(async () => {
-      uninstallSuccess = await result.current.uninstall('skill-1')
-    })
-
-    expect(uninstallSuccess).toBe(true)
-    expect(skillMocks.request).toHaveBeenCalledWith('skill.uninstall', { skillId: 'skill-1' })
-    expect(invalidateMock).toHaveBeenCalledWith('/skills')
-  })
-
-  it('logs, toasts, and rethrows uninstall failures', async () => {
     const { result } = renderHook(() => useInstalledSkills('agent-1'))
 
-    uninstallSkillMock.mockResolvedValueOnce({ success: false, error: 'uninstall failed' })
-    await act(async () => {
-      await expect(result.current.uninstall('skill-1')).rejects.toThrow('uninstall failed')
-    })
-    expect(toast.error).toHaveBeenCalledWith('uninstall failed')
+    expect(result.current.loading).toBe(false)
+    expect(result.current.refreshing).toBe(true)
+    expect(result.current.skills).toHaveLength(1)
   })
 
   it('combines enabled installed skills with local workspace skills', async () => {
