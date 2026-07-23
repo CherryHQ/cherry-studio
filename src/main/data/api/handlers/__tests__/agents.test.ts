@@ -352,6 +352,22 @@ describe('agentHandlers', () => {
       expect(createTaskMock).not.toHaveBeenCalled()
     })
 
+    it('rejects POST when the cron expression is invalid', async () => {
+      await expect(
+        agentHandlers['/agents/:agentId/tasks'].POST({
+          params: { agentId: AGENT_ID },
+          body: {
+            name: 'Daily',
+            prompt: 'Hello',
+            trigger: { kind: 'cron', expr: '9' },
+            workspace: { type: 'system' }
+          }
+        } as never)
+      ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
+
+      expect(createTaskMock).not.toHaveBeenCalled()
+    })
+
     it('rejects invalid pagination query', async () => {
       await expect(
         agentHandlers['/agents/:agentId/tasks'].GET({

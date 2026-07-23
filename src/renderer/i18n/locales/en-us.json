@@ -658,6 +658,7 @@
       "error": {
         "createFailed": "Failed to create task",
         "deleteFailed": "Failed to delete task",
+        "invalidCron": "Invalid Cron expression. Use a complete expression such as 0 9 * * *.",
         "loadFailed": "Failed to load tasks",
         "runFailed": "Failed to run task",
         "updateFailed": "Failed to update task"

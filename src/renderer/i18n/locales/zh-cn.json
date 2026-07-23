@@ -658,6 +658,7 @@
       "error": {
         "createFailed": "创建任务失败",
         "deleteFailed": "删除任务失败",
+        "invalidCron": "Cron 表达式无效，请输入完整表达式，例如 0 9 * * *。",
         "loadFailed": "加载任务失败",
         "runFailed": "运行任务失败",
         "updateFailed": "更新任务失败"

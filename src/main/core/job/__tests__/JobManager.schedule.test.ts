@@ -139,6 +139,20 @@ describe('JobManager schedule control APIs', () => {
   // ----------------------------------------------------------------------
 
   describe('by-id', () => {
+    it('rejects an invalid cron trigger before persisting the schedule', () => {
+      expect(() =>
+        jobManager.registerJobSchedule({
+          type: DUMMY_TYPE,
+          name: 'invalid-cron',
+          trigger: { kind: 'cron', expr: '9' },
+          jobInputTemplate: {} as Record<string, unknown>,
+          catchUpPolicy: { kind: 'skip-missed' }
+        })
+      ).toThrow('Invalid cron expression')
+
+      expect(jobScheduleService.listAll({ type: DUMMY_TYPE })).toEqual([])
+    })
+
     it('pauseJobScheduleById returns true for existing, false for missing', async () => {
       const snap = jobManager.registerJobSchedule({
         type: DUMMY_TYPE,
@@ -386,12 +400,32 @@ describe('JobManager schedule control APIs', () => {
       expect(getScheduleDisposables().has(snap.id)).toBe(false)
     })
 
+    it('rejects an invalid cron trigger without changing the persisted schedule', () => {
+      const snap = jobManager.registerJobSchedule({
+        type: DUMMY_TYPE,
+        name: 'invalid-cron-update',
+        trigger: baseTrigger,
+        jobInputTemplate: {} as Record<string, unknown>,
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+
+      expect(() => jobManager.updateJobSchedule(snap.id, { trigger: { kind: 'cron', expr: '21' } })).toThrow(
+        'Invalid cron expression'
+      )
+      expect(jobScheduleService.getById(snap.id)?.trigger).toEqual(baseTrigger)
+    })
+
     it('returns null when the id does not exist (no re-arm side effects)', async () => {
       const armSpy = vi.spyOn(jobManager as unknown as { armSchedule: (s: unknown) => void }, 'armSchedule')
 
       const result = jobManager.updateJobSchedule('does-not-exist', { trigger: altTrigger })
 
       expect(result).toBeNull()
+      expect(
+        jobManager.updateJobSchedule('does-not-exist', {
+          trigger: { kind: 'cron', expr: '9' }
+        })
+      ).toBeNull()
       expect(armSpy).not.toHaveBeenCalled()
     })
   })

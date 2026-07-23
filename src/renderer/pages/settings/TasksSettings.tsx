@@ -48,7 +48,7 @@ import { useConversationNavigation } from '@renderer/hooks/useConversationNaviga
 import { useTheme } from '@renderer/hooks/useTheme'
 import { toast } from '@renderer/services/toast'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
-import type { Trigger } from '@shared/data/api/schemas/jobs'
+import { isValidCronExpression, type Trigger } from '@shared/data/api/schemas/jobs'
 import type {
   AgentEntity,
   CreateTaskRequest,
@@ -116,7 +116,7 @@ function triggerToFormState(trigger: Trigger): { kind: ScheduleKind; value: stri
 function formStateToTrigger(kind: ScheduleKind, value: string): Trigger | null {
   const trimmed = value.trim()
   if (kind === 'cron') {
-    if (!trimmed) return null
+    if (!trimmed || !isValidCronExpression(trimmed)) return null
     return { kind: 'cron', expr: trimmed }
   }
   if (kind === 'interval') {
@@ -140,6 +140,8 @@ const TaskScheduleControls: FC<{
   onCommit?: (patch: ScheduleCommitPatch) => void
 }> = ({ value, disabled, committedTrigger, committedTimeoutMinutes, onChange, onCommit }) => {
   const { t } = useTranslation()
+  const hasInvalidCronExpression =
+    value.kind === 'cron' && value.value.trim().length > 0 && !isValidCronExpression(value.value.trim())
 
   const scheduleTypeOptions = [
     { value: 'interval' as const, label: t('agent.tasks.scheduleType.interval') },
@@ -210,14 +212,20 @@ const TaskScheduleControls: FC<{
         )}
 
         {value.kind === 'cron' && (
-          <UIInput
-            value={value.value}
-            onChange={(e) => onChange({ ...value, value: e.target.value })}
-            onBlur={() => commitTrigger('cron', value.value)}
-            placeholder={t('agent.tasks.cronPlaceholder')}
-            disabled={disabled}
-            className="w-72 max-w-full"
-          />
+          <>
+            <UIInput
+              value={value.value}
+              onChange={(e) => onChange({ ...value, value: e.target.value })}
+              onBlur={() => commitTrigger('cron', value.value)}
+              placeholder={t('agent.tasks.cronPlaceholder')}
+              disabled={disabled}
+              aria-invalid={hasInvalidCronExpression}
+              className="w-72 max-w-full"
+            />
+            {hasInvalidCronExpression && (
+              <p className="text-destructive text-xs">{t('agent.tasks.error.invalidCron')}</p>
+            )}
+          </>
         )}
       </div>
 
@@ -859,7 +867,9 @@ const CreateForm: FC<{
     ? t('agent.session.workspace_selector.no_project')
     : (workspaces?.find((w) => w.id === workspaceId)?.name ?? workspaceId)
 
-  const isValid = agentId && name.trim() && prompt.trim() && schedule.value.trim()
+  const isValid = Boolean(
+    agentId && name.trim() && prompt.trim() && formStateToTrigger(schedule.kind, schedule.value.trim())
+  )
 
   const handleCreate = useCallback(async () => {
     if (!agentId || !name.trim() || !prompt.trim() || !schedule.value.trim()) return

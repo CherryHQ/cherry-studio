@@ -12,7 +12,7 @@ import * as z from 'zod'
 import type { OffsetPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
 import { AgentSessionWorkspaceSourceSchema } from './agentWorkspaces'
-import { JobScheduleNameAtomSchema, TriggerSchema } from './jobs'
+import { isValidCronExpression, JobScheduleNameAtomSchema, TriggerSchema } from './jobs'
 
 // ============================================================================
 // Field atoms (shared validators reused across entity and DTO schemas)
@@ -211,10 +211,15 @@ export type UpdateAgentDto = z.infer<typeof UpdateAgentSchema>
 // Task DTOs
 // ============================================================================
 
+const AgentTaskTriggerSchema = TriggerSchema.refine(
+  (trigger) => trigger.kind !== 'cron' || isValidCronExpression(trigger.expr, trigger.timezone),
+  { message: 'Invalid cron expression', path: ['expr'] }
+)
+
 export const CreateTaskSchema = z.strictObject({
   name: JobScheduleNameAtomSchema,
   prompt: z.string().min(1),
-  trigger: TriggerSchema,
+  trigger: AgentTaskTriggerSchema,
   workspace: AgentSessionWorkspaceSourceSchema,
   timeoutMinutes: TimeoutMinutesAtomSchema,
   channelIds: z.array(z.string()).optional()

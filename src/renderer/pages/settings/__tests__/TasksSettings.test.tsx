@@ -567,6 +567,22 @@ describe('TasksSettings task logs', () => {
     })
   })
 
+  it('does not submit an invalid cron expression when editing a task', async () => {
+    render(<TasksSettings />)
+
+    await screen.findByPlaceholderText('agent.tasks.intervalPlaceholder')
+    await act(async () => {})
+
+    fireEvent.click(screen.getByRole('radio', { name: 'agent.tasks.scheduleType.cron' }))
+    const cronInput = await screen.findByPlaceholderText('agent.tasks.cronPlaceholder')
+    fireEvent.change(cronInput, { target: { value: '9' } })
+    fireEvent.blur(cronInput)
+
+    expect(cronInput).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByText('agent.tasks.error.invalidCron')).toHaveClass('text-destructive')
+    expect(taskMutationMocks.updateTask).not.toHaveBeenCalled()
+  })
+
   it('moves run and delete into the task detail more menu', async () => {
     render(<TasksSettings />)
 

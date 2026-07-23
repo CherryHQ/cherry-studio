@@ -11,6 +11,7 @@
  * at src/main/core/job/types.ts. Renderer never instantiates them.
  */
 
+import { Cron } from 'croner'
 import * as z from 'zod'
 
 // ============================================================================
@@ -45,6 +46,18 @@ export type JobError = z.infer<typeof JobErrorSchema>
 // ============================================================================
 // Trigger (discriminated union: cron / interval / once)
 // ============================================================================
+
+export function isValidCronExpression(expr: string, timezone?: string): boolean {
+  let cron: Cron | undefined
+  try {
+    cron = new Cron(expr, { paused: true, timezone })
+    return cron.nextRun() !== null
+  } catch {
+    return false
+  } finally {
+    cron?.stop()
+  }
+}
 
 export const CronTriggerSchema = z.strictObject({
   kind: z.literal('cron'),

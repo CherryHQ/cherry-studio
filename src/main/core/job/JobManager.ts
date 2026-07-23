@@ -15,7 +15,7 @@ import {
 } from '@main/core/lifecycle'
 import type { JobScheduleSnapshot, RetryPolicy, Trigger, UpdateJobScheduleDto } from '@shared/data/api/schemas/jobs'
 import { type JobError, type JobSnapshot } from '@shared/data/api/schemas/jobs'
-import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
+import { isValidCronExpression, JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 
 import type { JobPayloadOf, JobType } from './jobRegistry'
 import { computeBackoff } from './runtime/backoff'
@@ -52,6 +52,12 @@ const GC_INTERVAL_MS = 60 * 60 * 1000 // 1h
 const GC_TERMINAL_TTL_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 const GC_KEEP_PER_TYPE = 100
 const DELAYED_PROMOTION_INTERVAL_MS = 5 * 60 * 1000 // 5min
+
+function assertValidScheduleTrigger(trigger: Trigger): void {
+  if (trigger.kind === 'cron' && !isValidCronExpression(trigger.expr, trigger.timezone)) {
+    throw new TypeError(`Invalid cron expression: "${trigger.expr}"`)
+  }
+}
 
 /**
  * Wall-clock "quiet window" between `onAllReady` firing and JobManager actually
@@ -1201,6 +1207,7 @@ export class JobManager extends BaseService {
         type: input.type
       })
     }
+    assertValidScheduleTrigger(input.trigger)
     const snapshot = jobScheduleService.create({
       type: input.type,
       name: input.name ?? null,
@@ -1410,6 +1417,10 @@ export class JobManager extends BaseService {
    * @returns Updated snapshot, or null if no row matches `id`
    */
   updateJobSchedule(id: string, patch: UpdateJobScheduleDto): JobScheduleSnapshot | null {
+    if (patch.trigger !== undefined) {
+      if (!jobScheduleService.getById(id)) return null
+      assertValidScheduleTrigger(patch.trigger)
+    }
     const updated = jobScheduleService.update(id, patch)
     if (!updated) return null
 
