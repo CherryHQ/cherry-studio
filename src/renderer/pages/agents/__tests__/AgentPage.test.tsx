@@ -325,16 +325,8 @@ vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
 }))
 
 vi.mock('@renderer/components/resourceCatalog/catalog', () => ({
-  ResourceCatalogView: ({
-    resourceType,
-    skillAgentId,
-    toolbarLeading
-  }: {
-    resourceType: string
-    skillAgentId?: string
-    toolbarLeading?: ReactNode
-  }) => (
-    <div data-skill-agent-id={skillAgentId ?? ''} data-testid={`resource-catalog-${resourceType}`}>
+  ResourceCatalogView: ({ resourceType, toolbarLeading }: { resourceType: string; toolbarLeading?: ReactNode }) => (
+    <div data-testid={`resource-catalog-${resourceType}`}>
       {toolbarLeading && <div data-testid="resource-toolbar-leading">{toolbarLeading}</div>}
     </div>
   )
@@ -927,24 +919,7 @@ describe('AgentPage', () => {
     expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
     expect(screen.getByTestId('agent-conversation-page-shell')).toBeInTheDocument()
     expect(screen.getByTestId('agent-chat')).toBeInTheDocument()
-  })
-
-  it('keeps system skill management available for the built-in Assistant', () => {
-    agentPageMocks.agents = [
-      {
-        id: 'agent-a',
-        model: 'model-a',
-        name: 'Cherry Assistant',
-        configuration: { builtin_role: 'assistant' }
-      }
-    ]
-    activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
-    activeSessionMocks.sessionSource = 'query'
-
-    render(<AgentPage />)
-    fireEvent.click(screen.getByRole('button', { name: 'chat.resource_view.menu.skill' }))
-
-    expect(screen.getByTestId('resource-catalog-skill')).toHaveAttribute('data-skill-agent-id', 'agent-a')
+    expect(screen.queryByRole('button', { name: 'chat.resource_view.menu.skill' })).not.toBeInTheDocument()
   })
 
   it('renders history records inside the stable AgentChat shell and toggles them from the sidebar', () => {
