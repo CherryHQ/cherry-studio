@@ -63,8 +63,10 @@ export function useLocalBackupModal(localBackupDir: string | undefined) {
 
   const showBackupModal = useCallback(async () => {
     // 获取默认文件名
-    const deviceType = await ipcApi.request('system.get_device_type')
-    const hostname = await window.api.system.getHostname()
+    const [deviceType, hostname] = await Promise.all([
+      ipcApi.request('system.get_device_type'),
+      window.api.system.getHostname()
+    ])
     const timestamp = dayjs().format('YYYYMMDDHHmmss')
     const defaultFileName = `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
     setCustomFileName(defaultFileName)
