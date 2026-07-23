@@ -276,25 +276,53 @@ describe('saveMigrationDiagnosticBundle', () => {
   })
 
   it('refuses to overwrite a selected source log', async () => {
-    await Promise.all([writeFile(logPath(), 'must survive'), writeLog(`app.${LOG_DATE}.log.1`, 'fails to open')])
+    await writeFile(logPath(), 'must survive')
     const target = destination()
     await link(logPath(), target)
-    const handles: FileHandle[] = []
+
+    expect(await save(target)).toBe(false)
+    expect(await readFile(logPath(), 'utf8')).toBe('must survive')
+    expect(await readFile(target, 'utf8')).toBe('must survive')
+    await expectNoAtomicResidue()
+  })
+
+  it('refuses an existing destination when log discovery cannot establish source identities', async () => {
+    await writeFile(logPath(), 'must survive')
+    const target = destination()
+    await link(logPath(), target)
 
     expect(
       await save(target, {
-        openLogFile: async (filePath) => {
-          if (filePath.endsWith('.1')) throw new Error('injected second snapshot failure')
-          const handle = await open(filePath, 'r')
-          handles.push(handle)
-          return handle
+        readLogDirectory: async () => {
+          throw new Error('injected log discovery failure')
         }
       })
     ).toBe(false)
     expect(await readFile(logPath(), 'utf8')).toBe('must survive')
     expect(await readFile(target, 'utf8')).toBe('must survive')
-    expect(handles).toHaveLength(1)
-    await expectClosed(handles)
+    await expectNoAtomicResidue()
+  })
+
+  it('still saves metadata only after log discovery fails when the destination does not exist', async () => {
+    const target = destination()
+
+    expect(
+      await save(target, {
+        readLogDirectory: async () => {
+          throw new Error('injected log discovery failure')
+        }
+      })
+    ).toBe('not_included')
+    await expectMetadataOnly(target)
+  })
+
+  it('fails closed when the destination identity cannot be verified', async () => {
+    await writeFile(logPath(), 'log')
+    const target = destination()
+    await symlink(target, target)
+
+    expect(await save(target)).toBe(false)
+    expect((await lstat(target)).isSymbolicLink()).toBe(true)
     await expectNoAtomicResidue()
   })
 

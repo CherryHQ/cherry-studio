@@ -28,6 +28,7 @@ const logger = loggerService.withContext('MigrationIpcHandler')
 const CONCURRENT_MIGRATION_ERROR = 'Migration is already in progress.'
 
 let inFlightMigration: Promise<MigrationResult> | null = null
+let inFlightDiagnosticSave: Promise<MigrationDiagnosticSaveResult> | null = null
 // Set once a deferred quit has been registered, so repeated confirmations while a migration
 // write is in flight don't stack a second allSettled().then(confirmQuit).
 let quitScheduled = false
@@ -138,28 +139,39 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
       if (stage !== 'error' && stage !== 'version_incompatible') {
         throw new Error('Invalid migration diagnostic stage.')
       }
+      if (inFlightDiagnosticSave) return { status: 'failed' }
 
-      const { canceled, filePath } = await dialog.showSaveDialog({
-        title: dialogTitle,
-        defaultPath: 'cherry-studio-migration-diagnostics.zip',
-        filters: [{ name: 'ZIP', extensions: ['zip'] }],
-        properties: ['createDirectory', 'showOverwriteConfirmation']
-      })
-      if (canceled || !filePath) return { status: 'canceled' }
-
-      try {
-        const { saveMigrationDiagnosticBundle } = await import('../migrationDiagnosticBundle')
-        const logs = await saveMigrationDiagnosticBundle({
-          destination: filePath,
-          stage,
-          logDate
+      const savePromise: Promise<MigrationDiagnosticSaveResult> = (async () => {
+        const { canceled, filePath } = await dialog.showSaveDialog({
+          title: dialogTitle,
+          defaultPath: 'cherry-studio-migration-diagnostics.zip',
+          filters: [{ name: 'ZIP', extensions: ['zip'] }],
+          properties: ['createDirectory', 'showOverwriteConfirmation']
         })
-        if (!logs) return { status: 'failed' }
-        lastSavedDiagnosticBundlePath = filePath
-        return { status: 'saved', logs }
-      } catch (error) {
-        logger.error('Failed to save migration diagnostic bundle', error as Error)
-        return { status: 'failed' }
+        if (canceled || !filePath) return { status: 'canceled' }
+
+        try {
+          const { saveMigrationDiagnosticBundle } = await import('../migrationDiagnosticBundle')
+          const logs = await saveMigrationDiagnosticBundle({
+            destination: filePath,
+            stage,
+            logDate
+          })
+          if (!logs) return { status: 'failed' }
+          lastSavedDiagnosticBundlePath = filePath
+          return { status: 'saved', logs }
+        } catch (error) {
+          logger.error('Failed to save migration diagnostic bundle', error as Error)
+          return { status: 'failed' }
+        }
+      })()
+      inFlightDiagnosticSave = savePromise
+      try {
+        return await savePromise
+      } finally {
+        if (inFlightDiagnosticSave === savePromise) {
+          inFlightDiagnosticSave = null
+        }
       }
     }
   )
@@ -429,6 +441,7 @@ function createMigrationSummary(result: MigrationResult, progress: MigrationProg
  */
 export function resetMigrationData(): void {
   inFlightMigration = null
+  inFlightDiagnosticSave = null
   quitScheduled = false
   dataLocationNotice = null
   lastSavedDiagnosticBundlePath = null

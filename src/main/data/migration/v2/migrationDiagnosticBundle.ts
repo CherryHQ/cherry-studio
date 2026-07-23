@@ -1,11 +1,11 @@
-import { type FileHandle, lstat, open, readdir } from 'node:fs/promises'
+import { type FileHandle, lstat, open, readdir, stat } from 'node:fs/promises'
 import { release } from 'node:os'
 import path from 'node:path'
 import { type Readable, Transform } from 'node:stream'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { createAtomicWriteStream, isSameFile } from '@main/utils/file'
+import { createAtomicWriteStream } from '@main/utils/file'
 import type { MigrationStage } from '@shared/data/migration/v2/types'
 import type { FilePath } from '@shared/types/file'
 import { ZipArchive } from 'archiver'
@@ -25,6 +25,12 @@ interface SaveMigrationDiagnosticBundleInput {
 interface MigrationDiagnosticBundleDependencies {
   readonly openLogFile?: (filePath: FilePath) => Promise<FileHandle>
   readonly createLogReadStream?: (handle: FileHandle, snapshotBytes: number) => Readable
+  readonly readLogDirectory?: (logsPath: string) => Promise<readonly LogDirectoryEntry[]>
+}
+
+interface LogDirectoryEntry {
+  readonly name: string
+  isFile(): boolean
 }
 
 interface LogCandidate {
@@ -37,6 +43,10 @@ interface LogSnapshot {
   readonly handle: FileHandle
   readonly snapshotBytes: number
 }
+
+type FileIdentity =
+  | { readonly status: 'present'; readonly dev: number; readonly ino: number }
+  | { readonly status: 'missing' | 'unverifiable' }
 
 class LogReadFailure extends Error {
   constructor(cause: unknown) {
@@ -53,8 +63,11 @@ function validateDestination(value: string): FilePath | undefined {
   return value as FilePath
 }
 
-async function selectLogFiles(logDate: string): Promise<LogCandidate[]> {
-  const entries = await readdir(application.getPath('app.logs'), { withFileTypes: true })
+async function selectLogFiles(
+  logDate: string,
+  readLogDirectory: (logsPath: string) => Promise<readonly LogDirectoryEntry[]>
+): Promise<LogCandidate[]> {
+  const entries = await readLogDirectory(application.getPath('app.logs'))
   const eligible = entries.flatMap((entry) => {
     if (!entry.isFile()) return []
     const match = LOG_NAME.exec(entry.name)
@@ -75,6 +88,15 @@ async function selectLogFiles(logDate: string): Promise<LogCandidate[]> {
       fileName,
       filePath: application.getPath('app.logs', fileName) as FilePath
     }))
+}
+
+async function probeFileIdentity(filePath: FilePath): Promise<FileIdentity> {
+  try {
+    const fileStat = await stat(filePath)
+    return { status: 'present', dev: fileStat.dev, ino: fileStat.ino }
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'ENOENT' ? { status: 'missing' } : { status: 'unverifiable' }
+  }
 }
 
 async function createSnapshots(
@@ -190,6 +212,7 @@ export async function saveMigrationDiagnosticBundle(
   const createLogReadStream =
     dependencies.createLogReadStream ??
     ((handle, snapshotBytes) => handle.createReadStream({ start: 0, end: snapshotBytes - 1, autoClose: false }))
+  const readLogDirectory = dependencies.readLogDirectory ?? ((logsPath) => readdir(logsPath, { withFileTypes: true }))
   const metadata = JSON.stringify({
     application: { version: app.getVersion() },
     system: { platform: process.platform, arch: process.arch, release: release() },
@@ -198,16 +221,40 @@ export async function saveMigrationDiagnosticBundle(
   const handles: FileHandle[] = []
 
   try {
-    let candidates: LogCandidate[] = []
+    const destinationIdentity = await probeFileIdentity(destination)
+    if (destinationIdentity.status === 'unverifiable') return false
+
+    let candidates: LogCandidate[]
+    try {
+      candidates = await selectLogFiles(input.logDate, readLogDirectory)
+    } catch (error) {
+      if (destinationIdentity.status === 'present') {
+        logger.warn(
+          'Application logs could not be discovered; refusing to overwrite an existing destination',
+          error as Error
+        )
+        return false
+      }
+      logger.warn('Application logs could not be discovered; saving metadata only', error as Error)
+      await writeZip(destination, metadata, [], createLogReadStream)
+      return 'not_included'
+    }
+
+    if (destinationIdentity.status === 'present') {
+      for (const candidate of candidates) {
+        const sourceIdentity = await probeFileIdentity(candidate.filePath)
+        if (sourceIdentity.status !== 'present') return false
+        if (sourceIdentity.dev === destinationIdentity.dev && sourceIdentity.ino === destinationIdentity.ino) {
+          return false
+        }
+      }
+    }
+
     let snapshots: LogSnapshot[] = []
     try {
-      candidates = await selectLogFiles(input.logDate)
       snapshots = await createSnapshots(candidates, handles, openLogFile)
     } catch (error) {
       logger.warn('Application logs could not be snapshotted; saving metadata only', error as Error)
-    }
-    for (const candidate of candidates) {
-      if (await isSameFile(destination, candidate.filePath)) return false
     }
     if (snapshots.length === 0) {
       await writeZip(destination, metadata, [], createLogReadStream)

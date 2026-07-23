@@ -227,6 +227,37 @@ describe('MigrationIpcHandler', () => {
       expect(shell.showItemInFolder).toHaveBeenCalledWith('/chosen/saved.zip')
     })
 
+    it('rejects a second save while the first save is still in flight', async () => {
+      let resolveFirstSave: (result: 'included') => void = () => undefined
+      vi.mocked(dialog.showSaveDialog)
+        .mockResolvedValueOnce({ canceled: false, filePath: '/chosen/first.zip' } as never)
+        .mockResolvedValueOnce({ canceled: false, filePath: '/chosen/second.zip' } as never)
+      diagnosticMocks.saveBundle
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolveFirstSave = resolve
+            })
+        )
+        .mockResolvedValueOnce('included')
+
+      const firstSave = invoke(MigrationIpcChannels.SaveDiagnosticBundle, savePayload)
+      await vi.waitFor(() => expect(diagnosticMocks.saveBundle).toHaveBeenCalledOnce())
+      await invoke(MigrationIpcChannels.Retry)
+      invoke(MigrationIpcChannels.ReportError, 'second diagnostic test failure')
+
+      await expect(invoke(MigrationIpcChannels.SaveDiagnosticBundle, savePayload)).resolves.toEqual({
+        status: 'failed'
+      })
+      expect(dialog.showSaveDialog).toHaveBeenCalledOnce()
+      expect(diagnosticMocks.saveBundle).toHaveBeenCalledOnce()
+
+      resolveFirstSave('included')
+      await expect(firstSave).resolves.toEqual({ status: 'saved', logs: 'included' })
+      await invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)
+      expect(shell.showItemInFolder).toHaveBeenCalledWith('/chosen/first.zip')
+    })
+
     it('returns the included or not_included result from the builder', async () => {
       choosePath('/chosen/diagnostics.zip')
       diagnosticMocks.saveBundle.mockResolvedValueOnce('included').mockResolvedValueOnce('not_included')
