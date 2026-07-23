@@ -294,7 +294,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'agent.settings.tooling.permissionMode.bypassPermissions.title': 'Full Auto Mode',
           'agent.settings.tooling.permissionMode.default.title': 'Normal Mode',
           'agent.settings.tooling.permissionMode.plan.title': 'Plan Mode',
-          'agent.settings.skills.addMore': 'Add More Skills',
+          'agent.settings.skills.addMore': 'Manage Skills',
           'common.avatar': 'Avatar',
           'common.cancel': 'Cancel',
           'common.clear': 'Clear',
@@ -1054,11 +1054,12 @@ describe('edit dialogs', () => {
 
     selectTab('技能')
 
-    const addMoreButton = screen.getByRole('button', { name: 'Add More Skills' })
-    expect(addMoreButton).toHaveClass('min-h-11', 'w-full', 'border-dashed')
-    expect(addMoreButton.parentElement).toHaveClass('sm:grid-cols-2')
+    const manageSkillsButton = screen.getByRole('button', { name: 'Manage Skills' })
+    expect(manageSkillsButton).toHaveClass('min-h-11', 'w-full', 'border-dashed')
+    expect(manageSkillsButton.querySelector('.lucide-tool-case')).toBeInTheDocument()
+    expect(manageSkillsButton.parentElement).toHaveClass('sm:grid-cols-2')
 
-    fireEvent.click(addMoreButton)
+    fireEvent.click(manageSkillsButton)
 
     expect(ipcRequestMock).toHaveBeenCalledWith('tab.detach', {
       id: 'detached-tab-id',

@@ -98,7 +98,7 @@ export function SkillCatalogPicker({
           placeholder={t('library.config.dialogs.create.capability.search')}
           className="min-w-0 flex-1"
         />
-        <DropdownMenu>
+        <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild>
             <Button type="button" size="sm" className="shrink-0" disabled={disabled}>
               <Plus size={13} />
