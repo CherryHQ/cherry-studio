@@ -114,6 +114,8 @@ const webUiVersion = '0.1.0'
 const projectRepositoryUrl = 'https://github.com/EasongChung/cherry-studio'
 /** First page + each older page size. Keep small so multi-turn chats (≈5 rounds) paginate early. */
 const messagePageSize = 10
+/** Session history sidebar: first page + each older page. */
+const conversationPageSize = 25
 const maxAttachmentCount = 5
 const maxAttachmentBytes = 10 * 1024 * 1024
 const maxAttachmentsBytes = 25 * 1024 * 1024
@@ -259,6 +261,8 @@ const textPacks = {
     loadingMessages: 'Loading desktop messages',
     loadingOlder: 'Loading earlier messages...',
     loadOlder: 'Load earlier messages',
+    loadingOlderConversations: 'Loading earlier conversations...',
+    loadOlderConversations: 'Load earlier conversations',
     model: 'Model',
     newConversation: 'New conversation',
     conversationHistory: 'Conversation history',
@@ -444,6 +448,8 @@ const textPacks = {
     loadingMessages: '正在加载桌面消息',
     loadingOlder: '正在加载更早消息...',
     loadOlder: '加载更早消息',
+    loadingOlderConversations: '正在加载更早会话记录...',
+    loadOlderConversations: '加载更早会话记录',
     model: '模型',
     newConversation: '新建会话',
     conversationHistory: '会话记录',
@@ -629,6 +635,8 @@ const textPacks = {
     loadingMessages: '正在載入桌面訊息',
     loadingOlder: '正在載入更早訊息...',
     loadOlder: '載入更早訊息',
+    loadingOlderConversations: '正在載入更早會話記錄...',
+    loadOlderConversations: '載入更早會話記錄',
     model: '模型',
     newConversation: '新增會話',
     conversationHistory: '會話記錄',
@@ -1304,6 +1312,9 @@ const App = defineComponent({
     const attachments = ref<readonly WebUiDraftAttachment[]>([])
     const olderMessagesCursor = ref<string>()
     const olderMessagesLoading = ref(false)
+    const conversationNav = ref<HTMLElement>()
+    const olderConversationsCursor = ref<string>()
+    const olderConversationsLoading = ref(false)
     const showScrollToBottom = ref(false)
     const composerHeight = ref(composerDefaultHeight)
     const deleteMessageId = ref<string>()
@@ -3116,28 +3127,30 @@ const App = defineComponent({
       }
     }
 
+    const sortConversations = (items: readonly WebUiConversationSummary[]) =>
+      [...items].sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))
+
+    const mergeConversations = (
+      current: readonly WebUiConversationSummary[],
+      incoming: readonly WebUiConversationSummary[]
+    ): readonly WebUiConversationSummary[] => {
+      const byId = new Map(current.map((conversation) => [conversation.id, conversation]))
+      for (const conversation of incoming) byId.set(conversation.id, conversation)
+      return sortConversations([...byId.values()])
+    }
+
     const loadConversations = async () => {
       conversationLoadState.value = 'loading'
       conversationLoadMessage.value = ''
+      olderConversationsCursor.value = undefined
 
       try {
-        const sessions: WebUiAgentSessionEntity[] = []
-        const seenCursors = new Set<string>()
-        let cursor: string | undefined
-        do {
-          const query = new URLSearchParams({ limit: '200' })
-          if (cursor) query.set('cursor', cursor)
-          const page = await httpClient.getJson<WebUiCursorResponse<WebUiAgentSessionEntity>>(
-            `/api/data/agent-sessions?${query.toString()}`
-          )
-          sessions.push(...page.items)
-          cursor = page.nextCursor
-          if (cursor && seenCursors.has(cursor)) break
-          if (cursor) seenCursors.add(cursor)
-        } while (cursor)
-        conversations.value = sessions
-          .map(toConversationSummary)
-          .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))
+        const query = new URLSearchParams({ limit: String(conversationPageSize) })
+        const page = await httpClient.getJson<WebUiCursorResponse<WebUiAgentSessionEntity>>(
+          `/api/data/agent-sessions?${query.toString()}`
+        )
+        conversations.value = sortConversations(page.items.map(toConversationSummary))
+        olderConversationsCursor.value = page.nextCursor
         if (
           selectedConversationId.value &&
           !conversations.value.some((conversation) => conversation.id === selectedConversationId.value)
@@ -3150,10 +3163,57 @@ const App = defineComponent({
         }
         conversationLoadState.value = 'ready'
         conversationLoadMessage.value = conversations.value.length ? '' : text('noSessions')
+        // If the first page does not fill the sidebar, keep loading older pages.
+        await nextTick()
+        const nav = conversationNav.value
+        if (olderConversationsCursor.value && nav && nav.scrollHeight <= nav.clientHeight + 8) {
+          void loadOlderConversations()
+        }
       } catch (error) {
         conversations.value = []
+        olderConversationsCursor.value = undefined
         conversationLoadState.value = 'error'
         conversationLoadMessage.value = localizedErrorMessage(error)
+      }
+    }
+
+    const loadOlderConversations = async () => {
+      const cursor = olderConversationsCursor.value
+      if (!cursor || olderConversationsLoading.value) return
+
+      olderConversationsLoading.value = true
+      try {
+        const query = new URLSearchParams({ limit: String(conversationPageSize), cursor })
+        const page = await httpClient.getJson<WebUiCursorResponse<WebUiAgentSessionEntity>>(
+          `/api/data/agent-sessions?${query.toString()}`
+        )
+        conversations.value = mergeConversations(conversations.value, page.items.map(toConversationSummary))
+        olderConversationsCursor.value = page.nextCursor
+        await nextTick()
+        const nav = conversationNav.value
+        // Keep filling the sidebar while older pages remain (button + scroll still work).
+        if (olderConversationsCursor.value && nav && nav.scrollHeight <= nav.clientHeight + 8) {
+          olderConversationsLoading.value = false
+          await loadOlderConversations()
+          return
+        }
+      } catch (error) {
+        conversationLoadMessage.value = localizedErrorMessage(error)
+      } finally {
+        olderConversationsLoading.value = false
+      }
+    }
+
+    const updateConversationScrollState = () => {
+      const nav = conversationNav.value
+      if (!nav) return
+      // Auto-load older sessions when the user scrolls near the bottom.
+      if (
+        nav.scrollHeight - nav.scrollTop - nav.clientHeight <= 72 &&
+        olderConversationsCursor.value &&
+        !olderConversationsLoading.value
+      ) {
+        void loadOlderConversations()
       }
     }
 
@@ -4292,122 +4352,144 @@ const App = defineComponent({
                   ]),
                   h(
                     'nav',
-                    { class: 'conversation-nav', 'aria-label': text('desktopSession') },
-                    conversations.value.map((conversation) =>
-                      h(
-                        'div',
-                        {
-                          key: conversation.id,
-                          class: [
-                            'conversation-item-wrap',
-                            { 'conversation-item-wrap-selected': conversation.id === selectedConversationId.value }
-                          ]
-                        },
-                        [
-                          editingConversationId.value === conversation.id
-                            ? h('div', { class: ['conversation-item', 'conversation-item-editing'] }, [
-                                h('input', {
-                                  class: 'conversation-title-input',
-                                  value: editingConversationTitle.value,
-                                  autofocus: true,
-                                  onInput: (event: Event) => {
-                                    editingConversationTitle.value = (event.target as HTMLInputElement).value
-                                  },
-                                  onKeydown: (event: KeyboardEvent) => {
-                                    if (event.key === 'Enter') {
-                                      event.preventDefault()
-                                      void saveConversationTitle()
+                    {
+                      class: 'conversation-nav',
+                      'aria-label': text('desktopSession'),
+                      ref: conversationNav,
+                      onScroll: updateConversationScrollState
+                    },
+                    [
+                      ...conversations.value.map((conversation) =>
+                        h(
+                          'div',
+                          {
+                            key: conversation.id,
+                            class: [
+                              'conversation-item-wrap',
+                              { 'conversation-item-wrap-selected': conversation.id === selectedConversationId.value }
+                            ]
+                          },
+                          [
+                            editingConversationId.value === conversation.id
+                              ? h('div', { class: ['conversation-item', 'conversation-item-editing'] }, [
+                                  h('input', {
+                                    class: 'conversation-title-input',
+                                    value: editingConversationTitle.value,
+                                    autofocus: true,
+                                    onInput: (event: Event) => {
+                                      editingConversationTitle.value = (event.target as HTMLInputElement).value
+                                    },
+                                    onKeydown: (event: KeyboardEvent) => {
+                                      if (event.key === 'Enter') {
+                                        event.preventDefault()
+                                        void saveConversationTitle()
+                                      }
+                                      if (event.key === 'Escape') {
+                                        event.preventDefault()
+                                        closeEditConversation()
+                                      }
                                     }
-                                    if (event.key === 'Escape') {
-                                      event.preventDefault()
-                                      closeEditConversation()
-                                    }
-                                  }
-                                }),
-                                h('span', { class: 'conversation-meta' }, [
-                                  `${conversationAgentName(conversation.agentId)} · `,
-                                  new Date(conversation.updatedAt).toLocaleString()
-                                ])
-                              ])
-                            : h(
-                                'button',
-                                {
-                                  type: 'button',
-                                  class: [
-                                    'conversation-item',
-                                    { 'conversation-item-selected': conversation.id === selectedConversationId.value }
-                                  ],
-                                  'aria-current': conversation.id === selectedConversationId.value ? 'page' : undefined,
-                                  onClick: () => selectConversation(conversation.id)
-                                },
-                                [
-                                  h('span', { class: 'conversation-title' }, conversation.title),
+                                  }),
                                   h('span', { class: 'conversation-meta' }, [
                                     `${conversationAgentName(conversation.agentId)} · `,
                                     new Date(conversation.updatedAt).toLocaleString()
                                   ])
-                                ]
-                              ),
-                          h('div', { class: 'conversation-actions' }, [
-                            h(
-                              'button',
-                              {
-                                class: 'conversation-action-button',
-                                type: 'button',
-                                title: text('editTitle'),
-                                'aria-label': text('editTitle'),
-                                'aria-expanded': openConversationMenuId.value === conversation.id,
-                                disabled: conversationActionState.value === 'deleting',
-                                onClick: () => toggleConversationMenu(conversation.id)
-                              },
-                              conversationActionState.value === 'generating' &&
-                                conversationActionId.value === conversation.id
-                                ? h('span', { class: 'mini-spinner', 'aria-hidden': 'true' })
-                                : renderActionIcon('more')
-                            ),
-                            openConversationMenuId.value === conversation.id
-                              ? h('div', { class: 'conversation-action-menu', role: 'menu' }, [
-                                  h(
-                                    'button',
-                                    {
-                                      class: 'conversation-action-menu-item',
-                                      type: 'button',
-                                      role: 'menuitem',
-                                      disabled: conversationActionState.value === 'deleting',
-                                      onClick: () => openEditConversation(conversation)
-                                    },
-                                    [renderActionIcon('edit'), h('span', text('editTitle'))]
-                                  ),
-                                  h(
-                                    'button',
-                                    {
-                                      class: 'conversation-action-menu-item',
-                                      type: 'button',
-                                      role: 'menuitem',
-                                      disabled:
-                                        conversationActionState.value === 'generating' &&
-                                        conversationActionId.value === conversation.id,
-                                      onClick: () => void generateConversationTitle(conversation.id)
-                                    },
-                                    [renderActionIcon('sparkles'), h('span', text('generateTopicName'))]
-                                  ),
-                                  h(
-                                    'button',
-                                    {
-                                      class: ['conversation-action-menu-item', 'conversation-action-menu-danger'],
-                                      type: 'button',
-                                      role: 'menuitem',
-                                      disabled: activeRunConversationId.value === conversation.id,
-                                      onClick: () => openDeleteConversation(conversation.id)
-                                    },
-                                    [renderActionIcon('trash'), h('span', text('deleteConversation'))]
-                                  )
                                 ])
-                              : undefined
-                          ])
-                        ]
-                      )
-                    )
+                              : h(
+                                  'button',
+                                  {
+                                    type: 'button',
+                                    class: [
+                                      'conversation-item',
+                                      { 'conversation-item-selected': conversation.id === selectedConversationId.value }
+                                    ],
+                                    'aria-current':
+                                      conversation.id === selectedConversationId.value ? 'page' : undefined,
+                                    onClick: () => selectConversation(conversation.id)
+                                  },
+                                  [
+                                    h('span', { class: 'conversation-title' }, conversation.title),
+                                    h('span', { class: 'conversation-meta' }, [
+                                      `${conversationAgentName(conversation.agentId)} · `,
+                                      new Date(conversation.updatedAt).toLocaleString()
+                                    ])
+                                  ]
+                                ),
+                            h('div', { class: 'conversation-actions' }, [
+                              h(
+                                'button',
+                                {
+                                  class: 'conversation-action-button',
+                                  type: 'button',
+                                  title: text('editTitle'),
+                                  'aria-label': text('editTitle'),
+                                  'aria-expanded': openConversationMenuId.value === conversation.id,
+                                  disabled: conversationActionState.value === 'deleting',
+                                  onClick: () => toggleConversationMenu(conversation.id)
+                                },
+                                conversationActionState.value === 'generating' &&
+                                  conversationActionId.value === conversation.id
+                                  ? h('span', { class: 'mini-spinner', 'aria-hidden': 'true' })
+                                  : renderActionIcon('more')
+                              ),
+                              openConversationMenuId.value === conversation.id
+                                ? h('div', { class: 'conversation-action-menu', role: 'menu' }, [
+                                    h(
+                                      'button',
+                                      {
+                                        class: 'conversation-action-menu-item',
+                                        type: 'button',
+                                        role: 'menuitem',
+                                        disabled: conversationActionState.value === 'deleting',
+                                        onClick: () => openEditConversation(conversation)
+                                      },
+                                      [renderActionIcon('edit'), h('span', text('editTitle'))]
+                                    ),
+                                    h(
+                                      'button',
+                                      {
+                                        class: 'conversation-action-menu-item',
+                                        type: 'button',
+                                        role: 'menuitem',
+                                        disabled:
+                                          conversationActionState.value === 'generating' &&
+                                          conversationActionId.value === conversation.id,
+                                        onClick: () => void generateConversationTitle(conversation.id)
+                                      },
+                                      [renderActionIcon('sparkles'), h('span', text('generateTopicName'))]
+                                    ),
+                                    h(
+                                      'button',
+                                      {
+                                        class: ['conversation-action-menu-item', 'conversation-action-menu-danger'],
+                                        type: 'button',
+                                        role: 'menuitem',
+                                        disabled: activeRunConversationId.value === conversation.id,
+                                        onClick: () => openDeleteConversation(conversation.id)
+                                      },
+                                      [renderActionIcon('trash'), h('span', text('deleteConversation'))]
+                                    )
+                                  ])
+                                : undefined
+                            ])
+                          ]
+                        )
+                      ),
+                      olderConversationsCursor.value
+                        ? h(
+                            'button',
+                            {
+                              class: 'load-older-button load-older-conversations-button',
+                              type: 'button',
+                              disabled: olderConversationsLoading.value,
+                              onClick: () => void loadOlderConversations()
+                            },
+                            olderConversationsLoading.value
+                              ? text('loadingOlderConversations')
+                              : text('loadOlderConversations')
+                          )
+                        : undefined
+                    ]
                   ),
                   conversationActionError.value
                     ? h(
@@ -5924,6 +6006,11 @@ style.textContent = `
     border: 1px solid var(--webui-divider);
     border-radius: 6px;
     cursor: pointer;
+  }
+
+  .load-older-conversations-button {
+    width: 100%;
+    margin: 4px 0 8px;
   }
 
   .scroll-bottom-button {
