@@ -623,6 +623,13 @@ describe('CodeCliService', () => {
         const { spawn } = await import('child_process')
         const { codeCliService } = await loadModules()
 
+        binaryManagerMock.getToolSnapshots.mockResolvedValue({
+          claude: {
+            name: 'claude',
+            availability: { source: 'mise', path: 'C:\\Tools\\100% cli\\claude.exe', version: '1.0.0' }
+          }
+        })
+
         const result = await codeCliService.run({
           mode: 'login-flow',
           cliTool: CodeCli.CLAUDE_CODE,
@@ -638,6 +645,8 @@ describe('CodeCliService', () => {
         // CMD expands %…% even inside double quotes, so the bat writer must double them.
         expect(batContent).toContain('if not exist "C:\\Users\\me\\100%% proj" goto :dir_missing')
         expect(batContent).toContain('pushd "C:\\Users\\me\\100%% proj"')
+        // The executable path crosses the same boundary as the directory paths.
+        expect(batContent).toContain('"C:\\Tools\\100%% cli\\claude.exe"')
         // The temp script can embed injected credentials via the env prefix; keep it owner-only.
         expect(vi.mocked(fs.chmodSync)).toHaveBeenCalledWith(batPath, 0o600)
 

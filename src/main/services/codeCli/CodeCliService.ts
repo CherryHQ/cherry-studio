@@ -474,8 +474,13 @@ export class CodeCliService extends BaseService {
     }
 
     const needsBatchCall = platform === 'win32' && ['.cmd', '.bat'].includes(path.extname(executablePath).toLowerCase())
+    // The win32 command is only ever embedded in the generated .bat below, where
+    // cmd.exe expands %…% even inside double quotes — double it like the
+    // directory paths, or a path such as "100% tools" corrupts the launch.
     let baseCommand =
-      platform === 'win32' ? `${needsBatchCall ? 'call ' : ''}"${executablePath}"` : posixQuote(executablePath)
+      platform === 'win32'
+        ? `${needsBatchCall ? 'call ' : ''}"${executablePath.replace(/%/g, '%%')}"`
+        : posixQuote(executablePath)
 
     // OpenCode reads its provider AND default model from the opencode.json written by the
     // config flow (top-level `model: "<providerKey>/<modelId>"`), so the launch command
