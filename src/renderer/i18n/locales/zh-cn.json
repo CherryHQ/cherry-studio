@@ -4439,23 +4439,31 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "provider_setup": {
+      "missing_model": "请先启用该服务商下的至少一个模型",
+      "missing_provider": "请先启用一个服务商",
+      "next": "下一步",
+      "subtitle": "添加 API Key 或登录 CherryIN，然后启用一个服务商。",
+      "title": "选择服务商"
+    },
     "select_model": {
       "change_later": "您可以随时在设置中更改",
       "start": "开始使用",
       "subtitle": "为每个场景选择默认模型",
-      "title": "选择你的默认模型"
+      "title": "选择默认模型"
     },
-    "skip": "跳过引导",
+    "skip": "稍后设置",
     "toast": {
+      "complete_failed": "无法完成引导，请重试",
       "connected": "成功连接 CherryIN"
     },
     "welcome": {
-      "login_cherryin": "登录 CherryIN",
-      "or_continue_with": "或使用其他方式",
-      "other_provider": "选择其他服务商",
+      "login_cherryin": "连接 CherryIN",
+      "or_continue_with": "或",
+      "other_provider": "配置其他服务商",
       "select_other_provider": "选择其他服务商",
-      "setup_hint": "请您先至少配置一个服务商，以获得最佳使用体验",
-      "subtitle": "使用 CherryIN 服务商可畅享顶级 AI 服务",
+      "setup_hint": "您可以随时在设置中更换服务商",
+      "subtitle": "连接服务商，开启您的 AI 工作空间",
       "title": "欢迎使用 Cherry Studio"
     }
   },
