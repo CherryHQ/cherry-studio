@@ -132,12 +132,16 @@ function duplicateNeedsBaseUrl(authType: AuthType): boolean {
   return authType === 'api-key' || authType === 'iam-azure'
 }
 
+function isCustomProviderTextEndpoint(endpointType: EndpointType): endpointType is CustomProviderTextEndpoint {
+  return CUSTOM_PROVIDER_TEXT_ENDPOINTS.some((type) => type === endpointType)
+}
+
 function mergeSecondaryEndpoints(
   target: Partial<Record<EndpointType, EndpointConfig>>,
   secondaryUrls: Record<string, string>,
   primary: EndpointType
 ) {
-  for (const { type } of SECONDARY_ENDPOINT_LABELS) {
+  for (const type of CUSTOM_PROVIDER_ENDPOINTS) {
     if (type === primary) continue
     const value = secondaryUrls[type]?.trim()
     if (value) {
@@ -205,6 +209,45 @@ export default function ProviderEditorDrawer({
       requireBaseUrl: false
     }
   })()
+  const duplicateUsesEndpointTabs = Boolean(
+    duplicateSource &&
+      urlForm &&
+      (duplicateSource.presetProviderId === 'new-api' || isCustomProviderTextEndpoint(urlForm.primary))
+  )
+  const duplicateDefaultTextEndpoint =
+    urlForm && isCustomProviderTextEndpoint(urlForm.primary) ? urlForm.primary : ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+  const duplicateEndpointUrls = useMemo<CustomProviderEndpointUrls>(() => {
+    if (!duplicateUsesEndpointTabs || !urlForm) {
+      return {}
+    }
+
+    const values: CustomProviderEndpointUrls = {}
+    for (const endpointType of CUSTOM_PROVIDER_ENDPOINTS) {
+      const override = secondaryUrls[endpointType]
+      if (override?.trim()) {
+        values[endpointType] = override
+      }
+    }
+
+    if (duplicateSource?.presetProviderId === 'new-api') {
+      for (const endpointType of CUSTOM_PROVIDER_TEXT_ENDPOINTS) {
+        if (!values[endpointType]?.trim()) {
+          values[endpointType] = baseUrl
+        }
+      }
+    } else {
+      values[duplicateDefaultTextEndpoint] = baseUrl
+    }
+
+    return values
+  }, [
+    baseUrl,
+    duplicateDefaultTextEndpoint,
+    duplicateSource?.presetProviderId,
+    duplicateUsesEndpointTabs,
+    secondaryUrls,
+    urlForm
+  ])
 
   // Reset form state every time the drawer transitions closed→open. Keys off
   // the mode so reopening in a different mode reseeds cleanly.
@@ -224,8 +267,12 @@ export default function ProviderEditorDrawer({
     setSecondaryUrls({})
     setMoreEndpointsOpen(false)
     setEndpointUrls({})
-    setPreferredChatEndpoint(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
-    setActiveEndpointTab(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    const initialEndpointTab =
+      duplicateSource?.defaultChatEndpoint && isCustomProviderTextEndpoint(duplicateSource.defaultChatEndpoint)
+        ? duplicateSource.defaultChatEndpoint
+        : ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    setPreferredChatEndpoint(initialEndpointTab)
+    setActiveEndpointTab(initialEndpointTab)
     setInvalidCreationUrl(null)
     setLogoDirty(false)
     setLogoPickerOpen(false)
@@ -299,6 +346,12 @@ export default function ProviderEditorDrawer({
     if (defaultEndpointUrl) {
       setBaseUrl(defaultEndpointUrl)
     }
+    const presetDefaultEndpoint =
+      source.defaultChatEndpoint && isCustomProviderTextEndpoint(source.defaultChatEndpoint)
+        ? source.defaultChatEndpoint
+        : ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    setPreferredChatEndpoint(presetDefaultEndpoint)
+    setActiveEndpointTab(presetDefaultEndpoint)
     setSecondaryUrls({})
     setMoreEndpointsOpen(false)
     setEndpointUrls({})
@@ -525,29 +578,53 @@ export default function ProviderEditorDrawer({
         <>
           {duplicateSource?.presetProviderId && <DuplicateHeader source={duplicateSource} />}
 
-          {urlForm && (
-            <>
-              <BaseUrlField
-                label={t('settings.provider.base_url.label')}
-                placeholder={t('settings.provider.base_url.placeholder')}
-                value={baseUrl}
-                onChange={setBaseUrl}
-                required={urlForm.requireBaseUrl}
-                error={showDuplicateBaseUrlError ? t('settings.provider.base_url.required') : undefined}
-                onBlur={() => setBaseUrlTouched(true)}
-              />
-              <ApiKeyField value={apiKey} onChange={setApiKey} />
-              <MoreEndpointsDisclosure
-                open={moreEndpointsOpen}
-                onToggle={() => setMoreEndpointsOpen((v) => !v)}
-                primary={urlForm.primary}
-                values={secondaryUrls}
-                onChange={(type: EndpointType, value: string) =>
-                  setSecondaryUrls((prev) => ({ ...prev, [type]: value }))
-                }
-              />
-            </>
-          )}
+          {urlForm &&
+            (duplicateUsesEndpointTabs ? (
+              <>
+                <ApiKeyField value={apiKey} onChange={setApiKey} />
+                <CustomProviderEndpointTabs
+                  value={activeEndpointTab}
+                  endpointUrls={duplicateEndpointUrls}
+                  preferredChatEndpoint={duplicateDefaultTextEndpoint}
+                  invalidUrl={null}
+                  descriptionKey={
+                    duplicateSource?.presetProviderId === 'new-api'
+                      ? 'settings.provider.create_custom.endpoint_tabs.new_api_description'
+                      : 'settings.provider.create_custom.endpoint_tabs.preset_description'
+                  }
+                  onValueChange={setActiveEndpointTab}
+                  onEndpointUrlChange={(endpointType, value) => {
+                    if (endpointType === urlForm.primary) {
+                      setBaseUrl(value)
+                    } else {
+                      setSecondaryUrls((prev) => ({ ...prev, [endpointType]: value }))
+                    }
+                  }}
+                />
+              </>
+            ) : (
+              <>
+                <BaseUrlField
+                  label={t('settings.provider.base_url.label')}
+                  placeholder={t('settings.provider.base_url.placeholder')}
+                  value={baseUrl}
+                  onChange={setBaseUrl}
+                  required={urlForm.requireBaseUrl}
+                  error={showDuplicateBaseUrlError ? t('settings.provider.base_url.required') : undefined}
+                  onBlur={() => setBaseUrlTouched(true)}
+                />
+                <ApiKeyField value={apiKey} onChange={setApiKey} />
+                <MoreEndpointsDisclosure
+                  open={moreEndpointsOpen}
+                  onToggle={() => setMoreEndpointsOpen((v) => !v)}
+                  primary={urlForm.primary}
+                  values={secondaryUrls}
+                  onChange={(type: EndpointType, value: string) =>
+                    setSecondaryUrls((prev) => ({ ...prev, [type]: value }))
+                  }
+                />
+              </>
+            ))}
         </>
       )}
 
@@ -606,9 +683,10 @@ interface CustomProviderEndpointTabsProps {
   endpointUrls: CustomProviderEndpointUrls
   preferredChatEndpoint: CustomProviderTextEndpoint
   invalidUrl: CustomProviderCreationInvalidUrl | null
+  descriptionKey?: string
   onValueChange: (value: CustomProviderEndpointTab) => void
   onEndpointUrlChange: (endpointType: CustomProviderEndpoint, value: string) => void
-  onPreferredChatEndpointChange: (endpointType: CustomProviderTextEndpoint) => void
+  onPreferredChatEndpointChange?: (endpointType: CustomProviderTextEndpoint) => void
 }
 
 function CustomProviderEndpointTabs({
@@ -616,6 +694,7 @@ function CustomProviderEndpointTabs({
   endpointUrls,
   preferredChatEndpoint,
   invalidUrl,
+  descriptionKey = 'settings.provider.create_custom.endpoint_tabs.description',
   onValueChange,
   onEndpointUrlChange,
   onPreferredChatEndpointChange
@@ -657,9 +736,7 @@ function CustomProviderEndpointTabs({
         <h3 id="custom-provider-endpoints-title" className="font-medium text-[13px] text-foreground">
           {t('settings.provider.create_custom.endpoint_tabs.label')}
         </h3>
-        <p className="text-foreground-muted text-xs">
-          {t('settings.provider.create_custom.endpoint_tabs.description')}
-        </p>
+        <p className="text-foreground-muted text-xs">{t(descriptionKey)}</p>
       </div>
 
       <Tabs
@@ -695,7 +772,7 @@ function CustomProviderEndpointTabs({
                 <p className="text-foreground-muted text-xs">
                   {t('settings.provider.create_custom.endpoint_tabs.default_chat')}
                 </p>
-              ) : (
+              ) : onPreferredChatEndpointChange ? (
                 <Button
                   type="button"
                   variant="ghost"
@@ -704,7 +781,7 @@ function CustomProviderEndpointTabs({
                   onClick={() => onPreferredChatEndpointChange(endpointType)}>
                   {t('settings.provider.create_custom.endpoint_tabs.set_default_chat')}
                 </Button>
-              ))}
+              ) : null)}
           </TabsContent>
         ))}
 

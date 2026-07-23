@@ -368,12 +368,11 @@ describe('ProviderEditorDrawer', () => {
     rerender(<ProviderEditorDrawer {...commonProps} mode={{ kind: 'duplicate', source }} />)
     expect(screen.getByTestId('provider-editor-dialog')).toBeInTheDocument()
     expect(screen.getByTestId('provider-editor-dialog')).toHaveAttribute('data-size', 'xl')
-    const moreEndpointsToggle = screen.getByRole('button', { name: 'settings.provider.more_endpoints.toggle' })
-    expect(moreEndpointsToggle).toHaveClass('px-0')
-    fireEvent.click(moreEndpointsToggle)
+    expect(screen.getAllByRole('tab')).toHaveLength(5)
     expect(
-      screen.getByLabelText('settings.provider.more_endpoints.anthropic').parentElement?.parentElement
-    ).toHaveClass('pl-0')
+      screen.getByRole('tab', { name: 'settings.provider.create_custom.endpoint_tabs.openai_chat' })
+    ).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByRole('button', { name: 'settings.provider.more_endpoints.toggle' })).not.toBeInTheDocument()
 
     rerender(
       <ProviderEditorDrawer
@@ -660,9 +659,16 @@ describe('ProviderEditorDrawer', () => {
 
     const nameInput = screen.getByPlaceholderText('settings.provider.add.name.placeholder')
     expect(nameInput).toHaveValue('Claude Gateway')
-    expect(screen.getByPlaceholderText('settings.provider.base_url.placeholder')).toHaveValue(
+    expect(screen.getAllByRole('tab')).toHaveLength(5)
+    expect(
+      screen.getByRole('tab', { name: 'settings.provider.create_custom.endpoint_tabs.anthropic' })
+    ).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByLabelText('settings.provider.more_endpoints.anthropic')).toHaveValue(
       'https://gateway.example.com'
     )
+    expect(
+      screen.queryByRole('button', { name: 'settings.provider.create_custom.endpoint_tabs.set_default_chat' })
+    ).not.toBeInTheDocument()
     expect(screen.getByLabelText('settings.provider.api_key.label')).toHaveValue('secret')
     expect(mocks.providerAvatarPrimitive).toHaveBeenCalledWith(
       expect.objectContaining({ logo: 'icon:openai', providerName: 'Claude Gateway' })
@@ -739,8 +745,19 @@ describe('ProviderEditorDrawer', () => {
     fireEvent.change(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), {
       target: { value: 'New API Work' }
     })
-    fireEvent.change(screen.getByPlaceholderText('settings.provider.base_url.placeholder'), {
+    fireEvent.change(screen.getByLabelText('settings.provider.more_endpoints.openai_chat'), {
       target: { value: 'https://new-api.example.com' }
+    })
+    selectEndpointTab('openai_responses')
+    expect(screen.getByLabelText('settings.provider.more_endpoints.openai_responses')).toHaveValue(
+      'https://new-api.example.com'
+    )
+    fireEvent.change(screen.getByLabelText('settings.provider.more_endpoints.openai_responses'), {
+      target: { value: 'https://responses.example.com' }
+    })
+    selectEndpointTab('other')
+    fireEvent.change(screen.getByLabelText('settings.provider.image_endpoints.image_generation_base_url.label'), {
+      target: { value: 'https://images.example.com' }
     })
     fireEvent.click(screen.getByRole('button', { name: 'settings.provider.duplicate.menu_label' }))
 
@@ -750,9 +767,10 @@ describe('ProviderEditorDrawer', () => {
         defaultChatEndpoint: 'openai-chat-completions',
         endpointConfigs: {
           'openai-chat-completions': { baseUrl: 'https://new-api.example.com' },
-          'openai-responses': { baseUrl: 'https://new-api.example.com' },
+          'openai-responses': { baseUrl: 'https://responses.example.com' },
           'anthropic-messages': { baseUrl: 'https://new-api.example.com' },
-          'google-generate-content': { baseUrl: 'https://new-api.example.com' }
+          'google-generate-content': { baseUrl: 'https://new-api.example.com' },
+          'openai-image-generation': { baseUrl: 'https://images.example.com' }
         }
       })
     )
@@ -782,6 +800,7 @@ describe('ProviderEditorDrawer', () => {
     fireEvent.change(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), {
       target: { value: 'Azure 2' }
     })
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
     fireEvent.change(screen.getByPlaceholderText('settings.provider.base_url.placeholder'), {
       target: { value: 'https://az.example.com' }
     })
@@ -821,6 +840,8 @@ describe('ProviderEditorDrawer', () => {
     )
 
     expect(screen.queryByPlaceholderText('settings.provider.base_url.placeholder')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('settings.provider.api_key.label')).not.toBeInTheDocument()
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
     fireEvent.change(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), {
       target: { value: 'Bedrock 2' }
     })

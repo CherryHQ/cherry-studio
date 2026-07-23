@@ -7314,9 +7314,11 @@
           "description": "Switch tabs to configure each protocol; the first text endpoint you fill becomes the default",
           "gemini": "Gemini",
           "label": "Endpoint settings",
+          "new_api_description": "Switch tabs to configure each protocol; text protocols share one root URL by default",
           "openai_chat": "Chat",
           "openai_responses": "Responses",
           "other": "Other",
+          "preset_description": "Switch tabs to configure this preset's endpoints; the preset defines the default chat endpoint",
           "set_default_chat": "Set as default chat endpoint",
           "text_endpoint_required": "Configure at least one text endpoint",
           "url_help": "Enter the API root URL to preview the final request path"
