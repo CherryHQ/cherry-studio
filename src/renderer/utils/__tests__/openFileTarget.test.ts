@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { openFileTarget } from '../shared/openFileTarget'
+import { openFileTarget } from '../openFileTarget'
 
 describe('openFileTarget', () => {
   it('opens a file in the artifact preview pane', async () => {

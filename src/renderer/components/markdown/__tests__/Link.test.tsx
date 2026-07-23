@@ -1,5 +1,5 @@
-import { openFileTarget } from '@renderer/components/chat/messages/tools/shared/openFileTarget'
 import { MarkdownHostContext } from '@renderer/hooks/useMarkdownHost'
+import { openFileTarget } from '@renderer/utils/openFileTarget'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'

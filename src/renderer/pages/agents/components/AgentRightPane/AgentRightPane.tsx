@@ -3,7 +3,6 @@ import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/compon
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import { ClickableFilePath } from '@renderer/components/chat/messages/tools/shared/ClickableFilePath'
-import { openFileTarget } from '@renderer/components/chat/messages/tools/shared/openFileTarget'
 import {
   type ArtifactPaneFileSelection,
   ArtifactPaneView,
@@ -40,6 +39,7 @@ import { toast } from '@renderer/services/toast'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
+import { openFileTarget } from '@renderer/utils/openFileTarget'
 import { joinPath } from '@renderer/utils/path'
 import { cn } from '@renderer/utils/style'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'

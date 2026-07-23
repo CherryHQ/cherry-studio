@@ -8,11 +8,11 @@ import {
   useOptionalMessageListUi
 } from '@renderer/components/chat/messages/MessageListProvider'
 import { ClickableFilePath } from '@renderer/components/chat/messages/tools/shared/ClickableFilePath'
-import { openFileTarget } from '@renderer/components/chat/messages/tools/shared/openFileTarget'
 import { useMarkdownComponents } from '@renderer/components/markdown'
 import { type MarkdownHost, MarkdownHostContext } from '@renderer/hooks/useMarkdownHost'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { processLatexBrackets } from '@renderer/utils/markdown'
+import { openFileTarget } from '@renderer/utils/openFileTarget'
 import { isEmpty } from 'es-toolkit/compat'
 import { type FC, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -65,6 +65,12 @@ const ChatMarkdown: FC<Props> = ({ block, inlineHtmlPreviewMode, postProcess, cl
   const footnoteLabel = t('common.footnotes')
   const remarkPlugins = inlineHtmlPreviewMode ? HTML_ARTIFACT_REMARK_PLUGINS : undefined
 
+  // Only intercept schemeless markdown links as workspace files when the host can actually
+  // resolve+open them: `openArtifactFile` is the workspace-aware opener (agent sessions with
+  // an artifact pane). Surfaces without it — Home chat, Quick Assistant, the selection window —
+  // have no workspace base, so they must not intercept (dead/no-op or wrong-CWD open).
+  const canOpenWorkspaceFiles = !!actions?.openArtifactFile
+
   // Bridge the chat message list's actions/config into the domain-neutral
   // MarkdownHost the shared markdown components read from.
   const markdownHost = useMemo<MarkdownHost>(
@@ -77,13 +83,15 @@ const ChatMarkdown: FC<Props> = ({ block, inlineHtmlPreviewMode, postProcess, cl
       exportTableAsExcel: actions?.exportTableAsExcel,
       notifySuccess: actions?.notifySuccess,
       notifyError: actions?.notifyError,
-      openFilePath: (path: string) =>
-        openFileTarget(path, {
-          openArtifactFile: actions?.openArtifactFile,
-          openPath: actions?.openPath,
-          isDirectory: actions?.isDirectory,
-          onError: () => actions?.notifyError?.(t('chat.input.tools.open_file_error', { path }))
-        }),
+      openFilePath: actions?.openArtifactFile
+        ? (path: string) =>
+            openFileTarget(path, {
+              openArtifactFile: actions.openArtifactFile,
+              openPath: actions.openPath,
+              isDirectory: actions.isDirectory,
+              onError: () => actions.notifyError?.(t('chat.input.tools.open_file_error', { path }))
+            })
+        : undefined,
       renderInlineFilePath: (path: string) => <ClickableFilePath path={path} />,
       // Chat renders assistant HTML fences as an immersive inline preview; the shared
       // CodeBlock stays chat-agnostic and asks the host to draw it.
@@ -109,7 +117,7 @@ const ChatMarkdown: FC<Props> = ({ block, inlineHtmlPreviewMode, postProcess, cl
           footnoteLabel={footnoteLabel}
           animated={isStreaming ? undefined : false}
           parseIncompleteMarkdown={isStreaming}
-          disableLinkHardening>
+          disableLinkHardening={canOpenWorkspaceFiles}>
           {content}
         </StreamingMarkdown>
       </MarkdownHostContext>
@@ -124,7 +132,7 @@ const ChatMarkdown: FC<Props> = ({ block, inlineHtmlPreviewMode, postProcess, cl
         components={mergedComponents}
         className={className}
         footnoteLabel={footnoteLabel}
-        disableLinkHardening>
+        disableLinkHardening={canOpenWorkspaceFiles}>
         {content}
       </Markdown>
     </MarkdownHostContext>
