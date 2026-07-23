@@ -566,7 +566,7 @@
       },
       "prompt": "Cài đặt lời nhắc",
       "skills": {
-        "addMore": "Thêm Kỹ Năng",
+        "addMore": "Quản lý kỹ năng",
         "builtin": "Tích hợp sẵn",
         "noFilterResults": "Không có kỹ năng phù hợp",
         "noSkills": "Chưa cài đặt kỹ năng nào. Cài đặt kỹ năng từ Cài đặt > Kỹ năng.",
@@ -1470,16 +1470,16 @@
         "unsupported_model": "Mô hình hiện tại không hỗ trợ lý luận có thể điều chỉnh"
       },
       "toolbar": {
-        "customize": "[to be translated]:Customize toolbar",
+        "customize": "Tùy chỉnh thanh công cụ",
         "drag": {
-          "cancelled": "[to be translated]:Reordering cancelled for {{name}}.",
-          "dropped": "[to be translated]:{{name}} dropped.",
-          "instructions": "[to be translated]:To reorder, press Space or Enter to pick up a tool, use the arrow keys to move it, then Space or Enter to drop it, or Escape to cancel.",
-          "over": "[to be translated]:{{name}} moved over {{over}}.",
-          "picked_up": "[to be translated]:Picked up {{name}}."
+          "cancelled": "Đã hủy sắp xếp lại cho {{name}}.",
+          "dropped": "{{name}} đã rơi.",
+          "instructions": "Để sắp xếp lại, nhấn Phím cách hoặc Enter để nhặt công cụ, sử dụng các phím mũi tên để di chuyển, sau đó nhấn Phím cách hoặc Enter để thả công cụ, hoặc Escape để hủy.",
+          "over": "{{name}} đã chuyển qua {{over}}.",
+          "picked_up": "Đã nhận {{name}}."
         },
-        "drag_handle": "[to be translated]:Drag to reorder {{name}}",
-        "restore_default": "[to be translated]:Restore default"
+        "drag_handle": "Kéo để sắp xếp lại {{name}}",
+        "restore_default": "Khôi phục mặc định"
       },
       "tools": {
         "collapse": "Thu gọn",
@@ -1755,7 +1755,7 @@
     "thinking_tokens": "~{{tokens}} mã thông báo",
     "topics": {
       "auto_rename": "Umbenennen automatisieren",
-      "auto_rename_failed": "[to be translated]:Failed to auto-generate conversation name",
+      "auto_rename_failed": "Không thể tự động tạo tên cuộc trò chuyện",
       "clear": {
         "title": "Tin nhắn rõ ràng"
       },
@@ -2453,6 +2453,80 @@
       "reasoning_truncated": "Chuỗi suy luận không thể chia nhỏ và đã bị cắt ngắn."
     },
     "user": "Người dùng"
+  },
+  "file_preview": {
+    "html": {
+      "empty": {
+        "description": "Tệp HTML này không có nội dung.",
+        "title": "Tệp trống"
+      },
+      "mode": {
+        "label": "Chế độ xem HTML",
+        "preview": "Xem trước",
+        "source": "Nguồn"
+      },
+      "read_error": {
+        "title": "Không thể đọc tệp này"
+      },
+      "too_large": {
+        "description": "Các tệp HTML lớn hơn {{limit}} MiB không thể được xem trước.",
+        "title": "Tệp quá lớn"
+      }
+    },
+    "invalid_path": {
+      "description": "Xem trước tệp yêu cầu một đường dẫn tuyệt đối hợp lệ trên máy cục bộ.",
+      "title": "Không thể xem trước tệp này"
+    },
+    "load_error": {
+      "description": "Không thể tải nội dung xem trước.",
+      "title": "Xem trước thất bại"
+    },
+    "loading": "Đang tải bản xem trước...",
+    "markdown": {
+      "empty": {
+        "description": "Tệp Markdown này không có nội dung.",
+        "title": "Tệp trống"
+      },
+      "mode": {
+        "label": "Chế độ xem Markdown",
+        "preview": "Xem trước",
+        "source": "Nguồn"
+      },
+      "read_error": {
+        "title": "Không thể đọc tệp này"
+      },
+      "too_large": {
+        "description": "Các tệp Markdown lớn hơn {{limit}} MiB không thể được xem trước.",
+        "title": "Tệp quá lớn"
+      }
+    },
+    "pdf": {
+      "too_large": {
+        "action": "Mở bằng ứng dụng mặc định",
+        "description": "Các tệp PDF lớn hơn {{limit}} MiB không thể được xem trước.",
+        "open_error": "Không thể mở tệp này",
+        "title": "Tệp quá lớn"
+      }
+    },
+    "text": {
+      "empty": {
+        "description": "Tệp văn bản này không có nội dung.",
+        "title": "Tệp rỗng"
+      },
+      "read_error": {
+        "title": "Không thể đọc tệp này"
+      },
+      "too_large": {
+        "description": "Các tệp văn bản lớn hơn {{limit}} MiB không thể được xem trước.",
+        "title": "Tệp quá lớn"
+      }
+    },
+    "unsupported": {
+      "action": "Mở bằng ứng dụng mặc định",
+      "description": "Loại tệp này chưa thể xem trước được.",
+      "open_error": "Không thể mở tệp này",
+      "title": "Xem trước không khả dụng"
+    }
   },
   "files": {
     "actions": "Hành động",
@@ -3497,8 +3571,10 @@
       "title": "Thư viện"
     },
     "skill_add": {
+      "add": "Thêm Kỹ Năng",
       "local_import": "Nhập khẩu nội địa",
-      "online_search": "Tìm kiếm trực tuyến"
+      "online_search": "Tìm kiếm trực tuyến",
+      "system_search": "Tìm kiếm hệ thống"
     },
     "skill_detail": {
       "created_at": "Đã tạo",
@@ -3526,6 +3602,19 @@
       "updated": "Sắp xếp theo cập nhật"
     },
     "subtitle": "Quản lý các trợ lý, tác nhân và kỹ năng của bạn",
+    "system_skill": {
+      "conflict": "Xung đột tên",
+      "description": "Nhập các kỹ năng đã được cài đặt trên hệ thống này.",
+      "empty_description": "Không tìm thấy kỹ năng nào có thể nhập từ các công cụ lập trình khác trên thiết bị này.",
+      "empty_title": "Không có kỹ năng nào có sẵn để nhập",
+      "enable_success": "Đã bật {{name}}",
+      "enabled": "Đã bật",
+      "import": "Nhập",
+      "import_success": "Đã nhập {{name}}",
+      "imported": "Đã nhập khẩu",
+      "search_placeholder": "Tìm kiếm kỹ năng hệ thống...",
+      "title": "Kỹ năng hệ thống"
+    },
     "tag_picker": {
       "no_tags": "Chưa có thẻ nào",
       "placeholder": "Tên thẻ mới..."
@@ -4702,6 +4791,7 @@
     "req_error_text": "Máy chủ đang bận hoặc lời nhắc chứa các từ \"bản quyền\" hoặc \"nhạy cảm\". Vui lòng thử lại.",
     "req_error_token": "Vui lòng kiểm tra tính hợp lệ của mã thông báo",
     "required_field": "Trường bắt buộc",
+    "revealing": "Tiết lộ hình ảnh đã tạo",
     "safety_tolerance": "Dung sai an toàn",
     "safety_tolerance_tip": "Cao hơn = bộ lọc dễ dãi hơn; 0 là nghiêm ngặt nhất, 6 là dễ dãi nhất",
     "seed": "Hạt giống",
@@ -6104,7 +6194,8 @@
           "downloading": "Đang tải xuống…",
           "ready": "Sẵn sàng"
         },
-        "title": "Mô hình cục bộ"
+        "title": "Mô hình cục bộ",
+        "unsupported": "Nền tảng này không hỗ trợ mô hình cục bộ."
       },
       "notInstalled": "Chưa cài đặt",
       "openBinariesDir": "Open binaries directory",
@@ -6578,10 +6669,10 @@
       "user": "Người dùng"
     },
     "menuGroups": {
-      "automation": "Tự động hóa",
-      "capabilities": "Khả năng & Công cụ",
+      "automation": "Hiệu suất",
+      "capabilities": "Công cụ",
       "models": "Mô hình",
-      "personal": "Cá nhân",
+      "personal": "Tùy chọn",
       "quickAccess": "Truy cập nhanh",
       "system": "Hệ thống"
     },
@@ -7738,6 +7829,8 @@
   },
   "tab": {
     "close": "Đóng Tab",
+    "close_others": "Đóng các tab khác",
+    "close_to_right": "Đóng các tab bên phải",
     "move_to_first": "Di chuyển lên đầu",
     "new": "Thẻ Mới",
     "open_in_new_window": "Mở trong cửa sổ mới",

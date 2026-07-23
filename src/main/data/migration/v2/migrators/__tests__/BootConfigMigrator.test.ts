@@ -232,6 +232,46 @@ describe('BootConfigMigrator', () => {
     })
   })
 
+  describe('schema validation in prepare', () => {
+    it('skips a corrupt v1 value with a warning and still migrates valid items', async () => {
+      const migrator = await createMigrator()
+      const ctx = createMockContext({
+        // Wrong type: v1 stored a string where the schema requires a boolean.
+        redux: { settings: { disableHardwareAcceleration: 'yes' } },
+        legacyHomeConfig: { '/exe': '/data' }
+      })
+
+      const prepared = await migrator.prepare(ctx)
+      expect(prepared.success).toBe(true)
+      expect(prepared.warnings?.some((w) => w.includes('schema validation'))).toBe(true)
+
+      const executed = await migrator.execute()
+      expect(executed.success).toBe(true)
+
+      // The corrupt boolean must not be written; the valid record still is.
+      const hwCalls = mockBootConfigSet.mock.calls.filter(([key]) => key === 'app.disable_hardware_acceleration')
+      expect(hwCalls).toHaveLength(0)
+      expect(mockBootConfigSet).toHaveBeenCalledWith('app.user_data_path', { '/exe': '/data' })
+    })
+
+    it('skips a corrupt legacy user_data_path record', async () => {
+      const migrator = await createMigrator()
+      const ctx = createMockContext({
+        // v1 config.json is untrusted: a non-string value sneaks past the reader's type.
+        legacyHomeConfig: { '/exe': 123 } as unknown as Record<string, string>
+      })
+
+      const prepared = await migrator.prepare(ctx)
+      expect(prepared.success).toBe(true)
+      expect(prepared.warnings?.some((w) => w.includes('schema validation'))).toBe(true)
+
+      await migrator.execute()
+
+      const configFileCalls = mockBootConfigSet.mock.calls.filter(([key]) => key === 'app.user_data_path')
+      expect(configFileCalls).toHaveLength(0)
+    })
+  })
+
   describe('reset', () => {
     it('clears prepared items and skipped count between runs', async () => {
       const migrator = await createMigrator()

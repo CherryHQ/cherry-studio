@@ -1,4 +1,5 @@
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
+import { DefaultRendererPersistCache } from '@shared/data/cache/cacheSchemas'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { HTMLAttributes, PropsWithChildren, ReactNode, Ref } from 'react'
 import { useEffect, useState } from 'react'
@@ -63,7 +64,7 @@ type MotionDivProps = HTMLAttributes<HTMLDivElement> & {
   transition?: unknown
 }
 
-const getRequiredShellWidth = (paneWidth = RESOURCE_LIST_PANE_MIN_WIDTH) => paneWidth + CHAT_CENTER_MIN_USABLE_WIDTH
+const getRequiredShellWidth = (paneWidth = RESOURCE_LIST_PANE_DEFAULT_WIDTH) => paneWidth + CHAT_CENTER_MIN_USABLE_WIDTH
 
 vi.mock('motion/react', () => {
   return {
@@ -246,6 +247,23 @@ describe('ChatAppShell', () => {
     )
   })
 
+  it('uses the configured left pane default and minimum widths', () => {
+    expect(RESOURCE_LIST_PANE_DEFAULT_WIDTH).toBe(240)
+    expect(RESOURCE_LIST_PANE_MIN_WIDTH).toBe(200)
+    expect(DefaultRendererPersistCache['ui.chat.sidebar.width']).toBe(275)
+  })
+
+  it('clamps the left splitter Home key to the configured minimum', () => {
+    const { container } = render(<ChatAppShell pane={<aside>topics</aside>} paneOpen main={<div />} />)
+    const handle = container.querySelector('[data-resource-list-pane-resize-handle]')
+
+    if (!handle) throw new Error('Expected resource list pane resize handle')
+
+    fireEvent.keyDown(handle, { key: 'Home' })
+
+    expect(persistCacheMock.setWidth).toHaveBeenCalledWith(RESOURCE_LIST_PANE_MIN_WIDTH)
+  })
+
   it('keeps a detached conversation navbar inside the center beside the resource pane', () => {
     const { container } = render(
       <WindowFrameProvider value={{ mode: 'window' }}>
@@ -352,7 +370,7 @@ describe('ChatAppShell', () => {
     vi.spyOn(pane, 'getBoundingClientRect').mockReturnValue(new DOMRect(100, 0, RESOURCE_LIST_PANE_MIN_WIDTH, 500))
 
     fireEvent.mouseDown(handle, { clientX: 340 })
-    fireEvent.mouseMove(document, { clientX: 339 })
+    fireEvent.mouseMove(document, { clientX: 100 + RESOURCE_LIST_PANE_MIN_WIDTH - 1 })
 
     expect(persistCacheMock.setWidth).toHaveBeenCalledWith(RESOURCE_LIST_PANE_MIN_WIDTH)
     expect(onPaneCollapse).not.toHaveBeenCalled()
@@ -656,6 +674,19 @@ describe('ChatAppShell', () => {
     fireEvent.resize(window)
 
     expect(onPaneCollapse).not.toHaveBeenCalled()
+  })
+
+  it('keeps the resize handle outside the clipped pane content so it does not cover the scrollbar', () => {
+    const { container } = render(<ChatAppShell pane={<aside>topics</aside>} paneOpen main={<div />} />)
+    const pane = container.querySelector('[data-resource-list-pane]')
+    const paneContent = container.querySelector('[data-resource-list-pane-content]')
+    const handle = container.querySelector('[data-resource-list-pane-resize-handle]')
+
+    expect(pane).toHaveClass('overflow-visible')
+    expect(paneContent).toHaveClass('overflow-hidden')
+    expect(handle).toHaveClass('left-full', 'w-2')
+    expect(handle).not.toHaveClass('right-0')
+    expect(handle?.firstElementChild).toHaveClass('left-0')
   })
 
   it('keeps the resize handle below history overlays', () => {

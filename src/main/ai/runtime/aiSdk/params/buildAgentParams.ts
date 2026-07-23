@@ -18,9 +18,10 @@ import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import { applyDeferExposition } from '../../../tools/adapters/aiSdk/exposition/applyDeferExposition'
 import { syncMcpToolsToRegistry } from '../../../tools/adapters/aiSdk/mcp/mcpTools'
 import { resolveAssistantMcpToolIds } from '../../../tools/adapters/aiSdk/mcp/resolveAssistantMcpTools'
-import { registry } from '../../../tools/adapters/aiSdk/registry'
+import { registry, ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
 import { createAiRepair } from '../../../tools/adapters/aiSdk/repair'
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
+import { resolveConfiguredPaintingModel } from '../../../tools/painting'
 import type { AiBaseRequest, CallOverrides } from '../../../types'
 import { filterStandardParams } from '../../../utils/modelParameters'
 import {
@@ -29,6 +30,7 @@ import {
   mergeCustomProviderParameters
 } from '../../../utils/options'
 import { getCustomParameters } from '../../../utils/reasoning'
+import { createToolCallLimitStopCondition } from '../loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentOptions } from '../loop/types'
 import { assembleSystemPrompt } from './assembleSystemPrompt'
 import { buildTelemetry } from './buildTelemetry'
@@ -188,8 +190,10 @@ export async function resolveTools(
   }
 
   const hasAnyKnowledgeBase = resolveHasAnyKnowledgeBase()
+  const paintingModel = resolveConfiguredPaintingModel()
   const activeEntries = registry.selectActive({
     assistant,
+    paintingModel: paintingModel ?? undefined,
     mcpToolIds,
     hasFileAttachments,
     hasAnyKnowledgeBase,
@@ -210,7 +214,10 @@ export async function resolveTools(
       ...clientTools
     }
   }
-  const exposed = applyDeferExposition(tools, registry, model.contextWindow)
+  // Meta-tools must see request-materialized entries rather than the process-wide static entries.
+  const requestRegistry = new ToolRegistry()
+  for (const entry of activeEntries) requestRegistry.register(entry)
+  const exposed = applyDeferExposition(tools, requestRegistry, model.contextWindow)
   return { tools: exposed.tools, deferredEntries: exposed.deferredEntries, mcpToolIds }
 }
 
@@ -270,7 +277,8 @@ function buildAgentOptions(scope: RequestScope, featureStopConditions: StopCondi
   providerOptions = overridden.providerOptions as typeof providerOptions
 
   const { headers, maxRetries } = request.requestOptions ?? {}
-  const baseStopWhen = assistant ? resolveStopWhenForAssistant(assistant) : undefined
+  const toolCallLimit = resolveToolCallLimit(assistant)
+  const baseStopWhen = createToolCallLimitStopCondition(toolCallLimit)
   const stopWhen = composeStopWhen(baseStopWhen, featureStopConditions)
   const telemetry = buildTelemetry(scope)
 
@@ -343,13 +351,14 @@ export function composeStopWhen(
   return [base, ...featureStopConditions]
 }
 
-function resolveStopWhenForAssistant(assistant: Assistant): ReturnType<typeof stepCountIs> {
+export function resolveToolCallLimit(assistant: Assistant | undefined): number {
+  if (!assistant) return SDK_DEFAULT_STEP_COUNT
+
   const enableMaxToolCalls = assistant.settings?.enableMaxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls
   if (!enableMaxToolCalls) {
-    return stepCountIs(DEFAULT_ASSISTANT_SETTINGS.maxToolCalls)
+    return DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
   }
   const raw = assistant.settings?.maxToolCalls
   const valid = raw !== undefined && raw >= MIN_TOOL_CALLS && raw <= MAX_TOOL_CALLS
-  const count = valid ? raw : DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
-  return stepCountIs(count)
+  return valid ? raw : DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
 }
