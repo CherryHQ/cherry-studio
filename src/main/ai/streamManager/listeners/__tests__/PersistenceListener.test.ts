@@ -40,6 +40,21 @@ function makeFinalMessage(partsText = 'hello'): CherryUIMessage {
   } as unknown as CherryUIMessage
 }
 
+function makeStreamingReasoningMessage(startedAt: number): CherryUIMessage {
+  return {
+    id: 'reasoning-message',
+    role: 'assistant',
+    parts: [
+      {
+        type: 'reasoning',
+        text: 'thinking...',
+        state: 'streaming',
+        providerMetadata: { cherry: { startedAt } }
+      }
+    ]
+  } as unknown as CherryUIMessage
+}
+
 function makeListener(modelId?: UniqueModelId) {
   return new PersistenceListener({
     topicId: 'abc',
@@ -132,7 +147,7 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     })
   })
 
-  it('projects transport+semantic timings onto timeFirstTokenMs / timeCompletionMs', async () => {
+  it('projects transport timings and stabilized reasoning-part duration into stats', async () => {
     const listener = makeListener()
 
     // Semantic timings (firstTextAt / reasoning-*) are OWNED by the
@@ -150,7 +165,21 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     const finalMessage = {
       id: 'msg-z',
       role: 'assistant',
-      parts: [{ type: 'text', text: 'hi' }]
+      parts: [
+        {
+          type: 'reasoning',
+          text: 'first thought',
+          state: 'done',
+          providerMetadata: { cherry: { thinkingMs: 75 } }
+        },
+        {
+          type: 'reasoning',
+          text: 'second thought',
+          state: 'done',
+          providerMetadata: { cherry: { thinkingMs: 100 } }
+        },
+        { type: 'text', text: 'hi' }
+      ]
     } as unknown as CherryUIMessage
 
     // Transport timings come from the manager's execution loop and only
@@ -163,15 +192,13 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
 
     const payload = appendMessageMock.mock.calls[0][1]
     expect(payload.stats).toEqual({
+      // Per-part timing is stable and does not use the semantic reasoning wall-clock.
+      timeThinkingMs: 175,
       // Math.round: 1250.4 - 1000 = 250.4 → 250
       timeFirstTokenMs: 250,
       // Math.round: 2500.9 - 1000 = 1500.9 → 1501
       timeCompletionMs: 1501
     })
-    // `timeThinkingMs` is intentionally not projected: wall-clock reasoning
-    // may include interleaved tool execution. See the TODO(message-stats-redesign)
-    // rework in src/shared/data/types/message.ts.
-    expect(payload.stats).not.toHaveProperty('timeThinkingMs')
   })
 
   it('merges token metadata and timings into one stats record', async () => {
@@ -322,6 +349,25 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     expect(appendMessageMock.mock.calls[0][1].status).toBe('paused')
   })
 
+  it('terminalizes interrupted reasoning before composing paused stats', async () => {
+    const listener = makeListener()
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(7000)
+
+    await listener.onPaused({
+      finalMessage: makeStreamingReasoningMessage(2000),
+      status: 'paused'
+    })
+    nowSpy.mockRestore()
+
+    const payload = appendMessageMock.mock.calls[0][1]
+    expect(payload.data.parts[0]).toMatchObject({
+      type: 'reasoning',
+      state: 'done',
+      providerMetadata: { cherry: { startedAt: 2000, thinkingMs: 5000 } }
+    })
+    expect(payload.stats).toEqual({ timeThinkingMs: 5000 })
+  })
+
   it('onError folds the error into finalMessage.parts and persists as status=error', async () => {
     const listener = makeListener()
 
@@ -342,6 +388,27 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     const parts = payload.data.parts as Array<{ type: string }>
     expect(parts.some((p) => p.type === 'text')).toBe(true)
     expect(parts.some((p) => p.type === 'data-error')).toBe(true)
+  })
+
+  it('terminalizes interrupted reasoning before composing error stats', async () => {
+    const listener = makeListener()
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(9000)
+    const err: SerializedError = { name: 'Error', message: 'boom', stack: null }
+
+    await listener.onError({
+      status: 'error',
+      error: err,
+      finalMessage: makeStreamingReasoningMessage(3000)
+    })
+    nowSpy.mockRestore()
+
+    const payload = appendMessageMock.mock.calls[0][1]
+    expect(payload.data.parts[0]).toMatchObject({
+      type: 'reasoning',
+      state: 'done',
+      providerMetadata: { cherry: { startedAt: 3000, thinkingMs: 6000 } }
+    })
+    expect(payload.stats).toEqual({ timeThinkingMs: 6000 })
   })
 
   it('onError with no accumulated content still persists a single error part', async () => {

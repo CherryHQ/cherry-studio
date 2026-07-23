@@ -129,8 +129,8 @@ describe('MessageHeader', () => {
     expect(container.querySelector('.message-body-column')).toBeNull()
   })
 
-  it('shows the snapshot assistant name as primary and the model as secondary', () => {
-    const { getByText } = render(
+  it('shows the snapshot assistant name without repeating the model beside it', () => {
+    const { getByText, queryByText } = render(
       <MessageHeader
         message={createMessage('assistant', {
           model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' },
@@ -144,7 +144,7 @@ describe('MessageHeader', () => {
       />
     )
     expect(getByText('My Assistant')).toBeTruthy()
-    expect(getByText('GPT-4')).toBeTruthy()
+    expect(queryByText('GPT-4')).toBeNull()
   })
 
   it('shows the snapshot agent name as primary', () => {

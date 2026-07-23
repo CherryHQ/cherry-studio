@@ -6,6 +6,7 @@ import { isSystemProviderId } from '@renderer/types/provider'
 import type {
   CreateProviderDto,
   ListProvidersQuery,
+  ProviderPresetField,
   UpdateApiKeyDto,
   UpdateProviderDto
 } from '@shared/data/api/schemas/providers'
@@ -251,6 +252,15 @@ export function useProviderAuthConfig(providerId: string) {
 
 export function useProviderApiKeys(providerId: string) {
   return useQuery('/providers/:providerId/api-keys', { params: { providerId } })
+}
+
+/** Read a sparse projection of the provider's effective registry preset. */
+export function useProviderPreset(providerId: string | null | undefined, fields: readonly ProviderPresetField[]) {
+  return useQuery('/providers/:providerId/preset', {
+    params: { providerId: providerId ?? '' },
+    query: { fields: [...fields] },
+    enabled: !!providerId
+  })
 }
 
 /**
