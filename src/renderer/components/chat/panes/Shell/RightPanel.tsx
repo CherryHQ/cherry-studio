@@ -34,6 +34,8 @@ export interface RightPanelInstance {
   instanceKey: string
   title: ReactNode
   readiness: RightPanelReadiness
+  /** Shell renders the default header unless the panel composes its own header. */
+  headerMode?: 'shell' | 'content'
   /** Whether this panel may enter maximized presentation. */
   canMaximize?: boolean
 }
@@ -358,7 +360,7 @@ export function useOptionalRightPanelActions(): RightPanelActions | undefined {
   return use(RightPanelActionsContext) ?? undefined
 }
 
-function RightPanelHeader({ canMaximize = false, title }: { canMaximize?: boolean; title?: ReactNode }) {
+export function RightPanelHeaderControls({ canMaximize = false }: { canMaximize?: boolean }) {
   const state = useRightPanelState()
   const actions = useRightPanelControllerActions()
   const { t } = useTranslation()
@@ -381,6 +383,21 @@ function RightPanelHeader({ canMaximize = false, title }: { canMaximize?: boolea
     ) : null
 
   return (
+    <div className="flex shrink-0 items-center gap-0.5 [-webkit-app-region:no-drag]">
+      {maximizeButton}
+      <Tooltip content={closeLabel} delay={800}>
+        <NavbarIcon tone="conversation" aria-label={closeLabel} onClick={actions.close}>
+          <RightSidebarCollapseIcon />
+        </NavbarIcon>
+      </Tooltip>
+    </div>
+  )
+}
+
+function RightPanelHeader({ canMaximize = false, title }: { canMaximize?: boolean; title?: ReactNode }) {
+  const state = useRightPanelState()
+
+  return (
     <div
       data-testid="shell-tab-list"
       className={cn(
@@ -392,13 +409,31 @@ function RightPanelHeader({ canMaximize = false, title }: { canMaximize?: boolea
         className="min-w-0 flex-1 select-none truncate px-1 font-medium text-foreground text-sm">
         {title}
       </div>
-      <div className="flex shrink-0 items-center gap-0.5 [-webkit-app-region:no-drag]">
-        {maximizeButton}
-        <Tooltip content={closeLabel} delay={800}>
-          <NavbarIcon tone="conversation" aria-label={closeLabel} onClick={actions.close}>
-            <RightSidebarCollapseIcon />
-          </NavbarIcon>
-        </Tooltip>
+      <RightPanelHeaderControls canMaximize={canMaximize} />
+    </div>
+  )
+}
+
+function RightPanelEntry({
+  active,
+  entry,
+  scope
+}: {
+  active: boolean
+  entry: ResolvedRightPanelEntry
+  scope: unknown
+}) {
+  const [renderFailed, setRenderFailed] = useState(false)
+  const Panel = entry.component
+  const showFallbackHeader = renderFailed && entry.headerMode === 'content'
+
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      {showFallbackHeader ? <RightPanelHeader canMaximize={entry.canMaximize} title={entry.title} /> : null}
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <ErrorBoundary onError={() => setRenderFailed(true)}>
+          <Panel active={active} panelId={entry.id} scope={scope} />
+        </ErrorBoundary>
       </div>
     </div>
   )
@@ -420,18 +455,15 @@ export function RightPanel() {
 
   return (
     <div className="flex h-full flex-col gap-0 overflow-hidden text-card-foreground">
-      <RightPanelHeader canMaximize={activeEntry?.canMaximize} title={activeEntry?.title} />
+      {activeEntry?.headerMode === 'content' ? null : (
+        <RightPanelHeader canMaximize={activeEntry?.canMaximize} title={activeEntry?.title} />
+      )}
       <div className="relative min-h-0 flex-1 overflow-hidden">
         {mountedEntries.map((entry) => {
-          const Panel = entry.component
           const active = state.isActive(entry.id)
           return (
             <Activity key={`${entry.id}:${entry.instanceKey}`} mode={active ? 'visible' : 'hidden'}>
-              <div className="h-full min-h-0 overflow-hidden">
-                <ErrorBoundary>
-                  <Panel active={active} panelId={entry.id} scope={context.scope} />
-                </ErrorBoundary>
-              </div>
+              <RightPanelEntry active={active} entry={entry} scope={context.scope} />
             </Activity>
           )
         })}
