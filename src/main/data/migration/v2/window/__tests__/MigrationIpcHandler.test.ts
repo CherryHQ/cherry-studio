@@ -16,6 +16,7 @@ const engineMock = vi.hoisted(() => ({
   getLastError: vi.fn()
 }))
 const fsMock = vi.hoisted(() => ({
+  access: vi.fn(),
   appendFile: vi.fn(),
   mkdir: vi.fn(),
   writeFile: vi.fn()
@@ -99,6 +100,20 @@ describe('MigrationIpcHandler', () => {
   })
 
   describe('diagnostic bundle actions', () => {
+    beforeEach(() => {
+      invoke(MigrationIpcChannels.ReportError, 'diagnostic test failure')
+    })
+
+    it('rejects save requests outside the error and version-incompatible stages', async () => {
+      await invoke(MigrationIpcChannels.Retry)
+
+      await expect(invoke(MigrationIpcChannels.SaveDiagnosticBundle, savePayload)).rejects.toThrow(
+        'Invalid migration diagnostic stage.'
+      )
+      expect(dialog.showSaveDialog).not.toHaveBeenCalled()
+      expect(diagnosticMocks.saveBundle).not.toHaveBeenCalled()
+    })
+
     it('returns canceled without invoking the builder', async () => {
       await expect(invoke(MigrationIpcChannels.SaveDiagnosticBundle, savePayload)).resolves.toEqual({
         status: 'canceled'
@@ -166,6 +181,28 @@ describe('MigrationIpcHandler', () => {
       expect(diagnosticModuleState.loadCount).toBe(0)
     })
 
+    it('captures the failure stage before waiting for the save dialog', async () => {
+      let resolveDialog: (value: { canceled: boolean; filePath: string }) => void = () => undefined
+      vi.mocked(dialog.showSaveDialog).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveDialog = resolve
+          }) as never
+      )
+
+      const savePromise = invoke(MigrationIpcChannels.SaveDiagnosticBundle, savePayload)
+      await vi.waitFor(() => expect(dialog.showSaveDialog).toHaveBeenCalledOnce())
+      await invoke(MigrationIpcChannels.Retry)
+      resolveDialog({ canceled: false, filePath: '/chosen/diagnostics.zip' })
+      await savePromise
+
+      expect(diagnosticMocks.saveBundle).toHaveBeenCalledWith({
+        destination: '/chosen/diagnostics.zip',
+        stage: 'error',
+        logDate: '2026-07-23'
+      })
+    })
+
     it('passes the dialog-selected path without adding a custom extension rule', async () => {
       choosePath('/chosen/diagnostics.data')
 
@@ -173,7 +210,7 @@ describe('MigrationIpcHandler', () => {
 
       expect(diagnosticMocks.saveBundle).toHaveBeenCalledWith({
         destination: '/chosen/diagnostics.data',
-        stage: 'introduction',
+        stage: 'error',
         logDate: '2026-07-23'
       })
     })
@@ -223,6 +260,16 @@ describe('MigrationIpcHandler', () => {
 
       await expect(invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)).resolves.toBe(true)
       expect(shell.showItemInFolder).toHaveBeenCalledWith('/chosen/diagnostics.zip')
+    })
+
+    it('returns false when the saved bundle no longer exists', async () => {
+      choosePath('/chosen/diagnostics.zip')
+      await invoke(MigrationIpcChannels.SaveDiagnosticBundle, savePayload)
+      fsMock.access.mockRejectedValueOnce(new Error('ENOENT'))
+
+      await expect(invoke(MigrationIpcChannels.ShowDiagnosticBundleInFolder)).resolves.toBe(false)
+      expect(fsMock.access).toHaveBeenCalledWith('/chosen/diagnostics.zip')
+      expect(shell.showItemInFolder).not.toHaveBeenCalled()
     })
 
     it('returns false when no successful bundle has been saved', async () => {

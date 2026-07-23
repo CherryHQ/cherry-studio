@@ -6,6 +6,7 @@ import type { VersionBlockReason } from '@data/migration/v2/core/versionPolicy'
 import { loggerService } from '@logger'
 import { validateSender } from '@main/core/security/validateSender'
 import {
+  type MigrationDiagnosticSavePayload,
   type MigrationDiagnosticSaveResult,
   type MigrationExportFileWriteMode,
   MigrationIpcChannels,
@@ -61,7 +62,7 @@ function isValidLocalDate(value: unknown): boolean {
   return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
 }
 
-const MigrationDiagnosticSavePayloadSchema = z.strictObject({
+const MigrationDiagnosticSavePayloadSchema: z.ZodType<MigrationDiagnosticSavePayload> = z.strictObject({
   dialogTitle: z.string().trim().min(1).max(120),
   logDate: z.string().refine(isValidLocalDate)
 })
@@ -144,6 +145,10 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
       const parsedPayload = MigrationDiagnosticSavePayloadSchema.safeParse(payload)
       if (!parsedPayload.success) throw new Error('Invalid migration diagnostic save payload.')
       const { dialogTitle, logDate } = parsedPayload.data
+      const stage = currentProgress.stage
+      if (stage !== 'error' && stage !== 'version_incompatible') {
+        throw new Error('Invalid migration diagnostic stage.')
+      }
 
       const { canceled, filePath } = await dialog.showSaveDialog({
         title: dialogTitle,
@@ -157,7 +162,7 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
         const { saveMigrationDiagnosticBundle } = await import('../migrationDiagnosticBundle')
         const logs = await saveMigrationDiagnosticBundle({
           destination: filePath,
-          stage: currentProgress.stage,
+          stage,
           logDate
         })
         if (!logs) return { status: 'failed' }
@@ -173,8 +178,14 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   ipcMain.handle(MigrationIpcChannels.ShowDiagnosticBundleInFolder, async (event: IpcMainInvokeEvent) => {
     assertMigrationDiagnosticSender(event)
     if (!lastSavedDiagnosticBundlePath) return false
-    shell.showItemInFolder(lastSavedDiagnosticBundlePath)
-    return true
+    try {
+      await fs.access(lastSavedDiagnosticBundlePath)
+      shell.showItemInFolder(lastSavedDiagnosticBundlePath)
+      return true
+    } catch (error) {
+      logger.warn('Failed to show migration diagnostic bundle in folder', error as Error)
+      return false
+    }
   })
 
   // Start the migration process

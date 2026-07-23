@@ -4,6 +4,7 @@
 
 import { loggerService } from '@logger'
 import {
+  type MigrationDiagnosticSavePayload,
   type MigrationDiagnosticSaveResult,
   MigrationIpcChannels,
   type MigrationProgress,
@@ -132,10 +133,11 @@ export function useMigrationActions() {
 
   const saveDiagnostics = useCallback(
     (dialogTitle: string, logDate: string): Promise<MigrationDiagnosticSaveResult> => {
-      return window.electron.ipcRenderer.invoke(MigrationIpcChannels.SaveDiagnosticBundle, {
+      const payload: MigrationDiagnosticSavePayload = {
         dialogTitle,
         logDate
-      })
+      }
+      return window.electron.ipcRenderer.invoke(MigrationIpcChannels.SaveDiagnosticBundle, payload)
     },
     []
   )

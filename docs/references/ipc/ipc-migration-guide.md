@@ -104,7 +104,7 @@ useIpcOn('oauth.deep_link_result', (r) => (r.ok ? saveKeys(r.apiKeys) : showErro
 
 ## Escape Hatch — When a Channel May Stay Out
 
-**Default: every R→M channel goes through IpcApi.** The escape hatch is a rare, last-resort exception — today exactly **one** channel in the whole codebase clears the bar (`Tab_MoveWindow`). It is not a "high-frequency optimization" to reach for; it is opting out of the typed, gated, audited surface, and must be earned.
+**Default: every R→M channel goes through IpcApi.** The post-bootstrap performance escape hatch is a rare, last-resort exception — today exactly **one** channel clears that bar (`Tab_MoveWindow`). Pre-bootstrap lifecycle exceptions, where `IpcApiService` is not yet available, are listed separately under [Not In Scope](#not-in-scope-for-ipcapi). Neither category is a "high-frequency optimization" to reach for; both opt out of the typed, gated, audited surface and must be earned.
 
 Two-step test — direction, then frequency:
 
@@ -139,6 +139,7 @@ Does this R→M channel go through IpcApi?
 | Item | Stays in |
 |---|---|
 | `Tab_MoveWindow` (per-frame R→M drag; native `ipcMain.on` + own `validateSender`) | `SubWindowService` (escape hatch) |
+| `MigrationIpcChannels.SaveDiagnosticBundle` / `ShowDiagnosticBundleInFolder` (pre-bootstrap R→M; native `ipcMain.handle` + own `validateSender`; retire with the v1→v2 migration window) | `MigrationIpcHandler` (`IpcApiService` is unavailable before lifecycle bootstrap) |
 | `shell.openExternal`, `webUtils.getPathForFile` (preload calls Electron directly, not IPC) | `window.electron` |
 | `preference.onChanged`, `dataApi.subscribe` | their own subsystems |
 | `Cache_Sync` "exclude self" (uses numeric `BrowserWindow.id`) | Cache subsystem |
