@@ -1196,9 +1196,23 @@ export class BinaryManager extends BaseService {
           persisted = true
 
           const snapshot = (await this.getToolSnapshots([definition.name]))[definition.name]
-          const status = snapshot.application?.status
+          const applicationFact = snapshot.application
+          const status = applicationFact?.status
           const source = snapshot.availability.source
-          if (status === 'applied') return { ok: true }
+          if (applicationFact?.status === 'applied') {
+            // `applied` proves the recipe's tool is active, not that the active
+            // version satisfies this definition — adding node@20 over an active
+            // node 22 must run the targeted install, not silently keep 22. Only a
+            // provably matching version short-circuits; anything unprovable (no
+            // active version, non-semver request) falls through to the apply
+            // path, whose runtime-adoption rule makes the same conservative call.
+            const requested = definition.requestedVersion ? semverValid(definition.requestedVersion) : null
+            const matchesRequested =
+              requested !== null &&
+              applicationFact.version !== undefined &&
+              semverValid(applicationFact.version) === requested
+            if (!definition.requestedVersion || matchesRequested) return { ok: true }
+          }
           if (status === 'absent' && (source === 'bundled' || source === 'system')) {
             logger.info('Custom tool already available from an external source; no managed copy', {
               name: definition.name,
@@ -1213,8 +1227,9 @@ export class BinaryManager extends BaseService {
             const reason = snapshot.application?.status === 'unknown' ? snapshot.application.reason : 'query_failed'
             return { ok: false, error: `Cannot determine ${definition.name} state: ${reason}` }
           }
-          // absent+none or broken → apply the exact recipe. Concrete pin ignored:
-          // the custom definition is never rewritten with a resolved version.
+          // absent+none, broken, or applied at a mismatched version → apply the
+          // exact recipe. The custom definition is never rewritten with a
+          // resolved version.
           try {
             const definitions = await this.appliedRuntimeDefinitions(this.getCustomDefinitions())
             // Persistence already invalidated earlier batches; bump again before

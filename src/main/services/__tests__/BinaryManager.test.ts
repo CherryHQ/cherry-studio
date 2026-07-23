@@ -2079,6 +2079,53 @@ describe('BinaryManager', () => {
       expect(operations()).toEqual({})
     })
 
+    it('runs the targeted install when the tool is applied at a version that mismatches the request', async () => {
+      const service = makeService()
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        // Snapshot listing: 1.0.0 is active; post-install resolution sees 2.0.0.
+        if (args[0] === 'ls' && args.length === 2)
+          return { stdout: JSON.stringify({ 'npm:mytool': [{ version: '1.0.0', active: true }] }), stderr: '' }
+        if (args[0] === 'ls')
+          return {
+            stdout: JSON.stringify({ 'npm:mytool': [{ version: '1.0.0' }, { version: '2.0.0', active: true }] }),
+            stderr: ''
+          }
+        if (args[0] === 'which') return { stdout: '/mock/mise/shims/mytool\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      await service.addCustomTool({ name: 'mytool', tool: 'npm:mytool', requestedVersion: '2.0.0' })
+
+      // `applied` at 1.0.0 must not swallow a 2.0.0 request: the definition is
+      // persisted AND the targeted backend install runs.
+      expect(manifestRef.value).toEqual([{ name: 'mytool', tool: 'npm:mytool', requestedVersion: '2.0.0' }])
+      expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).toContainEqual([
+        'use',
+        '-g',
+        'node@22',
+        'npm:mytool@2.0.0'
+      ])
+      expect(operations()).toEqual({})
+    })
+
+    it('short-circuits without backend work when the applied version already satisfies the request', async () => {
+      const service = makeService()
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls')
+          return { stdout: JSON.stringify({ 'npm:mytool': [{ version: '2.0.0', active: true }] }), stderr: '' }
+        if (args[0] === 'which') return { stdout: '/mock/mise/shims/mytool\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      await service.addCustomTool({ name: 'mytool', tool: 'npm:mytool', requestedVersion: '2.0.0' })
+
+      expect(manifestRef.value).toEqual([{ name: 'mytool', tool: 'npm:mytool', requestedVersion: '2.0.0' }])
+      expect(
+        mockExecFileAsync.mock.calls.map((call: any[]) => call[1]).some((args: string[]) => args[0] === 'use')
+      ).toBe(false)
+      expect(operations()).toEqual({})
+    })
+
     it('allows an idempotent retry of the identical definition', async () => {
       const service = makeService()
       manifestRef.value = [{ name: 'mytool', tool: 'npm:mytool' }]
