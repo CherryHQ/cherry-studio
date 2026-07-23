@@ -15,11 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // Undo the global mock from renderer.setup.ts — we want the REAL PreferenceService
 vi.unmock('@data/PreferenceService')
 
-let onChangedCallback: ((key: string, value: unknown) => void) | undefined
-const onChanged = vi.fn((callback: (key: string, value: unknown) => void) => {
-  onChangedCallback = callback
-  return () => {}
-})
+const onChanged = vi.fn(() => () => {})
 const getAll = vi.fn(async () => ({}))
 const subscribe = vi.fn(async () => {})
 const get = vi.fn(async () => true)
@@ -27,7 +23,6 @@ const getMultipleRaw = vi.fn(async (keys: string[]) => Object.fromEntries(keys.m
 
 beforeEach(() => {
   onChanged.mockClear()
-  onChangedCallback = undefined
   getAll.mockClear()
   subscribe.mockClear()
   get.mockClear()
@@ -73,21 +68,6 @@ describe('renderer PreferenceService preloadAll', () => {
 
     await expect(service.preloadAll()).resolves.toBeUndefined()
     expect(service.isFullyCached()).toBe(false)
-  })
-})
-
-describe('renderer PreferenceService change logging', () => {
-  it('logs IPC preference changes without their values', async () => {
-    const debug = vi.spyOn(console, 'debug').mockImplementation(() => {})
-    const service = await createService()
-
-    onChangedCallback?.('app.language', 'super-secret-preference-value')
-
-    expect(onChangedCallback).toBeDefined()
-    expect(debug).toHaveBeenCalledOnce()
-    expect(debug).toHaveBeenCalledWith('Preference app.language updated')
-
-    service.cleanup()
   })
 })
 

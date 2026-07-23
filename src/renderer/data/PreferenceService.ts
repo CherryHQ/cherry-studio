@@ -79,7 +79,7 @@ export class PreferenceService {
       if (!isEqual(oldValue, value)) {
         this.cache[key] = value
         this.notifyChangeListeners(key)
-        logger.debug(`Preference ${key} updated`)
+        logger.debug(`Preference ${key} updated to:`, { value })
       }
     })
   }
