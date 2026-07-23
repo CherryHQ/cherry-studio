@@ -486,6 +486,24 @@ Routing non-data operations through DataApi causes concrete problems:
 - **Layered architecture becomes hollow**: Handler → Service → SQLite is designed for data flow. Without a database layer, the Service layer becomes a pass-through wrapper with no purpose.
 - **Test patterns don't match**: DataApi tests mock database operations (Drizzle queries, transactions). Side-effectful operations need entirely different test strategies (mocking external services, verifying calls).
 
+### Sanctioned Exception: Post-Commit Read-Model Change Notification
+
+There is exactly **one** sanctioned exception to the "no non-data side effects" hard rule — the DataApi data change notification capability (`notifyDataApiDataChange` in `src/main/data/dataApiDataChange.ts`, issue #17144):
+
+> A data service may publish a read-model observation signal after data is successfully committed, for cross-window data convergence.
+
+The signal is a discriminated-union effect (`endpoint` + `kind` + `dimension` + `entityIds`) broadcast to every window; renderers re-GET or reconcile. It lives **outside** the portable `api/` framework (which reserves an HttpAdapter and must stay Electron-free), so DataApi handlers themselves never emit it.
+
+Fences (all hard constraints):
+
+- Publish only **after commit**, never inside a transaction (listeners must not run under the write lock).
+- **Not part of write success** — notification failure must not roll back or affect committed data.
+- Describes **endpoint/read-model changes only**; must **not** carry entity rows, field diffs, SQL predicates, or business commands.
+- Must **not** perform file, network, process, window-control, or external-service work.
+- Renderer consumers may use it **only** for fact refetching and local reconciliation.
+
+This is **not** an escape hatch for general side effects in DataApi. Anything outside these fences is still a boundary violation per the rules above.
+
 ## Zod Schema & DTO Conventions
 
 Four rules govern every schema file under `src/shared/data/api/schemas/`. Follow them verbatim.

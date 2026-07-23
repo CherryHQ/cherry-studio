@@ -15,7 +15,7 @@
  * - Type-safe requests with full TypeScript inference
  * - Automatic retry with exponential backoff (network, timeout, 500/503 errors)
  * - Request timeout management (3s default)
- * - Subscription management (real-time updates)
+ * - Read-model data-change notification fan-out (see `onDataChanged`)
  *
  * Architecture:
  * React Component → DataApiService (this file) → IPC → Main Process
@@ -35,12 +35,11 @@ import { DataApiError, DataApiErrorFactory, ErrorCode, toDataApiError } from '@s
 import type { BodyForPath, QueryParamsForPath, ResponseForPath } from '@shared/data/api/paths'
 import type { ApiClient, ConcreteApiPaths } from '@shared/data/api/types'
 import type {
+  DataApiDataChangeEffect,
   DataRequest,
   DataResponse,
-  HttpMethod,
-  SubscriptionCallback,
-  SubscriptionEvent,
-  SubscriptionOptions
+  GetTemplateApiPaths,
+  HttpMethod
 } from '@shared/data/api/types'
 
 import { DataApiDevtools } from './utils/dataApiDevtools'
@@ -68,14 +67,19 @@ interface RetryOptions {
 export class DataApiService implements ApiClient {
   private requestId = 0
 
-  // Subscriptions
-  private subscriptions = new Map<
-    string,
-    {
-      callback: SubscriptionCallback
-      options: SubscriptionOptions
-    }
-  >()
+  /**
+   * Read-model change fan-out: exact endpoint → set of listeners. The only
+   * state this facility keeps. Signals are edge-triggered — endpoints with no
+   * listeners drop their entries.
+   *
+   * Residual race (accepted product contract, issue #17144 section 8): an
+   * external commit can land between a consumer's first GET database read and
+   * its subscription registration, with no subsequent write; that
+   * notification is missed. Recovery is the next relevant change on that
+   * endpoint, a consumer remount, or any active query. No sequence numbers,
+   * replay, or catch-up handshake are introduced.
+   */
+  private dataChangeListeners = new Map<GetTemplateApiPaths, Set<(effects: DataApiDataChangeEffect[]) => void>>()
 
   // Default retry options
   // Retryability is determined by DataApiError.isRetryable
@@ -86,7 +90,13 @@ export class DataApiService implements ApiClient {
   }
 
   constructor() {
-    // Initialization completed
+    // Attach the fixed-channel IPC listener at construction — NOT lazily on
+    // first subscribe. Because any component using data hooks imports
+    // `dataApiService` first, the module import graph guarantees this listener
+    // is registered before any query mounts ("the signal reaches the window":
+    // necessary, not sufficient — see the residual race above). The optional
+    // chaining keeps non-preload/test environments from throwing here.
+    window.api?.dataApi?.onDataChanged?.((effects) => this.dispatchDataChange(effects))
   }
 
   /**
@@ -342,33 +352,77 @@ export class DataApiService implements ApiClient {
   }
 
   /**
-   * Subscribe to real-time updates
+   * Subscribe to read-model change notifications for one or more endpoints.
+   *
+   * Liberal input, strict output: `endpoints` accepts a single endpoint or an
+   * array (normalized once here); the `listener` always receives a
+   * `DataApiDataChangeEffect[]`, with a single effect delivered as `[effect]`.
+   *
+   * Batch semantics: within one incoming notification, all entries matching any
+   * of this subscriber's endpoints merge into ONE `listener` call (one business
+   * operation = one convergence action). There is no cross-notification
+   * aggregation — that is consumer policy.
+   *
+   * Matching is exact by `effect.endpoint` — no prefix or wildcard. This
+   * facility only routes by target identity; everything below endpoint
+   * (dimension matching, entityIds filtering, revalidate/rebuild/ignore, echo
+   * idempotency) is the consumer's policy.
+   *
+   * @returns Unsubscribe function.
    */
-  subscribe<T>(options: SubscriptionOptions, callback: SubscriptionCallback<T>): () => void {
-    if (!window.api.dataApi?.subscribe) {
-      throw new Error('Real-time subscriptions not supported')
+  onDataChanged(
+    endpoints: GetTemplateApiPaths | GetTemplateApiPaths[],
+    listener: (effects: DataApiDataChangeEffect[]) => void
+  ): () => void {
+    const list = Array.isArray(endpoints) ? endpoints : [endpoints]
+
+    for (const endpoint of list) {
+      let listeners = this.dataChangeListeners.get(endpoint)
+      if (!listeners) {
+        listeners = new Set()
+        this.dataChangeListeners.set(endpoint, listeners)
+      }
+      listeners.add(listener)
     }
 
-    const subscriptionId = `sub_${Date.now()}_${Math.random()}`
-
-    this.subscriptions.set(subscriptionId, {
-      callback: callback as SubscriptionCallback,
-      options
-    })
-
-    const unsubscribe = window.api.dataApi.subscribe(options.path, (data, event) => {
-      // Convert string event to SubscriptionEvent enum
-      const subscriptionEvent = event as SubscriptionEvent
-      callback(data, subscriptionEvent)
-    })
-
-    logger.debug(`Subscribed to ${options.path}`, { subscriptionId })
-
-    // Return unsubscribe function
     return () => {
-      this.subscriptions.delete(subscriptionId)
-      unsubscribe()
-      logger.debug(`Unsubscribed from ${options.path}`, { subscriptionId })
+      for (const endpoint of list) {
+        const listeners = this.dataChangeListeners.get(endpoint)
+        if (!listeners) continue
+        listeners.delete(listener)
+        if (listeners.size === 0) this.dataChangeListeners.delete(endpoint)
+      }
+    }
+  }
+
+  /**
+   * Fan out one incoming notification to subscribers: group matching effects by
+   * listener so each listener is called at most once per notification, then
+   * invoke each with per-listener try/catch isolation.
+   */
+  private dispatchDataChange(effects: DataApiDataChangeEffect[]): void {
+    const batches = new Map<(effects: DataApiDataChangeEffect[]) => void, DataApiDataChangeEffect[]>()
+
+    for (const effect of effects) {
+      const listeners = this.dataChangeListeners.get(effect.endpoint as GetTemplateApiPaths)
+      if (!listeners) continue
+      for (const listener of listeners) {
+        let batch = batches.get(listener)
+        if (!batch) {
+          batch = []
+          batches.set(listener, batch)
+        }
+        batch.push(effect)
+      }
+    }
+
+    for (const [listener, batch] of batches) {
+      try {
+        listener(batch)
+      } catch (error) {
+        // One bad consumer must not block the others.
+        logger.error('data change listener threw', error as Error)
+      }
     }
   }
 
@@ -396,7 +450,7 @@ export class DataApiService implements ApiClient {
   getRequestStats() {
     return {
       pendingRequests: 0, // No longer tracked with direct IPC
-      activeSubscriptions: this.subscriptions.size
+      activeSubscriptions: this.dataChangeListeners.size
     }
   }
 }

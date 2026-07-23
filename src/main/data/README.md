@@ -24,8 +24,34 @@ src/main/data/
 ├── migration/                 # Data migration system
 ├── CacheService.ts            # Cache management
 ├── DataApiService.ts          # API coordination
+├── dataApiDataChange.ts       # DataApi data change notification publisher (post-commit → all-window broadcast)
 └── PreferenceService.ts       # User preferences
 ```
+
+## DataApi Data Change Notification (governance exception)
+
+`dataApiDataChange.ts` (`notifyDataApiDataChange`) is a **strictly limited
+exception** to the DataApi governance rules — a data service publishing a signal
+that then reaches IPC. It is intentionally NOT part of the portable transport
+framework in `api/` (which reserves an HttpAdapter and must not depend on
+Electron/WindowManager).
+
+> A data service may publish a read-model observation signal after data is
+> successfully committed, for cross-window data convergence.
+
+Fences (all hard constraints):
+
+- Publish only **after commit**, never inside a transaction.
+- **Not part of write success** — notification failure must not roll back or
+  affect committed data.
+- Describes **endpoint/read-model changes only**; it must **not** carry entity
+  rows, field diffs, SQL predicates, or business commands.
+- Must **not** be used to perform file, network, process, window-control, or
+  external-service work.
+- Renderer consumers may use it **only** for fact refetching and local
+  reconciliation.
+
+This is **not** an escape hatch for general side effects in DataApi.
 
 ## Quick Reference
 

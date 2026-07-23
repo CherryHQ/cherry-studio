@@ -1,7 +1,7 @@
-import type { ConcreteApiPaths } from '@shared/data/api/types'
-import type { SubscriptionCallback, SubscriptionOptions } from '@shared/data/api/types'
-import { SubscriptionEvent } from '@shared/data/api/types'
+import type { ConcreteApiPaths, DataApiDataChangeEffect, GetTemplateApiPaths } from '@shared/data/api/types'
 import { vi } from 'vitest'
+
+type DataChangeListener = (effects: DataApiDataChangeEffect[]) => void
 
 /**
  * Mock DataApiService for testing
@@ -98,14 +98,8 @@ function getMockDataForPath(path: ConcreteApiPaths, method: string): any {
  * Create a mock DataApiService with realistic behavior
  */
 export const createMockDataApiService = (customBehavior: Partial<ReturnType<typeof createMockDataApiService>> = {}) => {
-  // Track subscriptions
-  const subscriptions = new Map<
-    string,
-    {
-      callback: SubscriptionCallback
-      options: SubscriptionOptions
-    }
-  >()
+  // Track read-model change listeners by exact endpoint (mirrors production).
+  const dataChangeListeners = new Map<string, Set<DataChangeListener>>()
 
   // Retry configuration
   let retryOptions: RetryOptions = {
@@ -162,19 +156,25 @@ export const createMockDataApiService = (customBehavior: Partial<ReturnType<type
       }
     ),
 
-    // ============ Subscription ============
+    // ============ Data Change Notification ============
 
-    subscribe: vi.fn(<T>(options: SubscriptionOptions, callback: SubscriptionCallback<T>): (() => void) => {
-      const subscriptionId = `sub_${Date.now()}_${Math.random()}`
-
-      subscriptions.set(subscriptionId, {
-        callback: callback as SubscriptionCallback,
-        options
-      })
-
-      // Return unsubscribe function
+    onDataChanged: vi.fn((endpoints: GetTemplateApiPaths | GetTemplateApiPaths[], listener: DataChangeListener) => {
+      const list = Array.isArray(endpoints) ? endpoints : [endpoints]
+      for (const endpoint of list) {
+        let listeners = dataChangeListeners.get(endpoint)
+        if (!listeners) {
+          listeners = new Set()
+          dataChangeListeners.set(endpoint, listeners)
+        }
+        listeners.add(listener)
+      }
       return () => {
-        subscriptions.delete(subscriptionId)
+        for (const endpoint of list) {
+          const listeners = dataChangeListeners.get(endpoint)
+          if (!listeners) continue
+          listeners.delete(listener)
+          if (listeners.size === 0) dataChangeListeners.delete(endpoint)
+        }
       }
     }),
 
@@ -211,18 +211,18 @@ export const createMockDataApiService = (customBehavior: Partial<ReturnType<type
 
     getRequestStats: vi.fn(() => ({
       pendingRequests: 0,
-      activeSubscriptions: subscriptions.size
+      activeSubscriptions: dataChangeListeners.size
     })),
 
     // ============ Internal State Access for Testing ============
 
     _getMockState: () => ({
-      subscriptions: new Map(subscriptions),
+      dataChangeListeners: new Map(dataChangeListeners),
       retryOptions: { ...retryOptions }
     }),
 
     _resetMockState: () => {
-      subscriptions.clear()
+      dataChangeListeners.clear()
       retryOptions = {
         maxRetries: 2,
         retryDelay: 1000,
@@ -230,12 +230,22 @@ export const createMockDataApiService = (customBehavior: Partial<ReturnType<type
       }
     },
 
-    _triggerSubscription: (path: string, data: any, event: SubscriptionEvent) => {
-      subscriptions.forEach(({ callback, options }) => {
-        if (options.path === path) {
-          callback(data, event)
+    /**
+     * Fan out a notification to registered listeners, merging all matching
+     * effects into one call per listener (mirrors production dispatch).
+     */
+    _triggerDataChange: (effects: DataApiDataChangeEffect[]) => {
+      const batches = new Map<DataChangeListener, DataApiDataChangeEffect[]>()
+      for (const effect of effects) {
+        const listeners = dataChangeListeners.get(effect.endpoint)
+        if (!listeners) continue
+        for (const listener of listeners) {
+          const batch = batches.get(listener) ?? []
+          batch.push(effect)
+          batches.set(listener, batch)
         }
-      })
+      }
+      for (const [listener, batch] of batches) listener(batch)
     },
 
     // Apply custom behavior overrides
@@ -291,9 +301,9 @@ export const MockDataApiService = {
       return mockDataApiService.delete(path, options)
     }
 
-    // ============ Subscription ============
-    subscribe<T>(options: SubscriptionOptions, callback: SubscriptionCallback<T>): () => void {
-      return mockDataApiService.subscribe(options, callback)
+    // ============ Data Change Notification ============
+    onDataChanged(endpoints: GetTemplateApiPaths | GetTemplateApiPaths[], listener: DataChangeListener): () => void {
+      return mockDataApiService.onDataChanged(endpoints, listener)
     }
 
     // ============ Retry Configuration ============
@@ -385,10 +395,11 @@ export const MockDataApiUtils = {
   },
 
   /**
-   * Trigger a subscription callback for testing
+   * Trigger a read-model change notification for testing. Effects are fanned
+   * out to registered `onDataChanged` listeners, merged per listener.
    */
-  triggerSubscription: (path: string, data: any, event: SubscriptionEvent = SubscriptionEvent.UPDATED) => {
-    mockDataApiService._triggerSubscription(path, data, event)
+  triggerDataChange: (effects: DataApiDataChangeEffect[]) => {
+    mockDataApiService._triggerDataChange(effects)
   },
 
   /**

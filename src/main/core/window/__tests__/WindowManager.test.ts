@@ -1605,6 +1605,19 @@ describe('WindowManager', () => {
 
       expect(createdWindows[0].webContents.send).not.toHaveBeenCalled()
     })
+
+    it('isolates a failing window send so the remaining windows still receive', () => {
+      wm.open('default' as never)
+      wm.open('singleton' as never)
+      createdWindows[0].webContents.send.mockImplementationOnce(() => {
+        throw new Error('send failed')
+      })
+
+      expect(() => wm.broadcast('test-channel', 'data')).not.toThrow()
+
+      expect(createdWindows[0].webContents.send).toHaveBeenCalledWith('test-channel', 'data')
+      expect(createdWindows[1].webContents.send).toHaveBeenCalledWith('test-channel', 'data')
+    })
   })
 
   // ─── Close interception for pooled windows ─────────────

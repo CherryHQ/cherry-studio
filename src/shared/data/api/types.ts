@@ -309,36 +309,6 @@ export function isCursorPaginationResponse<T>(
 }
 
 /**
- * Subscription options for real-time data updates
- */
-export interface SubscriptionOptions {
-  /** Path pattern to subscribe to */
-  path: string
-  /** Filters to apply to subscription */
-  filters?: Record<string, any>
-  /** Whether to receive initial data */
-  includeInitial?: boolean
-  /** Custom subscription metadata */
-  metadata?: Record<string, any>
-}
-
-/**
- * Subscription callback function
- */
-export type SubscriptionCallback<T = any> = (data: T, event: SubscriptionEvent) => void
-
-/**
- * Subscription event types
- */
-export enum SubscriptionEvent {
-  CREATED = 'created',
-  UPDATED = 'updated',
-  DELETED = 'deleted',
-  INITIAL = 'initial',
-  ERROR = 'error'
-}
-
-/**
  * Middleware interface
  */
 export interface Middleware {
@@ -384,7 +354,7 @@ export interface ServiceOptions {
 // API Schema Type Utilities
 // ============================================================================
 
-import type { BodyForPath, ConcreteApiPaths, QueryParamsForPath, ResponseForPath } from './paths'
+import type { BodyForPath, ConcreteApiPaths, QueryParamsForPath, ResponseForPath, TemplateApiPaths } from './paths'
 import type { ApiSchemas } from './schemas/apiSchemas'
 
 // Re-export for external use
@@ -560,3 +530,77 @@ export type ApiImplementation = {
  * leakage) while keeping the exhaustiveness guarantee inside that scope.
  */
 export type HandlersFor<Schemas> = Pick<ApiImplementation, Extract<keyof Schemas, keyof ApiImplementation>>
+
+// ============================================================================
+// DataApi Data Change Notification — effect protocol (issue #17144, section 4.1)
+// ============================================================================
+//
+// A data service, after a business write successfully commits, broadcasts
+// "which DataApi read models changed, and in what way". Renderer consumers
+// subscribe and decide their own convergence actions. This file only defines
+// the effect shape; publishing (main) and fan-out (renderer) live elsewhere.
+
+/**
+ * Schema template paths that expose a GET method.
+ *
+ * GET-only by design: a read model is readable by definition, so change
+ * notifications only target GET-capable paths. POST-only action paths
+ * (e.g. `/topics/:id/duplicate`) are not valid targets.
+ */
+export type GetTemplateApiPaths = {
+  [K in TemplateApiPaths]: ApiSchemas[K] extends { GET: any } ? K : never
+}[TemplateApiPaths]
+
+/**
+ * GET paths whose response is a collection, classified from the GET response
+ * shape: an array or a pagination response = collection, everything else =
+ * scalar. `InferPaginationMode` alone is insufficient — `/tags`, `/pins`
+ * return bare arrays; branch messages classify as collection because
+ * `BranchMessagesResponse extends CursorPaginationResponse`.
+ *
+ * Degradation property: a wrapper-object response that does not extend the
+ * pagination types (e.g. `/topics/latest`, `/agent-sessions/latest`,
+ * `/files/entries/stats`) falls into `ScalarGetPaths` — degrading to
+ * coarser-but-still-correct behavior (no kind = whole-value refetch). A mapping
+ * author attempting membership/order on it is rejected by the type, so any
+ * misclassification is loud, not silent.
+ */
+export type CollectionGetPaths = {
+  [K in GetTemplateApiPaths]: ResponseForPath<K, 'GET'> extends
+    | readonly unknown[]
+    | CursorPaginationResponse<any>
+    | OffsetPaginationResponse<any>
+    ? K
+    : never
+}[GetTemplateApiPaths]
+
+/** GET paths whose response is a scalar (everything not classified as a collection). */
+export type ScalarGetPaths = Exclude<GetTemplateApiPaths, CollectionGetPaths>
+
+/**
+ * One read-model change effect. Discriminated union: four illegal states are
+ * unrepresentable — a collection without a kind, a scalar with a kind, an order
+ * effect without a dimension, and a projection effect with a dimension.
+ *
+ * The three kinds are NOT mutually exclusive for one endpoint — they describe
+ * different facets, so one write often emits several effects on the same
+ * endpoint. Field semantics (issue #17144, section 4):
+ * - no kind (scalar only): the whole value may have changed; refetch if mounted.
+ * - `projection`: projected content of rows already in result sets may have
+ *   changed; membership and order unchanged.
+ * - `membership`: membership may have changed for families constrained on the
+ *   given `dimension`; absent `dimension` = existence-level change (create/delete).
+ * - `order`: positions within the named `dimension` (an ordering-profile
+ *   identifier) may have changed; membership unchanged.
+ * - `entityIds`: factual hint — always the primary keys of the entities the
+ *   endpoint returns; optional (absent = no claim, never no impact).
+ *
+ * `dimension` stays typed as `string`: the canonical query vocabulary
+ * (sortBy values / parameter names / ordering-profile constants) is each
+ * domain's responsibility, enforced by tests, not by the type.
+ */
+export type DataApiDataChangeEffect =
+  | { endpoint: ScalarGetPaths; kind?: never; dimension?: never; entityIds?: string[] }
+  | { endpoint: CollectionGetPaths; kind: 'projection'; dimension?: never; entityIds?: string[] }
+  | { endpoint: CollectionGetPaths; kind: 'membership'; dimension?: string; entityIds?: string[] }
+  | { endpoint: CollectionGetPaths; kind: 'order'; dimension: string; entityIds?: string[] }

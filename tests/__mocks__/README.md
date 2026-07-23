@@ -133,7 +133,7 @@ HTTP client with subscriptions and retry configuration.
 | `put` | `(path, options) => Promise<any>` |
 | `patch` | `(path, options) => Promise<any>` |
 | `delete` | `(path, options?) => Promise<any>` |
-| `subscribe` | `(options, callback) => () => void` |
+| `onDataChanged` | `(endpoints, listener) => () => void` |
 | `configureRetry` | `(options) => void` |
 | `getRetryConfig` | `() => RetryOptions` |
 | `getRequestStats` | `() => { pendingRequests, activeSubscriptions }` |

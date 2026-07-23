@@ -5,6 +5,7 @@
  *
  * - {@link useQuery} - Fetch data with automatic caching and revalidation
  * - {@link useMutation} - Perform POST/PUT/PATCH/DELETE operations
+ * - {@link useDataChange} - Subscribe to read-model change notifications
  * - {@link useInfiniteQuery} - Cursor-based infinite scrolling
  * - {@link usePaginatedQuery} - Offset-based pagination with navigation
  * - {@link useInvalidateCache} - Manual cache invalidation
@@ -44,7 +45,7 @@ import type {
   ResponseForPath,
   TemplateApiPaths
 } from '@shared/data/api/paths'
-import type { ConcreteApiPaths } from '@shared/data/api/types'
+import type { ConcreteApiPaths, DataApiDataChangeEffect, GetTemplateApiPaths } from '@shared/data/api/types'
 import {
   type CursorPaginationResponse,
   type InferPaginationMode,
@@ -638,6 +639,62 @@ export function useInvalidateCache() {
   )
 
   return invalidate
+}
+
+/**
+ * Separator for the content-identity dep key of an endpoint list. NUL never
+ * appears in an API path, so it cannot collide with a real endpoint value.
+ */
+const ENDPOINTS_DEP_SEPARATOR = '\u0000'
+
+/**
+ * Subscribe to read-model change notifications for one or more endpoints.
+ *
+ * The listener fires when the main process broadcasts a change affecting an
+ * endpoint you subscribed to, with all matching effects of one business
+ * operation merged into a single call (see
+ * {@link DataApiService.onDataChanged}). Matching is exact — no prefix or
+ * wildcard. This hook only routes by endpoint; deciding what to do with an
+ * effect (revalidate, rebuild, ignore) is the consumer's policy.
+ *
+ * @param endpoints - One endpoint or an array of endpoints to listen on
+ * @param listener - Called with the matching effects; kept in a ref so it does
+ *   not need to be memoized by the caller
+ *
+ * @example
+ * useDataChange('/topics', (effects) => { refetch() })
+ *
+ * @example
+ * useDataChange(['/topics', '/topics/stats'], (effects) => {
+ *   // inspect effects[i].kind / dimension / entityIds and converge
+ * })
+ */
+export function useDataChange(
+  endpoints: GetTemplateApiPaths | GetTemplateApiPaths[],
+  listener: (effects: DataApiDataChangeEffect[]) => void
+): void {
+  // Latest listener via ref so consumers can pass a fresh inline callback every
+  // render without re-subscribing (mirrors useMutation's optionsRef pattern).
+  const listenerRef = useRef(listener)
+  useEffect(() => {
+    listenerRef.current = listener
+  }, [listener])
+
+  // Consumers may pass a fresh endpoint array/string every render — stabilize
+  // on content, not reference (mirrors useCache's keysDep pattern), so the
+  // subscription rebuilds only when the endpoint set actually changes.
+  const endpointList = Array.isArray(endpoints) ? endpoints : [endpoints]
+  const endpointsDep = endpointList.join(ENDPOINTS_DEP_SEPARATOR)
+  const stableEndpoints = useMemo<GetTemplateApiPaths[]>(
+    () => [...endpointList],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- endpointsDep is the content identity of `endpointList`
+    [endpointsDep]
+  )
+
+  useEffect(
+    () => dataApiService.onDataChanged(stableEndpoints, (effects) => listenerRef.current(effects)),
+    [stableEndpoints]
+  )
 }
 
 /**
