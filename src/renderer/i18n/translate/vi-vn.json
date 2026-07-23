@@ -1059,12 +1059,18 @@
     "edit": {
       "title": "Trợ lý chỉnh sửa"
     },
+    "groups": {
+      "delete": "Xóa Nhóm",
+      "deleteConfirm": "Bạn có chắc chắn muốn xóa nhóm này không?",
+      "group_by": "Hiển thị theo nhóm",
+      "ungroup": "Dừng nhóm",
+      "ungrouped": "Chưa nhóm"
+    },
     "icon": {
       "type": "Biểu tượng Trợ lý"
     },
     "list": {
-      "showByList": "Liste Görünümü",
-      "showByTags": "Chế độ xem thẻ"
+      "showByList": "Liste Görünümü"
     },
     "pin": {
       "title": "Trợ lý Ghim"
@@ -1248,20 +1254,6 @@
         "label": "Chế độ Sử dụng Công cụ",
         "prompt": "Lời nhắc"
       }
-    },
-    "tags": {
-      "add": "Thêm thẻ",
-      "delete": "Xóa thẻ",
-      "deleteConfirm": "Bạn có chắc chắn muốn xóa thẻ này không?",
-      "group_by": "Nhóm theo thẻ",
-      "manage": "Quản lý thẻ",
-      "modify": "Sửa Thẻ",
-      "none": "Không có thẻ",
-      "settings": {
-        "title": "Cài đặt thẻ"
-      },
-      "ungroup": "Tắt nhóm thẻ",
-      "untagged": "Không được gắn thẻ"
     },
     "title": "Trợ lý",
     "unpin": {
@@ -2279,6 +2271,7 @@
     "swap": "Hoán đổi",
     "topics": "Chủ đề",
     "translate_text": "Dịch văn bản",
+    "undo": "Hoàn tác",
     "unknown": "Không xác định",
     "unnamed": "Không tên",
     "unsubscribe": "Hủy đăng ký",
@@ -2433,13 +2426,19 @@
     "text": "Văn bản",
     "toolInput": "Tool input",
     "toolName": "Tên công cụ",
+    "tool_call_limit_reached": "Trợ lý đã đạt đến giới hạn gọi công cụ trước khi đưa ra câu trả lời cuối cùng. Hãy thử lại hoặc thu nhỏ phạm vi nhiệm vụ.",
     "truncated": "Dữ liệu bị cắt ngắn, kích thước ban đầu",
     "truncatedBadge": "Bị cắt ngắn",
     "unknown": "Lỗi không xác định",
     "usage": "Utilización",
     "user_message_not_found": "Không tìm thấy tin nhắn gốc để gửi lại",
     "value": "Giá trị",
-    "values": "Valores"
+    "values": "Valores",
+    "web_lookup_network_error": "Truy cập web thất bại. Kiểm tra kết nối mạng của bạn và thử lại.",
+    "web_search_api_host_invalid": "Tìm kiếm web không khả dụng vì máy chủ API của nhà cung cấp đã cấu hình không hợp lệ. Nhập URL HTTP(S) hợp lệ trong Cài đặt → Tìm kiếm web, sau đó thử lại.",
+    "web_search_api_host_missing": "Tìm kiếm web không khả dụng vì nhà cung cấp đã cấu hình thiếu máy chủ API. Thêm một máy chủ trong Cài đặt → Tìm kiếm Web, sau đó thử lại.",
+    "web_search_api_key_missing": "Tìm kiếm web không khả dụng vì nhà cung cấp đã cấu hình thiếu khóa API. Thêm khóa API trong Cài đặt → Tìm kiếm Web, sau đó thử lại.",
+    "web_search_provider_unavailable": "Tìm kiếm web không khả dụng vì không có nhà cung cấp tương thích nào được cấu hình. Hãy cấu hình một nhà cung cấp trong Cài đặt → Tìm kiếm Web, sau đó thử lại."
   },
   "export": {
     "assistant": "Trợ lý",
@@ -3118,7 +3117,7 @@
       "duplicate": "Trùng lặp",
       "edit": "Chỉnh sửa",
       "enable": "Bật",
-      "manage_tags": "Quản lý thẻ",
+      "manage_groups": "Quản lý nhóm",
       "uninstall": "Gỡ cài đặt"
     },
     "assistant_catalog": {
@@ -3317,6 +3316,9 @@
             "hint": "Giới hạn phạm vi lấy mẫu token khi được bật"
           }
         },
+        "group": "Nhóm",
+        "group_empty": "Không có nhóm nào khả dụng",
+        "group_placeholder": "Chọn nhóm",
         "json_invalid": "Định dạng JSON không hợp lệ",
         "max_tokens": "Số token tối đa",
         "max_tool_calls": "Số lần gọi công cụ tối đa",
@@ -3415,6 +3417,11 @@
         "insert_variable": "Chèn biến",
         "label": "Lời nhắc hệ thống",
         "placeholder": "Nhập lời nhắc hệ thống. Các biến như {{date}} và {{model_name}} được hỗ trợ...",
+        "polish": "Làm bóng lời nhắc",
+        "polish_failed_description": "Kiểm tra hoặc thay đổi mô hình mặc định, sau đó thử lại.",
+        "polish_failed_title": "Không thể hoàn thiện lời nhắc",
+        "polish_variables_changed_description": "Kết quả đã được chỉnh sửa đã thay đổi hoặc xóa các biến trong lời nhắc. Hãy thử lại.",
+        "polish_variables_changed_title": "Không thể áp dụng lời nhắc đã được đánh bóng",
         "title": "Lời nhắc",
         "tokens_label": "Mã thông báo:",
         "variables_description": "Chèn các biến hệ thống này vào lời nhắc hệ thống; trước mỗi phản hồi của trợ lý, chúng sẽ được điền với thông tin hiện tại.",
@@ -3517,6 +3524,10 @@
       "title": "Không có tài nguyên"
     },
     "export_assistant_failed": "Không thể xuất trợ lý",
+    "group_picker": {
+      "no_groups": "Chưa có nhóm nào"
+    },
+    "group_sync_failed": "Không đồng bộ hóa được các nhóm",
     "import_dialog": {
       "clipboard": {
         "button": "Phân tích cú pháp và nhập",
@@ -3564,7 +3575,6 @@
     },
     "sidebar": {
       "all_resources": "Tất cả tài nguyên",
-      "all_tags": "Tất cả các thẻ",
       "no_tags": "Chưa có thẻ nào",
       "subtitle": "Quản lý tài nguyên AI của bạn",
       "tags": "Thẻ",
@@ -3629,11 +3639,11 @@
     },
     "title": "Thư viện",
     "toolbar": {
-      "add_tag_placeholder": "Tên thẻ...",
-      "all_tags": "Tất cả các thẻ",
+      "add_group_placeholder": "Tên nhóm...",
+      "all_groups": "Tất cả các nhóm",
+      "group_button": "Nhóm",
       "new_resource": "Tài nguyên mới",
-      "search_placeholder": "Tìm kiếm tài nguyên...",
-      "tag_button": "Thẻ"
+      "search_placeholder": "Tìm kiếm tài nguyên..."
     },
     "type": {
       "agent": "Đặc vụ",
@@ -4205,6 +4215,9 @@
       "selected": "Thẻ đã chọn"
     },
     "function_calling": "Gọi Hàm",
+    "group": {
+      "ungrouped": "Chưa nhóm"
+    },
     "invalid_model": "Mô hình không hợp lệ",
     "json_parse_error": "Định dạng JSON không hợp lệ",
     "multi_select": {
@@ -4713,6 +4726,7 @@
     "inference_steps": "Bước Suy Luận",
     "inference_steps_tip": "Số bước suy luận cần thực hiện. Nhiều bước hơn sẽ tạo ra chất lượng cao hơn nhưng mất nhiều thời gian hơn",
     "input_image": "Ảnh đầu vào",
+    "input_image_limit_exceeded": "Quá nhiều hình ảnh tham chiếu cho mô hình đã chọn. Hãy xóa bớt một số hình ảnh và thử lại.",
     "input_parameters": "Tham số đầu vào",
     "invalid_image_url": "Format URL de imagen inválido",
     "learn_more": "Tìm Hiểu Thêm",
@@ -4737,6 +4751,7 @@
     "number_images": "Número de imágenes",
     "number_images_tip": "Số lượng hình ảnh cần tạo (1-4)",
     "operation_failed": "Thao tác thất bại, vui lòng thử lại sau",
+    "output_compression": "Nén đầu ra",
     "paint_course": "hướng dẫn",
     "per_image": "mỗi hình ảnh",
     "per_images": "per immagini",
@@ -4885,6 +4900,7 @@
     "install": "Cài đặt",
     "install_plugins_from_browser": "Duyệt qua các kỹ năng có sẵn để bắt đầu",
     "installing": "Đang cài đặt...",
+    "manage_skills": "Quản lý kỹ năng",
     "name": "Tên",
     "no_description": "Không có mô tả nào",
     "no_installed_plugins": "Chưa cài đặt kỹ năng nào",
@@ -5508,6 +5524,7 @@
       "create_new": "Trợ lý mới",
       "empty_text": "Chưa có trợ lý nào",
       "filter": "Lọc trợ lý",
+      "group_filter": "Lọc theo nhóm",
       "multi_hint": "(loại trừ lẫn nhau với đa mô hình)",
       "multi_label": "Trợ lý song song đa nhiệm",
       "search_placeholder": "Trợ lý tìm kiếm…"
@@ -5629,14 +5646,15 @@
         "select": "Sửa đổi thư mục",
         "select_error": "Không thể thay đổi thư mục dữ liệu",
         "select_error_in_app_path": "Đường dẫn mới trùng với đường dẫn cài đặt ứng dụng, vui lòng chọn đường dẫn khác",
+        "select_error_protected_path": "Đường dẫn đã chọn được bảo vệ bởi hệ điều hành hoặc Cherry Studio. Vui lòng chọn thư mục khác.",
         "select_error_root_path": "Nouveau chemin ne peut pas être le chemin racine",
         "select_error_same_path": "Đường dẫn mới giống với đường dẫn cũ, vui lòng chọn đường dẫn khác",
         "select_error_write_permission": "Đường dẫn mới không có quyền ghi",
         "select_not_empty_dir": "Đường dẫn mới không trống",
-        "select_not_empty_dir_content": "Đường dẫn mới không trống, nó sẽ ghi đè dữ liệu trong đường dẫn mới, có nguy cơ mất dữ liệu và sao chép thất bại, bạn có muốn tiếp tục?",
         "select_success": "Thư mục dữ liệu đã thay đổi, ứng dụng sẽ khởi động lại để áp dụng các thay đổi",
         "select_title": "Thay đổi Thư mục Dữ liệu Ứng dụng",
-        "stop_quit_app_reason": "Ứng dụng hiện đang di chuyển dữ liệu và không thể thoát"
+        "stop_quit_app_reason": "Ứng dụng hiện đang di chuyển dữ liệu và không thể thoát",
+        "switch_existing_notice": "Thư mục không trống này sẽ được sử dụng như hiện tại. Các tệp đã tồn tại của nó sẽ không bị ghi đè."
       },
       "app_logs": {
         "button": "Mở Nhật ký",
@@ -6860,6 +6878,7 @@
       "default_assistant_model_description": "Dùng khi trợ lý chưa có mô hình",
       "docs": "Tài liệu mô hình",
       "empty": "Không tìm thấy mô hình nào",
+      "empty_hint": "Nhấp vào nút Lấy danh sách mô hình ở trên để thêm các mô hình.",
       "enabled_models": "Đã bật",
       "expand_all": "Mở rộng tất cả",
       "filter": {
@@ -7357,9 +7376,6 @@
         "usage_title": "Cách sử dụng",
         "usage_unit": "tokens"
       },
-      "openai": {
-        "alert": "Nhà cung cấp OpenAI không còn hỗ trợ các phương thức gọi cũ. Nếu đang sử dụng API của bên thứ ba, vui lòng tạo một nhà cung cấp dịch vụ mới."
-      },
       "remove_duplicate_keys": "Xóa các khóa trùng lặp",
       "remove_invalid_keys": "Xóa các khóa không hợp lệ",
       "reorder_failed": "Không thể sắp xếp lại các nhà cung cấp",
@@ -7435,6 +7451,7 @@
         "autoEmpty": "Không có máy chủ MCP nào được kích hoạt",
         "description": "Xem trạng thái hiện tại của máy chủ MCP",
         "disabled": "MCP đã bị vô hiệu hóa cho trợ lý này",
+        "open_config": "Cấu hình máy chủ MCP",
         "unknownServer": "Máy chủ MCP không xác định"
       },
       "multiple": "Chọn nhiều",

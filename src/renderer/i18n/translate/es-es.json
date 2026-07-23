@@ -1059,12 +1059,18 @@
     "edit": {
       "title": "Editar Asistente"
     },
+    "groups": {
+      "delete": "Eliminar grupo",
+      "deleteConfirm": "¿Estás seguro de que quieres eliminar este grupo?",
+      "group_by": "Mostrar en grupos",
+      "ungroup": "Dejar de agrupar",
+      "ungrouped": "Sin agrupar"
+    },
     "icon": {
       "type": "Ícono del Asistente"
     },
     "list": {
-      "showByList": "Mostrar en lista",
-      "showByTags": "Mostrar por etiquetas"
+      "showByList": "Mostrar en lista"
     },
     "pin": {
       "title": "Asistente de Pin"
@@ -1248,20 +1254,6 @@
         "label": "Modo de uso de herramientas",
         "prompt": "Palabra de indicación"
       }
-    },
-    "tags": {
-      "add": "Agregar etiqueta",
-      "delete": "Eliminar etiqueta",
-      "deleteConfirm": "¿Está seguro de que desea eliminar esta etiqueta?",
-      "group_by": "Agrupar por etiqueta",
-      "manage": "Gestión de etiquetas",
-      "modify": "Modificar etiqueta",
-      "none": "Aún no hay etiquetas",
-      "settings": {
-        "title": "Configuración de etiquetas"
-      },
-      "ungroup": "Desactivar la agrupación de etiquetas",
-      "untagged": "Sin agrupar"
     },
     "title": "Asistente",
     "unpin": {
@@ -2279,6 +2271,7 @@
     "swap": "Intercambiar",
     "topics": "Temas",
     "translate_text": "Traducir texto",
+    "undo": "Deshacer",
     "unknown": "Desconocido",
     "unnamed": "Sin nombre",
     "unsubscribe": "Cancelar suscripción",
@@ -2433,13 +2426,19 @@
     "text": "Texto",
     "toolInput": "Herramienta de entrada",
     "toolName": "Nombre de la herramienta",
+    "tool_call_limit_reached": "El asistente alcanzó el límite de llamadas a herramientas antes de producir una respuesta final. Inténtalo de nuevo o reduce el alcance de la tarea.",
     "truncated": "Datos truncados, tamaño original",
     "truncatedBadge": "Truncado",
     "unknown": "Error desconocido",
     "usage": "Cantidad de uso",
     "user_message_not_found": "No se pudo encontrar el mensaje original del usuario",
     "value": "Valor",
-    "values": "Valor"
+    "values": "Valor",
+    "web_lookup_network_error": "Acceso web fallido. Comprueba tu conexión de red e inténtalo de nuevo.",
+    "web_search_api_host_invalid": "La búsqueda web no está disponible porque el host de la API del proveedor configurado no es válido. Introduzca una URL HTTP(S) válida en Configuración → Búsqueda web y vuelva a intentarlo.",
+    "web_search_api_host_missing": "La búsqueda web no está disponible porque el proveedor configurado no tiene un host de API configurado. Añade uno en Configuración → Búsqueda web, e inténtalo de nuevo.",
+    "web_search_api_key_missing": "La búsqueda web no está disponible porque el proveedor configurado no tiene una clave API. Añade una en Configuración → Búsqueda web y vuelve a intentarlo.",
+    "web_search_provider_unavailable": "La búsqueda web no está disponible porque no hay ningún proveedor compatible configurado. Configure uno en Configuración → Búsqueda web e inténtelo de nuevo."
   },
   "export": {
     "assistant": "Asistente",
@@ -3118,7 +3117,7 @@
       "duplicate": "Duplicado",
       "edit": "Editar",
       "enable": "Habilitar",
-      "manage_tags": "Gestionar etiquetas",
+      "manage_groups": "Gestionar grupos",
       "uninstall": "Desinstalar"
     },
     "assistant_catalog": {
@@ -3317,6 +3316,9 @@
             "hint": "Limita el rango de muestreo de tokens cuando está habilitado"
           }
         },
+        "group": "Grupo",
+        "group_empty": "No hay grupos disponibles",
+        "group_placeholder": "Seleccionar grupo",
         "json_invalid": "Formato JSON inválido",
         "max_tokens": "Tokens máximos",
         "max_tool_calls": "Llamadas máximas de herramientas",
@@ -3415,6 +3417,11 @@
         "insert_variable": "Insertar variable",
         "label": "Indicación del sistema",
         "placeholder": "Introduce instrucciones para el asistente, como estilo de respuesta, rol o contexto",
+        "polish": "Solicitud en polaco",
+        "polish_failed_description": "Comprueba o cambia el modelo predeterminado y vuelve a intentarlo.",
+        "polish_failed_title": "Error al pulir el prompt",
+        "polish_variables_changed_description": "El resultado pulido cambió o eliminó variables del indicador. Inténtalo de nuevo.",
+        "polish_variables_changed_title": "No se pudo aplicar el mensaje pulido",
         "title": "Indicación",
         "tokens_label": "Tokens:",
         "variables_description": "Inserta estas variables del sistema en el indicador del sistema; antes de cada respuesta del asistente, se completan con la información actual.",
@@ -3517,6 +3524,10 @@
       "title": "Sin recursos"
     },
     "export_assistant_failed": "Error al exportar el asistente",
+    "group_picker": {
+      "no_groups": "Sin grupos aún"
+    },
+    "group_sync_failed": "Error al sincronizar grupos",
     "import_dialog": {
       "clipboard": {
         "button": "Analizar e importar",
@@ -3564,7 +3575,6 @@
     },
     "sidebar": {
       "all_resources": "Todos los recursos",
-      "all_tags": "Todas las etiquetas",
       "no_tags": "Aún no hay etiquetas",
       "subtitle": "Gestiona tus recursos de IA",
       "tags": "Etiquetas",
@@ -3629,11 +3639,11 @@
     },
     "title": "Biblioteca",
     "toolbar": {
-      "add_tag_placeholder": "Nombre de la etiqueta...",
-      "all_tags": "Todas las etiquetas",
+      "add_group_placeholder": "Nombre del grupo...",
+      "all_groups": "Todos los grupos",
+      "group_button": "Grupo",
       "new_resource": "Nuevo recurso",
-      "search_placeholder": "Buscar recursos...",
-      "tag_button": "Etiqueta"
+      "search_placeholder": "Buscar recursos..."
     },
     "type": {
       "agent": "Agente",
@@ -4205,6 +4215,9 @@
       "selected": "Etiquetas seleccionadas"
     },
     "function_calling": "Llamada a función",
+    "group": {
+      "ungrouped": "Sin agrupar"
+    },
     "invalid_model": "Modelo inválido",
     "json_parse_error": "Formato JSON no válido",
     "multi_select": {
@@ -4713,6 +4726,7 @@
     "inference_steps": "Paso de inferencia",
     "inference_steps_tip": "Número de pasos de inferencia a realizar. Cuantos más pasos, mejor la calidad pero más tiempo tarda",
     "input_image": "Imagen de entrada",
+    "input_image_limit_exceeded": "Demasiadas imágenes de referencia para el modelo seleccionado. Elimina algunas imágenes e inténtalo de nuevo.",
     "input_parameters": "Parámetros de entrada",
     "invalid_image_url": "Formato de URL de imagen inválido",
     "learn_more": "Más información",
@@ -4737,6 +4751,7 @@
     "number_images": "Cantidad de imágenes generadas",
     "number_images_tip": "Número de imágenes generadas por vez (1-4)",
     "operation_failed": "Operación fallida, por favor inténtelo de nuevo más tarde",
+    "output_compression": "Compresión de Salida",
     "paint_course": "Tutorial",
     "per_image": "Por imagen",
     "per_images": "Por imagen",
@@ -4885,6 +4900,7 @@
     "install": "instalación",
     "install_plugins_from_browser": "Explora los complementos disponibles para empezar a usar",
     "installing": "Instalando...",
+    "manage_skills": "Gestionar habilidades",
     "name": "Nombre",
     "no_description": "Sin descripción",
     "no_installed_plugins": "Aún no se ha instalado ningún complemento",
@@ -5508,6 +5524,7 @@
       "create_new": "Nuevo Asistente",
       "empty_text": "Aún no hay asistentes",
       "filter": "Asistentes de filtro",
+      "group_filter": "Filtrar por grupo",
       "multi_hint": "(mutualmente excluyente con multi-modelo)",
       "multi_label": "Asistente múltiple en paralelo",
       "search_placeholder": "Asistentes de búsqueda…"
@@ -5629,14 +5646,15 @@
         "select": "Modificar directorio",
         "select_error": "Error al cambiar el directorio de datos",
         "select_error_in_app_path": "La nueva ruta es la misma que la ruta de instalación de la aplicación. Por favor, seleccione otra ruta",
+        "select_error_protected_path": "La ruta seleccionada está protegida por el sistema operativo o Cherry Studio. Por favor, elija otra carpeta.",
         "select_error_root_path": "La nueva ruta no puede ser la ruta raíz",
         "select_error_same_path": "La nueva ruta es igual a la antigua. Por favor, seleccione otra ruta",
         "select_error_write_permission": "La nueva ruta no tiene permisos de escritura",
         "select_not_empty_dir": "La nueva ruta no está vacía",
-        "select_not_empty_dir_content": "La nueva ruta no está vacía. Los datos existentes serán sobrescritos, lo que conlleva riesgo de pérdida de datos o fallo en la copia. ¿Desea continuar?",
         "select_success": "El directorio de datos ha sido modificado. La aplicación se reiniciará para aplicar los cambios",
         "select_title": "Cambiar directorio de datos de la aplicación",
-        "stop_quit_app_reason": "Actualmente la aplicación está migrando datos y no puede cerrarse"
+        "stop_quit_app_reason": "Actualmente la aplicación está migrando datos y no puede cerrarse",
+        "switch_existing_notice": "Este directorio no vacío se utilizará tal cual. Sus archivos existentes no se sobrescribirán."
       },
       "app_logs": {
         "button": "Abrir registros",
@@ -6860,6 +6878,7 @@
       "default_assistant_model_description": "Se usa cuando un asistente no tiene modelo.",
       "docs": "Documentación del modelo",
       "empty": "Sin modelos",
+      "empty_hint": "Haga clic en el botón Obtener lista de modelos de arriba para agregar modelos.",
       "enabled_models": "Habilitados",
       "expand_all": "Expandir todo",
       "filter": {
@@ -7357,9 +7376,6 @@
         "usage_title": "Uso",
         "usage_unit": "tokens"
       },
-      "openai": {
-        "alert": "El proveedor de OpenAI ya no admite el método de llamada antiguo; si utiliza una API de terceros, cree un nuevo proveedor"
-      },
       "remove_duplicate_keys": "Eliminar claves duplicadas",
       "remove_invalid_keys": "Eliminar claves inválidas",
       "reorder_failed": "Error al reordenar proveedores",
@@ -7435,6 +7451,7 @@
         "autoEmpty": "No hay servidores MCP habilitados",
         "description": "Ver estado actual del servidor MCP",
         "disabled": "MCP está deshabilitado para este asistente",
+        "open_config": "Configurar servidores MCP",
         "unknownServer": "Servidor MCP desconocido"
       },
       "multiple": "Selección múltiple",
