@@ -22,6 +22,23 @@ export const OpenAIModelsResponseSchema = z.object({
   object: z.string().optional()
 })
 
+// === Jina (/v1/models) ===
+// Jina's list carries the metadata OpenAI's `/models` omits — modalities, context,
+// description — which the fetcher maps to capabilities (embedding via `embeddings`
+// output modality) and Model fields. `id` is `jina-ai/<name>`; the fetcher strips it.
+export const JinaModelsResponseSchema = z.object({
+  data: z.array(
+    z.looseObject({
+      id: z.string(),
+      name: z.string().optional(),
+      description: z.string().optional(),
+      input_modalities: z.array(z.string()).optional(),
+      output_modalities: z.array(z.string()).optional(),
+      context_length: z.number().optional()
+    })
+  )
+})
+
 // === GitHub Copilot (/models) ===
 export const CopilotModelsResponseSchema = z.object({
   data: z.array(

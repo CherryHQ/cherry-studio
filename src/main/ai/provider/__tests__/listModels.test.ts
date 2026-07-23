@@ -1,5 +1,5 @@
 import type * as AiSdkProviderUtils from '@ai-sdk/provider-utils'
-import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { makeProvider } from '../../__tests__/fixtures/provider'
@@ -759,5 +759,71 @@ describe('listModels — vertexFetcher (per-publisher pagination)', () => {
 
     expect(models).toEqual([])
     expect(aiSdkGetFromApiMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('listModels — jinaFetcher (prefix strip + metadata)', () => {
+  function makeJinaProvider() {
+    return makeProvider({
+      id: 'jina',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.jina.ai' }
+      }
+    })
+  }
+
+  it('strips the `jina-ai/` prefix so apiModelId matches the bare id inference expects (REGRESSION)', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          { id: 'jina-ai/jina-embeddings-v2-base-zh', name: 'Jina AI: Embeddings v2 Base ZH' },
+          { id: 'jina-ai/jina-reranker-m0' }
+        ]
+      }
+    })
+
+    const models = await listModels(makeJinaProvider())
+
+    const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string }
+    expect(call.url).toBe('https://api.jina.ai/v1/models')
+    expect(models.map((m) => m.apiModelId)).toEqual(['jina-embeddings-v2-base-zh', 'jina-reranker-m0'])
+    // Forward the upstream display name; fall back to the bare id when absent.
+    expect(models.map((m) => m.name)).toEqual(['Jina AI: Embeddings v2 Base ZH', 'jina-reranker-m0'])
+  })
+
+  it('derives embedding/rerank capabilities and carries modalities + context from the Jina list', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          // embedding: `embeddings` output modality → EMBEDDING
+          {
+            id: 'jina-ai/jina-embeddings-v3',
+            input_modalities: ['text'],
+            output_modalities: ['embeddings'],
+            context_length: 8192,
+            description: 'embed'
+          },
+          // reranker: text output, but id matches → RERANK only
+          { id: 'jina-ai/jina-reranker-m0', input_modalities: ['text', 'image'], output_modalities: ['text'] },
+          // colbert: embeddings output + rerank id → BOTH
+          { id: 'jina-ai/jina-colbert-v2', input_modalities: ['text'], output_modalities: ['embeddings'] },
+          // chat (ReaderLM): text in/out, no rerank id → no embedding/rerank capability
+          { id: 'jina-ai/ReaderLM-v2', input_modalities: ['text'], output_modalities: ['text'] }
+        ]
+      }
+    })
+
+    const models = await listModels(makeJinaProvider())
+    const byId = Object.fromEntries(models.map((m) => [m.apiModelId, m]))
+
+    expect(byId['jina-embeddings-v3'].capabilities).toEqual([MODEL_CAPABILITY.EMBEDDING])
+    expect(byId['jina-embeddings-v3'].outputModalities).toEqual([MODALITY.VECTOR])
+    expect(byId['jina-embeddings-v3'].contextWindow).toBe(8192)
+    expect(byId['jina-embeddings-v3'].description).toBe('embed')
+    expect(byId['jina-reranker-m0'].capabilities).toEqual([MODEL_CAPABILITY.RERANK])
+    expect(byId['jina-reranker-m0'].inputModalities).toEqual([MODALITY.TEXT, MODALITY.IMAGE])
+    expect(byId['jina-colbert-v2'].capabilities).toEqual([MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.RERANK])
+    expect(byId['ReaderLM-v2'].capabilities).toEqual([])
   })
 })
