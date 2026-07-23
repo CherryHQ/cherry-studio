@@ -566,7 +566,7 @@
       },
       "prompt": "Prompt Settings",
       "skills": {
-        "addMore": "Add More Skills",
+        "addMore": "Manage Skills",
         "builtin": "Built-in",
         "noFilterResults": "No matching skills",
         "noSkills": "No skills installed. Install skills from Settings > Skills.",
@@ -640,11 +640,6 @@
       }
     },
     "sidebar_title": "Agents",
-    "skill": {
-      "manage": {
-        "title": "Manage skills"
-      }
-    },
     "tasks": {
       "add": "Add Task",
       "cancel": "Cancel",
@@ -1590,8 +1585,7 @@
     "resource_view": {
       "menu": {
         "agent": "Agents",
-        "assistant": "Assistants",
-        "skill": "Skills"
+        "assistant": "Assistants"
       }
     },
     "save": {
@@ -4445,23 +4439,31 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "provider_setup": {
+      "missing_model": "Enable at least one model from the enabled provider",
+      "missing_provider": "Enable a provider to continue",
+      "next": "Next",
+      "subtitle": "Add an API key or sign in with CherryIN, then enable a provider.",
+      "title": "Choose a Provider"
+    },
     "select_model": {
       "change_later": "You can change this anytime in settings",
       "start": "Get Started",
       "subtitle": "Select default model for each scenario",
-      "title": "Choose Your Default Models"
+      "title": "Choose Default Model"
     },
-    "skip": "Skip",
+    "skip": "Set up later",
     "toast": {
+      "complete_failed": "Unable to complete setup. Please try again.",
       "connected": "Successfully connected to CherryIN"
     },
     "welcome": {
-      "login_cherryin": "Login with CherryIN",
-      "or_continue_with": "OR CONTINUE WITH",
-      "other_provider": "Choose Other Providers",
+      "login_cherryin": "Connect CherryIN",
+      "or_continue_with": "or",
+      "other_provider": "Set up another provider",
       "select_other_provider": "Select Other Provider",
-      "setup_hint": "Please configure at least one provider for the best experience",
-      "subtitle": "Enjoy top-tier AI services with CherryIN",
+      "setup_hint": "You can change providers anytime in Settings",
+      "subtitle": "Connect a provider to power your AI workspace",
       "title": "Welcome to Cherry Studio"
     }
   },
