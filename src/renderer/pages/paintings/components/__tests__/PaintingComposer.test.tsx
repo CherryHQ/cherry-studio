@@ -198,6 +198,32 @@ describe('PaintingComposer', () => {
     expect(captured.surfaceProps?.sendBlockedReason).toBeUndefined()
   })
 
+  it('lifts the gate once a transferred image is in painting.inputFiles', () => {
+    mockIsEditImageModel.mockReturnValue(true)
+    mockUseImageGenerationSupport.mockReturnValue({ modes: { edit: { supports: {} } } })
+    renderComposer({
+      painting: makePainting({
+        prompt: 'make the sky purple',
+        inputFiles: [{ id: 'f1', ext: 'png' }] as unknown as PaintingData['inputFiles']
+      })
+    })
+    expect(captured.surfaceProps?.sendDisabled).toBe(false)
+    expect(captured.surfaceProps?.sendBlockedReason).toBeUndefined()
+  })
+
+  it('keeps gating when the only transferred input is a non-image file', () => {
+    mockIsEditImageModel.mockReturnValue(true)
+    mockUseImageGenerationSupport.mockReturnValue({ modes: { edit: { supports: {} } } })
+    renderComposer({
+      painting: makePainting({
+        prompt: 'make the sky purple',
+        inputFiles: [{ id: 'note', ext: 'txt' }] as unknown as PaintingData['inputFiles']
+      })
+    })
+    expect(captured.surfaceProps?.sendDisabled).toBe(true)
+    expect(captured.surfaceProps?.sendBlockedReason).toBe('paintings.edit.image_required')
+  })
+
   it('renders the model selector control in the toolbar', () => {
     renderComposer()
     expect(screen.getByTestId('painting-model-selector')).toBeInTheDocument()

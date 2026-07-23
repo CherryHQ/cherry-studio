@@ -1,6 +1,7 @@
 import { useComposerToolDispatch, useComposerToolState } from '@renderer/components/composer/ComposerToolRuntime'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import ImageViewer from '@renderer/components/ImageViewer'
+import { FILE_TYPE } from '@renderer/types/file'
 import { toComposerAttachments } from '@renderer/utils/message/composerAttachment'
 import type { FilePath } from '@shared/types/file'
 import { toSafeFileUrl } from '@shared/utils/file'
@@ -69,15 +70,18 @@ export const PaintingImageGallery: FC = () => {
   const { files } = useComposerToolState()
   const { setFiles } = useComposerToolDispatch()
 
-  // Preview items for the lightbox — the whole strip, so clicking any tile opens a
+  // Preview items for the lightbox — image attachments only, so a non-image (e.g. a
+  // pasted-text `.txt`) never renders as a broken tile. Clicking any tile opens a
   // navigable gallery starting at that image (matched by `src`).
   const previewItems = useMemo(
     () =>
-      files.map((file) => ({
-        id: file.fileTokenSourceId,
-        src: imagePreviewUrl(file.path, file.ext),
-        alt: file.origin_name
-      })),
+      files
+        .filter((file) => file.type === FILE_TYPE.IMAGE)
+        .map((file) => ({
+          id: file.fileTokenSourceId,
+          src: imagePreviewUrl(file.path, file.ext),
+          alt: file.origin_name
+        })),
     [files]
   )
 

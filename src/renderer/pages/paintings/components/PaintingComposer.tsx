@@ -20,9 +20,10 @@ import {
 import { fileToComposerToken } from '@renderer/components/composer/variants/shared/composerTokens'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useModels } from '@renderer/hooks/useModel'
+import { FILE_TYPE } from '@renderer/types/file'
 import type { FileEntry } from '@shared/data/types/file'
 import type { Model } from '@shared/data/types/model'
-import { imageExts } from '@shared/utils/file'
+import { getFileTypeByExt, imageExts } from '@shared/utils/file'
 import { isEditImageModel } from '@shared/utils/model'
 import { Settings2 } from 'lucide-react'
 import { type FC, useCallback, useMemo, useState } from 'react'
@@ -197,7 +198,14 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   const support = useImageGenerationSupport(painting.providerId, painting.model)
   const imageRequired =
     couldAddImageFile && !!support?.modes && !support.modes.generate && Object.keys(support.modes).length > 0
-  const missingRequiredImage = imageRequired && files.length === 0
+  // Gate on the *transferred* input images (`painting.inputFiles`, image-type only) —
+  // the state generation actually consumes — not the transient composer `files`, so an
+  // attachment still being transferred can't slip through as a valid image. The pipeline
+  // (`canonicalGenerate`) enforces the same rule authoritatively as a backstop.
+  const inputImageCount = (painting.inputFiles ?? []).filter(
+    (entry) => getFileTypeByExt(entry.ext ?? '') === FILE_TYPE.IMAGE
+  ).length
+  const missingRequiredImage = imageRequired && inputImageCount === 0
 
   const placeholder = !couldAddImageFile
     ? t('paintings.prompt_placeholder')

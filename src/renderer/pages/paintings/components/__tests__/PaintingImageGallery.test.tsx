@@ -89,6 +89,14 @@ describe('PaintingImageGallery', () => {
     expect(screen.getAllByRole('img')).toHaveLength(2)
   })
 
+  it('ignores non-image attachments (e.g. a pasted-text .txt)', () => {
+    state.files = [makeFile('pic'), { ...makeFile('note'), ext: '.txt', type: 'text', origin_name: 'note.txt' }]
+    render(<PaintingImageGallery />)
+
+    // Only the image renders; the .txt attachment is filtered out.
+    expect(screen.getAllByRole('img')).toHaveLength(1)
+  })
+
   it('removes an image by fileTokenSourceId when its × is clicked', () => {
     state.files = [makeFile('a'), makeFile('b')]
     render(<PaintingImageGallery />)
