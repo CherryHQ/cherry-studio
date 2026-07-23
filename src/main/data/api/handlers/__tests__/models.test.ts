@@ -21,7 +21,6 @@ const {
   bulkUpdateMock,
   lookupModelMock,
   resolveModelsMock,
-  listProviderRegistryModelsMock,
   getImageGenerationSupportMock
 } = vi.hoisted(() => ({
   listMock: vi.fn(),
@@ -33,7 +32,6 @@ const {
   bulkUpdateMock: vi.fn(),
   lookupModelMock: vi.fn(),
   resolveModelsMock: vi.fn(),
-  listProviderRegistryModelsMock: vi.fn(),
   getImageGenerationSupportMock: vi.fn()
 }))
 
@@ -53,7 +51,6 @@ vi.mock('@data/services/ProviderRegistryService', () => ({
   providerRegistryService: {
     lookupModel: lookupModelMock,
     resolveModels: resolveModelsMock,
-    listProviderRegistryModels: listProviderRegistryModelsMock,
     getImageGenerationSupport: getImageGenerationSupportMock
   }
 }))
@@ -445,29 +442,14 @@ describe('/providers/:providerId/models:resolve', () => {
     expect(resolveModelsMock).toHaveBeenCalledWith('openai', ['gpt-4o', 'o3'])
   })
 
-  it('lists active registry provider models when ids are omitted', async () => {
-    listProviderRegistryModelsMock.mockReturnValueOnce([{ id: 'openai::gpt-4o' }])
+  it('requires caller-provided ids instead of doubling as the preset catalog endpoint', async () => {
+    await expect(
+      modelHandlers['/providers/:providerId/models:resolve'].GET({
+        params: { providerId: 'openai' }
+      } as never)
+    ).rejects.toThrow()
 
-    const result = await modelHandlers['/providers/:providerId/models:resolve'].GET({
-      params: { providerId: 'openai' },
-      query: {}
-    } as never)
-
-    expect(listProviderRegistryModelsMock).toHaveBeenCalledWith({ providerId: 'openai' })
     expect(resolveModelsMock).not.toHaveBeenCalled()
-    expect(result).toEqual([{ id: 'openai::gpt-4o' }])
-  })
-
-  it('lists active registry provider models when query is omitted', async () => {
-    listProviderRegistryModelsMock.mockReturnValueOnce([{ id: 'openai::gpt-4o' }])
-
-    const result = await modelHandlers['/providers/:providerId/models:resolve'].GET({
-      params: { providerId: 'openai' }
-    } as never)
-
-    expect(listProviderRegistryModelsMock).toHaveBeenCalledWith({ providerId: 'openai' })
-    expect(resolveModelsMock).not.toHaveBeenCalled()
-    expect(result).toEqual([{ id: 'openai::gpt-4o' }])
   })
 
   it('rejects empty ids arrays before calling the registry service', async () => {
