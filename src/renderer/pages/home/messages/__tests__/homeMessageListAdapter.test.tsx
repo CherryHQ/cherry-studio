@@ -27,6 +27,11 @@ const commandHandlerMock = vi.hoisted(() => vi.fn())
 const modelSelectorMock = vi.hoisted(() => ({
   props: [] as any[]
 }))
+const useMessageHeaderCapabilitiesMock = vi.hoisted(() =>
+  vi.fn(() => ({
+    userProfile: undefined
+  }))
+)
 
 vi.mock('@data/DataApiService', () => ({
   dataApiService: {
@@ -113,9 +118,7 @@ vi.mock('@renderer/components/chat/messages/hooks/useMessageExportActions', () =
 }))
 
 vi.mock('@renderer/components/chat/messages/hooks/useMessageHeaderCapabilities', () => ({
-  useMessageHeaderCapabilities: () => ({
-    userProfile: undefined
-  })
+  useMessageHeaderCapabilities: useMessageHeaderCapabilitiesMock
 }))
 
 vi.mock('@renderer/components/chat/messages/hooks/useMessageLeafCapabilities', () => ({
@@ -294,6 +297,12 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
         }
       }
     })
+  })
+
+  it('configures message author editing for assistants', () => {
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} />)
+
+    expect(useMessageHeaderCapabilitiesMock).toHaveBeenCalledWith('assistant')
   })
 
   it('rejects pending requests for its topic when unmounted before runtime binding', async () => {

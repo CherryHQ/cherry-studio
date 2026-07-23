@@ -116,7 +116,7 @@ export function useHomeMessageListProviderValue({
   const exportActions = useMessageExportActions({ topicName: topic.name })
   const errorActions = useMessageErrorActions()
   const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId, streamingLayers })
-  const headerCapabilities = useMessageHeaderCapabilities()
+  const headerCapabilities = useMessageHeaderCapabilities('assistant')
   const messageUiStateCache = useMessageUiStateCache()
   const { editingMessageId, startEditing } = useMessageEditing()
   const normalInteractionsEnabled = imageActionConsumer !== 'capture'

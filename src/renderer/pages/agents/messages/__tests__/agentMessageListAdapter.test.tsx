@@ -50,6 +50,7 @@ const headerCapabilitiesMock = vi.hoisted(() => ({
   userProfile: { avatar: '🙂' },
   openUserProfile: vi.fn()
 }))
+const useMessageHeaderCapabilitiesMock = vi.hoisted(() => vi.fn(() => headerCapabilitiesMock))
 const navigateMock = vi.hoisted(() => vi.fn())
 const eventMocks = vi.hoisted(() => ({
   emit: vi.fn(),
@@ -131,7 +132,7 @@ vi.mock('@renderer/components/chat/messages/hooks/useMessageLeafCapabilities', (
 }))
 
 vi.mock('@renderer/components/chat/messages/hooks/useMessageHeaderCapabilities', () => ({
-  useMessageHeaderCapabilities: () => headerCapabilitiesMock
+  useMessageHeaderCapabilities: useMessageHeaderCapabilitiesMock
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -221,6 +222,7 @@ describe('useAgentMessageListProviderValue', () => {
 
     render(<Probe />)
 
+    expect(useMessageHeaderCapabilitiesMock).toHaveBeenCalledWith('agent')
     expect(value?.state.readonly).toBe(true)
     expect(value?.state.partsByMessageId).toBe(partsByMessageId)
     expect(value?.state.messages.map((message) => message.id)).toEqual(['user-1', 'assistant-1'])

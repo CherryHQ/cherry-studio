@@ -59,6 +59,8 @@ const MessageHeader: FC<Props> = memo(
     const authorSnapshot = message.messageSnapshot
     const authorName = authorSnapshot ? authorSnapshot.name : assistantProfile?.name
     const authorAvatar = authorSnapshot ? authorSnapshot.emoji : assistantProfile?.avatar
+    const authorId = authorSnapshot?.id
+
     const getUserName = useCallback(() => {
       if (message.role === 'assistant') {
         return authorName || displayModel?.name || displayModel?.id || ''
@@ -77,6 +79,13 @@ const MessageHeader: FC<Props> = memo(
 
     const username = useMemo(() => removeLeadingEmoji(getUserName()), [getUserName])
     const avatarName = useMemo(() => firstLetter(authorName ?? username ?? '').toUpperCase(), [authorName, username])
+    const openMessageAuthorEditor = actions.openMessageAuthorEditor
+    const canOpenMessageAuthorEditor = isAssistantMessage && !!authorId && !!openMessageAuthorEditor
+
+    const openAuthorEditor = useCallback(() => {
+      if (!authorId) return
+      void openMessageAuthorEditor?.(authorId)
+    }, [authorId, openMessageAuthorEditor])
 
     const openUserProfile = useCallback(() => {
       void actions.openUserProfile?.()
@@ -90,14 +99,21 @@ const MessageHeader: FC<Props> = memo(
         className={`message-header group/header relative flex gap-2.5 ${hasBodySlot ? 'mb-0 items-start' : 'mb-2 items-center'}`}>
         {isAssistantMessage ? (
           authorAvatar ? (
-            <MessageAvatar avatar={authorAvatar} fallback={avatarName} />
+            <MessageAvatar
+              avatar={authorAvatar}
+              fallback={avatarName}
+              onClick={canOpenMessageAuthorEditor ? openAuthorEditor : undefined}
+            />
           ) : ModelIcon ? (
-            <MessageAvatarFrame className="bg-background">
-              <ModelIcon className={MESSAGE_MODEL_AVATAR_ICON_CLASS} aria-hidden="true" />
+            <MessageAvatarFrame
+              className="bg-background"
+              onClick={canOpenMessageAuthorEditor ? openAuthorEditor : undefined}>
+              <ModelIcon className={MESSAGE_MODEL_AVATAR_ICON_CLASS} />
             </MessageAvatarFrame>
           ) : (
             <MessageAvatar
               fallback={avatarName}
+              onClick={canOpenMessageAuthorEditor ? openAuthorEditor : undefined}
               fallbackAvatarStyle={{
                 border: 'none',
                 filter: theme === 'dark' ? 'invert(0.05)' : undefined

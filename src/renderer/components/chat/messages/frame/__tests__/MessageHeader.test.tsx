@@ -1,13 +1,19 @@
-import { render } from '@testing-library/react'
+import { fireEvent, render } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import MessageHeader from '../MessageHeader'
 
 const providerState = vi.hoisted(() => ({
-  actions: {} as { selectMessage?: (messageId: string, selected: boolean) => void },
+  actions: {} as {
+    openMessageAuthorEditor?: (authorId: string) => void
+    openUserProfile?: () => void
+    selectMessage?: (messageId: string, selected: boolean) => void
+  },
   selection: undefined as { isMultiSelectMode: boolean; selectedMessageIds: string[] } | undefined
 }))
+
+const iconState = vi.hoisted(() => ({ showModelIcon: false }))
 
 vi.mock('@cherrystudio/ui', () => ({
   Avatar: ({ children, className }: { children?: ReactNode; className?: string }) => (
@@ -40,6 +46,13 @@ vi.mock('@cherrystudio/ui', () => ({
 
 vi.mock('@renderer/utils/model', () => ({
   getModelLogoRef: () => undefined
+}))
+
+vi.mock('@cherrystudio/ui/icons', () => ({
+  useIcon: () =>
+    iconState.showModelIcon
+      ? ({ className }: { className?: string }) => <div className={className} data-testid="model-icon" />
+      : undefined
 }))
 
 vi.mock('@renderer/hooks/useTheme', () => ({
@@ -82,6 +95,7 @@ describe('MessageHeader', () => {
   beforeEach(() => {
     providerState.actions = {}
     providerState.selection = undefined
+    iconState.showModelIcon = false
   })
 
   it('keeps content and footer in the body column with footer pinned to the bottom', () => {
@@ -147,6 +161,81 @@ describe('MessageHeader', () => {
       />
     )
     expect(getByText('My Agent')).toBeTruthy()
+  })
+
+  it('opens the snapshotted author editor from click', () => {
+    const openMessageAuthorEditor = vi.fn()
+    providerState.actions = { openMessageAuthorEditor }
+
+    const { container } = render(
+      <MessageHeader
+        message={createMessage('assistant', {
+          assistantId: 'current-assistant',
+          messageSnapshot: {
+            id: 'snapshot-assistant',
+            name: 'Snapshot Assistant',
+            emoji: '🤖',
+            model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' }
+          }
+        })}
+      />
+    )
+
+    fireEvent.click(container.querySelector('.message-avatar') as HTMLElement)
+
+    expect(openMessageAuthorEditor).toHaveBeenCalledOnce()
+    expect(openMessageAuthorEditor).toHaveBeenCalledWith('snapshot-assistant')
+  })
+
+  it('keeps a legacy message without an author snapshot static', () => {
+    const openMessageAuthorEditor = vi.fn()
+    providerState.actions = { openMessageAuthorEditor }
+
+    const { container } = render(
+      <MessageHeader message={createMessage('assistant', { assistantId: 'legacy-assistant' })} />
+    )
+
+    fireEvent.click(container.querySelector('.message-avatar') as HTMLElement)
+
+    expect(openMessageAuthorEditor).not.toHaveBeenCalled()
+  })
+
+  it('makes a model-icon avatar clickable but leaves an authorless avatar static', () => {
+    const openMessageAuthorEditor = vi.fn()
+    providerState.actions = { openMessageAuthorEditor }
+    iconState.showModelIcon = true
+
+    const { container, rerender } = render(
+      <MessageHeader
+        message={createMessage('assistant', {
+          assistantId: 'current-assistant',
+          messageSnapshot: {
+            id: 'model-author',
+            name: 'Model Author',
+            model: { id: 'gpt-4', name: 'GPT-4', provider: 'openai' }
+          }
+        })}
+      />
+    )
+
+    fireEvent.click(container.querySelector('.message-avatar') as HTMLElement)
+    expect(openMessageAuthorEditor).toHaveBeenCalledWith('model-author')
+
+    rerender(<MessageHeader message={createMessage('assistant', { assistantId: 'current-assistant' })} />)
+    fireEvent.click(container.querySelector('.message-avatar') as HTMLElement)
+
+    expect(openMessageAuthorEditor).toHaveBeenCalledOnce()
+  })
+
+  it('opens the user profile from an avatar click', () => {
+    const openUserProfile = vi.fn()
+    providerState.actions = { openUserProfile }
+
+    const { container } = render(<MessageHeader message={createMessage('user')} />)
+
+    fireEvent.click(container.querySelector('.message-avatar') as HTMLElement)
+
+    expect(openUserProfile).toHaveBeenCalledOnce()
   })
 
   it('marks the real message selection checkbox for drag selection lookup', () => {

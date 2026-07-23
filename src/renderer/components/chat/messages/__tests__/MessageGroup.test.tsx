@@ -823,6 +823,32 @@ describe('MessageGroup', () => {
     expect(footer).toHaveClass('w-[calc(100%-30px)]')
   })
 
+  it('keeps the bubble user avatar clickable', () => {
+    const openUserProfile = vi.fn()
+    mocks.messageListActions.mockReturnValue({ openUserProfile })
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'vertical',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'bubble',
+      showMessageOutline: false
+    })
+
+    const message = {
+      ...createMessage('user-bubble-avatar', 0, 'vertical'),
+      role: 'user'
+    } as MessageListItem & { index: number; multiModelMessageStyle: MultiModelMessageStyle }
+
+    const { container } = render(<MessageGroup messages={[message]} topic={{ id: 'topic-1' } as Topic} />)
+    const avatar = container.querySelector('#message-user-bubble-avatar .message-avatar') as HTMLElement
+
+    fireEvent.click(avatar)
+
+    expect(openUserProfile).toHaveBeenCalledOnce()
+  })
+
   it('applies bubble enter motion to newly inserted bubble user messages', () => {
     mocks.settings.mockReturnValue({
       multiModelMessageStyle: 'vertical',

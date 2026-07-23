@@ -13,8 +13,12 @@ export const MESSAGE_AVATAR_IMAGE_CLASS = 'size-full object-cover p-0'
 export const MESSAGE_AVATAR_FALLBACK_CLASS = 'size-full rounded-full p-0'
 export const MESSAGE_MODEL_AVATAR_ICON_CLASS = 'size-full'
 
-export const MessageAvatarFrame = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn(MESSAGE_AVATAR_CONTAINER_CLASS, className)} {...props} />
+export const MessageAvatarFrame = ({ className, onClick, ...props }: ComponentPropsWithoutRef<'div'>) => (
+  <div
+    className={cn(MESSAGE_AVATAR_CONTAINER_CLASS, onClick && 'cursor-pointer', className)}
+    onClick={onClick}
+    {...props}
+  />
 )
 
 interface MessageAvatarProps extends ComponentPropsWithoutRef<'div'> {
@@ -31,10 +35,8 @@ const MessageAvatar = ({
   onClick,
   ...props
 }: MessageAvatarProps) => {
-  const clickable = !!onClick
-
   return (
-    <MessageAvatarFrame className={cn(clickable && 'cursor-pointer', className)} onClick={onClick} {...props}>
+    <MessageAvatarFrame className={className} onClick={onClick} {...props}>
       {isEmoji(avatar) ? (
         <EmojiIcon
           emoji={avatar}
