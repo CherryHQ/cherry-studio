@@ -1,8 +1,8 @@
 diff --git a/dist/index.js b/dist/index.js
-index d73573b013e61903991cad2074187a3ade8921ab..a5c061dc33c1d4600f1dd9fd62220d0d6e3f8ac9 100644
+index 919a33dd83310aa2b7b786c80116e3dbec13b372..010d13ad3a4169e98a96a2b42c2edd81d64f0522 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -572,6 +572,17 @@ var OpenAICompatibleChatLanguageModel = class {
+@@ -599,6 +599,17 @@ var OpenAICompatibleChatLanguageModel = class {
          text: reasoning
        });
      }
@@ -20,7 +20,7 @@ index d73573b013e61903991cad2074187a3ade8921ab..a5c061dc33c1d4600f1dd9fd62220d0d
      if (choice.message.tool_calls != null) {
        for (const toolCall of choice.message.tool_calls) {
          const thoughtSignature = (_c = (_b = toolCall.extra_content) == null ? void 0 : _b.google) == null ? void 0 : _c.thought_signature;
-@@ -732,6 +743,17 @@ var OpenAICompatibleChatLanguageModel = class {
+@@ -761,6 +772,17 @@ var OpenAICompatibleChatLanguageModel = class {
                  delta: delta.content
                });
              }
@@ -38,7 +38,7 @@ index d73573b013e61903991cad2074187a3ade8921ab..a5c061dc33c1d4600f1dd9fd62220d0d
              if (delta.tool_calls != null) {
                if (isActiveReasoning) {
                  controller.enqueue({
-@@ -928,6 +950,14 @@ var OpenAICompatibleChatResponseSchema = import_v43.z.looseObject({
+@@ -976,6 +998,14 @@ var OpenAICompatibleChatResponseSchema = import_v43.z.looseObject({
                }).nullish()
              }).nullish()
            })
@@ -53,7 +53,7 @@ index d73573b013e61903991cad2074187a3ade8921ab..a5c061dc33c1d4600f1dd9fd62220d0d
          ).nullish()
        }),
        finish_reason: import_v43.z.string().nullish()
-@@ -964,6 +994,14 @@ var chunkBaseSchema = import_v43.z.looseObject({
+@@ -1012,6 +1042,14 @@ var chunkBaseSchema = import_v43.z.looseObject({
                }).nullish()
              }).nullish()
            })
@@ -68,7 +68,7 @@ index d73573b013e61903991cad2074187a3ade8921ab..a5c061dc33c1d4600f1dd9fd62220d0d
          ).nullish()
        }).nullish(),
        finish_reason: import_v43.z.string().nullish()
-@@ -1514,7 +1552,7 @@ var OpenAICompatibleEmbeddingModel = class {
+@@ -1570,7 +1608,7 @@ var OpenAICompatibleEmbeddingModel = class {
      return {
        warnings,
        embeddings: response.data.map((item) => item.embedding),
@@ -77,7 +77,7 @@ index d73573b013e61903991cad2074187a3ade8921ab..a5c061dc33c1d4600f1dd9fd62220d0d
        providerMetadata: response.providerMetadata,
        response: { headers: responseHeaders, body: rawValue }
      };
-@@ -1522,13 +1560,23 @@ var OpenAICompatibleEmbeddingModel = class {
+@@ -1578,13 +1616,23 @@ var OpenAICompatibleEmbeddingModel = class {
  };
  var openaiTextEmbeddingResponseSchema = import_v47.z.object({
    data: import_v47.z.array(import_v47.z.object({ embedding: import_v47.z.array(import_v47.z.number()) })),
@@ -102,7 +102,7 @@ index d73573b013e61903991cad2074187a3ade8921ab..a5c061dc33c1d4600f1dd9fd62220d0d
  var OpenAICompatibleImageModel = class {
    constructor(modelId, config) {
      this.modelId = modelId;
-@@ -1604,7 +1652,11 @@ var OpenAICompatibleImageModel = class {
+@@ -1660,7 +1708,11 @@ var OpenAICompatibleImageModel = class {
          fetch: this.config.fetch
        });
        return {
@@ -115,7 +115,7 @@ index d73573b013e61903991cad2074187a3ade8921ab..a5c061dc33c1d4600f1dd9fd62220d0d
          warnings,
          response: {
            timestamp: currentDate,
-@@ -1625,7 +1677,7 @@ var OpenAICompatibleImageModel = class {
+@@ -1681,7 +1733,7 @@ var OpenAICompatibleImageModel = class {
          n,
          size,
          ...args,
@@ -124,7 +124,7 @@ index d73573b013e61903991cad2074187a3ade8921ab..a5c061dc33c1d4600f1dd9fd62220d0d
        },
        failedResponseHandler: (0, import_provider_utils5.createJsonErrorResponseHandler)(
          (_e = this.config.errorStructure) != null ? _e : defaultOpenAICompatibleErrorStructure
-@@ -1637,7 +1689,11 @@ var OpenAICompatibleImageModel = class {
+@@ -1693,7 +1745,11 @@ var OpenAICompatibleImageModel = class {
        fetch: this.config.fetch
      });
      return {
@@ -137,7 +137,7 @@ index d73573b013e61903991cad2074187a3ade8921ab..a5c061dc33c1d4600f1dd9fd62220d0d
        warnings,
        response: {
          timestamp: currentDate,
-@@ -1648,7 +1704,7 @@ var OpenAICompatibleImageModel = class {
+@@ -1704,7 +1760,7 @@ var OpenAICompatibleImageModel = class {
    }
  };
  var openaiCompatibleImageResponseSchema = import_v48.z.object({
@@ -147,10 +147,10 @@ index d73573b013e61903991cad2074187a3ade8921ab..a5c061dc33c1d4600f1dd9fd62220d0d
  async function fileToBlob(file) {
    if (file.type === "url") {
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 237c9e209da9da2d4d557eb309e1adc2157c1426..08b9e17e8989e28a01d1c9a30c31d7e25a3bdea7 100644
+index a619ccf624e94e8dfbadeab9c330387e9ea54443..c12b8eabf3bdf2a9252051832fd8619121680ff5 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -559,6 +559,17 @@ var OpenAICompatibleChatLanguageModel = class {
+@@ -585,6 +585,17 @@ var OpenAICompatibleChatLanguageModel = class {
          text: reasoning
        });
      }
@@ -168,7 +168,7 @@ index 237c9e209da9da2d4d557eb309e1adc2157c1426..08b9e17e8989e28a01d1c9a30c31d7e2
      if (choice.message.tool_calls != null) {
        for (const toolCall of choice.message.tool_calls) {
          const thoughtSignature = (_c = (_b = toolCall.extra_content) == null ? void 0 : _b.google) == null ? void 0 : _c.thought_signature;
-@@ -719,6 +730,17 @@ var OpenAICompatibleChatLanguageModel = class {
+@@ -747,6 +758,17 @@ var OpenAICompatibleChatLanguageModel = class {
                  delta: delta.content
                });
              }
@@ -186,7 +186,7 @@ index 237c9e209da9da2d4d557eb309e1adc2157c1426..08b9e17e8989e28a01d1c9a30c31d7e2
              if (delta.tool_calls != null) {
                if (isActiveReasoning) {
                  controller.enqueue({
-@@ -915,6 +937,14 @@ var OpenAICompatibleChatResponseSchema = z3.looseObject({
+@@ -962,6 +984,14 @@ var OpenAICompatibleChatResponseSchema = z3.looseObject({
                }).nullish()
              }).nullish()
            })
@@ -201,7 +201,7 @@ index 237c9e209da9da2d4d557eb309e1adc2157c1426..08b9e17e8989e28a01d1c9a30c31d7e2
          ).nullish()
        }),
        finish_reason: z3.string().nullish()
-@@ -951,6 +981,14 @@ var chunkBaseSchema = z3.looseObject({
+@@ -998,6 +1028,14 @@ var chunkBaseSchema = z3.looseObject({
                }).nullish()
              }).nullish()
            })
@@ -216,7 +216,7 @@ index 237c9e209da9da2d4d557eb309e1adc2157c1426..08b9e17e8989e28a01d1c9a30c31d7e2
          ).nullish()
        }).nullish(),
        finish_reason: z3.string().nullish()
-@@ -1519,7 +1557,7 @@ var OpenAICompatibleEmbeddingModel = class {
+@@ -1574,7 +1612,7 @@ var OpenAICompatibleEmbeddingModel = class {
      return {
        warnings,
        embeddings: response.data.map((item) => item.embedding),
@@ -225,7 +225,7 @@ index 237c9e209da9da2d4d557eb309e1adc2157c1426..08b9e17e8989e28a01d1c9a30c31d7e2
        providerMetadata: response.providerMetadata,
        response: { headers: responseHeaders, body: rawValue }
      };
-@@ -1527,7 +1565,7 @@ var OpenAICompatibleEmbeddingModel = class {
+@@ -1582,7 +1620,7 @@ var OpenAICompatibleEmbeddingModel = class {
  };
  var openaiTextEmbeddingResponseSchema = z7.object({
    data: z7.array(z7.object({ embedding: z7.array(z7.number()) })),
@@ -234,7 +234,7 @@ index 237c9e209da9da2d4d557eb309e1adc2157c1426..08b9e17e8989e28a01d1c9a30c31d7e2
    providerMetadata: z7.record(z7.string(), z7.record(z7.string(), z7.any())).optional()
  });
  
-@@ -1543,6 +1581,16 @@ import {
+@@ -1598,6 +1636,16 @@ import {
    postJsonToApi as postJsonToApi4
  } from "@ai-sdk/provider-utils";
  import { z as z8 } from "zod/v4";
@@ -251,7 +251,7 @@ index 237c9e209da9da2d4d557eb309e1adc2157c1426..08b9e17e8989e28a01d1c9a30c31d7e2
  var OpenAICompatibleImageModel = class {
    constructor(modelId, config) {
      this.modelId = modelId;
-@@ -1618,7 +1666,11 @@ var OpenAICompatibleImageModel = class {
+@@ -1673,7 +1721,11 @@ var OpenAICompatibleImageModel = class {
          fetch: this.config.fetch
        });
        return {
@@ -264,7 +264,7 @@ index 237c9e209da9da2d4d557eb309e1adc2157c1426..08b9e17e8989e28a01d1c9a30c31d7e2
          warnings,
          response: {
            timestamp: currentDate,
-@@ -1639,7 +1691,7 @@ var OpenAICompatibleImageModel = class {
+@@ -1694,7 +1746,7 @@ var OpenAICompatibleImageModel = class {
          n,
          size,
          ...args,
@@ -273,7 +273,7 @@ index 237c9e209da9da2d4d557eb309e1adc2157c1426..08b9e17e8989e28a01d1c9a30c31d7e2
        },
        failedResponseHandler: createJsonErrorResponseHandler4(
          (_e = this.config.errorStructure) != null ? _e : defaultOpenAICompatibleErrorStructure
-@@ -1651,7 +1703,11 @@ var OpenAICompatibleImageModel = class {
+@@ -1706,7 +1758,11 @@ var OpenAICompatibleImageModel = class {
        fetch: this.config.fetch
      });
      return {
@@ -286,7 +286,7 @@ index 237c9e209da9da2d4d557eb309e1adc2157c1426..08b9e17e8989e28a01d1c9a30c31d7e2
        warnings,
        response: {
          timestamp: currentDate,
-@@ -1662,7 +1718,7 @@ var OpenAICompatibleImageModel = class {
+@@ -1717,7 +1773,7 @@ var OpenAICompatibleImageModel = class {
    }
  };
  var openaiCompatibleImageResponseSchema = z8.object({
