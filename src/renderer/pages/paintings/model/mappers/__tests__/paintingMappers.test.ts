@@ -106,6 +106,53 @@ describe('paintingMappers', () => {
     })
   })
 
+  it('resolves output and input entries concurrently while preserving their order', async () => {
+    const resolvers = new Map<string, (value: unknown) => void>()
+    mockDataApiGet.mockImplementation(
+      (path: string) =>
+        new Promise((resolve) => {
+          resolvers.set(path.split('/').pop() ?? '', resolve)
+        })
+    )
+
+    const hydration = recordToPaintingData({
+      ...record,
+      files: {
+        output: ['output-1', 'output-2'],
+        input: ['input-1', 'input-2']
+      }
+    })
+
+    expect(mockDataApiGet.mock.calls.map(([path]) => path)).toEqual([
+      '/files/entries/output-1',
+      '/files/entries/output-2',
+      '/files/entries/input-1',
+      '/files/entries/input-2'
+    ])
+
+    const resolveEntry = (id: string) => {
+      resolvers.get(id)?.({
+        id,
+        origin: 'internal',
+        name: id,
+        ext: 'png',
+        size: 10,
+        createdAt: Date.parse('2026-01-01T00:00:00.000Z'),
+        updatedAt: Date.parse('2026-01-01T00:00:00.000Z')
+      })
+    }
+
+    resolveEntry('input-2')
+    resolveEntry('output-2')
+    resolveEntry('input-1')
+    resolveEntry('output-1')
+
+    const result = await hydration
+
+    expect(result.files.map(({ id }) => id)).toEqual(['output-1', 'output-2'])
+    expect(result.inputFiles?.map(({ id }) => id)).toEqual(['input-1', 'input-2'])
+  })
+
   it('round-trips painting through create DTO carrying only the frozen-receipt fields', async () => {
     const paintingDataList = await recordsToPaintingDataList([record])
     const paintingData = paintingDataList[0]
