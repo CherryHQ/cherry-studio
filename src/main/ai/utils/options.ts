@@ -33,8 +33,8 @@ import type { JSONValue } from 'ai'
 import { merge } from 'es-toolkit/compat'
 import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
 
-import { getAiSdkProviderId } from '../provider/factory'
-import type { ProviderCapabilities } from '../types'
+import { resolveProviderOptionsKey } from '../provider/endpoint'
+import type { AppProviderId, ProviderCapabilities } from '../types'
 import { addAnthropicHeaders } from './anthropicHeaders'
 import { buildGeminiGenerateImageParams } from './image'
 import {
@@ -127,15 +127,16 @@ export function buildCapabilityProviderOptions(
   assistant: Assistant,
   model: Model,
   actualProvider: Provider,
-  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
+  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>,
+  runtimeProviderId: AppProviderId
 ): Record<string, Record<string, JSONValue>> {
-  const rawProviderId = getAiSdkProviderId(actualProvider, model)
+  const providerOptionsKey = resolveProviderOptionsKey(runtimeProviderId)
   const serviceTier = getServiceTier(model, actualProvider)
   const textVerbosity = getVerbosity(model, actualProvider)
 
   let providerSpecificOptions: Record<string, any> = {}
 
-  switch (rawProviderId) {
+  switch (runtimeProviderId) {
     case 'openai':
     case 'openai-chat':
     case 'azure':
@@ -152,12 +153,16 @@ export function buildCapabilityProviderOptions(
       break
     case 'anthropic':
     case 'azure-anthropic':
-    case 'google-vertex-anthropic':
       providerSpecificOptions = buildAnthropicProviderOptions(assistant, model, capabilities)
       break
+    case 'google-vertex-anthropic':
+      providerSpecificOptions = buildAnthropicProviderOptions(assistant, model, capabilities, providerOptionsKey)
+      break
     case 'google':
-    case 'google-vertex':
       providerSpecificOptions = buildGeminiProviderOptions(assistant, model, capabilities)
+      break
+    case 'google-vertex':
+      providerSpecificOptions = buildGeminiProviderOptions(assistant, model, capabilities, providerOptionsKey)
       break
     case 'xai':
     case 'xai-responses':
@@ -187,7 +192,7 @@ export function buildCapabilityProviderOptions(
     case 'openai-compatible':
     default:
       providerSpecificOptions = buildGenericProviderOptions(
-        rawProviderId,
+        providerOptionsKey,
         assistant,
         model,
         capabilities,
@@ -195,8 +200,8 @@ export function buildCapabilityProviderOptions(
       )
       providerSpecificOptions = {
         ...providerSpecificOptions,
-        [rawProviderId]: {
-          ...providerSpecificOptions[rawProviderId],
+        [providerOptionsKey]: {
+          ...providerSpecificOptions[providerOptionsKey],
           serviceTier,
           textVerbosity
         }
@@ -205,7 +210,7 @@ export function buildCapabilityProviderOptions(
   }
 
   logger.debug('buildCapabilityProviderOptions', {
-    rawProviderId,
+    runtimeProviderId,
     capabilities,
     providerSpecificOptions
   })
@@ -321,7 +326,8 @@ function buildOpenAIProviderOptions(
 function buildAnthropicProviderOptions(
   assistant: Assistant,
   model: Model,
-  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
+  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>,
+  providerOptionsKey = 'anthropic'
 ): Record<string, AnthropicProviderOptions> {
   const { enableReasoning } = capabilities
   let providerOptions: AnthropicProviderOptions = {}
@@ -329,13 +335,14 @@ function buildAnthropicProviderOptions(
     const reasoningParams = getAnthropicReasoningParams(assistant, model)
     providerOptions = { ...providerOptions, ...reasoningParams }
   }
-  return { anthropic: { ...providerOptions } }
+  return { [providerOptionsKey]: { ...providerOptions } }
 }
 
 function buildGeminiProviderOptions(
   assistant: Assistant,
   model: Model,
-  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
+  capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>,
+  providerOptionsKey = 'google'
 ): Record<string, GoogleGenerativeAIProviderOptions> {
   const { enableReasoning, enableGenerateImage } = capabilities
   let providerOptions: GoogleGenerativeAIProviderOptions = {
@@ -369,7 +376,7 @@ function buildGeminiProviderOptions(
   if (enableGenerateImage) {
     providerOptions = { ...providerOptions, ...buildGeminiGenerateImageParams() }
   }
-  return { google: { ...providerOptions } }
+  return { [providerOptionsKey]: { ...providerOptions } }
 }
 
 function buildXAIProviderOptions(
