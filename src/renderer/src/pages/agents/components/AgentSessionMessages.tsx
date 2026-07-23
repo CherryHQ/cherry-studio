@@ -3,6 +3,7 @@ import ContextMenu from '@renderer/components/ContextMenu'
 import { LoadingIcon } from '@renderer/components/Icons'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useSession } from '@renderer/hooks/agents/useSession'
+import { useAutoLoadMore } from '@renderer/hooks/useAutoLoadMore'
 import { useTopicMessages } from '@renderer/hooks/useMessageOperations'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -24,6 +25,7 @@ import { type Topic, TopicType } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { addAbortController } from '@renderer/utils/abortController'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { paginateMessages } from '@renderer/utils/messageUtils/pagination'
 import { Spin } from 'antd'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import InfiniteScroll from 'react-infinite-scroll-component'
@@ -150,24 +152,15 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
   const { setTimeoutTimer } = useTimer()
 
   const [displayMessages, setDisplayMessages] = useState<Message[]>([])
+  const [messageCursor, setMessageCursor] = useState(0)
   const [hasMore, setHasMore] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
 
-  // Guard: suppress InfiniteScroll triggers during scroll position restoration
-  const isRestoringScrollRef = useRef(true)
-
   useEffect(() => {
-    isRestoringScrollRef.current = true
-    const timer = setTimeout(() => {
-      isRestoringScrollRef.current = false
-    }, 150)
-    return () => clearTimeout(timer)
-  }, [sessionId])
-
-  useEffect(() => {
-    const newDisplayMessages = computeDisplayMessages(messages, 0, AGENT_PAGE_SIZE)
-    setDisplayMessages(newDisplayMessages)
-    setHasMore(messages.length > AGENT_PAGE_SIZE)
+    const page = paginateMessages(messages, 0, AGENT_PAGE_SIZE)
+    setDisplayMessages(page.messages)
+    setMessageCursor(page.nextCursor)
+    setHasMore(page.hasMore)
   }, [messages])
 
   // NOTE: displayMessages is reversed, so each group is also reversed — need to reverse back
@@ -195,22 +188,30 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
   }, [groupedMessages.length, isSessionLoading, session])
 
   const loadMoreMessages = useCallback(() => {
-    if (!hasMore || isLoadingMore || isRestoringScrollRef.current) return
+    if (!hasMore || isLoadingMore) return
 
     setIsLoadingMore(true)
     setTimeoutTimer(
       'loadMoreMessages',
       () => {
-        const currentLength = displayMessages.length
-        const newMessages = computeDisplayMessages(messages, currentLength, AGENT_PAGE_SIZE)
+        const page = paginateMessages(messages, messageCursor, AGENT_PAGE_SIZE)
 
-        setDisplayMessages((prev) => [...prev, ...newMessages])
-        setHasMore(currentLength + AGENT_PAGE_SIZE < messages.length)
+        setDisplayMessages((prev) => [...prev, ...page.messages])
+        setMessageCursor(page.nextCursor)
+        setHasMore(page.hasMore)
         setIsLoadingMore(false)
       },
       300
     )
-  }, [displayMessages.length, hasMore, isLoadingMore, messages, setTimeoutTimer])
+  }, [hasMore, isLoadingMore, messageCursor, messages, setTimeoutTimer])
+
+  useAutoLoadMore({
+    containerRef: scrollContainerRef,
+    itemCount: displayMessages.length,
+    hasMore,
+    isLoading: isLoadingMore,
+    loadMore: loadMoreMessages
+  })
 
   const sessionAssistantId = session?.agent_id ?? agentId
   const sessionName = session?.name ?? sessionId
@@ -293,37 +294,6 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
 }
 
 const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'
-
-const computeDisplayMessages = (messages: Message[], startIndex: number, displayCount: number) => {
-  if (messages.length - startIndex <= displayCount) {
-    const result: Message[] = []
-    for (let i = messages.length - 1 - startIndex; i >= 0; i--) {
-      result.push(messages[i])
-    }
-    return result
-  }
-  const userIdSet = new Set<string>()
-  const assistantIdSet = new Set<string>()
-  const displayMessages: Message[] = []
-
-  const processMessage = (message: Message) => {
-    if (!message) return
-    const idSet = message.role === 'user' ? userIdSet : assistantIdSet
-    const messageId = message.role === 'user' ? message.id : (message.askId ?? message.id)
-    if (!idSet.has(messageId)) {
-      idSet.add(messageId)
-      displayMessages.push(message)
-      return
-    }
-    displayMessages.push(message)
-  }
-
-  for (let i = messages.length - 1 - startIndex; i >= 0 && userIdSet.size + assistantIdSet.size < displayCount; i--) {
-    processMessage(messages[i])
-  }
-
-  return displayMessages
-}
 
 const LoaderContainer = styled.div`
   display: flex;
