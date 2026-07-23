@@ -1055,12 +1055,25 @@ class BackupManager {
               this.logSkippedSymlink(sourcePath, error)
             }
           } else if (entry.stats.isFile()) {
-            if (entry.isSymlink) {
-              await fs.copy(sourcePath, destPath, { dereference: true })
-            } else {
-              await fs.copy(sourcePath, destPath)
+            try {
+              if (entry.isSymlink) {
+                await fs.copy(sourcePath, destPath, { dereference: true })
+              } else {
+                await fs.copy(sourcePath, destPath)
+              }
+              onProgress(entry.stats.size)
+            } catch (error) {
+              // Handle race condition where a nested file (e.g. a Skills schema
+              // file) was deleted between enumeration and copy. fs-extra's copy
+              // runs an internal chmod pass to preserve permissions, which
+              // throws ENOENT for a file that vanished mid-staging. Skip it and
+              // continue instead of aborting the whole backup (issue #17179).
+              if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+                logger.warn('[BackupManager] File disappeared during backup copy, skipping', { path: sourcePath })
+                continue
+              }
+              throw error
             }
-            onProgress(entry.stats.size)
           } else if (entry.isSymlink) {
             logger.warn('[BackupManager] Skipping symlink to unsupported target', { path: sourcePath })
           }
