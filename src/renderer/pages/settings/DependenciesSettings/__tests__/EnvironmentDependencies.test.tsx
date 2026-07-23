@@ -583,6 +583,33 @@ describe('EnvironmentDependencies', () => {
     ).toHaveAttribute('type', 'password')
   })
 
+  it('drops an in-flight registry search on close so stale results cannot reappear on reopen', async () => {
+    let resolveSearch!: (value: Array<{ name: string; tool: string }>) => void
+    ipcMocks.searchRegistry.mockImplementation(
+      () =>
+        new Promise<Array<{ name: string; tool: string }>>((resolve) => {
+          resolveSearch = resolve
+        })
+    )
+    render(<EnvironmentDependencies />)
+
+    fireEvent.click(screen.getByText('settings.dependencies.addTool'))
+    fireEvent.change(screen.getByPlaceholderText('settings.dependencies.searchRegistry'), {
+      target: { value: 'node' }
+    })
+    await waitFor(() => expect(ipcMocks.searchRegistry).toHaveBeenCalled())
+
+    // Close while the request is still in flight, then let it resolve late.
+    fireEvent.click(screen.getByTestId('dialog-close'))
+    resolveSearch([{ name: 'node', tool: 'core:node' }])
+
+    fireEvent.click(screen.getByText('settings.dependencies.addTool'))
+    expect(screen.getByPlaceholderText('settings.dependencies.searchRegistry')).toHaveValue('')
+    // The late response settles while this find polls; the invalidated search
+    // must never repopulate the reopened dialog with the stale results.
+    await expect(screen.findByRole('button', { name: /core:node/ }, { timeout: 400 })).rejects.toThrow()
+  })
+
   it('adds a discovered runtime by its exact recipe without pinning its live version', async () => {
     setSnapshots({ node: miseSnapshot('node', 'core:node', '22.23.1', false) })
     ipcMocks.searchRegistry.mockResolvedValue([{ name: 'node', tool: 'core:node' }])

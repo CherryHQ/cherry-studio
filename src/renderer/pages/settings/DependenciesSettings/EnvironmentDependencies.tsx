@@ -848,6 +848,9 @@ function AddToolDialog({
   const searchIdRef = useRef(0)
 
   const reset = () => {
+    // Invalidate any in-flight search so its late response cannot repopulate
+    // results after the dialog closes and expose them on the next open.
+    searchIdRef.current++
     setQuery('')
     setResults([])
     setSearching(false)
@@ -859,7 +862,11 @@ function AddToolDialog({
 
   useEffect(() => {
     if (!query.trim()) {
+      // Also invalidate here: clearing the query (or selecting a result) must
+      // drop an in-flight search, not just the visible results.
+      searchIdRef.current++
       setResults([])
+      setSearching(false)
       setSearchError(false)
       return
     }
