@@ -4,11 +4,10 @@ exports[`CodeToolbar > basic rendering > should match snapshot with mixed tools 
 <div>
   <div
     class="pointer-events-none sticky top-7 z-10 h-0"
-    data-ui="code.toolbar.element.div id:ui-7c164b464c262eff"
+    data-ui="code.toolbar.element.div"
   >
     <div
       class="code-toolbar pointer-events-auto absolute right-2 bottom-1 flex h-6 items-center gap-1"
-      data-ui="code.toolbar.element.div id:ui-c3a2c5a248f6ee67"
     >
       <div
         data-testid="tooltip"
@@ -47,11 +46,10 @@ exports[`CodeToolbar > basic rendering > should match snapshot with only core to
 <div>
   <div
     class="pointer-events-none sticky top-7 z-10 h-0"
-    data-ui="code.toolbar.element.div id:ui-7c164b464c262eff"
+    data-ui="code.toolbar.element.div"
   >
     <div
       class="code-toolbar pointer-events-auto absolute right-2 bottom-1 flex h-6 items-center gap-1"
-      data-ui="code.toolbar.element.div id:ui-c3a2c5a248f6ee67"
     >
       <div
         data-testid="tool-button-core1"

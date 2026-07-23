@@ -8,11 +8,11 @@ date: 2026-07-16
 
 ## What changed
 
-Every app-owned DOM node now gains a stable semantic selector for advanced themes, tests, and automation. Custom CSS is
-injected verbatim into every regular renderer window, including the selection toolbar. Existing static
-`data-slot="dialog-content"` structure markers remain unchanged and contribute `part:dialog-content` to the unified
-`data-ui` semantic layer. Compiler-owned `id:*` tokens remain an advanced exact-node fallback, while optional runtime
-`scope:*` tokens distinguish business instances.
+Meaningful app-owned DOM boundaries now gain semantic selectors for advanced themes, tests, and automation. Nested
+layout-only `div` and `span` wrappers remain internal. Custom CSS is injected verbatim into every regular renderer
+window, including the selection toolbar. Existing static `data-slot="dialog-content"` structure markers remain
+unchanged and contribute `part:dialog-content` to the unified `data-ui` semantic layer. Optional runtime `scope:*`
+tokens distinguish business instances.
 
 ## Why this matters to the user
 

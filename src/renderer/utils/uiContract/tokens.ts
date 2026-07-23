@@ -8,7 +8,6 @@ export interface UiTokenOptions {
 }
 
 export interface ParsedUiTokens {
-  exactId?: string
   parts: string[]
   scopes: string[]
   semanticId?: string
@@ -58,8 +57,7 @@ export function parseUiTokens(value: string | null | undefined): ParsedUiTokens 
     }
     const namespace = token.slice(0, separator)
     const tokenValue = token.slice(separator + 1)
-    if (namespace === 'id') result.exactId ??= tokenValue
-    else if (namespace === 'part') result.parts.push(tokenValue)
+    if (namespace === 'part') result.parts.push(tokenValue)
     else if (namespace === 'scope') result.scopes.push(tokenValue)
   }
   return result
@@ -71,7 +69,6 @@ function selectorToken(token: string): string {
 }
 
 export interface UiSelectorOptions {
-  exactId?: string
   parts?: readonly UiTokenValue[]
   scopes?: readonly UiTokenValue[]
   semanticId?: string
@@ -81,7 +78,6 @@ export function uiSelector(options: UiSelectorOptions): string {
   const tokens = [
     options.semanticId,
     ...namespaced('part', options.parts),
-    options.exactId ? `id:${options.exactId}` : undefined,
     ...namespaced('scope', options.scopes)
   ].filter((token): token is string => Boolean(token))
   if (tokens.length === 0) throw new Error('A data-ui selector requires at least one token')

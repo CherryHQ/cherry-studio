@@ -8,7 +8,7 @@ exports[`Hyperlink > should match snapshot for normal url 1`] = `
     <span
       class="inline"
       data-testid="popover-trigger"
-      data-ui="messages.markdown.hyperlink.action.close id:ui-3e5d5dd5dad67fac"
+      data-ui="messages.markdown.hyperlink.action.close"
     >
       <span>
         Child

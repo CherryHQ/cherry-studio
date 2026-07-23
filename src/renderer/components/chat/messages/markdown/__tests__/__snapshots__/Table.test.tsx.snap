@@ -3,15 +3,14 @@
 exports[`Table > rendering > should match snapshot 1`] = `
 <div
   class="table-wrapper relative my-2 w-full min-w-0 max-w-full hover:[&_.table-toolbar]:opacity-100"
-  data-ui="messages.markdown.table.element.div id:ui-81ed9c23d77281fa"
+  data-ui="messages.markdown.table.element.div"
 >
   <div
     class="table-scroll-viewport w-full min-w-0 max-w-full overflow-x-auto"
-    data-ui="messages.markdown.table.element.div id:ui-433bf1a58f19d6c8"
   >
     <table
       class="[&&_td]:wrap-break-word [&&_th]:wrap-break-word [&&]:my-0 [&&]:w-full [&&]:min-w-160 [&&]:border-separate [&&]:bg-transparent [&&]:text-[0.9em] [&&]:text-foreground [&&]:leading-(--line-height-body-md) [&&_tbody]:bg-transparent [&&_td:last-child]:border-r-0 [&&_td]:border-border-muted [&&_td]:border-r-[0.5px] [&&_td]:border-b-[0.5px] [&&_td]:bg-transparent [&&_td]:p-[0.5em] [&&_td]:align-top [&&_td]:font-normal [&&_td]:tracking-normal [&&_th:last-child]:border-r-0 [&&_th]:border-border-muted [&&_th]:border-r-[0.5px] [&&_th]:border-b-[0.5px] [&&_th]:bg-muted [&&_th]:p-[0.5em] [&&_th]:text-left [&&_th]:align-top [&&_th]:font-semibold [&&_th]:tracking-normal [&&_thead]:bg-transparent [&&_tr:hover]:bg-accent [&&_tr:last-child_td]:border-b-0 [&&_tr]:bg-transparent"
-      data-ui="messages.markdown.table.element id:ui-42b1b10614871e66"
+      data-ui="messages.markdown.table.element"
       style="border: 0.5px solid var(--color-border); border-radius: var(--radius-md); border-spacing: 0px; margin: 0px; overflow: hidden;"
     >
       <thead>
@@ -38,7 +37,6 @@ exports[`Table > rendering > should match snapshot 1`] = `
   </div>
   <div
     class="table-toolbar transform-[translateZ(0)] absolute top-2 right-2 z-10 flex gap-1 rounded-lg border border-border-subtle bg-popover p-1 opacity-0 shadow-md transition-opacity duration-200 ease-in-out will-change-[opacity]"
-    data-ui="messages.markdown.table.element.div id:ui-1d262c1a02499614"
   >
     <div
       data-testid="tooltip"
@@ -47,7 +45,7 @@ exports[`Table > rendering > should match snapshot 1`] = `
       <div
         aria-label="common.copy"
         class="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded-md text-foreground-muted opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] hover:bg-ghost-hover hover:text-foreground hover:shadow-xs"
-        data-ui="messages.markdown.table.action.copy id:ui-7cd487dd9c3080b0"
+        data-ui="messages.markdown.table.action.copy"
         role="button"
       >
         <div
@@ -63,7 +61,7 @@ exports[`Table > rendering > should match snapshot 1`] = `
       <div
         aria-label="common.export.excel"
         class="flex h-6 w-6 cursor-pointer select-none items-center justify-center rounded-md text-foreground-muted opacity-100 transition-all duration-200 ease-in-out will-change-[background-color,opacity] hover:bg-ghost-hover hover:text-foreground hover:shadow-xs"
-        data-ui="messages.markdown.table.action.export id:ui-5b342cd64f064387"
+        data-ui="messages.markdown.table.action.export"
         role="button"
       >
         <div

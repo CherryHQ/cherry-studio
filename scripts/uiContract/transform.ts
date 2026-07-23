@@ -9,8 +9,8 @@ import {
 import { Parser } from 'htmlparser2'
 import MagicString from 'magic-string'
 
-import { createDescriptorHashes, identifierWords, inferSemanticId } from './semanticId'
-import type { UiNodeContract, UiNodeDescriptor, UiSourceTransform } from './types'
+import { identifierWords, inferSemanticId } from './semanticId'
+import type { UiNodeDescriptor, UiSourceTransform } from './types'
 
 const SKIPPED_COMPONENTS = new Set(['Consumer', 'Fragment', 'Provider', 'StrictMode', 'Suspense'])
 const SKIPPED_HTML_TAGS = new Set(['base', 'head', 'html', 'link', 'meta', 'script', 'style', 'title'])
@@ -33,13 +33,9 @@ const NON_DOM_COMPONENTS = new Set([
   'RadixRoot',
   'SelectPrimitive.Root'
 ])
-// These virtual parents preserve descendant IDs after non-DOM wrappers were removed from the public registry.
-const TRANSPARENT_PARENT_PARTS = new Map([
-  ['DialogPortal', 'dialog-portal'],
-  ['DrawerPortal', 'drawer-portal']
-])
 const SEMANTIC_ATTRIBUTES = new Set(['data-testid', 'id', 'name', 'role', 'type'])
 const SVG_OPT_IN_ATTRIBUTES = ['data-testid', 'role']
+const GENERIC_HTML_ELEMENTS = new Set(['div', 'span'])
 const DATA_SLOT_VALUE = /^[A-Za-z0-9][A-Za-z0-9._:~-]*$/
 export const UI_CONTRACT_RUNTIME_MODULE_ID = 'virtual:cherry-ui-contract-runtime'
 
@@ -62,7 +58,6 @@ interface OpeningElementInfo {
   handler?: string
   parts: string[]
   requiresDataUiInjection: boolean
-  signature: string
   spreads: SpreadElement[]
 }
 
@@ -72,6 +67,15 @@ function hasSvgContractOptIn(info: OpeningElementInfo): boolean {
     info.parts.length > 0 ||
     SVG_OPT_IN_ATTRIBUTES.some((name) => info.attributes.has(name)) ||
     [...info.attributes.keys()].some((name) => /^on[A-Z]/.test(name))
+  )
+}
+
+function hasSemanticSignal(info: OpeningElementInfo): boolean {
+  return (
+    info.attributes.has('data-ui') ||
+    info.parts.length > 0 ||
+    [...SEMANTIC_ATTRIBUTES].some((name) => info.attributes.has(name)) ||
+    info.handler !== undefined
   )
 }
 
@@ -120,11 +124,6 @@ function namespaceTokenValues(value: string | undefined, namespace: string): str
     .map((token) => token.slice(prefix.length))
 }
 
-// This spelling is hash compatibility only. It is never written to source or emitted to the DOM.
-function stablePartSignature(part: string): string {
-  return `data-slot=${part}`
-}
-
 function staticDataSlot(attributes: Map<string, AttributeInfo>): string | undefined {
   const dataSlot = attributes.get('data-slot')
   if (!dataSlot) return undefined
@@ -160,11 +159,6 @@ function openingElementInfo(opening: JSXOpeningElement): OpeningElementInfo {
   )
   const staticDataUi = attributes.get('data-ui')?.dynamic ? undefined : attributes.get('data-ui')?.value
   const authoredDataUi = mergePartsDataUi(staticDataUi, parts)
-  const semanticSignature = [...attributes.entries()]
-    .filter(([name, info]) => SEMANTIC_ATTRIBUTES.has(name) && !info.dynamic)
-    .map(([name, info]) => `${name}=${info.value}`)
-    .sort()
-  const handlerNames = [...attributes.keys()].filter((name) => /^on[A-Z]/.test(name)).sort()
 
   return {
     attributes,
@@ -173,14 +167,13 @@ function openingElementInfo(opening: JSXOpeningElement): OpeningElementInfo {
     handler,
     parts,
     requiresDataUiInjection: authoredDataUi !== staticDataUi,
-    signature: [...semanticSignature, ...parts.map(stablePartSignature)].sort().concat(handlerNames).join('|'),
     spreads
   }
 }
 
 function explicitSemanticId(dataUi: AttributeInfo | undefined): string | undefined {
   if (!dataUi?.value || dataUi.dynamic) return undefined
-  return dataUi.value.split(/\s+/).find((token) => token && !token.includes(':') && !token.startsWith('id:'))
+  return dataUi.value.split(/\s+/).find((token) => token && !token.includes(':'))
 }
 
 function dynamicUiSemanticId(dataUi: AttributeInfo | undefined): string | undefined {
@@ -256,33 +249,32 @@ function defaultComponentName(sourceFile: string): string {
   return filename === 'index' ? (sourceFile.split('/').at(-2) ?? 'Anonymous') : filename
 }
 
-function mergeDataUi(existing: string | undefined, semanticId: string, id: string): string {
+function mergeDataUi(existing: string | undefined, semanticId: string): string {
   const existingTokens = (existing ?? '').split(/\s+/).filter(Boolean)
   const semanticTokens = existingTokens.filter((token) => !token.includes(':'))
   const partTokens = existingTokens.filter((token) => token.startsWith('part:'))
   const remainingTokens = existingTokens.filter(
     (token) => token.includes(':') && !token.startsWith('id:') && !token.startsWith('part:')
   )
-  return [...new Set([semanticId, ...semanticTokens, ...partTokens, `id:${id}`, ...remainingTokens])].join(' ')
+  return [...new Set([semanticId, ...semanticTokens, ...partTokens, ...remainingTokens])].join(' ')
 }
 
 function mergePartsDataUi(existing: string | undefined, parts: string[]): string | undefined {
-  if (parts.length === 0) return existing
+  if (!existing && parts.length === 0) return undefined
   const existingTokens = (existing ?? '').split(/\s+/).filter(Boolean)
   const semanticTokens = existingTokens.filter((token) => !token.includes(':'))
   const partTokens = [
     ...existingTokens.filter((token) => token.startsWith('part:')),
     ...parts.map((part) => `part:${part}`)
   ]
-  const exactIdTokens = existingTokens.filter((token) => token.startsWith('id:'))
   const remainingTokens = existingTokens.filter(
     (token) => token.includes(':') && !token.startsWith('id:') && !token.startsWith('part:')
   )
-  return [...new Set([...semanticTokens, ...partTokens, ...exactIdTokens, ...remainingTokens])].join(' ')
+  return [...new Set([...semanticTokens, ...partTokens, ...remainingTokens])].join(' ')
 }
 
 interface TransformJsxOptions {
-  contractForDescriptor?: (descriptor: UiNodeDescriptor) => UiNodeContract | undefined
+  injectDataUi?: boolean
   sourceFile: string
 }
 
@@ -301,7 +293,6 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
   const spanBase = module.span.start - leadingTriviaByteLength(source)
   const spanToCharacter = (value: number) => byteToCharacter(value - spanBase)
   const descriptors: UiNodeDescriptor[] = []
-  const occurrenceByAnchor = new Map<string, number>()
   const runtimeImports = new Set<'mergeDataUi' | 'mergeUiProps' | 'UiDataSlot'>()
 
   function expressionSource(span: Span): string {
@@ -354,38 +345,33 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
   function processOpening(
     opening: JSXOpeningElement,
     component: string,
-    parentSemanticId: string | undefined,
-    insideSvg: boolean
-  ): string | undefined {
+    insideSvg: boolean,
+    hasIntrinsicAncestor: boolean
+  ): void {
     const info = openingElementInfo(opening)
     const elementLeaf = info.element.split('.').at(-1) ?? info.element
-    if (SKIPPED_COMPONENTS.has(elementLeaf)) return parentSemanticId
-    if (NON_DOM_COMPONENTS.has(info.element)) {
-      const parentPart = TRANSPARENT_PARENT_PARTS.get(info.element)
-      return parentPart
-        ? inferSemanticId({ component, element: info.element, part: parentPart, sourceFile: options.sourceFile })
-        : parentSemanticId
-    }
-    if (SKIPPED_HTML_TAGS.has(info.element)) return parentSemanticId
+    if (SKIPPED_COMPONENTS.has(elementLeaf) || NON_DOM_COMPONENTS.has(info.element)) return
+    if (SKIPPED_HTML_TAGS.has(info.element)) return
 
     const existingDataUi = info.attributes.get('data-ui')
     const isIntrinsicElement = /^[a-z]/.test(info.element)
     if (!isIntrinsicElement) {
       if (
-        options.contractForDescriptor &&
+        options.injectDataUi &&
         info.authoredDataUi &&
         (info.requiresDataUiInjection || (existingDataUi?.value && !existingDataUi.dynamic && info.spreads.length > 0))
       ) {
         injectDataUi(opening, existingDataUi, info.authoredDataUi)
       }
-      return parentSemanticId
+      return
     }
-    if (insideSvg && info.element !== 'svg' && !hasSvgContractOptIn(info)) return parentSemanticId
+    if (insideSvg && info.element !== 'svg' && !hasSvgContractOptIn(info)) return
+    if (hasIntrinsicAncestor && GENERIC_HTML_ELEMENTS.has(info.element) && !hasSemanticSignal(info)) return
     const dynamicSemanticId = dynamicUiSemanticId(existingDataUi)
 
-    const explicitId = explicitSemanticId(existingDataUi) ?? dynamicSemanticId
+    const explicitSemantic = explicitSemanticId(existingDataUi) ?? dynamicSemanticId
     const semanticId =
-      explicitId ??
+      explicitSemantic ??
       inferSemanticId({
         component,
         element: info.element,
@@ -397,35 +383,20 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
         testId: info.attributes.get('data-testid')?.value,
         type: info.attributes.get('type')?.value
       })
-    const occurrenceKey = [component, semanticId, info.element, info.signature, parentSemanticId ?? ''].join('\0')
-    const occurrence = occurrenceByAnchor.get(occurrenceKey) ?? 0
-    occurrenceByAnchor.set(occurrenceKey, occurrence + 1)
-    const hashes = createDescriptorHashes({
-      component,
-      element: info.element,
-      explicitSemanticId: explicitId,
-      occurrence,
-      parentSemanticId,
-      semanticId,
-      signature: info.signature,
-      sourceFile: options.sourceFile
-    })
     const descriptor: UiNodeDescriptor = {
-      ...hashes,
       component,
       element: info.element,
       kind: 'jsx',
       semanticId,
-      semanticSource: explicitId ? 'explicit' : 'inferred',
+      semanticSource: explicitSemantic ? 'explicit' : 'inferred',
       sourceFile: options.sourceFile,
       sourceOffset: spanToCharacter(opening.span.start)
     }
     descriptors.push(descriptor)
 
-    const contract = options.contractForDescriptor?.(descriptor)
-    if (!contract) return semanticId
-    injectDataUi(opening, existingDataUi, mergeDataUi(info.authoredDataUi, contract.semanticId, contract.id))
-    return semanticId
+    if (options.injectDataUi) {
+      injectDataUi(opening, existingDataUi, mergeDataUi(info.authoredDataUi, descriptor.semanticId))
+    }
   }
 
   function shouldWrapAsChildContent(opening: JSXOpeningElement): boolean {
@@ -443,9 +414,9 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
     )
   }
 
-  function walk(value: unknown, component: string, parentSemanticId?: string, insideSvg = false): void {
+  function walk(value: unknown, component: string, insideSvg = false, hasIntrinsicAncestor = false): void {
     if (Array.isArray(value)) {
-      for (const item of value) walk(item, component, parentSemanticId, insideSvg)
+      for (const item of value) walk(item, component, insideSvg, hasIntrinsicAncestor)
       return
     }
     if (!isRecord(value)) return
@@ -454,10 +425,13 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
     if (value.type === 'JSXElement' && isRecord(value.opening) && value.opening.type === 'JSXOpeningElement') {
       const opening = value.opening as unknown as JSXOpeningElement
       const element = jsxName(opening.name)
-      const semanticId = processOpening(opening, nestedComponent, parentSemanticId, insideSvg)
+      const isIntrinsicElement = /^[a-z]/.test(element)
+      processOpening(opening, nestedComponent, insideSvg, hasIntrinsicAncestor)
       const childrenInsideSvg = element === 'foreignObject' ? false : insideSvg || element === 'svg'
+      const childrenHaveIntrinsicAncestor =
+        element === 'foreignObject' ? false : hasIntrinsicAncestor || isIntrinsicElement
       if (
-        options.contractForDescriptor &&
+        options.injectDataUi &&
         !/^[a-z]/.test(element) &&
         shouldWrapAsChildContent(opening) &&
         Array.isArray(value.children) &&
@@ -469,10 +443,12 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
         magicString.appendLeft(spanToCharacter(value.closing.span.start), `</${RUNTIME_SLOT}>`)
         runtimeImports.add('UiDataSlot')
       }
-      if (Array.isArray(value.children)) walk(value.children, nestedComponent, semanticId, childrenInsideSvg)
+      if (Array.isArray(value.children)) {
+        walk(value.children, nestedComponent, childrenInsideSvg, childrenHaveIntrinsicAncestor)
+      }
       for (const attribute of opening.attributes) {
         if (attribute.type === 'JSXAttribute' && attribute.value?.type === 'JSXExpressionContainer') {
-          walk(attribute.value.expression, nestedComponent, semanticId, childrenInsideSvg)
+          walk(attribute.value.expression, nestedComponent, childrenInsideSvg, childrenHaveIntrinsicAncestor)
         }
       }
       return
@@ -480,13 +456,13 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
 
     for (const [key, child] of Object.entries(value)) {
       if (key === 'span' || key === 'ctxt' || key === 'type') continue
-      walk(child, nestedComponent, parentSemanticId, insideSvg)
+      walk(child, nestedComponent, insideSvg, hasIntrinsicAncestor)
     }
   }
 
   walk(module, defaultComponentName(options.sourceFile))
 
-  if (options.contractForDescriptor && runtimeImports.size > 0) {
+  if (options.injectDataUi && runtimeImports.size > 0) {
     const imports = [...runtimeImports]
       .sort()
       .map((name) => {
@@ -512,9 +488,9 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
   }
 
   return {
-    code: options.contractForDescriptor ? magicString.toString() : source,
+    code: options.injectDataUi ? magicString.toString() : source,
     descriptors,
-    map: options.contractForDescriptor
+    map: options.injectDataUi
       ? magicString.generateMap({
           file: options.sourceFile,
           hires: true,
@@ -591,6 +567,15 @@ function hasHtmlSvgContractOptIn(tag: HtmlTagMatch): boolean {
   )
 }
 
+function hasHtmlSemanticSignal(tag: HtmlTagMatch): boolean {
+  return (
+    htmlAttribute(tag, 'data-ui') !== undefined ||
+    htmlAttribute(tag, 'data-slot') !== undefined ||
+    [...SEMANTIC_ATTRIBUTES].some((name) => htmlAttribute(tag, name) !== undefined) ||
+    Object.keys(tag.attributes).some((name) => name.startsWith('on'))
+  )
+}
+
 interface TransformHtmlOptions extends TransformJsxOptions {
   windowName: string
 }
@@ -598,28 +583,23 @@ interface TransformHtmlOptions extends TransformJsxOptions {
 export function transformHtml(source: string, options: TransformHtmlOptions): UiSourceTransform {
   const magicString = new MagicString(source)
   const descriptors: UiNodeDescriptor[] = []
-  const occurrences = new Map<string, number>()
   const tags = htmlTags(source)
-  const semanticByTagIndex = new Map<number, string>()
 
   for (const tag of tags) {
     if (SKIPPED_HTML_TAGS.has(tag.name)) continue
     const dataSlotPart = staticHtmlDataSlot(tag)
     if (tag.insideSvg && tag.name !== 'svg' && !hasHtmlSvgContractOptIn(tag)) continue
-    let parentIndex = tag.parentIndex
-    let parentSemanticId: string | undefined
-    while (parentIndex !== undefined && parentSemanticId === undefined) {
-      parentSemanticId = semanticByTagIndex.get(parentIndex)
-      parentIndex = tags[parentIndex]?.parentIndex
-    }
+    const parent = tag.parentIndex === undefined ? undefined : tags[tag.parentIndex]
+    const isBoundaryRoot = parent === undefined || parent.name === 'foreignobject'
+    if (!isBoundaryRoot && GENERIC_HTML_ELEMENTS.has(tag.name) && !hasHtmlSemanticSignal(tag)) continue
     const existing = htmlAttribute(tag, 'data-ui')
     const parts = [...new Set([...namespaceTokenValues(existing, 'part'), dataSlotPart])].filter(
       (part): part is string => Boolean(part)
     )
     const authoredDataUi = mergePartsDataUi(existing, parts)
-    const explicitId = existing?.split(/\s+/).find((token) => token && !token.includes(':') && !token.startsWith('id:'))
+    const explicitSemantic = existing?.split(/\s+/).find((token) => token && !token.includes(':'))
     const semanticId =
-      explicitId ??
+      explicitSemantic ??
       (tag.name === 'body'
         ? 'app.window'
         : inferSemanticId({
@@ -632,43 +612,20 @@ export function transformHtml(source: string, options: TransformHtmlOptions): Ui
             testId: htmlAttribute(tag, 'data-testid'),
             type: htmlAttribute(tag, 'type')
           }))
-    const signature = [
-      ...['id', 'name', 'role', 'type']
-        .map((name) => [name, htmlAttribute(tag, name)] as const)
-        .filter((entry): entry is readonly [string, string] => entry[1] !== undefined)
-        .map(([name, value]) => `${name}=${value}`),
-      ...parts.map(stablePartSignature)
-    ].join('|')
-    const occurrenceKey = `${semanticId}\0${tag.name}\0${signature}\0${parentSemanticId ?? ''}`
-    const occurrence = occurrences.get(occurrenceKey) ?? 0
-    occurrences.set(occurrenceKey, occurrence + 1)
-    const hashes = createDescriptorHashes({
-      component: options.windowName,
-      element: tag.name,
-      explicitSemanticId: explicitId,
-      occurrence,
-      parentSemanticId,
-      semanticId,
-      signature,
-      sourceFile: options.sourceFile
-    })
     const descriptor: UiNodeDescriptor = {
-      ...hashes,
       component: options.windowName,
       element: tag.name,
       kind: 'html',
       semanticId,
-      semanticSource: explicitId ? 'explicit' : 'inferred',
+      semanticSource: explicitSemantic ? 'explicit' : 'inferred',
       sourceFile: options.sourceFile,
       sourceOffset: tag.start
     }
     descriptors.push(descriptor)
-    semanticByTagIndex.set(tag.index, semanticId)
 
-    const contract = options.contractForDescriptor?.(descriptor)
-    if (!contract) continue
+    if (!options.injectDataUi) continue
     const rootTokens = tag.name === 'body' ? ` scope:window:${identifierWords(options.windowName).join('-')}` : ''
-    const value = `${mergeDataUi(authoredDataUi, contract.semanticId, contract.id)}${rootTokens}`
+    const value = `${mergeDataUi(authoredDataUi, descriptor.semanticId)}${rootTokens}`
     if (existing !== undefined) {
       const attribute = tag.source.match(/\sdata-ui\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/i)
       if (attribute?.index !== undefined) {
@@ -683,7 +640,7 @@ export function transformHtml(source: string, options: TransformHtmlOptions): Ui
   }
 
   return {
-    code: options.contractForDescriptor ? magicString.toString() : source,
+    code: options.injectDataUi ? magicString.toString() : source,
     descriptors,
     map: null
   }

@@ -31,8 +31,7 @@
       "!v2-refactor-temp/**",
       "!resources/**",
       "!**/storybook-static/**",
-      "!**/dist/**",
-      "!ui-contract.registry.json"
+      "!**/dist/**"
     ],
     "maxSize": 2097152
   },
