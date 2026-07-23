@@ -1,4 +1,4 @@
-import { appendFileSync, renameSync, writeFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, renameSync, writeFileSync } from 'node:fs'
 import {
   access,
   type FileHandle,
@@ -265,7 +265,15 @@ describe('saveMigrationDiagnosticBundle', () => {
 
   it('rejects a relative, root, or basename-less destination', async () => {
     const clock = vi.fn(() => new Date(GENERATED_AT))
-    for (const target of ['diagnostics.zip', '', path.parse(workDir).root, `${workDir}/.`, `${workDir}/..`]) {
+    for (const target of [
+      'diagnostics.zip',
+      '',
+      path.parse(workDir).root,
+      `${workDir}/.`,
+      `${workDir}/..`,
+      `${workDir}/child\\.`,
+      `${workDir}/child\\..`
+    ]) {
       expect(await save(target, { clock })).toBe(false)
     }
     expect(clock).not.toHaveBeenCalled()
@@ -273,7 +281,7 @@ describe('saveMigrationDiagnosticBundle', () => {
   })
 
   it('refuses to overwrite a selected source log', async () => {
-    await writeFile(logPath(), 'must survive')
+    await Promise.all([writeFile(logPath(), 'must survive'), writeLog(`app.${LOG_DATE}.log.1`, 'fails to open')])
     const target = destination()
     await link(logPath(), target)
     const handles: FileHandle[] = []
@@ -281,6 +289,7 @@ describe('saveMigrationDiagnosticBundle', () => {
     expect(
       await save(target, {
         openLogFile: async (filePath) => {
+          if (filePath.endsWith('.1')) throw new Error('injected second snapshot failure')
           const handle = await open(filePath, 'r')
           handles.push(handle)
           return handle
@@ -289,6 +298,7 @@ describe('saveMigrationDiagnosticBundle', () => {
     ).toBe(false)
     expect(await readFile(logPath(), 'utf8')).toBe('must survive')
     expect(await readFile(target, 'utf8')).toBe('must survive')
+    expect(handles).toHaveLength(1)
     await expectClosed(handles)
     await expectNoAtomicResidue()
   })
@@ -297,6 +307,14 @@ describe('saveMigrationDiagnosticBundle', () => {
     await writeFile(logPath(), 'log')
     const target = path.join(workDir, 'missing-parent', 'diagnostics.zip')
     const handles: FileHandle[] = []
+    class LateCleanupErrorStream extends Readable {
+      override _read() {}
+      override destroy(error?: Error): this {
+        mkdirSync(path.dirname(target), { recursive: true })
+        this.emit('error', new Error('late cleanup log error'))
+        return super.destroy(error)
+      }
+    }
 
     expect(
       await save(target, {
@@ -304,11 +322,12 @@ describe('saveMigrationDiagnosticBundle', () => {
           const handle = await open(filePath, 'r')
           handles.push(handle)
           return handle
-        }
+        },
+        createLogReadStream: () => new LateCleanupErrorStream()
       })
     ).toBe(false)
     await expect(access(target)).rejects.toMatchObject({ code: 'ENOENT' })
-    await expect(access(path.dirname(target))).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(await readdir(path.dirname(target))).toEqual([])
     await expectClosed(handles)
     await expectNoAtomicResidue()
   })

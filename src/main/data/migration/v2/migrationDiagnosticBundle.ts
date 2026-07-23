@@ -26,6 +26,11 @@ interface MigrationDiagnosticBundleDependencies {
   readonly createLogReadStream?: (handle: FileHandle, snapshotBytes: number) => Readable
 }
 
+interface LogCandidate {
+  readonly fileName: string
+  readonly filePath: FilePath
+}
+
 interface LogSnapshot {
   readonly fileName: string
   readonly filePath: FilePath
@@ -33,11 +38,15 @@ interface LogSnapshot {
   readonly snapshotBytes: number
 }
 
-class LogReadFailure extends Error {}
+class LogReadFailure extends Error {
+  constructor(cause: unknown) {
+    super('Failed to read a fixed log snapshot', { cause })
+  }
+}
 
 function validateDestination(value: string): FilePath | undefined {
   if (typeof value !== 'string' || !path.isAbsolute(value)) return undefined
-  const terminal = value.split(path.sep).at(-1)
+  const terminal = value.split(/[\\/]/).at(-1)
   if (!terminal || terminal === '.' || terminal === '..') return undefined
   const normalized = path.normalize(value)
   if (normalized === path.parse(normalized).root) return undefined
@@ -54,11 +63,7 @@ function validLocalDate(value: string): boolean {
   return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
 }
 
-async function createSnapshots(
-  logDate: string,
-  handles: FileHandle[],
-  openLogFile: (filePath: FilePath) => Promise<FileHandle>
-): Promise<LogSnapshot[]> {
+async function selectLogFiles(logDate: string): Promise<LogCandidate[]> {
   const entries = await readdir(application.getPath('app.logs'), { withFileTypes: true })
   const eligible = entries.flatMap((entry) => {
     if (!entry.isFile()) return []
@@ -73,12 +78,22 @@ async function createSnapshots(
         .at(-1)
   if (!selectedDate) return []
 
-  const snapshots: LogSnapshot[] = []
-  const selected = eligible
+  return eligible
     .filter(({ date }) => date === selectedDate)
     .sort(({ fileName: a }, { fileName: b }) => (a < b ? -1 : a > b ? 1 : 0))
-  for (const { fileName } of selected) {
-    const filePath = application.getPath('app.logs', fileName) as FilePath
+    .map(({ fileName }) => ({
+      fileName,
+      filePath: application.getPath('app.logs', fileName) as FilePath
+    }))
+}
+
+async function createSnapshots(
+  candidates: LogCandidate[],
+  handles: FileHandle[],
+  openLogFile: (filePath: FilePath) => Promise<FileHandle>
+): Promise<LogSnapshot[]> {
+  const snapshots: LogSnapshot[] = []
+  for (const { fileName, filePath } of candidates) {
     const pathStat = await lstat(filePath)
     if (!pathStat.isFile()) throw new Error('Selected log path is not a regular file')
     const handle = await openLogFile(filePath)
@@ -95,7 +110,7 @@ async function createSnapshots(
 function exactLengthStream(expectedBytes: number, onFailure: (error: Error) => void): Transform {
   let bytesRead = 0
   const fail = (message: string, callback: (error?: Error | null) => void) => {
-    const error = new Error(message)
+    const error = new LogReadFailure(new Error(message))
     onFailure(error)
     callback(error)
   }
@@ -127,7 +142,6 @@ async function writeZip(
   const output = createAtomicWriteStream(destination)
   const archive = new ZipArchive({ zlib: { level: 1 }, zip64: true })
   const activeStreams = new Set<Readable>()
-  let logReadFailed = false
   let rejectCompletion: (error: unknown) => void = () => undefined
   const completion = new Promise<void>((resolve, reject) => {
     rejectCompletion = reject
@@ -136,9 +150,10 @@ async function writeZip(
     archive.once('error', reject)
     archive.once('warning', reject)
   })
-  const failLogRead = (error: Error) => {
-    logReadFailed = true
-    rejectCompletion(error)
+  const failLogRead = (error: Error): LogReadFailure => {
+    const failure = error instanceof LogReadFailure ? error : new LogReadFailure(error)
+    rejectCompletion(failure)
+    return failure
   }
 
   try {
@@ -153,15 +168,13 @@ async function writeZip(
       try {
         source = createLogReadStream(snapshot.handle, snapshot.snapshotBytes)
       } catch (error) {
-        logReadFailed = true
-        throw error
+        throw new LogReadFailure(error)
       }
       const counted = exactLengthStream(snapshot.snapshotBytes, failLogRead)
       activeStreams.add(source)
       activeStreams.add(counted)
       source.once('error', (error) => {
-        failLogRead(error)
-        counted.destroy(error)
+        counted.destroy(failLogRead(error))
       })
       counted.once('error', failLogRead)
       source.pipe(counted)
@@ -172,7 +185,6 @@ async function writeZip(
     for (const stream of activeStreams) stream.destroy()
     archive.abort()
     if (!output.closed) await output.abort().catch(() => undefined)
-    if (logReadFailed) throw new LogReadFailure()
     throw error
   }
 }
@@ -199,14 +211,16 @@ export async function saveMigrationDiagnosticBundle(
   const handles: FileHandle[] = []
 
   try {
+    let candidates: LogCandidate[] = []
     let snapshots: LogSnapshot[] = []
     try {
-      snapshots = await createSnapshots(input.logDate, handles, openLogFile)
+      candidates = await selectLogFiles(input.logDate)
+      snapshots = await createSnapshots(candidates, handles, openLogFile)
     } catch (error) {
       logger.warn('Application logs could not be snapshotted; saving metadata only', error as Error)
     }
-    for (const snapshot of snapshots) {
-      if (await isSameFile(destination, snapshot.filePath)) return false
+    for (const candidate of candidates) {
+      if (await isSameFile(destination, candidate.filePath)) return false
     }
     if (snapshots.length === 0) {
       await writeZip(destination, metadata, [], createLogReadStream)
