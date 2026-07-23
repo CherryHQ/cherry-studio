@@ -568,7 +568,7 @@ export default function ProviderEditorDrawer({
         </>
       ) : (
         <>
-          {duplicateSource?.presetProviderId && <DuplicateHeader source={duplicateSource} />}
+          {duplicateSource?.presetProviderId && !presetPicker && <DuplicateHeader source={duplicateSource} />}
 
           {urlForm &&
             (duplicateUsesEndpointFields ? (

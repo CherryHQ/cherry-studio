@@ -773,6 +773,7 @@ describe('ProviderEditorDrawer', () => {
       name: 'settings.provider.create_custom.preset_instance.placeholder'
     })
     expect(presetPicker).toHaveValue('anthropic')
+    expect(screen.getAllByText('anthropic')).toHaveLength(1)
     fireEvent.change(presetPicker, { target: { value: 'openai' } })
     expect(onSelectPreset).toHaveBeenLastCalledWith(secondSource)
 
@@ -823,6 +824,7 @@ describe('ProviderEditorDrawer', () => {
     )
 
     expect(screen.getByRole('button', { name: 'settings.provider.duplicate.menu_label' })).toBeInTheDocument()
+    expect(screen.getByText('openai')).toBeInTheDocument()
   })
 
   it('fans one Base URL out to all canonical text endpoints for a New API preset instance', () => {
