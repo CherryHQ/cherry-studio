@@ -115,6 +115,16 @@ describe('MigrationIpcHandler', () => {
       expect(dialog.showSaveDialog).not.toHaveBeenCalled()
     })
 
+    it('rejects malformed save payloads at the IPC boundary', async () => {
+      for (const payload of [null, {}, { ...savePayload, dialogTitle: 1 }, { ...savePayload, logDate: 1 }]) {
+        await expect(invoke(MigrationIpcChannels.SaveDiagnosticBundle, payload)).rejects.toThrow(
+          'Invalid migration diagnostic save payload.'
+        )
+      }
+      expect(dialog.showSaveDialog).not.toHaveBeenCalled()
+      expect(diagnosticMocks.saveBundle).not.toHaveBeenCalled()
+    })
+
     it('rejects blank or over-120-character dialog titles', async () => {
       for (const dialogTitle of ['  ', 'x'.repeat(121)]) {
         await expect(

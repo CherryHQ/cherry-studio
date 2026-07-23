@@ -7,7 +7,6 @@ import type { VersionBlockReason } from '@data/migration/v2/core/versionPolicy'
 import { loggerService } from '@logger'
 import { validateSender } from '@main/core/security/validateSender'
 import {
-  type MigrationDiagnosticSavePayload,
   type MigrationDiagnosticSaveResult,
   type MigrationExportFileWriteMode,
   MigrationIpcChannels,
@@ -19,6 +18,7 @@ import {
 import { app, dialog, ipcMain, type IpcMainInvokeEvent, shell } from 'electron'
 import fs from 'fs/promises'
 import path from 'path'
+import * as z from 'zod'
 
 import { migrationEngine } from '../core/MigrationEngine'
 import { migrationWindowManager } from './MigrationWindowManager'
@@ -61,6 +61,11 @@ function isValidLocalDate(value: unknown): boolean {
   const date = new Date(year, month - 1, day)
   return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
 }
+
+const MigrationDiagnosticSavePayloadSchema = z.strictObject({
+  dialogTitle: z.string().trim().min(1).max(120),
+  logDate: z.string().refine(isValidLocalDate)
+})
 
 /**
  * Register all migration IPC handlers
@@ -135,18 +140,11 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
 
   ipcMain.handle(
     MigrationIpcChannels.SaveDiagnosticBundle,
-    async (
-      event: IpcMainInvokeEvent,
-      payload: MigrationDiagnosticSavePayload
-    ): Promise<MigrationDiagnosticSaveResult> => {
+    async (event: IpcMainInvokeEvent, payload: unknown): Promise<MigrationDiagnosticSaveResult> => {
       assertMigrationDiagnosticSender(event)
-      const dialogTitle = payload.dialogTitle.trim()
-      if (dialogTitle.length < 1 || dialogTitle.length > 120) {
-        throw new Error('Invalid migration diagnostic dialog title.')
-      }
-      if (!isValidLocalDate(payload.logDate)) {
-        throw new Error('Invalid migration diagnostic log date.')
-      }
+      const parsedPayload = MigrationDiagnosticSavePayloadSchema.safeParse(payload)
+      if (!parsedPayload.success) throw new Error('Invalid migration diagnostic save payload.')
+      const { dialogTitle, logDate } = parsedPayload.data
 
       const { canceled, filePath } = await dialog.showSaveDialog({
         title: dialogTitle,
@@ -161,7 +159,7 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
         const logs = await saveMigrationDiagnosticBundle({
           destination: filePath,
           stage: currentProgress.stage,
-          logDate: payload.logDate
+          logDate
         })
         if (!logs) return { status: 'failed' }
         lastSavedDiagnosticBundlePath = filePath
