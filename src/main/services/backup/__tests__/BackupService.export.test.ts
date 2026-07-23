@@ -86,7 +86,7 @@ describe('BackupService packaged export path', () => {
   async function initPackagedService(): Promise<BackupService> {
     const service = new BackupService()
     vi.spyOn(service as never, 'readSchemaMigrationId' as never).mockReturnValue('migration-1')
-    vi.spyOn(service as never, 'validateOutputPath' as never).mockImplementation(() => undefined)
+    vi.spyOn(service as never, 'validateOutputPath' as never).mockImplementation((path: unknown) => path as string)
     vi.spyOn(service as never, 'preflightDisk' as never).mockResolvedValue(undefined)
     vi.spyOn(service as never, 'resolveNotesRoot' as never).mockReturnValue(undefined)
     await service._doInit()

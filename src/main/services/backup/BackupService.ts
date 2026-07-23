@@ -255,7 +255,9 @@ export class BackupService extends BaseService {
     }
     // Refuse unsafe output paths BEFORE any work: renderer must not overwrite the live
     // DB or other app-managed data, and must not clobber an existing file (no-clobber).
-    this.validateOutputPath(outputPath, overwrite)
+    // Canonical (realpath-resolved) path is the ONLY path used for preflight + publish —
+    // raw outputPath with symlinks could validate as safe then rename into managed data.
+    const canonicalOutputPath = this.validateOutputPath(outputPath, overwrite)
     // Reserve the active slot BEFORE the preflight await so a concurrent startBackup
     // sees it as busy — two invokes that both pass the null check would otherwise
     // both suspend in preflight, then both start (the second overwriting activeOperation
@@ -286,10 +288,10 @@ export class BackupService extends BaseService {
       })
       // Preflight BEFORE any copy/archive work — disk-full surfaces as a clear error
       // here rather than a mid-export SQLITE_FULL (disk budget).
-      await this.preflightDisk(preset, outputPath, abortController.signal)
+      await this.preflightDisk(preset, canonicalOutputPath, abortController.signal)
       const result = await this.orchestrator.exportBackup({
         preset,
-        outputPath,
+        outputPath: canonicalOutputPath,
         overwrite,
         restoreId: backupId,
         producerAppVersion: app.getVersion(),
@@ -788,12 +790,14 @@ export class BackupService extends BaseService {
   }
 
   /**
-   * Refuse unsafe output paths. The renderer passes an arbitrary outputPath; without
-   * validation, archive.ts's atomic rename would let it overwrite the live DB or other
-   * app-managed data, and silently clobber any existing file. Defense in depth — the
-   * renderer picks a path via a save dialog, but never trust it across the IPC boundary.
+   * Refuse unsafe output paths and return the canonical (realpath-resolved) absolute
+   * path that preflight + publish MUST use. The renderer passes an arbitrary
+   * outputPath; without validation, archive.ts's atomic rename would let it overwrite
+   * the live DB or other app-managed data, and silently clobber any existing file.
+   * Defense in depth — the renderer picks a path via a save dialog, but never trust it
+   * across the IPC boundary. Error messages keep the user-facing raw `outputPath`.
    */
-  private validateOutputPath(outputPath: string, overwrite = false): void {
+  private validateOutputPath(outputPath: string, overwrite = false): string {
     // Canonicalize via realpath of the existing parent (resolves symlinks) so a symlinked
     // path cannot route the archive into an app-managed dir that lexical isPathInside
     // misses. The parent must already exist (renderer picks via save dialog); a missing
@@ -862,6 +866,7 @@ export class BackupService extends BaseService {
         `backup: outputPath already exists (no-clobber): ${outputPath}`
       )
     }
+    return canonical
   }
 
   /**
