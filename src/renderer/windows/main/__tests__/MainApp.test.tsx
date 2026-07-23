@@ -6,10 +6,15 @@ import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../onboarding/OnboardingPage', () => ({
-  default: ({ onComplete }: { onComplete: () => void }) => (
-    <button type="button" data-testid="onboarding-page" onClick={onComplete}>
-      onboarding
-    </button>
+  default: ({ onComplete }: { onComplete: (status: 'completed' | 'skipped') => void }) => (
+    <>
+      <button type="button" data-testid="onboarding-page" onClick={() => onComplete('completed')}>
+        onboarding
+      </button>
+      <button type="button" data-testid="skip-onboarding" onClick={() => onComplete('skipped')}>
+        skip
+      </button>
+    </>
   )
 }))
 
@@ -46,7 +51,7 @@ describe('MainWindowContent', () => {
   })
 
   it('renders onboarding before the user completes first-run setup', () => {
-    MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.completed', false)
+    MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', 'pending')
 
     render(<MainWindowContent />)
 
@@ -55,21 +60,35 @@ describe('MainWindowContent', () => {
   })
 
   it('marks onboarding complete when the flow completes', async () => {
-    MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.completed', false)
+    MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', 'pending')
 
     const { rerender } = render(<MainWindowContent />)
     fireEvent.click(screen.getByTestId('onboarding-page'))
 
     await waitFor(() => {
-      expect(MockUsePreferenceUtils.getPreferenceValue('app.onboarding.provider_setup.completed')).toBe(true)
+      expect(MockUsePreferenceUtils.getPreferenceValue('app.onboarding.provider_setup.status')).toBe('completed')
     })
 
     rerender(<MainWindowContent />)
     expect(screen.getByTestId('app-shell')).toBeInTheDocument()
   })
 
-  it('renders the normal app shell after onboarding is completed', () => {
-    MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.completed', true)
+  it('marks onboarding skipped when the user chooses to set it up later', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', 'pending')
+
+    const { rerender } = render(<MainWindowContent />)
+    fireEvent.click(screen.getByTestId('skip-onboarding'))
+
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('app.onboarding.provider_setup.status')).toBe('skipped')
+    })
+
+    rerender(<MainWindowContent />)
+    expect(screen.getByTestId('app-shell')).toBeInTheDocument()
+  })
+
+  it.each(['completed', 'skipped'] as const)('renders the normal app shell when onboarding is %s', (status) => {
+    MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', status)
 
     render(<MainWindowContent />)
 

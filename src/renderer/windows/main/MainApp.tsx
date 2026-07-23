@@ -55,12 +55,12 @@ function MainWindowRuntime(): null {
 }
 
 export function MainWindowContent(): React.ReactElement {
-  const [onboardingCompleted, setOnboardingCompleted] = usePreference('app.onboarding.provider_setup.completed')
+  const [providerSetupStatus, setProviderSetupStatus] = usePreference('app.onboarding.provider_setup.status')
 
-  if (!onboardingCompleted) {
+  if (providerSetupStatus === 'pending') {
     return (
       <>
-        <OnboardingPage onComplete={() => setOnboardingCompleted(true)} />
+        <OnboardingPage onComplete={setProviderSetupStatus} />
         <MainWindowRuntime />
         <PopupHost />
         <ToastHost />

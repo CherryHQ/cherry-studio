@@ -139,14 +139,17 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
 
   {
     id: 'onboarding_completed_migrate',
-    description: 'Convert legacy localStorage onboarding-completed string into the v2 boolean preference',
+    description: 'Convert legacy localStorage onboarding-completed into the v2 provider setup status',
     sources: {
       completed: { source: 'localStorage', key: 'onboarding-completed' }
     },
-    targetKeys: ['app.onboarding.provider_setup.completed'],
+    targetKeys: ['app.onboarding.provider_setup.status'],
     transform: (sources) => {
       if (sources.completed === undefined || sources.completed === null) return {}
-      return { 'app.onboarding.provider_setup.completed': sources.completed === true || sources.completed === 'true' }
+      return {
+        'app.onboarding.provider_setup.status':
+          sources.completed === true || sources.completed === 'true' ? 'completed' : 'pending'
+      }
     }
   },
 

@@ -126,7 +126,7 @@ describe('OnboardingPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /onboarding\.select_model\.start/ }))
 
-    await waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(onComplete).toHaveBeenCalledWith('completed'))
   })
 
   it('does not allow CherryAI to satisfy the provider setup requirements', async () => {
@@ -170,7 +170,7 @@ describe('OnboardingPage', () => {
     expect(screen.getByRole('button', { name: /onboarding\.select_model\.start/ })).toBeDisabled()
   })
 
-  it('completes directly when the user skips onboarding', async () => {
+  it('records a skipped status when the user skips onboarding', async () => {
     const onComplete = vi.fn()
     render(<OnboardingPage onComplete={onComplete} />)
 
@@ -179,7 +179,7 @@ describe('OnboardingPage', () => {
 
     fireEvent.click(skipButton)
 
-    await waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(onComplete).toHaveBeenCalledWith('skipped'))
   })
 
   it('shows an error when completing onboarding fails', async () => {

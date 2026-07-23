@@ -10,6 +10,7 @@ import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
 import { ProviderSettingsPage, useProviderModelSync } from '@renderer/pages/settings/ProviderSettings'
 import { oauthWithCherryIn } from '@renderer/services/oauth'
 import { toast } from '@renderer/services/toast'
+import type { OnboardingProviderSetupStatus } from '@shared/data/preference/preferenceTypes'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { defaultLanguage } from '@shared/utils/languages'
 import { createMemoryHistory, createRootRoute, createRouter, RouterProvider } from '@tanstack/react-router'
@@ -18,9 +19,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 type OnboardingStep = 'welcome' | 'provider' | 'select-model'
+type OnboardingCompletionStatus = Exclude<OnboardingProviderSetupStatus, 'pending'>
 
 interface OnboardingPageProps {
-  onComplete: () => void | Promise<void>
+  onComplete: (status: OnboardingCompletionStatus) => void | Promise<void>
 }
 
 const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
@@ -79,16 +81,19 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
     void setLanguage(value)
   }
 
-  const complete = useCallback(async () => {
-    setIsCompleting(true)
-    try {
-      await onComplete()
-    } catch {
-      toast.error(t('onboarding.toast.complete_failed'))
-    } finally {
-      setIsCompleting(false)
-    }
-  }, [onComplete, t])
+  const complete = useCallback(
+    async (status: OnboardingCompletionStatus) => {
+      setIsCompleting(true)
+      try {
+        await onComplete(status)
+      } catch {
+        toast.error(t('onboarding.toast.complete_failed'))
+      } finally {
+        setIsCompleting(false)
+      }
+    },
+    [onComplete, t]
+  )
 
   useEffect(
     () => () => {
@@ -184,7 +189,7 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
             variant="ghost"
             size="sm"
             className="nodrag text-foreground-secondary hover:text-foreground"
-            onClick={() => void complete()}
+            onClick={() => void complete('skipped')}
             disabled={isCompleting}>
             {t('onboarding.skip')}
           </Button>
@@ -278,7 +283,7 @@ export default function OnboardingPage({ onComplete }: OnboardingPageProps) {
                         className="w-full"
                         loading={isCompleting}
                         disabled={!canCompleteModelSetup}
-                        onClick={() => void complete()}>
+                        onClick={() => void complete('completed')}>
                         <Check size={16} />
                         {t('onboarding.select_model.start')}
                       </Button>
