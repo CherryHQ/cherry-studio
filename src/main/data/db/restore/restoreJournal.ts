@@ -76,7 +76,9 @@ const FileResourceSchema = z.strictObject({
 })
 
 // All journal paths (db.*, fileResources[].*) are stored userData-relative;
-// readers join them onto the currently resolved userData.
+// readers join them onto the currently resolved userData. Schema only checks
+// non-empty strings — preboot consumption (restorePromotion) independently
+// asserts containment inside userData before any fs op (absolute / `../` reject).
 const commonFields = {
   version: z.literal(1),
   restoreId: z.string().min(1),
