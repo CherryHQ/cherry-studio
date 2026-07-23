@@ -137,27 +137,17 @@ describe('rtk utils', () => {
       )
     })
 
-    it('passes a system RTK .cmd path and arbitrary rewrite text as separate arguments', async () => {
-      const command = 'echo "quoted" & whoami %PATH%'
+    it('disables rewrite when rtk resolves to a Windows batch wrapper', async () => {
+      // Passing a model-generated shell command as an argument to a .cmd/.bat
+      // crosses cmd.exe's parser, which is not reliably escapable — the probe
+      // must refuse the wrapper instead of executing through it.
       snapshotRef.value = {
         name: 'rtk',
-        availability: { source: 'system', path: 'C:\\Users\\V\\AppData\\Roaming\\npm\\rtk.cmd' }
+        availability: { source: 'system', path: 'C:\\Users\\V\\AppData\\Roaming\\npm\\rtk.CMD' }
       }
-      executeCommandMock.mockResolvedValueOnce('rtk 0.30.1').mockResolvedValueOnce('rewritten')
 
-      await expect(rtkRewrite(command)).resolves.toBe('rewritten')
-      expect(executeCommandMock).toHaveBeenNthCalledWith(
-        1,
-        'C:\\Users\\V\\AppData\\Roaming\\npm\\rtk.cmd',
-        ['--version'],
-        expect.objectContaining({ capture: true })
-      )
-      expect(executeCommandMock).toHaveBeenNthCalledWith(
-        2,
-        'C:\\Users\\V\\AppData\\Roaming\\npm\\rtk.cmd',
-        ['rewrite', command],
-        expect.objectContaining({ capture: true })
-      )
+      await expect(rtkRewrite('echo "quoted" & whoami %PATH%')).resolves.toBeNull()
+      expect(executeCommandMock).not.toHaveBeenCalled()
     })
 
     it('shares one atomic probe across concurrent rewrites', async () => {

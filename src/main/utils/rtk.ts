@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
@@ -57,6 +59,18 @@ async function probeRtk(): Promise<RtkExecution | null> {
           ? 'rtk binary not found; command rewrite disabled until RTK is installed from Settings → Plugins'
           : 'rtk snapshot probe timed out; command rewrite disabled this cycle'
       )
+      return null
+    }
+
+    // A Windows batch wrapper (.cmd/.bat) forces argument passing through
+    // cmd.exe's parser, where the model-generated shell command handed to
+    // `rtk rewrite` is not reliably escapable (cross-spawn only hardens
+    // node_modules/.bin shims). The rewrite is an optimization, so refuse the
+    // unsafe boundary instead of trying to escape across it.
+    if (['.cmd', '.bat'].includes(path.extname(snapshot.availability.path).toLowerCase())) {
+      logger.warn('rtk resolves to a batch wrapper; command rewrite disabled', {
+        path: snapshot.availability.path
+      })
       return null
     }
 
