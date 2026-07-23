@@ -308,6 +308,37 @@ describe('messageConverter', () => {
       })
     })
 
+    it('adds a placeholder so empty assistant messages never send empty content (#16195)', async () => {
+      const model = createModel()
+      const message = createMessage('assistant')
+      // No text, thinking, files, or images — e.g. an interrupted/tool-only turn
+      // that survives filtering but converts to nothing, then the user sends "继续".
+      message.__mockContent = ''
+
+      const result = await convertMessageToSdkParam(message, false, model)
+
+      // Must NOT be { role: 'assistant', content: [] } — Gemini/Anthropic reject
+      // empty assistant messages with HTTP 400.
+      expect(result).toEqual({
+        role: 'assistant',
+        content: [{ type: 'text', text: '...' }]
+      })
+    })
+
+    it('keeps the [Image] placeholder for image-only assistant messages', async () => {
+      const model = createModel()
+      const message = createMessage('assistant')
+      message.__mockContent = ''
+      message.__mockImageBlocks = [createImageBlock(message.id, { url: 'https://example.com/generated.png' })]
+
+      const result = await convertMessageToSdkParam(message, false, model)
+
+      expect(result).toEqual({
+        role: 'assistant',
+        content: [{ type: 'text', text: '[Image]' }]
+      })
+    })
+
     it('trims content in assistant messages', async () => {
       const model = createModel()
       const message = createMessage('assistant')
