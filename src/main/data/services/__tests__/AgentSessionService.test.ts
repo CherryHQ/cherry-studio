@@ -6,6 +6,7 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { pinTable } from '@data/db/schemas/pin'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import { pinService } from '@data/services/PinService'
 import { ErrorCode } from '@shared/data/api/errors'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -1379,5 +1380,148 @@ describe('AgentSessionService', () => {
 
     const rows = await dbh.db.select().from(agentWorkspaceTable)
     expect(rows).toHaveLength(0)
+  })
+
+  describe('lastActivityAt semantics', () => {
+    const readLastActivityAt = async (sessionId: string) => {
+      const [row] = await dbh.db
+        .select({ lastActivityAt: agentSessionTable.lastActivityAt })
+        .from(agentSessionTable)
+        .where(eq(agentSessionTable.id, sessionId))
+      return row?.lastActivityAt
+    }
+
+    it('is not changed by a name/rename update', async () => {
+      const workspace = await createWorkspace('activity-rename')
+      await dbh.db.insert(agentSessionTable).values({
+        id: 'sess-rename',
+        agentId: 'agent-session-test',
+        name: 'Before',
+        workspaceId: workspace.id,
+        orderKey: 'a0',
+        lastActivityAt: 500
+      })
+
+      agentSessionService.update('sess-rename', { name: 'After' })
+
+      expect(await readLastActivityAt('sess-rename')).toBe(500)
+    })
+
+    it('is not changed by pin and unpin', async () => {
+      const workspace = await createWorkspace('activity-pin')
+      await dbh.db.insert(agentSessionTable).values({
+        id: 'sess-pin',
+        agentId: 'agent-session-test',
+        name: 'Pin',
+        workspaceId: workspace.id,
+        orderKey: 'a0',
+        lastActivityAt: 500
+      })
+
+      const pin = pinService.pin({ entityType: 'session', entityId: 'sess-pin' })
+      expect(await readLastActivityAt('sess-pin')).toBe(500)
+
+      pinService.unpin(pin.id)
+      expect(await readLastActivityAt('sess-pin')).toBe(500)
+    })
+
+    it('is not changed by reorder or reorderBatch', async () => {
+      const workspace = await createWorkspace('activity-reorder')
+      await dbh.db.insert(agentSessionTable).values([
+        {
+          id: 's1',
+          agentId: 'agent-session-test',
+          name: 'A',
+          workspaceId: workspace.id,
+          orderKey: 'a0',
+          lastActivityAt: 100
+        },
+        {
+          id: 's2',
+          agentId: 'agent-session-test',
+          name: 'B',
+          workspaceId: workspace.id,
+          orderKey: 'a1',
+          lastActivityAt: 200
+        },
+        {
+          id: 's3',
+          agentId: 'agent-session-test',
+          name: 'C',
+          workspaceId: workspace.id,
+          orderKey: 'a2',
+          lastActivityAt: 300
+        }
+      ])
+
+      agentSessionService.reorder('s3', { position: 'first' })
+      expect(await readLastActivityAt('s3')).toBe(300)
+
+      agentSessionService.reorderBatch([
+        { id: 's1', anchor: { position: 'last' } },
+        { id: 's2', anchor: { position: 'first' } }
+      ])
+      expect(await readLastActivityAt('s1')).toBe(100)
+      expect(await readLastActivityAt('s2')).toBe(200)
+    })
+
+    it('recomputeLastActivityAtTx recomputes from the remaining messages', async () => {
+      const workspace = await createWorkspace('activity-recompute')
+      await dbh.db.insert(agentSessionTable).values({
+        id: 'sess-recompute',
+        agentId: 'agent-session-test',
+        name: 'Recompute',
+        workspaceId: workspace.id,
+        orderKey: 'a0',
+        lastActivityAt: 9_999
+      })
+      await dbh.db.insert(agentSessionMessageTable).values([
+        {
+          id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d501',
+          sessionId: 'sess-recompute',
+          role: 'user',
+          data: { parts: [{ type: 'text', text: 'q' }] },
+          status: 'success',
+          createdAt: 100,
+          updatedAt: 100
+        },
+        {
+          id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d502',
+          sessionId: 'sess-recompute',
+          role: 'assistant',
+          data: { parts: [{ type: 'text', text: 'a' }] },
+          status: 'success',
+          createdAt: 200,
+          terminalAt: 300,
+          updatedAt: 300
+        }
+      ])
+
+      application
+        .get('DbService')
+        .withWriteTx((tx) => agentSessionService.recomputeLastActivityAtTx(tx, 'sess-recompute'))
+
+      // Assistant activity is max(createdAt, terminalAt) = 300.
+      expect(await readLastActivityAt('sess-recompute')).toBe(300)
+    })
+
+    it('recomputeLastActivityAtTx falls back to createdAt when no messages remain', async () => {
+      const workspace = await createWorkspace('activity-recompute-empty')
+      await dbh.db.insert(agentSessionTable).values({
+        id: 'sess-recompute-empty',
+        agentId: 'agent-session-test',
+        name: 'Empty',
+        workspaceId: workspace.id,
+        orderKey: 'a0',
+        createdAt: 42,
+        lastActivityAt: 9_999
+      })
+
+      application
+        .get('DbService')
+        .withWriteTx((tx) => agentSessionService.recomputeLastActivityAtTx(tx, 'sess-recompute-empty'))
+
+      expect(await readLastActivityAt('sess-recompute-empty')).toBe(42)
+    })
   })
 })

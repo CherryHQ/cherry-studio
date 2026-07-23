@@ -776,4 +776,97 @@ describe('AgentSessionMessageService', () => {
     }
     expect(nonNumericKeyError).toMatchObject({ code: 'VALIDATION_ERROR' })
   })
+
+  describe('lastActivityAt (session activity time)', () => {
+    const readLastActivityAt = async (sessionId: string) => {
+      const [row] = await dbh.db
+        .select({ lastActivityAt: agentSessionTable.lastActivityAt })
+        .from(agentSessionTable)
+        .where(eq(agentSessionTable.id, sessionId))
+      return row?.lastActivityAt
+    }
+
+    it('advances lastActivityAt to a saved user message createdAt', async () => {
+      const NOW = 5_000_000
+      await seedSession({ id: 'sess-activity-create', name: 'x', orderKey: 'z0', lastActivityAt: 1 })
+      vi.spyOn(Date, 'now').mockReturnValue(NOW)
+
+      agentSessionMessageService.saveMessage({
+        sessionId: 'sess-activity-create',
+        message: { id: USER_MESSAGE_ID, role: 'user', data: { parts: [{ type: 'text', text: 'hello' }] } }
+      })
+
+      expect(await readLastActivityAt('sess-activity-create')).toBe(NOW)
+    })
+
+    it('advances lastActivityAt when a response reaches a terminal status', async () => {
+      const CREATED_AT = 5_000_000
+      const TERMINAL_AT = 5_000_500
+      await seedSession({ id: 'sess-activity-terminal', name: 'x', orderKey: 'z1', lastActivityAt: 1 })
+
+      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(CREATED_AT)
+      agentSessionMessageService.saveMessage({
+        sessionId: 'sess-activity-terminal',
+        message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
+      })
+      // A pending assistant contributes its createdAt only.
+      expect(await readLastActivityAt('sess-activity-terminal')).toBe(CREATED_AT)
+
+      nowSpy.mockReturnValue(TERMINAL_AT)
+      agentSessionMessageService.saveMessage({
+        sessionId: 'sess-activity-terminal',
+        message: {
+          id: ASSISTANT_MESSAGE_ID,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: 'done' }] }
+        }
+      })
+
+      // The first terminal transition timestamp advances activity past the createdAt.
+      expect(await readLastActivityAt('sess-activity-terminal')).toBe(TERMINAL_AT)
+    })
+
+    it('recomputes lastActivityAt downward when the newest message is deleted', async () => {
+      await seedSession({ id: 'sess-activity-delete', name: 'x', orderKey: 'z2', lastActivityAt: 200 })
+      await dbh.db.insert(agentSessionMessageTable).values([
+        {
+          id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d401',
+          sessionId: 'sess-activity-delete',
+          role: 'user',
+          data: { parts: [{ type: 'text', text: 'old' }] },
+          status: 'success',
+          createdAt: 100,
+          updatedAt: 100
+        },
+        {
+          id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d402',
+          sessionId: 'sess-activity-delete',
+          role: 'user',
+          data: { parts: [{ type: 'text', text: 'new' }] },
+          status: 'success',
+          createdAt: 200,
+          updatedAt: 200
+        }
+      ])
+
+      agentSessionMessageService.deleteSessionMessage('sess-activity-delete', '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d402')
+
+      // Falls back to the remaining max activity (@ 100), not the stale 200.
+      expect(await readLastActivityAt('sess-activity-delete')).toBe(100)
+    })
+
+    it('never regresses lastActivityAt below the current value (monotonic advance)', async () => {
+      await seedSession({ id: 'sess-activity-monotonic', name: 'x', orderKey: 'z3', lastActivityAt: 10_000_000 })
+      // A newly saved message carries an older createdAt than the current activity time.
+      vi.spyOn(Date, 'now').mockReturnValue(5_000)
+
+      agentSessionMessageService.saveMessage({
+        sessionId: 'sess-activity-monotonic',
+        message: { id: USER_MESSAGE_ID, role: 'user', data: { parts: [{ type: 'text', text: 'stale' }] } }
+      })
+
+      expect(await readLastActivityAt('sess-activity-monotonic')).toBe(10_000_000)
+    })
+  })
 })

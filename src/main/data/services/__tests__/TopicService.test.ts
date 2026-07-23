@@ -9,6 +9,7 @@ import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { topicTable } from '@data/db/schemas/topic'
+import { pinService } from '@data/services/PinService'
 import { TopicService, topicService } from '@data/services/TopicService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
@@ -2270,6 +2271,138 @@ describe('TopicService', () => {
 
       expect(service.getLatestActive({ assistantId: 'asst-latest' })?.id).toBe('owned-latest')
       expect(service.getLatestActive({ assistantId: 'unlinked' })?.id).toBe('unlinked-latest')
+    })
+  })
+
+  describe('lastActivityAt semantics', () => {
+    const readLastActivityAt = async (topicId: string) => {
+      const [row] = await dbh.db
+        .select({ lastActivityAt: topicTable.lastActivityAt })
+        .from(topicTable)
+        .where(eq(topicTable.id, topicId))
+      return row?.lastActivityAt
+    }
+
+    it('is not changed by a name/rename update', async () => {
+      await dbh.db.insert(topicTable).values({ id: 't-rename', name: 'Before', orderKey: 'a0', lastActivityAt: 500 })
+
+      topicService.update('t-rename', { name: 'After' })
+
+      expect(await readLastActivityAt('t-rename')).toBe(500)
+    })
+
+    it('is not changed by a pure-ownership PATCH', async () => {
+      await dbh.db.insert(assistantTable).values({
+        id: 'asst-own',
+        name: 'Owner',
+        emoji: '🌟',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a0'
+      })
+      await dbh.db.insert(topicTable).values({ id: 't-own', name: 'Own', orderKey: 'a0', lastActivityAt: 500 })
+
+      topicService.update('t-own', { assistantId: 'asst-own' })
+
+      expect(await readLastActivityAt('t-own')).toBe(500)
+    })
+
+    it('is not changed by pin and unpin', async () => {
+      await dbh.db.insert(topicTable).values({ id: 't-pin', name: 'Pin', orderKey: 'a0', lastActivityAt: 500 })
+
+      const pin = pinService.pin({ entityType: 'topic', entityId: 't-pin' })
+      expect(await readLastActivityAt('t-pin')).toBe(500)
+
+      pinService.unpin(pin.id)
+      expect(await readLastActivityAt('t-pin')).toBe(500)
+    })
+
+    it('is not changed by a cross-assistant move', async () => {
+      await dbh.db.insert(assistantTable).values([
+        { id: 'asst-a', name: 'A', emoji: 'A', settings: DEFAULT_ASSISTANT_SETTINGS, orderKey: 'a0' },
+        { id: 'asst-b', name: 'B', emoji: 'B', settings: DEFAULT_ASSISTANT_SETTINGS, orderKey: 'a1' }
+      ])
+      await dbh.db.insert(topicTable).values([
+        { id: 'move-a', name: 'A', assistantId: 'asst-a', orderKey: 'a0', lastActivityAt: 500 },
+        { id: 'move-b', name: 'B', assistantId: 'asst-b', orderKey: 'a1', lastActivityAt: 900 }
+      ])
+
+      topicService.move('move-a', { assistantId: 'asst-b', order: { after: 'move-b' } })
+
+      expect(topicService.getById('move-a').assistantId).toBe('asst-b')
+      expect(await readLastActivityAt('move-a')).toBe(500)
+    })
+
+    it('is not changed by reorder or reorderBatch', async () => {
+      await dbh.db.insert(topicTable).values([
+        { id: 't1', name: 'A', orderKey: 'a0', lastActivityAt: 100 },
+        { id: 't2', name: 'B', orderKey: 'a1', lastActivityAt: 200 },
+        { id: 't3', name: 'C', orderKey: 'a2', lastActivityAt: 300 }
+      ])
+
+      topicService.reorder('t3', { position: 'first' })
+      expect(await readLastActivityAt('t3')).toBe(300)
+
+      topicService.reorderBatch([
+        { id: 't1', anchor: { position: 'last' } },
+        { id: 't2', anchor: { position: 'first' } }
+      ])
+      expect(await readLastActivityAt('t1')).toBe(100)
+      expect(await readLastActivityAt('t2')).toBe(200)
+    })
+
+    it('recomputeLastActivityAtTx recomputes from the remaining messages', async () => {
+      await dbh.db.insert(topicTable).values({
+        id: 't-recompute',
+        name: 'Recompute',
+        orderKey: 'a0',
+        lastActivityAt: 9_999
+      })
+      await dbh.db.insert(messageTable).values(
+        withRoot('t-recompute', [
+          {
+            id: 'r-user',
+            parentId: null,
+            topicId: 't-recompute',
+            role: 'user',
+            data: { parts: [] },
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 100,
+            updatedAt: 100
+          },
+          {
+            id: 'r-assistant',
+            parentId: 'r-user',
+            topicId: 't-recompute',
+            role: 'assistant',
+            data: { parts: [] },
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 200,
+            terminalAt: 300,
+            updatedAt: 300
+          }
+        ])
+      )
+
+      application.get('DbService').withWriteTx((tx) => topicService.recomputeLastActivityAtTx(tx, 't-recompute'))
+
+      // Assistant activity is max(createdAt, terminalAt) = 300; the virtual root contributes nothing.
+      expect(await readLastActivityAt('t-recompute')).toBe(300)
+    })
+
+    it('recomputeLastActivityAtTx falls back to createdAt when no messages remain', async () => {
+      await dbh.db.insert(topicTable).values({
+        id: 't-recompute-empty',
+        name: 'Empty',
+        orderKey: 'a0',
+        createdAt: 42,
+        lastActivityAt: 9_999
+      })
+
+      application.get('DbService').withWriteTx((tx) => topicService.recomputeLastActivityAtTx(tx, 't-recompute-empty'))
+
+      expect(await readLastActivityAt('t-recompute-empty')).toBe(42)
     })
   })
 })
