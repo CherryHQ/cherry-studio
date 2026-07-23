@@ -30,6 +30,7 @@ import Database from 'better-sqlite3'
 
 import { FtsCentralHelper } from './FtsCentralHelper'
 import { deriveJunctionDescriptors } from './junctionDeriver'
+import { isPlatformSpecificPreferenceKey } from './platformSpecificKeyMatch'
 import {
   derivePolymorphicAssociationDescriptors,
   POLYMORPHIC_ENTITY_TYPE_ROOT_TABLE
@@ -356,6 +357,11 @@ export class MergeEngine {
       throw new MergeStrategyNotImplementedError(`userStrategy ${ctx.userStrategy}`)
     }
     const forceSkip = ctx.userStrategy === 'SKIP'
+    // PREFERENCES platformSpecificKeys — exclude cross-platform keys on backfill (§6.1).
+    const platformSpecificKeys =
+      this.registry.getPolicy('PREFERENCES').platformSpecificKeys ?? ([] as readonly string[])
+    // Lite archives stage zero Notes bodies — skip every note overlay (§3.5).
+    const skipAllNotes = ctx.includeFiles === false
     const decisions: AggregateDecision[] = []
     for (const domain of ordered) {
       for (const agg of this.registry.getAggregatesForDomain(domain)) {
@@ -375,6 +381,31 @@ export class MergeEngine {
             const entityType = String(backupRow[physicalColumn('entityType')] ?? '') as EntityType
             const target = pinEntityMap[entityType]
             if (target === undefined || target === 'excluded' || !ctx.domains.includes(target)) {
+              decisions.push({
+                aggregate: agg,
+                identity: backupPrimaryKey,
+                backupPrimaryKey,
+                localCanonicalPrimaryKey: undefined,
+                action: 'skip'
+              })
+              continue
+            }
+          }
+          // Lite: no Notes bodies in the archive — never import note overlays (§3.5).
+          if (skipAllNotes && agg.root === 'note') {
+            decisions.push({
+              aggregate: agg,
+              identity: backupPrimaryKey,
+              backupPrimaryKey,
+              localCanonicalPrimaryKey: undefined,
+              action: 'skip'
+            })
+            continue
+          }
+          // Cross-platform preference keys must not backfill onto a fresh target (§6.1).
+          if (agg.root === 'preference' && platformSpecificKeys.length > 0) {
+            const prefKey = String(backupRow[physicalColumn('key')] ?? '')
+            if (isPlatformSpecificPreferenceKey(prefKey, platformSpecificKeys)) {
               decisions.push({
                 aggregate: agg,
                 identity: backupPrimaryKey,

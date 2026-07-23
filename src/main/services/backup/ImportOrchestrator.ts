@@ -191,7 +191,10 @@ export class ImportOrchestrator {
         backupDbPath: archiveContext.backupDbPath,
         domains: archiveContext.domains,
         skippedFileEntryIds: new Set<string>(),
-        stagedFileEntryIds: new Set<string>()
+        stagedFileEntryIds: new Set<string>(),
+        // Lite (includeFiles=false) stages zero note bodies — MergeEngine must skip
+        // all `note` overlays so restore does not leave dangling starred/expanded state.
+        includeFiles: archiveContext.includeFiles
       }
       const result = await this.deps.mergeBackupIntoWork(workSqlite, workDb, ctx)
       if (result.degradedToSkips.length > 0) {

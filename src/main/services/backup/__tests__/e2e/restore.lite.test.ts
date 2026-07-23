@@ -103,11 +103,11 @@ describe('e2e-restore lite / SKIP DB only', () => {
     ).run(id, name, `order-${id}`, now, now)
   }
 
-  const buildLiteManifest = (): BackupManifest => ({
+  const buildLiteManifest = (domains: BackupManifest['domains'] = ['TOPICS']): BackupManifest => ({
     backupFormatVersion: BACKUP_FORMAT_VERSION,
     createdAt: new Date().toISOString(),
     preset: 'lite',
-    domains: ['TOPICS'],
+    domains,
     includeFiles: false,
     includeKnowledgeFiles: false,
     sensitiveData: { included: true, rotated: false },
@@ -120,8 +120,8 @@ describe('e2e-restore lite / SKIP DB only', () => {
     degraded: { resources: [] }
   })
 
-  const packArchive = async (): Promise<void> => {
-    await assembleArchive(archivePath, { manifest: buildLiteManifest(), dbCopyPath: backupDbPath })
+  const packArchive = async (domains?: BackupManifest['domains']): Promise<void> => {
+    await assembleArchive(archivePath, { manifest: buildLiteManifest(domains), dbCopyPath: backupDbPath })
   }
 
   /**
@@ -191,5 +191,37 @@ describe('e2e-restore lite / SKIP DB only', () => {
     expect((dbh.sqlite.prepare(`SELECT name FROM topic WHERE id = 'tpc-local'`).get() as { name: string }).name).toBe(
       'keep-local'
     )
+  })
+
+  it('strips note overlays on lite restore — no dangling starred/expanded state (§3.5)', async () => {
+    seedBackup((db) => {
+      insertTopic(db, 'tpc-1')
+      const now = Date.now()
+      db.prepare(
+        `INSERT INTO note (id, root_path, path, is_starred, is_expanded, created_at, updated_at)
+         VALUES (?, ?, ?, 1, 1, ?, ?)`
+      ).run('note-dangling', '/notes', 'ghost.md', now, now)
+      db.prepare(
+        `INSERT INTO preference (scope, key, value, created_at, updated_at) VALUES ('default', ?, ?, ?, ?)`
+      ).run('feature.notes.path', JSON.stringify('/Users/source/Notes'), now, now)
+      db.prepare(
+        `INSERT INTO preference (scope, key, value, created_at, updated_at) VALUES ('default', ?, ?, ?, ?)`
+      ).run('theme.mode', JSON.stringify('dark'), now, now)
+    })
+    await packArchive(['TOPICS', 'PREFERENCES'])
+
+    const orch = new ImportOrchestrator(makeDeps())
+    await orch.importBackup({ archivePath, restoreId: 'rst-e2e-lite-notes' })
+
+    const workRo = new Database(join(stagingRoot, 'rst-e2e-lite-notes', 'work.sqlite'), { readonly: true })
+    try {
+      expect((workRo.prepare(`SELECT COUNT(*) AS c FROM note`).get() as { c: number }).c).toBe(0)
+      expect(workRo.prepare(`SELECT key FROM preference WHERE key = 'feature.notes.path'`).get()).toBeUndefined()
+      expect(
+        (workRo.prepare(`SELECT value FROM preference WHERE key = 'theme.mode'`).get() as { value: string }).value
+      ).toBe(JSON.stringify('dark'))
+    } finally {
+      workRo.close()
+    }
   })
 })

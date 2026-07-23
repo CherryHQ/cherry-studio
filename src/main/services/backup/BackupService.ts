@@ -377,7 +377,20 @@ export class BackupService extends BaseService {
         // is follow-up). Unclean drain aborts restore (vaayne A7) — do not proceed into
         // createSnapshot. File/KB/Notes blob staging is deferred — empty fileResources
         // so the preboot gate promotes only the DB (DB-only / LITE restore).
-        admitArchive,
+        // Reject Full archives at admission: resource staging is unfinished, so a
+        // DB-only restore would silently drop blobs (vaayne ordinary-restore-full-gate).
+        // LITE (includeFiles=false) proceeds. ImportOrchestrator e2e Full fixtures
+        // bypass this by wiring admitArchive directly.
+        admitArchive: async (path, workDir, migrationsFolder) => {
+          const ctx = await admitArchive(path, workDir, migrationsFolder)
+          if (ctx.manifest.preset === 'full') {
+            throw new IpcError(
+              'BACKUP_RESTORE_FULL_NOT_SUPPORTED',
+              'backup: Full archive restore is temporarily unavailable until resource staging lands; export/restore a LITE archive instead'
+            )
+          }
+          return ctx
+        },
         quiesceWriters: async () => {
           // PARTIAL quiesce: set BACKUP_IN_PROGRESS so IPC mutations reject
           // (DataApi/Preference/IpcApi gates), then pause JobManager (#16925) and DRAIN

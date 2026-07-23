@@ -750,6 +750,54 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     expect(rows).toEqual([{ id: 'note-local', is_starred: 1 }]) // local wins, no UNIQUE abort
   })
 
+  it('excludes platformSpecificKeys preference rows on fresh-target backfill (§6.1)', async () => {
+    seedBackup((db) => {
+      const now = Date.now()
+      db.prepare(
+        `INSERT INTO preference (scope, key, value, created_at, updated_at) VALUES ('default', ?, ?, ?, ?)`
+      ).run('feature.notes.path', JSON.stringify('/Users/source/Notes'), now, now)
+      db.prepare(
+        `INSERT INTO preference (scope, key, value, created_at, updated_at) VALUES ('default', ?, ?, ?, ?)`
+      ).run('shortcut.zoom_in', JSON.stringify('CommandOrControl+='), now, now)
+      db.prepare(
+        `INSERT INTO preference (scope, key, value, created_at, updated_at) VALUES ('default', ?, ?, ?, ?)`
+      ).run('theme.mode', JSON.stringify('dark'), now, now)
+    })
+
+    await runMerge({
+      backupDbPath: backupPath,
+      domains: ['PREFERENCES'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })
+
+    expect(dbh.sqlite.prepare(`SELECT key FROM preference WHERE key = 'feature.notes.path'`).get()).toBeUndefined()
+    expect(dbh.sqlite.prepare(`SELECT key FROM preference WHERE key = 'shortcut.zoom_in'`).get()).toBeUndefined()
+    expect(
+      (dbh.sqlite.prepare(`SELECT value FROM preference WHERE key = 'theme.mode'`).get() as { value: string }).value
+    ).toBe(JSON.stringify('dark'))
+  })
+
+  it('skips all note overlays when includeFiles=false (lite §3.5)', async () => {
+    const now = Date.now()
+    seedBackup((db) => {
+      db.prepare(
+        `INSERT INTO note (id, root_path, path, is_starred, is_expanded, created_at, updated_at)
+         VALUES (?, ?, ?, 1, 0, ?, ?)`
+      ).run('note-dangling', '/notes', 'missing.md', now, now)
+    })
+
+    await runMerge({
+      backupDbPath: backupPath,
+      domains: ['PREFERENCES'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>(),
+      includeFiles: false
+    })
+
+    expect(dbh.sqlite.prepare(`SELECT id FROM note WHERE id = 'note-dangling'`).get()).toBeUndefined()
+  })
+
   it('prunes a nullable onDelete=no-action FK instead of SET NULL (knowledge_base.embedding_model_id)', async () => {
     const now = Date.now()
     seedBackup(

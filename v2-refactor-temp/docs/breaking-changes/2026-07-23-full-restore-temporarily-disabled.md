@@ -10,9 +10,11 @@ date: 2026-07-23
 
 The packaged "Full restore" control in Settings → Data is temporarily disabled (inert) while restore-side resource staging (files, knowledge bases, notes, skills) is unfinished. Database-only (LITE) restore remains available.
 
+Main also rejects Full archives on every restore entry (`BackupService.startRestore` → `BACKUP_RESTORE_FULL_NOT_SUPPORTED`) so ordinary / Lite-gated Restore cannot DB-only-restore a Full archive and silently drop blobs.
+
 ## Why this matters to the user
 
-Users who open Backup / Restore will still see Restore for LITE archives, but Full restore is grayed out with a short explanation. Restoring a Full archive via a path that only promotes the database would leave attachments and other file content missing while looking successful — this gate prevents that silent degradation.
+Users who open Backup / Restore will still see Restore for LITE archives, but Full restore is grayed out with a short explanation. Restoring a Full archive via a path that only promotes the database would leave attachments and other file content missing while looking successful — the UI gate and the main-side reject both prevent that silent degradation.
 
 ## What the user should do
 
@@ -20,4 +22,4 @@ Use LITE backup / restore for chat and settings until Full restore is re-enabled
 
 ## Notes for release manager
 
-Short-term UI gate only (`isV2BackupRestoreFullReady()` → false). Flip back when FileStager + `p1-dbonly-fileentry-blob` land; remove or supersede this entry at that time.
+Short-term gate: UI `isV2BackupRestoreFullReady()` → false **and** main `preset === 'full'` → `BACKUP_RESTORE_FULL_NOT_SUPPORTED`. Flip both when FileStager + `p1-dbonly-fileentry-blob` land; remove or supersede this entry at that time.

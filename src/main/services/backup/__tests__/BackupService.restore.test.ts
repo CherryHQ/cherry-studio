@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   importBackup,
+  admitArchiveMock,
   readRestoreJournalMock,
   clearRestoreJournalMock,
   getRegistry,
@@ -10,6 +11,7 @@ const {
   relaunchMock
 } = vi.hoisted(() => ({
   importBackup: vi.fn(),
+  admitArchiveMock: vi.fn(),
   readRestoreJournalMock: vi.fn(),
   clearRestoreJournalMock: vi.fn(),
   getRegistry: vi.fn(() => ({ domains: [] })),
@@ -20,6 +22,10 @@ const {
 
 vi.mock('../ImportOrchestrator', () => ({
   ImportOrchestrator: vi.fn().mockImplementation(() => ({ importBackup }))
+}))
+
+vi.mock('../admitArchive', () => ({
+  admitArchive: (...args: unknown[]) => admitArchiveMock(...args)
 }))
 
 vi.mock('../contributors', () => ({
@@ -84,6 +90,7 @@ describe('BackupService restore journal lifecycle (A7)', () => {
     readRestoreJournalMock.mockReturnValue({ kind: 'none' })
     clearRestoreJournalMock.mockImplementation(() => {})
     importBackup.mockResolvedValue(undefined)
+    admitArchiveMock.mockReset()
     getRegistry.mockReturnValue({ domains: [] })
     jobManagerPause.mockReturnValue({ dispose: vi.fn() })
     drainInFlight.mockResolvedValue({ stragglerIds: [], startupRecoveryPending: false })
@@ -230,6 +237,52 @@ describe('BackupService restore journal lifecycle (A7)', () => {
       await service.startRestore({ archivePath: '/x.cherrybackup' })
 
       expect(afterQuiesce).toHaveBeenCalledTimes(1)
+      expect(relaunchMock).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('startRestore Full archive gate (vaayne ordinary-restore-full-gate)', () => {
+    it('rejects preset=full via admitArchive wrapper — BACKUP_RESTORE_FULL_NOT_SUPPORTED', async () => {
+      admitArchiveMock.mockResolvedValue({
+        backupDbPath: '/tmp/backup.sqlite',
+        manifest: { preset: 'full' },
+        domains: [],
+        includeFiles: true,
+        resourceMetadata: { fileIds: [], knowledgeBases: [], notePaths: [] }
+      })
+      importBackup.mockImplementation(async () => {
+        const deps = (ImportOrchestrator as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as {
+          admitArchive: (a: string, b: string, c: string) => Promise<unknown>
+        }
+        await deps.admitArchive('/x.cherrybackup', '/work', '/mig')
+      })
+      const service = new BackupService()
+
+      await expect(service.startRestore({ archivePath: '/x.cherrybackup' })).rejects.toSatisfy(
+        (err: unknown) => err instanceof IpcError && err.code === 'BACKUP_RESTORE_FULL_NOT_SUPPORTED'
+      )
+      expect(relaunchMock).not.toHaveBeenCalled()
+    })
+
+    it('admits preset=lite through the wrapper', async () => {
+      admitArchiveMock.mockResolvedValue({
+        backupDbPath: '/tmp/backup.sqlite',
+        manifest: { preset: 'lite' },
+        domains: ['TOPICS'],
+        includeFiles: false,
+        resourceMetadata: { fileIds: [], knowledgeBases: [], notePaths: [] }
+      })
+      importBackup.mockImplementation(async () => {
+        const deps = (ImportOrchestrator as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as {
+          admitArchive: (a: string, b: string, c: string) => Promise<unknown>
+        }
+        await deps.admitArchive('/x.cherrybackup', '/work', '/mig')
+      })
+      const service = new BackupService()
+
+      await expect(service.startRestore({ archivePath: '/x.cherrybackup' })).resolves.toMatchObject({
+        restoreId: expect.stringMatching(/^rst-/)
+      })
       expect(relaunchMock).toHaveBeenCalledTimes(1)
     })
   })

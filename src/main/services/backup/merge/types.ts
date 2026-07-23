@@ -157,6 +157,13 @@ export interface MergeContext {
    * (DB-only restore passes an empty set → every fileEntryId is disclosed).
    */
   readonly stagedFileEntryIds: ReadonlySet<string>
+  /**
+   * From the admitted manifest (`includeFiles`). Lite archives stage zero Notes
+   * bodies — when false, MergeEngine skips every `note` overlay row so restore
+   * does not leave starred/expanded state pointing at missing files (§3.5).
+   * undefined = legacy callers / unit stubs (do not strip notes).
+   */
+  readonly includeFiles?: boolean
 }
 
 /** Merge engine entry signature — invoked by ImportOrchestrator inside the staging spine. */

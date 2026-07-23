@@ -76,18 +76,17 @@ export const PREFERENCES_CONTRIBUTOR = deepFreeze<BackupContributor>({
     // PREFERENCES-only: key patterns EXCLUDED at restore so a backup from another
     // OS/machine does not import foreign keybindings or absolute paths. Starter
     // set; the full list is curated by the
-    // PREFERENCES owner. Matching semantics are finalized with the D restore track.
+    // PREFERENCES owner. Matching is applied in MergeEngine.scanAggregates
+    // (platformSpecificKeyMatch) before preference backfill.
     platformSpecificKeys: [
       'shortcut.*', // keybindings — key codes differ per OS (Cmd vs Ctrl)
       '*.path' // filesystem paths — machine-specific absolute paths
     ]
   },
-  // TODO(D track): note-overlay selected-resource filtering (codex review P2) —
-  // `note` rows are state overlays keyed by (rootPath, path) into Notes markdown
-  // files. In lite mode (files excluded) the restore MUST filter note rows whose
-  // markdown is not in the backup, else it imports starred/expanded state for
-  // non-existent notes. The Notes markdown body itself is a file resource (full
-  // mode only). Cache refresh is NOT needed under the D model (#16714): relaunch
+  // Lite restore (includeFiles=false) skips ALL `note` overlay rows in
+  // MergeEngine — lite archives stage zero Notes markdown bodies (§3.5). Full
+  // restore will additionally filter by selected-resource once Notes staging
+  // lands. Cache refresh is NOT needed under the D model (#16714): relaunch
   // after preboot promotion fresh-loads PreferenceService.onInit.
   operations: {
     // PREFERENCES owns Notes markdown bodies as a file resource: the `note` table
