@@ -1,3 +1,4 @@
+import { useRightPanelState } from '@renderer/components/chat/panes/Shell'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { act, fireEvent, render, screen } from '@testing-library/react'
@@ -14,16 +15,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as AgentRightPaneProjection from '../agentRightPaneProjection'
 
-const { buildAgentToolFlowProjectionMock, fileTreeModelState, useArtifactFileTreeModelMock, useCommandHandlerMock } =
-  vi.hoisted(() => ({
-    buildAgentToolFlowProjectionMock: vi.fn(),
-    fileTreeModelState: {
-      hasLoaded: false,
-      nodeById: new Map<string, { kind: string }>()
-    },
-    useArtifactFileTreeModelMock: vi.fn(),
-    useCommandHandlerMock: vi.fn()
-  }))
+const {
+  buildAgentToolFlowProjectionMock,
+  fileTreeModelState,
+  resolveArtifactPaneFileSelectionMock,
+  useArtifactFileTreeModelMock,
+  useCommandHandlerMock
+} = vi.hoisted(() => ({
+  buildAgentToolFlowProjectionMock: vi.fn(),
+  fileTreeModelState: {
+    hasLoaded: false,
+    nodeById: new Map<string, { kind: string }>()
+  },
+  resolveArtifactPaneFileSelectionMock: vi.fn(),
+  useArtifactFileTreeModelMock: vi.fn(),
+  useCommandHandlerMock: vi.fn()
+}))
 
 vi.mock('../agentRightPaneProjection', async (importActual) => {
   const actual = await importActual<typeof AgentRightPaneProjection>()
@@ -166,7 +173,7 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => ({
   ),
   isOfficeDocumentFile: () => false,
   isImageFile: () => false,
-  resolveArtifactPaneFileSelection: () => null
+  resolveArtifactPaneFileSelection: (...args: unknown[]) => resolveArtifactPaneFileSelectionMock(...args)
 }))
 
 vi.mock('@renderer/components/chat/panes/OpenExternalAppButton', () => ({
@@ -287,6 +294,20 @@ function ArtifactCapabilityProbe() {
   return <output data-testid="can-open-artifact-file">{String(canOpenArtifactFile)}</output>
 }
 
+function OpenArtifactButton() {
+  const { openArtifactFile } = useAgentRightPaneActions()
+  return (
+    <button type="button" onClick={() => openArtifactFile('report.md')}>
+      open artifact
+    </button>
+  )
+}
+
+function UserOpenSeqProbe() {
+  const { userOpenSeq } = useRightPanelState()
+  return <output data-testid="user-open-seq">{userOpenSeq}</output>
+}
+
 describe('AgentRightPane', () => {
   const triggerRightSidebarShortcut = () => {
     const handler = useCommandHandlerMock.mock.calls
@@ -301,6 +322,7 @@ describe('AgentRightPane', () => {
     vi.clearAllMocks()
     fileTreeModelState.hasLoaded = false
     fileTreeModelState.nodeById = new Map()
+    resolveArtifactPaneFileSelectionMock.mockReturnValue(null)
     useArtifactFileTreeModelMock.mockImplementation(() => ({
       hasLoaded: fileTreeModelState.hasLoaded,
       nodeById: fileTreeModelState.nodeById
@@ -463,16 +485,41 @@ describe('AgentRightPane', () => {
     render(
       <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
         <OpenFlowButton />
+        <UserOpenSeqProbe />
         <AgentRightPane.Viewport />
       </TestAgentRightPane>
     )
 
+    expect(screen.getByTestId('user-open-seq')).toHaveTextContent('0')
     fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
 
+    expect(screen.getByTestId('user-open-seq')).toHaveTextContent('1')
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect flow')
     expect(screen.getByTestId('empty-state')).toBeInTheDocument()
     expect(useArtifactFileTreeModelMock).not.toHaveBeenCalled()
+  })
+
+  it('marks direct artifact opening as user initiated', () => {
+    resolveArtifactPaneFileSelectionMock.mockReturnValue({
+      workspacePath: '/workspace',
+      filePath: 'report.md'
+    })
+
+    render(
+      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+        <OpenArtifactButton />
+        <UserOpenSeqProbe />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    expect(screen.getByTestId('user-open-seq')).toHaveTextContent('0')
+    fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+
+    expect(screen.getByTestId('user-open-seq')).toHaveTextContent('1')
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('report.md')
   })
 
   it('replaces the retained flow when another flow is opened', () => {
