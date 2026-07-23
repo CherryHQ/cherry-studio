@@ -156,6 +156,18 @@ describe('ThinkingBlock', () => {
       expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
       expect(getContentContainer()).toHaveAttribute('hidden')
     })
+
+    it('should surface a rolling reasoning preview in the title while streaming without expanding', () => {
+      const block = createThinkingBlock({
+        status: 'streaming',
+        content: 'First thought\n\nsecond thought\tthird thought'
+      })
+      renderThinkingBlock(block)
+
+      expect(screen.getByText('First thought second thought third thought')).toBeInTheDocument()
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
+      expect(getContentContainer()).toHaveAttribute('hidden')
+    })
   })
 
   describe('thinking status display', () => {
