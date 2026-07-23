@@ -241,6 +241,8 @@ const MiniAppPage: FC = () => {
           webviewRef={webviewRef}
           // currentUrl may be null (navigation not yet captured); fallback to app.url when opening externally
           currentUrl={currentUrl}
+          isWebviewReady={isReady}
+          isHostActive={isActiveTab}
           onReload={handleReload}
           onOpenDevTools={handleOpenDevTools}
         />

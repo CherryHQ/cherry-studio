@@ -8617,6 +8617,25 @@
   "warning": {
     "missing_provider": "The supplier does not exist; reverted to the default supplier {{provider}}. This may cause issues."
   },
+  "webview": {
+    "annotation": {
+      "cancel": "Cancel",
+      "clear": "Clear annotations",
+      "clear_description": "This removes every annotation from the current page.",
+      "clear_title": "Clear all annotations?",
+      "copied": "Annotations copied",
+      "copy": "Copy annotations as Markdown",
+      "copy_failed": "Failed to copy annotations",
+      "count_one": "{{count}} annotation",
+      "count_other": "{{count}} annotations",
+      "delete": "Delete",
+      "disable_mode": "Stop annotating",
+      "edit": "Edit annotation",
+      "enable_mode": "Annotate page",
+      "placeholder": "Describe what should change or what you noticed…",
+      "save": "Save"
+    }
+  },
   "words": {
     "knowledgeGraph": "Knowledge Graph",
     "quit": "Quit",
