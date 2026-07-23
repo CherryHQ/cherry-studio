@@ -59,15 +59,14 @@ represented by `part:*` tokens in the same attribute. Window HTML is annotated b
 belong only to intrinsic DOM source nodes. A semantic `data-ui` value passed through a component is merged with the
 intrinsic node's part and exact ID, including across JSX prop spreads and Radix `asChild` slots.
 
-`packages/ui` keeps Shadcn-compatible, static `data-slot` markers as private component-library structure. When Cherry
-Studio consumes that source, the plugin mirrors each marker into the public contract (`data-slot="dialog-content"` →
-`part:dialog-content`) while leaving the library marker intact for its own styles and standalone build. Renderer source
-and window HTML must author `part:*` directly; `data-slot` outside `packages/ui/src` is rejected. Application code,
-themes, and tests must depend only on `data-ui`, never on the library-private marker.
+Existing static `data-slot` markers remain unchanged throughout the project. The plugin mirrors each marker into the
+public contract (`data-slot="dialog-content"` → `part:dialog-content`) while leaving the original attribute intact, so
+current component styles, tests, and custom CSS selectors keep working. `data-ui` is the maintained semantic selector
+surface for new themes, tests, and automation; preserving `data-slot` does not require existing project code to migrate.
 
 SVG drawing internals such as `path`, `g`, `defs`, gradients, masks, filters, and shapes are implementation details by
-default. They enter the public contract only when they carry `data-ui`, `data-testid`, `role`, an event handler, or a
-static `packages/ui` `data-slot`. HTML descendants of `foreignObject` are annotated normally. This keeps icons themeable
+default. They enter the public contract only when they carry `data-ui`, `data-slot`, `data-testid`, `role`, or an event
+handler. HTML descendants of `foreignObject` are annotated normally. This keeps icons themeable
 through their stable `svg` boundary while avoiding thousands of fragile IDs for generated vector paths; a drawing part
 that genuinely needs independent styling or testing can opt in explicitly.
 

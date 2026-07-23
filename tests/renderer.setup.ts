@@ -585,7 +585,7 @@ vi.mock('@cherrystudio/ui', () => {
         ...props,
         checked,
         type: 'checkbox',
-        'data-ui': 'part:checkbox',
+        'data-slot': 'checkbox',
         onChange: (event: React.ChangeEvent<HTMLInputElement>) => onCheckedChange?.(event.target.checked)
       }),
     RadioGroup: ({ children, value, onValueChange, ...props }) =>

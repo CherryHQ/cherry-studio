@@ -7,7 +7,7 @@ interface SelectionBoxProps {
   handleSelectMessage: (messageId: string, selected: boolean) => void
 }
 
-const INTERACTIVE_CHECKBOX_SELECTOR = 'input[type="checkbox"], [data-ui~="part:checkbox"], [role="checkbox"]'
+const INTERACTIVE_CHECKBOX_SELECTOR = 'input[type="checkbox"], [data-slot=checkbox], [role="checkbox"]'
 const MESSAGE_SELECT_CHECKBOX_SELECTOR = '[data-message-select-checkbox]'
 
 function getMessageCheckbox(element: HTMLElement): HTMLElement | null {

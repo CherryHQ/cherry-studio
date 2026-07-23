@@ -107,7 +107,7 @@ describe('EditDialogShared', () => {
       await userEvent.keyboard('{Enter}')
 
       const copyButton = await screen.findByRole('button', { name: 'Copy {{date}}' })
-      expect(portalContainer.querySelector('[data-ui~="part:popover-content"]')).toContainElement(copyButton)
+      expect(portalContainer.querySelector('[data-slot="popover-content"]')).toContainElement(copyButton)
       expect(copyButton).toHaveFocus()
 
       await userEvent.click(copyButton)

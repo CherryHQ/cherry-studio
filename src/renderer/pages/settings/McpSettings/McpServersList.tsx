@@ -223,7 +223,7 @@ const McpServersList: FC = () => {
               <Scrollbar ref={scrollRef} className="min-h-0 flex-1">
                 {filteredMcpServers.length > 0 ? (
                   <Sortable
-                    className="[&>div:last-child_[data-ui~='part:mcp-server-row']]:border-b-0"
+                    className="[&>div:last-child_[data-slot=mcp-server-row]]:border-b-0"
                     items={filteredMcpServers}
                     itemKey="id"
                     onSortEnd={onSortEnd}

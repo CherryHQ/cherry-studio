@@ -23,7 +23,7 @@ export function LoadingState({
   if (variant === 'skeleton') {
     return (
       <div
-        data-ui="part:chat-loading-state"
+        data-slot="chat-loading-state"
         role="status"
         aria-live="polite"
         className={cn('space-y-2', className)}
@@ -37,7 +37,7 @@ export function LoadingState({
 
   return (
     <div
-      data-ui="part:chat-loading-state"
+      data-slot="chat-loading-state"
       role="status"
       aria-live="polite"
       className={cn('flex min-w-0 items-center gap-2 text-muted-foreground text-sm', className)}

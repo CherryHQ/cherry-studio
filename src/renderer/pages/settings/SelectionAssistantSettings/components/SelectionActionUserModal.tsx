@@ -216,9 +216,9 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                 <SelectTrigger
                   className={cn(
                     'w-full min-w-0 overflow-hidden',
-                    '*:data-[ui~="part:select-value"]:min-w-0',
-                    '*:data-[ui~="part:select-value"]:flex-1',
-                    '*:data-[ui~="part:select-value"]:overflow-hidden'
+                    '*:data-[slot=select-value]:min-w-0',
+                    '*:data-[slot=select-value]:flex-1',
+                    '*:data-[slot=select-value]:overflow-hidden'
                   )}>
                   <SelectValue />
                 </SelectTrigger>

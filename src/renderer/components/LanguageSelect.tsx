@@ -179,7 +179,7 @@ const LanguageSelect = (props: Props) => {
         placeholder={placeholder ?? t('common.select')}
         popoverClassName={cn(
           'w-[var(--radix-popover-trigger-width)]',
-          listHeight && '[&_[data-ui~="part:command-list"]]:max-h-[160px]'
+          listHeight && '[&_[data-slot=command-list]]:max-h-[160px]'
         )}
         renderOption={renderOption}
         renderValue={renderValue}

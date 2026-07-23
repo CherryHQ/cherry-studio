@@ -10,13 +10,11 @@ This directory owns Cherry Studio's build-time `data-ui` protocol.
 - `query.ts` resolves a semantic prefix to registered IDs and source metadata for AI and developer tooling.
 
 Intrinsic HTML elements and `svg` roots are covered automatically. SVG drawing internals are skipped unless they opt in
-with `data-ui`, `data-testid`, `role`, an event handler, or a static `packages/ui` `data-slot`; HTML inside
-`foreignObject` is covered normally. Reusable
-component structure is expressed as `part:*` tokens inside `data-ui`. Static `data-slot` markers remain valid only in
-`packages/ui/src`, where the compiler mirrors them to `part:*` while preserving the component library's private marker;
-other sources must author `part:*` directly. Exact `id:*` tokens belong only to intrinsic DOM nodes. Semantic/scope
-tokens passed through component props are merged with the intrinsic node's parts and exact ID, including through JSX
-spreads and Radix `asChild` slots.
+with `data-ui`, `data-testid`, `role`, an event handler, or a static `data-slot`; HTML inside `foreignObject` is covered
+normally. Reusable component structure is expressed as `part:*` tokens inside `data-ui`. Existing static `data-slot`
+markers remain unchanged in source and output; the compiler mirrors them to `part:*` tokens in the public contract.
+Exact `id:*` tokens belong only to intrinsic DOM nodes. Semantic/scope tokens passed through component props are merged
+with the intrinsic node's parts and exact ID, including through JSX spreads and Radix `asChild` slots.
 
 New exact IDs are `ui-` plus the first 16 hexadecimal characters of the node's SHA-256 source-anchor hash. The committed
 `ui-contract.registry.json` stores only `[anchorHash, fingerprintHash, id]`; semantic roles and deleted-ID history are

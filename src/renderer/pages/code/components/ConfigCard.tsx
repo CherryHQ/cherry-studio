@@ -65,7 +65,7 @@ export const ProviderCard: FC<ProviderCardProps> = ({
               providerName={providerName}
               logo={providerIcon}
               size={24}
-              className="rounded-md border border-border/30 **:data-[ui~='part:avatar-fallback']:rounded-[inherit] **:data-[ui~='part:avatar-image']:rounded-[inherit]"
+              className="rounded-md border border-border/30 **:data-[slot=avatar-fallback]:rounded-[inherit] **:data-[slot=avatar-image]:rounded-[inherit]"
             />
           )}
         </span>

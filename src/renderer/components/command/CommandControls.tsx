@@ -64,7 +64,7 @@ export function CommandTooltip({
       <span>{tooltipLabel}</span>
       <Kbd
         aria-hidden="true"
-        className="h-auto min-w-0 rounded-none bg-transparent p-0 text-inherit shadow-none [font:inherit] [[data-ui~='part:tooltip-content']_&]:bg-transparent [[data-ui~='part:tooltip-content']_&]:text-inherit">
+        className="h-auto min-w-0 rounded-none bg-transparent p-0 text-inherit shadow-none [font:inherit] [[data-slot=tooltip-content]_&]:bg-transparent [[data-slot=tooltip-content]_&]:text-inherit">
         {resolved.shortcutLabel}
       </Kbd>
     </span>

@@ -50,7 +50,7 @@ describe('LanguageSelect', () => {
     fireEvent.focus(screen.getByRole('combobox'))
 
     const popoverContent = await waitFor(() => {
-      const content = document.querySelector<HTMLElement>('[data-ui~="part:popover-content"]')
+      const content = document.querySelector<HTMLElement>('[data-slot="popover-content"]')
       expect(content).toBeInTheDocument()
       return content!
     })

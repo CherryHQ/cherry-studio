@@ -47,7 +47,7 @@ export function EmptyState({
     return (
       <div
         id={id}
-        data-ui="part:chat-empty-state"
+        data-slot="chat-empty-state"
         className={cn('flex h-full w-full flex-col items-center justify-center gap-4', className)}>
         <UIEmptyState compact={compact} description={description} title={title} {...props} />
         {actions && <div className="flex items-center gap-3">{actions}</div>}
@@ -58,7 +58,7 @@ export function EmptyState({
   return (
     <div
       id={id}
-      data-ui="part:chat-empty-state"
+      data-slot="chat-empty-state"
       className={cn('flex h-full w-full flex-col items-center justify-center gap-4 text-center', className)}>
       <Icon
         size={iconSize ?? (compact ? 40 : 56)}

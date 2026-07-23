@@ -37,7 +37,7 @@ vi.mock('@cherrystudio/ui', async () => {
     Badge: ({ children, ...props }: MockProps) =>
       React.createElement('span', { ...props, 'data-testid': 'badge' }, children),
     Skeleton: ({ children, ...props }: MockProps) =>
-      React.createElement('div', { ...props, 'data-ui': 'part:skeleton' }, children)
+      React.createElement('div', { ...props, 'data-slot': 'skeleton' }, children)
   }
 })
 
@@ -90,7 +90,7 @@ describe('chat primitives', () => {
     const { container } = render(<LoadingState variant="skeleton" rows={2} />)
 
     expect(screen.getByRole('status')).toBeInTheDocument()
-    expect(container.querySelectorAll('[data-ui~="part:skeleton"]')).toHaveLength(2)
+    expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(2)
   })
 
   it('renders error state content', () => {
