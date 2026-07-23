@@ -171,19 +171,36 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
   ArtifactPaneView: ({
     editMode,
     onEditModeChange,
+    headerVariant,
     onPreviewClose,
     onSelectedFileChange,
+    paneActions,
+    paneTitle,
     previewFileSelection,
     selectedFile
   }: {
     editMode?: 'preview' | 'edit'
     onEditModeChange?: (mode: 'preview' | 'edit') => void
+    headerVariant?: 'overlay' | 'pane'
     onPreviewClose?: () => void
     onSelectedFileChange: (file: string | null) => void
+    paneActions?: ReactNode
+    paneTitle?: ReactNode
     previewFileSelection?: { workspacePath: string; filePath: string } | null
     selectedFile: string | null
   }) => (
     <div data-testid="artifact-pane" data-edit-mode={editMode} data-selected-file={selectedFile ?? ''}>
+      {headerVariant === 'pane' ? (
+        <div data-testid="artifact-pane-header">
+          {previewFileSelection ? (
+            <button type="button" aria-label="common.back" onClick={onPreviewClose}>
+              back
+            </button>
+          ) : null}
+          <span data-testid="artifact-pane-header-title">{previewFileSelection?.filePath ?? paneTitle}</span>
+          {paneActions}
+        </div>
+      ) : null}
       <button type="button" onClick={() => onSelectedFileChange('README.md')}>
         select README.md
       </button>
@@ -199,9 +216,11 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', async () => ({
       {previewFileSelection && (
         <div data-testid="artifact-file-preview-overlay">
           {previewFileSelection.filePath}
-          <button type="button" onClick={onPreviewClose}>
-            close
-          </button>
+          {headerVariant === 'pane' ? null : (
+            <button type="button" onClick={onPreviewClose}>
+              close
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -469,8 +488,36 @@ describe('AgentRightPane', () => {
     act(triggerRightSidebarShortcut)
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
-    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.files')
+    expect(screen.queryByTestId('shell-tab-title')).toBeNull()
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('agent.right_pane.tabs.files')
     expect(screen.getByTestId('artifact-pane')).toBeInTheDocument()
+  })
+
+  it('reuses the files pane header for preview navigation', () => {
+    render(
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    expect(screen.getAllByTestId('artifact-pane-header')).toHaveLength(1)
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('agent.right_pane.tabs.files')
+
+    fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
+
+    expect(screen.getAllByTestId('artifact-pane-header')).toHaveLength(1)
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('README.md')
+    expect(screen.getByRole('button', { name: 'common.back' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
+
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('agent.right_pane.tabs.files')
   })
 
   it('does not expose artifact opening without a workspace path', () => {
@@ -1002,7 +1049,7 @@ describe('AgentRightPane', () => {
     render(renderPane())
 
     fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
-    fireEvent.click(screen.getByRole('button', { name: 'close' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
 
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()

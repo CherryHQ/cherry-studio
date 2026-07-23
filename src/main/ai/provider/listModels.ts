@@ -76,6 +76,10 @@ function handleOptionalModelListFailure<T>(
     throw error
   }
 
+  return recoverOptionalModelListFailure(error, context)
+}
+
+function recoverOptionalModelListFailure<T>(error: unknown, context: Record<string, string>): { data: T[] } {
   logger.warn('Optional model list endpoint failed; continuing with primary models', {
     ...context,
     error
@@ -460,15 +464,16 @@ const openRouterFetcher: ModelFetcher = {
   match: (p) => p.id === SystemProviderIds.openrouter,
   fetch: async (provider, signal, options) => {
     const headers = defaultHeaders(provider)
-    const [modelsResponse, embedModelsResponse] = await Promise.all([
+    const modelsApiUrls = provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.modelsApiUrls
+    const [modelsResponse, embedModelsResponse, imageModelsResponse] = await Promise.all([
       getFromApi({
-        url: 'https://openrouter.ai/api/v1/models',
+        url: modelsApiUrls?.default ?? 'https://openrouter.ai/api/v1/models',
         headers,
         responseSchema: OpenAIModelsResponseSchema,
         abortSignal: signal
       }),
       getFromApi({
-        url: 'https://openrouter.ai/api/v1/embeddings/models',
+        url: modelsApiUrls?.embedding ?? 'https://openrouter.ai/api/v1/embeddings/models',
         headers,
         responseSchema: OpenAIModelsResponseSchema,
         abortSignal: signal
@@ -477,10 +482,34 @@ const openRouterFetcher: ModelFetcher = {
           providerId: provider.id,
           endpoint: 'openrouter-embedding-models'
         })
+      ),
+      getFromApi({
+        url: modelsApiUrls?.image ?? 'https://openrouter.ai/api/v1/images/models',
+        headers,
+        responseSchema: OpenAIModelsResponseSchema,
+        abortSignal: signal
+      }).catch((error) =>
+        recoverOptionalModelListFailure<OpenAIModelResponseItem>(error, {
+          providerId: provider.id,
+          endpoint: 'openrouter-image-models'
+        })
       )
     ])
-    const all = [...modelsResponse.data, ...embedModelsResponse.data]
-    return dedup(all, (m) => m.id).map((m) => toModel(m.id, provider, { ownedBy: m.owned_by }))
+    const imageModelsById = new Map(imageModelsResponse.data.map((model) => [model.id, model]))
+    const all = [...modelsResponse.data, ...embedModelsResponse.data, ...imageModelsResponse.data]
+    return dedup(all, (m) => m.id).map((m) => {
+      const imageModel = imageModelsById.get(m.id)
+      return toModel(m.id, provider, {
+        name: imageModel?.name ?? m.name,
+        ownedBy: m.owned_by,
+        ...(imageModel
+          ? {
+              capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+              endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+            }
+          : {})
+      })
+    })
   }
 }
 

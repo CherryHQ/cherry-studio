@@ -26,7 +26,7 @@ import { joinPath } from '@renderer/utils/path'
 import { isMac, isWin } from '@renderer/utils/platform'
 import type { FilePath } from '@shared/types/file'
 import { toFileUrl } from '@shared/utils/file'
-import { AlertCircle, Eye, FileText, FolderOpen, RotateCw, Sparkles, SquarePen, X } from 'lucide-react'
+import { AlertCircle, ArrowLeft, Eye, FileText, FolderOpen, RotateCw, Sparkles, SquarePen, X } from 'lucide-react'
 import {
   type ComponentType,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -448,7 +448,7 @@ export function ArtifactFilePreview({
   )
 }
 
-interface ArtifactPaneViewProps {
+interface ArtifactPaneViewBaseProps {
   workspacePath?: string
   maximized?: boolean
   previewFileSelection?: ArtifactPaneFileSelection | null
@@ -468,27 +468,42 @@ interface ArtifactPaneViewProps {
   onEditModeChange?: (mode: 'preview' | 'edit') => void
 }
 
+type ArtifactPaneViewProps = ArtifactPaneViewBaseProps &
+  (
+    | {
+        headerVariant?: 'overlay'
+        paneTitle?: never
+        paneActions?: never
+      }
+    | {
+        headerVariant: 'pane'
+        paneTitle: ReactNode
+        paneActions: ReactNode
+      }
+  )
+
 /**
  * Presentational artifact pane: renders file tree and selected-file overlay
  * preview from the supplied model.
  */
-export function ArtifactPaneView({
-  workspacePath,
-  maximized = false,
-  previewFileSelection = null,
-  onPreviewClose,
-  pdfLayoutPending = false,
-  pdfLayoutRefreshKey = 0,
-  enableFileSearch = false,
-  model,
-  selectedFile,
-  onSelectedFileChange,
-  searchKeyword,
-  onSearchKeywordChange,
-  fileSession,
-  editMode = 'preview',
-  onEditModeChange
-}: ArtifactPaneViewProps) {
+export function ArtifactPaneView(props: ArtifactPaneViewProps) {
+  const {
+    workspacePath,
+    maximized = false,
+    previewFileSelection = null,
+    onPreviewClose,
+    pdfLayoutPending = false,
+    pdfLayoutRefreshKey = 0,
+    enableFileSearch = false,
+    model,
+    selectedFile,
+    onSelectedFileChange,
+    searchKeyword,
+    onSearchKeywordChange,
+    fileSession,
+    editMode = 'preview',
+    onEditModeChange
+  } = props
   const { t } = useTranslation()
   const { activeCmTheme } = useCodeStyle()
   const { data: externalApps } = useExternalApps({ enabled: true })
@@ -732,13 +747,14 @@ export function ArtifactPaneView({
   )
 
   const searchToolbar = useMemo(
-    () => (
-      <div className="flex shrink-0 items-center gap-1">
-        {refreshButton}
-        {workspacePath && <OpenExternalAppButton workdir={workspacePath} />}
-      </div>
-    ),
-    [refreshButton, workspacePath]
+    () =>
+      props.headerVariant === 'pane' ? undefined : (
+        <div className="flex shrink-0 items-center gap-1">
+          {refreshButton}
+          {workspacePath ? <OpenExternalAppButton workdir={workspacePath} /> : null}
+        </div>
+      ),
+    [props.headerVariant, refreshButton, workspacePath]
   )
 
   const isSelectedHtmlPreview = previewFilePath ? isHtmlFile(previewFilePath) : false
@@ -779,6 +795,76 @@ export function ArtifactPaneView({
     fileSessionDiscard?.()
   }, [fileSessionDiscard])
 
+  const editorLoading = fileSession?.status === 'loading'
+  const nextEditorMode = editMode === 'preview' ? 'edit' : 'preview'
+  const modeActionLabel = t(nextEditorMode === 'edit' ? 'common.edit' : 'common.preview')
+  const ModeActionIcon = nextEditorMode === 'edit' ? SquarePen : Eye
+
+  const paneHeader =
+    props.headerVariant === 'pane' ? (
+      <div
+        data-testid="artifact-pane-header"
+        className="flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b px-2 [-webkit-app-region:no-drag]">
+        <div className="flex min-w-0 flex-1 items-center gap-0.5">
+          {overlaySelection ? (
+            <Tooltip content={t('common.back')} delay={800}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="shrink-0 text-muted-foreground hover:bg-accent hover:text-foreground"
+                aria-label={t('common.back')}
+                onClick={handleClosePreview}>
+                <ArrowLeft size={16} />
+              </Button>
+            </Tooltip>
+          ) : null}
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 px-1">
+            <div
+              data-testid="artifact-pane-header-title"
+              className="min-w-0 flex-1 select-none truncate font-medium text-foreground text-sm"
+              title={overlaySelection?.filePath}>
+              {overlaySelection ? getPreviewFileTitle(overlaySelection.filePath) : props.paneTitle}
+            </div>
+            {overlaySelection && isEditDirty ? (
+              <span
+                className="size-1.5 shrink-0 rounded-full bg-warning"
+                aria-label={t('agent.preview_pane.edit.unsaved')}
+                title={t('agent.preview_pane.edit.unsaved')}
+              />
+            ) : null}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          {canEditSelection ? (
+            <>
+              <Tooltip content={modeActionLabel} delay={800}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground hover:bg-accent hover:text-foreground"
+                  aria-label={modeActionLabel}
+                  disabled={editorLoading}
+                  onClick={() => handleEditorModeChange(nextEditorMode)}>
+                  <ModeActionIcon size={14} />
+                </Button>
+              </Tooltip>
+              <div className="mx-0.5 h-4 w-px bg-border-subtle" aria-hidden="true" />
+            </>
+          ) : null}
+          {previewWorkspacePath ? (
+            <>
+              <OpenExternalAppButton workdir={previewWorkspacePath} filePath={overlaySelection?.filePath} />
+              {refreshButton}
+              <div className="mx-0.5 h-4 w-px bg-border-subtle" aria-hidden="true" />
+            </>
+          ) : null}
+          {props.paneActions}
+        </div>
+      </div>
+    ) : null
+
   const previewContent = overlaySelection ? (
     <ArtifactFilePreview
       workspacePath={overlaySelection.workspacePath}
@@ -817,12 +903,6 @@ export function ArtifactPaneView({
       isSelectedHtmlPreview || isSelectedPdfPreview || isSelectedOfficePreview || isSelectedImagePreview
         ? 'overflow-hidden'
         : 'overflow-auto'
-    const editorMode = editMode
-    const editorLoading = fileSession?.status === 'loading'
-    const nextEditorMode = editorMode === 'preview' ? 'edit' : 'preview'
-    const modeActionLabel = t(nextEditorMode === 'edit' ? 'common.edit' : 'common.preview')
-    const ModeActionIcon = nextEditorMode === 'edit' ? SquarePen : Eye
-
     return (
       <div
         ref={overlayRef}
@@ -830,38 +910,40 @@ export function ArtifactPaneView({
         tabIndex={-1}
         onKeyDown={handleOverlayKeyDown}
         className="absolute inset-0 z-20 flex min-h-0 flex-col overflow-hidden bg-card text-card-foreground">
-        <div className="flex h-10 shrink-0 items-center gap-2 border-border-subtle border-b pr-2 pl-3">
-          <div className="flex min-w-0 flex-1 items-center gap-1.5 font-medium text-foreground text-sm">
-            <span className="truncate">{getPreviewFileTitle(overlaySelection.filePath)}</span>
-            {isEditDirty && (
-              <span
-                className="size-1.5 shrink-0 rounded-full bg-warning"
-                aria-label={t('agent.preview_pane.edit.unsaved')}
-                title={t('agent.preview_pane.edit.unsaved')}
-              />
-            )}
+        {props.headerVariant === 'pane' ? null : (
+          <div className="flex h-10 shrink-0 items-center gap-2 border-border-subtle border-b pr-2 pl-3">
+            <div className="flex min-w-0 flex-1 items-center gap-1.5 font-medium text-foreground text-sm">
+              <span className="truncate">{getPreviewFileTitle(overlaySelection.filePath)}</span>
+              {isEditDirty && (
+                <span
+                  className="size-1.5 shrink-0 rounded-full bg-warning"
+                  aria-label={t('agent.preview_pane.edit.unsaved')}
+                  title={t('agent.preview_pane.edit.unsaved')}
+                />
+              )}
+            </div>
+            <div className="ml-auto flex shrink-0 items-center gap-1">
+              {canEditSelection && (
+                <>
+                  <Tooltip content={modeActionLabel} delay={800}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-muted-foreground hover:bg-accent hover:text-foreground"
+                      aria-label={modeActionLabel}
+                      disabled={editorLoading}
+                      onClick={() => handleEditorModeChange(nextEditorMode)}>
+                      <ModeActionIcon size={14} />
+                    </Button>
+                  </Tooltip>
+                  <span aria-hidden className="mx-0.5 h-4 w-px bg-border-subtle" />
+                </>
+              )}
+              {overlayActions}
+            </div>
           </div>
-          <div className="ml-auto flex shrink-0 items-center gap-1">
-            {canEditSelection && (
-              <>
-                <Tooltip content={modeActionLabel} delay={800}>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="text-muted-foreground hover:bg-accent hover:text-foreground"
-                    aria-label={modeActionLabel}
-                    disabled={editorLoading}
-                    onClick={() => handleEditorModeChange(nextEditorMode)}>
-                    <ModeActionIcon size={14} />
-                  </Button>
-                </Tooltip>
-                <span aria-hidden className="mx-0.5 h-4 w-px bg-border-subtle" />
-              </>
-            )}
-            {overlayActions}
-          </div>
-        </div>
+        )}
         {fileSession?.saveError && (
           <div
             role="alert"
@@ -882,7 +964,7 @@ export function ArtifactPaneView({
           </div>
         )}
         <div className={cn('min-h-0 flex-1', contentClassName)}>
-          {canEditSelection && editorMode === 'edit' && fileSession?.status === 'ready' ? (
+          {canEditSelection && editMode === 'edit' && fileSession?.status === 'ready' ? (
             <CodeEditor
               key={previewKey}
               value={fileSession.draft}
@@ -897,7 +979,7 @@ export function ArtifactPaneView({
               style={{ minHeight: 0 }}
               options={{ keymap: true, lineNumbers: true }}
             />
-          ) : canEditSelection && editorMode === 'edit' && fileSession?.status === 'loading' ? (
+          ) : canEditSelection && editMode === 'edit' && fileSession?.status === 'loading' ? (
             <div className="flex h-full items-center justify-center">
               <LoadingState label={t('common.loading')} />
             </div>
@@ -969,6 +1051,7 @@ export function ArtifactPaneView({
           'flex h-full min-h-0 flex-col overflow-hidden bg-card text-card-foreground',
           maximized && 'rounded-lg border border-border-subtle shadow-sm'
         )}>
+        {paneHeader}
         <EmptyState
           icon={Sparkles}
           title={t('agent.preview_pane.empty.title')}
@@ -986,6 +1069,7 @@ export function ArtifactPaneView({
           'flex h-full min-h-0 flex-col overflow-hidden bg-card text-card-foreground',
           maximized && 'rounded-lg border border-border-subtle shadow-sm'
         )}>
+        {paneHeader}
         <EmptyState icon={AlertCircle} title={t('common.error')} description={model.error.message} />
       </div>
     )
@@ -998,6 +1082,7 @@ export function ArtifactPaneView({
         'flex h-full min-h-0 flex-col overflow-hidden text-card-foreground',
         maximized && 'rounded-lg border border-border-subtle shadow-sm'
       )}>
+      {paneHeader}
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <aside className="flex h-full w-full flex-col overflow-hidden">
           <div data-artifact-file-tree-scroll-region className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">

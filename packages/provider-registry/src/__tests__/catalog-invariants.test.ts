@@ -21,11 +21,13 @@ const modelsRaw = JSON.parse(readFileSync(join(dataDir, 'models.json'), 'utf8'))
 const providerModelsRaw = JSON.parse(readFileSync(join(dataDir, 'provider-models.json'), 'utf8'))
 const models = modelsRaw.models as Array<{
   id: string
+  name: string
   contextWindow?: number
   maxOutputTokens?: number
   capabilities?: string[]
   inputModalities?: string[]
   outputModalities?: string[]
+  ownedBy?: string
 }>
 const overrides = providerModelsRaw.overrides as Array<{
   providerId: string
@@ -43,8 +45,26 @@ describe('catalog invariants (data/*.json)', () => {
   const ids = models.map((m) => m.id)
   const baseIds = new Set(ids)
 
+  it.each([
+    ['mai-image-2-5', 'microsoft', 'Microsoft: MAI-Image-2.5'],
+    ['recraft-v4-1-vector', 'recraft', 'Recraft: Recraft V4.1 Vector'],
+    ['riverflow-v2-5-fast', 'sourceful', 'Sourceful: Riverflow V2.5 Fast'],
+    ['seedream-4-5', 'bytedance', 'Seedream 4.5']
+  ])('catalogs OpenRouter image model %s under its creator with its display name', (modelId, ownedBy, name) => {
+    expect(models.find((model) => model.id === modelId)).toMatchObject({
+      capabilities: expect.arrayContaining(['image-generation']),
+      name,
+      ownedBy
+    })
+  })
+
   it('base model ids are unique', () => {
     expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([])
+  })
+
+  it('base models are sorted by creator and id', () => {
+    const keys = models.map((model) => `${model.ownedBy ?? ''}\0${model.id}`)
+    expect(keys).toEqual([...keys].sort())
   })
 
   it('every base id is a normalized creator id (lowercase, single-hyphen separated)', () => {

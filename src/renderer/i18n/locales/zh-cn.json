@@ -584,7 +584,7 @@
       },
       "prompt": "提示词设置",
       "skills": {
-        "addMore": "添加更多技能",
+        "addMore": "管理技能",
         "builtin": "内置",
         "noFilterResults": "没有匹配的技能",
         "noSkills": "暂无已安装的技能。前往 设置 > 技能 安装技能。",
@@ -658,11 +658,6 @@
       }
     },
     "sidebar_title": "智能体",
-    "skill": {
-      "manage": {
-        "title": "管理技能"
-      }
-    },
     "tasks": {
       "add": "添加任务",
       "cancel": "取消",
@@ -1077,12 +1072,18 @@
     "edit": {
       "title": "编辑助手"
     },
+    "groups": {
+      "delete": "删除分组",
+      "deleteConfirm": "确定要删除这个分组吗？",
+      "group_by": "按分组显示",
+      "ungroup": "取消分组显示",
+      "ungrouped": "未分组"
+    },
     "icon": {
       "type": "助手图标"
     },
     "list": {
-      "showByList": "列表展示",
-      "showByTags": "标签展示"
+      "showByList": "列表展示"
     },
     "pin": {
       "title": "置顶助手"
@@ -1266,20 +1267,6 @@
         "label": "工具调用方式",
         "prompt": "提示词"
       }
-    },
-    "tags": {
-      "add": "添加标签",
-      "delete": "删除标签",
-      "deleteConfirm": "确定要删除这个标签吗？",
-      "group_by": "按照标签分组",
-      "manage": "标签管理",
-      "modify": "修改标签",
-      "none": "暂无标签",
-      "settings": {
-        "title": "标签设置"
-      },
-      "ungroup": "关闭标签分组",
-      "untagged": "未分组"
     },
     "title": "助手",
     "unpin": {
@@ -1616,8 +1603,7 @@
     "resource_view": {
       "menu": {
         "agent": "智能体",
-        "assistant": "助手",
-        "skill": "技能"
+        "assistant": "助手"
       }
     },
     "save": {
@@ -2452,13 +2438,19 @@
     "text": "文本",
     "toolInput": "工具输入",
     "toolName": "工具名",
+    "tool_call_limit_reached": "助手在生成最终回复前已达到工具调用上限。请重试，或缩小任务范围。",
     "truncated": "数据已截断，原始大小",
     "truncatedBadge": "已截断",
     "unknown": "未知错误",
     "usage": "用量",
     "user_message_not_found": "无法找到原始用户消息",
     "value": "值",
-    "values": "值"
+    "values": "值",
+    "web_lookup_network_error": "联网访问失败，请检查网络连接后重试。",
+    "web_search_api_host_invalid": "联网搜索不可用，因为已配置服务提供商的 API 地址无效。请在“设置 → 联网搜索”中填写有效的 HTTP(S) 地址后重试。",
+    "web_search_api_host_missing": "联网搜索不可用，因为已配置的服务提供商缺少 API 地址。请前往“设置 → 联网搜索”补充后重试。",
+    "web_search_api_key_missing": "联网搜索不可用，因为已配置的服务提供商缺少 API 密钥。请前往“设置 → 联网搜索”补充后重试。",
+    "web_search_provider_unavailable": "联网搜索不可用，因为尚未配置兼容的服务提供商。请前往“设置 → 联网搜索”完成配置后重试。"
   },
   "export": {
     "assistant": "助手",
@@ -3137,7 +3129,7 @@
       "duplicate": "复制",
       "edit": "编辑",
       "enable": "启用",
-      "manage_tags": "管理标签",
+      "manage_groups": "管理分组",
       "uninstall": "卸载"
     },
     "assistant_catalog": {
@@ -3280,7 +3272,7 @@
             "skills_require_save": "保存后才能启用技能",
             "tab": {
               "mcp": "MCP",
-              "skills": "Skills",
+              "skills": "技能",
               "tools": "内置工具"
             },
             "title": "能力扩展"
@@ -3336,6 +3328,9 @@
             "hint": "启用后限制采样范围"
           }
         },
+        "group": "分组",
+        "group_empty": "没有可选的分组",
+        "group_placeholder": "选择分组",
         "json_invalid": "JSON 格式错误",
         "max_tokens": "最大 Token 数",
         "max_tool_calls": "最大工具调用次数",
@@ -3541,6 +3536,10 @@
       "title": "暂无资源"
     },
     "export_assistant_failed": "导出助手失败",
+    "group_picker": {
+      "no_groups": "暂无分组"
+    },
+    "group_sync_failed": "分组同步失败",
     "import_dialog": {
       "clipboard": {
         "button": "解析并导入",
@@ -3588,14 +3587,13 @@
     },
     "sidebar": {
       "all_resources": "所有资源",
-      "all_tags": "全部标签",
       "no_tags": "暂无标签",
       "subtitle": "管理你的 AI 资源",
       "tags": "标签",
       "title": "资源库"
     },
     "skill_add": {
-      "add": "添加 Skill",
+      "add": "添加技能",
       "local_import": "本地导入",
       "online_search": "在线搜索",
       "system_search": "系统搜索"
@@ -3653,11 +3651,11 @@
     },
     "title": "资源库",
     "toolbar": {
-      "add_tag_placeholder": "标签名...",
-      "all_tags": "全部标签",
+      "add_group_placeholder": "分组名...",
+      "all_groups": "全部分组",
+      "group_button": "分组",
       "new_resource": "新建资源",
-      "search_placeholder": "搜索资源名称、描述...",
-      "tag_button": "标签"
+      "search_placeholder": "搜索资源名称、描述..."
     },
     "type": {
       "agent": "智能体",
@@ -4229,6 +4227,9 @@
       "selected": "已选标签"
     },
     "function_calling": "函数调用",
+    "group": {
+      "ungrouped": "未分组"
+    },
     "invalid_model": "无效模型",
     "json_parse_error": "JSON 格式无效",
     "multi_select": {
@@ -4470,23 +4471,31 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "provider_setup": {
+      "missing_model": "请先启用该服务商下的至少一个模型",
+      "missing_provider": "请先启用一个服务商",
+      "next": "下一步",
+      "subtitle": "添加 API Key 或登录 CherryIN，然后启用一个服务商。",
+      "title": "选择服务商"
+    },
     "select_model": {
       "change_later": "您可以随时在设置中更改",
       "start": "开始使用",
       "subtitle": "为每个场景选择默认模型",
-      "title": "选择你的默认模型"
+      "title": "选择默认模型"
     },
-    "skip": "跳过引导",
+    "skip": "稍后设置",
     "toast": {
+      "complete_failed": "无法完成引导，请重试",
       "connected": "成功连接 CherryIN"
     },
     "welcome": {
-      "login_cherryin": "登录 CherryIN",
-      "or_continue_with": "或使用其他方式",
-      "other_provider": "选择其他服务商",
+      "login_cherryin": "连接 CherryIN",
+      "or_continue_with": "或",
+      "other_provider": "配置其他服务商",
       "select_other_provider": "选择其他服务商",
-      "setup_hint": "请您先至少配置一个服务商，以获得最佳使用体验",
-      "subtitle": "使用 CherryIN 服务商可畅享顶级 AI 服务",
+      "setup_hint": "您可以随时在设置中更换服务商",
+      "subtitle": "连接服务商，开启您的 AI 工作空间",
       "title": "欢迎使用 Cherry Studio"
     }
   },
@@ -4751,6 +4760,7 @@
     "inference_steps": "推理步数",
     "inference_steps_tip": "要执行的推理步数 ({{min}}-{{max}})。步数越多，质量越高但耗时越长",
     "input_image": "输入图片",
+    "input_image_limit_exceeded": "参考图片数量超过所选模型限制，请删除部分图片后重试",
     "input_parameters": "输入参数",
     "invalid_image_url": "无效的图片URL格式",
     "learn_more": "了解更多",
@@ -4775,6 +4785,7 @@
     "number_images": "生成数量",
     "number_images_tip": "一次生成的图片数量 ({{min}}-{{max}})",
     "operation_failed": "操作失败，请稍后重试",
+    "output_compression": "输出压缩率",
     "paint_course": "教程",
     "per_image": "每张图片",
     "per_images": "每张图片",
@@ -5547,6 +5558,7 @@
       "create_new": "新建助手",
       "empty_text": "暂无助手",
       "filter": "筛选助手",
+      "group_filter": "按分组筛选",
       "multi_hint": "（与多模型互斥）",
       "multi_label": "多助手同时回答",
       "search_placeholder": "搜索助手…"
