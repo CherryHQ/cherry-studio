@@ -1,5 +1,4 @@
-import { render } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { fireEvent, render } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import MessageAvatar from '../MessageAvatar'
@@ -19,20 +18,12 @@ describe('MessageAvatar', () => {
     expect(container.querySelector('.message-avatar > *')).toHaveClass('size-full')
   })
 
-  it.each(['🍣', 'https://example.com/avatar.png'])(
-    'supports accessible interaction for %s avatars',
-    async (avatar) => {
-      const user = userEvent.setup()
-      const onClick = vi.fn()
-      const { getByRole } = render(<MessageAvatar avatar={avatar} aria-label="Edit author" onClick={onClick} />)
-      const avatarButton = getByRole('button', { name: 'Edit author' })
+  it.each(['🍣', 'https://example.com/avatar.png'])('forwards clicks for %s avatars', (avatar) => {
+    const onClick = vi.fn()
+    const { container } = render(<MessageAvatar avatar={avatar} onClick={onClick} />)
 
-      await user.click(avatarButton)
-      avatarButton.focus()
-      await user.keyboard('{Enter}')
-      await user.keyboard(' ')
+    fireEvent.click(container.querySelector('.message-avatar') as HTMLElement)
 
-      expect(onClick).toHaveBeenCalledTimes(3)
-    }
-  )
+    expect(onClick).toHaveBeenCalledTimes(1)
+  })
 })

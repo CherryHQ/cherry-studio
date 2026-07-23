@@ -105,20 +105,17 @@ const MessageHeader: FC<Props> = memo(
             <MessageAvatar
               avatar={authorAvatar}
               fallback={avatarName}
-              aria-label={canOpenMessageAuthorEditor ? t('common.edit') : undefined}
               onClick={canOpenMessageAuthorEditor ? openAuthorEditor : undefined}
             />
           ) : ModelIcon ? (
             <MessageAvatarFrame
               className="bg-background"
-              aria-label={canOpenMessageAuthorEditor ? t('common.edit') : undefined}
               onClick={canOpenMessageAuthorEditor ? openAuthorEditor : undefined}>
-              <ModelIcon className={MESSAGE_MODEL_AVATAR_ICON_CLASS} aria-hidden="true" />
+              <ModelIcon className={MESSAGE_MODEL_AVATAR_ICON_CLASS} />
             </MessageAvatarFrame>
           ) : (
             <MessageAvatar
               fallback={avatarName}
-              aria-label={canOpenMessageAuthorEditor ? t('common.edit') : undefined}
               onClick={canOpenMessageAuthorEditor ? openAuthorEditor : undefined}
               fallbackAvatarStyle={{
                 border: 'none',
@@ -127,11 +124,7 @@ const MessageHeader: FC<Props> = memo(
             />
           )
         ) : (
-          <MessageAvatar
-            avatar={userAvatar}
-            aria-label={canOpenUserProfile ? t('common.edit') : undefined}
-            onClick={canOpenUserProfile ? openUserProfile : undefined}
-          />
+          <MessageAvatar avatar={userAvatar} onClick={canOpenUserProfile ? openUserProfile : undefined} />
         )}
         <div
           className={hasBodySlot ? 'message-body-column flex min-h-0 min-w-0 flex-1 flex-col' : 'flex min-w-0 flex-1'}>

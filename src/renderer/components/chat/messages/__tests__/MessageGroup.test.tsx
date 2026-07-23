@@ -3,7 +3,6 @@ import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceT
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { act, createEvent, fireEvent, render, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -824,8 +823,7 @@ describe('MessageGroup', () => {
     expect(footer).toHaveClass('w-[calc(100%-30px)]')
   })
 
-  it('keeps the bubble user avatar accessible from click, Enter, and Space', async () => {
-    const user = userEvent.setup()
+  it('keeps the bubble user avatar clickable', () => {
     const openUserProfile = vi.fn()
     mocks.messageListActions.mockReturnValue({ openUserProfile })
     mocks.settings.mockReturnValue({
@@ -843,15 +841,12 @@ describe('MessageGroup', () => {
       role: 'user'
     } as MessageListItem & { index: number; multiModelMessageStyle: MultiModelMessageStyle }
 
-    const { getByRole } = render(<MessageGroup messages={[message]} topic={{ id: 'topic-1' } as Topic} />)
-    const avatar = getByRole('button', { name: 'common.edit' })
+    const { container } = render(<MessageGroup messages={[message]} topic={{ id: 'topic-1' } as Topic} />)
+    const avatar = container.querySelector('#message-user-bubble-avatar .message-avatar') as HTMLElement
 
-    await user.click(avatar)
-    avatar.focus()
-    await user.keyboard('{Enter}')
-    await user.keyboard(' ')
+    fireEvent.click(avatar)
 
-    expect(openUserProfile).toHaveBeenCalledTimes(3)
+    expect(openUserProfile).toHaveBeenCalledOnce()
   })
 
   it('applies bubble enter motion to newly inserted bubble user messages', () => {

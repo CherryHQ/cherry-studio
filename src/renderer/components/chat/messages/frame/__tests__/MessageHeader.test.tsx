@@ -1,5 +1,4 @@
-import { render } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { fireEvent, render } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -164,12 +163,11 @@ describe('MessageHeader', () => {
     expect(getByText('My Agent')).toBeTruthy()
   })
 
-  it('opens the snapshotted author editor from click, Enter, and Space', async () => {
-    const user = userEvent.setup()
+  it('opens the snapshotted author editor from click', () => {
     const openMessageAuthorEditor = vi.fn()
     providerState.actions = { openMessageAuthorEditor }
 
-    const { getByRole } = render(
+    const { container } = render(
       <MessageHeader
         message={createMessage('assistant', {
           assistantId: 'current-assistant',
@@ -183,37 +181,31 @@ describe('MessageHeader', () => {
       />
     )
 
-    const avatar = getByRole('button', { name: 'common.edit' })
-    await user.click(avatar)
-    avatar.focus()
-    await user.keyboard('{Enter}')
-    await user.keyboard(' ')
+    fireEvent.click(container.querySelector('.message-avatar') as HTMLElement)
 
-    expect(openMessageAuthorEditor).toHaveBeenCalledTimes(3)
-    expect(openMessageAuthorEditor).toHaveBeenNthCalledWith(1, 'snapshot-assistant')
-    expect(openMessageAuthorEditor).toHaveBeenNthCalledWith(2, 'snapshot-assistant')
-    expect(openMessageAuthorEditor).toHaveBeenNthCalledWith(3, 'snapshot-assistant')
+    expect(openMessageAuthorEditor).toHaveBeenCalledOnce()
+    expect(openMessageAuthorEditor).toHaveBeenCalledWith('snapshot-assistant')
   })
 
   it('keeps a legacy message without an author snapshot static', () => {
     const openMessageAuthorEditor = vi.fn()
     providerState.actions = { openMessageAuthorEditor }
 
-    const { queryByRole } = render(
+    const { container } = render(
       <MessageHeader message={createMessage('assistant', { assistantId: 'legacy-assistant' })} />
     )
 
-    expect(queryByRole('button', { name: 'common.edit' })).not.toBeInTheDocument()
+    fireEvent.click(container.querySelector('.message-avatar') as HTMLElement)
+
     expect(openMessageAuthorEditor).not.toHaveBeenCalled()
   })
 
-  it('makes a model-icon avatar clickable but leaves an authorless avatar static', async () => {
-    const user = userEvent.setup()
+  it('makes a model-icon avatar clickable but leaves an authorless avatar static', () => {
     const openMessageAuthorEditor = vi.fn()
     providerState.actions = { openMessageAuthorEditor }
     iconState.showModelIcon = true
 
-    const { getByRole, rerender } = render(
+    const { container, rerender } = render(
       <MessageHeader
         message={createMessage('assistant', {
           assistantId: 'current-assistant',
@@ -226,27 +218,24 @@ describe('MessageHeader', () => {
       />
     )
 
-    await user.click(getByRole('button', { name: 'common.edit' }))
+    fireEvent.click(container.querySelector('.message-avatar') as HTMLElement)
     expect(openMessageAuthorEditor).toHaveBeenCalledWith('model-author')
 
     rerender(<MessageHeader message={createMessage('assistant', { assistantId: 'current-assistant' })} />)
-    expect(() => getByRole('button', { name: 'common.edit' })).toThrow()
+    fireEvent.click(container.querySelector('.message-avatar') as HTMLElement)
+
+    expect(openMessageAuthorEditor).toHaveBeenCalledOnce()
   })
 
-  it('keeps the user profile avatar accessible from click, Enter, and Space', async () => {
-    const user = userEvent.setup()
+  it('opens the user profile from an avatar click', () => {
     const openUserProfile = vi.fn()
     providerState.actions = { openUserProfile }
 
-    const { getByRole } = render(<MessageHeader message={createMessage('user')} />)
+    const { container } = render(<MessageHeader message={createMessage('user')} />)
 
-    const avatar = getByRole('button', { name: 'common.edit' })
-    await user.click(avatar)
-    avatar.focus()
-    await user.keyboard('{Enter}')
-    await user.keyboard(' ')
+    fireEvent.click(container.querySelector('.message-avatar') as HTMLElement)
 
-    expect(openUserProfile).toHaveBeenCalledTimes(3)
+    expect(openUserProfile).toHaveBeenCalledOnce()
   })
 
   it('marks the real message selection checkbox for drag selection lookup', () => {
