@@ -7370,6 +7370,13 @@
       "openai": {
         "alert": "OpenAI Provider 不再支援舊的呼叫方法。如果使用第三方 API，請建立新的服務供應商"
       },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "開啟 Token Factory",
+          "description": "每天贈送等值 10 美元的 API 額度，額度每日重設，並依不同模型的費率扣減，目前暫不支援儲值。",
+          "title": "每日 10 美元免費 API 額度"
+        }
+      },
       "remove_duplicate_keys": "移除重複金鑰",
       "remove_invalid_keys": "刪除無效金鑰",
       "reorder_failed": "調整服務商順序失敗",

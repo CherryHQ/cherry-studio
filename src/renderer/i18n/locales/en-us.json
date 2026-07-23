@@ -7379,6 +7379,13 @@
         "usage_title": "Usage",
         "usage_unit": "tokens"
       },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Open Token Factory",
+          "description": "Get $10 in API credits each day. Credits reset daily and usage is charged at each model's rate. Top-ups are not currently supported.",
+          "title": "$10 in free daily API credits"
+        }
+      },
       "remove_duplicate_keys": "Remove Duplicate Keys",
       "remove_invalid_keys": "Remove Invalid Keys",
       "reorder_failed": "Failed to reorder providers",

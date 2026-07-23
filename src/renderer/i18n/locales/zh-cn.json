@@ -7379,6 +7379,13 @@
         "usage_title": "用量",
         "usage_unit": "Token"
       },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "打开 Token Factory",
+          "description": "每天赠送 10 美元等值 API 额度，额度每日重置，并按不同模型的费率扣减，暂不支持充值。",
+          "title": "每日 10 美元免费 API 额度"
+        }
+      },
       "remove_duplicate_keys": "移除重复密钥",
       "remove_invalid_keys": "删除无效密钥",
       "reorder_failed": "调整服务商顺序失败",

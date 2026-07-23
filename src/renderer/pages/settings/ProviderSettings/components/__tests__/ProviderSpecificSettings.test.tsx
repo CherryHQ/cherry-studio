@@ -58,6 +58,10 @@ vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/VertexAiSett
   default: ({ providerId }: any) => <div>{`vertexai-settings-${providerId}`}</div>
 }))
 
+vi.mock('@renderer/pages/settings/ProviderSettings/ProviderSpecific/RadeonCloudBenefits', () => ({
+  default: () => <div>radeon-cloud-benefits</div>
+}))
+
 describe('ProviderSpecificSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -98,6 +102,12 @@ describe('ProviderSpecificSettings', () => {
       placement: 'beforeAuth' as const,
       meta: { isCherryIN: false, isDmxapi: false },
       expectedText: 'ovms-settings'
+    },
+    {
+      providerId: 'radeon-cloud',
+      placement: 'beforeAuth' as const,
+      meta: { isCherryIN: false, isDmxapi: false },
+      expectedText: 'radeon-cloud-benefits'
     },
     {
       providerId: 'lmstudio',

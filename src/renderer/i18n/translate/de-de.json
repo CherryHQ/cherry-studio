@@ -7361,6 +7361,13 @@
       "openai": {
         "alert": "OpenAI-Anbieter unterstützt keine alten Aufrufmethoden mehr, wenn Sie einen Drittanbieter-API verwenden, erstellen Sie bitte einen neuen Anbieter"
       },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Token Factory öffnen",
+          "description": "Sie erhalten täglich API-Guthaben im Wert von 10 USD. Das Guthaben wird täglich zurückgesetzt und je nach Modellpreis verbraucht. Aufladungen werden derzeit nicht unterstützt.",
+          "title": "Täglich 10 USD kostenloses API-Guthaben"
+        }
+      },
       "remove_duplicate_keys": "Doppelte Schlüssel entfernen",
       "remove_invalid_keys": "Ungültige Schlüssel löschen",
       "reorder_failed": "Fehler beim Neuanordnen der Anbieter",

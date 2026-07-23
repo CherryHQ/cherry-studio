@@ -7361,6 +7361,13 @@
       "openai": {
         "alert": "Le fournisseur OpenAI ne prend plus en charge l'ancienne méthode d'appel. Veuillez créer un nouveau fournisseur si vous utilisez une API tierce"
       },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "Ouvrir Token Factory",
+          "description": "Recevez chaque jour 10 USD de crédits API. Les crédits sont réinitialisés quotidiennement et l'utilisation est facturée selon le tarif de chaque modèle. Les recharges ne sont pas encore prises en charge.",
+          "title": "10 USD de crédits API gratuits par jour"
+        }
+      },
       "remove_duplicate_keys": "Supprimer les clés en double",
       "remove_invalid_keys": "Supprimer les clés invalides",
       "reorder_failed": "Échec de la réorganisation des fournisseurs",
