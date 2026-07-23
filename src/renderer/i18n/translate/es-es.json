@@ -2279,6 +2279,7 @@
     "swap": "Intercambiar",
     "topics": "Temas",
     "translate_text": "Traducir texto",
+    "undo": "Deshacer",
     "unknown": "Desconocido",
     "unnamed": "Sin nombre",
     "unsubscribe": "Cancelar suscripción",
@@ -3415,6 +3416,11 @@
         "insert_variable": "Insertar variable",
         "label": "Indicación del sistema",
         "placeholder": "Introduce instrucciones para el asistente, como estilo de respuesta, rol o contexto",
+        "polish": "Indicación en polaco",
+        "polish_failed_description": "Verifica o cambia el modelo predeterminado y vuelve a intentarlo.",
+        "polish_failed_title": "Error al pulir el indicador",
+        "polish_variables_changed_description": "El resultado pulido cambió o eliminó variables de la indicación. Inténtalo de nuevo.",
+        "polish_variables_changed_title": "No se pudo aplicar el mensaje pulido",
         "title": "Indicación",
         "tokens_label": "Tokens:",
         "variables_description": "Inserta estas variables del sistema en el indicador del sistema; antes de cada respuesta del asistente, se completan con la información actual.",
@@ -4885,6 +4891,7 @@
     "install": "instalación",
     "install_plugins_from_browser": "Explora los complementos disponibles para empezar a usar",
     "installing": "Instalando...",
+    "manage_skills": "Gestionar habilidades",
     "name": "Nombre",
     "no_description": "Sin descripción",
     "no_installed_plugins": "Aún no se ha instalado ningún complemento",
@@ -5629,14 +5636,15 @@
         "select": "Modificar directorio",
         "select_error": "Error al cambiar el directorio de datos",
         "select_error_in_app_path": "La nueva ruta es la misma que la ruta de instalación de la aplicación. Por favor, seleccione otra ruta",
+        "select_error_protected_path": "La ruta seleccionada está protegida por el sistema operativo o Cherry Studio. Por favor, elija otra carpeta.",
         "select_error_root_path": "La nueva ruta no puede ser la ruta raíz",
         "select_error_same_path": "La nueva ruta es igual a la antigua. Por favor, seleccione otra ruta",
         "select_error_write_permission": "La nueva ruta no tiene permisos de escritura",
         "select_not_empty_dir": "La nueva ruta no está vacía",
-        "select_not_empty_dir_content": "La nueva ruta no está vacía. Los datos existentes serán sobrescritos, lo que conlleva riesgo de pérdida de datos o fallo en la copia. ¿Desea continuar?",
         "select_success": "El directorio de datos ha sido modificado. La aplicación se reiniciará para aplicar los cambios",
         "select_title": "Cambiar directorio de datos de la aplicación",
-        "stop_quit_app_reason": "Actualmente la aplicación está migrando datos y no puede cerrarse"
+        "stop_quit_app_reason": "Actualmente la aplicación está migrando datos y no puede cerrarse",
+        "switch_existing_notice": "Este directorio no vacío se utilizará tal cual. Sus archivos existentes no se sobrescribirán."
       },
       "app_logs": {
         "button": "Abrir registros",
@@ -6860,6 +6868,7 @@
       "default_assistant_model_description": "Se usa cuando un asistente no tiene modelo.",
       "docs": "Documentación del modelo",
       "empty": "Sin modelos",
+      "empty_hint": "Haz clic en el botón Obtener lista de modelos de arriba para agregar modelos.",
       "enabled_models": "Habilitados",
       "expand_all": "Expandir todo",
       "filter": {
@@ -7357,9 +7366,6 @@
         "usage_title": "Uso",
         "usage_unit": "tokens"
       },
-      "openai": {
-        "alert": "El proveedor de OpenAI ya no admite el método de llamada antiguo; si utiliza una API de terceros, cree un nuevo proveedor"
-      },
       "remove_duplicate_keys": "Eliminar claves duplicadas",
       "remove_invalid_keys": "Eliminar claves inválidas",
       "reorder_failed": "Error al reordenar proveedores",
@@ -7435,6 +7441,7 @@
         "autoEmpty": "No hay servidores MCP habilitados",
         "description": "Ver estado actual del servidor MCP",
         "disabled": "MCP está deshabilitado para este asistente",
+        "open_config": "Configurar servidores MCP",
         "unknownServer": "Servidor MCP desconocido"
       },
       "multiple": "Selección múltiple",

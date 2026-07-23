@@ -2279,6 +2279,7 @@
     "swap": "交換",
     "topics": "對話",
     "translate_text": "翻譯文字",
+    "undo": "復原",
     "unknown": "未知",
     "unnamed": "未命名",
     "unsubscribe": "取消訂閱",
@@ -3415,6 +3416,11 @@
         "insert_variable": "插入變數",
         "label": "系統提示",
         "placeholder": "輸入對助手的要求，例如回答風格、角色設定或背景說明",
+        "polish": "波蘭語提示",
+        "polish_failed_description": "檢查或變更預設模型，然後再試一次。",
+        "polish_failed_title": "無法潤飾提示詞",
+        "polish_variables_changed_description": "拋光結果變更或移除了提示變數。請再試一次。",
+        "polish_variables_changed_title": "無法套用潤飾後的提示詞",
         "title": "提示",
         "tokens_label": "代幣：",
         "variables_description": "可在系統提示中插入這些系統變數；每次助手回覆前，系統會按當時的資訊自動填寫。",
@@ -4885,6 +4891,7 @@
     "install": "安裝",
     "install_plugins_from_browser": "瀏覽可用技能以開始使用",
     "installing": "安裝中...",
+    "manage_skills": "管理技能",
     "name": "名稱",
     "no_description": "無描述",
     "no_installed_plugins": "尚未安裝任何技能",
@@ -6861,6 +6868,7 @@
       "default_assistant_model_description": "建立新助手時使用的模型，如果助手未設定模型，則使用此模型",
       "docs": "模型文件",
       "empty": "找不到模型",
+      "empty_hint": "點擊上方的「取得模型清單」按鈕來新增模型。",
       "enabled_models": "已啟用",
       "expand_all": "全部展開",
       "filter": {
@@ -7358,9 +7366,6 @@
         "usage_title": "用量",
         "usage_unit": "Token"
       },
-      "openai": {
-        "alert": "OpenAI Provider 不再支援舊的呼叫方法。如果使用第三方 API，請建立新的服務供應商"
-      },
       "remove_duplicate_keys": "移除重複金鑰",
       "remove_invalid_keys": "刪除無效金鑰",
       "reorder_failed": "調整服務商順序失敗",
@@ -7436,6 +7441,7 @@
         "autoEmpty": "未啟用任何 MCP 伺服器",
         "description": "檢視目前的 MCP 伺服器狀態",
         "disabled": "此助理已停用 MCP",
+        "open_config": "設定 MCP 伺服器",
         "unknownServer": "未知的 MCP 伺服器"
       },
       "multiple": "多選",

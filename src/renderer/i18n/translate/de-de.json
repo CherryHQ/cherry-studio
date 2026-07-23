@@ -2279,6 +2279,7 @@
     "swap": "Tauschen",
     "topics": "Themen",
     "translate_text": "Text übersetzen",
+    "undo": "Rückgängig machen",
     "unknown": "Unbekannt",
     "unnamed": "Unbenannt",
     "unsubscribe": "Abmelden",
@@ -3415,6 +3416,11 @@
         "insert_variable": "Variable einfügen",
         "label": "Systemaufforderung",
         "placeholder": "Gib Anweisungen für den Assistenten ein, etwa Antwortstil, Rolle oder Hintergrundinformationen",
+        "polish": "Polnischer Prompt",
+        "polish_failed_description": "Überprüfen oder ändern Sie das Standardmodell und versuchen Sie es erneut.",
+        "polish_failed_title": "Fehler beim Polieren der Eingabeaufforderung",
+        "polish_variables_changed_description": "Das polierte Ergebnis hat die Prompt-Variablen geändert oder entfernt. Versuchen Sie es erneut.",
+        "polish_variables_changed_title": "Konnte polierten Prompt nicht anwenden",
         "title": "Aufforderung",
         "tokens_label": "Token",
         "variables_description": "Fügen Sie diese Systemvariablen in die Systemaufforderung ein; vor jeder Antwort des Assistenten werden sie mit den aktuellen Informationen gefüllt.",
@@ -4885,6 +4891,7 @@
     "install": "Installieren",
     "install_plugins_from_browser": "Durchsuche verfügbare Plugins, um loszulegen",
     "installing": "Installiere…",
+    "manage_skills": "Fähigkeiten verwalten",
     "name": "Name",
     "no_description": "Keine Beschreibung verfügbar",
     "no_installed_plugins": "Noch keine Plugins installiert",
@@ -5629,14 +5636,15 @@
         "select": "Verzeichnis ändern",
         "select_error": "Datenverzeichnis-Änderung fehlgeschlagen",
         "select_error_in_app_path": "Neuer Pfad identisch mit Installationspfad, bitte anderen wählen",
+        "select_error_protected_path": "Der ausgewählte Pfad ist durch das Betriebssystem oder Cherry Studio geschützt. Bitte wählen Sie einen anderen Ordner.",
         "select_error_root_path": "Neuer Pfad darf nicht Root-Verzeichnis sein",
         "select_error_same_path": "Neuer Pfad identisch mit altem Pfad, bitte anderen wählen",
         "select_error_write_permission": "Neuer Pfad hat keine Schreibberechtigung",
         "select_not_empty_dir": "Neuer Pfad ist nicht leer",
-        "select_not_empty_dir_content": "Neuer Pfad nicht leer, Daten werden überschrieben. Risiko von Datenverlust. Fortfahren?",
         "select_success": "Datenverzeichnis geändert, Anwendung wird neu gestartet",
         "select_title": "Anwendungsdatenverzeichnis ändern",
-        "stop_quit_app_reason": "Anwendung migriert gerade Daten, kann nicht beendet werden"
+        "stop_quit_app_reason": "Anwendung migriert gerade Daten, kann nicht beendet werden",
+        "switch_existing_notice": "Dieses nicht leere Verzeichnis wird unverändert verwendet. Vorhandene Dateien werden nicht überschrieben."
       },
       "app_logs": {
         "button": "Protokoll öffnen",
@@ -6860,6 +6868,7 @@
       "default_assistant_model_description": "Wird verwendet, wenn ein Assistent kein Modell hat.",
       "docs": "Modelldokumentation",
       "empty": "Kein Modell",
+      "empty_hint": "Klicken Sie oben auf die Schaltfläche \"Modelle abrufen\", um Modelle hinzuzufügen.",
       "enabled_models": "Aktiviert",
       "expand_all": "Alle ausklappen",
       "filter": {
@@ -7357,9 +7366,6 @@
         "usage_title": "Verwendung",
         "usage_unit": "Tokens"
       },
-      "openai": {
-        "alert": "OpenAI-Anbieter unterstützt keine alten Aufrufmethoden mehr, wenn Sie einen Drittanbieter-API verwenden, erstellen Sie bitte einen neuen Anbieter"
-      },
       "remove_duplicate_keys": "Doppelte Schlüssel entfernen",
       "remove_invalid_keys": "Ungültige Schlüssel löschen",
       "reorder_failed": "Fehler beim Neuanordnen der Anbieter",
@@ -7435,6 +7441,7 @@
         "autoEmpty": "Keine aktivierten MCP-Server",
         "description": "Aktuellen MCP-Serverstatus anzeigen",
         "disabled": "MCP ist für diesen Assistenten deaktiviert",
+        "open_config": "MCP-Server konfigurieren",
         "unknownServer": "Unbekannter MCP-Server"
       },
       "multiple": "Mehrfachauswahl",
