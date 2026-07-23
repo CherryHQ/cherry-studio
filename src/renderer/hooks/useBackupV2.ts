@@ -9,6 +9,8 @@
 // refactor) lands in a follow-up UX slice. This hook is the consumer-side binding.
 
 import { ipcApi } from '@renderer/ipc'
+import { backupErrorCodes } from '@shared/ipc/errors/backup'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { BackupProgressUpdate } from '@shared/types/backup'
 import { useCallback, useState } from 'react'
 
@@ -71,8 +73,8 @@ export function useBackupV2() {
         // BACKUP_DISK_FULL) over regex on the message — BackupService.toIpcError maps
         // domain errors to codes at the IPC boundary. Fall back to /cancelled/i for any
         // path that still throws a bare cancel message.
-        const code = (e as { code?: string }).code
-        const cancelled = code === 'BACKUP_CANCELLED' || /cancelled/i.test(message)
+        const code = e instanceof IpcError ? e.code : undefined
+        const cancelled = code === backupErrorCodes.CANCELLED || /cancelled/i.test(message)
         setState({ ...INITIAL, error: message, cancelled })
         throw e
       } finally {

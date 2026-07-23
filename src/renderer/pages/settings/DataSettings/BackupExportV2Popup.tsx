@@ -14,6 +14,8 @@ import { loggerService } from '@logger'
 import { useBackupV2 } from '@renderer/hooks/useBackupV2'
 import { ipcApi } from '@renderer/ipc'
 import { createPopup, popup, type PopupInjectedProps } from '@renderer/services/popup'
+import { backupErrorCodes } from '@shared/ipc/errors/backup'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { BackupProgressUpdate } from '@shared/types/backup'
 import dayjs from 'dayjs'
 import { useEffect, useRef, useState } from 'react'
@@ -137,8 +139,8 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
         try {
           result = await startBackup(preset, outputPath, false)
         } catch (firstError) {
-          const code = (firstError as { code?: string }).code
-          if (code !== 'BACKUP_OUTPUT_PATH_EXISTS') throw firstError
+          const code = firstError instanceof IpcError ? firstError.code : undefined
+          if (code !== backupErrorCodes.OUTPUT_PATH_EXISTS) throw firstError
           if (runId !== runIdRef.current) return
           const confirmed = await popup.confirm({
             title: t('settings.data.backup.v2.export.overwrite_confirm_title'),
@@ -161,8 +163,8 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
         if (runId !== runIdRef.current) return
         clearCancelTimeout()
         const message = error instanceof Error ? error.message : String(error)
-        const code = (error as { code?: string }).code
-        const wasCancelled = code === 'BACKUP_CANCELLED' || cancelled || /cancelled/i.test(message)
+        const code = error instanceof IpcError ? error.code : undefined
+        const wasCancelled = code === backupErrorCodes.CANCELLED || cancelled || /cancelled/i.test(message)
         logger.warn('v2 export failed', error as Error)
         setErrorMessage(message)
         setPhase(wasCancelled ? 'cancelled' : 'failure')

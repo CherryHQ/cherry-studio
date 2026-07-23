@@ -2,6 +2,8 @@ import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle 
 import { loggerService } from '@logger'
 import { useBackupV2 } from '@renderer/hooks/useBackupV2'
 import { createPopup, popup, type PopupInjectedProps } from '@renderer/services/popup'
+import { backupErrorCodes } from '@shared/ipc/errors/backup'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -95,14 +97,14 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
       // Success path: process is relaunching. Do not toast, resolve, or reset.
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      const code = (error as { code?: string }).code ?? null
+      const code = error instanceof IpcError ? error.code : null
       logger.warn('v2 restore failed', error as Error)
       // The default restore path (backfill + SKIP-on-conflict) never raises a strategy
       // error; an explicit OVERWRITE/RENAME/FIELD_MERGE strategy (no UI sends one yet)
       // surfaces as BACKUP_MERGE_STRATEGY_UNSUPPORTED (or the raw
       // MergeStrategyNotImplementedError name). Kept as a defensive branch.
       const skipOnly =
-        code === 'BACKUP_MERGE_STRATEGY_UNSUPPORTED' ||
+        code === backupErrorCodes.MERGE_STRATEGY_UNSUPPORTED ||
         (error as { name?: string }).name === 'MergeStrategyNotImplementedError'
       setErrorMessage(skipOnly ? t('settings.data.backup.v2.restore.skip_only') : message)
       setErrorCode(code)

@@ -23,6 +23,7 @@
 // promotion gate remains the correctness backstop — partial quiesce narrows the
 // race window, it does not remove it.
 
+import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
 /**
@@ -50,6 +51,9 @@ export function isBackupInProgress(): boolean {
  */
 export function assertNotBackupInProgress(): void {
   if (backupInProgress) {
-    throw new IpcError('BACKUP_IN_PROGRESS', 'backup: a restore is in progress — writes are paused until it completes')
+    throw new IpcError(
+      backupErrorCodes.IN_PROGRESS,
+      'backup: a restore is in progress — writes are paused until it completes'
+    )
   }
 }

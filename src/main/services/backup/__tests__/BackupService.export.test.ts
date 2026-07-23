@@ -30,13 +30,13 @@ vi.mock('../ImportOrchestrator', () => ({
   }))
 }))
 
-vi.mock('../contributors', () => ({
+vi.mock('../contributors/ContributorManager', () => ({
   contributorManager: {
     getRegistry
   }
 }))
 
-vi.mock('../ExcludedDomainStripper', () => ({
+vi.mock('../SqliteBackupStripper', () => ({
   SqliteBackupStripper: vi.fn()
 }))
 
@@ -60,6 +60,7 @@ vi.mock('@application', async () => {
 
 import { BaseService } from '@main/core/lifecycle'
 import { isBackupInProgress } from '@main/data/db/backup/quiesceGate'
+import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { app } from 'electron'
 
@@ -76,7 +77,7 @@ describe('BackupService packaged export path', () => {
     readRestoreJournalMock.mockReturnValue({ kind: 'none' })
     clearRestoreJournalMock.mockImplementation(() => {})
     // Map import-side failures through toIpcError (quiesce is JobManager.pause, not a throw stub).
-    importBackup.mockRejectedValue(new IpcError('BACKUP_ARCHIVE_CORRUPT', 'test corrupt archive'))
+    importBackup.mockRejectedValue(new IpcError(backupErrorCodes.ARCHIVE_CORRUPT, 'test corrupt archive'))
     jobManagerPause.mockReturnValue({ dispose: vi.fn() })
     drainInFlight.mockResolvedValue({ stragglerIds: [], startupRecoveryPending: false })
     Object.defineProperty(app, 'isPackaged', { configurable: true, value: true })
@@ -136,7 +137,7 @@ describe('BackupService packaged export path', () => {
       }
       await deps.quiesceWriters()
       expect(isBackupInProgress()).toBe(true) // quiesce actually engaged before the failure
-      throw new IpcError('BACKUP_ARCHIVE_CORRUPT', 'boom after quiesce')
+      throw new IpcError(backupErrorCodes.ARCHIVE_CORRUPT, 'boom after quiesce')
     })
 
     const service = await initPackagedService()
@@ -147,7 +148,7 @@ describe('BackupService packaged export path', () => {
     expect(isBackupInProgress()).toBe(false) // flag cleared — writes resume
     expect(holdDispose).toHaveBeenCalledTimes(1) // JobManager pause hold released
     // And a subsequent restore attempt is not blocked by a stale activeOperation.
-    importBackup.mockRejectedValue(new IpcError('BACKUP_ARCHIVE_CORRUPT', 'second attempt'))
+    importBackup.mockRejectedValue(new IpcError(backupErrorCodes.ARCHIVE_CORRUPT, 'second attempt'))
     await expect(service.startRestore({ archivePath: '/tmp/in.cherrybackup' })).rejects.toSatisfy(
       (err: unknown) => err instanceof IpcError && err.code === 'BACKUP_ARCHIVE_CORRUPT'
     )

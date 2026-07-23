@@ -22,6 +22,7 @@ import { pipeline } from 'node:stream/promises'
 
 import { applyMigrations } from '@main/data/db/applyMigrations'
 import { type AppliedMigration, readAppliedChain } from '@main/data/db/restore/appliedChain'
+import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
@@ -647,7 +648,7 @@ export function assertLiteManifestInvariants(manifest: BackupManifest): void {
     manifest.notes.paths.length !== 0
   ) {
     throw new IpcError(
-      'BACKUP_RESTORE_LITE_INVARIANT_VIOLATED',
+      backupErrorCodes.RESTORE_LITE_INVARIANT_VIOLATED,
       'backup: manifest claims lite but carries full resources — refusing restore'
     )
   }

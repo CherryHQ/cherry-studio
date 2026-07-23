@@ -28,11 +28,11 @@ vi.mock('../admitArchive', () => ({
   admitArchive: (...args: unknown[]) => admitArchiveMock(...args)
 }))
 
-vi.mock('../contributors', () => ({
+vi.mock('../contributors/ContributorManager', () => ({
   contributorManager: { getRegistry }
 }))
 
-vi.mock('../ExcludedDomainStripper', () => ({
+vi.mock('../SqliteBackupStripper', () => ({
   SqliteBackupStripper: vi.fn()
 }))
 
@@ -57,6 +57,7 @@ vi.mock('@application', async () => {
 
 import { BaseService } from '@main/core/lifecycle'
 import { isBackupInProgress } from '@main/data/db/backup/quiesceGate'
+import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
 import { BackupService } from '../BackupService'
@@ -289,6 +290,6 @@ describe('BackupService restore journal lifecycle (A7)', () => {
 
   // Touch IpcError so the unused import is not flagged by the import side of the mock graph.
   it('uses IpcError for the pending throw', () => {
-    expect(new IpcError('BACKUP_RESTORE_PENDING', 'x')).toBeInstanceOf(IpcError)
+    expect(new IpcError(backupErrorCodes.RESTORE_PENDING, 'x')).toBeInstanceOf(IpcError)
   })
 })

@@ -46,13 +46,14 @@ import { setBackupInProgress } from '@main/data/db/backup/quiesceGate'
 import { clearRestoreJournal, readRestoreJournal } from '@main/data/db/restore/restoreJournal'
 import { fileEntryTable } from '@main/data/db/schemas/file'
 import { isPathInside } from '@main/utils/file'
+import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { BackupProgressUpdate, BackupV2StartResult } from '@shared/types/backup'
 import { and, eq, isNull, sum } from 'drizzle-orm'
 import { app } from 'electron'
 
 import { admitArchive } from './admitArchive'
-import { contributorManager } from './contributors'
+import { contributorManager } from './contributors/ContributorManager'
 import {
   BackupArchiveCorruptError,
   BackupCancelledError,
@@ -64,12 +65,12 @@ import {
   RestoreMergeNotImplementedError,
   UnsupportedBackupFormatError
 } from './errors'
-import { SqliteBackupStripper } from './ExcludedDomainStripper'
 import { ExportOrchestrator } from './ExportOrchestrator'
 import { removeExportTempResidue } from './exportTempResidue'
 import { ImportOrchestrator } from './ImportOrchestrator'
-import { MergeEngine, MergeStrategyNotImplementedError } from './merge'
+import { MergeEngine, MergeStrategyNotImplementedError } from './merge/MergeEngine'
 import { presetIncludesFiles } from './presets'
+import { SqliteBackupStripper } from './SqliteBackupStripper'
 
 /** Re-export for durability unit tests (same public surface as before the GC harden). */
 export { removeExportTempResidue } from './exportTempResidue'
@@ -178,13 +179,13 @@ export class BackupService extends BaseService {
     // fire() a no-op and silently drop all progress events.
     const progress = new Emitter<BackupProgressUpdate>()
     this._onProgress = progress
-    this.registerDisposable(progress)
     this.registerDisposable(
       progress.event((update) => {
         // broadcast (not send-to-window) — the export can be triggered from any window
         // hosting the backup UI (dev Settings route today; main / dedicated later), and
         // every hosting window subscribes via useIpcOn('backup.progress').
-        application.get('IpcApiService').broadcast('backup.progress', update)
+        const ipcApiService = application.get('IpcApiService')
+        ipcApiService.broadcast('backup.progress', update)
       })
     )
     // Restore recovery — production-usable cleanup of a crashed prior restore's
@@ -349,7 +350,7 @@ export class BackupService extends BaseService {
         // by B3 / consumed before this point).
         if (priorState === 'staged' || priorState === 'promoting') {
           throw new IpcError(
-            'BACKUP_RESTORE_PENDING',
+            backupErrorCodes.RESTORE_PENDING,
             `backup: a prior restore is in state '${priorState}' — report or clear it before starting another`
           )
         }
@@ -385,7 +386,7 @@ export class BackupService extends BaseService {
           const ctx = await admitArchive(path, workDir, migrationsFolder)
           if (ctx.manifest.preset === 'full') {
             throw new IpcError(
-              'BACKUP_RESTORE_FULL_NOT_SUPPORTED',
+              backupErrorCodes.RESTORE_FULL_NOT_SUPPORTED,
               'backup: Full archive restore is temporarily unavailable until resource staging lands; export/restore a LITE archive instead'
             )
           }
@@ -414,7 +415,7 @@ export class BackupService extends BaseService {
             // returns IPC error to renderer; the finally clause releases the quiesce hold +
             // BACKUP_IN_PROGRESS so the write window reopens.
             throw new IpcError(
-              'BACKUP_RESTORE_DRAIN_UNCLEAN',
+              backupErrorCodes.RESTORE_DRAIN_UNCLEAN,
               `restore aborted: JobManager drain returned unclean verdict (stragglerIds=${verdict.stragglerIds.length}, startupRecoveryPending=${verdict.startupRecoveryPending})`
             )
           }
@@ -652,7 +653,8 @@ export class BackupService extends BaseService {
    */
   private async sumInternalBlobBytes(): Promise<number> {
     // WhenReady runs after DbService (BeforeReady), so getDb() is safe to call here.
-    const db = application.get('DbService').getDb()
+    const dbService = application.get('DbService')
+    const db = dbService.getDb()
     const rows = await db
       .select({ total: sum(fileEntryTable.size) })
       .from(fileEntryTable)
@@ -805,7 +807,7 @@ export class BackupService extends BaseService {
       // map to a stable invalid-path code so the renderer can branch. This check runs
       // before the mapped try block, so it must produce a stable code itself.
       throw new IpcError(
-        'BACKUP_OUTPUT_PATH_INVALID',
+        backupErrorCodes.OUTPUT_PATH_INVALID,
         `backup: outputPath parent directory unavailable (${(e as NodeJS.ErrnoException).code ?? 'unknown'}): ${parent}`
       )
     }
@@ -818,12 +820,15 @@ export class BackupService extends BaseService {
       parentStat = statSync(realParent)
     } catch (e) {
       throw new IpcError(
-        'BACKUP_OUTPUT_PATH_INVALID',
+        backupErrorCodes.OUTPUT_PATH_INVALID,
         `backup: outputPath parent inaccessible (${(e as NodeJS.ErrnoException).code ?? 'unknown'}): ${realParent}`
       )
     }
     if (!parentStat.isDirectory()) {
-      throw new IpcError('BACKUP_OUTPUT_PATH_INVALID', `backup: outputPath parent is not a directory: ${realParent}`)
+      throw new IpcError(
+        backupErrorCodes.OUTPUT_PATH_INVALID,
+        `backup: outputPath parent is not a directory: ${realParent}`
+      )
     }
     const canonical = join(realParent, basename(resolve(outputPath)))
     // Refuse ANY app-managed writable path — the archive must never overwrite the live
@@ -840,7 +845,10 @@ export class BackupService extends BaseService {
         // managed root may not exist yet on a fresh install — lexical fallback
       }
       if (canonical === realRoot || isPathInside(canonical, realRoot)) {
-        throw new IpcError('BACKUP_UNSAFE_OUTPUT_PATH', `backup: outputPath targets an app-managed path: ${outputPath}`)
+        throw new IpcError(
+          backupErrorCodes.UNSAFE_OUTPUT_PATH,
+          `backup: outputPath targets an app-managed path: ${outputPath}`
+        )
       }
     }
     // No-clobber: refuse to overwrite an existing file (default). archive.ts publishes via
@@ -849,7 +857,10 @@ export class BackupService extends BaseService {
     // replace (assembleArchive rename()s over the existing file) — skip the existence check
     // so the user-confirmed overwrite proceeds; managed-path + parent checks still apply.
     if (!overwrite && existsSync(canonical)) {
-      throw new IpcError('BACKUP_OUTPUT_PATH_EXISTS', `backup: outputPath already exists (no-clobber): ${outputPath}`)
+      throw new IpcError(
+        backupErrorCodes.OUTPUT_PATH_EXISTS,
+        `backup: outputPath already exists (no-clobber): ${outputPath}`
+      )
     }
   }
 
@@ -860,32 +871,32 @@ export class BackupService extends BaseService {
    * vs other) instead of regex on the message string.
    */
   private toIpcError(e: unknown): unknown {
-    if (e instanceof BackupCancelledError) return new IpcError('BACKUP_CANCELLED', e.message)
+    if (e instanceof BackupCancelledError) return new IpcError(backupErrorCodes.CANCELLED, e.message)
     if (e instanceof InsufficientDiskSpaceError) {
-      return new IpcError('BACKUP_INSUFFICIENT_DISK', e.message, {
+      return new IpcError(backupErrorCodes.INSUFFICIENT_DISK, e.message, {
         needed: e.needed,
         available: e.available
       })
     }
-    if (e instanceof DiskFullError) return new IpcError('BACKUP_DISK_FULL', e.message)
-    if (e instanceof OutputPathExistsError) return new IpcError('BACKUP_OUTPUT_PATH_EXISTS', e.message)
+    if (e instanceof DiskFullError) return new IpcError(backupErrorCodes.DISK_FULL, e.message)
+    if (e instanceof OutputPathExistsError) return new IpcError(backupErrorCodes.OUTPUT_PATH_EXISTS, e.message)
     if (e instanceof UnsupportedBackupFormatError) {
-      return new IpcError('BACKUP_UNSUPPORTED_FORMAT', e.message, { found: e.found, expected: e.expected })
+      return new IpcError(backupErrorCodes.UNSUPPORTED_FORMAT, e.message, { found: e.found, expected: e.expected })
     }
     if (e instanceof NewerOrDivergedBackupError) {
-      return new IpcError('BACKUP_NEWER_OR_DIVERGED', e.message, { producerAppVersion: e.producerAppVersion })
+      return new IpcError(backupErrorCodes.NEWER_OR_DIVERGED, e.message, { producerAppVersion: e.producerAppVersion })
     }
-    if (e instanceof BackupIntegrityError) return new IpcError('BACKUP_INTEGRITY_FAILED', e.message)
-    if (e instanceof BackupArchiveCorruptError) return new IpcError('BACKUP_ARCHIVE_CORRUPT', e.message)
+    if (e instanceof BackupIntegrityError) return new IpcError(backupErrorCodes.INTEGRITY_FAILED, e.message)
+    if (e instanceof BackupArchiveCorruptError) return new IpcError(backupErrorCodes.ARCHIVE_CORRUPT, e.message)
     if (e instanceof MergeStrategyNotImplementedError) {
-      return new IpcError('BACKUP_MERGE_STRATEGY_UNSUPPORTED', e.message)
+      return new IpcError(backupErrorCodes.MERGE_STRATEGY_UNSUPPORTED, e.message)
     }
     // File stager / SQLite copy can surface raw ENOSPC errno or SQLITE_FULL code outside
     // archive.ts (which only wraps its own writeStream ENOSPC → DiskFullError). Normalize
     // both to BACKUP_DISK_FULL so the renderer never sees INTERNAL for disk-full.
     const code = (e as NodeJS.ErrnoException | { code?: string })?.code
     if (code === 'ENOSPC' || code === 'SQLITE_FULL') {
-      return new IpcError('BACKUP_DISK_FULL', e instanceof Error ? e.message : String(e))
+      return new IpcError(backupErrorCodes.DISK_FULL, e instanceof Error ? e.message : String(e))
     }
     return e // unknown throws pass through; IpcApiService folds them to INTERNAL
   }
@@ -905,5 +916,9 @@ export class BackupService extends BaseService {
     // boundary + its finally cleans up temp + staging. (Sync stop cannot await the
     // async drain; abort is the bounded-shutdown lever.)
     this.activeOperation?.abortController.abort()
+  }
+
+  protected override onDestroy(): void {
+    this._onProgress?.dispose()
   }
 }
