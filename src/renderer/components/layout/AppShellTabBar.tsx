@@ -260,6 +260,10 @@ const NormalTabButton = ({
             if (e.detail > 0) closeFromPointer(e)
             else onClose()
           }}
+          onDoubleClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.stopPropagation()
@@ -501,9 +505,16 @@ export const AppShellTabBar = ({
   // Tabs currently playing their collapse animation (id → whether they were the
   // active tab when the close started); removal is deferred until the animation ends.
   const [closingTabIds, setClosingTabIds] = useState<ReadonlyMap<string, boolean>>(() => new Map())
+  // Pointer closes are registered before the double-rAF animation starts. This
+  // deduplicates click/double-click sequences and lets concurrent closes skip
+  // every tab that is already on its way out.
+  const pendingCloseIdsRef = useRef(new Set<string>())
   const closeTimersRef = useRef<number[]>([])
   const thawTimerRef = useRef<number | null>(null)
   const stripRef = useRef<HTMLDivElement | null>(null)
+  const stripPointerInsideRef = useRef(false)
+  const thawAfterCollapseRef = useRef(false)
+  const handleStripMouseLeaveRef = useRef<() => void>(() => undefined)
   // The deferred close/handover callbacks (double-rAF + 200ms) must not act on
   // click-time closures: TabsProvider's closeTabs reads tabs/activeTabId
   // non-functionally, so a stale reference computes fallback/active decisions
@@ -517,6 +528,7 @@ export const AppShellTabBar = ({
     () => () => {
       closeTimersRef.current.forEach((timer) => window.clearTimeout(timer))
       if (thawTimerRef.current != null) window.clearTimeout(thawTimerRef.current)
+      pendingCloseIdsRef.current.clear()
     },
     []
   )
@@ -533,6 +545,10 @@ export const AppShellTabBar = ({
     }
     return { pinnedTabs: pinned, normalTabs: normal }
   }, [tabs])
+  const visualTabsRef = useRef<Tab[]>([])
+  visualTabsRef.current = [...pinnedTabs, ...normalTabs]
+  const activeTabIdRef = useRef(activeTabId)
+  activeTabIdRef.current = activeTabId
   const hasUnpinnedTabs = normalTabs.length > 0
   const normalReorderStartIndex = 0
   // Shared input for `getTabCapabilities` — every per-tab affordance is derived
@@ -640,7 +656,8 @@ export const AppShellTabBar = ({
    */
   const computeThawedTabWidth = () => {
     const strip = stripRef.current
-    const aliveTabs = normalTabs.filter((tab) => !closingTabIds.has(tab.id))
+    const pendingCloseIds = pendingCloseIdsRef.current
+    const aliveTabs = normalTabs.filter((tab) => !pendingCloseIds.has(tab.id))
     const firstEl = aliveTabs[0] ? tabRefs.current.get(aliveTabs[0].id) : undefined
     if (!strip || !firstEl || aliveTabs.length === 0) return null
     // A scrolled overflowing strip breaks the viewport-rect math below (the first
@@ -657,7 +674,7 @@ export const AppShellTabBar = ({
     const firstAliveIndex = normalTabs.findIndex((tab) => tab.id === aliveTabs[0].id)
     const closingBeforeWidth = normalTabs
       .slice(0, firstAliveIndex)
-      .filter((tab) => closingTabIds.has(tab.id))
+      .filter((tab) => pendingCloseIds.has(tab.id))
       .reduce((sum, tab) => sum + (tabRefs.current.get(tab.id)?.getBoundingClientRect().width ?? 0), 0)
     const available =
       rightLimit - (firstEl.getBoundingClientRect().left - closingBeforeWidth) - (aliveTabs.length - 1) * gap
@@ -668,7 +685,12 @@ export const AppShellTabBar = ({
   }
 
   const handleStripMouseLeave = () => {
+    stripPointerInsideRef.current = false
     if (frozenTabWidth == null) return
+    if ([...pendingCloseIdsRef.current].some((id) => !closingTabIds.has(id))) {
+      thawAfterCollapseRef.current = true
+      return
+    }
     // A leave→re-enter→leave during an in-flight glide must not fall through to
     // the instant unfreeze (a mid-transition swap snaps the remaining distance),
     // and the previous glide's timer must not fire into the restarted one.
@@ -693,6 +715,7 @@ export const AppShellTabBar = ({
       setFrozenTabWidth(null)
     }, 280)
   }
+  handleStripMouseLeaveRef.current = handleStripMouseLeave
 
   // Opening tabs while frozen (keyboard, launchpad `+` — the cursor never leaves
   // the strip) would render the newcomers at the stale frozen width; a growing
@@ -708,7 +731,7 @@ export const AppShellTabBar = ({
       setFrozenTabWidth(null)
     }
     prevNormalCountRef.current = normalTabs.length
-  })
+  }, [normalTabs.length, frozenTabWidth])
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 
@@ -727,6 +750,10 @@ export const AppShellTabBar = ({
           ref={stripRef}
           data-testid="app-shell-tab-strip"
           style={isMac && !isFullscreen ? { paddingLeft: MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE } : undefined}
+          onMouseEnter={() => {
+            stripPointerInsideRef.current = true
+            thawAfterCollapseRef.current = false
+          }}
           onMouseLeave={handleStripMouseLeave}
           className="flex flex-1 items-center gap-1 overflow-x-auto pr-1 [&::-webkit-scrollbar]:hidden">
           {/* Pinned tabs */}
@@ -800,18 +827,16 @@ export const AppShellTabBar = ({
                       closeTab(tab.id)
                       return
                     }
+                    if (pendingCloseIdsRef.current.has(tab.id)) return
+                    pendingCloseIdsRef.current.add(tab.id)
+                    stripPointerInsideRef.current = true
                     if (thawTimerRef.current != null) {
                       window.clearTimeout(thawTimerRef.current)
                       thawTimerRef.current = null
                     }
                     setIsThawing(false)
                     setFrozenTabWidth(freezeWidth)
-                    const wasActive = tab.id === activeTabId
-                    const alive = normalTabs.filter((t) => t.id !== tab.id && !closingTabIds.has(t.id))
-                    const index = normalTabs.findIndex((t) => t.id === tab.id)
-                    const nextActiveId = wasActive
-                      ? (alive.find((t) => normalTabs.indexOf(t) > index) ?? alive[alive.length - 1])?.id
-                      : undefined
+                    const wasActive = tab.id === activeTabIdRef.current
                     // Two-phase: let the freeze snap paint first, then start the
                     // collapse — otherwise the collapse transition starts from the
                     // flexed grow-based state and every sibling wobbles. The active
@@ -820,10 +845,35 @@ export const AppShellTabBar = ({
                     // couple of frames, which flashes the hover tint.
                     requestAnimationFrame(() =>
                       requestAnimationFrame(() => {
-                        if (nextActiveId) setActiveTabRef.current(nextActiveId)
+                        const activeId = activeTabIdRef.current
+                        const pendingCloseIds = pendingCloseIdsRef.current
+                        if (pendingCloseIds.has(activeId)) {
+                          const currentTabs = visualTabsRef.current
+                          const activeIndex = currentTabs.findIndex((candidate) => candidate.id === activeId)
+                          const rightTab = currentTabs
+                            .slice(activeIndex + 1)
+                            .find((candidate) => !pendingCloseIds.has(candidate.id))
+                          const leftTab = [...currentTabs.slice(0, activeIndex)]
+                            .reverse()
+                            .find((candidate) => !pendingCloseIds.has(candidate.id))
+                          const survivor = rightTab ?? leftTab
+                          if (survivor) {
+                            // Keep deferred callbacks in this frame consistent even
+                            // before React propagates the new activeTabId prop.
+                            activeTabIdRef.current = survivor.id
+                            setActiveTabRef.current(survivor.id)
+                          }
+                        }
                         setClosingTabIds((prev) => (prev.has(tab.id) ? prev : new Map(prev).set(tab.id, wasActive)))
+                        if (thawAfterCollapseRef.current && !stripPointerInsideRef.current) {
+                          thawAfterCollapseRef.current = false
+                          requestAnimationFrame(() => {
+                            if (!stripPointerInsideRef.current) handleStripMouseLeaveRef.current()
+                          })
+                        }
                         closeTimersRef.current.push(
                           window.setTimeout(() => {
+                            pendingCloseIdsRef.current.delete(tab.id)
                             setClosingTabIds((prev) => {
                               const nextMap = new Map(prev)
                               nextMap.delete(tab.id)

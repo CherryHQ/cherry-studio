@@ -115,6 +115,31 @@ import type { Tab } from '@shared/data/cache/cacheValueTypes'
 
 import { AppShellTabBar, getTabCapabilities } from '../AppShellTabBar'
 
+const mockCloseAnimation = () => {
+  const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+    width: 120,
+    height: 30,
+    top: 0,
+    left: 0,
+    right: 120,
+    bottom: 30,
+    x: 0,
+    y: 0,
+    toJSON: () => ({})
+  } as DOMRect)
+  vi.useFakeTimers()
+  vi.stubGlobal(
+    'requestAnimationFrame',
+    (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 16) as unknown as number
+  )
+
+  return () => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+    rectSpy.mockRestore()
+  }
+}
+
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
@@ -544,6 +569,7 @@ describe('AppShellTabBar', () => {
         activeTabId="home"
         setActiveTab={vi.fn()}
         closeTab={closeTab}
+        closeTabs={vi.fn()}
         reorderTabs={vi.fn()}
         pinTab={vi.fn()}
         unpinTab={vi.fn()}
@@ -573,6 +599,7 @@ describe('AppShellTabBar', () => {
         activeTabId="home"
         setActiveTab={setActiveTab}
         closeTab={closeTab}
+        closeTabs={vi.fn()}
         reorderTabs={vi.fn()}
         pinTab={vi.fn()}
         unpinTab={vi.fn()}
@@ -793,6 +820,165 @@ describe('AppShellTabBar', () => {
       vi.useRealTimers()
       vi.unstubAllGlobals()
       rectSpy.mockRestore()
+    }
+  })
+
+  it('deduplicates a double click on the close button', () => {
+    const restoreAnimation = mockCloseAnimation()
+
+    try {
+      const setActiveTab = vi.fn()
+      const closeTab = vi.fn()
+      const tabs: Tab[] = [
+        { id: 'home', type: 'route', url: '/app/chat', title: 'Chat' },
+        { id: 'a', type: 'route', url: '/app/a', title: 'A' }
+      ]
+
+      render(
+        <AppShellTabBar
+          tabs={tabs}
+          activeTabId="home"
+          setActiveTab={setActiveTab}
+          closeTab={closeTab}
+          closeTabs={vi.fn()}
+          reorderTabs={vi.fn()}
+          pinTab={vi.fn()}
+          unpinTab={vi.fn()}
+          openTab={vi.fn()}
+        />
+      )
+
+      const closeButton = within(screen.getByRole('button', { name: 'Chat' })).getByRole('button', {
+        name: 'tab.close'
+      })
+      fireEvent.click(closeButton, { detail: 1 })
+      fireEvent.click(closeButton, { detail: 2 })
+      fireEvent.doubleClick(closeButton, { detail: 2 })
+
+      act(() => {
+        vi.advanceTimersByTime(300)
+      })
+      expect(setActiveTab).toHaveBeenCalledTimes(1)
+      expect(setActiveTab).toHaveBeenCalledWith('a')
+      expect(closeTab).toHaveBeenCalledTimes(1)
+      expect(closeTab).toHaveBeenCalledWith('home')
+    } finally {
+      restoreAnimation()
+    }
+  })
+
+  it('hands the last normal tab to a pinned survivor before removal', () => {
+    const restoreAnimation = mockCloseAnimation()
+
+    try {
+      const setActiveTab = vi.fn()
+      const tabs: Tab[] = [
+        { id: 'p', type: 'route', url: '/app/p', title: 'P', isPinned: true },
+        { id: 'a', type: 'route', url: '/app/a', title: 'A' }
+      ]
+
+      render(
+        <AppShellTabBar
+          tabs={tabs}
+          activeTabId="a"
+          setActiveTab={setActiveTab}
+          closeTab={vi.fn()}
+          closeTabs={vi.fn()}
+          reorderTabs={vi.fn()}
+          pinTab={vi.fn()}
+          unpinTab={vi.fn()}
+          openTab={vi.fn()}
+        />
+      )
+
+      const closeButton = within(screen.getByRole('button', { name: 'A' })).getByRole('button', {
+        name: 'tab.close'
+      })
+      fireEvent.click(closeButton, { detail: 1 })
+      act(() => {
+        vi.advanceTimersByTime(50)
+      })
+
+      expect(setActiveTab).toHaveBeenCalledTimes(1)
+      expect(setActiveTab).toHaveBeenCalledWith('p')
+    } finally {
+      restoreAnimation()
+    }
+  })
+
+  it('skips every pending tab when two pointer closes start in the same frame', () => {
+    const restoreAnimation = mockCloseAnimation()
+
+    try {
+      const setActiveTab = vi.fn()
+      const closeTab = vi.fn()
+      const tabs: Tab[] = [
+        { id: 'a', type: 'route', url: '/app/a', title: 'A' },
+        { id: 'b', type: 'route', url: '/app/b', title: 'B' },
+        { id: 'c', type: 'route', url: '/app/c', title: 'C' }
+      ]
+
+      render(
+        <AppShellTabBar
+          tabs={tabs}
+          activeTabId="a"
+          setActiveTab={setActiveTab}
+          closeTab={closeTab}
+          closeTabs={vi.fn()}
+          reorderTabs={vi.fn()}
+          pinTab={vi.fn()}
+          unpinTab={vi.fn()}
+          openTab={vi.fn()}
+        />
+      )
+
+      for (const title of ['A', 'B']) {
+        const closeButton = within(screen.getByRole('button', { name: title })).getByRole('button', {
+          name: 'tab.close'
+        })
+        fireEvent.click(closeButton, { detail: 1 })
+      }
+      act(() => {
+        vi.advanceTimersByTime(50)
+      })
+
+      expect(setActiveTab).toHaveBeenCalledTimes(1)
+      expect(setActiveTab).toHaveBeenCalledWith('c')
+
+      act(() => {
+        vi.advanceTimersByTime(300)
+      })
+      expect(closeTab).toHaveBeenCalledTimes(2)
+      expect(closeTab).toHaveBeenCalledWith('a')
+      expect(closeTab).toHaveBeenCalledWith('b')
+    } finally {
+      restoreAnimation()
+    }
+  })
+
+  it('keeps the strip frozen when the pointer leaves before collapse starts', () => {
+    const restoreAnimation = mockCloseAnimation()
+
+    try {
+      renderTabBar()
+
+      const closingTab = screen.getByRole('button', { name: 'A' })
+      const remainingTab = screen.getByRole('button', { name: 'Chat' })
+      fireEvent.click(within(closingTab).getByRole('button', { name: 'tab.close' }), { detail: 1 })
+      fireEvent.mouseLeave(screen.getByTestId('app-shell-tab-strip'))
+
+      act(() => {
+        vi.advanceTimersByTime(20)
+      })
+      expect(closingTab).toHaveStyle({ flex: '0 0 120px' })
+      expect(remainingTab).toHaveStyle({ flex: '0 0 120px' })
+
+      act(() => {
+        vi.advanceTimersByTime(30)
+      })
+      expect(closingTab).toHaveStyle({ flex: '0 0 0px' })
+    } finally {
+      restoreAnimation()
     }
   })
 
