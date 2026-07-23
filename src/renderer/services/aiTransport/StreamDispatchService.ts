@@ -35,7 +35,7 @@ class StreamDispatchService {
     ipcApi
       .request('ai.stream_open', request)
       .then((ack) => {
-        if (ack.mode === 'blocked' && ack.reason === 'agent-session-workspace') {
+        if (ack.mode === 'blocked') {
           toast.error(ack.message)
         }
         this.notify({ ok: true, topicId, ack })

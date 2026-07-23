@@ -266,6 +266,7 @@ export type AiStreamOpenResponse =
     }
   | {
       mode: 'blocked'
-      reason: 'agent-session-workspace'
+      /** `paused` — main-side write quiesce (backup restore in progress). */
+      reason: 'agent-session-workspace' | 'paused'
       message: string
     }

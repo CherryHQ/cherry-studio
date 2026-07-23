@@ -7,7 +7,7 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { serializeError } from '@main/ai/utils/serializeError'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import {
@@ -190,6 +190,17 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
 @ServicePhase(Phase.WhenReady)
 export class AgentSessionRuntimeService extends BaseService {
   private readonly entries = new Map<string, AgentSessionRuntimeEntry>()
+  /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. Distinct from the BaseService
+   *  lifecycle pause — this never touches service state. See `pause()`. */
+  private readonly pauseHolds = new Set<symbol>()
+  /** Turn starts suppressed by the write-quiesce gate; the last hold's disposal re-kicks them. */
+  private readonly suppressedTurnStarts = new Map<string, 'next' | 'continuation'>()
+  /** In-flight `startNextTurn`/`startContinuationTurn` launches (registered synchronously in the
+   *  schedule* wrappers) — a launch admitted before a pause must be awaited by `drainInFlight`
+   *  through its placeholder write and `startRuntimeTurn` handoff. */
+  private readonly inFlightTurnStarts = new Map<string, Promise<void>>()
+  /** Shutdown wins over pause-release compensation (same posture as JobManager). */
+  private isShuttingDown = false
 
   protected async onInit(): Promise<void> {
     // Populate the AI runtime driver registry at a controlled lifecycle point (WhenReady, before
@@ -716,6 +727,125 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
+  // ── Write quiesce (backup restore) ───────────────────────────────
+  // Contract shared with JobManager / AiStreamManager / ChannelManager (issues
+  // #16849/#16850). This service's autonomous write surface is the placeholder
+  // `saveMessage` in `startNextTurn` / `startContinuationTurn` — both launches are
+  // gated at entry (before consuming their queue/roll state) so a pause leaves the
+  // work queued in memory and DB-consistent; the last hold's disposal re-kicks it.
+  // New-turn admission via `prepareDispatch`/`beginTurn` is gated upstream by
+  // AiStreamManager.
+
+  /** True while any write-quiesce hold is live. */
+  get isWriteQuiesced(): boolean {
+    return this.pauseHolds.size > 0
+  }
+
+  /**
+   * Pause autonomous turn starts: queued follow-ups and steer-roll continuations are
+   * suppressed (not consumed) while any hold is live. In-flight turns keep running until
+   * drained. No resume() — dispose your own hold; the last disposal re-kicks suppressed
+   * starts. A dropped hold fails closed (paused until relaunch).
+   */
+  pause(reason?: string): Disposable {
+    const token = Symbol(reason ?? 'agent-session-runtime-pause')
+    this.pauseHolds.add(token)
+    logger.info('AgentSessionRuntimeService paused', { reason: reason ?? null, holds: this.pauseHolds.size })
+    return {
+      dispose: () => {
+        if (!this.pauseHolds.delete(token)) return
+        logger.info('AgentSessionRuntimeService pause hold released', {
+          reason: reason ?? null,
+          holds: this.pauseHolds.size
+        })
+        if (this.pauseHolds.size > 0) return
+        // Shutdown wins: onStop owns the teardown; a compensation kick would only race it.
+        if (this.isShuttingDown) return
+        this.runReleaseCompensation()
+      }
+    }
+  }
+
+  /**
+   * Await in-flight turn-start launches (placeholder write + `startRuntimeTurn` handoff),
+   * bounded by timeoutMs. Never rejects; stragglers are NOT aborted. The resulting stream
+   * writes are AiStreamManager's drain — this only covers the window this service writes in.
+   * The set can grow one step while draining (a settling turn schedules the next start
+   * before the pause gate suppresses it), so the drain is a fixed point over promise
+   * identities rather than one snapshot.
+   *
+   * PRECONDITION: hold a live pause() hold — without one the verdict is a point-in-time
+   * snapshot (warned, not thrown).
+   */
+  async drainInFlight(opts: { timeoutMs: number }): Promise<{ stragglerIds: string[] }> {
+    if (!this.isWriteQuiesced) {
+      logger.warn('drainInFlight called without an active pause hold — the verdict is a point-in-time snapshot')
+    }
+
+    const seen = new WeakSet<Promise<unknown>>()
+    const pending = new Map<Promise<unknown>, string>()
+    const collect = (): void => {
+      for (const [sessionId, launch] of this.inFlightTurnStarts) {
+        if (seen.has(launch)) continue
+        seen.add(launch)
+        pending.set(launch, sessionId)
+        const remove = () => pending.delete(launch)
+        launch.then(remove, remove)
+      }
+    }
+
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+    const timeout = new Promise<'timeout'>((resolve) => {
+      timeoutHandle = setTimeout(() => resolve('timeout'), opts.timeoutMs)
+    })
+    try {
+      for (;;) {
+        collect()
+        if (pending.size === 0) return { stragglerIds: [] }
+        const winner = await Promise.race([
+          Promise.allSettled([...pending.keys()]).then(() => 'done' as const),
+          timeout
+        ])
+        if (winner === 'timeout') {
+          const stragglerIds = [...new Set(pending.values())]
+          logger.warn('drainInFlight timed out with unsettled work', { timeoutMs: opts.timeoutMs, stragglerIds })
+          return { stragglerIds }
+        }
+      }
+    } finally {
+      if (timeoutHandle) clearTimeout(timeoutHandle)
+    }
+  }
+
+  /** Advisory pre-flight enumeration for the restore orchestrator. Read-only, in-memory. */
+  listActiveWork(): Array<{ id: string; summary: string }> {
+    const work: Array<{ id: string; summary: string }> = []
+    for (const [sessionId, entry] of this.entries) {
+      if (!this.isSessionBusy(sessionId)) continue
+      const turn = entry.currentTurn && entry.currentTurn.terminalStatus === undefined ? 'live' : '-'
+      work.push({
+        id: sessionId,
+        summary: `turn=${turn} pending=${entry.pendingTurns.length} rolling=${entry.rolling === true} compacting=${entry.compacting === true} starting=${entry.startingNextTurn === true}`
+      })
+    }
+    return work
+  }
+
+  /** Last-hold release: re-kick suppressed turn starts. The re-check guard skips WITHOUT
+   *  draining the map, so a newer hold (or shutdown) inherits the debt. */
+  private runReleaseCompensation(): void {
+    if (this.isShuttingDown || this.isWriteQuiesced) return
+    const suppressed = [...this.suppressedTurnStarts]
+    this.suppressedTurnStarts.clear()
+    for (const [sessionId, kind] of suppressed) {
+      const entry = this.entries.get(sessionId)
+      if (!entry || entry.startingNextTurn) continue
+      // A session closed mid-window (closeEntry cleared its queue/roll) simply drops its debt.
+      if (kind === 'next' && entry.pendingTurns.length > 0) this.scheduleNextTurn(entry)
+      else if (kind === 'continuation' && entry.rolling === true) this.scheduleContinuationTurn(entry)
+    }
+  }
+
   /**
    * Resolve a Claude `canUseTool` approval that was registered against the live
    * driver session. Returns `false` if no live entry matches — the caller
@@ -733,6 +863,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   protected onStop(): void {
+    this.isShuttingDown = true
     this.closeAll()
     toolApprovalRegistry.clear('agent-session-runtime-stop')
   }
@@ -1102,18 +1233,33 @@ export class AgentSessionRuntimeService extends BaseService {
     // microtask, and `isSessionBusy` relies on this flag so a concurrent dispatch landing in the
     // inter-turn window enqueues instead of beginning a clobbering fresh turn. Clear it only once
     // the drain settles (turn established, bailed, or errored).
-    queueMicrotask(() => {
-      void this.startNextTurn(entry)
-        .catch((error) => {
-          logger.error('Failed to start next agent runtime turn', { sessionId: entry.sessionId, error })
-        })
-        .finally(() => {
-          entry.startingNextTurn = false
-        })
+    // The launch is registered into `inFlightTurnStarts` SYNCHRONOUSLY: the caller runs inside a
+    // settling stream, so a write-quiesce drain that just awaited that stream must see the pending
+    // launch on its next collect, not miss it behind the microtask.
+    const launch = new Promise<void>((resolve) => {
+      queueMicrotask(() => {
+        void this.startNextTurn(entry)
+          .catch((error) => {
+            logger.error('Failed to start next agent runtime turn', { sessionId: entry.sessionId, error })
+          })
+          .finally(() => {
+            entry.startingNextTurn = false
+            this.inFlightTurnStarts.delete(entry.sessionId)
+            resolve()
+          })
+      })
     })
+    this.inFlightTurnStarts.set(entry.sessionId, launch)
   }
 
   private async startNextTurn(entry: AgentSessionRuntimeEntry): Promise<void> {
+    // Write-quiesce: suppress before consuming the queue — the follow-up stays in
+    // `pendingTurns` (its user row is already persisted, `isSessionBusy` stays true) and
+    // the last hold's disposal re-kicks it.
+    if (this.isWriteQuiesced) {
+      this.suppressedTurnStarts.set(entry.sessionId, 'next')
+      return
+    }
     const nextMessage = entry.pendingTurns.shift()
     if (!nextMessage) {
       this.refreshIdleTimer(entry)
@@ -1225,15 +1371,22 @@ export class AgentSessionRuntimeService extends BaseService {
   private scheduleContinuationTurn(entry: AgentSessionRuntimeEntry): void {
     if (entry.startingNextTurn) return
     entry.startingNextTurn = true
-    queueMicrotask(() => {
-      void this.startContinuationTurn(entry)
-        .catch((error) => {
-          logger.error('Failed to start steer continuation turn', { sessionId: entry.sessionId, error })
-        })
-        .finally(() => {
-          entry.startingNextTurn = false
-        })
+    // Synchronous `inFlightTurnStarts` registration — same drain-visibility reasoning as
+    // `scheduleNextTurn`.
+    const launch = new Promise<void>((resolve) => {
+      queueMicrotask(() => {
+        void this.startContinuationTurn(entry)
+          .catch((error) => {
+            logger.error('Failed to start steer continuation turn', { sessionId: entry.sessionId, error })
+          })
+          .finally(() => {
+            entry.startingNextTurn = false
+            this.inFlightTurnStarts.delete(entry.sessionId)
+            resolve()
+          })
+      })
     })
+    this.inFlightTurnStarts.set(entry.sessionId, launch)
   }
 
   /**
@@ -1244,6 +1397,13 @@ export class AgentSessionRuntimeService extends BaseService {
    * The steer message is reused only for rename/seed context — U2 is already a persisted row.
    */
   private async startContinuationTurn(entry: AgentSessionRuntimeEntry): Promise<void> {
+    // Write-quiesce: suppress before consuming `rollSteerInputs` — `rolling` stays true (the
+    // rollBuffer keeps buffering in memory, no DB writes) and the last hold's disposal re-kicks
+    // the continuation.
+    if (this.isWriteQuiesced) {
+      this.suppressedTurnStarts.set(entry.sessionId, 'continuation')
+      return
+    }
     const modelId = entry.currentTurn?.modelId ?? entry.modelId
     const steerMessage = entry.rollSteerInputs?.[0]?.message ?? createSyntheticUserMessage(entry.sessionId)
     const headless = entry.rollHeadless === true

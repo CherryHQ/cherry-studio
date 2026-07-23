@@ -457,6 +457,12 @@ class AiStreamManager {
 
   // ── Inspection (read-only snapshot) ───────────────────────────────
   inspect(topicId: string): TopicSnapshot | undefined
+
+  // ── Write quiesce (backup restore) — see the dedicated section ────
+  get isWriteQuiesced(): boolean
+  pause(reason?: string): Disposable
+  drainInFlight(opts: { timeoutMs: number }): Promise<{ stragglerIds: string[] }>
+  listActiveWork(): Array<{ id: string; summary: string }>
 }
 ```
 
@@ -539,6 +545,55 @@ unhandledRejection.
 | `signal.aborted` + `exec.status === 'aborted'` | `onExecutionPaused` | (Possibly partial) finalMessage persisted as `paused` |
 | `streamErrorText` (in-stream `error` chunk) | `onExecutionError` | Error part folded into finalMessage, persisted as `error` |
 | Pre-stream or broadcast throw | `onExecutionError` | Same — error part folded, persisted |
+
+## Write quiesce (pause / drainInFlight)
+
+Serves backup restore (#16849, same contract as JobManager's — see
+[job overview](../job-and-scheduler/overview.md#pause-and-drain-write-quiesce)): after
+the restore snapshot is staged, any main-side write to the old live DB fails the
+fingerprint re-check and wastes the whole restore attempt. Three AI-side writers carry
+the contract — `AiStreamManager`, `AgentSessionRuntimeService`, and channel intake
+(`ChannelManager` → `ChannelMessageHandler`) — each exposing
+`pause(reason?): Disposable` + `drainInFlight({ timeoutMs }) → { stragglerIds }`
+(empty = clean) + an advisory read-only `listActiveWork()`.
+
+Orchestration order (grandfather-free, per #16850) — the channel step MUST fully complete
+before the AI writers are paused:
+
+1. `ChannelManager.pause()` — gate new adapter messages/commands and immediately flush the
+   buffered debounce batches (never cancel: adapters ack at the transport layer on receipt,
+   so the in-memory buffer is the only copy).
+2. `await ChannelManager.drainInFlight()` — flush only *schedules* each batch's admission (its
+   `processIncoming` runs on the per-chat queue microtask), so `pause()` returning does NOT
+   mean the batches admitted. This await is the flush-to-admission barrier: it resolves once
+   every flushed batch passed agent-turn *admission* (not turn completion — the flushed turns
+   land in the AI in-flight set, covered from there by the AI drains).
+3. **only then** pause AI + JobManager (any order) → joint drain → verdict → snapshot.
+
+Why the barrier is load-bearing: if the AI writers are paused while a flushed batch is still
+between flush and `startAgentSessionRun`, the batch hits the closed AI gate and is rejected.
+Because the adapter already ACKed it, it cannot be recovered by aborting the restore. The
+channel-drain-before-AI-pause ordering is therefore a correctness precondition, not merely a
+performance optimization. On any drain timeout the orchestrator aborts the attempt (dispose
+all holds); the happy path never disposes — the holds stand until relaunch, and a lost hold
+fails closed.
+
+AiStreamManager specifics:
+
+| Rule | Detail |
+|---|---|
+| Gate = dispatch admission | Checked inside the `withDispatchLock` callback (post-mutex re-check), BEFORE `prepareDispatch` writes the user/pending-assistant rows. `dispatch()` returns `{ mode: 'blocked', reason: 'paused' }`; `startAgentSessionRun` throws. Unlike JobManager, the AI gate rejects by design — a new turn is an execution start, not data at rest. |
+| Steer continuations suppressed, not rejected | `startNextChatTurn` returns before consuming the steer queue and records the topic; the last hold's disposal re-kicks it. The `steer-continuation` trigger is exempt from the `dispatch()` gate (it only originates from the gated `startNextChatTurn`; a grandfathered launch is drained via `inFlightChatContinuations`). |
+| Not gated | `send()` / `startRuntimeTurn()` (a continuation past its upstream gate must reach them), `streamPrompt()` (renderer-driven callers are covered by the restore UI block; chunks-only prompt streams write nothing), and `AiService.embedMany` (never routes through this manager) — knowledge indexing keeps working while quiesced. |
+| Drain wait-set | Executions of streams carrying a `persistence:*` listener — listener-derived, not lifecycle-derived: chunks-only prompt streams (API gateway, orphan translate) are excluded, while a translate-with-persist carries a `TranslationBackend` persistence listener and IS drained. Plus in-flight steer-continuation launches and `TopicNamingService.inFlightWrites()` — the summary renames are spawned detached (`void backend.afterPersist(...)`), so a loopPromise settles before their DB write lands; the registry closes that gap. The set can grow one step while draining (a settling loop spawns a naming write; a grandfathered continuation opens a stream), so the drain is a fixed point over promise identities, bounded by `timeoutMs`. |
+| Timeout | Never rejects; stragglers are not aborted (the orchestrator decides — see the job overview for why an abort would poison the snapshot). |
+
+`AgentSessionRuntimeService` gates its two autonomous turn starters (`startNextTurn` /
+`startContinuationTurn`) before they consume queue/roll state or write the assistant
+placeholder — suppressed starts stay queued (`isSessionBusy` holds) and are re-kicked on
+release; its drain awaits `inFlightTurnStarts` (a launch admitted pre-pause through its
+placeholder write + `startRuntimeTurn` handoff). See
+[agent-session-runtime.md](./agent-session-runtime.md#write-quiesce).
 
 ## Lifecycle strategy — chat vs prompt
 

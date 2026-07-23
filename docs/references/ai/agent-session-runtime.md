@@ -200,6 +200,23 @@ When the idle timer expires, the runtime closes the entry:
 
 Service stop and destroy close all runtime entries.
 
+## Write quiesce
+
+For backup restore (#16849) the service exposes `pause(reason?): Disposable` +
+`drainInFlight({ timeoutMs }) → { stragglerIds }` + `listActiveWork()`, the same
+contract as `AiStreamManager` and `JobManager` (see
+[stream-manager.md](./stream-manager.md#write-quiesce-pause--draininflight) for the
+contract and the orchestration order). This service's autonomous write surface is the
+assistant-placeholder `saveMessage` in `startNextTurn` / `startContinuationTurn`; both
+are gated at entry, BEFORE consuming `pendingTurns` / `rollSteerInputs` — a suppressed
+start stays queued (`isSessionBusy` holds, so concurrent dispatches keep enqueueing) and
+the last hold's disposal re-kicks it. New-turn admission through `prepareDispatch` /
+`beginTurn` is gated upstream by `AiStreamManager`. The drain awaits
+`inFlightTurnStarts` — launches admitted before the pause, through their placeholder
+write and `startRuntimeTurn` handoff; the resulting stream writes belong to
+`AiStreamManager`'s drain. This is distinct from the BaseService lifecycle pause and
+never touches service state.
+
 ## Removed old path
 
 Claude Code is not a normal provider extension anymore:
