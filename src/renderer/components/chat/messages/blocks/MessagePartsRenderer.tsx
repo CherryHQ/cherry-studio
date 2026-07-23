@@ -565,7 +565,7 @@ function renderPart(
     }
 
     case 'data-error': {
-      const errorPart = part as Extract<CherryMessagePart, { type: 'data-error' }>
+      const errorPart = part
       if (!errorPart.data) return null
       return <ErrorPartView key={partId} partId={partId} part={errorPart} message={message} />
     }
