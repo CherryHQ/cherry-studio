@@ -5,6 +5,7 @@
 import type { VersionBlockReason } from '@data/migration/v2/core/versionPolicy'
 import { loggerService } from '@logger'
 import {
+  type MigrationExportFileWriteMode,
   MigrationIpcChannels,
   type MigrationProgress,
   type MigrationResult,
@@ -82,16 +83,26 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   // Write export file from Renderer
   ipcMain.handle(
     MigrationIpcChannels.WriteExportFile,
-    async (_event, exportPath: string, tableName: string, jsonData: string) => {
+    async (
+      _event,
+      exportPath: string,
+      tableName: string,
+      jsonData: string,
+      writeMode: MigrationExportFileWriteMode = 'overwrite'
+    ) => {
       try {
         // Ensure export directory exists
         await fs.mkdir(exportPath, { recursive: true })
 
         // Write table data to file
         const filePath = path.join(exportPath, `${tableName}.json`)
-        await fs.writeFile(filePath, jsonData, 'utf-8')
+        if (writeMode === 'append') {
+          await fs.appendFile(filePath, jsonData, 'utf-8')
+        } else {
+          await fs.writeFile(filePath, jsonData, 'utf-8')
+        }
 
-        logger.info('Export file written', { tableName, filePath })
+        logger.debug('Export file chunk written', { tableName, filePath, writeMode, chunkLength: jsonData.length })
         return true
       } catch (error) {
         logger.error('Error writing export file', error as Error)

@@ -13,6 +13,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import type { DynamicToolUIPart, FileUIPart, TextUIPart, ToolSet } from 'ai'
 import { tool, zodSchema } from 'ai'
+import mime from 'mime'
 
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
 import { type JsonSchemaLike, jsonSchemaToZod } from './jsonSchemaToZod'
@@ -27,6 +28,58 @@ function nextUIMessageId(): string {
 // SDK types
 type ResponseCreateParams = OpenAI.Responses.ResponseCreateParams
 type EasyInputMessage = OpenAI.Responses.EasyInputMessage
+type FunctionCallOutput = OpenAI.Responses.ResponseInputItem.FunctionCallOutput
+
+/** A function_call_output split into the model-visible string output and relocated user parts. */
+interface FunctionOutputConversion {
+  output: string
+  relocatedParts: Array<TextUIPart | FileUIPart>
+}
+
+function functionOutputAttachmentAnchor(callId: string, kind: string, index: number): string {
+  return `[tool-result attachment call_id=${JSON.stringify(callId)} ${kind}=${index}]`
+}
+
+/**
+ * Convert a function_call_output payload for the `dynamic-tool` UI part.
+ *
+ * Image/file items cannot ride inside the tool output: `convertToModelMessages`
+ * only supports string/JSON tool outputs there, and OpenAI-style protocols have
+ * no media tool content downstream — inlining base64 blows up the prompt
+ * (#17078). Instead each media item becomes a `file` part relocated into a user
+ * message right after the tool call, and the output keeps a placeholder
+ * pointing at it. Only provider-bound `file_id`-only items (not resolvable
+ * cross-vendor) are downgraded to a placeholder alone.
+ */
+function functionOutputToConversion(callId: string, output: FunctionCallOutput['output']): FunctionOutputConversion {
+  if (typeof output === 'string') return { output, relocatedParts: [] }
+  const lines: string[] = []
+  const relocatedParts: Array<TextUIPart | FileUIPart> = []
+  let attachmentIndex = 0
+  const attach = (kind: string, file: FileUIPart) => {
+    const anchor = functionOutputAttachmentAnchor(callId, kind, ++attachmentIndex)
+    const name = file.filename ? `, ${file.filename}` : ''
+    lines.push(`${anchor} (${file.mediaType}${name}): attached in the following user message`)
+    relocatedParts.push({ type: 'text', text: anchor }, file)
+  }
+  for (const item of output) {
+    if (item.type === 'input_text') {
+      lines.push(item.text)
+    } else if (item.type === 'input_image' && item.image_url) {
+      const mediaType = parseDataUrl(item.image_url)?.mediaType ?? 'image/*'
+      attach('image', { type: 'file', mediaType, url: item.image_url })
+    } else if (item.type === 'input_file' && (item.file_data || item.file_url)) {
+      const dataUrlType = item.file_data ? parseDataUrl(item.file_data)?.mediaType : undefined
+      const mediaType = dataUrlType ?? mime.getType(item.filename ?? item.file_url ?? '') ?? 'application/octet-stream'
+      const url = item.file_url ?? (dataUrlType ? item.file_data! : `data:${mediaType};base64,${item.file_data}`)
+      attach('file', { type: 'file', mediaType, url, ...(item.filename ? { filename: item.filename } : {}) })
+    } else {
+      // file_id-only items reference provider-hosted files we can't resolve.
+      lines.push(`[unsupported ${item.type} tool output item omitted]`)
+    }
+  }
+  return { output: lines.join('\n'), relocatedParts }
+}
 
 /**
  * Extended ResponseCreateParams with reasoning_effort
@@ -64,7 +117,7 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
 
     // function_call items (callId → name + raw arguments) and their outputs.
     const functionCalls = new Map<string, { name: string; input: unknown }>()
-    const functionOutputs = new Map<string, string>()
+    const functionOutputs = new Map<string, FunctionOutputConversion>()
     for (const item of inputArray) {
       if ('type' in item && item.type === 'function_call' && 'call_id' in item && 'name' in item) {
         const funcCall = item
@@ -76,11 +129,7 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
         }
         functionCalls.set(funcCall.call_id, { name: funcCall.name, input })
       } else if ('type' in item && item.type === 'function_call_output') {
-        const output = item
-        functionOutputs.set(
-          output.call_id,
-          typeof output.output === 'string' ? output.output : JSON.stringify(output.output)
-        )
+        functionOutputs.set(item.call_id, functionOutputToConversion(item.call_id, item.output))
       }
     }
 
@@ -96,14 +145,22 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
         const funcCall = item
         const call = functionCalls.get(funcCall.call_id)
         if (!call) continue
-        const hasResult = functionOutputs.has(funcCall.call_id)
+        const result = functionOutputs.get(funcCall.call_id)
         const base = { type: 'dynamic-tool' as const, toolName: call.name, toolCallId: funcCall.call_id }
-        const part: DynamicToolUIPart = hasResult
-          ? { ...base, state: 'output-available', input: call.input, output: functionOutputs.get(funcCall.call_id) }
+        const part: DynamicToolUIPart = result
+          ? { ...base, state: 'output-available', input: call.input, output: result.output }
           : { ...base, state: 'input-available', input: call.input }
         messages.push({ id: nextUIMessageId(), role: 'assistant', parts: [part] })
+        continue
       }
-      // function_call_output is folded into its function_call above.
+      // function_call_output: the string output is folded into its function_call
+      // above; relocated tool-output media surface here as a user message.
+      if ('type' in item && item.type === 'function_call_output') {
+        const relocatedParts = functionOutputs.get(item.call_id)?.relocatedParts
+        if (relocatedParts?.length) {
+          messages.push({ id: nextUIMessageId(), role: 'user', parts: [...relocatedParts] })
+        }
+      }
     }
 
     return messages

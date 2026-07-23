@@ -82,12 +82,14 @@ describe('migrator reset contract', () => {
     const migrator = new PromptMigrator()
     const state = migrator as any
 
+    state.sourceCount = 7
     state.promptCount = 5
     state.skippedCount = 2
     state.preparedPhrases = [{ id: 'phrase-1' }]
 
     migrator.reset()
 
+    expect(state.sourceCount).toBe(0)
     expect(state.promptCount).toBe(0)
     expect(state.skippedCount).toBe(0)
     expect(state.preparedPhrases).toStrictEqual([])

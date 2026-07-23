@@ -98,9 +98,11 @@ describe('webSearch config utils', () => {
   })
 
   it('throws a clear error for unknown provider ids', async () => {
-    await expect(getProviderById('unknown' as any, mockPreferenceReader)).rejects.toThrow(
-      'Unknown web search provider: unknown'
-    )
+    await expect(getProviderById('unknown' as any, mockPreferenceReader)).rejects.toMatchObject({
+      name: 'WebSearchConfigError',
+      code: 'provider_unknown',
+      message: 'Unknown web search provider: unknown'
+    })
   })
 
   it('trims basic auth password whitespace when resolving providers', async () => {
@@ -173,7 +175,11 @@ describe('webSearch config utils', () => {
           return preferenceValues[key] as PreferenceDefaultScopeType[K]
         }
       })
-    ).rejects.toThrow('Default web search provider is not configured for capability searchKeywords')
+    ).rejects.toMatchObject({
+      name: 'WebSearchConfigError',
+      code: 'provider_not_configured',
+      message: 'Default web search provider is not configured for capability searchKeywords'
+    })
   })
 
   it('throws when a configured default provider does not support the requested capability', async () => {
@@ -187,18 +193,28 @@ describe('webSearch config utils', () => {
           return preferenceValues[key] as PreferenceDefaultScopeType[K]
         }
       })
-    ).rejects.toThrow('Web search provider tavily does not support capability fetchUrls')
+    ).rejects.toMatchObject({
+      name: 'WebSearchConfigError',
+      code: 'capability_unsupported',
+      message: 'Web search provider tavily does not support capability fetchUrls'
+    })
   })
 
   it('throws when an explicit provider does not support the requested capability', async () => {
-    await expect(getProviderForCapability('fetch', 'searchKeywords', mockPreferenceReader)).rejects.toThrow(
-      'Web search provider fetch does not support capability searchKeywords'
-    )
+    await expect(getProviderForCapability('fetch', 'searchKeywords', mockPreferenceReader)).rejects.toMatchObject({
+      name: 'WebSearchConfigError',
+      code: 'capability_unsupported',
+      message: 'Web search provider fetch does not support capability searchKeywords'
+    })
   })
 
   it('throws a clear error when an explicit provider id is unknown', async () => {
-    await expect(getProviderForCapability('unknown' as any, 'searchKeywords', mockPreferenceReader)).rejects.toThrow(
-      'Unknown web search provider: unknown'
-    )
+    await expect(
+      getProviderForCapability('unknown' as any, 'searchKeywords', mockPreferenceReader)
+    ).rejects.toMatchObject({
+      name: 'WebSearchConfigError',
+      code: 'provider_unknown',
+      message: 'Unknown web search provider: unknown'
+    })
   })
 })
