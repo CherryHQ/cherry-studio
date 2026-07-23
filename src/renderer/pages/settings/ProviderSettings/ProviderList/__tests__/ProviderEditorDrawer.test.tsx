@@ -69,12 +69,12 @@ vi.mock('@cherrystudio/ui', async () => {
       </select>
     ),
     Dialog: ({ children, open }: any) => (open ? <div data-testid="dialog-root">{children}</div> : null),
-    DialogContent: ({
-      children,
-      closeOnOverlayClick: _closeOnOverlayClick,
-      showCloseButton: _showCloseButton,
-      ...props
-    }: any) => <div {...props}>{children}</div>,
+    DialogContent: ({ children, ...props }: any) => {
+      const domProps = { ...props }
+      delete domProps.closeOnOverlayClick
+      delete domProps.showCloseButton
+      return <div {...domProps}>{children}</div>
+    },
     DialogFooter: ({ children, ...props }: any) => <div {...props}>{children}</div>,
     DialogHeader: ({ children, ...props }: any) => <div {...props}>{children}</div>,
     DialogTitle: ({ children, ...props }: any) => <h2 {...props}>{children}</h2>,
