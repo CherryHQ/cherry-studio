@@ -6,6 +6,11 @@ import type { ProviderVariant, ToolFactoryMap } from '../types'
 
 export type ProviderCreatorFunction<TSettings = any> = (settings?: TSettings) => ProviderV3 | Promise<ProviderV3>
 
+/** Provider instance creation options that are not forwarded to the SDK provider. */
+export interface ProviderCreationOptions {
+  cache?: boolean
+}
+
 /**
  * Provider 模块类型
  * 动态导入的模块应该包含至少一个创建函数
@@ -182,7 +187,11 @@ export class ProviderExtension<
    * 创建 Provider 实例
    * 相同 settings 会复用实例，不同 settings 会创建新实例
    */
-  async createProvider(settings?: TSettings, variantSuffix?: string): Promise<TProvider> {
+  async createProvider(
+    settings?: TSettings,
+    variantSuffix?: string,
+    creationOptions: ProviderCreationOptions = {}
+  ): Promise<TProvider> {
     if (variantSuffix) {
       const variant = this.getVariant(variantSuffix)
       if (!variant) {
@@ -197,6 +206,10 @@ export class ProviderExtension<
 
     const hash = this.computeHash(mergedSettings, variantSuffix)
 
+    if (creationOptions.cache === false) {
+      return this._doCreateProvider(mergedSettings, variantSuffix, hash, false)
+    }
+
     const cachedInstance = this.instances.get(hash)
     if (cachedInstance) {
       return cachedInstance
@@ -207,7 +220,7 @@ export class ProviderExtension<
       return pending
     }
 
-    const creationPromise = this._doCreateProvider(mergedSettings, variantSuffix, hash)
+    const creationPromise = this._doCreateProvider(mergedSettings, variantSuffix, hash, true)
     this.pendingCreations.set(hash, creationPromise)
 
     try {
@@ -228,7 +241,8 @@ export class ProviderExtension<
   private async _doCreateProvider(
     mergedSettings: TSettings,
     variantSuffix: string | undefined,
-    hash: string
+    hash: string,
+    cache: boolean
   ): Promise<TProvider> {
     let baseProvider: ProviderV3
 
@@ -254,7 +268,7 @@ export class ProviderExtension<
       const variant = this.getVariant(variantSuffix)!
       if (variant.transform) {
         const baseHash = this.computeHash(mergedSettings)
-        if (!this.instances.has(baseHash)) {
+        if (cache && !this.instances.has(baseHash)) {
           this.instances.set(baseHash, baseProvider as TProvider)
         }
         finalProvider = (await Promise.resolve(
@@ -267,7 +281,9 @@ export class ProviderExtension<
       finalProvider = baseProvider as TProvider
     }
 
-    this.instances.set(hash, finalProvider)
+    if (cache) {
+      this.instances.set(hash, finalProvider)
+    }
 
     return finalProvider
   }
