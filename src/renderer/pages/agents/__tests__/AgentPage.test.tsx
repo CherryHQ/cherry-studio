@@ -54,6 +54,9 @@ const agentPageMocks = vi.hoisted(() => ({
   currentTab: undefined as { metadata?: Record<string, unknown> } | undefined,
   lastUsedAgentId: null as string | null,
   lastUsedSessionId: null as string | null,
+  // Sessions resolvable by id through `useSession` (resume-by-last-used reads it); an id
+  // missing from the map behaves like a deleted session.
+  sessionsById: new Map<string, unknown>(),
   lastUsedWorkspaceId: null as string | null,
   classicLayoutRightPaneOpenOverride: null as boolean | null,
   agentResourceListSessionsSource: undefined as unknown,
@@ -249,8 +252,8 @@ vi.mock('@renderer/hooks/agent/useSession', async () => {
   const { findLatestUpdated } = await import('@renderer/utils/resourceEntity')
 
   return {
-    useSession: () => ({
-      session: undefined,
+    useSession: (sessionId: string | null) => ({
+      session: sessionId ? (agentPageMocks.sessionsById.get(sessionId) ?? undefined) : undefined,
       isLoading: false
     }),
     useLatestSession: (options?: { enabled?: boolean }) => {
@@ -704,7 +707,9 @@ describe('AgentPage', () => {
     agentPageMocks.rightPanelSessionsSource = undefined
     agentPageMocks.currentTab = undefined
     agentPageMocks.lastUsedAgentId = null
+    agentPageMocks.lastUsedSessionId = null
     agentPageMocks.lastUsedWorkspaceId = null
+    agentPageMocks.sessionsById.clear()
     agentPageMocks.sessionExpansionAgent = []
     agentPageMocks.classicLayoutRightPaneOpenOverride = null
     agentPageMocks.activeSessionOptions = null
@@ -1250,6 +1255,56 @@ describe('AgentPage', () => {
 
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-off-page'))
     expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+  })
+
+  it('resumes the last-used session over the most-recently-updated one when entering without a route session', async () => {
+    agentPageMocks.sessionDisplayMode = 'time'
+    agentPageMocks.routeSearch = {}
+    // The last-viewed session is older than the latest-edited one; re-entry must land on
+    // what the user was looking at, not what last changed.
+    agentPageMocks.lastUsedSessionId = 'session-last-viewed'
+    agentPageMocks.sessionsById.set('session-last-viewed', {
+      ...agentPageMocks.persistedSession,
+      id: 'session-last-viewed',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    })
+    agentPageMocks.classicLayoutSessions = [
+      { ...agentPageMocks.persistedSession, id: 'session-latest', updatedAt: '2026-01-09T00:00:00.000Z' }
+    ]
+
+    render(<AgentPage />)
+
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-last-viewed'))
+    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the most-recently-updated session when the last-used session no longer exists', async () => {
+    agentPageMocks.sessionDisplayMode = 'time'
+    agentPageMocks.routeSearch = {}
+    agentPageMocks.lastUsedSessionId = 'session-deleted'
+    agentPageMocks.classicLayoutSessions = [
+      { ...agentPageMocks.persistedSession, id: 'session-latest', updatedAt: '2026-01-09T00:00:00.000Z' }
+    ]
+
+    render(<AgentPage />)
+
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-latest'))
+    expect(agentPageMocks.dataApiPost).not.toHaveBeenCalled()
+  })
+
+  it('prefers the route session over the last-used session', async () => {
+    agentPageMocks.sessionDisplayMode = 'time'
+    agentPageMocks.routeSearch = { sessionId: 'session-from-url' }
+    agentPageMocks.lastUsedSessionId = 'session-last-viewed'
+    agentPageMocks.sessionsById.set('session-last-viewed', {
+      ...agentPageMocks.persistedSession,
+      id: 'session-last-viewed',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    })
+
+    render(<AgentPage />)
+
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-from-url'))
   })
 
   it('creates an empty session on modern first entry only when there are no sessions', async () => {
