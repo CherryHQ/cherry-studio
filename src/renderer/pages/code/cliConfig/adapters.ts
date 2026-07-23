@@ -286,16 +286,18 @@ const codexAdapter: CliConfigAdapter = {
     if (!responsesUrl) {
       throw new Error('Codex requires an OpenAI Responses API endpoint, which this provider does not expose')
     }
-    const config = await readAndParseDraftFile('codex-config', parseTomlOrThrow, args.files)
-    const auth = await readAndParseDraftFile('codex-auth', parseJsonOrThrow, args.files)
     const providerName = cliProviderKeyName(provider)
-    return [
-      await makeDraftFile(
-        'codex-config',
-        stringifyToml(buildCodexConfig(config, { baseUrl: responsesUrl, providerName, model }, configBlob))
+    return Promise.all([
+      readAndParseDraftFile('codex-config', parseTomlOrThrow, args.files).then((config) =>
+        makeDraftFile(
+          'codex-config',
+          stringifyToml(buildCodexConfig(config, { baseUrl: responsesUrl, providerName, model }, configBlob))
+        )
       ),
-      await makeDraftFile('codex-auth', renderJsonFile(buildCodexAuthConfig(auth, apiKey)))
-    ]
+      readAndParseDraftFile('codex-auth', parseJsonOrThrow, args.files).then((auth) =>
+        makeDraftFile('codex-auth', renderJsonFile(buildCodexAuthConfig(auth, apiKey)))
+      )
+    ])
   },
   assertCredentials(context) {
     if (!context.apiKey) throw new Error('Codex config is missing the API key')
@@ -325,10 +327,10 @@ const codexAdapter: CliConfigAdapter = {
     )
   },
   async buildClearFiles() {
-    const absPath = await resolveAbs(CODEX_CONFIG_PATH)
-    const authAbsPath = await resolveAbs(CODEX_AUTH_PATH)
-    const existing = await readValidatedTomlOrNull(absPath, 'Codex config')
-    const existingAuth = await readValidatedJsonOrNull(authAbsPath, 'Codex auth')
+    const [existing, existingAuth] = await Promise.all([
+      resolveAbs(CODEX_CONFIG_PATH).then((absPath) => readValidatedTomlOrNull(absPath, 'Codex config')),
+      resolveAbs(CODEX_AUTH_PATH).then((absPath) => readValidatedJsonOrNull(absPath, 'Codex auth'))
+    ])
     const files: CliConfigWriteFile[] = []
     if (existing) {
       const next: Record<string, any> = {}
@@ -509,24 +511,26 @@ const geminiAdapter: CliConfigAdapter = {
   sanitize: sanitizeGeminiConfigBlob,
   async buildDraft(args, context) {
     const { provider, apiKey, model, configBlob } = context
-    const envText = await readDraftFileText('gemini-env', args.files)
-    const settings = await readAndParseDraftFile('gemini-settings', parseJsonOrThrow, args.files)
     const baseUrl = resolveGeminiBaseUrl(provider)
     const isGateway = isApiGatewayProviderId(provider.id)
     // Gateway addresses carry the sentinel suffix so gemini-cli's model
     // normalization can't rewrite them (see GEMINI_GATEWAY_MODEL_SUFFIX);
     // extractConnection strips it back off for connection matching.
     const settingsModel = isGateway ? `${model}${GEMINI_GATEWAY_MODEL_SUFFIX}` : model
-    return [
-      await makeDraftFile(
-        'gemini-env',
-        renderDotenvFile(buildGeminiEnvConfig(parseDotenv(envText), { apiKey, baseUrl, gateway: isGateway }), envText)
+    return Promise.all([
+      readDraftFileText('gemini-env', args.files).then((envText) =>
+        makeDraftFile(
+          'gemini-env',
+          renderDotenvFile(buildGeminiEnvConfig(parseDotenv(envText), { apiKey, baseUrl, gateway: isGateway }), envText)
+        )
       ),
-      await makeDraftFile(
-        'gemini-settings',
-        renderJsonFile(buildGeminiSettingsConfig(settings, { model: settingsModel }, configBlob))
+      readAndParseDraftFile('gemini-settings', parseJsonOrThrow, args.files).then((settings) =>
+        makeDraftFile(
+          'gemini-settings',
+          renderJsonFile(buildGeminiSettingsConfig(settings, { model: settingsModel }, configBlob))
+        )
       )
-    ]
+    ])
   },
   assertCredentials(context) {
     if (!context.apiKey) throw new Error('Gemini CLI config is missing the API key')
@@ -565,16 +569,16 @@ const geminiAdapter: CliConfigAdapter = {
   },
   async buildClearFiles() {
     const files: CliConfigWriteFile[] = []
-    const envAbsPath = await resolveAbs(GEMINI_ENV_PATH)
-    const envText = await readExternalOrNull(envAbsPath)
+    const [envText, settings] = await Promise.all([
+      resolveAbs(GEMINI_ENV_PATH).then(readExternalOrNull),
+      resolveAbs(GEMINI_SETTINGS_PATH).then((absPath) => readValidatedJsonOrNull(absPath, 'Gemini CLI settings'))
+    ])
     if (envText !== null) {
       const envMap = parseDotenv(envText)
       for (const key of GEMINI_MANAGED_ENV_KEYS) envMap.delete(key)
       files.push({ target: 'gemini-env', content: renderDotenvFile(envMap, envText) })
     }
 
-    const settingsAbsPath = await resolveAbs(GEMINI_SETTINGS_PATH)
-    const settings = await readValidatedJsonOrNull(settingsAbsPath, 'Gemini CLI settings')
     if (!settings) return files
     applyManagedJsonSettings(settings, {}, GEMINI_MANAGED_SETTINGS_KEYS)
     dropSecurityAuthSelectedTypeIfEmpty(settings)

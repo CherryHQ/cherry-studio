@@ -26,6 +26,14 @@ function mockGet(handlers: Record<string, () => unknown>) {
   })
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
+}
+
 const anthropicProvider = {
   id: 'anthropic',
   name: 'Anthropic',
@@ -381,6 +389,39 @@ describe('writeCliConfigDraft', () => {
 
   describe('codex (~/.codex/config.toml + auth.json)', () => {
     const findWrite = (suffix: string) => writes.find((w) => w.path.endsWith(suffix))
+
+    it('starts config and auth reads concurrently while preserving draft order', async () => {
+      const configRead = deferred<string>()
+      const authRead = deferred<string>()
+      vi.mocked(window.api.file.readExternal).mockImplementation((absPath: string) => {
+        if (absPath.endsWith('config.toml')) return configRead.promise
+        if (absPath.endsWith('auth.json')) return authRead.promise
+        throw new Error(`Unexpected path: ${absPath}`)
+      })
+      mockGet({
+        '/providers/deepseek': () => codexProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      const write = writeCliConfigDraft({
+        cliTool: CodeCli.OPENAI_CODEX,
+        modelId: 'deepseek::deepseek-chat'
+      })
+
+      await vi.waitFor(() => expect(window.api.file.readExternal).toHaveBeenCalledTimes(2))
+      configRead.resolve('user_key = "keep"')
+      authRead.resolve(JSON.stringify({ user: 'keep' }))
+      await write
+
+      expect(mocks.request).toHaveBeenCalledWith('code_cli.write_config', {
+        cliTool: CodeCli.OPENAI_CODEX,
+        files: [
+          { target: 'codex-config', content: expect.any(String) },
+          { target: 'codex-auth', content: expect.any(String) }
+        ]
+      })
+    })
 
     it('writes both auth.json (OPENAI_API_KEY) and config.toml with wire_api = responses', async () => {
       mockGet({
@@ -810,6 +851,39 @@ describe('writeCliConfigDraft', () => {
 
   describe('gemini-cli (~/.gemini/.env + settings.json)', () => {
     const findWrite = (suffix: string) => writes.find((w) => w.path.endsWith(suffix))!
+
+    it('starts env and settings reads concurrently while preserving draft order', async () => {
+      const envRead = deferred<string>()
+      const settingsRead = deferred<string>()
+      vi.mocked(window.api.file.readExternal).mockImplementation((absPath: string) => {
+        if (absPath.endsWith('.env')) return envRead.promise
+        if (absPath.endsWith('settings.json')) return settingsRead.promise
+        throw new Error(`Unexpected path: ${absPath}`)
+      })
+      mockGet({
+        '/providers/gemini': () => geminiProvider,
+        '/providers/gemini/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      const write = writeCliConfigDraft({
+        cliTool: CodeCli.GEMINI_CLI,
+        modelId: 'gemini::gemini-2.5-pro'
+      })
+
+      await vi.waitFor(() => expect(window.api.file.readExternal).toHaveBeenCalledTimes(2))
+      envRead.resolve('USER_KEY=keep\n')
+      settingsRead.resolve(JSON.stringify({ userSetting: 'keep' }))
+      await write
+
+      expect(mocks.request).toHaveBeenCalledWith('code_cli.write_config', {
+        cliTool: CodeCli.GEMINI_CLI,
+        files: [
+          { target: 'gemini-env', content: expect.any(String) },
+          { target: 'gemini-settings', content: expect.any(String) }
+        ]
+      })
+    })
 
     it('applies supported settings from the config blob and drops removed settings', async () => {
       mockGet({

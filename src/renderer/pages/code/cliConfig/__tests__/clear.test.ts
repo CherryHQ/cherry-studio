@@ -15,6 +15,14 @@ vi.mock('@renderer/ipc', () => ({
 let existing: Record<string, string>
 let writes: Record<string, string>
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
+}
+
 beforeEach(() => {
   existing = {}
   writes = {}
@@ -90,6 +98,31 @@ describe('clearCliConfig', () => {
     expect(JSON.parse(writes['/resolved~/.codex/auth.json'])).toEqual({ user: 'keep' })
   })
 
+  it('codex: starts config and auth reads concurrently while preserving rewrite order', async () => {
+    const configRead = deferred<string>()
+    const authRead = deferred<string>()
+    vi.mocked(window.api.file.readExternal).mockImplementation((path: string) => {
+      if (path.endsWith('config.toml')) return configRead.promise
+      if (path.endsWith('auth.json')) return authRead.promise
+      throw new Error(`Unexpected path: ${path}`)
+    })
+
+    const clear = clearCliConfig({ cliTool: CodeCli.OPENAI_CODEX })
+
+    await vi.waitFor(() => expect(window.api.file.readExternal).toHaveBeenCalledTimes(2))
+    configRead.resolve('model_provider = "cherry-deepseek"\nuser_key = "keep"')
+    authRead.resolve(JSON.stringify({ OPENAI_API_KEY: 'sk', user: 'keep' }))
+    await clear
+
+    expect(mocks.request).toHaveBeenCalledWith('code_cli.write_config', {
+      cliTool: CodeCli.OPENAI_CODEX,
+      files: [
+        { target: 'codex-config', content: expect.any(String) },
+        { target: 'codex-auth', content: expect.any(String) }
+      ]
+    })
+  })
+
   it('opencode: strips only cherry-* providers and the cherry-addressed top-level model', async () => {
     existing['/resolved~/.config/opencode/opencode.json'] = JSON.stringify({
       $schema: 'https://opencode.ai/config.json',
@@ -149,6 +182,31 @@ describe('clearCliConfig', () => {
     await clearCliConfig({ cliTool: CodeCli.GEMINI_CLI })
 
     expect(writes['/resolved~/.gemini/.env']).toBe('# my proxy\nUSER_KEY=keep\n')
+  })
+
+  it('gemini: starts env and settings reads concurrently while preserving rewrite order', async () => {
+    const envRead = deferred<string>()
+    const settingsRead = deferred<string>()
+    vi.mocked(window.api.file.readExternal).mockImplementation((path: string) => {
+      if (path.endsWith('.env')) return envRead.promise
+      if (path.endsWith('settings.json')) return settingsRead.promise
+      throw new Error(`Unexpected path: ${path}`)
+    })
+
+    const clear = clearCliConfig({ cliTool: CodeCli.GEMINI_CLI })
+
+    await vi.waitFor(() => expect(window.api.file.readExternal).toHaveBeenCalledTimes(2))
+    envRead.resolve('USER_KEY=keep\nGEMINI_API_KEY=sk\n')
+    settingsRead.resolve(JSON.stringify({ general: { vimMode: true, userSetting: 'keep' } }))
+    await clear
+
+    expect(mocks.request).toHaveBeenCalledWith('code_cli.write_config', {
+      cliTool: CodeCli.GEMINI_CLI,
+      files: [
+        { target: 'gemini-env', content: expect.any(String) },
+        { target: 'gemini-settings', content: expect.any(String) }
+      ]
+    })
   })
 
   it('qwen: missing config is already clear and sends no IPC', async () => {
