@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { type OpenTabOptions, TabsContext, type TabsContextValue } from '@renderer/hooks/tab'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
-import { TAB_LIMITS, TabLruManager } from '@renderer/services/TabLruManager'
+import { TabLruManager } from '@renderer/services/TabLruManager'
 import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
 import { resolveSidebarAppTabEntryUrl } from '@renderer/utils/sidebar'
 import type { Tab, TabSavedState } from '@shared/data/cache/cacheValueTypes'
@@ -105,7 +105,11 @@ function isSettingsRouteTab(tab: Tab): boolean {
   return tab.type === 'route' && tab.url.startsWith('/settings')
 }
 
-type InitialSession = { normalTabs: Tab[]; activeTabId: string }
+type InitialSession = { normalTabs: Tab[]; pinnedTabs: Tab[]; activeTabId: string }
+
+function restoreTabs(tabs: Tab[], activeTabId: string): Tab[] {
+  return tabs.map((tab) => ({ ...tab, isDormant: tab.id !== activeTabId }))
+}
 
 /**
  * Compute the initial normal-tab list and active tab id at mount.
@@ -113,8 +117,7 @@ type InitialSession = { normalTabs: Tab[]; activeTabId: string }
  * Detached sub-windows (`!includePinnedTabs`) keep the old ephemeral behavior. The main window
  * restores its persisted session: every restored tab is forced dormant except the active one, so
  * `AppShell` mounts exactly one `TabRouter` at startup regardless of how many tabs were open
- * (dormant tabs wake lazily on click). Restore is capped to the LRU hard cap as cheap insurance
- * against a pathological persisted session bloating the tab bar.
+ * (dormant tabs wake lazily on click).
  */
 function computeInitialSession(params: {
   includePinnedTabs: boolean
@@ -127,6 +130,7 @@ function computeInitialSession(params: {
 
   const freshSession: InitialSession = {
     normalTabs: initialDefaultTab ? [initialDefaultTab] : [],
+    pinnedTabs: [],
     activeTabId: initialDefaultTab?.id ?? ''
   }
 
@@ -139,26 +143,12 @@ function computeInitialSession(params: {
   // pinned one (no unpinned tabs were open), honor that selection — the default tab stays as a
   // dormant fallback so the user lands back on the pinned tab they left.
   if (persistedNormalTabs.length === 0) {
-    if (!pinnedHasActive) return freshSession
+    const activeTabId = pinnedHasActive ? persistedActiveTabId : (initialDefaultTab?.id ?? pinnedTabs[0]?.id ?? '')
     return {
-      normalTabs: freshSession.normalTabs.map((t) => ({ ...t, isDormant: t.id !== persistedActiveTabId })),
-      activeTabId: persistedActiveTabId
+      normalTabs: restoreTabs(freshSession.normalTabs, activeTabId),
+      pinnedTabs: restoreTabs(pinnedTabs, activeTabId),
+      activeTabId
     }
-  }
-
-  // Cap to the most-recently-accessed `hardCap` tabs, always keeping the active one.
-  let capped = persistedNormalTabs
-  if (capped.length > TAB_LIMITS.hardCap) {
-    const byRecency = [...capped].sort((a, b) => (b.lastAccessTime ?? 0) - (a.lastAccessTime ?? 0))
-    const kept = byRecency.slice(0, TAB_LIMITS.hardCap)
-    if (persistedActiveTabId && !kept.some((t) => t.id === persistedActiveTabId)) {
-      const active = capped.find((t) => t.id === persistedActiveTabId)
-      if (active) kept[kept.length - 1] = active
-    }
-    const keptIds = new Set(kept.map((t) => t.id))
-    // Preserve original ordering for the tabs we keep.
-    capped = persistedNormalTabs.filter((t) => keptIds.has(t.id))
-    logger.info('Restore capped tabs', { kept: capped.length, dropped: persistedNormalTabs.length - capped.length })
   }
 
   // Resolve the active tab id FIRST, then derive dormancy from it. Keying dormancy off the resolved
@@ -166,15 +156,17 @@ function computeInitialSession(params: {
   // stale persisted id leaves every tab dormant, AppShell mounts zero TabRouters, and the content
   // area is blank until the user clicks a tab.
   const activeInSession =
-    pinnedHasActive || (!!persistedActiveTabId && capped.some((t) => t.id === persistedActiveTabId))
+    pinnedHasActive || (!!persistedActiveTabId && persistedNormalTabs.some((t) => t.id === persistedActiveTabId))
   const activeTabId = activeInSession
     ? persistedActiveTabId
-    : (capped[0]?.id ?? pinnedTabs[0]?.id ?? initialDefaultTab?.id ?? '')
+    : (persistedNormalTabs[0]?.id ?? pinnedTabs[0]?.id ?? initialDefaultTab?.id ?? '')
 
   // Only the active tab stays awake; everything else restores dormant.
-  const normalTabs = capped.map((t) => ({ ...t, isDormant: t.id !== activeTabId }))
-
-  return { normalTabs, activeTabId }
+  return {
+    normalTabs: restoreTabs(persistedNormalTabs, activeTabId),
+    pinnedTabs: restoreTabs(pinnedTabs, activeTabId),
+    activeTabId
+  }
 }
 
 type TabsProviderProps = {
@@ -209,16 +201,6 @@ export function TabsProvider({
   const migratedPinnedTabs = useMemo(() => migratePinnedTabs(restoredPinnedTabs), [restoredPinnedTabs])
   const availablePinnedTabs = migratedPinnedTabs.tabs
 
-  useEffect(() => {
-    if (!includePinnedTabs || !migratedPinnedTabs.changed) return
-
-    setPinnedTabs(migratedPinnedTabs.tabs)
-    logger.info('Reconciled pinned tabs against removed/relocated routes', {
-      before: restoredPinnedTabs.length,
-      after: migratedPinnedTabs.tabs.length
-    })
-  }, [includePinnedTabs, migratedPinnedTabs, restoredPinnedTabs, setPinnedTabs])
-
   // Normal tabs + active tab id - persisted so the session is restored on restart (main window
   // only). These remain the in-memory source of truth; the persist keys are read once for the
   // initial value and written back via effects below — none of the existing setters change.
@@ -250,10 +232,29 @@ export function TabsProvider({
   // Active tab ID - in-memory storage, seeded from the restored session
   const [activeTabId, setActiveTabIdState] = useState<string>(() => initialSessionRef.current!.activeTabId)
 
+  // Render the normalized pinned set on the first pass, then commit it to the persistent cache.
+  // This avoids mounting background pinned routers before the effect runs while keeping the cache
+  // as the source of truth for all subsequent pinned-tab updates.
+  const hasRestoredPinnedTabsRef = useRef(!includePinnedTabs)
+  const pinnedTabsForRender = hasRestoredPinnedTabsRef.current
+    ? availablePinnedTabs
+    : initialSessionRef.current.pinnedTabs
+  useEffect(() => {
+    if (!includePinnedTabs || hasRestoredPinnedTabsRef.current) return
+
+    hasRestoredPinnedTabsRef.current = true
+    setPinnedTabs(initialSessionRef.current!.pinnedTabs)
+    if (migratedPinnedTabs.changed) {
+      logger.info('Reconciled pinned tabs against removed/relocated routes', {
+        before: restoredPinnedTabs.length,
+        after: initialSessionRef.current!.pinnedTabs.length
+      })
+    }
+  }, [includePinnedTabs, migratedPinnedTabs.changed, restoredPinnedTabs.length, setPinnedTabs])
+
   // Write the session back on every change (main window only). Depends on the in-memory state,
   // not the persisted value, so there is no feedback loop; the cache's isEqual + 200ms debounce
-  // coalesce redundant writes. ponytail: active pinned tab is always awake when persisted (the
-  // active tab is never hibernated), so we don't rewrite pinnedTabs on restore.
+  // coalesces redundant writes.
   useEffect(() => {
     if (!includePinnedTabs) return
     setPersistedNormalTabs(normalTabs)
@@ -289,9 +290,9 @@ export function TabsProvider({
 
   // Merge tabs: pinned + normal (route titles follow current i18n language)
   const tabs = useMemo(() => {
-    const currentPinnedTabs = includePinnedTabs ? availablePinnedTabs : []
+    const currentPinnedTabs = includePinnedTabs ? pinnedTabsForRender : []
     return [...currentPinnedTabs.map(withLocalizedRouteTitle), ...normalTabs.map(withLocalizedRouteTitle)]
-  }, [availablePinnedTabs, includePinnedTabs, normalTabs, i18n.language])
+  }, [includePinnedTabs, pinnedTabsForRender, normalTabs, i18n.language])
 
   const updateTab = useCallback(
     (id: string, updates: Partial<Tab>) => {
@@ -309,10 +310,9 @@ export function TabsProvider({
 
   const setActiveTab = useCallback(
     (id: string) => {
-      if (id === activeTabId) return
-
       const targetTab = tabs.find((t) => t.id === id)
       if (!targetTab) return
+      if (id === activeTabId && !targetTab.isDormant) return
 
       // If a dormant tab was awakened, log it
       if (targetTab.isDormant) {

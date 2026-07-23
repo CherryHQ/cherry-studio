@@ -379,7 +379,7 @@ describe('TabsProvider', () => {
     )
 
     expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,home')
-    await waitFor(() => expect(setPinnedTabsMock).toHaveBeenCalledWith([PINNED_FILES_TAB]))
+    await waitFor(() => expect(setPinnedTabsMock).toHaveBeenCalledWith([{ ...PINNED_FILES_TAB, isDormant: true }]))
   })
 
   // Reviewer B7: OpenClaw's sidebar entry + /app/openclaw route were removed (folded into Code), so a
@@ -405,8 +405,8 @@ describe('TabsProvider', () => {
     expect(screen.getByTestId('tab-urls')).toHaveTextContent('/app/code,/app/files,/app/chat')
     await waitFor(() =>
       expect(setPinnedTabsMock).toHaveBeenCalledWith([
-        { ...PINNED_OPENCLAW_TAB, url: '/app/code', title: '/app/code' },
-        PINNED_FILES_TAB
+        { ...PINNED_OPENCLAW_TAB, url: '/app/code', title: '/app/code', isDormant: true },
+        { ...PINNED_FILES_TAB, isDormant: true }
       ])
     )
   })
@@ -499,6 +499,33 @@ describe('TabsProvider', () => {
     await waitFor(() => expect(screen.getByTestId('active-tab-id')).toHaveTextContent('c'))
     expect(screen.getByTestId('tab-ids')).toHaveTextContent('files,c')
     expect(screen.getByTestId('dormant-ids')).toHaveTextContent(/^$/)
+  })
+
+  it('wakes the active tab when it is unexpectedly dormant', async () => {
+    render(
+      <TabsProvider
+        initialDefaultTab={{
+          id: 'home',
+          type: 'route',
+          url: '/app/chat',
+          title: '',
+          lastAccessTime: 0,
+          isDormant: false
+        }}
+        includePinnedTabs={false}>
+        <BatchCloseControls />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Seed tabs' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Activate C' }))
+    await waitFor(() => expect(screen.getByTestId('active-tab-id')).toHaveTextContent('c'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hibernate C' }))
+    await waitFor(() => expect(screen.getByTestId('dormant-ids')).toHaveTextContent('c'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Activate C' }))
+    await waitFor(() => expect(screen.getByTestId('dormant-ids')).toHaveTextContent(/^$/))
   })
 
   it('falls back to the nearest neighbor when the designated survivor is itself closed', async () => {
@@ -645,10 +672,10 @@ describe('TabsProvider session restore', () => {
     )
 
     await waitFor(() => expect(screen.getByTestId('active')).toHaveTextContent('b'))
-    // Active tab (b) awake, the other restored tab (a) dormant ⇒ only one TabRouter mounts.
     const dump = screen.getByTestId('session-tabs').textContent ?? ''
     expect(dump).toContain('a:dormant')
     expect(dump).toContain('b:awake')
+    expect(dump.split(',').filter((tab) => tab.endsWith(':awake'))).toHaveLength(1)
   })
 
   it('keeps the resolved active tab awake when the persisted active id is stale', async () => {
@@ -672,6 +699,7 @@ describe('TabsProvider session restore', () => {
   it('honors a pinned active tab when no unpinned tabs were open', async () => {
     // Last session had zero normal tabs but the active tab was the pinned "files" tab — restore must
     // reselect it (the default tab stays present but dormant) instead of falling back to default.
+    pinnedTabsValue = [{ ...PINNED_FILES_TAB, isDormant: true }]
     normalTabsValue = []
     activeTabIdValue = 'files'
 
@@ -711,9 +739,8 @@ describe('TabsProvider session restore', () => {
     expect(ids).not.toContain('a')
   })
 
-  it('caps the restored session to the LRU hard cap, dropping the oldest non-active tabs', async () => {
+  it('preserves dormant tabs beyond the active-tab LRU hard cap', async () => {
     const overflow = TAB_LIMITS.hardCap + 5
-    // n0 is the OLDEST (lastAccessTime 0) yet is the active tab — it must survive the cap.
     const many: Tab[] = Array.from({ length: overflow }, (_, i) => ({
       id: `n${i}`,
       type: 'route',
@@ -733,10 +760,12 @@ describe('TabsProvider session restore', () => {
 
     await waitFor(() => expect(screen.getByTestId('active')).toHaveTextContent('n0'))
     const ids = (screen.getByTestId('session-ids').textContent ?? '').split(',').filter((id) => id.startsWith('n'))
-    expect(ids).toHaveLength(TAB_LIMITS.hardCap)
-    expect(ids).toContain('n0') // active retained despite being oldest
-    expect(ids).toContain(`n${overflow - 1}`) // newest retained
-    expect(ids).not.toContain('n1') // oldest non-active dropped
+    expect(ids).toHaveLength(overflow)
+    expect(ids).toContain('n0')
+    expect(ids).toContain('n1')
+    expect(ids).toContain(`n${overflow - 1}`)
+    const dump = screen.getByTestId('session-tabs').textContent ?? ''
+    expect(dump.split(',').filter((tab) => tab.endsWith(':awake'))).toEqual(['n0:awake'])
   })
 })
 
