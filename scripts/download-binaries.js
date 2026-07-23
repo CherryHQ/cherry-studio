@@ -29,7 +29,7 @@ const { execFileSync } = require('child_process')
 //   isWindowsOnly — tool has packages only for win32; non-Windows builds skip it
 //                 (MinGit — other platforms fall back to the user's system git)
 
-const MISE_VERSION = '2026.5.11'
+const MISE_VERSION = '2026.7.3'
 const BUN_VERSION = '1.3.14'
 const UV_VERSION = '0.11.16'
 const RG_VERSION = '14.1.1'
@@ -62,37 +62,37 @@ const TOOLS = [
         url: miseUrl(`mise-v${MISE_VERSION}-macos-arm64`),
         archive: 'none',
         binaries: ['mise'],
-        sha256: '1f404ecafe0a2ecc34bae661661b99e9cb06dba0f03f0e906ae4528b57d37e6c'
+        sha256: '865f7c617787749bfd16a3b50a5385df9c552640a4177bafdc35ae19c4215731'
       },
       'darwin-x64': {
         url: miseUrl(`mise-v${MISE_VERSION}-macos-x64`),
         archive: 'none',
         binaries: ['mise'],
-        sha256: '0a2383b0ca7e3cea2e68796917506e79b74f06a1a64501c7f83e14f2520b43f0'
+        sha256: '69cce686f0bed5b5ee8135b29ca81b4735bd52dbd18517a1024843cfdf770ab0'
       },
       'linux-x64': {
         url: miseUrl(`mise-v${MISE_VERSION}-linux-x64`),
         archive: 'none',
         binaries: ['mise'],
-        sha256: '9bb41ae4dbe2bcdfdbe36cf3c737a8bdb72035c03af3b7218a70780988f62b9b'
+        sha256: '06088e84e4514b59fd2b6b17927bcc37aa0ab10020a270868871fb010b92069b'
       },
       'linux-arm64': {
         url: miseUrl(`mise-v${MISE_VERSION}-linux-arm64`),
         archive: 'none',
         binaries: ['mise'],
-        sha256: 'a588ea2fec11f6383bd24998f5ede89100f70f1f47943b9ea30c88e4048ea91f'
+        sha256: '7a39a84a040449e1932a24b3b710746fc4a2b6d7080cc8376a2731d00488bf0d'
       },
       'win32-x64': {
         url: miseUrl(`mise-v${MISE_VERSION}-windows-x64.exe`),
         archive: 'none',
         binaries: ['mise.exe'],
-        sha256: '580401ddbc9977f94db85bbea51323f5aea6953dbe2a452cb49c2adcf1d8f7c0'
+        sha256: '4c950c99fc903f46afc8c6e8c2137b65f9a8ab638041549afb9a62fa5de286ea'
       },
       'win32-arm64': {
         url: miseUrl(`mise-v${MISE_VERSION}-windows-arm64.exe`),
         archive: 'none',
         binaries: ['mise.exe'],
-        sha256: 'd29b9909d2aa1c85e4a43b9b4be24b2015423628ae29b15d7e677ab00fccd47e'
+        sha256: '997644d959b5d2fe20247ce2ed956f50e9aa5bd7571ad9b08f1d501b58354fde'
       }
     }
   },

@@ -6176,14 +6176,55 @@
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
       "checkUpdates": "Vérifier les mises à jour",
       "coreDepsMissing": "Core dependencies not installed",
-      "customTools": "Custom Tools",
-      "customToolsEmpty": "Aucun outil personnalisé pour l'instant. Ajoutez-en un pour commencer.",
       "description": "Gérez les outils binaires et les dépendances d'exécution requises par l'application.",
       "duplicateName": "A tool with the same name already exists",
       "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "Installer",
       "installError": "Failed to install tool",
+      "installErrorHint": "[to be translated]:The install command failed. Copy the log below to troubleshoot or share it for help.",
+      "installSettings": {
+        "description": "[to be translated]:Fine-tune how bundled CLI tools are installed. All fields are optional — leave them empty to keep the defaults.",
+        "githubMirror": {
+          "help": "[to be translated]:Proxy prefix for GitHub downloads and the GitHub API (e.g. https://ghfast.top). Leave empty for direct access.",
+          "label": "[to be translated]:GitHub mirror",
+          "placeholder": "[to be translated]:https://ghfast.top (direct if empty)"
+        },
+        "githubToken": {
+          "help": "[to be translated]:Raises the GitHub API rate limit for tool lookups. Stored locally in plain text. Leave empty to use the CHERRY_GITHUB_TOKEN environment variable.",
+          "hide": "[to be translated]:Hide token",
+          "label": "[to be translated]:GitHub token",
+          "placeholder": "[to be translated]:ghp_…",
+          "show": "[to be translated]:Show token"
+        },
+        "invalidUrl": "[to be translated]:Enter a valid URL including https://",
+        "npmRegistry": {
+          "help": "[to be translated]:Registry for npm: tools. Leave empty to auto-select a mirror in mainland China.",
+          "label": "[to be translated]:npm registry",
+          "placeholder": "[to be translated]:Auto (China mirror) if empty"
+        },
+        "pipIndexUrl": {
+          "help": "[to be translated]:Index URL for pipx: tools. Leave empty to auto-select a mirror in mainland China.",
+          "label": "[to be translated]:pip index URL",
+          "placeholder": "[to be translated]:Auto (China mirror) if empty"
+        },
+        "presetLabels": {
+          "aliyun": "[to be translated]:Aliyun (China)",
+          "default": "[to be translated]:Default (no mirror)",
+          "ghfast": "[to be translated]:ghfast.top",
+          "ghproxy": "[to be translated]:ghproxy.net",
+          "npmOfficial": "[to be translated]:npmjs (official)",
+          "npmmirror": "[to be translated]:npmmirror (China)",
+          "pypiOfficial": "[to be translated]:PyPI (official)",
+          "tsinghua": "[to be translated]:Tsinghua (China)"
+        },
+        "presets": "[to be translated]:Presets",
+        "title": "[to be translated]:Advanced install settings",
+        "verifySignatures": {
+          "help": "[to be translated]:Verifies Sigstore/SLSA signatures for aqua-backed tools. Disable only if verification fails on your network — it skips supply-chain checks.",
+          "label": "[to be translated]:Verify tool signatures"
+        }
+      },
       "installing": "Installation en cours...",
+      "installingHint": "[to be translated]:The first install may download a runtime and take a few minutes",
       "invalidTool": "Nom d'outil ou clé invalide",
       "localModels": {
         "cancel": "Annuler",
@@ -6215,10 +6256,16 @@
       "remove": "Remove tool",
       "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
       "removeConfirmTitle": "Remove Tool",
+      "removeDefinitionOnlyConfirmMessage": "[to be translated]:Cherry could not safely clean up \"{{name}}\". Removing only its definition will hide the card but leave its backend files installed. Continue?",
+      "removeDefinitionOnlyConfirmTitle": "[to be translated]:Remove Definition Only?",
+      "removeRuntimeConfirmMessage": "[to be translated]:Are you sure you want to remove \"{{name}}\"? Uninstalling this runtime may break npm or pip tools that depend on it.",
+      "runtimeDependency": "[to be translated]:Runtime",
+      "runtimeDependencyHint": "[to be translated]:Runtime for npm/pip tools",
       "searchFailed": "Search failed, check logs",
       "searchRegistry": "Search mise registry...",
       "source": {
-        "bundled": "bundled"
+        "bundled": "bundled",
+        "system": "[to be translated]:System"
       },
       "title": "Dépendances de l'environnement",
       "tools": {
@@ -6237,8 +6284,15 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
+      "uninstall": "[to be translated]:Uninstall",
+      "uninstallConfirmMessage": "[to be translated]:Are you sure you want to uninstall \"{{name}}\"? Cherry Studio's backend copy will be deleted.",
+      "uninstallConfirmTitle": "[to be translated]:Uninstall Tool",
+      "uninstallFailed": "[to be translated]:Failed to uninstall tool",
+      "uninstallSuccess": "[to be translated]:Tool uninstalled",
       "update": "Update to latest version",
-      "updateCheckFailed": "Échec de la vérification des mises à jour"
+      "updateCheckFailed": "Échec de la vérification des mises à jour",
+      "updateCheckSuccess": "[to be translated]:Version check complete",
+      "viewErrorDetails": "[to be translated]:View details"
     },
     "developer": {
       "enable_developer_mode": "Activer le mode développeur",

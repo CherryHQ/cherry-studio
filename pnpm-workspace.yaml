@@ -51,7 +51,7 @@ overrides:
   '@img/sharp-linux-x64': '0.34.5'
   '@img/sharp-win32-x64': '0.34.5'
   '@napi-rs/canvas': '0.1.97'
-  '@ai-sdk/provider-utils': '4.0.23'
+  '@ai-sdk/provider-utils': '4.0.40'
   # Pin to the version our patch (patches/@ai-sdk__anthropic.patch) targets so every
   # instance — including the copies pulled transitively by @ai-sdk/amazon-bedrock and
   # @ai-sdk/google-vertex — resolves to the single patched build. 3.0.87 backports
@@ -68,7 +68,6 @@ patchedDependencies:
   '@opeoginni/github-copilot-openai-compatible@1.0.0': patches/@opeoginni__github-copilot-openai-compatible@1.0.0.patch
   '@ai-sdk/openai-compatible@2.0.37': patches/@ai-sdk__openai-compatible@2.0.37.patch
   '@ai-sdk/openai@3.0.53': patches/@ai-sdk__openai@3.0.53.patch
-  '@ai-sdk/xai@3.0.83': patches/@ai-sdk__xai@3.0.83.patch
   '@ai-sdk/google@3.0.64': patches/@ai-sdk__google@3.0.64.patch
   '@ai-sdk/anthropic': patches/@ai-sdk__anthropic.patch
   '@ai-sdk/deepseek@2.0.30': patches/@ai-sdk__deepseek@2.0.30.patch
@@ -78,6 +77,7 @@ patchedDependencies:
   '@openrouter/ai-sdk-provider@2.10.0': patches/@openrouter__ai-sdk-provider@2.10.0.patch
   onnxruntime-node@1.24.3: patches/onnxruntime-node@1.24.3.patch
   emoji-picker-react@4.19.1: patches/emoji-picker-react@4.19.1.patch
+  '@ai-sdk/xai@3.0.111': patches/@ai-sdk__xai@3.0.111.patch
 
 allowBuilds:
   '@j178/prek': true
@@ -114,3 +114,4 @@ minimumReleaseAgeExclude:
   - '@aiany/sqlite-vec-windows-arm64@0.1.10-alpha.4.aiany.2'
   - '@aiany/sqlite-vec-windows-x64@0.1.10-alpha.4.aiany.2'
   - '@aiany/sqlite-vec@0.1.10-alpha.4.aiany.2'
+  - '@ai-sdk/xai@3.0.111'

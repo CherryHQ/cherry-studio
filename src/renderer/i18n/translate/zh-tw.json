@@ -1228,6 +1228,8 @@
         "label": "思維鏈長度",
         "low": "稍微思考",
         "low_description": "低階推理",
+        "max": "全力思考",
+        "max_description": "最高階推理",
         "medium": "正常思考",
         "medium_description": "中等程度推理",
         "minimal": "最少思考",
@@ -1975,6 +1977,7 @@
         "default": "預設",
         "high": "高",
         "low": "低",
+        "max": "全力思考",
         "medium": "中",
         "minimal": "最小",
         "xhigh": "超高"
@@ -6184,14 +6187,55 @@
       "addToolDescription": "使用 mise 工具鍵新增工具（例如 github:sharkdp/fd、uv、bun）。",
       "checkUpdates": "檢查更新",
       "coreDepsMissing": "核心依賴未安裝",
-      "customTools": "自訂工具",
-      "customToolsEmpty": "尚無自訂工具。請新增一個以開始使用。",
       "description": "管理應用程式執行所需的二進位工具和執行階段依賴。",
       "duplicateName": "已存在相同名稱的工具",
       "fieldVersion": "版本（選填，預設為最新）",
-      "install": "安裝",
       "installError": "工具安裝失敗",
+      "installErrorHint": "安裝命令執行失敗。複製下方日誌以便排查或尋求協助。",
+      "installSettings": {
+        "description": "微調內建 CLI 工具的安裝方式。所有欄位皆為選填，留空則保持預設。",
+        "githubMirror": {
+          "help": "GitHub Release 下載的代理前綴（例如 https://ghfast.top）。GitHub API 仍會直連；遇到速率限制時請設定 Token。",
+          "label": "GitHub 鏡像",
+          "placeholder": "https://ghfast.top（留空則直連）"
+        },
+        "githubToken": {
+          "help": "提高工具查詢時的 GitHub API 速率限制。以純文字儲存在本機。留空則使用 CHERRY_GITHUB_TOKEN 環境變數。",
+          "hide": "隱藏權杖",
+          "label": "GitHub Token",
+          "placeholder": "ghp_…",
+          "show": "顯示 Token"
+        },
+        "invalidUrl": "請輸入包含 https:// 的有效 URL",
+        "npmRegistry": {
+          "help": "npm: 類工具使用的鏡像來源。留空則在中國大陸自動選擇鏡像。",
+          "label": "npm 鏡像來源",
+          "placeholder": "留空則自動（中國鏡像）"
+        },
+        "pipIndexUrl": {
+          "help": "pipx: 類工具使用的索引網址。留空則在中國大陸自動選擇鏡像。",
+          "label": "pip 索引網址",
+          "placeholder": "留空則自動（中國鏡像）"
+        },
+        "presetLabels": {
+          "aliyun": "阿里雲（中國）",
+          "default": "預設（不使用鏡像）",
+          "ghfast": "ghfast.top",
+          "ghproxy": "ghproxy.net",
+          "npmOfficial": "npmjs（官方）",
+          "npmmirror": "npmmirror（中國）",
+          "pypiOfficial": "PyPI（官方）",
+          "tsinghua": "清華大學（中國）"
+        },
+        "presets": "預設",
+        "title": "進階安裝設定",
+        "verifySignatures": {
+          "help": "驗證 aqua 類工具的 Sigstore/SLSA 簽章。僅當你的網路無法完成驗證時才關閉——關閉會略過供應鏈驗證。",
+          "label": "驗證工具簽章"
+        }
+      },
       "installing": "安裝中...",
+      "installingHint": "首次安裝可能需要下載執行環境，耗時數分鐘",
       "invalidTool": "工具名稱或識別碼無效",
       "localModels": {
         "cancel": "取消",
@@ -6223,10 +6267,16 @@
       "remove": "移除工具",
       "removeConfirmMessage": "確定要移除「{{name}}」嗎？二進位檔案將會被刪除。",
       "removeConfirmTitle": "移除工具",
+      "removeDefinitionOnlyConfirmMessage": "[to be translated]:Cherry could not safely clean up \"{{name}}\". Removing only its definition will hide the card but leave its backend files installed. Continue?",
+      "removeDefinitionOnlyConfirmTitle": "[to be translated]:Remove Definition Only?",
+      "removeRuntimeConfirmMessage": "確定要移除「{{name}}」嗎？解除安裝此執行時可能導致依賴它的 npm 或 pip 工具無法使用。",
+      "runtimeDependency": "執行時依賴",
+      "runtimeDependencyHint": "npm/pip 工具使用的執行時",
       "searchFailed": "搜尋失敗，請查看日誌",
       "searchRegistry": "搜尋 mise 工具倉庫...",
       "source": {
-        "bundled": "內建"
+        "bundled": "內建",
+        "system": "系統"
       },
       "title": "環境依賴",
       "tools": {
@@ -6245,8 +6295,15 @@
         "rtk": "CLI 代理工具，透過壓縮終端輸出來減少 LLM token 消耗。",
         "uv": "用於 MCP 服務與依賴安裝的 Python 套件管理工具。"
       },
+      "uninstall": "[to be translated]:Uninstall",
+      "uninstallConfirmMessage": "[to be translated]:Are you sure you want to uninstall \"{{name}}\"? Cherry Studio's backend copy will be deleted.",
+      "uninstallConfirmTitle": "[to be translated]:Uninstall Tool",
+      "uninstallFailed": "[to be translated]:Failed to uninstall tool",
+      "uninstallSuccess": "[to be translated]:Tool uninstalled",
       "update": "更新到最新版本",
-      "updateCheckFailed": "檢查更新失敗"
+      "updateCheckFailed": "檢查更新失敗",
+      "updateCheckSuccess": "版本檢查完成",
+      "viewErrorDetails": "檢視詳情"
     },
     "developer": {
       "enable_developer_mode": "啟用開發者模式",

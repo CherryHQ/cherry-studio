@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { StopCondition, Tool, ToolSet } from 'ai'
@@ -18,6 +20,8 @@ vi.mock('../../../../provider/config', () => ({
 
 vi.mock('@application', () => ({
   application: {
+    getPath: (_namespace: string, filename: string) =>
+      path.join(process.cwd(), 'packages/provider-registry/data', filename),
     get: (name: string) => {
       if (name === 'KnowledgeService') return { hasAnyBase: () => true }
       if (name === 'PreferenceService') return { get: () => null }
@@ -31,12 +35,13 @@ const {
   buildAgentParams,
   composeStopWhen,
   resolveKnowledgeBaseIds,
+  resolveReasoningMaxTokens,
   resolveToolCallLimit,
   resolveTools
 } = await import('../buildAgentParams')
 
 describe('buildAgentParams provider resolution', () => {
-  it('uses the resolved Vertex MaaS adapter and provider-options namespace', async () => {
+  it('uses the resolved Vertex MaaS adapter, wire profile, and provider-options namespace', async () => {
     providerToAiSdkConfigMock.mockResolvedValue({
       providerId: 'google-vertex-maas',
       providerSettings: { project: 'my-project', location: 'global' }
@@ -54,7 +59,10 @@ describe('buildAgentParams provider resolution', () => {
       providerId: 'vertex',
       apiModelId: 'openai/gpt-oss-120b-maas',
       capabilities: [MODEL_CAPABILITY.REASONING],
-      reasoning: { type: 'builtin', supportedEfforts: ['low', 'medium', 'high'] }
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
+        selectableEfforts: ['low', 'medium', 'high']
+      }
     })
     const assistant = makeAssistant({
       settings: {
@@ -85,6 +93,28 @@ describe('buildAgentParams provider resolution', () => {
       }
     })
     expect(result.options.providerOptions).not.toHaveProperty('google')
+  })
+})
+
+describe('resolveReasoningMaxTokens', () => {
+  const model = makeModel({ maxOutputTokens: 64_000 })
+
+  it('ignores a stale assistant limit when max tokens are disabled', () => {
+    const assistant = makeAssistant({ settings: { enableMaxTokens: false, maxTokens: 4_096 } })
+
+    expect(resolveReasoningMaxTokens(undefined, assistant, model)).toBe(64_000)
+  })
+
+  it('uses an enabled assistant limit before the model default', () => {
+    const assistant = makeAssistant({ settings: { enableMaxTokens: true, maxTokens: 16_000 } })
+
+    expect(resolveReasoningMaxTokens(undefined, assistant, model)).toBe(16_000)
+  })
+
+  it('gives the per-request override highest precedence', () => {
+    const assistant = makeAssistant({ settings: { enableMaxTokens: true, maxTokens: 16_000 } })
+
+    expect(resolveReasoningMaxTokens(32_000, assistant, model)).toBe(32_000)
   })
 })
 

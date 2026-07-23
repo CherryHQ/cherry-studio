@@ -12,7 +12,7 @@ This document describes how Cherry Studio loads, parses, and merges provider/mod
 │   └── provider-models.json  Provider-specific model overrides (per-provider tweaks)
 ├── src/
 │   ├── registry-loader.ts    RegistryLoader: load, validate, cache, index, idle TTL
-│   ├── registry-utils.ts     Pure functions: lookupRegistryModel, buildRuntimeEndpointConfigs
+│   ├── registry-utils.ts     Pure functions: lookupRegistryModel, buildPersistedEndpointConfigs
 │   ├── utils/normalize.ts    normalizeModelId and helpers (aggregator prefix, variant suffix...)
 │   └── schemas/              Zod schemas for validation
 │
@@ -51,8 +51,8 @@ POST /models [{ providerId: 'openai', modelId: 'gpt-4o' }]
   → handler: for each item, providerRegistryService.lookupModel(providerId, modelId)
     → RegistryLoader.findModel('gpt-4o')           // O(1) indexed, normalize fallback
     → RegistryLoader.findOverride('openai', 'gpt-4o')  // O(1) indexed
-    → getEffectiveReasoningConfig(providerId)       // DB query for user provider overrides
-    → returns { presetModel, registryOverride, reasoningFormatTypes, defaultChatEndpoint }
+    → resolve endpoint profile from registry data   // main-only; not persisted
+    → returns { presetModel, registryOverride, reasoningProfile }
   → handler: modelService.create(items)
     → mergeModelWithUser(userRow, override, preset, providerId, ...)
     → INSERT into user_model with presetModelId = preset.id
@@ -163,7 +163,7 @@ Implemented in `normalizeModelId()` (`packages/provider-registry/src/utils/norma
 | `providerId` | PK, user-defined unique ID |
 | `presetProviderId` | Links to a providers.json entry (null = custom provider). Dual-purpose: identifies the source preset *and* the sidebar grouping key — for a few registry rows (e.g. `zai`→`zhipu`, `minimax-global`→`minimax`) it points at a different preset so they fold under that group. |
 | `name` | Display name |
-| `endpointConfigs` | JSON: per-endpoint baseUrl, reasoningFormatType |
+| `endpointConfigs` | JSON: per-endpoint baseUrl, modelsApiUrls, adapterFamily |
 | `defaultChatEndpoint` | Default endpoint type for chat |
 | `apiKeys` | JSON array of API key entries |
 | `apiFeatures` | JSON: arrayContent, streamOptions, etc. (null = use defaults) |
@@ -177,7 +177,7 @@ Implemented in `normalizeModelId()` (`packages/provider-registry/src/utils/norma
 | `capabilities` | JSON array: function-call, reasoning, image-recognition, ... |
 | `inputModalities` / `outputModalities` | JSON array: text, image, audio, video |
 | `contextWindow` / `maxOutputTokens` | Numeric limits |
-| `reasoning` | JSON: type, supportedEfforts, thinkingTokenLimits |
+| `reasoning` | JSON: intrinsic controls/token limits plus materialized selectable efforts |
 | `pricing` | JSON: input/output/cacheRead/cacheWrite per million tokens |
 | `parameters` | JSON: parameter support config (temperature, topP, etc.) |
 | `userOverrides` | JSON array of field names user has manually edited |
@@ -202,22 +202,14 @@ const apiFeatures = {
 
 ## Reasoning Configuration
 
-Reasoning config combines model-level and provider-level data:
+Reasoning is split across two boundaries:
 
-- **Model level** (models.json): `supportedEfforts`, `thinkingTokenLimits` — what the model supports
-- **Provider level** (providers.json → endpointConfigs → reasoningFormat): `reasoningFormatType` — how the provider's API expects reasoning params
+- **Model data** declares intrinsic controls and token limits. Main-process registry enrichment projects these into the runtime-only `selectableEfforts` consumed by renderer controls.
+- **Provider registry data** declares a closed `reasoningFormat` wire profile. It is resolved and interpreted in Main only; it is never copied into SQLite, DataApi, or renderer state.
 
-At merge time:
-```typescript
-const reasoningFormatType = resolveReasoningFormatType(
-  endpointTypes,           // from override or user
-  defaultChatEndpoint,     // from provider config
-  reasoningFormatTypes     // from provider's endpointConfigs
-)
+The request path resolves one profile from exact provider-model, endpoint override/default, then exhaustive format defaults. It combines that profile with the submit-time canonical selection and emits either native AI SDK provider options or generic compatible parameters.
 
-reasoning = extractRuntimeReasoning(presetModel.reasoning, reasoningFormatType)
-// → { type: 'openai-chat', supportedEfforts: ['low','medium','high'], thinkingTokenLimits: {...} }
-```
+See [Reasoning Control](../../../packages/provider-registry/docs/reasoning-control.md) for the schemas, precedence rules, and UI-to-request data flow.
 
 ## File Locations
 
