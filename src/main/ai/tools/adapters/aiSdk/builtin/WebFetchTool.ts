@@ -7,6 +7,7 @@
  * file is just the AI-SDK `tool()` wrapper.
  */
 
+import { markTrustedLocalToolTerminalFailure } from '@main/ai/runtime/aiSdk'
 import { WEB_FETCH_TOOL_NAME, webFetchInputSchema, webFetchOutputSchema } from '@shared/ai/builtinTools'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import * as z from 'zod'
@@ -22,7 +23,8 @@ const webFetchTool = tool({
   inputSchema: webFetchInputSchema,
   outputSchema: webFetchResultSchema,
   strict: true,
-  execute: async ({ urls }, options) => fetchWeb(urls, getToolCallContext(options).request.abortSignal),
+  execute: async ({ urls }, options) =>
+    markTrustedLocalToolTerminalFailure(await fetchWeb(urls, getToolCallContext(options).request.abortSignal)),
   toModelOutput: ({ output }) => webLookupModelOutput(output)
 })
 
