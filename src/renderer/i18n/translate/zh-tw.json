@@ -5668,7 +5668,9 @@
             "save_dialog_title": "[to be translated]:Save Backup",
             "selecting": "[to be translated]:Choose where to save the backup…",
             "starting": "[to be translated]:Starting backup…",
-            "success": "[to be translated]:Backup completed."
+            "success": "[to be translated]:Backup completed.",
+            "overwrite_confirm_title": "[to be translated]:Replace existing backup?",
+            "overwrite_confirm_content": "[to be translated]:A file already exists at this path. Replace it?"
           },
           "file_filter": "[to be translated]:Cherry Backup",
           "preset": {

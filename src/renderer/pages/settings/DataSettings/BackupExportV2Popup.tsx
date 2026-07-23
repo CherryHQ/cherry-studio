@@ -13,7 +13,7 @@ import {
 import { loggerService } from '@logger'
 import { useBackupV2 } from '@renderer/hooks/useBackupV2'
 import { ipcApi } from '@renderer/ipc'
-import { createPopup, type PopupInjectedProps } from '@renderer/services/popup'
+import { createPopup, popup, type PopupInjectedProps } from '@renderer/services/popup'
 import type { BackupProgressUpdate } from '@shared/types/backup'
 import dayjs from 'dayjs'
 import { useEffect, useRef, useState } from 'react'
@@ -130,7 +130,29 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
 
       setPhase('starting')
       try {
-        const result = await startBackup(preset, outputPath)
+        // Default no-clobber. If the save dialog target already exists, main refuses
+        // with BACKUP_OUTPUT_PATH_EXISTS — confirm overwrite then retry with
+        // overwrite=true (main keeps path/TOCTOU guards).
+        let result: Awaited<ReturnType<typeof startBackup>>
+        try {
+          result = await startBackup(preset, outputPath, false)
+        } catch (firstError) {
+          const code = (firstError as { code?: string }).code
+          if (code !== 'BACKUP_OUTPUT_PATH_EXISTS') throw firstError
+          if (runId !== runIdRef.current) return
+          const confirmed = await popup.confirm({
+            title: t('settings.data.backup.v2.export.overwrite_confirm_title'),
+            content: t('settings.data.backup.v2.export.overwrite_confirm_content'),
+            okText: t('common.confirm'),
+            cancelText: t('common.cancel')
+          })
+          if (runId !== runIdRef.current) return
+          if (!confirmed) {
+            setPhase('idle')
+            return
+          }
+          result = await startBackup(preset, outputPath, true)
+        }
         if (runId !== runIdRef.current) return
         clearCancelTimeout()
         setArchivePath(result.archivePath)

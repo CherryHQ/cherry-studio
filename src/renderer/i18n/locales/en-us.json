@@ -5664,6 +5664,8 @@
             "cancel_timeout": "Cancel timed out. The backup may still be running.",
             "cancelled": "Backup cancelled.",
             "failure": "Backup failed.",
+            "overwrite_confirm_content": "A file already exists at this path. Replace it?",
+            "overwrite_confirm_title": "Replace existing backup?",
             "phase": {
               "archive": "Creating archive…",
               "collect": "Collecting data…",

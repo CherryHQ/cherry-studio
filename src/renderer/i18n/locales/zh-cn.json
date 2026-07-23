@@ -5664,6 +5664,8 @@
             "cancel_timeout": "取消超时。备份可能仍在进行。",
             "cancelled": "备份已取消。",
             "failure": "备份失败。",
+            "overwrite_confirm_content": "该路径已存在文件。要替换它吗？",
+            "overwrite_confirm_title": "替换已有备份？",
             "phase": {
               "archive": "正在创建归档…",
               "collect": "正在收集数据…",
