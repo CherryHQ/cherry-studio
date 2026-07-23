@@ -1467,8 +1467,8 @@ describe('AgentSessionRuntimeService', () => {
     )
   })
 
-  describe('primeConnection — eager command load on session open', () => {
-    it('restores headless usage after shared cleanup and reopening without recounting', async () => {
+  describe('hydrateContextUsage', () => {
+    it('restores headless usage after shared cleanup and reopening without recounting', () => {
       const usage = {
         categories: [{ name: 'Messages', tokens: 42, color: '#fff' }],
         totalTokens: 42,
@@ -1484,23 +1484,6 @@ describe('AgentSessionRuntimeService', () => {
         apiUsage: null
       }
       const snapshot = contextUsageSnapshot(usage)
-      const connection = {
-        events: createAsyncQueue<any>().iterable,
-        send: vi.fn(),
-        close: vi.fn(),
-        reconcile: vi.fn().mockResolvedValue('current'),
-        getContextUsage: vi.fn(),
-        getSupportedCommands: vi.fn().mockResolvedValue([])
-      }
-      runtimeDriverRegistry.register({
-        type: 'test-runtime',
-        capabilities: ['agent-session'],
-        connect: vi.fn().mockResolvedValue(connection),
-        validateSession: vi.fn(),
-        listAvailableTools: vi.fn().mockResolvedValue([])
-      })
-      mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
-      mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
 
       const service = new AgentSessionRuntimeService()
       service.beginTurn({ ...baseTurnInput, headless: true })
@@ -1511,12 +1494,13 @@ describe('AgentSessionRuntimeService', () => {
       expect(mocks.cacheDeleteShared).toHaveBeenCalledWith('agent.session.context_usage.session-1')
       mocks.cacheSetShared.mockClear()
 
-      await service.primeConnection('session-1')
+      service.hydrateContextUsage('session-1')
 
       expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', snapshot)
-      expect(connection.getContextUsage).not.toHaveBeenCalled()
     })
+  })
 
+  describe('primeConnection — eager command load on session open', () => {
     it('opens the connection without a turn and caches the slash-command catalog', async () => {
       const commands = [{ name: 'clear', description: 'Clear conversation' }]
       const connection = {

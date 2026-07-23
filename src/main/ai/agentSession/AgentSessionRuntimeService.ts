@@ -374,8 +374,6 @@ export class AgentSessionRuntimeService extends BaseService {
    * entry idles under the same TTL as a post-turn one, so it self-tears-down if never used.
    */
   async primeConnection(sessionId: string): Promise<void> {
-    this.restoreContextUsageSnapshot(sessionId)
-
     try {
       const existing = this.entries.get(sessionId)
       if (existing) {
@@ -435,6 +433,16 @@ export class AgentSessionRuntimeService extends BaseService {
     } catch (error) {
       logger.warn('Failed to prime agent session connection', { sessionId, error })
     }
+  }
+
+  /** Republish persisted usage for the renderer without opening a runtime connection. */
+  hydrateContextUsage(sessionId: string): void {
+    const cache = application.get('CacheService')
+    const sharedKey = AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId)
+    if (cache.getShared(sharedKey)) return
+
+    const snapshot = cache.getPersist(AGENT_SESSION_CONTEXT_USAGE_SNAPSHOT_CACHE_KEY)[sessionId]
+    if (snapshot) cache.setShared(sharedKey, snapshot)
   }
 
   /**
@@ -1027,15 +1035,6 @@ export class AgentSessionRuntimeService extends BaseService {
       upsertContextUsageSnapshot(snapshots, entry.sessionId, snapshot)
     )
     cache.setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId), snapshot)
-  }
-
-  private restoreContextUsageSnapshot(sessionId: string): void {
-    const cache = application.get('CacheService')
-    const sharedKey = AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId)
-    if (cache.getShared(sharedKey)) return
-
-    const snapshot = cache.getPersist(AGENT_SESSION_CONTEXT_USAGE_SNAPSHOT_CACHE_KEY)[sessionId]
-    if (snapshot) cache.setShared(sharedKey, snapshot)
   }
 
   // The initial slash command catalog read (`query.supportedCommands()`) once the connection is live.
