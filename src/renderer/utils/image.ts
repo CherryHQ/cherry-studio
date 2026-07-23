@@ -142,6 +142,10 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
 
       const filterHiddenElements = (node: Node) => {
         if (node instanceof HTMLElement) {
+          // Interactive HTML artifacts are intentionally omitted from image exports.
+          if (node.hasAttribute('data-html-artifact')) {
+            return false
+          }
           if (node.style.display === 'none') {
             return false
           }
