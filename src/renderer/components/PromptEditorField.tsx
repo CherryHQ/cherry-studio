@@ -67,6 +67,12 @@ const promptEditorHighlighting = syntaxHighlighting(
   ])
 )
 
+const promptEditorActionsInset = EditorView.theme({
+  '.cm-content': {
+    paddingRight: 'calc(var(--spacing) * 20)'
+  }
+})
+
 const promptEditorThemes = {
   light: [EditorView.theme(promptEditorThemeSpec), promptEditorHighlighting],
   dark: [EditorView.theme(promptEditorThemeSpec, { dark: true }), promptEditorHighlighting]
@@ -120,7 +126,11 @@ export function PromptEditorField({
   const codeEditorRef = useRef<CodeEditorHandles | null>(null)
   const hasError = Boolean(error)
   const effectiveShowPreview = showPreview && value.length > 0
-  const promptEditorTheme = theme === ThemeMode.dark ? promptEditorThemes.dark : promptEditorThemes.light
+  const hasEditorActions = Boolean(editorActions)
+  const promptEditorTheme = useMemo(() => {
+    const baseTheme = theme === ThemeMode.dark ? promptEditorThemes.dark : promptEditorThemes.light
+    return hasEditorActions ? [...baseTheme, promptEditorActionsInset] : baseTheme
+  }, [hasEditorActions, theme])
   const tokenCount = useMemo(() => estimateTextTokens(value), [value])
 
   useImperativeHandle(ref, () => ({
@@ -186,7 +196,11 @@ export function PromptEditorField({
           ) : null}
           {effectiveShowPreview ? (
             <div
-              className={cn('markdown overflow-auto p-3 text-foreground text-xs', fill && 'min-h-0 flex-1')}
+              className={cn(
+                'markdown overflow-auto p-3 text-foreground text-xs',
+                hasEditorActions && 'pr-20',
+                fill && 'min-h-0 flex-1'
+              )}
               style={fill ? undefined : { minHeight, maxHeight }}
               onDoubleClick={() => setShowPreview(false)}>
               <Markdown id={previewId}>{previewValue || value}</Markdown>

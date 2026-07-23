@@ -85,6 +85,7 @@ interface ClaudeCodeRuntimeRoute extends ClaudeCodeRouteFacts {
 
 interface ConnectionMaterializationFacts {
   route: ClaudeCodeRouteFacts
+  runtimeContextModelName: string
   mcp: unknown[]
   skills: string[]
   linkedChannelId: string | null
@@ -302,7 +303,9 @@ async function deriveConnectionConfigFromSnapshot(
   const contextWindow = materialized ? materialized.contextWindow : (model.contextWindow ?? null)
   const effectiveFastMode = fastMode && isSupportFastMode(provider, model)
   let routeFacts = materialized?.route
+  let runtimeContextModelName = materialized?.runtimeContextModelName
   if (!routeFacts) {
+    runtimeContextModelName = model.name
     const { baseUrl } = resolveEffectiveEndpoint(provider, model)
     // Same pinning semantics as the query-request builder (see its comment).
     const pinSubModelsToPrimary = uniqueModelId !== agent.model
@@ -333,6 +336,7 @@ async function deriveConnectionConfigFromSnapshot(
     bootstrapCompleted: agent.configuration?.bootstrap_completed ?? null,
     runtimeContextEnabled: agent.configuration?.runtime_context_enabled ?? null,
     runtimeContextPrompt: agent.configuration?.runtime_context_prompt ?? null,
+    runtimeContextModelName: agent.configuration?.runtime_context_enabled ? runtimeContextModelName : null,
     skills: [...skills].sort(),
     maxTurns: agent.configuration?.max_turns ?? null,
     envVars: Object.entries(agent.configuration?.env_vars ?? {}).sort(([a], [b]) => a.localeCompare(b)),
@@ -481,6 +485,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     selectedKnowledgeBaseIds,
     {
       route: toConnectionRouteFacts(route),
+      runtimeContextModelName: model.name,
       mcp: deriveMcpDefinitionFacts(agent.mcps, mcpServerSnapshots),
       skills: settings.skills ?? [],
       linkedChannelId: linkedChannelSnapshot?.id ?? null,
