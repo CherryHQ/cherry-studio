@@ -19,15 +19,13 @@ type ResourceCatalogDialogsProps = {
   onOpenAssistantChat?: (assistantId: string) => void
   onRefetch: ReturnType<typeof useResourceCatalogController>['refetch']
   resourceType: Extract<ResourceType, 'assistant' | 'agent' | 'skill'>
-  skillAgentId?: string
 }
 
 export function ResourceCatalogDialogs({
   dialogs,
   onOpenAssistantChat,
   onRefetch,
-  resourceType,
-  skillAgentId
+  resourceType
 }: ResourceCatalogDialogsProps) {
   const agentModelFilter = useAgentModelFilter('claude-code')
 
@@ -55,7 +53,7 @@ export function ResourceCatalogDialogs({
       ) : null}
       <ImportSkillDialog open={dialogs.skillImportOpen} onOpenChange={dialogs.setSkillImportOpen} />
       <SkillMarketplaceDialog open={dialogs.skillMarketplaceOpen} onOpenChange={dialogs.setSkillMarketplaceOpen} />
-      {skillAgentId ? (
+      {resourceType === 'skill' ? (
         <SystemSkillDialog mode="manage" open={dialogs.systemSkillOpen} onOpenChange={dialogs.setSystemSkillOpen} />
       ) : null}
       <ResourceCreateWizard

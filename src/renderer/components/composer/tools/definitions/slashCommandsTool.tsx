@@ -78,7 +78,7 @@ const slashCommandsTool = defineTool({
             id: `slash-command:${cmd.command}`,
             kind: 'command' as const,
             sources: ['root-panel'] as const,
-            // Render below caller additional items (e.g. agent skills) in the root panel.
+            // Render below regular root-panel launchers such as Skills.
             rootPanelPlacement: 'trailing' as const,
             order: 20 + (index + 1) / 100,
             label: cmd.command,

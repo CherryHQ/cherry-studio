@@ -1092,16 +1092,15 @@ const AgentComposerInner = ({
     [agentId, t]
   )
 
-  const skillPanelItems = useMemo<QuickPanelListItem[]>(
-    () => [
-      ...createSkillQuickPanelItems(availableSkills, {
+  const skillItems = useMemo<QuickPanelListItem[]>(
+    () =>
+      createSkillQuickPanelItems(availableSkills, {
         skillLabel: t('plugins.skills'),
         onInsertSkill: insertSkillToken
       }),
-      skillManageFooterItem
-    ],
-    [availableSkills, insertSkillToken, skillManageFooterItem, t]
+    [availableSkills, insertSkillToken, t]
   )
+  const skillPanelItems = useMemo(() => [...skillItems, skillManageFooterItem], [skillItems, skillManageFooterItem])
 
   const skillsLauncher = useMemo<ComposerToolLauncher>(() => {
     const skillLabel = t('plugins.skills')
@@ -1109,12 +1108,12 @@ const AgentComposerInner = ({
       id: AGENT_SKILLS_LAUNCHER_ID,
       kind: 'panel',
       sources: ['root-panel'],
-      rootPanelPlacement: 'trailing',
-      order: 60,
+      order: 40,
       label: skillLabel,
       icon: <ToolCase />,
       searchAliases: [skillLabel],
       panelSymbol: AGENT_SKILLS_LAUNCHER_ID,
+      rootSearchItems: skillItems,
       action: ({ parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
         void refreshAvailableSkills().catch((error) => {
           logger.warn('Failed to refresh available skills when opening the skills panel', { error })
@@ -1129,7 +1128,7 @@ const AgentComposerInner = ({
         })
       }
     }
-  }, [refreshAvailableSkills, skillPanelItems, t])
+  }, [refreshAvailableSkills, skillItems, skillPanelItems, t])
 
   useEffect(
     () => toolsRegistry.registerLaunchers(AGENT_SKILLS_LAUNCHER_ID, [skillsLauncher]),
