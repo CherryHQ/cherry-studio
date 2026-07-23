@@ -2,7 +2,6 @@
  * IPC handler for migration communication between Main and Renderer
  */
 
-import { application } from '@application'
 import type { VersionBlockReason } from '@data/migration/v2/core/versionPolicy'
 import { loggerService } from '@logger'
 import { validateSender } from '@main/core/security/validateSender'
@@ -148,7 +147,7 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
 
       const { canceled, filePath } = await dialog.showSaveDialog({
         title: dialogTitle,
-        defaultPath: application.getPath('app.logs', 'cherry-studio-migration-diagnostics.zip'),
+        defaultPath: 'cherry-studio-migration-diagnostics.zip',
         filters: [{ name: 'ZIP', extensions: ['zip'] }],
         properties: ['createDirectory', 'showOverwriteConfirmation']
       })

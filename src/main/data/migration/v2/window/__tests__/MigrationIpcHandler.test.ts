@@ -148,13 +148,13 @@ describe('MigrationIpcHandler', () => {
       expect(dialog.showSaveDialog).toHaveBeenCalledWith(expect.objectContaining({ title: '保存诊断包' }))
     })
 
-    it('uses the central app.logs default zip path and zip filter', async () => {
+    it('uses a filename-only default path and zip filter', async () => {
       await invoke(MigrationIpcChannels.SaveDiagnosticBundle, savePayload)
 
-      expect(application.getPath).toHaveBeenCalledWith('app.logs', 'cherry-studio-migration-diagnostics.zip')
+      expect(application.getPath).not.toHaveBeenCalled()
       expect(dialog.showSaveDialog).toHaveBeenCalledWith({
         title: 'Save diagnostics',
-        defaultPath: '/mock/app.logs/cherry-studio-migration-diagnostics.zip',
+        defaultPath: 'cherry-studio-migration-diagnostics.zip',
         filters: [{ name: 'ZIP', extensions: ['zip'] }],
         properties: ['createDirectory', 'showOverwriteConfirmation']
       })
