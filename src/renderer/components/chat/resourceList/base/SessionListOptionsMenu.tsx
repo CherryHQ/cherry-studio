@@ -21,12 +21,9 @@ const SESSION_DISPLAY_ICONS: Record<AgentSessionDisplayMode, ReactNode> = {
 type SessionListOptionsMenuProps = {
   historyRecordsActive?: boolean
   manageAgentsActive?: boolean
-  manageSkillsActive?: boolean
-  manageSkillsIcon?: ReactNode
   mode: AgentSessionDisplayMode
   onChange: (mode: AgentSessionDisplayMode) => void
   onManageAgents?: () => void | Promise<void>
-  onManageSkills?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
   sectionIds?: readonly string[]
 }
@@ -34,25 +31,18 @@ type SessionListOptionsMenuProps = {
 export function SessionListOptionsMenu({
   historyRecordsActive,
   manageAgentsActive,
-  manageSkillsActive,
-  manageSkillsIcon,
   mode,
   onChange,
   onManageAgents,
-  onManageSkills,
   onOpenHistoryRecords,
   sectionIds
 }: SessionListOptionsMenuProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
-  const hasManagementItems = !!(onManageAgents || onManageSkills)
   const runAfterMenuClose = (action: () => void) => {
     setOpen(false)
     window.setTimeout(action, 0)
   }
-  const manageSkillsMenuIcon = manageSkillsIcon ? (
-    <span className="inline-flex size-4 items-center justify-center [&_svg]:size-4">{manageSkillsIcon}</span>
-  ) : undefined
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -107,7 +97,7 @@ export function SessionListOptionsMenu({
               }}
             />
           )}
-          {hasManagementItems && <MenuDivider />}
+          {onManageAgents && <MenuDivider />}
           {onManageAgents && (
             <MenuItem
               size="sm"
@@ -117,18 +107,6 @@ export function SessionListOptionsMenu({
               onClick={() => {
                 setOpen(false)
                 void onManageAgents()
-              }}
-            />
-          )}
-          {onManageSkills && (
-            <MenuItem
-              size="sm"
-              icon={manageSkillsMenuIcon}
-              label={t('agent.skill.manage.title')}
-              active={manageSkillsActive}
-              onClick={() => {
-                setOpen(false)
-                void onManageSkills()
               }}
             />
           )}
