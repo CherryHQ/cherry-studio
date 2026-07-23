@@ -1059,12 +1059,18 @@
     "edit": {
       "title": "Editar Assistente"
     },
+    "groups": {
+      "delete": "Eliminar Grupo",
+      "deleteConfirm": "Tem certeza de que deseja excluir este grupo?",
+      "group_by": "Mostrar em grupos",
+      "ungroup": "Pare de agrupar",
+      "ungrouped": "Não agrupado"
+    },
     "icon": {
       "type": "Ícone do Assistente"
     },
     "list": {
-      "showByList": "Exibição em Lista",
-      "showByTags": "Exibição por Etiquetas"
+      "showByList": "Exibição em Lista"
     },
     "pin": {
       "title": "Assistente de Pin"
@@ -1248,20 +1254,6 @@
         "label": "Modo de uso da ferramenta",
         "prompt": "Prompt"
       }
-    },
-    "tags": {
-      "add": "Adicionar etiqueta",
-      "delete": "Excluir etiqueta",
-      "deleteConfirm": "Tem certeza de que deseja excluir esta etiqueta?",
-      "group_by": "Agrupar por tag",
-      "manage": "Gerenciar etiquetas",
-      "modify": "Modificar etiqueta",
-      "none": "Nenhuma etiqueta no momento",
-      "settings": {
-        "title": "Configuração de Etiquetas"
-      },
-      "ungroup": "Desativar agrupamento de tags",
-      "untagged": "Não agrupado"
     },
     "title": "Assistente",
     "unpin": {
@@ -2279,6 +2271,7 @@
     "swap": "Trocar",
     "topics": "Tópicos",
     "translate_text": "Traduzir texto",
+    "undo": "Desfazer",
     "unknown": "Desconhecido",
     "unnamed": "Sem nome",
     "unsubscribe": "Cancelar inscrição",
@@ -3118,7 +3111,7 @@
       "duplicate": "Duplicado",
       "edit": "Editar",
       "enable": "Ativar",
-      "manage_tags": "Gerenciar etiquetas",
+      "manage_groups": "Gerenciar grupos",
       "uninstall": "Desinstalar"
     },
     "assistant_catalog": {
@@ -3317,6 +3310,9 @@
             "hint": "Limita o alcance da amostragem de tokens quando ativado"
           }
         },
+        "group": "Grupo",
+        "group_empty": "Nenhum grupo disponível",
+        "group_placeholder": "Selecionar grupo",
         "json_invalid": "Formato JSON inválido",
         "max_tokens": "Tokens máximos",
         "max_tool_calls": "Máximo de chamadas de ferramentas",
@@ -3415,6 +3411,11 @@
         "insert_variable": "Inserir variável",
         "label": "Prompt do sistema",
         "placeholder": "Introduza instruções para o assistente, como estilo de resposta, função ou contexto",
+        "polish": "Prompt polonês",
+        "polish_failed_description": "Verifique ou altere o modelo padrão e tente novamente.",
+        "polish_failed_title": "Falha ao polir o prompt",
+        "polish_variables_changed_description": "O resultado polido alterou ou removeu variáveis de prompt. Tente novamente.",
+        "polish_variables_changed_title": "Não foi possível aplicar o prompt polido",
         "title": "Prompt",
         "tokens_label": "Tokens:",
         "variables_description": "Insira essas variáveis de sistema no prompt do sistema; antes de cada resposta do assistente, elas são preenchidas com as informações atuais.",
@@ -3517,6 +3518,10 @@
       "title": "Sem recursos"
     },
     "export_assistant_failed": "Falha ao exportar assistente",
+    "group_picker": {
+      "no_groups": "Ainda sem grupos"
+    },
+    "group_sync_failed": "Falha ao sincronizar grupos",
     "import_dialog": {
       "clipboard": {
         "button": "Analisar e importar",
@@ -3564,7 +3569,6 @@
     },
     "sidebar": {
       "all_resources": "Todos os recursos",
-      "all_tags": "Todas as etiquetas",
       "no_tags": "Ainda sem etiquetas",
       "subtitle": "Gerencie seus recursos de IA",
       "tags": "Etiquetas",
@@ -3629,11 +3633,11 @@
     },
     "title": "Biblioteca",
     "toolbar": {
-      "add_tag_placeholder": "Nome da etiqueta...",
-      "all_tags": "Todas as etiquetas",
+      "add_group_placeholder": "Nome do grupo...",
+      "all_groups": "Todos os grupos",
+      "group_button": "Grupo",
       "new_resource": "Novo recurso",
-      "search_placeholder": "Pesquisar recursos...",
-      "tag_button": "Etiqueta"
+      "search_placeholder": "Pesquisar recursos..."
     },
     "type": {
       "agent": "Agente",
@@ -4205,6 +4209,9 @@
       "selected": "Etiqueta selecionada"
     },
     "function_calling": "Chamada de função",
+    "group": {
+      "ungrouped": "Não agrupado"
+    },
     "invalid_model": "Modelo inválido",
     "json_parse_error": "Formato JSON inválido",
     "multi_select": {
@@ -4713,6 +4720,7 @@
     "inference_steps": "Passos de Inferência",
     "inference_steps_tip": "Número de passos de inferência a serem executados. Quanto mais passos, melhor a qualidade, mas mais demorado",
     "input_image": "Imagem de entrada",
+    "input_image_limit_exceeded": "Muitas imagens de referência para o modelo selecionado. Remova algumas imagens e tente novamente.",
     "input_parameters": "Parâmetros de entrada",
     "invalid_image_url": "Formato de URL de imagem inválido",
     "learn_more": "Saiba Mais",
@@ -4737,6 +4745,7 @@
     "number_images": "Quantidade de Imagens",
     "number_images_tip": "Quantidade de imagens a serem geradas por vez (1-4)",
     "operation_failed": "Operação falhou, por favor tente novamente mais tarde",
+    "output_compression": "Compressão de Saída",
     "paint_course": "Tutorial",
     "per_image": "Por imagem",
     "per_images": "Por imagem",
@@ -4885,6 +4894,7 @@
     "install": "Instalação",
     "install_plugins_from_browser": "Navegue pelos plugins disponíveis para começar a usar",
     "installing": "Instalando...",
+    "manage_skills": "Gerenciar habilidades",
     "name": "Nome",
     "no_description": "Sem descrição",
     "no_installed_plugins": "Nenhum plugin foi instalado ainda",
@@ -5508,6 +5518,7 @@
       "create_new": "Novo Assistente",
       "empty_text": "Nenhum assistente ainda",
       "filter": "Assistentes de filtro",
+      "group_filter": "Filtrar por grupo",
       "multi_hint": "(mutualmente exclusivo com multi-modelo)",
       "multi_label": "Multi-assistente paralelo",
       "search_placeholder": "Assistentes de pesquisa…"
@@ -5629,14 +5640,15 @@
         "select": "Modificar Diretório",
         "select_error": "Falha ao alterar o diretório de dados",
         "select_error_in_app_path": "O novo caminho é igual ao diretório de instalação do aplicativo. Escolha outro caminho",
+        "select_error_protected_path": "O caminho selecionado é protegido pelo sistema operacional ou pelo Cherry Studio. Por favor, escolha outra pasta.",
         "select_error_root_path": "O novo caminho não pode ser o diretório raiz",
         "select_error_same_path": "O novo caminho é igual ao caminho antigo. Escolha outro caminho",
         "select_error_write_permission": "O novo caminho não possui permissão de escrita",
         "select_not_empty_dir": "O novo caminho não está vazio",
-        "select_not_empty_dir_content": "O novo caminho não está vazio. Os dados existentes serão substituídos, o que pode causar perda de dados ou falha na cópia. Deseja continuar?",
         "select_success": "Diretório de dados alterado com sucesso. O aplicativo será reiniciado para aplicar as alterações",
         "select_title": "Alterar Diretório de Dados do Aplicativo",
-        "stop_quit_app_reason": "O aplicativo está atualmente migrando dados e não pode ser encerrado"
+        "stop_quit_app_reason": "O aplicativo está atualmente migrando dados e não pode ser encerrado",
+        "switch_existing_notice": "Este diretório não vazio será usado como está. Seus arquivos existentes não serão sobrescritos."
       },
       "app_logs": {
         "button": "Abrir logs",
@@ -6860,6 +6872,7 @@
       "default_assistant_model_description": "Usado quando um assistente não tem modelo.",
       "docs": "Documentação do modelo",
       "empty": "Sem modelos",
+      "empty_hint": "Clique no botão Obter lista de modelos acima para adicionar modelos.",
       "enabled_models": "Ativados",
       "expand_all": "Expandir tudo",
       "filter": {
@@ -7357,9 +7370,6 @@
         "usage_title": "Uso",
         "usage_unit": "tokens"
       },
-      "openai": {
-        "alert": "O provedor OpenAI não suporta mais o método antigo de chamada. Se estiver usando uma API de terceiros, crie um novo provedor"
-      },
       "remove_duplicate_keys": "Remover chaves duplicadas",
       "remove_invalid_keys": "Remover chaves inválidas",
       "reorder_failed": "Falha ao reordenar provedores",
@@ -7435,6 +7445,7 @@
         "autoEmpty": "Nenhum servidor MCP ativado",
         "description": "Ver status atual do servidor MCP",
         "disabled": "O MCP está desabilitado para este assistente",
+        "open_config": "Configurar servidores MCP",
         "unknownServer": "Servidor MCP desconhecido"
       },
       "multiple": "Múltipla Seleção",
