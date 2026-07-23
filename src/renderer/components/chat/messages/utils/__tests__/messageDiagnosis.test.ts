@@ -1,4 +1,4 @@
-import { UpdateAgentSessionMessageSchema } from '@shared/data/api/schemas/agentSessions'
+import { UpdateAgentSessionMessageSchema } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { type DiagnosisResult, readCherryMeta } from '@shared/data/types/uiParts'
 import { describe, expect, it } from 'vitest'

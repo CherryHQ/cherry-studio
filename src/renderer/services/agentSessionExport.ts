@@ -9,9 +9,9 @@ import { messagesToPlainText } from '@renderer/utils/export'
 import { markdownToPlainText } from '@renderer/utils/markdown'
 import {
   AGENT_SESSION_MESSAGES_MAX_LIMIT,
-  type AgentSessionEntity,
   type AgentSessionMessageEntity
-} from '@shared/data/api/schemas/agentSessions'
+} from '@shared/data/api/schemas/agentSessionMessages'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { ModelSnapshot } from '@shared/data/types/message'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'

@@ -17,11 +17,11 @@ import type {
   CreateAgentSessionMessageDto,
   CreateAgentSessionMessagesDto,
   UpdateAgentSessionMessageDto
-} from '@shared/data/api/schemas/agentSessions'
+} from '@shared/data/api/schemas/agentSessionMessages'
 import {
   AGENT_SESSION_MESSAGES_DEFAULT_LIMIT,
   AGENT_SESSION_MESSAGES_MAX_LIMIT
-} from '@shared/data/api/schemas/agentSessions'
+} from '@shared/data/api/schemas/agentSessionMessages'
 import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import { AGENT_SESSION_MESSAGE_SEARCH_ROLES, coerceSearchRole } from '@shared/data/types/message'

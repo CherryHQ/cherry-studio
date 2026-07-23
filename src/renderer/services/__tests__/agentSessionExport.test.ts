@@ -1,5 +1,5 @@
 import { dataApiService } from '@data/DataApiService'
-import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@data/DataApiService', () => ({

@@ -1,4 +1,4 @@
-import { UpdateAgentSessionMessageSchema } from '@shared/data/api/schemas/agentSessions'
+import { UpdateAgentSessionMessageSchema } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { fireEvent, render, screen } from '@testing-library/react'
 import React from 'react'
