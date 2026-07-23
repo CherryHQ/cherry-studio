@@ -1827,15 +1827,7 @@ describe('ResourceList', () => {
     const onEndReached = vi.fn()
     const Provider = ResourceList.Provider<TestItem>
     const renderList = (callback: () => void) => (
-      <Provider
-        items={ITEMS}
-        groupShowMoreLabel="Show more"
-        remoteData={{
-          query: '',
-          groupStates: { all: { totalCount: 10, hasMore: true, status: 'idle' } },
-          onQueryChange: vi.fn(),
-          loadMoreGroup: vi.fn()
-        }}>
+      <Provider items={ITEMS}>
         <ResourceList.Frame>
           <ResourceList.Body<TestItem>
             onEndReached={callback}
@@ -1962,7 +1954,7 @@ describe('ResourceList', () => {
     expect(collapseButton.parentElement).not.toHaveClass('pl-9')
   })
 
-  it('uses controlled remote query state and loads real cursor pages from Show more', async () => {
+  it('uses controlled remote query state without filtering the server result locally', () => {
     const Provider = ResourceList.Provider<TestItem>
     const allItems = Array.from({ length: 10 }, (_, index) => ({
       id: `remote-${index + 1}`,
@@ -1970,29 +1962,18 @@ describe('ResourceList', () => {
       kind: 'topic' as const,
       updatedAt: 10 - index
     }))
-    const loadMoreGroup = vi.fn()
 
     function RemoteHarness() {
-      const [items, setItems] = useState(allItems.slice(0, 5))
-      const [hasMore, setHasMore] = useState(true)
       const [query, setQuery] = useState('does-not-match-loaded-items')
 
       return (
         <Provider
-          items={items}
+          items={allItems.slice(0, 5)}
           groupBy={() => ({ id: 'remote', label: 'Remote' })}
           groupSeeds={[{ id: 'remote', label: 'Remote', count: 10 }]}
-          groupShowMoreLabel="Show more"
-          groupCollapseLabel="Collapse"
-          remoteData={{
+          remoteSearch={{
             query,
-            groupStates: { remote: { totalCount: 10, hasMore, status: 'idle' } },
-            onQueryChange: setQuery,
-            loadMoreGroup: async (groupId) => {
-              loadMoreGroup(groupId)
-              setItems(allItems)
-              setHasMore(false)
-            }
+            onQueryChange: setQuery
           }}>
           <ResourceList.Frame>
             <Inspector />
@@ -2014,68 +1995,6 @@ describe('ResourceList', () => {
       query: 'does-not-match-loaded-items',
       names: ['Remote 1', 'Remote 2', 'Remote 3', 'Remote 4', 'Remote 5']
     })
-
-    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
-
-    await waitFor(() => expect(loadMoreGroup).toHaveBeenCalledWith('remote'))
-    expect(screen.getByText('Remote 10')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Collapse' })).toBeInTheDocument()
-  })
-
-  it('keeps an expanded remote group at its resolved height while its first page is loading', () => {
-    const Provider = ResourceList.Provider<TestItem>
-    const loadedItems = Array.from({ length: 3 }, (_, index) => ({
-      id: `remote-${index + 1}`,
-      name: `Remote ${index + 1}`,
-      kind: 'topic' as const,
-      updatedAt: 3 - index
-    }))
-    const renderList = (items: TestItem[], status: 'idle' | 'loading') => (
-      <Provider
-        items={items}
-        collapsedState={[]}
-        groupBy={() => ({ id: 'remote', label: 'Remote' })}
-        groupSeeds={[{ id: 'remote', label: 'Remote', count: 3 }]}
-        remoteData={{
-          query: '',
-          groupStates: { remote: { totalCount: 3, hasMore: status === 'loading', status } },
-          onQueryChange: vi.fn()
-        }}>
-        <ResourceList.Frame>
-          <ResourceList.VirtualItems<TestItem>
-            renderItem={(item) => (
-              <ResourceList.Item item={item}>
-                <span>{item.name}</span>
-              </ResourceList.Item>
-            )}
-          />
-        </ResourceList.Frame>
-      </Provider>
-    )
-    const view = render(renderList([], 'loading'))
-
-    const loadingGroup = document.querySelector('[data-resource-list-group-loading]')
-    expect(screen.getByRole('button', { name: 'Remote' })).toHaveAttribute('aria-expanded', 'true')
-    expect(loadingGroup).toBeInTheDocument()
-    expect(loadingGroup?.querySelectorAll('[data-resource-list-group-loading-item]')).toHaveLength(3)
-    expect(lastVirtualizerOptions().estimateSize(1)).toBe(3 * 38)
-    expect(
-      Array.from({ length: lastVirtualizerOptions().count }, (_, index) => index).reduce(
-        (total, index) => total + lastVirtualizerOptions().estimateSize(index),
-        0
-      )
-    ).toBe(4 * 38)
-
-    view.rerender(renderList(loadedItems, 'idle'))
-
-    expect(document.querySelector('[data-resource-list-group-loading]')).not.toBeInTheDocument()
-    expect(screen.getByText('Remote 3')).toBeInTheDocument()
-    expect(
-      Array.from({ length: lastVirtualizerOptions().count }, (_, index) => index).reduce(
-        (total, index) => total + lastVirtualizerOptions().estimateSize(index),
-        0
-      )
-    ).toBe(4 * 38)
   })
 
   it('preserves a remote query when the requested item already belongs to its result', () => {
@@ -2088,9 +2007,8 @@ describe('ResourceList', () => {
         groupBy={() => ({ id: 'remote', label: 'Remote' })}
         groupSeeds={[{ id: 'remote', label: 'Remote', count: 1 }]}
         revealRequest={{ itemId: 'matching', requestId: 1, clearQuery: true }}
-        remoteData={{
+        remoteSearch={{
           query: 'match',
-          groupStates: { remote: { totalCount: 1, hasMore: false, status: 'idle' } },
           onQueryChange
         }}>
         <Inspector />
@@ -2099,62 +2017,6 @@ describe('ResourceList', () => {
 
     expect(onQueryChange).not.toHaveBeenCalled()
     expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({ query: 'match' })
-  })
-
-  it('ensures an unloaded remote group when it is expanded', async () => {
-    const Provider = ResourceList.Provider<TestItem>
-    const ensureGroup = vi.fn().mockResolvedValue(undefined)
-
-    render(
-      <Provider
-        items={[]}
-        groupBy={() => ({ id: 'remote', label: 'Remote' })}
-        groupSeeds={[{ id: 'remote', label: 'Remote', count: 1 }]}
-        collapsedState={['remote']}
-        onCollapsedStateChange={vi.fn()}
-        remoteData={{
-          query: '',
-          groupStates: { remote: { totalCount: 1, hasMore: true, status: 'idle' } },
-          onQueryChange: vi.fn(),
-          ensureGroup
-        }}>
-        <ResourceList.Frame>
-          <ResourceList.VirtualItems<TestItem> renderItem={() => null} />
-        </ResourceList.Frame>
-      </Provider>
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Remote' }))
-
-    await waitFor(() => expect(ensureGroup).toHaveBeenCalledWith('remote'))
-  })
-
-  it('uses the remote retry operation and label for a failed group window', async () => {
-    const Provider = ResourceList.Provider<TestItem>
-    const retryGroup = vi.fn().mockResolvedValue(undefined)
-
-    render(
-      <Provider
-        items={[]}
-        groupBy={() => ({ id: 'remote', label: 'Remote' })}
-        groupRetryLabel="Retry"
-        groupSeeds={[{ id: 'remote', label: 'Remote', count: 1 }]}
-        groupShowMoreLabel="Show more"
-        remoteData={{
-          query: '',
-          groupStates: { remote: { totalCount: 1, hasMore: true, status: 'error' } },
-          onQueryChange: vi.fn(),
-          retryGroup
-        }}>
-        <ResourceList.Frame>
-          <ResourceList.VirtualItems<TestItem> renderItem={() => null} />
-        </ResourceList.Frame>
-      </Provider>
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
-
-    await waitFor(() => expect(retryGroup).toHaveBeenCalledWith('remote'))
   })
 
   it('toggles every group in a section from a menu item without collapsing the section', () => {

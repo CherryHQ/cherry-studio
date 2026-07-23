@@ -27,29 +27,6 @@ export type ResourceListRevealRequest = {
   requestId: number
 }
 
-export type ResourceListRemoteGroupState = {
-  /** Factual total for the current server-side filters. */
-  totalCount: number
-  /** Whether the caller can provide more server-backed rows for this group. */
-  hasMore: boolean
-  status: ResourceListStatus
-}
-
-/**
- * Optional server-backed mode for ResourceList. The caller owns query state,
- * loaded items and errors; ResourceList owns only presentation and interaction
- * policy.
- */
-export type ResourceListRemoteData = {
-  query: string
-  groupStates?: Readonly<Record<string, ResourceListRemoteGroupState | undefined>>
-  onQueryChange: (query: string) => void
-  /** Ensure an expanded server-backed group has loaded its first page. */
-  ensureGroup?: (groupId: string) => Promise<void>
-  loadMoreGroup?: (groupId: string) => Promise<void>
-  retryGroup?: (groupId: string) => Promise<void>
-}
-
 export type ResourceListSection = {
   id: string
   label: string
@@ -123,7 +100,7 @@ export type ResourceListActionMap = {
   cancelRename: () => void
   openContextMenu: (id: string) => void
   selectGroupHeaderItem: (id: string) => void
-  showMoreInGroup: (groupId: string) => Promise<void>
+  showMoreInGroup: (groupId: string) => void
   collapseGroupItems: (groupId: string) => void
   expandGroups: (groupIds: readonly string[]) => void
   collapseGroups: (groupIds: readonly string[]) => void
@@ -155,7 +132,6 @@ export type ResourceListMeta<T extends ResourceListItemBase> = {
   groupLoadStep: number
   groupShowMoreLabel?: string
   groupCollapseLabel?: string
-  groupRetryLabel?: string
   revealRequest?: ResourceListRevealRequest
   dragCapabilities: ResourceListDragCapabilities
   canDragGroup?: (group: ResourceListGroup, groupIndex: number) => boolean
@@ -197,7 +173,6 @@ export type ResourceListViewGroup<T extends ResourceListItemBase> = {
   hasMore: boolean
   canCollapseToDefault: boolean
   collapsed: boolean
-  status: ResourceListStatus
 }
 
 export type ResourceListViewSection<T extends ResourceListItemBase> = {

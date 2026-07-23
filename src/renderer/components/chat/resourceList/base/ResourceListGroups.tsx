@@ -1,4 +1,3 @@
-import { Skeleton } from '@cherrystudio/ui'
 import { CommandContextMenu } from '@renderer/components/command'
 import { cn } from '@renderer/utils/style'
 import { ChevronRight } from 'lucide-react'
@@ -25,8 +24,6 @@ import {
 import { ResourceListLeadingSlot } from './ResourceListLeadingSlot'
 
 const EMPTY_GROUP_HEADER_ITEMS: ResourceListItemBase[] = []
-const GROUP_LOADING_ITEM_WIDTHS = ['w-36', 'w-28', 'w-32', 'w-24', 'w-30'] as const
-
 function stopEventPropagation(event: { stopPropagation: () => void }) {
   event.stopPropagation()
 }
@@ -270,13 +267,7 @@ export function GroupShowMore({ groupId, className, ref, style, ...props }: Grou
   const meta = useResourceListMeta()
   const groupState = useResourceListGroupState(groupId)
   const canCollapseToDefault = groupState.canCollapseToDefault
-  const isLoading = groupState.status === 'loading'
-  const label =
-    groupState.status === 'error'
-      ? (meta.groupRetryLabel ?? meta.groupShowMoreLabel)
-      : canCollapseToDefault
-        ? meta.groupCollapseLabel
-        : meta.groupShowMoreLabel
+  const label = canCollapseToDefault ? meta.groupCollapseLabel : meta.groupShowMoreLabel
 
   if (!label) return null
 
@@ -293,55 +284,16 @@ export function GroupShowMore({ groupId, className, ref, style, ...props }: Grou
       {...props}>
       <button
         type="button"
-        aria-busy={isLoading || undefined}
-        data-error={groupState.status === 'error' || undefined}
-        disabled={isLoading}
         className="flex h-5 min-w-0 items-center justify-start rounded-sm px-0 text-left font-medium text-[11px] text-muted-foreground/55 leading-4 transition-colors duration-150 hover:text-inherit focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring"
         onClick={() => {
           if (canCollapseToDefault) {
             actions.collapseGroupItems(groupId)
             return
           }
-          void actions.showMoreInGroup(groupId).catch(() => undefined)
+          actions.showMoreInGroup(groupId)
         }}>
         {label}
       </button>
-    </div>
-  )
-}
-
-type GroupLoadingProps = ComponentProps<'div'> & {
-  groupHeaderIconVisible: boolean
-  itemCount: number
-  ref?: Ref<HTMLDivElement>
-}
-
-export function GroupLoading({ className, groupHeaderIconVisible, itemCount, ref, ...props }: GroupLoadingProps) {
-  return (
-    <div
-      ref={ref}
-      aria-hidden="true"
-      data-resource-list-group-loading="true"
-      className={cn('flex flex-col', className)}
-      {...props}>
-      {GROUP_LOADING_ITEM_WIDTHS.slice(0, itemCount).map((width, index) => (
-        <div
-          key={`${width}-${index}`}
-          data-resource-list-group-loading-item="true"
-          className={cn(
-            'flex w-full items-center gap-1.5',
-            RESOURCE_LIST_ROW_HEIGHT_CLASS,
-            groupHeaderIconVisible ? 'px-1.5' : 'px-2.5'
-          )}>
-          {groupHeaderIconVisible && (
-            <ResourceListLeadingSlot variant="loading">
-              <Skeleton className="size-5 shrink-0 rounded-md" />
-            </ResourceListLeadingSlot>
-          )}
-          <Skeleton className={cn('h-3 rounded-sm', width)} />
-          <Skeleton className="ml-auto size-5 shrink-0 rounded-md opacity-60" />
-        </div>
-      ))}
     </div>
   )
 }

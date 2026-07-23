@@ -28,8 +28,6 @@ export type {
   ResourceListItemBase,
   ResourceListItemReorderPayload,
   ResourceListMeta,
-  ResourceListRemoteData,
-  ResourceListRemoteGroupState,
   ResourceListReorderPayload,
   ResourceListRevealRequest,
   ResourceListSection,

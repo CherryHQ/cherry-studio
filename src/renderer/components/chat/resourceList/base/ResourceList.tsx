@@ -50,8 +50,6 @@ export type {
   ResourceListItemAccessors,
   ResourceListItemBase,
   ResourceListMeta,
-  ResourceListRemoteData,
-  ResourceListRemoteGroupState,
   ResourceListReorderPayload,
   ResourceListRevealRequest,
   ResourceListSection,
