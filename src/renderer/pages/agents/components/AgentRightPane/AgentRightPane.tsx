@@ -211,7 +211,7 @@ function AgentRightPaneActionsProvider({
     (input: AgentToolFlowOpenInput) => {
       if (!canOpenAgentToolFlow) return
       replaceFlowTab(input)
-      panelActions.requestOpen(getFlowTabValue(input.toolCallId))
+      panelActions.requestOpen(getFlowTabValue(input.toolCallId), { userInitiated: true })
     },
     [canOpenAgentToolFlow, panelActions, replaceFlowTab]
   )
@@ -222,7 +222,7 @@ function AgentRightPaneActionsProvider({
       if (!selection) return
       setPreviewFileSelection(selection)
       setSelectedFile(selection.workspacePath === workspacePath ? selection.filePath : null)
-      panelActions.tryOpen('files')
+      panelActions.tryOpen('files', { userInitiated: true })
     },
     [canOpenArtifactFile, panelActions, setPreviewFileSelection, setSelectedFile, workspacePath]
   )

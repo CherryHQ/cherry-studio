@@ -347,6 +347,10 @@ export function PersistentRightPaneHost({
     mainRegionWidth === null || typeof resolvedWidth !== 'number'
       ? paneWidth
       : Math.round(resolveDockedPaneWidth(mainRegionWidth, resolvedWidth))
+  const splitterMinWidth =
+    mainRegionWidth === null ? minWidth : Math.round(resolveDockedPaneWidth(mainRegionWidth, minWidth))
+  const splitterMaxWidth =
+    mainRegionWidth === null ? maxWidth : Math.round(resolveDockedPaneWidth(mainRegionWidth, maxWidth))
   const dockedClip = getRightPaneDockedClip(dockedWidthExpression)
   const hasChildren = children !== null && children !== undefined
   const targetMode: RightPaneLayoutMode = !open || !hasChildren ? 'closed' : maximized ? 'maximized' : 'docked'
@@ -511,8 +515,8 @@ export function PersistentRightPaneHost({
           )}>
           <RightPaneContents
             paneWidth={effectiveWidth}
-            minWidth={minWidth}
-            maxWidth={maxWidth}
+            minWidth={splitterMinWidth}
+            maxWidth={splitterMaxWidth}
             resizeHandleVisible={resizable && isDocked}
             startResizing={startResizing}
             setPaneWidth={setPaneWidth}>

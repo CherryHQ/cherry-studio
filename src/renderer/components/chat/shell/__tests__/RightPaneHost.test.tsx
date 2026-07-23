@@ -84,6 +84,15 @@ function createDeferred() {
   return { promise, resolve }
 }
 
+function mockMainRegionWidth(width: number) {
+  vi.spyOn(HTMLElement.prototype, 'offsetParent', 'get').mockImplementation(function (this: HTMLElement) {
+    return this.parentElement
+  })
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    return this.hasAttribute('data-main-region') ? new DOMRect(0, 0, width, 500) : new DOMRect()
+  })
+}
+
 describe('RightPaneHost', () => {
   beforeEach(() => {
     motionTestState.controls.set.mockReset()
@@ -178,6 +187,52 @@ describe('RightPaneHost', () => {
 
     expect(handle).toBeInTheDocument()
     expect(handle).toHaveClass('left-0', 'cursor-col-resize')
+  })
+
+  it('reports a fixed reachable splitter range when both panes shrink proportionally', () => {
+    mockMainRegionWidth(400)
+    const { container } = render(
+      <div data-main-region>
+        <PersistentRightPaneHost open resizable width={460}>
+          <div>artifact pane</div>
+        </PersistentRightPaneHost>
+      </div>
+    )
+
+    const handle = container.querySelector('[data-right-pane-resize-handle]')
+
+    expect(handle).toHaveAttribute('aria-valuemin', '224')
+    expect(handle).toHaveAttribute('aria-valuemax', '224')
+    expect(handle).toHaveAttribute('aria-valuenow', '224')
+
+    fireEvent.keyDown(handle as HTMLElement, { key: 'End' })
+    fireEvent.keyDown(handle as HTMLElement, { key: 'ArrowLeft' })
+    fireEvent.keyDown(handle as HTMLElement, { key: 'ArrowRight' })
+
+    expect(persistCacheMock.setWidth).not.toHaveBeenCalled()
+  })
+
+  it('limits the splitter maximum and End key to the currently reachable width', () => {
+    mockMainRegionWidth(700)
+    persistCacheMock.state.width = 280
+    const { container } = render(
+      <div data-main-region>
+        <PersistentRightPaneHost open resizable width={460}>
+          <div>artifact pane</div>
+        </PersistentRightPaneHost>
+      </div>
+    )
+
+    const handle = container.querySelector('[data-right-pane-resize-handle]')
+    if (!handle) throw new Error('Expected resize handle')
+
+    expect(handle).toHaveAttribute('aria-valuemin', '255')
+    expect(handle).toHaveAttribute('aria-valuemax', '340')
+    expect(handle).toHaveAttribute('aria-valuenow', '280')
+
+    fireEvent.keyDown(handle, { key: 'End' })
+
+    expect(persistCacheMock.setWidth).toHaveBeenCalledWith(340)
   })
 
   it('keeps the resize handle above pane content overlays', () => {
