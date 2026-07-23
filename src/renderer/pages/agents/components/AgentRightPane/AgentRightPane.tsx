@@ -443,7 +443,7 @@ function AgentRightPaneFilesPanel({ active }: RightPanelComponentProps<AgentRigh
   const lastSelectableFileRef = useRef<string | null>(null)
   const model = useArtifactFileTreeModel({
     workspacePath: meta.workspacePath,
-    allowMissingRoot: meta.workspaceType === AGENT_WORKSPACE_TYPE.SYSTEM,
+    watchMissingRoot: meta.workspaceType === AGENT_WORKSPACE_TYPE.SYSTEM,
     treeOpen: meta.conversationState === 'ready' && active,
     expandedIds: state.fileTreeExpandedIds,
     searchKeyword: state.fileTreeSearchKeyword,

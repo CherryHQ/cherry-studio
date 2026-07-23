@@ -50,7 +50,7 @@ interface ResolvedTreeOptions {
   readonly includeHidden: boolean
   readonly withStats: boolean
   readonly maxDepth: number
-  readonly allowMissingRoot: boolean
+  readonly watchMissingRoot: boolean
 }
 
 function resolveOptions(options: DirectoryTreeOptions | undefined): ResolvedTreeOptions {
@@ -61,7 +61,7 @@ function resolveOptions(options: DirectoryTreeOptions | undefined): ResolvedTree
     includeHidden: options?.includeHidden ?? false,
     withStats: options?.withStats ?? false,
     maxDepth: options?.maxDepth ?? Number.MAX_SAFE_INTEGER,
-    allowMissingRoot: options?.allowMissingRoot ?? false
+    watchMissingRoot: options?.watchMissingRoot ?? false
   }
 }
 
@@ -201,7 +201,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
   }
 
   private async runInitialScan(): Promise<void> {
-    if (this.options.allowMissingRoot) {
+    if (this.options.watchMissingRoot) {
       try {
         await nodeStat(this.rootPath)
       } catch (error) {
@@ -225,7 +225,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
         maxEntries: Number.MAX_SAFE_INTEGER
       })
     } catch (error) {
-      if (this.options.allowMissingRoot && (error as NodeJS.ErrnoException).code === 'ENOENT') return
+      if (this.options.watchMissingRoot && (error as NodeJS.ErrnoException).code === 'ENOENT') return
       throw error
     }
 

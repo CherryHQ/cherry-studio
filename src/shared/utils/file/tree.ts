@@ -78,7 +78,7 @@ export const DirectoryTreeOptionsSchema = z.strictObject({
    * Treat an absent root as an empty tree while continuing to watch for it.
    * Intended for app-owned directories that are created lazily.
    */
-  allowMissingRoot: z.boolean().optional()
+  watchMissingRoot: z.boolean().optional()
 })
 
 export type DirectoryTreeOptions = z.infer<typeof DirectoryTreeOptionsSchema>

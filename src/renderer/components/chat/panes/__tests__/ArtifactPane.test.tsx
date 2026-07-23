@@ -47,7 +47,7 @@ function PersistentArtifactPaneHarness({ workspacePath }: { workspacePath: strin
 }
 
 it('watches an allowed missing workspace without limiting discovery depth', () => {
-  expect(ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS).toEqual({ allowMissingRoot: true })
+  expect(ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS).toEqual({ watchMissingRoot: true })
 })
 
 const mocks = vi.hoisted(() => ({

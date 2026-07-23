@@ -188,7 +188,7 @@ describe.skipIf(!ripgrepAvailable)('createDirectoryTree — watcher mutations', 
 
   it('ignores hidden files after an allowed missing root appears and observes visible artifacts', async () => {
     const root = path.join(tmp, 'system-workspace')
-    const builder = await createDirectoryTree(root, { allowMissingRoot: true })
+    const builder = await createDirectoryTree(root, { watchMissingRoot: true })
     try {
       expect(builder.root.children).toEqual({})
 

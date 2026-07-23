@@ -24,7 +24,7 @@ const WORKSPACE_TREE_OPTIONS: DirectoryTreeOptions = {
   maxDepth: ARTIFACT_TREE_INITIAL_MAX_DEPTH
 }
 export const ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS: DirectoryTreeOptions = {
-  allowMissingRoot: true
+  watchMissingRoot: true
 }
 
 const stripWorkspaceRootId = (ids: ReadonlySet<string>): ReadonlySet<string> => {
@@ -212,10 +212,10 @@ interface WorkspaceFileTreeResult {
   refresh: () => void
 }
 
-const useWorkspaceFileTree = (path: string | undefined, allowMissingRoot: boolean): WorkspaceFileTreeResult => {
+const useWorkspaceFileTree = (path: string | undefined, watchMissingRoot: boolean): WorkspaceFileTreeResult => {
   const { root, version, isLoading, error } = useDirectoryTree(
     path,
-    allowMissingRoot ? ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS : WORKSPACE_TREE_OPTIONS
+    watchMissingRoot ? ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS : WORKSPACE_TREE_OPTIONS
   )
 
   const tree = useMemo(() => {
@@ -547,7 +547,7 @@ export function isSelectableFileNode(
 export interface UseArtifactFileTreeModelParams {
   workspacePath?: string
   /** Keep an empty watched tree while an app-owned workspace is created lazily. */
-  allowMissingRoot?: boolean
+  watchMissingRoot?: boolean
   /** Gates "create only while visible" — the tree is built only when open. */
   treeOpen: boolean
   /** Caller-owned expanded folder ids (synthetic workspace root managed internally). */
@@ -581,7 +581,7 @@ export interface ArtifactFileTreeModel {
  */
 export function useArtifactFileTreeModel({
   workspacePath,
-  allowMissingRoot = false,
+  watchMissingRoot = false,
   treeOpen,
   expandedIds,
   searchKeyword,
@@ -591,7 +591,7 @@ export function useArtifactFileTreeModel({
 }: UseArtifactFileTreeModelParams): ArtifactFileTreeModel {
   const { tree, isLoading, hasLoaded, error, refresh } = useWorkspaceFileTree(
     treeOpen ? workspacePath : undefined,
-    allowMissingRoot
+    watchMissingRoot
   )
   const {
     displayTree,

@@ -167,7 +167,7 @@ vi.mock('@renderer/components/chat/panes/OpenExternalAppButton', () => ({
 }))
 
 vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => ({
-  ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS: { allowMissingRoot: true },
+  ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS: { watchMissingRoot: true },
   isSelectableFileNode: (nodeById: ReadonlyMap<string, { kind: string }>, selectedFile: string | null) =>
     Boolean(selectedFile && nodeById.get(selectedFile)?.kind === 'file'),
   useArtifactFileTreeModel: useArtifactFileTreeModelMock
@@ -431,7 +431,7 @@ describe('AgentRightPane', () => {
     )
 
     expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeNull()
-    expect(useDirectoryTreeMock).toHaveBeenLastCalledWith('/system-workspace', { allowMissingRoot: true })
+    expect(useDirectoryTreeMock).toHaveBeenLastCalledWith('/system-workspace', { watchMissingRoot: true })
 
     const systemWorkspaceRoot = systemFileTreeState.root
     if (!systemWorkspaceRoot) throw new Error('Expected the system workspace tree root')
@@ -468,7 +468,7 @@ describe('AgentRightPane', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' }))
     expect(useArtifactFileTreeModelMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({ allowMissingRoot: true, workspacePath: '/system-workspace' })
+      expect.objectContaining({ watchMissingRoot: true, workspacePath: '/system-workspace' })
     )
   })
 
