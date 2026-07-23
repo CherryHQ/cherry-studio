@@ -17,6 +17,7 @@ import { getDefaultGroupName } from '@renderer/utils/naming'
 import { CURRENCY, type Currency, type EndpointType, type Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { isNewApiProvider } from '@shared/utils/provider'
+import { isEqual } from 'es-toolkit/compat'
 import { ChevronDown, ChevronUp, CircleHelp } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -83,6 +84,44 @@ const CURRENCY_CODE_TO_SYMBOL = {
 const symbolToCurrency = (symbol: string): ModelDrawerCurrency | undefined => CURRENCY_SYMBOL_TO_CODE[symbol]
 const currencyToSymbol = (currency: string): ModelDrawerCurrencySymbol | undefined =>
   CURRENCY_CODE_TO_SYMBOL[currency as ModelDrawerCurrency]
+
+/** Order-insensitive equality for the model's string-set fields (capabilities, endpoint types). */
+const sameUnorderedStrings = (a?: readonly string[], b?: readonly string[]): boolean => {
+  const left = a ?? []
+  const right = b ?? []
+  if (left.length !== right.length) return false
+  const set = new Set(right)
+  return left.every((item) => set.has(item))
+}
+
+/**
+ * Reduce a synthesized full patch to only the fields that differ from the model,
+ * so autosave doesn't record untouched fields as user overrides (which would
+ * freeze them against registry sync). Pricing is normalized the way `buildPatch`
+ * synthesizes it (missing prices → 0, default currency) so an untouched price
+ * field diffs as unchanged against a null `model.pricing`.
+ */
+function diffModelPatch(patch: Partial<Model>, model: Model): Partial<Model> {
+  const baselineCurrency: Currency = symbolToCurrency(currencyToSymbol(readCurrency(model)) ?? '$') ?? CURRENCY.USD
+  const baselinePricing = {
+    input: { perMillionTokens: model.pricing?.input?.perMillionTokens ?? 0, currency: baselineCurrency },
+    output: { perMillionTokens: model.pricing?.output?.perMillionTokens ?? 0, currency: baselineCurrency }
+  }
+
+  const changes: Partial<Model> = {}
+  if (patch.name !== model.name) changes.name = patch.name
+  if (patch.group !== model.group) changes.group = patch.group
+  if (!sameUnorderedStrings(patch.capabilities, model.capabilities)) changes.capabilities = patch.capabilities
+  if (patch.supportsStreaming !== model.supportsStreaming) changes.supportsStreaming = patch.supportsStreaming
+  if (patch.endpointTypes !== undefined && !sameUnorderedStrings(patch.endpointTypes, model.endpointTypes)) {
+    changes.endpointTypes = patch.endpointTypes
+  }
+  if (patch.contextWindow !== model.contextWindow) changes.contextWindow = patch.contextWindow
+  if (patch.maxInputTokens !== model.maxInputTokens) changes.maxInputTokens = patch.maxInputTokens
+  if (patch.maxOutputTokens !== model.maxOutputTokens) changes.maxOutputTokens = patch.maxOutputTokens
+  if (!isEqual(patch.pricing, baselinePricing)) changes.pricing = patch.pricing
+  return changes
+}
 
 export default function EditModelDrawer({ providerId, open, model: modelProp, onClose }: EditModelDrawerProps) {
   const { t } = useTranslation()
@@ -240,11 +279,18 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         return
       }
 
+      // Send only the fields the user actually changed so autosave doesn't record
+      // untouched fields as user overrides (freezing them against registry sync).
+      const patch = diffModelPatch(buildPatch(overrides), model)
+      if (Object.keys(patch).length === 0) {
+        return
+      }
+
       const { modelId } = parseUniqueModelId(model.id)
       const item = {
         providerId: model.providerId ?? providerId,
         modelId,
-        patch: buildPatch(overrides)
+        patch
       }
       autoSavePendingItemsRef.current.set(`${item.providerId}/${item.modelId}`, item)
       void processAutoSaveQueue()

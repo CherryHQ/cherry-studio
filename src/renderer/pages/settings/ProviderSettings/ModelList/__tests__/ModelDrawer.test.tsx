@@ -615,6 +615,47 @@ describe('Model drawers', () => {
     )
   })
 
+  it('does not resend synthesized pricing when autosaving a model without pricing', async () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'cherryin', name: 'CherryIN' }
+    })
+
+    render(
+      <EditModelDrawer
+        providerId="cherryin"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'cherryin::no-price-model',
+            providerId: 'cherryin',
+            name: 'no-price-model',
+            group: 'Anthropic',
+            capabilities: [],
+            endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+            supportsStreaming: true
+            // No pricing on the model — the drawer synthesizes a {0, USD} block,
+            // which must diff as unchanged so `pricing` is NOT sent on autosave.
+          } as any
+        }
+      />
+    )
+
+    await act(async () => {
+      fireEvent.click(
+        within(screen.getByTestId('provider-settings-model-endpoint-type-field')).getByRole('button', {
+          name: 'endpoint_type.openai'
+        })
+      )
+    })
+
+    const lastCall = updateModelMock.mock.calls.at(-1)
+    expect(lastCall?.[0]).toBe('cherryin')
+    expect(lastCall?.[1]).toBe('no-price-model')
+    expect(lastCall?.[2].endpointTypes).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES])
+    expect(lastCall?.[2].pricing).toBeUndefined()
+  })
+
   it('shows and preserves the image-edit endpoint when adding another endpoint type', async () => {
     useProviderMock.mockReturnValue({
       provider: { id: 'cherryin', name: 'CherryIN' }
