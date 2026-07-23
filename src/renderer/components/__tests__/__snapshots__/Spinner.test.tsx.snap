@@ -32,7 +32,7 @@ exports[`Spinner > should match snapshot 1`] = `
     />
   </svg>
   <span
-    data-ui="spinner.element.span id:ui-b5f67157327d33cd"
+    data-ui="spinner.element.span"
   >
     Loading files...
   </span>

@@ -1,35 +1,25 @@
 # UI Semantic Contract
 
-Cherry Studio exposes app-owned HTML elements and public SVG boundaries through one machine-readable `data-ui`
-attribute. It is the maintained selector interface for user themes, end-to-end tests, inspectors, and controlled AI
-automation. Internal classes, DOM ancestry, and unmarked SVG drawing primitives are not part of this contract.
+Cherry Studio exposes meaningful app-owned DOM boundaries through one machine-readable `data-ui` attribute. It is the
+maintained selector interface for user themes, end-to-end tests, inspectors, and controlled AI automation. Internal
+classes, incidental DOM ancestry, and unmarked implementation wrappers are not part of this contract.
 
-The primary consumer is advanced Custom CSS. Users need a supported way to restyle or restructure arbitrary app-owned
-nodes without coupling persistent themes to implementation classes. Structured theme variables remain the preferred
-surface for common theming; `data-ui` is the node-level escape hatch for rules that variables cannot express. Tests and
-automation can reuse the same coordinates instead of introducing a second selector protocol.
+The primary consumer is advanced Custom CSS. Structured theme variables remain the preferred surface for common
+theming; `data-ui` is the semantic escape hatch for rules that variables cannot express. Tests and automation can reuse
+the same coordinates instead of introducing another selector protocol.
 
-## Three-layer selector model
+## Token protocol
 
-`data-ui` is an unordered set of whitespace-separated tokens. The compiler writes tokens in this canonical order:
+`data-ui` is an unordered set of whitespace-separated tokens with two responsibilities:
+
+| Tokens | Use | Stability |
+| --- | --- | --- |
+| `chat.message`, `part:message-content` | Static business and component-structure semantics | Explicit roles and parts are stable; inferred roles are best-effort |
+| `scope:message:m_817`, `scope:window:main` | Optional runtime business-instance or window identity | Stable for that entity or window type |
 
 ```html
-<article
-  data-ui="chat.message part:message-content id:ui-3976699e5846d12a scope:message:m_817 scope:topic:t_42"
-></article>
+<article data-ui="chat.message part:message-content scope:message:m_817 scope:topic:t_42"></article>
 ```
-
-The tokens form three selector layers:
-
-| Layer | Tokens | Use | Stability |
-| --- | --- | --- | --- |
-| Semantic | `chat.message`, `part:message-content` | Normal selectors for a business role or reusable component structure | Explicit roles and parts are stable; inferred roles are best-effort |
-| Exact | `id:ui-3976699e5846d12a` | Advanced fallback for one registered source node | Stable across builds and unambiguous DOM-preserving moves |
-| Instance | `scope:message:m_817`, `scope:window:main` | Optional narrowing to a runtime business entity or window | Stable for that entity or window type |
-
-Start with the semantic layer. Add an exact token only when no maintained semantic selector expresses the target, and
-add a scope only when repeated renders of the same source node must be distinguished. `part:*` is not a separate
-identity system: it is the structural form of the semantic layer.
 
 Use token matching (`~=`), never substring matching:
 
@@ -48,87 +38,68 @@ Use token matching (`~=`), never substring matching:
 [data-ui~='part:dialog-content'] {
   border-radius: 8px;
 }
+```
 
-/* Advanced fallback: one exact source node */
-[data-ui~='id:ui-7b21d4a8062c6f81'] {
-  display: none;
+Ordinary implementation children do not need their own token. Custom CSS can traverse from the nearest semantic
+boundary; those descendant selectors intentionally follow internal DOM and may need updates after a refactor:
+
+```css
+[data-ui~='chat.message'] > div:nth-child(2) {
+  max-width: none;
 }
 ```
 
-## Build-time contract
+If a child becomes a commonly used or compatibility-sensitive target, promote it to the maintained contract with an
+explicit semantic role or `data-slot`.
 
-The pre-transform Vite plugin parses TSX/JSX with SWC and annotates every intrinsic HTML element plus each `svg` root
-before the React compiler runs. Reusable component structure, including Cherry Studio's Radix/Shadcn primitives, is
-represented by `part:*` tokens in the same attribute. Window HTML is annotated by the same plugin. Exact `id:*` tokens
-belong only to intrinsic DOM source nodes. A semantic `data-ui` value passed through a component is merged with the
-intrinsic node's part and exact ID, including across JSX prop spreads and Radix `asChild` slots.
+## Build-time generation
 
-Existing static `data-slot` markers remain unchanged throughout the project. The generator treats their values as
-authored structural parts (`data-slot="dialog-content"` contributes `part:dialog-content`) and normalizes them together
-with explicit `data-ui` `part:*` tokens. The original attribute remains intact, so current component styles, tests, and
-custom CSS selectors keep working. `data-ui` is the maintained semantic selector surface for new themes, tests, and
-automation; preserving `data-slot` does not require existing project code to migrate.
+The pre-transform Vite plugin parses TSX/JSX with SWC before the React compiler. It annotates:
 
-SVG drawing internals such as `path`, `g`, `defs`, gradients, masks, filters, and shapes are implementation details by
-default. They enter the public contract only when they carry `data-ui`, `data-slot`, `data-testid`, `role`, or an event
-handler. HTML descendants of `foreignObject` are annotated normally. This keeps icons themeable
-through their stable `svg` boundary while avoiding thousands of fragile IDs for generated vector paths; a drawing part
-that genuinely needs independent styling or testing can opt in explicitly.
+- intrinsic roots rendered by a component or fragment branch;
+- semantic HTML elements such as buttons, inputs, links, regions, lists, and media;
+- nodes with an explicit `data-ui`, `data-slot`, `data-testid`, stable `id`/`name`/`role`/`type`, or event handler;
+- each window body and public `svg` root.
+
+Nested `div` and `span` wrappers without any semantic signal remain unmarked. This avoids turning layout-only DOM into
+a public API.
+
+Reusable component structure is represented by `part:*` tokens in the same attribute. Existing static `data-slot`
+markers remain unchanged throughout the project. The generator treats their values as authored structural semantics:
+
+```html
+<div data-slot="dialog-content" data-ui="part:dialog-content"></div>
+```
+
+Explicit `data-ui` parts and `data-slot` values enter the same normalization rule. The original `data-slot` attribute
+remains intact, so existing component styles, tests, and custom CSS continue to work.
 
 Semantic inference uses, in order:
 
-1. an explicit semantic ID passed to `uiTokens` or a static `data-ui` value;
-2. `part:*`, `data-testid`, stable `id`/`name`/`type`, and event-handler names;
-3. source domain, component name, and element role.
+1. an explicit semantic role passed to `uiTokens` or written as a static `data-ui` value;
+2. `part:*`, `data-testid`, stable `id`/`name`/`role`/`type`, and event-handler names;
+3. source domain, component name, and HTML element role.
 
-Visible text is never an identity input, so localization, copy changes, and formatting do not change a node's exact ID.
-Line numbers, timestamps, random values, class names, and build traversal order are also excluded.
+For example, a `MessageGroup` component under the chat source domain can produce `chat.message-group`; a copy action
+inside it can produce `chat.message-group.action.copy`. Visible text is never an input, so localization and copy changes
+do not rename selectors. Line numbers, timestamps, random values, and class names are also excluded.
 
-New exact IDs start as `ui-` followed by the first 16 hexadecimal characters of the node's SHA-256 source-anchor hash.
-The anchor includes normalized source path, component, semantic role, element, stable attributes/parts, parent semantic
-role, and same-shape occurrence. The committed `ui-contract.registry.json` then preserves that ID while reconciling the
-current source.
+File and component names make inferred semantics readable but are not a permanent identity system. Moving or renaming a
+component can change its inferred role. Long-lived themes should use explicit semantic roles or maintained `part:*`
+tokens for selectors that must survive such refactors.
 
-The registry intentionally stores only the state required for identity reconciliation:
+SVG drawing internals such as `path`, `g`, `defs`, gradients, masks, filters, and shapes are implementation details by
+default. They enter the public contract only when they carry `data-ui`, `data-slot`, `data-testid`, `role`, or an event
+handler. HTML descendants of `foreignObject` are processed as a new semantic boundary.
 
-```json
-{
-  "version": 1,
-  "nodes": [["anchorHash", "fingerprintHash", "ui-0123456789abcdef"]]
-}
-```
-
-`semanticId` remains source-derived and is not duplicated in the registry. Deleted IDs are not retained as tombstones
-because the contract does not promise permanent non-reuse. Reconciliation first honors Git-confirmed file moves, then
-reuses direct anchors only when the full same-shape occurrence cohort is unchanged, and finally matches exactly one
-departed and one arrived node with the same structural fingerprint. Adding or removing indistinguishable siblings
-rotates that cohort's IDs instead of guessing which source node retained an occurrence anchor. This preserves identity
-for recognizable DOM nodes without silently retargeting selectors or turning the registry into a cross-version
-compatibility ledger.
-
-After changing renderer markup, update and commit the registry:
-
-```bash
-pnpm ui:contract:sync
-```
-
-When a merge or rebase conflicts on `ui-contract.registry.json`, accept either side and rerun the sync command on the
-merged source; never hand-edit the generated tuples.
-
-Production builds and CI reject registry drift through `pnpm ui:contract:check`. Builds also validate that assigned IDs
-are unique, then emit a deterministic, dictionary-packed `ui-contract.json` asset. Its `columns` field describes each
-node tuple; the `sources`, `semantics`, `elements`, and `components` dictionaries map tuple indexes back to readable
-metadata. Theme inspectors and AI tools should discover the contract from this manifest instead of scraping
-implementation classes.
-
-During source work, an agent or developer can resolve a semantic prefix without building the app:
+During source work, resolve a semantic prefix without building the app:
 
 ```bash
 pnpm ui:contract:query chat.message
 ```
 
-The command scans the current source and returns registered exact IDs, element/component names, and relative source
-locations as JSON. It rejects a stale registry and applies the same collision check as the build.
+The command scans current source and returns matching semantic roles, element/component names, and source locations.
+There is no persistent node registry or generated exact-node ID.
 
 ## Runtime API
 
@@ -144,22 +115,20 @@ import { uiTokens } from '@renderer/utils/uiContract'
 />
 ```
 
-`uiTokens` writes the runtime-owned portion of the model: an explicit semantic ID and optional `scope:*` tokens. Exact
-`id:*` tokens are compiler-owned; application code must not author them. Reusable `part:*` tokens are static structural
-semantics and must be declared in the owning component's markup rather than selected dynamically at runtime. `uiTokens`
-validates the token grammar, removes duplicates, and serializes deterministically. `parseUiTokens` supports inspectors.
-`uiSelector` creates selectors across the semantic, exact, and instance layers. Playwright code can use
-`uiLocator(page, 'chat.message', options)` from `tests/e2e/utils`.
+`uiTokens` writes an explicit semantic role and optional runtime `scope:*` tokens. Reusable `part:*` tokens are static
+structural semantics and must be declared in the owning component's markup rather than selected dynamically at runtime.
+`uiTokens` validates the token grammar, removes duplicates, and serializes deterministically. `parseUiTokens` supports
+inspectors, while `uiSelector` and `uiLocator` create selectors across semantic and instance tokens.
 
 Runtime scopes may contain durable business IDs already present in the renderer. Do not place secrets, prompt content,
 credentials, or user-visible text in a token.
 
 ## Custom CSS across windows
 
-Each window body exposes its window identity:
+Each window body exposes its identity:
 
 ```html
-<body data-ui="app.window id:ui-3976699e5846d12a scope:window:main">
+<body data-ui="app.window scope:window:main">
 ```
 
 Custom CSS is inserted verbatim and unlayered after application styles, so it can use the full CSS surface—including
@@ -177,23 +146,15 @@ renderer window subscribes to the same `ui.custom_css` preference and injects th
 }
 ```
 
-Electron renderer windows are separate documents, so a stylesheet injected into one cannot leak into another; uniform
-theming comes from preference synchronization rather than a CSS `@scope` wrapper. Use `scope:window:*` only when a theme
-intentionally needs a per-window override.
-
-CSS cannot cross a Shadow DOM or iframe boundary. App-owned shadow roots remain intentionally isolated and need their own
-adopted theme sheet if they are later made public. DOM created from third-party runtime HTML is not automatically part of
-the source contract; its owning renderer must expose a stable boundary or explicit semantic nodes.
+Electron renderer windows are separate documents, so a stylesheet injected into one cannot leak into another. CSS
+cannot cross a Shadow DOM or iframe boundary; an app-owned isolated root must expose its own semantic boundary if it is
+made public.
 
 ## Compatibility rules
 
-- Semantic IDs are lowercase dot-separated roles, not descriptions of current copy or appearance.
-- Explicitly declared semantic IDs are public API. Rename them only with a compatibility alias and a breaking-change
-  entry.
-- Inferred semantic IDs are deterministic but best-effort and are re-derived from the current source. Themes that need a
-  durable name must rely on an explicit semantic ID or a `part:` token.
-- Exact `id:` tokens identify a registered source node. They remain stable across formatting, copy changes, unchanged
-  occurrence cohorts, and unambiguous DOM-preserving moves. Ambiguous structural refactors may receive new IDs, and
-  deleted IDs do not carry a permanent no-reuse guarantee.
-- Tests and automation must query semantic/exact tokens, then use accessible roles for the intended interaction. The
-  contract identifies nodes; it does not grant arbitrary script execution or bypass application permissions.
+- Semantic roles are lowercase dot-separated identifiers, not descriptions of current copy or appearance.
+- Explicit semantic roles and `part:*` tokens are maintained public API. Rename them only with a compatibility alias and
+  a breaking-change entry.
+- Inferred roles are deterministic but best-effort and may change when files, components, or DOM responsibilities move.
+- Internal descendant selectors are supported CSS but are not promised to survive structural refactors.
+- Tests and automation should start from semantic/scope tokens, then use accessible roles for the intended interaction.

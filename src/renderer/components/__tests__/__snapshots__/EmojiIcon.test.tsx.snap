@@ -3,12 +3,11 @@
 exports[`EmojiIcon > should match snapshot 1`] = `
 <div
   class="relative mr-[3px] flex shrink-0 items-center justify-center overflow-hidden rounded-full"
-  data-ui="emoji.icon.element.div id:ui-da713b024ffe2336"
+  data-ui="emoji.icon.element.div"
   style="width: 26px; height: 26px; font-size: 15px;"
 >
   <div
     class="absolute inset-0 flex h-full w-full scale-150 items-center justify-center text-[200%] opacity-40 blur-[5px]"
-    data-ui="emoji.icon.element.div id:ui-fc1d04b9a4dfa315"
   >
     🎉
   </div>

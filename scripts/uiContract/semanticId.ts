@@ -1,10 +1,4 @@
-import { createHash } from 'node:crypto'
 import { relative, sep } from 'node:path'
-
-import type { UiNodeDescriptor } from './types'
-
-const UI_NODE_ID_HASH_LENGTH = 16
-const UI_NODE_ID_PREFIX = 'ui-'
 
 const NON_SEMANTIC_PATH_SEGMENTS = new Set([
   'src',
@@ -68,10 +62,6 @@ const ACTION_WORDS = new Set([
 const FIELD_TAGS = new Set(['input', 'select', 'textarea'])
 const MEDIA_TAGS = new Set(['audio', 'canvas', 'img', 'picture', 'svg', 'video'])
 const REGION_TAGS = new Set(['article', 'aside', 'footer', 'header', 'main', 'nav', 'section'])
-
-export function stableHash(value: string, length = 16): string {
-  return createHash('sha256').update(value).digest('hex').slice(0, length)
-}
 
 export function normalizeSourceFile(root: string, file: string): string {
   return relative(root, file).split(sep).join('/')
@@ -152,69 +142,4 @@ export function inferSemanticId(input: SemanticIdInput): string {
   const entity = component.filter((word) => !role.includes(word)).slice(-2)
   const prefix = domain.length > 0 ? domain : ['ui']
   return unique([...prefix, ...entity, ...role]).join('.')
-}
-
-export function createDescriptorHashes(input: {
-  component: string
-  element: string
-  explicitSemanticId?: string
-  occurrence: number
-  parentSemanticId?: string
-  semanticId: string
-  signature: string
-  sourceFile: string
-}): Pick<UiNodeDescriptor, 'anchorCohort' | 'anchorHash' | 'fingerprintHash'> {
-  const anchorCohort = [
-    input.sourceFile,
-    input.component,
-    input.semanticId,
-    input.element,
-    input.signature,
-    input.parentSemanticId ?? ''
-  ].join('\0')
-
-  const parentRole = input.parentSemanticId?.split('.').slice(-3).join('.') ?? ''
-  const fingerprint = [
-    input.component,
-    input.element,
-    input.signature,
-    input.explicitSemanticId ?? '',
-    parentRole
-  ].join('\0')
-
-  return {
-    anchorCohort,
-    anchorHash: anchorHashForOccurrence(anchorCohort, input.occurrence),
-    fingerprintHash: stableHash(fingerprint, 24)
-  }
-}
-
-export function anchorHashForOccurrence(anchorCohort: string, occurrence: number): string {
-  return stableHash(`${anchorCohort}\0${occurrence}`, 24)
-}
-
-export function uiNodeId(anchorHash: string): string {
-  if (!/^[0-9a-f]{24}$/.test(anchorHash)) {
-    throw new Error(`Invalid UI node anchor hash: ${anchorHash}`)
-  }
-  return `${UI_NODE_ID_PREFIX}${anchorHash.slice(0, UI_NODE_ID_HASH_LENGTH)}`
-}
-
-export function uiContractForDescriptor(descriptor: UiNodeDescriptor): { id: string; semanticId: string } {
-  return { id: uiNodeId(descriptor.anchorHash), semanticId: descriptor.semanticId }
-}
-
-export function assertUniqueUiNodeIds(
-  nodes: ReadonlyArray<Pick<UiNodeDescriptor, 'sourceFile' | 'sourceOffset'> & { id: string }>
-): void {
-  const nodeById = new Map<string, Pick<UiNodeDescriptor, 'sourceFile' | 'sourceOffset'>>()
-  for (const node of nodes) {
-    const existing = nodeById.get(node.id)
-    if (existing) {
-      throw new Error(
-        `UI node ID collision for ${node.id}: ${existing.sourceFile}:${existing.sourceOffset} and ${node.sourceFile}:${node.sourceOffset}`
-      )
-    }
-    nodeById.set(node.id, node)
-  }
 }

@@ -1,15 +1,13 @@
 import { parseSync } from '@swc/core'
 import { describe, expect, it } from 'vitest'
 
-import { emptyRegistry, reconcileRegistry } from '../registry'
 import { mergeDataUi, mergeUiProps } from '../runtime'
-import { uiContractForDescriptor } from '../semanticId'
 import { transformHtml, transformJsx } from '../transform'
 
 const options = { sourceFile: 'src/renderer/components/chat/Message.tsx' }
 
 describe('UI contract compiler', () => {
-  it('keeps IDs stable across formatting-only builds', () => {
+  it('keeps inferred semantics stable across formatting-only builds', () => {
     const compact = transformJsx(
       'export function Message(){return <button onClick={handleCopy}>复制</button>}',
       options
@@ -19,10 +17,7 @@ describe('UI contract compiler', () => {
       options
     )
 
-    expect(compact.descriptors[0].anchorHash).toBe(formatted.descriptors[0].anchorHash)
-    const first = reconcileRegistry(emptyRegistry(), compact.descriptors)
-    const second = reconcileRegistry(first, formatted.descriptors)
-    expect(second.nodes[0][2]).toBe(first.nodes[0][2])
+    expect(compact.descriptors[0].semanticId).toBe(formatted.descriptors[0].semanticId)
   })
 
   it('never derives semantics from translated display text', () => {
@@ -30,29 +25,15 @@ describe('UI contract compiler', () => {
     const english = transformJsx('const Message = () => <button>Copy</button>', options)
 
     expect(chinese.descriptors[0].semanticId).toBe(english.descriptors[0].semanticId)
-    expect(chinese.descriptors[0].anchorHash).toBe(english.descriptors[0].anchorHash)
-  })
-
-  it('preserves a registered ID when a file moves', () => {
-    const original = transformJsx('const CopyButton = () => <button data-ui="part:copy-button" />', options)
-    const first = reconcileRegistry(emptyRegistry(), original.descriptors)
-    const moved = transformJsx('const CopyButton = () => <button data-ui="part:copy-button" />', {
-      ...options,
-      sourceFile: 'src/renderer/components/actions/CopyButton.tsx'
-    })
-    moved.descriptors[0].previousAnchorHash = original.descriptors[0].anchorHash
-    const second = reconcileRegistry(first, moved.descriptors)
-
-    expect(second.nodes[0][2]).toBe(first.nodes[0][2])
   })
 
   it('emits parseable JSX for self-closing intrinsic elements', () => {
-    const result = transformJsx('const Message = () => <div><span /></div>', {
+    const result = transformJsx('const Message = () => <div><input /></div>', {
       ...options,
-      contractForDescriptor: uiContractForDescriptor
+      injectDataUi: true
     })
 
-    expect(result.code).toContain('<span data-ui=')
+    expect(result.code).toContain('<input data-ui=')
     expect(result.code).toContain(' />')
     expect(() => parseSync(result.code, { syntax: 'typescript', tsx: true })).not.toThrow()
   })
@@ -66,57 +47,45 @@ const Message = () => {
 }`
     const result = transformJsx(source, {
       ...options,
-      contractForDescriptor: uiContractForDescriptor
+      injectDataUi: true
     })
 
     expect(result.descriptors[0].sourceOffset).toBe(source.indexOf('<div'))
     expect(result.code).toContain('event.preventDefault()')
     expect(result.code).toContain('<div data-ui=')
-    expect(result.code).toContain('<span data-ui=')
+    expect(result.code).toContain('<span />')
     expect(() => parseSync(result.code, { syntax: 'typescript', tsx: true })).not.toThrow()
   })
 
-  it('adds the exact ID to runtime uiTokens without losing dynamic scope', () => {
+  it('preserves runtime semantic and scope tokens without adding an exact ID', () => {
     const result = transformJsx(
       "const Message = ({ id }) => <div data-ui={uiTokens('chat.message', { scopes: [`message:${id}`] })} />",
-      {
-        ...options,
-        contractForDescriptor: () => ({ id: 'ui-abcdef0123456789', semanticId: 'chat.message' })
-      }
+      { ...options, injectDataUi: true }
     )
 
     expect(result.code).toContain("uiTokens('chat.message', { scopes: [`message:${id}`] })")
-    expect(result.code).toContain('id:ui-abcdef0123456789')
+    expect(result.code).not.toContain('id:ui-')
   })
 
-  it('assigns exact IDs only to intrinsic DOM and composes forwarded component tokens', () => {
+  it('composes forwarded component semantics onto intrinsic DOM', () => {
     const callSite = transformJsx(
       "const App = () => <MessageWrapper data-ui={uiTokens('chat.message', { scopes: ['message:m_817'] })} />",
-      {
-        ...options,
-        contractForDescriptor: () => ({ id: 'ui-1111111111111111', semanticId: 'chat.message' })
-      }
+      { ...options, injectDataUi: true }
     )
     const implementation = transformJsx('const MessageWrapper = (props) => <div data-ui="part:wrapper" {...props} />', {
       ...options,
-      contractForDescriptor: () => ({ id: 'ui-2222222222222222', semanticId: 'chat.wrapper' })
+      injectDataUi: true
     })
 
     expect(callSite.descriptors).toHaveLength(0)
-    expect(callSite.code).not.toContain('id:ui-1111111111111111')
     expect(implementation.descriptors).toHaveLength(1)
     expect(implementation.code).toContain('__cherryUiContractMergeUiProps(props')
-    expect(implementation.code).toContain('part:wrapper id:ui-2222222222222222')
-    expect(
-      mergeDataUi('chat.wrapper part:wrapper id:ui-2222222222222222', 'chat.message scope:message:m_817 id:ignored')
-    ).toBe('chat.message part:wrapper id:ui-2222222222222222 scope:message:m_817')
-    expect(
-      mergeUiProps(
-        { 'data-ui': 'chat.message scope:message:m_817' },
-        'chat.wrapper part:wrapper id:ui-2222222222222222'
-      )
-    ).toEqual({
-      'data-ui': 'chat.message part:wrapper id:ui-2222222222222222 scope:message:m_817'
+    expect(implementation.code).toContain('part:wrapper')
+    expect(mergeDataUi('chat.wrapper part:wrapper', 'chat.message scope:message:m_817 id:ignored')).toBe(
+      'chat.message part:wrapper scope:message:m_817'
+    )
+    expect(mergeUiProps({ 'data-ui': 'chat.message scope:message:m_817' }, 'chat.wrapper part:wrapper')).toEqual({
+      'data-ui': 'chat.message part:wrapper scope:message:m_817'
     })
   })
 
@@ -127,7 +96,7 @@ const Message = () => {
     ]) {
       const result = transformJsx(source, {
         ...options,
-        contractForDescriptor: () => ({ id: 'ui-2222222222222222', semanticId: 'chat.wrapper' })
+        injectDataUi: true
       })
 
       expect(result.code.indexOf('data-ui=')).toBeLessThan(result.code.indexOf('{...__cherryUiContractMergeUiProps'))
@@ -139,7 +108,7 @@ const Message = () => {
     for (const asChild of ['asChild', 'asChild={true}']) {
       const result = transformJsx(`const App = () => <Button ${asChild}><a href="/settings" /></Button>`, {
         ...options,
-        contractForDescriptor: () => ({ id: 'ui-3333333333333333', semanticId: 'settings.action.open' })
+        injectDataUi: true
       })
 
       expect(result.descriptors.map((descriptor) => descriptor.element)).toEqual(['a'])
@@ -154,7 +123,7 @@ const Message = () => {
       'const App = () => <Button asChild={false}><a href="/settings" /><span>Label</span></Button>',
       {
         ...options,
-        contractForDescriptor: () => ({ id: 'ui-3333333333333333', semanticId: 'settings.action.open' })
+        injectDataUi: true
       }
     )
 
@@ -166,7 +135,7 @@ const Message = () => {
   it('keeps the data-ui merge layer when asChild is dynamic', () => {
     const result = transformJsx('const App = () => <Button asChild={useSlot}><a href="/settings" /></Button>', {
       ...options,
-      contractForDescriptor: () => ({ id: 'ui-3333333333333333', semanticId: 'settings.action.open' })
+      injectDataUi: true
     })
 
     expect(result.descriptors.map((descriptor) => descriptor.element)).toEqual(['a'])
@@ -178,10 +147,7 @@ const Message = () => {
   it('annotates intrinsic DOM but skips unmarked component call sites', () => {
     const result = transformJsx('const Message = () => <Card><span /></Card>', {
       ...options,
-      contractForDescriptor: () => ({
-        id: 'ui-abcdef0123456789',
-        semanticId: 'chat.message.element.span'
-      })
+      injectDataUi: true
     })
 
     expect(result.descriptors).toHaveLength(1)
@@ -194,7 +160,7 @@ const Message = () => {
       'const Icon = () => <svg><defs><linearGradient><stop /></linearGradient></defs><path /><circle /></svg>',
       {
         ...options,
-        contractForDescriptor: uiContractForDescriptor
+        injectDataUi: true
       }
     )
 
@@ -217,20 +183,13 @@ const Message = () => {
       )`,
       {
         ...options,
-        contractForDescriptor: uiContractForDescriptor
+        injectDataUi: true
       }
     )
 
-    expect(result.descriptors.map((descriptor) => descriptor.element)).toEqual([
-      'svg',
-      'path',
-      'circle',
-      'rect',
-      'div',
-      'span'
-    ])
+    expect(result.descriptors.map((descriptor) => descriptor.element)).toEqual(['svg', 'path', 'circle', 'rect', 'div'])
     expect(result.code).toContain('<path data-ui="')
-    expect(result.code).toContain('part:accent id:')
+    expect(result.code).toContain('part:accent')
     expect(result.code).toContain('<g />')
     expect(result.code).not.toContain('<g data-ui=')
     expect(result.code).toContain('<div data-ui=')
@@ -238,33 +197,30 @@ const Message = () => {
 
   it('derives a structural part from data-slot while preserving the marker', () => {
     const result = transformJsx('const Button = (props) => <button data-slot="button" {...props} />', {
-      contractForDescriptor: () => ({ id: 'ui-2222222222222222', semanticId: 'ui.button' }),
+      injectDataUi: true,
       sourceFile: 'src/renderer/components/Button.tsx'
     })
 
     expect(result.descriptors).toHaveLength(1)
-    expect(result.code).toContain('data-ui="ui.button part:button id:ui-2222222222222222"')
+    expect(result.code).toContain('part:button')
+    expect(result.code).not.toContain('id:ui-')
     expect(result.code).toContain('data-slot="button"')
     expect(result.code).toContain('__cherryUiContractMergeUiProps(props')
     expect(() => parseSync(result.code, { syntax: 'typescript', tsx: true })).not.toThrow()
   })
 
-  it('normalizes data-slot and authored part tokens into the same structural identity', () => {
+  it('normalizes data-slot and authored part tokens into the same inferred semantic', () => {
     const dataSlot = transformJsx('const Panel = () => <section data-slot="panel" />', options)
     const authoredPart = transformJsx('const Panel = () => <section data-ui="part:panel" />', options)
 
-    expect(dataSlot.descriptors[0]).toMatchObject({
-      anchorHash: authoredPart.descriptors[0].anchorHash,
-      fingerprintHash: authoredPart.descriptors[0].fingerprintHash,
-      semanticId: authoredPart.descriptors[0].semanticId
-    })
+    expect(dataSlot.descriptors[0].semanticId).toBe(authoredPart.descriptors[0].semanticId)
   })
 
   it('forwards an existing data-slot through a component boundary as a part token', () => {
     const result = transformJsx(
       'const Trigger = (props) => <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />',
       {
-        contractForDescriptor: () => undefined,
+        injectDataUi: true,
         sourceFile: 'src/renderer/components/Dialog.tsx'
       }
     )
@@ -293,7 +249,7 @@ const Message = () => {
   it('annotates HTML roots without parsing markup inside scripts', () => {
     const result = transformHtml('<body><div id="root"></div><script>const sample = "<span>"</script></body>', {
       ...options,
-      contractForDescriptor: uiContractForDescriptor,
+      injectDataUi: true,
       sourceFile: 'src/renderer/windows/main/index.html',
       windowName: 'main'
     })
@@ -306,7 +262,7 @@ const Message = () => {
   it('derives an HTML structural part from data-slot while preserving the marker', () => {
     const result = transformHtml('<body><div data-slot="app-root"></div></body>', {
       ...options,
-      contractForDescriptor: uiContractForDescriptor,
+      injectDataUi: true,
       sourceFile: 'src/renderer/windows/main/index.html',
       windowName: 'main'
     })
@@ -315,21 +271,14 @@ const Message = () => {
     expect(result.code).toContain('part:app-root')
   })
 
-  it('anchors HTML siblings to their actual parent instead of the previous opening tag', () => {
-    const base = transformHtml('<body><div></div><p></p></body>', {
-      ...options,
-      sourceFile: 'src/renderer/windows/main/index.html',
-      windowName: 'main'
-    })
-    const nested = transformHtml('<body><div><span></span></div><p></p></body>', {
+  it('skips generic internal HTML wrappers without semantic signals', () => {
+    const result = transformHtml('<body><div></div><p></p></body>', {
       ...options,
       sourceFile: 'src/renderer/windows/main/index.html',
       windowName: 'main'
     })
 
-    expect(base.descriptors.find((descriptor) => descriptor.element === 'p')?.anchorHash).toBe(
-      nested.descriptors.find((descriptor) => descriptor.element === 'p')?.anchorHash
-    )
+    expect(result.descriptors.map((descriptor) => descriptor.element)).toEqual(['body', 'p'])
   })
 
   it('applies the same SVG coverage policy to window HTML', () => {
@@ -337,7 +286,7 @@ const Message = () => {
       '<body><svg><defs><path /></defs><circle data-testid="status-dot" /><foreignObject><div /></foreignObject></svg></body>',
       {
         ...options,
-        contractForDescriptor: uiContractForDescriptor,
+        injectDataUi: true,
         sourceFile: 'src/renderer/windows/main/index.html',
         windowName: 'main'
       }

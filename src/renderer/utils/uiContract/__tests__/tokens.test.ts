@@ -20,25 +20,21 @@ describe('data-ui tokens', () => {
     })
   })
 
-  it('parses the semantic, exact, and instance selector layers', () => {
-    expect(parseUiTokens('chat.message part:message-content id:ui-abcdef0123456789 scope:message:m_817')).toEqual({
-      exactId: 'ui-abcdef0123456789',
+  it('parses semantic and instance selector tokens', () => {
+    expect(parseUiTokens('chat.message part:message-content scope:message:m_817')).toEqual({
       parts: ['message-content'],
       scopes: ['message:m_817'],
       semanticId: 'chat.message'
     })
   })
 
-  it('builds exact token selectors without DOM structure coupling', () => {
+  it('builds semantic token selectors without DOM structure coupling', () => {
     expect(
       uiSelector({
-        exactId: 'ui-abcdef0123456789',
         parts: ['message-content'],
         scopes: ['message:m_817'],
         semanticId: 'chat.message'
       })
-    ).toBe(
-      '[data-ui~="chat.message"][data-ui~="part:message-content"][data-ui~="id:ui-abcdef0123456789"][data-ui~="scope:message:m_817"]'
-    )
+    ).toBe('[data-ui~="chat.message"][data-ui~="part:message-content"][data-ui~="scope:message:m_817"]')
   })
 })

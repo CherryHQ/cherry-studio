@@ -10,27 +10,21 @@ function findLast(tokens: string[], predicate: (token: string) => boolean): stri
 }
 
 /**
- * Compose the caller-owned semantic/instance layers with the implementation-owned
- * structural semantics and exact layer. The implementation exact ID wins because
- * it names the real intrinsic DOM node; the most specific caller semantic wins.
+ * Compose caller-owned semantic/scope tokens with implementation-owned structural
+ * semantics. The most specific caller semantic wins.
  */
 export function mergeDataUi(contract: string, ...forwardedValues: unknown[]): string {
   const contractTokens = tokens(contract)
   const forwardedTokens = forwardedValues.flatMap(tokens)
   const semantic =
     findLast(forwardedTokens, (token) => !token.includes(':')) ?? contractTokens.find((token) => !token.includes(':'))
-  const exactId =
-    contractTokens.find((token) => token.startsWith('id:')) ??
-    findLast(forwardedTokens, (token) => token.startsWith('id:'))
   const namespaced = [...contractTokens, ...forwardedTokens].filter(
     (token) => token.includes(':') && !token.startsWith('id:')
   )
   const parts = namespaced.filter((token) => token.startsWith('part:'))
   const remaining = namespaced.filter((token) => !token.startsWith('part:'))
 
-  return [
-    ...new Set([semantic, ...parts, exactId, ...remaining].filter((token): token is string => Boolean(token)))
-  ].join(' ')
+  return [...new Set([semantic, ...parts, ...remaining].filter((token): token is string => Boolean(token)))].join(' ')
 }
 
 /** Preserve normal JSX spread behavior while composing a spread-owned data-ui value. */
