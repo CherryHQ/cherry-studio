@@ -11,13 +11,27 @@ import ToastHost from '@renderer/components/ToastHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
+import { ipcApi } from '@renderer/ipc'
+import i18n from '@renderer/i18n/resolver'
+import { toast } from '@renderer/services/toast'
 import { useEffect } from 'react'
-
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
 import { useTopicNamingErrorNotification } from './hooks/useTopicNamingErrorNotification'
 import OnboardingPage from './onboarding/OnboardingPage'
 
 const logger = loggerService.withContext('MainApp')
+
+function useMcpStaleToolsWarning(): void {
+  useEffect(() => {
+    return ipcApi.on('mcp.server.tools_stale', ({ serverId, serverName, toolCount }) => {
+      logger.warn('MCP server tools are stale', { serverId, serverName, toolCount })
+      toast.warning(
+        i18n.t('mcp.warning.toolsStale', { serverName, toolCount }),
+        { action: { label: i18n.t('common.settings'), onClick: () => ipcApi.request('navigation.open_route_in_main', { path: `/settings/mcp/settings/${serverId}` }) } }
+      )
+    })
+  }, [])
+}
 
 // Behavior leaf inside the providers: the shared window runtime plus the main-only
 // concerns, then the popup/toast hosts. It sits inside the providers but outside every
@@ -35,6 +49,7 @@ const logger = loggerService.withContext('MainApp')
 // siblings in the App JSX below, so a window's host composition is visible there.
 function MainWindowRuntime(): null {
   useWindowRuntime()
+  useMcpStaleToolsWarning()
 
   // Main-only: tear down the HTML boot spinner and end the `init` timer. Both are
   // paired with markup only main/index.html creates (`#spinner`, `console.time`), so
