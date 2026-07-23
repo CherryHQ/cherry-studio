@@ -13,6 +13,10 @@
 // uniqueMergeRules). Settings-class preference/note keep conflictDefault SKIP.
 // OVERWRITE / RENAME still throw NotImplemented (fail-loud).
 //
+// Phase order in mergeBackupIntoWork: importRows → importAllJunctionRows →
+// importPolymorphicAssociationRows (entity_tag; not a junction — see polymorphicAssociationDeriver)
+// → repairDanglingRefs → discloseFileIdSoftRefs → FTS rebuild → consistency check.
+//
 // See `docs/references/backup/backup-architecture.md` §3/§9.
 
 import { loggerService } from '@logger'
@@ -26,6 +30,10 @@ import Database from 'better-sqlite3'
 
 import { FtsCentralHelper } from './FtsCentralHelper'
 import { deriveJunctionDescriptors } from './junctionDeriver'
+import {
+  derivePolymorphicAssociationDescriptors,
+  POLYMORPHIC_ENTITY_TYPE_ROOT_TABLE
+} from './polymorphicAssociationDeriver'
 import type { AggregateDecision, DegradedSkip, IdentityMap, MergeContext, MergeResult } from './types'
 
 const logger = loggerService.withContext('MergeEngine')
@@ -302,6 +310,11 @@ export class MergeEngine {
         // resolving each endpoint via the role-aware identityMap (R8) and cascade-pruning rows
         // whose source was not imported or whose target is unavailable (§5.2).
         this.importAllJunctionRows(workSqlite, ctx.domains, backupDb, identityMap)
+        // Polymorphic association phase (A1) — entity_tag (1 owning FK + soft polymorphic
+        // entityId). Runs AFTER junctions so tag + entity-root identityMap.targetMap entries
+        // are populated; BEFORE repair so rewritten rows are not misread as dangling.
+        // Not folded into junctionDeriver (junctions require ≥2 kind:'junction' refs).
+        this.importPolymorphicAssociationRows(workSqlite, ctx.domains, backupDb, identityMap, degradedToSkips)
         // Dangling-ref repair — imported rows may reference targets that exist in neither
         // work nor this import (e.g. a conflicted natural-key row surviving locally under a
         // DIFFERENT PK — the identity-propagation milestone rewrites those FKs; until then:
@@ -1025,6 +1038,77 @@ export class MergeEngine {
   }
 
   /**
+   * importPolymorphicAssociationRows — polymorphic association phase (A1). Imports
+   * entity_tag (registry-derived via derivePolymorphicAssociationDescriptors). For each
+   * backup row: route entityType through polymorphicEntityMap → drop when target domain
+   * unselected / unmapped; rewrite tagId + entityId via identityMap.targetMap; INSERT
+   * ON CONFLICT DO NOTHING (same idempotent semantics as the junction phase). entityType
+   * is preserved. Disclosed drops accumulate into degradedToSkips.
+   */
+  private importPolymorphicAssociationRows(
+    workSqlite: Database.Database,
+    selectedDomains: readonly BackupDomain[],
+    backupDb: Database.Database,
+    identityMap: IdentityMap,
+    degradedToSkips: DegradedSkip[]
+  ): void {
+    const selected = new Set(selectedDomains)
+    const descriptors = derivePolymorphicAssociationDescriptors(this.registry, selectedDomains)
+    const counts = new Map<string, number>()
+    const bump = (table: DbTableName, reason: string): void => {
+      const key = `${table}${DEGRADE_KEY_SEP}${reason}`
+      counts.set(key, (counts.get(key) ?? 0) + 1)
+    }
+
+    for (const desc of descriptors) {
+      const tagPhys = physicalColumn(desc.tagEndpoint.fkColumn)
+      const entityIdPhys = physicalColumn(desc.entityEndpoint.fkColumn)
+      const entityTypePhys = physicalColumn(desc.entityEndpoint.entityTypeColumn)
+      // TODO(Stage3): stream via prepare().iterate() — same deferral as junction/scanAggregates.
+      const rows = backupDb.prepare(`SELECT * FROM ${quoteIdent(desc.table)}`).all() as Record<string, unknown>[]
+      for (const row of rows) {
+        const entityTypeRaw = String(row[entityTypePhys] ?? '')
+        const routeDomain = desc.entityEndpoint.routeBy[entityTypeRaw]
+        if (routeDomain === undefined || routeDomain === 'excluded') {
+          bump(desc.table, 'polymorphic-entityType-unmapped')
+          continue
+        }
+        if (!selected.has(routeDomain)) {
+          bump(desc.table, 'polymorphic-target-domain-not-selected')
+          continue
+        }
+        const rootTable = POLYMORPHIC_ENTITY_TYPE_ROOT_TABLE[entityTypeRaw as EntityType]
+        if (rootTable === undefined) {
+          bump(desc.table, 'polymorphic-entityType-unmapped')
+          continue
+        }
+
+        const tagBackupId = String(row[tagPhys])
+        const tagCanonical = identityMap.targetMap.get(desc.tagEndpoint.table)?.get(tagBackupId)
+        if (tagCanonical === undefined) {
+          bump(desc.table, 'polymorphic-tag-target-missing')
+          continue
+        }
+
+        const entityBackupId = String(row[entityIdPhys])
+        const entityCanonical = identityMap.targetMap.get(rootTable)?.get(entityBackupId)
+        if (entityCanonical === undefined) {
+          bump(desc.table, 'polymorphic-entity-target-missing')
+          continue
+        }
+
+        // Reuse junction INSERT helper: rewrite tagId + entityId; entityType passes through.
+        this.insertJunctionRow(workSqlite, desc.table, row, tagPhys, tagCanonical, entityIdPhys, entityCanonical)
+      }
+    }
+
+    for (const [key, count] of counts) {
+      const [table, reason] = key.split(DEGRADE_KEY_SEP)
+      degradedToSkips.push({ table: table as DbTableName, count, reason })
+    }
+  }
+
+  /**
    * Refuse to merge into a base snapshot that already has FK violations. The live DB is
    * FK-consistent by contract; a dirty snapshot means the repair pass could no longer
    * distinguish merge-inserted rows from local rows — fail closed instead.
@@ -1039,8 +1123,9 @@ export class MergeEngine {
   }
 
   /**
-   * Repair dangling FKs left by the import (runs in-tx, after the junction phase, before
-   * the FTS rebuild + final consistency check). Decision order (M1 + self-check #2):
+   * Repair dangling FKs left by the import (runs in-tx, after the junction + polymorphic
+   * association phases, before the FTS rebuild + final consistency check). Decision order
+   * (M1 + self-check #2):
    * 1. onDelete SET NULL / SET DEFAULT → SET NULL on nullable FK columns (prune if none).
    * 2. cascade / restrict / no action → DELETE, EXCEPT composite FKs with mixed nullability
    *    (some cols nullable): SET only those nullable cols NULL so SQLite's partial-NULL

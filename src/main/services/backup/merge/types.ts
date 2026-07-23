@@ -54,6 +54,35 @@ export interface JunctionDescriptor {
   readonly targetEndpoint: JunctionEndpoint
 }
 
+/** Owning (same-domain) endpoint of a polymorphic association — e.g. entity_tag.tagId → tag. */
+export interface PolymorphicTagEndpoint {
+  readonly table: DbTableName
+  readonly fkColumn: DbColumnName
+  readonly referencedDomain: BackupDomain
+}
+
+/**
+ * Polymorphic soft-ref endpoint — entityId rewritten via entityType → domain → root table
+ * (see `POLYMORPHIC_ENTITY_TYPE_ROOT_TABLE` in polymorphicAssociationDeriver).
+ */
+export interface PolymorphicEntityEndpoint {
+  readonly fkColumn: DbColumnName
+  readonly entityTypeColumn: DbColumnName
+  readonly routeBy: Readonly<Record<string, BackupDomain | 'excluded'>>
+}
+
+/**
+ * Registry-derived descriptor for a polymorphic association table (A1). Tables with
+ * ≥1 kind:'owning' same-domain ref + a non-empty polymorphicEntityMap on the owner
+ * domain, that are neither aggregate roots nor include-members. Stage-A1: entity_tag only.
+ */
+export interface PolymorphicAssociationDescriptor {
+  readonly table: DbTableName
+  readonly ownerDomain: BackupDomain
+  readonly tagEndpoint: PolymorphicTagEndpoint
+  readonly entityEndpoint: PolymorphicEntityEndpoint
+}
+
 /**
  * identityMap is role-aware (R8): source eligibility vs target availability.
  * The asymmetry is critical — a skipped target survives locally (available),
