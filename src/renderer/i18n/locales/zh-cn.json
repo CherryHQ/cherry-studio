@@ -7309,7 +7309,7 @@
       },
       "create_custom": {
         "advanced": {
-          "description": "可选的协议独立地址和外观设置",
+          "description": "可选的协议独立地址和图像服务地址",
           "extra_text_urls": "额外文本协议地址",
           "extra_text_urls_help": "留空时仅使用上方选择的兼容类型",
           "label": "高级设置"

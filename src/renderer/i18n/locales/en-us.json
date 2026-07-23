@@ -7309,7 +7309,7 @@
       },
       "create_custom": {
         "advanced": {
-          "description": "Optional protocol-specific URLs and appearance",
+          "description": "Optional protocol-specific and image service URLs",
           "extra_text_urls": "Additional text protocol URLs",
           "extra_text_urls_help": "Leave blank to use only the compatibility type selected above",
           "label": "Advanced settings"
