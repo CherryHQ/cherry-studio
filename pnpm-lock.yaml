@@ -112,6 +112,9 @@ importers:
       better-sqlite3:
         specifier: 12.11.1
         version: 12.11.1
+      cross-spawn:
+        specifier: 7.0.6
+        version: 7.0.6
       font-list:
         specifier: 2.0.0
         version: 2.0.0
@@ -524,6 +527,9 @@ importers:
       '@types/cli-progress':
         specifier: ^3
         version: 3.11.6
+      '@types/cross-spawn':
+        specifier: 6.0.6
+        version: 6.0.6
       '@types/diff':
         specifier: ^7
         version: 7.0.2
@@ -6496,6 +6502,9 @@ packages:
 
   '@types/cli-progress@3.11.6':
     resolution: {integrity: sha512-cE3+jb9WRlu+uOSAugewNpITJDt1VF8dHOopPO4IABFc3SXYL5WE/+PTz/FCdZRRfIujiWW3n3aMbv1eIGVRWA==}
+
+  '@types/cross-spawn@6.0.6':
+    resolution: {integrity: sha512-fXRhhUkG4H3TQk5dBhQ7m/JDdSNHKwR2BBia62lhwEIq9xGiQKLxd6LymNhn47SjXhsUEPmxi+PKw2OkW4LLjA==}
 
   '@types/d3-array@3.2.2':
     resolution: {integrity: sha512-hOLWVbm7uRza0BYXpIIW5pxfrKe0W+D5lrFiAEYR+pb6w3N2SwSMaJbXdUfSEv+dT4MfHBLtn5js0LAWaO6otw==}
@@ -19210,6 +19219,10 @@ snapshots:
       assertion-error: 2.0.1
 
   '@types/cli-progress@3.11.6':
+    dependencies:
+      '@types/node': 24.10.4
+
+  '@types/cross-spawn@6.0.6':
     dependencies:
       '@types/node': 24.10.4
 
