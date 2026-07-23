@@ -160,7 +160,7 @@ export default defineConfig({
         input: {
           preload: resolve(__dirname, 'src/preload/preload.ts'),
           simplest: resolve(__dirname, 'src/preload/simplest.ts'), // Minimal preload
-          miniApp: resolve(__dirname, 'src/preload/miniApp.ts'), // MiniApp `<webview>` guests
+          webview: resolve(__dirname, 'src/preload/webview.ts'), // Site `<webview>` guests
           miniAppBridge: resolve(__dirname, 'src/preload/miniAppBridge.ts') // Local mini app guests (`window.cherry`)
         },
         external: ['electron'],

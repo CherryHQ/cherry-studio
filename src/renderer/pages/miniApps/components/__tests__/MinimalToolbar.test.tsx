@@ -1,9 +1,9 @@
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import type { ReactNode } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { MiniApp as MiniAppType } from '@shared/data/types/miniApp'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import type { InputHTMLAttributes, ReactNode } from 'react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({ children, ...props }: { children?: ReactNode }) => (
@@ -11,7 +11,11 @@ vi.mock('@cherrystudio/ui', () => ({
       {children}
     </button>
   ),
+  Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
+}))
+vi.mock('@renderer/components/WebviewAnnotationControls', () => ({
+  WebviewAnnotationControls: () => <button type="button" aria-label="annotation-controls" />
 }))
 vi.mock('@renderer/hooks/useMiniApps', () => ({
   useMiniApps: () => ({ pinned: [], allApps: [], updateAppStatus: vi.fn(() => Promise.resolve()) })
@@ -49,6 +53,8 @@ const renderToolbar = (app: MiniAppType) =>
       app={app}
       webviewRef={{ current: null }}
       currentUrl={null}
+      isWebviewReady
+      isHostActive
       onReload={vi.fn()}
       onOpenDevTools={vi.fn()}
       splitMode="open"
@@ -81,6 +87,17 @@ describe('MinimalToolbar', () => {
     cleanup()
     renderToolbar(site)
     expect(screen.getByRole('button', { name: /open links|打开链接/i })).toBeInTheDocument()
+  })
+
+  it('offers navigation and annotation controls to site guests only', () => {
+    renderToolbar(localApp)
+    expect(screen.queryByRole('textbox')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'annotation-controls' })).toBeNull()
+
+    cleanup()
+    renderToolbar(site)
+    expect(screen.getByRole('textbox')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'annotation-controls' })).toBeInTheDocument()
   })
 
   it('shows DevTools for local apps and sites alike', () => {

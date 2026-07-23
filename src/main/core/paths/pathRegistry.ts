@@ -109,6 +109,9 @@ export function buildPathRegistry() {
     // bundled data when present (see ProviderRegistryUpdaterService). Writable.
     'feature.provider_registry.override': appUserDataProviderRegistryOverride,
 
+    // Isolated preload for site `<webview>` guests. Local mini apps keep their capability bridge.
+    'feature.webview.preload_file': path.join(app.getAppPath(), 'out/preload/webview.js'),
+
     // Local embedding model cache (transformers.js HF cache root, downloaded on first use)
     'feature.embedding.models': path.join(appUserDataRuntime, 'models', 'qwen3-embedding'),
 
@@ -319,6 +322,7 @@ const NO_ENSURE = [
   'app.session.webview',
   'app.database.migrations',
   'feature.provider_registry.data',
+  'feature.webview.preload_file',
   'feature.code_cli.skills.builtin',
   'feature.agents.builtin',
   'feature.agents.assistant.manifest.file',

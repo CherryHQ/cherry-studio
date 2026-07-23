@@ -51,7 +51,7 @@ afterEach(() => {
 
 describe('MiniAppPane loading logo', () => {
   it('names the standalone loading logo with the mini-app identity', () => {
-    render(<MiniAppPane app={customApp} splitMode="open" onSplit={vi.fn()} />)
+    render(<MiniAppPane app={customApp} splitMode="open" onSplit={vi.fn()} isHostActive />)
 
     expect(screen.getByRole('img', { name: 'ChatGPT' })).toHaveAttribute('src', 'file:///files/chatgpt.webp')
   })

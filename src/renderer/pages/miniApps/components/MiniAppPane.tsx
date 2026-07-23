@@ -1,4 +1,4 @@
-import type { WebviewTag } from 'electron'
+import type { DidNavigateInPageEvent, WebviewTag } from 'electron'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -23,6 +23,8 @@ interface Props {
   onSplit: () => void
   /** Whether this pane answers the host window's Find shortcut. */
   hostShortcutEnabled?: boolean
+  /** Whether annotation commands from this host pane may control the guest. */
+  isHostActive: boolean
   /** Fired when the user interacts with this pane, so the page can track focus. */
   onActivate?: () => void
   className?: string
@@ -39,6 +41,7 @@ const MiniAppPane: FC<Props> = ({
   splitActive,
   onSplit,
   hostShortcutEnabled,
+  isHostActive,
   onActivate,
   className
 }) => {
@@ -71,7 +74,9 @@ const MiniAppPane: FC<Props> = ({
 
     detachWebview()
     webviewRef.current = el
-    const handleInPageNav = (e: any) => setCurrentUrl(e.url)
+    const handleInPageNav = (event: DidNavigateInPageEvent) => {
+      if (event.isMainFrame) setCurrentUrl(event.url)
+    }
     // Clicking into the page focuses the webview element itself; that is the
     // only signal the host gets, since events inside the guest never bubble out.
     const handleFocus = () => onActivateRef.current?.()
@@ -138,6 +143,8 @@ const MiniAppPane: FC<Props> = ({
           webviewRef={webviewRef}
           // currentUrl may be null (navigation not yet captured); fallback to app.url when opening externally
           currentUrl={currentUrl}
+          isWebviewReady={isReady}
+          isHostActive={isHostActive}
           onReload={handleReload}
           onOpenDevTools={handleOpenDevTools}
           splitMode={splitMode}
