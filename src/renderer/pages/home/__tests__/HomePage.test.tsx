@@ -336,7 +336,8 @@ vi.mock('../Chat', () => ({
     onNewTopic,
     onLocateMessageHandled,
     onPaneCollapse,
-    onPaneAutoCollapseChange
+    onPaneAutoCollapseChange,
+    paneManualToggle
   }: {
     activeTopic?: Topic
     centerSurface?: { content?: ReactNode } | null
@@ -352,6 +353,7 @@ vi.mock('../Chat', () => ({
     onLocateMessageHandled?: () => void
     onPaneCollapse?: () => void
     onPaneAutoCollapseChange?: (collapsed: boolean) => void
+    paneManualToggle?: { seq: number; open: boolean }
   }) => {
     const showConversation = Boolean(activeTopic && !centerSurface)
 
@@ -359,6 +361,9 @@ vi.mock('../Chat', () => ({
       <section data-testid="home-chat-shell">
         <output data-testid="pane-open">{String(paneOpen)}</output>
         <output data-testid="pane-position">{panePosition ?? ''}</output>
+        <output data-testid="pane-manual-toggle">
+          {paneManualToggle ? `${paneManualToggle.seq}:${paneManualToggle.open}` : 'none'}
+        </output>
         {centerSurface?.content}
         {showConversation && activeTopic && (
           <>
@@ -531,18 +536,21 @@ vi.mock('../components/TopicRightPane', () => {
       defaultOpen,
       onOpenChange,
       present,
-      resourcePane
+      resourcePane,
+      userOpenIntentSeq
     }: {
       children: ReactNode
       defaultOpen?: boolean
       onOpenChange?: (open: boolean) => void
       present?: boolean
       resourcePane?: { node?: ReactNode; label?: string } | null
+      userOpenIntentSeq?: number
     }) => (
       <div
         data-default-open={String(Boolean(defaultOpen))}
         data-default-tab={resourcePane ? 'resources' : 'branch'}
         data-present={String(present !== false)}
+        data-user-open-intent-seq={String(userOpenIntentSeq ?? 0)}
         data-testid="topic-right-pane-provider">
         {onOpenChange && (
           <button type="button" onClick={() => onOpenChange(false)}>
@@ -786,6 +794,56 @@ describe('HomePage', () => {
 
     expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-default-open', 'false')
     expect(homeMocks.cacheSetPersist).not.toHaveBeenCalledWith('ui.chat.right_pane_open_override', true)
+  })
+
+  it('marks the sidebar collapse control as a manual pane toggle', () => {
+    render(<HomePage />)
+
+    expect(screen.getByTestId('pane-manual-toggle')).toHaveTextContent('none')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse pane' }))
+
+    expect(screen.getByTestId('pane-manual-toggle')).toHaveTextContent('1:false')
+  })
+
+  it('does not mark the topic-position layout reset as a manual pane toggle', async () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
+    homeMocks.preferenceValues.set('topic.tab.position', 'left')
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move topics right' }))
+    await waitFor(() =>
+      expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.right_pane_open_override', true)
+    )
+
+    expect(screen.getByTestId('pane-manual-toggle')).toHaveTextContent('none')
+  })
+
+  it('records a user open intent when the rail header opens the classic topic pane', () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+    homeMocks.persistCacheValues.set('ui.chat.right_pane_open_override', false)
+
+    render(<HomePage />)
+
+    expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-user-open-intent-seq', '0')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle selected assistant pane' }))
+
+    expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.right_pane_open_override', true)
+    expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-user-open-intent-seq', '1')
+  })
+
+  it('does not record a user open intent when the rail header closes the classic topic pane', () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+    homeMocks.persistCacheValues.set('ui.chat.right_pane_open_override', true)
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle selected assistant pane' }))
+
+    expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.right_pane_open_override', false)
+    expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-user-open-intent-seq', '0')
   })
 
   it('toggles the classic topic pane when the selected assistant is clicked again', () => {

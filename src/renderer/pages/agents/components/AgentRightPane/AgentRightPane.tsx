@@ -16,6 +16,7 @@ import {
   RightPanel,
   type RightPanelCapability,
   type RightPanelComponentProps,
+  RightPanelHeaderControls,
   RightPanelProvider,
   type RightPanelReadiness,
   RightPanelShortcut,
@@ -146,6 +147,7 @@ interface AgentRightPaneScopeProps extends Omit<AgentRightPaneMeta, 'conversatio
   resourcePane?: ResourcePaneConfig | null
   defaultOpen?: boolean
   onOpenChange?: (open: boolean) => void
+  userOpenIntentSeq?: number
   revealRequest?: ResourceListRevealRequest
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
@@ -214,7 +216,7 @@ function AgentRightPaneActionsProvider({
     (input: AgentToolFlowOpenInput) => {
       if (!canOpenAgentToolFlow) return
       replaceFlowTab(input)
-      panelActions.requestOpen(getFlowTabValue(input.toolCallId))
+      panelActions.requestOpen(getFlowTabValue(input.toolCallId), { userInitiated: true })
     },
     [canOpenAgentToolFlow, panelActions, replaceFlowTab]
   )
@@ -225,7 +227,7 @@ function AgentRightPaneActionsProvider({
       if (!selection) return
       setPreviewFileSelection(selection)
       setSelectedFile(selection.workspacePath === workspacePath ? selection.filePath : null)
-      panelActions.tryOpen('files')
+      panelActions.tryOpen('files', { userInitiated: true })
     },
     [canOpenArtifactFile, panelActions, setPreviewFileSelection, setSelectedFile, workspacePath]
   )
@@ -272,6 +274,7 @@ function AgentRightPaneStateProvider({
   resourcePane = null,
   defaultOpen = false,
   onOpenChange,
+  userOpenIntentSeq,
   revealRequest
 }: AgentRightPaneScopeProps) {
   const { t } = useTranslation()
@@ -374,6 +377,7 @@ function AgentRightPaneStateProvider({
               defaultPanelId={RESOURCE_PANE_TAB}
               defaultOpen={defaultOpen}
               onOpenChange={onOpenChange}
+              userOpenIntentSeq={userOpenIntentSeq}
               present={present}>
               <ResourcePaneLocateOpener revealRequest={revealRequest} />
               <AgentRightPaneActionsProvider
@@ -401,7 +405,7 @@ function AgentResourceRightPanel({ scope }: RightPanelComponentProps<AgentRightP
   return scope.resourcePane?.node ?? null
 }
 
-function AgentRightPaneFilesPanel({ active }: RightPanelComponentProps<AgentRightPanelScope>) {
+function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<AgentRightPanelScope>) {
   const { t } = useTranslation()
   const state = useAgentRightPaneFileState()
   const actions = useAgentRightPaneActions()
@@ -481,6 +485,9 @@ function AgentRightPaneFilesPanel({ active }: RightPanelComponentProps<AgentRigh
   return (
     <MarkdownHostContext value={markdownHost}>
       <ArtifactPaneView
+        headerVariant="pane"
+        paneTitle={scope.filesTitle}
+        paneActions={<RightPanelHeaderControls canMaximize />}
         workspacePath={meta.workspacePath}
         previewFileSelection={state.previewFileSelection}
         onPreviewClose={actions.closeFilePreview}
@@ -714,6 +721,7 @@ const AGENT_RIGHT_PANEL_CAPABILITIES = [
       instanceKey: `workspace:${scope.meta.workspaceId ?? ''}\0${scope.meta.workspacePath ?? ''}`,
       title: scope.filesTitle,
       readiness: resolveAgentFilesReadiness(scope),
+      headerMode: 'content',
       canMaximize: true
     })
   },
