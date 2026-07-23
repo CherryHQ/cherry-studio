@@ -28,6 +28,7 @@ const {
   toastErrorMock,
   navigateMock,
   openSettingsTabMock,
+  versionStatusesMock,
   mockProviders,
   mockProviderConfigs
 } = vi.hoisted(() => ({
@@ -50,6 +51,7 @@ const {
   toastErrorMock: vi.fn(),
   navigateMock: vi.fn(),
   openSettingsTabMock: vi.fn(),
+  versionStatusesMock: vi.fn(),
   mockProviders: [] as Provider[],
   mockProviderConfigs: {} as Record<string, CliProviderConfig>
 }))
@@ -107,6 +109,14 @@ vi.mock('@cherrystudio/ui', () => ({
         confirm remove
       </button>
     ) : null,
+  // Dialog family used by BinaryInstallErrorDialog (rendered by CodeCliContentPanel).
+  Dialog: ({ open, children }: { open?: boolean; children?: ReactNode }) =>
+    open ? <div role="dialog">{children}</div> : null,
+  DialogContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  DialogDescription: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  DialogFooter: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  DialogHeader: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  DialogTitle: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   Select: ({
     children,
     value,
@@ -140,10 +150,6 @@ vi.mock('@data/DataApiService', () => ({
   }
 }))
 
-vi.mock('@renderer/data/hooks/useCache', () => ({
-  usePersistCache: () => [false, vi.fn()]
-}))
-
 vi.mock('@renderer/hooks/useCodeCli', () => ({
   useCodeCli: () => useCodeCliMock()
 }))
@@ -162,8 +168,9 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
-    request: vi.fn()
-  }
+    request: vi.fn(async () => ({}))
+  },
+  useIpcOn: vi.fn()
 }))
 
 vi.mock('@renderer/services/LoggerService', () => ({
@@ -185,15 +192,6 @@ vi.mock('@renderer/services/mainWindowNavigation', () => ({
 
 vi.mock('@renderer/services/toast', () => ({
   toast: { error: toastErrorMock }
-}))
-
-vi.mock('@renderer/pages/code/constants/codeCliTools', () => ({
-  CLI_TOOL_PRESET_MAP: {
-    [CodeCli.CLAUDE_CODE]: {},
-    [CodeCli.OPENAI_CODEX]: {},
-    [CodeCli.OPEN_CODE]: {},
-    [CodeCli.QODER_CLI]: {}
-  }
 }))
 
 vi.mock('../cliConfig/claudeModels', () => ({
@@ -332,11 +330,26 @@ vi.mock('../components/LaunchDialog', () => ({
 }))
 
 vi.mock('../components/VersionStatusCard', () => ({
-  VersionStatusCard: ({ canLaunch, onRemove }: { canLaunch?: boolean; onRemove?: () => void }) => (
+  VersionStatusCard: ({
+    canLaunch,
+    onRemove,
+    installError,
+    onShowError
+  }: {
+    canLaunch?: boolean
+    onRemove?: () => void
+    installError?: string
+    onShowError?: () => void
+  }) => (
     <div data-can-launch={String(canLaunch)} data-testid="version-status-card">
       {onRemove && (
         <button type="button" onClick={onRemove}>
           remove tool
+        </button>
+      )}
+      {installError && (
+        <button type="button" onClick={onShowError}>
+          show error
         </button>
       )}
     </div>
@@ -368,12 +381,7 @@ vi.mock('../hooks/useBinaryActions', () => ({
 }))
 
 vi.mock('../hooks/useCliVersionStatuses', () => ({
-  useCliVersionStatuses: () => ({
-    [CodeCli.CLAUDE_CODE]: { installed: true, canUpgrade: false },
-    [CodeCli.OPENAI_CODEX]: { installed: true, canUpgrade: false },
-    [CodeCli.OPEN_CODE]: { installed: true, canUpgrade: false },
-    [CodeCli.QODER_CLI]: { installed: true, canUpgrade: false }
-  })
+  useCliVersionStatuses: () => versionStatusesMock()
 }))
 
 vi.mock('../hooks/useConfigMetadata', () => ({
@@ -428,11 +436,22 @@ function mockCodeCliState({
   })
 }
 
+function baseVersionStatuses(overrides: Partial<Record<CodeCli, Record<string, unknown>>> = {}) {
+  const base = { installed: true, source: 'mise', applicationStatus: 'applied', canUpgrade: false }
+  return {
+    [CodeCli.CLAUDE_CODE]: { ...base, ...overrides[CodeCli.CLAUDE_CODE] },
+    [CodeCli.OPENAI_CODEX]: { ...base, ...overrides[CodeCli.OPENAI_CODEX] },
+    [CodeCli.OPEN_CODE]: { ...base, ...overrides[CodeCli.OPEN_CODE] },
+    [CodeCli.QODER_CLI]: { ...base, ...overrides[CodeCli.QODER_CLI] }
+  }
+}
+
 describe('CodeCliPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockProviders.splice(0, mockProviders.length, provider)
     mockCodeCliState()
+    versionStatusesMock.mockReturnValue(baseVersionStatuses())
     clearCliConfigMock.mockResolvedValue(undefined)
     readCliConfigFilesMock.mockResolvedValue([])
     extractConnectionFromCliConfigDraftMock.mockReturnValue(null)
@@ -637,5 +656,54 @@ describe('CodeCliPage', () => {
     await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('code.clear_config_failed'))
     // The in-app cleanup still proceeds so the tool state does not point at a removed provider.
     expect(setCurrentProviderMock).toHaveBeenCalledWith(null)
+  })
+
+  it('surfaces a failed install as an install-error dialog but not a failed uninstall', () => {
+    // A failed install exposes the error affordance, and opening it shows the install-error dialog.
+    versionStatusesMock.mockReturnValue(
+      baseVersionStatuses({
+        [CodeCli.CLAUDE_CODE]: { operation: { status: 'failed', action: 'install', error: 'install boom' } }
+      })
+    )
+    const { unmount } = render(<CodeCliPage />)
+
+    fireEvent.click(screen.getByText('show error'))
+    expect(screen.getByRole('dialog')).toHaveTextContent('settings.dependencies.installError')
+
+    unmount()
+
+    // A failed uninstall must not masquerade as an install error — the remove path has its own toast.
+    versionStatusesMock.mockReturnValue(
+      baseVersionStatuses({
+        [CodeCli.CLAUDE_CODE]: { operation: { status: 'failed', action: 'remove', error: 'remove boom' } }
+      })
+    )
+    render(<CodeCliPage />)
+
+    expect(screen.queryByText('show error')).not.toBeInTheDocument()
+  })
+
+  it('does not auto-reopen the install-error dialog after switching tools and back', () => {
+    versionStatusesMock.mockReturnValue(
+      baseVersionStatuses({
+        [CodeCli.CLAUDE_CODE]: { operation: { status: 'failed', action: 'install', error: 'boom' } }
+      })
+    )
+    const { rerender } = render(<CodeCliPage />)
+
+    fireEvent.click(screen.getByText('show error'))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    // Switch to a tool with no failed install: the dialog's controlled `open` goes false, but Radix
+    // does not fire onOpenChange on a controlled close (the mocked Dialog reproduces this).
+    mockCodeCliState({ selectedCliTool: CodeCli.OPENAI_CODEX })
+    rerender(<CodeCliPage />)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    // Switch back to the failed tool. Without resetting on tool change, the stale open flag would
+    // re-surface the dialog unprompted.
+    mockCodeCliState({ selectedCliTool: CodeCli.CLAUDE_CODE })
+    rerender(<CodeCliPage />)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })

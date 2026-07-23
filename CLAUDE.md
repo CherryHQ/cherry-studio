@@ -211,7 +211,7 @@ Services without long-lived resources or persistent side effects: use **named ex
 
 **MUST READ**: [docs/references/binary-manager/README.md](docs/references/binary-manager/README.md) — scope criterion (in/out), persisted surface, bundled-vs-mise state contract, adding a new tool, China mirror behavior.
 
-All third-party CLI binary acquisition (uv, bun, ripgrep, claude-code, gh, …) goes through `BinaryManager`. Wrap mise's polyglot backends (`npm:`, `pipx:`, `github:`, registry entries) — do NOT shell out to package managers from your own service. Domain services consume via `application.get('BinaryManager').installTool(...)` and keep runtime orchestration (config, spawn, health) on their side.
+All third-party CLI binary acquisition (uv, bun, ripgrep, claude-code, gh, …) goes through `BinaryManager`. Wrap mise's polyglot backends (`npm:`, `pipx:`, `github:`, registry entries) — do NOT shell out to package managers from your own service. Domain services consume via `application.get('BinaryManager').installByName(...)` (or `addCustomTool(...)` for an arbitrary user recipe) and keep runtime orchestration (config, spawn, health) on their side.
 
 ## v2 Refactoring (In Progress)
 
