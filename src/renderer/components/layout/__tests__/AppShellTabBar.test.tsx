@@ -615,6 +615,25 @@ describe('AppShellTabBar', () => {
     expect(setActiveTab).not.toHaveBeenCalled()
   })
 
+  it.each(['touch', 'pen'] as const)(
+    'closes a tab immediately for a %s click without freezing the strip',
+    (pointerType) => {
+      const closeTab = renderTabBar()
+      const tab = screen.getByRole('button', { name: 'A' })
+      const remainingTab = screen.getByRole('button', { name: 'Chat' })
+      const closeButton = within(tab).getByRole('button', { name: 'tab.close' })
+      const click = new MouseEvent('click', { bubbles: true, detail: 1 })
+      Object.defineProperty(click, 'pointerType', { value: pointerType })
+
+      fireEvent(closeButton, click)
+
+      expect(closeTab).toHaveBeenCalledOnce()
+      expect(closeTab).toHaveBeenCalledWith('a')
+      expect(tab).toHaveStyle({ flex: '1 1 0px' })
+      expect(remainingTab).toHaveStyle({ flex: '1 1 0px' })
+    }
+  )
+
   it('keeps the close button reachable by keyboard', () => {
     const closeTab = renderTabBar()
 
@@ -979,6 +998,77 @@ describe('AppShellTabBar', () => {
       expect(closingTab).toHaveStyle({ flex: '0 0 0px' })
     } finally {
       restoreAnimation()
+    }
+  })
+
+  it('includes a leading closing tab gap and current margin in the early thaw target', () => {
+    const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      const element = this as HTMLElement
+      const tabId = element.dataset.tabId
+      const geometry =
+        element.dataset.testid === 'app-shell-tab-strip'
+          ? { left: 0, width: 300 }
+          : tabId === 'a'
+            ? { left: 0, width: 90 }
+            : tabId === 'b'
+              ? { left: 94, width: 90 }
+              : tabId === 'c'
+                ? { left: 188, width: 90 }
+                : { left: 0, width: 0 }
+      return {
+        width: geometry.width,
+        height: 30,
+        top: 0,
+        left: geometry.left,
+        right: geometry.left + geometry.width,
+        bottom: 30,
+        x: geometry.left,
+        y: 0,
+        toJSON: () => ({})
+      } as DOMRect
+    })
+    vi.useFakeTimers()
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 16) as unknown as number
+    )
+
+    try {
+      renderTabBar({
+        tabs: [
+          { id: 'a', type: 'route', url: '/app/a', title: 'A' },
+          { id: 'b', type: 'route', url: '/app/b', title: 'B' },
+          { id: 'c', type: 'route', url: '/app/c', title: 'C' }
+        ]
+      })
+      const closingTab = screen.getByRole('button', { name: 'A' })
+      const remainingTab = screen.getByRole('button', { name: 'B' })
+
+      fireEvent.click(within(closingTab).getByRole('button', { name: 'tab.close' }), { detail: 1 })
+      act(() => {
+        vi.advanceTimersByTime(50)
+      })
+      expect(closingTab).toHaveStyle({ flex: '0 0 0px' })
+
+      // Model the first transition frame: width is still 90px and margin-right
+      // is still 0px, so the leading item's full footprint is 90 + gap 4.
+      const styleSpy = vi
+        .spyOn(window, 'getComputedStyle')
+        .mockReturnValue({ marginRight: '0px' } as CSSStyleDeclaration)
+      try {
+        fireEvent.mouseLeave(screen.getByTestId('app-shell-tab-strip'))
+        expect(styleSpy).toHaveBeenCalled()
+      } finally {
+        styleSpy.mockRestore()
+      }
+
+      // Strip right limit: 300 - pr-1 4 - launchpad footprint 6 = 290.
+      // (290 - post-close left 0 - alive gap 4) / 2 = 143.
+      expect(remainingTab).toHaveStyle({ flex: '0 0 143px' })
+    } finally {
+      vi.useRealTimers()
+      vi.unstubAllGlobals()
+      rectSpy.mockRestore()
     }
   })
 

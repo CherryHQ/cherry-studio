@@ -118,7 +118,7 @@ type NormalTabButtonProps = {
   tab: Tab
   isActive: boolean
   onSelect: () => void
-  /** Pointer-initiated closes pass the tab's current width so the bar can freeze layout (Chrome-style). */
+  /** Mouse-initiated closes pass the tab's current width so the bar can freeze layout (Chrome-style). */
   onClose: (freezeWidth?: number) => void
   showClose?: boolean
   /** When set, the tab keeps this fixed width instead of flexing (close-in-place mode). */
@@ -164,6 +164,13 @@ const NormalTabButton = ({
   const canClose = showClose
 
   const closeFromPointer = (e: React.MouseEvent<HTMLElement>) => {
+    const pointerType = (e.nativeEvent as MouseEvent & { pointerType?: string }).pointerType
+    // Touch and pen devices without hover dispatch mouseleave before click, so
+    // freezing on their synthetic click would leave the strip frozen forever.
+    if (pointerType && pointerType !== 'mouse') {
+      onClose()
+      return
+    }
     const tabButton = (e.currentTarget as HTMLElement).closest('[data-tab-id]') as HTMLElement | null
     // Fractional width: freezing to a rounded offsetWidth would shift every tab
     // boundary at the freeze snap (flexbox resolves fractional widths).
@@ -672,12 +679,17 @@ export const AppShellTabBar = ({
     // Tabs still collapsing left of the first alive tab shift its rect right by
     // their transient width; that space belongs to the post-close layout.
     const firstAliveIndex = normalTabs.findIndex((tab) => tab.id === aliveTabs[0].id)
-    const closingBeforeWidth = normalTabs
+    const closingBeforeFootprint = normalTabs
       .slice(0, firstAliveIndex)
       .filter((tab) => pendingCloseIds.has(tab.id))
-      .reduce((sum, tab) => sum + (tabRefs.current.get(tab.id)?.getBoundingClientRect().width ?? 0), 0)
+      .reduce((sum, tab) => {
+        const element = tabRefs.current.get(tab.id)
+        if (!element) return sum
+        const marginRight = Number.parseFloat(window.getComputedStyle(element).marginRight) || 0
+        return sum + element.getBoundingClientRect().width + gap + marginRight
+      }, 0)
     const available =
-      rightLimit - (firstEl.getBoundingClientRect().left - closingBeforeWidth) - (aliveTabs.length - 1) * gap
+      rightLimit - (firstEl.getBoundingClientRect().left - closingBeforeFootprint) - (aliveTabs.length - 1) * gap
     if (available <= 0) return null
     // Keep the fraction: flexbox resolves fractional widths, and rounding here
     // would make the final frozen→flex swap visibly shift the strip.
@@ -686,11 +698,11 @@ export const AppShellTabBar = ({
 
   const handleStripMouseLeave = () => {
     stripPointerInsideRef.current = false
-    if (frozenTabWidth == null) return
     if ([...pendingCloseIdsRef.current].some((id) => !closingTabIds.has(id))) {
       thawAfterCollapseRef.current = true
       return
     }
+    if (frozenTabWidth == null) return
     // A leave→re-enter→leave during an in-flight glide must not fall through to
     // the instant unfreeze (a mid-transition swap snaps the remaining distance),
     // and the previous glide's timer must not fire into the restarted one.
