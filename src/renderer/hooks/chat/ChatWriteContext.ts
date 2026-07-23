@@ -11,12 +11,16 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { createContext, use } from 'react'
 
-/** Chat write actions injected via React Context. Operations delegate to DataApi + useChat. */
-/** Optional hints passed alongside `deleteMessage`. */
-export interface DeleteMessageTraceOptions {
+/** Optional arguments passed alongside `deleteMessage`. */
+export interface DeleteMessageOptions {
   modelName?: string
+  /** Request cascade or splice behavior. First-turn user messages cannot be spliced safely. */
+  cascade?: boolean
+  /** Complete multi-select plan, used to reject unsafe batches before their first write. */
+  selectedMessageIds?: readonly string[]
 }
 
+/** Chat write actions injected via React Context. Operations delegate to DataApi + useChat. */
 /** Options carried alongside a regenerate request. */
 export interface RegenerateOptions {
   /**
@@ -31,7 +35,7 @@ export interface RegenerateOptions {
 export interface ChatWriteActions {
   regenerate: (messageId?: string, options?: RegenerateOptions) => Promise<void>
   resend: (messageId?: string) => Promise<void>
-  deleteMessage: (id: string, traceOptions?: DeleteMessageTraceOptions) => Promise<void>
+  deleteMessage: (id: string, options?: DeleteMessageOptions) => Promise<void>
   deleteMessageGroup: (id: string) => Promise<void>
   pause: () => void
   clearTopicMessages: () => Promise<void>

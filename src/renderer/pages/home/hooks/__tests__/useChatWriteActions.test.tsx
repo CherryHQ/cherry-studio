@@ -66,9 +66,33 @@ describe('useChatWriteActions — first-turn delete', () => {
     expect(cache.deleteMessageTrigger).toHaveBeenCalledWith({ params: { id: 'u1' }, query: { cascade: true } })
   })
 
+  it('rejects a direct first-turn splice before any optimistic or persisted delete', async () => {
+    const cache = makeCache()
+    const { actions } = renderActions('vroot', tree(), cache)
+
+    await expect(actions.deleteMessage('u1', { cascade: false })).rejects.toThrow(
+      'Cannot delete a first-turn user message without cascading its replies'
+    )
+
+    expect(cache.seedOptimisticBranch).not.toHaveBeenCalled()
+    expect(cache.deleteMessageTrigger).not.toHaveBeenCalled()
+  })
+
+  it('rejects a multi-select plan containing a first-turn user before deleting its assistant first', async () => {
+    const cache = makeCache()
+    const { actions } = renderActions('vroot', tree(), cache)
+
+    await expect(actions.deleteMessage('a1', { cascade: false, selectedMessageIds: ['u1', 'a1'] })).rejects.toThrow(
+      'Cannot delete a first-turn user message without cascading its replies'
+    )
+
+    expect(cache.seedOptimisticBranch).not.toHaveBeenCalled()
+    expect(cache.deleteMessageTrigger).not.toHaveBeenCalled()
+  })
+
   it('splices a deeper (non-first-turn) message', async () => {
     const { actions, cache } = renderActions('vroot', tree())
-    await actions.deleteMessage('a1')
+    await actions.deleteMessage('a1', { cascade: false, selectedMessageIds: ['a1'] })
     expect(cache.deleteMessageTrigger).toHaveBeenCalledWith({ params: { id: 'a1' }, query: { cascade: false } })
   })
 

@@ -6,6 +6,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useMessageSelectionController } from '../useMessageSelectionController'
 
+const { popupConfirm } = vi.hoisted(() => ({ popupConfirm: vi.fn() }))
+
+vi.mock('@renderer/services/popup', () => ({
+  popup: { confirm: popupConfirm }
+}))
+
 const cacheValues = {
   'chat.multi_select_mode': false,
   'chat.selected_message_ids': []
@@ -26,7 +32,8 @@ const setCacheValue = vi.fn((key: string, value: unknown) => {
 })
 
 vi.mock('react-i18next', () => {
-  const t = (key: string) => key
+  const t = (key: string, options?: { count?: number }) =>
+    options?.count === undefined ? key : `${key}:${options.count}`
   return {
     initReactI18next: {
       type: '3rdParty',
@@ -69,6 +76,7 @@ describe('useMessageSelectionController', () => {
       warning: vi.fn(),
       error: vi.fn()
     }
+    popupConfirm.mockResolvedValue(true)
   })
 
   it('copies selected composer tokens through rich clipboard when available', async () => {
@@ -196,5 +204,83 @@ describe('useMessageSelectionController', () => {
 
     expect(setCacheValue).toHaveBeenCalledWith('chat.multi_select_mode', false)
     expect(setCacheValue).toHaveBeenCalledWith('chat.selected_message_ids', [])
+  })
+
+  it('passes the complete selection plan and disables cascading deletion', async () => {
+    const deleteMessage = vi.fn().mockResolvedValue(undefined)
+    const messages = [
+      { ...message('u1'), parentId: 'virtual-root' },
+      { ...message('a1'), role: 'assistant' as const, parentId: 'u1' },
+      { ...message('u2'), parentId: 'a1' }
+    ]
+    const { result } = renderHook(() =>
+      useMessageSelectionController({
+        topicId: 'topic-1',
+        messages,
+        partsByMessageId: {},
+        deleteMessage
+      })
+    )
+
+    await act(async () => {
+      await result.current.actions.deleteSelectedMessages?.(['u1', 'a1'])
+    })
+
+    expect(popupConfirm).toHaveBeenCalledWith(expect.objectContaining({ content: 'message.delete.confirm.content:2' }))
+    expect(deleteMessage.mock.calls).toEqual([
+      ['u1', { cascade: false, selectedMessageIds: ['u1', 'a1'] }],
+      ['a1', { cascade: false, selectedMessageIds: ['u1', 'a1'] }]
+    ])
+    expect((window as any).toast.error).not.toHaveBeenCalled()
+    expect(setCacheValue).toHaveBeenCalledWith('chat.multi_select_mode', false)
+    expect(setCacheValue).toHaveBeenCalledWith('chat.selected_message_ids', [])
+  })
+
+  it('clears multi-select state when deleting a selected message fails', async () => {
+    const deleteMessage = vi.fn().mockRejectedValue(new Error('delete failed'))
+    const { result } = renderHook(() =>
+      useMessageSelectionController({
+        topicId: 'topic-1',
+        messages: [message('a')],
+        partsByMessageId: {},
+        deleteMessage
+      })
+    )
+
+    await act(async () => {
+      await result.current.actions.deleteSelectedMessages?.(['a'])
+    })
+
+    expect(setCacheValue).toHaveBeenCalledWith('chat.multi_select_mode', false)
+    expect(setCacheValue).toHaveBeenCalledWith('chat.selected_message_ids', [])
+  })
+
+  it('keeps multi-select state when the delete confirmation is cancelled', async () => {
+    const deleteMessage = vi.fn()
+    const { result } = renderHook(() =>
+      useMessageSelectionController({
+        topicId: 'topic-1',
+        messages: [message('a')],
+        partsByMessageId: {},
+        deleteMessage
+      })
+    )
+
+    act(() => {
+      result.current.actions.toggleMultiSelectMode?.(true)
+      result.current.actions.selectMessage?.('a', true)
+    })
+    setCacheValue.mockClear()
+    popupConfirm.mockResolvedValueOnce(false)
+
+    await act(async () => {
+      await result.current.actions.deleteSelectedMessages?.(['a'])
+    })
+
+    expect(deleteMessage).not.toHaveBeenCalled()
+    expect(setCacheValue).not.toHaveBeenCalledWith('chat.multi_select_mode', false)
+    expect(setCacheValue).not.toHaveBeenCalledWith('chat.selected_message_ids', [])
+    expect(cacheValues['chat.multi_select_mode']).toBe(true)
+    expect(cacheValues['chat.selected_message_ids']).toEqual(['a'])
   })
 })

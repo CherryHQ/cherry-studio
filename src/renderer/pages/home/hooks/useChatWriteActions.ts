@@ -98,15 +98,30 @@ export function useChatWriteActions(params: Params): Result {
   }, [clearBranchCache, clearTopicMessagesTrigger, rollbackBranch, topic.id])
 
   const handleDeleteMessage = useCallback<ChatWriteActions['deleteMessage']>(
-    async (id) => {
+    async (id, options) => {
       // Deleting a first-turn message cascades (remove the turn): a non-cascade splice would
       // reparent its replies onto the virtual root, stranding them as parent-less assistants.
       const target = uiMessages.find((m) => m.id === id)
+      const isFirstTurn = target?.role === 'user' && isFirstTurnId(target.metadata?.parentId)
+      const shouldCascade = options?.cascade ?? isFirstTurn
+
+      // A first-turn splice cannot be made safe from the renderer: checking its children and
+      // deleting it are separate DataApi transactions, so a reply could appear in between and
+      // be reparented onto the virtual root. Reject the whole multi-select plan before its first
+      // mutation, even when another selected message is processed before the first-turn user.
+      const selectionContainsFirstTurn = options?.selectedMessageIds?.some((messageId) => {
+        const message = uiMessages.find((item) => item.id === messageId)
+        return message?.role === 'user' && isFirstTurnId(message.metadata?.parentId)
+      })
+      if ((isFirstTurn && options?.cascade === false) || selectionContainsFirstTurn) {
+        throw new Error('Cannot delete a first-turn user message without cascading its replies')
+      }
+
       const optimisticIds = new Set([id])
       await seedOptimisticBranch((prev) => branchWithoutIds(prev, optimisticIds))
 
       try {
-        if (target && isFirstTurnId(target.metadata?.parentId)) {
+        if (shouldCascade) {
           const result = await deleteMessageTrigger({ params: { id }, query: { cascade: true } })
           await seedOptimisticBranch((prev) => branchWithoutIds(prev, new Set(result.deletedIds)))
         } else {
