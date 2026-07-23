@@ -13,7 +13,7 @@ import { regionService } from '@main/services/RegionService'
 import { getBinaryIsolatedHomeEnv, getBinarySearchDirs, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryName } from '@main/utils/binaryResolver'
 import { findCommandInShellEnv, findExecutable } from '@main/utils/commandResolver'
-import { getRawShellEnv } from '@main/utils/shellEnv'
+import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { CustomToolDefinition } from '@shared/data/preference/preferenceTypes'
 import {
   BINARY_INSTALL_PREFERENCE_KEYS,
@@ -1078,6 +1078,12 @@ export class BinaryManager extends BaseService {
         const definition = this.resolveDefinition(name)
         if (!definition) return { kind: 'reject', error: `Unknown tool: ${name}` }
 
+        // The system probe reads the cached login-shell env, which can predate a
+        // CLI the user installed mid-session; deciding from that stale PATH would
+        // lay down a managed shadow copy over a now-present system binary.
+        // Re-capture before deriving the facts this decision runs on (the fetch
+        // falls back to process.env on failure and never rejects).
+        await refreshShellEnv()
         const snapshot = (await this.getToolSnapshots([name]))[name]
         const status = snapshot.application?.status
         const source = snapshot.availability.source
@@ -1192,6 +1198,9 @@ export class BinaryManager extends BaseService {
           await this.upsertCustomDefinition(definition)
           persisted = true
 
+          // Same stale-PATH guard as installByNameImpl: the external-satisfied
+          // no-op below must see a live system probe, not the boot-time capture.
+          await refreshShellEnv()
           const snapshot = (await this.getToolSnapshots([definition.name]))[definition.name]
           const applicationFact = snapshot.application
           const status = applicationFact?.status

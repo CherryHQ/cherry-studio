@@ -87,7 +87,8 @@ vi.mock('@main/services/RegionService', () => ({
 }))
 
 vi.mock('@main/utils/shellEnv', () => ({
-  getRawShellEnv: vi.fn(async () => ({ PATH: '/usr/local/bin:/usr/bin' }))
+  getRawShellEnv: vi.fn(async () => ({ PATH: '/usr/local/bin:/usr/bin' })),
+  refreshShellEnv: vi.fn(async () => ({ PATH: '/usr/local/bin:/usr/bin' }))
 }))
 
 vi.mock('@main/utils/commandResolver', () => ({
@@ -103,6 +104,7 @@ vi.mock('node:util', async (importOriginal) => {
 const { BinaryManager, validateBinaryToolDefinition } = await import('../BinaryManager')
 const { application } = await import('@application')
 const { findCommandInShellEnv } = await import('@main/utils/commandResolver')
+const { refreshShellEnv } = await import('@main/utils/shellEnv')
 const { MockMainCacheServiceUtils } = await import('@test-mocks/main/CacheService')
 const { getBinaryExecutionEnv, getBinaryIsolatedHomeEnv } = await import('@main/utils/binaryEnv')
 
@@ -161,6 +163,7 @@ describe('BinaryManager', () => {
     mockFs.readFileSync.mockReset()
     mockFsp.access.mockReset().mockResolvedValue(undefined)
     vi.mocked(findCommandInShellEnv).mockReset().mockResolvedValue(null)
+    vi.mocked(refreshShellEnv).mockReset().mockResolvedValue({ PATH: '/usr/local/bin:/usr/bin' })
     manifestRef.value = []
     mockInstallPreferences()
     mockPreferenceService.set.mockImplementation(async (key: string, value: typeof manifestRef.value) => {
@@ -1779,6 +1782,41 @@ describe('BinaryManager', () => {
       expect(manifestRef.value).toEqual([])
     })
 
+    it('converges as a no-op when a mid-session system install appears in the refreshed env', async () => {
+      const service = makeService()
+      // The boot-time capture saw no fd; the user then installs one in another
+      // terminal. The pre-decision refresh makes the new PATH visible, so the
+      // install must converge on the external copy instead of laying down a
+      // managed shadow.
+      vi.mocked(refreshShellEnv).mockImplementation(async () => {
+        vi.mocked(findCommandInShellEnv).mockResolvedValue('/usr/local/bin/fd')
+        return { PATH: '/usr/local/bin:/usr/bin' }
+      })
+      mockExecFileAsync.mockResolvedValue({ stdout: JSON.stringify({}), stderr: '' })
+
+      await service.installByName({ name: 'fd' })
+
+      expect(miseArgs().some((args: string[]) => args[0] === 'use')).toBe(false)
+      expect(MockMainCacheServiceUtils.getCacheValue('feature.binary.install_states')).toEqual({})
+    })
+
+    it('refreshes the login-shell capture before deciding to install', async () => {
+      const service = makeService()
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls' && args.length === 2) return { stdout: JSON.stringify({}), stderr: '' }
+        if (args[0] === 'ls')
+          return { stdout: JSON.stringify({ fd: [{ version: '10.0.0', active: true }] }), stderr: '' }
+        if (args[0] === 'which') return { stdout: '/mock/mise/shims/fd\n', stderr: '' }
+        return { stdout: '', stderr: '' }
+      })
+
+      await service.installByName({ name: 'fd' })
+
+      // Still absent after the fresh probe → the managed install proceeds.
+      expect(vi.mocked(refreshShellEnv)).toHaveBeenCalled()
+      expect(miseArgs()).toContainEqual(['use', '-g', 'fd@latest'])
+    })
+
     it('is a no-op for an already-applied fixed tool and writes nothing', async () => {
       const service = makeService()
       mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
@@ -2073,6 +2111,24 @@ describe('BinaryManager', () => {
 
       expect(manifestRef.value).toEqual([{ name: 'mytool', tool: 'npm:mytool' }])
       expect(miseArgs()).not.toContainEqual(['use', '-g', 'node@22', 'npm:mytool@latest'])
+      expect(operations()).toEqual({})
+    })
+
+    it('adopts a mid-session external copy from the refreshed env instead of installing a shadow', async () => {
+      const service = makeService()
+      // Same stale-PATH guard as installByName: the external copy only becomes
+      // visible after the pre-decision refresh, and Custom Add must then keep
+      // the definition without laying down a managed copy.
+      vi.mocked(refreshShellEnv).mockImplementation(async () => {
+        vi.mocked(findCommandInShellEnv).mockResolvedValue('/usr/local/bin/mytool')
+        return { PATH: '/usr/local/bin:/usr/bin' }
+      })
+      mockExecFileAsync.mockResolvedValue({ stdout: JSON.stringify({}), stderr: '' })
+
+      await service.addCustomTool({ name: 'mytool', tool: 'npm:mytool' })
+
+      expect(manifestRef.value).toEqual([{ name: 'mytool', tool: 'npm:mytool' }])
+      expect(miseArgs().some((args: string[]) => args[0] === 'use')).toBe(false)
       expect(operations()).toEqual({})
     })
 
