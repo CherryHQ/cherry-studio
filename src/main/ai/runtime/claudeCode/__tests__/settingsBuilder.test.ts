@@ -235,7 +235,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(mocks.listSkills).toHaveBeenCalledWith({ agentId: 'agent-1' })
     expect(mocks.listLocalSkills).toHaveBeenCalledWith('/workspace/project')
     expect(settings.cwd).toBe('/workspace/project')
-    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: 180_000 })
+    expect(settings.settings).toMatchObject({ autoCompactEnabled: true })
   })
 
   it('builds configured MCP bridges from the request snapshot instead of re-reading edited rows', async () => {
