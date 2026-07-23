@@ -4719,7 +4719,8 @@ describe('ComposerSurface', () => {
                 label: 'Low',
                 description: 'Use low reasoning',
                 icon: 'low',
-                sources: ['root-panel']
+                sources: ['root-panel'],
+                action: vi.fn()
               }
             ]
           },
@@ -4767,7 +4768,11 @@ describe('ComposerSurface', () => {
       expect.objectContaining({
         label: 'Thinking',
         isMenu: true,
-        filterText: expect.stringContaining('Low')
+        filterText: expect.not.stringContaining('Low')
+      }),
+      expect.objectContaining({
+        label: 'Low',
+        isMenu: false
       }),
       expect.objectContaining({
         label: 'Knowledge Base'
