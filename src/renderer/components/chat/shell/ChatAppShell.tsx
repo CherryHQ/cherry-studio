@@ -1,20 +1,32 @@
+import { usePersistCache } from '@data/hooks/useCache'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { cn } from '@renderer/utils/style'
 import { motion } from 'motion/react'
-import type { ReactNode, Ref } from 'react'
-import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
+import type { ReactNode, Ref, RefObject } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import { useOptionalRightPanelState } from '../panes/Shell'
 import { OverlayHost } from './OverlayHost'
 import { PageSidebar } from './PageSidebar'
 import {
-  CHAT_CENTER_MIN_USABLE_WIDTH,
+  ARTIFACT_RIGHT_PANE_MAX_WIDTH,
+  ARTIFACT_RIGHT_PANE_MIN_WIDTH,
   CHAT_SHELL_TRANSITION,
-  type ChatPanePosition,
-  RESOURCE_LIST_PANE_AUTO_COLLAPSE_WIDTH,
-  RESOURCE_LIST_PANE_MIN_WIDTH
+  type ChatPanePosition
 } from './paneLayout'
+import { evaluateAutoCollapse, predictCenterWidth } from './paneWidthPolicy'
 import { RightPaneHost } from './RightPaneHost'
+import { clampResourceListPaneWidth } from './useResourceListPaneResize'
+
+/**
+ * User-driven left-pane toggle marker: pages bump `seq` inside explicit user
+ * toggle handlers (both directions) in the same commit that flips `paneOpen`.
+ * Programmatic opens (history locate, layout resets, auto-restore) must not.
+ */
+export interface PaneManualToggleSignal {
+  seq: number
+  open: boolean
+}
 
 interface ChatAppShellBaseProps {
   topBar?: ReactNode
@@ -35,6 +47,7 @@ interface ChatAppShellBaseProps {
   centerClassName?: string
   onPaneCollapse?: () => void
   onPaneAutoCollapseChange?: (collapsed: boolean) => void
+  paneManualToggle?: PaneManualToggleSignal
 }
 
 type ChatAppShellMainProps = ChatAppShellBaseProps & {
@@ -51,17 +64,207 @@ type ChatAppShellCenterContentProps = ChatAppShellBaseProps & {
 
 export type ChatAppShellProps = ChatAppShellMainProps | ChatAppShellCenterContentProps
 
-type AutoCollapseSource = 'center' | 'shell'
+const MANUAL_EXPAND_RELEASE_NARROWING = 8
 
-function getResourceListPaneAutoCollapseWidth() {
-  if (typeof document === 'undefined') {
-    return RESOURCE_LIST_PANE_MIN_WIDTH + CHAT_CENTER_MIN_USABLE_WIDTH
+function clampPaneStoredWidth(width: number): number {
+  return Math.min(ARTIFACT_RIGHT_PANE_MAX_WIDTH, Math.max(ARTIFACT_RIGHT_PANE_MIN_WIDTH, Math.round(width)))
+}
+
+/**
+ * Predicted-center auto-collapse for the left resource list (single source,
+ * replacing the former center/shell crossing-edge observers):
+ *
+ * - Level + hysteresis: collapse while the center the list-expanded layout
+ *   would yield is below the comfort threshold; restore with a small margin.
+ *   The prediction depends only on shell width + persisted widths + pane open
+ *   state — never on whether the list is currently expanded — so there is no
+ *   feedback loop.
+ * - Manual-expand suppression (hard block): a user who explicitly expanded the
+ *   list keeps it until the shell net-narrows past a threshold, a user
+ *   explicitly opens the panel, or the user collapses the list again.
+ * - Drag exemption and full-width freeze delay evaluation; unfreezing
+ *   re-evaluates once (still hard-blocked by suppression).
+ */
+function useResourceListAutoCollapse({
+  leftPaneOpen,
+  listResizing,
+  onPaneAutoCollapseChange,
+  paneManualToggle,
+  rootRef
+}: {
+  leftPaneOpen: boolean
+  listResizing: boolean
+  onPaneAutoCollapseChange?: (collapsed: boolean) => void
+  paneManualToggle?: PaneManualToggleSignal
+  rootRef: RefObject<HTMLDivElement | null>
+}) {
+  const rightPanelState = useOptionalRightPanelState()
+  const [storedListWidth] = usePersistCache('ui.chat.sidebar.width')
+  const [storedPaneWidth] = usePersistCache('ui.chat.artifact_pane.width')
+
+  const dockedPaneOpen = Boolean(rightPanelState?.presentationOpen && !rightPanelState.presentationMaximized)
+  // `fullWidthActive` is host-reported one commit late; `presentationMaximized` and
+  // `layoutAnimationPending` flip synchronously in the provider, so together they
+  // close the race where a maximize-click evaluation would run before the freeze
+  // lands (the list must not open/close along with full-width phases).
+  const frozen = Boolean(
+    rightPanelState?.fullWidthActive ||
+      rightPanelState?.presentationMaximized ||
+      rightPanelState?.layoutAnimationPending ||
+      rightPanelState?.paneResizing ||
+      listResizing
+  )
+  const userOpenSeq = rightPanelState?.userOpenSeq ?? 0
+
+  const shellWidthRef = useRef(0)
+  const collapsedRef = useRef(false)
+  const notifiedRef = useRef(false)
+  const suppressedRef = useRef(false)
+  const suppressStartShellRef = useRef(0)
+  const pendingEvaluateRef = useRef(false)
+  const consumedManualSeqRef = useRef(paneManualToggle?.seq ?? 0)
+  const lastUserOpenSeqRef = useRef(userOpenSeq)
+  const previousLeftPaneOpenRef = useRef(leftPaneOpen)
+
+  const leftPaneOpenRef = useRef(leftPaneOpen)
+  const frozenRef = useRef(frozen)
+  const dockedPaneOpenRef = useRef(dockedPaneOpen)
+  const widthsRef = useRef({ listWidth: 0, paneWidth: 0 })
+  const onChangeRef = useRef(onPaneAutoCollapseChange)
+  leftPaneOpenRef.current = leftPaneOpen
+  frozenRef.current = frozen
+  dockedPaneOpenRef.current = dockedPaneOpen
+  widthsRef.current = {
+    listWidth: clampResourceListPaneWidth(storedListWidth ?? 0),
+    paneWidth: clampPaneStoredWidth(storedPaneWidth ?? 0)
   }
+  useEffect(() => {
+    onChangeRef.current = onPaneAutoCollapseChange
+  }, [onPaneAutoCollapseChange])
 
-  const paneWidth = Number.parseFloat(document.documentElement.style.getPropertyValue('--assistants-width'))
-  const resolvedPaneWidth = Number.isFinite(paneWidth) && paneWidth > 0 ? paneWidth : RESOURCE_LIST_PANE_MIN_WIDTH
+  const notify = useCallback((collapsed: boolean, force = false) => {
+    if (!force && notifiedRef.current === collapsed) return
+    notifiedRef.current = collapsed
+    onChangeRef.current?.(collapsed)
+  }, [])
 
-  return Math.max(RESOURCE_LIST_PANE_AUTO_COLLAPSE_WIDTH, resolvedPaneWidth + CHAT_CENTER_MIN_USABLE_WIDTH)
+  const evaluate = useCallback(
+    (forceNotify = false) => {
+      if (suppressedRef.current) return
+      if (frozenRef.current) {
+        pendingEvaluateRef.current = true
+        return
+      }
+      const shellWidth = shellWidthRef.current
+      if (shellWidth <= 0) return
+
+      const predictedCenter = predictCenterWidth({
+        shellWidth,
+        listWidth: widthsRef.current.listWidth,
+        paneOpen: dockedPaneOpenRef.current,
+        paneWidth: widthsRef.current.paneWidth
+      })
+      let next = evaluateAutoCollapse(predictedCenter, collapsedRef.current)
+      // Never newly collapse a list the user is not showing; releasing stays allowed.
+      if (next && !collapsedRef.current && !leftPaneOpenRef.current) next = collapsedRef.current
+      if (next !== collapsedRef.current || forceNotify) {
+        collapsedRef.current = next
+        notify(next, forceNotify)
+      }
+    },
+    [notify]
+  )
+
+  // Manual toggle signal — must be consumed before the paneOpen effect below so a
+  // manual expand is never misread as a programmatic one (trigger 4).
+  useLayoutEffect(() => {
+    const signal = paneManualToggle
+    if (!signal || signal.seq === consumedManualSeqRef.current) return
+    consumedManualSeqRef.current = signal.seq
+    if (signal.open) {
+      suppressedRef.current = true
+      suppressStartShellRef.current = shellWidthRef.current
+      if (collapsedRef.current) {
+        collapsedRef.current = false
+        notify(false)
+      }
+    } else {
+      suppressedRef.current = false
+      evaluate()
+    }
+  }, [evaluate, notify, paneManualToggle])
+
+  // Trigger 4: the list opened without a manual signal (history locate, layout
+  // resets). Evaluate once and re-declare the output so the page-side flag and
+  // this source cannot desync.
+  useLayoutEffect(() => {
+    const wasOpen = previousLeftPaneOpenRef.current
+    previousLeftPaneOpenRef.current = leftPaneOpen
+    if (!wasOpen && leftPaneOpen) evaluate(true)
+  }, [evaluate, leftPaneOpen])
+
+  // Docked open/close (including present-derived flips) re-evaluates; suppression
+  // release via user open is keyed off userOpenSeq alone.
+  useLayoutEffect(() => {
+    evaluate()
+  }, [dockedPaneOpen, evaluate])
+
+  useLayoutEffect(() => {
+    if (userOpenSeq === lastUserOpenSeqRef.current) return
+    lastUserOpenSeqRef.current = userOpenSeq
+    suppressedRef.current = false
+    evaluate()
+  }, [evaluate, userOpenSeq])
+
+  // Persisted widths are live inputs (either side can be dragged); drag exemption
+  // rides on `frozen`, so mid-drag updates defer to the release evaluation.
+  useLayoutEffect(() => {
+    evaluate()
+  }, [evaluate, storedListWidth, storedPaneWidth])
+
+  // Unfreeze → evaluate once (hard-blocked by suppression like every deferred pass).
+  useLayoutEffect(() => {
+    if (frozen || !pendingEvaluateRef.current) return
+    pendingEvaluateRef.current = false
+    evaluate()
+  }, [evaluate, frozen])
+
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root || typeof ResizeObserver === 'undefined') return
+
+    const observer = new ResizeObserver(([entry]) => {
+      const nextShellWidth = entry.contentRect.width
+      if (nextShellWidth <= 0) return
+      shellWidthRef.current = nextShellWidth
+
+      if (suppressedRef.current) {
+        if (suppressStartShellRef.current - nextShellWidth > MANUAL_EXPAND_RELEASE_NARROWING) {
+          suppressedRef.current = false
+          evaluate()
+        }
+        return
+      }
+      evaluate()
+    })
+
+    observer.observe(root)
+    return () => observer.disconnect()
+  }, [evaluate, rootRef])
+
+  // Activity keep-alive resync: effects unmount while the tab is hidden, so drop
+  // every retained input/output on teardown (and release the page-side flag);
+  // remount re-measures and re-declares from scratch.
+  useEffect(() => {
+    return () => {
+      if (collapsedRef.current) onChangeRef.current?.(false)
+      collapsedRef.current = false
+      notifiedRef.current = false
+      suppressedRef.current = false
+      pendingEvaluateRef.current = false
+      shellWidthRef.current = 0
+    }
+  }, [])
 }
 
 export function ChatAppShell({
@@ -84,7 +287,8 @@ export function ChatAppShell({
   centerRef,
   centerClassName,
   onPaneCollapse,
-  onPaneAutoCollapseChange
+  onPaneAutoCollapseChange,
+  paneManualToggle
 }: ChatAppShellProps) {
   const hasCenterContent = centerContent !== undefined
   const leftPaneOpen = Boolean(paneOpen && panePosition === 'left')
@@ -94,102 +298,15 @@ export function ChatAppShell({
   // wipe as visible scale distortion, so the center reflows instantly instead.
   const centerTransition = rightPanelState?.layoutAnimationPending ? { duration: 0 } : CHAT_SHELL_TRANSITION
   const rootRef = useRef<HTMLDivElement>(null)
-  const centerInnerRef = useRef<HTMLDivElement | null>(null)
-  const leftPaneOpenRef = useRef(leftPaneOpen)
-  const onPaneAutoCollapseChangeRef = useRef(onPaneAutoCollapseChange)
-  const autoCollapseReasonsRef = useRef<Record<AutoCollapseSource, boolean>>({ center: false, shell: false })
-  const previousShellWidthRef = useRef<number | null>(null)
-  const previousCenterWidthRef = useRef<number | null>(null)
+  const [listResizing, setListResizing] = useState(false)
 
-  const updatePaneAutoCollapse = useCallback((source: AutoCollapseSource, collapsed: boolean) => {
-    const reasons = autoCollapseReasonsRef.current
-    const wasCollapsed = reasons.center || reasons.shell
-    reasons[source] = collapsed
-    const isCollapsed = reasons.center || reasons.shell
-
-    if (wasCollapsed !== isCollapsed) {
-      onPaneAutoCollapseChangeRef.current?.(isCollapsed)
-    }
-  }, [])
-
-  useEffect(() => {
-    return () => {
-      const reasons = autoCollapseReasonsRef.current
-      if (reasons.center || reasons.shell) {
-        onPaneAutoCollapseChangeRef.current?.(false)
-      }
-    }
-  }, [])
-
-  // Merge the forwarded centerRef with our own ref so we can measure the center element's width.
-  const assignCenterRef = useCallback(
-    (node: HTMLDivElement | null) => {
-      centerInnerRef.current = node
-      if (typeof centerRef === 'function') centerRef(node)
-      else if (centerRef) (centerRef as { current: HTMLDivElement | null }).current = node
-    },
-    [centerRef]
-  )
-
-  useEffect(() => {
-    leftPaneOpenRef.current = leftPaneOpen
-    onPaneAutoCollapseChangeRef.current = onPaneAutoCollapseChange
-  }, [leftPaneOpen, onPaneAutoCollapseChange])
-
-  useLayoutEffect(() => {
-    const center = centerInnerRef.current
-    if (!center || typeof ResizeObserver === 'undefined') return
-    const initialCenterWidth = center.getBoundingClientRect().width
-    previousCenterWidthRef.current = initialCenterWidth > 0 ? initialCenterWidth : null
-    const observer = new ResizeObserver(([entry]) => {
-      const previousCenterWidth = previousCenterWidthRef.current
-      const nextCenterWidth = entry.contentRect.width
-      previousCenterWidthRef.current = nextCenterWidth
-
-      if (previousCenterWidth === null) return
-
-      if (
-        leftPaneOpenRef.current &&
-        previousCenterWidth >= CHAT_CENTER_MIN_USABLE_WIDTH &&
-        nextCenterWidth < CHAT_CENTER_MIN_USABLE_WIDTH
-      ) {
-        updatePaneAutoCollapse('center', true)
-        return
-      }
-
-      if (previousCenterWidth < CHAT_CENTER_MIN_USABLE_WIDTH && nextCenterWidth >= CHAT_CENTER_MIN_USABLE_WIDTH) {
-        updatePaneAutoCollapse('center', false)
-      }
-    })
-    observer.observe(center)
-    return () => observer.disconnect()
-  }, [updatePaneAutoCollapse])
-
-  useEffect(() => {
-    const root = rootRef.current
-    if (!root || typeof ResizeObserver === 'undefined') return
-
-    const observer = new ResizeObserver(([entry]) => {
-      const previousShellWidth = previousShellWidthRef.current
-      const nextShellWidth = entry.contentRect.width
-      const autoCollapseWidth = getResourceListPaneAutoCollapseWidth()
-      previousShellWidthRef.current = nextShellWidth
-
-      if (previousShellWidth === null) return
-
-      if (leftPaneOpenRef.current && previousShellWidth >= autoCollapseWidth && nextShellWidth < autoCollapseWidth) {
-        updatePaneAutoCollapse('shell', true)
-        return
-      }
-
-      if (previousShellWidth < autoCollapseWidth && nextShellWidth >= autoCollapseWidth) {
-        updatePaneAutoCollapse('shell', false)
-      }
-    })
-
-    observer.observe(root)
-    return () => observer.disconnect()
-  }, [updatePaneAutoCollapse])
+  useResourceListAutoCollapse({
+    leftPaneOpen,
+    listResizing,
+    onPaneAutoCollapseChange,
+    paneManualToggle,
+    rootRef
+  })
 
   return (
     <div
@@ -198,14 +315,14 @@ export function ChatAppShell({
       id={rootId}
       className={cn('relative flex min-w-0 flex-1 flex-col overflow-hidden', rootClassName)}>
       <div id={contentId} className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
-        <PageSidebar open={leftPaneOpen} onPaneCollapse={onPaneCollapse}>
+        <PageSidebar open={leftPaneOpen} onPaneCollapse={onPaneCollapse} onResizingChange={setListResizing}>
           {pane}
         </PageSidebar>
 
         <div data-chat-app-shell-main-region className="relative flex min-w-0 flex-1 overflow-hidden">
           <div className="relative flex min-w-0 flex-1 flex-col">
             <motion.div
-              ref={assignCenterRef}
+              ref={centerRef}
               data-chat-app-shell-center
               id={centerId}
               layout

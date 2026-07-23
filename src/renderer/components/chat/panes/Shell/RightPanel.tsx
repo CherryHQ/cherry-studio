@@ -14,8 +14,7 @@ import {
   ARTIFACT_RIGHT_PANE_CACHE_KEY,
   ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH,
   ARTIFACT_RIGHT_PANE_MAX_WIDTH,
-  ARTIFACT_RIGHT_PANE_MIN_WIDTH,
-  CHAT_CENTER_MIN_USABLE_WIDTH
+  ARTIFACT_RIGHT_PANE_MIN_WIDTH
 } from '../../shell/paneLayout'
 import { PersistentRightPaneHost, type RightPaneLayoutMode } from '../../shell/RightPaneHost'
 
@@ -65,17 +64,28 @@ export interface RightPanelState {
   presentationEnabled: boolean
   /** True while maximize/minimize layout is moving to its settled mode. */
   layoutAnimationPending: boolean
+  /** Host-reported: any full-width phase, including the maximized→closed exit animation. */
+  fullWidthActive: boolean
+  /** Host-reported: the pane's resize handle is being dragged. */
+  paneResizing: boolean
+  /** Increments when a user-initiated action opens the panel from closed. */
+  userOpenSeq: number
   pdfLayoutPending: boolean
   pdfLayoutRefreshKey: number
   isActive: (panelId: string) => boolean
 }
 
+export interface RightPanelOpenOptions {
+  /** Marks a direct user action on a panel-open entry point (button/shortcut). */
+  userInitiated?: boolean
+}
+
 export interface RightPanelActions {
   canOpen: (panelId: string) => boolean
   /** Opens a currently ready panel and returns whether the request was accepted. */
-  tryOpen: (panelId: string) => boolean
+  tryOpen: (panelId: string, options?: RightPanelOpenOptions) => boolean
   /** Records selection intent for a dynamic entry created in the same React batch. */
-  requestOpen: (panelId: string) => void
+  requestOpen: (panelId: string, options?: RightPanelOpenOptions) => void
   close: () => void
   minimize: () => void
 }
@@ -83,6 +93,8 @@ export interface RightPanelActions {
 interface RightPanelControllerActions extends RightPanelActions {
   completeLayoutAnimation: (mode: RightPaneLayoutMode) => void
   toggleMaximized: () => void
+  reportFullWidthPhase: (active: boolean) => void
+  reportPaneResizing: (active: boolean) => void
 }
 
 interface RightPanelRenderContextValue {
@@ -162,7 +174,8 @@ export function RightPanelProvider<TScope>({
   defaultPanelId,
   onOpenChange,
   present = true,
-  scope
+  scope,
+  userOpenIntentSeq = 0
 }: {
   capabilities: readonly RightPanelCapability<TScope>[]
   children: ReactNode
@@ -172,18 +185,27 @@ export function RightPanelProvider<TScope>({
   /** Environmental visibility; false hides presentation while preserving intent and visited instances. */
   present?: boolean
   scope: TScope
+  /**
+   * Latch for user-driven `defaultOpen` flips (classic rail-header clicks): the page bumps this in the
+   * click handler; when the next defaultOpen open lands, it counts as user-initiated for `userOpenSeq`.
+   */
+  userOpenIntentSeq?: number
 }) {
   const entries = useMemo(() => resolveRightPanelEntries(capabilities, scope), [capabilities, scope])
   const [open, setOpen] = useState(defaultOpen)
   const [maximized, setMaximized] = useState(false)
   const [requestedPanelId, setRequestedPanelId] = useState(defaultPanelId)
   const [layoutAnimationPending, setLayoutAnimationPending] = useState(false)
+  const [fullWidthActive, setFullWidthActive] = useState(false)
+  const [paneResizing, setPaneResizing] = useState(false)
+  const [userOpenSeq, setUserOpenSeq] = useState(0)
   const [pdfLayoutPending, setPdfLayoutPending] = useState(false)
   const [pdfLayoutRefreshKey, setPdfLayoutRefreshKey] = useState(0)
   const [mountedInstances, setMountedInstances] = useState<ReadonlyMap<string, string>>(() => new Map())
   const openRef = useRef(open)
   const previousDefaultOpenRef = useRef(defaultOpen)
   const onOpenChangeRef = useRef(onOpenChange)
+  const consumedUserOpenIntentRef = useRef(userOpenIntentSeq)
 
   useEffect(() => {
     onOpenChangeRef.current = onOpenChange
@@ -196,11 +218,14 @@ export function RightPanelProvider<TScope>({
   useEffect(() => {
     if (previousDefaultOpenRef.current === defaultOpen) return
     previousDefaultOpenRef.current = defaultOpen
+    const userIntent = consumedUserOpenIntentRef.current !== userOpenIntentSeq
+    consumedUserOpenIntentRef.current = userOpenIntentSeq
     if (openRef.current === defaultOpen) return
 
     openRef.current = defaultOpen
     setOpen(defaultOpen)
     if (defaultOpen) {
+      if (userIntent) setUserOpenSeq((seq) => seq + 1)
       setRequestedPanelId(defaultPanelId)
       setPdfLayoutPending(true)
     } else {
@@ -208,7 +233,7 @@ export function RightPanelProvider<TScope>({
       setLayoutAnimationPending(false)
       setPdfLayoutPending(false)
     }
-  }, [defaultOpen, defaultPanelId])
+  }, [defaultOpen, defaultPanelId, userOpenIntentSeq])
 
   const requestedEntry = findEntry(entries, requestedPanelId)
   const defaultEntry = getDefaultEntry(entries)
@@ -243,18 +268,21 @@ export function RightPanelProvider<TScope>({
     [activeEntry?.id, presentationOpen]
   )
   const canOpen = useCallback((panelId: string) => findEntry(entries, panelId)?.readiness === 'ready', [entries])
-  const requestOpen = useCallback((panelId: string) => {
+  const requestOpen = useCallback((panelId: string, options?: RightPanelOpenOptions) => {
     const wasOpen = openRef.current
     openRef.current = true
     setRequestedPanelId(panelId)
     setOpen(true)
-    if (!wasOpen) setPdfLayoutPending(true)
+    if (!wasOpen) {
+      setPdfLayoutPending(true)
+      if (options?.userInitiated) setUserOpenSeq((seq) => seq + 1)
+    }
     onOpenChangeRef.current?.(true)
   }, [])
   const tryOpen = useCallback(
-    (panelId: string) => {
+    (panelId: string, options?: RightPanelOpenOptions) => {
       if (!canOpen(panelId)) return false
-      requestOpen(panelId)
+      requestOpen(panelId, options)
       return true
     },
     [canOpen, requestOpen]
@@ -283,6 +311,8 @@ export function RightPanelProvider<TScope>({
     setPdfLayoutPending(false)
     setPdfLayoutRefreshKey((key) => key + 1)
   }, [])
+  const reportFullWidthPhase = useCallback((active: boolean) => setFullWidthActive(active), [])
+  const reportPaneResizing = useCallback((active: boolean) => setPaneResizing(active), [])
 
   const state = useMemo<RightPanelState>(
     () => ({
@@ -293,6 +323,9 @@ export function RightPanelProvider<TScope>({
       presentationMaximized,
       presentationEnabled: present,
       layoutAnimationPending,
+      fullWidthActive,
+      paneResizing,
+      userOpenSeq,
       pdfLayoutPending,
       pdfLayoutRefreshKey,
       isActive
@@ -300,14 +333,17 @@ export function RightPanelProvider<TScope>({
     [
       activeEntry?.id,
       defaultEntry?.id,
+      fullWidthActive,
       isActive,
       layoutAnimationPending,
       maximized,
+      paneResizing,
       pdfLayoutPending,
       pdfLayoutRefreshKey,
       present,
       presentationMaximized,
-      presentationOpen
+      presentationOpen,
+      userOpenSeq
     ]
   )
   const actions = useMemo<RightPanelControllerActions>(
@@ -318,9 +354,21 @@ export function RightPanelProvider<TScope>({
       close,
       minimize,
       completeLayoutAnimation,
-      toggleMaximized
+      toggleMaximized,
+      reportFullWidthPhase,
+      reportPaneResizing
     }),
-    [canOpen, close, completeLayoutAnimation, minimize, requestOpen, toggleMaximized, tryOpen]
+    [
+      canOpen,
+      close,
+      completeLayoutAnimation,
+      minimize,
+      reportFullWidthPhase,
+      reportPaneResizing,
+      requestOpen,
+      toggleMaximized,
+      tryOpen
+    ]
   )
   const renderValue = useMemo<RightPanelRenderContextValue>(
     () => ({ entries, mountedInstances, scope }),
@@ -482,7 +530,7 @@ function RightPanelKeyboardShortcut() {
     if (state.presentationOpen) {
       actions.close()
     } else if (targetPanelId) {
-      actions.tryOpen(targetPanelId)
+      actions.tryOpen(targetPanelId, { userInitiated: true })
     }
   }, [actions, state.presentationOpen, targetPanelId])
 
@@ -506,8 +554,10 @@ export function RightPanelViewport({ children }: { children: ReactNode }) {
         defaultWidth={ARTIFACT_RIGHT_PANE_DEFAULT_WIDTH}
         maxWidth={ARTIFACT_RIGHT_PANE_MAX_WIDTH}
         cacheKey={ARTIFACT_RIGHT_PANE_CACHE_KEY}
-        reservedCenterWidth={CHAT_CENTER_MIN_USABLE_WIDTH}
-        onLayoutAnimationComplete={actions.completeLayoutAnimation}>
+        onLayoutAnimationComplete={actions.completeLayoutAnimation}
+        onFullWidthPhaseChange={actions.reportFullWidthPhase}
+        onResizingChange={actions.reportPaneResizing}
+        onDragClose={actions.close}>
         {children}
       </PersistentRightPaneHost>
     </>
@@ -543,7 +593,7 @@ export function RightPanelShortcut({
         actions.close()
         return
       }
-      actions.tryOpen(tab)
+      actions.tryOpen(tab, { userInitiated: true })
     },
     [actions, active, onClick, tab]
   )
