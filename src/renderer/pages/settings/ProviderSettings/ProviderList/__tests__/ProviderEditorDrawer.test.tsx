@@ -508,6 +508,8 @@ describe('ProviderEditorDrawer', () => {
 
     expect(avatar.compareDocumentPosition(nameInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(nameInput.compareDocumentPosition(apiKeyInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(nameInput.parentElement).toHaveClass('gap-2')
+    expect(apiKeyInput.parentElement?.parentElement).toHaveClass('gap-2')
     expect(apiKeyInput.compareDocumentPosition(chatInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(chatInput.compareDocumentPosition(anthropicInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(anthropicInput.compareDocumentPosition(moreTrigger) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()

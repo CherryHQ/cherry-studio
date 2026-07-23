@@ -1100,10 +1100,10 @@ function ApiKeyField({ value, onChange }: ApiKeyFieldProps) {
   const inputId = `${uid}-api-key-input`
 
   return (
-    <div className="space-y-2">
-      <label htmlFor={inputId} className="font-medium text-[13px] text-foreground">
+    <Field className="gap-2">
+      <FieldLabel htmlFor={inputId} className="text-[13px] text-foreground">
         {t('settings.provider.api_key.label')}
-      </label>
+      </FieldLabel>
       <div className="relative">
         <Input
           id={inputId}
@@ -1122,6 +1122,6 @@ function ApiKeyField({ value, onChange }: ApiKeyFieldProps) {
           {visible ? <EyeOff size={14} /> : <Eye size={14} />}
         </button>
       </div>
-    </div>
+    </Field>
   )
 }
