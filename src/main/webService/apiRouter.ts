@@ -592,7 +592,7 @@ export const createWebUiApiRouter = ({
               : 'attachment'
         const result = await fileManager.read(fileId as never, { encoding: 'binary' })
         const mimeType = (typeof result.mime === 'string' && result.mime.trim()) || 'application/octet-stream'
-        const body = Buffer.isBuffer(result.content) ? result.content : Buffer.from(result.content as Uint8Array)
+        const body = Buffer.isBuffer(result.content) ? result.content : Buffer.from(result.content)
         return {
           status: 200,
           rawBody: body,
@@ -798,7 +798,7 @@ export const createWebUiApiRouter = ({
           return { status: 404, body: { code: 'WEBUI_AGENT_NOT_FOUND', message: 'Desktop Agent was not found' } }
 
         const configuration = {
-          ...(existing.configuration ?? {}),
+          ...existing.configuration,
           permission_mode: body.permissionMode
         }
         const agent = agentService.updateAgent(session.agentId, { configuration })

@@ -256,15 +256,6 @@ const pickVoice = (voices: readonly SpeechSynthesisVoice[], voiceURI: string, la
   )
 }
 
-const emptyState = (): SpeechSynthesisControllerState => ({
-  isSpeaking: false,
-  isPaused: false,
-  segmentIndex: 0,
-  segmentCount: 0,
-  paragraphIndex: 0,
-  paragraphCount: 0
-})
-
 export const createSpeechSynthesisController = ({
   onStateChange,
   getPreferences

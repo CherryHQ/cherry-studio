@@ -3580,8 +3580,9 @@ const App = defineComponent({
       const key = approvalKey(messageId, toolId)
       if (!error) {
         if (!(key in approvalErrorByKey.value)) return
-        const { [key]: _removed, ...rest } = approvalErrorByKey.value
-        approvalErrorByKey.value = rest
+        approvalErrorByKey.value = Object.fromEntries(
+          Object.entries(approvalErrorByKey.value).filter(([entryKey]) => entryKey !== key)
+        )
         return
       }
       approvalErrorByKey.value = { ...approvalErrorByKey.value, [key]: error }
