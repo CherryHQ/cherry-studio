@@ -2,8 +2,7 @@ import { EmptyState, SpaceBetweenRowFlex, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import ActionIconButton from '@renderer/components/ActionIconButton'
-import { CodeEditor, type CodeEditorHandles } from '@renderer/components/CodeEditor'
-import RichEditor from '@renderer/components/RichEditor/RichEditor'
+import type { CodeEditorHandles } from '@renderer/components/CodeEditor'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
@@ -13,10 +12,15 @@ import { toast } from '@renderer/services/toast'
 import type { EditorView } from '@renderer/types/app'
 import { SpellCheck } from 'lucide-react'
 import type { FC, RefObject } from 'react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('NotesEditor')
+
+const CodeEditor = lazy(() =>
+  import('@renderer/components/CodeEditor').then((module) => ({ default: module.CodeEditor }))
+)
+const RichEditor = lazy(() => import('@renderer/components/RichEditor/RichEditor'))
 
 interface NotesEditorProps {
   activeNodeId?: string
@@ -88,42 +92,44 @@ const NotesEditor: FC<NotesEditorProps> = memo(
     return (
       <>
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden transition-opacity duration-200 [&_.notes-rich-editor]:flex-1 [&_.notes-rich-editor]:rounded-none [&_.notes-rich-editor]:border-0 [&_.notes-rich-editor]:bg-transparent [&_.notes-rich-editor_.rich-editor-content]:flex-1 [&_.notes-rich-editor_.rich-editor-content]:overflow-auto [&_.notes-rich-editor_.rich-editor-content]:p-4 [&_.notes-rich-editor_.rich-editor-content]:transition-all [&_.notes-rich-editor_.rich-editor-content]:duration-150 [&_.notes-rich-editor_.rich-editor-wrapper]:flex [&_.notes-rich-editor_.rich-editor-wrapper]:h-full [&_.notes-rich-editor_.rich-editor-wrapper]:flex-col [&_.notes-rich-editor_.rich-editor-wrapper]:transition-all [&_.notes-rich-editor_.rich-editor-wrapper]:duration-150">
-          {tmpViewMode === 'source' ? (
-            <div className={`h-full ${settings.isFullWidth ? 'w-full' : 'mx-auto w-[60%]'}`}>
-              <CodeEditor
-                ref={codeEditorRef}
-                value={currentContent}
-                language="markdown"
-                onChange={onMarkdownChange}
-                className="h-full"
-                expanded={false}
-                height="100%"
-                theme={activeCmTheme}
+          <Suspense fallback={null}>
+            {tmpViewMode === 'source' ? (
+              <div className={`h-full ${settings.isFullWidth ? 'w-full' : 'mx-auto w-[60%]'}`}>
+                <CodeEditor
+                  ref={codeEditorRef}
+                  value={currentContent}
+                  language="markdown"
+                  onChange={onMarkdownChange}
+                  className="h-full"
+                  expanded={false}
+                  height="100%"
+                  theme={activeCmTheme}
+                  fontSize={settings.fontSize}
+                  style={{
+                    height: '100%'
+                  }}
+                />
+              </div>
+            ) : (
+              <RichEditor
+                key={`${activeNodeId}-${tmpViewMode === 'preview' ? 'preview' : 'read'}`}
+                ref={editorRef}
+                initialContent={currentContent}
+                onMarkdownChange={tmpViewMode === 'preview' ? onMarkdownChange : undefined}
+                onCommandsReady={handleCommandsReady}
+                showToolbar={tmpViewMode === 'preview'}
+                editable={tmpViewMode === 'preview'}
+                showTableOfContents={settings.showTableOfContents}
+                enableContentSearch
+                className="notes-rich-editor rounded-none! [&_.ToolbarWrapper]:rounded-none!"
+                wrapperStyle={{ border: 'none', borderRadius: 0, background: 'transparent' }}
+                isFullWidth
+                fontFamily={settings.fontFamily}
                 fontSize={settings.fontSize}
-                style={{
-                  height: '100%'
-                }}
+                enableSpellCheck={enableSpellCheck}
               />
-            </div>
-          ) : (
-            <RichEditor
-              key={`${activeNodeId}-${tmpViewMode === 'preview' ? 'preview' : 'read'}`}
-              ref={editorRef}
-              initialContent={currentContent}
-              onMarkdownChange={tmpViewMode === 'preview' ? onMarkdownChange : undefined}
-              onCommandsReady={handleCommandsReady}
-              showToolbar={tmpViewMode === 'preview'}
-              editable={tmpViewMode === 'preview'}
-              showTableOfContents={settings.showTableOfContents}
-              enableContentSearch
-              className="notes-rich-editor rounded-none! [&_.ToolbarWrapper]:rounded-none!"
-              wrapperStyle={{ border: 'none', borderRadius: 0, background: 'transparent' }}
-              isFullWidth
-              fontFamily={settings.fontFamily}
-              fontSize={settings.fontSize}
-              enableSpellCheck={enableSpellCheck}
-            />
-          )}
+            )}
+          </Suspense>
         </div>
         <div className="flex h-12 shrink-0 items-center border-border border-t px-4 py-2">
           <SpaceBetweenRowFlex className="w-full items-center">
