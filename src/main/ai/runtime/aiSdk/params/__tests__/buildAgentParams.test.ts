@@ -1,11 +1,20 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { StopCondition, Tool, ToolSet } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { makeAssistant, makeModel } from '../../../../__tests__/fixtures'
+import { makeAssistant, makeModel, makeProvider } from '../../../../__tests__/fixtures'
 import { registry } from '../../../../tools/adapters/aiSdk/registry'
 import type { ToolEntry } from '../../../../tools/adapters/aiSdk/types'
 import type { CallOverrides } from '../../../../types/requests'
+
+const { providerToAiSdkConfigMock } = vi.hoisted(() => ({
+  providerToAiSdkConfigMock: vi.fn()
+}))
+
+vi.mock('../../../../provider/config', () => ({
+  providerToAiSdkConfig: providerToAiSdkConfigMock
+}))
 
 vi.mock('@application', () => ({
   application: {
@@ -17,8 +26,67 @@ vi.mock('@application', () => ({
   }
 }))
 
-const { applyCallOverrides, composeStopWhen, resolveKnowledgeBaseIds, resolveToolCallLimit, resolveTools } =
-  await import('../buildAgentParams')
+const {
+  applyCallOverrides,
+  buildAgentParams,
+  composeStopWhen,
+  resolveKnowledgeBaseIds,
+  resolveToolCallLimit,
+  resolveTools
+} = await import('../buildAgentParams')
+
+describe('buildAgentParams provider resolution', () => {
+  it('uses the resolved Vertex MaaS adapter and provider-options namespace', async () => {
+    providerToAiSdkConfigMock.mockResolvedValue({
+      providerId: 'google-vertex-maas',
+      providerSettings: { project: 'my-project', location: 'global' }
+    })
+    const provider = makeProvider({
+      id: 'vertex',
+      authType: 'iam-gcp',
+      defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google-vertex' }
+      }
+    })
+    const model = makeModel({
+      id: 'vertex::openai/gpt-oss-120b-maas',
+      providerId: 'vertex',
+      apiModelId: 'openai/gpt-oss-120b-maas',
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: { type: 'builtin', supportedEfforts: ['low', 'medium', 'high'] }
+    })
+    const assistant = makeAssistant({
+      settings: {
+        reasoning_effort: 'high',
+        customParameters: [
+          {
+            name: 'chat_template_kwargs',
+            type: 'json',
+            value: JSON.stringify({ enable_thinking: true })
+          }
+        ]
+      }
+    })
+
+    const result = await buildAgentParams({
+      request: {},
+      signal: undefined,
+      provider,
+      model,
+      assistant
+    })
+
+    expect(result.sdkConfig.providerId).toBe('google-vertex-maas')
+    expect(result.options.providerOptions).toMatchObject({
+      vertex: {
+        reasoningEffort: 'high',
+        chat_template_kwargs: { enable_thinking: true }
+      }
+    })
+    expect(result.options.providerOptions).not.toHaveProperty('google')
+  })
+})
 
 /**
  * Covers the first-class per-request override merge that replaced the old

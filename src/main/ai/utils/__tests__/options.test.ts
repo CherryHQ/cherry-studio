@@ -139,6 +139,35 @@ describe('customParameters → providerOptions plugin contract', () => {
 })
 
 describe('buildCapabilityProviderOptions', () => {
+  it.each(['google-vertex', 'google-vertex-anthropic', 'google-vertex-maas'])(
+    'delivers %s options through the Vertex runtime namespace',
+    (runtimeProviderId) => {
+      const result = buildCapabilityProviderOptions(
+        { settings: {} } as Assistant,
+        {
+          id: 'vertex::test-model',
+          providerId: 'vertex',
+          name: 'test-model',
+          capabilities: []
+        } as unknown as Model,
+        {
+          id: 'vertex',
+          settings: {},
+          apiFeatures: {}
+        } as Provider,
+        {
+          enableReasoning: false,
+          enableWebSearch: false,
+          enableGenerateImage: false
+        },
+        runtimeProviderId
+      )
+
+      expect(result).toHaveProperty('vertex')
+      expect(result).not.toHaveProperty(runtimeProviderId)
+    }
+  )
+
   it('passes provider summaryText settings into OpenAI reasoning options', () => {
     const assistant = {
       settings: {
@@ -177,11 +206,17 @@ describe('buildCapabilityProviderOptions', () => {
       isEnabled: true
     } as Provider
 
-    const result = buildCapabilityProviderOptions(assistant, model, provider, {
-      enableReasoning: true,
-      enableWebSearch: false,
-      enableGenerateImage: false
-    })
+    const result = buildCapabilityProviderOptions(
+      assistant,
+      model,
+      provider,
+      {
+        enableReasoning: true,
+        enableWebSearch: false,
+        enableGenerateImage: false
+      },
+      'openai'
+    )
 
     expect(result.openai.reasoningSummary).toBe('detailed')
   })

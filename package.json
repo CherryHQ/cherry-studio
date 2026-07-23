@@ -52,7 +52,6 @@
     "skills:sync": "tsx scripts/skills-sync.ts",
     "skills:check": "tsx scripts/skills-check.ts",
     "update:languages": "tsx scripts/update-languages.ts",
-    "update:upgrade-config": "tsx scripts/update-app-upgrade-config.ts",
     "pretest": "pnpm rebuild:node",
     "test": "vitest run --silent",
     "pretest:main": "pnpm rebuild:node",
