@@ -2,9 +2,13 @@
  * IPC handler for migration communication between Main and Renderer
  */
 
+import { application } from '@application'
 import type { VersionBlockReason } from '@data/migration/v2/core/versionPolicy'
 import { loggerService } from '@logger'
+import { validateSender } from '@main/core/security/validateSender'
 import {
+  type MigrationDiagnosticSavePayload,
+  type MigrationDiagnosticSaveResult,
   type MigrationExportFileWriteMode,
   MigrationIpcChannels,
   type MigrationProgress,
@@ -12,7 +16,7 @@ import {
   type MigrationSummary,
   type StartMigrationPayload
 } from '@shared/data/migration/v2/types'
-import { app, ipcMain } from 'electron'
+import { app, dialog, ipcMain, type IpcMainInvokeEvent, shell } from 'electron'
 import fs from 'fs/promises'
 import path from 'path'
 
@@ -27,6 +31,8 @@ let inFlightMigration: Promise<MigrationResult> | null = null
 // write is in flight don't stack a second allSettled().then(confirmQuit).
 let quitScheduled = false
 
+let lastSavedDiagnosticBundlePath: string | null = null
+
 // Current migration progress
 let currentProgress: MigrationProgress = {
   stage: 'introduction',
@@ -39,6 +45,21 @@ let currentProgress: MigrationProgress = {
 // Held separately from currentProgress so it survives Retry (which rebuilds the
 // introduction progress from scratch) instead of vanishing after a failed run.
 let dataLocationNotice: string | null = null
+
+function assertMigrationDiagnosticSender(event: IpcMainInvokeEvent): void {
+  if (!validateSender(event)) throw new Error('Unauthorized migration diagnostic IPC sender.')
+}
+
+function isValidLocalDate(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!match) return false
+  const [, yearText, monthText, dayText] = match
+  const year = Number(yearText)
+  const month = Number(monthText)
+  const day = Number(dayText)
+  const date = new Date(year, month - 1, day)
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
+}
 
 /**
  * Register all migration IPC handlers
@@ -110,6 +131,53 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
       }
     }
   )
+
+  ipcMain.handle(
+    MigrationIpcChannels.SaveDiagnosticBundle,
+    async (
+      event: IpcMainInvokeEvent,
+      payload: MigrationDiagnosticSavePayload
+    ): Promise<MigrationDiagnosticSaveResult> => {
+      assertMigrationDiagnosticSender(event)
+      const dialogTitle = payload.dialogTitle.trim()
+      if (dialogTitle.length < 1 || dialogTitle.length > 120) {
+        throw new Error('Invalid migration diagnostic dialog title.')
+      }
+      if (!isValidLocalDate(payload.logDate)) {
+        throw new Error('Invalid migration diagnostic log date.')
+      }
+
+      const { canceled, filePath } = await dialog.showSaveDialog({
+        title: dialogTitle,
+        defaultPath: application.getPath('app.logs', 'cherry-studio-migration-diagnostics.zip'),
+        filters: [{ name: 'ZIP', extensions: ['zip'] }],
+        properties: ['createDirectory', 'showOverwriteConfirmation']
+      })
+      if (canceled || !filePath) return { status: 'canceled' }
+
+      try {
+        const { saveMigrationDiagnosticBundle } = await import('../migrationDiagnosticBundle')
+        const logs = await saveMigrationDiagnosticBundle({
+          destination: filePath,
+          stage: currentProgress.stage,
+          logDate: payload.logDate
+        })
+        if (!logs) return { status: 'failed' }
+        lastSavedDiagnosticBundlePath = filePath
+        return { status: 'saved', logs }
+      } catch (error) {
+        logger.error('Failed to save migration diagnostic bundle', error as Error)
+        return { status: 'failed' }
+      }
+    }
+  )
+
+  ipcMain.handle(MigrationIpcChannels.ShowDiagnosticBundleInFolder, async (event: IpcMainInvokeEvent) => {
+    assertMigrationDiagnosticSender(event)
+    if (!lastSavedDiagnosticBundlePath) return false
+    shell.showItemInFolder(lastSavedDiagnosticBundlePath)
+    return true
+  })
 
   // Start the migration process
   ipcMain.handle(MigrationIpcChannels.StartMigration, async (_event, payload: StartMigrationPayload) => {
@@ -365,6 +433,7 @@ export function resetMigrationData(): void {
   inFlightMigration = null
   quitScheduled = false
   dataLocationNotice = null
+  lastSavedDiagnosticBundlePath = null
   currentProgress = {
     stage: 'introduction',
     overallProgress: 0,
