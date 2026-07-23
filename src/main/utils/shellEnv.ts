@@ -122,8 +122,6 @@ function getWindowsEnvironment(): Record<string, string> {
     logger.warn('Could not read PATH from Windows registry, keeping process.env PATH')
   }
 
-  appendCherryToolDirsToPath(env)
-  applyBinaryExecutionEnv(env)
   return env
 }
 
@@ -281,9 +279,6 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
         logger.warn(`Raw output from shell:\n${output}`)
       }
 
-      appendCherryToolDirsToPath(env)
-      applyBinaryExecutionEnv(env)
-
       resolveOnce(env)
     })
   })
@@ -297,13 +292,10 @@ async function fetchShellEnv(): Promise<Record<string, string>> {
     return await getLoginShellEnvironment()
   } catch (error) {
     logger.error('Failed to get shell environment, falling back to process.env', { error })
-    // Fallback to current process environment with cherry studio bin path
     const fallbackEnv: Record<string, string> = {}
     for (const key in process.env) {
       fallbackEnv[key] = process.env[key] || ''
     }
-    appendCherryToolDirsToPath(fallbackEnv)
-    applyBinaryExecutionEnv(fallbackEnv)
     return fallbackEnv
   }
 }
@@ -340,9 +332,16 @@ function loadShellEnv(): Promise<Record<string, string>> {
  * `removeEnvProxy`, merging per-spawn overrides), and handing out the cached
  * object itself would let one such mutation silently poison every later reader.
  */
-export async function getShellEnv(): Promise<Record<string, string>> {
+export async function getRawShellEnv(): Promise<Record<string, string>> {
   const env = cachedEnv ?? (await loadShellEnv())
   return { ...env }
+}
+
+export async function getShellEnv(): Promise<Record<string, string>> {
+  const env = await getRawShellEnv()
+  appendCherryToolDirsToPath(env)
+  applyBinaryExecutionEnv(env)
+  return env
 }
 
 /**
@@ -363,8 +362,11 @@ export async function refreshShellEnv(): Promise<Record<string, string>> {
     // (e.g. a tool install completing mid-flight). Acceptable because downstream
     // lookups hit the filesystem live; logged so the reuse is observable.
     logger.debug('refreshShellEnv reusing in-flight shell capture instead of re-spawning')
-    return { ...(await inflight) }
+    const env = { ...(await inflight) }
+    appendCherryToolDirsToPath(env)
+    applyBinaryExecutionEnv(env)
+    return env
   }
   cachedEnv = null
-  return { ...(await loadShellEnv()) }
+  return getShellEnv()
 }
