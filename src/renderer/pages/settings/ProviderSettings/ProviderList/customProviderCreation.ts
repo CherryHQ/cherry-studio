@@ -94,8 +94,14 @@ export function findInvalidCustomProviderCreationUrl(
     return { field: 'textEndpointRequired' }
   }
 
+  return findInvalidCustomProviderEndpointUrl(input.endpointUrls)
+}
+
+export function findInvalidCustomProviderEndpointUrl(
+  endpointUrls: CustomProviderEndpointUrls
+): CustomProviderCreationInvalidUrl | null {
   for (const endpointType of CUSTOM_PROVIDER_ENDPOINTS) {
-    const value = trim(input.endpointUrls[endpointType])
+    const value = trim(endpointUrls[endpointType])
     if (value && !validateApiHost(value)) {
       return { field: 'endpointUrl', endpointType }
     }

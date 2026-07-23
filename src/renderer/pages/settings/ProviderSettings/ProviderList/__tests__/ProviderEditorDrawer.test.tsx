@@ -886,6 +886,51 @@ describe('ProviderEditorDrawer', () => {
     )
   })
 
+  it('validates configured duplicate endpoints and reveals an invalid advanced field', () => {
+    const onSubmit = vi.fn()
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{
+          kind: 'duplicate',
+          source: {
+            id: 'openai',
+            name: 'OpenAI',
+            presetProviderId: 'openai',
+            defaultChatEndpoint: 'openai-chat-completions',
+            authType: 'api-key'
+          } as any
+        }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), {
+      target: { value: 'Invalid Responses' }
+    })
+    toggleMoreSettings()
+    fireEvent.change(screen.getByLabelText('settings.provider.more_endpoints.openai_responses'), {
+      target: { value: 'not-a-url' }
+    })
+    toggleMoreSettings()
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.duplicate.menu_label' }))
+
+    const responsesInput = screen.getByLabelText('settings.provider.more_endpoints.openai_responses')
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(
+      screen.getByRole('button', {
+        name: /settings\.provider\.create_custom\.endpoint_fields\.more/
+      })
+    ).toHaveAttribute('aria-expanded', 'true')
+    expect(responsesInput).toHaveAttribute('aria-invalid', 'true')
+    expect(responsesInput.parentElement).toContainElement(screen.getByText('settings.provider.base_url.invalid'))
+
+    fireEvent.change(responsesInput, { target: { value: 'https://responses.example.com' } })
+    expect(responsesInput).toHaveAttribute('aria-invalid', 'false')
+  })
+
   it('duplicate of an iam-azure source: keeps source defaultChatEndpoint + iam-azure auth, URL-keyed off it', () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined)
     render(

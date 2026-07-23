@@ -5,6 +5,7 @@ import {
   buildCustomProviderCreationPayload,
   buildCustomProviderEndpointPreview,
   findInvalidCustomProviderCreationUrl,
+  findInvalidCustomProviderEndpointUrl,
   getCustomProviderDefaultChatEndpoint
 } from '../customProviderCreation'
 
@@ -122,6 +123,18 @@ describe('custom provider creation', () => {
         ENDPOINT_TYPE.OPENAI_IMAGE_EDIT
       )
     ).toBe('')
+  })
+
+  it('allows empty endpoint URLs while validating every configured endpoint', () => {
+    expect(findInvalidCustomProviderEndpointUrl({})).toBeNull()
+    expect(
+      findInvalidCustomProviderEndpointUrl({
+        [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]: 'not-a-url'
+      })
+    ).toEqual({
+      field: 'endpointUrl',
+      endpointType: ENDPOINT_TYPE.OPENAI_IMAGE_EDIT
+    })
   })
 
   it('accepts valid optional endpoint URLs', () => {

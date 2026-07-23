@@ -50,6 +50,7 @@ import {
   type CustomProviderEndpointUrls,
   type CustomProviderTextEndpoint,
   findInvalidCustomProviderCreationUrl,
+  findInvalidCustomProviderEndpointUrl,
   getCustomProviderDefaultChatEndpoint
 } from './customProviderCreation'
 import type { ProviderEditorMode, SubmitProviderEditorParams } from './useProviderEditor'
@@ -452,6 +453,18 @@ export default function ProviderEditorDrawer({
         }
         return
       }
+    } else if (mode?.kind === 'duplicate' && duplicateUsesEndpointFields) {
+      const invalidUrl = findInvalidCustomProviderEndpointUrl(duplicateEndpointUrls)
+      setInvalidCreationUrl(invalidUrl)
+      if (invalidUrl) {
+        if (
+          invalidUrl.field === 'endpointUrl' &&
+          ADDITIONAL_CUSTOM_PROVIDER_ENDPOINTS.some((endpointType) => endpointType === invalidUrl.endpointType)
+        ) {
+          setMoreEndpointsOpen(true)
+        }
+        return
+      }
     }
     const payload = buildSubmit()
     if (!payload) return
@@ -577,7 +590,7 @@ export default function ProviderEditorDrawer({
                 <CustomProviderEndpointFields
                   endpointUrls={duplicateEndpointUrls}
                   preferredChatEndpoint={duplicateDefaultTextEndpoint}
-                  invalidUrl={null}
+                  invalidUrl={invalidCreationUrl}
                   moreOpen={moreEndpointsOpen}
                   additionalConfiguredCount={duplicateAdditionalConfiguredCount}
                   additionalContent={presetPicker}
@@ -588,6 +601,7 @@ export default function ProviderEditorDrawer({
                     } else {
                       setSecondaryUrls((prev) => ({ ...prev, [endpointType]: value }))
                     }
+                    setInvalidCreationUrl(null)
                   }}
                 />
               </>
