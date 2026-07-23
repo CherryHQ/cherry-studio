@@ -709,7 +709,13 @@ export class CodeCliService extends BaseService {
         throw new Error(`Unsupported operating system: ${platform}`)
     }
 
-    const processEnv = { ...process.env, ...env }
+    // Windows: base the terminal env on getShellEnv() so its PATH additions
+    // (mise shims, cherry.bin, bundled MinGit tail — see shellEnv.ts) reach the
+    // CLIs launched inside the terminal; bare `git` then resolves even with no
+    // system git installed. macOS/Linux terminals start login shells that
+    // rebuild their own env, and those platforms ship no bundled git.
+    const baseEnv = isWin ? await getShellEnv().catch(() => process.env) : process.env
+    const processEnv = { ...baseEnv, ...env }
     removeEnvProxy(processEnv as Record<string, string>)
 
     // Launch terminal process
