@@ -2,7 +2,7 @@
 title: Privacy policy acknowledgement is required after the 2026-05-31 update
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: "#17306"
 date: 2026-07-23
 ---
 
