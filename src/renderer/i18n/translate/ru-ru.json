@@ -5645,6 +5645,13 @@
       "data": {
         "title": "Каталог данных"
       },
+      "data_reset": {
+        "button": "[to be translated]:Reset",
+        "confirm_content": "[to be translated]:This will delete all chats, assistants, knowledge bases, files, and settings — the app will restart as a fresh install. Your custom data directory location, downloaded tools, and local models are kept.",
+        "confirm_title": "[to be translated]:Are you sure you want to clear all data?",
+        "error": "[to be translated]:Failed to start data reset",
+        "title": "[to be translated]:Data Reset"
+      },
       "divider": {
         "basic": "Основные настройки данных",
         "cloud_storage": "Настройки облачного резервирования",
@@ -5666,13 +5673,6 @@
         "siyuan": "Экспорт в SiYuan Note",
         "title": "Настройки меню экспорта",
         "yuque": "Экспорт в Yuque"
-      },
-      "factory_reset": {
-        "button": "[to be translated]:Reset",
-        "confirm_content": "[to be translated]:This will delete all chats, assistants, knowledge bases, files, and settings — the app will restart as a fresh install. Your custom data directory location, downloaded tools, and local models are kept.",
-        "confirm_title": "[to be translated]:Are you sure you want to clear all data?",
-        "error": "[to be translated]:Failed to start data reset",
-        "title": "[to be translated]:Data Reset"
       },
       "hour_interval_one": "{{count}} час",
       "hour_interval_other": "{{count}} часов",

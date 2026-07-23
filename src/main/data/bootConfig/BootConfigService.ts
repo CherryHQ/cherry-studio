@@ -328,13 +328,13 @@ export class BootConfigService {
       }
     }
 
-    // The factory-reset slot is reconciled against disk instead of trusting
-    // memory — see reconcileFactoryResetSlot for why.
-    const marker = this.reconcileFactoryResetSlot()
+    // The data-reset slot is reconciled against disk instead of trusting
+    // memory — see reconcileDataResetSlot for why.
+    const marker = this.reconcileDataResetSlot()
     if (marker === null) {
-      delete diff['temp.factory_reset']
+      delete diff['temp.data_reset']
     } else {
-      diff['temp.factory_reset'] = marker
+      diff['temp.data_reset'] = marker
     }
 
     if (Object.keys(diff).length === 0) {
@@ -369,7 +369,7 @@ export class BootConfigService {
   }
 
   /**
-   * Decide what the `temp.factory_reset` slot of the next write should hold.
+   * Decide what the `temp.data_reset` slot of the next write should hold.
    *
    * boot-config.json is one file shared by every instance (dev and packaged),
    * and every write is whole-file last-writer-wins — so an instance that
@@ -386,32 +386,32 @@ export class BootConfigService {
    * clearing the slot). In every other case whatever is currently on disk is
    * a foreign instance's business and is passed through unchanged.
    */
-  private reconcileFactoryResetSlot(): BootConfigSchema['temp.factory_reset'] {
-    const memory = this.config['temp.factory_reset']
-    const disk = this.readFactoryResetFromDisk()
+  private reconcileDataResetSlot(): BootConfigSchema['temp.data_reset'] {
+    const memory = this.config['temp.data_reset']
+    const disk = this.readDataResetFromDisk()
     if (JSON.stringify(memory ?? null) === JSON.stringify(disk ?? null)) return memory
 
     const self = this.currentUserDataPath()
     if (self !== null && (memory?.userDataPath === self || disk?.userDataPath === self)) {
       return memory
     }
-    logger.info('Preserving a foreign factory-reset marker across a boot config write', {
+    logger.info('Preserving a foreign data-reset marker across a boot config write', {
       diskMarkerPath: disk?.userDataPath ?? null
     })
     return disk
   }
 
   /**
-   * Fresh read of the on-disk `temp.factory_reset` value. Anything that
+   * Fresh read of the on-disk `temp.data_reset` value. Anything that
    * cannot be read, parsed, or validated counts as "no marker" — identical
    * to how loadSync treats the same states.
    */
-  private readFactoryResetFromDisk(): BootConfigSchema['temp.factory_reset'] {
+  private readDataResetFromDisk(): BootConfigSchema['temp.data_reset'] {
     try {
       const parsed = JSON.parse(fs.readFileSync(this.filePath, 'utf-8'))
       if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null
-      const result = bootConfigSchema.shape['temp.factory_reset'].safeParse(
-        (parsed as Record<string, unknown>)['temp.factory_reset']
+      const result = bootConfigSchema.shape['temp.data_reset'].safeParse(
+        (parsed as Record<string, unknown>)['temp.data_reset']
       )
       return result.success ? result.data : null
     } catch {
@@ -421,7 +421,7 @@ export class BootConfigService {
 
   /**
    * This instance's userData path — the ownership identity for the
-   * factory-reset slot. Null before Electron has one (never the case for the
+   * data-reset slot. Null before Electron has one (never the case for the
    * write paths that matter: the gate and the request both run after userData
    * resolution); null means "not provably ours", so disk wins.
    */

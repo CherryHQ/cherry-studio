@@ -19,10 +19,10 @@ import { serviceList } from '@main/core/application/serviceRegistry'
 import { runBackupRestoreGate } from '@main/core/preboot/backupRestoreGate'
 import { configureChromiumFlags } from '@main/core/preboot/chromiumFlags'
 import { initCrashTelemetry } from '@main/core/preboot/crashTelemetry'
-import { runFactoryResetGate } from '@main/core/preboot/factoryResetGate'
 import { requireSingleInstance } from '@main/core/preboot/singleInstance'
 import { resolveUserDataLocation } from '@main/core/preboot/userDataLocation'
 import { runV2MigrationGate } from '@main/core/preboot/v2MigrationGate'
+import { runDataReset } from '@main/services/dataReset'
 import { runUserDataRelocation } from '@main/services/userDataRelocation'
 
 // should be the first to resolveUserDataLocation()
@@ -43,12 +43,13 @@ import { versionService } from './services/VersionService'
 const logger = loggerService.withContext('MainEntry')
 
 const startApp = async () => {
-  // Factory-reset gate: consume a pending reset marker (wipe user data,
-  // reset BootConfig) before the backup gate or the migration gate read
-  // anything. Without a marker it is a no-op. Never throws, but quits the
-  // app when a completed wipe cannot durably clear its marker (booting on
-  // would re-wipe freshly created data on the next start).
-  runFactoryResetGate()
+  // Data reset: consume a pending reset marker (wipe user data, reset
+  // BootConfig) before the backup gate or the migration gate read anything.
+  // Preboot timing only — the capability itself is owned by
+  // services/dataReset. Without a marker it is a no-op. Never throws, but
+  // quits the app when a completed wipe cannot durably clear its marker
+  // (booting on would re-wipe freshly created data on the next start).
+  runDataReset()
 
   // userData relocation: a pending/failed relocation makes this a dedicated
   // relocation launch (execute or explain, then relaunch) before any service

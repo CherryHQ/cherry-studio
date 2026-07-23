@@ -737,9 +737,9 @@ describe('BootConfigService', () => {
     })
   })
 
-  // ---------- factory-reset slot reconciliation ----------
+  // ---------- data-reset slot reconciliation ----------
 
-  describe('temp.factory_reset write reconciliation', () => {
+  describe('temp.data_reset write reconciliation', () => {
     // The global electron mock resolves app.getPath('userData') to
     // '/mock/userData' — that is "self" for the ownership rule.
     const SELF = '/mock/userData'
@@ -762,20 +762,20 @@ describe('BootConfigService', () => {
       })
 
       const service = await createService()
-      service.set('temp.factory_reset', selfMarker)
+      service.set('temp.data_reset', selfMarker)
       service.persist()
 
-      expect(writtenConfig()['temp.factory_reset']).toEqual(selfMarker)
+      expect(writtenConfig()['temp.data_reset']).toEqual(selfMarker)
     })
 
     it('clears its own consumed marker even though disk still holds it', async () => {
       // Load with our own pending marker on disk, clear it in memory, persist:
       // memory (null) must win because the DISK slot is self-owned.
       mockFs.existsSync.mockReturnValue(true)
-      mockFs.readFileSync.mockReturnValue(JSON.stringify({ 'temp.factory_reset': selfMarker }))
+      mockFs.readFileSync.mockReturnValue(JSON.stringify({ 'temp.data_reset': selfMarker }))
 
       const service = await createService()
-      service.set('temp.factory_reset', null)
+      service.set('temp.data_reset', null)
       service.set('app.disable_hardware_acceleration', true) // keep the file non-empty
       service.persist()
 
@@ -785,10 +785,10 @@ describe('BootConfigService', () => {
     it('does not resurrect a foreign marker the owner already consumed', async () => {
       // Loaded while a sibling instance's marker was staged…
       mockFs.existsSync.mockReturnValue(true)
-      mockFs.readFileSync.mockReturnValue(JSON.stringify({ 'temp.factory_reset': foreignMarker }))
+      mockFs.readFileSync.mockReturnValue(JSON.stringify({ 'temp.data_reset': foreignMarker }))
 
       const service = await createService()
-      expect(service.get('temp.factory_reset')).toEqual(foreignMarker)
+      expect(service.get('temp.data_reset')).toEqual(foreignMarker)
 
       // …then the owner consumed it (disk slot now empty). Our next write must
       // NOT push the stale in-memory copy back — that would arm a second wipe.
@@ -808,11 +808,11 @@ describe('BootConfigService', () => {
 
       // …then a sibling instance staged its wipe. Our whole-file write must
       // carry it through instead of erasing the sibling's reset.
-      mockFs.readFileSync.mockReturnValue(JSON.stringify({ 'temp.factory_reset': foreignMarker }))
+      mockFs.readFileSync.mockReturnValue(JSON.stringify({ 'temp.data_reset': foreignMarker }))
       service.set('app.disable_hardware_acceleration', true)
       service.persist()
 
-      expect(writtenConfig()['temp.factory_reset']).toEqual(foreignMarker)
+      expect(writtenConfig()['temp.data_reset']).toEqual(foreignMarker)
     })
 
     it('preserves a foreign pending marker even when memory is all-defaults (no unlink)', async () => {
@@ -821,14 +821,14 @@ describe('BootConfigService', () => {
 
       const service = await createService()
 
-      mockFs.readFileSync.mockReturnValue(JSON.stringify({ 'temp.factory_reset': foreignMarker }))
+      mockFs.readFileSync.mockReturnValue(JSON.stringify({ 'temp.data_reset': foreignMarker }))
       service.set('app.disable_hardware_acceleration', false) // back to defaults
       service.persist()
 
       // The all-defaults path would unlink the shared file — with a foreign
       // marker on disk it must write the marker through instead.
       expect(mockFs.unlinkSync).not.toHaveBeenCalled()
-      expect(writtenConfig()).toEqual({ 'temp.factory_reset': foreignMarker })
+      expect(writtenConfig()).toEqual({ 'temp.data_reset': foreignMarker })
     })
   })
 

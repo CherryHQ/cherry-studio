@@ -5646,6 +5646,13 @@
       "data": {
         "title": "資料目錄"
       },
+      "data_reset": {
+        "button": "[to be translated]:Reset",
+        "confirm_content": "[to be translated]:This will delete all chats, assistants, knowledge bases, files, and settings — the app will restart as a fresh install. Your custom data directory location, downloaded tools, and local models are kept.",
+        "confirm_title": "[to be translated]:Are you sure you want to clear all data?",
+        "error": "[to be translated]:Failed to start data reset",
+        "title": "[to be translated]:Data Reset"
+      },
       "divider": {
         "basic": "基本資料設定",
         "cloud_storage": "雲備份設定",
@@ -5667,13 +5674,6 @@
         "siyuan": "匯出到思源筆記",
         "title": "匯出選單設定",
         "yuque": "匯出到語雀"
-      },
-      "factory_reset": {
-        "button": "[to be translated]:Reset",
-        "confirm_content": "[to be translated]:This will delete all chats, assistants, knowledge bases, files, and settings — the app will restart as a fresh install. Your custom data directory location, downloaded tools, and local models are kept.",
-        "confirm_title": "[to be translated]:Are you sure you want to clear all data?",
-        "error": "[to be translated]:Failed to start data reset",
-        "title": "[to be translated]:Data Reset"
       },
       "hour_interval_one": "{{count}} 小時",
       "hour_interval_other": "{{count}} 小時",

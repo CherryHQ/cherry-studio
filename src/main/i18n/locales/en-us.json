@@ -56,7 +56,7 @@
   },
   "dialog": {
     "all_files": "All Files",
-    "factory_reset": {
+    "data_reset": {
       "arm_failed_message": "Cherry Studio could not record the data reset state in {{path}}.\n\nStarting now could erase data you create later, so the app will quit instead.\n\nPlease check disk space and file permissions, then start Cherry Studio again.",
       "arm_failed_title": "Data Reset Failed",
       "cancel": "Cancel",

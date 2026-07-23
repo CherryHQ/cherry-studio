@@ -59,7 +59,7 @@ export const getI18n = (): Record<string, any> => {
  * {@link t} with an explicit language instead of {@link getAppLanguage}.
  *
  * For callers that run before PreferenceService exists (preboot — e.g. the
- * factory-reset gate renders its dialogs in the language captured in the
+ * data-reset wipe pass renders its dialogs in the language captured in the
  * marker) or that must render in a recorded rather than current language.
  * Unknown languages fall back to the en-US catalog.
  */

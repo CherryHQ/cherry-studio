@@ -85,7 +85,7 @@ class LocalEmbeddingDownloadService extends LocalModelDownloadService {
     // healing against it.
     if (this.removing) return 'not_downloaded'
     // The download/remove paths keep "weights on disk ⟺ user_model row" in
-    // sync, but the DB can be reset underneath the weights (a factory reset
+    // sync, but the DB can be reset underneath the weights (a data reset
     // keeps Runtime/Toolchain, a restored backup may predate the download).
     // Re-registering is idempotent and cheap, and it runs before `ready` is
     // reported — so a consumer acting on `ready` (the KB dialog inserts the

@@ -77,7 +77,7 @@ export abstract class LocalModelDownloadService {
    * Status probe for consumers about to act on `ready` (the
    * `local_model.get_status` route). Subclasses that derive extra state from
    * the weights repair it here before reporting `ready` — the DB can be reset
-   * underneath the files (a factory reset keeps the model artifacts, a
+   * underneath the files (a data reset keeps the model artifacts, a
    * restored backup may predate the download), so `ready` must not promise
    * more than the disk alone can. A repair failure rejects rather than
    * reporting an unusable `ready`; callers already treat the probe as

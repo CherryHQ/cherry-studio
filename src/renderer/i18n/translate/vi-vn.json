@@ -5645,6 +5645,13 @@
       "data": {
         "title": "Thư mục dữ liệu"
       },
+      "data_reset": {
+        "button": "[to be translated]:Reset",
+        "confirm_content": "[to be translated]:This will delete all chats, assistants, knowledge bases, files, and settings — the app will restart as a fresh install. Your custom data directory location, downloaded tools, and local models are kept.",
+        "confirm_title": "[to be translated]:Are you sure you want to clear all data?",
+        "error": "[to be translated]:Failed to start data reset",
+        "title": "[to be translated]:Data Reset"
+      },
       "divider": {
         "basic": "Cài đặt Dữ liệu Cơ bản",
         "cloud_storage": "Cài đặt Sao lưu Đám mây",
@@ -5666,13 +5673,6 @@
         "siyuan": "Xuất sang ghi chú SiYuan",
         "title": "Xuất Cài Đặt Menu",
         "yuque": "Xuất sang Yuque"
-      },
-      "factory_reset": {
-        "button": "[to be translated]:Reset",
-        "confirm_content": "[to be translated]:This will delete all chats, assistants, knowledge bases, files, and settings — the app will restart as a fresh install. Your custom data directory location, downloaded tools, and local models are kept.",
-        "confirm_title": "[to be translated]:Are you sure you want to clear all data?",
-        "error": "[to be translated]:Failed to start data reset",
-        "title": "[to be translated]:Data Reset"
       },
       "hour_interval_one": "{{count}} ora",
       "hour_interval_other": "{{count}} giờ",

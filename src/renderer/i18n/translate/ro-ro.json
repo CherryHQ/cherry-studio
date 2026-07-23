@@ -5645,6 +5645,13 @@
       "data": {
         "title": "Director de date"
       },
+      "data_reset": {
+        "button": "[to be translated]:Reset",
+        "confirm_content": "[to be translated]:This will delete all chats, assistants, knowledge bases, files, and settings — the app will restart as a fresh install. Your custom data directory location, downloaded tools, and local models are kept.",
+        "confirm_title": "[to be translated]:Are you sure you want to clear all data?",
+        "error": "[to be translated]:Failed to start data reset",
+        "title": "[to be translated]:Data Reset"
+      },
       "divider": {
         "basic": "Setări date de bază",
         "cloud_storage": "Setări backup în cloud",
@@ -5666,13 +5673,6 @@
         "siyuan": "Exportă în SiYuan Note",
         "title": "Setări meniu export",
         "yuque": "Exportă în Yuque"
-      },
-      "factory_reset": {
-        "button": "[to be translated]:Reset",
-        "confirm_content": "[to be translated]:This will delete all chats, assistants, knowledge bases, files, and settings — the app will restart as a fresh install. Your custom data directory location, downloaded tools, and local models are kept.",
-        "confirm_title": "[to be translated]:Are you sure you want to clear all data?",
-        "error": "[to be translated]:Failed to start data reset",
-        "title": "[to be translated]:Data Reset"
       },
       "hour_interval_one": "{{count}} oră",
       "hour_interval_other": "{{count}} ore",

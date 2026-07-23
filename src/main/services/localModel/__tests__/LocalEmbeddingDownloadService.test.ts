@@ -107,7 +107,7 @@ describe('LocalEmbeddingDownloadService', () => {
     it('re-registers the provider/model rows before reporting ready', async () => {
       readdirSync.mockReturnValue([fileEntry(READY_FILE)])
 
-      // The DB can be reset underneath the weights (factory reset keeps the
+      // The DB can be reset underneath the weights (a data reset keeps the
       // model artifacts; a restored backup may predate the download) — a
       // consumer acting on `ready` must always find the user_model row.
       await expect(localEmbeddingDownloadService.checkStatus()).resolves.toBe('ready')

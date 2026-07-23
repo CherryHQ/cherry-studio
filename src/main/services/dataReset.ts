@@ -4,25 +4,42 @@ import path from 'node:path'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { bootConfigService } from '@main/data/bootConfig'
-// tFor, not t: t() resolves the language through PreferenceService, which does
-// not exist at preboot. The marker carries the requesting user's language.
-import { tFor } from '@main/i18n'
+// tFor, not t, on the execution side: t resolves the language through
+// PreferenceService, which does not exist at preboot. The marker carries the
+// requesting user's language. The request side runs in a live app and uses t.
+import { getAppLanguage, t, tFor } from '@main/i18n'
 import { DefaultBootConfig } from '@shared/data/bootConfig/bootConfigSchemas'
 import type { BootConfigKey } from '@shared/data/bootConfig/bootConfigTypes'
-import { app, dialog } from 'electron'
+import { app, dialog, session } from 'electron'
 
-const logger = loggerService.withContext('FactoryResetGate')
+const logger = loggerService.withContext('DataReset')
+
+/**
+ * Data Reset (#17131): erase Cherry's user data and boot a fresh-install
+ * state. One capability, two faces sharing this module:
+ *
+ * - {@link requestDataReset} — the running app confirms the request, stages
+ *   the BootConfig `temp.data_reset` marker, clears live Chromium storage,
+ *   and relaunches through a graceful shutdown.
+ * - {@link runDataReset} — the next process consumes the marker at preboot
+ *   timing (called from main.ts before any other gate reads user data),
+ *   because a running process cannot delete files it still holds open.
+ *
+ * Preboot is only the *caller* of the execution face; the capability is a
+ * removable application feature and lives here in services/ (see
+ * core/preboot/README.md membership criteria).
+ */
 
 /**
  * How many destructive passes a single marker may trigger. A failed pass
  * relaunches straight back into preboot (no writable app in between — see
- * the failure branch in the gate), so the cap's job is to bound that
+ * the failure branch in runDataReset), so the cap's job is to bound that
  * relaunch loop when a failure is persistent rather than transient.
  */
 const MAX_WIPE_ATTEMPTS = 2
 
 /**
- * The one wipe list: userData entries deleted by a factory reset, all
+ * The one wipe list: userData entries deleted by a data reset, all
  * belonging to Cherry (or to Chromium state Cherry's session produced).
  * Everything not named here survives — user files in an adopted directory,
  * old-build debris of unknown provenance, and the kept machine artifacts
@@ -115,11 +132,73 @@ export const USER_DATA_KEPT = ['logs', 'Crashpad', 'Runtime', 'Toolchain', 'tess
 const RM_OPTIONS = { recursive: true, force: true, maxRetries: 3, retryDelay: 100 } as const
 
 /**
- * Preboot factory-reset gate (#17131). Consumes the BootConfig
- * `temp.factory_reset` marker written by the `app.factory_reset.request`
- * IpcApi handler: deletes the {@link USER_DATA_WIPE} entries from userData,
- * resets BootConfig to defaults, then relaunches so the app boots a
- * fresh-install state in a clean process.
+ * Request face: stage a data reset and relaunch; {@link runDataReset} wipes
+ * on the next boot. Called by the `app.data_reset.request` IpcApi handler.
+ *
+ * The final confirmation lives HERE, in a native dialog, not in the
+ * renderer: the request arms a whole-profile wipe, and a compromised or
+ * buggy renderer must not be able to arm it with a single unconfirmed IPC
+ * call. Declining resolves without staging anything — a silent no-op, since
+ * the user just cancelled.
+ *
+ * The marker is staged with persist() (not flush) so a failed write rejects
+ * the request instead of relaunching without a staged marker.
+ */
+export async function requestDataReset(): Promise<void> {
+  const { response } = await dialog.showMessageBox({
+    type: 'warning',
+    title: t('dialog.data_reset.title'),
+    message: t('dialog.data_reset.message'),
+    detail: t('dialog.data_reset.detail'),
+    buttons: [t('dialog.data_reset.cancel'), t('dialog.data_reset.confirm')],
+    defaultId: 0,
+    cancelId: 0
+  })
+  if (response !== 1) return
+
+  const userDataPath = application.getPath('app.userdata')
+  const previous = bootConfigService.get('temp.data_reset')
+  bootConfigService.set('temp.data_reset', {
+    status: 'pending',
+    userDataPath,
+    // Pin the physical directory the user confirmed: the wipe refuses a
+    // pass whose realpath resolution has changed since this moment.
+    canonicalPath: canonicalize(userDataPath),
+    // The execution side renders its dialogs in this language — the
+    // preference store holding the live value is exactly what the wipe
+    // deletes.
+    locale: getAppLanguage(),
+    requestedAt: new Date().toISOString()
+  })
+  try {
+    bootConfigService.persist()
+  } catch (error) {
+    // Roll back the in-memory marker (same pattern as userDataRelocation):
+    // persist() keeps the dirty flag on failure, so a later flush — e.g.
+    // during shutdown — would otherwise stage the wipe the user was just
+    // told had failed.
+    bootConfigService.set('temp.data_reset', previous)
+    throw error
+  }
+
+  // Semantic Chromium clear while the sessions are alive — the layer the
+  // preboot pass cannot provide (it can only rm the storage directories it
+  // knows by name; this API call covers whatever the running Chromium
+  // actually persisted). Best-effort by design: the marker is already
+  // durable, and runDataReset's rm pass is the deterministic layer.
+  await clearChromiumState()
+
+  // Graceful relaunch, not application.relaunch(): running services (OVMS
+  // and friends) must release their child processes and file handles
+  // before the next boot's wipe deletes the files they may hold open.
+  await application.relaunchAfterShutdown()
+}
+
+/**
+ * Execution face (#17131). Consumes the BootConfig `temp.data_reset` marker
+ * written by {@link requestDataReset}: deletes the {@link USER_DATA_WIPE}
+ * entries from userData, resets BootConfig to defaults, then relaunches so
+ * the app boots a fresh-install state in a clean process.
  *
  * Scope: userData only. `~/.cherrystudio` is machine domain (tool binaries,
  * models, OVMS registry, config/mcp/trace) and is deliberately untouched
@@ -129,12 +208,12 @@ const RM_OPTIONS = { recursive: true, force: true, maxRetries: 3, retryDelay: 10
  * Timing contract: runs at the top of startApp() — after
  * requireSingleInstance() (destructive fs operations must hold the
  * single-instance lock) and the frozen path registry, before
- * runBackupRestoreGate() (a factory reset supersedes any staged restore —
+ * runBackupRestoreGate() (a data reset supersedes any staged restore —
  * the wipe removes the restore journal and staging tree).
  *
  * Failure semantics — bounded retry, no journal:
  * - `attempts` is durably incremented (hard persist) before each destructive
- *   pass. If that write fails the gate QUITS: a pending marker must never
+ *   pass. If that write fails runDataReset QUITS: a pending marker must never
  *   coexist with a writable app, or data the user creates would be deleted
  *   by a later pass (#17138 review).
  * - The physical identity of the target is pinned in the marker
@@ -142,12 +221,12 @@ const RM_OPTIONS = { recursive: true, force: true, maxRetries: 3, retryDelay: 10
  *   whose re-resolution disagrees refuses to wipe — a replaced
  *   symlink/junction must not redirect a recorded authorization onto a new
  *   directory (#17138 review).
- * - Deletion failures are critical. With attempts left, the gate relaunches
+ * - Deletion failures are critical. With attempts left, the pass relaunches
  *   straight back into preboot to retry. At the cap it gives up: marker
  *   cleared, failure surfaced in a dialog, boot continues over whatever
  *   remains.
  * - After a clean pass the marker is cleared via a HARD persist (quit on
- *   failure — see above), then the gate relaunches: the reset session must
+ *   failure — see above), then it relaunches: the reset session must
  *   not keep running in the process that wiped it (stale Chromium flags,
  *   cached ensured paths); the next boot starts fresh with no marker.
  * - A marker recorded for a different userData directory is left untouched
@@ -156,17 +235,17 @@ const RM_OPTIONS = { recursive: true, force: true, maxRetries: 3, retryDelay: 10
  * Anything unexpected is logged and boot continues — a half-wiped state is
  * acceptable for a reset; refusing to start over it is not.
  */
-export function runFactoryResetGate(): void {
+export function runDataReset(): void {
   try {
-    const marker = bootConfigService.get('temp.factory_reset')
+    const marker = bootConfigService.get('temp.data_reset')
     if (marker?.status !== 'pending') return
 
-    // Same source as the write side (app.factory_reset.request) — the marker
-    // path check below is a strict string comparison, so both sides must read
+    // Same source as the write side (requestDataReset) — the marker path
+    // check below is a strict string comparison, so both sides must read
     // the registry, not raw Electron.
     const userData = application.getPath('app.userdata')
     if (marker.userDataPath !== userData) {
-      logger.warn('Factory reset marker belongs to a different userData directory — leaving it for that instance', {
+      logger.warn('Data reset marker belongs to a different userData directory — leaving it for that instance', {
         markerPath: marker.userDataPath,
         currentPath: userData
       })
@@ -179,7 +258,7 @@ export function runFactoryResetGate(): void {
     // the request (or a previous pass) and now — refuse and clear.
     const actualCanonical = canonicalize(userData)
     if (marker.canonicalPath !== undefined && marker.canonicalPath !== actualCanonical) {
-      logger.error('Factory reset refused: userData resolves to a different physical directory than recorded', {
+      logger.error('Data reset refused: userData resolves to a different physical directory than recorded', {
         recorded: marker.canonicalPath,
         actual: actualCanonical
       })
@@ -194,7 +273,7 @@ export function runFactoryResetGate(): void {
     // instead of trusting the shape.
     const attempts = Number(marker.attempts) || 0
     if (attempts >= MAX_WIPE_ATTEMPTS) {
-      logger.error('Factory reset abandoned: attempt cap reached with critical failures — clearing the marker', {
+      logger.error('Data reset abandoned: attempt cap reached with critical failures — clearing the marker', {
         attempts
       })
       resetBootConfigToDefaults()
@@ -203,7 +282,7 @@ export function runFactoryResetGate(): void {
       return
     }
 
-    logger.info('Factory reset pending — wiping user data', {
+    logger.info('Data reset pending — wiping user data', {
       userData,
       requestedAt: marker.requestedAt,
       attempt: attempts + 1
@@ -217,15 +296,15 @@ export function runFactoryResetGate(): void {
     // whatever the user created in between (#17138 review). The canonical
     // identity rides the same durable write.
     try {
-      bootConfigService.set('temp.factory_reset', { ...marker, attempts: attempts + 1, canonicalPath: actualCanonical })
+      bootConfigService.set('temp.data_reset', { ...marker, attempts: attempts + 1, canonicalPath: actualCanonical })
       bootConfigService.persist()
     } catch (error) {
-      logger.error('Factory reset halted: the attempt count could not be durably recorded — refusing to boot', {
+      logger.error('Data reset halted: the attempt count could not be durably recorded — refusing to boot', {
         error: String(error)
       })
       dialog.showErrorBox(
-        tFor(marker.locale ?? '', 'dialog.factory_reset.arm_failed_title'),
-        tFor(marker.locale ?? '', 'dialog.factory_reset.arm_failed_message', { path: bootConfigService.getFilePath() })
+        tFor(marker.locale ?? '', 'dialog.data_reset.arm_failed_title'),
+        tFor(marker.locale ?? '', 'dialog.data_reset.arm_failed_message', { path: bootConfigService.getFilePath() })
       )
       app.exit(1)
       return
@@ -235,12 +314,12 @@ export function runFactoryResetGate(): void {
     wipeDirectoryEntries(userData, shouldWipe, failures)
     // Best-effort: `app.temp` ({os.tmpdir}/CherryStudio) holds no data that
     // matters across reboots; the "Clear cache" feature clears it, and a
-    // factory reset must be a superset of Clear cache. No recreate needed —
-    // the gate relaunches below, and the fresh process re-ensures paths.
+    // data reset must be a superset of Clear cache. No recreate needed —
+    // the relaunch below hands path ensuring to the fresh process.
     try {
       fs.rmSync(application.getPath('app.temp'), RM_OPTIONS)
     } catch (error) {
-      logger.warn('Failed to remove the app temp dir during factory reset', { error: String(error) })
+      logger.warn('Failed to remove the app temp dir during data reset', { error: String(error) })
     }
 
     if (failures.length > 0) {
@@ -248,7 +327,7 @@ export function runFactoryResetGate(): void {
       // creates in a half-wiped app would be deleted by the retry pass on
       // the next start (#17138 review).
       if (attempts + 1 < MAX_WIPE_ATTEMPTS) {
-        logger.error('Factory reset pass had critical failures — relaunching to retry in preboot', { failures })
+        logger.error('Data reset pass had critical failures — relaunching to retry in preboot', { failures })
         // app.relaunch + app.exit (not application.*): no before-quit
         // handlers may write files after the wipe.
         app.relaunch()
@@ -258,7 +337,7 @@ export function runFactoryResetGate(): void {
       // Out of attempts: give up NOW instead of leaving the marker pending.
       // The clear rides flush() — a lost write is re-cleared by the cap
       // path on the next boot without another destructive pass.
-      logger.error('Factory reset abandoned: attempt cap reached with critical failures — clearing the marker', {
+      logger.error('Data reset abandoned: attempt cap reached with critical failures — clearing the marker', {
         failures
       })
       resetBootConfigToDefaults()
@@ -268,7 +347,7 @@ export function runFactoryResetGate(): void {
     }
 
     // Reset BootConfig to defaults — which also clears the marker
-    // (DefaultBootConfig['temp.factory_reset'] is null). Deliberately keeps
+    // (DefaultBootConfig['temp.data_reset'] is null). Deliberately keeps
     // `app.user_data_path`: the custom data-directory *location* is machine
     // configuration — the reset wipes the data at that location, not the
     // choice of location.
@@ -279,12 +358,12 @@ export function runFactoryResetGate(): void {
       // The wipe succeeded but the pending marker could not be durably
       // cleared: booting on would let the user rebuild data that the next
       // start wipes again. Quitting is the only honest option.
-      logger.error('Factory reset wiped successfully but the marker could not be cleared — refusing to boot', {
+      logger.error('Data reset wiped successfully but the marker could not be cleared — refusing to boot', {
         error: String(error)
       })
       dialog.showErrorBox(
-        tFor(marker.locale ?? '', 'dialog.factory_reset.clear_failed_title'),
-        tFor(marker.locale ?? '', 'dialog.factory_reset.clear_failed_message', {
+        tFor(marker.locale ?? '', 'dialog.data_reset.clear_failed_title'),
+        tFor(marker.locale ?? '', 'dialog.data_reset.clear_failed_message', {
           path: bootConfigService.getFilePath()
         })
       )
@@ -297,12 +376,12 @@ export function runFactoryResetGate(): void {
     // Relaunch instead of continuing: the marker is durably cleared, so the
     // next boot is a normal fresh-install boot — in a clean process whose
     // module-top-level Chromium flags read the post-reset BootConfig values
-    // (#17138 suggestion). No loop: no marker, no gate action.
-    logger.info('Factory reset completed — relaunching into a fresh state')
+    // (#17138 suggestion). No loop: no marker, no action on the next pass.
+    logger.info('Data reset completed — relaunching into a fresh state')
     app.relaunch()
     app.exit(0)
   } catch (error) {
-    logger.error('Factory reset gate failed — continuing boot', error as Error)
+    logger.error('Data reset failed — continuing boot', error as Error)
   }
 }
 
@@ -312,13 +391,32 @@ function shouldWipe(entry: string): boolean {
 }
 
 /**
+ * Clear every storage kind of the sessions Cherry uses (the same pair the
+ * "Clear cache" feature targets: default + the miniapp webview partition).
+ * No `storages` filter — a data reset clears everything the API knows,
+ * including kinds a future Chromium adds.
+ */
+async function clearChromiumState(): Promise<void> {
+  const sessions = [session.defaultSession, session.fromPartition('persist:webview')]
+  for (const s of sessions) {
+    try {
+      await s.clearCache()
+      await s.clearStorageData()
+      await s.clearAuthCache()
+    } catch (error) {
+      logger.warn('Failed to clear a session during data reset request', { error: String(error) })
+    }
+  }
+}
+
+/**
  * Filesystem identity for the marker binding: resolve symlinks and junctions
  * so the wipe authorization sticks to the physical directory the request
  * targeted. `.native` also restores the on-disk casing on Windows. A path
  * realpath cannot resolve either does not exist or is unreadable — lexical
  * resolve is enough there (the wipe itself then fails loudly).
  */
-export function canonicalize(p: string): string {
+function canonicalize(p: string): string {
   const resolved = path.resolve(p)
   try {
     return fs.realpathSync.native(resolved)
@@ -335,8 +433,8 @@ export function canonicalize(p: string): string {
  */
 function showIncompleteResetWarning(locale: string | undefined): void {
   dialog.showErrorBox(
-    tFor(locale ?? '', 'dialog.factory_reset.incomplete_title'),
-    tFor(locale ?? '', 'dialog.factory_reset.incomplete_message')
+    tFor(locale ?? '', 'dialog.data_reset.incomplete_title'),
+    tFor(locale ?? '', 'dialog.data_reset.incomplete_message')
   )
 }
 
@@ -360,7 +458,7 @@ function wipeDirectoryEntries(dir: string, shouldWipeEntry: (entry: string) => b
     entries = fs.readdirSync(dir)
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-      logger.warn('Cannot list directory for factory reset', { dir, error: String(error) })
+      logger.warn('Cannot list directory for data reset', { dir, error: String(error) })
       failures.push(dir)
     }
     return
@@ -371,7 +469,7 @@ function wipeDirectoryEntries(dir: string, shouldWipeEntry: (entry: string) => b
     try {
       fs.rmSync(path.join(dir, entry), RM_OPTIONS)
     } catch (error) {
-      logger.warn('Failed to remove entry during factory reset', { entry, error: String(error) })
+      logger.warn('Failed to remove entry during data reset', { entry, error: String(error) })
       failures.push(path.join(dir, entry))
     }
   }

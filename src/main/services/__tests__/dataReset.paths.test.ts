@@ -3,9 +3,9 @@ import path from 'node:path'
 import { buildPathRegistry } from '@main/core/paths/pathRegistry'
 import { describe, expect, it, vi } from 'vitest'
 
-import { USER_DATA_KEPT, USER_DATA_WIPE } from '../factoryResetGate'
+import { USER_DATA_KEPT, USER_DATA_WIPE } from '../dataReset'
 
-// Conformance test: factoryResetGate's wipe list is literal entry names,
+// Conformance test: dataReset's wipe list is literal entry names,
 // while the paths they refer to are owned by pathRegistry. This suite pins
 // each literal to the registry key it mirrors, so relocating or renaming a
 // path in the registry fails here instead of silently un-covering (or
@@ -35,7 +35,7 @@ vi.mock('electron', () => ({
   dialog: { showErrorBox: vi.fn() }
 }))
 
-// Importing the gate for its constants must not construct the real
+// Importing the module for its constants must not construct the real
 // BootConfigService (module-load fs reads).
 vi.mock('@main/data/bootConfig', () => ({ bootConfigService: {} }))
 
@@ -47,12 +47,12 @@ function firstSegment(child: string, parent: string): string {
   return path.relative(parent, child).split(path.sep)[0]
 }
 
-/** Same membership rule the gate applies to a directory entry. */
+/** Same membership rule the wipe pass applies to a directory entry. */
 function isWiped(entry: string): boolean {
   return USER_DATA_WIPE.includes(entry)
 }
 
-describe('factoryResetGate ↔ pathRegistry conformance', () => {
+describe('dataReset ↔ pathRegistry conformance', () => {
   it('the sqlite family is the app.database.file basename plus its -wal/-shm sidecars', () => {
     const dbFile = path.basename(registry['app.database.file'])
     expect(isWiped(dbFile)).toBe(true)
@@ -90,7 +90,7 @@ describe('factoryResetGate ↔ pathRegistry conformance', () => {
 
   it('classifies every userData registry entry as wiped user state or a kept machine artifact', () => {
     // A NEW registry key under userData must be classified deliberately:
-    // user state → add its entry name to USER_DATA_WIPE in factoryResetGate;
+    // user state → add its entry name to USER_DATA_WIPE in dataReset;
     // re-downloadable machine artifact → add it to USER_DATA_KEPT.
     for (const [key, value] of Object.entries(registry)) {
       // process.resourcesPath ('app.extra_resources') is undefined outside Electron

@@ -56,7 +56,7 @@
   },
   "dialog": {
     "all_files": "所有文件",
-    "factory_reset": {
+    "data_reset": {
       "arm_failed_message": "Cherry Studio 无法在 {{path}} 中记录数据重置状态。\n\n现在启动可能导致之后创建的数据被误删，应用将退出。\n\n请检查磁盘空间和文件权限，然后重新启动 Cherry Studio。",
       "arm_failed_title": "数据重置失败",
       "cancel": "取消",

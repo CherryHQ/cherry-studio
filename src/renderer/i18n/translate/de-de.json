@@ -5645,6 +5645,13 @@
       "data": {
         "title": "Datenverzeichnis"
       },
+      "data_reset": {
+        "button": "[to be translated]:Reset",
+        "confirm_content": "[to be translated]:This will delete all chats, assistants, knowledge bases, files, and settings — the app will restart as a fresh install. Your custom data directory location, downloaded tools, and local models are kept.",
+        "confirm_title": "[to be translated]:Are you sure you want to clear all data?",
+        "error": "[to be translated]:Failed to start data reset",
+        "title": "[to be translated]:Data Reset"
+      },
       "divider": {
         "basic": "Grundlegende Dateneinstellungen",
         "cloud_storage": "Cloud-Backup-Einstellungen",
@@ -5666,13 +5673,6 @@
         "siyuan": "Nach SiYuan-Notizen exportieren",
         "title": "Export-Menü-Einstellungen",
         "yuque": "Nach Yuque exportieren"
-      },
-      "factory_reset": {
-        "button": "[to be translated]:Reset",
-        "confirm_content": "[to be translated]:This will delete all chats, assistants, knowledge bases, files, and settings — the app will restart as a fresh install. Your custom data directory location, downloaded tools, and local models are kept.",
-        "confirm_title": "[to be translated]:Are you sure you want to clear all data?",
-        "error": "[to be translated]:Failed to start data reset",
-        "title": "[to be translated]:Data Reset"
       },
       "hour_interval_one": "{{count}} Stunde",
       "hour_interval_other": "{{count}} Stunden",

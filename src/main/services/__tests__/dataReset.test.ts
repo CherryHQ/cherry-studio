@@ -1,14 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
- * Tests for src/main/core/preboot/factoryResetGate.ts
+ * Tests for src/main/services/dataReset.ts — both faces: runDataReset (the
+ * preboot-timed execution) and requestDataReset (the running-app request).
  *
  * Mocking strategy (mirrors userDataLocation.test.ts):
  *   - `vi.doMock` + `vi.resetModules()` + dynamic import of the module under
  *     test in each scenario.
- *   - `electron`, `node:fs`, `@application`, and `@main/data/bootConfig` are
- *     shadowed per test; the bootConfig mock uses a mutable store so set()
- *     affects subsequent get() calls.
+ *   - `electron`, `node:fs`, `@application`, `@main/i18n`, and
+ *     `@main/data/bootConfig` are shadowed per test; the bootConfig mock uses
+ *     a mutable store so set() affects subsequent get() calls.
  */
 
 const USER_DATA = '/mock/home/appdata/CherryStudio'
@@ -16,7 +17,9 @@ const APP_TEMP = '/mock/tmp/CherryStudio'
 
 const appExitMock = vi.fn()
 const appRelaunchMock = vi.fn()
+const relaunchAfterShutdownMock = vi.fn()
 const showErrorBoxMock = vi.fn()
+const showMessageBoxMock = vi.fn()
 const rmSyncMock = vi.fn()
 const readdirSyncMock = vi.fn()
 const realpathNativeMock = vi.fn()
@@ -25,7 +28,7 @@ const bootConfigSetMock = vi.fn()
 const bootConfigFlushMock = vi.fn()
 const bootConfigPersistMock = vi.fn()
 
-type FactoryResetMarker = {
+type DataResetMarker = {
   status: 'pending'
   userDataPath: string
   requestedAt: string
@@ -103,11 +106,22 @@ const EXPECTED_KEPT = [
   'cherrystudio.sqlite-personal-backup'
 ]
 
+const makeSession = () => ({
+  clearCache: vi.fn().mockResolvedValue(undefined),
+  clearStorageData: vi.fn().mockResolvedValue(undefined),
+  clearAuthCache: vi.fn().mockResolvedValue(undefined)
+})
+let defaultSession = makeSession()
+let webviewSession = makeSession()
+
 function stubElectron() {
+  defaultSession = makeSession()
+  webviewSession = makeSession()
   vi.doMock('electron', () => ({
     __esModule: true,
     app: { exit: appExitMock, relaunch: appRelaunchMock },
-    dialog: { showErrorBox: showErrorBoxMock }
+    dialog: { showErrorBox: showErrorBoxMock, showMessageBox: showMessageBoxMock },
+    session: { defaultSession, fromPartition: vi.fn(() => webviewSession) }
   }))
 }
 
@@ -118,16 +132,25 @@ function stubApplication(userData: string = USER_DATA) {
         if (key === 'app.userdata') return userData
         if (key === 'app.temp') return APP_TEMP
         return '/mock/unknown'
-      })
+      }),
+      relaunchAfterShutdown: relaunchAfterShutdownMock
     }
   }))
 }
 
-function stubBootConfig(marker: FactoryResetMarker) {
+function stubI18n() {
+  vi.doMock('@main/i18n', () => ({
+    t: (key: string) => key,
+    tFor: (_locale: string, key: string) => key,
+    getAppLanguage: () => 'zh-CN'
+  }))
+}
+
+function stubBootConfig(marker: DataResetMarker) {
   const store: Record<string, unknown> = {
     'app.disable_hardware_acceleration': true,
     'app.user_data_path': { '/mock/exe': USER_DATA },
-    'temp.factory_reset': marker,
+    'temp.data_reset': marker,
     'temp.user_data_relocation': null
   }
   bootConfigGetMock.mockImplementation((key: string) => store[key])
@@ -169,7 +192,16 @@ function stubFs(listing: string[] | Error = DEFAULT_LISTING) {
   vi.doMock('node:fs', () => ({ __esModule: true, default: fsMock, ...fsMock }))
 }
 
-function pendingMarker(overrides: Partial<NonNullable<FactoryResetMarker>> = {}): FactoryResetMarker {
+function stubAll(marker: DataResetMarker) {
+  stubElectron()
+  stubApplication()
+  stubI18n()
+  const store = stubBootConfig(marker)
+  stubFs()
+  return store
+}
+
+function pendingMarker(overrides: Partial<NonNullable<DataResetMarker>> = {}): DataResetMarker {
   return {
     status: 'pending',
     userDataPath: USER_DATA,
@@ -178,9 +210,14 @@ function pendingMarker(overrides: Partial<NonNullable<FactoryResetMarker>> = {})
   }
 }
 
-async function runGate() {
-  const { runFactoryResetGate } = await import('../factoryResetGate')
-  runFactoryResetGate()
+async function runReset() {
+  const { runDataReset } = await import('../dataReset')
+  runDataReset()
+}
+
+async function requestReset() {
+  const { requestDataReset } = await import('../dataReset')
+  return requestDataReset()
 }
 
 function wipedEntries(): string[] {
@@ -192,13 +229,10 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
-describe('runFactoryResetGate', () => {
+describe('runDataReset', () => {
   it('does nothing without a pending marker', async () => {
-    stubElectron()
-    stubApplication()
-    stubBootConfig(null)
-    stubFs()
-    await runGate()
+    stubAll(null)
+    await runReset()
 
     expect(rmSyncMock).not.toHaveBeenCalled()
     expect(appRelaunchMock).not.toHaveBeenCalled()
@@ -206,11 +240,8 @@ describe('runFactoryResetGate', () => {
   })
 
   it('leaves a marker recorded for a different userData directory untouched', async () => {
-    stubElectron()
-    stubApplication()
-    stubBootConfig(pendingMarker({ userDataPath: '/mock/other/CherryStudioDev' }))
-    stubFs()
-    await runGate()
+    stubAll(pendingMarker({ userDataPath: '/mock/other/CherryStudioDev' }))
+    await runReset()
 
     expect(rmSyncMock).not.toHaveBeenCalled()
     expect(bootConfigSetMock).not.toHaveBeenCalled()
@@ -218,11 +249,8 @@ describe('runFactoryResetGate', () => {
   })
 
   it('wipes exactly the whitelist, resets BootConfig, and relaunches', async () => {
-    stubElectron()
-    stubApplication()
-    const store = stubBootConfig(pendingMarker())
-    stubFs()
-    await runGate()
+    const store = stubAll(pendingMarker())
+    await runReset()
 
     const wiped = wipedEntries()
     for (const entry of EXPECTED_WIPED) {
@@ -237,7 +265,7 @@ describe('runFactoryResetGate', () => {
 
     // BootConfig reset: marker cleared, settings back to defaults, data-dir
     // location preserved.
-    expect(store['temp.factory_reset']).toBeNull()
+    expect(store['temp.data_reset']).toBeNull()
     expect(store['app.disable_hardware_acceleration']).toBe(false)
     expect(store['app.user_data_path']).toEqual({ '/mock/exe': USER_DATA })
     expect(bootConfigPersistMock).toHaveBeenCalled()
@@ -248,44 +276,35 @@ describe('runFactoryResetGate', () => {
   })
 
   it('records the canonical physical path with the arming write', async () => {
-    stubElectron()
-    stubApplication()
-    stubBootConfig(pendingMarker())
-    stubFs()
+    stubAll(pendingMarker())
     realpathNativeMock.mockImplementation(() => '/mock/physical/CherryStudio')
-    await runGate()
+    await runReset()
 
     const armed = bootConfigSetMock.mock.calls.find(
-      ([key, value]) => key === 'temp.factory_reset' && value !== null
-    )?.[1] as { canonicalPath?: string; attempts?: number }
+      ([key, value]) => key === 'temp.data_reset' && value !== null
+    )?.[1] as { canonicalPath?: string; attempts?: number } | undefined
     expect(armed?.canonicalPath).toBe('/mock/physical/CherryStudio')
     expect(armed?.attempts).toBe(1)
   })
 
   it('refuses to wipe when the recorded physical identity no longer matches', async () => {
-    stubElectron()
-    stubApplication()
-    const store = stubBootConfig(pendingMarker({ canonicalPath: '/mock/old-target', attempts: 1 }))
-    stubFs()
+    const store = stubAll(pendingMarker({ canonicalPath: '/mock/old-target', attempts: 1 }))
     realpathNativeMock.mockImplementation(() => '/mock/new-target')
-    await runGate()
+    await runReset()
 
     expect(rmSyncMock).not.toHaveBeenCalled()
-    expect(store['temp.factory_reset']).toBeNull()
+    expect(store['temp.data_reset']).toBeNull()
     expect(bootConfigFlushMock).toHaveBeenCalled()
     expect(showErrorBoxMock).toHaveBeenCalled()
     expect(appExitMock).not.toHaveBeenCalled()
   })
 
   it('quits without wiping when the attempt count cannot be durably recorded', async () => {
-    stubElectron()
-    stubApplication()
-    stubBootConfig(pendingMarker())
-    stubFs()
+    stubAll(pendingMarker())
     bootConfigPersistMock.mockImplementation(() => {
       throw new Error('EROFS: read-only file system')
     })
-    await runGate()
+    await runReset()
 
     expect(rmSyncMock).not.toHaveBeenCalled()
     expect(showErrorBoxMock).toHaveBeenCalled()
@@ -294,16 +313,13 @@ describe('runFactoryResetGate', () => {
   })
 
   it('relaunches back into preboot when a pass fails with attempts left', async () => {
-    stubElectron()
-    stubApplication()
-    const store = stubBootConfig(pendingMarker())
-    stubFs()
+    const store = stubAll(pendingMarker())
     rmSyncMock.mockImplementation((target: string) => {
       if (String(target).endsWith('/Data')) throw new Error('EBUSY: resource busy')
     })
-    await runGate()
+    await runReset()
 
-    const marker = store['temp.factory_reset'] as { attempts?: number }
+    const marker = store['temp.data_reset'] as { attempts?: number }
     expect(marker?.attempts).toBe(1)
     expect(appRelaunchMock).toHaveBeenCalledTimes(1)
     expect(appExitMock).toHaveBeenCalledWith(1)
@@ -311,16 +327,13 @@ describe('runFactoryResetGate', () => {
   })
 
   it('gives up at the attempt cap: clears the marker, warns, continues boot', async () => {
-    stubElectron()
-    stubApplication()
-    const store = stubBootConfig(pendingMarker({ attempts: 1, canonicalPath: USER_DATA }))
-    stubFs()
+    const store = stubAll(pendingMarker({ attempts: 1, canonicalPath: USER_DATA }))
     rmSyncMock.mockImplementation((target: string) => {
       if (String(target).endsWith('/Data')) throw new Error('EBUSY: resource busy')
     })
-    await runGate()
+    await runReset()
 
-    expect(store['temp.factory_reset']).toBeNull()
+    expect(store['temp.data_reset']).toBeNull()
     expect(bootConfigFlushMock).toHaveBeenCalled()
     expect(showErrorBoxMock).toHaveBeenCalled()
     expect(appRelaunchMock).not.toHaveBeenCalled()
@@ -328,43 +341,34 @@ describe('runFactoryResetGate', () => {
   })
 
   it('abandons a marker that already reached the attempt cap without another pass', async () => {
-    stubElectron()
-    stubApplication()
-    const store = stubBootConfig(pendingMarker({ attempts: 2, canonicalPath: USER_DATA }))
-    stubFs()
-    await runGate()
+    const store = stubAll(pendingMarker({ attempts: 2, canonicalPath: USER_DATA }))
+    await runReset()
 
     expect(rmSyncMock).not.toHaveBeenCalled()
-    expect(store['temp.factory_reset']).toBeNull()
+    expect(store['temp.data_reset']).toBeNull()
     expect(showErrorBoxMock).toHaveBeenCalled()
   })
 
   it('treats a corrupted attempts value as zero instead of voiding the cap', async () => {
-    stubElectron()
-    stubApplication()
-    stubBootConfig(pendingMarker({ attempts: 'x' }))
-    stubFs()
-    await runGate()
+    stubAll(pendingMarker({ attempts: 'x' }))
+    await runReset()
 
     const armed = bootConfigSetMock.mock.calls.find(
-      ([key, value]) => key === 'temp.factory_reset' && value !== null
-    )?.[1] as { attempts?: number }
+      ([key, value]) => key === 'temp.data_reset' && value !== null
+    )?.[1] as { attempts?: number } | undefined
     expect(armed?.attempts).toBe(1)
     expect(appExitMock).toHaveBeenCalledWith(0)
   })
 
   it('quits after a clean wipe whose marker clear cannot be persisted', async () => {
-    stubElectron()
-    stubApplication()
-    stubBootConfig(pendingMarker())
-    stubFs()
+    stubAll(pendingMarker())
     let persistCalls = 0
     bootConfigPersistMock.mockImplementation(() => {
       persistCalls += 1
       // First persist arms the attempt counter; the second clears the marker.
       if (persistCalls === 2) throw new Error('ENOSPC: no space left on device')
     })
-    await runGate()
+    await runReset()
 
     expect(showErrorBoxMock).toHaveBeenCalled()
     expect(appExitMock).toHaveBeenCalledWith(1)
@@ -372,11 +376,8 @@ describe('runFactoryResetGate', () => {
   })
 
   it('never touches paths outside userData and app.temp', async () => {
-    stubElectron()
-    stubApplication()
-    stubBootConfig(pendingMarker())
-    stubFs()
-    await runGate()
+    stubAll(pendingMarker())
+    await runReset()
 
     for (const [target] of rmSyncMock.mock.calls) {
       expect(String(target).startsWith(`${USER_DATA}/`) || String(target) === APP_TEMP).toBe(true)
@@ -386,43 +387,122 @@ describe('runFactoryResetGate', () => {
   it('records the userData listing failure as critical instead of declaring success', async () => {
     stubElectron()
     stubApplication()
+    stubI18n()
     const store = stubBootConfig(pendingMarker())
     stubFs(new Error('EACCES: permission denied'))
-    await runGate()
+    await runReset()
 
-    const marker = store['temp.factory_reset'] as { attempts?: number } | null
+    const marker = store['temp.data_reset'] as { attempts?: number } | null
     expect(marker?.attempts).toBe(1)
     expect(appRelaunchMock).toHaveBeenCalledTimes(1)
     expect(appExitMock).toHaveBeenCalledWith(1)
   })
 
   it('treats a missing userData directory as already clean', async () => {
-    stubElectron()
-    stubApplication()
-    const store = stubBootConfig(pendingMarker())
-    stubFs()
+    const store = stubAll(pendingMarker())
     readdirSyncMock.mockImplementation(() => {
       const error = new Error('ENOENT') as NodeJS.ErrnoException
       error.code = 'ENOENT'
       throw error
     })
-    await runGate()
+    await runReset()
 
-    expect(store['temp.factory_reset']).toBeNull()
+    expect(store['temp.data_reset']).toBeNull()
     expect(appExitMock).toHaveBeenCalledWith(0)
   })
 
-  it('continues boot when the gate itself throws unexpectedly', async () => {
-    stubElectron()
-    stubApplication()
-    stubBootConfig(pendingMarker())
-    stubFs()
+  it('continues boot when the module itself throws unexpectedly', async () => {
+    stubAll(pendingMarker())
     bootConfigGetMock.mockImplementation(() => {
       throw new Error('corrupted store')
     })
-    await runGate()
+    await runReset()
 
     expect(rmSyncMock).not.toHaveBeenCalled()
     expect(appExitMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('requestDataReset', () => {
+  beforeEach(() => {
+    // The native confirmation dialog (the arming authority — renderer-side
+    // dialogs don't count for a whole-profile wipe): button 1 is confirm.
+    showMessageBoxMock.mockResolvedValue({ response: 1, checkboxChecked: false })
+  })
+
+  it('resolves without staging anything when the user cancels the native confirmation', async () => {
+    stubAll(null)
+    showMessageBoxMock.mockResolvedValue({ response: 0, checkboxChecked: false })
+
+    await expect(requestReset()).resolves.toBeUndefined()
+
+    expect(bootConfigSetMock).not.toHaveBeenCalled()
+    expect(bootConfigPersistMock).not.toHaveBeenCalled()
+    expect(relaunchAfterShutdownMock).not.toHaveBeenCalled()
+  })
+
+  it('stages the pending marker for the current userData, persists it, then gracefully relaunches', async () => {
+    stubAll(null)
+
+    await requestReset()
+
+    expect(bootConfigSetMock).toHaveBeenCalledWith(
+      'temp.data_reset',
+      expect.objectContaining({
+        status: 'pending',
+        userDataPath: USER_DATA,
+        // realpath resolves to the lexical path in the fs stub.
+        canonicalPath: USER_DATA,
+        // The execution side renders its dialogs in the requesting user's language.
+        locale: 'zh-CN'
+      })
+    )
+    // Durability ordering: the marker must be on disk before the relaunch fires.
+    expect(bootConfigPersistMock.mock.invocationCallOrder[0]).toBeLessThan(
+      relaunchAfterShutdownMock.mock.invocationCallOrder[0]
+    )
+    // Graceful shutdown-then-relaunch, not the bare relaunch: running
+    // services must release file handles before the next boot's wipe.
+    expect(appRelaunchMock).not.toHaveBeenCalled()
+  })
+
+  it('clears Chromium storage of both Cherry sessions after the marker is durable', async () => {
+    stubAll(null)
+
+    await requestReset()
+
+    for (const s of [defaultSession, webviewSession]) {
+      expect(s.clearCache).toHaveBeenCalledTimes(1)
+      expect(s.clearStorageData).toHaveBeenCalledTimes(1)
+      expect(s.clearAuthCache).toHaveBeenCalledTimes(1)
+      // Ordering: the semantic clear runs only on a durably staged marker —
+      // a failed persist must not half-clear a session the user keeps using.
+      expect(bootConfigPersistMock.mock.invocationCallOrder[0]).toBeLessThan(
+        s.clearStorageData.mock.invocationCallOrder[0]
+      )
+    }
+  })
+
+  it('still relaunches when the Chromium clear fails — the wipe pass is the deterministic layer', async () => {
+    stubAll(null)
+    defaultSession.clearStorageData.mockRejectedValueOnce(new Error('session gone'))
+
+    await expect(requestReset()).resolves.toBeUndefined()
+    expect(relaunchAfterShutdownMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('rolls the marker back and rejects without relaunching when persist fails', async () => {
+    stubAll(null)
+    bootConfigPersistMock.mockImplementation(() => {
+      throw new Error('EACCES: permission denied')
+    })
+
+    await expect(requestReset()).rejects.toThrow('EACCES')
+
+    // The dirty in-memory marker is restored to its previous value, so a
+    // later flush (e.g. during shutdown) cannot stage the failed request.
+    expect(bootConfigSetMock).toHaveBeenLastCalledWith('temp.data_reset', null)
+    expect(relaunchAfterShutdownMock).not.toHaveBeenCalled()
+    expect(defaultSession.clearStorageData).not.toHaveBeenCalled()
   })
 })

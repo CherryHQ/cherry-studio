@@ -5645,6 +5645,13 @@
       "data": {
         "title": "Φάκελος δεδομένων"
       },
+      "data_reset": {
+        "button": "[to be translated]:Reset",
+        "confirm_content": "[to be translated]:This will delete all chats, assistants, knowledge bases, files, and settings — the app will restart as a fresh install. Your custom data directory location, downloaded tools, and local models are kept.",
+        "confirm_title": "[to be translated]:Are you sure you want to clear all data?",
+        "error": "[to be translated]:Failed to start data reset",
+        "title": "[to be translated]:Data Reset"
+      },
       "divider": {
         "basic": "Ρυθμίσεις βασικών δεδομένων",
         "cloud_storage": "Ρυθμίσεις αποθήκευσης στο νέφος",
@@ -5666,13 +5673,6 @@
         "siyuan": "Εξαγωγή στο Ση-Υάν",
         "title": "Εξαγωγή ρυθμίσεων μενού",
         "yuque": "Εξαγωγή στο Yuque"
-      },
-      "factory_reset": {
-        "button": "[to be translated]:Reset",
-        "confirm_content": "[to be translated]:This will delete all chats, assistants, knowledge bases, files, and settings — the app will restart as a fresh install. Your custom data directory location, downloaded tools, and local models are kept.",
-        "confirm_title": "[to be translated]:Are you sure you want to clear all data?",
-        "error": "[to be translated]:Failed to start data reset",
-        "title": "[to be translated]:Data Reset"
       },
       "hour_interval_one": "{{count}} ώρα",
       "hour_interval_other": "{{count}} ώρες",

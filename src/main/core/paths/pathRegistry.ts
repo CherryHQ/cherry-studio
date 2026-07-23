@@ -119,7 +119,7 @@ export function buildPathRegistry() {
     'feature.ovms.ovocr': path.join(CHERRY_HOME, 'ovms', 'ovocr'),
     // The OVMS model registry — the one user-authored file inside the
     // otherwise machine-artifact ovms/ tree. OvmsManager recreates a default
-    // when absent; factoryResetGate removes it on a factory reset.
+    // when absent. Under ~/.cherrystudio, so a data reset keeps it.
     'feature.ovms.model_registry_file': path.join(CHERRY_HOME, 'ovms', 'ovms', 'models', 'config.json'),
 
     // Agents

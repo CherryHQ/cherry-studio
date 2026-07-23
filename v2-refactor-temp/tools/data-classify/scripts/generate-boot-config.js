@@ -97,8 +97,8 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
   {
     source: 'preboot',
     sourceCategory: 'transient',
-    originalKey: 'factoryReset',
-    targetKey: 'temp.factory_reset',
+    originalKey: 'dataReset',
+    targetKey: 'temp.data_reset',
     zodType:
       'z\n' +
       '    .object({\n' +
@@ -112,8 +112,8 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
       '    .nullable()',
     defaultValue: null,
     jsdoc: [
-      'Pending factory reset of the app (issue #17131): on the next boot,',
-      'the preboot factory-reset gate deletes the whitelisted Cherry-owned',
+      'Pending data reset of the app (issue #17131): on the next boot,',
+      'runDataReset (invoked at preboot) deletes the whitelisted Cherry-owned',
       "entries from userData (USER_DATA_WIPE — there is no whole-tree mode),",
       "resets BootConfig's other keys to defaults, and relaunches so the app",
       'boots a fresh-install state in a clean process. ~/.cherrystudio is',
@@ -124,26 +124,26 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
       'consumed. **Never** backed up or synced.',
       '',
       'Lifecycle:',
-      '  - null: no factory reset pending (default).',
+      '  - null: no data reset pending (default).',
       "  - { status: 'pending', userDataPath, requestedAt, attempts?,",
-      "    canonicalPath?, locale? }: the 'app.factory_reset.request' IpcApi",
-      '    handler wrote this request and the next preboot should execute the',
-      "    wipe. `userDataPath` is the requesting instance's resolved userData",
-      '    directory; a gate whose resolution differs leaves the marker',
+      "    canonicalPath?, locale? }: requestDataReset (the 'app.data_reset.request'",
+      '    IpcApi route) wrote this request and the next preboot should execute',
+      "    the wipe. `userDataPath` is the requesting instance's resolved userData",
+      '    directory; a pass whose resolution differs leaves the marker',
       '    untouched for the owning instance (boot-config.json is shared',
       '    between dev and packaged instances). `canonicalPath` pins the',
       '    realpath-resolved physical directory: a pass whose re-resolution',
       '    disagrees refuses to wipe, so a replaced symlink/junction cannot',
       '    redirect a recorded authorization onto a new directory. `locale`',
-      "    captures the requesting user's app language so the gate can render",
+      "    captures the requesting user's app language so the wipe pass can render",
       '    its dialogs in it — the preference store holding the live value is',
       '    exactly what the wipe deletes.',
       '',
-      'Retry semantics: the gate durably increments `attempts` (treating',
-      'absence as 0) before each destructive pass — if that write fails the',
-      'gate quits rather than boot a writable app over a pending marker.',
+      'Retry semantics: runDataReset durably increments `attempts` (treating',
+      'absence as 0) before each destructive pass — if that write fails it',
+      'quits rather than boot a writable app over a pending marker.',
       'A failing pass with attempts left relaunches straight back into',
-      'preboot. At the cap the gate gives up: marker cleared, failure',
+      'preboot. At the cap it gives up: marker cleared, failure',
       "surfaced in a dialog, boot continues over the leftovers. There's no",
       "'failed' state in this marker.",
       '',
@@ -154,7 +154,7 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
       "sibling instance's pending marker and resurrecting one it already",
       'consumed (#17138 review).',
       '',
-      'Consumer: src/main/core/preboot/factoryResetGate.ts'
+      'Consumer: src/main/services/dataReset.ts'
     ]
   }
 ]
