@@ -37,6 +37,7 @@ import {
   UnsupportedBackupFormatError
 } from './errors'
 import { BACKUP_FORMAT_VERSION, type BackupManifest, readManifest } from './manifest'
+import { resolvePreset } from './presets'
 
 /**
  * Recognized top-level archive entries. Unknown top-level entries are ignored (not
@@ -651,6 +652,24 @@ export function assertLiteManifestInvariants(manifest: BackupManifest): void {
       backupErrorCodes.RESTORE_LITE_INVARIANT_VIOLATED,
       'backup: manifest claims lite but carries full resources — refusing restore'
     )
+  }
+  // Domains must exactly match resolvePreset('lite'): reject LITE_EXCLUDED (full→lite
+  // relabel that zeros resources but keeps 14 domains) and reject duplicates.
+  const expected = new Set(resolvePreset('lite'))
+  const actual = new Set(manifest.domains)
+  if (actual.size !== manifest.domains.length || actual.size !== expected.size) {
+    throw new IpcError(
+      backupErrorCodes.RESTORE_LITE_INVARIANT_VIOLATED,
+      'backup: manifest claims lite but domains do not match the lite preset — refusing restore'
+    )
+  }
+  for (const d of expected) {
+    if (!actual.has(d)) {
+      throw new IpcError(
+        backupErrorCodes.RESTORE_LITE_INVARIANT_VIOLATED,
+        'backup: manifest claims lite but domains do not match the lite preset — refusing restore'
+      )
+    }
   }
 }
 

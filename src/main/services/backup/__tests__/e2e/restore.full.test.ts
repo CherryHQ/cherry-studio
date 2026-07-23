@@ -40,6 +40,7 @@ import { assembleArchive } from '../../archive'
 import { ImportOrchestrator, type ImportOrchestratorDeps } from '../../ImportOrchestrator'
 import { BACKUP_FORMAT_VERSION, type BackupManifest } from '../../manifest'
 import { MergeEngine } from '../../merge/MergeEngine'
+import { resolvePreset } from '../../presets'
 
 const MIGRATIONS_FOLDER = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -191,7 +192,7 @@ describe('e2e-restore real data / backfill + degrade', () => {
     backupFormatVersion: BACKUP_FORMAT_VERSION,
     createdAt: new Date().toISOString(),
     preset: 'lite',
-    domains: [...DOMAINS],
+    domains: [...resolvePreset('lite')],
     includeFiles: false,
     includeKnowledgeFiles: false,
     sensitiveData: { included: true, rotated: false },

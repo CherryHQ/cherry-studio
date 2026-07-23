@@ -54,6 +54,7 @@ import {
   UnsupportedBackupFormatError
 } from '../errors'
 import { BACKUP_FORMAT_VERSION, type BackupManifest } from '../manifest'
+import { resolvePreset } from '../presets'
 
 /** Tiny injectable limits for resource-budget tests (no GiB fixtures). */
 const tinyLimits = (overrides: Partial<ArchiveAdmissionLimits> = {}): ArchiveAdmissionLimits =>
@@ -561,6 +562,7 @@ describe('admitArchive', () => {
   const LITE_MANIFEST: BackupManifest = {
     ...MANIFEST,
     preset: 'lite',
+    domains: [...resolvePreset('lite')],
     includeFiles: false,
     includeKnowledgeFiles: false,
     files: { ids: [], total: 0, totalBytes: 0 },
@@ -590,6 +592,22 @@ describe('admitArchive', () => {
     snapshotDbhTo(dbCopy)
     const archivePath = join(tmpDir, 'lite-include-files.cherrybackup')
     await packArchive(archivePath, dbCopy, { ...LITE_MANIFEST, includeFiles: true })
+    const workDir = join(tmpDir, 'work')
+
+    await expect(admitArchive(archivePath, workDir, MIGRATIONS_FOLDER)).rejects.toMatchObject({
+      code: 'BACKUP_RESTORE_LITE_INVARIANT_VIOLATED'
+    })
+    expect(existsSync(workDir)).toBe(false)
+  })
+
+  it('preset=lite with domains containing KNOWLEDGE → BACKUP_RESTORE_LITE_INVARIANT_VIOLATED', async () => {
+    const dbCopy = join(tmpDir, 'backup.sqlite')
+    snapshotDbhTo(dbCopy)
+    const archivePath = join(tmpDir, 'lite-with-knowledge-domain.cherrybackup')
+    await packArchive(archivePath, dbCopy, {
+      ...LITE_MANIFEST,
+      domains: [...LITE_MANIFEST.domains, 'KNOWLEDGE']
+    })
     const workDir = join(tmpDir, 'work')
 
     await expect(admitArchive(archivePath, workDir, MIGRATIONS_FOLDER)).rejects.toMatchObject({

@@ -32,6 +32,7 @@ import { assembleArchive } from '../../archive'
 import { ImportOrchestrator, type ImportOrchestratorDeps } from '../../ImportOrchestrator'
 import { BACKUP_FORMAT_VERSION, type BackupManifest } from '../../manifest'
 import { MergeEngine } from '../../merge/MergeEngine'
+import { resolvePreset } from '../../presets'
 
 const MIGRATIONS_FOLDER = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -103,7 +104,9 @@ describe('e2e-restore lite / SKIP DB only', () => {
     ).run(id, name, `order-${id}`, now, now)
   }
 
-  const buildLiteManifest = (domains: BackupManifest['domains'] = ['TOPICS']): BackupManifest => ({
+  const buildLiteManifest = (
+    domains: BackupManifest['domains'] = [...resolvePreset('lite')]
+  ): BackupManifest => ({
     backupFormatVersion: BACKUP_FORMAT_VERSION,
     createdAt: new Date().toISOString(),
     preset: 'lite',
@@ -208,7 +211,7 @@ describe('e2e-restore lite / SKIP DB only', () => {
         `INSERT INTO preference (scope, key, value, created_at, updated_at) VALUES ('default', ?, ?, ?, ?)`
       ).run('theme.mode', JSON.stringify('dark'), now, now)
     })
-    await packArchive(['TOPICS', 'PREFERENCES'])
+    await packArchive()
 
     const orch = new ImportOrchestrator(makeDeps())
     await orch.importBackup({ archivePath, restoreId: 'rst-e2e-lite-notes' })

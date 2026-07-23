@@ -37,6 +37,7 @@ import { RestoreQuiesceNotImplementedError } from '../errors'
 import { ImportOrchestrator, type ImportOrchestratorDeps } from '../ImportOrchestrator'
 import { BACKUP_FORMAT_VERSION, type BackupManifest } from '../manifest'
 import { MergeEngine } from '../merge/MergeEngine'
+import { resolvePreset } from '../presets'
 
 // Production drizzle migrations folder — same resolution as ImportOrchestrator.test.ts so
 // admitArchive's chain gate + applyMigrations find _journal.json.
@@ -133,7 +134,7 @@ describe('importBackup spine ↔ MergeEngine integration', () => {
     backupFormatVersion: BACKUP_FORMAT_VERSION,
     createdAt: new Date().toISOString(),
     preset: 'lite',
-    domains: ['TOPICS'],
+    domains: [...resolvePreset('lite')],
     includeFiles: false,
     includeKnowledgeFiles: false,
     sensitiveData: { included: true, rotated: false },
