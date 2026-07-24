@@ -392,7 +392,7 @@ describe('BackupService restore journal lifecycle (A7)', () => {
   })
 
   describe('startRestore Full archive admission (A2 — full gate removed)', () => {
-    it('admits preset=full through admitArchive (no RESTORE_FULL_NOT_SUPPORTED)', async () => {
+    it('admits preset=full through admitArchive (the full-restore gate is gone)', async () => {
       admitArchiveMock.mockResolvedValue({
         backupDbPath: '/tmp/backup.sqlite',
         manifest: { preset: 'full' },

@@ -74,8 +74,13 @@ export interface ImportBackupResult {
   readonly restoreId: string
   /** Absolute path the staged journal was written to (for diagnostics; the gate reads it via the path key). */
   readonly journalPath: string
-  /** Planning skips / toRestore for relaunch-confirm disclosure (B4); not written into the journal. */
-  readonly plan: Pick<ResourcePlan, 'skips' | 'toRestore' | 'resources'>
+  /**
+   * Planning skips / toRestore for relaunch-confirm disclosure (B4); not written
+   * into the journal. Deliberately excludes `resources` — the journal's
+   * fileResources is the single source for what gets promoted, and a second
+   * consumer here could only drift from it.
+   */
+  readonly plan: Pick<ResourcePlan, 'skips' | 'toRestore'>
 }
 
 /**
@@ -302,7 +307,7 @@ export class ImportOrchestrator {
       return {
         restoreId: options.restoreId,
         journalPath: this.deps.journalPath,
-        plan: { skips: plan.skips, toRestore: plan.toRestore, resources: plan.resources }
+        plan: { skips: plan.skips, toRestore: plan.toRestore }
       }
     } finally {
       // Fail-closed cleanup: if the journal was NOT committed, tear down this restore's

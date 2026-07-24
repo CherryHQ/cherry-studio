@@ -24,8 +24,6 @@ export const backupErrorCodes = {
   OUTPUT_PATH_INVALID: 'BACKUP_OUTPUT_PATH_INVALID',
   /** JobManager drain returned stragglers or pending startup recovery. */
   RESTORE_DRAIN_UNCLEAN: 'BACKUP_RESTORE_DRAIN_UNCLEAN',
-  /** Full archive restore is gated until resource staging lands. */
-  RESTORE_FULL_NOT_SUPPORTED: 'BACKUP_RESTORE_FULL_NOT_SUPPORTED',
   /** Manifest claims lite but carries full resource fields. */
   RESTORE_LITE_INVARIANT_VIOLATED: 'BACKUP_RESTORE_LITE_INVARIANT_VIOLATED',
   /** A prior restore journal is still staged or promoting. */

@@ -21,8 +21,9 @@ import path from 'node:path'
 
 import { type PathResolvableEntry, resolvePhysicalPath } from '@main/services/file'
 import { isPathInside } from '@main/utils/file'
-import { SafeNameSchema } from '@shared/data/types/file'
+import { FileEntryIdSchema, SafeNameSchema } from '@shared/data/types/file'
 import type { ResourceClass } from '@shared/types/backup'
+import { SafeExtSchema } from '@shared/types/file'
 import Database from 'better-sqlite3'
 
 import { BackupArchiveCorruptError } from './errors'
@@ -147,6 +148,14 @@ export function assertFullManifestInvariants(manifest: BackupManifest): void {
     )
   }
 
+  // Ids double as staging path segments (workDir/files/{id}) — reject any shape
+  // that isn't a file_entry UUID before uniqueness (hardening; live containment
+  // already bounds escapes to ARCHIVE_CORRUPT).
+  for (const id of manifest.files.ids) {
+    if (!FileEntryIdSchema.safeParse(id).success) {
+      archiveCorrupt(`files.ids entry is not a file entry UUID: ${id}`)
+    }
+  }
   assertUniqueIds(manifest.files.ids, 'files.ids')
   assertUniqueSafeNames(manifest.knowledge.bases, 'knowledge.bases')
   assertUniqueSafeNames(
@@ -217,6 +226,11 @@ export function toPathResolvable(row: FileEntrySqlRow): PathResolvableEntry {
   if (row.origin !== 'internal') {
     archiveCorrupt(`file ${row.id}: expected internal origin, got ${row.origin}`)
   }
+  // ext feeds `{id}.{ext}` path composition and backup.sqlite is untrusted —
+  // reject separators/dots before resolvePhysicalPath sees them.
+  if (row.ext !== null && !SafeExtSchema.safeParse(row.ext).success) {
+    archiveCorrupt(`file ${row.id}: unsafe ext`)
+  }
   return { id: row.id, origin: 'internal', ext: row.ext }
 }
 
@@ -250,14 +264,26 @@ export function planResources(ctx: PlanCtx): ResourcePlan {
     return rel
   }
 
-  const backupDb = new Database(backupDbPath, { readonly: true, fileMustExist: true })
-  const workDb = new Database(workPath, { readonly: true, fileMustExist: true })
+  // Both opens live inside the try: if the second constructor throws, the
+  // finally still closes the first (readonly handles pin the file on Windows).
+  let backupDb: Database.Database | undefined
+  let workDb: Database.Database | undefined
   try {
+    backupDb = new Database(backupDbPath, { readonly: true, fileMustExist: true })
+    workDb = new Database(workPath, { readonly: true, fileMustExist: true })
+
+    // One prepare per statement — the loops below run on the main thread while
+    // quiesce is held, and better-sqlite3 has no statement cache.
+    const backupFileEntry = backupDb.prepare('SELECT id, origin, ext, external_path FROM file_entry WHERE id = ?')
+    const workFileEntry = workDb.prepare('SELECT 1 AS ok FROM file_entry WHERE id = ?')
+    const backupKnowledgeBase = backupDb.prepare('SELECT 1 AS ok FROM knowledge_base WHERE id = ?')
+    const workKnowledgeBase = workDb.prepare('SELECT 1 AS ok FROM knowledge_base WHERE id = ?')
+    const backupSkill = backupDb.prepare('SELECT 1 AS ok FROM agent_global_skill WHERE folder_name = ?')
+    const workSkill = workDb.prepare('SELECT 1 AS ok FROM agent_global_skill WHERE folder_name = ?')
+
     // ── files ──
     for (const id of manifest.files.ids) {
-      const row = backupDb.prepare('SELECT id, origin, ext, external_path FROM file_entry WHERE id = ?').get(id) as
-        | FileEntrySqlRow
-        | undefined
+      const row = backupFileEntry.get(id) as FileEntrySqlRow | undefined
       if (!row || row.origin !== 'internal') {
         archiveCorrupt(`file ${id}: missing or external`)
       }
@@ -267,7 +293,7 @@ export function planResources(ctx: PlanCtx): ResourcePlan {
       if (!isPathInside(liveAbs, roots.files)) {
         archiveCorrupt(`file ${id}: outside filesRoot`)
       }
-      const localRow = workDb.prepare('SELECT 1 AS ok FROM file_entry WHERE id = ?').get(id)
+      const localRow = workFileEntry.get(id)
       if (localRow || existsSync(liveAbs)) {
         skips.push({
           id,
@@ -288,7 +314,7 @@ export function planResources(ctx: PlanCtx): ResourcePlan {
 
     // ── knowledge ──
     for (const baseId of manifest.knowledge.bases) {
-      const backupRow = backupDb.prepare('SELECT 1 AS ok FROM knowledge_base WHERE id = ?').get(baseId)
+      const backupRow = backupKnowledgeBase.get(baseId)
       if (!backupRow) archiveCorrupt(`knowledge ${baseId}: missing from backup DB`)
       const stagingAbs = path.join(workDir, 'knowledge', baseId)
       assertStagingDir(stagingAbs)
@@ -296,7 +322,7 @@ export function planResources(ctx: PlanCtx): ResourcePlan {
       if (!isPathInside(liveAbs, roots.knowledge)) {
         archiveCorrupt(`knowledge ${baseId}: outside knowledgeRoot`)
       }
-      const localRow = workDb.prepare('SELECT 1 AS ok FROM knowledge_base WHERE id = ?').get(baseId)
+      const localRow = workKnowledgeBase.get(baseId)
       if (localRow || existsSync(liveAbs)) {
         skips.push({
           id: baseId,
@@ -316,7 +342,7 @@ export function planResources(ctx: PlanCtx): ResourcePlan {
 
     // ── skills (folderName is merge identity; A2 matches backupRow.folder_name) ──
     for (const { folderName } of manifest.skills.folders) {
-      const backupRow = backupDb.prepare('SELECT 1 AS ok FROM agent_global_skill WHERE folder_name = ?').get(folderName)
+      const backupRow = backupSkill.get(folderName)
       if (!backupRow) archiveCorrupt(`skill ${folderName}: missing from backup DB`)
       const stagingAbs = path.join(workDir, 'skills', folderName)
       assertStagingDir(stagingAbs)
@@ -324,7 +350,7 @@ export function planResources(ctx: PlanCtx): ResourcePlan {
       if (!isPathInside(liveAbs, roots.skills)) {
         archiveCorrupt(`skill ${folderName}: outside skillsRoot`)
       }
-      const localRow = workDb.prepare('SELECT 1 AS ok FROM agent_global_skill WHERE folder_name = ?').get(folderName)
+      const localRow = workSkill.get(folderName)
       if (localRow || existsSync(liveAbs)) {
         skips.push({
           id: folderName,
@@ -377,8 +403,8 @@ export function planResources(ctx: PlanCtx): ResourcePlan {
       }
     }
   } finally {
-    backupDb.close()
-    workDb.close()
+    workDb?.close()
+    backupDb?.close()
   }
 
   return {

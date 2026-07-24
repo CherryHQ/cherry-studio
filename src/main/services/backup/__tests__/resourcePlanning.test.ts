@@ -193,6 +193,17 @@ describe('assertFullManifestInvariants', () => {
     ).toThrow(/includeFiles/)
   })
 
+  it('rejects files.ids entries that are not file entry UUIDs', () => {
+    expect(() =>
+      assertFullManifestInvariants(
+        baseManifest({
+          includeFiles: true,
+          files: { ids: ['../evil'], total: 1, totalBytes: 1 }
+        })
+      )
+    ).toThrow(/not a file entry UUID/)
+  })
+
   it('rejects unsafe knowledge baseId', () => {
     expect(() =>
       assertFullManifestInvariants(
@@ -244,83 +255,102 @@ describe('planResources', () => {
   })
 
   it('stages a new file as blob-add', () => {
-    seedBackupFile('f1', 'internal', 'txt')
-    writeStagingFile('files/f1')
+    seedBackupFile('0f100000-0000-4000-8000-000000000001', 'internal', 'txt')
+    writeStagingFile('files/0f100000-0000-4000-8000-000000000001')
     const plan = planResources(
       ctx(
         baseManifest({
           includeFiles: true,
-          files: { ids: ['f1'], total: 1, totalBytes: 1 }
+          files: { ids: ['0f100000-0000-4000-8000-000000000001'], total: 1, totalBytes: 1 }
         })
       )
     )
-    expect(plan.stagedFileEntryIds).toEqual(new Set(['f1']))
+    expect(plan.stagedFileEntryIds).toEqual(new Set(['0f100000-0000-4000-8000-000000000001']))
     expect(plan.resources).toEqual([
       {
         kind: 'blob-add',
-        stagingPath: 'restore-staging/rst-1/files/f1',
-        livePath: 'Data/Files/f1.txt'
+        stagingPath: 'restore-staging/rst-1/files/0f100000-0000-4000-8000-000000000001',
+        livePath: 'Data/Files/0f100000-0000-4000-8000-000000000001.txt'
       }
     ])
     expect(plan.toRestore).toEqual([{ kind: 'file', count: 1 }])
   })
 
   it('skips file when live blob exists (skippedFileEntryIds)', () => {
-    seedBackupFile('f1', 'internal', 'txt')
-    writeStagingFile('files/f1')
-    writeFileSync(join(filesRoot, 'f1.txt'), 'local')
+    seedBackupFile('0f100000-0000-4000-8000-000000000001', 'internal', 'txt')
+    writeStagingFile('files/0f100000-0000-4000-8000-000000000001')
+    writeFileSync(join(filesRoot, '0f100000-0000-4000-8000-000000000001.txt'), 'local')
     const plan = planResources(
       ctx(
         baseManifest({
           includeFiles: true,
-          files: { ids: ['f1'], total: 1, totalBytes: 1 }
+          files: { ids: ['0f100000-0000-4000-8000-000000000001'], total: 1, totalBytes: 1 }
         })
       )
     )
-    expect(plan.skippedFileEntryIds).toEqual(new Set(['f1']))
+    expect(plan.skippedFileEntryIds).toEqual(new Set(['0f100000-0000-4000-8000-000000000001']))
     expect(plan.resources).toEqual([])
-    expect(plan.skips[0]).toMatchObject({ id: 'f1', kind: 'file', reason: 'live exists' })
+    expect(plan.skips[0]).toMatchObject({
+      id: '0f100000-0000-4000-8000-000000000001',
+      kind: 'file',
+      reason: 'live exists'
+    })
   })
 
   it('skips file when local DB row exists (workDb homology)', () => {
-    seedBackupFile('f1', 'internal', 'txt')
-    seedWorkFile('f1')
-    writeStagingFile('files/f1')
+    seedBackupFile('0f100000-0000-4000-8000-000000000001', 'internal', 'txt')
+    seedWorkFile('0f100000-0000-4000-8000-000000000001')
+    writeStagingFile('files/0f100000-0000-4000-8000-000000000001')
     const plan = planResources(
       ctx(
         baseManifest({
           includeFiles: true,
-          files: { ids: ['f1'], total: 1, totalBytes: 1 }
+          files: { ids: ['0f100000-0000-4000-8000-000000000001'], total: 1, totalBytes: 1 }
         })
       )
     )
-    expect(plan.skippedFileEntryIds).toEqual(new Set(['f1']))
+    expect(plan.skippedFileEntryIds).toEqual(new Set(['0f100000-0000-4000-8000-000000000001']))
     expect(plan.skips[0]?.reason).toBe('local DB row exists')
   })
 
   it('CORRUPT when file is external', () => {
-    seedBackupFile('f1', 'external', 'txt')
-    writeStagingFile('files/f1')
+    seedBackupFile('0f100000-0000-4000-8000-000000000001', 'external', 'txt')
+    writeStagingFile('files/0f100000-0000-4000-8000-000000000001')
     expect(() =>
       planResources(
         ctx(
           baseManifest({
             includeFiles: true,
-            files: { ids: ['f1'], total: 1, totalBytes: 1 }
+            files: { ids: ['0f100000-0000-4000-8000-000000000001'], total: 1, totalBytes: 1 }
           })
         )
       )
     ).toThrow(/missing or external/)
   })
 
-  it('CORRUPT when staging file missing', () => {
-    seedBackupFile('f1', 'internal', 'txt')
+  it('CORRUPT when the backup row ext is unsafe (path fragment)', () => {
+    seedBackupFile('0f100000-0000-4000-8000-000000000001', 'internal', '../txt')
+    writeStagingFile('files/0f100000-0000-4000-8000-000000000001')
     expect(() =>
       planResources(
         ctx(
           baseManifest({
             includeFiles: true,
-            files: { ids: ['f1'], total: 1, totalBytes: 1 }
+            files: { ids: ['0f100000-0000-4000-8000-000000000001'], total: 1, totalBytes: 1 }
+          })
+        )
+      )
+    ).toThrow(/unsafe ext/)
+  })
+
+  it('CORRUPT when staging file missing', () => {
+    seedBackupFile('0f100000-0000-4000-8000-000000000001', 'internal', 'txt')
+    expect(() =>
+      planResources(
+        ctx(
+          baseManifest({
+            includeFiles: true,
+            files: { ids: ['0f100000-0000-4000-8000-000000000001'], total: 1, totalBytes: 1 }
           })
         )
       )
@@ -328,17 +358,17 @@ describe('planResources', () => {
   })
 
   it('CORRUPT when staging file is symlink', () => {
-    seedBackupFile('f1', 'internal', 'txt')
+    seedBackupFile('0f100000-0000-4000-8000-000000000001', 'internal', 'txt')
     mkdirSync(join(workDir, 'files'), { recursive: true })
     const target = join(workDir, 'files', 'real')
     writeFileSync(target, 'x')
-    symlinkSync(target, join(workDir, 'files', 'f1'))
+    symlinkSync(target, join(workDir, 'files', '0f100000-0000-4000-8000-000000000001'))
     expect(() =>
       planResources(
         ctx(
           baseManifest({
             includeFiles: true,
-            files: { ids: ['f1'], total: 1, totalBytes: 1 }
+            files: { ids: ['0f100000-0000-4000-8000-000000000001'], total: 1, totalBytes: 1 }
           })
         )
       )

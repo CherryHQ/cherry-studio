@@ -128,13 +128,18 @@ describe('e2e-restore full resource fixtures (B3)', () => {
 
   it('admits a well-formed full archive and extracts every resource tree', async () => {
     seedBackup((db) => {
-      seedRow(db, 'file_entry', { id: 'fe-1', origin: 'internal', name: 'pic.png', size: 14 })
+      seedRow(db, 'file_entry', {
+        id: '4efe0001-0000-4000-8000-000000000001',
+        origin: 'internal',
+        name: 'pic.png',
+        size: 14
+      })
     })
     await buildFullArchive({
       stageRoot: tmpDir,
       archivePath,
       dbCopyPath: backupDbPath,
-      files: [{ id: 'fe-1', content: 'blob-content-1' }],
+      files: [{ id: '4efe0001-0000-4000-8000-000000000001', content: 'blob-content-1' }],
       knowledgeBases: [{ baseId: 'kb-1', files: { 'doc.md': 'kb doc' } }],
       skills: [{ folderName: 'my-skill', files: { 'SKILL.md': 'skill doc' } }],
       notes: [{ relPath: 'folder/note.md', content: 'note body' }]
@@ -144,13 +149,15 @@ describe('e2e-restore full resource fixtures (B3)', () => {
 
     expect(ctx.manifest.preset).toBe('full')
     expect(ctx.includeFiles).toBe(true)
-    expect(ctx.resourceMetadata.fileIds).toEqual(['fe-1'])
+    expect(ctx.resourceMetadata.fileIds).toEqual(['4efe0001-0000-4000-8000-000000000001'])
     expect(ctx.resourceMetadata.knowledgeBases).toEqual(['kb-1'])
     expect(ctx.resourceMetadata.notePaths).toEqual(['folder/note.md'])
     expect(ctx.manifest.skills.folders.map((f) => f.folderName)).toEqual(['my-skill'])
 
-    expect(statSync(join(workDir, 'files', 'fe-1')).isFile()).toBe(true)
-    expect(await readFile(join(workDir, 'files', 'fe-1'), 'utf8')).toBe('blob-content-1')
+    expect(statSync(join(workDir, 'files', '4efe0001-0000-4000-8000-000000000001')).isFile()).toBe(true)
+    expect(await readFile(join(workDir, 'files', '4efe0001-0000-4000-8000-000000000001'), 'utf8')).toBe(
+      'blob-content-1'
+    )
     expect(statSync(join(workDir, 'knowledge', 'kb-1')).isDirectory()).toBe(true)
     expect(await readFile(join(workDir, 'knowledge', 'kb-1', 'doc.md'), 'utf8')).toBe('kb doc')
     expect(statSync(join(workDir, 'skills', 'my-skill')).isDirectory()).toBe(true)
@@ -158,7 +165,9 @@ describe('e2e-restore full resource fixtures (B3)', () => {
     // The planning input contract: backup.sqlite holds the internal file_entry row.
     const backupDb = new Database(ctx.backupDbPath, { readonly: true })
     try {
-      expect(backupDb.prepare(`SELECT origin FROM file_entry WHERE id='fe-1'`).get()).toMatchObject({
+      expect(
+        backupDb.prepare(`SELECT origin FROM file_entry WHERE id='4efe0001-0000-4000-8000-000000000001'`).get()
+      ).toMatchObject({
         origin: 'internal'
       })
     } finally {
@@ -169,16 +178,21 @@ describe('e2e-restore full resource fixtures (B3)', () => {
   it('corruption fixtures produce exactly the manifest↔archive divergence planning must detect', async () => {
     // external-origin row: manifest claims it as a staged file id → planning CORRUPT.
     seedBackup((db) => {
-      seedRow(db, 'file_entry', { id: 'fe-ext', origin: 'external', name: 'ext', external_path: '/tmp/ext' })
+      seedRow(db, 'file_entry', {
+        id: '4efe0004-0000-4000-8000-000000000004',
+        origin: 'external',
+        name: 'ext',
+        external_path: '/tmp/ext'
+      })
     })
     await buildFullArchive({
       stageRoot: tmpDir,
       archivePath,
       dbCopyPath: backupDbPath,
       files: [
-        { id: 'fe-gone', corrupt: 'missing-blob' },
-        { id: 'fe-dir', corrupt: 'dir-instead-of-file' },
-        { id: 'fe-ext', content: 'ext-blob' }
+        { id: '4efe0002-0000-4000-8000-000000000002', corrupt: 'missing-blob' },
+        { id: '4efe0003-0000-4000-8000-000000000003', corrupt: 'dir-instead-of-file' },
+        { id: '4efe0004-0000-4000-8000-000000000004', content: 'ext-blob' }
       ],
       knowledgeBases: [{ baseId: 'kb-flat', corrupt: 'file-instead-of-dir' }],
       notes: [{ relPath: 'gone.md', corrupt: 'missing-body' }]
@@ -189,17 +203,23 @@ describe('e2e-restore full resource fixtures (B3)', () => {
     const ctx = await admitArchive(archivePath, workDir, MIGRATIONS_FOLDER)
 
     // Manifest claims everything…
-    expect(ctx.resourceMetadata.fileIds).toEqual(['fe-gone', 'fe-dir', 'fe-ext'])
+    expect(ctx.resourceMetadata.fileIds).toEqual([
+      '4efe0002-0000-4000-8000-000000000002',
+      '4efe0003-0000-4000-8000-000000000003',
+      '4efe0004-0000-4000-8000-000000000004'
+    ])
     expect(ctx.resourceMetadata.notePaths).toEqual(['gone.md'])
     // …but the unpacked tree diverges per corruption knob:
-    expect(existsSync(join(workDir, 'files', 'fe-gone'))).toBe(false) // missing blob
-    expect(statSync(join(workDir, 'files', 'fe-dir')).isDirectory()).toBe(true) // wrong type
+    expect(existsSync(join(workDir, 'files', '4efe0002-0000-4000-8000-000000000002'))).toBe(false) // missing blob
+    expect(statSync(join(workDir, 'files', '4efe0003-0000-4000-8000-000000000003')).isDirectory()).toBe(true) // wrong type
     expect(statSync(join(workDir, 'knowledge', 'kb-flat')).isFile()).toBe(true) // wrong type
     expect(existsSync(join(workDir, 'notes', 'gone.md'))).toBe(false) // missing note body
-    // …and fe-ext's row is external while the manifest lists it as staged:
+    // …and 4efe0004-0000-4000-8000-000000000004's row is external while the manifest lists it as staged:
     const backupDb = new Database(ctx.backupDbPath, { readonly: true })
     try {
-      expect(backupDb.prepare(`SELECT origin FROM file_entry WHERE id='fe-ext'`).get()).toMatchObject({
+      expect(
+        backupDb.prepare(`SELECT origin FROM file_entry WHERE id='4efe0004-0000-4000-8000-000000000004'`).get()
+      ).toMatchObject({
         origin: 'external'
       })
     } finally {
@@ -212,7 +232,7 @@ describe('e2e-restore full resource fixtures (B3)', () => {
       stageRoot: tmpDir,
       archivePath,
       dbCopyPath: backupDbPath,
-      files: [{ id: 'fe-1', content: 'x' }],
+      files: [{ id: '4efe0001-0000-4000-8000-000000000001', content: 'x' }],
       manifestOverrides: { includeFiles: false }
     })
 
@@ -223,11 +243,21 @@ describe('e2e-restore full resource fixtures (B3)', () => {
   })
 
   it('merge consumes plan.skippedFileEntryIds: the conflicted file_entry row is not imported', async () => {
-    // fe-skip has NO local row (planning skipped it on a disk-exists conflict) — without
+    // 4efe0007-0000-4000-8000-000000000007 has NO local row (planning skipped it on a disk-exists conflict) — without
     // the skip set the merge would import it; the set alone must prune the aggregate.
     seedBackup((db) => {
-      seedRow(db, 'file_entry', { id: 'fe-skip', origin: 'internal', name: 'skip.png', size: 1 })
-      seedRow(db, 'file_entry', { id: 'fe-fresh', origin: 'internal', name: 'fresh.png', size: 1 })
+      seedRow(db, 'file_entry', {
+        id: '4efe0007-0000-4000-8000-000000000007',
+        origin: 'internal',
+        name: 'skip.png',
+        size: 1
+      })
+      seedRow(db, 'file_entry', {
+        id: '4efe0006-0000-4000-8000-000000000006',
+        origin: 'internal',
+        name: 'fresh.png',
+        size: 1
+      })
     })
 
     const workPath = join(tmpDir, 'work.sqlite')
@@ -238,12 +268,12 @@ describe('e2e-restore full resource fixtures (B3)', () => {
       await new MergeEngine(registry).mergeBackupIntoWork(workSqlite, workDb, {
         backupDbPath,
         domains: ['FILE_STORAGE'],
-        skippedFileEntryIds: new Set(['fe-skip']),
-        stagedFileEntryIds: new Set(['fe-fresh'])
+        skippedFileEntryIds: new Set(['4efe0007-0000-4000-8000-000000000007']),
+        stagedFileEntryIds: new Set(['4efe0006-0000-4000-8000-000000000006'])
       })
       const ids = (workSqlite.prepare(`SELECT id FROM file_entry`).all() as { id: string }[]).map((r) => r.id)
-      expect(ids).toContain('fe-fresh')
-      expect(ids).not.toContain('fe-skip')
+      expect(ids).toContain('4efe0006-0000-4000-8000-000000000006')
+      expect(ids).not.toContain('4efe0007-0000-4000-8000-000000000007')
     } finally {
       workSqlite.close()
     }
@@ -251,13 +281,18 @@ describe('e2e-restore full resource fixtures (B3)', () => {
 
   it('merge consumes plan.stagedFileEntryIds: staged attachment refs are not disclosed', async () => {
     seedBackup((db) => {
-      seedRow(db, 'file_entry', { id: 'fe-att', origin: 'internal', name: 'att.png', size: 1 })
+      seedRow(db, 'file_entry', {
+        id: '4efe0005-0000-4000-8000-000000000005',
+        origin: 'internal',
+        name: 'att.png',
+        size: 1
+      })
       seedRow(db, 'topic', { id: 'tpc-att', name: 'chat', order_key: 'o-t1' })
       seedRow(db, 'message', {
         id: 'msg-att',
         topic_id: 'tpc-att',
         role: 'root',
-        data: JSON.stringify({ parts: [{ type: 'file', fileEntryId: 'fe-att' }] }),
+        data: JSON.stringify({ parts: [{ type: 'file', fileEntryId: '4efe0005-0000-4000-8000-000000000005' }] }),
         status: 'success',
         siblings_group_id: 0
       })
@@ -272,7 +307,7 @@ describe('e2e-restore full resource fixtures (B3)', () => {
         backupDbPath,
         domains: ['FILE_STORAGE', 'TOPICS'],
         skippedFileEntryIds: new Set(),
-        stagedFileEntryIds: new Set(['fe-att']) // planning staged the blob → no disclosure
+        stagedFileEntryIds: new Set(['4efe0005-0000-4000-8000-000000000005']) // planning staged the blob → no disclosure
       })
       expect(result.degradedToSkips.some((d) => d.table === 'message' && d.reason.includes('not staged'))).toBe(false)
       expect(workSqlite.prepare(`SELECT id FROM message WHERE id='msg-att'`).get()).toBeDefined()
@@ -290,10 +325,16 @@ describe('e2e-restore full resource fixtures (B3)', () => {
     'planning: manifest-claimed blob missing / wrong type / external id / symlink → ARCHIVE_CORRUPT — unit-covered in resourcePlanning.test.ts'
   )
 
-  it('spine: ImportOrchestrator seals journal.fileResources = plan.resources and reports plan.toRestore/skips', async () => {
+  it('spine: ImportOrchestrator seals additive resources into journal.fileResources and reports plan.toRestore/skips', async () => {
     const now = Date.now()
     seedBackup((db) => {
-      seedRow(db, 'file_entry', { id: 'fe-1', origin: 'internal', name: 'pic.png', size: 14, ext: 'png' })
+      seedRow(db, 'file_entry', {
+        id: '4efe0001-0000-4000-8000-000000000001',
+        origin: 'internal',
+        name: 'pic.png',
+        size: 14,
+        ext: 'png'
+      })
       db.prepare(
         `INSERT INTO knowledge_base (
            id, name, embedding_model_id, dimensions, status, chunk_size, chunk_overlap, created_at, updated_at
@@ -308,7 +349,7 @@ describe('e2e-restore full resource fixtures (B3)', () => {
       stageRoot: tmpDir,
       archivePath,
       dbCopyPath: backupDbPath,
-      files: [{ id: 'fe-1', content: 'blob-content-1' }],
+      files: [{ id: '4efe0001-0000-4000-8000-000000000001', content: 'blob-content-1' }],
       knowledgeBases: [{ baseId: 'kb-1', files: { 'doc.md': 'kb doc' } }],
       skills: [{ folderName: 'my-skill', files: { 'SKILL.md': 'skill doc' } }],
       notes: [{ relPath: 'folder/note.md', content: 'note body' }]
@@ -349,13 +390,14 @@ describe('e2e-restore full resource fixtures (B3)', () => {
       { kind: 'skill', count: 1 }
     ])
     expect(result.plan.skips).toEqual([{ id: 'folder/note.md', kind: 'note', reason: 'no managed notesRoot' }])
-    expect(result.plan.resources).toHaveLength(3)
 
     const journal = readRestoreJournal()
     expect(journal.kind).toBe('ok')
     if (journal.kind !== 'ok') throw new Error('unreachable')
-    // P1-5: journal carries additive resources only — skips stay on the in-memory plan.
-    expect(journal.journal.fileResources).toEqual(result.plan.resources)
+    // P1-5: journal carries additive resources only — skips stay on the in-memory
+    // plan (the result surface deliberately does not expose resources).
+    expect(journal.journal.fileResources).toHaveLength(3)
+    expect(journal.journal.fileResources.map((r) => r.kind).sort()).toEqual(['blob-add', 'dir-add', 'dir-add'])
     expect(journal.journal).not.toHaveProperty('skips')
   })
 
