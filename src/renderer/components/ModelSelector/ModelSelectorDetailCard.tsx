@@ -1,6 +1,6 @@
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
 import { getModelDisplayTags, ModelTag } from '@renderer/components/tags/Model'
-import { getModelSupportedReasoningEffortOptions } from '@renderer/utils/model'
+import { deriveThinkingOptions } from '@shared/ai/reasoning'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { TFunction } from 'i18next'
@@ -27,6 +27,7 @@ const REASONING_EFFORT_LABEL_KEYS: Record<string, string> = {
   default: 'assistants.settings.reasoning_effort.default',
   high: 'assistants.settings.reasoning_effort.high',
   low: 'assistants.settings.reasoning_effort.low',
+  max: 'assistants.settings.reasoning_effort.max',
   medium: 'assistants.settings.reasoning_effort.medium',
   minimal: 'assistants.settings.reasoning_effort.minimal',
   none: 'assistants.settings.reasoning_effort.off',
@@ -126,7 +127,10 @@ function ModelSelectorDetailCardBody({ item, providerName }: { item: ModelSelect
   const { t } = useTranslation()
   const { model, modelIdentifier } = item
   const tags = useMemo(() => getModelDisplayTags(model), [model])
-  const reasoningEfforts = formatReasoningEfforts(getModelSupportedReasoningEffortOptions(model), t)
+  const reasoningEfforts = formatReasoningEfforts(
+    deriveThinkingOptions(model)?.filter((option) => option !== 'default'),
+    t
+  )
   const imageModes = formatImageGenerationModes(model, t)
   const hasTokenDetails = model.contextWindow != null || model.maxInputTokens != null || model.maxOutputTokens != null
   const hasCapabilityDetails = Boolean(reasoningEfforts || imageModes)

@@ -1,29 +1,30 @@
+import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-// Control which provider-family branch the thinking mapper takes.
-vi.mock('@shared/utils/provider', () => ({
-  isAnthropicProvider: vi.fn(() => false),
-  isGeminiProvider: vi.fn(() => false),
-  isOpenAIProvider: vi.fn(() => false),
-  isAwsBedrockProvider: vi.fn(() => false)
-}))
-
-import { isGeminiProvider } from '@shared/utils/provider'
+import { describe, expect, it } from 'vitest'
 
 import { type GeminiGenerateContentRequest, GeminiMessageConverter } from '../converters/GeminiMessageConverter'
 
 const converter = new GeminiMessageConverter()
-const asMock = (fn: unknown) => fn as ReturnType<typeof vi.fn>
-const provider = (id = 'p'): Provider => ({ id }) as Provider
+const provider = (): Provider =>
+  ({
+    id: 'google',
+    endpointConfigs: { [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google' } }
+  }) as Provider
+const model = {
+  id: 'google::gemini-2.5-flash',
+  providerId: 'google',
+  name: 'gemini-2.5-flash',
+  endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT],
+  capabilities: ['reasoning'],
+  reasoning: { selectableEfforts: [] },
+  supportsStreaming: true,
+  isEnabled: true,
+  isHidden: false
+} as Model
 
 const request = (overrides: Partial<GeminiGenerateContentRequest>): GeminiGenerateContentRequest => ({
   contents: [],
   ...overrides
-})
-
-beforeEach(() => {
-  asMock(isGeminiProvider).mockReturnValue(false)
 })
 
 describe('GeminiMessageConverter.toUIMessages', () => {
@@ -379,22 +380,22 @@ describe('GeminiMessageConverter.extractStreamOptions', () => {
 
 describe('GeminiMessageConverter.extractProviderOptions', () => {
   it('returns undefined when there is no thinkingConfig', () => {
-    expect(converter.extractProviderOptions(provider(), request({}))).toBeUndefined()
+    expect(converter.extractProviderOptions(provider(), model, request({}))).toBeUndefined()
   })
 
   it('maps an enabled thinkingConfig via the shared thinking mapper', () => {
-    asMock(isGeminiProvider).mockReturnValue(true)
     const options = converter.extractProviderOptions(
       provider(),
+      model,
       request({ generationConfig: { thinkingConfig: { includeThoughts: true, thinkingBudget: 512 } } })
     )
     expect(options).toEqual({ google: { thinkingConfig: { thinkingBudget: 512, includeThoughts: true } } })
   })
 
   it('preserves a dynamic thinkingBudget (-1) for a Gemini target instead of inverting it to 0', () => {
-    asMock(isGeminiProvider).mockReturnValue(true)
     const options = converter.extractProviderOptions(
       provider(),
+      model,
       request({ generationConfig: { thinkingConfig: { thinkingBudget: -1 } } })
     )
     expect(options).toEqual({ google: { thinkingConfig: { thinkingBudget: -1 } } })

@@ -202,8 +202,8 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
   const updateAssistantSettings = useCallback((settings: Partial<AssistantSettings>) => {
     const currentId = idRef.current
     const currentAssistant = assistantRef.current
-    if (!currentId || !currentAssistant) return
-    void patchAssistantRef.current(currentId, { settings })
+    if (!currentId || !currentAssistant) return Promise.resolve(undefined)
+    return patchAssistantRef.current(currentId, { settings })
   }, [])
 
   const setModel = useCallback((next: Model, extraSettings?: Partial<AssistantSettings>) => {
@@ -211,11 +211,11 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
     const currentAssistant = assistantRef.current
     if (!currentId || !currentAssistant) return
     // reconcile* are v2-native; next.id is the UniqueModelId.
-    const reasoning = reconcileReasoningEffortForModel(next, currentAssistant.settings.reasoning_effort, currentId)
+    const reasoning = reconcileReasoningEffortForModel(next, currentAssistant.settings.reasoning_effort)
     const webSearch = reconcileWebSearchForModel(next, currentAssistant.settings)
     const settingsPatch =
       extraSettings || reasoning || webSearch
-        ? { ...currentAssistant.settings, ...extraSettings, ...reasoning, ...webSearch }
+        ? { ...currentAssistant.settings, ...reasoning, ...webSearch, ...extraSettings }
         : undefined
     return patchAssistantRef.current(
       currentId,
