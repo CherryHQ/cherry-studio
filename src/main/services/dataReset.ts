@@ -12,7 +12,7 @@ import { bootConfigService } from '@main/data/bootConfig'
 import { t } from '@main/i18n'
 import { DefaultBootConfig } from '@shared/data/bootConfig/bootConfigSchemas'
 import type { BootConfigKey } from '@shared/data/bootConfig/bootConfigTypes'
-import { app, dialog, session } from 'electron'
+import { dialog, session } from 'electron'
 import * as z from 'zod'
 
 const logger = loggerService.withContext('DataReset')
@@ -29,8 +29,8 @@ const logger = loggerService.withContext('DataReset')
  *   because a running process cannot delete files it still holds open.
  *
  * The marker is a small JSON file at the userData root
- * ({@link DATA_RESET_MARKER_FILENAME}, registered as
- * `feature.data_reset.marker_file`): its presence arms a wipe, and its
+ * (registered as `feature.data_reset.marker_file`): its presence arms a wipe,
+ * and its
  * *location* — the userData directory that physically contains it — is the
  * authorization. There is no cross-instance "which userData" field; a marker
  * only ever wipes the tree it sits in. // whitelist wipe only; a whole-tree
@@ -58,8 +58,8 @@ const MAX_WIPE_ATTEMPTS = 2
  * only explicitly-named entries is what makes the reset safe in any
  * directory a marker can legitimately point at (#17138 review).
  *
- * NOTE: the pending-marker file itself ({@link DATA_RESET_MARKER_FILENAME})
- * is deliberately NOT listed — it must survive its own wipe pass so the
+ * NOTE: the pending-marker file itself is deliberately NOT listed — it must
+ * survive its own wipe pass so the
  * success path can prove it removed the marker LAST (a wiped-then-missing
  * marker is indistinguishable from a never-armed one). runDataReset deletes
  * it explicitly after a clean pass.
@@ -488,10 +488,10 @@ export function runDataReset(): void {
       // the next start (#17138 review).
       if (attempts + 1 < MAX_WIPE_ATTEMPTS) {
         logger.error('Data reset pass had critical failures — relaunching to retry in preboot', { failures })
-        // app.relaunch + app.exit (not application.*): no before-quit
-        // handlers may write files after the wipe.
-        app.relaunch()
-        app.exit(1)
+        // Application.relaunch() schedules the platform-correct replacement
+        // process and exits directly, without before-quit handlers writing
+        // files after the wipe.
+        application.relaunch()
         return
       }
       // Out of attempts: give up NOW instead of leaving the marker pending.
@@ -557,8 +557,7 @@ export function runDataReset(): void {
     // module-top-level Chromium flags read the post-reset BootConfig values
     // (#17138 suggestion). No loop: no marker, no action on the next pass.
     logger.info('Data reset completed — relaunching into a fresh state')
-    app.relaunch()
-    app.exit(0)
+    application.relaunch()
   } catch (error) {
     logger.error('Data reset failed — refusing to boot', error as Error)
     showDataResetError(
@@ -586,7 +585,7 @@ function abandonReset(): void {
 /** Show a preboot-native error and terminate without running quit handlers. */
 function showDataResetError(title: string, message: string): void {
   dialog.showErrorBox(title, message)
-  app.exit(1)
+  application.forceExit(1)
 }
 
 /** Whitelist membership: exact names only. */

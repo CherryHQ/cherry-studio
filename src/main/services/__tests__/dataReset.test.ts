@@ -1,3 +1,4 @@
+import { createMockApplication } from '@test-mocks/main/application'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -22,10 +23,7 @@ const APP_TEMP = '/mock/tmp/CherryStudio'
 const MARKER_FILE = `${USER_DATA}/data-reset.pending.json`
 const MARKER_ASIDE = `${USER_DATA}/data-reset.pending.invalid`
 
-const appExitMock = vi.fn()
-const appRelaunchMock = vi.fn()
-const applicationShutdownMock = vi.fn()
-const applicationRelaunchMock = vi.fn()
+let applicationMock: ReturnType<typeof createMockApplication>
 const showErrorBoxMock = vi.fn()
 const showMessageBoxMock = vi.fn()
 const rmSyncMock = vi.fn()
@@ -155,28 +153,23 @@ function stubElectron() {
   webviewSession = makeSession()
   vi.doMock('electron', () => ({
     __esModule: true,
-    app: { exit: appExitMock, relaunch: appRelaunchMock },
     dialog: { showErrorBox: showErrorBoxMock, showMessageBox: showMessageBoxMock },
     session: { defaultSession, fromPartition: vi.fn(() => webviewSession) }
   }))
 }
 
 function stubApplication(userData: string = USER_DATA, opts: { throwOnUserData?: boolean } = {}) {
-  vi.doMock('@application', () => ({
-    application: {
-      getPath: vi.fn((key: string) => {
-        if (key === 'app.userdata') {
-          if (opts.throwOnUserData) throw new Error('corrupted path registry')
-          return userData
-        }
-        if (key === 'app.temp') return APP_TEMP
-        if (key === 'feature.data_reset.marker_file') return `${userData}/data-reset.pending.json`
-        return '/mock/unknown'
-      }),
-      shutdown: applicationShutdownMock,
-      relaunch: applicationRelaunchMock
+  applicationMock = createMockApplication()
+  applicationMock.getPath.mockImplementation((key: string) => {
+    if (key === 'app.userdata') {
+      if (opts.throwOnUserData) throw new Error('corrupted path registry')
+      return userData
     }
-  }))
+    if (key === 'app.temp') return APP_TEMP
+    if (key === 'feature.data_reset.marker_file') return `${userData}/data-reset.pending.json`
+    return '/mock/unknown'
+  })
+  vi.doMock('@application', () => ({ application: applicationMock }))
 }
 
 function stubI18n() {
@@ -380,7 +373,7 @@ describe('runDataReset', () => {
     await runReset()
 
     expect(rmSyncMock).not.toHaveBeenCalled()
-    expect(appRelaunchMock).not.toHaveBeenCalled()
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
     expect(bootConfigSetMock).not.toHaveBeenCalled()
   })
 
@@ -393,7 +386,7 @@ describe('runDataReset', () => {
 
     expect(rmSyncMock).not.toHaveBeenCalled()
     expect(fsCtl.commits).toHaveLength(0)
-    expect(appExitMock).not.toHaveBeenCalled()
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
 
   it('wipes exactly the whitelist, resets BootConfig, removes the marker, and relaunches', async () => {
@@ -421,8 +414,8 @@ describe('runDataReset', () => {
     expect(markerExists()).toBe(false)
 
     // Post-wipe relaunch into a clean process (#17138 suggestion).
-    expect(appRelaunchMock).toHaveBeenCalledTimes(1)
-    expect(appExitMock).toHaveBeenCalledWith(0)
+    expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
 
   it('fsyncs the marker parent directory after each marker rename and unlink on POSIX', async () => {
@@ -462,8 +455,8 @@ describe('runDataReset', () => {
     expect(fsCtl.files.has(MARKER_ASIDE)).toBe(true)
     expect(markerExists()).toBe(false)
     expect(rmSyncMock).not.toHaveBeenCalled()
-    expect(appExitMock).not.toHaveBeenCalled()
-    expect(appRelaunchMock).not.toHaveBeenCalled()
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
   })
 
   it('quits without wiping when the marker cannot be read', async () => {
@@ -478,8 +471,8 @@ describe('runDataReset', () => {
     expect(renameSyncMock).not.toHaveBeenCalled()
     expect(rmSyncMock).not.toHaveBeenCalled()
     expect(showErrorBoxMock).toHaveBeenCalled()
-    expect(appExitMock).toHaveBeenCalledWith(1)
-    expect(appRelaunchMock).not.toHaveBeenCalled()
+    expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
   })
 
   it('quits without wiping when an invalid marker cannot be quarantined', async () => {
@@ -494,8 +487,8 @@ describe('runDataReset', () => {
     expect(markerExists()).toBe(true)
     expect(rmSyncMock).not.toHaveBeenCalled()
     expect(showErrorBoxMock).toHaveBeenCalled()
-    expect(appExitMock).toHaveBeenCalledWith(1)
-    expect(appRelaunchMock).not.toHaveBeenCalled()
+    expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
   })
 
   it('renames a schema-invalid marker aside and continues booting', async () => {
@@ -508,7 +501,7 @@ describe('runDataReset', () => {
 
     expect(renameSyncMock).toHaveBeenCalledWith(MARKER_FILE, MARKER_ASIDE)
     expect(rmSyncMock).not.toHaveBeenCalled()
-    expect(appExitMock).not.toHaveBeenCalled()
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
 
   it('records the canonical physical path with the arming write', async () => {
@@ -532,7 +525,7 @@ describe('runDataReset', () => {
     expect(markerExists()).toBe(false)
     expect(bootConfigFlushMock).toHaveBeenCalled()
     expect(showErrorBoxMock).toHaveBeenCalled()
-    expect(appExitMock).not.toHaveBeenCalled()
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
 
   it('quits without wiping when the attempt count cannot be durably recorded', async () => {
@@ -542,8 +535,8 @@ describe('runDataReset', () => {
 
     expect(rmSyncMock).not.toHaveBeenCalled()
     expect(showErrorBoxMock).toHaveBeenCalled()
-    expect(appExitMock).toHaveBeenCalledWith(1)
-    expect(appRelaunchMock).not.toHaveBeenCalled()
+    expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
   })
 
   it('relaunches back into preboot when a pass fails with attempts left', async () => {
@@ -556,8 +549,8 @@ describe('runDataReset', () => {
     // The arming write committed attempts:1 and the marker is left pending for
     // the retry pass.
     expect(readStoredMarker()?.attempts).toBe(1)
-    expect(appRelaunchMock).toHaveBeenCalledTimes(1)
-    expect(appExitMock).toHaveBeenCalledWith(1)
+    expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
     expect(showErrorBoxMock).not.toHaveBeenCalled()
   })
 
@@ -571,8 +564,8 @@ describe('runDataReset', () => {
     expect(markerExists()).toBe(false)
     expect(bootConfigFlushMock).toHaveBeenCalled()
     expect(showErrorBoxMock).toHaveBeenCalled()
-    expect(appRelaunchMock).not.toHaveBeenCalled()
-    expect(appExitMock).not.toHaveBeenCalled()
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
 
   it('abandons a marker that already reached the attempt cap without another pass', async () => {
@@ -591,8 +584,8 @@ describe('runDataReset', () => {
 
     expect(markerExists()).toBe(true)
     expect(showErrorBoxMock).toHaveBeenCalled()
-    expect(appExitMock).toHaveBeenCalledWith(1)
-    expect(appRelaunchMock).not.toHaveBeenCalled()
+    expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
   })
 
   it('treats an absent attempts value as zero (arms the first pass)', async () => {
@@ -600,7 +593,8 @@ describe('runDataReset', () => {
     await runReset()
 
     expect(fsCtl.commits[0]?.attempts).toBe(1)
-    expect(appExitMock).toHaveBeenCalledWith(0)
+    expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
 
   it('clears the marker and exits incomplete when persisting reset defaults fails after the wipe', async () => {
@@ -616,8 +610,8 @@ describe('runDataReset', () => {
     expect(bootConfigFlushMock).not.toHaveBeenCalled()
     expect(markerExists()).toBe(false)
     expect(showErrorBoxMock).toHaveBeenCalled()
-    expect(appExitMock).toHaveBeenCalledWith(1)
-    expect(appRelaunchMock).not.toHaveBeenCalled()
+    expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
   })
 
   it('quits after a clean wipe whose marker cannot be removed', async () => {
@@ -626,8 +620,8 @@ describe('runDataReset', () => {
     await runReset()
 
     expect(showErrorBoxMock).toHaveBeenCalled()
-    expect(appExitMock).toHaveBeenCalledWith(1)
-    expect(appRelaunchMock).not.toHaveBeenCalled()
+    expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
   })
 
   it('never touches paths outside userData and app.temp', async () => {
@@ -649,8 +643,8 @@ describe('runDataReset', () => {
     await runReset()
 
     expect(readStoredMarker()?.attempts).toBe(1)
-    expect(appRelaunchMock).toHaveBeenCalledTimes(1)
-    expect(appExitMock).toHaveBeenCalledWith(1)
+    expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
 
   it('treats a missing userData directory as already clean', async () => {
@@ -663,7 +657,8 @@ describe('runDataReset', () => {
     await runReset()
 
     expect(markerExists()).toBe(false)
-    expect(appExitMock).toHaveBeenCalledWith(0)
+    expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
 
   it('quits when the module itself throws unexpectedly', async () => {
@@ -677,8 +672,8 @@ describe('runDataReset', () => {
 
     expect(rmSyncMock).not.toHaveBeenCalled()
     expect(showErrorBoxMock).toHaveBeenCalled()
-    expect(appExitMock).toHaveBeenCalledWith(1)
-    expect(appRelaunchMock).not.toHaveBeenCalled()
+    expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
   })
 })
 
@@ -697,7 +692,7 @@ describe('requestDataReset', () => {
 
     expect(fsCtl.commits).toHaveLength(0)
     expect(openSyncMock).not.toHaveBeenCalled()
-    expect(applicationRelaunchMock).not.toHaveBeenCalled()
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
   })
 
   it('writes the pending marker for the current userData, durably, then gracefully relaunches', async () => {
@@ -718,13 +713,14 @@ describe('requestDataReset', () => {
     expect(fsyncSyncMock).toHaveBeenCalled()
     // Durability ordering: the marker rename (commit) must precede the
     // shutdown sequence tearing services down.
-    expect(renameSyncMock.mock.invocationCallOrder[0]).toBeLessThan(applicationShutdownMock.mock.invocationCallOrder[0])
+    expect(renameSyncMock.mock.invocationCallOrder[0]).toBeLessThan(
+      applicationMock.shutdown.mock.invocationCallOrder[0]
+    )
     // Graceful shutdown-then-relaunch, not the bare relaunch: running
     // services must release file handles before the next boot's wipe.
-    expect(applicationShutdownMock.mock.invocationCallOrder[0]).toBeLessThan(
-      applicationRelaunchMock.mock.invocationCallOrder[0]
+    expect(applicationMock.shutdown.mock.invocationCallOrder[0]).toBeLessThan(
+      applicationMock.relaunch.mock.invocationCallOrder[0]
     )
-    expect(appRelaunchMock).not.toHaveBeenCalled()
   })
 
   it('uses the guarded graceful relaunch when the marker rename commits but its directory fsync fails', async () => {
@@ -737,10 +733,9 @@ describe('requestDataReset', () => {
     expect(fsCtl.commits).toHaveLength(1)
     expect(markerExists()).toBe(true)
     expect(defaultSession.clearStorageData).toHaveBeenCalledTimes(1)
-    expect(applicationShutdownMock).toHaveBeenCalledTimes(1)
-    expect(applicationRelaunchMock).toHaveBeenCalledTimes(1)
-    expect(appRelaunchMock).not.toHaveBeenCalled()
-    expect(appExitMock).not.toHaveBeenCalled()
+    expect(applicationMock.shutdown).toHaveBeenCalledTimes(1)
+    expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
 
   it('clears Chromium storage of both Cherry sessions after the marker is durable', async () => {
@@ -763,19 +758,19 @@ describe('requestDataReset', () => {
     defaultSession.clearStorageData.mockRejectedValueOnce(new Error('session gone'))
 
     await expect(requestReset()).resolves.toBeUndefined()
-    expect(applicationRelaunchMock).toHaveBeenCalledTimes(1)
+    expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
   })
 
   it('still relaunches when the graceful shutdown itself fails', async () => {
     stubAll(null)
-    applicationShutdownMock.mockRejectedValueOnce(new Error('service hung during stop'))
+    applicationMock.shutdown.mockRejectedValueOnce(new Error('service hung during stop'))
 
     await expect(requestReset()).resolves.toBeUndefined()
 
     // The staged marker must win over a broken teardown: a request that
     // shut down halfway but never relaunched would leave the app closed
     // with a pending wipe armed for whenever the user starts it next.
-    expect(applicationRelaunchMock).toHaveBeenCalledTimes(1)
+    expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
   })
 
   it('rejects without relaunching when the marker write fails', async () => {
@@ -787,8 +782,8 @@ describe('requestDataReset', () => {
     // No marker was committed and no teardown/relaunch happened — the
     // all-or-nothing write leaves nothing to roll back.
     expect(fsCtl.commits).toHaveLength(0)
-    expect(applicationShutdownMock).not.toHaveBeenCalled()
-    expect(applicationRelaunchMock).not.toHaveBeenCalled()
+    expect(applicationMock.shutdown).not.toHaveBeenCalled()
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
     expect(defaultSession.clearStorageData).not.toHaveBeenCalled()
   })
 })

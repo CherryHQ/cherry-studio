@@ -136,6 +136,12 @@ export function createMockApplication(overrides: ServiceOverrides = {}) {
     initPathRegistry: vi.fn(),
     bootstrap: vi.fn().mockResolvedValue(undefined),
     isReady: vi.fn(() => true),
+    // Mirrors Application.shutdown(): asynchronous graceful lifecycle teardown.
+    shutdown: vi.fn().mockResolvedValue(undefined),
+    // Mirrors Application.relaunch(): request the replacement process.
+    relaunch: vi.fn(),
+    // Mirrors Application.forceExit(): bypass quit handlers for fatal paths.
+    forceExit: vi.fn(),
     // Graceful quit entry point (real Application.quit()). Tests can assert it was called.
     quit: vi.fn(),
     // Tests can mutate `application.isQuitting = true` to exercise quit-aware code paths.

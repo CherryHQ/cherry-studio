@@ -4,7 +4,6 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { DATA_RESET_MARKER_FILENAME } from '@main/core/paths/constants'
 import { isWin } from '@main/core/platform'
 import { canonicalizeUserDataPath, getNormalizedExecutablePath } from '@main/core/preboot/userDataLocation'
 import { bootConfigService } from '@main/data/bootConfig'
@@ -230,6 +229,7 @@ async function executeRelocation(
 
   const { workPath, asidePath } = relocationArtifactPaths(pending.to, pending.taskId)
   const payloadPath = path.join(workPath, RELOCATION_PAYLOAD_DIRNAME)
+  const dataResetMarkerBasename = path.basename(application.getPath('feature.data_reset.marker_file'))
   let asideCreated = false
   let promoted = false
 
@@ -287,7 +287,7 @@ async function executeRelocation(
         // mismatch) and must not ride along.
         if (
           isSourceRootEntry &&
-          (name.startsWith('Singleton') || name === RELOCATION_OWNER_MARKER || name === DATA_RESET_MARKER_FILENAME)
+          (name.startsWith('Singleton') || name === RELOCATION_OWNER_MARKER || name === dataResetMarkerBasename)
         ) {
           return false
         }
