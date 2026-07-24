@@ -12,7 +12,10 @@ App-owned component boundaries now gain semantic selectors for advanced themes, 
 HTML remains addressable below its nearest component selector without receiving a separate generated token. Custom CSS
 is injected verbatim into every regular renderer window, including the selection toolbar. Existing static
 `data-slot="dialog-content"` structure markers remain unchanged and contribute `part:dialog-content` to the unified
-`data-ui` semantic layer.
+`data-ui` semantic layer. Application and vendor stylesheets now live in cascade layers while custom CSS stays
+unlayered, so custom CSS overrides application styling regardless of selector specificity or page load order—no
+`!important` needed (and `!important` should be avoided: layered application `!important` rules outrank unlayered
+ones).
 
 ## Why this matters to the user
 

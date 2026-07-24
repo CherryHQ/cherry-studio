@@ -1,3 +1,6 @@
+/* Same statement as index.css; repeated here for windows that only load this file. */
+@layer properties, theme, base, components, utilities, app;
+
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import '@cherrystudio/ui/styles/theme.css';
@@ -22,8 +25,9 @@
  *
  */
 
-/* Renderer-only sidebar state tokens: light mode */
-:root {
+@layer app {
+  /* Renderer-only sidebar state tokens: light mode */
+  :root {
   --app-sidebar-active-bg: rgba(16, 185, 129, 0.08);
   --app-sidebar-active-border: rgba(16, 185, 129, 0.15);
   --app-sidebar-glow-bg: rgba(16, 185, 129, 0.25);
@@ -31,11 +35,12 @@
 }
 
 /* Renderer-only sidebar state tokens: dark mode */
-.dark {
-  --app-sidebar-active-bg: rgba(114, 255, 121, 0.05);
-  --app-sidebar-active-border: rgba(114, 255, 121, 0.08);
-  --app-sidebar-glow-bg: rgba(114, 255, 121, 0.15);
-  --app-sidebar-glow-line: rgba(114, 255, 121, 0.35);
+  .dark {
+    --app-sidebar-active-bg: rgba(114, 255, 121, 0.05);
+    --app-sidebar-active-border: rgba(114, 255, 121, 0.08);
+    --app-sidebar-glow-bg: rgba(114, 255, 121, 0.15);
+    --app-sidebar-glow-line: rgba(114, 255, 121, 0.35);
+  }
 }
 
 /*
@@ -58,6 +63,8 @@
 }
 
 /* Let the Electron window surface control the document background. */
-:root {
-  background-color: unset;
+@layer app {
+  :root {
+    background-color: unset;
+  }
 }

@@ -1,4 +1,4 @@
-import 'og-crd/style.css'
+import '@renderer/assets/styles/vendor/og-crd.css'
 
 import { Skeleton } from '@cherrystudio/ui'
 import { useMetaDataParser } from '@renderer/hooks/useMetaDataParser'
