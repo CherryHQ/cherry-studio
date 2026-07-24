@@ -1242,8 +1242,8 @@ describe('KnowledgePage', () => {
 
     await waitFor(() => {
       expect(updateGroup).toHaveBeenCalledWith('group-1', { name: 'Renamed Group' })
+      expect(screen.queryByTestId('rename-group-dialog')).not.toBeInTheDocument()
     })
-    expect(screen.queryByTestId('rename-group-dialog')).not.toBeInTheDocument()
   })
 
   it('passes group deletion through to the delete-group hook', async () => {
@@ -1320,8 +1320,8 @@ describe('KnowledgePage', () => {
 
     await waitFor(() => {
       expect(updateBase).toHaveBeenCalledWith('base-1', { name: 'Renamed Base' })
+      expect(screen.queryByTestId('rename-base-dialog')).not.toBeInTheDocument()
     })
-    expect(screen.queryByTestId('rename-base-dialog')).not.toBeInTheDocument()
   })
 
   it('shows a toast when knowledge base deletion fails', async () => {

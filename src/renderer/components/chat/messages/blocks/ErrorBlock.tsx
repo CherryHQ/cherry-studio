@@ -16,7 +16,7 @@ import type { MessageErrorDiagnosisResult, MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'
 
 const logger = loggerService.withContext('ErrorBlock')
-const HTTP_ERROR_CODES = [400, 401, 403, 404, 429, 500, 502, 503, 504]
+const HTTP_ERROR_CODES = [400, 401, 402, 403, 404, 429, 500, 502, 503, 504]
 
 interface Props {
   partId: string
@@ -91,10 +91,25 @@ const MessageErrorInfo: React.FC<{
     (error as Record<string, unknown> | undefined)?.status ?? (error as Record<string, unknown> | undefined)?.statusCode
   const errorProviderId = (error as Record<string, unknown> | undefined)?.providerId as string | undefined
   const errorModelId = (error as Record<string, unknown> | undefined)?.modelId as string | undefined
+  const errorResponseBody = (error as Record<string, unknown> | undefined)?.responseBody
+  const errorData = (error as Record<string, unknown> | undefined)?.data
+  const errorFinishReason = (error as Record<string, unknown> | undefined)?.finishReason
   const errorI18nKey = (error as Record<string, unknown> | undefined)?.i18nKey
   const hasAppOwnedI18nKey = typeof errorI18nKey === 'string' && i18n.exists(`error.${errorI18nKey}`)
   const classificationStatus =
     typeof errorStatus === 'number' || typeof errorStatus === 'string' ? errorStatus : undefined
+  const classificationResponseBody = typeof errorResponseBody === 'string' ? errorResponseBody : undefined
+  let classificationData: string | undefined
+  if (typeof errorData === 'string') {
+    classificationData = errorData
+  } else if (errorData !== undefined && errorData !== null) {
+    try {
+      classificationData = JSON.stringify(errorData)
+    } catch {
+      // Ignore non-serializable provider data.
+    }
+  }
+  const classificationFinishReason = typeof errorFinishReason === 'string' ? errorFinishReason : undefined
 
   const providerId = getMessageListItemModel(message)?.provider ?? errorProviderId
   const classification = useMemo(() => {
@@ -107,11 +122,21 @@ const MessageErrorInfo: React.FC<{
             status: classificationStatus,
             statusCode: classificationStatus
           }
-        : {})
+        : {}),
+      ...(classificationResponseBody !== undefined ? { responseBody: classificationResponseBody } : {}),
+      ...(classificationData !== undefined ? { data: classificationData } : {}),
+      ...(classificationFinishReason !== undefined ? { finishReason: classificationFinishReason } : {})
     }
 
     return classifyError(classificationError, providerId)
-  }, [classificationStatus, errorMessage, providerId])
+  }, [
+    classificationData,
+    classificationFinishReason,
+    classificationResponseBody,
+    classificationStatus,
+    errorMessage,
+    providerId
+  ])
 
   useEffect(() => {
     if (hasAppOwnedI18nKey || classification.category !== 'unknown' || !errorMessage || !error || !diagnoseMessageError)

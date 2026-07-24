@@ -2,8 +2,7 @@ import { Button } from '@cherrystudio/ui'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { getDefaultGroupName } from '@renderer/utils/naming'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
-import { isNewApiProvider } from '@shared/utils/provider'
+import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
@@ -12,10 +11,46 @@ import { useTranslation } from 'react-i18next'
 import ProviderActions from '../../primitives/ProviderActions'
 import ProviderSection from '../../primitives/ProviderSection'
 import { drawerClasses } from '../../primitives/ProviderSettingsPrimitives'
-import { getInitialAddModelFormState, splitModelIds } from './helpers'
+import {
+  buildModelCapabilities,
+  buildModelInputModalities,
+  getInitialAddModelFormState,
+  getInitialModelClassification,
+  splitModelIds
+} from './helpers'
 import { ModelBasicFields } from './ModelBasicFields'
+import { ModelClassificationControls } from './ModelClassificationControls'
 import { ModelContextWindowFields } from './ModelContextWindowFields'
-import type { AddModelDrawerPrefill, ModelBasicFormState, ModelDrawerMode } from './types'
+import {
+  applyModelPurpose,
+  getInitialChatEndpointType,
+  getModelDrawerMode,
+  getProviderChatEndpointTypes,
+  inferModelPurpose,
+  type ModelPurposeFields
+} from './modelPurpose'
+import { ModelPurposeFields as ModelPurposeFieldsControl } from './ModelPurposeFields'
+import type {
+  AddModelDrawerPrefill,
+  ModelBasicFormState,
+  ModelCapabilityToggle,
+  ModelDrawerMode,
+  ModelInputModality,
+  ModelPrimaryType
+} from './types'
+
+function getInitialPurposeFields(
+  prefill: AddModelDrawerPrefill | null,
+  defaultEndpointType: EndpointType
+): ModelPurposeFields {
+  const initialForm = getInitialAddModelFormState(prefill, defaultEndpointType)
+  return {
+    endpointTypes: initialForm.endpointTypes,
+    capabilities: prefill?.model?.capabilities,
+    inputModalities: prefill?.model?.inputModalities,
+    outputModalities: prefill?.model?.outputModalities
+  }
+}
 
 export interface AddModelDrawerFooterBinding {
   isSubmitting: boolean
@@ -49,6 +84,10 @@ export default function AddModelFormPanel({
   const [formState, setFormState] = useState<ModelBasicFormState>(() =>
     getInitialAddModelFormState(null, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
   )
+  const [purposeFields, setPurposeFields] = useState<ModelPurposeFields>(() =>
+    getInitialPurposeFields(null, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+  )
+  const [classification, setClassification] = useState(() => getInitialModelClassification())
   const [modelIdTouched, setModelIdTouched] = useState(false)
   const [endpointTypeTouched, setEndpointTypeTouched] = useState(false)
   const [showMoreSettings, setShowMoreSettings] = useState(false)
@@ -57,15 +96,21 @@ export default function AddModelFormPanel({
   const submitInFlightRef = useRef(false)
   const modelIdInputRef = useRef<HTMLInputElement>(null)
 
-  const mode: ModelDrawerMode = provider && isNewApiProvider(provider) ? 'new-api' : 'legacy'
+  const mode: ModelDrawerMode = provider ? getModelDrawerMode(provider) : 'legacy'
+  const providerChatEndpointTypes = provider ? getProviderChatEndpointTypes(provider) : []
+  const defaultChatEndpoint = providerChatEndpointTypes[0] ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+  const modelPurpose = inferModelPurpose(purposeFields)
+  const chatEndpointType = getInitialChatEndpointType(purposeFields, defaultChatEndpoint)
 
   useEffect(() => {
-    setFormState(getInitialAddModelFormState(prefill, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS))
+    setFormState(getInitialAddModelFormState(prefill, defaultChatEndpoint))
+    setPurposeFields(getInitialPurposeFields(prefill, defaultChatEndpoint))
+    setClassification(getInitialModelClassification(prefill?.model))
     setModelIdTouched(false)
     setEndpointTypeTouched(false)
     setShowMoreSettings(false)
     setSubmitError(null)
-  }, [prefill])
+  }, [defaultChatEndpoint, prefill])
 
   const handleModelIdChange = useCallback(
     (value: string) => {
@@ -100,12 +145,38 @@ export default function AddModelFormPanel({
         return false
       }
 
+      const classifiedCapabilities = buildModelCapabilities(prefill?.model?.capabilities ?? [], classification)
+      const classifiedInputModalities = buildModelInputModalities(prefill?.model?.inputModalities ?? [], classification)
+      const submittedPurposeFields =
+        mode === 'purpose'
+          ? applyModelPurpose(
+              {
+                ...purposeFields,
+                capabilities: classifiedCapabilities,
+                inputModalities: classifiedInputModalities
+              },
+              modelPurpose,
+              {
+                previousPurpose: 'chat',
+                chatEndpointType
+              }
+            )
+          : null
+
       await createModel({
         providerId,
         modelId,
         name: values.name ? values.name : modelId.toUpperCase(),
         group: values.group || getDefaultGroupName(modelId),
-        endpointTypes: mode === 'new-api' && values.endpointTypes?.length ? [...values.endpointTypes] : undefined,
+        endpointTypes:
+          submittedPurposeFields != null
+            ? [...submittedPurposeFields.endpointTypes]
+            : mode === 'endpoint-types' && values.endpointTypes?.length
+              ? [...values.endpointTypes]
+              : undefined,
+        capabilities: submittedPurposeFields?.capabilities ?? classifiedCapabilities,
+        inputModalities: submittedPurposeFields?.inputModalities ?? classifiedInputModalities,
+        outputModalities: submittedPurposeFields?.outputModalities,
         ...(values.contextWindow ? { contextWindow: Number(values.contextWindow) } : {}),
         ...(values.maxInputTokens ? { maxInputTokens: Number(values.maxInputTokens) } : {}),
         ...(values.maxOutputTokens ? { maxOutputTokens: Number(values.maxOutputTokens) } : {})
@@ -113,7 +184,19 @@ export default function AddModelFormPanel({
 
       return true
     },
-    [createModel, mode, models, provider, providerId, t]
+    [
+      chatEndpointType,
+      classification,
+      createModel,
+      mode,
+      modelPurpose,
+      models,
+      prefill?.model,
+      provider,
+      providerId,
+      purposeFields,
+      t
+    ]
   )
 
   const submitAddModel = useCallback(async () => {
@@ -128,7 +211,7 @@ export default function AddModelFormPanel({
       return
     }
 
-    if (mode === 'new-api' && !(formState.endpointTypes?.length ?? 0)) {
+    if (mode === 'endpoint-types' && !(formState.endpointTypes?.length ?? 0)) {
       setEndpointTypeTouched(true)
       return
     }
@@ -177,6 +260,34 @@ export default function AddModelFormPanel({
       setIsSubmitting(false)
     }
   }, [addSingleModel, formState, mode, onSuccess, t])
+
+  const handlePrimaryTypeChange = useCallback((primaryType: ModelPrimaryType) => {
+    setClassification((current) => ({ ...current, primaryType }))
+  }, [])
+
+  const handleCapabilityToggle = useCallback((capability: ModelCapabilityToggle) => {
+    setClassification((current) => {
+      const capabilities = new Set(current.capabilities)
+      if (capabilities.has(capability)) {
+        capabilities.delete(capability)
+      } else {
+        capabilities.add(capability)
+      }
+      return { ...current, capabilities }
+    })
+  }, [])
+
+  const handleInputModalityToggle = useCallback((modality: ModelInputModality) => {
+    setClassification((current) => {
+      const inputModalities = new Set(current.inputModalities)
+      if (inputModalities.has(modality)) {
+        inputModalities.delete(modality)
+      } else {
+        inputModalities.add(modality)
+      }
+      return { ...current, inputModalities }
+    })
+  }, [])
 
   const handleFormSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -234,7 +345,7 @@ export default function AddModelFormPanel({
         <div className={drawerClasses.fieldList}>
           <ModelBasicFields
             values={formState}
-            showEndpointType={mode === 'new-api'}
+            showEndpointType={mode === 'endpoint-types'}
             showRequiredIndicator
             layout="horizontal"
             modelIdInputRef={modelIdInputRef}
@@ -250,6 +361,34 @@ export default function AddModelFormPanel({
               setFormState((current) => ({ ...current, endpointTypes: [...next] }))
             }}
           />
+          {mode === 'purpose' && (
+            <ModelPurposeFieldsControl
+              purpose={modelPurpose}
+              chatEndpointType={chatEndpointType}
+              chatEndpointTypes={providerChatEndpointTypes}
+              onPurposeChange={(nextPurpose) => {
+                setClassification((current) => ({
+                  ...current,
+                  primaryType:
+                    nextPurpose === 'chat' ? (current.primaryType === 'image' ? 'text' : current.primaryType) : 'image'
+                }))
+                setPurposeFields((current) =>
+                  applyModelPurpose(current, nextPurpose, {
+                    previousPurpose: inferModelPurpose(current),
+                    chatEndpointType
+                  })
+                )
+              }}
+              onChatEndpointTypeChange={(nextEndpointType) => {
+                setPurposeFields((current) =>
+                  applyModelPurpose(current, 'chat', {
+                    previousPurpose: inferModelPurpose(current),
+                    chatEndpointType: nextEndpointType
+                  })
+                )
+              }}
+            />
+          )}
         </div>
       </ProviderSection>
 
@@ -274,15 +413,26 @@ export default function AddModelFormPanel({
 
       {showMoreSettings && (
         <ProviderSection className={drawerClasses.section}>
-          <div className={drawerClasses.sectionCard}>
-            <ModelContextWindowFields
-              contextWindow={formState.contextWindow}
-              maxInputTokens={formState.maxInputTokens}
-              maxOutputTokens={formState.maxOutputTokens}
-              onContextWindowChange={(value) => setFormState((current) => ({ ...current, contextWindow: value }))}
-              onMaxInputTokensChange={(value) => setFormState((current) => ({ ...current, maxInputTokens: value }))}
-              onMaxOutputTokensChange={(value) => setFormState((current) => ({ ...current, maxOutputTokens: value }))}
-            />
+          <div className="space-y-4">
+            <div className={drawerClasses.sectionCard}>
+              <ModelClassificationControls
+                value={classification}
+                onPrimaryTypeChange={handlePrimaryTypeChange}
+                onCapabilityToggle={handleCapabilityToggle}
+                onInputModalityToggle={handleInputModalityToggle}
+              />
+            </div>
+
+            <div className={drawerClasses.sectionCard}>
+              <ModelContextWindowFields
+                contextWindow={formState.contextWindow}
+                maxInputTokens={formState.maxInputTokens}
+                maxOutputTokens={formState.maxOutputTokens}
+                onContextWindowChange={(value) => setFormState((current) => ({ ...current, contextWindow: value }))}
+                onMaxInputTokensChange={(value) => setFormState((current) => ({ ...current, maxInputTokens: value }))}
+                onMaxOutputTokensChange={(value) => setFormState((current) => ({ ...current, maxOutputTokens: value }))}
+              />
+            </div>
           </div>
         </ProviderSection>
       )}

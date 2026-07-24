@@ -23,10 +23,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { v4 as uuidv4 } from 'uuid'
 
+import { ProviderImageEndpointFields } from '../components/ProviderImageEndpointFields'
 import { useProviderModelSync } from '../hooks/useProviderModelSync'
 import ProviderActions from '../primitives/ProviderActions'
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { customHeaderDrawerClasses, drawerClasses, fieldClasses } from '../primitives/ProviderSettingsPrimitives'
+import {
+  findInvalidProviderImageEndpointDraft,
+  mergeProviderImageEndpointDraft,
+  type ProviderImageEndpointDraft,
+  type ProviderImageEndpointDraftField,
+  readProviderImageEndpointDraft
+} from '../utils/providerImageEndpoints'
 
 const logger = loggerService.withContext('ProviderCustomHeaderDrawer')
 
@@ -50,6 +58,11 @@ const ENDPOINT_TYPE_LABEL_KEYS: Partial<Record<EndpointType, string>> = {
   [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: 'settings.provider.more_endpoints.gemini',
   [ENDPOINT_TYPE.OPENAI_RESPONSES]: 'settings.provider.more_endpoints.openai_responses'
 }
+
+const IMAGE_ENDPOINT_TYPES = new Set<EndpointType>([
+  ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION,
+  ENDPOINT_TYPE.OPENAI_IMAGE_EDIT
+])
 
 function newRow(partial?: Partial<Pick<HeaderRow, 'key' | 'value'>>): HeaderRow {
   return { id: uuidv4(), key: partial?.key ?? '', value: partial?.value ?? '' }
@@ -108,40 +121,35 @@ export function resolveEndpointTypes(
   primary: EndpointType
 ): EndpointType[] {
   const configured = Object.keys(provider?.endpointConfigs ?? {}) as EndpointType[]
-  const others = configured.filter((type) => type !== primary).sort()
-  return [primary, ...others]
+  const others = configured.filter((type) => type !== primary && !IMAGE_ENDPOINT_TYPES.has(type)).sort()
+  return IMAGE_ENDPOINT_TYPES.has(primary) ? others : [primary, ...others]
+}
+
+export interface EndpointDraft {
+  baseUrl: string
 }
 
 /**
- * Merge a per-endpoint baseUrl drafts map back into a full endpointConfigs
- * object.
+ * Merge per-endpoint drafts back into a full endpointConfigs object.
  *
- * - Non-empty draft → write `baseUrl`, keep any other configured fields
- *   (reasoningFormatType, modelsApiUrls) on that endpoint.
- * - Empty primary draft → strip `baseUrl` but keep other fields so the
- *   primary entry survives when fields like reasoningFormatType are set.
- * - Empty non-primary draft → drop the entry entirely. Today no surface
- *   sets non-baseUrl fields on secondary endpoints, so this stays clean;
- *   if a future surface writes them, this branch must change accordingly.
+ * Each drafted endpoint's `baseUrl` is written or stripped from the draft;
+ * other configured fields on the entry are kept. An empty entry is dropped.
  */
 export function mergeEndpointConfigs(
   existing: Partial<Record<EndpointType, EndpointConfig>> | undefined,
-  drafts: Record<string, string>,
-  primary: EndpointType
+  drafts: Record<string, EndpointDraft>
 ): Partial<Record<EndpointType, EndpointConfig>> {
   const out: Partial<Record<EndpointType, EndpointConfig>> = { ...existing }
-  for (const [type, raw] of Object.entries(drafts) as [EndpointType, string][]) {
-    const value = trim(raw)
+  for (const [type, draft] of Object.entries(drafts) as [EndpointType, EndpointDraft][]) {
+    const next: EndpointConfig = { ...out[type] }
+    const value = trim(draft.baseUrl)
     if (value) {
-      out[type] = { ...out[type], baseUrl: value }
-    } else if (type === primary) {
-      const rest = { ...out[type] }
-      delete rest.baseUrl
-      if (!isEmpty(rest)) {
-        out[type] = rest
-      } else {
-        delete out[type]
-      }
+      next.baseUrl = value
+    } else {
+      delete next.baseUrl
+    }
+    if (!isEmpty(next)) {
+      out[type] = next
     } else {
       delete out[type]
     }
@@ -155,12 +163,12 @@ export function mergeEndpointConfigs(
  * validated separately (it has its own required-ness rules).
  */
 export function findInvalidSecondaryEndpointUrl(
-  drafts: Record<string, string>,
+  drafts: Record<string, EndpointDraft>,
   primary: EndpointType
 ): EndpointType | null {
-  for (const [type, raw] of Object.entries(drafts) as [EndpointType, string][]) {
+  for (const [type, draft] of Object.entries(drafts) as [EndpointType, EndpointDraft][]) {
     if (type === primary) continue
-    const value = trim(raw)
+    const value = trim(draft.baseUrl)
     if (value && !validateApiHost(value)) {
       return type
     }
@@ -183,7 +191,13 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
   )
 
   const [rows, setRows] = useState<HeaderRow[]>([])
-  const [endpointDrafts, setEndpointDrafts] = useState<Record<string, string>>({})
+  const [endpointDrafts, setEndpointDrafts] = useState<Record<string, EndpointDraft>>({})
+  const [imageEndpointDraft, setImageEndpointDraft] = useState<ProviderImageEndpointDraft>(() =>
+    readProviderImageEndpointDraft(undefined)
+  )
+  const [invalidImageEndpointField, setInvalidImageEndpointField] = useState<ProviderImageEndpointDraftField | null>(
+    null
+  )
   const [visibleEndpointTypes, setVisibleEndpointTypes] = useState<EndpointType[]>([])
   const [addEndpointOpen, setAddEndpointOpen] = useState(false)
   const [headersUiMode, setHeadersUiMode] = useState<HeadersUiMode>('list')
@@ -198,11 +212,15 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       return
     }
 
-    const drafts: Record<string, string> = {}
+    const drafts: Record<string, EndpointDraft> = {}
     for (const type of endpointTypes) {
-      drafts[type] = trim(provider?.endpointConfigs?.[type]?.baseUrl ?? '')
+      drafts[type] = {
+        baseUrl: trim(provider?.endpointConfigs?.[type]?.baseUrl ?? '')
+      }
     }
     setEndpointDrafts(drafts)
+    setImageEndpointDraft(readProviderImageEndpointDraft(provider?.endpointConfigs))
+    setInvalidImageEndpointField(null)
     setVisibleEndpointTypes(endpointTypes)
     setAddEndpointOpen(false)
     setRows(headersObjectToRows(sourceHeaders))
@@ -241,7 +259,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
 
     // Validate the primary baseUrl — non-empty + URL-shape, unless this is
     // Vertex (whose primary endpoint is account-managed, no URL needed).
-    const primaryDraft = trim(endpointDrafts[primaryEndpoint] ?? '')
+    const primaryDraft = trim(endpointDrafts[primaryEndpoint]?.baseUrl ?? '')
     const isVertex = provider.authType === 'iam-gcp'
     if (!isVertex && (!primaryDraft || !validateApiHost(primaryDraft))) {
       toast.error(t('settings.provider.api_host_no_valid'))
@@ -255,7 +273,15 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       return
     }
 
-    const nextEndpointConfigs = mergeEndpointConfigs(provider.endpointConfigs, endpointDrafts, primaryEndpoint)
+    const invalidImageEndpoint = findInvalidProviderImageEndpointDraft(imageEndpointDraft)
+    if (invalidImageEndpoint) {
+      setInvalidImageEndpointField(invalidImageEndpoint)
+      toast.error(t('settings.provider.api_host_no_valid'))
+      return
+    }
+
+    const textEndpointConfigs = mergeEndpointConfigs(provider.endpointConfigs, endpointDrafts)
+    const nextEndpointConfigs = mergeProviderImageEndpointDraft(textEndpointConfigs, imageEndpointDraft)
     const previousPrimaryBaseUrl = trim(provider.endpointConfigs?.[primaryEndpoint]?.baseUrl ?? '')
 
     let parsedHeaders: Record<string, string>
@@ -294,6 +320,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
   }, [
     endpointDrafts,
     headersUiMode,
+    imageEndpointDraft,
     jsonDraft,
     onClose,
     primaryEndpoint,
@@ -328,7 +355,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
 
   const handleAddEndpoint = (type: EndpointType) => {
     setVisibleEndpointTypes((prev) => (prev.includes(type) ? prev : [...prev, type]))
-    setEndpointDrafts((prev) => ({ ...prev, [type]: prev[type] ?? '' }))
+    setEndpointDrafts((prev) => ({ ...prev, [type]: prev[type] ?? { baseUrl: '' } }))
     setAddEndpointOpen(false)
   }
 
@@ -353,9 +380,14 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
                 <InputGroupInput
                   id={inputId}
                   className={fieldClasses.input}
-                  value={endpointDrafts[type] ?? ''}
+                  value={endpointDrafts[type]?.baseUrl ?? ''}
                   placeholder={t('settings.provider.api_host')}
-                  onChange={(e) => setEndpointDrafts((prev) => ({ ...prev, [type]: e.target.value }))}
+                  onChange={(e) =>
+                    setEndpointDrafts((prev) => ({
+                      ...prev,
+                      [type]: { ...(prev[type] ?? { baseUrl: '' }), baseUrl: e.target.value }
+                    }))
+                  }
                   autoComplete="off"
                 />
               </InputGroup>
@@ -389,6 +421,15 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
             </PopoverContent>
           </Popover>
         )}
+
+        <ProviderImageEndpointFields
+          value={imageEndpointDraft}
+          invalidField={invalidImageEndpointField}
+          onChange={(value) => {
+            setImageEndpointDraft(value)
+            setInvalidImageEndpointField(null)
+          }}
+        />
 
         <div className="space-y-2.5">
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
