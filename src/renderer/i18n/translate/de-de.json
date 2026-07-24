@@ -640,11 +640,6 @@
       }
     },
     "sidebar_title": "Agenten",
-    "skill": {
-      "manage": {
-        "title": "Fähigkeiten verwalten"
-      }
-    },
     "tasks": {
       "add": "Aufgabe hinzufügen",
       "cancel": "Abbrechen",
@@ -1059,12 +1054,18 @@
     "edit": {
       "title": "Assistent bearbeiten"
     },
+    "groups": {
+      "delete": "Gruppe löschen",
+      "deleteConfirm": "Sind Sie sicher, dass Sie diese Gruppe löschen möchten?",
+      "group_by": "In Gruppen anzeigen",
+      "ungroup": "Gruppierung stoppen",
+      "ungrouped": "Nicht gruppiert"
+    },
     "icon": {
       "type": "Assistenten-Symbol"
     },
     "list": {
-      "showByList": "Listenansicht",
-      "showByTags": "Tag-Ansicht"
+      "showByList": "Listenansicht"
     },
     "pin": {
       "title": "Pin-Assistent"
@@ -1222,6 +1223,8 @@
         "label": "Gedankenkettenlänge",
         "low": "Spontan",
         "low_description": "Geringfügige Argumentation",
+        "max": "Max",
+        "max_description": "Maximale Anstrengung beim Schlussfolgern",
         "medium": "Überlegt",
         "medium_description": "Denken auf mittlerem Niveau",
         "minimal": "Minimal",
@@ -1248,20 +1251,6 @@
         "label": "Tool-Aufrufmethode",
         "prompt": "Prompt"
       }
-    },
-    "tags": {
-      "add": "Tag hinzufügen",
-      "delete": "Tag löschen",
-      "deleteConfirm": "Möchten Sie diesen Tag wirklich löschen?",
-      "group_by": "Nach Tag gruppieren",
-      "manage": "Tags verwalten",
-      "modify": "Tag ändern",
-      "none": "Keine Tags vorhanden",
-      "settings": {
-        "title": "Tag-Einstellungen"
-      },
-      "ungroup": "Tag-Gruppierung ausschalten",
-      "untagged": "Nicht gruppiert"
     },
     "title": "Assistent",
     "unpin": {
@@ -1402,6 +1391,7 @@
       },
       "generate_image": "Bild generieren",
       "generate_image_no_model": "Konfigurieren Sie ein Malmodell unter Einstellungen › Standardmodell",
+      "image_preview_failed": "Bildvorschau fehlgeschlagen",
       "knowledge_base": "Wissensdatenbank",
       "knowledge_base_disabled_by_files": "Entfernen Sie angehängte Dateien, um die Wissensdatenbank zu verwenden.",
       "knowledge_base_unavailable": "Wählen Sie ein modellfähiges Modell oder aktivieren Sie die Prompt-Werkzeugnutzung",
@@ -1573,6 +1563,23 @@
       "regenerate": {
         "model": "Modell wechseln"
       },
+      "token_details": {
+        "cache_read": "Cache-Lesevorgang",
+        "cache_write": "Cache-Schreiben",
+        "input": "Eingabe",
+        "input_breakdown": "Eingabeaufschlüsselung",
+        "output": "Ausgabe",
+        "reasoning": "Schlussfolgern",
+        "reasoning_time": "Schlussfolgerung",
+        "request_duration": "Generierungszeitpunkt",
+        "text_generation": "Textgenerierung",
+        "text_output": "Textausgabe",
+        "tokens": "{{value}} Tokens",
+        "tokens_per_second_value": "{{value}} Tokens/s",
+        "uncached": "Nicht zwischengespeichert",
+        "usage": "Token-Nutzung",
+        "waiting_first_token": "Warten"
+      },
       "useful": {
         "label": "Als Kontext festlegen",
         "tip": "In dieser Nachrichtengruppe wird diese Nachricht in den Kontext aufgenommen"
@@ -1598,8 +1605,7 @@
     "resource_view": {
       "menu": {
         "agent": "Agenten",
-        "assistant": "Assistenten",
-        "skill": "Fähigkeiten"
+        "assistant": "Assistenten"
       }
     },
     "save": {
@@ -1983,6 +1989,7 @@
         "default": "Standard",
         "high": "Hoch",
         "low": "Niedrig",
+        "max": "Max",
         "medium": "Mittel",
         "minimal": "Minimal",
         "xhigh": "Extra hoch"
@@ -2279,6 +2286,7 @@
     "swap": "Tauschen",
     "topics": "Themen",
     "translate_text": "Text übersetzen",
+    "undo": "Rückgängig machen",
     "unknown": "Unbekannt",
     "unnamed": "Unbenannt",
     "unsubscribe": "Abmelden",
@@ -2433,13 +2441,19 @@
     "text": "Text",
     "toolInput": "Tool-Eingabe",
     "toolName": "Tool-Name",
+    "tool_call_limit_reached": "Der Assistent hat das Limit für Funktionsaufrufe erreicht, bevor eine endgültige Antwort erstellt wurde. Versuchen Sie es erneut oder reduzieren Sie den Aufgabenbereich.",
     "truncated": "Daten wurden gekürzt, Originalgröße",
     "truncatedBadge": "Abgeschnitten",
     "unknown": "Unbekannter Fehler",
     "usage": "Nutzung",
     "user_message_not_found": "Ursprüngliche Benutzernachricht nicht gefunden",
     "value": "Wert",
-    "values": "Werte"
+    "values": "Werte",
+    "web_lookup_network_error": "Webzugriff fehlgeschlagen. Überprüfen Sie Ihre Netzwerkverbindung und versuchen Sie es erneut.",
+    "web_search_api_host_invalid": "Die Websuche ist nicht verfügbar, da der konfigurierte API-Host des Anbieters ungültig ist. Geben Sie eine gültige HTTP(S)-URL unter Einstellungen → Websuche ein und versuchen Sie es erneut.",
+    "web_search_api_host_missing": "Die Websuche ist nicht verfügbar, da der konfigurierte Anbieter keinen API-Host hat. Fügen Sie einen unter Einstellungen → Websuche hinzu und versuchen Sie es erneut.",
+    "web_search_api_key_missing": "Die Websuche ist nicht verfügbar, da der konfigurierte Anbieter keinen API-Schlüssel hat. Fügen Sie einen unter Einstellungen → Websuche hinzu und versuchen Sie es erneut.",
+    "web_search_provider_unavailable": "Websuche ist nicht verfügbar, weil kein kompatibler Anbieter konfiguriert ist. Konfigurieren Sie einen unter Einstellungen → Websuche und versuchen Sie es dann erneut."
   },
   "export": {
     "assistant": "Assistent",
@@ -3118,7 +3132,7 @@
       "duplicate": "Duplikat",
       "edit": "Bearbeiten",
       "enable": "Aktivieren",
-      "manage_tags": "Tags verwalten",
+      "manage_groups": "Gruppen verwalten",
       "uninstall": "Deinstallieren"
     },
     "assistant_catalog": {
@@ -3317,6 +3331,9 @@
             "hint": "Begrenzt den Bereich der Token-Auswahl, wenn aktiviert"
           }
         },
+        "group": "Gruppe",
+        "group_empty": "Keine Gruppen verfügbar",
+        "group_placeholder": "Gruppe auswählen",
         "json_invalid": "Ungültiges JSON-Format",
         "max_tokens": "Maximale Token",
         "max_tool_calls": "Maximale Tool-Aufrufe",
@@ -3415,6 +3432,11 @@
         "insert_variable": "Variable einfügen",
         "label": "Systemaufforderung",
         "placeholder": "Gib Anweisungen für den Assistenten ein, etwa Antwortstil, Rolle oder Hintergrundinformationen",
+        "polish": "Polnischer Prompt",
+        "polish_failed_description": "Überprüfen oder ändern Sie das Standardmodell und versuchen Sie es erneut.",
+        "polish_failed_title": "Fehler beim Verfeinern der Eingabeaufforderung",
+        "polish_variables_changed_description": "Das polierte Ergebnis hat die Eingabeaufforderungsvariablen geändert oder entfernt. Bitte versuchen Sie es erneut.",
+        "polish_variables_changed_title": "Konnte den polierten Prompt nicht anwenden",
         "title": "Aufforderung",
         "tokens_label": "Token",
         "variables_description": "Fügen Sie diese Systemvariablen in die Systemaufforderung ein; vor jeder Antwort des Assistenten werden sie mit den aktuellen Informationen gefüllt.",
@@ -3517,6 +3539,10 @@
       "title": "Keine Ressourcen"
     },
     "export_assistant_failed": "Export des Assistenten fehlgeschlagen",
+    "group_picker": {
+      "no_groups": "Keine Gruppen vorhanden"
+    },
+    "group_sync_failed": "Gruppensynchronisation fehlgeschlagen",
     "import_dialog": {
       "clipboard": {
         "button": "Parsen und importieren",
@@ -3564,7 +3590,6 @@
     },
     "sidebar": {
       "all_resources": "Alle Ressourcen",
-      "all_tags": "Alle Tags",
       "no_tags": "Noch keine Tags",
       "subtitle": "Verwalten Sie Ihre KI-Ressourcen",
       "tags": "Tags",
@@ -3629,11 +3654,11 @@
     },
     "title": "Bibliothek",
     "toolbar": {
-      "add_tag_placeholder": "Tag-Name...",
-      "all_tags": "Alle Tags",
+      "add_group_placeholder": "Gruppenname...",
+      "all_groups": "Alle Gruppen",
+      "group_button": "Gruppe",
       "new_resource": "Neue Ressource",
-      "search_placeholder": "Ressourcen durchsuchen...",
-      "tag_button": "Tag"
+      "search_placeholder": "Ressourcen durchsuchen..."
     },
     "type": {
       "agent": "Agent",
@@ -4205,6 +4230,9 @@
       "selected": "Ausgewählte Tags"
     },
     "function_calling": "Funktionsaufruf",
+    "group": {
+      "ungrouped": "Nicht gruppiert"
+    },
     "invalid_model": "Ungültiges Modell",
     "json_parse_error": "Ungültiges JSON-Format",
     "multi_select": {
@@ -4432,6 +4460,13 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "provider_setup": {
+      "missing_model": "Aktiviere mindestens ein Modell vom aktivierten Anbieter",
+      "missing_provider": "Einen Anbieter aktivieren, um fortzufahren",
+      "next": "Nächste",
+      "subtitle": "Fügen Sie einen API-Schlüssel hinzu oder melden Sie sich bei CherryIN an, und aktivieren Sie dann einen Anbieter.",
+      "title": "Wählen Sie einen Anbieter"
+    },
     "select_model": {
       "change_later": "Sie können dies jederzeit in den Einstellungen ändern.",
       "start": "Loslegen",
@@ -4440,6 +4475,7 @@
     },
     "skip": "Überspringen",
     "toast": {
+      "complete_failed": "Einrichtung kann nicht abgeschlossen werden. Bitte versuchen Sie es erneut.",
       "connected": "Erfolgreich mit CherryIN verbunden"
     },
     "welcome": {
@@ -4713,6 +4749,7 @@
     "inference_steps": "Inference-Schritte",
     "inference_steps_tip": "Anzahl der auszuführenden Inference-Schritte. Mehr Schritte bedeuten höhere Qualität, aber längere Dauer",
     "input_image": "Eingabebild",
+    "input_image_limit_exceeded": "Zu viele Referenzbilder für das ausgewählte Modell. Entfernen Sie einige Bilder und versuchen Sie es erneut.",
     "input_parameters": "Eingabeparameter",
     "invalid_image_url": "Ungültiges Bild-URL-Format",
     "learn_more": "Mehr erfahren",
@@ -4737,6 +4774,7 @@
     "number_images": "Generierungsanzahl",
     "number_images_tip": "Anzahl der Bilder pro Generierung (1-4)",
     "operation_failed": "Vorgang fehlgeschlagen, bitte versuchen Sie es später erneut",
+    "output_compression": "Ausgabekomprimierung",
     "paint_course": "Tutorial",
     "per_image": "Pro Bild",
     "per_images": "Pro Bild",
@@ -4885,6 +4923,7 @@
     "install": "Installieren",
     "install_plugins_from_browser": "Durchsuche verfügbare Plugins, um loszulegen",
     "installing": "Installiere…",
+    "manage_skills": "Fähigkeiten verwalten",
     "name": "Name",
     "no_description": "Keine Beschreibung verfügbar",
     "no_installed_plugins": "Noch keine Plugins installiert",
@@ -5508,6 +5547,7 @@
       "create_new": "Neuer Assistent",
       "empty_text": "Noch keine Assistenten",
       "filter": "Filter-Assistenten",
+      "group_filter": "Nach Gruppe filtern",
       "multi_hint": "(gegenseitig ausschließend mit Multi-Modell)",
       "multi_label": "Multi-Assistent-Parallel",
       "search_placeholder": "Suchassistenten…"
@@ -5629,14 +5669,15 @@
         "select": "Verzeichnis ändern",
         "select_error": "Datenverzeichnis-Änderung fehlgeschlagen",
         "select_error_in_app_path": "Neuer Pfad identisch mit Installationspfad, bitte anderen wählen",
+        "select_error_protected_path": "Der ausgewählte Pfad ist durch das Betriebssystem oder Cherry Studio geschützt. Bitte wählen Sie einen anderen Ordner.",
         "select_error_root_path": "Neuer Pfad darf nicht Root-Verzeichnis sein",
         "select_error_same_path": "Neuer Pfad identisch mit altem Pfad, bitte anderen wählen",
         "select_error_write_permission": "Neuer Pfad hat keine Schreibberechtigung",
         "select_not_empty_dir": "Neuer Pfad ist nicht leer",
-        "select_not_empty_dir_content": "Neuer Pfad nicht leer, Daten werden überschrieben. Risiko von Datenverlust. Fortfahren?",
         "select_success": "Datenverzeichnis geändert, Anwendung wird neu gestartet",
         "select_title": "Anwendungsdatenverzeichnis ändern",
-        "stop_quit_app_reason": "Anwendung migriert gerade Daten, kann nicht beendet werden"
+        "stop_quit_app_reason": "Anwendung migriert gerade Daten, kann nicht beendet werden",
+        "switch_existing_notice": "Dieses nicht leere Verzeichnis wird unverändert verwendet. Vorhandene Dateien werden nicht überschrieben."
       },
       "app_logs": {
         "button": "Protokoll öffnen",
@@ -6164,51 +6205,51 @@
       "duplicateName": "A tool with the same name already exists",
       "fieldVersion": "Version (optional, defaults to latest)",
       "installError": "Failed to install tool",
-      "installErrorHint": "[to be translated]:The install command failed. Copy the log below to troubleshoot or share it for help.",
+      "installErrorHint": "Der Installationsbefehl ist fehlgeschlagen. Kopieren Sie das Protokoll unten zur Fehlerbehebung oder teilen Sie es, um Hilfe zu erhalten.",
       "installSettings": {
-        "description": "[to be translated]:Fine-tune how bundled CLI tools are installed. All fields are optional — leave them empty to keep the defaults.",
+        "description": "Optimieren Sie die Installation von gebündelten CLI-Tools. Alle Felder sind optional – lassen Sie sie leer, um die Standardwerte beizubehalten.",
         "githubMirror": {
-          "help": "[to be translated]:Proxy prefix for GitHub downloads and the GitHub API (e.g. https://ghfast.top). Leave empty for direct access.",
-          "label": "[to be translated]:GitHub mirror",
-          "placeholder": "[to be translated]:https://ghfast.top (direct if empty)"
+          "help": "Proxy-Präfix für GitHub-Downloads und die GitHub-API (z.B. https://ghfast.top). Leer lassen für direkten Zugriff.",
+          "label": "GitHub-Spiegel",
+          "placeholder": "https://ghfast.top (direkt, falls leer)"
         },
         "githubToken": {
-          "help": "[to be translated]:Raises the GitHub API rate limit for tool lookups. Stored locally in plain text. Leave empty to use the CHERRY_GITHUB_TOKEN environment variable.",
-          "hide": "[to be translated]:Hide token",
-          "label": "[to be translated]:GitHub token",
-          "placeholder": "[to be translated]:ghp_…",
-          "show": "[to be translated]:Show token"
+          "help": "Erhöht das GitHub API-Ratenlimit für Tool-Lookups. Lokal im Klartext gespeichert. Leer lassen, um die Umgebungsvariable CHERRY_GITHUB_TOKEN zu verwenden.",
+          "hide": "Token ausblenden",
+          "label": "GitHub-Token",
+          "placeholder": "ghp_…",
+          "show": "Token anzeigen"
         },
-        "invalidUrl": "[to be translated]:Enter a valid URL including https://",
+        "invalidUrl": "Geben Sie eine gültige URL ein, einschließlich https://",
         "npmRegistry": {
-          "help": "[to be translated]:Registry for npm: tools. Leave empty to auto-select a mirror in mainland China.",
-          "label": "[to be translated]:npm registry",
-          "placeholder": "[to be translated]:Auto (China mirror) if empty"
+          "help": "Registrierung für npm: tools. Leer lassen, um einen Spiegelserver in Festlandchina automatisch auszuwählen.",
+          "label": "npm-Registry",
+          "placeholder": "Auto (China-Spiegel) falls leer"
         },
         "pipIndexUrl": {
-          "help": "[to be translated]:Index URL for pipx: tools. Leave empty to auto-select a mirror in mainland China.",
-          "label": "[to be translated]:pip index URL",
-          "placeholder": "[to be translated]:Auto (China mirror) if empty"
+          "help": "Index-URL für pipx: Tools. Leer lassen, um automatisch einen Spiegelserver in Festlandchina auszuwählen.",
+          "label": "pip-Index-URL",
+          "placeholder": "Auto (China-Spiegel) falls leer"
         },
         "presetLabels": {
-          "aliyun": "[to be translated]:Aliyun (China)",
-          "default": "[to be translated]:Default (no mirror)",
-          "ghfast": "[to be translated]:ghfast.top",
-          "ghproxy": "[to be translated]:ghproxy.net",
-          "npmOfficial": "[to be translated]:npmjs (official)",
-          "npmmirror": "[to be translated]:npmmirror (China)",
-          "pypiOfficial": "[to be translated]:PyPI (official)",
-          "tsinghua": "[to be translated]:Tsinghua (China)"
+          "aliyun": "Alibaba Cloud (China)",
+          "default": "Standard (kein Spiegel)",
+          "ghfast": "ghfast.top",
+          "ghproxy": "ghproxy.net",
+          "npmOfficial": "npmjs (offiziell)",
+          "npmmirror": "npmmirror (China)",
+          "pypiOfficial": "PyPI (offiziell)",
+          "tsinghua": "Tsinghua (China)"
         },
-        "presets": "[to be translated]:Presets",
-        "title": "[to be translated]:Advanced install settings",
+        "presets": "Voreinstellungen",
+        "title": "Erweiterte Installationseinstellungen",
         "verifySignatures": {
-          "help": "[to be translated]:Verifies Sigstore/SLSA signatures for aqua-backed tools. Disable only if verification fails on your network — it skips supply-chain checks.",
-          "label": "[to be translated]:Verify tool signatures"
+          "help": "Überprüft Sigstore/SLSA-Signaturen für aqua-unterstützte Tools. Deaktivieren Sie diese Option nur, wenn die Überprüfung in Ihrem Netzwerk fehlschlägt – sie überspringt dann die Supply-Chain-Prüfungen.",
+          "label": "Werkzeugsignaturen überprüfen"
         }
       },
       "installing": "Installiere...",
-      "installingHint": "[to be translated]:The first install may download a runtime and take a few minutes",
+      "installingHint": "Die erste Installation kann eine Runtime herunterladen und einige Minuten dauern",
       "invalidTool": "Ungültiger Tool-Name oder Schlüssel",
       "localModels": {
         "cancel": "Abbrechen",
@@ -6240,16 +6281,19 @@
       "remove": "Remove tool",
       "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
       "removeConfirmTitle": "Remove Tool",
-      "removeDefinitionOnlyConfirmMessage": "[to be translated]:Cherry could not safely clean up \"{{name}}\". Removing only its definition will hide the card but leave its backend files installed. Continue?",
-      "removeDefinitionOnlyConfirmTitle": "[to be translated]:Remove Definition Only?",
-      "removeRuntimeConfirmMessage": "[to be translated]:Are you sure you want to remove \"{{name}}\"? Uninstalling this runtime may break npm or pip tools that depend on it.",
-      "runtimeDependency": "[to be translated]:Runtime",
-      "runtimeDependencyHint": "[to be translated]:Runtime for npm/pip tools",
+      "removeDefinitionOnlyConfirmMessage": "Cherry konnte \"{{name}}\" nicht sicher bereinigen. Wenn nur die Definition entfernt wird, wird die Karte ausgeblendet, aber ihre Backend-Dateien bleiben installiert. Fortfahren?",
+      "removeDefinitionOnlyConfirmTitle": "Nur Definition entfernen?",
+      "removeDefinitionOnlyDependents": "Installierte Tools hängen davon ab: {{dependents}}.",
+      "removeError": "Fehler beim Entfernen des Tools",
+      "removeErrorHint": "Der Bereinigungsbefehl ist fehlgeschlagen. Kopieren Sie das untenstehende Protokoll zur Fehlerbehebung oder teilen Sie es, um Hilfe zu erhalten.",
+      "removeRuntimeConfirmMessage": "Sind Sie sicher, dass Sie \"{{name}}\" entfernen möchten? Die Deinstallation dieser Laufzeitumgebung kann dazu führen, dass npm- oder pip-Tools, die davon abhängen, nicht mehr funktionieren.",
+      "runtimeDependency": "Laufzeit",
+      "runtimeDependencyHint": "Laufzeit für npm/pip-Tools",
       "searchFailed": "Search failed, check logs",
       "searchRegistry": "Search mise registry...",
       "source": {
         "bundled": "bundled",
-        "system": "[to be translated]:System"
+        "system": "System"
       },
       "title": "Umgebungsabhängigkeiten",
       "tools": {
@@ -6268,15 +6312,15 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
-      "uninstall": "[to be translated]:Uninstall",
-      "uninstallConfirmMessage": "[to be translated]:Are you sure you want to uninstall \"{{name}}\"? Cherry Studio's backend copy will be deleted.",
-      "uninstallConfirmTitle": "[to be translated]:Uninstall Tool",
-      "uninstallFailed": "[to be translated]:Failed to uninstall tool",
-      "uninstallSuccess": "[to be translated]:Tool uninstalled",
+      "uninstall": "Deinstallieren",
+      "uninstallConfirmMessage": "Sind Sie sicher, dass Sie \"{{name}}\" deinstallieren möchten? Die Backend-Kopie von Cherry Studio wird gelöscht.",
+      "uninstallConfirmTitle": "Deinstallationstool",
+      "uninstallFailed": "Fehler beim Deinstallieren des Tools",
+      "uninstallSuccess": "Tool deinstalliert",
       "update": "Update to latest version",
       "updateCheckFailed": "Aktualisierungsprüfung fehlgeschlagen",
-      "updateCheckSuccess": "[to be translated]:Version check complete",
-      "viewErrorDetails": "[to be translated]:View details"
+      "updateCheckSuccess": "Versionsprüfung abgeschlossen",
+      "viewErrorDetails": "Details anzeigen"
     },
     "developer": {
       "enable_developer_mode": "Entwicklermodus aktivieren",
@@ -6914,6 +6958,7 @@
       "default_assistant_model_description": "Wird verwendet, wenn ein Assistent kein Modell hat.",
       "docs": "Modelldokumentation",
       "empty": "Kein Modell",
+      "empty_hint": "Klicken Sie oben auf die Schaltfläche \"Modellliste abrufen\", um Modelle hinzuzufügen.",
       "enabled_models": "Aktiviert",
       "expand_all": "Alle ausklappen",
       "filter": {
@@ -7411,9 +7456,6 @@
         "usage_title": "Verwendung",
         "usage_unit": "Tokens"
       },
-      "openai": {
-        "alert": "OpenAI-Anbieter unterstützt keine alten Aufrufmethoden mehr, wenn Sie einen Drittanbieter-API verwenden, erstellen Sie bitte einen neuen Anbieter"
-      },
       "remove_duplicate_keys": "Doppelte Schlüssel entfernen",
       "remove_invalid_keys": "Ungültige Schlüssel löschen",
       "reorder_failed": "Fehler beim Neuanordnen der Anbieter",
@@ -7489,6 +7531,7 @@
         "autoEmpty": "Keine aktivierten MCP-Server",
         "description": "Aktuellen MCP-Serverstatus anzeigen",
         "disabled": "MCP ist für diesen Assistenten deaktiviert",
+        "open_config": "MCP-Server konfigurieren",
         "unknownServer": "Unbekannter MCP-Server"
       },
       "multiple": "Mehrfachauswahl",

@@ -640,11 +640,6 @@
       }
     },
     "sidebar_title": "Agents",
-    "skill": {
-      "manage": {
-        "title": "管理技能"
-      }
-    },
     "tasks": {
       "add": "新增任務",
       "cancel": "取消",
@@ -1059,12 +1054,18 @@
     "edit": {
       "title": "編輯助手"
     },
+    "groups": {
+      "delete": "刪除群組",
+      "deleteConfirm": "確定要刪除此群組嗎？",
+      "group_by": "分組顯示",
+      "ungroup": "停止分組",
+      "ungrouped": "未分組"
+    },
     "icon": {
       "type": "助手圖示"
     },
     "list": {
-      "showByList": "列表顯示",
-      "showByTags": "標籤顯示"
+      "showByList": "列表顯示"
     },
     "pin": {
       "title": "圖釘助理"
@@ -1251,20 +1252,6 @@
         "prompt": "提示詞"
       }
     },
-    "tags": {
-      "add": "新增標籤",
-      "delete": "刪除標籤",
-      "deleteConfirm": "確定要刪除這個標籤嗎？",
-      "group_by": "依標籤分組",
-      "manage": "標籤管理",
-      "modify": "修改標籤",
-      "none": "暫無標籤",
-      "settings": {
-        "title": "標籤設定"
-      },
-      "ungroup": "關閉標籤分組",
-      "untagged": "未分組"
-    },
     "title": "助手",
     "unpin": {
       "title": "取消釘選助理"
@@ -1404,6 +1391,7 @@
       },
       "generate_image": "產生圖片",
       "generate_image_no_model": "請在 設定 › 預設模型 中設定繪圖模型",
+      "image_preview_failed": "圖片預覽失敗",
       "knowledge_base": "知識庫",
       "knowledge_base_disabled_by_files": "移除附加檔案以使用知識庫",
       "knowledge_base_unavailable": "選擇具備工具能力的模型或啟用提示工具使用",
@@ -1575,6 +1563,23 @@
       "regenerate": {
         "model": "切換模型"
       },
+      "token_details": {
+        "cache_read": "快取讀取",
+        "cache_write": "快取寫入",
+        "input": "輸入",
+        "input_breakdown": "輸入分解",
+        "output": "輸出",
+        "reasoning": "推理",
+        "reasoning_time": "推理",
+        "request_duration": "生成時機",
+        "text_generation": "文字生成",
+        "text_output": "文字輸出",
+        "tokens": "{{value}} 代幣",
+        "tokens_per_second_value": "{{value}} Tokens/s",
+        "uncached": "未快取",
+        "usage": "Token 使用量",
+        "waiting_first_token": "等待"
+      },
       "useful": {
         "label": "設為上下文",
         "tip": "在這組訊息中，該訊息將被選擇加入上下文"
@@ -1600,8 +1605,7 @@
     "resource_view": {
       "menu": {
         "agent": "智能體",
-        "assistant": "助手",
-        "skill": "技能"
+        "assistant": "助手"
       }
     },
     "save": {
@@ -2282,6 +2286,7 @@
     "swap": "交換",
     "topics": "對話",
     "translate_text": "翻譯文字",
+    "undo": "復原",
     "unknown": "未知",
     "unnamed": "未命名",
     "unsubscribe": "取消訂閱",
@@ -2436,13 +2441,19 @@
     "text": "文字",
     "toolInput": "工具輸入",
     "toolName": "工具名稱",
+    "tool_call_limit_reached": "助理在產生最終答案前已達到工具呼叫上限。請重試或縮小任務範圍。",
     "truncated": "資料已截斷，原始大小",
     "truncatedBadge": "已截斷",
     "unknown": "未知錯誤",
     "usage": "用量",
     "user_message_not_found": "無法找到原始使用者訊息",
     "value": "值",
-    "values": "值"
+    "values": "值",
+    "web_lookup_network_error": "網頁存取失敗。請檢查您的網路連線，然後再試一次。",
+    "web_search_api_host_invalid": "網頁搜尋無法使用，因為設定的提供者 API 主機無效。請在「設定」→「網頁搜尋」中輸入有效的 HTTP(S) 網址，然後再試一次。",
+    "web_search_api_host_missing": "網頁搜尋無法使用，因為設定的提供者缺少 API 主機。請在「設定 → 網頁搜尋」中新增一個，然後再試一次。",
+    "web_search_api_key_missing": "網頁搜尋無法使用，因為設定的提供者缺少 API 金鑰。請在「設定 → 網頁搜尋」中新增金鑰，然後再試一次。",
+    "web_search_provider_unavailable": "網頁搜尋無法使用，因為未設定相容的提供者。請在「設定 → 網頁搜尋」中設定一個提供者，然後再試一次。"
   },
   "export": {
     "assistant": "助手",
@@ -3121,7 +3132,7 @@
       "duplicate": "複製",
       "edit": "編輯",
       "enable": "啟用",
-      "manage_tags": "管理標籤",
+      "manage_groups": "管理群組",
       "uninstall": "解除安裝"
     },
     "assistant_catalog": {
@@ -3320,6 +3331,9 @@
             "hint": "啟用時限制權杖取樣範圍"
           }
         },
+        "group": "群組",
+        "group_empty": "沒有可用的群組",
+        "group_placeholder": "選擇群組",
         "json_invalid": "無效的 JSON 格式",
         "max_tokens": "最大權杖",
         "max_tool_calls": "最大工具呼叫",
@@ -3418,6 +3432,11 @@
         "insert_variable": "插入變數",
         "label": "系統提示",
         "placeholder": "輸入對助手的要求，例如回答風格、角色設定或背景說明",
+        "polish": "波蘭語提示",
+        "polish_failed_description": "檢查或變更預設模型，然後再試一次。",
+        "polish_failed_title": "無法潤飾提示詞",
+        "polish_variables_changed_description": "拋光結果變更或移除了提示變數。請再試一次。",
+        "polish_variables_changed_title": "無法套用精簡提示",
         "title": "提示",
         "tokens_label": "代幣：",
         "variables_description": "可在系統提示中插入這些系統變數；每次助手回覆前，系統會按當時的資訊自動填寫。",
@@ -3520,6 +3539,10 @@
       "title": "尚無資源"
     },
     "export_assistant_failed": "匯出助理失敗",
+    "group_picker": {
+      "no_groups": "尚無群組"
+    },
+    "group_sync_failed": "無法同步群組",
     "import_dialog": {
       "clipboard": {
         "button": "解析並匯入",
@@ -3567,7 +3590,6 @@
     },
     "sidebar": {
       "all_resources": "所有資源",
-      "all_tags": "全部標籤",
       "no_tags": "尚無標籤",
       "subtitle": "管理您的 AI 資源",
       "tags": "標籤",
@@ -3632,11 +3654,11 @@
     },
     "title": "資源庫",
     "toolbar": {
-      "add_tag_placeholder": "標籤名稱...",
-      "all_tags": "全部標籤",
+      "add_group_placeholder": "群組名稱...",
+      "all_groups": "所有群組",
+      "group_button": "群組",
       "new_resource": "新資源",
-      "search_placeholder": "搜尋資源...",
-      "tag_button": "標籤"
+      "search_placeholder": "搜尋資源..."
     },
     "type": {
       "agent": "智能體",
@@ -4208,6 +4230,9 @@
       "selected": "已選標籤"
     },
     "function_calling": "函式呼叫",
+    "group": {
+      "ungrouped": "未分組"
+    },
     "invalid_model": "無效模型",
     "json_parse_error": "無效的 JSON 格式",
     "multi_select": {
@@ -4724,6 +4749,7 @@
     "inference_steps": "推理步數",
     "inference_steps_tip": "要執行的推理步數 ({{min}}-{{max}})。步數越多，品質越高但耗時越長",
     "input_image": "輸入圖片",
+    "input_image_limit_exceeded": "所選模型的參考圖片過多。請移除部分圖片後再試一次。",
     "input_parameters": "輸入參數",
     "invalid_image_url": "圖片網址格式無效",
     "learn_more": "了解更多",
@@ -4748,6 +4774,7 @@
     "number_images": "張數",
     "number_images_tip": "一次生成的圖片數量 ({{min}}-{{max}})",
     "operation_failed": "操作失敗，請稍後再試",
+    "output_compression": "輸出壓縮",
     "paint_course": "教學",
     "per_image": "每張圖片",
     "per_images": "每張圖片",
@@ -4896,6 +4923,7 @@
     "install": "安裝",
     "install_plugins_from_browser": "瀏覽可用技能以開始使用",
     "installing": "安裝中...",
+    "manage_skills": "管理技能",
     "name": "名稱",
     "no_description": "無描述",
     "no_installed_plugins": "尚未安裝任何技能",
@@ -5519,6 +5547,7 @@
       "create_new": "新建助手",
       "empty_text": "暫無助手",
       "filter": "篩選助手",
+      "group_filter": "按群組篩選",
       "multi_hint": "（與多模型互斥）",
       "multi_label": "多助手同時回答",
       "search_placeholder": "搜尋助手…"
@@ -6252,8 +6281,11 @@
       "remove": "移除工具",
       "removeConfirmMessage": "確定要移除「{{name}}」嗎？二進位檔案將會被刪除。",
       "removeConfirmTitle": "移除工具",
-      "removeDefinitionOnlyConfirmMessage": "[to be translated]:Cherry could not safely clean up \"{{name}}\". Removing only its definition will hide the card but leave its backend files installed. Continue?",
-      "removeDefinitionOnlyConfirmTitle": "[to be translated]:Remove Definition Only?",
+      "removeDefinitionOnlyConfirmMessage": "Cherry 無法安全清理「{{name}}」。僅移除其定義會隱藏該卡片，但後端檔案仍會保留。是否繼續？",
+      "removeDefinitionOnlyConfirmTitle": "僅移除定義？",
+      "removeDefinitionOnlyDependents": "已安裝的工具依賴於它：{{dependents}}。",
+      "removeError": "無法移除工具",
+      "removeErrorHint": "清理命令失敗。複製下方的記錄檔以進行疑難排解或分享以尋求協助。",
       "removeRuntimeConfirmMessage": "確定要移除「{{name}}」嗎？解除安裝此執行時可能導致依賴它的 npm 或 pip 工具無法使用。",
       "runtimeDependency": "執行時依賴",
       "runtimeDependencyHint": "npm/pip 工具使用的執行時",
@@ -6280,11 +6312,11 @@
         "rtk": "CLI 代理工具，透過壓縮終端輸出來減少 LLM token 消耗。",
         "uv": "用於 MCP 服務與依賴安裝的 Python 套件管理工具。"
       },
-      "uninstall": "[to be translated]:Uninstall",
-      "uninstallConfirmMessage": "[to be translated]:Are you sure you want to uninstall \"{{name}}\"? Cherry Studio's backend copy will be deleted.",
-      "uninstallConfirmTitle": "[to be translated]:Uninstall Tool",
-      "uninstallFailed": "[to be translated]:Failed to uninstall tool",
-      "uninstallSuccess": "[to be translated]:Tool uninstalled",
+      "uninstall": "卸載",
+      "uninstallConfirmMessage": "您確定要卸載「{{name}}」嗎？Cherry Studio 的後端副本將被刪除。",
+      "uninstallConfirmTitle": "解除安裝工具",
+      "uninstallFailed": "無法卸載工具",
+      "uninstallSuccess": "工具已卸載",
       "update": "更新到最新版本",
       "updateCheckFailed": "檢查更新失敗",
       "updateCheckSuccess": "版本檢查完成",
@@ -6926,6 +6958,7 @@
       "default_assistant_model_description": "建立新助手時使用的模型，如果助手未設定模型，則使用此模型",
       "docs": "模型文件",
       "empty": "找不到模型",
+      "empty_hint": "點擊上方的「取得模型清單」按鈕以新增模型。",
       "enabled_models": "已啟用",
       "expand_all": "全部展開",
       "filter": {
@@ -7423,9 +7456,6 @@
         "usage_title": "用量",
         "usage_unit": "Token"
       },
-      "openai": {
-        "alert": "OpenAI Provider 不再支援舊的呼叫方法。如果使用第三方 API，請建立新的服務供應商"
-      },
       "remove_duplicate_keys": "移除重複金鑰",
       "remove_invalid_keys": "刪除無效金鑰",
       "reorder_failed": "調整服務商順序失敗",
@@ -7501,6 +7531,7 @@
         "autoEmpty": "未啟用任何 MCP 伺服器",
         "description": "檢視目前的 MCP 伺服器狀態",
         "disabled": "此助理已停用 MCP",
+        "open_config": "設定 MCP 伺服器",
         "unknownServer": "未知的 MCP 伺服器"
       },
       "multiple": "多選",
