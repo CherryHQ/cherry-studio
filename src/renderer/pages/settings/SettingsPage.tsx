@@ -29,7 +29,8 @@ import {
   Search,
   Settings2,
   Terminal,
-  TextCursorInput
+  TextCursorInput,
+  ToolCase
 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -96,6 +97,14 @@ const SettingsPage: FC = () => {
                 label={t('agent.settings.toolsMcp.mcp.tab')}
                 active={isActive('/settings/mcp')}
                 onClick={() => go('/settings/mcp')}
+              />
+              <MenuItem
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
+                icon={<ToolCase />}
+                label={t('settings.skills.title')}
+                active={isActive('/settings/skills')}
+                onClick={() => go('/settings/skills')}
               />
               <MenuItem
                 className={settingsSubmenuItemClassName}

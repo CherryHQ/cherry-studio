@@ -14,12 +14,13 @@ export function composeHooks(parts: ReadonlyArray<Partial<AgentLoopHooks>>): Age
     onToolExecutionStart: chainVoid(parts, 'onToolExecutionStart'),
     onToolExecutionEnd: chainVoid(parts, 'onToolExecutionEnd'),
     onFinish: chainVoid(parts, 'onFinish'),
+    onAbort: chainVoid(parts, 'onAbort'),
     onError: chainOnError(parts),
     prepareStep: chainPrepareStep(parts)
   }
 }
 
-type VoidHookKey = 'onStart' | 'onStepFinish' | 'onToolExecutionStart' | 'onToolExecutionEnd' | 'onFinish'
+type VoidHookKey = 'onStart' | 'onStepFinish' | 'onToolExecutionStart' | 'onToolExecutionEnd' | 'onFinish' | 'onAbort'
 
 function chainVoid<K extends VoidHookKey>(
   parts: ReadonlyArray<Partial<AgentLoopHooks>>,

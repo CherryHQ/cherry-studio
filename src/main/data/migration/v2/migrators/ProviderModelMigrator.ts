@@ -10,7 +10,7 @@
 
 import { application } from '@application'
 import type { EndpointType, Modality, ModelCapability } from '@cherrystudio/provider-registry'
-import { buildRuntimeEndpointConfigs } from '@cherrystudio/provider-registry'
+import { buildPersistedEndpointConfigs, ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { pinTable } from '@data/db/schemas/pin'
@@ -21,7 +21,7 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { ensureCherryAiDefaultProviderAndModelTx } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
 import { assignOrderKeysByScope, assignOrderKeysInSequence } from '@data/migration/v2/utils/orderKey'
 import { applyUserOverlay } from '@data/services/ModelService'
-import { extractReasoningFormatTypes, mergePresetModel } from '@data/services/ProviderRegistryService'
+import { mergePresetModel, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { generateOrderKeySequenceBetween } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import type { Provider as LegacyProvider } from '@main/data/migration/legacyTypes'
@@ -188,8 +188,8 @@ export class ProviderModelMigrator extends BaseMigrator {
    * `transformProvider` only derives from legacy data, so migrated rows for
    * system providers (those present in providers.json) miss the registry
    * baseline that fresh installs get from `PresetProviderSeeder`. Specifically
-   * this fills in non-default endpoint configs (e.g. OPENAI_RESPONSES baseUrl
-   * + reasoningFormat), `defaultChatEndpoint` precision, and `apiFeatures`
+   * this fills in non-default endpoint connection configs (e.g. an
+   * OPENAI_RESPONSES baseUrl + adapterFamily), `defaultChatEndpoint` precision, and `apiFeatures`
    * defaults (e.g. providers that explicitly don't support `serviceTier`).
    * Legacy fields win — they capture user customization from v1.
    */
@@ -199,10 +199,22 @@ export class ProviderModelMigrator extends BaseMigrator {
       .find((p) => p.id === legacy.id)
     if (!preset) return row
 
-    const presetEndpointConfigs = buildRuntimeEndpointConfigs(preset.endpointConfigs) as Partial<
+    const presetEndpointConfigs = buildPersistedEndpointConfigs(preset.endpointConfigs) as Partial<
       Record<EndpointType, EndpointConfig>
     > | null
-    const userEndpointConfigs = row.endpointConfigs ?? null
+    let userEndpointConfigs = row.endpointConfigs ?? null
+    const togetherChatEndpoint = userEndpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    const togetherPresetBaseUrl = presetEndpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.baseUrl
+    const normalizedTogetherBaseUrl = togetherChatEndpoint?.baseUrl?.replace(/\/+$/, '').replace(/\/v1$/, '')
+    if (legacy.id === 'together' && normalizedTogetherBaseUrl === 'https://api.together.xyz' && togetherPresetBaseUrl) {
+      userEndpointConfigs = {
+        ...userEndpointConfigs,
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          ...togetherChatEndpoint,
+          baseUrl: togetherPresetBaseUrl
+        }
+      }
+    }
     const allEndpointKeys = new Set([
       ...Object.keys(presetEndpointConfigs ?? {}),
       ...Object.keys(userEndpointConfigs ?? {})
@@ -248,15 +260,20 @@ export class ProviderModelMigrator extends BaseMigrator {
     if (!presetModel) return row
 
     const registryOverride = loader.findOverride(row.providerId, row.modelId)
-    const reasoningFormatTypes = extractReasoningFormatTypes(providerRow.endpointConfigs)
     const defaultChatEndpoint = providerRow.defaultChatEndpoint ?? undefined
+    const reasoningProfile = providerRegistryService.resolveRegistryModelProfile(
+      row.providerId,
+      presetModel,
+      registryOverride,
+      defaultChatEndpoint
+    )
 
     const baseline = mergePresetModel(
       presetModel,
       registryOverride,
       row.providerId,
-      reasoningFormatTypes,
-      defaultChatEndpoint
+      reasoningProfile.wire,
+      reasoningProfile.support
     )
 
     const overlayName = row.name && row.name !== row.modelId ? row.name : null
