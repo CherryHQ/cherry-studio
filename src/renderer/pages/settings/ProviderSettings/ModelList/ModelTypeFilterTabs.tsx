@@ -45,11 +45,12 @@ const CAPABILITY_FILTER_ICONS: Record<ModelTypeFilter, LucideIcon> = {
   transcription: Mic
 }
 
-/** An extra tab appended after the type filters (e.g. the manage drawer's "stale" tab). */
+/** An extra tab rendered immediately after All (e.g. the manage drawer's "stale" tab). */
 export interface ModelTypeFilterExtraTab {
   value: string
   label: string
   count: number
+  destructive?: boolean
 }
 
 interface ModelTypeFilterTabsProps {
@@ -63,7 +64,7 @@ interface ModelTypeFilterTabsProps {
 
 /**
  * The shared model-type filter tab row: `All` + one tab per model type (icon +
- * label + count), plus optional trailing tabs. Selection is applied through a
+ * label + count), plus optional tabs immediately after `All`. Selection is applied through a
  * transition so the active tab flips immediately while the (potentially large)
  * list re-filters in the background.
  */
@@ -100,6 +101,20 @@ export function ModelTypeFilterTabs({
             {counts.all}
           </span>
         </TabsTrigger>
+        {extraTabs.map((tab) => (
+          <TabsTrigger
+            key={tab.value}
+            value={tab.value}
+            className={cn(
+              modelSyncClasses.manageTabsTrigger,
+              tab.destructive && modelSyncClasses.manageTabsTriggerDestructive
+            )}>
+            <span className="truncate">{tab.label}</span>
+            <span className={cn(modelSyncClasses.manageTabCount, tab.destructive && 'text-error-text')} aria-hidden>
+              {tab.count}
+            </span>
+          </TabsTrigger>
+        ))}
         {MODEL_TYPE_FILTERS.map((filter) => {
           const Icon = CAPABILITY_FILTER_ICONS[filter]
           return (
@@ -112,14 +127,6 @@ export function ModelTypeFilterTabs({
             </TabsTrigger>
           )
         })}
-        {extraTabs.map((tab) => (
-          <TabsTrigger key={tab.value} value={tab.value} className={modelSyncClasses.manageTabsTrigger}>
-            <span className="truncate">{tab.label}</span>
-            <span className={modelSyncClasses.manageTabCount} aria-hidden>
-              {tab.count}
-            </span>
-          </TabsTrigger>
-        ))}
       </TabsList>
     </Tabs>
   )

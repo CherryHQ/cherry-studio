@@ -210,7 +210,14 @@ export default function ModelListSyncDrawer({
           counts={typeCounts}
           extraTabs={
             staleModelCount > 0
-              ? [{ value: 'stale', label: t('settings.models.manage.stale_filter'), count: staleModelCount }]
+              ? [
+                  {
+                    value: 'stale',
+                    label: t('settings.models.manage.stale_filter'),
+                    count: staleModelCount,
+                    destructive: true
+                  }
+                ]
               : []
           }
         />
