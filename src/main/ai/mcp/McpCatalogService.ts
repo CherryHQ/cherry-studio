@@ -11,12 +11,14 @@ import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpTool } from '@shared/types/mcp'
 import * as z from 'zod'
 
+import type { McpOAuthMode } from './oauth/types'
+
 const logger = loggerService.withContext('McpCatalogService')
 const mcpToolsCacheKey = (serverId: string): SharedCacheKey => `mcp.tools.${serverId}` as SharedCacheKey
 const PREWARM_CONCURRENCY = 3
 
 type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
-type ListToolsOptions = { includeDisabled?: boolean }
+type ListToolsOptions = { includeDisabled?: boolean; authMode?: McpOAuthMode }
 
 /** JSON-Schema validator for MCP tool input/output schemas. `loose()` keeps
  *  protocol extensions while normalizing missing fields for renderer reads. */
@@ -161,9 +163,11 @@ export class McpCatalogService extends BaseService {
     return tools.filter((tool) => !isMcpToolDisabledBySource(latestServer, tool))
   }
 
-  private async listToolsImpl(server: McpServer): Promise<McpTool[]> {
+  private async listToolsImpl(server: McpServer, authMode: McpOAuthMode): Promise<McpTool[]> {
     try {
-      const { tools } = await application.get('McpRuntimeService').withClient(server.id, (client) => client.listTools())
+      const { tools } = await application
+        .get('McpRuntimeService')
+        .withClient(server.id, (client) => client.listTools(), { authMode })
       return tools.map((tool: SDKTool) => {
         const serverTool: McpTool = {
           ...tool,
@@ -195,8 +199,8 @@ export class McpCatalogService extends BaseService {
       return []
     }
 
-    const listFunc = (server: McpServer) => {
-      const cachedListTools = withCache<[McpServer], McpTool[]>(
+    const listFunc = (server: McpServer, authMode: McpOAuthMode) => {
+      const cachedListTools = withCache<[McpServer, McpOAuthMode], McpTool[]>(
         this.listToolsImpl.bind(this),
         (server) => {
           const serverKey = application.get('McpRuntimeService').getServerKey(server)
@@ -206,11 +210,14 @@ export class McpCatalogService extends BaseService {
         `[MCP] Tools from ${server.name}`
       )
 
-      return cachedListTools(server)
+      return cachedListTools(server, authMode)
     }
 
     try {
-      const tools = await withSpanFunc(`${server.name}.ListTool`, 'MCP', listFunc, [server])
+      const tools = await withSpanFunc(`${server.name}.ListTool`, 'MCP', listFunc, [
+        server,
+        options.authMode ?? 'silent'
+      ])
       this.writeToolsCache(server.id, tools)
       this.runtimeService().setServerStatus(server.id, 'connected')
       return options.includeDisabled ? tools : this.filterEnabledTools(server, tools)
@@ -295,10 +302,10 @@ export class McpCatalogService extends BaseService {
     return this.runtimeService().listPrompts(serverId)
   }
 
-  public async refreshTools(serverId: string): Promise<void> {
+  public async refreshTools(serverId: string, options: ListToolsOptions = {}): Promise<void> {
     const server = this.getServerById(serverId)
     this.clearToolsCache(server)
-    await this.listToolsForServer(server, { includeDisabled: true })
+    await this.listToolsForServer(server, { ...options, includeDisabled: true })
   }
 
   private async prewarmActiveServerTools(): Promise<void> {

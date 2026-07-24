@@ -14,6 +14,13 @@ import type { OAuthProviderOptions } from './types'
 
 const logger = loggerService.withContext('Mcp:OAuthClientProvider')
 
+export class McpAuthorizationRequiredError extends Error {
+  constructor() {
+    super('MCP authorization requires user interaction')
+    this.name = 'McpAuthorizationRequiredError'
+  }
+}
+
 export class McpOAuthClientProvider implements OAuthClientProvider {
   private storage: JsonFileStorage
   public readonly config: Required<OAuthProviderOptions>
@@ -26,7 +33,8 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
       callbackPath: options.callbackPath || '/oauth/callback',
       configDir: options.configDir || configDir,
       clientName: options.clientName || 'Cherry Studio',
-      clientUri: options.clientUri || 'https://github.com/CherryHQ/cherry-studio'
+      clientUri: options.clientUri || 'https://github.com/CherryHQ/cherry-studio',
+      authMode: options.authMode || 'silent'
     }
     this.storage = new JsonFileStorage(this.config.serverUrlHash, this.config.configDir)
   }
@@ -63,6 +71,10 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
   }
 
   async redirectToAuthorization(authorizationUrl: URL): Promise<void> {
+    if (this.config.authMode === 'silent') {
+      throw new McpAuthorizationRequiredError()
+    }
+
     try {
       // Open the browser to the authorization URL
       await open(sanitizeUrl(authorizationUrl.toString()))

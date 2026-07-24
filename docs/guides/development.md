@@ -89,6 +89,13 @@ CS_DEV_USER_DATA_SUFFIX=DevParis pnpm dev
 
 Blank values are ignored and fall back to `Dev`.
 
+To make concurrent development windows visually distinguishable, set an
+optional label shown in the main window's tab bar:
+
+```bash
+RENDERER_VITE_DEV_INSTANCE_LABEL=fix/my-branch
+```
+
 ### Debug
 
 ```bash

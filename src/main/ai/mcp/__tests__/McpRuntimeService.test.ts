@@ -32,21 +32,26 @@ const mcpSdkMock = vi.hoisted(() => {
   }
   class SSEClientTransport {
     kind = 'sse' as const
+    authMode: string | undefined
     close = vi.fn().mockResolvedValue(undefined)
-    constructor(url: unknown, opts?: unknown) {
+    constructor(url: unknown, opts?: { authProvider?: { config?: { authMode?: string } } }) {
       void url
-      void opts
+      this.authMode = opts?.authProvider?.config?.authMode
     }
   }
   class StreamableHTTPClientTransport {
     kind = 'streamableHttp' as const
+    authMode: string | undefined
     close = vi.fn().mockResolvedValue(undefined)
-    constructor(url: unknown, opts?: unknown) {
+    constructor(url: unknown, opts?: { authProvider?: { config?: { authMode?: string } } }) {
       void url
-      void opts
+      this.authMode = opts?.authProvider?.config?.authMode
     }
   }
-  const clients: Array<{ connectCalls: Array<{ kind: string }>; close: ReturnType<typeof vi.fn> }> = []
+  const clients: Array<{
+    connectCalls: Array<{ kind: string; authMode: string | undefined }>
+    close: ReturnType<typeof vi.fn>
+  }> = []
   class Client {
     setNotificationHandler = vi.fn()
     _transport: { kind: string } | undefined = undefined
@@ -54,11 +59,11 @@ const mcpSdkMock = vi.hoisted(() => {
       this._transport = undefined
     })
     ping = vi.fn().mockResolvedValue(true)
-    connectCalls: Array<{ kind: string }> = []
+    connectCalls: Array<{ kind: string; authMode: string | undefined }> = []
     constructor() {
       clients.push(this)
     }
-    async connect(transport: { kind: string }) {
+    async connect(transport: { kind: string; authMode: string | undefined }) {
       // Mirror MCP SDK Protocol.connect: _transport is set before start() runs, and a failed
       // start() leaves it set. This is what makes the fallback retry fail unless client.close()
       // resets it — the test would not catch that regression otherwise.
@@ -66,7 +71,12 @@ const mcpSdkMock = vi.hoisted(() => {
         throw new Error('Already connected to a transport. Call close() before connecting to a new transport')
       }
       this._transport = transport
-      this.connectCalls.push({ kind: transport.kind })
+      this.connectCalls.push({ kind: transport.kind, authMode: transport.authMode })
+      if (mcpSdkMock.state.requireInteractiveAuth && transport.authMode === 'silent') {
+        const error = new Error('Unauthorized')
+        error.name = 'UnauthorizedError'
+        throw error
+      }
       if (transport.kind === 'sse') {
         throw new SseError(405, 'Non-200 status code (405)')
       }
@@ -89,7 +99,7 @@ const mcpSdkMock = vi.hoisted(() => {
     Client,
     StreamableHTTPError,
     clients,
-    state: { failStreamable: false, failStreamableCode: 503 }
+    state: { failStreamable: false, failStreamableCode: 503, requireInteractiveAuth: false }
   }
 })
 
@@ -347,7 +357,7 @@ describe('McpRuntimeService.restartServer (issue #16242)', () => {
     await service.restartServer('server-1')
 
     expect(mcpCatalogMock.clearSharedToolsCache).toHaveBeenCalledWith('server-1')
-    expect(mcpCatalogMock.refreshTools).toHaveBeenCalledWith('server-1')
+    expect(mcpCatalogMock.refreshTools).toHaveBeenCalledWith('server-1', {})
   })
 })
 
@@ -357,6 +367,7 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     MockMainCacheServiceUtils.resetMocks()
     mcpSdkMock.state.failStreamable = false
     mcpSdkMock.state.failStreamableCode = 503
+    mcpSdkMock.state.requireInteractiveAuth = false
   })
 
   function urlServer(type: 'sse' | 'streamableHttp'): McpServer {
@@ -384,6 +395,33 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     const client = (await (service as any).getOrCreateClient(urlServer('streamableHttp'))) as unknown as MockClient
 
     expect(client.connectCalls.map((c) => c.kind)).toEqual(['streamableHttp'])
+    expect(client.connectCalls[0]?.authMode).toBe('silent')
+  })
+
+  it('passes interactive authorization intent to the OAuth provider', async () => {
+    const service = new McpRuntimeService()
+    const client = (await (service as any).getOrCreateClient(
+      urlServer('streamableHttp'),
+      'interactive'
+    )) as unknown as MockClient
+
+    expect(client.connectCalls[0]?.authMode).toBe('interactive')
+  })
+
+  it('retries interactively when a concurrent silent initialization requires authorization', async () => {
+    mcpSdkMock.state.requireInteractiveAuth = true
+    const service = new McpRuntimeService()
+    const server = urlServer('streamableHttp')
+
+    const silentClient = (service as any).getOrCreateClient(server, 'silent')
+    const interactiveClient = (service as any).getOrCreateClient(server, 'interactive') as Promise<MockClient>
+
+    await expect(silentClient).rejects.toThrow('MCP authorization requires user interaction')
+    await expect(interactiveClient).resolves.toBeDefined()
+    expect(mcpSdkMock.clients.slice(-2).map((client) => client.connectCalls[0]?.authMode)).toEqual([
+      'silent',
+      'interactive'
+    ])
   })
 
   it('propagates the error when both transports fail', async () => {
@@ -405,6 +443,6 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
     await expect((service as any).getOrCreateClient(urlServer('streamableHttp'))).rejects.toThrow()
 
     // The only connect attempt is the configured streamableHttp one — no SSE fallback happened.
-    expect(mcpSdkMock.clients.at(-1)?.connectCalls).toEqual([{ kind: 'streamableHttp' }])
+    expect(mcpSdkMock.clients.at(-1)?.connectCalls).toEqual([{ kind: 'streamableHttp', authMode: 'silent' }])
   })
 })

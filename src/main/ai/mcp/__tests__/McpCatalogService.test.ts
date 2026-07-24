@@ -83,7 +83,7 @@ describe('McpCatalogService', () => {
     const service = new McpCatalogService()
     await service.refreshTools('server-1')
 
-    expect(runtimeService.withClient).toHaveBeenCalled()
+    expect(runtimeService.withClient).toHaveBeenCalledWith('server-1', expect.any(Function), { authMode: 'silent' })
     expect(cacheService.setShared).toHaveBeenCalledWith(
       'mcp.tools.server-1',
       expect.arrayContaining([
@@ -92,6 +92,18 @@ describe('McpCatalogService', () => {
       ])
     )
     expect(runtimeService.setServerStatus).toHaveBeenCalledWith('server-1', 'connected')
+  })
+
+  it('passes interactive authorization intent to a user-triggered refresh', async () => {
+    getById.mockReturnValue(server())
+    listTools.mockResolvedValue({ tools: [sdkTool('search')] })
+
+    const service = new McpCatalogService()
+    await service.refreshTools('server-1', { authMode: 'interactive' })
+
+    expect(runtimeService.withClient).toHaveBeenCalledWith('server-1', expect.any(Function), {
+      authMode: 'interactive'
+    })
   })
 
   it('refreshTools clears the shared tools cache for inactive servers', async () => {
@@ -125,7 +137,7 @@ describe('McpCatalogService', () => {
     await (service as unknown as { prewarmActiveServerTools(): Promise<void> }).prewarmActiveServerTools()
 
     expect(listServers).toHaveBeenCalledWith({ isActive: true })
-    expect(runtimeService.withClient).toHaveBeenCalled()
+    expect(runtimeService.withClient).toHaveBeenCalledWith('server-1', expect.any(Function), { authMode: 'silent' })
     expect(cacheService.setShared).toHaveBeenCalledWith(
       'mcp.tools.server-1',
       expect.arrayContaining([expect.objectContaining({ name: 'search' })])
