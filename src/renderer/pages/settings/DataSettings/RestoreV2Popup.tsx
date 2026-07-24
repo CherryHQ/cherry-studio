@@ -5,7 +5,7 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { createPopup, popup, type PopupInjectedProps } from '@renderer/services/popup'
 import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
-import type { RestoreResultSummary } from '@shared/types/backup'
+import type { RestoreResultSummary, RestoreStatus } from '@shared/types/backup'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -13,7 +13,14 @@ const logger = loggerService.withContext('RestoreV2Popup')
 
 type Props = PopupInjectedProps<Record<string, never>>
 
-type RestorePhase = 'idle' | 'selecting-archive' | 'ready' | 'confirming' | 'relaunching' | 'ready-with-error'
+type RestorePhase =
+  | 'idle'
+  | 'selecting-archive'
+  | 'ready'
+  | 'confirming'
+  | 'relaunching'
+  | 'ready-with-error'
+  | 'outcome'
 
 /**
  * V2 restore popup. No restore progress stream. Success must not toast /
@@ -29,6 +36,12 @@ type RestorePhase = 'idle' | 'selecting-archive' | 'ready' | 'confirming' | 'rel
  * relaunches on its own: this dialog owns the restart via `app.relaunch`, and a
  * resolved startRestore falls back to an empty summary so the button always
  * appears once the journal is staged.
+ *
+ * On open, `backup.restore_status` recovers state this dialog otherwise loses at
+ * the relaunch boundary: `pending` (a sealed restore awaits relaunch — possibly
+ * sealed from another window) re-enters `relaunching` with the empty-summary
+ * fallback; a terminal state enters `outcome`, disclosing what the preboot
+ * promotion actually did, and the acknowledge button clears the journal.
  */
 const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   const { t } = useTranslation()
@@ -38,6 +51,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [errorCode, setErrorCode] = useState<string | null>(null)
   const [summary, setSummary] = useState<RestoreResultSummary | null>(null)
+  const [outcome, setOutcome] = useState<RestoreStatus | null>(null)
 
   const busy = phase === 'selecting-archive' || phase === 'confirming' || phase === 'relaunching'
   const canClose = phase !== 'relaunching'
@@ -53,6 +67,23 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
     setErrorMessage(null)
     setErrorCode(null)
     setSummary(null)
+    setOutcome(null)
+    // Recover journal state across the relaunch boundary (and across windows).
+    // Failure degrades to the plain idle view — the journal stays and reports again.
+    void (async () => {
+      try {
+        const status = await ipcApi.request('backup.restore_status')
+        if (status.state === 'pending') {
+          setSummary((current) => current ?? { toRestore: [], toSkip: [] })
+          setPhase('relaunching')
+        } else if (status.state !== 'none') {
+          setOutcome(status)
+          setPhase('outcome')
+        }
+      } catch (error) {
+        logger.warn('backup.restore_status query failed', error as Error)
+      }
+    })()
   }, [open])
 
   const onClose = () => {
@@ -128,6 +159,17 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
       setErrorCode(code)
       setPhase('ready-with-error')
     }
+  }
+
+  const onAcknowledge = async () => {
+    try {
+      await ipcApi.request('backup.restore_acknowledge')
+    } catch (error) {
+      // Non-fatal: the journal stays and the outcome reports again on next open.
+      logger.warn('backup.restore_acknowledge failed', error as Error)
+    }
+    setOutcome(null)
+    setPhase('idle')
   }
 
   const showPickError = (phase === 'idle' || phase === 'selecting-archive') && Boolean(errorMessage)
@@ -219,6 +261,17 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
           </div>
         )}
 
+        {phase === 'outcome' && outcome && (
+          <div className="flex flex-col gap-2 text-sm" data-testid="v2-restore-outcome">
+            <div className={outcome.state === 'completed' ? undefined : 'text-destructive'}>
+              {t(`settings.data.backup.v2.restore.outcome.${outcome.state}`)}
+            </div>
+            {outcome.reason ? (
+              <div className="break-all text-foreground-secondary text-xs">{outcome.reason}</div>
+            ) : null}
+          </div>
+        )}
+
         {phase === 'ready-with-error' && (
           <div className="mt-3 text-destructive text-sm">
             {t('settings.data.backup.v2.restore.failure')}
@@ -239,6 +292,11 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
           {phase === 'relaunching' && summary && (
             <Button data-testid="v2-restore-restart-button" onClick={() => void ipcApi.request('app.relaunch')}>
               {t('settings.data.backup.v2.restore.summary.restart_button')}
+            </Button>
+          )}
+          {phase === 'outcome' && (
+            <Button data-testid="v2-restore-acknowledge-button" onClick={() => void onAcknowledge()}>
+              {t('settings.data.backup.v2.restore.outcome.acknowledge_button')}
             </Button>
           )}
         </DialogFooter>

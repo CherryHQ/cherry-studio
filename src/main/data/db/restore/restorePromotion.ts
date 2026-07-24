@@ -180,7 +180,12 @@ export function markRestoreFailedAfterCrash(): void {
     return
   }
   restoreLiveFromAside(ctx)
-  finalize(ctx, 'failed', journal.state === 'promoting' ? journal.step : undefined)
+  finalize(
+    ctx,
+    'failed',
+    journal.state === 'promoting' ? journal.step : undefined,
+    'app crashed during restore promotion — the previous database was restored'
+  )
 }
 
 /**
@@ -343,7 +348,7 @@ function expire(ctx: PromotionContext, reason: string): void {
     restoreId: ctx.journal.restoreId,
     reason
   })
-  finalize(ctx, 'expired')
+  finalize(ctx, 'expired', undefined, reason)
 }
 
 // ─── promoting: crash re-entry ───
@@ -393,7 +398,10 @@ async function recoverPromoting(journal: PromotingJournal): Promise<void> {
       restoreId: journal.restoreId,
       step: journal.step
     })
-    rollbackPreCommit(ctx)
+    rollbackPreCommit(
+      ctx,
+      `app crashed at step '${journal.step}' before the commit point — rolled back to the previous database`
+    )
     return
   }
   // Forward resume is legitimate only while the committed state is intact:
@@ -406,7 +414,7 @@ async function recoverPromoting(journal: PromotingJournal): Promise<void> {
       restoreId: journal.restoreId,
       step: journal.step
     })
-    revertPostCommit(ctx)
+    revertPostCommit(ctx, 'restore failed after the commit point — the previous database was restored')
     return
   }
   logger.warn('Crash at/after the commit point — resuming promotion', {
@@ -459,10 +467,11 @@ async function executeForward(ctx: PromotionContext, journal: PromotingJournal):
         continue
       }
       logger.error(`Promotion step '${step}' failed`, error as Error)
+      const reason = `step '${step}' failed: ${error instanceof Error ? error.message : String(error)}`
       if (i <= commitIndex) {
-        rollbackPreCommit(ctx)
+        rollbackPreCommit(ctx, reason)
       } else {
-        revertPostCommit(ctx)
+        revertPostCommit(ctx, reason)
       }
       return
     }
@@ -471,7 +480,10 @@ async function executeForward(ctx: PromotionContext, journal: PromotingJournal):
     } catch (error) {
       if (i < commitIndex) {
         logger.error(`Marker write for '${step}' failed before the commit point — rolling back`, error as Error)
-        rollbackPreCommit(ctx)
+        rollbackPreCommit(
+          ctx,
+          `journal write for step '${step}' failed: ${error instanceof Error ? error.message : String(error)}`
+        )
         return
       }
       logger.error(`Marker write for '${step}' failed at/past the commit point — continuing in memory`, error as Error)
@@ -573,10 +585,10 @@ function applyEntry(ctx: PromotionContext, entry: FileResource): void {
  * restore content is discarded with the staging tree — a failed restore is
  * re-run from the backup archive, never resumed from half-moved files.
  */
-function rollbackPreCommit(ctx: PromotionContext): void {
+function rollbackPreCommit(ctx: PromotionContext, reason?: string): void {
   inverseManifest(ctx)
   restoreLiveFromAside(ctx)
-  finalize(ctx, 'failed')
+  finalize(ctx, 'failed', undefined, reason)
 }
 
 /**
@@ -590,7 +602,7 @@ function rollbackPreCommit(ctx: PromotionContext): void {
  * has run, the live slot holds the OLD DB and parking it would destroy the
  * very database the revert is protecting.
  */
-function revertPostCommit(ctx: PromotionContext): void {
+function revertPostCommit(ctx: PromotionContext, reason?: string): void {
   if (fs.existsSync(ctx.livePath) && fs.existsSync(ctx.asidePath)) {
     const parked = path.join(ctx.userData, `work-failed-${ctx.journal.restoreId}.sqlite`)
     fs.rmSync(parked, { force: true })
@@ -599,7 +611,7 @@ function revertPostCommit(ctx: PromotionContext): void {
   }
   restoreLiveFromAside(ctx)
   inverseManifest(ctx)
-  finalize(ctx, 'failed')
+  finalize(ctx, 'failed', undefined, reason)
 }
 
 function restoreLiveFromAside(ctx: PromotionContext): void {
@@ -665,8 +677,13 @@ function inverseEntry(ctx: PromotionContext, entry: FileResource): void {
  * Terminal journals themselves are kept — BackupService reads them for the
  * post-boot report and owns their deletion.
  */
-function finalize(ctx: PromotionContext, state: 'completed' | 'failed' | 'expired', step?: PromotionStep): void {
-  writeRestoreJournal({ ...ctx.journal, state, step } as RestoreJournal)
+function finalize(
+  ctx: PromotionContext,
+  state: 'completed' | 'failed' | 'expired',
+  step?: PromotionStep,
+  reason?: string
+): void {
+  writeRestoreJournal({ ...ctx.journal, state, step, reason } as RestoreJournal)
   removeStagingTree(ctx.journal.restoreId)
 }
 

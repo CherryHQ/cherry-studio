@@ -5720,6 +5720,12 @@
           "restore": {
             "confirm_content": "Restoring will merge backup data into your current data (local non-empty values are kept), then relaunch the app. Continue?",
             "failure": "Restore failed.",
+            "outcome": {
+              "acknowledge_button": "OK",
+              "completed": "The last restore was applied successfully.",
+              "expired": "The last restore was not applied: the staged data was rejected by the startup check. Your previous data is unchanged.",
+              "failed": "The last restore failed. Your previous data was restored."
+            },
             "pick_prompt": "Select a .cherrybackup backup archive to restore.",
             "relaunching": "Restore staged. The app is relaunching…",
             "selected": "Selected archive:",

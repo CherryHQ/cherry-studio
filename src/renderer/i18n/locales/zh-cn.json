@@ -5720,6 +5720,12 @@
           "restore": {
             "confirm_content": "恢复将把备份数据合并到当前数据中（本地非空数据会保留），并重启应用，是否继续？",
             "failure": "恢复失败。",
+            "outcome": {
+              "acknowledge_button": "知道了",
+              "completed": "上次恢复已成功应用。",
+              "expired": "上次恢复未生效：暂存数据未通过启动检查，原数据保持不变。",
+              "failed": "上次恢复失败，已回滚到恢复前的数据。"
+            },
             "pick_prompt": "请选择要恢复的 .cherrybackup 备份文件。",
             "relaunching": "恢复已暂存，应用正在重启…",
             "selected": "已选择的备份：",

@@ -111,18 +111,18 @@ describe('BackupService restore journal lifecycle (A7)', () => {
       expect(clearRestoreJournalMock).not.toHaveBeenCalled()
     })
 
-    it('clears a failed journal at boot (hygiene)', () => {
+    it('KEEPS a failed journal at boot (awaiting acknowledgement via restore_status)', () => {
       readRestoreJournalMock.mockReturnValue(okJournal('failed', 'live-aside'))
       const service = new BackupService()
       ;(service as unknown as { performRestoreRecovery: () => void }).performRestoreRecovery()
-      expect(clearRestoreJournalMock).toHaveBeenCalledTimes(1)
+      expect(clearRestoreJournalMock).not.toHaveBeenCalled()
     })
 
-    it('clears an expired journal at boot (hygiene)', () => {
+    it('KEEPS an expired journal at boot (awaiting acknowledgement via restore_status)', () => {
       readRestoreJournalMock.mockReturnValue(okJournal('expired'))
       const service = new BackupService()
       ;(service as unknown as { performRestoreRecovery: () => void }).performRestoreRecovery()
-      expect(clearRestoreJournalMock).toHaveBeenCalledTimes(1)
+      expect(clearRestoreJournalMock).not.toHaveBeenCalled()
     })
 
     it('clears a corrupt journal at boot (belt — gate already quarantined)', () => {
@@ -143,6 +143,69 @@ describe('BackupService restore journal lifecycle (A7)', () => {
       readRestoreJournalMock.mockReturnValue(okJournal('promoting', 'live-aside'))
       const service = new BackupService()
       ;(service as unknown as { performRestoreRecovery: () => void }).performRestoreRecovery()
+      expect(clearRestoreJournalMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('getRestoreStatus / acknowledgeRestoreOutcome (B3)', () => {
+    it('maps no journal to none', () => {
+      readRestoreJournalMock.mockReturnValue({ kind: 'none' })
+      expect(new BackupService().getRestoreStatus()).toEqual({ state: 'none' })
+    })
+
+    it('maps a corrupt journal to none (nothing actionable for the UI)', () => {
+      readRestoreJournalMock.mockReturnValue({ kind: 'corrupt', error: 'bad' })
+      expect(new BackupService().getRestoreStatus()).toEqual({ state: 'none' })
+    })
+
+    it('maps staged and promoting to pending', () => {
+      const service = new BackupService()
+      readRestoreJournalMock.mockReturnValue(okJournal('staged'))
+      expect(service.getRestoreStatus()).toEqual({ state: 'pending' })
+      readRestoreJournalMock.mockReturnValue(okJournal('promoting', 'live-aside'))
+      expect(service.getRestoreStatus()).toEqual({ state: 'pending' })
+    })
+
+    it('maps completed to completed', () => {
+      readRestoreJournalMock.mockReturnValue(okJournal('completed', 'integrity-ok'))
+      expect(new BackupService().getRestoreStatus()).toEqual({ state: 'completed' })
+    })
+
+    it('carries the journal reason for failed/expired', () => {
+      const service = new BackupService()
+      readRestoreJournalMock.mockReturnValue({
+        kind: 'ok',
+        journal: { ...baseJournal, state: 'failed', reason: "step 'work-promoted' failed: disk full" }
+      })
+      expect(service.getRestoreStatus()).toEqual({
+        state: 'failed',
+        reason: "step 'work-promoted' failed: disk full"
+      })
+      readRestoreJournalMock.mockReturnValue({
+        kind: 'ok',
+        journal: { ...baseJournal, state: 'expired', reason: 'DB fingerprint mismatch' }
+      })
+      expect(service.getRestoreStatus()).toEqual({
+        state: 'expired',
+        reason: 'DB fingerprint mismatch'
+      })
+    })
+
+    it('acknowledge clears a terminal journal', () => {
+      readRestoreJournalMock.mockReturnValue(okJournal('completed', 'integrity-ok'))
+      expect(new BackupService().acknowledgeRestoreOutcome()).toEqual({ cleared: true })
+      expect(clearRestoreJournalMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('acknowledge refuses to clear a pending journal (gate-owned state)', () => {
+      readRestoreJournalMock.mockReturnValue(okJournal('staged'))
+      expect(new BackupService().acknowledgeRestoreOutcome()).toEqual({ cleared: false })
+      expect(clearRestoreJournalMock).not.toHaveBeenCalled()
+    })
+
+    it('acknowledge is a no-op with no journal', () => {
+      readRestoreJournalMock.mockReturnValue({ kind: 'none' })
+      expect(new BackupService().acknowledgeRestoreOutcome()).toEqual({ cleared: false })
       expect(clearRestoreJournalMock).not.toHaveBeenCalled()
     })
   })

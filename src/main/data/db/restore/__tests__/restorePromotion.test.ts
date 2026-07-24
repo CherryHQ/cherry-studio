@@ -252,6 +252,14 @@ function journalState(): string {
   return read.journal.state
 }
 
+/** Diagnostic reason persisted on failed/expired journals (backup.restore_status carrier). */
+function journalReason(): string | undefined {
+  const read = readRestoreJournal()
+  if (read.kind !== 'ok') throw new Error(`expected readable journal, got ${read.kind}`)
+  const journal = read.journal
+  return journal.state === 'failed' || journal.state === 'expired' ? journal.reason : undefined
+}
+
 describe('runRestorePromotion', () => {
   beforeEach(() => {
     userData = mkdtempSync(join(tmpdir(), 'cs-restore-promotion-'))
@@ -417,6 +425,7 @@ describe('runRestorePromotion', () => {
     await runRestorePromotion()
 
     expect(journalState()).toBe('expired')
+    expect(journalReason()).toContain('fingerprint mismatch')
     expect(readMarker(livePath())).toBe('old')
     expect(hasRow(livePath(), 'drift')).toBe(true)
     expect(existsSync(asidePath())).toBe(false)
@@ -500,6 +509,7 @@ describe('runRestorePromotion', () => {
     expect(existsSync(liveAddedNote())).toBe(false)
     expect(readFileSync(liveNote(), 'utf8')).toBe('NOTE-OLD')
     expect(journalState()).toBe('failed')
+    expect(journalReason()).toContain('before the commit point')
     expect(existsSync(stagingDir())).toBe(false)
   })
 

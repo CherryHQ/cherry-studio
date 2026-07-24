@@ -50,7 +50,12 @@ import { getKnowledgeVectorStoreFilePathSync } from '@main/features/knowledge'
 import { isPathInside } from '@main/utils/file'
 import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
-import type { BackupProgressUpdate, BackupV2StartResult, RestoreResultSummary } from '@shared/types/backup'
+import type {
+  BackupProgressUpdate,
+  BackupV2StartResult,
+  RestoreResultSummary,
+  RestoreStatus
+} from '@shared/types/backup'
 import { and, eq, isNull, sum } from 'drizzle-orm'
 import { app } from 'electron'
 
@@ -520,7 +525,8 @@ export class BackupService extends BaseService {
    *  - staging residue: a restore that crashed mid-staging (before writing the journal)
    *    leaves a half-built work.sqlite + staging tree with no journal to direct cleanup.
    *    With no pending/terminal journal, GC the whole staging root.
-   *  - terminal/corrupt journal: kept for post-boot reporting; cleanup lands later.
+   *  - terminal/corrupt journal: terminal journals are KEPT (they carry the outcome
+   *    disclosed via backup.restore_status until acknowledged); corrupt ones are cleared.
    */
   private performRestoreRecovery(): void {
     const journal = readRestoreJournal()
@@ -530,19 +536,16 @@ export class BackupService extends BaseService {
     }
     if (journal.kind === 'ok') {
       const state = journal.journal.state
-      if (state === 'completed') {
-        // KEEP the completed journal: the gate (restorePromotion.ts) leaves terminal journals for
-        // BackupService to report + delete together ("Reporting + deletion of terminal journals is
-        // owned by BackupService"). A completed journal is the cross-restart disclosure signal for
-        // B3; it is cleared later by B3 (after acknowledge) or by startRestore (next restore). It
-        // blocks nothing here — hasPendingRestore ignores terminal states and the gate skips them.
+      if (state === 'completed' || state === 'failed' || state === 'expired') {
+        // KEEP terminal journals: the gate (restorePromotion.ts) leaves them for BackupService
+        // to report + delete together ("Reporting + deletion of terminal journals is owned by
+        // BackupService"). A terminal journal is the cross-restart disclosure signal consumed
+        // by backup.restore_status; it is cleared by backup.restore_acknowledge (user saw the
+        // outcome) or by the next startRestore. It blocks nothing here — hasPendingRestore
+        // ignores terminal states and the gate only re-runs staging cleanup on them.
         logger.warn(
-          `completed restore journal kept at init (awaiting disclosure): restoreId=${journal.journal.restoreId}`
+          `terminal restore journal kept at init (awaiting acknowledgement): state=${state} restoreId=${journal.journal.restoreId}`
         )
-      } else if (state === 'failed' || state === 'expired') {
-        // Terminal but not the success-report carrier — clear for hygiene so it doesn't linger.
-        logger.warn(`clearing terminal restore journal at init: state=${state} restoreId=${journal.journal.restoreId}`)
-        clearRestoreJournal()
       } else {
         // staged/promoting: the preboot gate (runs before services start) should have consumed
         // these; reaching onInit with one is unexpected — leave it for the gate on the next boot.
@@ -553,6 +556,47 @@ export class BackupService extends BaseService {
       logger.warn('clearing corrupt restore journal at BackupService init')
       clearRestoreJournal()
     }
+  }
+
+  /**
+   * Map the restore journal onto the UI-facing outcome (backup.restore_status).
+   * Corrupt journals report as `none`: the preboot gate quarantines them, and
+   * there is nothing actionable to show the user.
+   */
+  getRestoreStatus(): RestoreStatus {
+    const journal = readRestoreJournal()
+    if (journal.kind !== 'ok') {
+      return { state: 'none' }
+    }
+    const state = journal.journal.state
+    if (state === 'staged' || state === 'promoting') {
+      return { state: 'pending' }
+    }
+    if (state === 'failed' || state === 'expired') {
+      return { state, reason: journal.journal.reason }
+    }
+    return { state: 'completed' }
+  }
+
+  /**
+   * User has seen a terminal restore outcome — clear the journal so it stops
+   * being reported. Pending journals (staged/promoting) are never cleared here:
+   * they belong to the preboot gate's crash-recovery state.
+   */
+  acknowledgeRestoreOutcome(): { cleared: boolean } {
+    const journal = readRestoreJournal()
+    if (journal.kind !== 'ok') {
+      return { cleared: false }
+    }
+    const state = journal.journal.state
+    if (state !== 'completed' && state !== 'failed' && state !== 'expired') {
+      return { cleared: false }
+    }
+    logger.info(
+      `restore outcome acknowledged — clearing journal: state=${state} restoreId=${journal.journal.restoreId}`
+    )
+    clearRestoreJournal()
+    return { cleared: true }
   }
 
   /**

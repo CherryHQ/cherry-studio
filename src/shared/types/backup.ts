@@ -82,3 +82,20 @@ export interface RestoreResultSummary {
   readonly toRestore: ReadonlyArray<{ readonly kind: ResourceClass; readonly count: number }>
   readonly toSkip: ReadonlyArray<{ readonly id: string; readonly kind: ResourceClass; readonly reason: string }>
 }
+
+/**
+ * Current restore journal outcome, returned by `backup.restore_status` so the
+ * UI can disclose what happened across the relaunch boundary (promotion runs
+ * preboot — its result outlives the window that requested it).
+ *
+ * - `pending`: a sealed restore awaits relaunch (or an interrupted promotion
+ *   awaits the next boot) — offer restart, not a new restore.
+ * - `completed` / `failed` / `expired`: terminal outcome awaiting user
+ *   acknowledgement via `backup.restore_acknowledge`; `reason` carries the
+ *   journal's raw diagnostic for failed/expired.
+ * - `none`: no journal (or corrupt — nothing actionable for the UI).
+ */
+export interface RestoreStatus {
+  readonly state: 'none' | 'pending' | 'completed' | 'failed' | 'expired'
+  readonly reason?: string
+}

@@ -81,6 +81,8 @@ describe('RestoreV2Popup', () => {
     selectMock.mockReset()
     confirmMock.mockReset()
     requestMock.mockReset()
+    // Every open queries backup.restore_status; default to the no-journal answer.
+    requestMock.mockResolvedValue({ state: 'none' })
     ipcListeners.clear()
     document.body.innerHTML = ''
   })
@@ -222,6 +224,53 @@ describe('RestoreV2Popup', () => {
 
     expect(screen.getByText('settings.data.backup.v2.restore.summary.none')).toBeInTheDocument()
     expect(screen.queryByText('settings.data.backup.v2.restore.summary.will_skip')).not.toBeInTheDocument()
+  })
+
+  it('recovers the sealed-wait view when restore_status reports pending', async () => {
+    requestMock.mockImplementation(async (route: string) =>
+      route === 'backup.restore_status' ? { state: 'pending' } : undefined
+    )
+
+    await RestoreV2Popup.show()
+
+    await waitFor(() => expect(screen.getByTestId('v2-restore-restart-button')).toBeInTheDocument())
+    // Empty-summary fallback: the original disclosure is lost across windows/relaunch.
+    expect(screen.getByText('settings.data.backup.v2.restore.summary.pending_hint')).toBeInTheDocument()
+    expect(screen.getByText('settings.data.backup.v2.restore.summary.none')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('v2-restore-restart-button'))
+    expect(requestMock).toHaveBeenCalledWith('app.relaunch')
+  })
+
+  it('shows a completed outcome and returns to idle after acknowledge', async () => {
+    requestMock.mockImplementation(async (route: string) => {
+      if (route === 'backup.restore_status') return { state: 'completed' }
+      if (route === 'backup.restore_acknowledge') return { cleared: true }
+      return undefined
+    })
+
+    await RestoreV2Popup.show()
+
+    await waitFor(() => expect(screen.getByTestId('v2-restore-outcome')).toBeInTheDocument())
+    expect(screen.getByText('settings.data.backup.v2.restore.outcome.completed')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('v2-restore-acknowledge-button'))
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith('backup.restore_acknowledge'))
+    await waitFor(() => expect(screen.getByText('settings.data.backup.v2.restore.pick_prompt')).toBeInTheDocument())
+    expect(screen.queryByTestId('v2-restore-outcome')).not.toBeInTheDocument()
+  })
+
+  it('shows a failed outcome with the journal reason', async () => {
+    requestMock.mockImplementation(async (route: string) =>
+      route === 'backup.restore_status'
+        ? { state: 'failed', reason: "step 'work-promoted' failed: disk full" }
+        : { cleared: true }
+    )
+
+    await RestoreV2Popup.show()
+
+    await waitFor(() => expect(screen.getByText('settings.data.backup.v2.restore.outcome.failed')).toBeInTheDocument())
+    expect(screen.getByText("step 'work-promoted' failed: disk full")).toBeInTheDocument()
   })
 
   it('shows select failure on idle when no archive was chosen yet', async () => {
