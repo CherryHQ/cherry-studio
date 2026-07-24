@@ -19,6 +19,7 @@
  */
 
 import { loggerService } from '@logger'
+import { markV1CustomCss } from '@shared/data/preference/customCss'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 
 import { type LegacyModelRef, legacyModelToUniqueId } from '../transformers/ModelTransformers'
@@ -88,6 +89,15 @@ function transformSidebarFavorites(): TransformResult {
   }
 }
 
+function transformV1CustomCss(sources: Record<string, unknown>): TransformResult {
+  const customCss = sources.customCss
+  if (typeof customCss !== 'string') return {}
+
+  return {
+    'ui.custom_css': markV1CustomCss(customCss)
+  }
+}
+
 // ============================================================================
 // Complex Mappings Configuration
 // ============================================================================
@@ -137,6 +147,22 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     transform: flattenCompressionConfig
   },
 
+  {
+    id: 'onboarding_completed_migrate',
+    description: 'Convert legacy localStorage onboarding-completed into the v2 provider setup status',
+    sources: {
+      completed: { source: 'localStorage', key: 'onboarding-completed' }
+    },
+    targetKeys: ['app.onboarding.provider_setup.status'],
+    transform: (sources) => {
+      if (sources.completed === undefined || sources.completed === null) return {}
+      return {
+        'app.onboarding.provider_setup.status':
+          sources.completed === true || sources.completed === 'true' ? 'completed' : 'pending'
+      }
+    }
+  },
+
   // CodeCLI: no migration — feature.code_cli.configs is a fresh v2 key (v1 codeTools is throwaway).
 
   // Shortcut preferences (legacy array → per-key PreferenceShortcutType)
@@ -160,6 +186,16 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     },
     targetKeys: ['ui.sidebar.favorites'],
     transform: transformSidebarFavorites
+  },
+
+  {
+    id: 'custom_css_v1_marker',
+    description: 'Preserve legacy custom CSS behind a versioned marker until the user reviews it for v2',
+    sources: {
+      customCss: { source: 'redux', category: 'settings', key: 'customCss' }
+    },
+    targetKeys: ['ui.custom_css'],
+    transform: transformV1CustomCss
   },
 
   // File processing overrides merging

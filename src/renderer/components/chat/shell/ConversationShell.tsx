@@ -4,7 +4,7 @@ import { cn } from '@renderer/utils/style'
 import type { ReactNode, Ref } from 'react'
 
 import { useOptionalRightPanelState } from '../panes/Shell'
-import { ChatAppShell } from './ChatAppShell'
+import { ChatAppShell, type PaneManualToggleSignal } from './ChatAppShell'
 import { ConversationTopBarPortalProvider } from './ConversationTopBarPortal'
 import type { ChatPanePosition } from './paneLayout'
 
@@ -29,6 +29,7 @@ export interface ConversationShellProps {
   centerClassName?: string
   onPaneCollapse?: () => void
   onPaneAutoCollapseChange?: (collapsed: boolean) => void
+  paneManualToggle?: PaneManualToggleSignal
 }
 
 export default function ConversationShell({
@@ -50,7 +51,8 @@ export default function ConversationShell({
   centerRef,
   centerClassName,
   onPaneCollapse,
-  onPaneAutoCollapseChange
+  onPaneAutoCollapseChange,
+  paneManualToggle
 }: ConversationShellProps) {
   const { mode } = useWindowFrame()
   const isWindow = mode === 'window'
@@ -89,6 +91,7 @@ export default function ConversationShell({
             centerClassName={centerClassName}
             onPaneCollapse={onPaneCollapse}
             onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+            paneManualToggle={paneManualToggle}
           />
         </ConversationTopBarPortalProvider>
       </QuickPanelProvider>

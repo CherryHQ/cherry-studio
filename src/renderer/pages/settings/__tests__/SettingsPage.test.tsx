@@ -39,6 +39,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
       ({
+        'agent.settings.toolsMcp.mcp.tab': 'MCP',
         'selection.name': '划词助手',
         'settings.channels.title': '频道',
         'settings.dependencies.title': '环境依赖',
@@ -51,6 +52,7 @@ vi.mock('react-i18next', () => ({
         'settings.quickAssistant.title': '快捷助手',
         'settings.scheduledTasks.title': '定时任务',
         'settings.shortcuts.title': '快捷键',
+        'settings.skills.title': '技能',
         'settings.system.title': '系统',
         'settings.tool.file_processing.features.image_to_text.title': 'OCR',
         'settings.tool.file_processing.features.document_to_markdown.title': '文档处理'
@@ -99,6 +101,20 @@ describe('SettingsPage', () => {
 
     fireEvent.click(dependenciesItem)
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/dependencies' })
+  })
+
+  it('places Skills directly below MCP and opens the Skills settings page', () => {
+    render(<SettingsPage />)
+
+    const mcpItem = screen.getByText('MCP').closest('button')
+    const skillsItem = screen.getByRole('button', { name: '技能' })
+
+    expect(mcpItem).not.toBeNull()
+    expect(mcpItem?.nextElementSibling).toBe(skillsItem)
+    expect(skillsItem.querySelector('.lucide-tool-case')).toBeInTheDocument()
+
+    fireEvent.click(skillsItem)
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/skills' })
   })
 
   it('merges quick access into efficiency and places both assistants last', () => {

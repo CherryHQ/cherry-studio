@@ -2,6 +2,9 @@
 
 The catalog of AI **models** (what exists) and **providers** (how to reach them), plus the **M:N link** between them. It is a **code-generation pipeline**: hand-maintained TypeScript source + pinned upstream snapshots → three generated JSON files → read at runtime by the app.
 
+Reasoning controls have an additional model-capability/request-encoding boundary documented in
+[reasoning-control.md](./reasoning-control.md).
+
 > The three `data/*.json` files are **pure artifacts**. Never hand-edit them — edit the source and run `pnpm generate`. See [../CLAUDE.md](../CLAUDE.md).
 
 ## Data flow
@@ -26,7 +29,7 @@ The pipeline never reads its own previous output — the JSON is a function of `
 | --- | --- | --- |
 | `data/models.json` | **Creator catalog** — every model that exists, with intrinsic metadata: `capabilities`, `inputModalities` / `outputModalities`, `contextWindow`, `maxOutputTokens`, `ownedBy`. | canonical model id |
 | `data/providers.json` | **Connection config** — per provider: `endpointConfigs` (baseUrl + adapterFamily per endpoint type), `defaultChatEndpoint`, `apiFeatures`, `metadata.website`. | provider id |
-| `data/provider-models.json` | **M:N overrides** — one row per *(provider, model)* a provider serves that needs non-derivable data: `apiModelId` mapping, per-provider `pricing`, `imageGeneration` transport, `disabled`, or a **standalone** vendor-exclusive model (carries its own `name`). | (providerId, modelId) |
+| `data/provider-models.json` | **M:N overrides** — one row per *(provider, model)* that needs non-derivable data: `apiModelId`, pricing, image transport, endpoint-keyed `reasoningContracts`, `disabled`, or a standalone vendor-exclusive model. | (providerId, modelId) |
 
 First-party / standard cases emit **no** row — the runtime resolves `apiModelId → normalizeModelId → models.json` for all metadata, so a row only exists to carry what can't be derived.
 
@@ -52,7 +55,7 @@ A provider declares how to connect + what it serves. Fields:
 - Connection: `id`, `name`, `endpointConfigs`, `defaultChatEndpoint`, `apiFeatures`, `metadata` — emitted to `providers.json` (minus `description`, which is templated).
 - `modelsDevProvider` — models.dev key whose listing is this provider's served catalog (with per-model pricing). **Generation-only**, not emitted to `providers.json`.
 - `fetchModels()` — or pull the served list from the provider's own API.
-- `overrides[]` — manual `ProviderModelOverride`s for what the runtime can't derive: bedrock arns, `apiModelId` maps, `pricing`, `imageGeneration` transport, `disabled`, standalone models.
+- `overrides[]` — manual `ProviderModelOverride`s for what the runtime can't derive: bedrock arns, `apiModelId` maps, pricing, image transport, endpoint-keyed reasoning contracts, `disabled`, and standalone models.
 
 `openaiCompatible({ id, name, baseUrl, … })` is the helper for the ~half of providers that are a plain OpenAI-compatible endpoint.
 

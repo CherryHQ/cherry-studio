@@ -17,7 +17,6 @@ import ChatPreferenceSections from '@renderer/components/chat/settings/ChatPrefe
 import ResetIcon from '@renderer/components/icons/ResetIcon'
 import Selector from '@renderer/components/Selector'
 import {
-  SettingDescription,
   SettingDivider,
   SettingGroup,
   SettingRow,
@@ -29,6 +28,7 @@ import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useUserTheme from '@renderer/hooks/useUserTheme'
+import { appLanguageOptions, isAppLanguage } from '@renderer/i18n/languages'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
@@ -36,10 +36,11 @@ import { toast } from '@renderer/services/toast'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { isLinux, isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
+import { hasV1CustomCssMarker, removeV1CustomCssMarker } from '@shared/data/preference/customCss'
 import type { LanguageVarious, MenuPresentationMode } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { defaultLanguage } from '@shared/utils/languages'
-import { Minus, Monitor, Moon, Plus, Sun } from 'lucide-react'
+import { AlertTriangle, Download, Minus, Monitor, Moon, Plus, Sun } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -69,21 +70,6 @@ type MenuPresentationModeChangeOptions = {
 
 const defaultFontPreviewFamily = 'Ubuntu, -apple-system, system-ui, Arial, sans-serif'
 const logger = loggerService.withContext('AppearanceSettings')
-
-const languagesOptions: { value: LanguageVarious; label: string; flag: string }[] = [
-  { value: 'zh-CN', label: '中文', flag: '🇨🇳' },
-  { value: 'zh-TW', label: '中文（繁体）', flag: '🇭🇰' },
-  { value: 'en-US', label: 'English', flag: '🇺🇸' },
-  { value: 'de-DE', label: 'Deutsch', flag: '🇩🇪' },
-  { value: 'ja-JP', label: '日本語', flag: '🇯🇵' },
-  { value: 'ru-RU', label: 'Русский', flag: '🇷🇺' },
-  { value: 'el-GR', label: 'Ελληνικά', flag: '🇬🇷' },
-  { value: 'es-ES', label: 'Español', flag: '🇪🇸' },
-  { value: 'fr-FR', label: 'Français', flag: '🇫🇷' },
-  { value: 'pt-PT', label: 'Português', flag: '🇵🇹' },
-  { value: 'ro-RO', label: 'Română', flag: '🇷🇴' },
-  { value: 'vi-VN', label: 'Tiếng Việt', flag: '🇻🇳' }
-]
 
 export async function confirmMenuPresentationModeChange({
   currentMode,
@@ -141,19 +127,28 @@ const AppearanceSettings: FC = () => {
   const [currentZoom, setCurrentZoom] = useState(1.0)
   const [fontList, setFontList] = useState<string[]>([])
   const isDefaultZoom = Math.abs(currentZoom - DEFAULT_ZOOM_FACTOR) < 0.001
+  const isV1CustomCss = hasV1CustomCssMarker(customCss)
 
-  const displayLanguage = useMemo(() => {
-    if (language && languagesOptions.some((opt) => opt.value === language)) {
-      return language
+  const handleExportV1CustomCss = async () => {
+    try {
+      const savedPath = await window.api.file.save('cherry-studio-v1-custom.css', removeV1CustomCssMarker(customCss), {
+        filters: [{ name: 'CSS', extensions: ['css'] }]
+      })
+      if (savedPath) {
+        toast.success(t('settings.display.custom.css.export_success'))
+      }
+    } catch (error) {
+      logger.error('Failed to export v1 custom CSS', error as Error)
+      toast.error(t('settings.display.custom.css.export_error'))
     }
+  }
 
-    const resolved = i18n.resolvedLanguage ?? i18n.language
-    if (resolved && languagesOptions.some((opt) => opt.value === resolved)) {
-      return resolved as LanguageVarious
-    }
-
-    return defaultLanguage
-  }, [language, i18n.resolvedLanguage, i18n.language])
+  const resolvedLanguage = i18n.resolvedLanguage ?? i18n.language
+  const displayLanguage = isAppLanguage(language)
+    ? language
+    : isAppLanguage(resolvedLanguage)
+      ? resolvedLanguage
+      : defaultLanguage
 
   const themeOptions = useMemo(
     () => [
@@ -369,7 +364,7 @@ const AppearanceSettings: FC = () => {
               style={{ width: '100%' }}
               value={displayLanguage}
               onChange={onSelectLanguage}
-              options={languagesOptions.map((lang) => ({
+              options={appLanguageOptions.map((lang) => ({
                 label: (
                   <Flex className="items-center gap-2">
                     <span role="img" aria-label={lang.flag}>
@@ -557,13 +552,19 @@ const AppearanceSettings: FC = () => {
       </SettingGroup>
 
       <SettingGroup theme={theme} className={appearanceSectionClassName}>
-        <SettingTitle>
-          {t('settings.display.custom.css.label')}
-          <TitleExtra onClick={() => ipcApi.request('system.shell.open_website', 'https://cherrycss.com/')}>
-            {t('settings.display.custom.css.cherrycss')}
-          </TitleExtra>
-        </SettingTitle>
-        <SettingDescription>{t('settings.display.custom.css.placeholder')}</SettingDescription>
+        <SettingTitle>{t('settings.display.custom.css.label')}</SettingTitle>
+        {isV1CustomCss ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg bg-warning-bg px-3 py-2 text-warning">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <AlertTriangle className="size-4 shrink-0" />
+              <span className="text-xs">{t('settings.display.custom.css.legacy_warning')}</span>
+            </div>
+            <Button variant="secondary" size="sm" className="shrink-0" onClick={() => void handleExportV1CustomCss()}>
+              <Download />
+              {t('settings.display.custom.css.export')}
+            </Button>
+          </div>
+        ) : null}
         <div className="mt-4 overflow-hidden rounded-lg border border-border/60">
           <CodeEditor
             theme={activeCmTheme}
@@ -587,10 +588,6 @@ const AppearanceSettings: FC = () => {
     </SettingsContentColumn>
   )
 }
-
-const TitleExtra = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('cursor-pointer text-xs underline opacity-70', className)} {...props} />
-)
 
 const ZoomButtonGroup = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div className={cn('flex w-full min-w-0 max-w-52.5 items-center justify-end', className)} {...props} />

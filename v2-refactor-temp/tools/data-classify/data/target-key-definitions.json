@@ -13,6 +13,20 @@
       "description": "Prevent system sleep while the app has active work (v2 new feature, no v1 source)"
     },
     {
+      "targetKey": "app.onboarding.provider_setup.status",
+      "type": "PreferenceTypes.OnboardingProviderSetupStatus",
+      "defaultValue": "pending",
+      "status": "classified",
+      "description": "Status of the main-window first-run provider setup onboarding flow"
+    },
+    {
+      "targetKey": "app.privacy.policy_version",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "Latest privacy policy version acknowledged by the user"
+    },
+    {
       "targetKey": "app.window.position.x",
       "type": "number",
       "defaultValue": 0,
@@ -138,6 +152,13 @@
       "description": "Launchpad built-in app tile order, independent from the sidebar favorites order (new v2 preference, no v1 source). Empty defaults to the canonical app order; unknown/missing apps are normalized at read time"
     },
     {
+      "targetKey": "ui.custom_css",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "Custom CSS for v2. Non-empty v1 CSS is preserved in this key with a versioned first-line marker that keeps it disabled until reviewed."
+    },
+    {
       "targetKey": "chat.default_model_id",
       "type": "string",
       "defaultValue": null,
@@ -260,11 +281,24 @@
       "description": "Translate page target language (from complex migration)"
     },
     {
-      "targetKey": "feature.binary.tools",
-      "type": "PreferenceTypes.ManagedBinary[]",
-      "defaultValue": "VALUE: [] as PreferenceTypes.ManagedBinary[]",
+      "targetKey": "feature.binary.install_settings",
+      "type": "PreferenceTypes.BinaryInstallSettings",
+      "defaultValue": {
+        "githubMirror": "",
+        "githubToken": "",
+        "npmRegistry": "",
+        "pipIndexUrl": "",
+        "verifySignatures": true
+      },
       "status": "classified",
-      "description": "List of tools to install via BinaryManager"
+      "description": "BinaryManager's isolated mise install settings"
+    },
+    {
+      "targetKey": "feature.binary.tools",
+      "type": "PreferenceTypes.CustomToolDefinition[]",
+      "defaultValue": "VALUE: [] as PreferenceTypes.CustomToolDefinition[]",
+      "status": "classified",
+      "description": "BinaryManager custom tool registry: each entry is a user-added custom tool definition; requestedVersion is an optional version pin"
     },
     {
       "targetKey": "shortcut.app.fullscreen.exit",

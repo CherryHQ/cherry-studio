@@ -58,6 +58,7 @@ import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import { resolveReasoningEffortForModel } from '@renderer/utils/model'
 import { cn } from '@renderer/utils/style'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
@@ -1092,16 +1093,15 @@ const AgentComposerInner = ({
     [agentId, t]
   )
 
-  const skillPanelItems = useMemo<QuickPanelListItem[]>(
-    () => [
-      ...createSkillQuickPanelItems(availableSkills, {
+  const skillItems = useMemo<QuickPanelListItem[]>(
+    () =>
+      createSkillQuickPanelItems(availableSkills, {
         skillLabel: t('plugins.skills'),
         onInsertSkill: insertSkillToken
       }),
-      skillManageFooterItem
-    ],
-    [availableSkills, insertSkillToken, skillManageFooterItem, t]
+    [availableSkills, insertSkillToken, t]
   )
+  const skillPanelItems = useMemo(() => [...skillItems, skillManageFooterItem], [skillItems, skillManageFooterItem])
 
   const skillsLauncher = useMemo<ComposerToolLauncher>(() => {
     const skillLabel = t('plugins.skills')
@@ -1109,12 +1109,12 @@ const AgentComposerInner = ({
       id: AGENT_SKILLS_LAUNCHER_ID,
       kind: 'panel',
       sources: ['root-panel'],
-      rootPanelPlacement: 'trailing',
-      order: 60,
+      order: 40,
       label: skillLabel,
       icon: <ToolCase />,
       searchAliases: [skillLabel],
       panelSymbol: AGENT_SKILLS_LAUNCHER_ID,
+      rootSearchItems: skillItems,
       action: ({ parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
         void refreshAvailableSkills().catch((error) => {
           logger.warn('Failed to refresh available skills when opening the skills panel', { error })
@@ -1129,7 +1129,7 @@ const AgentComposerInner = ({
         })
       }
     }
-  }, [refreshAvailableSkills, skillPanelItems, t])
+  }, [refreshAvailableSkills, skillItems, skillPanelItems, t])
 
   useEffect(
     () => toolsRegistry.registerLaunchers(AGENT_SKILLS_LAUNCHER_ID, [skillsLauncher]),
@@ -1175,9 +1175,11 @@ const AgentComposerInner = ({
   )
 
   const handleModelSelect = useCallback(
-    (nextModel?: Model) => {
+    async (nextModel?: Model) => {
       if (!canChangeModel || !nextModel || nextModel.id === model?.id) return
-      void updateModel(agentId, nextModel.id, { showSuccessToast: false })
+      const updatedAgent = await updateModel(agentId, nextModel.id, { showSuccessToast: false })
+      if (!updatedAgent) return
+      setReasoningEffort((current) => resolveReasoningEffortForModel(nextModel, current) ?? 'default')
     },
     [agentId, canChangeModel, model?.id, updateModel]
   )
@@ -1206,10 +1208,11 @@ const AgentComposerInner = ({
     ]
   }, [handleCreateEmptySession, hasNewSessionAction, t])
 
-  const toolsSession = useMemo(() => {
-    if (!sessionData) return undefined
-    return { ...sessionData, reasoningEffort, onReasoningEffortChange: setReasoningEffort }
-  }, [sessionData, reasoningEffort])
+  const toolsSession = sessionData
+  const reasoningContext = useMemo(
+    () => ({ effort: reasoningEffort, onEffortChange: setReasoningEffort }),
+    [reasoningEffort]
+  )
 
   // File reconcile (prune + dedup) is owned by attachmentTool via the tools DI seam. Skill
   // reconcile stays here (agent-only, no shared duplication) alongside the editor draft-token
@@ -1257,8 +1260,12 @@ const AgentComposerInner = ({
 
   const buildQueuedPayload = useCallback(
     (draft: ComposerSerializedDraft): ComposerQueuedMessagePayload | null =>
-      buildComposerQueuedPayload(draft, { files, fileTokenId: agentComposerTokenId.file }),
-    [files]
+      buildComposerQueuedPayload(draft, {
+        files,
+        fileTokenId: agentComposerTokenId.file,
+        extra: () => ({ reasoningEffort })
+      }),
+    [files, reasoningEffort]
   )
 
   const sendQueuedPayload = useCallback(
@@ -1268,7 +1275,14 @@ const AgentComposerInner = ({
         const fileParts = await buildAgentFilePartsForAttachments(attachments, accessiblePaths)
         await chatSendMessage(
           { text: payload.text },
-          { body: { agentId, sessionId, userMessageParts: [...payload.userMessageParts, ...fileParts] } }
+          {
+            body: {
+              agentId,
+              sessionId,
+              userMessageParts: [...payload.userMessageParts, ...fileParts],
+              reasoningEffort: payload.reasoningEffort
+            }
+          }
         )
         void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionTopicId })
         saveHistory(payload.text)
@@ -1507,7 +1521,9 @@ const AgentComposerInner = ({
 
   return (
     <ComposerToolDerivedStateProvider couldAddImageFile={canAddImageFile} extensions={supportedExts}>
-      {model && <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} />}
+      {model && (
+        <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} reasoning={reasoningContext} />
+      )}
       <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedToolIds}>
         <ComposerSurface

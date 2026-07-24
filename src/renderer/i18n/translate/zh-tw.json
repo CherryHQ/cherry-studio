@@ -566,7 +566,7 @@
       },
       "prompt": "提示設定",
       "skills": {
-        "addMore": "添加更多技能",
+        "addMore": "管理技能",
         "builtin": "內建",
         "noFilterResults": "沒有符合的技能",
         "noSkills": "未安裝任何技能。請前往「設定」>「技能」安裝技能。",
@@ -640,11 +640,6 @@
       }
     },
     "sidebar_title": "Agents",
-    "skill": {
-      "manage": {
-        "title": "管理技能"
-      }
-    },
     "tasks": {
       "add": "新增任務",
       "cancel": "取消",
@@ -1059,12 +1054,18 @@
     "edit": {
       "title": "編輯助手"
     },
+    "groups": {
+      "delete": "[to be translated]:Delete Group",
+      "deleteConfirm": "[to be translated]:Are you sure you want to delete this group?",
+      "group_by": "[to be translated]:Show in groups",
+      "ungroup": "[to be translated]:Stop grouping",
+      "ungrouped": "[to be translated]:Ungrouped"
+    },
     "icon": {
       "type": "助手圖示"
     },
     "list": {
-      "showByList": "列表顯示",
-      "showByTags": "標籤顯示"
+      "showByList": "列表顯示"
     },
     "pin": {
       "title": "圖釘助理"
@@ -1222,6 +1223,8 @@
         "label": "思維鏈長度",
         "low": "稍微思考",
         "low_description": "低階推理",
+        "max": "全力思考",
+        "max_description": "最高階推理",
         "medium": "正常思考",
         "medium_description": "中等程度推理",
         "minimal": "最少思考",
@@ -1248,20 +1251,6 @@
         "label": "工具呼叫方式",
         "prompt": "提示詞"
       }
-    },
-    "tags": {
-      "add": "新增標籤",
-      "delete": "刪除標籤",
-      "deleteConfirm": "確定要刪除這個標籤嗎？",
-      "group_by": "依標籤分組",
-      "manage": "標籤管理",
-      "modify": "修改標籤",
-      "none": "暫無標籤",
-      "settings": {
-        "title": "標籤設定"
-      },
-      "ungroup": "關閉標籤分組",
-      "untagged": "未分組"
     },
     "title": "助手",
     "unpin": {
@@ -1402,6 +1391,7 @@
       },
       "generate_image": "產生圖片",
       "generate_image_no_model": "請在 設定 › 預設模型 中設定繪圖模型",
+      "image_preview_failed": "[to be translated]:Image preview failed",
       "knowledge_base": "知識庫",
       "knowledge_base_disabled_by_files": "移除附加檔案以使用知識庫",
       "knowledge_base_unavailable": "選擇具備工具能力的模型或啟用提示工具使用",
@@ -1573,6 +1563,23 @@
       "regenerate": {
         "model": "切換模型"
       },
+      "token_details": {
+        "cache_read": "[to be translated]:Cache read",
+        "cache_write": "[to be translated]:Cache write",
+        "input": "[to be translated]:Input",
+        "input_breakdown": "[to be translated]:Input breakdown",
+        "output": "[to be translated]:Output",
+        "reasoning": "[to be translated]:Reasoning",
+        "reasoning_time": "[to be translated]:Reasoning",
+        "request_duration": "[to be translated]:Generation timing",
+        "text_generation": "[to be translated]:Text generation",
+        "text_output": "[to be translated]:Text output",
+        "tokens": "[to be translated]:{{value}} Tokens",
+        "tokens_per_second_value": "[to be translated]:{{value}} Tokens/s",
+        "uncached": "[to be translated]:Uncached",
+        "usage": "[to be translated]:Token usage",
+        "waiting_first_token": "[to be translated]:Waiting"
+      },
       "useful": {
         "label": "設為上下文",
         "tip": "在這組訊息中，該訊息將被選擇加入上下文"
@@ -1598,8 +1605,7 @@
     "resource_view": {
       "menu": {
         "agent": "智能體",
-        "assistant": "助手",
-        "skill": "技能"
+        "assistant": "助手"
       }
     },
     "save": {
@@ -1983,6 +1989,7 @@
         "default": "預設",
         "high": "高",
         "low": "低",
+        "max": "全力思考",
         "medium": "中",
         "minimal": "最小",
         "xhigh": "超高"
@@ -2177,6 +2184,7 @@
     "copy_failed": "複製失敗",
     "create_success": "已成功建立",
     "current": "目前",
+    "decline": "不同意",
     "default": "預設",
     "delete": "刪除",
     "delete_confirm": "確定要刪除嗎？",
@@ -2279,6 +2287,7 @@
     "swap": "交換",
     "topics": "對話",
     "translate_text": "翻譯文字",
+    "undo": "[to be translated]:Undo",
     "unknown": "未知",
     "unnamed": "未命名",
     "unsubscribe": "取消訂閱",
@@ -2317,6 +2326,7 @@
     "image-generation": "影像產生（OpenAI）",
     "jina-rerank": "Jina Rerank",
     "openai": "OpenAI",
+    "openai-embeddings": "[to be translated]:Embeddings (OpenAI)",
     "openai-response": "OpenAI-Response"
   },
   "error": {
@@ -2433,13 +2443,19 @@
     "text": "文字",
     "toolInput": "工具輸入",
     "toolName": "工具名稱",
+    "tool_call_limit_reached": "[to be translated]:The assistant reached the tool-call limit before producing a final answer. Try again or reduce the task scope.",
     "truncated": "資料已截斷，原始大小",
     "truncatedBadge": "已截斷",
     "unknown": "未知錯誤",
     "usage": "用量",
     "user_message_not_found": "無法找到原始使用者訊息",
     "value": "值",
-    "values": "值"
+    "values": "值",
+    "web_lookup_network_error": "[to be translated]:Web access failed. Check your network connection and try again.",
+    "web_search_api_host_invalid": "[to be translated]:Web search is unavailable because the configured provider's API host is invalid. Enter a valid HTTP(S) URL in Settings → Web Search, then try again.",
+    "web_search_api_host_missing": "[to be translated]:Web search is unavailable because the configured provider is missing an API host. Add one in Settings → Web Search, then try again.",
+    "web_search_api_key_missing": "[to be translated]:Web search is unavailable because the configured provider is missing an API key. Add one in Settings → Web Search, then try again.",
+    "web_search_provider_unavailable": "[to be translated]:Web search is unavailable because no compatible provider is configured. Configure one in Settings → Web Search, then try again."
   },
   "export": {
     "assistant": "助手",
@@ -3118,7 +3134,7 @@
       "duplicate": "複製",
       "edit": "編輯",
       "enable": "啟用",
-      "manage_tags": "管理標籤",
+      "manage_groups": "[to be translated]:Manage groups",
       "uninstall": "解除安裝"
     },
     "assistant_catalog": {
@@ -3317,6 +3333,9 @@
             "hint": "啟用時限制權杖取樣範圍"
           }
         },
+        "group": "[to be translated]:Group",
+        "group_empty": "[to be translated]:No groups available",
+        "group_placeholder": "[to be translated]:Select group",
         "json_invalid": "無效的 JSON 格式",
         "max_tokens": "最大權杖",
         "max_tool_calls": "最大工具呼叫",
@@ -3415,6 +3434,11 @@
         "insert_variable": "插入變數",
         "label": "系統提示",
         "placeholder": "輸入對助手的要求，例如回答風格、角色設定或背景說明",
+        "polish": "[to be translated]:Polish prompt",
+        "polish_failed_description": "[to be translated]:Check or change the default model, then try again.",
+        "polish_failed_title": "[to be translated]:Failed to polish prompt",
+        "polish_variables_changed_description": "[to be translated]:The polished result changed or removed prompt variables. Try again.",
+        "polish_variables_changed_title": "[to be translated]:Could not apply polished prompt",
         "title": "提示",
         "tokens_label": "代幣：",
         "variables_description": "可在系統提示中插入這些系統變數；每次助手回覆前，系統會按當時的資訊自動填寫。",
@@ -3517,6 +3541,10 @@
       "title": "尚無資源"
     },
     "export_assistant_failed": "匯出助理失敗",
+    "group_picker": {
+      "no_groups": "[to be translated]:No groups yet"
+    },
+    "group_sync_failed": "[to be translated]:Failed to sync groups",
     "import_dialog": {
       "clipboard": {
         "button": "解析並匯入",
@@ -3564,7 +3592,6 @@
     },
     "sidebar": {
       "all_resources": "所有資源",
-      "all_tags": "全部標籤",
       "no_tags": "尚無標籤",
       "subtitle": "管理您的 AI 資源",
       "tags": "標籤",
@@ -3629,11 +3656,11 @@
     },
     "title": "資源庫",
     "toolbar": {
-      "add_tag_placeholder": "標籤名稱...",
-      "all_tags": "全部標籤",
+      "add_group_placeholder": "[to be translated]:Group name...",
+      "all_groups": "[to be translated]:All groups",
+      "group_button": "[to be translated]:Group",
       "new_resource": "新資源",
-      "search_placeholder": "搜尋資源...",
-      "tag_button": "標籤"
+      "search_placeholder": "搜尋資源..."
     },
     "type": {
       "agent": "智能體",
@@ -4205,6 +4232,9 @@
       "selected": "已選標籤"
     },
     "function_calling": "函式呼叫",
+    "group": {
+      "ungrouped": "[to be translated]:Ungrouped"
+    },
     "invalid_model": "無效模型",
     "json_parse_error": "無效的 JSON 格式",
     "multi_select": {
@@ -4249,10 +4279,13 @@
       "embedding": "嵌入",
       "free": "免費",
       "function_calling": "工具",
+      "image": "[to be translated]:Image",
       "reasoning": "推理",
       "rerank": "重排",
       "select": "模型類型",
+      "speech": "[to be translated]:Speech",
       "text": "文字",
+      "transcription": "[to be translated]:Transcription",
       "video": "影片",
       "vision": "視覺",
       "websearch": "網路搜尋"
@@ -4432,14 +4465,30 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "privacy": {
+      "accept_and_continue": "同意並繼續",
+      "accept_policy": "同意隱私協議",
+      "notice": "我已閱讀並同意",
+      "period": "",
+      "policy": "隱私協議",
+      "update_failed": "無法儲存隱私協議同意狀態，請重試"
+    },
+    "provider_setup": {
+      "missing_model": "請先啟用該服務商下的至少一個模型",
+      "missing_provider": "請先啟用一個服務商",
+      "next": "下一步",
+      "subtitle": "新增 API Key 或登入 CherryIN，然後啟用一個服務商。",
+      "title": "選擇服務商"
+    },
     "select_model": {
       "change_later": "您可以隨時在設定中更改此項目",
       "start": "開始使用",
       "subtitle": "為每個情境選擇預設模型",
-      "title": "選擇您的預設模型"
+      "title": "選擇預設模型"
     },
     "skip": "跳過",
     "toast": {
+      "complete_failed": "無法完成引導，請重試",
       "connected": "成功連接到 CherryIN"
     },
     "welcome": {
@@ -4448,7 +4497,7 @@
       "other_provider": "選擇其他供應商",
       "select_other_provider": "選擇其他供應商",
       "setup_hint": "請至少設定一個提供者以獲得最佳體驗",
-      "subtitle": "享受頂尖 AI 服務，盡在 CherryIN",
+      "subtitle": "連接服務商，開啟您的全能 AI 工作站",
       "title": "歡迎來到 Cherry Studio"
     }
   },
@@ -4713,6 +4762,7 @@
     "inference_steps": "推理步數",
     "inference_steps_tip": "要執行的推理步數 ({{min}}-{{max}})。步數越多，品質越高但耗時越長",
     "input_image": "輸入圖片",
+    "input_image_limit_exceeded": "[to be translated]:Too many reference images for the selected model. Remove some images and try again.",
     "input_parameters": "輸入參數",
     "invalid_image_url": "圖片網址格式無效",
     "learn_more": "了解更多",
@@ -4737,6 +4787,7 @@
     "number_images": "張數",
     "number_images_tip": "一次生成的圖片數量 ({{min}}-{{max}})",
     "operation_failed": "操作失敗，請稍後再試",
+    "output_compression": "[to be translated]:Output Compression",
     "paint_course": "教學",
     "per_image": "每張圖片",
     "per_images": "每張圖片",
@@ -4885,6 +4936,7 @@
     "install": "安裝",
     "install_plugins_from_browser": "瀏覽可用技能以開始使用",
     "installing": "安裝中...",
+    "manage_skills": "[to be translated]:Manage skills",
     "name": "名稱",
     "no_description": "無描述",
     "no_installed_plugins": "尚未安裝任何技能",
@@ -4937,6 +4989,16 @@
     "source": "檢視原始碼",
     "zoom_in": "放大",
     "zoom_out": "縮小"
+  },
+  "privacy_policy": {
+    "load_failed": "無法載入隱私協議",
+    "title": "隱私協議"
+  },
+  "privacy_policy_update": {
+    "acknowledge_failed": "無法儲存確認狀態，請重試",
+    "description_before_link": "我們更新了隱私協議。請查看最新的",
+    "policy": "隱私協議",
+    "title": "隱私協議更新"
   },
   "prompts": {
     "explanation": "幫我解釋一下這個概念",
@@ -5508,6 +5570,7 @@
       "create_new": "新建助手",
       "empty_text": "暫無助手",
       "filter": "篩選助手",
+      "group_filter": "[to be translated]:Filter by group",
       "multi_hint": "（與多模型互斥）",
       "multi_label": "多助手同時回答",
       "search_placeholder": "搜尋助手…"
@@ -6161,14 +6224,55 @@
       "addToolDescription": "使用 mise 工具鍵新增工具（例如 github:sharkdp/fd、uv、bun）。",
       "checkUpdates": "檢查更新",
       "coreDepsMissing": "核心依賴未安裝",
-      "customTools": "自訂工具",
-      "customToolsEmpty": "尚無自訂工具。請新增一個以開始使用。",
       "description": "管理應用程式執行所需的二進位工具和執行階段依賴。",
       "duplicateName": "已存在相同名稱的工具",
       "fieldVersion": "版本（選填，預設為最新）",
-      "install": "安裝",
       "installError": "工具安裝失敗",
+      "installErrorHint": "安裝命令執行失敗。複製下方日誌以便排查或尋求協助。",
+      "installSettings": {
+        "description": "微調內建 CLI 工具的安裝方式。所有欄位皆為選填，留空則保持預設。",
+        "githubMirror": {
+          "help": "GitHub Release 下載的代理前綴（例如 https://ghfast.top）。GitHub API 仍會直連；遇到速率限制時請設定 Token。",
+          "label": "GitHub 鏡像",
+          "placeholder": "https://ghfast.top（留空則直連）"
+        },
+        "githubToken": {
+          "help": "提高工具查詢時的 GitHub API 速率限制。以純文字儲存在本機。留空則使用 CHERRY_GITHUB_TOKEN 環境變數。",
+          "hide": "隱藏權杖",
+          "label": "GitHub Token",
+          "placeholder": "ghp_…",
+          "show": "顯示 Token"
+        },
+        "invalidUrl": "請輸入包含 https:// 的有效 URL",
+        "npmRegistry": {
+          "help": "npm: 類工具使用的鏡像來源。留空則在中國大陸自動選擇鏡像。",
+          "label": "npm 鏡像來源",
+          "placeholder": "留空則自動（中國鏡像）"
+        },
+        "pipIndexUrl": {
+          "help": "pipx: 類工具使用的索引網址。留空則在中國大陸自動選擇鏡像。",
+          "label": "pip 索引網址",
+          "placeholder": "留空則自動（中國鏡像）"
+        },
+        "presetLabels": {
+          "aliyun": "阿里雲（中國）",
+          "default": "預設（不使用鏡像）",
+          "ghfast": "ghfast.top",
+          "ghproxy": "ghproxy.net",
+          "npmOfficial": "npmjs（官方）",
+          "npmmirror": "npmmirror（中國）",
+          "pypiOfficial": "PyPI（官方）",
+          "tsinghua": "清華大學（中國）"
+        },
+        "presets": "預設",
+        "title": "進階安裝設定",
+        "verifySignatures": {
+          "help": "驗證 aqua 類工具的 Sigstore/SLSA 簽章。僅當你的網路無法完成驗證時才關閉——關閉會略過供應鏈驗證。",
+          "label": "驗證工具簽章"
+        }
+      },
       "installing": "安裝中...",
+      "installingHint": "首次安裝可能需要下載執行環境，耗時數分鐘",
       "invalidTool": "工具名稱或識別碼無效",
       "localModels": {
         "cancel": "取消",
@@ -6200,10 +6304,19 @@
       "remove": "移除工具",
       "removeConfirmMessage": "確定要移除「{{name}}」嗎？二進位檔案將會被刪除。",
       "removeConfirmTitle": "移除工具",
+      "removeDefinitionOnlyConfirmMessage": "[to be translated]:Cherry could not safely clean up \"{{name}}\". Removing only its definition will hide the card but leave its backend files installed. Continue?",
+      "removeDefinitionOnlyConfirmTitle": "[to be translated]:Remove Definition Only?",
+      "removeDefinitionOnlyDependents": "[to be translated]:Installed tools depend on it: {{dependents}}.",
+      "removeError": "[to be translated]:Failed to remove tool",
+      "removeErrorHint": "[to be translated]:The cleanup command failed. Copy the log below to troubleshoot or share it for help.",
+      "removeRuntimeConfirmMessage": "確定要移除「{{name}}」嗎？解除安裝此執行時可能導致依賴它的 npm 或 pip 工具無法使用。",
+      "runtimeDependency": "執行時依賴",
+      "runtimeDependencyHint": "npm/pip 工具使用的執行時",
       "searchFailed": "搜尋失敗，請查看日誌",
       "searchRegistry": "搜尋 mise 工具倉庫...",
       "source": {
-        "bundled": "內建"
+        "bundled": "內建",
+        "system": "系統"
       },
       "title": "環境依賴",
       "tools": {
@@ -6222,8 +6335,15 @@
         "rtk": "CLI 代理工具，透過壓縮終端輸出來減少 LLM token 消耗。",
         "uv": "用於 MCP 服務與依賴安裝的 Python 套件管理工具。"
       },
+      "uninstall": "[to be translated]:Uninstall",
+      "uninstallConfirmMessage": "[to be translated]:Are you sure you want to uninstall \"{{name}}\"? Cherry Studio's backend copy will be deleted.",
+      "uninstallConfirmTitle": "[to be translated]:Uninstall Tool",
+      "uninstallFailed": "[to be translated]:Failed to uninstall tool",
+      "uninstallSuccess": "[to be translated]:Tool uninstalled",
       "update": "更新到最新版本",
-      "updateCheckFailed": "檢查更新失敗"
+      "updateCheckFailed": "檢查更新失敗",
+      "updateCheckSuccess": "版本檢查完成",
+      "viewErrorDetails": "檢視詳情"
     },
     "developer": {
       "enable_developer_mode": "啟用開發者模式",
@@ -6765,6 +6885,9 @@
       "add": {
         "add_model": "新增模型",
         "batch_add_models": "批次新增模型",
+        "capabilities": {
+          "label": "[to be translated]:Model Capabilities"
+        },
         "context_window": {
           "label": "上下文視窗",
           "placeholder": "例如 128000"
@@ -6780,6 +6903,9 @@
           "label": "群組名稱",
           "placeholder": "例如 ChatGPT",
           "tooltip": "選填，例如 ChatGPT"
+        },
+        "input_modalities": {
+          "label": "[to be translated]:Input Modalities"
         },
         "max_input_tokens": {
           "label": "最大輸入 Token",
@@ -6802,6 +6928,9 @@
           "label": "模型名稱",
           "placeholder": "例如 GPT-5.5",
           "tooltip": "例如 GPT-4"
+        },
+        "model_type": {
+          "label": "[to be translated]:Model Type"
         },
         "supported_text_delta": {
           "label": "支援增量文字輸出",
@@ -6860,7 +6989,8 @@
       "default_assistant_model": "預設助手模型",
       "default_assistant_model_description": "建立新助手時使用的模型，如果助手未設定模型，則使用此模型",
       "docs": "模型文件",
-      "empty": "找不到模型",
+      "empty": "請選擇模型",
+      "empty_hint": "[to be translated]:Click the Get model list button above to add models.",
       "enabled_models": "已啟用",
       "expand_all": "全部展開",
       "filter": {
@@ -7358,9 +7488,6 @@
         "usage_title": "用量",
         "usage_unit": "Token"
       },
-      "openai": {
-        "alert": "OpenAI Provider 不再支援舊的呼叫方法。如果使用第三方 API，請建立新的服務供應商"
-      },
       "remove_duplicate_keys": "移除重複金鑰",
       "remove_invalid_keys": "刪除無效金鑰",
       "reorder_failed": "調整服務商順序失敗",
@@ -7436,6 +7563,7 @@
         "autoEmpty": "未啟用任何 MCP 伺服器",
         "description": "檢視目前的 MCP 伺服器狀態",
         "disabled": "此助理已停用 MCP",
+        "open_config": "[to be translated]:Configure MCP servers",
         "unknownServer": "未知的 MCP 伺服器"
       },
       "multiple": "多選",
