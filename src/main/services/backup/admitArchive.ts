@@ -22,6 +22,7 @@ import { pipeline } from 'node:stream/promises'
 
 import { applyMigrations } from '@main/data/db/applyMigrations'
 import { type AppliedMigration, readAppliedChain } from '@main/data/db/restore/appliedChain'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { readMigrationFiles } from 'drizzle-orm/migrator'
@@ -169,6 +170,7 @@ export async function admitArchiveWithLimits(
     if (manifest.backupFormatVersion !== BACKUP_FORMAT_VERSION) {
       throw new UnsupportedBackupFormatError(manifest.backupFormatVersion, BACKUP_FORMAT_VERSION)
     }
+    assertLiteManifestInvariants(manifest)
 
     // --- Unpack recognized entries (ignore unknown; zip-slip already ran on ALL entries) ---
     await unpackRecognized(zip, workDir, plan.recognizedFiles, limits, budget)
@@ -627,7 +629,32 @@ function openReadonly(dbPath: string): Database.Database {
  * migration, or StreamZip error) as BackupArchiveCorruptError so the caller sees a stable
  * admission error class instead of a confusing low-level error.
  */
+/**
+ * Lite preset semantic invariants (vaayne r3): untrusted archives can relabel
+ * `preset` from full→lite; verify resource fields are empty, not just the label.
+ *
+ * @internal
+ */
+export function assertLiteManifestInvariants(manifest: BackupManifest): void {
+  if (manifest.preset !== 'lite') return
+  if (
+    manifest.includeFiles !== false ||
+    manifest.includeKnowledgeFiles !== false ||
+    manifest.files.ids.length !== 0 ||
+    manifest.files.total !== 0 ||
+    manifest.knowledge.bases.length !== 0 ||
+    manifest.skills.folders.length !== 0 ||
+    manifest.notes.paths.length !== 0
+  ) {
+    throw new IpcError(
+      'BACKUP_RESTORE_LITE_INVARIANT_VIOLATED',
+      'backup: manifest claims lite but carries full resources — refusing restore'
+    )
+  }
+}
+
 function normalizeAdmissionError(e: unknown): unknown {
+  if (e instanceof IpcError) return e
   if (
     e instanceof UnsupportedBackupFormatError ||
     e instanceof NewerOrDivergedBackupError ||

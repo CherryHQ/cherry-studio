@@ -1,5 +1,5 @@
 // Unit tests for assembleArchive — zip layout round-trip (no DB; dummy blob bytes).
-import { existsSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -247,6 +247,20 @@ describe('assembleArchive', () => {
         expect(fsyncCalls).toContain(dir)
       }
       fsyncSpy.mockRestore()
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it.skipIf(process.platform === 'win32')('published archive is mode 0600 (owner read/write only)', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'cs-archive-'))
+    try {
+      const dbCopy = join(dir, 'backup.sqlite')
+      await writeFile(dbCopy, Buffer.from('secret-db'))
+      const out = join(dir, 'secure.cherrybackup')
+      await assembleArchive(out, { manifest: MANIFEST_FULL, dbCopyPath: dbCopy })
+      expect(existsSync(out)).toBe(true)
+      expect(statSync(out).mode & 0o777).toBe(0o600)
     } finally {
       await rm(dir, { recursive: true, force: true })
     }

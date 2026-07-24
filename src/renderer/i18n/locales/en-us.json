@@ -5718,11 +5718,11 @@
             "lite": "Lite backup (chat & settings, no knowledge/files)"
           },
           "restore": {
-            "confirm_content": "Restoring will replace current data and relaunch the app. Continue?",
+            "confirm_content": "Restoring will merge backup data into your current data (local non-empty values are kept), then relaunch the app. Continue?",
             "failure": "Restore failed.",
             "full_button": "Full restore",
             "full_unavailable": "Full restore is temporarily unavailable while resource staging lands (files, knowledge bases, notes, skills). Use Restore for database-only (LITE) archives.",
-            "pick_prompt": "Select a .cbu backup archive to restore.",
+            "pick_prompt": "Select a .cherrybackup backup archive to restore.",
             "relaunching": "Restore staged. The app is relaunching…",
             "selected": "Selected archive:",
             "skip_only": "Only the skip (SKIP) merge strategy is supported. Overwrite and rename are not available yet."

@@ -557,6 +557,57 @@ describe('admitArchive', () => {
     const workDir = join(tmpDir, 'work')
     expect(() => assertWithin(workDir, '../escape.txt')).toThrow(BackupArchiveCorruptError)
   })
+
+  const LITE_MANIFEST: BackupManifest = {
+    ...MANIFEST,
+    preset: 'lite',
+    includeFiles: false,
+    includeKnowledgeFiles: false,
+    files: { ids: [], total: 0, totalBytes: 0 },
+    knowledge: { bases: [] },
+    skills: { folders: [] },
+    notes: { paths: [] }
+  }
+
+  it('preset=lite with non-empty files.ids → BACKUP_RESTORE_LITE_INVARIANT_VIOLATED', async () => {
+    const dbCopy = join(tmpDir, 'backup.sqlite')
+    snapshotDbhTo(dbCopy)
+    const archivePath = join(tmpDir, 'relabeled-lite.cherrybackup')
+    await packArchive(archivePath, dbCopy, {
+      ...LITE_MANIFEST,
+      files: { ids: ['file-1'], total: 1, totalBytes: 100 }
+    })
+    const workDir = join(tmpDir, 'work')
+
+    await expect(admitArchive(archivePath, workDir, MIGRATIONS_FOLDER)).rejects.toMatchObject({
+      code: 'BACKUP_RESTORE_LITE_INVARIANT_VIOLATED'
+    })
+    expect(existsSync(workDir)).toBe(false)
+  })
+
+  it('preset=lite with includeFiles=true → BACKUP_RESTORE_LITE_INVARIANT_VIOLATED', async () => {
+    const dbCopy = join(tmpDir, 'backup.sqlite')
+    snapshotDbhTo(dbCopy)
+    const archivePath = join(tmpDir, 'lite-include-files.cherrybackup')
+    await packArchive(archivePath, dbCopy, { ...LITE_MANIFEST, includeFiles: true })
+    const workDir = join(tmpDir, 'work')
+
+    await expect(admitArchive(archivePath, workDir, MIGRATIONS_FOLDER)).rejects.toMatchObject({
+      code: 'BACKUP_RESTORE_LITE_INVARIANT_VIOLATED'
+    })
+    expect(existsSync(workDir)).toBe(false)
+  })
+
+  it('valid lite manifest passes invariant check', async () => {
+    const dbCopy = join(tmpDir, 'backup.sqlite')
+    snapshotDbhTo(dbCopy)
+    const archivePath = join(tmpDir, 'valid-lite.cherrybackup')
+    await packArchive(archivePath, dbCopy, LITE_MANIFEST)
+    const workDir = join(tmpDir, 'work')
+
+    const ctx = await admitArchive(archivePath, workDir, MIGRATIONS_FOLDER)
+    expect(ctx.manifest.preset).toBe('lite')
+  })
 })
 
 describe('admitArchive resource-limit helpers', () => {
