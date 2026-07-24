@@ -17,8 +17,9 @@ interface ComposerFileCapabilitiesArgs {
 }
 
 const EMPTY_MODELS: Model[] = []
+const AGENT_ARCHIVE_EXTS = ['.zip', '.rar', '.7z', '.tar', '.gz', '.tgz', '.bz2', '.xz']
 
-const ALL_FILE_EXTS = [...imageExts, ...audioExts, ...videoExts, ...documentExts, ...textExts]
+const ALL_FILE_EXTS = [...imageExts, ...audioExts, ...videoExts, ...documentExts, ...textExts, ...AGENT_ARCHIVE_EXTS]
 
 // audio/video are the only modalities the chat surface still gates on (images always work
 // via the OCR fallback, documents/text always extract). Each maps to the predicate pair
