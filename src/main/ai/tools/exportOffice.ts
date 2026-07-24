@@ -4,7 +4,7 @@ import path from 'node:path'
 import * as XLSX from '@e965/xlsx'
 import { loggerService } from '@logger'
 import { validatePath } from '@main/ai/mcp/servers/filesystem'
-import { ExportService } from '@main/services/ExportService'
+import { exportService } from '@main/services/ExportService'
 import { printService } from '@main/services/PrintService'
 import { atomicWriteFile, exists, publishFileNoClobber, readBoundedRegularFile, remove } from '@main/utils/file'
 import type { ExportOfficeInput, OfficeExportOperation } from '@shared/ai/builtinTools'
@@ -18,7 +18,6 @@ interface SlideDraft {
 }
 
 const markdownIt = new MarkdownIt({ html: false, linkify: true, typographer: false })
-const exportService = new ExportService()
 const logger = loggerService.withContext('ExportOffice')
 const MAX_OFFICE_SOURCE_BYTES = 10 * 1024 * 1024
 

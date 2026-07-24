@@ -30,7 +30,11 @@ import { mcpServerService } from '@data/services/McpServerService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { loadBuiltinAgentDefinition, provisionBuiltinAgent } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
+import {
+  getBuiltinAgentPluginDirectory,
+  loadBuiltinAgentDefinition,
+  provisionBuiltinAgent
+} from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { PromptBuilder } from '@main/ai/agents/prompt'
 import AssistantServer from '@main/ai/mcp/servers/assistant'
 import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
@@ -263,7 +267,9 @@ export async function buildClaudeCodeSessionSettings(
     throw new Error(`Agent not found for session ${session.id}: ${session.agentId}`)
   }
   const agentConfig = agent.configuration
-  const isAssistant = agentConfig?.builtin_role === 'assistant'
+  const builtinRole = agentConfig?.builtin_role as string | undefined
+  const isAssistant = builtinRole === 'assistant'
+  const builtinPluginDirectory = builtinRole ? getBuiltinAgentPluginDirectory(builtinRole) : undefined
   const linkedChannelSnapshot =
     options?.linkedChannelSnapshot === undefined
       ? channelService.findBySessionId(session.id)
@@ -286,13 +292,19 @@ export async function buildClaudeCodeSessionSettings(
 
   // 3. Plugins
   const workspacePlugins = await discoverPlugins(cwd, session.agentId)
-  const needsPrivateSkillPlugin = isExternalCliProvider(provider) || Boolean(agentConfig?.builtin_role)
-  const plugins = needsPrivateSkillPlugin
-    ? [
-        ...(workspacePlugins ?? []),
-        { type: 'local' as const, path: skillService.getSkillPluginDirectory(), skipMcpDiscovery: true }
-      ]
-    : workspacePlugins
+  const needsPrivateSkillPlugin = isExternalCliProvider(provider) || Boolean(builtinRole)
+  const plugins =
+    needsPrivateSkillPlugin || builtinPluginDirectory
+      ? [
+          ...(workspacePlugins ?? []),
+          ...(needsPrivateSkillPlugin
+            ? [{ type: 'local' as const, path: skillService.getSkillPluginDirectory(), skipMcpDiscovery: true }]
+            : []),
+          ...(builtinPluginDirectory
+            ? [{ type: 'local' as const, path: builtinPluginDirectory, skipMcpDiscovery: true }]
+            : [])
+        ]
+      : workspacePlugins
 
   // 4. Tool permissions — shared emitter holder between settings and
   // `canUseTool` so the language model's stream controller can populate
@@ -356,7 +368,7 @@ export async function buildClaudeCodeSessionSettings(
   // 9. Skills — pass the SDK skill-name whitelist (managed skills enabled for this
   // agent + the workspace's own .claude/skills). The CLAUDE_CONFIG_DIR/skills mirror
   // is maintained by SkillService (install/uninstall/startup), not here.
-  const skills = await buildSkillWhitelist(agent.id, cwd)
+  const skills = await buildSkillWhitelist(agent.id, cwd, builtinRole)
 
   // 10. Build settings
   const settings: ClaudeCodeSettings = {
@@ -670,14 +682,15 @@ async function buildEnvironment(
  * Read-only: the filesystem mirror is maintained at install / uninstall /
  * startup reconcile, never here — so concurrent session builds never race.
  */
-export async function buildSkillWhitelist(agentId: string, cwd: string): Promise<string[]> {
+export async function buildSkillWhitelist(agentId: string, cwd: string, builtinRole?: string): Promise<string[]> {
   const installedSkills = await skillService.list({ agentId })
   const enabledNames = installedSkills.filter((skill) => skill.isEnabled).map((skill) => skill.folderName)
 
   const workspaceSkills = await skillService.listLocal(cwd)
   const workspaceNames = workspaceSkills.map((skill) => skill.filename)
+  const builtinNames = builtinRole ? (loadBuiltinAgentDefinition(builtinRole)?.skills ?? []) : []
 
-  return Array.from(new Set([...enabledNames, ...workspaceNames]))
+  return Array.from(new Set([...enabledNames, ...workspaceNames, ...builtinNames]))
 }
 
 async function discoverPlugins(cwd: string, agentId: string): Promise<SdkPluginConfig[] | undefined> {
@@ -1062,10 +1075,10 @@ export async function buildSystemPrompt(
     }
   }
 
-  // Refresh product-managed .claude content on every settings build. The provisioner
-  // preserves user-owned persona and memory files after their first copy.
-  if (builtinRole && cwd) {
-    await provisionBuiltinAgent(cwd, builtinRole)
+  // Persona and memory templates belong only in app-owned system workspaces. Bundled
+  // skills are injected from the read-only app plugin and never copied into user projects.
+  if (builtinRole && cwd && session.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM) {
+    await provisionBuiltinAgent(session.workspace, builtinRole)
   }
 
   // Channel security (still scoped per session — channels link to a session)
@@ -1178,7 +1191,7 @@ export function buildMcpServers(
 
   // 5. Assistant — navigate + diagnose tools (local Cherry Assistant sessions only)
   if (assistantMcpEnabled) {
-    const assistantServer = new AssistantServer()
+    const assistantServer = new AssistantServer(agent.model ?? undefined)
     mcpList.assistant = { type: 'sdk', name: 'assistant', instance: assistantServer.mcpServer }
     logger.debug('Cherry Assistant: injected assistant MCP server', {
       agentId: session.agentId,
@@ -1299,7 +1312,7 @@ function resolveSourceChannel(agentId: string, sessionId: string): string | unde
  * Auto-approve allowlist for injected built-in MCP servers, so the
  * cherry-tools/agent-memory/assistant tools pass without per-call approval.
  * The auto-approved cherry-tools and assistant tools are listed explicitly (not a wildcard) so the
- * sensitive tools (mutating kb_manage, local-data-reading diagnose) are excluded from the SDK
+ * sensitive tools (mutating tools and local-data-reading diagnose) are excluded from the SDK
  * pre-approval and routed through per-call approval via canUseTool.
  */
 export function adjustAllowedToolsForMcp(assistantMcpEnabled: boolean): string[] {

@@ -70,10 +70,10 @@ export const CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES: readonly string[] = [
 
 /**
  * Assistant MCP tools safe to auto-approve for local Cherry Assistant sessions: `navigate`, which
- * emits a clickable link the user must click themselves; `apply_setting`, whose implementation
- * is limited to a hard-coded whitelist of low-risk reversible settings; `create_agent`, whose
- * prompt contract requires an explicit user-confirmed configuration; and `product_info`, which only
- * reads the bundled public product manifest or release data from the fixed CherryHQ source.
+ * emits a clickable link the user must click themselves, and `product_info`, which only reads the
+ * bundled public product manifest or release data from the fixed CherryHQ source. Mutating tools
+ * such as `apply_setting` and `create_agent` must go through runtime approval; prompt-level
+ * confirmation is not a security boundary.
  * `diagnose` reads local machine data (logs, source files, config, host info) and MUST go through
  * per-call approval — the Assistant also reads untrusted web/KB content, and auto-approved web_fetch
  * would complete a prompt-injection exfiltration chain (untrusted page → diagnose → web_fetch).
@@ -82,7 +82,5 @@ export const CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES: readonly string[] = [
  */
 export const ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES: readonly string[] = [
   'mcp__assistant__navigate',
-  'mcp__assistant__apply_setting',
-  'mcp__assistant__create_agent',
   'mcp__assistant__product_info'
 ]

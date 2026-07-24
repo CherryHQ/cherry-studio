@@ -119,19 +119,20 @@ describe('adjustAllowedToolsForMcp', () => {
     expect(allowed).not.toContain('mcp__cherry-tools__*')
   })
 
-  it('additionally lists only the navigate assistant tool for the Cherry Assistant', () => {
+  it('auto-approves only read-only Assistant tools', () => {
     const allowed = adjustAllowedToolsForMcp(true)
     expect(allowed).toEqual(
       expect.arrayContaining([
         'mcp__cherry-tools__kb_search',
         'mcp__cherry-tools__kb_list',
         'mcp__assistant__navigate',
-        'mcp__assistant__apply_setting',
-        'mcp__assistant__create_agent'
+        'mcp__assistant__product_info'
       ])
     )
     expect(allowed).not.toContain('mcp__cherry-tools__kb_manage')
     expect(allowed).not.toContain('mcp__cherry-tools__*')
+    expect(allowed).not.toContain('mcp__assistant__apply_setting')
+    expect(allowed).not.toContain('mcp__assistant__create_agent')
     // diagnose reads local logs/source/config — it must go through per-call approval, so neither
     // the tool itself nor an assistant namespace wildcard may appear in the SDK pre-approval list.
     expect(allowed).not.toContain('mcp__assistant__diagnose')

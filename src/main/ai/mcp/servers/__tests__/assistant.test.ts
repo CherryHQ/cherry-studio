@@ -363,6 +363,14 @@ describe('apply_setting', () => {
     expect(MockMainPreferenceServiceUtils.getPreferenceValue('app.launch_on_boot')).toBe(true)
   })
 
+  it('does not persist launch-on-boot when OS registration fails', async () => {
+    mocks.setLaunchOnBoot.mockRejectedValueOnce(new Error('permission denied'))
+
+    await expect(applySetting({ setting: 'launch_on_boot', value: 'true' })).rejects.toThrow('permission denied')
+
+    expect(MockMainPreferenceServiceUtils.getPreferenceValue('app.launch_on_boot')).toBe(false)
+  })
+
   it('rejects values outside the setting whitelist', async () => {
     await expect(applySetting({ setting: 'launch_on_boot', value: 'yes' })).rejects.toThrow("Value 'yes' is not valid")
     expect(mocks.setLaunchOnBoot).not.toHaveBeenCalled()
@@ -396,6 +404,21 @@ describe('create_agent', () => {
       }
     })
     expect(result.content[0].text).toContain('agent-created')
+  })
+
+  it("defaults to Cherry Assistant's current model when model is omitted", async () => {
+    const server = new AssistantServer('openai::gpt-5')
+
+    await (
+      server as unknown as {
+        createAgent: (args: Record<string, string>) => Promise<unknown>
+      }
+    ).createAgent({
+      name: 'Reviewer',
+      instructions: 'Review code.'
+    })
+
+    expect(mocks.agentCreate).toHaveBeenCalledWith(expect.objectContaining({ model: 'openai::gpt-5' }))
   })
 
   it('rejects legacy single-colon model ids', async () => {

@@ -242,10 +242,10 @@ The tool returns the new agent id. After creation, query product_info and naviga
       model: {
         type: 'string',
         description:
-          'Model id in the form "providerId::modelId" (e.g. "cherryin::agent/glm-5.1", "anthropic::claude-sonnet"). Default to the same model Cherry Assistant itself is currently using unless the user specifies otherwise.'
+          'Optional model id in the form "providerId::modelId" (e.g. "cherryin::agent/glm-5.1", "anthropic::claude-sonnet"). When omitted, the new agent uses Cherry Assistant\'s current model.'
       }
     },
-    required: ['name', 'instructions', 'model']
+    required: ['name', 'instructions']
   }
 }
 
@@ -281,7 +281,7 @@ const HEALTH_CACHE_TTL = 30_000 // 30 seconds
 class AssistantServer {
   public mcpServer: McpServer
 
-  constructor() {
+  constructor(private readonly defaultModel?: UniqueModelId) {
     this.mcpServer = new McpServer(
       {
         name: 'assistant',
@@ -504,12 +504,14 @@ class AssistantServer {
   private async createAgent(args: Record<string, string | undefined>) {
     const name = args.name?.trim()
     const instructions = args.instructions?.trim()
-    const model = args.model?.trim()
+    const model = args.model?.trim() || this.defaultModel
     const description = args.description?.trim() || undefined
 
     if (!name) throw new McpError(ErrorCode.InvalidParams, "'name' is required for create_agent")
     if (!instructions) throw new McpError(ErrorCode.InvalidParams, "'instructions' is required for create_agent")
-    if (!model) throw new McpError(ErrorCode.InvalidParams, "'model' is required for create_agent")
+    if (!model) {
+      throw new McpError(ErrorCode.InvalidParams, "'model' is required when no default model is configured")
+    }
 
     const parsedModel = UniqueModelIdSchema.safeParse(model)
     if (!parsedModel.success) {

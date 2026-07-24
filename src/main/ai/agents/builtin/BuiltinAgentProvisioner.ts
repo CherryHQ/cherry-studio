@@ -1,16 +1,14 @@
 /**
  * BuiltinAgentProvisioner
  *
- * Provisions built-in agent workspaces by copying template files
- * (agent.json, .claude/skills/, .claude/plugins.json) from bundled
- * resources into the agent's working directory.
- *
- * The Claude Agent SDK auto-discovers skills from .claude/skills/ and
- * plugins from .claude/plugins.json, so no programmatic injection is needed.
+ * Loads built-in agent definitions and initializes persona/memory files in
+ * app-owned system workspaces. Bundled skills stay in the read-only app
+ * resources directory and are injected as a local Claude plugin.
  */
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { getAppLanguage } from '@main/i18n'
+import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import fs from 'fs'
 import path from 'path'
 
@@ -43,6 +41,20 @@ function getTemplateDir(builtinRole: string): string | undefined {
   return path.join(application.getPath('feature.agents.builtin'), templateName)
 }
 
+export function getBuiltinAgentPluginDirectory(builtinRole: string): string | undefined {
+  const templateDir = getTemplateDir(builtinRole)
+  if (!templateDir) return undefined
+
+  const pluginDirectory = path.join(templateDir, '.claude')
+  const manifestPath = path.join(pluginDirectory, '.claude-plugin', 'plugin.json')
+  if (!fs.existsSync(manifestPath)) {
+    logger.error('Builtin agent plugin manifest not found', { builtinRole, manifestPath })
+    return undefined
+  }
+
+  return pluginDirectory
+}
+
 /**
  * Recursively copy a directory, creating target dirs as needed.
  */
@@ -66,6 +78,7 @@ export interface BuiltinAgentConfig {
   name?: string
   instructions?: string
   configuration?: Record<string, unknown>
+  skills?: string[]
 }
 
 export function loadBuiltinAgentDefinition(builtinRole: string): BuiltinAgentConfig | undefined {
@@ -80,10 +93,17 @@ export function loadBuiltinAgentDefinition(builtinRole: string): BuiltinAgentCon
 
   try {
     const agentConfig = JSON.parse(fs.readFileSync(agentJsonPath, 'utf-8'))
+    if (
+      agentConfig.skills !== undefined &&
+      (!Array.isArray(agentConfig.skills) || agentConfig.skills.some((skill: unknown) => typeof skill !== 'string'))
+    ) {
+      throw new Error('Builtin agent skills must be a string array')
+    }
     return {
       name: resolveLocalizedField(agentConfig.name),
       instructions: resolveLocalizedField(agentConfig.instructions),
-      configuration: agentConfig.configuration
+      configuration: agentConfig.configuration,
+      skills: agentConfig.skills
     } as BuiltinAgentConfig
   } catch (error) {
     logger.error('Failed to load builtin agent definition', {
@@ -96,17 +116,17 @@ export function loadBuiltinAgentDefinition(builtinRole: string): BuiltinAgentCon
 }
 
 /**
- * Provision a built-in agent's workspace with template files.
+ * Initialize a built-in agent's app-owned system workspace.
  *
- * Writes .claude/skills/ and .claude/plugins.json to the agent's
- * working directory so the SDK can auto-discover them.
+ * User workspaces are arbitrary project directories and are never modified by
+ * this function. Bundled skills are loaded from the app-owned plugin directory.
  *
- * @param workspacePath - The agent session's workspace directory
+ * @param workspace - The agent session's workspace
  * @param builtinRole - The built-in role identifier (currently only 'assistant')
  * @returns The parsed agent.json config, or undefined if not found
  */
 export async function provisionBuiltinAgent(
-  workspacePath: string,
+  workspace: Pick<AgentWorkspaceEntity, 'path' | 'type'>,
   builtinRole: string
 ): Promise<BuiltinAgentConfig | undefined> {
   const templateDir = getTemplateDir(builtinRole)
@@ -117,25 +137,14 @@ export async function provisionBuiltinAgent(
     return undefined
   }
 
+  const definition = loadBuiltinAgentDefinition(builtinRole)
+  if (!definition || workspace.type !== AGENT_WORKSPACE_TYPE.SYSTEM) return definition
+
+  const workspacePath = workspace.path
+
   try {
-    // Always overwrite .claude/ (skills + plugins.json) — this is product-managed content
-    // that must stay in sync with each release (e.g., knowledge base updates in SKILL.md).
-    // User-customized content (SOUL.md, USER.md, memory/) is handled separately below.
-    const srcClaudeDir = path.join(templateDir, '.claude')
-    const destClaudeDir = path.join(workspacePath, '.claude')
-
-    if (fs.existsSync(srcClaudeDir)) {
-      copyDirSync(srcClaudeDir, destClaudeDir)
-      logger.info('Provisioned .claude/ directory for builtin agent', {
-        builtinRole,
-        workspacePath,
-        destClaudeDir
-      })
-    }
-
     // Copy SOUL.md, USER.md, and memory/ only if they don't already exist (first-time provision)
     // Never overwrite — user may have customized their persona or accumulated memories
-    // workspacePath is created by the .claude/ copy above (every builtin template ships .claude/skills/)
     for (const soulFile of ['SOUL.md', 'USER.md']) {
       const srcFile = path.join(templateDir, soulFile)
       const destFile = path.join(workspacePath, soulFile)
@@ -150,7 +159,7 @@ export async function provisionBuiltinAgent(
       copyDirSync(srcMemoryDir, destMemoryDir)
     }
 
-    return loadBuiltinAgentDefinition(builtinRole)
+    return definition
   } catch (error) {
     logger.error('Failed to provision builtin agent workspace', {
       builtinRole,

@@ -11,6 +11,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
+  getBuiltinAgentPluginDirectory: vi.fn(),
+  loadBuiltinAgentDefinition: vi.fn(),
+  createAssistantServer: vi.fn(() => ({ mcpServer: {} })),
   listSkills: vi.fn(),
   listLocalSkills: vi.fn(),
   getSkillPluginDirectory: vi.fn(),
@@ -87,7 +90,8 @@ vi.mock('@main/ai/skills/SkillService', () => ({
 }))
 
 vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
-  loadBuiltinAgentDefinition: vi.fn(),
+  getBuiltinAgentPluginDirectory: mocks.getBuiltinAgentPluginDirectory,
+  loadBuiltinAgentDefinition: mocks.loadBuiltinAgentDefinition,
   provisionBuiltinAgent: vi.fn()
 }))
 
@@ -99,7 +103,7 @@ vi.mock('@main/ai/agents/prompt', () => ({
 }))
 
 vi.mock('@main/ai/mcp/servers/assistant', () => ({
-  default: vi.fn(() => ({ mcpServer: {} }))
+  default: mocks.createAssistantServer
 }))
 
 vi.mock('@main/ai/runtime/claudeCode/createSdkMcpServerInstance', () => ({
@@ -230,6 +234,8 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.listSkills.mockResolvedValue([])
     mocks.listLocalSkills.mockResolvedValue([])
     mocks.getSkillPluginDirectory.mockReturnValue('/app/feature.agents.claude.root')
+    mocks.getBuiltinAgentPluginDirectory.mockReturnValue(undefined)
+    mocks.loadBuiltinAgentDefinition.mockReturnValue(undefined)
   })
 
   it('builds the SDK skill whitelist from the DB and workspace before returning settings', async () => {
@@ -820,6 +826,10 @@ describe('buildClaudeCodeSessionSettings', () => {
       configuration: { builtin_role: 'assistant' }
     })
     mocks.listSkills.mockResolvedValue([{ id: 'skill-1', folderName: 'system-skill', isEnabled: true }])
+    mocks.getBuiltinAgentPluginDirectory.mockReturnValue('/app/feature.agents.builtin/cherry-assistant/.claude')
+    mocks.loadBuiltinAgentDefinition.mockReturnValue({
+      skills: ['cherry-assistant-guide', 'cherry-doc-writer']
+    })
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
@@ -834,7 +844,13 @@ describe('buildClaudeCodeSessionSettings', () => {
       path: '/app/feature.agents.claude.root',
       skipMcpDiscovery: true
     })
+    expect(settings.plugins).toContainEqual({
+      type: 'local',
+      path: '/app/feature.agents.builtin/cherry-assistant/.claude',
+      skipMcpDiscovery: true
+    })
     expect(settings.skills).toContain('system-skill')
+    expect(settings.skills).toEqual(expect.arrayContaining(['cherry-assistant-guide', 'cherry-doc-writer']))
   })
 
   it('injects and auto-approves Assistant MCP tools for a local assistant session', async () => {
@@ -856,21 +872,21 @@ describe('buildClaudeCodeSessionSettings', () => {
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
     expect(settings.mcpServers?.assistant).toBeDefined()
-    // Navigate and the low-risk apply_setting whitelist are pre-approved. diagnose reads local logs/source/config and must go through
-    // per-call approval — a namespace wildcard would silently re-include it.
+    // Only read-only Assistant tools are pre-approved. Mutations and diagnose must use per-call approval.
     expect(settings.allowedTools).toContain('mcp__assistant__navigate')
-    expect(settings.allowedTools).toContain('mcp__assistant__apply_setting')
-    expect(settings.allowedTools).toContain('mcp__assistant__create_agent')
     expect(settings.allowedTools).toContain('mcp__assistant__product_info')
+    expect(settings.allowedTools).not.toContain('mcp__assistant__apply_setting')
+    expect(settings.allowedTools).not.toContain('mcp__assistant__create_agent')
     expect(settings.allowedTools).not.toContain('mcp__assistant__*')
     expect(settings.allowedTools).not.toContain('mcp__assistant__diagnose')
     const snapshotOptions = mocks.createToolPolicySnapshot.mock.calls.at(-1)?.[1]
     expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__navigate')
-    expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__apply_setting')
-    expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__create_agent')
     expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__product_info')
+    expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__apply_setting')
+    expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__create_agent')
     expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__diagnose')
     expect(snapshotOptions.autoAllowRuntimeNamePrefixes ?? []).toEqual([])
+    expect(mocks.createAssistantServer).toHaveBeenCalledWith('anthropic::claude-sonnet')
   })
 
   it('uses one captured channel snapshot for Assistant MCP, approval, and prompt policy', async () => {
