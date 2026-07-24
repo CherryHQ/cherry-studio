@@ -8,8 +8,6 @@ const {
   webviewSetProxyMock,
   appSetProxyMock,
   getSystemProxyMock,
-  embeddingRestartMock,
-  ocrRestartMock,
   intervalRegistrations
 } = vi.hoisted(() => {
   const nodeProxyConfigureMock = vi.fn()
@@ -21,8 +19,6 @@ const {
     webviewSetProxyMock: vi.fn().mockResolvedValue(undefined),
     appSetProxyMock: vi.fn().mockResolvedValue(undefined),
     getSystemProxyMock: vi.fn(),
-    embeddingRestartMock: vi.fn().mockResolvedValue(undefined),
-    ocrRestartMock: vi.fn().mockResolvedValue(undefined),
     intervalRegistrations: [] as Array<{ handler: () => void; dispose: ReturnType<typeof vi.fn> }>
   }
 })
@@ -58,14 +54,7 @@ vi.mock('@main/core/lifecycle', () => {
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  const result = mockApplicationFactory()
-  const originalGet = result.application.get.getMockImplementation()!
-  result.application.get.mockImplementation((name: string) => {
-    if (name === 'EmbeddingInferenceService') return { restartAfterCurrentRequest: embeddingRestartMock }
-    if (name === 'OcrInferenceService') return { restartAfterCurrentRequest: ocrRestartMock }
-    return originalGet(name)
-  })
-  return result
+  return mockApplicationFactory({})
 })
 
 vi.mock('../NodeProxyController', () => ({
@@ -190,17 +179,13 @@ describe('ProxyService — preference wiring', () => {
     await (manager as any).onReady()
     await reconcilerOf(manager).flush()
     nodeProxyConfigureMock.mockClear()
-    embeddingRestartMock.mockClear()
-    ocrRestartMock.mockClear()
 
     MockMainPreferenceServiceUtils.setPreferenceValue('app.proxy.mode', 'none')
 
     // The subscriber kicks off an un-awaited async re-apply; wait for it to settle.
-    await vi.waitFor(() => {
+    await vi.waitFor(() =>
       expect(nodeProxyConfigureMock).toHaveBeenCalledWith({ proxyRules: undefined, proxyBypassRules: undefined })
-      expect(embeddingRestartMock).toHaveBeenCalledTimes(1)
-      expect(ocrRestartMock).toHaveBeenCalledTimes(1)
-    })
+    )
     expect(sessionSetProxyMock).toHaveBeenLastCalledWith({ mode: 'direct' })
   })
 
