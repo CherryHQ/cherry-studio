@@ -477,6 +477,24 @@ describe('MessagePartsRenderer', () => {
       expect(markdown[1]).toContain('console.log(1)')
     })
 
+    it('uses stronger light-mode ink for ordinary message text', () => {
+      renderParts([{ type: 'text', text: 'hello world' }] as unknown as CherryMessagePart[])
+
+      const wrapper = screen.getByTestId('mock-markdown').closest('.block-wrapper')
+
+      expect(wrapper).toHaveClass('text-black', 'dark:text-foreground')
+    })
+
+    it('does not apply the ordinary text color to data-code blocks', () => {
+      renderParts([
+        { type: 'data-code', data: { content: 'console.log(1)', language: 'js' } }
+      ] as unknown as CherryMessagePart[])
+
+      const wrapper = screen.getByTestId('mock-markdown').closest('.block-wrapper')
+
+      expect(wrapper).not.toHaveClass('text-black', 'dark:text-foreground')
+    })
+
     it('renders single and grouped images while skipping image parts without a URL', () => {
       const single = renderParts([
         { type: 'file', url: 'https://img.test/single.png', mediaType: 'image/png' }
