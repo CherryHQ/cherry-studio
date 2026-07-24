@@ -1,3 +1,6 @@
+import { createClient } from '@libsql/client'
+import { eq } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/libsql'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetModels, mockInitSkillsForAgent } = vi.hoisted(() => ({
@@ -70,6 +73,7 @@ vi.mock('../../skills/SkillService', () => ({
 }))
 
 import {
+  type AgentRow,
   agentsTable,
   channelsTable,
   channelTaskSubscriptionsTable,
@@ -87,6 +91,80 @@ function createSelectQuery(rows: unknown[]) {
         limit: vi.fn().mockResolvedValue(rows)
       }))
     }))
+  }
+}
+
+function createAgentRow(overrides: Partial<AgentRow> = {}): AgentRow {
+  return {
+    id: 'agent_1783338427757_test',
+    type: 'claude-code',
+    name: 'Test Agent',
+    description: null,
+    deleted_at: null,
+    accessible_paths: '[]',
+    instructions: 'Test instructions',
+    model: 'test-model',
+    plan_model: null,
+    small_model: null,
+    mcps: null,
+    allowed_tools: null,
+    configuration: null,
+    sort_order: 0,
+    created_at: '2026-07-06T11:47:07.757Z',
+    updated_at: '2026-07-06T11:47:07.757Z',
+    ...overrides
+  }
+}
+
+interface TestFsModule {
+  mkdtempSync(prefix: string): string
+  rmSync(path: string, options: { recursive: boolean; force: boolean }): void
+}
+
+interface TestOsModule {
+  tmpdir(): string
+}
+
+interface TestPathModule {
+  join(...paths: string[]): string
+}
+
+async function createAgentDatabase(rows: AgentRow[]) {
+  const fs = await vi.importActual<TestFsModule>('node:fs')
+  const os = await vi.importActual<TestOsModule>('node:os')
+  const path = await vi.importActual<TestPathModule>('node:path')
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-timestamp-test-'))
+  const client = createClient({ url: `file:${path.join(directory, 'agents.db')}`, intMode: 'number' })
+  const database = drizzle(client)
+
+  await client.execute(`
+    CREATE TABLE agents (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT,
+      deleted_at TEXT,
+      accessible_paths TEXT,
+      instructions TEXT,
+      model TEXT NOT NULL,
+      plan_model TEXT,
+      small_model TEXT,
+      mcps TEXT,
+      allowed_tools TEXT,
+      configuration TEXT,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `)
+  await database.insert(agentsTable).values(rows)
+
+  return {
+    database,
+    cleanup: () => {
+      client.close()
+      fs.rmSync(directory, { recursive: true, force: true })
+    }
   }
 }
 
@@ -185,5 +263,143 @@ describe('AgentService built-in agent lifecycle', () => {
     expect(txDelete).toHaveBeenCalledWith(agentsTable)
     expect(txUpdateSet).toHaveBeenCalledWith({ sessionId: null })
     expect(txUpdateSet).toHaveBeenCalledWith({ agentId: null })
+  })
+})
+
+describe('AgentService.listAgents timestamp repair', () => {
+  const service = AgentService.getInstance()
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it.each([
+    ['millisecond', '1784810600097Z', '2026-07-23T12:43:20.097Z'],
+    ['second', '1784810600Z', '2026-07-23T12:43:20.000Z']
+  ])('normalizes an epoch %s timestamp with a trailing Z and persists it', async (_, input, expected) => {
+    const { cleanup, database } = await createAgentDatabase([createAgentRow({ updated_at: input })])
+
+    try {
+      vi.spyOn(service as never, 'getDatabase').mockResolvedValue(database as never)
+
+      const result = await service.listAgents()
+      const stored = await database.select().from(agentsTable)
+
+      expect(result.agents[0].updated_at).toBe(expected)
+      expect(stored[0].updated_at).toBe(expected)
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('leaves valid ISO timestamps untouched without starting a write transaction', async () => {
+    const { cleanup, database } = await createAgentDatabase([createAgentRow()])
+    const transactionSpy = vi.spyOn(database, 'transaction')
+
+    try {
+      vi.spyOn(service as never, 'getDatabase').mockResolvedValue(database as never)
+
+      const result = await service.listAgents()
+
+      expect(result.agents[0].created_at).toBe('2026-07-06T11:47:07.757Z')
+      expect(result.agents[0].updated_at).toBe('2026-07-06T11:47:07.757Z')
+      expect(transactionSpy).not.toHaveBeenCalled()
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('uses the other valid timestamp when one timestamp is unparseable', async () => {
+    const validUpdatedAt = '2026-07-23T11:21:04.074Z'
+    const { cleanup, database } = await createAgentDatabase([
+      createAgentRow({ created_at: 'not-a-date', updated_at: validUpdatedAt })
+    ])
+
+    try {
+      vi.spyOn(service as never, 'getDatabase').mockResolvedValue(database as never)
+
+      const result = await service.listAgents()
+      const stored = await database.select().from(agentsTable)
+
+      expect(result.agents[0].created_at).toBe(validUpdatedAt)
+      expect(stored[0].created_at).toBe(validUpdatedAt)
+      expect(stored[0].updated_at).toBe(validUpdatedAt)
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('uses one current timestamp when both timestamps are unparseable', async () => {
+    const fallbackTimestamp = '2026-07-24T08:00:00.000Z'
+    const { cleanup, database } = await createAgentDatabase([
+      createAgentRow({ created_at: 'invalid-created-at', updated_at: 'invalid-updated-at' })
+    ])
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(fallbackTimestamp))
+
+    try {
+      vi.spyOn(service as never, 'getDatabase').mockResolvedValue(database as never)
+
+      const result = await service.listAgents()
+      const stored = await database.select().from(agentsTable)
+
+      expect(result.agents[0].created_at).toBe(fallbackTimestamp)
+      expect(result.agents[0].updated_at).toBe(fallbackTimestamp)
+      expect(stored[0].created_at).toBe(fallbackTimestamp)
+      expect(stored[0].updated_at).toBe(fallbackTimestamp)
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('returns normalized timestamps when persisting repairs fails', async () => {
+    const { cleanup, database } = await createAgentDatabase([createAgentRow({ updated_at: '1784810600097Z' })])
+    const databaseWithFailedTransaction = {
+      select: database.select.bind(database),
+      transaction: vi.fn().mockRejectedValue(new Error('write failed'))
+    }
+
+    try {
+      vi.spyOn(service as never, 'getDatabase').mockResolvedValue(databaseWithFailedTransaction as never)
+
+      const result = await service.listAgents()
+
+      expect(result.agents[0].updated_at).toBe('2026-07-23T12:43:20.097Z')
+      expect(databaseWithFailedTransaction.transaction).toHaveBeenCalledOnce()
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('does not overwrite a timestamp changed concurrently after the list query', async () => {
+    const agentId = 'agent_1783338427757_concurrent'
+    const concurrentUpdatedAt = '2026-07-24T09:00:00.000Z'
+    const { cleanup, database } = await createAgentDatabase([
+      createAgentRow({ id: agentId, updated_at: '1784810600097Z' })
+    ])
+    const databaseWithConcurrentUpdate = {
+      select: database.select.bind(database),
+      transaction: vi.fn(async (callback: Parameters<typeof database.transaction>[0]) => {
+        await database.update(agentsTable).set({ updated_at: concurrentUpdatedAt }).where(eq(agentsTable.id, agentId))
+        return database.transaction(callback)
+      })
+    }
+
+    try {
+      vi.spyOn(service as never, 'getDatabase').mockResolvedValue(databaseWithConcurrentUpdate as never)
+
+      const result = await service.listAgents()
+      const stored = await database.select().from(agentsTable).where(eq(agentsTable.id, agentId))
+
+      expect(result.agents[0].updated_at).toBe('2026-07-23T12:43:20.097Z')
+      expect(stored[0].updated_at).toBe(concurrentUpdatedAt)
+    } finally {
+      cleanup()
+    }
   })
 })

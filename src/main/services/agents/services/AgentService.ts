@@ -34,6 +34,61 @@ const logger = loggerService.withContext('AgentService')
 
 type AgentDatabase = Awaited<ReturnType<BaseService['getDatabase']>>
 type AgentTransaction = Parameters<Parameters<AgentDatabase['transaction']>[0]>[0]
+type AgentTimestampUpdate = Partial<Pick<AgentRow, 'created_at' | 'updated_at'>>
+
+interface AgentTimestampRepair {
+  id: string
+  original: Pick<AgentRow, 'created_at' | 'updated_at'>
+  updates: AgentTimestampUpdate
+}
+
+interface AgentTimestampNormalizationResult {
+  normalizedRow: AgentRow
+  repair: AgentTimestampRepair | null
+}
+
+const EPOCH_TIMESTAMP_PATTERN = /^(\d{10}|\d{13})Z?$/i
+
+const normalizeAgentTimestampValue = (value: string): string | null => {
+  const trimmedValue = value.trim()
+  const epochMatch = EPOCH_TIMESTAMP_PATTERN.exec(trimmedValue)
+  const date = epochMatch
+    ? new Date(Number(epochMatch[1]) * (epochMatch[1].length === 10 ? 1000 : 1))
+    : new Date(trimmedValue)
+
+  return Number.isNaN(date.getTime()) ? null : date.toISOString()
+}
+
+const normalizeAgentTimestamps = (row: AgentRow, fallbackTimestamp: string): AgentTimestampNormalizationResult => {
+  const normalizedCreatedAt = normalizeAgentTimestampValue(row.created_at)
+  const normalizedUpdatedAt = normalizeAgentTimestampValue(row.updated_at)
+  const createdAt = normalizedCreatedAt ?? normalizedUpdatedAt ?? fallbackTimestamp
+  const updatedAt = normalizedUpdatedAt ?? normalizedCreatedAt ?? fallbackTimestamp
+  const updates: AgentTimestampUpdate = {}
+
+  if (createdAt !== row.created_at) {
+    updates.created_at = createdAt
+  }
+  if (updatedAt !== row.updated_at) {
+    updates.updated_at = updatedAt
+  }
+
+  if (updates.created_at === undefined && updates.updated_at === undefined) {
+    return { normalizedRow: row, repair: null }
+  }
+
+  return {
+    normalizedRow: { ...row, ...updates },
+    repair: {
+      id: row.id,
+      original: {
+        created_at: row.created_at,
+        updated_at: row.updated_at
+      },
+      updates
+    }
+  }
+}
 
 export type BuiltinAgentInitResult =
   | { agentId: string; skippedReason?: undefined }
@@ -146,6 +201,47 @@ export class AgentService extends BaseService {
     return agent
   }
 
+  private async persistAgentTimestampRepairs(database: AgentDatabase, repairs: AgentTimestampRepair[]): Promise<void> {
+    if (repairs.length === 0) {
+      return
+    }
+
+    try {
+      await database.transaction(async (tx) => {
+        for (const repair of repairs) {
+          const createdAtChanged = repair.updates.created_at !== undefined
+          const updatedAtChanged = repair.updates.updated_at !== undefined
+          const whereClause =
+            createdAtChanged && updatedAtChanged
+              ? and(
+                  eq(agentsTable.id, repair.id),
+                  eq(agentsTable.created_at, repair.original.created_at),
+                  eq(agentsTable.updated_at, repair.original.updated_at)
+                )
+              : createdAtChanged
+                ? and(eq(agentsTable.id, repair.id), eq(agentsTable.created_at, repair.original.created_at))
+                : and(eq(agentsTable.id, repair.id), eq(agentsTable.updated_at, repair.original.updated_at))
+
+          await tx.update(agentsTable).set(repair.updates).where(whereClause)
+        }
+      })
+
+      logger.warn('Repaired invalid agent timestamps', {
+        count: repairs.length,
+        repairs: repairs.map((repair) => ({
+          id: repair.id,
+          fields: Object.keys(repair.updates)
+        }))
+      })
+    } catch (error) {
+      logger.warn('Failed to persist repaired agent timestamps', {
+        count: repairs.length,
+        agentIds: repairs.map((repair) => repair.id),
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+  }
+
   async listAgents(options: ListOptions = {}): Promise<{ agents: AgentEntity[]; total: number }> {
     // Build query with pagination
     const database = await this.getDatabase()
@@ -175,7 +271,15 @@ export class AgentService extends BaseService {
           : await baseQuery.limit(options.limit)
         : await baseQuery
 
-    const agents = result.map((row) => this.deserializeJsonFields(row)) as GetAgentResponse[]
+    const fallbackTimestamp = new Date().toISOString()
+    const normalizedResults = result.map((row) => normalizeAgentTimestamps(row, fallbackTimestamp))
+    const repairs = normalizedResults.flatMap(({ repair }) => (repair ? [repair] : []))
+
+    await this.persistAgentTimestampRepairs(database, repairs)
+
+    const agents = normalizedResults.map(({ normalizedRow }) =>
+      this.deserializeJsonFields(normalizedRow)
+    ) as GetAgentResponse[]
 
     await Promise.all(
       agents.map(async (agent) => {
