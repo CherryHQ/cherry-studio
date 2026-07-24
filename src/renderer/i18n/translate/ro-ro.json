@@ -4428,6 +4428,14 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "privacy": {
+      "accept_and_continue": "Acceptă și continuă",
+      "accept_policy": "Acceptă Politica de confidențialitate",
+      "notice": "Am citit și sunt de acord cu",
+      "period": ".",
+      "policy": "Politica de confidențialitate",
+      "update_failed": "Nu am putut salva acceptarea politicii de confidențialitate. Încercați din nou."
+    },
     "select_model": {
       "change_later": "Poți schimba oricând asta din setări.",
       "start": "Începe",
@@ -4444,7 +4452,7 @@
       "other_provider": "Alegeți alți furnizori",
       "select_other_provider": "Selectați alt furnizor",
       "setup_hint": "Vă rugăm să configurați cel puțin un furnizor pentru cea mai bună experiență",
-      "subtitle": "Bucurați-vă de servicii AI de top cu CherryIN",
+      "subtitle": "Conectați un furnizor pentru a vă activa stația de lucru AI all-in-one",
       "title": "Bun venit la Cherry Studio"
     }
   },
@@ -6909,7 +6917,7 @@
       "default_assistant_model": "Model asistent implicit",
       "default_assistant_model_description": "Folosit când un asistent nu are model.",
       "docs": "Documentația modelului",
-      "empty": "Nu s-au găsit modele",
+      "empty": "Selectați un model",
       "enabled_models": "Activate",
       "expand_all": "Extinde tot",
       "filter": {

@@ -6,9 +6,20 @@ import {
   getComplexMappingById,
   getComplexMappingTargetKeys
 } from '../ComplexPreferenceMappings'
-import { REDUX_STORE_MAPPINGS } from '../PreferencesMappings'
+import { ELECTRON_STORE_MAPPINGS, REDUX_STORE_MAPPINGS } from '../PreferencesMappings'
 
 describe('PreferencesMappings', () => {
+  it('maps the v1 Electron Store clientId instead of the unrelated Redux userId', () => {
+    expect(ELECTRON_STORE_MAPPINGS).toContainEqual({
+      originalKey: 'clientId',
+      targetKey: 'app.user.id'
+    })
+    expect(REDUX_STORE_MAPPINGS.settings).not.toContainEqual({
+      originalKey: 'userId',
+      targetKey: 'app.user.id'
+    })
+  })
+
   it('uses flat file processing default target keys', () => {
     expect(REDUX_STORE_MAPPINGS.preprocess).toContainEqual({
       originalKey: 'defaultProvider',

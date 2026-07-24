@@ -4428,6 +4428,14 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "privacy": {
+      "accept_and_continue": "同意して続行",
+      "accept_policy": "プライバシーポリシーに同意する",
+      "notice": "以下を読み、同意します：",
+      "period": "",
+      "policy": "プライバシーポリシー",
+      "update_failed": "プライバシーポリシーへの同意を保存できませんでした。もう一度お試しください。"
+    },
     "select_model": {
       "change_later": "いつでも設定で変更できます",
       "start": "始めましょう",
@@ -4444,7 +4452,7 @@
       "other_provider": "他のプロバイダーを選択",
       "select_other_provider": "他のプロバイダーを選択",
       "setup_hint": "ベストな体験のために、少なくとも1つのプロバイダーを設定してください",
-      "subtitle": "CherryINでトップクラスのAIサービスをお楽しみください",
+      "subtitle": "プロバイダーに接続して、オールインワンAIワークステーションを始めましょう",
       "title": "Cherry Studioへようこそ"
     }
   },
@@ -6909,7 +6917,7 @@
       "default_assistant_model": "デフォルトアシスタントモデル",
       "default_assistant_model_description": "アシスタントにモデルがない場合に使用されます",
       "docs": "モデルドキュメント",
-      "empty": "モデルが見つかりません",
+      "empty": "モデルを選択",
       "enabled_models": "有効",
       "expand_all": "すべて展開",
       "filter": {
