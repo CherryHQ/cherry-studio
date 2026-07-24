@@ -613,7 +613,7 @@ describe('writeCliConfigDraft', () => {
     const reasoningModel = {
       id: 'deepseek-chat',
       name: 'DeepSeek Chat',
-      reasoning: { supportedEfforts: ['low', 'medium', 'high'] }
+      reasoning: { selectableEfforts: ['low', 'medium', 'high'] }
     } as unknown
 
     it('writes a Cherry-* provider with the model and no reasoning by default', async () => {

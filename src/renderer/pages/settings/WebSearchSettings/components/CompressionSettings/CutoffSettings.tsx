@@ -29,7 +29,7 @@ const CutoffSettings = () => {
           content={t('settings.tool.websearch.compression.cutoff.limit.tooltip')}
           iconProps={{
             size: 16,
-            color: 'var(--color-icon)',
+            color: 'var(--color-foreground-secondary)',
             className: 'ml-1 cursor-pointer'
           }}
         />

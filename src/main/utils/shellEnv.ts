@@ -4,6 +4,7 @@ import { isMac, isWin } from '@main/core/platform'
 import { execFileSync, spawn } from 'child_process'
 
 import { dedupePathSegments, getBinarySearchDirs, mergeBinaryExecutionEnv } from './binaryEnv'
+import { getBundledGitDir } from './bundledGit'
 
 const logger = loggerService.withContext('ShellEnv')
 
@@ -17,15 +18,18 @@ const SHELL_ENV_TIMEOUT_MS = 15_000
 const appendCherryToolDirsToPath = (env: Record<string, string>) => {
   const pathSeparator = isWin ? ';' : ':'
   const cherryToolDirs = getBinarySearchDirs()
+  // Bundled MinGit as a last-resort git: appended after the managed tool dirs so
+  // it lands at the very tail, letting any spawned process (agent, CLI) resolve a
+  // bare `git` with no system git — while system/mise/PATH git always win ahead.
+  const bundledGitDir = getBundledGitDir()
+  const tailDirs = bundledGitDir ? [...cherryToolDirs, bundledGitDir] : cherryToolDirs
   const pathKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
   const canonicalPathKey = pathKeys[0] || (isWin ? 'Path' : 'PATH')
   const existingPathValue = env[canonicalPathKey] || env.PATH || ''
 
   // Existing segments first, tool dirs appended — dedup keeps an already-present
   // tool dir at its original position instead of moving it to the tail.
-  const updatedPath = dedupePathSegments([...existingPathValue.split(pathSeparator), ...cherryToolDirs]).join(
-    pathSeparator
-  )
+  const updatedPath = dedupePathSegments([...existingPathValue.split(pathSeparator), ...tailDirs]).join(pathSeparator)
 
   if (pathKeys.length > 0) {
     pathKeys.forEach((key) => {
@@ -118,8 +122,6 @@ function getWindowsEnvironment(): Record<string, string> {
     logger.warn('Could not read PATH from Windows registry, keeping process.env PATH')
   }
 
-  appendCherryToolDirsToPath(env)
-  applyBinaryExecutionEnv(env)
   return env
 }
 
@@ -277,9 +279,6 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
         logger.warn(`Raw output from shell:\n${output}`)
       }
 
-      appendCherryToolDirsToPath(env)
-      applyBinaryExecutionEnv(env)
-
       resolveOnce(env)
     })
   })
@@ -293,13 +292,10 @@ async function fetchShellEnv(): Promise<Record<string, string>> {
     return await getLoginShellEnvironment()
   } catch (error) {
     logger.error('Failed to get shell environment, falling back to process.env', { error })
-    // Fallback to current process environment with cherry studio bin path
     const fallbackEnv: Record<string, string> = {}
     for (const key in process.env) {
       fallbackEnv[key] = process.env[key] || ''
     }
-    appendCherryToolDirsToPath(fallbackEnv)
-    applyBinaryExecutionEnv(fallbackEnv)
     return fallbackEnv
   }
 }
@@ -336,9 +332,16 @@ function loadShellEnv(): Promise<Record<string, string>> {
  * `removeEnvProxy`, merging per-spawn overrides), and handing out the cached
  * object itself would let one such mutation silently poison every later reader.
  */
-export async function getShellEnv(): Promise<Record<string, string>> {
+export async function getRawShellEnv(): Promise<Record<string, string>> {
   const env = cachedEnv ?? (await loadShellEnv())
   return { ...env }
+}
+
+export async function getShellEnv(): Promise<Record<string, string>> {
+  const env = await getRawShellEnv()
+  appendCherryToolDirsToPath(env)
+  applyBinaryExecutionEnv(env)
+  return env
 }
 
 /**
@@ -359,8 +362,11 @@ export async function refreshShellEnv(): Promise<Record<string, string>> {
     // (e.g. a tool install completing mid-flight). Acceptable because downstream
     // lookups hit the filesystem live; logged so the reuse is observable.
     logger.debug('refreshShellEnv reusing in-flight shell capture instead of re-spawning')
-    return { ...(await inflight) }
+    const env = { ...(await inflight) }
+    appendCherryToolDirsToPath(env)
+    applyBinaryExecutionEnv(env)
+    return env
   }
   cachedEnv = null
-  return { ...(await loadShellEnv()) }
+  return getShellEnv()
 }

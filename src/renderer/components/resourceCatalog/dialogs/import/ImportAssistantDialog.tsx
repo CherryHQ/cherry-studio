@@ -11,11 +11,9 @@ import {
   TabsTrigger,
   Textarea
 } from '@cherrystudio/ui'
-import { useAssistantMutations } from '@renderer/hooks/resourceCatalog'
-import { useEnsureTags } from '@renderer/hooks/useTags'
+import { useImportAssistantMutation } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
 import { AssistantTransferError, parseAssistantImportContent } from '@renderer/utils/assistantTransfer'
-import { getRandomTagColor } from '@renderer/utils/resourceCatalog'
 import { Clipboard, FileJson, Link, Upload } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -123,16 +121,14 @@ export function summarizeAssistantImportOutcomes(
 
 /**
  * Import-config dialog for assistants — visual layout mirrors the ui-design
- * `ImportModal` (file / clipboard / URL tabs). Business flow per record:
- *   1. `ensureTags(names)` resolves / POSTs any tag names present in the file.
- *   2. `createAssistant(dto + tagIds)` creates the assistant and its tag
- *      bindings in a single server-side transaction. `dto.modelId` is left
- *      unset so the backend fills it from the user's default-model preference.
+ * `ImportModal` (file / clipboard / URL tabs). Each record is sent through the
+ * dedicated import endpoint so optional group resolution and assistant
+ * creation are atomic. `dto.modelId` stays unset so the backend fills it from
+ * the user's default-model preference.
  */
 export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props) {
   const { t } = useTranslation()
-  const { createAssistant } = useAssistantMutations()
-  const { ensureTags } = useEnsureTags({ getDefaultColor: getRandomTagColor })
+  const { importAssistant } = useImportAssistantMutation()
 
   const [tab, setTab] = useState<ImportTab>('file')
   const [clipboardText, setClipboardText] = useState('')
@@ -164,13 +160,10 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
   }
 
   /**
-   * Shared pipeline: parse JSON → per draft, ensureTags → single atomic create.
+   * Shared pipeline: parse JSON → one atomic import request per draft.
    *
-   * Each draft wraps a single `createAssistant({ ...dto, tagIds })` call — the
-   * backend lands the assistant row and its tag bindings in one transaction,
-   * so there is no "created but tag-bind failed" half-success to report. Final
-   * outcomes are "ok" or "failed"; a mid-batch failure leaves prior successes
-   * intact and continues with the next draft.
+   * Final outcomes are "ok" or "failed"; a mid-batch failure leaves prior
+   * successes intact and continues with the next draft.
    */
   const runImport = async (content: string, source: 'file' | 'clipboard' | 'url', fileName?: string) => {
     setLoading(true)
@@ -193,16 +186,10 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
     }
 
     const outcomes: DraftOutcome[] = []
-
     for (const draft of drafts) {
       try {
-        // Names → ids first so the create call carries tagIds directly.
-        // ensureTags is idempotent (POST /tags only for names the backend
-        // doesn't already have). A failure here aborts the draft without
-        // creating an orphan assistant row.
-        const tagIds = draft.tags.length > 0 ? (await ensureTags(draft.tags)).map((tag) => tag.id) : undefined
-
-        await createAssistant({ ...draft.dto, ...(tagIds ? { tagIds } : {}) })
+        const groupName = draft.groupName?.trim()
+        await importAssistant({ ...draft.dto, ...(groupName ? { groupName } : {}) })
         outcomes.push({ kind: 'ok' })
       } catch (error) {
         outcomes.push({

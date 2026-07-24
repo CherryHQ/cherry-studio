@@ -13,9 +13,10 @@ vi.mock('@main/core/platform', () => ({
 vi.mock('@application', () => ({
   application: {
     getPath: (key: string) => {
-      const base = 'C:\\Users\\test\\.cherrystudio'
-      if (key === 'cherry.bin') return `${base}\\bin`
-      if (key === 'feature.binary.data') return `${base}\\binary-manager`
+      if (key === 'cherry.bin') return 'C:\\Users\\test\\.cherrystudio\\bin'
+      if (key === 'feature.binary.data') {
+        return 'C:\\Users\\test\\AppData\\Roaming\\CherryStudio\\Toolchain\\mise'
+      }
       if (key === 'sys.home') return 'C:\\Users\\test'
       return `/mock/${key}`
     }
@@ -24,8 +25,16 @@ vi.mock('@application', () => ({
 
 vi.mock('child_process')
 
+// Control the bundled-git resolution; default null so most tests see no bundled
+// git appended (matching a build/host without the Windows MinGit bundle).
+vi.mock('../bundledGit', () => ({
+  getBundledGitPath: vi.fn(() => null),
+  getBundledGitDir: vi.fn(() => null)
+}))
+
 // Import AFTER mocks are registered so the module binds to mocked values.
-import { getShellEnv, refreshShellEnv } from '../shellEnv'
+import { getBundledGitDir } from '../bundledGit'
+import { getRawShellEnv, getShellEnv, refreshShellEnv } from '../shellEnv'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -173,6 +182,22 @@ describe('shellEnv – Windows registry PATH', () => {
 
   // -- Cherry Studio tool directories appended ------------------------------
 
+  it('should preserve the unmodified user environment for system tools', async () => {
+    process.env.MISE_DATA_DIR = 'C:\\Users\\TestUser\\mise-data'
+    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+      const keyPath = (args as string[])[1]
+      if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Windows;C:\\UserNode')
+      throw new Error('not found')
+    })
+
+    await refreshShellEnv()
+    const env = await getRawShellEnv()
+
+    expect(env.MISE_DATA_DIR).toBe('C:\\Users\\TestUser\\mise-data')
+    expect(env.Path).toBe('C:\\Windows;C:\\UserNode')
+    expect(env.Path).not.toContain('.cherrystudio')
+  })
+
   it('should append Cherry Studio tool directories to PATH', async () => {
     vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
       const keyPath = (args as string[])[1]
@@ -183,7 +208,7 @@ describe('shellEnv – Windows registry PATH', () => {
     const env = await refreshShellEnv()
 
     expect(env.Path).toContain('.cherrystudio')
-    expect(env.Path).toContain('binary-manager')
+    expect(env.Path).toContain('Toolchain\\mise')
     expect(env.Path).toContain('shims')
     expect(env.Path).toContain('bin')
   })
@@ -201,6 +226,23 @@ describe('shellEnv – Windows registry PATH', () => {
 
     const shimsCount = env.Path.split(';').filter((seg) => seg.endsWith('shims')).length
     expect(shimsCount).toBe(1)
+  })
+
+  it('appends the bundled MinGit dir to the PATH tail as a last-resort git', async () => {
+    const bundledGitDir = 'C:\\Cherry\\resources\\binaries\\win32-x64\\git\\cmd'
+    vi.mocked(getBundledGitDir).mockReturnValue(bundledGitDir)
+    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
+      const keyPath = (args as string[])[1]
+      if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Git\\cmd;C:\\Windows')
+      throw new Error('not found')
+    })
+
+    const env = await refreshShellEnv()
+
+    const segments = env.Path.split(';')
+    // Present, and dead last so system git (C:\Git\cmd) and the managed tool dirs win ahead of it.
+    expect(segments[segments.length - 1]).toBe(bundledGitDir)
+    expect(segments.indexOf('C:\\Git\\cmd')).toBeLessThan(segments.length - 1)
   })
 
   // -- does not spawn cmd.exe -----------------------------------------------

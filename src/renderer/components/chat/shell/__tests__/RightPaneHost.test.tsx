@@ -84,6 +84,15 @@ function createDeferred() {
   return { promise, resolve }
 }
 
+function mockMainRegionWidth(width: number) {
+  vi.spyOn(HTMLElement.prototype, 'offsetParent', 'get').mockImplementation(function (this: HTMLElement) {
+    return this.parentElement
+  })
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    return this.hasAttribute('data-main-region') ? new DOMRect(0, 0, width, 500) : new DOMRect()
+  })
+}
+
 describe('RightPaneHost', () => {
   beforeEach(() => {
     motionTestState.controls.set.mockReset()
@@ -150,16 +159,21 @@ describe('RightPaneHost', () => {
     expect(ARTIFACT_RIGHT_PANE_MIN_WIDTH + CHAT_CENTER_MIN_USABLE_WIDTH).toBe(615)
   })
 
-  it('caps its width when reserving space for the conversation center', () => {
+  it('lets the pane and the center share space instead of clamping the pane to zero', () => {
     const { container } = render(
-      <PersistentRightPaneHost open width={460} reservedCenterWidth={360}>
+      <PersistentRightPaneHost open width={460}>
         <div>artifact pane</div>
       </PersistentRightPaneHost>
     )
 
     const host = container.querySelector('[data-right-pane]')
+    const spacer = container.querySelector('[data-right-pane-spacer]')
 
-    expect(host).toHaveStyle({ maxWidth: 'max(0px, calc(100% - 360px))' })
+    // Yield order: pane first (stored → 255 while the center keeps 360), then the
+    // center (360 → 200 with the pane pinned), then both proportionally — never 0.
+    expect(host).toHaveStyle({ maxWidth: 'max(min(460px, calc(100% - 360px)), min(255px, calc(100% * 255 / 455)))' })
+    // The spacer must share the exact expression or the pane would overlap the center.
+    expect(spacer).toHaveStyle({ maxWidth: 'max(min(460px, calc(100% - 360px)), min(255px, calc(100% * 255 / 455)))' })
   })
 
   it('renders a left-edge resize handle when resizable', () => {
@@ -173,6 +187,52 @@ describe('RightPaneHost', () => {
 
     expect(handle).toBeInTheDocument()
     expect(handle).toHaveClass('left-0', 'cursor-col-resize')
+  })
+
+  it('reports a fixed reachable splitter range when both panes shrink proportionally', () => {
+    mockMainRegionWidth(400)
+    const { container } = render(
+      <div data-main-region>
+        <PersistentRightPaneHost open resizable width={460}>
+          <div>artifact pane</div>
+        </PersistentRightPaneHost>
+      </div>
+    )
+
+    const handle = container.querySelector('[data-right-pane-resize-handle]')
+
+    expect(handle).toHaveAttribute('aria-valuemin', '224')
+    expect(handle).toHaveAttribute('aria-valuemax', '224')
+    expect(handle).toHaveAttribute('aria-valuenow', '224')
+
+    fireEvent.keyDown(handle as HTMLElement, { key: 'End' })
+    fireEvent.keyDown(handle as HTMLElement, { key: 'ArrowLeft' })
+    fireEvent.keyDown(handle as HTMLElement, { key: 'ArrowRight' })
+
+    expect(persistCacheMock.setWidth).not.toHaveBeenCalled()
+  })
+
+  it('limits the splitter maximum and End key to the currently reachable width', () => {
+    mockMainRegionWidth(700)
+    persistCacheMock.state.width = 280
+    const { container } = render(
+      <div data-main-region>
+        <PersistentRightPaneHost open resizable width={460}>
+          <div>artifact pane</div>
+        </PersistentRightPaneHost>
+      </div>
+    )
+
+    const handle = container.querySelector('[data-right-pane-resize-handle]')
+    if (!handle) throw new Error('Expected resize handle')
+
+    expect(handle).toHaveAttribute('aria-valuemin', '255')
+    expect(handle).toHaveAttribute('aria-valuemax', '340')
+    expect(handle).toHaveAttribute('aria-valuenow', '280')
+
+    fireEvent.keyDown(handle, { key: 'End' })
+
+    expect(persistCacheMock.setWidth).toHaveBeenCalledWith(340)
   })
 
   it('keeps the resize handle above pane content overlays', () => {
@@ -251,7 +311,8 @@ describe('RightPaneHost', () => {
       set: ReturnType<typeof vi.fn>
       start: ReturnType<typeof vi.fn>
     }
-    const dockedStripClip = 'inset(0% 0% 0% calc(100% - 460px))'
+    const dockedStripClip =
+      'inset(0% 0% 0% calc(100% - max(min(460px, calc(100% - 360px)), min(255px, calc(100% * 255 / 455)))))'
     const { container, rerender } = render(
       <div className="relative">
         <PersistentRightPaneHost open width={460}>
@@ -293,10 +354,10 @@ describe('RightPaneHost', () => {
     expect(controls.start).toHaveBeenCalledWith(expect.objectContaining({ clipPath: dockedStripClip }))
   })
 
-  it('starts the maximize wipe from the constrained docked width', async () => {
+  it('starts the maximize wipe from the space-constrained docked width', async () => {
     const { rerender } = render(
       <div className="relative">
-        <PersistentRightPaneHost open width={460} reservedCenterWidth={360}>
+        <PersistentRightPaneHost open width={460}>
           <div>artifact pane</div>
         </PersistentRightPaneHost>
       </div>
@@ -305,7 +366,7 @@ describe('RightPaneHost', () => {
 
     rerender(
       <div className="relative">
-        <PersistentRightPaneHost open maximized width={460} reservedCenterWidth={360}>
+        <PersistentRightPaneHost open maximized width={460}>
           <div>artifact pane</div>
         </PersistentRightPaneHost>
       </div>
@@ -313,7 +374,8 @@ describe('RightPaneHost', () => {
 
     await waitFor(() =>
       expect(motionTestState.controls.set).toHaveBeenCalledWith({
-        clipPath: 'inset(0% 0% 0% calc(100% - min(460px, max(0px, calc(100% - 360px)))))',
+        clipPath:
+          'inset(0% 0% 0% calc(100% - max(min(460px, calc(100% - 360px)), min(255px, calc(100% * 255 / 455)))))',
         opacity: 1
       })
     )
@@ -391,7 +453,7 @@ describe('RightPaneHost', () => {
     expect(pane).toHaveAttribute('data-resizing', 'true')
 
     fireEvent.mouseMove(document, { clientX: 300 })
-    fireEvent.mouseMove(document, { clientX: 600 })
+    fireEvent.mouseMove(document, { clientX: 500 })
     fireEvent.mouseMove(document, { clientX: 20 })
 
     // No commits to the persisted cache while the drag is in progress — the
@@ -407,6 +469,35 @@ describe('RightPaneHost', () => {
     expect(document.body.style.cursor).toBe('')
     expect(document.body.style.userSelect).toBe('')
     expect(pane).not.toHaveAttribute('data-resizing')
+  })
+
+  it('closes the pane instead of committing when the drag travels well past the minimum width', () => {
+    const onDragClose = vi.fn()
+    const { container } = render(
+      <PersistentRightPaneHost open resizable width={460} onDragClose={onDragClose}>
+        <div>artifact pane</div>
+      </PersistentRightPaneHost>
+    )
+    const pane = container.querySelector('[data-right-pane]')
+    const handle = container.querySelector('[data-right-pane-resize-handle]')
+
+    if (!pane || !handle) {
+      throw new Error('Expected right pane and resize handle')
+    }
+
+    vi.spyOn(pane, 'getBoundingClientRect').mockReturnValue(new DOMRect(340, 0, 460, 500))
+
+    fireEvent.mouseDown(handle, { clientX: 340 })
+    // Just under the minimum width is a clamp, not a close.
+    fireEvent.mouseMove(document, { clientX: 560 })
+    expect(onDragClose).not.toHaveBeenCalled()
+    // Overshooting the minimum-width line by more than 80px closes: 800 - 630 = 170 < 255 - 80.
+    fireEvent.mouseMove(document, { clientX: 630 })
+
+    expect(onDragClose).toHaveBeenCalledTimes(1)
+    expect(persistCacheMock.setWidth).not.toHaveBeenCalled()
+    expect(pane).not.toHaveAttribute('data-resizing')
+    expect(document.body.style.cursor).toBe('')
   })
 
   it('does not commit to the persisted cache before window blur ends the drag', () => {

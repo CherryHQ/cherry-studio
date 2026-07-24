@@ -10,6 +10,7 @@ import { useMutation } from '@renderer/data/hooks/useDataApi'
 import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistant'
+import { useGroups } from '@renderer/hooks/useGroups'
 import { usePins } from '@renderer/hooks/usePins'
 import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopic'
 import { popup } from '@renderer/services/popup'
@@ -39,7 +40,7 @@ const logger = loggerService.withContext('AssistantResourceList')
 const ASSISTANT_ENTITY_EDIT_ACTION_ID = 'assistant-entity.edit'
 const ASSISTANT_ENTITY_TOGGLE_PIN_ACTION_ID = 'assistant-entity.toggle-pin'
 const ASSISTANT_ENTITY_CLEAR_TOPICS_ACTION_ID = 'assistant-entity.clear-topics'
-const ASSISTANT_ENTITY_TOGGLE_TAG_GROUPING_ACTION_ID = 'assistant-entity.toggle-tag-grouping'
+const ASSISTANT_ENTITY_TOGGLE_GROUPING_ACTION_ID = 'assistant-entity.toggle-grouping'
 const ASSISTANT_ENTITY_ICON_TYPE_ACTION_ID = 'assistant-entity.icon-type'
 const ASSISTANT_ENTITY_DELETE_ACTION_ID = 'assistant-entity.delete'
 const DEFAULT_ASSISTANT_ENTITY_ID = 'assistant-entity:default'
@@ -81,7 +82,8 @@ export function AssistantResourceList({
   const [assistantIconType, setAssistantIconType] = usePreference('assistant.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
-  const isTagGrouping = assistantSortType === 'tags'
+  // Keep the persisted legacy token (`tags`) for preference compatibility; runtime grouping uses Group rows.
+  const isGroupGrouping = assistantSortType === 'tags'
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
   const manageAssistantsMenuItem = resourceMenuItems?.find((item) => item.id === 'assistant-resource-view')
   const {
@@ -90,6 +92,11 @@ export function AssistantResourceList({
     error: assistantsError,
     refetch: refreshAssistants
   } = useAssistantsApi()
+  const {
+    groups: assistantGroups,
+    isLoading: isAssistantGroupsLoading,
+    error: assistantGroupsError
+  } = useGroups('assistant')
   const {
     topics: apiTopics,
     isLoadingAll: isTopicsLoadingAll,
@@ -112,6 +119,10 @@ export function AssistantResourceList({
   const [clearingTopicsAssistantId, setClearingTopicsAssistantId] = useState<string | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const assistantPinnedIdSet = useMemo(() => new Set(assistantPinnedIds), [assistantPinnedIds])
+  const assistantGroupById = useMemo(
+    () => new Map(assistantGroups.map((group) => [group.id, group] as const)),
+    [assistantGroups]
+  )
   const isAssistantPinActionDisabled = isAssistantPinsLoading || isAssistantPinsRefreshing || isAssistantPinsMutating
   const topics = useMemo(
     () =>
@@ -154,6 +165,7 @@ export function AssistantResourceList({
 
     return [
       ...assistants.map((assistant) => {
+        const group = assistant.groupId ? assistantGroupById.get(assistant.groupId) : undefined
         const icon = renderAssistantEntityIcon(
           assistantIconType,
           {
@@ -169,7 +181,9 @@ export function AssistantResourceList({
           name: assistant.name,
           orderKey: assistant.orderKey,
           pinned: assistantPinnedIdSet.has(assistant.id),
-          tag: assistant.tags?.[0]?.name,
+          groupId: group?.id,
+          groupName: group?.name,
+          groupOrderKey: group?.orderKey,
           icon,
           trailingAction: (
             <Tooltip title={t('chat.conversation.new')} delay={500}>
@@ -187,7 +201,16 @@ export function AssistantResourceList({
       }),
       ...defaultAssistantEntity
     ]
-  }, [assistantIconType, assistants, assistantPinnedIdSet, defaultModelId, handleCreateTopic, t, topics])
+  }, [
+    assistantGroupById,
+    assistantIconType,
+    assistants,
+    assistantPinnedIdSet,
+    defaultModelId,
+    handleCreateTopic,
+    t,
+    topics
+  ])
 
   const sortTopicsForEntity = useCallback(
     (entityTopics: Topic[]) => sortResourceItemsByPinnedTime(entityTopics, new Date()),
@@ -216,8 +239,13 @@ export function AssistantResourceList({
     resources: topics,
     getResourceParentId: getTopicAssistantId,
     activeEntityId: activeAssistantId ?? DEFAULT_ASSISTANT_ENTITY_ID,
-    isLoading: isAssistantsLoading || isTopicsLoadingAll || !isTopicsFullyLoaded || isTopicPinsLoading,
-    isError: !!(assistantsError || topicsError),
+    isLoading:
+      isAssistantsLoading ||
+      (isGroupGrouping && isAssistantGroupsLoading) ||
+      isTopicsLoadingAll ||
+      !isTopicsFullyLoaded ||
+      isTopicPinsLoading,
+    isError: !!(assistantsError || (isGroupGrouping && assistantGroupsError) || topicsError),
     sortResourcesForEntity: sortTopicsForEntity,
     onPickResource: onSelectTopic,
     onCreateResource: handleCreateTopic,
@@ -355,8 +383,8 @@ export function AssistantResourceList({
             t
           ),
           buildResolvedResourceEntityMenuAction({
-            id: ASSISTANT_ENTITY_TOGGLE_TAG_GROUPING_ACTION_ID,
-            label: isTagGrouping ? t('assistants.tags.ungroup') : t('assistants.tags.group_by'),
+            id: ASSISTANT_ENTITY_TOGGLE_GROUPING_ACTION_ID,
+            label: isGroupGrouping ? t('assistants.groups.ungroup') : t('assistants.groups.group_by'),
             icon: <Tags size={14} />,
             order: 35
           })
@@ -395,8 +423,8 @@ export function AssistantResourceList({
           t
         ),
         buildResolvedResourceEntityMenuAction({
-          id: ASSISTANT_ENTITY_TOGGLE_TAG_GROUPING_ACTION_ID,
-          label: isTagGrouping ? t('assistants.tags.ungroup') : t('assistants.tags.group_by'),
+          id: ASSISTANT_ENTITY_TOGGLE_GROUPING_ACTION_ID,
+          label: isGroupGrouping ? t('assistants.groups.ungroup') : t('assistants.groups.group_by'),
           icon: <Tags size={14} />,
           order: 35
         }),
@@ -417,7 +445,7 @@ export function AssistantResourceList({
       clearingTopicsAssistantId,
       deletingAssistantId,
       isAssistantPinActionDisabled,
-      isTagGrouping,
+      isGroupGrouping,
       t
     ]
   )
@@ -425,8 +453,8 @@ export function AssistantResourceList({
   const handleContextMenuAction = useCallback(
     (item: ResourceEntityRailItem, action: ResolvedAction) => {
       if (item.id === DEFAULT_ASSISTANT_ENTITY_ID && !action.id.startsWith(ASSISTANT_ENTITY_ICON_TYPE_ACTION_ID)) {
-        if (action.id === ASSISTANT_ENTITY_TOGGLE_TAG_GROUPING_ACTION_ID) {
-          void setAssistantSortType(isTagGrouping ? 'list' : 'tags')
+        if (action.id === ASSISTANT_ENTITY_TOGGLE_GROUPING_ACTION_ID) {
+          void setAssistantSortType(isGroupGrouping ? 'list' : 'tags')
         }
         return
       }
@@ -443,8 +471,8 @@ export function AssistantResourceList({
         void handleClearAssistantTopics(item.id)
         return
       }
-      if (action.id === ASSISTANT_ENTITY_TOGGLE_TAG_GROUPING_ACTION_ID) {
-        void setAssistantSortType(isTagGrouping ? 'list' : 'tags')
+      if (action.id === ASSISTANT_ENTITY_TOGGLE_GROUPING_ACTION_ID) {
+        void setAssistantSortType(isGroupGrouping ? 'list' : 'tags')
         return
       }
       if (action.id.startsWith(`${ASSISTANT_ENTITY_ICON_TYPE_ACTION_ID}.`)) {
@@ -459,7 +487,7 @@ export function AssistantResourceList({
       handleDeleteAssistant,
       handleClearAssistantTopics,
       handleToggleAssistantPin,
-      isTagGrouping,
+      isGroupGrouping,
       openAssistantEditor,
       setAssistantIconType,
       setAssistantSortType
@@ -476,7 +504,7 @@ export function AssistantResourceList({
         status={listStatus}
         ariaLabel={t('assistants.abbr')}
         defaultGroupLabel={t('assistants.abbr')}
-        groupByTag={isTagGrouping}
+        groupByGroup={isGroupGrouping}
         addIcon={<Plus />}
         addLabel={t('chat.add.assistant.title')}
         historyRecordsActive={historyRecordsActive}
@@ -493,10 +521,9 @@ export function AssistantResourceList({
         }
         onSelect={handleSelect}
         onSelectedClick={() => void onSelectedAssistantClick?.()}
-        // Reorder persists the global assistant `orderKey`; tag grouping only scopes drops
-        // visually, so dragging within a tag would still move the assistant in the global
-        // order. Disable reorder while grouping by tag until a tag-scoped ordering exists.
-        onReorder={isTagGrouping ? undefined : handleReorder}
+        // Reorder persists the global assistant `orderKey`; grouped sections use Group.orderKey.
+        // Disable assistant reorder while grouped because it cannot change group ordering.
+        onReorder={isGroupGrouping ? undefined : handleReorder}
         getContextMenuActions={getContextMenuActions}
         onContextMenuAction={handleContextMenuAction}
       />

@@ -21,9 +21,8 @@ const UI_DEFAULT_MAX_TOOL_CALLS = 20
  * Flat form state for the Assistant edit dialog. Every editable field lives
  * here so the dialog commits in a single PATCH.
  *
- * `tagName` stores one user-facing name, not an id — tag-id resolution happens
- * at save time via `ensureTags`, keeping the form state independent from
- * backend tag ids.
+ * `groupId` stores the canonical assistant group reference. Names are resolved
+ * only for display by the selector.
  */
 export interface AssistantFormState {
   // columns
@@ -46,13 +45,9 @@ export interface AssistantFormState {
   customParameters: CustomParameter[]
   mcpMode: AssistantSettings['mcpMode']
   // relations
-  tagName: string | null
+  groupId: string | null
   knowledgeBaseIds: string[]
   mcpServerIds: string[]
-}
-
-function normalizeAssistantTagName(tags: readonly string[]): string | null {
-  return tags[0] ?? null
 }
 
 function buildAssistantSettingsFromForm(
@@ -94,7 +89,7 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
     enableMaxToolCalls: settings.enableMaxToolCalls ?? true,
     customParameters: settings.customParameters ?? [],
     mcpMode: settings.mcpMode ?? 'auto',
-    tagName: normalizeAssistantTagName((assistant.tags ?? []).map((t) => t.name)),
+    groupId: assistant.groupId,
     knowledgeBaseIds: assistant.knowledgeBaseIds ?? [],
     mcpServerIds: assistant.mcpServerIds ?? []
   }
@@ -107,26 +102,20 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
 /**
  * Result of `diffAssistantUpdate`.
  *
- * `dto` is the PATCH body sans `tagIds` — tag resolution is a side
- * effect (`ensureTags` may POST new rows) so it stays at the page
- * level. `tagsChanged` + `tagNames` tell the page whether to call
- * `ensureTags` and what to resolve.
+ * `dto` is the complete PATCH body, including `groupId` when the assignment
+ * changes.
  */
 export interface AssistantDiffResult {
   dto: UpdateAssistantDto
-  tagsChanged: boolean
-  tagNames: string[]
 }
 
 export type AssistantSaveIntent = {
   kind: 'update'
   payload: UpdateAssistantDto
-  tagNames: string[]
-  tagsChanged: boolean
 }
 
 /**
- * Compute the minimal Assistant PATCH payload + side-effect hints.
+ * Compute the minimal Assistant PATCH payload.
  *
  * - Columns block: when ANY of name/emoji/description/modelId/prompt
  *   or any settings field differs, the dto carries all five column
@@ -134,8 +123,7 @@ export type AssistantSaveIntent = {
  *   (preserves unrelated settings keys the UI doesn't surface).
  * - Relation arrays (knowledgeBaseIds / mcpServerIds) ship only when
  *   their set differs — order-insensitive, matches junction semantics.
- * - Tags: NOT placed on the dto here; `tagsChanged` + `tagNames`
- *   let the page decide whether to `ensureTags` and attach `tagIds`.
+ * - Group: placed directly on the DTO as the canonical `groupId`.
  *
  * Returns `null` when nothing changed.
  */
@@ -164,11 +152,11 @@ export function diffAssistantUpdate(
     baseline.mcpMode !== form.mcpMode ||
     customParametersChanged
 
-  const tagsChanged = baseline.tagName !== form.tagName
+  const groupChanged = baseline.groupId !== form.groupId
   const knowledgeBaseIdsChanged = !sameIdSet(baseline.knowledgeBaseIds, form.knowledgeBaseIds)
   const mcpServerIdsChanged = !sameIdSet(baseline.mcpServerIds, form.mcpServerIds)
 
-  if (!columnsChanged && !tagsChanged && !knowledgeBaseIdsChanged && !mcpServerIdsChanged) {
+  if (!columnsChanged && !groupChanged && !knowledgeBaseIdsChanged && !mcpServerIdsChanged) {
     return null
   }
 
@@ -184,10 +172,11 @@ export function diffAssistantUpdate(
         }
       : {}),
     ...(knowledgeBaseIdsChanged ? { knowledgeBaseIds: form.knowledgeBaseIds } : {}),
-    ...(mcpServerIdsChanged ? { mcpServerIds: form.mcpServerIds } : {})
+    ...(mcpServerIdsChanged ? { mcpServerIds: form.mcpServerIds } : {}),
+    ...(groupChanged ? { groupId: form.groupId } : {})
   }
 
-  return { dto, tagsChanged, tagNames: form.tagName ? [form.tagName] : [] }
+  return { dto }
 }
 
 export function diffAssistantSaveIntent(
@@ -200,9 +189,7 @@ export function diffAssistantSaveIntent(
 
   return {
     kind: 'update',
-    payload: diff.dto,
-    tagNames: diff.tagNames,
-    tagsChanged: diff.tagsChanged
+    payload: diff.dto
   }
 }
 

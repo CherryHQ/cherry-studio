@@ -1400,10 +1400,9 @@ export class JobManager extends BaseService {
    * the value is unchanged — cheap and avoids JSON-key-order brittleness in a
    * deep-equal check.
    *
-   * Known limitation: the DB write and the in-process re-arm are two awaits
-   * apart. Between them an old cron entry can fire once with the old
-   * jobInputTemplate. Acceptable trade-off for single-process Electron main —
-   * see the design plan for a per-id mutex escalation path.
+   * The armed callback reloads the schedule row immediately before enqueue,
+   * so execution-config updates take effect without re-arming or disturbing
+   * the existing trigger cadence.
    *
    * @param id Schedule row id
    * @param patch Partial update
@@ -1974,16 +1973,22 @@ export class JobManager extends BaseService {
         if (trigger.kind === 'once') this.suppressedOnceScheduleIds.add(schedule.id)
         return
       }
+      // The registration owns timing only. Execution configuration remains
+      // DB-backed so prompt/workspace/timeout edits take effect on the next
+      // fire without re-arming (which would reset an interval's cadence).
+      const currentSchedule = jobScheduleService.getById(schedule.id)
+      if (!currentSchedule?.enabled) return
+
       const firedAt = Date.now()
       try {
-        this.enqueue(schedule.type as JobType, schedule.jobInputTemplate as never, {
-          scheduleId: schedule.id
+        this.enqueue(currentSchedule.type as JobType, currentSchedule.jobInputTemplate as never, {
+          scheduleId: currentSchedule.id
         })
       } catch (err) {
         const e = err as Error & { code?: string }
         logger.error('Schedule fire failed', {
-          scheduleId: schedule.id,
-          type: schedule.type,
+          scheduleId: currentSchedule.id,
+          type: currentSchedule.type,
           code: e.code,
           message: e.message,
           stack: e.stack

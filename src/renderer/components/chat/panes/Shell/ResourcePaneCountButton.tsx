@@ -22,7 +22,7 @@ export function ResourcePaneCountButton({ label, count, className }: ResourcePan
       actions.close()
       return
     }
-    actions.tryOpen(RESOURCE_PANE_TAB)
+    actions.tryOpen(RESOURCE_PANE_TAB, { userInitiated: true })
   }, [actions, active])
 
   if (!actions.canOpen(RESOURCE_PANE_TAB)) return null

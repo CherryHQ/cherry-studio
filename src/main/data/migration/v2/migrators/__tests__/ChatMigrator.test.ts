@@ -907,16 +907,30 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
 
   /** Seed a minimal file_entry row so FK-constrained chat_message_file_ref inserts succeed. */
   async function seedFileEntry(id: string): Promise<void> {
+    await seedFileEntries([id])
+  }
+
+  /**
+   * Seed many file_entry rows in a few batched multi-row inserts. One insert per id means one autocommit
+   * transaction (and fsync) each — 600 of those is what timed the >500-chunk test out on CI. Chunked well
+   * under SQLite's bound-parameter limit.
+   */
+  async function seedFileEntries(ids: string[]): Promise<void> {
     const now = Date.now()
-    await dbh.db.insert(fileEntryTable).values({
-      id,
-      origin: 'internal',
-      name: `test-${id}`,
-      ext: 'png',
-      size: 1024,
-      createdAt: now,
-      updatedAt: now
-    })
+    const BATCH = 200
+    for (let i = 0; i < ids.length; i += BATCH) {
+      await dbh.db.insert(fileEntryTable).values(
+        ids.slice(i, i + BATCH).map((id) => ({
+          id,
+          origin: 'internal',
+          name: `test-${id}`,
+          ext: 'png',
+          size: 1024,
+          createdAt: now,
+          updatedAt: now
+        }))
+      )
+    }
   }
 
   function newTopic(id: string, updatedAt: number): NewTopic {
@@ -1030,6 +1044,83 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
     const m1 = rows.find((r) => r.id === 'm1')
     expect(m1?.parentId).toBe(roots[0].id)
     expect(rows.filter((r) => r.role !== 'root').some((r) => r.parentId === null)).toBe(false)
+  })
+
+  /** Fetch a topic row and its single non-root content message after migration. */
+  async function readTopicAndContent(topicId: string) {
+    const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, topicId))
+    const content = (await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, topicId))).filter(
+      (r) => r.role !== 'root'
+    )
+    return { topic, content }
+  }
+
+  it('scopes the activeNodeId remap per topic when a message id collides across topics', async () => {
+    const migrator = new ChatMigrator()
+    // t1 and t2 both own a message id 'dup' AND both point activeNodeId at 'dup'. t1 is seen
+    // first and keeps 'dup'; t2's is renamed. Each activeNodeId must resolve to its OWN topic's
+    // message — a batch-global remap wrongly re-pointed t1's active node at t2's renamed message.
+    stage(
+      migrator,
+      [
+        {
+          topic: { ...newTopic('t1', 100), activeNodeId: 'dup' },
+          messages: [newMessage('dup', 't1', [{ type: 'main_text', content: 'a' }])],
+          pinned: false
+        },
+        {
+          topic: { ...newTopic('t2', 100), activeNodeId: 'dup' },
+          messages: [newMessage('dup', 't2', [{ type: 'main_text', content: 'b' }])],
+          pinned: false
+        }
+      ],
+      []
+    )
+
+    const fn = (migrator as unknown as Record<string, unknown>)['insertStagedTopics'] as (
+      ctx: MigrationContext
+    ) => Promise<unknown>
+    await fn.call(migrator, ctxOf())
+
+    const t1 = await readTopicAndContent('t1')
+    const t2 = await readTopicAndContent('t2')
+
+    // t1 kept 'dup'; t2 got a fresh id. Neither active node dangles or crosses into the other topic.
+    expect(t1.content.map((r) => r.id)).toEqual(['dup'])
+    expect(t2.content).toHaveLength(1)
+    expect(t2.content[0].id).not.toBe('dup')
+    expect(t1.topic.activeNodeId).toBe('dup')
+    expect(t2.topic.activeNodeId).toBe(t2.content[0].id)
+  })
+
+  it('scopes the activeNodeId remap per topic on a triple message-id collision', async () => {
+    const migrator = new ChatMigrator()
+    // Same id in three topics, all pointing activeNodeId at it. The 2nd and 3rd are renamed to
+    // distinct ids; a batch-global Map would overwrite to the last remap and point all three there.
+    stage(
+      migrator,
+      ['t1', 't2', 't3'].map((id) => ({
+        topic: { ...newTopic(id, 100), activeNodeId: 'dup' },
+        messages: [newMessage('dup', id, [{ type: 'main_text', content: id }])],
+        pinned: false
+      })),
+      []
+    )
+
+    const fn = (migrator as unknown as Record<string, unknown>)['insertStagedTopics'] as (
+      ctx: MigrationContext
+    ) => Promise<unknown>
+    await fn.call(migrator, ctxOf())
+
+    // Every topic's activeNodeId resolves to its OWN single content message.
+    for (const id of ['t1', 't2', 't3']) {
+      const { topic, content } = await readTopicAndContent(id)
+      expect(content).toHaveLength(1)
+      expect(topic.activeNodeId).toBe(content[0].id)
+    }
+    // And the three content ids are all distinct (no shared/overwritten remap).
+    const ids = (await Promise.all(['t1', 't2', 't3'].map((id) => readTopicAndContent(id)))).map((r) => r.content[0].id)
+    expect(new Set(ids).size).toBe(3)
   })
 
   it('skips chat_message_file_ref for dangling fileId and records warning', async () => {
@@ -1234,10 +1325,7 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
     it('chunks queries when >500 distinct fileIds are referenced', async () => {
       const count = 600
       const feIds = Array.from({ length: count }, (_, i) => `fe-chunk-${String(i).padStart(4, '0')}`)
-      const SEED_CHUNK = 100
-      for (let i = 0; i < feIds.length; i += SEED_CHUNK) {
-        for (const id of feIds.slice(i, i + SEED_CHUNK)) await seedFileEntry(id)
-      }
+      await seedFileEntries(feIds)
 
       const migrator = new ChatMigrator()
       const m = migrator as unknown as Record<string, unknown>

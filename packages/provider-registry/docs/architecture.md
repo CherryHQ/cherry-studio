@@ -2,6 +2,9 @@
 
 The catalog of AI **models** (what exists) and **providers** (how to reach them), plus the **M:N link** between them. It is a **code-generation pipeline**: hand-maintained TypeScript source + pinned upstream snapshots → three generated JSON files → read at runtime by the app.
 
+Reasoning controls have an additional model-capability/request-encoding boundary documented in
+[reasoning-control.md](./reasoning-control.md).
+
 > The three `data/*.json` files are **pure artifacts**. Never hand-edit them — edit the source and run `pnpm generate`. See [../CLAUDE.md](../CLAUDE.md).
 
 ## Data flow
@@ -14,7 +17,7 @@ The catalog of AI **models** (what exists) and **providers** (how to reach them)
   src/providers/<prov>.ts  ─┤──►  scripts/generate-catalog.ts  ──►   data/models.json          ─┐
     (defineProvider)       │       buildIndex                       data/providers.json        ├─► src/registry-loader.ts
   models.dev    (live)    ─┤       assignCreators   → ownedBy            data/provider-models.json ─┘     + src/schemas/*
-  openrouter.ai (live)    ─┘       buildModels / buildProviders /                                    (app reads these)
+  OpenRouter text + image ─┘       buildModels / buildProviders /                                    (app reads these)
                                    buildProviderModels
 ```
 
@@ -26,7 +29,7 @@ The pipeline never reads its own previous output — the JSON is a function of `
 | --- | --- | --- |
 | `data/models.json` | **Creator catalog** — every model that exists, with intrinsic metadata: `capabilities`, `inputModalities` / `outputModalities`, `contextWindow`, `maxOutputTokens`, `ownedBy`. | canonical model id |
 | `data/providers.json` | **Connection config** — per provider: `endpointConfigs` (baseUrl + adapterFamily per endpoint type), `defaultChatEndpoint`, `apiFeatures`, `metadata.website`. | provider id |
-| `data/provider-models.json` | **M:N overrides** — one row per *(provider, model)* a provider serves that needs non-derivable data: `apiModelId` mapping, per-provider `pricing`, `imageGeneration` transport, `disabled`, or a **standalone** vendor-exclusive model (carries its own `name`). | (providerId, modelId) |
+| `data/provider-models.json` | **M:N overrides** — one row per *(provider, model)* that needs non-derivable data: `apiModelId`, pricing, image transport, endpoint-keyed `reasoningContracts`, `disabled`, or a standalone vendor-exclusive model. | (providerId, modelId) |
 
 First-party / standard cases emit **no** row — the runtime resolves `apiModelId → normalizeModelId → models.json` for all metadata, so a row only exists to carry what can't be derived.
 
@@ -52,14 +55,14 @@ A provider declares how to connect + what it serves. Fields:
 - Connection: `id`, `name`, `endpointConfigs`, `defaultChatEndpoint`, `apiFeatures`, `metadata` — emitted to `providers.json` (minus `description`, which is templated).
 - `modelsDevProvider` — models.dev key whose listing is this provider's served catalog (with per-model pricing). **Generation-only**, not emitted to `providers.json`.
 - `fetchModels()` — or pull the served list from the provider's own API.
-- `overrides[]` — manual `ProviderModelOverride`s for what the runtime can't derive: bedrock arns, `apiModelId` maps, `pricing`, `imageGeneration` transport, `disabled`, standalone models.
+- `overrides[]` — manual `ProviderModelOverride`s for what the runtime can't derive: bedrock arns, `apiModelId` maps, pricing, image transport, endpoint-keyed reasoning contracts, `disabled`, and standalone models.
 
 `openaiCompatible({ id, name, baseUrl, … })` is the helper for the ~half of providers that are a plain OpenAI-compatible endpoint.
 
 ## Generation pipeline (`scripts/generate-catalog.ts`)
 
-1. **`load`** — fetch the upstream catalogs live (or a local file via `MODELSDEV_CACHE` / `OPENROUTER_CACHE`), validate with zod.
-2. **`buildIndex`** — a canonical-id → metadata index, **unioned across sources**. models.dev is read only for the creator providers a creator forward-declares (clean listings); OpenRouter is always read (clean org/model ids). Host/gateway listings are ignored to avoid host-prefixed dup ids.
+1. **`load`** — fetch the upstream catalogs live (or local files via `MODELSDEV_CACHE` / `OPENROUTER_CACHE` / `OPENROUTER_IMAGE_CACHE`), validate with zod.
+2. **`buildIndex`** — a canonical-id → metadata index, **unioned across sources**. models.dev is read only for the creator providers a creator forward-declares (clean listings); OpenRouter's general and dedicated image catalogs are always read (clean org/model ids). Host/gateway listings are ignored to avoid host-prefixed dup ids.
 3. **`assignCreators`** — assign each canonical id an owning creator (`ownedBy`), most-explicit signal first:
    - **pass 1 — explicit identity**: the id names the creator (`fetchModels` list, hand-listed `models`, `idPrefixes`).
    - **pass 2 — family**: base architecture (`families`), weaker than an id.

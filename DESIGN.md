@@ -15,7 +15,7 @@ What makes Cherry Studio distinctive is its commitment to a calm UI foundation. 
 - Dual-mode system: fully specified light and dark tokens with true inversion (not just darkening)
 - Primary action color resolves through `var(--color-primary)`; do not introduce a separate page-local brand hue
 - Full semantic color set: `var(--color-destructive)` (red), `var(--color-success)` (green), `var(--color-warning)` (amber), `var(--color-info)` (blue)
-- Status palette pairs (base / text / bg / border, with hover + active variants) defined in `tokens/colors/status.css`
+- Status surface tokens defined in `tokens/colors/status.css`, paired with the single-token semantic accents
 - Border-radius scale from `var(--radius-none)` (0) to `var(--radius-round)` (9999px), 10 steps
 - Subtle borders via `var(--color-border)` (semi-transparent neutral) for structure, not decoration
 - Surfaces stack via color, not shadow: `var(--color-background)` → `var(--color-card)` → `var(--color-popover)`
@@ -91,13 +91,13 @@ When you reach for a value:
 - **Warning**: `var(--color-warning)` — caution states, pending actions
 - **Info**: `var(--color-info)` — informational states, neutral highlights
 
-### Semantic Status — Full palettes (base / text / bg / border / hover / active)
-Defined in `tokens/colors/status.css`. Use these when a status surface needs more than a single accent color (e.g. alert banners, toast bodies, tag pills). All four families share the same shape.
+### Semantic Status — Surface tokens
+Defined in `tokens/colors/status.css`. Pair these with the single-token semantic accents when a status needs a tinted surface (e.g. alert banners, toast bodies, tag pills).
 
-- **Error**: `var(--color-error-base)` · `var(--color-error-text)` · `var(--color-error-text-hover)` · `var(--color-error-bg)` · `var(--color-error-bg-hover)` · `var(--color-error-border)` · `var(--color-error-border-hover)` · `var(--color-error-active)`
-- **Success**: same shape as error, prefix `--color-success-*`
-- **Warning**: same shape as error, prefix `--color-warning-*`
-- **Info**: same shape as error, prefix `--color-info-*`
+- **Error**: `var(--color-error-base)` · `var(--color-error-text)` · `var(--color-error-bg)` · `var(--color-error-border)`
+- **Success**: `var(--color-success)` · `var(--color-success-bg)`
+- **Warning**: `var(--color-warning-base)` · `var(--color-warning-bg)` · `var(--color-warning-bg-hover)`
+- **Info**: `var(--color-info)` · `var(--color-info-bg)`
 
 ### Brand
 Do not use a page-local chromatic brand color for new UI chrome. `var(--color-brand-*)` exists as a primitive compatibility scale, but new component styling should express action hierarchy through semantic aliases such as `var(--color-primary)` and status through the semantic status tokens.
@@ -178,7 +178,7 @@ Three weights are exposed as semantic tokens; the rest of the Tailwind weight ut
 
 ## 4. Component Stylings
 
-> Padding values use `var(--cs-size-*)` directly because `--spacing-*` is currently kept opt-in in `theme.css` to avoid clobbering Tailwind container utilities. Prefer Tailwind utility classes (`px-4 py-2`) in component code; the `--cs-size-*` references below are the underlying contract.
+> Use Tailwind's numeric spacing utilities (`px-4 py-2`) in component code. In raw CSS, derive values from Tailwind's `--spacing` base unit.
 
 ### Buttons
 
@@ -408,7 +408,7 @@ Use `Drawer` for modal edge/bottom sheets, especially mobile-oriented or full-vi
 - Text: `var(--color-card-foreground)`
 - Border: 1px solid `var(--color-border)`
 - Radius: `var(--radius-lg)` to `var(--radius-xl)`
-- Padding: `var(--cs-size-2xs)` to `var(--cs-size-xs)` (16–24px)
+- Padding: `p-4` to `p-6` (16–24px)
 - Use: Content containers, conversation panels, settings sections
 
 **Popover / Floating**
@@ -647,42 +647,17 @@ When embedded in a `PageSidePanel` drawer or onboarding context (e.g. `ModelSett
 
 ### Spacing System
 
-> Defined in `tokens/spacing.css`. The full Tailwind numeric scale (`--spacing-*`) is exposed plus semantic legacy aliases (`--cs-size-*`). In component code prefer Tailwind utilities (`p-4`, `gap-6`); in raw CSS use the tokens below.
-
-**Numeric scale (Tailwind-aligned, 4px base unit):**
-- 0, px (1px), 0.5 (2px), 1 (4px), 1.5 (6px), 2 (8px), 2.5 (10px), 3 (12px), 3.5 (14px), 4 (16px), 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64, 72, 80, 96 — exposed as `--spacing-N`.
-- Total: 35 numeric tokens covering 0–384px including .5 micro-steps.
-
-**Semantic aliases** (shorthand for component code):
-
-| Token | Approx. value |
-|-------|---------------|
-| `var(--cs-size-5xs)` | 4px |
-| `var(--cs-size-4xs)` | 8px |
-| `var(--cs-size-3xs)` | 12px |
-| `var(--cs-size-2xs)` | 16px |
-| `var(--cs-size-xs)` | 24px |
-| `var(--cs-size-sm)` | 32px |
-| `var(--cs-size-md)` | 40px |
-| `var(--cs-size-lg)` | 48px |
-| `var(--cs-size-xl)` | 56px |
-| `var(--cs-size-2xl)` | 64px |
-| `var(--cs-size-3xl)` | 72px |
-| `var(--cs-size-4xl)` | 80px |
-| `var(--cs-size-5xl)` | 88px |
-| `var(--cs-size-6xl)` | 96px |
-| `var(--cs-size-7xl)` | 104px |
-| `var(--cs-size-8xl)` | 112px |
+Use Tailwind's numeric spacing scale, based on the `--spacing` 4px unit. Component code should use utilities such as `p-4`, `gap-6`, and `py-12`; raw CSS should use `calc(var(--spacing) * <multiplier>)`. The UI package does not define a parallel semantic spacing alias scale.
 
 ### Common Spacing Patterns
 
-| Context | Token range | Tailwind |
-|---------|-------------|----------|
-| Inline spacing (icon to text) | `var(--cs-size-5xs)` – `var(--cs-size-4xs)` | `gap-1` to `gap-2` |
-| Component internal padding | `var(--cs-size-4xs)` – `var(--cs-size-2xs)` | `p-2` to `p-4` |
-| Card padding | `var(--cs-size-2xs)` – `var(--cs-size-xs)` | `p-4` to `p-6` |
-| Section gaps | `var(--cs-size-xs)` – `var(--cs-size-lg)` | `gap-6` to `gap-12` |
-| Page section spacing | `var(--cs-size-lg)` – `var(--cs-size-6xl)` | `py-12` to `py-24` |
+| Context | Tailwind |
+|---------|----------|
+| Inline spacing (icon to text) | `gap-1` to `gap-2` |
+| Component internal padding | `p-2` to `p-4` |
+| Card padding | `p-4` to `p-6` |
+| Section gaps | `gap-6` to `gap-12` |
+| Page section spacing | `py-12` to `py-24` |
 
 ### Grid & Container
 
@@ -775,7 +750,7 @@ Use icon-library defaults unless a component has a documented reason to override
 - Use `*-hover` tokens or neutral hover classes according to the Button variant definition
 - Use `var(--color-accent)` fill for outline and ghost button hover states
 - Use semantic color tokens (`var(--color-success)`, `var(--color-warning)`, `var(--color-info)`, `var(--color-destructive)`) for status feedback, toasts, and badges
-- Use the full status palettes (`--color-error-bg`, `--color-error-text`, etc. from `tokens/colors/status.css`) for richer status surfaces
+- Use the status surface tokens (`--color-error-bg`, `--color-error-text`, etc. from `tokens/colors/status.css`) for richer status surfaces
 - Use `var(--color-border)`, `var(--color-border-muted)`, and `var(--color-border-subtle)` for neutral structure instead of opacity-modified border utilities
 - Use the body / heading font aliases at `var(--font-weight-regular)`/`var(--font-weight-medium)` for body and labels, `var(--font-weight-bold)` for page-level emphasis
 - Separate spatial zones (sidebar, main, popover) through surface color layering: `var(--color-sidebar)` vs `var(--color-background)` vs `var(--color-popover)`
@@ -835,7 +810,7 @@ Use icon-library defaults unless a component has a documented reason to override
 | Overlay / floating chrome | shared Dialog overlay, `bg-popover`, `border-border`, shadow utilities | Modal scrims, popovers, transient panels |
 | Sidebar surface | `var(--color-sidebar)` | Distinct spatial zone with full sub-palette |
 | Hover backgrounds | `var(--color-accent)` (outline/default), `var(--color-ghost-hover)` (ghost), `var(--color-secondary-hover)` (secondary) | Choose by variant |
-| Status palettes | `var(--color-{error,success,warning,info}-{base,text,bg,border,…})` | See `tokens/colors/status.css` |
+| Status surfaces | Error base/text/bg/border; success bg; warning base/bg/bg-hover; info bg | See `tokens/colors/status.css` |
 | Charts | Primitive scales: `var(--color-blue-500)`, `var(--color-green-500)`, etc. | No dedicated chart palette |
 | Shadow | `var(--shadow-xs)` for hover, `var(--shadow-md)` for floating | 7-level scale |
 

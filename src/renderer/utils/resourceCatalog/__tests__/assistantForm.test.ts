@@ -1,19 +1,8 @@
 import type { Assistant, AssistantSettings } from '@shared/data/types/assistant'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import type { Tag } from '@shared/data/types/tag'
 import { describe, expect, it } from 'vitest'
 
 import { diffAssistantSaveIntent, diffAssistantUpdate, initialAssistantFormState } from '../assistantForm'
-
-function tag(id: string, name: string, color = '#888'): Tag {
-  return {
-    id,
-    name,
-    color,
-    createdAt: '2026-04-20T00:00:00.000Z',
-    updatedAt: '2026-04-20T00:00:00.000Z'
-  }
-}
 
 function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
   return {
@@ -24,12 +13,12 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
     description: '',
     settings: { ...DEFAULT_ASSISTANT_SETTINGS } as AssistantSettings,
     modelId: null,
+    groupId: null,
     orderKey: 'a0',
     mcpServerIds: [],
     knowledgeBaseIds: [],
     createdAt: '2026-04-20T00:00:00.000Z',
     updatedAt: '2026-04-20T00:00:00.000Z',
-    tags: [],
     modelName: null,
     ...overrides
   }
@@ -69,9 +58,10 @@ describe('initialAssistantFormState', () => {
     })
   })
 
-  it('extracts a single tag name from embedded tag rows', () => {
-    const assistant = createAssistant({ tags: [tag('t1', 'alpha', '#f00'), tag('t2', 'beta', '#0f0')] })
-    expect(initialAssistantFormState(assistant).tagName).toBe('alpha')
+  it('copies the canonical group id', () => {
+    const groupId = '11111111-1111-4111-8111-111111111111'
+    const assistant = createAssistant({ groupId })
+    expect(initialAssistantFormState(assistant).groupId).toBe(groupId)
   })
 })
 
@@ -100,7 +90,7 @@ describe('diffAssistantUpdate', () => {
         mcpMode: baseline.mcpMode
       })
     })
-    expect(result!.tagsChanged).toBe(false)
+    expect(result!.dto.groupId).toBeUndefined()
   })
 
   it('falls back to the server name when the form name is blank', () => {
@@ -128,24 +118,24 @@ describe('diffAssistantUpdate', () => {
     expect(result?.dto.settings).toMatchObject({ reasoning_effort: 'high' })
   })
 
-  it('flags tag changes and passes one form tag through as tagNames', () => {
-    const assistant = createAssistant({ tags: [tag('t1', 'alpha', '#f00')] })
+  it('writes group changes directly into the DTO', () => {
+    const originalGroupId = '11111111-1111-4111-8111-111111111111'
+    const nextGroupId = '22222222-2222-4222-8222-222222222222'
+    const assistant = createAssistant({ groupId: originalGroupId })
     const baseline = initialAssistantFormState(assistant)
-    const form = { ...baseline, tagName: 'new' }
+    const form = { ...baseline, groupId: nextGroupId }
 
     const result = diffAssistantUpdate(form, baseline, assistant)
-    expect(result?.tagsChanged).toBe(true)
-    expect(result?.tagNames).toEqual(['new'])
+    expect(result?.dto.groupId).toBe(nextGroupId)
   })
 
-  it('flags clearing the assistant tag', () => {
-    const assistant = createAssistant({ tags: [tag('t1', 'alpha', '#f00'), tag('t2', 'beta', '#0f0')] })
+  it('writes null when clearing the assistant group', () => {
+    const assistant = createAssistant({ groupId: '11111111-1111-4111-8111-111111111111' })
     const baseline = initialAssistantFormState(assistant)
-    const form = { ...baseline, tagName: null }
+    const form = { ...baseline, groupId: null }
 
     const result = diffAssistantUpdate(form, baseline, assistant)
-    expect(result?.tagsChanged).toBe(true)
-    expect(result?.tagNames).toEqual([])
+    expect(result?.dto.groupId).toBeNull()
   })
 
   it('emits knowledgeBaseIds only when the set changes, ignoring order', () => {
@@ -187,15 +177,13 @@ describe('diffAssistantUpdate', () => {
 
 describe('diffAssistantSaveIntent', () => {
   it('wraps update diffs for the edit dialog save handler', () => {
-    const assistant = createAssistant({ tags: [tag('t1', 'alpha')] })
+    const assistant = createAssistant({ groupId: '11111111-1111-4111-8111-111111111111' })
     const baseline = initialAssistantFormState(assistant)
-    const form = { ...baseline, tagName: 'beta' }
+    const form = { ...baseline, groupId: '22222222-2222-4222-8222-222222222222' }
 
     expect(diffAssistantSaveIntent(form, baseline, assistant)).toEqual({
       kind: 'update',
-      payload: {},
-      tagNames: ['beta'],
-      tagsChanged: true
+      payload: { groupId: '22222222-2222-4222-8222-222222222222' }
     })
   })
 })

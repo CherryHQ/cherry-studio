@@ -149,10 +149,7 @@ const SelectionAssistantSettings: FC = () => {
                   </SettingDescription>
                   <ChecklistItem style={{ marginTop: 6 }}>
                     {linuxEnvInfo.isLinuxXWaylandMode ? (
-                      <CircleCheck
-                        size={13}
-                        style={{ color: 'var(--color-success-base)', marginRight: 6, flexShrink: 0 }}
-                      />
+                      <CircleCheck size={13} style={{ color: 'var(--color-success)', marginRight: 6, flexShrink: 0 }} />
                     ) : (
                       <CircleX size={13} style={{ color: 'var(--color-error-base)', marginRight: 6, flexShrink: 0 }} />
                     )}
@@ -165,10 +162,7 @@ const SelectionAssistantSettings: FC = () => {
                   </ChecklistItem>
                   <ChecklistItem>
                     {linuxEnvInfo.hasLinuxInputDeviceAccess ? (
-                      <CircleCheck
-                        size={13}
-                        style={{ color: 'var(--color-success-base)', marginRight: 6, flexShrink: 0 }}
-                      />
+                      <CircleCheck size={13} style={{ color: 'var(--color-success)', marginRight: 6, flexShrink: 0 }} />
                     ) : (
                       <CircleX size={13} style={{ color: 'var(--color-error-base)', marginRight: 6, flexShrink: 0 }} />
                     )}

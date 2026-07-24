@@ -13,34 +13,12 @@ const RUNTIME_THEME_INPUT_LINES = [
   '--cs-theme-ring: color-mix(in srgb, var(--cs-theme-primary) 40%, transparent);'
 ]
 
-const COMPATIBILITY_ALIAS_LINES = ['--primary: var(--color-primary);', '--ring: var(--color-ring);']
-
 const PRIMARY_SEMANTIC_LINES = [
   '--color-primary: var(--cs-theme-primary);',
   '--color-primary-hover: var(--cs-primary-hover);',
   '--color-primary-soft: color-mix(in srgb, var(--color-primary) 60%, transparent);',
   '--color-primary-mute: color-mix(in srgb, var(--color-primary) 30%, transparent);',
   '--color-ring: var(--cs-theme-ring);'
-]
-
-const SPACING_COMMENT_LINES = [
-  '/* Keep spacing opt-in for now to avoid overriding Tailwind container names. */',
-  '/* --spacing-5xs: var(--cs-size-5xs);',
-  '--spacing-4xs: var(--cs-size-4xs);',
-  '--spacing-3xs: var(--cs-size-3xs);',
-  '--spacing-2xs: var(--cs-size-2xs);',
-  '--spacing-xs: var(--cs-size-xs);',
-  '--spacing-sm: var(--cs-size-sm);',
-  '--spacing-md: var(--cs-size-md);',
-  '--spacing-lg: var(--cs-size-lg);',
-  '--spacing-xl: var(--cs-size-xl);',
-  '--spacing-2xl: var(--cs-size-2xl);',
-  '--spacing-3xl: var(--cs-size-3xl);',
-  '--spacing-4xl: var(--cs-size-4xl);',
-  '--spacing-5xl: var(--cs-size-5xl);',
-  '--spacing-6xl: var(--cs-size-6xl);',
-  '--spacing-7xl: var(--cs-size-7xl);',
-  '--spacing-8xl: var(--cs-size-8xl); */'
 ]
 
 const ANIMATION_LINES = [
@@ -109,13 +87,11 @@ export function buildThemeContractCss(inputs: ThemeContractInputs): string {
   const sections = [
     buildSection('Primitive Colors', toPrefixedMappings(inputs.primitiveColors, 'color-')),
     buildSection('Runtime Theme Inputs', RUNTIME_THEME_INPUT_LINES),
-    buildSection('Compatibility Aliases', COMPATIBILITY_ALIAS_LINES),
     buildSection('Semantic Colors', [
       ...PRIMARY_SEMANTIC_LINES,
       ...toPrefixedMappings(semanticContractTokens, 'color-')
     ]),
     buildSection('Status Colors', toPrefixedMappings(inputs.statusColors, 'color-')),
-    buildSection('Spacing', SPACING_COMMENT_LINES),
     buildSection('Radius', toDirectMappings(inputs.radiusTokens)),
     buildSection('Typography', toDirectMappings(inputs.typographyTokens)),
     buildSection('Animation', ANIMATION_LINES)

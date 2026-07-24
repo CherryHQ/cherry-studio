@@ -51,7 +51,7 @@ index e339fe99f4d3705e8ca94f1ce9cb7444dc6ed3ed..ced38978e2fe6672abf0dce8dd8fc6c9
 
  /**
 diff --git a/dist/index.js b/dist/index.js
-index 556a2f63008e30aa66639665cafd1a561cca864b..9e24eb1a47a091597350b0b3d1cb387c979f8f67 100644
+index 556a2f63008e30aa66639665cafd1a561cca864b..5d338e25718ea55bd07ec2ad095fedca716baf94 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -9510,7 +9510,8 @@ async function generateImage({
@@ -64,7 +64,7 @@ index 556a2f63008e30aa66639665cafd1a561cca864b..9e24eb1a47a091597350b0b3d1cb387c
  }) {
    var _a21, _b;
    const model = resolveImageModel(modelArg);
-@@ -9559,21 +9560,31 @@ async function generateImage({
+@@ -9559,21 +9560,37 @@ async function generateImage({
      outputTokens: void 0,
      totalTokens: void 0
    };
@@ -84,6 +84,13 @@ index 556a2f63008e30aa66639665cafd1a561cca864b..9e24eb1a47a091597350b0b3d1cb387c
 +    const processedImages = await Promise.all(
 +      result.images.map(async (image) => {
 +        var _a22;
++        if (typeof image === "string" && image.startsWith("data:")) {
++          const { mediaType, base64Content } = splitDataUrl(image);
++          if (mediaType != null && base64Content != null) {
++            return new DefaultGeneratedFile({ data: base64Content, mediaType });
++          }
+         }
+-      )
 +        if (typeof image === "string" && (image.startsWith("http://") || image.startsWith("https://"))) {
 +          const downloaded = await downloadFn([{ url: new URL(image), isUrlSupportedByModel: false }]);
 +          const downloadedData = downloaded[0];
@@ -93,8 +100,7 @@ index 556a2f63008e30aa66639665cafd1a561cca864b..9e24eb1a47a091597350b0b3d1cb387c
 +              mediaType: downloadedData.mediaType != null ? downloadedData.mediaType : "image/png"
 +            });
 +          }
-         }
--      )
++        }
 +        return new DefaultGeneratedFile({
 +          data: image,
 +          mediaType: (_a22 = detectMediaType({
@@ -109,7 +115,7 @@ index 556a2f63008e30aa66639665cafd1a561cca864b..9e24eb1a47a091597350b0b3d1cb387c
      if (result.usage != null) {
        totalUsage = addImageModelUsage(totalUsage, result.usage);
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 1d7de52171511fbe596f9bc8a25bc058a821e867..dab6b4dde15daea0172cef3f252a93a0b8ffbb87 100644
+index 1d7de52171511fbe596f9bc8a25bc058a821e867..95f72f75e16649388961f8854497b625ca5347f5 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -9444,7 +9444,8 @@ async function generateImage({
@@ -122,7 +128,7 @@ index 1d7de52171511fbe596f9bc8a25bc058a821e867..dab6b4dde15daea0172cef3f252a93a0
  }) {
    var _a21, _b;
    const model = resolveImageModel(modelArg);
-@@ -9493,21 +9494,31 @@ async function generateImage({
+@@ -9493,21 +9494,37 @@ async function generateImage({
      outputTokens: void 0,
      totalTokens: void 0
    };
@@ -142,6 +148,13 @@ index 1d7de52171511fbe596f9bc8a25bc058a821e867..dab6b4dde15daea0172cef3f252a93a0
 +    const processedImages = await Promise.all(
 +      result.images.map(async (image) => {
 +        var _a22;
++        if (typeof image === "string" && image.startsWith("data:")) {
++          const { mediaType, base64Content } = splitDataUrl(image);
++          if (mediaType != null && base64Content != null) {
++            return new DefaultGeneratedFile({ data: base64Content, mediaType });
++          }
+         }
+-      )
 +        if (typeof image === "string" && (image.startsWith("http://") || image.startsWith("https://"))) {
 +          const downloaded = await downloadFn([{ url: new URL(image), isUrlSupportedByModel: false }]);
 +          const downloadedData = downloaded[0];
@@ -151,8 +164,7 @@ index 1d7de52171511fbe596f9bc8a25bc058a821e867..dab6b4dde15daea0172cef3f252a93a0
 +              mediaType: downloadedData.mediaType != null ? downloadedData.mediaType : "image/png"
 +            });
 +          }
-         }
--      )
++        }
 +        return new DefaultGeneratedFile({
 +          data: image,
 +          mediaType: (_a22 = detectMediaType({

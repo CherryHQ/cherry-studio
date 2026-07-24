@@ -112,4 +112,23 @@ describe('canonicalGenerate', () => {
     expect(call.inputImages).toEqual(['data:image/png;base64,AQID'])
     expect(call.paramValues).toEqual({})
   })
+
+  it('rejects input images beyond the selected mode limit before reading files', async () => {
+    const binaryImage = vi.fn()
+    ;(window as unknown as { api: unknown }).api = { file: { binaryImage } }
+    const inputFiles = [
+      { id: 'file-1', ext: 'png' },
+      { id: 'file-2', ext: 'png' }
+    ] as unknown as FileEntry[]
+
+    await expect(
+      canonicalGenerate(makeInput({}, { inputFiles }), {
+        mode: 'edit',
+        support: { modes: { edit: { supports: {}, maxInputImages: 1 } } }
+      })
+    ).rejects.toMatchObject({ name: 'PaintingGenerateError', code: 'INPUT_IMAGE_LIMIT_EXCEEDED' })
+
+    expect(binaryImage).not.toHaveBeenCalled()
+    expect(generatePaintingMock).not.toHaveBeenCalled()
+  })
 })

@@ -173,7 +173,7 @@ export const drawerClasses = {
     'shrink-0 rounded-lg border-warning bg-warning-bg px-3 py-2.5 text-xs leading-tight text-warning shadow-none [&_[data-slot=alert-icon]]:mt-0 [&_[data-slot=alert-icon]_svg]:size-4 [&_[data-slot=alert-message]]:font-medium',
   /** Model health-check drawer: determinate progress (scoped neutral track + primary fill). */
   healthProgressTrack:
-    'h-1.5 w-full overflow-hidden rounded-full bg-[color:color-mix(in_srgb,var(--muted-foreground)_12%,transparent)]',
+    'h-1.5 w-full overflow-hidden rounded-full bg-[color:color-mix(in_srgb,var(--color-muted-foreground)_12%,transparent)]',
   healthProgressFill: 'h-full rounded-full bg-primary transition-[width] duration-300 ease-out',
   healthProgressMeta: 'text-[13px] tabular-nums text-muted-foreground/85',
   healthProgressCurrent: 'truncate text-[13px] text-foreground/80'
@@ -237,7 +237,7 @@ export const modelListClasses = {
     'h-8 min-h-0 gap-1.5 rounded-[length:var(--cs-radius-md)] border-border-muted border-r-border bg-background px-2.5 py-0 text-sm leading-5 text-foreground shadow-none hover:bg-accent/40 hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
   fetchGuideWrap: 'relative flex shrink-0',
   fetchGuideArrow:
-    'animation-provider-model-pull-guide pointer-events-none absolute top-1/2 right-full z-10 mr-2 flex h-4 w-7 items-center justify-end text-icon motion-reduce:animate-none',
+    'animation-provider-model-pull-guide pointer-events-none absolute top-1/2 right-full z-10 mr-2 flex h-4 w-7 items-center justify-end text-foreground-secondary motion-reduce:animate-none',
   addModelIconButton:
     'size-8 min-h-0 rounded-[length:var(--cs-radius-md)] border-border-muted bg-background p-0 text-foreground shadow-none hover:bg-accent/40 hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
   addIconButton:
@@ -426,7 +426,7 @@ export const modelSyncClasses = {
   manageRowTitleLine: 'flex min-w-0 items-center gap-1.5',
   manageRowTitle: 'truncate text-sm leading-5 text-foreground select-text',
   manageRowDescriptionHelp:
-    'inline-flex size-4 shrink-0 items-center justify-center rounded text-icon outline-none transition-colors hover:bg-accent/40 hover:text-foreground focus-visible:ring-[1px] focus-visible:ring-ring/35',
+    'inline-flex size-4 shrink-0 items-center justify-center rounded text-foreground-secondary outline-none transition-colors hover:bg-accent/40 hover:text-foreground focus-visible:ring-[1px] focus-visible:ring-ring/35',
   manageStaleBadge:
     'h-4 shrink-0 rounded-md bg-destructive/10 px-1.5 py-0 text-[10px] leading-4 text-destructive tabular-nums',
   manageRowAction: 'size-8 rounded-lg text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground'
@@ -480,7 +480,7 @@ export const oauthCardClasses = {
   loggedInName: 'truncate text-xs font-medium leading-tight text-foreground',
   loggedInEmail: 'mt-0.5 truncate text-xs leading-[1.35] text-muted-foreground/40',
   badge:
-    'inline-flex items-center rounded bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-1 py-[0.5px] text-[10px] font-medium leading-tight text-[color:var(--warning)]',
+    'inline-flex items-center rounded bg-warning/10 px-1 py-[0.5px] text-[10px] font-medium leading-tight text-warning',
   loggedInActions: 'flex shrink-0 flex-wrap items-center justify-end gap-2',
   inlineBalanceBlock: 'text-right',
   inlineBalanceLabel: 'text-xs text-muted-foreground/40',

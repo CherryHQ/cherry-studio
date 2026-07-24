@@ -192,6 +192,7 @@ function TopicRightPaneProvider({
   present = true,
   defaultOpen = false,
   onOpenChange,
+  userOpenIntentSeq,
   revealRequest
 }: PropsWithChildren<
   TopicRightPaneMeta & {
@@ -199,6 +200,7 @@ function TopicRightPaneProvider({
     present?: boolean
     defaultOpen?: boolean
     onOpenChange?: (open: boolean) => void
+    userOpenIntentSeq?: number
     revealRequest?: ResourceListRevealRequest
   }
 >) {
@@ -227,6 +229,7 @@ function TopicRightPaneProvider({
         defaultPanelId={RESOURCE_PANE_TAB}
         defaultOpen={defaultOpen}
         onOpenChange={onOpenChange}
+        userOpenIntentSeq={userOpenIntentSeq}
         present={present}>
         <ResourcePaneLocateOpener revealRequest={revealRequest} />
         <TopicBranchLiveStateStoreContext value={storeRef.current}>{children}</TopicBranchLiveStateStoreContext>

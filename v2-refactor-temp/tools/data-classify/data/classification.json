@@ -3436,8 +3436,8 @@
           "originalKey": "onboarding-completed",
           "type": "string",
           "defaultValue": null,
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null
         }
       ],

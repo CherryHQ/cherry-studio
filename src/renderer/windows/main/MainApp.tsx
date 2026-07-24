@@ -1,3 +1,4 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
@@ -14,6 +15,7 @@ import { useEffect } from 'react'
 
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
 import { useTopicNamingErrorNotification } from './hooks/useTopicNamingErrorNotification'
+import OnboardingPage from './onboarding/OnboardingPage'
 
 const logger = loggerService.withContext('MainApp')
 
@@ -52,6 +54,30 @@ function MainWindowRuntime(): null {
   return null
 }
 
+export function MainWindowContent(): React.ReactElement {
+  const [providerSetupStatus, setProviderSetupStatus] = usePreference('app.onboarding.provider_setup.status')
+
+  if (providerSetupStatus === 'pending') {
+    return (
+      <>
+        <OnboardingPage onComplete={setProviderSetupStatus} />
+        <MainWindowRuntime />
+        <PopupHost />
+        <ToastHost />
+      </>
+    )
+  }
+
+  return (
+    <TabsProvider>
+      <AppShell />
+      <MainWindowRuntime />
+      <PopupHost />
+      <ToastHost />
+    </TabsProvider>
+  )
+}
+
 function MainApp(): React.ReactElement {
   logger.info('MainApp initialized')
 
@@ -63,12 +89,7 @@ function MainApp(): React.ReactElement {
         <CodeStyleProvider>
           <CommandContextKeyProvider>
             <CommandProvider>
-              <TabsProvider>
-                <AppShell />
-                <MainWindowRuntime />
-                <PopupHost />
-                <ToastHost />
-              </TabsProvider>
+              <MainWindowContent />
             </CommandProvider>
           </CommandContextKeyProvider>
         </CodeStyleProvider>

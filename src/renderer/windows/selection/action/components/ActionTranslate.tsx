@@ -355,7 +355,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    className="size-7 shrink-0 rounded text-icon shadow-none hover:bg-accent hover:text-foreground dark:text-icon">
+                    className="size-7 shrink-0 rounded text-foreground-secondary shadow-none hover:bg-accent hover:text-foreground">
                     <Settings2 size={14} />
                   </Button>
                 </PopoverTrigger>
@@ -373,7 +373,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
             </Popover>
 
             <Tooltip content={t('selection.action.translate.smart_translate_tips')} placement="bottom">
-              <CircleHelp className="size-3.5 shrink-0 cursor-pointer text-icon" />
+              <CircleHelp className="size-3.5 shrink-0 cursor-pointer text-foreground-secondary" />
             </Tooltip>
 
             <button

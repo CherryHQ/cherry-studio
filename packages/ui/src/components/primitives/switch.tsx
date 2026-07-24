@@ -143,8 +143,8 @@ const DescriptionSwitch = ({
   const isLeftSide = position === 'left'
   const id = useId()
   return (
-    <div className={cn('flex w-full gap-3 justify-between p-4xs', isLeftSide && 'flex-row-reverse')}>
-      <label className={cn('flex flex-col gap-5xs cursor-pointer')} htmlFor={id}>
+    <div className={cn('flex w-full gap-3 justify-between p-2', isLeftSide && 'flex-row-reverse')}>
+      <label className={cn('flex flex-col gap-1 cursor-pointer')} htmlFor={id}>
         {/* TODO: use standard typography component */}
         <p
           className={cn(

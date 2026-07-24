@@ -852,6 +852,22 @@ vi.mock('@cherrystudio/ui', () => {
       React.createElement('div', { ...props, 'data-testid': 'popover-trigger' }, children),
     PopoverContent: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'popover-content' }, children),
+    HoverCard: ({ children, openDelay: _openDelay, closeDelay: _closeDelay, ...props }) =>
+      React.createElement('div', props, children),
+    HoverCardTrigger: ({ children, asChild, ...props }) => {
+      if (asChild && React.isValidElement(children)) {
+        return React.cloneElement(children, { ...props, ...children.props })
+      }
+      return React.createElement('div', props, children)
+    },
+    HoverCardContent: ({
+      children,
+      align: _align,
+      side: _side,
+      sideOffset: _sideOffset,
+      collisionPadding: _collisionPadding,
+      ...props
+    }) => React.createElement('div', props, children),
     Skeleton: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'skeleton' }, children),
     // Icon registry stubs
     PROVIDER_ICON_CATALOG: {},

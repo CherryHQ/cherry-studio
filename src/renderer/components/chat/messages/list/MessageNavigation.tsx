@@ -1,7 +1,7 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { ArrowDown, ArrowUp, ChevronsDown, ChevronsUp, X } from 'lucide-react'
-import type { ComponentPropsWithoutRef, FC } from 'react'
+import type { ComponentPropsWithoutRef, FC, RefObject } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -20,19 +20,17 @@ const RIGHT_GAP = 16
 const TRIGGER_WIDTH = 60
 
 interface MessageNavigationProps {
-  containerId: string
+  scrollContainerRef: RefObject<HTMLElement | null>
+  getMessageElement: (messageId: string) => HTMLElement | null
   messages: MessageListItem[]
   scrollToMessageId: (messageId: string) => void
   scrollToTop: () => void
   scrollToBottom: () => void
 }
 
-const getScrollContainer = (container: HTMLElement | null): HTMLElement | null => {
-  return container?.querySelector<HTMLElement>('[data-message-virtual-list-scroller]') ?? container
-}
-
 const MessageNavigation: FC<MessageNavigationProps> = ({
-  containerId,
+  scrollContainerRef,
+  getMessageElement,
   messages,
   scrollToMessageId,
   scrollToTop,
@@ -84,7 +82,7 @@ const MessageNavigation: FC<MessageNavigationProps> = ({
   const getCurrentVisibleIndex = (direction: 'up' | 'down') => {
     const userMessages = messages.filter((message) => message.role === 'user')
     const assistantMessages = messages.filter((message) => message.role === 'assistant')
-    const scrollContainer = getScrollContainer(document.getElementById(containerId))
+    const scrollContainer = scrollContainerRef.current
 
     if (!scrollContainer) return -1
 
@@ -94,7 +92,7 @@ const MessageNavigation: FC<MessageNavigationProps> = ({
     let visibleIndices: number[] = []
 
     for (let i = 0; i < userMessages.length; i++) {
-      const messageElement = document.getElementById(`message-${userMessages[i].id}`)
+      const messageElement = getMessageElement(userMessages[i].id)
       if (!messageElement) continue
 
       const messageRect = messageElement.getBoundingClientRect()
@@ -111,7 +109,7 @@ const MessageNavigation: FC<MessageNavigationProps> = ({
 
     visibleIndices = []
     for (let i = 0; i < assistantMessages.length; i++) {
-      const messageElement = document.getElementById(`message-${assistantMessages[i].id}`)
+      const messageElement = getMessageElement(assistantMessages[i].id)
       if (!messageElement) continue
 
       const messageRect = messageElement.getBoundingClientRect()
@@ -180,10 +178,9 @@ const MessageNavigation: FC<MessageNavigationProps> = ({
   }
 
   useEffect(() => {
-    const container = document.getElementById(containerId)
-    const scrollContainer = getScrollContainer(container)
+    const scrollContainer = scrollContainerRef.current
 
-    if (!container || !scrollContainer) return
+    if (!scrollContainer) return
 
     const handleScroll = () => {
       if (isPointerInTriggerAreaRef.current || isHoveringNavigationRef.current) {
@@ -198,7 +195,7 @@ const MessageNavigation: FC<MessageNavigationProps> = ({
       if (now - lastMoveTime.current < 50) return
       lastMoveTime.current = now
 
-      const containerRect = container.getBoundingClientRect()
+      const containerRect = scrollContainer.getBoundingClientRect()
       const rightPosition = containerRect.right - RIGHT_GAP - TRIGGER_WIDTH
       const topPosition = containerRect.top + containerRect.height * 0.35
       const height = containerRect.height * 0.3
@@ -234,15 +231,15 @@ const MessageNavigation: FC<MessageNavigationProps> = ({
         scheduleHide(500)
       }
     }
-    container.addEventListener('mouseleave', handleMessagesMouseLeave)
+    scrollContainer.addEventListener('mouseleave', handleMessagesMouseLeave)
 
     return () => {
       scrollContainer.removeEventListener('scroll', handleScroll)
       window.removeEventListener('mousemove', handleMouseMove)
-      container.removeEventListener('mouseleave', handleMessagesMouseLeave)
+      scrollContainer.removeEventListener('mouseleave', handleMessagesMouseLeave)
       clearHideTimer()
     }
-  }, [containerId, manuallyClosedUntil, scheduleHide, showNavigation, clearHideTimer])
+  }, [scrollContainerRef, manuallyClosedUntil, scheduleHide, showNavigation, clearHideTimer])
 
   return (
     <NavigationContainer

@@ -60,6 +60,122 @@ describe('OpenAiResponsesMessageConverter.toUIMessages', () => {
     })
   })
 
+  it('relocates function_call_output images into a user message and keeps placeholders in the output', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        input: [
+          { type: 'function_call', call_id: 'c1', name: 'generate_image', arguments: '{}' },
+          {
+            type: 'function_call_output',
+            call_id: 'c1',
+            output: [
+              { type: 'input_text', text: 'done' },
+              { type: 'input_image', image_url: 'data:image/png;base64,AAAA' }
+            ]
+          }
+        ] as ResponsesCreateParams['input']
+      })
+    )
+    const output = (msgs[0].parts[0] as { output?: unknown }).output
+    expect(output).toContain('done')
+    expect(output).toContain('[tool-result attachment call_id="c1" image=1] (image/png)')
+    expect(output).not.toContain('AAAA')
+    expect(msgs[1]).toMatchObject({
+      role: 'user',
+      parts: [
+        { type: 'text', text: expect.stringContaining('call_id="c1"') },
+        { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AAAA' }
+      ]
+    })
+  })
+
+  it('keeps call ids attached to relocated files when parallel outputs arrive out of order', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        input: [
+          { type: 'function_call', call_id: 'c1', name: 'generate_image', arguments: '{"prompt":"first"}' },
+          { type: 'function_call', call_id: 'c2', name: 'generate_image', arguments: '{"prompt":"second"}' },
+          {
+            type: 'function_call_output',
+            call_id: 'c2',
+            output: [{ type: 'input_image', image_url: 'data:image/png;base64,BBBB' }]
+          },
+          {
+            type: 'function_call_output',
+            call_id: 'c1',
+            output: [{ type: 'input_image', image_url: 'data:image/png;base64,AAAA' }]
+          }
+        ] as ResponsesCreateParams['input']
+      })
+    )
+
+    expect((msgs[0].parts[0] as { output?: string }).output).toContain('call_id="c1"')
+    expect((msgs[1].parts[0] as { output?: string }).output).toContain('call_id="c2"')
+    expect(msgs[2].parts).toEqual([
+      { type: 'text', text: expect.stringContaining('call_id="c2"') },
+      { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,BBBB' }
+    ])
+    expect(msgs[3].parts).toEqual([
+      { type: 'text', text: expect.stringContaining('call_id="c1"') },
+      { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AAAA' }
+    ])
+  })
+
+  it('relocates input_file outputs (file_data and file_url) into user file parts, preserving filename', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        input: [
+          { type: 'function_call', call_id: 'c1', name: 'export_report', arguments: '{}' },
+          {
+            type: 'function_call_output',
+            call_id: 'c1',
+            output: [
+              { type: 'input_file', file_data: 'JVBERI', filename: 'report.pdf' },
+              { type: 'input_file', file_url: 'https://files.example/doc.pdf' }
+            ]
+          }
+        ] as ResponsesCreateParams['input']
+      })
+    )
+    const output = (msgs[0].parts[0] as { output?: unknown }).output
+    expect(output).toContain('[tool-result attachment call_id="c1" file=1] (application/pdf, report.pdf)')
+    expect(output).toContain('[tool-result attachment call_id="c1" file=2] (application/pdf)')
+    expect(output).not.toContain('JVBERI')
+    expect(msgs[1]).toMatchObject({
+      role: 'user',
+      parts: [
+        { type: 'text', text: expect.stringContaining('call_id="c1"') },
+        {
+          type: 'file',
+          mediaType: 'application/pdf',
+          url: 'data:application/pdf;base64,JVBERI',
+          filename: 'report.pdf'
+        },
+        { type: 'text', text: expect.stringContaining('call_id="c1"') },
+        { type: 'file', mediaType: 'application/pdf', url: 'https://files.example/doc.pdf' }
+      ]
+    })
+  })
+
+  it('downgrades file_id-only input_file outputs to a placeholder (not resolvable cross-vendor)', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        input: [
+          { type: 'function_call', call_id: 'c1', name: 'export_report', arguments: '{}' },
+          {
+            type: 'function_call_output',
+            call_id: 'c1',
+            output: [{ type: 'input_file', file_id: 'file-abc' }]
+          }
+        ] as ResponsesCreateParams['input']
+      })
+    )
+    expect((msgs[0].parts[0] as { output?: unknown }).output).toContain(
+      '[unsupported input_file tool output item omitted]'
+    )
+    expect(msgs).toHaveLength(1)
+  })
+
   it('emits an input-available part when a function_call has no output, and tolerates bad JSON args', () => {
     const msgs = converter.toUIMessages(
       params({

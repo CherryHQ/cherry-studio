@@ -60,7 +60,12 @@ const mocks = vi.hoisted(() => ({
   ipcOn: vi.fn(),
   sessionLayout: undefined as string | undefined,
   runtimeHostProps: undefined as
-    | { assistant?: { modelId?: string | null }; model?: Model; session?: { agentId?: string } }
+    | {
+        assistant?: { modelId?: string | null }
+        model?: Model
+        session?: { agentId?: string }
+        reasoning?: { effort: string; onEffortChange: (effort: string) => void }
+      }
     | undefined,
   sessionWorkspaceId: 'workspace-1',
   sessionWorkspaceName: 'Workspace 1',
@@ -269,6 +274,7 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
     assistant?: { modelId?: string | null }
     model?: Model
     session?: { agentId?: string }
+    reasoning?: { effort: string; onEffortChange: (effort: string) => void }
   }) => {
     mocks.runtimeHostProps = props
     return null
@@ -426,8 +432,41 @@ vi.mock('@renderer/components/ModelSelector', () => ({
           </button>
         </>
       ) : null}
-      <button type="button" onClick={() => onSelect({ id: 'anthropic::claude-opus-4', name: 'Claude Opus 4' })}>
+      <button
+        type="button"
+        onClick={() =>
+          onSelect({
+            id: 'anthropic::claude-opus-4',
+            providerId: 'anthropic',
+            apiModelId: 'claude-opus-4',
+            name: 'Claude Opus 4',
+            capabilities: [],
+            supportsStreaming: true,
+            isEnabled: true,
+            isHidden: false
+          })
+        }>
         select model 2
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          onSelect({
+            id: 'anthropic::claude-reasoning',
+            providerId: 'anthropic',
+            apiModelId: 'claude-reasoning',
+            name: 'Claude Reasoning',
+            capabilities: [],
+            supportsStreaming: true,
+            isEnabled: true,
+            isHidden: false,
+            reasoning: {
+              controls: [{ kind: 'effort', values: ['low', 'high'] }],
+              selectableEfforts: ['low', 'high']
+            }
+          })
+        }>
+        select reasoning model
       </button>
     </div>
   )
@@ -623,6 +662,7 @@ describe('AgentComposer', () => {
       }
     }
     mocks.updateModel.mockReset()
+    mocks.updateModel.mockResolvedValue({})
     mocks.updateSession.mockReset()
     mocks.setFiles.mockReset()
     mocks.inputAdapterFocus.mockReset()
@@ -745,6 +785,79 @@ describe('AgentComposer', () => {
     expect(mocks.updateModel).toHaveBeenCalledWith('agent-1', 'anthropic::claude-opus-4', {
       showSuccessToast: false
     })
+  })
+
+  it('reconciles the session reasoning selection after the model update succeeds', async () => {
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeModel
+        isStreaming={false}
+      />
+    )
+
+    act(() => mocks.runtimeHostProps?.reasoning?.onEffortChange('high'))
+    expect(mocks.runtimeHostProps?.reasoning?.effort).toBe('high')
+
+    fireEvent.click(screen.getByText('select model 2'))
+
+    await waitFor(() => expect(mocks.runtimeHostProps?.reasoning?.effort).toBe('default'))
+  })
+
+  it('keeps the session reasoning selection when the model update fails', async () => {
+    mocks.updateModel.mockResolvedValueOnce(undefined)
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeModel
+        isStreaming={false}
+      />
+    )
+
+    act(() => mocks.runtimeHostProps?.reasoning?.onEffortChange('high'))
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('select model 2'))
+      await Promise.resolve()
+    })
+
+    expect(mocks.runtimeHostProps?.reasoning?.effort).toBe('high')
+  })
+
+  it('reconciles from the latest reasoning selection when it changes while the model update is pending', async () => {
+    let finishModelUpdate!: (value: object) => void
+    mocks.updateModel.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishModelUpdate = resolve
+        })
+    )
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        canChangeModel
+        isStreaming={false}
+      />
+    )
+
+    act(() => mocks.runtimeHostProps?.reasoning?.onEffortChange('high'))
+    fireEvent.click(screen.getByText('select reasoning model'))
+    act(() => mocks.runtimeHostProps?.reasoning?.onEffortChange('low'))
+
+    await act(async () => finishModelUpdate({}))
+
+    expect(mocks.runtimeHostProps?.reasoning?.effort).toBe('low')
   })
 
   it('keeps the inline model selector read-only when model changes are locked', () => {
@@ -1693,6 +1806,10 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.rootPanelAdditionalItems).toEqual([
       expect.objectContaining({ id: 'composer:customize-toolbar' })
     ])
+    const skillsLauncher = mocks.registeredLaunchers.get('agent-skills')?.[0]
+    expect(skillsLauncher?.rootPanelPlacement).toBeUndefined()
+    expect(skillsLauncher?.order).toBe(40)
+    expect(skillsLauncher?.rootSearchItems).toEqual([expect.objectContaining({ id: 'skill:pdf' })])
 
     const items = getAgentSkillsPanelItems()
     const skillItem = items[0]
@@ -1830,11 +1947,13 @@ describe('AgentComposer', () => {
     }
 
     const skillItem = getAgentSkillsPanelItems()[0]
-    skillItem?.action?.({
-      context: {} as any,
-      action: 'enter',
-      item: skillItem,
-      inputAdapter
+    await act(async () => {
+      skillItem?.action?.({
+        context: {} as any,
+        action: 'enter',
+        item: skillItem,
+        inputAdapter
+      })
     })
 
     await waitFor(() => {
@@ -2063,6 +2182,7 @@ describe('AgentComposer', () => {
         body: {
           agentId: 'agent-1',
           sessionId: 'session-1',
+          reasoningEffort: 'default',
           userMessageParts: [
             expect.objectContaining({
               type: 'text',
@@ -2136,6 +2256,7 @@ describe('AgentComposer', () => {
         body: {
           agentId: 'agent-1',
           sessionId: 'session-1',
+          reasoningEffort: 'default',
           userMessageParts: expect.arrayContaining([
             expect.objectContaining({
               type: 'text',
@@ -2275,6 +2396,7 @@ describe('AgentComposer', () => {
         body: {
           agentId: 'agent-1',
           sessionId: 'session-1',
+          reasoningEffort: 'default',
           userMessageParts: expect.arrayContaining([
             expect.objectContaining({
               type: 'text',
@@ -2358,6 +2480,7 @@ describe('AgentComposer', () => {
         body: {
           agentId: 'agent-1',
           sessionId: 'session-1',
+          reasoningEffort: 'default',
           userMessageParts: [
             {
               type: 'text',

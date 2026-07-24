@@ -57,6 +57,7 @@ import {
   VercelGatewayModelsResponseSchema,
   VertexPublisherModelsResponseSchema
 } from './listModelsSchemas'
+import { isVertexMaasModelId } from './vertex'
 
 const logger = loggerService.withContext('ModelListService')
 
@@ -76,6 +77,10 @@ function handleOptionalModelListFailure<T>(
     throw error
   }
 
+  return recoverOptionalModelListFailure(error, context)
+}
+
+function recoverOptionalModelListFailure<T>(error: unknown, context: Record<string, string>): { data: T[] } {
   logger.warn('Optional model list endpoint failed; continuing with primary models', {
     ...context,
     error
@@ -283,19 +288,27 @@ const vertexFetcher: ModelFetcher = {
     const publisherModels = publisherModelGroups.filter((g) => g !== null).flat()
 
     const listedModels = dedup(publisherModels, (model) => model.name).map((model) => {
-      const id = getVertexModelId(model.name)
+      const bareId = getVertexModelId(model.name)
       const ownedBy = getVertexModelPublisher(model.name)
-      return toModel(id, provider, {
-        name: pickPreferredString([model.displayName, id]) || id,
+      // MaaS models are served over the OpenAI-compatible endpoint, which requires the
+      // `{publisher}/{model}` id form even when Google is the publisher. Native Google
+      // models (Gemini/Gemma/embeddings) keep their bare id.
+      const publisherModelId = `${ownedBy}/${bareId}`
+      const apiModelId = isVertexMaasModelId(publisherModelId) ? publisherModelId : bareId
+      return toModel(apiModelId, provider, {
+        name: pickPreferredString([model.displayName, bareId]) || bareId,
         description: model.description,
         ownedBy
       })
     })
 
-    // Match against the bare model id (e.g. `gemini-2.0-flash`), not the `provider::model`
-    // unique id — the support patterns are anchored to the model name and would reject the
-    // prefixed form, dropping every listed model.
-    const filteredModels = listedModels.filter((model) => isSupportedVertexPublisherModel(model.apiModelId ?? ''))
+    // Match against the bare model name (e.g. `gemini-2.0-flash`, `llama-4-scout-…-maas`), not
+    // the `provider::model` unique id nor the publisher-prefixed apiModelId — the support
+    // patterns are anchored to the model name and would reject either prefixed form.
+    const filteredModels = listedModels.filter((model) => {
+      const modelId = model.apiModelId ?? ''
+      return isSupportedVertexPublisherModel(modelId) && (model.ownedBy === 'google' || isVertexMaasModelId(modelId))
+    })
 
     if (filteredModels.length !== listedModels.length) {
       logger.info('Filtered unsupported Vertex publisher models from model list', {
@@ -460,15 +473,16 @@ const openRouterFetcher: ModelFetcher = {
   match: (p) => p.id === SystemProviderIds.openrouter,
   fetch: async (provider, signal, options) => {
     const headers = defaultHeaders(provider)
-    const [modelsResponse, embedModelsResponse] = await Promise.all([
+    const modelsApiUrls = provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.modelsApiUrls
+    const [modelsResponse, embedModelsResponse, imageModelsResponse] = await Promise.all([
       getFromApi({
-        url: 'https://openrouter.ai/api/v1/models',
+        url: modelsApiUrls?.default ?? 'https://openrouter.ai/api/v1/models',
         headers,
         responseSchema: OpenAIModelsResponseSchema,
         abortSignal: signal
       }),
       getFromApi({
-        url: 'https://openrouter.ai/api/v1/embeddings/models',
+        url: modelsApiUrls?.embedding ?? 'https://openrouter.ai/api/v1/embeddings/models',
         headers,
         responseSchema: OpenAIModelsResponseSchema,
         abortSignal: signal
@@ -477,10 +491,34 @@ const openRouterFetcher: ModelFetcher = {
           providerId: provider.id,
           endpoint: 'openrouter-embedding-models'
         })
+      ),
+      getFromApi({
+        url: modelsApiUrls?.image ?? 'https://openrouter.ai/api/v1/images/models',
+        headers,
+        responseSchema: OpenAIModelsResponseSchema,
+        abortSignal: signal
+      }).catch((error) =>
+        recoverOptionalModelListFailure<OpenAIModelResponseItem>(error, {
+          providerId: provider.id,
+          endpoint: 'openrouter-image-models'
+        })
       )
     ])
-    const all = [...modelsResponse.data, ...embedModelsResponse.data]
-    return dedup(all, (m) => m.id).map((m) => toModel(m.id, provider, { ownedBy: m.owned_by }))
+    const imageModelsById = new Map(imageModelsResponse.data.map((model) => [model.id, model]))
+    const all = [...modelsResponse.data, ...embedModelsResponse.data, ...imageModelsResponse.data]
+    return dedup(all, (m) => m.id).map((m) => {
+      const imageModel = imageModelsById.get(m.id)
+      return toModel(m.id, provider, {
+        name: imageModel?.name ?? m.name,
+        ownedBy: m.owned_by,
+        ...(imageModel
+          ? {
+              capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+              endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+            }
+          : {})
+      })
+    })
   }
 }
 

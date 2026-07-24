@@ -21,13 +21,9 @@ import { loggerService } from '@logger'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
+import { useGroups } from '@renderer/hooks/useGroups'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
-import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
-import {
-  getRandomTagColor,
-  MCP_MODE_OPTIONS,
-  RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT
-} from '@renderer/utils/resourceCatalog'
+import { MCP_MODE_OPTIONS, RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
 import {
   type AssistantFormState,
   diffAssistantSaveIntent,
@@ -56,9 +52,9 @@ import {
   TextInputField,
   useDebouncedAutoSave
 } from '../components/EditDialogShared'
+import { GroupSelector } from '../components/GroupSelector'
 import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
 import { PromptPolishActions } from '../components/PromptPolishActions'
-import { TagSelector } from '../components/TagSelector'
 
 export type AssistantEditDialogResource = Parameters<typeof initialAssistantFormState>[0]
 
@@ -71,7 +67,7 @@ type AssistantEditFormValues = {
   name: string
   description: string
   modelId: UniqueModelId | null
-  tagName: string | null
+  groupId: string | null
   prompt: string
   temperature: number
   enableTemperature: boolean
@@ -107,7 +103,7 @@ function defaultValuesForAssistant(resource: AssistantEditDialogResource): Assis
     name: form.name,
     description: form.description,
     modelId: form.modelId ?? null,
-    tagName: form.tagName,
+    groupId: form.groupId,
     prompt: form.prompt,
     temperature: form.temperature,
     enableTemperature: form.enableTemperature,
@@ -140,7 +136,7 @@ function buildAssistantFormState(baseline: AssistantFormState, values: Assistant
     name: values.name,
     description: values.description,
     modelId: values.modelId,
-    tagName: values.tagName,
+    groupId: values.groupId,
     prompt: values.prompt,
     temperature: values.temperature,
     enableTemperature: values.enableTemperature,
@@ -196,9 +192,7 @@ function AssistantEditDialogContent({
   const defaultValues = useMemo(() => defaultValuesForAssistant(resource), [resource])
   const form = useForm<AssistantEditFormValues>({ defaultValues })
   const values = form.watch()
-  const { ensureTags } = useEnsureTags({ getDefaultColor: getRandomTagColor })
-  const tagList = useTagList()
-  const allTagNames = useMemo(() => tagList.tags.map((tag) => tag.name), [tagList.tags])
+  const { groups, isLoading: isGroupsLoading, error: groupsError } = useGroups('assistant')
   const { updateAssistant } = useAssistantMutationsById(resource.id)
   const saveIntent = useMemo(() => {
     const baseline = initialAssistantFormState(resource)
@@ -249,10 +243,7 @@ function AssistantEditDialogContent({
 
     let updated: Awaited<ReturnType<typeof updateAssistant>>
     try {
-      updated = await updateAssistant({
-        ...pending.payload,
-        ...(pending.tagsChanged ? { tagIds: (await ensureTags(pending.tagNames)).map((tag) => tag.id) } : {})
-      })
+      updated = await updateAssistant(pending.payload)
     } catch (error) {
       logger.error('Failed to auto-save assistant edit dialog', error as Error, { assistantId: resource.id })
       form.setError('root', { message: t('library.config.dialogs.edit.save_failed') })
@@ -314,7 +305,9 @@ function AssistantEditDialogContent({
             portalContainer={dialogContentElement}
             modelLabels={modelLabels}
             setModelLabels={setModelLabels}
-            allTagNames={allTagNames}
+            groups={groups}
+            groupsLoading={isGroupsLoading}
+            groupsError={groupsError}
             emojiPickerOpen={emojiPickerOpen}
             setEmojiPickerOpen={setEmojiPickerOpen}
             onSettingsNavigate={closeBeforeAction}
@@ -357,7 +350,9 @@ function AssistantBasicFields({
   portalContainer,
   modelLabels,
   setModelLabels,
-  allTagNames,
+  groups,
+  groupsLoading,
+  groupsError,
   emojiPickerOpen,
   setEmojiPickerOpen,
   onSettingsNavigate
@@ -367,7 +362,9 @@ function AssistantBasicFields({
   portalContainer: HTMLElement | null
   modelLabels: ModelLabels
   setModelLabels: (labels: ModelLabels) => void
-  allTagNames: string[]
+  groups: ReturnType<typeof useGroups>['groups']
+  groupsLoading: ReturnType<typeof useGroups>['isLoading']
+  groupsError: ReturnType<typeof useGroups>['error']
   emojiPickerOpen: boolean
   setEmojiPickerOpen: (open: boolean) => void
   onSettingsNavigate?: (navigate: () => void) => void
@@ -420,14 +417,16 @@ function AssistantBasicFields({
         </div>
         <FormField
           control={form.control}
-          name="tagName"
+          name="groupId"
           render={({ field }) => (
             <FormItem className="min-w-0">
-              <FormLabel className="font-normal">{t('library.config.basic.tags')}</FormLabel>
-              <TagSelector
+              <FormLabel className="font-normal">{t('library.config.basic.group')}</FormLabel>
+              <GroupSelector
                 value={field.value}
                 onChange={field.onChange}
-                allTagNames={allTagNames}
+                groups={groups}
+                isLoading={groupsLoading}
+                error={groupsError}
                 portalContainer={portalContainer}
               />
               <FormMessage />

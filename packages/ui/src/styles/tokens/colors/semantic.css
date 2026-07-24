@@ -19,6 +19,7 @@
   --cs-foreground: oklch(0 0 0 / 0.9);
   --cs-foreground-secondary: oklch(0 0 0 / 0.6);
   --cs-foreground-muted: oklch(0 0 0 / 0.4);
+  --cs-muted-foreground: oklch(0.556 0 0);
 
   /* Menu item hover/focus background — distinct from --cs-background-subtle
    * because menu rows need a bit more contrast than generic subtle surfaces. */
@@ -50,33 +51,28 @@
 
   /* Sidebar */
   --cs-sidebar: oklch(0.9672 0 0);
-  --cs-sidebar-accent: oklch(0 0 0 / 0.05);
+  --cs-sidebar-accent: oklch(0.97 0 0);
 
-  /* Surface-paired foregrounds — all neutral surfaces share the app foreground.
-   * These tokens exist so Tailwind utilities like `text-card-foreground`,
-   * `text-popover-foreground`, `text-secondary-foreground`, `text-accent-foreground`
-   * resolve to a defined value instead of falling back to inheritance. */
-  --cs-card-foreground: var(--cs-foreground);
-  --cs-popover-foreground: var(--cs-foreground);
-  --cs-secondary-foreground: var(--cs-foreground);
-  --cs-accent-foreground: var(--cs-foreground);
+  /* Surface-paired foregrounds */
+  --cs-card-foreground: oklch(0.145 0 0);
+  --cs-popover-foreground: oklch(0.145 0 0);
+  --cs-secondary-foreground: oklch(0.205 0 0);
+  --cs-accent-foreground: oklch(0.205 0 0);
 
-  /* Inverted foregrounds — used on solid colored fills (primary/destructive buttons).
-   * Kept as pure white so they stay legible regardless of light/dark mode shifts on the fill. */
-  --cs-primary-foreground: var(--cs-white);
-  --cs-destructive-foreground: var(--cs-white);
+  /* Foregrounds on solid colored fills */
+  --cs-primary-foreground: oklch(0.985 0 0);
+  --cs-destructive-foreground: oklch(0.577 0.245 27.325);
 
-  /* Input border — mirrors the app border so input outlines match neighbouring dividers. */
-  --cs-input: var(--cs-border);
+  /* Input border */
+  --cs-input: oklch(0.922 0 0);
 
-  /* Sidebar sub-palette — mirrors app-level neutrals so the sidebar zone stays consistent
-   * without introducing a separate chromatic scale. */
-  --cs-sidebar-foreground: var(--cs-foreground);
-  --cs-sidebar-primary: var(--cs-secondary);
-  --cs-sidebar-primary-foreground: var(--cs-foreground);
-  --cs-sidebar-accent-foreground: var(--cs-foreground);
-  --cs-sidebar-border: var(--cs-border);
-  --cs-sidebar-ring: var(--cs-ring);
+  /* Sidebar sub-palette */
+  --cs-sidebar-foreground: oklch(0.145 0 0);
+  --cs-sidebar-primary: oklch(0.205 0 0);
+  --cs-sidebar-primary-foreground: oklch(0.985 0 0);
+  --cs-sidebar-accent-foreground: oklch(0.205 0 0);
+  --cs-sidebar-border: oklch(0.922 0 0);
+  --cs-sidebar-ring: oklch(0.708 0 0);
 }
 
 /* Dark Mode */
@@ -91,6 +87,7 @@
   --cs-foreground: oklch(1 0 0 / 0.9);
   --cs-foreground-secondary: oklch(1 0 0 / 0.6);
   --cs-foreground-muted: oklch(1 0 0 / 0.4);
+  --cs-muted-foreground: oklch(0.708 0 0);
 
   /* Menu item hover/focus background (dark) — see comment in :root. */
   --cs-menu-item-hover: oklch(1 0 0 / 0.06);
@@ -98,6 +95,8 @@
   /* Card & Popover */
   --cs-card: var(--cs-neutral-900);
   --cs-popover: var(--cs-black);
+  --cs-card-foreground: oklch(0.985 0 0);
+  --cs-popover-foreground: oklch(0.985 0 0);
 
   /* Border */
   --cs-border: oklch(1 0 0 / 0.1);
@@ -118,8 +117,19 @@
   --cs-accent: oklch(1 0 0 / 0.1); /* Accent Background */
   --cs-ghost-hover: oklch(1 0 0 / 0.1); /* Ghost Button Hover */
   --cs-ghost-active: oklch(1 0 0 / 0.15); /* Ghost Button Active */
+  --cs-secondary-foreground: oklch(0.985 0 0);
+  --cs-accent-foreground: oklch(0.985 0 0);
+  --cs-primary-foreground: oklch(0.205 0 0);
+  --cs-destructive-foreground: oklch(0.637 0.237 25.331);
+  --cs-input: oklch(0.269 0 0);
 
   /* Sidebar */
   --cs-sidebar: oklch(0.2393 0 0);
-  --cs-sidebar-accent: oklch(1 0 0 / 0.1);
+  --cs-sidebar-accent: oklch(0.269 0 0);
+  --cs-sidebar-foreground: oklch(0.985 0 0);
+  --cs-sidebar-primary: oklch(0.488 0.243 264.376);
+  --cs-sidebar-primary-foreground: oklch(0.985 0 0);
+  --cs-sidebar-accent-foreground: oklch(0.985 0 0);
+  --cs-sidebar-border: oklch(0.269 0 0);
+  --cs-sidebar-ring: oklch(0.439 0 0);
 }

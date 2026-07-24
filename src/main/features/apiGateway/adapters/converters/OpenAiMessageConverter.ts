@@ -13,6 +13,7 @@ import type {
 } from '@cherrystudio/openai/resources'
 import type { ChatCompletionCreateParamsBase } from '@cherrystudio/openai/resources/chat/completions'
 import type { CherryUIMessage } from '@shared/data/types/message'
+import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import type { DynamicToolUIPart, FileUIPart, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
@@ -247,8 +248,13 @@ export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCom
    * Extract provider-specific options from OpenAI params
    * Maps reasoning_effort to provider-specific thinking/reasoning parameters
    */
-  extractProviderOptions(provider: Provider, params: ExtendedChatCompletionCreateParams): ProviderOptions | undefined {
-    return mapReasoningEffortToProviderOptions(provider, params.reasoning_effort)
+  extractProviderOptions(
+    provider: Provider,
+    model: Model,
+    params: ExtendedChatCompletionCreateParams,
+    maxOutputTokens?: number
+  ): ProviderOptions | undefined {
+    return mapReasoningEffortToProviderOptions(provider, model, params.reasoning_effort, maxOutputTokens)
   }
 }
 

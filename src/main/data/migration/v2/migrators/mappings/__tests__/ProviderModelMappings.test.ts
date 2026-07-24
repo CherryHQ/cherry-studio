@@ -365,7 +365,7 @@ describe('ProviderModelMappings', () => {
       expect(result.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.adapterFamily).toBe('newapi')
     })
 
-    it('adds adapterFamily without dropping baseUrl or reasoningFormatType', () => {
+    it('adds adapterFamily without dropping baseUrl', () => {
       const result = transformProvider(
         {
           id: 'openai',
@@ -382,7 +382,6 @@ describe('ProviderModelMappings', () => {
 
       expect(result.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]).toMatchObject({
         baseUrl: 'https://api.openai.com/v1',
-        reasoningFormatType: 'openai-chat',
         adapterFamily: 'openai-compatible'
       })
     })

@@ -235,6 +235,8 @@ const MessageList = () => {
     }
   }, [])
 
+  const getMessageElement = useCallback((id: string) => messageElements.current.get(id) ?? null, [])
+
   const scrollToBottom = useCallback(() => {
     messageListRef.current?.scrollToBottom('instant')
   }, [])
@@ -665,7 +667,8 @@ const MessageList = () => {
       )}
       {messageNavigation === 'buttons' && (
         <MessageNavigation
-          containerId="messages"
+          scrollContainerRef={scrollContainerRef}
+          getMessageElement={getMessageElement}
           messages={messages}
           scrollToMessageId={scrollToMessageById}
           scrollToTop={navigateToTop}

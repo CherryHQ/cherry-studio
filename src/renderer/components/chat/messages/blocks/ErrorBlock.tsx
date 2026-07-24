@@ -56,6 +56,7 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
         />
       )
     }
+    return t(i18nKey)
   }
 
   if (i18n.exists(errorKey)) {
@@ -90,6 +91,8 @@ const MessageErrorInfo: React.FC<{
     (error as Record<string, unknown> | undefined)?.status ?? (error as Record<string, unknown> | undefined)?.statusCode
   const errorProviderId = (error as Record<string, unknown> | undefined)?.providerId as string | undefined
   const errorModelId = (error as Record<string, unknown> | undefined)?.modelId as string | undefined
+  const errorI18nKey = (error as Record<string, unknown> | undefined)?.i18nKey
+  const hasAppOwnedI18nKey = typeof errorI18nKey === 'string' && i18n.exists(`error.${errorI18nKey}`)
   const classificationStatus =
     typeof errorStatus === 'number' || typeof errorStatus === 'string' ? errorStatus : undefined
 
@@ -111,7 +114,8 @@ const MessageErrorInfo: React.FC<{
   }, [classificationStatus, errorMessage, providerId])
 
   useEffect(() => {
-    if (classification.category !== 'unknown' || !errorMessage || !error || !diagnoseMessageError) return
+    if (hasAppOwnedI18nKey || classification.category !== 'unknown' || !errorMessage || !error || !diagnoseMessageError)
+      return
     let cancelled = false
     diagnoseMessageError({
       message,
@@ -130,7 +134,7 @@ const MessageErrorInfo: React.FC<{
     // Intentionally exclude `error` from deps — its identity changes per render
     // but the action input's scalar message/language fields are both stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [classification.category, diagnoseMessageError, errorMessage, i18n.language, message, partId])
+  }, [classification.category, diagnoseMessageError, errorMessage, hasAppOwnedI18nKey, i18n.language, message, partId])
 
   const diagnosisContext = useMemo(
     () => ({

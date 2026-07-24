@@ -12,6 +12,7 @@ const {
   getAuthConfigMock,
   updateApiKeyMock,
   deleteApiKeyMock,
+  getProviderPresetMock,
   moveMock,
   reorderMock
 } = vi.hoisted(() => ({
@@ -26,8 +27,15 @@ const {
   getAuthConfigMock: vi.fn(),
   updateApiKeyMock: vi.fn(),
   deleteApiKeyMock: vi.fn(),
+  getProviderPresetMock: vi.fn(),
   moveMock: vi.fn(),
   reorderMock: vi.fn()
+}))
+
+vi.mock('@data/services/ProviderRegistryService', () => ({
+  providerRegistryService: {
+    getProviderPreset: getProviderPresetMock
+  }
 }))
 
 vi.mock('@data/services/ProviderService', () => ({
@@ -242,6 +250,44 @@ describe('providerHandlers', () => {
       expect(result).toEqual({ type: 'oauth', clientId: 'client-1', accountId: 'acc-1', expiresAt: 123 })
       expect(result).not.toHaveProperty('accessToken')
       expect(result).not.toHaveProperty('refreshToken')
+    })
+  })
+
+  describe('/providers/:providerId/preset', () => {
+    it('returns only the requested validated preset fields', async () => {
+      getByProviderIdMock.mockReturnValueOnce({ id: 'custom-openai', presetProviderId: 'openai' })
+      getProviderPresetMock.mockReturnValueOnce({
+        endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://api.openai.com/v1' } },
+        models: []
+      })
+
+      const result = await providerHandlers['/providers/:providerId/preset'].GET({
+        params: { providerId: 'custom-openai' },
+        query: { fields: ['endpointConfigs', 'models'] }
+      } as never)
+
+      expect(getProviderPresetMock).toHaveBeenCalledWith('custom-openai', ['endpointConfigs', 'models'], 'openai')
+      expect(result).toEqual({
+        endpointConfigs: { 'openai-chat-completions': { baseUrl: 'https://api.openai.com/v1' } },
+        models: []
+      })
+    })
+
+    it('rejects unknown or missing fields before resolving the provider', async () => {
+      await expect(
+        providerHandlers['/providers/:providerId/preset'].GET({
+          params: { providerId: 'openai' },
+          query: { fields: 'websites' }
+        } as never)
+      ).rejects.toThrow()
+      await expect(
+        providerHandlers['/providers/:providerId/preset'].GET({
+          params: { providerId: 'openai' }
+        } as never)
+      ).rejects.toThrow()
+
+      expect(getByProviderIdMock).not.toHaveBeenCalled()
+      expect(getProviderPresetMock).not.toHaveBeenCalled()
     })
   })
 

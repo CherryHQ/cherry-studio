@@ -1,3 +1,4 @@
+import { useRightPanelState } from '@renderer/components/chat/panes/Shell'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { act, fireEvent, render, screen } from '@testing-library/react'
@@ -14,16 +15,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as AgentRightPaneProjection from '../agentRightPaneProjection'
 
-const { buildAgentToolFlowProjectionMock, fileTreeModelState, useArtifactFileTreeModelMock, useCommandHandlerMock } =
-  vi.hoisted(() => ({
-    buildAgentToolFlowProjectionMock: vi.fn(),
-    fileTreeModelState: {
-      hasLoaded: false,
-      nodeById: new Map<string, { kind: string }>()
-    },
-    useArtifactFileTreeModelMock: vi.fn(),
-    useCommandHandlerMock: vi.fn()
-  }))
+const {
+  buildAgentToolFlowProjectionMock,
+  fileTreeModelState,
+  resolveArtifactPaneFileSelectionMock,
+  useArtifactFileTreeModelMock,
+  useCommandHandlerMock
+} = vi.hoisted(() => ({
+  buildAgentToolFlowProjectionMock: vi.fn(),
+  fileTreeModelState: {
+    hasLoaded: false,
+    nodeById: new Map<string, { kind: string }>()
+  },
+  resolveArtifactPaneFileSelectionMock: vi.fn(),
+  useArtifactFileTreeModelMock: vi.fn(),
+  useCommandHandlerMock: vi.fn()
+}))
 
 vi.mock('../agentRightPaneProjection', async (importActual) => {
   const actual = await importActual<typeof AgentRightPaneProjection>()
@@ -118,17 +125,34 @@ vi.mock('@renderer/utils/filePath', () => ({
 vi.mock('@renderer/components/chat/panes/ArtifactPane', () => ({
   ArtifactFilePreview: () => <div data-testid="artifact-preview" />,
   ArtifactPaneView: ({
+    headerVariant,
     onPreviewClose,
     onSelectedFileChange,
+    paneActions,
+    paneTitle,
     previewFileSelection,
     selectedFile
   }: {
+    headerVariant?: 'overlay' | 'pane'
     onPreviewClose?: () => void
     onSelectedFileChange: (file: string | null) => void
+    paneActions?: ReactNode
+    paneTitle?: ReactNode
     previewFileSelection?: { workspacePath: string; filePath: string } | null
     selectedFile: string | null
   }) => (
     <div data-testid="artifact-pane" data-selected-file={selectedFile ?? ''}>
+      {headerVariant === 'pane' ? (
+        <div data-testid="artifact-pane-header">
+          {previewFileSelection ? (
+            <button type="button" aria-label="common.back" onClick={onPreviewClose}>
+              back
+            </button>
+          ) : null}
+          <span data-testid="artifact-pane-header-title">{previewFileSelection?.filePath ?? paneTitle}</span>
+          {paneActions}
+        </div>
+      ) : null}
       <button type="button" onClick={() => onSelectedFileChange('README.md')}>
         select README.md
       </button>
@@ -138,16 +162,18 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => ({
       {previewFileSelection && (
         <div data-testid="artifact-file-preview-overlay">
           {previewFileSelection.filePath}
-          <button type="button" onClick={onPreviewClose}>
-            close
-          </button>
+          {headerVariant === 'pane' ? null : (
+            <button type="button" onClick={onPreviewClose}>
+              close
+            </button>
+          )}
         </div>
       )}
     </div>
   ),
   isOfficeDocumentFile: () => false,
   isImageFile: () => false,
-  resolveArtifactPaneFileSelection: () => null
+  resolveArtifactPaneFileSelection: (...args: unknown[]) => resolveArtifactPaneFileSelectionMock(...args)
 }))
 
 vi.mock('@renderer/components/chat/panes/OpenExternalAppButton', () => ({
@@ -268,6 +294,20 @@ function ArtifactCapabilityProbe() {
   return <output data-testid="can-open-artifact-file">{String(canOpenArtifactFile)}</output>
 }
 
+function OpenArtifactButton() {
+  const { openArtifactFile } = useAgentRightPaneActions()
+  return (
+    <button type="button" onClick={() => openArtifactFile('report.md')}>
+      open artifact
+    </button>
+  )
+}
+
+function UserOpenSeqProbe() {
+  const { userOpenSeq } = useRightPanelState()
+  return <output data-testid="user-open-seq">{userOpenSeq}</output>
+}
+
 describe('AgentRightPane', () => {
   const triggerRightSidebarShortcut = () => {
     const handler = useCommandHandlerMock.mock.calls
@@ -282,6 +322,7 @@ describe('AgentRightPane', () => {
     vi.clearAllMocks()
     fileTreeModelState.hasLoaded = false
     fileTreeModelState.nodeById = new Map()
+    resolveArtifactPaneFileSelectionMock.mockReturnValue(null)
     useArtifactFileTreeModelMock.mockImplementation(() => ({
       hasLoaded: fileTreeModelState.hasLoaded,
       nodeById: fileTreeModelState.nodeById
@@ -366,8 +407,36 @@ describe('AgentRightPane', () => {
     act(triggerRightSidebarShortcut)
 
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
-    expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('agent.right_pane.tabs.files')
+    expect(screen.queryByTestId('shell-tab-title')).toBeNull()
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('agent.right_pane.tabs.files')
     expect(screen.getByTestId('artifact-pane')).toBeInTheDocument()
+  })
+
+  it('reuses the files pane header for preview navigation', () => {
+    render(
+      <TestAgentRightPane
+        defaultOpen
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={[]}
+        partsByMessageId={{}}>
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    expect(screen.getAllByTestId('artifact-pane-header')).toHaveLength(1)
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('agent.right_pane.tabs.files')
+
+    fireEvent.click(screen.getByRole('button', { name: 'select README.md' }))
+
+    expect(screen.getAllByTestId('artifact-pane-header')).toHaveLength(1)
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('README.md')
+    expect(screen.getByRole('button', { name: 'common.back' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
+
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('agent.right_pane.tabs.files')
   })
 
   it('does not expose artifact opening without a workspace path', () => {
@@ -416,16 +485,41 @@ describe('AgentRightPane', () => {
     render(
       <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
         <OpenFlowButton />
+        <UserOpenSeqProbe />
         <AgentRightPane.Viewport />
       </TestAgentRightPane>
     )
 
+    expect(screen.getByTestId('user-open-seq')).toHaveTextContent('0')
     fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
 
+    expect(screen.getByTestId('user-open-seq')).toHaveTextContent('1')
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect flow')
     expect(screen.getByTestId('empty-state')).toBeInTheDocument()
     expect(useArtifactFileTreeModelMock).not.toHaveBeenCalled()
+  })
+
+  it('marks direct artifact opening as user initiated', () => {
+    resolveArtifactPaneFileSelectionMock.mockReturnValue({
+      workspacePath: '/workspace',
+      filePath: 'report.md'
+    })
+
+    render(
+      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+        <OpenArtifactButton />
+        <UserOpenSeqProbe />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    expect(screen.getByTestId('user-open-seq')).toHaveTextContent('0')
+    fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+
+    expect(screen.getByTestId('user-open-seq')).toHaveTextContent('1')
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('report.md')
   })
 
   it('replaces the retained flow when another flow is opened', () => {

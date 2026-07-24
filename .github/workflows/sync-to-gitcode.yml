@@ -190,12 +190,27 @@ jobs:
           LC_ALL: C.UTF-8
         run: |
           # Always use gh cli to avoid special character issues
-          RELEASE_NAME=$(gh release view "$TAG_NAME" --repo "${{ github.repository }}" --json name -q '.name')
+          RELEASE_INFO=$(gh release view "$TAG_NAME" --repo "${{ github.repository }}" --json name,isPrerelease)
+          RELEASE_NAME=$(echo "$RELEASE_INFO" | jq -r '.name')
+          IS_PRERELEASE=$(echo "$RELEASE_INFO" | jq -r '.isPrerelease')
+
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            RELEASE_STATUS="pre"
+          else
+            LATEST_TAG=$(gh api "repos/${{ github.repository }}/releases/latest" --jq '.tag_name')
+            if [ "$LATEST_TAG" = "$TAG_NAME" ]; then
+              RELEASE_STATUS="latest"
+            else
+              RELEASE_STATUS=""
+            fi
+          fi
+
           # Use delimiter to safely handle special characters in release name
           {
             echo 'name<<EOF'
             echo "$RELEASE_NAME"
             echo 'EOF'
+            echo "release_status=$RELEASE_STATUS"
           } >> $GITHUB_OUTPUT
           # Extract releaseNotes from electron-builder.yml (from releaseNotes: | to end of file, remove 4-space indent)
           sed -n '/releaseNotes: |/,$ { /releaseNotes: |/d; s/^    //; p }' electron-builder.yml > release_body.txt
@@ -208,6 +223,7 @@ jobs:
           GITCODE_REPO: ${{ vars.GITCODE_REPO }}
           GITCODE_API_URL: ${{ vars.GITCODE_API_URL }}
           TAG_NAME: ${{ needs.build-windows-signed.outputs.tag }}
+          RELEASE_STATUS: ${{ steps.release-info.outputs.release_status }}
           RELEASE_NAME: ${{ steps.release-info.outputs.name }}
           LANG: C.UTF-8
           LC_ALL: C.UTF-8
@@ -217,12 +233,14 @@ jobs:
           echo "Dry run enabled. Skipping GitCode release creation and asset upload."
           echo "GitCode API URL: $API_URL"
           echo "Tag: $TAG_NAME"
+          echo "Release status: ${RELEASE_STATUS:-not set}"
           echo "Release name: $RELEASE_NAME"
           echo "Repo: ${GITCODE_OWNER:-<unset>}/${GITCODE_REPO:-<unset>}"
           echo
           echo "Release payload preview:"
           jq -n \
             --arg tag "$TAG_NAME" \
+            --arg release_status "$RELEASE_STATUS" \
             --arg name "$RELEASE_NAME" \
             --rawfile body release_body.txt \
             '{
@@ -230,7 +248,7 @@ jobs:
               name: $name,
               body: $body,
               target_commitish: "main"
-            }'
+            } | if $release_status == "" then . else .release_status = $release_status end'
           echo
           echo "Files that would be uploaded:"
           find release-assets -maxdepth 1 -type f -print | sort
@@ -244,6 +262,7 @@ jobs:
           GITCODE_REPO: ${{ vars.GITCODE_REPO }}
           GITCODE_API_URL: ${{ vars.GITCODE_API_URL }}
           TAG_NAME: ${{ needs.build-windows-signed.outputs.tag }}
+          RELEASE_STATUS: ${{ steps.release-info.outputs.release_status }}
           RELEASE_NAME: ${{ steps.release-info.outputs.name }}
           LANG: C.UTF-8
           LC_ALL: C.UTF-8
@@ -266,12 +285,14 @@ jobs:
 
           echo "Creating GitCode release..."
           echo "Tag: $TAG_NAME"
+          echo "Release status: ${RELEASE_STATUS:-not set}"
           echo "Repo: $GITCODE_OWNER/$GITCODE_REPO"
 
           # Step 1: Create release
           # Use --rawfile to read body directly from file, avoiding shell variable encoding issues
           jq -n \
             --arg tag "$TAG_NAME" \
+            --arg release_status "$RELEASE_STATUS" \
             --arg name "$RELEASE_NAME" \
             --rawfile body release_body.txt \
             '{
@@ -279,7 +300,7 @@ jobs:
               name: $name,
               body: $body,
               target_commitish: "main"
-            }' > /tmp/release_payload.json
+            } | if $release_status == "" then . else .release_status = $release_status end' > /tmp/release_payload.json
 
           RELEASE_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
             --connect-timeout 30 --max-time 60 \

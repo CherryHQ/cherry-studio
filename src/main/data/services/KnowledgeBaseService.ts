@@ -6,6 +6,7 @@
 
 import { application } from '@application'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
+import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
@@ -27,6 +28,7 @@ import {
 } from '@shared/data/types/knowledge'
 import { and, asc, count as sqlCount, desc, eq, gte, ne, type SQL, sql } from 'drizzle-orm'
 
+import { groupService } from './GroupService'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:KnowledgeBaseService')
@@ -66,6 +68,22 @@ function validateDimensionsForEmbeddingModel(
     return { dimensions: ['A knowledge base with an embedding model requires positive dimensions'] }
   }
   return {}
+}
+
+function validateKnowledgeBaseGroupTx(tx: Pick<DbType, 'select'>, groupId: string | null | undefined): void {
+  if (groupId == null) return
+
+  const group = groupService.findByIdTx(tx, groupId)
+  if (!group) {
+    throw DataApiErrorFactory.validation({
+      groupId: [`Knowledge base group not found: ${groupId}`]
+    })
+  }
+  if (group.entityType !== 'knowledge') {
+    throw DataApiErrorFactory.validation({
+      groupId: [`Knowledge base group must have entityType 'knowledge': ${groupId}`]
+    })
+  }
 }
 
 function rowToKnowledgeBase(row: KnowledgeBaseRow): KnowledgeBase {
@@ -222,8 +240,11 @@ export class KnowledgeBaseService {
       documentCount: dto.documentCount ?? null
     }
 
-    const db = application.get('DbService').getDb()
-    const [row] = db.insert(knowledgeBaseTable).values(createValues).returning().all()
+    const row = application.get('DbService').withWriteTx((tx) => {
+      validateKnowledgeBaseGroupTx(tx, dto.groupId)
+      const [inserted] = tx.insert(knowledgeBaseTable).values(createValues).returning().all()
+      return inserted
+    })
 
     logger.info('Created knowledge base', { id: row.id, name: row.name })
     return rowToKnowledgeBase(row)
@@ -331,8 +352,21 @@ export class KnowledgeBaseService {
       return existing
     }
 
-    const db = application.get('DbService').getDb()
-    const [row] = db.update(knowledgeBaseTable).set(updates).where(eq(knowledgeBaseTable.id, id)).returning().all()
+    const row = application.get('DbService').withWriteTx((tx) => {
+      if (dto.groupId !== undefined) {
+        validateKnowledgeBaseGroupTx(tx, dto.groupId)
+      }
+      const [updated] = tx
+        .update(knowledgeBaseTable)
+        .set(updates)
+        .where(eq(knowledgeBaseTable.id, id))
+        .returning()
+        .all()
+      if (!updated) {
+        throw DataApiErrorFactory.notFound('KnowledgeBase', id)
+      }
+      return updated
+    })
 
     logger.info('Updated knowledge base', { id, changes: Object.keys(dto) })
     return rowToKnowledgeBase(row)

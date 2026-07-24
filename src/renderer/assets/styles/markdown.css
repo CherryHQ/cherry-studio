@@ -277,13 +277,13 @@
   top: -0.5em;
   border-radius: 50%;
   background-color: var(--color-info-bg);
-  color: var(--color-info-base);
+  color: var(--color-info);
   padding: 2px 5px;
   zoom: 0.8;
 }
 
 .markdown sup > span.link {
-  color: var(--color-info-base);
+  color: var(--color-info);
 }
 
 .markdown sub {

@@ -162,7 +162,7 @@ const McpServersList: FC = () => {
                     className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-accent">
                     <Filter
                       size={14}
-                      color={filter === 'all' ? 'var(--color-icon)' : undefined}
+                      color={filter === 'all' ? 'var(--color-foreground-secondary)' : undefined}
                       className={filter === 'all' ? undefined : 'text-primary'}
                     />
                   </button>

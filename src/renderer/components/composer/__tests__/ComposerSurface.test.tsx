@@ -751,6 +751,15 @@ describe('ComposerSurface', () => {
     await waitFor(() => expect(inputbar).toHaveAttribute('data-composer-presentation', 'regular'))
   })
 
+  it('uses block layout so trailing hard breaks contribute to the editor scroll height', () => {
+    render(<ComposerSurface {...baseProps} />)
+
+    const editor = screen.getByTestId('composer-editor')
+
+    expect(editor).toHaveClass('block', 'overflow-auto')
+    expect(editor).not.toHaveClass('flex')
+  })
+
   it('uses state-specific viewport-relative max heights and only fixes height when expanded', async () => {
     render(<Harness />)
 
@@ -1043,7 +1052,7 @@ describe('ComposerSurface', () => {
     const cancelButton = screen.getByRole('button', { name: 'chat.input.cancel_editing' })
     expect(cancelButton).toHaveAttribute('data-size', 'icon-sm')
     expect(cancelButton).toHaveClass('text-foreground/70!', 'hover:bg-accent', 'hover:text-foreground!')
-    expect(cancelButton).not.toHaveClass('text-info', 'hover:bg-[var(--color-info-bg-hover)]')
+    expect(cancelButton).not.toHaveClass('text-info')
 
     fireEvent.click(cancelButton)
 
@@ -4710,7 +4719,8 @@ describe('ComposerSurface', () => {
                 label: 'Low',
                 description: 'Use low reasoning',
                 icon: 'low',
-                sources: ['root-panel']
+                sources: ['root-panel'],
+                action: vi.fn()
               }
             ]
           },
@@ -4758,7 +4768,11 @@ describe('ComposerSurface', () => {
       expect.objectContaining({
         label: 'Thinking',
         isMenu: true,
-        filterText: expect.stringContaining('Low')
+        filterText: expect.not.stringContaining('Low')
+      }),
+      expect.objectContaining({
+        label: 'Low',
+        isMenu: false
       }),
       expect.objectContaining({
         label: 'Knowledge Base'

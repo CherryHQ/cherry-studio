@@ -275,12 +275,6 @@
   --cs-theme-ring: color-mix(in srgb, var(--cs-theme-primary) 40%, transparent);
 
   /* ==================== */
-  /* Compatibility Aliases */
-  /* ==================== */
-  --primary: var(--color-primary);
-  --ring: var(--color-ring);
-
-  /* ==================== */
   /* Semantic Colors */
   /* ==================== */
   --color-primary: var(--cs-theme-primary);
@@ -298,6 +292,7 @@
   --color-foreground: var(--cs-foreground);
   --color-foreground-secondary: var(--cs-foreground-secondary);
   --color-foreground-muted: var(--cs-foreground-muted);
+  --color-muted-foreground: var(--cs-muted-foreground);
   --color-menu-item-hover: var(--cs-menu-item-hover);
   --color-card: var(--cs-card);
   --color-popover: var(--cs-popover);
@@ -336,46 +331,12 @@
   --color-error-base: var(--cs-error-base);
   --color-error-text: var(--cs-error-text);
   --color-error-bg: var(--cs-error-bg);
-  --color-error-text-hover: var(--cs-error-text-hover);
-  --color-error-bg-hover: var(--cs-error-bg-hover);
   --color-error-border: var(--cs-error-border);
-  --color-error-border-hover: var(--cs-error-border-hover);
-  --color-error-active: var(--cs-error-active);
-  --color-success-base: var(--cs-success-base);
-  --color-success-text-hover: var(--cs-success-text-hover);
   --color-success-bg: var(--cs-success-bg);
-  --color-success-bg-hover: var(--cs-success-bg-hover);
   --color-warning-base: var(--cs-warning-base);
-  --color-warning-text-hover: var(--cs-warning-text-hover);
   --color-warning-bg: var(--cs-warning-bg);
   --color-warning-bg-hover: var(--cs-warning-bg-hover);
-  --color-warning-active: var(--cs-warning-active);
-  --color-info-base: var(--cs-info-base);
-  --color-info-text-hover: var(--cs-info-text-hover);
   --color-info-bg: var(--cs-info-bg);
-  --color-info-bg-hover: var(--cs-info-bg-hover);
-  --color-info-active: var(--cs-info-active);
-
-  /* ==================== */
-  /* Spacing */
-  /* ==================== */
-  /* Keep spacing opt-in for now to avoid overriding Tailwind container names. */
-  /* --spacing-5xs: var(--cs-size-5xs);
-  --spacing-4xs: var(--cs-size-4xs);
-  --spacing-3xs: var(--cs-size-3xs);
-  --spacing-2xs: var(--cs-size-2xs);
-  --spacing-xs: var(--cs-size-xs);
-  --spacing-sm: var(--cs-size-sm);
-  --spacing-md: var(--cs-size-md);
-  --spacing-lg: var(--cs-size-lg);
-  --spacing-xl: var(--cs-size-xl);
-  --spacing-2xl: var(--cs-size-2xl);
-  --spacing-3xl: var(--cs-size-3xl);
-  --spacing-4xl: var(--cs-size-4xl);
-  --spacing-5xl: var(--cs-size-5xl);
-  --spacing-6xl: var(--cs-size-6xl);
-  --spacing-7xl: var(--cs-size-7xl);
-  --spacing-8xl: var(--cs-size-8xl); */
 
   /* ==================== */
   /* Radius */

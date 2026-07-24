@@ -36,7 +36,7 @@ import type {
   ProviderSettings,
   RuntimeApiFeatures
 } from '@shared/data/types/provider'
-import { DEFAULT_API_FEATURES, DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
+import { DEFAULT_API_FEATURES, DEFAULT_PROVIDER_SETTINGS, EndpointConfigSchema } from '@shared/data/types/provider'
 import { and, asc, eq, sql, type SQLWrapper } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -98,6 +98,16 @@ function normalizeApiKeyEntries(apiKeys: ApiKeyEntry[]): ApiKeyEntry[] {
   })
 }
 
+function normalizeEndpointConfigs(
+  endpointConfigs: UserProviderRow['endpointConfigs']
+): UserProviderRow['endpointConfigs'] {
+  if (!endpointConfigs) return endpointConfigs
+
+  return Object.fromEntries(
+    Object.entries(endpointConfigs).map(([endpointType, config]) => [endpointType, EndpointConfigSchema.parse(config)])
+  )
+}
+
 /**
  * Convert database row to Provider entity
  */
@@ -142,7 +152,9 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     logoSrc: resolveLogoSrc(getLogoFileId(logoSlot(row.providerId))),
     description: presetMetadata.description,
     websites: presetMetadata.websites,
-    endpointConfigs: row.endpointConfigs ?? undefined,
+    // Strip legacy registry-only fields such as `reasoningFormatType`
+    // before persisted connection facts cross into runtime/renderer state.
+    endpointConfigs: normalizeEndpointConfigs(row.endpointConfigs) ?? undefined,
     defaultChatEndpoint: row.defaultChatEndpoint ?? undefined,
     modelListSource: presetMetadata.modelListSource,
     authMethods: presetMetadata.authMethods,
@@ -224,6 +236,11 @@ class ProviderService {
   create(dto: CreateProviderDto): Provider {
     assertManagedCherryAiProviderMutationAllowed(dto.providerId, `create provider ${dto.providerId}`)
 
+    const endpointConfigs = getDataService('ProviderRegistryService').resolveAdapterFamilies(
+      dto.endpointConfigs,
+      dto.presetProviderId ?? null
+    )
+
     const row = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
@@ -235,7 +252,7 @@ class ProviderService {
             presetProviderId: dto.presetProviderId ?? null,
             name: dto.name,
             logoKey: logoCols.logoKey,
-            endpointConfigs: dto.endpointConfigs ?? null,
+            endpointConfigs,
             defaultChatEndpoint: dto.defaultChatEndpoint ?? null,
             apiKeys: dto.apiKeys ?? [],
             authConfig: dto.authConfig ?? null,
@@ -278,7 +295,8 @@ class ProviderService {
       const [current] = tx
         .select({
           providerSettings: userProviderTable.providerSettings,
-          isEnabled: userProviderTable.isEnabled
+          isEnabled: userProviderTable.isEnabled,
+          presetProviderId: userProviderTable.presetProviderId
         })
         .from(userProviderTable)
         .where(eq(userProviderTable.providerId, providerId))
@@ -297,7 +315,16 @@ class ProviderService {
       if (logoCols) {
         updates.logoKey = logoCols.logoKey
       }
-      if (dto.endpointConfigs !== undefined) updates.endpointConfigs = dto.endpointConfigs
+      // PATCH replaces endpointConfigs wholesale, and settings UIs (e.g. the
+      // "add endpoint" drawer) send new entries as `{ baseUrl }` only. Backfill
+      // adapterFamily here too — same enrichment as create — so an edit can't
+      // strip the routing signal and drop the provider back to openai-compatible.
+      if (dto.endpointConfigs !== undefined) {
+        updates.endpointConfigs = getDataService('ProviderRegistryService').resolveAdapterFamilies(
+          dto.endpointConfigs,
+          current.presetProviderId
+        )
+      }
       if (dto.defaultChatEndpoint !== undefined) updates.defaultChatEndpoint = dto.defaultChatEndpoint
       if (dto.authConfig !== undefined) updates.authConfig = dto.authConfig
       if (dto.apiFeatures !== undefined) updates.apiFeatures = dto.apiFeatures
