@@ -6334,10 +6334,9 @@
       "custom": {
         "css": {
           "cherrycss": "Get from cherrycss.com",
-          "export": "Export legacy styles",
-          "export_error": "Failed to export legacy custom CSS",
-          "export_success": "Legacy custom CSS exported",
+          "enable_v2": "Enable for v2",
           "label": "Custom CSS",
+          "legacy_warning": "This CSS was migrated from v1 and is disabled to protect the v2 interface. Review and adapt it, then remove the first marker line or choose Enable for v2.",
           "placeholder": "/* Put custom CSS here */"
         }
       },

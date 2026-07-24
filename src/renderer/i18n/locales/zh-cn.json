@@ -6334,10 +6334,9 @@
       "custom": {
         "css": {
           "cherrycss": "从 cherrycss.com 获取",
-          "export": "导出旧版样式",
-          "export_error": "旧版自定义 CSS 导出失败",
-          "export_success": "旧版自定义 CSS 已导出",
+          "enable_v2": "为 v2 启用",
           "label": "自定义 CSS",
+          "legacy_warning": "此 CSS 从 v1 迁移而来，为保护 v2 界面已停用。请检查并适配后，删除首行标记，或选择“为 v2 启用”。",
           "placeholder": "/* 这里写自定义 CSS */"
         }
       },

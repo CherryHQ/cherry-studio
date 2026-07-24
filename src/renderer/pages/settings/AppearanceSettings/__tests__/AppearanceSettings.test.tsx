@@ -1,5 +1,6 @@
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { V1_CUSTOM_CSS_MARKER } from '@shared/data/preference/customCss'
 import type { MenuPresentationMode } from '@shared/data/preference/preferenceTypes'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -273,7 +274,6 @@ describe('AppearanceSettings menu presentation mode', () => {
 describe('AppearanceSettings selectors', () => {
   beforeEach(() => {
     MockUsePreferenceUtils.resetMocks()
-    MockUsePreferenceUtils.setPreferenceValue('ui.custom_css_v1', '')
     i18nMock.language = 'zh-CN'
     i18nMock.resolvedLanguage = 'zh-CN'
     mocks.request.mockReset()
@@ -328,34 +328,30 @@ describe('AppearanceSettings selectors', () => {
     ])
   })
 
-  it('uses the v2 custom CSS while exporting the migrated v1 CSS', async () => {
+  it('keeps migrated v1 CSS visible and enables it by removing the marker', async () => {
     const legacyCustomCss = 'body { color: tomato; }'
-    const customCssV2 = 'body { color: rebeccapurple; }'
-    const save = vi.fn().mockResolvedValue('/tmp/cherry-studio-v1-custom.css')
-    window.api.file.save = save
-    MockUsePreferenceUtils.setPreferenceValue('ui.custom_css_v1', legacyCustomCss)
-    MockUsePreferenceUtils.setPreferenceValue('ui.custom_css', customCssV2)
+    const markedCss = `${V1_CUSTOM_CSS_MARKER}\n${legacyCustomCss}`
+    MockUsePreferenceUtils.setPreferenceValue('ui.custom_css', markedCss)
 
     render(<AppearanceSettings />)
 
-    expect(screen.getByDisplayValue(customCssV2)).toBeInTheDocument()
-    expect(screen.queryByText('settings.display.custom.css.cherrycss')).not.toBeInTheDocument()
+    expect(screen.getByDisplayValue(markedCss)).toBeInTheDocument()
+    expect(screen.getByText('settings.display.custom.css.legacy_warning')).toBeInTheDocument()
+    expect(screen.getByText('settings.display.custom.css.cherrycss')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'settings.display.custom.css.export' }))
+    fireEvent.click(screen.getByRole('button', { name: 'settings.display.custom.css.enable_v2' }))
 
     await waitFor(() => {
-      expect(save).toHaveBeenCalledWith('cherry-studio-v1-custom.css', legacyCustomCss, {
-        filters: [{ name: 'CSS', extensions: ['css'] }]
-      })
-      expect(toast.success).toHaveBeenCalledWith('settings.display.custom.css.export_success')
+      expect(MockUsePreferenceUtils.getPreferenceValue('ui.custom_css')).toBe(legacyCustomCss)
     })
   })
 
-  it('hides the legacy custom CSS export when no migrated value exists', () => {
-    MockUsePreferenceUtils.setPreferenceValue('ui.custom_css_v1', '   ')
+  it('hides the v1 warning for unmarked custom CSS', () => {
+    MockUsePreferenceUtils.setPreferenceValue('ui.custom_css', 'body { color: rebeccapurple; }')
 
     render(<AppearanceSettings />)
 
-    expect(screen.queryByRole('button', { name: 'settings.display.custom.css.export' })).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.display.custom.css.legacy_warning')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.display.custom.css.enable_v2' })).not.toBeInTheDocument()
   })
 })

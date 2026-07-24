@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { fileEntryTable } from '@data/db/schemas/file'
 import { preferenceTable } from '@data/db/schemas/preference'
+import { V1_CUSTOM_CSS_MARKER } from '@shared/data/preference/customCss'
 import { setupTestDatabase } from '@test-helpers/db'
 import { and, eq, sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -96,17 +97,16 @@ describe('PreferencesMigrator', () => {
       expect(rows[0].value).toBe('zh-CN')
     })
 
-    it('migrates v1 custom CSS only to the legacy preference', async () => {
+    it('migrates v1 custom CSS to the current preference behind the v1 marker', async () => {
       const legacyCustomCss = 'body { color: tomato; }'
       const ctx = createTestContext({ redux: { settings: { customCss: legacyCustomCss } } }, dbh.db)
       const result = await migrator.prepare(ctx)
       expect(result.success).toBe(true)
 
       await migrator.execute(ctx)
-      const legacyRows = await selectByKey(dbh.db, 'ui.custom_css_v1')
-      expect(legacyRows).toHaveLength(1)
-      expect(legacyRows[0].value).toBe(legacyCustomCss)
-      expect(await selectByKey(dbh.db, 'ui.custom_css')).toHaveLength(0)
+      const rows = await selectByKey(dbh.db, 'ui.custom_css')
+      expect(rows).toHaveLength(1)
+      expect(rows[0].value).toBe(`${V1_CUSTOM_CSS_MARKER}\n${legacyCustomCss}`)
     })
 
     it('reads ElectronStore mappings (ZoomFactor → app.zoom_factor)', async () => {
