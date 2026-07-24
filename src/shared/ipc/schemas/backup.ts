@@ -45,9 +45,13 @@ export type BackupEventSchemas = {
   // Per-step export progress tick (phase: collect/snapshot/archive, current/total, msg).
   // Emitted via IpcApiService.broadcast to all windows; backupId is the cancel key.
   'backup.progress': BackupProgressUpdate
-  // Restore disclosure summary (full-restore-plan §10.5), broadcast from startRestore
-  // after seal and BEFORE relaunch: what the staged journal will restore / will skip
-  // and why. Promotion has not applied yet (preboot may expire the whole batch), so
-  // consumers must render future-tense copy.
+  // Restore disclosure summary (full-restore-plan §5/§10.5): what the staged journal
+  // will restore / will skip and why. Integration contract with the spine (A2):
+  // startRestore broadcasts this after seal INSTEAD of auto-relaunching — the
+  // renderer's confirm dialog owns the restart via app.relaunch, so a broadcast
+  // followed by an unconditional relaunch would leave no window to read or click.
+  // Quiesce + BACKUP_IN_PROGRESS must stay held while the dialog is up (writes during
+  // disclosure raise whole-batch clean-expire risk at the preboot gate). Promotion has
+  // not applied yet, so consumers must render future-tense copy.
   'backup.restore_summary': RestoreResultSummary
 }
