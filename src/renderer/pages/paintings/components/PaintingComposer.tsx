@@ -1,5 +1,6 @@
 import { Button, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { loggerService } from '@logger'
 import ComposerSurface from '@renderer/components/composer/ComposerSurface'
 import {
   ComposerToolDerivedStateProvider,
@@ -25,7 +26,7 @@ import type { Model } from '@shared/data/types/model'
 import { imageExts } from '@shared/utils/file'
 import { isEditImageModel } from '@shared/utils/model'
 import { Settings2 } from 'lucide-react'
-import { type FC, useCallback, useMemo, useState } from 'react'
+import { type FC, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { BaseConfigItem } from '../form/baseConfigItem'
@@ -39,9 +40,23 @@ import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
 import PaintingModelSelector from './PaintingModelSelector'
 import PaintingSettings from './PaintingSettings'
 
+const logger = loggerService.withContext('PaintingComposer')
+
 const PAINTING_MANAGED_TOKEN_KINDS: readonly ComposerDraftToken['kind'][] = ['file']
 const PAINTING_IMAGE_EXTS = imageExts.map((ext) => (ext.startsWith('.') ? ext : `.${ext}`))
 const PAINTING_SCOPE = 'painting' as const
+
+/**
+ * A user-initiated send from this composer, distinct from `generating`
+ * (`isGenerating(painting)` — a data-derived signal that a resumed or external
+ * generation also sets). The two compose the send guard; they are not the same axis.
+ *
+ * - `idle`: no send in flight — a send may start (unless `generating`).
+ * - `materializing`: awaiting `materializeInputs()` (may return to `idle` on an
+ *   incomplete input set).
+ * - `submitting`: handed to `onGenerate`, spanning the downstream validate + generate.
+ */
+type SendPhase = 'idle' | 'materializing' | 'submitting'
 
 /** Field types worth surfacing in the compact button summary. */
 const SUMMARY_TYPES = new Set<BaseConfigItem['type']>([
@@ -103,7 +118,7 @@ export interface PaintingComposerProps {
   painting: PaintingData
   generating: boolean
   onPromptChange: (value: string) => void
-  onGenerate: (inputFiles: FileEntry[]) => void
+  onGenerate: (inputFiles: FileEntry[]) => void | Promise<void>
   onCancel: () => void
   onModelSelect: (selection: { providerId: string; modelId: string }) => void
   onConfigChange: (updates: Partial<PaintingData>) => void
@@ -208,18 +223,40 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
     [onPromptChange]
   )
 
-  // Inputs are materialized to FileEntry[] here at send (mirroring chat's
-  // send-time buildFileParts), then handed to generation. Nothing is persisted
-  // during the draft window — see usePaintingComposerInputFiles. Contract: an
-  // incomplete input set (any attachment failed to materialize) never reaches
-  // generation — abort the send instead of running a paid generation without the
-  // user's image, matching chat.
+  // Send-lifecycle state machine (see SendPhase). The ref is the synchronous source
+  // of truth for the re-entrancy guard (a same-tick re-click can't read a just-queued
+  // state update); the state mirror drives the button's disabled visual. Kept in sync
+  // through the one setter.
+  const [sendPhase, setSendPhaseState] = useState<SendPhase>('idle')
+  const sendPhaseRef = useRef<SendPhase>('idle')
+  const setSendPhase = useCallback((phase: SendPhase) => {
+    sendPhaseRef.current = phase
+    setSendPhaseState(phase)
+  }, [])
+
+  // Inputs are materialized to FileEntry[] here at send (mirroring chat's send-time
+  // buildFileParts), then handed to generation; nothing is persisted during the draft
+  // window (see usePaintingComposerInputFiles). Two invariants:
+  //  - Contract: an incomplete input set (any attachment failed to materialize) never
+  //    reaches generation — abort instead of a paid generation without the image.
+  //  - A send holds `sendPhase` non-idle for its whole lifecycle, so a second click
+  //    (during materialize or the downstream submit) can't start a duplicate send.
+  //    `onGenerate` is awaited so the phase spans validate + generate, and wrapped so
+  //    a future throw is caught here rather than assumed away or left unhandled.
   const handleSendDraft = useCallback(async () => {
-    if (generating) return
-    const { entries, complete } = await materializeInputs()
-    if (!complete) return
-    onGenerate(entries)
-  }, [generating, materializeInputs, onGenerate])
+    if (generating || sendPhaseRef.current !== 'idle') return
+    setSendPhase('materializing')
+    try {
+      const { entries, complete } = await materializeInputs()
+      if (!complete) return
+      setSendPhase('submitting')
+      await onGenerate(entries)
+    } catch (error) {
+      logger.error('painting send draft failed', error as Error)
+    } finally {
+      setSendPhase('idle')
+    }
+  }, [generating, materializeInputs, onGenerate, setSendPhase])
 
   return (
     <ComposerToolDerivedStateProvider couldAddImageFile={couldAddImageFile} extensions={PAINTING_IMAGE_EXTS}>
@@ -231,7 +268,7 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
         managedTokenKinds={PAINTING_MANAGED_TOKEN_KINDS}
         onTokensChange={handleTokensChange}
         placeholder={t('paintings.prompt_placeholder')}
-        sendDisabled={generating || (text.trim().length === 0 && files.length === 0) || !model}
+        sendDisabled={generating || sendPhase !== 'idle' || (text.trim().length === 0 && files.length === 0) || !model}
         isLoading={generating}
         onSendDraft={handleSendDraft}
         onPause={onCancel}

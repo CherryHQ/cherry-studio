@@ -1,5 +1,5 @@
 import type { ComposerSurfaceProps } from '@renderer/components/composer/ComposerSurface'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PaintingData } from '../../model/types/paintingData'
@@ -197,6 +197,32 @@ describe('PaintingComposer', () => {
   it('disables send while generating', () => {
     renderComposer({ generating: true, painting: makePainting({ prompt: 'a cat' }) })
     expect(screen.getByLabelText('send')).toBeDisabled()
+  })
+
+  it('ignores a second send while one is already in flight (synchronous re-entrancy guard)', async () => {
+    // Hold materialize pending so the first send stays in the `materializing` phase.
+    let resolveMaterialize!: (value: { entries: unknown[]; complete: boolean }) => void
+    mockMaterializeInputs.mockReturnValue(
+      new Promise((resolve) => {
+        resolveMaterialize = resolve
+      })
+    )
+    const { onGenerate } = renderComposer({ painting: makePainting({ prompt: 'a cat' }) })
+    const send = screen.getByLabelText('send')
+
+    // Both clicks in one act so the second runs before the state-driven disable
+    // re-renders — this exercises the synchronous ref guard, not the disabled button.
+    await act(async () => {
+      fireEvent.click(send)
+      fireEvent.click(send)
+    })
+    expect(mockMaterializeInputs).toHaveBeenCalledTimes(1)
+
+    // The single in-flight send completes as exactly one generation.
+    await act(async () => {
+      resolveMaterialize({ entries: [], complete: true })
+    })
+    await waitFor(() => expect(onGenerate).toHaveBeenCalledTimes(1))
   })
 
   it('does not render the image params button when imageGeneration support is missing', () => {
