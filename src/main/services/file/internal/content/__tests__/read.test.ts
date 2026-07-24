@@ -16,7 +16,7 @@ vi.mock('@application', async () => {
 
 const { fileEntryService } = await import('@data/services/FileEntryService')
 const { fileRefService } = await import('@data/services/FileRefService')
-const { read, readByPath } = await import('../read')
+const { read, readByPath, readChunk } = await import('../read')
 
 import type { FileManagerDeps } from '../../deps'
 
@@ -127,6 +127,28 @@ describe('internal/content/read', () => {
     expect(result.mime).toBe('application/pdf')
   })
 
+  it('reads a byte range for an existing external entry', async () => {
+    const id = '019606a0-0000-7000-8000-000000000c04' as FileEntryId
+    const file = path.join(tmp, 'range.pdf')
+    await writeFile(file, new Uint8Array([0, 1, 2, 3, 4, 5]))
+    const now = Date.now()
+    await dbh.db.insert(fileEntryTable).values({
+      id,
+      origin: 'external',
+      name: 'range',
+      ext: 'pdf',
+      size: null,
+      externalPath: file,
+      deletedAt: null,
+      createdAt: now,
+      updatedAt: now
+    })
+
+    const chunk = await readChunk(deps, id, 2, 3)
+
+    expect(Array.from(chunk)).toEqual([2, 3, 4])
+  })
+
   it('throws when entry id does not exist', async () => {
     await expect(read(deps, '019606a0-0000-7000-8000-9999cccccccc' as FileEntryId)).rejects.toThrow(/not found/i)
   })
@@ -148,6 +170,26 @@ describe('internal/content/read', () => {
     })
 
     await expect(read(deps, id)).rejects.toThrow(/ENOENT/)
+    expect(onFsEventCalls).toEqual([{ path: file, state: 'missing' }])
+  })
+
+  it('updates DanglingCache to "missing" when a chunk read finds an external file missing', async () => {
+    const id = '019606a0-0000-7000-8000-000000000c11' as FileEntryId
+    const file = path.join(tmp, 'gone-range.pdf')
+    const now = Date.now()
+    await dbh.db.insert(fileEntryTable).values({
+      id,
+      origin: 'external',
+      name: 'gone-range',
+      ext: 'pdf',
+      size: null,
+      externalPath: file,
+      deletedAt: null,
+      createdAt: now,
+      updatedAt: now
+    })
+
+    await expect(readChunk(deps, id, 0, 4)).rejects.toThrow(/ENOENT/)
     expect(onFsEventCalls).toEqual([{ path: file, state: 'missing' }])
   })
 

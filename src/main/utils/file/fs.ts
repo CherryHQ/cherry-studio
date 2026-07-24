@@ -73,6 +73,18 @@ export async function read(
   return { data: new Uint8Array(buf), mime: inferredMime }
 }
 
+/** Read at most `length` bytes starting at the absolute byte `offset`. */
+export async function readChunk(path: FilePath, offset: number, length: number): Promise<Uint8Array<ArrayBuffer>> {
+  const fileHandle = await fsOpen(path, 'r')
+  try {
+    const buffer = new Uint8Array(length)
+    const { bytesRead } = await fileHandle.read(buffer, 0, length, offset)
+    return bytesRead === buffer.byteLength ? buffer : buffer.slice(0, bytesRead)
+  } finally {
+    await fileHandle.close()
+  }
+}
+
 /** Returns true iff the path exists and is readable by the current process. */
 export async function exists(path: FilePath): Promise<boolean> {
   try {

@@ -271,7 +271,7 @@ Other services in the main process can call FileManager, `src/main/services/file
 > `file.batch_get_metadata`, `file.batch_get_physical_paths`,
 > `file.batch_get_dangling_states`, `file.batch_create_internal_entries`,
 > `file.batch_trash`, `file.batch_restore`, `file.batch_permanent_delete`,
-> `file.rename`, `file.open`, and `file.show_in_folder`. Legacy
+> `file.rename`, `file.read_chunk`, `file.open`, and `file.show_in_folder`. Legacy
 > `IpcChannel.File_*` routes are compatibility-only for remaining preload
 > consumers (notably singular metadata / path helpers) and MUST NOT be used by
 > new renderer code. The tables below describe the logical File IPC surface;
@@ -283,7 +283,7 @@ All operations that can act on any file (FileEntry or arbitrary path) **accept a
 
 | Method | Description | entry, internal-origin | entry, external-origin | path |
 |---|---|---|---|---|
-| `read` | Read content | read(userDataPath) | read(externalPath) (live) | read(path) |
+| `read` / `readChunk` | Read complete content or a positioned byte range (`readChunk` permits short reads at EOF) | read(userDataPath) | read(externalPath) (live) | read(path) |
 | `getMetadata` | Live physical metadata (`fs.stat`) — batch variant `batchGetMetadata` accepts caller-keyed `FileHandle` items | resolve + stat | stat(externalPath) — **sole live-size source for external** | path metadata projection via `services/file/utils/metadata` |
 | `getVersion` | FileVersion (live `fs.stat`) | stat userData | stat externalPath | statVersion |
 | `getContentHash` | xxhash-h64 | read userData + hash | read externalPath + hash | contentHash |

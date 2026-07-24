@@ -21,6 +21,7 @@ import {
   PathStaleVersionError,
   probeReadable,
   read,
+  readChunk,
   remove as fsRemove,
   removeDir,
   shouldSilenceFsyncDirError,
@@ -249,6 +250,50 @@ describe('read (binary)', () => {
     expect(out.data).toBeInstanceOf(Uint8Array)
     expect(Buffer.from(out.data).equals(Buffer.from(bytes))).toBe(true)
     expect(out.mime).toBe('application/pdf')
+  })
+})
+
+describe('readChunk', () => {
+  let tmp: string
+  beforeEach(async () => {
+    tmp = await mkdtemp(path.join(tmpdir(), 'cherry-fm-fs-test-'))
+  })
+  afterEach(async () => {
+    await rm(tmp, { recursive: true, force: true })
+  })
+
+  it('reads the requested byte range', async () => {
+    const file = path.join(tmp, 'bytes.bin')
+    await writeFile(file, new Uint8Array([0, 1, 2, 3, 4, 5]))
+
+    const chunk = await readChunk(file as FilePath, 2, 3)
+
+    expect(Array.from(chunk)).toEqual([2, 3, 4])
+  })
+
+  it('returns a tightly-backed short read at EOF', async () => {
+    const file = path.join(tmp, 'bytes.bin')
+    await writeFile(file, new Uint8Array([0, 1, 2, 3]))
+
+    const chunk = await readChunk(file as FilePath, 2, 8)
+
+    expect(Array.from(chunk)).toEqual([2, 3])
+    expect(chunk.buffer.byteLength).toBe(chunk.byteLength)
+  })
+
+  it('returns an empty tightly-backed array when the offset is at or beyond EOF', async () => {
+    const file = path.join(tmp, 'bytes.bin')
+    await writeFile(file, new Uint8Array([0, 1, 2, 3]))
+
+    for (const offset of [4, 10]) {
+      const chunk = await readChunk(file as FilePath, offset, 2)
+      expect(chunk.byteLength).toBe(0)
+      expect(chunk.buffer.byteLength).toBe(0)
+    }
+  })
+
+  it('throws for a missing path', async () => {
+    await expect(readChunk(path.join(tmp, 'missing.bin') as FilePath, 0, 4)).rejects.toThrow(/ENOENT/)
   })
 })
 

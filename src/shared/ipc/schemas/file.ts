@@ -15,6 +15,8 @@ import { defineRoute } from '../define'
 export const FILE_IPC_MAX_BATCH_IDS = 500
 /** Maximum items accepted by one internal-entry batch-create IPC call. */
 export const FILE_IPC_MAX_BATCH_CREATE_ITEMS = 100
+/** Maximum bytes returned by one chunk-read IPC call. */
+export const FILE_IPC_MAX_READ_CHUNK_BYTES = 4 * 1024 * 1024
 
 const fileEntryIdsInputSchema = z.strictObject({
   ids: z.array(FileEntryIdSchema).max(FILE_IPC_MAX_BATCH_IDS)
@@ -22,6 +24,12 @@ const fileEntryIdsInputSchema = z.strictObject({
 
 const batchGetMetadataInputSchema = z.strictObject({
   items: z.array(z.strictObject({ key: z.string().min(1), handle: FileHandleSchema })).max(FILE_IPC_MAX_BATCH_IDS)
+})
+
+const readChunkInputSchema = z.strictObject({
+  handle: FileHandleSchema,
+  offset: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  length: z.number().int().positive().max(FILE_IPC_MAX_READ_CHUNK_BYTES)
 })
 
 const batchMutationResultSchema = z.strictObject({
@@ -88,6 +96,7 @@ export const fileRequestSchemas = {
     input: z.strictObject({ id: FileEntryIdSchema, newName: SafeNameSchema }),
     output: FileEntrySchema
   }),
+  'file.read_chunk': defineRoute({ input: readChunkInputSchema, output: z.instanceof(Uint8Array) }),
   'file.open': defineRoute({ input: FileHandleSchema, output: z.void() }),
   'file.show_in_folder': defineRoute({ input: FileHandleSchema, output: z.void() })
 }
