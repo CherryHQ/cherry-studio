@@ -317,7 +317,8 @@ function buildAgentOptions(scope: RequestScope, featureStopConditions: StopCondi
             aiSdkProviderId: sdkConfig.providerId,
             endpointType,
             reasoning,
-            actualProviderId: provider.id
+            actualProviderId: provider.id,
+            modelId: model.apiModelId ?? model.id
           }) as Record<string, Record<string, JSONValue>>)
         : {}
   let standardParams: Partial<Record<string, unknown>> = {}

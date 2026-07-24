@@ -14,6 +14,7 @@ import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 
 import { createImageGenerationModel, type ImageGenerationTransport } from '../imageGenerationModel'
+import { resolveDmxapiChatFamily } from './dmxapiRouting'
 import { createDmxapiTransport, resolveDmxapiFamily } from './dmxapiTransport'
 
 export const DMXAPI_PROVIDER_NAME = 'dmxapi' as const
@@ -34,33 +35,6 @@ export interface DmxapiProvider extends ProviderV3 {
   languageModel(modelId: string): LanguageModelV3
   embeddingModel(modelId: string): EmbeddingModelV3
   imageModel(modelId: string): ImageModelV3
-}
-
-type DmxapiChatFamily = 'openai-compat' | 'openai' | 'anthropic' | 'gemini'
-
-const CHAT_FAMILY_TABLE: Array<{
-  family: Exclude<DmxapiChatFamily, 'openai-compat'>
-  match: (modelId: string) => boolean
-}> = [
-  { family: 'anthropic', match: (id) => /claude/i.test(id) },
-  {
-    family: 'gemini',
-    // Gemini *chat* models — exclude image / imagen / tts / audio / embedding
-    // variants which are non-chat and have their own routing branches.
-    match: (id) => /^gemini-/i.test(id) && !/(image|imagen|tts|audio|embedding)/i.test(id)
-  },
-  {
-    family: 'openai',
-    // Native OpenAI chat (`gpt-*`, `o1`/`o3`/`o4`-series). Excludes the
-    // image variants (`gpt-image-*`, `dall-e-*`, `gpt-4o-image*`) which are
-    // never used as chat models. Goes through `@ai-sdk/openai` so vision
-    // image_url, structured outputs, reasoning effort, etc. light up natively.
-    match: (id) => /^(gpt-|o\d)/i.test(id) && !/(image|dall-e)/i.test(id)
-  }
-]
-
-function resolveChatFamily(modelId: string): DmxapiChatFamily {
-  return CHAT_FAMILY_TABLE.find((entry) => entry.match(modelId))?.family ?? 'openai-compat'
 }
 
 type DmxapiEmbeddingFamily = 'openai-compat' | 'gemini'
@@ -145,10 +119,11 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
   })
 
   const compatUrl = ({ path }: { path: string; modelId: string }) => `${withoutTrailingSlash(baseURL)}${path}`
+  const nativeBaseURL = withoutTrailingApiVersion(baseURL)
 
   const googleProvider = () =>
     createGoogleGenerativeAI({
-      baseURL: formatApiHost(baseURL, true, 'v1beta'),
+      baseURL: formatApiHost(nativeBaseURL, true, 'v1beta'),
       apiKey: resolveApiKey(),
       headers: settings.headers,
       fetch: customFetch
@@ -159,7 +134,7 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
 
   const openaiChatModel = (modelId: string) =>
     createOpenAI({
-      baseURL: formatApiHost(baseURL, true),
+      baseURL: formatApiHost(nativeBaseURL, true),
       apiKey: resolveApiKey(),
       headers: settings.headers,
       fetch: customFetch
@@ -168,11 +143,11 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
   const transport = buildDmxapiTransport(settings)
 
   const createChatModel = (modelId: string): LanguageModelV3 => {
-    switch (resolveChatFamily(modelId)) {
+    switch (resolveDmxapiChatFamily(modelId)) {
       case 'anthropic':
         return new AnthropicMessagesLanguageModel(modelId, {
           provider: `${DMXAPI_PROVIDER_NAME}.anthropic`,
-          baseURL: formatApiHost(baseURL, true),
+          baseURL: formatApiHost(nativeBaseURL, true),
           headers: () => ({ 'x-api-key': resolveApiKey(), ...settings.headers }),
           fetch: customFetch,
           supportedUrls: () => ({ 'image/*': [/^https?:\/\/.*$/] }),
@@ -181,7 +156,7 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
       case 'gemini':
         return new GoogleGenerativeAILanguageModel(modelId, {
           provider: `${DMXAPI_PROVIDER_NAME}.google`,
-          baseURL: formatApiHost(baseURL, true, 'v1beta'),
+          baseURL: formatApiHost(nativeBaseURL, true, 'v1beta'),
           headers: () => ({ 'x-goog-api-key': resolveApiKey(), ...settings.headers }),
           fetch: customFetch,
           generateId: () => `${DMXAPI_PROVIDER_NAME}-${Date.now()}`,

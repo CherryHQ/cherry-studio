@@ -18,30 +18,10 @@ import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import { OpenAICompatibleRerankingModel } from '@cherrystudio/ai-sdk-provider'
 
 import { createAihubmixImageModel } from './aihubmixImageModel'
+import { resolveAihubmixChatFamily } from './aihubmixRouting'
 
 export const AIHUBMIX_PROVIDER_NAME = 'aihubmix' as const
 const APP_CODE_HEADER = { 'APP-Code': 'MLTG2087' }
-
-// AiHubMix dispatches on raw API model ids. Keep these predicates string-based: the shared
-// `@shared/utils/model` helpers resolve the raw id via getRawModelId → parseUniqueModelId, which
-// THROWS ('Invalid UniqueModelId format') on a bare API id with no `::`. A fabricated
-// `{ id: modelId } as Model` would therefore CRASH on every OpenAI-routed model here — it doesn't
-// merely lack metadata. (The chat-completion-only list below has no shared string source, so it
-// stays local too.)
-const isOpenAILLM = (modelId: string): boolean => {
-  const id = modelId.toLowerCase()
-  return /\bgpt\b|^o[134]/.test(id) && !id.includes('gpt-4o-image')
-}
-
-const isOpenAIChatCompletionOnly = (modelId: string): boolean => {
-  const id = modelId.toLowerCase()
-  return (
-    id.includes('gpt-4o-search-preview') ||
-    id.includes('gpt-4o-mini-search-preview') ||
-    id.includes('o1-mini') ||
-    id.includes('o1-preview')
-  )
-}
 
 export interface AihubmixProviderSettings {
   apiKey?: string
@@ -77,6 +57,8 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
 
   const url = ({ path }: { path: string; modelId: string }) => `${withoutTrailingSlash(baseURL)}${path}`
 
+  const rootURL = (withoutTrailingSlash(baseURL) ?? baseURL).replace(/\/v1$/, '')
+
   const createAnthropicModel = (modelId: string) => {
     const headers = authHeaders()
     return new AnthropicMessagesLanguageModel(modelId, {
@@ -98,7 +80,7 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
     const headers = authHeaders()
     return new GoogleGenerativeAILanguageModel(modelId, {
       provider: `${AIHUBMIX_PROVIDER_NAME}.google`,
-      baseURL: 'https://aihubmix.com/gemini/v1beta',
+      baseURL: `${rootURL}/gemini/v1beta`,
       headers: () => ({ ...headers, 'x-goog-api-key': resolveApiKey() }),
       fetch: customFetch,
       generateId: () => `${AIHUBMIX_PROVIDER_NAME}-${Date.now()}`,
@@ -108,7 +90,7 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
 
   const createOpenAICompatibleChatModel = (modelId: string): LanguageModelV3 =>
     new OpenAICompatibleChatLanguageModel(modelId, {
-      provider: `openai-compatible.${AIHUBMIX_PROVIDER_NAME}`,
+      provider: `${AIHUBMIX_PROVIDER_NAME}.chat`,
       url,
       headers: authHeaders,
       fetch: customFetch
@@ -116,7 +98,7 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
 
   const createOpenAIChatModel = (modelId: string): LanguageModelV3 =>
     new OpenAIChatLanguageModel(modelId, {
-      provider: `openai-compatible.${AIHUBMIX_PROVIDER_NAME}`,
+      provider: `${AIHUBMIX_PROVIDER_NAME}.chat`,
       url,
       headers: authHeaders,
       fetch: customFetch
@@ -132,24 +114,18 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
     })
 
   const createChatModel = (modelId: string): LanguageModelV3 => {
-    if (modelId.startsWith('claude')) {
-      return createAnthropicModel(modelId)
-    }
-    if (
-      (modelId.startsWith('gemini') || modelId.startsWith('imagen')) &&
-      !modelId.endsWith('no-think') &&
-      !modelId.endsWith('-search') &&
-      !modelId.includes('embedding')
-    ) {
-      return createGeminiModel(modelId)
-    }
-    if (isOpenAILLM(modelId)) {
-      if (isOpenAIChatCompletionOnly(modelId)) {
+    switch (resolveAihubmixChatFamily(modelId)) {
+      case 'anthropic':
+        return createAnthropicModel(modelId)
+      case 'gemini':
+        return createGeminiModel(modelId)
+      case 'openai-chat':
         return createOpenAIChatModel(modelId)
-      }
-      return createResponsesModel(modelId)
+      case 'openai-responses':
+        return createResponsesModel(modelId)
+      case 'compat':
+        return createOpenAICompatibleChatModel(modelId)
     }
-    return createOpenAICompatibleChatModel(modelId)
   }
 
   const provider = (modelId: string) => createChatModel(modelId)

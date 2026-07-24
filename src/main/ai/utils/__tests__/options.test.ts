@@ -300,6 +300,70 @@ describe('buildCapabilityProviderOptions', () => {
     expect(result.dashscope.reasoning_effort).toBeUndefined()
   })
 
+  it('encodes GitHub Copilot reasoning into the copilot namespace (its model reads `name`, not the registration id)', () => {
+    const result = buildCapabilityProviderOptions(
+      { settings: {} } as Assistant,
+      {
+        id: 'copilot::gpt-5',
+        providerId: 'copilot',
+        name: 'GPT-5',
+        capabilities: [MODEL_CAPABILITY.REASONING]
+      } as unknown as Model,
+      { id: 'copilot', name: 'GitHub Copilot', settings: {} } as Provider,
+      { enableReasoning: true, enableWebSearch: false, enableGenerateImage: false },
+      {
+        // adapterFamily/runtime id is `github-copilot-openai-compatible`, but the language model's
+        // providerOptionsName is `copilot` (= actualProvider.id passed as `name`).
+        aiSdkProviderId: 'github-copilot-openai-compatible',
+        runtimeProviderId: 'github-copilot-openai-compatible',
+        endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        reasoning: {
+          kind: 'effort',
+          selection: 'high',
+          effort: 'high',
+          emissions: [{ target: 'reasoning_effort', value: 'high' }]
+        }
+      }
+    )
+
+    // Lands in `copilot` (read namespace), snake→camel normalized, not the registration id.
+    expect(result).toMatchObject({ copilot: { reasoningEffort: 'high' } })
+    expect(result.copilot.reasoning_effort).toBeUndefined()
+    expect(result['github-copilot-openai-compatible']).toBeUndefined()
+  })
+
+  it.each([
+    ['qwen3.5-plus', 'dmxapi'],
+    ['gpt-5', 'openai']
+  ] as const)('encodes DMXAPI %s chat reasoning into the concrete model namespace %s', (apiModelId, key) => {
+    const result = buildCapabilityProviderOptions(
+      { settings: {} } as Assistant,
+      {
+        id: `dmxapi::${apiModelId}`,
+        apiModelId,
+        providerId: 'dmxapi',
+        name: apiModelId,
+        capabilities: [MODEL_CAPABILITY.REASONING]
+      } as unknown as Model,
+      { id: 'dmxapi', name: 'DMXAPI', settings: {} } as Provider,
+      { enableReasoning: true, enableWebSearch: false, enableGenerateImage: false },
+      {
+        aiSdkProviderId: 'dmxapi',
+        runtimeProviderId: 'dmxapi',
+        endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        reasoning: {
+          kind: 'effort',
+          selection: 'high',
+          effort: 'high',
+          emissions: [{ target: 'reasoning_effort', value: 'high' }]
+        }
+      }
+    )
+
+    expect(result).toMatchObject({ [key]: { reasoningEffort: 'high' } })
+    expect(result[key].reasoning_effort).toBeUndefined()
+  })
+
   it('preserves an audited compatible-provider budget field in the concrete namespace', () => {
     const result = buildCapabilityProviderOptions(
       { settings: { reasoning_effort: 'high' } } as Assistant,

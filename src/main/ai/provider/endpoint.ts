@@ -9,6 +9,7 @@ import type { Provider } from '@shared/data/types/provider'
 
 import { type AppProviderId, appProviderIds } from '../types'
 import { getBaseUrl } from '../utils/provider'
+import { resolveGatewayEndpointType } from './gatewayRouting'
 
 export interface ResolvedEndpoint {
   /** `undefined` when neither model nor provider declares an endpoint. */
@@ -18,13 +19,14 @@ export interface ResolvedEndpoint {
 }
 
 /**
- * Priority: `model.endpointTypes[0]` → `provider.defaultChatEndpoint` → `undefined`.
+ * Priority: `model.endpointTypes[0]` → gateway per-model route → `provider.defaultChatEndpoint` →
+ * `undefined`. The gateway step resolves the wire endpoint from the model id for multi-backend
+ * gateways (AiHubMix, …) whose models carry no explicit `endpointTypes` (see `gatewayRouting`).
  * `getBaseUrl` applies its own fallback among `endpointConfigs`.
  */
 export function resolveEffectiveEndpoint(provider: Provider, model: Model): ResolvedEndpoint {
-  const modelEndpoint = model.endpointTypes?.[0]
-  const providerDefault = provider.defaultChatEndpoint
-  const endpointType = modelEndpoint ?? providerDefault
+  const endpointType =
+    model.endpointTypes?.[0] ?? resolveGatewayEndpointType(provider, model) ?? provider.defaultChatEndpoint
   return { endpointType, baseUrl: getBaseUrl(provider, endpointType) }
 }
 
