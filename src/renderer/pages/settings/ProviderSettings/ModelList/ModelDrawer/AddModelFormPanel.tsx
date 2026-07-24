@@ -12,10 +12,24 @@ import { useTranslation } from 'react-i18next'
 import ProviderActions from '../../primitives/ProviderActions'
 import ProviderSection from '../../primitives/ProviderSection'
 import { drawerClasses } from '../../primitives/ProviderSettingsPrimitives'
-import { getInitialAddModelFormState, splitModelIds } from './helpers'
+import {
+  buildModelCapabilities,
+  buildModelInputModalities,
+  getInitialAddModelFormState,
+  getInitialModelClassification,
+  splitModelIds
+} from './helpers'
 import { ModelBasicFields } from './ModelBasicFields'
+import { ModelClassificationControls } from './ModelClassificationControls'
 import { ModelContextWindowFields } from './ModelContextWindowFields'
-import type { AddModelDrawerPrefill, ModelBasicFormState, ModelDrawerMode } from './types'
+import type {
+  AddModelDrawerPrefill,
+  ModelBasicFormState,
+  ModelCapabilityToggle,
+  ModelDrawerMode,
+  ModelInputModality,
+  ModelPrimaryType
+} from './types'
 
 export interface AddModelDrawerFooterBinding {
   isSubmitting: boolean
@@ -49,8 +63,8 @@ export default function AddModelFormPanel({
   const [formState, setFormState] = useState<ModelBasicFormState>(() =>
     getInitialAddModelFormState(null, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
   )
+  const [classification, setClassification] = useState(() => getInitialModelClassification())
   const [modelIdTouched, setModelIdTouched] = useState(false)
-  const [endpointTypeTouched, setEndpointTypeTouched] = useState(false)
   const [showMoreSettings, setShowMoreSettings] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -61,8 +75,8 @@ export default function AddModelFormPanel({
 
   useEffect(() => {
     setFormState(getInitialAddModelFormState(prefill, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS))
+    setClassification(getInitialModelClassification(prefill?.model))
     setModelIdTouched(false)
-    setEndpointTypeTouched(false)
     setShowMoreSettings(false)
     setSubmitError(null)
   }, [prefill])
@@ -105,7 +119,9 @@ export default function AddModelFormPanel({
         modelId,
         name: values.name ? values.name : modelId.toUpperCase(),
         group: values.group || getDefaultGroupName(modelId),
-        endpointTypes: mode === 'new-api' && values.endpointTypes?.length ? [...values.endpointTypes] : undefined,
+        capabilities: buildModelCapabilities(prefill?.model?.capabilities ?? [], classification),
+        inputModalities: buildModelInputModalities(prefill?.model?.inputModalities ?? [], classification),
+        endpointTypes: mode === 'new-api' ? [...(values.endpointTypes ?? [])] : undefined,
         ...(values.contextWindow ? { contextWindow: Number(values.contextWindow) } : {}),
         ...(values.maxInputTokens ? { maxInputTokens: Number(values.maxInputTokens) } : {}),
         ...(values.maxOutputTokens ? { maxOutputTokens: Number(values.maxOutputTokens) } : {})
@@ -113,7 +129,7 @@ export default function AddModelFormPanel({
 
       return true
     },
-    [createModel, mode, models, provider, providerId, t]
+    [classification, createModel, mode, models, prefill?.model, provider, providerId, t]
   )
 
   const submitAddModel = useCallback(async () => {
@@ -125,11 +141,6 @@ export default function AddModelFormPanel({
     if (!normalizedId) {
       setModelIdTouched(true)
       modelIdInputRef.current?.focus()
-      return
-    }
-
-    if (mode === 'new-api' && !(formState.endpointTypes?.length ?? 0)) {
-      setEndpointTypeTouched(true)
       return
     }
 
@@ -176,7 +187,35 @@ export default function AddModelFormPanel({
       submitInFlightRef.current = false
       setIsSubmitting(false)
     }
-  }, [addSingleModel, formState, mode, onSuccess, t])
+  }, [addSingleModel, formState, onSuccess, t])
+
+  const handlePrimaryTypeChange = useCallback((primaryType: ModelPrimaryType) => {
+    setClassification((current) => ({ ...current, primaryType }))
+  }, [])
+
+  const handleCapabilityToggle = useCallback((capability: ModelCapabilityToggle) => {
+    setClassification((current) => {
+      const capabilities = new Set(current.capabilities)
+      if (capabilities.has(capability)) {
+        capabilities.delete(capability)
+      } else {
+        capabilities.add(capability)
+      }
+      return { ...current, capabilities }
+    })
+  }, [])
+
+  const handleInputModalityToggle = useCallback((modality: ModelInputModality) => {
+    setClassification((current) => {
+      const inputModalities = new Set(current.inputModalities)
+      if (inputModalities.has(modality)) {
+        inputModalities.delete(modality)
+      } else {
+        inputModalities.add(modality)
+      }
+      return { ...current, inputModalities }
+    })
+  }, [])
 
   const handleFormSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -241,12 +280,10 @@ export default function AddModelFormPanel({
             modelIdError={
               modelIdTouched && !formState.modelId.trim() ? t('settings.models.add.model_id.required') : undefined
             }
-            endpointTypeError={endpointTypeTouched ? t('settings.models.add.endpoint_type.required') : undefined}
             onModelIdChange={handleModelIdChange}
             onNameChange={(value) => setFormState((current) => ({ ...current, name: value }))}
             onGroupChange={(value) => setFormState((current) => ({ ...current, group: value }))}
             onEndpointTypesChange={(next) => {
-              setEndpointTypeTouched(false)
               setFormState((current) => ({ ...current, endpointTypes: [...next] }))
             }}
           />
@@ -274,15 +311,26 @@ export default function AddModelFormPanel({
 
       {showMoreSettings && (
         <ProviderSection className={drawerClasses.section}>
-          <div className={drawerClasses.sectionCard}>
-            <ModelContextWindowFields
-              contextWindow={formState.contextWindow}
-              maxInputTokens={formState.maxInputTokens}
-              maxOutputTokens={formState.maxOutputTokens}
-              onContextWindowChange={(value) => setFormState((current) => ({ ...current, contextWindow: value }))}
-              onMaxInputTokensChange={(value) => setFormState((current) => ({ ...current, maxInputTokens: value }))}
-              onMaxOutputTokensChange={(value) => setFormState((current) => ({ ...current, maxOutputTokens: value }))}
-            />
+          <div className="space-y-4">
+            <div className={drawerClasses.sectionCard}>
+              <ModelClassificationControls
+                value={classification}
+                onPrimaryTypeChange={handlePrimaryTypeChange}
+                onCapabilityToggle={handleCapabilityToggle}
+                onInputModalityToggle={handleInputModalityToggle}
+              />
+            </div>
+
+            <div className={drawerClasses.sectionCard}>
+              <ModelContextWindowFields
+                contextWindow={formState.contextWindow}
+                maxInputTokens={formState.maxInputTokens}
+                maxOutputTokens={formState.maxOutputTokens}
+                onContextWindowChange={(value) => setFormState((current) => ({ ...current, contextWindow: value }))}
+                onMaxInputTokensChange={(value) => setFormState((current) => ({ ...current, maxInputTokens: value }))}
+                onMaxOutputTokensChange={(value) => setFormState((current) => ({ ...current, maxOutputTokens: value }))}
+              />
+            </div>
           </div>
         </ProviderSection>
       )}

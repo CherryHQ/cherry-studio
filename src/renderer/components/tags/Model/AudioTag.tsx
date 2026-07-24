@@ -1,4 +1,4 @@
-import { Boxes } from 'lucide-react'
+import { Ear } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import type { CustomTagProps } from '../CustomTag'
@@ -10,16 +10,17 @@ type Props = {
   showLabel?: boolean
 } & Omit<CustomTagProps, 'size' | 'tooltip' | 'icon' | 'color' | 'children'>
 
-export const EmbeddingTag = ({ size = 12, showTooltip, showLabel = true, ...restProps }: Props) => {
+export const AudioTag = ({ size = 12, showTooltip, showLabel, ...restProps }: Props) => {
   const { t } = useTranslation()
+
   return (
     <CustomTag
       size={size}
-      color="#FFA500"
-      icon={<Boxes size={size} color="currentColor" className="text-current" />}
-      tooltip={showTooltip ? t('models.type.embedding') : undefined}
+      color="#13c2c2"
+      icon={<Ear size={size} color="currentColor" className="text-current" />}
+      tooltip={showTooltip ? t('models.type.audio') : undefined}
       {...restProps}>
-      {showLabel ? t('models.type.embedding') : ''}
+      {showLabel ? t('models.type.audio') : ''}
     </CustomTag>
   )
 }
