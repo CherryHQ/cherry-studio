@@ -17,10 +17,15 @@ export function getWebSearchParams(model: Model): Record<string, any> {
   }
 
   if (model.providerId === 'dashscope') {
+    // Chat-Completions web search (help.aliyun.com/zh/model-studio/web-search). The newest qwen-max and
+    // multimodal (omni/vl) SKUs only search under the `agent` strategy; older SKUs use the default.
+    const apiModelId = model.apiModelId ?? model.id
+    const needsAgentStrategy = /qwen3-max|omni|qwen3-vl/.test(apiModelId)
     return {
       enable_search: true,
       search_options: {
-        forced_search: true
+        forced_search: true,
+        ...(needsAgentStrategy ? { search_strategy: 'agent' } : {})
       }
     }
   }
@@ -62,11 +67,12 @@ export function buildProviderBuiltinWebSearchConfig(
   switch (providerId) {
     case 'azure-responses':
     case 'openai': {
-      // Doubao (Volcengine Ark) rides the openai Responses adapter, but its
-      // built-in web_search tool only accepts the bare `{type:'web_search'}`
-      // shape — openai-only knobs like search_context_size are not documented
-      // and must not be sent.
-      if (model?.providerId === 'doubao') {
+      // Doubao (Ark) and DashScope (Bailian) responses-endpoint models ride the openai Responses
+      // adapter, but their built-in web_search tool only accepts the bare `{type:'web_search'}` shape —
+      // openai-only knobs like search_context_size are not documented and must not be sent. (DashScope
+      // chat-endpoint models resolve to `openai-compatible` here → default `{}` → no tool; their web
+      // search comes from getWebSearchParams instead.)
+      if (model?.providerId === 'doubao' || model?.providerId === 'dashscope') {
         return { openai: {} }
       }
       const searchContextSize =
