@@ -102,6 +102,26 @@ describe('diffAssistantUpdate', () => {
     expect(result?.dto.name).toBe('Original')
   })
 
+  it('trims the name in the payload', () => {
+    const assistant = createAssistant({ name: 'Original' })
+    const baseline = initialAssistantFormState(assistant)
+    const form = { ...baseline, name: '  Renamed  ' }
+
+    const result = diffAssistantUpdate(form, baseline, assistant)
+    expect(result?.dto.name).toBe('Renamed')
+  })
+
+  it('reports no change when the form name differs from the baseline only by surrounding whitespace', () => {
+    // The server persists the trimmed name, so once the baseline holds it a
+    // padded form value must diff to null — otherwise the close-time flushAll
+    // loops PATCHes forever against a baseline it can never match.
+    const assistant = createAssistant({ name: 'Renamed' })
+    const baseline = initialAssistantFormState(assistant)
+    const form = { ...baseline, name: '  Renamed  ' }
+
+    expect(diffAssistantUpdate(form, baseline, assistant)).toBeNull()
+  })
+
   it('preserves server-side settings keys the UI does not surface', () => {
     const assistant = createAssistant({
       settings: {

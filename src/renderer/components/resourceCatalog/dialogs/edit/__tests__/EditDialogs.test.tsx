@@ -1460,6 +1460,32 @@ describe('edit dialogs', () => {
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
   })
 
+  it('closes without looping when the name differs from the saved value only by trailing whitespace', async () => {
+    // A trimming backend echoes the trimmed name, so the persisted baseline can
+    // never equal the raw trailing-space form value. If the close-time diff
+    // compared the raw value it would PATCH forever and the dialog would never
+    // close — this guards the flushAll quiescence against that mismatch.
+    updateAssistantMock.mockImplementation((arg: { body: { name?: string } }) =>
+      Promise.resolve({ ...ASSISTANT, name: arg.body.name ?? ASSISTANT.name })
+    )
+    function Host() {
+      const [open, setOpen] = useState(true)
+      return <AssistantEditDialog open={open} resource={ASSISTANT} onOpenChange={setOpen} onSaved={vi.fn()} />
+    }
+    render(<Host />)
+
+    const nameInput = screen.getByLabelText('Name')
+    fireEvent.change(nameInput, { target: { value: '  Cherry Assistant  ' } })
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
+    expect(updateAssistantMock).toHaveBeenNthCalledWith(1, {
+      body: expect.objectContaining({ name: 'Cherry Assistant' })
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(updateAssistantMock).toHaveBeenCalledTimes(1)
+  })
+
   it('persists an assistant edit made while the close is waiting for an in-flight save', async () => {
     let resolveFirstSave: (() => void) | undefined
     updateAssistantMock
