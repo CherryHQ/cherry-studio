@@ -1,4 +1,4 @@
-import { RotateCw } from 'lucide-react'
+import { ArrowUpDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import type { CustomTagProps } from '../CustomTag'
@@ -16,7 +16,7 @@ export const RerankerTag = ({ size = 12, showTooltip, showLabel = true, ...restP
     <CustomTag
       size={size}
       color="#6495ED"
-      icon={<RotateCw size={size} color="currentColor" className="text-current" />}
+      icon={<ArrowUpDown size={size} color="currentColor" className="text-current" />}
       tooltip={showTooltip ? t('models.type.rerank') : undefined}
       {...restProps}>
       {showLabel ? t('models.type.rerank') : ''}
