@@ -1,4 +1,5 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button, Dialog, DialogContent, DialogTitle, Tooltip } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
 import HtmlPreviewFrame, { HTML_PREVIEW_RESTRICTED_CSP } from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
@@ -7,10 +8,11 @@ import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { htmlArtifactRequiresUserConsent } from '@renderer/utils/htmlArtifact'
+import { isMac } from '@renderer/utils/platform'
 import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
 import type { ConsoleMessageEvent, WebviewTag } from 'electron'
-import { Code2, DownloadIcon, Eye, LinkIcon, ShieldAlert, ZoomIn, ZoomOut } from 'lucide-react'
-import { memo, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Code2, DownloadIcon, Eye, LinkIcon, Maximize2, Minimize2, ShieldAlert, ZoomIn, ZoomOut } from 'lucide-react'
+import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('HtmlArtifactView')
@@ -269,12 +271,14 @@ const InteractiveHtmlPreview = memo(function InteractiveHtmlPreview({
   html,
   title,
   zoom,
-  onHeightChange
+  onHeightChange,
+  forwardBoundaryWheel = true
 }: {
   html: string
   title: string
   zoom: number
-  onHeightChange: (height: number) => void
+  onHeightChange?: (height: number) => void
+  forwardBoundaryWheel?: boolean
 }) {
   const viewportRef = useRef<HTMLDivElement>(null)
   const webviewRef = useRef<WebviewTag | null>(null)
@@ -294,10 +298,14 @@ const InteractiveHtmlPreview = memo(function InteractiveHtmlPreview({
 
       if (message.type === 'height') {
         contentHeightRef.current = message.value
+        if (!onHeightChange) return
+
         const nextHeight = Math.min(getMaxPreviewHeight(viewport), Math.max(1, Math.ceil(message.value * zoomScale)))
         onHeightChange(nextHeight)
         return
       }
+
+      if (!forwardBoundaryWheel) return
 
       const deltaY = Math.max(-200, Math.min(200, message.value))
       const scroller = viewport.closest<HTMLElement>('[data-message-virtual-list-scroller]')
@@ -323,12 +331,12 @@ const InteractiveHtmlPreview = memo(function InteractiveHtmlPreview({
       webview.removeEventListener('did-finish-load', installBridge)
       webview.removeEventListener('console-message', handleConsoleMessage)
     }
-  }, [messagePrefix, onHeightChange, zoomScale])
+  }, [forwardBoundaryWheel, messagePrefix, onHeightChange, zoomScale])
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current
     const contentHeight = contentHeightRef.current
-    if (!viewport || contentHeight === null) return
+    if (!viewport || contentHeight === null || !onHeightChange) return
 
     const nextHeight = Math.min(getMaxPreviewHeight(viewport), Math.max(1, Math.ceil(contentHeight * zoomScale)))
     onHeightChange(nextHeight)
@@ -357,16 +365,128 @@ const InteractiveHtmlPreview = memo(function InteractiveHtmlPreview({
   )
 })
 
+const InteractiveHtmlFullscreen = memo(function InteractiveHtmlFullscreen({
+  open,
+  html,
+  title,
+  zoom,
+  onZoomOut,
+  onResetZoom,
+  onZoomIn,
+  onClose
+}: {
+  open: boolean
+  html: string
+  title: string
+  zoom: number
+  onZoomOut: () => void
+  onResetZoom: () => void
+  onZoomIn: () => void
+  onClose: () => void
+}) {
+  const { t } = useTranslation()
+
+  useEffect(() => {
+    if (!open) return
+
+    const body = document.body
+    const originalOverflow = body.style.overflow
+    body.style.overflow = 'hidden'
+
+    return () => {
+      body.style.overflow = originalOverflow
+    }
+  }, [open])
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) onClose()
+      }}>
+      <DialogContent
+        data-testid="interactive-html-fullscreen"
+        showCloseButton={false}
+        closeOnOverlayClick={false}
+        overlayClassName="hidden"
+        aria-describedby={undefined}
+        onPointerDownOutside={(event) => event.preventDefault()}
+        className="top-0! left-0! z-10000 h-screen w-screen max-w-none translate-x-0! translate-y-0! gap-0 overflow-hidden rounded-none border-0 p-0 shadow-none sm:max-w-none">
+        <div className="grid h-full min-h-0 grid-rows-[45px_minmax(0,1fr)]">
+          <header className="relative flex items-center justify-between gap-4 border-border border-b bg-background px-2.5 [-webkit-app-region:drag]">
+            <div className={cn('min-w-0 flex-1', isMac ? 'pl-20' : 'pl-3')}>
+              <DialogTitle className="max-w-[45vw] truncate font-bold text-foreground text-sm">{title}</DialogTitle>
+            </div>
+            <div className="flex flex-1 items-center justify-end gap-0.5 pr-1 [-webkit-app-region:no-drag]">
+              <Tooltip content={t('preview.zoom_out')} delay={500}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t('preview.zoom_out')}
+                  disabled={zoom <= MIN_ZOOM}
+                  onClick={onZoomOut}>
+                  <ZoomOut className="size-3.5" />
+                </Button>
+              </Tooltip>
+              <Tooltip content={t('preview.reset')} delay={500}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="min-w-10 px-1 text-muted-foreground text-xs tabular-nums"
+                  aria-label={t('preview.reset')}
+                  onClick={onResetZoom}>
+                  {zoom}%
+                </Button>
+              </Tooltip>
+              <Tooltip content={t('preview.zoom_in')} delay={500}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t('preview.zoom_in')}
+                  disabled={zoom >= MAX_ZOOM}
+                  onClick={onZoomIn}>
+                  <ZoomIn className="size-3.5" />
+                </Button>
+              </Tooltip>
+              <span className="mx-1 h-4 w-px bg-border-subtle" />
+              <Tooltip content={t('common.minimize')} delay={500}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t('common.minimize')}
+                  onClick={onClose}>
+                  <Minimize2 className="size-3.5" />
+                </Button>
+              </Tooltip>
+            </div>
+          </header>
+          <div className="min-h-0 overflow-hidden bg-background">
+            <InteractiveHtmlPreview html={html} title={title} zoom={zoom} forwardBoundaryWheel={false} />
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+})
+
 const HtmlArtifactConsentCard = memo(function HtmlArtifactConsentCard({
   title,
   description,
   actionLabel,
-  onAccept
+  fullscreenLabel,
+  onAccept,
+  onOpenFullscreen
 }: {
   title: string
   description: string
   actionLabel: string
+  fullscreenLabel: string
   onAccept: () => void
+  onOpenFullscreen: () => void
 }) {
   const descriptionId = useId()
 
@@ -383,7 +503,7 @@ const HtmlArtifactConsentCard = memo(function HtmlArtifactConsentCard({
           HTML
         </span>
       </div>
-      <div className="mr-2 flex shrink-0">
+      <div className="mr-2 flex shrink-0 items-center gap-0.5">
         <Tooltip content={description} delay={300}>
           <Button
             type="button"
@@ -394,6 +514,18 @@ const HtmlArtifactConsentCard = memo(function HtmlArtifactConsentCard({
             onClick={onAccept}>
             <ShieldAlert className="size-3.5" />
             {actionLabel}
+          </Button>
+        </Tooltip>
+        <Tooltip content={fullscreenLabel} delay={500}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="size-7 text-foreground-muted opacity-70 hover:bg-background hover:text-foreground hover:opacity-100"
+            aria-label={fullscreenLabel}
+            aria-describedby={descriptionId}
+            onClick={onOpenFullscreen}>
+            <Maximize2 className="size-3.5" />
           </Button>
         </Tooltip>
         <span id={descriptionId} className="sr-only">
@@ -410,10 +542,12 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({ html, title }: 
   const [zoom, setZoom] = useState(DEFAULT_ZOOM)
   const [previewHeight, setPreviewHeight] = useState(INITIAL_PREVIEW_HEIGHT)
   const [approvedInteractiveHtml, setApprovedInteractiveHtml] = useState<string | null>(null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const hasContent = html.trim().length > 0
   const requiresUserConsent = useMemo(() => htmlArtifactRequiresUserConsent(html), [html])
   const isInteractivePreviewApproved = requiresUserConsent && approvedInteractiveHtml === html
   const isPreviewBlocked = requiresUserConsent && !isInteractivePreviewApproved
+  const isInteractiveFullscreen = isInteractivePreviewApproved && isFullscreen
   const showCode = viewMode === 'code'
   const surfaceHeight = showCode ? Math.max(INITIAL_PREVIEW_HEIGHT, previewHeight) : previewHeight
   const toggleLabel = t(showCode ? 'html_artifacts.preview' : 'html_artifacts.code')
@@ -432,6 +566,12 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({ html, title }: 
   const handleApproveInteractivePreview = () => {
     setApprovedInteractiveHtml(html)
     setViewMode('preview')
+    setIsFullscreen(false)
+  }
+  const handleOpenInteractiveFullscreen = () => {
+    setApprovedInteractiveHtml(html)
+    setViewMode('preview')
+    setIsFullscreen(true)
   }
   const handleOpenExternal = async () => {
     try {
@@ -463,7 +603,9 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({ html, title }: 
           title={title}
           description={t('html_artifacts.interactive_preview.description')}
           actionLabel={t('html_artifacts.interactive_preview.action')}
+          fullscreenLabel={t('common.maximize')}
           onAccept={handleApproveInteractivePreview}
+          onOpenFullscreen={handleOpenInteractiveFullscreen}
         />
       </div>
     )
@@ -471,102 +613,129 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({ html, title }: 
 
   return (
     <div data-testid="html-artifact-view" className="w-full">
-      <div
-        data-testid="html-artifact-surface"
-        className="group relative w-full overflow-hidden"
-        style={{ height: surfaceHeight }}>
-        {showCode ? (
-          <div className="h-full min-h-0">
-            <CodeViewer value={html} language="html" height="100%" expanded={false} className="h-full" />
-          </div>
-        ) : requiresUserConsent ? (
-          <InteractiveHtmlPreview html={html} title={title} zoom={zoom} onHeightChange={setPreviewHeight} />
-        ) : (
-          <AdaptiveHtmlPreview html={html} title={title} zoom={zoom} onHeightChange={setPreviewHeight} />
-        )}
-
+      {!isInteractiveFullscreen && (
         <div
-          data-testid="html-artifact-controls"
-          className="pointer-events-none absolute top-1.5 right-1.5 z-10 flex items-center gap-0.5 rounded-md border border-border-subtle bg-popover p-0.5 opacity-0 shadow-sm transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-has-[:focus-visible]:pointer-events-auto group-has-[:focus-visible]:opacity-100 motion-reduce:transition-none">
-          {!showCode && (
-            <>
-              <Tooltip content={t('preview.zoom_out')} delay={500}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="size-6"
-                  aria-label={t('preview.zoom_out')}
-                  disabled={zoom <= MIN_ZOOM}
-                  onClick={handleZoomOut}>
-                  <ZoomOut className="size-3" />
-                </Button>
-              </Tooltip>
-              <Tooltip content={t('preview.reset')} delay={500}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 min-h-6 min-w-9 px-1 text-muted-foreground text-xs tabular-nums"
-                  aria-label={t('preview.reset')}
-                  onClick={handleResetZoom}>
-                  {zoom}%
-                </Button>
-              </Tooltip>
-              <Tooltip content={t('preview.zoom_in')} delay={500}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="size-6"
-                  aria-label={t('preview.zoom_in')}
-                  disabled={zoom >= MAX_ZOOM}
-                  onClick={handleZoomIn}>
-                  <ZoomIn className="size-3" />
-                </Button>
-              </Tooltip>
-              <span className="h-3.5 w-px bg-border-subtle" />
-            </>
+          data-testid="html-artifact-surface"
+          className="group relative w-full overflow-hidden"
+          style={{ height: surfaceHeight }}>
+          {showCode ? (
+            <div className="h-full min-h-0">
+              <CodeViewer value={html} language="html" height="100%" expanded={false} className="h-full" />
+            </div>
+          ) : requiresUserConsent ? (
+            <InteractiveHtmlPreview html={html} title={title} zoom={zoom} onHeightChange={setPreviewHeight} />
+          ) : (
+            <AdaptiveHtmlPreview html={html} title={title} zoom={zoom} onHeightChange={setPreviewHeight} />
           )}
-          <Tooltip content={t('chat.artifacts.button.openExternal')} delay={500}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="size-6"
-              aria-label={t('chat.artifacts.button.openExternal')}
-              disabled={!hasContent}
-              onClick={handleOpenExternal}>
-              <LinkIcon className="size-3" />
-            </Button>
-          </Tooltip>
-          <Tooltip content={t('code_block.download.label')} delay={500}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="size-6"
-              aria-label={t('code_block.download.label')}
-              disabled={!hasContent}
-              onClick={handleDownload}>
-              <DownloadIcon className="size-3" />
-            </Button>
-          </Tooltip>
-          <span className="h-3.5 w-px bg-border-subtle" />
-          <Tooltip content={toggleLabel} delay={500}>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="size-6"
-              aria-label={toggleLabel}
-              aria-pressed={showCode}
-              onClick={handleToggle}>
-              {showCode ? <Eye className="size-3" /> : <Code2 className="size-3" />}
-            </Button>
-          </Tooltip>
+
+          <div
+            data-testid="html-artifact-controls"
+            className="pointer-events-none absolute top-1.5 right-1.5 z-10 flex items-center gap-0.5 rounded-md border border-border-subtle bg-popover p-0.5 opacity-0 shadow-sm transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-has-[:focus-visible]:pointer-events-auto group-has-[:focus-visible]:opacity-100 motion-reduce:transition-none">
+            {!showCode && (
+              <>
+                <Tooltip content={t('preview.zoom_out')} delay={500}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="size-6"
+                    aria-label={t('preview.zoom_out')}
+                    disabled={zoom <= MIN_ZOOM}
+                    onClick={handleZoomOut}>
+                    <ZoomOut className="size-3" />
+                  </Button>
+                </Tooltip>
+                <Tooltip content={t('preview.reset')} delay={500}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 min-h-6 min-w-9 px-1 text-muted-foreground text-xs tabular-nums"
+                    aria-label={t('preview.reset')}
+                    onClick={handleResetZoom}>
+                    {zoom}%
+                  </Button>
+                </Tooltip>
+                <Tooltip content={t('preview.zoom_in')} delay={500}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="size-6"
+                    aria-label={t('preview.zoom_in')}
+                    disabled={zoom >= MAX_ZOOM}
+                    onClick={handleZoomIn}>
+                    <ZoomIn className="size-3" />
+                  </Button>
+                </Tooltip>
+                <span className="h-3.5 w-px bg-border-subtle" />
+              </>
+            )}
+            <Tooltip content={t('chat.artifacts.button.openExternal')} delay={500}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="size-6"
+                aria-label={t('chat.artifacts.button.openExternal')}
+                disabled={!hasContent}
+                onClick={handleOpenExternal}>
+                <LinkIcon className="size-3" />
+              </Button>
+            </Tooltip>
+            <Tooltip content={t('code_block.download.label')} delay={500}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="size-6"
+                aria-label={t('code_block.download.label')}
+                disabled={!hasContent}
+                onClick={handleDownload}>
+                <DownloadIcon className="size-3" />
+              </Button>
+            </Tooltip>
+            {requiresUserConsent && !showCode && (
+              <Tooltip content={t('common.maximize')} delay={500}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="size-6"
+                  aria-label={t('common.maximize')}
+                  onClick={() => setIsFullscreen(true)}>
+                  <Maximize2 className="size-3" />
+                </Button>
+              </Tooltip>
+            )}
+            <span className="h-3.5 w-px bg-border-subtle" />
+            <Tooltip content={toggleLabel} delay={500}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="size-6"
+                aria-label={toggleLabel}
+                aria-pressed={showCode}
+                onClick={handleToggle}>
+                {showCode ? <Eye className="size-3" /> : <Code2 className="size-3" />}
+              </Button>
+            </Tooltip>
+          </div>
         </div>
-      </div>
+      )}
+      {requiresUserConsent && (
+        <InteractiveHtmlFullscreen
+          open={isInteractiveFullscreen}
+          html={html}
+          title={title}
+          zoom={zoom}
+          onZoomOut={handleZoomOut}
+          onResetZoom={handleResetZoom}
+          onZoomIn={handleZoomIn}
+          onClose={() => setIsFullscreen(false)}
+        />
+      )}
     </div>
   )
 })

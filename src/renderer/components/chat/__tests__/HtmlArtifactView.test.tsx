@@ -28,6 +28,21 @@ vi.mock('@cherrystudio/ui', () => ({
       {children}
     </button>
   ),
+  Dialog: ({ children, open }: { children: ReactNode; open: boolean }) => (open ? children : null),
+  DialogContent: ({
+    children,
+    className,
+    'data-testid': testId
+  }: {
+    children: ReactNode
+    className?: string
+    'data-testid'?: string
+  }) => (
+    <div className={className} data-testid={testId}>
+      {children}
+    </div>
+  ),
+  DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
   Tooltip: ({ children }: { children: ReactNode }) => children
 }))
 
@@ -154,11 +169,35 @@ describe('HtmlArtifactView', () => {
     expect(screen.queryByTestId('html-artifact-surface')).not.toBeInTheDocument()
     expect(screen.queryByTestId('html-preview-frame')).not.toBeInTheDocument()
     expect(screen.queryByTestId('interactive-html-webview')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.maximize' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'html_artifacts.interactive_preview.action' }))
 
     expect(screen.getByTestId('interactive-html-webview')).toHaveAttribute('partition', 'html-artifact-preview')
     expect(screen.queryByTestId('html-artifact-consent-card')).not.toBeInTheDocument()
+  })
+
+  it('opens guarded HTML fullscreen from both the card and inline preview', () => {
+    const html = '<script>document.body.textContent = "interactive"</script>'
+
+    render(<HtmlArtifactView html={html} title="Preview" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+
+    expect(screen.getByTestId('interactive-html-fullscreen')).toBeInTheDocument()
+    expect(screen.queryByTestId('html-artifact-surface')).not.toBeInTheDocument()
+    expect(screen.getByTestId('interactive-html-webview')).toHaveAttribute('partition', 'html-artifact-preview')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
+
+    expect(screen.queryByTestId('interactive-html-fullscreen')).not.toBeInTheDocument()
+    expect(screen.getByTestId('html-artifact-surface')).toBeInTheDocument()
+    expect(screen.getByTestId('interactive-html-webview')).toHaveAttribute('partition', 'html-artifact-preview')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+
+    expect(screen.getByTestId('interactive-html-fullscreen')).toBeInTheDocument()
+    expect(screen.queryByTestId('html-artifact-surface')).not.toBeInTheDocument()
   })
 
   it('renders static inline HTML immediately in the restricted iframe', () => {
