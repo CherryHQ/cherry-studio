@@ -4662,6 +4662,7 @@
     "title": "Intel OVMS"
   },
   "paintings": {
+    "add_image": "新增圖片",
     "aspect_ratio": "畫幅比例",
     "aspect_ratios": {
       "landscape": "橫圖",
@@ -4814,6 +4815,8 @@
     "prompt_placeholder": "描述你想建立的圖片，例如：一個寧靜的湖泊，夕陽西下，遠處是群山",
     "prompt_placeholder_edit": "輸入你的圖片描述，文字繪製用 ' 雙引號 ' 包裹",
     "prompt_placeholder_en": "輸入英文圖片描述，目前僅支援英文提示詞",
+    "prompt_placeholder_upload": "描述你想要的圖片，或上傳圖片進行編輯",
+    "prompt_placeholder_upload_required": "請上傳圖片，並描述你想要的編輯",
     "prompt_required": "請輸入提示",
     "proxy_required": "請開啟代理並啟用「TUN 模式」，即可查看產生的圖片；也可以複製到瀏覽器開啟。日後將支援免代理直接連線。",
     "quality": "品質",
