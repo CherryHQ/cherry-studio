@@ -3,11 +3,27 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { application } from '@application'
+import type * as ShellEnvModule from '@main/utils/shellEnv'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BinaryManager } from '../BinaryManager'
+
+const { shellEnvRef } = vi.hoisted(() => ({
+  shellEnvRef: { current: {} as Record<string, string> }
+}))
+
+vi.mock('@main/utils/shellEnv', async (importOriginal) => {
+  const actual = await importOriginal<typeof ShellEnvModule>()
+  const getSandboxEnv = async () => ({ ...shellEnvRef.current })
+  return {
+    ...actual,
+    getRawShellEnv: vi.fn(getSandboxEnv),
+    getShellEnv: vi.fn(getSandboxEnv),
+    refreshShellEnv: vi.fn(getSandboxEnv)
+  }
+})
 
 const describeFakeMise = process.platform === 'win32' ? describe.skip : describe
 
@@ -20,6 +36,15 @@ describeFakeMise('BinaryManager fake-mise integration', () => {
     MockMainPreferenceServiceUtils.resetMocks()
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cherry-fake-mise-'))
     misePath = path.join(tempDir, 'mise')
+    const binDir = path.join(tempDir, 'bin')
+    fs.mkdirSync(binDir)
+    fs.symlinkSync(process.execPath, path.join(binDir, 'node'))
+    shellEnvRef.current = {
+      HOME: tempDir,
+      PATH: binDir,
+      TMPDIR: tempDir,
+      FAKE_MISE_ROOT: tempDir
+    }
     vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) => {
       const base = key === 'feature.binary.data' ? tempDir : `/mock/${key}`
       return filename ? path.join(base, filename) : base
@@ -74,15 +99,14 @@ if (command === 'use') {
   })
 
   afterEach(() => {
+    shellEnvRef.current = {}
     fs.rmSync(tempDir, { recursive: true, force: true })
   })
 
   const createService = () => {
     const service = new BinaryManager()
     ;(service as any).miseBin = misePath
-    ;(service as any).isolatedEnv = Object.fromEntries(
-      Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)
-    )
+    ;(service as any).isolatedEnv = { ...shellEnvRef.current }
     return service
   }
 
