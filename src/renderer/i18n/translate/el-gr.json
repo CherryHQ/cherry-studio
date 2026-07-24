@@ -4662,6 +4662,7 @@
     "title": "Intel OVMS"
   },
   "paintings": {
+    "add_image": "Add image",
     "aspect_ratio": "Λόγος διαστάσεων",
     "aspect_ratios": {
       "landscape": "Οριζόντια εικόνα",
@@ -4814,6 +4815,8 @@
     "prompt_placeholder": "Περιγράψτε την εικόνα που θέλετε να δημιουργήσετε, για παράδειγμα: ένα ηρωϊκό λιμάνι, το δείπνο του θεού, με απέναντι την ορεινή περιοχή",
     "prompt_placeholder_edit": "Εισάγετε την περιγραφή της εικόνας σας, χρησιμοποιήστε διπλά εισαγωγικά \"\" για κείμενο",
     "prompt_placeholder_en": "Εισαγάγετε την περιγραφή εικόνας στα «Αγγλικά», η Imagen υποστηρίζει μόνο αγγλικές εντολές προς το παρόν",
+    "prompt_placeholder_upload": "Describe the image you want, or upload one to edit",
+    "prompt_placeholder_upload_required": "Upload an image to edit, then describe the changes",
     "prompt_required": "Παρακαλώ εισάγετε μια προτροπή",
     "proxy_required": "Αυτή τη στιγμή χρειάζεται να ενεργοποιήσετε τον μεσολαβητή (proxy) για να δείτε τις δημιουργημένες εικόνες. Στο μέλλον θα υποστηρίζεται η άμεση σύνδεση στην Κίνα",
     "quality": "Ποιότητα",

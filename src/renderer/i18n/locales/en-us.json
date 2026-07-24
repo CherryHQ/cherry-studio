@@ -4662,6 +4662,7 @@
     "title": "Intel OVMS"
   },
   "paintings": {
+    "add_image": "Add image",
     "aspect_ratio": "Aspect Ratio",
     "aspect_ratios": {
       "landscape": "Landscape",
@@ -4814,6 +4815,8 @@
     "prompt_placeholder": "Describe the image you want to create, e.g. A serene lake at sunset with mountains in the background",
     "prompt_placeholder_edit": "Enter your image description, text drawing uses \"double quotes\" to wrap",
     "prompt_placeholder_en": "Enter your image description, currently only supports English prompts",
+    "prompt_placeholder_upload": "Describe the image you want, or upload one to edit",
+    "prompt_placeholder_upload_required": "Upload an image to edit, then describe the changes",
     "prompt_required": "Please enter a prompt",
     "proxy_required": "Open the proxy and enable \"TUN mode\" to view generated images or copy them to the browser for opening. In the future, domestic direct connection will be supported",
     "quality": "Quality",
