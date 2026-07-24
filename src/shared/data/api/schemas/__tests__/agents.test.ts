@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { AgentEntitySchema, CreateAgentSchema, ListAgentsQuerySchema, UpdateAgentSchema } from '../agents'
+import {
+  AgentEntitySchema,
+  CreateAgentSchema,
+  ListAgentsQuerySchema,
+  UpdateAgentSchema,
+  UpdateTaskSchema
+} from '../agents'
 
 describe('AgentEntitySchema', () => {
   const baseAgent = {
@@ -69,5 +75,10 @@ describe('AgentEntitySchema', () => {
       { skillId: 'skill-a', isEnabled: false },
       { skillId: 'skill-b', isEnabled: true }
     ])
+  })
+
+  it('accepts a non-empty target Agent when reassigning a scheduled task', () => {
+    expect(UpdateTaskSchema.parse({ agentId: 'agent-2' })).toEqual({ agentId: 'agent-2' })
+    expect(UpdateTaskSchema.safeParse({ agentId: '' }).success).toBe(false)
   })
 })

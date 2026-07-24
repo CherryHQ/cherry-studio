@@ -11,6 +11,7 @@ import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { getAgentAvatarFromConfiguration, getAgentDescriptionForDisplay } from '@renderer/utils/agent'
 import { buildCreateAgentDto } from '@renderer/utils/resourceCatalog'
+import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -82,7 +83,9 @@ export function AgentSelector(props: AgentSelectorProps) {
     [onOpenChange, open]
   )
 
-  const { data, isLoading, refetch } = useQuery('/agents', { query: { limit: 500 } })
+  // Keep in lockstep with TasksSettings' agents query — they share one SWR
+  // cache entry only while path + query serialize identically.
+  const { data, isLoading, refetch } = useQuery('/agents', { query: { limit: AGENTS_MAX_LIMIT } })
   const { trigger: createAgent, isLoading: isCreatingAgent } = useMutation('POST', '/agents', {
     refresh: ['/agents']
   })

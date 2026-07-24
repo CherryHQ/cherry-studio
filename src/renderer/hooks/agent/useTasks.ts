@@ -21,10 +21,25 @@ export const useTasks = (agentId: string | null) => {
   }
 }
 
+/** All scheduled tasks across every agent — backs the settings overview page. */
+export const useAllTasks = () => {
+  const { data, error, isLoading, refetch } = useQuery('/agent-tasks', {
+    query: { limit: 500 },
+    swrOptions: { keepPreviousData: false }
+  })
+  return {
+    tasks: data?.items ?? [],
+    total: data?.total ?? 0,
+    error,
+    isLoading,
+    refetch
+  }
+}
+
 export const useCreateTask = () => {
   const { t } = useTranslation()
   const { trigger: createTrigger } = useMutation('POST', '/agents/:agentId/tasks', {
-    refresh: ({ args }) => [`/agents/${args?.params.agentId}/tasks` as never]
+    refresh: ({ args }) => ['/agent-tasks', `/agents/${args?.params.agentId}/tasks` as never]
   })
   const createTask = useCallback(
     async (agentId: string, req: CreateTaskRequest): Promise<ScheduledTaskEntity | undefined> => {
@@ -45,7 +60,12 @@ export const useCreateTask = () => {
 export const useUpdateTask = () => {
   const { t } = useTranslation()
   const { trigger: updateTrigger } = useMutation('PATCH', '/agents/:agentId/tasks/:taskId', {
-    refresh: ({ args }) => [`/agents/${args?.params.agentId}/tasks` as never]
+    refresh: ({ args }) => [
+      '/agent-tasks',
+      ...Array.from(
+        new Set([args?.params.agentId, args?.body?.agentId].filter((agentId) => agentId !== undefined))
+      ).map((agentId) => `/agents/${agentId}/tasks` as never)
+    ]
   })
   const updateTask = useCallback(
     async (agentId: string, taskId: string, updates: UpdateTaskRequest): Promise<ScheduledTaskEntity | undefined> => {
@@ -84,7 +104,7 @@ export const useRunTask = () => {
 export const useDeleteTask = () => {
   const { t } = useTranslation()
   const { trigger: deleteTrigger } = useMutation('DELETE', '/agents/:agentId/tasks/:taskId', {
-    refresh: ({ args }) => [`/agents/${args?.params.agentId}/tasks` as never]
+    refresh: ({ args }) => ['/agent-tasks', `/agents/${args?.params.agentId}/tasks` as never]
   })
   const deleteTask = useCallback(
     async (agentId: string, taskId: string): Promise<boolean> => {

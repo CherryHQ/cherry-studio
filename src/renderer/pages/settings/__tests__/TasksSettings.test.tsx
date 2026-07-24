@@ -1,12 +1,8 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import TasksSettings, { formStateToTrigger, type ScheduleFormState, triggerToFormState } from '../TasksSettings'
-
-const dataApiMock = vi.hoisted(() => ({
-  get: vi.fn()
-}))
 
 const taskLogsMock = vi.hoisted(() => {
   const defaultTaskLog = {
@@ -48,7 +44,8 @@ const taskDataMock = vi.hoisted(() => {
 
   return {
     defaultTask,
-    task: { ...defaultTask }
+    task: { ...defaultTask },
+    tasks: null as null | Array<typeof defaultTask>
   }
 })
 
@@ -56,9 +53,19 @@ const agentDataMock = vi.hoisted(() => ({
   agents: [{ id: 'agent-1', name: 'Agent One', configuration: {} }]
 }))
 
+const tasksVersionMock = vi.hoisted(() => ({
+  version: 0,
+  listeners: new Set<() => void>(),
+  bump() {
+    this.version += 1
+    for (const listener of this.listeners) listener()
+  }
+}))
+
 const taskMutationMocks = vi.hoisted(() => ({
   createTask: vi.fn(),
   deleteTask: vi.fn(),
+  refetchTasks: vi.fn(),
   runTask: vi.fn(),
   updateTask: vi.fn()
 }))
@@ -71,7 +78,8 @@ const navigationMocks = vi.hoisted(() => ({
 }))
 
 const channelDataMock = vi.hoisted(() => ({
-  channels: [] as Array<Record<string, unknown>>
+  channels: [] as Array<Record<string, unknown>>,
+  isLoading: false
 }))
 
 const translationMock = vi.hoisted(() => ({
@@ -79,24 +87,15 @@ const translationMock = vi.hoisted(() => ({
   t: (key: string) => key
 }))
 
-function createDeferred<T>() {
-  let resolve!: (value: T) => void
-  const promise = new Promise<T>((resolvePromise) => {
-    resolve = resolvePromise
-  })
-  return { promise, resolve }
-}
-
-vi.mock('@renderer/data/DataApiService', () => ({
-  dataApiService: dataApiMock
-}))
+const promptPolishActionsMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@renderer/hooks/agent/useChannels', () => ({
-  useChannels: () => ({ channels: channelDataMock.channels })
+  useChannels: () => ({ channels: channelDataMock.channels, isLoading: channelDataMock.isLoading })
 }))
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
-  useQuery: () => ({ data: [] })
+  useQuery: (path: string) =>
+    path === '/agents' ? { data: { items: agentDataMock.agents }, error: undefined, isLoading: false } : { data: [] }
 }))
 
 vi.mock('@renderer/components/PromptEditorField', () => ({
@@ -134,25 +133,60 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
 }))
 
 vi.mock('@renderer/components/resourceCatalog/dialogs/components/PromptPolishActions', () => ({
-  PromptPolishActions: ({ disabled }: { disabled?: boolean }) => (
-    <button type="button" aria-label="library.config.prompt.generate" disabled={disabled}>
-      library.config.prompt.generate
-    </button>
-  )
+  PromptPolishActions: (props: {
+    disabled?: boolean
+    emptyValueSystemPrompt: string
+    existingValueSystemPrompt: string
+  }) => {
+    promptPolishActionsMock(props)
+    return (
+      <button type="button" aria-label="library.config.prompt.generate" disabled={props.disabled}>
+        library.config.prompt.generate
+      </button>
+    )
+  }
 }))
 
 vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
-  AgentSelector: ({ trigger }: { trigger: React.ReactNode }) => <>{trigger}</>,
+  AgentSelector: ({ onChange, trigger }: { onChange: (agentId: string) => void; trigger: React.ReactNode }) => (
+    <>
+      {trigger}
+      <button type="button" aria-label="select Agent Two" onClick={() => onChange('agent-2')}>
+        Agent Two
+      </button>
+    </>
+  ),
   WorkspaceSelector: ({ trigger }: { trigger: React.ReactNode }) => <>{trigger}</>
 }))
 
-vi.mock('@renderer/hooks/agent/useTasks', () => ({
-  useCreateTask: () => ({ createTask: taskMutationMocks.createTask }),
-  useDeleteTask: () => ({ deleteTask: taskMutationMocks.deleteTask }),
-  useRunTask: () => ({ runTask: taskMutationMocks.runTask }),
-  useTaskLogs: () => taskLogsMock,
-  useUpdateTask: () => ({ updateTask: taskMutationMocks.updateTask })
-}))
+vi.mock('@renderer/hooks/agent/useTasks', () => {
+  const subscribeTasks = (listener: () => void) => {
+    tasksVersionMock.listeners.add(listener)
+    return () => tasksVersionMock.listeners.delete(listener)
+  }
+  return {
+    // Mirrors SWR semantics: refetch bumps a version the hook subscribes to,
+    // so consumers re-render and read the updated taskDataMock state.
+    useAllTasks: () => {
+      React.useSyncExternalStore(subscribeTasks, () => tasksVersionMock.version)
+      return {
+        tasks: taskDataMock.tasks ?? [taskDataMock.task],
+        total: (taskDataMock.tasks ?? [taskDataMock.task]).length,
+        error: null,
+        isLoading: false,
+        refetch: async () => {
+          await taskMutationMocks.refetchTasks()
+          tasksVersionMock.bump()
+        }
+      }
+    },
+    useCreateTask: () => ({ createTask: taskMutationMocks.createTask }),
+    useDeleteTask: () => ({ deleteTask: taskMutationMocks.deleteTask }),
+    useRunTask: () => ({ runTask: taskMutationMocks.runTask }),
+    useTaskLogs: () => taskLogsMock,
+    useUpdateTask: () => ({ updateTask: taskMutationMocks.updateTask })
+  }
+})
 
 vi.mock('@renderer/hooks/useConversationNavigation', () => ({
   useConversationNavigation: () => ({
@@ -197,6 +231,10 @@ vi.mock('@cherrystudio/ui', () => {
     disabled?: boolean
     onValueChange?: (value: string) => void
     value?: string
+  } | null>(null)
+  const TabsContext = React.createContext<{
+    value: string
+    setValue: (value: string) => void
   } | null>(null)
 
   const passthrough =
@@ -260,6 +298,7 @@ vi.mock('@cherrystudio/ui', () => {
       onChange,
       options,
       placeholder,
+      renderOption,
       searchable,
       searchPlaceholder,
       value
@@ -269,6 +308,7 @@ vi.mock('@cherrystudio/ui', () => {
       onChange?: (value: string | string[]) => void
       options?: Array<{ value: string; label: React.ReactNode }>
       placeholder?: React.ReactNode
+      renderOption?: (option: { value: string; label: React.ReactNode }) => React.ReactNode
       searchable?: boolean
       searchPlaceholder?: string
       value?: string | string[]
@@ -293,7 +333,7 @@ vi.mock('@cherrystudio/ui', () => {
                   : [...current, option.value]
               )
             }}>
-            {option.label}
+            {renderOption ? renderOption(option) : option.label}
           </button>
         ))}
       </div>
@@ -510,12 +550,14 @@ vi.mock('@cherrystudio/ui', () => {
     RowFlex: passthrough('div'),
     Scrollbar: passthrough('div', 'scrollbar'),
     SearchInput: ({
+      'aria-label': ariaLabel,
       clearLabel,
       onChange,
       onClear,
       placeholder,
       value
     }: {
+      'aria-label'?: string
       clearLabel?: string
       onChange?: React.ChangeEventHandler<HTMLInputElement>
       onClear?: () => void
@@ -523,7 +565,7 @@ vi.mock('@cherrystudio/ui', () => {
       value?: string
     }) => (
       <div>
-        <input type="search" placeholder={placeholder} value={value} onChange={onChange} />
+        <input aria-label={ariaLabel} type="search" placeholder={placeholder} value={value} onChange={onChange} />
         {value && onClear && (
           <button type="button" aria-label={clearLabel} onClick={onClear}>
             {clearLabel}
@@ -589,6 +631,44 @@ vi.mock('@cherrystudio/ui', () => {
         {...props}
       />
     ),
+    Tabs: ({
+      children,
+      defaultValue,
+      value
+    }: {
+      children?: React.ReactNode
+      defaultValue?: string
+      value?: string
+      variant?: string
+    }) => {
+      const [internalValue, setInternalValue] = React.useState(defaultValue ?? '')
+      return (
+        <TabsContext value={{ value: value ?? internalValue, setValue: setInternalValue }}>
+          <div data-slot="tabs">{children}</div>
+        </TabsContext>
+      )
+    },
+    TabsContent: ({ children, value }: { children?: React.ReactNode; value: string }) => {
+      const context = React.use(TabsContext)
+      return context?.value === value ? <div role="tabpanel">{children}</div> : null
+    },
+    TabsList: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+      <div role="tablist" {...props}>
+        {children}
+      </div>
+    ),
+    TabsTrigger: ({ children, value }: { children?: React.ReactNode; value: string }) => {
+      const context = React.use(TabsContext)
+      return (
+        <button
+          type="button"
+          role="tab"
+          aria-selected={context?.value === value}
+          onClick={() => context?.setValue(value)}>
+          {children}
+        </button>
+      )
+    },
     Textarea: {
       Input: (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => <textarea {...props} />
     },
@@ -676,16 +756,13 @@ describe('TasksSettings routing and creation', () => {
     taskLogsMock.isLoading = false
     taskLogsMock.error = null
     channelDataMock.channels = []
+    channelDataMock.isLoading = false
+    taskDataMock.tasks = null
     taskMutationMocks.createTask.mockResolvedValue(undefined)
     taskMutationMocks.deleteTask.mockResolvedValue(true)
+    taskMutationMocks.refetchTasks.mockResolvedValue(undefined)
     taskMutationMocks.runTask.mockResolvedValue(true)
     taskMutationMocks.updateTask.mockResolvedValue(taskDataMock.task)
-    dataApiMock.get.mockImplementation((path: string) => {
-      if (path === '/agents') return Promise.resolve({ items: agentDataMock.agents })
-      if (path.endsWith('/tasks')) return Promise.resolve({ items: [taskDataMock.task] })
-      if (path.endsWith('/tasks/task-1')) return Promise.resolve(taskDataMock.task)
-      throw new Error(`unexpected path: ${path}`)
-    })
   })
 
   it('renders only the full-width task list on the base route', async () => {
@@ -704,11 +781,54 @@ describe('TasksSettings routing and creation', () => {
     })
   })
 
+  it('searches tasks and filters them by Agent and status', async () => {
+    navigationMocks.taskId = undefined
+    agentDataMock.agents = [
+      { id: 'agent-1', name: 'Agent One', configuration: {} },
+      { id: 'agent-2', name: 'Agent Two', configuration: {} }
+    ]
+    const pausedTask = {
+      ...taskDataMock.defaultTask,
+      id: 'task-2',
+      agentId: 'agent-2',
+      name: 'Weekly review',
+      status: 'paused' as const
+    }
+    taskDataMock.tasks = [taskDataMock.defaultTask, pausedTask]
+
+    render(<TasksSettings />)
+
+    expect(await screen.findByRole('link', { name: /Daily task/ })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Weekly review/ })).toBeInTheDocument()
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'settings.scheduledTasks.search' }), {
+      target: { value: 'weekly' }
+    })
+    expect(screen.queryByRole('link', { name: /Daily task/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Weekly review/ })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.clear' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Agent Two' }))
+    expect(screen.queryByRole('link', { name: /Daily task/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Weekly review/ })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('option', { name: 'agent.tasks.status.active' }))
+    expect(screen.getByText('settings.scheduledTasks.noMatchesTitle')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.scheduledTasks.clearFilters' }))
+    expect(screen.getByRole('link', { name: /Daily task/ })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Weekly review/ })).toBeInTheDocument()
+  })
+
   it('opens a task detail route and returns to the list', async () => {
     render(<TasksSettings />)
 
-    await screen.findByDisplayValue('Daily task')
-    fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
+    const backButton = await screen.findByRole('button', { name: 'common.back' })
+    expect(backButton).toHaveTextContent('Daily task')
+    expect(backButton).not.toHaveTextContent('settings.scheduledTasks.title')
+    expect(backButton).toHaveAttribute('data-size', 'lg')
+    expect(screen.queryByRole('textbox', { name: 'agent.tasks.name.label' })).not.toBeInTheDocument()
+    fireEvent.click(backButton)
 
     expect(navigationMocks.navigate).toHaveBeenCalledWith({ to: '/settings/scheduled-tasks' })
   })
@@ -726,7 +846,7 @@ describe('TasksSettings routing and creation', () => {
   it('returns to the list after deleting a task', async () => {
     render(<TasksSettings />)
 
-    await screen.findByDisplayValue('Daily task')
+    await screen.findByText('Daily task')
     fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'agent.tasks.delete.label' }))
     fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'agent.tasks.delete.label' }))
@@ -738,10 +858,7 @@ describe('TasksSettings routing and creation', () => {
   it('disables only manual creation when no Agent exists', async () => {
     navigationMocks.taskId = undefined
     agentDataMock.agents = []
-    dataApiMock.get.mockImplementation((path: string) => {
-      if (path === '/agents') return Promise.resolve({ items: [] })
-      throw new Error(`unexpected path: ${path}`)
-    })
+    taskDataMock.tasks = []
 
     render(<TasksSettings />)
 
@@ -757,11 +874,7 @@ describe('TasksSettings routing and creation', () => {
 
   it('centers the empty state in the remaining page height', async () => {
     navigationMocks.taskId = undefined
-    dataApiMock.get.mockImplementation((path: string) => {
-      if (path === '/agents') return Promise.resolve({ items: agentDataMock.agents })
-      if (path.endsWith('/tasks')) return Promise.resolve({ items: [] })
-      throw new Error(`unexpected path: ${path}`)
-    })
+    taskDataMock.tasks = []
 
     render(<TasksSettings />)
 
@@ -787,7 +900,15 @@ describe('TasksSettings routing and creation', () => {
       'data-value',
       'daily'
     )
-    expect(within(dialog).getByLabelText('agent.tasks.schedule.time')).toHaveValue('09:00')
+    const timeSelect = within(dialog).getByRole('group', { name: 'agent.tasks.schedule.time' })
+    expect(within(timeSelect).getByRole('combobox', { name: 'agent.tasks.schedule.hour' })).toHaveAttribute(
+      'data-value',
+      '09'
+    )
+    expect(within(timeSelect).getByRole('combobox', { name: 'agent.tasks.schedule.minute' })).toHaveAttribute(
+      'data-value',
+      '00'
+    )
     expect(within(dialog).queryByRole('option', { name: 'agent.tasks.schedule.advanced' })).not.toBeInTheDocument()
     expect(within(dialog).queryByText('agent.tasks.schedule.description')).not.toBeInTheDocument()
 
@@ -802,6 +923,15 @@ describe('TasksSettings routing and creation', () => {
     expect(
       within(promptEditor as HTMLElement).getByRole('button', { name: 'library.config.prompt.generate' })
     ).toBeInTheDocument()
+    expect(promptPolishActionsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        emptyValueSystemPrompt: expect.stringContaining('scheduled Agent task'),
+        existingValueSystemPrompt: expect.stringContaining('scheduled task prompt')
+      })
+    )
+    expect(promptPolishActionsMock.mock.lastCall?.[0].emptyValueSystemPrompt).toContain(
+      'Do not create a persona, role profile'
+    )
     const taskInputGroup = promptInput.closest('[data-task-input-context]')
     expect(taskInputGroup).not.toBeNull()
     expect(
@@ -816,18 +946,41 @@ describe('TasksSettings routing and creation', () => {
     expect(within(dialog).getByRole('button', { name: 'agent.tasks.save' })).not.toHaveAttribute('data-size')
   })
 
+  it('uses shared schedule controls instead of native time and number widgets', async () => {
+    navigationMocks.taskId = undefined
+
+    render(<TasksSettings />)
+
+    await screen.findByRole('link', { name: /Daily task/ })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.scheduledTasks.newTask' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'settings.scheduledTasks.manualCreate' }))
+
+    const dialog = screen.getByRole('dialog')
+    const timeSelect = within(dialog).getByRole('group', { name: 'agent.tasks.schedule.time' })
+    const [hourOptions, minuteOptions] = within(timeSelect).getAllByRole('listbox')
+    fireEvent.click(within(hourOptions).getByRole('option', { name: '18' }))
+    fireEvent.click(within(minuteOptions).getByRole('option', { name: '05' }))
+
+    expect(within(timeSelect).getByRole('combobox', { name: 'agent.tasks.schedule.hour' })).toHaveAttribute(
+      'data-value',
+      '18'
+    )
+    expect(within(timeSelect).getByRole('combobox', { name: 'agent.tasks.schedule.minute' })).toHaveAttribute(
+      'data-value',
+      '05'
+    )
+
+    const timeoutInput = within(dialog).getByLabelText('agent.tasks.timeout.label')
+    expect(timeoutInput).toHaveAttribute('type', 'text')
+    expect(timeoutInput).toHaveAttribute('inputmode', 'numeric')
+  })
+
   it('marks required fields invalid after an attempted create', async () => {
     navigationMocks.taskId = undefined
     agentDataMock.agents = [
       { id: 'agent-1', name: 'Agent One', configuration: {} },
       { id: 'agent-2', name: 'Agent Two', configuration: {} }
     ]
-    dataApiMock.get.mockImplementation((path: string) => {
-      if (path === '/agents') return Promise.resolve({ items: agentDataMock.agents })
-      if (path === '/agents/agent-1/tasks') return Promise.resolve({ items: [taskDataMock.task] })
-      if (path === '/agents/agent-2/tasks') return Promise.resolve({ items: [] })
-      throw new Error(`unexpected path: ${path}`)
-    })
 
     render(<TasksSettings />)
 
@@ -889,7 +1042,8 @@ describe('TasksSettings routing and creation', () => {
         expect.objectContaining({
           name: 'Review code',
           prompt: 'Review the repository',
-          trigger: { kind: 'cron', expr: '0 9 * * *' }
+          trigger: { kind: 'cron', expr: '0 9 * * *' },
+          timeoutMinutes: null
         })
       )
     )
@@ -914,15 +1068,12 @@ describe('TasksSettings detail behavior', () => {
     taskLogsMock.isLoading = false
     taskLogsMock.error = null
     channelDataMock.channels = []
+    channelDataMock.isLoading = false
+    taskDataMock.tasks = null
     taskMutationMocks.deleteTask.mockResolvedValue(true)
+    taskMutationMocks.refetchTasks.mockResolvedValue(undefined)
     taskMutationMocks.runTask.mockResolvedValue(true)
     taskMutationMocks.updateTask.mockResolvedValue(taskDataMock.task)
-    dataApiMock.get.mockImplementation((path: string) => {
-      if (path === '/agents') return Promise.resolve({ items: agentDataMock.agents })
-      if (path === '/agents/agent-1/tasks') return Promise.resolve({ items: [taskDataMock.task] })
-      if (path === '/agents/agent-1/tasks/task-1') return Promise.resolve(taskDataMock.task)
-      throw new Error(`unexpected path: ${path}`)
-    })
   })
 
   it('keeps task logs searchable and opens the related session', async () => {
@@ -933,8 +1084,10 @@ describe('TasksSettings detail behavior', () => {
 
     render(<TasksSettings />)
 
+    fireEvent.click(await screen.findByRole('tab', { name: 'agent.tasks.logs.label' }))
     fireEvent.change(await screen.findByPlaceholderText('agent.tasks.logs.search'), { target: { value: 'done' } })
     expect(screen.getByText('done')).toBeInTheDocument()
+    expect(screen.getByText('done')).toHaveClass('line-clamp-4')
     expect(screen.queryByText('other result')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.logs.viewSession' }))
@@ -962,113 +1115,236 @@ describe('TasksSettings detail behavior', () => {
 
     render(<TasksSettings />)
 
+    fireEvent.click(await screen.findByRole('tab', { name: 'settings.general.title' }))
     expect(await screen.findByText('Agent One Telegram')).toBeInTheDocument()
     expect(screen.queryByText('Agent Two Slack')).not.toBeInTheDocument()
     expect(screen.queryByPlaceholderText('agent.tasks.channels.placeholder')).not.toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('agent.tasks.channels.noActiveChatIds')
   })
 
-  it('applies the updated task response without reloading all task data', async () => {
+  it('keeps the detail read-only and edits through the shared task Dialog', async () => {
     taskMutationMocks.updateTask.mockResolvedValueOnce({
       ...taskDataMock.task,
       name: 'Server-normalized task name'
     })
+    taskMutationMocks.refetchTasks.mockImplementation(async () => {
+      taskDataMock.task = { ...taskDataMock.task, name: 'Server-normalized task name' }
+    })
 
     render(<TasksSettings />)
 
-    const nameInput = await screen.findByDisplayValue('Daily task')
-    await act(async () => {})
-    dataApiMock.get.mockClear()
-    fireEvent.change(nameInput, { target: { value: 'Edited task name' } })
-    fireEvent.blur(nameInput)
+    await screen.findByText('Daily task')
+    expect(screen.queryByRole('textbox', { name: 'agent.tasks.name.label' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'agent.tasks.frequency.label' })).not.toBeInTheDocument()
+    expect(screen.getByRole('tablist', { name: 'Daily task' })).toBeInTheDocument()
+    expect(screen.getAllByRole('tab')).toHaveLength(3)
+    expect(screen.getByRole('tab', { name: 'agent.tasks.prompt.label' })).toHaveAttribute('aria-selected', 'true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.edit' }))
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByText('settings.scheduledTasks.editTitle')).toBeInTheDocument()
+    expect(within(dialog).getByRole('textbox', { name: 'agent.tasks.name.label' })).toHaveValue('Daily task')
+
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'agent.tasks.name.label' }), {
+      target: { value: 'Edited task name' }
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'agent.tasks.save' }))
 
     await waitFor(() =>
-      expect(taskMutationMocks.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', { name: 'Edited task name' })
+      expect(taskMutationMocks.updateTask).toHaveBeenCalledWith(
+        'agent-1',
+        'task-1',
+        expect.objectContaining({
+          name: 'Edited task name',
+          prompt: 'Run daily summary',
+          trigger: { kind: 'interval', ms: 60_000 },
+          timeoutMinutes: 10,
+          channelIds: [],
+          agentId: 'agent-1'
+        })
+      )
     )
-    await waitFor(() => expect(screen.getByDisplayValue('Server-normalized task name')).toBeInTheDocument())
-    expect(dataApiMock.get).not.toHaveBeenCalled()
+    await waitFor(() => expect(screen.getByText('Server-normalized task name')).toBeInTheDocument())
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(taskMutationMocks.refetchTasks).toHaveBeenCalled()
   })
 
-  it('persists a same-field name revert made while an earlier save is pending', async () => {
-    const firstSave = createDeferred<typeof taskDataMock.task>()
-    const secondSave = createDeferred<typeof taskDataMock.task>()
-    taskMutationMocks.updateTask.mockReturnValueOnce(firstSave.promise).mockReturnValueOnce(secondSave.promise)
-
+  it('persists the simplified interval editor through the shared edit Dialog', async () => {
     render(<TasksSettings />)
 
-    const nameInput = await screen.findByDisplayValue('Daily task')
-    fireEvent.change(nameInput, { target: { value: 'First edit' } })
-    fireEvent.blur(nameInput)
-    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
-
-    fireEvent.change(nameInput, { target: { value: 'Daily task' } })
-    fireEvent.blur(nameInput)
-    expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1)
-
-    await act(async () => firstSave.resolve({ ...taskDataMock.task, name: 'First edit' }))
-    await waitFor(() =>
-      expect(taskMutationMocks.updateTask).toHaveBeenNthCalledWith(2, 'agent-1', 'task-1', {
-        name: 'Daily task'
-      })
-    )
-
-    await act(async () => secondSave.resolve(taskDataMock.task))
-    await waitFor(() => expect(screen.getByDisplayValue('Daily task')).toBeInTheDocument())
-  })
-
-  it('persists the simplified interval editor through the existing Trigger contract', async () => {
-    render(<TasksSettings />)
-
-    const intervalInput = await screen.findByPlaceholderText('agent.tasks.intervalPlaceholder')
-    expect(screen.getByRole('combobox', { name: 'agent.tasks.frequency.label' })).toHaveAttribute(
+    await screen.findByText('Daily task')
+    fireEvent.click(screen.getByRole('button', { name: 'common.edit' }))
+    const dialog = screen.getByRole('dialog')
+    const intervalInput = within(dialog).getByPlaceholderText('agent.tasks.intervalPlaceholder')
+    expect(within(dialog).getByRole('combobox', { name: 'agent.tasks.frequency.label' })).toHaveAttribute(
       'data-value',
       'interval'
     )
     fireEvent.change(intervalInput, { target: { value: '15' } })
-    fireEvent.blur(intervalInput)
+    fireEvent.click(within(dialog).getByRole('button', { name: 'agent.tasks.save' }))
 
     await waitFor(() =>
-      expect(taskMutationMocks.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', {
-        trigger: { kind: 'interval', ms: 900_000 }
-      })
+      expect(taskMutationMocks.updateTask).toHaveBeenCalledWith(
+        'agent-1',
+        'task-1',
+        expect.objectContaining({
+          trigger: { kind: 'interval', ms: 900_000 }
+        })
+      )
     )
   })
 
-  it('waits for a pending save before running the task', async () => {
-    const save = createDeferred<typeof taskDataMock.task>()
-    taskMutationMocks.updateTask.mockReturnValueOnce(save.promise)
+  it('preserves an unlimited timeout in the read-only detail and edit Dialog', async () => {
+    taskDataMock.task = { ...taskDataMock.defaultTask, timeoutMinutes: 0 }
 
     render(<TasksSettings />)
 
-    const nameInput = await screen.findByDisplayValue('Daily task')
-    fireEvent.change(nameInput, { target: { value: 'Pending name' } })
-    fireEvent.blur(nameInput)
-    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
+    fireEvent.click(await screen.findByRole('tab', { name: 'settings.general.title' }))
+    expect(await screen.findByText('agent.tasks.timeout.placeholder')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'common.edit' }))
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'agent.tasks.run' }))
-    expect(taskMutationMocks.runTask).not.toHaveBeenCalled()
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByLabelText('agent.tasks.timeout.label')).toHaveValue('')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'agent.tasks.save' }))
 
-    await act(async () => save.resolve({ ...taskDataMock.task, name: 'Pending name' }))
-    await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('task-1'))
+    await waitFor(() =>
+      expect(taskMutationMocks.updateTask).toHaveBeenCalledWith(
+        'agent-1',
+        'task-1',
+        expect.objectContaining({ timeoutMinutes: null })
+      )
+    )
   })
 
-  it('does not run when the preceding save fails', async () => {
-    const save = createDeferred<typeof taskDataMock.task | undefined>()
-    taskMutationMocks.updateTask.mockReturnValueOnce(save.promise)
+  it('reassigns an edited task to another Agent and clears incompatible channels', async () => {
+    agentDataMock.agents = [
+      { id: 'agent-1', name: 'Agent One', configuration: {} },
+      { id: 'agent-2', name: 'Agent Two', configuration: {} }
+    ]
+    taskDataMock.task = { ...taskDataMock.defaultTask, channelIds: ['channel-agent-1'] }
+    channelDataMock.channels = [
+      {
+        id: 'channel-agent-1',
+        agentId: 'agent-1',
+        name: 'Agent One Telegram',
+        isActive: true,
+        activeChatIds: ['chat-1']
+      }
+    ]
 
     render(<TasksSettings />)
 
-    const nameInput = await screen.findByDisplayValue('Daily task')
-    fireEvent.change(nameInput, { target: { value: 'Pending name' } })
-    fireEvent.blur(nameInput)
+    await screen.findByText('Daily task')
+    fireEvent.click(screen.getByRole('button', { name: 'common.edit' }))
+    const dialog = screen.getByRole('dialog')
+    const agentTrigger = within(dialog).getByRole('button', { name: 'agent.channels.bindAgent' })
+    expect(agentTrigger).toBeEnabled()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'select Agent Two' }))
+    expect(agentTrigger).toHaveTextContent('Agent Two')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'agent.tasks.save' }))
+
+    await waitFor(() =>
+      expect(taskMutationMocks.updateTask).toHaveBeenCalledWith(
+        'agent-1',
+        'task-1',
+        expect.objectContaining({
+          agentId: 'agent-2',
+          channelIds: []
+        })
+      )
+    )
+  })
+
+  it('shows each channel enabled state inside the channel selector options', async () => {
+    channelDataMock.channels = [
+      { id: 'channel-on', agentId: 'agent-1', name: 'Active channel', isActive: true, activeChatIds: ['chat-1'] },
+      { id: 'channel-off', agentId: 'agent-1', name: 'Inactive channel', isActive: false, activeChatIds: ['chat-2'] }
+    ]
+
+    render(<TasksSettings />)
+
+    await screen.findByText('Daily task')
+    fireEvent.click(screen.getByRole('button', { name: 'common.edit' }))
+
+    const activeStatus = await screen.findByText('common.enabled')
+    expect(activeStatus).toHaveClass('sr-only')
+    expect(activeStatus.parentElement).toHaveTextContent('Active channel')
+    const inactiveStatus = screen.getByText('common.disabled')
+    expect(inactiveStatus).toHaveClass('sr-only')
+    expect(inactiveStatus.parentElement).toHaveTextContent('Inactive channel')
+  })
+
+  it('skips a queued run after a failed save but still lets a queued pause through', async () => {
+    let resolveFirstSave!: (value: unknown) => void
+    taskMutationMocks.updateTask.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirstSave = resolve
+        })
+    )
+
+    render(<TasksSettings />)
+
+    const statusSwitch = await screen.findByRole('switch', { name: 'agent.tasks.status.active' })
+    fireEvent.click(statusSwitch)
+    fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
+    fireEvent.click(statusSwitch)
     await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
+    resolveFirstSave(undefined)
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'agent.tasks.run' }))
-    await act(async () => save.resolve(undefined))
-
+    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(2))
+    expect(taskMutationMocks.updateTask).toHaveBeenLastCalledWith('agent-1', 'task-1', { enabled: false })
     expect(taskMutationMocks.runTask).not.toHaveBeenCalled()
+  })
+
+  it('defers a queued run until the pending status update succeeds', async () => {
+    let resolveFirstSave!: (value: unknown) => void
+    taskMutationMocks.updateTask.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirstSave = resolve
+        })
+    )
+
+    render(<TasksSettings />)
+
+    const statusSwitch = await screen.findByRole('switch', { name: 'agent.tasks.status.active' })
+    fireEvent.click(statusSwitch)
+    fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
+    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
+    expect(taskMutationMocks.runTask).not.toHaveBeenCalled()
+
+    resolveFirstSave({ ...taskDataMock.defaultTask, enabled: false, status: 'paused' })
+
+    await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('task-1'))
+    await waitFor(() => expect(taskMutationMocks.refetchTasks).toHaveBeenCalled())
+  })
+
+  it('keeps existing channel bindings when saving while channels are still loading', async () => {
+    taskDataMock.task = { ...taskDataMock.defaultTask, channelIds: ['channel-agent-1'] }
+    channelDataMock.channels = []
+    channelDataMock.isLoading = true
+
+    render(<TasksSettings />)
+
+    await screen.findByText('Daily task')
+    fireEvent.click(screen.getByRole('button', { name: 'common.edit' }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'agent.tasks.name.label' }), {
+      target: { value: 'Renamed while loading' }
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'agent.tasks.save' }))
+
+    await waitFor(() =>
+      expect(taskMutationMocks.updateTask).toHaveBeenCalledWith(
+        'agent-1',
+        'task-1',
+        expect.objectContaining({
+          name: 'Renamed while loading',
+          channelIds: ['channel-agent-1']
+        })
+      )
+    )
   })
 
   it('toggles task status from the semantic switch', async () => {
@@ -1083,6 +1359,14 @@ describe('TasksSettings detail behavior', () => {
     )
   })
 
+  it('runs the task from the detail header action', async () => {
+    render(<TasksSettings />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'agent.tasks.run' }))
+
+    await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('task-1'))
+  })
+
   it('uses a neutral Badge and hides run/status controls for completed tasks', async () => {
     taskDataMock.task = {
       ...taskDataMock.defaultTask,
@@ -1095,6 +1379,8 @@ describe('TasksSettings detail behavior', () => {
     const completedBadge = await screen.findByText('agent.tasks.status.completed')
     expect(completedBadge).toHaveAttribute('data-variant', 'secondary')
     expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'common.edit' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'agent.tasks.run' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
     expect(screen.queryByRole('menuitem', { name: 'agent.tasks.run' })).not.toBeInTheDocument()

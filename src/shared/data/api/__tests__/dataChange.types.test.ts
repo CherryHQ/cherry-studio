@@ -22,6 +22,7 @@ describe('endpoint classification', () => {
       | '/agent-channels'
       | '/agent-sessions'
       | '/agent-sessions/:sessionId/messages'
+      | '/agent-tasks'
       | '/agent-workspaces'
       | '/agents'
       | '/agents/:agentId/tasks'

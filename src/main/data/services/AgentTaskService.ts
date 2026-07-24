@@ -22,7 +22,7 @@ import {
   type AgentSessionWorkspaceSource,
   AgentSessionWorkspaceSourceSchema
 } from '@shared/data/api/schemas/agentWorkspaces'
-import type { JobScheduleSnapshot, JobSnapshot, UpdateJobScheduleDto } from '@shared/data/api/schemas/jobs'
+import type { JobScheduleSnapshot, JobSnapshot, Trigger, UpdateJobScheduleDto } from '@shared/data/api/schemas/jobs'
 import type { ListOptions } from '@shared/data/api/types'
 import { eq } from 'drizzle-orm'
 
@@ -51,6 +51,15 @@ function normalizeAgentTaskTemplate(value: unknown): AgentTaskJobInputTemplate |
     timeoutMinutes: typeof template.timeoutMinutes === 'number' ? template.timeoutMinutes : 2,
     workspace: parsedWorkspace.success ? parsedWorkspace.data : { type: 'system' }
   }
+}
+
+function triggersEqual(a: Trigger, b: Trigger): boolean {
+  if (a.kind === 'cron' && b.kind === 'cron') {
+    return a.expr === b.expr && a.timezone === b.timezone && a.limit === b.limit
+  }
+  if (a.kind === 'interval' && b.kind === 'interval') return a.ms === b.ms && a.anchor === b.anchor
+  if (a.kind === 'once' && b.kind === 'once') return a.at === b.at
+  return false
 }
 
 function deriveStatus(snapshot: JobScheduleSnapshot): 'active' | 'paused' | 'completed' {
@@ -89,7 +98,7 @@ export class AgentTaskService {
       this.assertChannelsBelongToAgent(agentId, dto.channelIds)
     }
 
-    const timeoutMinutes = dto.timeoutMinutes ?? 2
+    const timeoutMinutes = dto.timeoutMinutes === null ? 0 : (dto.timeoutMinutes ?? 2)
     const jobInputTemplate: AgentTaskJobInputTemplate = {
       agentId,
       prompt: dto.prompt,
@@ -142,12 +151,28 @@ export class AgentTaskService {
     agentId: string,
     options: ListOptions & { includeHeartbeat?: boolean } = {}
   ): { tasks: ScheduledTaskEntity[]; total: number } {
-    const { includeHeartbeat = false, limit, offset } = options
+    return this.queryTasks({ ...options, agentId })
+  }
+
+  /** Cross-agent listing for the settings overview — one scan instead of one per agent. */
+  listAllTasks(options: ListOptions & { includeHeartbeat?: boolean } = {}): {
+    tasks: ScheduledTaskEntity[]
+    total: number
+  } {
+    return this.queryTasks(options)
+  }
+
+  private queryTasks(options: ListOptions & { includeHeartbeat?: boolean; agentId?: string }): {
+    tasks: ScheduledTaskEntity[]
+    total: number
+  } {
+    const { agentId, includeHeartbeat = false, limit, offset } = options
     const all = jobScheduleService.listAll({ type: AGENT_TASK_TYPE })
 
     const filtered = all.filter((s) => {
       const template = normalizeAgentTaskTemplate(s.jobInputTemplate)
-      if (!template || template.agentId !== agentId) return false
+      if (!template) return false
+      if (agentId !== undefined && template.agentId !== agentId) return false
       if (!includeHeartbeat && s.name === HEARTBEAT_TASK_NAME) return false
       return true
     })
@@ -173,26 +198,38 @@ export class AgentTaskService {
     const existingSnapshot = jobScheduleService.getById(taskId)
     const existingTemplate = existingSnapshot ? normalizeAgentTaskTemplate(existingSnapshot.jobInputTemplate) : null
     if (!existingSnapshot || !existingTemplate) return null
-    if (patch.channelIds !== undefined) {
-      this.assertChannelsBelongToAgent(agentId, patch.channelIds)
+    const nextAgentId = patch.agentId ?? existingTemplate.agentId
+    const agentChanged = nextAgentId !== existingTemplate.agentId
+    if (agentChanged) {
+      this.assertAgentExists(nextAgentId)
+    }
+    const nextChannelIds = patch.channelIds ?? (agentChanged ? [] : undefined)
+    if (nextChannelIds !== undefined) {
+      this.assertChannelsBelongToAgent(nextAgentId, nextChannelIds)
     }
 
-    // Build the updated jobInputTemplate when prompt/timeoutMinutes changed.
+    // Build the updated jobInputTemplate when an execution input changes.
     const nextPrompt = patch.prompt ?? existingTemplate.prompt
-    const nextTimeoutMinutes = patch.timeoutMinutes ?? existingTemplate.timeoutMinutes
+    const nextTimeoutMinutes =
+      patch.timeoutMinutes === null ? 0 : (patch.timeoutMinutes ?? existingTemplate.timeoutMinutes)
     const nextWorkspace = patch.workspace ?? existingTemplate.workspace
     const templateChanged =
+      agentChanged ||
       (patch.prompt !== undefined && patch.prompt !== existingTemplate.prompt) ||
-      (patch.timeoutMinutes !== undefined && patch.timeoutMinutes !== existingTemplate.timeoutMinutes) ||
+      (patch.timeoutMinutes !== undefined && nextTimeoutMinutes !== existingTemplate.timeoutMinutes) ||
       patch.workspace !== undefined
 
     const updatePatch: UpdateJobScheduleDto = {}
     if (patch.name !== undefined) updatePatch.name = patch.name
-    if (patch.trigger !== undefined) updatePatch.trigger = patch.trigger
+    // Drop unchanged triggers: JobManager re-arms on any trigger patch, and
+    // re-arming resets an interval's cadence (see JobManager.armSchedule).
+    if (patch.trigger !== undefined && !triggersEqual(patch.trigger, existingSnapshot.trigger)) {
+      updatePatch.trigger = patch.trigger
+    }
     if (patch.enabled !== undefined) updatePatch.enabled = patch.enabled
     if (templateChanged) {
       updatePatch.jobInputTemplate = {
-        agentId: existingTemplate.agentId,
+        agentId: nextAgentId,
         prompt: nextPrompt,
         timeoutMinutes: nextTimeoutMinutes,
         workspace: nextWorkspace
@@ -202,9 +239,9 @@ export class AgentTaskService {
     const updated = application.get('JobManager').updateJobSchedule(taskId, updatePatch)
     if (!updated) return null
 
-    if (patch.channelIds !== undefined) {
+    if (nextChannelIds !== undefined) {
       try {
-        agentChannelService.replaceTaskSubscriptions(taskId, patch.channelIds)
+        agentChannelService.replaceTaskSubscriptions(taskId, nextChannelIds)
       } catch (error) {
         const rollbackPatch: UpdateJobScheduleDto = {}
         if (updatePatch.name !== undefined) rollbackPatch.name = existingSnapshot.name
@@ -225,7 +262,7 @@ export class AgentTaskService {
       }
     }
 
-    logger.info('Task updated', { taskId, agentId })
+    logger.info('Task updated', { taskId, agentId: nextAgentId })
     const refreshed = jobScheduleService.getById(taskId)
     if (!refreshed) return null
     return this.toScheduledTaskEntity(refreshed)

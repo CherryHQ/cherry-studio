@@ -37,6 +37,14 @@ function parseListQuery(query: unknown): ListQuery {
 }
 
 export const agentHandlers: HandlersFor<AgentSchemas> = {
+  '/agent-tasks': {
+    GET: async ({ query }) => {
+      const { page, limit, offset } = paginationFromQuery(parseListQuery(query))
+      const { tasks, total } = taskService.listAllTasks({ limit, offset })
+      return { items: tasks, total, page }
+    }
+  },
+
   '/agents': {
     GET: async ({ query }) => {
       const parsed = ListAgentsQuerySchema.safeParse(query ?? {})
