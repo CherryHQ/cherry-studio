@@ -37,6 +37,7 @@ export interface ResolvedGatewayModelAddress {
   apiModelId: string
   uniqueModelId: UniqueModelId
   provider: Provider
+  model: Model
 }
 
 /** Enabled providers from the data layer (`ProviderService`, not Redux). */
@@ -115,7 +116,7 @@ export function resolveGatewayModelAddress(modelAddress: string): ResolvedGatewa
     throw new Error(`Model "${modelAddress}" is not available through the API gateway`)
   }
 
-  return { providerId, apiModelId, uniqueModelId: model.id, provider }
+  return { providerId, apiModelId, uniqueModelId: model.id, provider, model }
 }
 
 /**

@@ -1115,7 +1115,6 @@ export class ChatMigrator extends BaseMigrator {
       // Dedupe message ids within the batch and against prior batches; remap
       // children's parentIds to keep the tree intact after the rename.
       const batchMessages: NewMessage[] = []
-      const idRemap = new Map<string, string>()
       const batchIds = new Set<string>()
       for (const data of batch) {
         // Bring migrated topics into the virtual-root model: every topic gets one
@@ -1125,7 +1124,13 @@ export class ChatMigrator extends BaseMigrator {
         // migrated data exactly as for freshly created topics. Mirrors
         // MessageService.createRootMessageTx.
         const rootId = uuidv4()
+        const topicStart = batchMessages.length
         batchMessages.push(buildVirtualRoot(rootId, data.topic.id, data.topic.createdAt))
+        // Dedup is keyed by old id, but the same old id can recur across topics. parentId and
+        // activeNodeId are intra-topic references, so the remap MUST stay scoped to this topic:
+        // a batch-global map would cross-wire a topic that kept its original id to another
+        // topic's renamed message (and a 3rd collision would overwrite it to the last remap).
+        const topicRemap = new Map<string, string>()
         for (const msg of data.messages) {
           if (msg.parentId === null) {
             msg.parentId = rootId
@@ -1133,17 +1138,26 @@ export class ChatMigrator extends BaseMigrator {
           if (seenMessageIds.has(msg.id) || batchIds.has(msg.id)) {
             const newId = uuidv4()
             logger.warn(`Duplicate message ID found: ${msg.id}, assigning new ID: ${newId}`)
-            idRemap.set(msg.id, newId)
+            topicRemap.set(msg.id, newId)
             msg.id = newId
           }
           batchIds.add(msg.id)
           batchMessages.push(msg)
         }
-      }
-      if (idRemap.size > 0) {
-        for (const msg of batchMessages) {
-          if (msg.parentId && idRemap.has(msg.parentId)) {
-            msg.parentId = idRemap.get(msg.parentId)!
+        // Re-point this topic's own references — children's parentId and the topic's
+        // activeNodeId — to any renamed ids, using only THIS topic's remap. activeNodeId is
+        // not an FK, so a dangling one passes foreign_key_check and the topic would silently
+        // open to "message not found".
+        if (topicRemap.size > 0) {
+          for (let i = topicStart; i < batchMessages.length; i++) {
+            const msg = batchMessages[i]
+            if (msg.parentId && topicRemap.has(msg.parentId)) {
+              msg.parentId = topicRemap.get(msg.parentId)!
+            }
+          }
+          const active = data.topic.activeNodeId
+          if (active && topicRemap.has(active)) {
+            data.topic.activeNodeId = topicRemap.get(active)!
           }
         }
       }
