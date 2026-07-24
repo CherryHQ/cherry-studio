@@ -174,5 +174,100 @@ describe('ErrorDiagnosisService', () => {
       const result = await diagnoseError(makeError(), 'en')
       expect(result.category).toBe('unknown')
     })
+
+    it('forwards responseBody and uses its quota signal in the prompt', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'quota', explanation: 'x', steps: [] })
+      )
+      const providerJson = '{"error":{"type":"insufficient_quota","code":"billing_hard_limit_reached"}}'
+
+      await diagnoseError(makeError({ statusCode: 429, responseBody: providerJson }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.content).toContain('billing_hard_limit_reached')
+      expect(callArgs.prompt).toContain('quota or account balance is exhausted')
+    })
+
+    it('does not route insufficient permissions to quota context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'unknown', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ message: 'insufficient permissions' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).not.toContain('quota or account balance is exhausted')
+    })
+
+    it('does not route an unqualified MCP mention to MCP context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'unknown', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ message: 'something mcp related' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).not.toContain('MCP (Model Context Protocol) server error')
+    })
+
+    it('routes a qualified MCP timeout to MCP context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'mcp', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ message: 'MCP server timeout' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('MCP (Model Context Protocol) server error')
+      expect(callArgs.prompt).not.toContain('Network or proxy error')
+    })
+
+    it('forwards finishReason for safety-blocked responses', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'content', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ name: 'AI_NoObjectGeneratedError', finishReason: 'SAFETY' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.content).toContain('SAFETY')
+      expect(callArgs.prompt.toLowerCase()).toContain('safety')
+    })
+
+    it('forwards structured data as serialized JSON', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'auth', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ data: { error: { code: 'invalid_api_key', message: 'Key revoked' } } }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.content).toContain('invalid_api_key')
+      expect(callArgs.content).toContain('Key revoked')
+    })
+
+    it('routes HTTP 402 to quota context instead of rate-limit context', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'quota', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ statusCode: 402, message: 'Payment Required' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.prompt).toContain('quota or account balance is exhausted')
+      expect(callArgs.prompt).not.toContain('hitting a rate limit')
+    })
+
+    it('falls back to provider and model fields on the error', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'auth', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ providerId: 'anthropic', modelId: 'claude-sonnet-4-5' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.content).toContain('anthropic')
+      expect(callArgs.content).toContain('claude-sonnet-4-5')
+    })
   })
 })

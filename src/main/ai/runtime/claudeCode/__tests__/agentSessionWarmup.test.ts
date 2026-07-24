@@ -1,3 +1,4 @@
+import { REASONING_FORMAT_PROFILES } from '@cherrystudio/provider-registry'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -17,7 +18,8 @@ const mocks = vi.hoisted(() => ({
   apiGatewayEnsureKey: vi.fn(),
   apiGatewayIsRunning: vi.fn(),
   apiGatewayStart: vi.fn(),
-  apiGatewayGetCurrentConfig: vi.fn()
+  apiGatewayGetCurrentConfig: vi.fn(),
+  resolveReasoningProfile: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
@@ -42,6 +44,10 @@ vi.mock('@data/services/ModelService', () => ({
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: { getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken }
+}))
+
+vi.mock('@data/services/ProviderRegistryService', () => ({
+  providerRegistryService: { resolveReasoningProfile: mocks.resolveReasoningProfile }
 }))
 
 vi.mock('@data/services/McpServerService', () => ({
@@ -85,6 +91,10 @@ const { buildClaudeCodeQueryRequestForAgentSession, deriveConnectionConfig } = a
 describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.resolveReasoningProfile.mockReturnValue({
+      format: 'anthropic',
+      wire: REASONING_FORMAT_PROFILES.anthropic.wire
+    })
     mocks.getSessionById.mockReturnValue({
       id: 'session-1',
       agentId: 'agent-1',
