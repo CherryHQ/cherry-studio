@@ -7461,7 +7461,7 @@
         "benefits": {
           "cta": "打开 Token Factory",
           "description": "每日 10 美元等值 API 额度，按当前费率约可使用 1000 万–1.11 亿输入/输出 Token，实际用量因模型和 Token 类型而异。额度每日重置，暂不支持充值。",
-          "title": "不同模型每日 1000 万–1.11 亿免费 Token"
+          "title": "每日 10 美元免费 API 额度"
         }
       },
       "remove_duplicate_keys": "移除重复密钥",

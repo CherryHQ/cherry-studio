@@ -7419,7 +7419,7 @@
         "benefits": {
           "cta": "Token Factory öffnen",
           "description": "Entspricht täglich 10 USD API-Guthaben: bei aktuellen Tarifen etwa 10M–111M Eingabe-/Ausgabe-Token, abhängig von Modell und Token-Typ. Das Guthaben wird täglich zurückgesetzt; Aufladungen werden derzeit nicht unterstützt.",
-          "title": "Je nach Modell 10M bis 111M kostenlose Token/Tag"
+          "title": "Täglich 10 USD kostenloses API-Guthaben"
         }
       },
       "remove_duplicate_keys": "Doppelte Schlüssel entfernen",

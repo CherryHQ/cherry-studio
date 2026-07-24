@@ -7461,7 +7461,7 @@
         "benefits": {
           "cta": "Open Token Factory",
           "description": "Equivalent to $10 in API credits: about 10M–111M input/output tokens per day at current rates, depending on the model and token type. Credits reset daily; top-ups are not currently supported.",
-          "title": "10M to 111M free tokens/day across models"
+          "title": "$10 in free daily API credits"
         }
       },
       "remove_duplicate_keys": "Remove Duplicate Keys",
