@@ -51,14 +51,13 @@ Project-specific tools, paths, and conventions.
 - **Read local READMEs first**: Before editing code in a directory, check for a `README.md` in that directory (and its parents) and read it — these files capture local conventions, invariants, and entry points that aren't obvious from the code alone.
 - **Fix upstream, don't hack downstream**: When a new feature hits an existing module's limitation, flag the upstream improvement for the user's decision before proposing a downstream workaround.
 - **Library-first, custom-last**: Before writing custom code, check library/framework docs for built-in options or existing solutions. Write custom code only when no adequate alternative exists.
-- **Research via subagent**: Lean on `subagent` for external docs, APIs, news, and references.
 - **Build with Tailwind CSS & Shadcn UI**: Use components from `@cherrystudio/ui` (located in `packages/ui`, Shadcn UI + Tailwind CSS) for every new UI component.
 - **Log centrally**: Route all logging through `loggerService` with the right context—no `console.log`.
 - **Access paths centrally**: Use `application.getPath('namespace.key', filename?)` for all main-process filesystem paths—never call `app.getPath()`, `os.homedir()`, or construct paths ad-hoc. Import the singleton via `import { application } from '@application'`.
 - **Lint, test, and format before completion**: Coding tasks are only complete after running `pnpm lint`, `pnpm test`, and `pnpm format` successfully.
 - **Write conventional commits**: Commit small, focused changes using Conventional Commit messages (e.g., `feat(data-api):`, `fix(lifecycle):`, `refactor(quick-assistant):`, `docs(testing):`, `chore(deps):`, `test(window-manager):`). Scope must be a specific kebab-case module, never generic like `main` — when `git log` conflicts with this rule, this rule wins.
 - **Keep history linear**: On shared branches, never use plain `git pull` — it creates merge commits. Always `git pull --rebase` (or `git fetch && git rebase origin/<branch>`). Before `git push`, run `git fetch`; if `origin/<branch>` has advanced, rebase your local commits onto it first. If you notice a merge commit in local history that hasn't been pushed yet, rebase it away — cleaning one up after it's public requires a risky force-push on a shared branch.
-- **Sign commits**: Use `git commit --signoff` as required by contributor guidelines.
+- **Sign commits and sign off**: Every commit must be both cryptographically signed and DCO-signed off. Use `git commit -S --signoff` (not `--signoff` alone), verify the commit object contains a `gpgsig` header with `git cat-file commit HEAD`, and verify the pushed PR commits show `Verified` on GitHub.
 - **Target the right branch**: `main` is the default branch for active development — submit features, refactors, optimizations, and fixes for the current codebase here. v1 maintenance fixes (hotfixes and subsequent v1 releases) must branch from and target the `v1` branch (never `main`); a v1 fix does not auto-carry to `main`, so forward-port it with a separate PR if the bug also exists on `main`. See [v2 Refactoring](#v2-refactoring-in-progress).
 
 ## Development
@@ -71,6 +70,7 @@ Run `pnpm install` first (Node and pnpm versions are pinned in `package.json` �
 - `pnpm test` — run all Vitest tests
 - `pnpm format` — Biome format + lint (write mode)
 - `pnpm build:check` — **REQUIRED before commits**. If it fails on i18n sort, run `pnpm i18n:sync` first; on formatting, run `pnpm format` first; on broken doc links, fix the link.
+- `pnpm test:lint` — the CI-equivalent lint gate: it denies oxlint warnings that `pnpm lint` / `pnpm build:check` silently tolerate; run it when CI must pass.
 
 ### Testing
 
@@ -101,7 +101,7 @@ Use the `gh-create-issue` skill. Fallback: read `.agents/skills/gh-create-issue/
 
 ### TypeScript
 
-- Place shared type definitions in `src/renderer/types/` or `src/shared/`.
+- Cross-process types belong in `src/shared/`; renderer-only shared types in `src/renderer/types/` (see [Shared Layer Architecture](docs/references/shared-layer-architecture.md)).
 
 ### Naming Conventions
 
@@ -207,51 +207,23 @@ For detailed code examples, see [Usage Guide](docs/references/lifecycle/lifecycl
 
 Services without long-lived resources or persistent side effects: use **named export singleton** (`export const x = new X()`). No `getInstance()` patterns. See [Decision Guide](docs/references/lifecycle/lifecycle-decision-guide.md) for criteria.
 
-### BinaryManager (CLI binary acquisition)
-
-**MUST READ**: [docs/references/binary-manager/README.md](docs/references/binary-manager/README.md) — scope criterion (in/out), persisted surface, bundled-vs-mise state contract, adding a new tool, China mirror behavior.
-
-All third-party CLI binary acquisition (uv, bun, ripgrep, claude-code, gh, …) goes through `BinaryManager`. Wrap mise's polyglot backends (`npm:`, `pipx:`, `github:`, registry entries) — do NOT shell out to package managers from your own service. Domain services consume via `application.get('BinaryManager').installTool(...)` and keep runtime orchestration (config, spawn, health) on their side.
-
 ## v2 Refactoring (In Progress)
 
-> **Current state — read before contributing.** The former `v2` branch has been **merged into `main`**; `main` is now the default branch for active development, with v1 and v2 code **coexisting**. Expect large, frequent, breaking changes — code you touch today may be deleted or reshaped tomorrow. Before touching subsystems being replaced, read [docs/references/data](docs/references/data/README.md) to learn which are being deleted, and heed `@deprecated` annotations in the code — they mark call sites slated for removal. (For where v1 fixes land, see **Target the right branch** in Operational Rules.)
-
-### Data Layer
-
-- **Removing**: Dexie, ElectronStore (Redux is fully removed)
-- **Adopting**: Cache / Preference / DataApi architecture (see [Data](#data))
-
-### UI Layer
-
-- **Adopting**: `@cherrystudio/ui`. The adoption rule lives in **Build with Tailwind CSS & Shadcn UI** (Operational Rules).
+> **Current state — read before contributing.** v1 and v2 code **coexist** on `main` while the refactor works through its cleanup stage — code you touch may still be deleted or reshaped. Before touching subsystems being replaced, read [docs/references/data](docs/references/data/README.md) to learn which are being deleted, and heed `@deprecated` annotations in the code — they mark call sites slated for removal. (For where v1 fixes land, see **Target the right branch** in Operational Rules.)
 
 ### Coexistence Mindset
 
 Two things on this branch are throwaway — do not defend them.
 
-**v1 is throwaway.** "v1" here means the legacy data stacks listed in Data Layer above (Dexie, ElectronStore — Redux already removed) and any call site that reads or writes through them. All such code will be deleted; v1 data reaches v2 only through the migrators in `src/main/data/migration/v2/`. So: no fallbacks, dual-writes, or guards for v1 save / read / loss; no fixing v1 bugs encountered during v2 work (v1 fixes go to the `v1` branch). The refactor is now in its cleanup stage, so the posture shifts from leaving v1 alone to **opportunistic removal**: when you're already editing an area, delete the v1 residue you touch — orphaned legacy-stack call sites, dead v1 reads/writes, now-unused modules — instead of leaving it in place. Don't go hunting for v1 code to delete in unrelated PRs, and never delete code still wired into live v2 behavior (flag it instead).
+**v1 residue is throwaway.** v1 data reaches v2 only through the migrators in `src/main/data/migration/v2/` — never add fallbacks, dual-writes, or guards for v1 save / read / loss. When you're already editing an area, delete the v1 residue you touch (dead legacy-stack call sites, disabled v1 code blocks, now-unused modules) instead of leaving it in place. Don't go hunting for v1 code to delete in unrelated PRs, never delete code still wired into live v2 behavior (flag it instead), and don't fix v1 bugs on `main` — they go to the `v1` branch.
 
 **Schemas and drizzle SQL are throwaway.** `src/main/data/db/schemas/` may change freely; `migrations/sqlite-drizzle/*.sql` are dev-only artifacts overwritten by `drizzle-kit generate` on every schema change. Mid-development DB drift is acceptable — do not author patch migrations to "fix" it. `migrations/sqlite-drizzle/` will be wiped and regenerated from the final schemas as a single clean initial migration before release; only that regenerated migration must be correct.
 
-**Resolving migration merge conflicts: regenerate, never rename.** When a merge/rebase brings in an upstream migration that conflicts with your local one, delete your local migration `.sql` + its `meta/*_snapshot.json` and re-run `pnpm db:migrations:generate`. Never just rename/renumber the `.sql` or hand-edit the snapshot to make room — renaming silently reuses the snapshot's random `id`, which forks the chain and makes `pnpm db:migrations:generate` abort for everyone (#15438), and leaves the schema source diverged from the migration SQL. Note `drizzle-kit generate` exits `0` even on a forked chain, so it will not warn you; only `pnpm db:migrations:check` (`drizzle-kit check`) does. CI enforces both — chain integrity via `db:migrations:check` and schema↔migration drift via a generate-and-diff step.
+**Resolving migration merge conflicts: regenerate, never rename.** When an upstream migration conflicts with your local one, delete your local `.sql` + its `meta/*_snapshot.json` and re-run `pnpm db:migrations:generate`. Renaming/renumbering instead silently reuses the snapshot's random `id`, forking the chain for everyone — and `drizzle-kit generate` still exits `0`; only `pnpm db:migrations:check` catches it. CI enforces both the chain check and a schema↔migration generate-and-diff step.
 
 ### Data Classification Toolchain
 
-The `v2-refactor-temp/tools/data-classify/` directory is the code generation pipeline for the v2 data layer. `classification.json` is the single source of truth.
-
-The following four files are **auto-generated — NEVER edit them by hand**:
-
-- `src/shared/data/preference/preferenceSchemas.ts`
-- `src/shared/data/bootConfig/bootConfigSchemas.ts`
-- `src/main/data/migration/v2/migrators/mappings/PreferencesMappings.ts`
-- `src/main/data/migration/v2/migrators/mappings/BootConfigMappings.ts`
-
-To change any of them, edit `classification.json` or `target-key-definitions.json` (both in `v2-refactor-temp/tools/data-classify/data/`), then regenerate:
-
-```bash
-cd v2-refactor-temp/tools/data-classify && npm run generate
-```
+`v2-refactor-temp/tools/data-classify/` is the code generation pipeline for the v2 data layer; `classification.json` is the single source of truth (see its README). Four files are **auto-generated — NEVER edit them by hand**: `src/shared/data/preference/preferenceSchemas.ts`, `src/shared/data/bootConfig/bootConfigSchemas.ts`, and `PreferencesMappings.ts` + `BootConfigMappings.ts` in `src/main/data/migration/v2/migrators/mappings/`. To change them, edit `classification.json` or `target-key-definitions.json` (both in `data/`), then run `cd v2-refactor-temp/tools/data-classify && npm run generate`.
 
 ### Breaking Changes Log
 

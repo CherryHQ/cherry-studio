@@ -50,11 +50,12 @@ being a first migration target. This may be relaxed in a future release.
 
 ### Relationship with the auto-updater
 
-The auto-updater (`AppUpdaterService`) controls which versions are
-offered via OTA using `minCompatibleVersion` in the remote config. The
-migration gate is a **separate safety net** for users who manually
-download and install a version. Both systems enforce compatible upgrade
-paths but operate independently.
+The auto-updater (`AppUpdaterService`) sends the installed version and
+other client metadata to the [managed release service](../app-upgrade.md),
+which selects the OTA target and enforces upgrade gateways. The migration
+gate is a **separate safety net** for users who manually download and
+install a version. Both systems enforce compatible upgrade paths but
+operate independently.
 
 ## Directory Layout
 

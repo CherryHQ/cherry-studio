@@ -51,6 +51,7 @@ interface AgentLoopHooks {
   onToolExecutionStart?: (event) => Promise<void> | void
   onToolExecutionEnd?: (event) => Promise<void> | void
   onFinish?: () => Promise<void> | void
+  onAbort?: () => Promise<void> | void
   onError?: (ctx) => 'retry' | 'abort'
 }
 ```
@@ -61,16 +62,16 @@ Hook contributions come from three sources, all folded by `composeHooks`:
    (injects `message-metadata` chunks carrying token usage).
 2. **Feature contributions** (`hookParts` param) — each `RequestFeature`'s
    `contributeHooks(scope)` (see [Params Pipeline](./params-pipeline.md)).
-3. **Caller hooks** — `AiService` adds the analytics hook only (token-usage
-   accounting via `onStepFinish` / `onFinish`). It does *not* contribute a
-   root-span/trace lifecycle hook — the OTel root span is owned by
-   `AiStreamManager.runExecutionLoop`.
+3. **Caller hooks** — `AiService` adds the analytics hook only (usage is
+   accumulated via `onStepFinish`, then flushed idempotently from `onFinish`,
+   `onAbort`, or `onError`). It does *not* contribute a root-span/trace lifecycle hook —
+   the OTel root span is owned by `AiStreamManager.runExecutionLoop`.
 
 Composition rules per hook key:
 
 | key | rule |
 |---|---|
-| `onStart`, `onFinish`, `onStepFinish`, `onToolExecutionStart/End` | `chainVoid` — sequential `for`-loop await; per-hook throws logged and swallowed, chain continues |
+| `onStart`, `onFinish`, `onAbort`, `onStepFinish`, `onToolExecutionStart/End` | `chainVoid` — sequential `for`-loop await; per-hook throws logged and swallowed, chain continues |
 | `prepareStep` | chained — each invocation receives the previous return value |
 | `onError` | every handler invoked sequentially; any `'retry'` makes the result `'retry'`; default `abort` |
 
@@ -100,11 +101,25 @@ see [Agent Session Runtime](./agent-session-runtime.md#live-follow-up).
 
 ## Error and abort
 
-- `signal.aborted` is honoured throughout; aborted streams settle with
-  the accumulated chunks already broadcast.
+- `signal.aborted` is honoured throughout `stream()` and `generate()`. Aborted
+  streams settle cleanly with the accumulated chunks already broadcast,
+  including when the SDK rejects result metadata while unwinding the aborted
+  stream. Clean cancellation calls `onAbort` (not `onError`) so per-run
+  resources and analytics can finalize.
 - Thrown errors are caught and routed through `onError`. Returning
   `'retry'` is reserved for a future implementation — today the loop
   logs and aborts.
+- Trusted local tools can return a structured terminal failure (`terminal:
+  true`, `retryable: false`). A generic process-local provenance marker
+  prevents matching JSON from MCP or provider-executed tools from controlling
+  the loop. Wrappers such as deferred `tool_invoke` pass the same object
+  reference through, so Agent Core never parses tool names or wrapper payloads.
+  The feature stops at that step boundary and `Agent` converts the finish into
+  an error.
+- The effective step-cap condition records when it actually returns `true`;
+  `Agent` converts only that outcome into an explicit error. This avoids
+  treating an approval pause as cap exhaustion. If a queued steer and the cap
+  both trigger on one step, the clean steer yield takes precedence.
 - The writer is settled exactly once via the `then`/`catch` of the
   internal IIFE — listeners never see a half-closed stream.
 
