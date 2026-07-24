@@ -7373,8 +7373,8 @@
       "radeon_cloud": {
         "benefits": {
           "cta": "開啟 Token Factory",
-          "description": "每天贈送等值 10 美元的 API 額度，額度每日重設，並依不同模型的費率扣減，目前暫不支援儲值。",
-          "title": "每日 10 美元免費 API 額度"
+          "description": "每日 10 美元等值 API 額度，按目前費率約可使用 1,000 萬–1.11 億輸入/輸出 Token，實際用量依模型和 Token 類型而異。額度每日重設，目前暫不支援儲值。",
+          "title": "不同模型每日 1,000 萬–1.11 億免費 Token"
         }
       },
       "remove_duplicate_keys": "移除重複金鑰",

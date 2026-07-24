@@ -7364,8 +7364,8 @@
       "radeon_cloud": {
         "benefits": {
           "cta": "Deschide Token Factory",
-          "description": "Primești zilnic credite API în valoare de 10 USD. Creditele se resetează în fiecare zi, iar utilizarea este taxată conform tarifului fiecărui model. Reîncărcările nu sunt acceptate momentan.",
-          "title": "Credite API gratuite de 10 USD pe zi"
+          "description": "Echivalentul a 10 USD zilnic în credite API: aproximativ 10M–111M de tokenuri de intrare/ieșire la tarifele actuale, în funcție de model și de tipul de token. Creditele se resetează zilnic; reîncărcările nu sunt acceptate momentan.",
+          "title": "Între 10M și 111M de tokenuri gratuite/zi, în funcție de model"
         }
       },
       "remove_duplicate_keys": "Elimină cheile duplicate",

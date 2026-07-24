@@ -33,7 +33,11 @@ describe('RadeonCloudBenefits', () => {
       expect(benefits.cta).toBeTruthy()
     }
 
+    expect(enUS.settings.provider.radeon_cloud.benefits.title).toContain('10M to 111M')
     expect(enUS.settings.provider.radeon_cloud.benefits.description).toContain('$10')
+    expect(enUS.settings.provider.radeon_cloud.benefits.description).toContain('model and token type')
+    expect(zhCN.settings.provider.radeon_cloud.benefits.title).toContain('1000 万–1.11 亿')
+    expect(zhCN.settings.provider.radeon_cloud.benefits.description).toContain('模型和 Token 类型')
     expect(zhCN.settings.provider.radeon_cloud.benefits.description).toContain('每日重置')
   })
 })

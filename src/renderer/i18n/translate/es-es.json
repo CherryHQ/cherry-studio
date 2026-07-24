@@ -7364,8 +7364,8 @@
       "radeon_cloud": {
         "benefits": {
           "cta": "Abrir Token Factory",
-          "description": "Recibe cada día 10 USD en créditos de API. Los créditos se restablecen diariamente y el uso se cobra según la tarifa de cada modelo. Actualmente no se admiten recargas.",
-          "title": "10 USD diarios en créditos de API gratuitos"
+          "description": "Equivale a 10 USD diarios en créditos de API: unos 10M–111M tokens de entrada/salida con las tarifas actuales, según el modelo y el tipo de token. Los créditos se restablecen a diario; actualmente no se admiten recargas.",
+          "title": "De 10M a 111M tokens gratis/día según el modelo"
         }
       },
       "remove_duplicate_keys": "Eliminar claves duplicadas",

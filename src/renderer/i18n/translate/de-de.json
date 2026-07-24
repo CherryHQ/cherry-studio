@@ -7364,8 +7364,8 @@
       "radeon_cloud": {
         "benefits": {
           "cta": "Token Factory öffnen",
-          "description": "Sie erhalten täglich API-Guthaben im Wert von 10 USD. Das Guthaben wird täglich zurückgesetzt und je nach Modellpreis verbraucht. Aufladungen werden derzeit nicht unterstützt.",
-          "title": "Täglich 10 USD kostenloses API-Guthaben"
+          "description": "Entspricht täglich 10 USD API-Guthaben: bei aktuellen Tarifen etwa 10M–111M Eingabe-/Ausgabe-Token, abhängig von Modell und Token-Typ. Das Guthaben wird täglich zurückgesetzt; Aufladungen werden derzeit nicht unterstützt.",
+          "title": "Je nach Modell 10M bis 111M kostenlose Token/Tag"
         }
       },
       "remove_duplicate_keys": "Doppelte Schlüssel entfernen",
