@@ -270,14 +270,6 @@ vi.mock('@tiptap/react', () => ({
   )
 }))
 
-vi.mock('@renderer/components/SendMessageButton', () => ({
-  default: () => (
-    <button type="button" data-ui="chat.composer.action.send">
-      send
-    </button>
-  )
-}))
-
 vi.mock('../ComposerToolRuntime', () => ({
   ComposerToolMenu: () => <button type="button">add tool</button>
 }))
@@ -524,7 +516,20 @@ describe('ComposerSurface', () => {
     expect(composer).toHaveAttribute('id', 'inputbar')
     expect(composer?.querySelector('[data-ui~="part:composer-input"]')).not.toBeNull()
     expect(composer?.querySelector('[data-ui~="part:composer-actions"]')).not.toBeNull()
-    expect(screen.getByRole('button', { name: 'send' })).toHaveAttribute('data-ui', 'chat.composer.action.send')
+    expect(screen.getByRole('button', { name: 'chat.input.send' })).toHaveAttribute(
+      'data-ui',
+      'chat.composer.action.send'
+    )
+  })
+
+  it('exposes the pause anchor while a response is streaming', () => {
+    render(<ComposerSurface {...baseProps} isLoading sendDisabled />)
+
+    expect(screen.getByRole('button', { name: 'chat.input.pause' })).toHaveAttribute(
+      'data-ui',
+      'chat.composer.action.pause'
+    )
+    expect(screen.queryByRole('button', { name: 'chat.input.send' })).not.toBeInTheDocument()
   })
 
   it('uses the compact single-row presentation when eligible content fits', async () => {
@@ -556,7 +561,7 @@ describe('ComposerSurface', () => {
     const addToolButton = screen.getByRole('button', { name: 'add tool' })
     const pinnedToolButton = screen.getByRole('button', { name: 'pinned tool' })
     const contextUsage = screen.getByLabelText('context usage')
-    const sendButton = screen.getByRole('button', { name: 'send' })
+    const sendButton = screen.getByRole('button', { name: 'chat.input.send' })
     expect(addToolButton.compareDocumentPosition(pinnedToolButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(pinnedToolButton.compareDocumentPosition(contextUsage)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(contextUsage.compareDocumentPosition(sendButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
@@ -832,7 +837,7 @@ describe('ComposerSurface', () => {
     const cornerLine = inputbar?.querySelector('[data-composer-expand-corner-line]') as HTMLElement | null
 
     expect(screen.queryByRole('button', { name: 'translate' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'send' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'chat.input.send' })).toBeInTheDocument()
     expect(inputbar).not.toBeNull()
     expect(corner).not.toBeNull()
     expect(resizeHandle.closest('#inputbar')).toBe(inputbar)
