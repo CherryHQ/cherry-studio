@@ -118,7 +118,7 @@ describe('ProviderHeader', () => {
 
     render(<ProviderHeader providerId="openai" />)
 
-    const officialLinks = screen.getAllByRole('link', { name: 'OpenAI · settings.provider.api.official_website' })
+    const officialLinks = screen.getAllByRole('link', { name: 'OpenAI · settings.provider.oauth.official_website' })
     expect(officialLinks).toHaveLength(1)
     expect(officialLinks[0]).toHaveAttribute('href', 'https://openai.com/')
     expect(screen.queryByText('provider-avatar')).not.toBeInTheDocument()

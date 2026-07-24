@@ -9,23 +9,12 @@ import {
   isClaude46SeriesModel as sharedIsClaude46SeriesModel,
   isClaude47SeriesModel as sharedIsClaude47SeriesModel,
   isDeepSeekModel as sharedIsDeepSeekModel,
-  isGemini3FlashModel as sharedIsGemini3FlashModel,
   isGemini3Model as sharedIsGemini3Model,
-  isGemini3ProModel as sharedIsGemini3ProModel,
-  isGemini3ThinkingTokenModel as sharedIsGemini3ThinkingTokenModel,
-  isGemini31FlashLiteModel as sharedIsGemini31FlashLiteModel,
-  isGemini31ProModel as sharedIsGemini31ProModel,
   isGeminiModel as sharedIsGeminiModel,
-  isGemmaModel as sharedIsGemmaModel,
   isGrokModel as sharedIsGrokModel,
-  isKimi25OrNewerModel as sharedIsKimi25OrNewerModel,
   isMaxTemperatureOneModel as sharedIsMaxTemperatureOneModel,
-  isMoonshotModel as sharedIsMoonshotModel,
-  isNotSupportSystemMessageModel as sharedIsNotSupportSystemMessageModel,
-  isNotSupportTextDeltaModel as sharedIsNotSupportTextDeltaModel,
   isSupportFlexServiceTierModel as sharedIsSupportFlexServiceTierModel,
-  isVideoModel as sharedIsVideoModel,
-  isZhipuModel as sharedIsZhipuModel
+  isVideoModel as sharedIsVideoModel
 } from '@shared/utils/model'
 
 import { isEmbeddingModel, isRerankModel } from './embedding'
@@ -62,15 +51,6 @@ export const isSupportFlexServiceTierModel = (model: Model): boolean => sharedIs
 export const isSupportedFlexServiceTier = isSupportFlexServiceTierModel
 
 // ── Family checks (delegated to shared) ─────────────────────────────────
-export const isGemmaModel = (model?: Model): boolean => (model ? sharedIsGemmaModel(model) : false)
-
-export const isZhipuModel = (model: Model): boolean => sharedIsZhipuModel(model)
-
-export const isMoonshotModel = (model: Model): boolean => sharedIsMoonshotModel(model)
-
-export const isKimi25OrNewerModel = (model: Model | undefined | null): boolean =>
-  model ? sharedIsKimi25OrNewerModel(model) : false
-
 export const isAnthropicModel = (model?: Model): boolean => (model ? sharedIsAnthropicModel(model) : false)
 
 export const isDeepSeekModel = (model?: Model): boolean => (model ? sharedIsDeepSeekModel(model) : false)
@@ -85,20 +65,6 @@ export const isGrokModel = (model: Model): boolean => sharedIsGrokModel(model)
 
 export const isGemini3Model = (model: Model): boolean => sharedIsGemini3Model(model)
 
-export const isGemini3ThinkingTokenModel = (model: Model): boolean => sharedIsGemini3ThinkingTokenModel(model)
-
-export const isGemini3FlashModel = (model: Model | undefined | null): boolean =>
-  model ? sharedIsGemini3FlashModel(model) : false
-
-export const isGemini31FlashLiteModel = (model: Model | undefined | null): boolean =>
-  model ? sharedIsGemini31FlashLiteModel(model) : false
-
-export const isGemini3ProModel = (model: Model | undefined | null): boolean =>
-  model ? sharedIsGemini3ProModel(model) : false
-
-export const isGemini31ProModel = (model: Model | undefined | null): boolean =>
-  model ? sharedIsGemini31ProModel(model) : false
-
 export const isClaude46SeriesModel = (model: Model | undefined | null): boolean =>
   model ? sharedIsClaude46SeriesModel(model) : false
 
@@ -106,10 +72,6 @@ export const isClaude47SeriesModel = (model: Model | undefined | null): boolean 
   model ? sharedIsClaude47SeriesModel(model) : false
 
 export const isMaxTemperatureOneModel = (model: Model): boolean => sharedIsMaxTemperatureOneModel(model)
-
-export const isNotSupportTextDeltaModel = (model: Model): boolean => sharedIsNotSupportTextDeltaModel(model)
-
-export const isNotSupportSystemMessageModel = (model: Model): boolean => sharedIsNotSupportSystemMessageModel(model)
 
 // ── Collections ─────────────────────────────────────────────────────────
 export const isVisionModels = (models: Model[]): boolean => models.every(isVisionModel)

@@ -8,7 +8,7 @@ import { type PropsWithChildren, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ArtifactPane, { ArtifactPaneView, resolveArtifactPaneFileSelection } from '../ArtifactPane'
-import { useArtifactFileTreeModel } from '../useArtifactFileTreeModel'
+import { ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS, useArtifactFileTreeModel } from '../useArtifactFileTreeModel'
 
 /** Mimics the agent pane's single Viewport while its docked/maximized layout changes. */
 function PersistentArtifactPaneHarness({ workspacePath }: { workspacePath: string }) {
@@ -27,6 +27,9 @@ function PersistentArtifactPaneHarness({ workspacePath }: { workspacePath: strin
   })
   const view = (
     <ArtifactPaneView
+      headerVariant="pane"
+      paneTitle="Files"
+      paneActions={<button type="button">Panel action</button>}
       workspacePath={workspacePath}
       enableFileSearch
       model={model}
@@ -45,6 +48,10 @@ function PersistentArtifactPaneHarness({ workspacePath }: { workspacePath: strin
     </div>
   )
 }
+
+it('watches an allowed missing workspace without limiting discovery depth', () => {
+  expect(ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS).toEqual({ watchMissingRoot: true })
+})
 
 const mocks = vi.hoisted(() => ({
   treeCreate: vi.fn(),
@@ -638,6 +645,34 @@ describe('ArtifactPane', () => {
 
     expect(mocks.treeCreate).toHaveBeenCalledTimes(1)
     expect(mocks.treeDispose).not.toHaveBeenCalled()
+  })
+
+  it('uses one pane header for the file tree and selected-file preview', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
+    mocks.fsReadText.mockResolvedValue('# Header')
+
+    render(<PersistentArtifactPaneHarness workspacePath="/tmp/workspace" />)
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
+    expect(screen.getAllByTestId('artifact-pane-header')).toHaveLength(1)
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('Files')
+    expect(screen.queryByRole('button', { name: 'agent.preview_pane.close' })).toBeNull()
+    expect(screen.queryByTestId('file-tree-search-toolbar')).toBeNull()
+
+    fireEvent.click(screen.getByTestId('tree-node-README.md'))
+
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    expect(screen.getAllByTestId('artifact-pane-header')).toHaveLength(1)
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('README.md')
+    expect(overlay.firstElementChild).not.toHaveClass('h-10')
+    expect(
+      within(screen.getByTestId('artifact-pane-header')).getByRole('button', { name: 'Open in Finder' })
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
+
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('Files')
   })
 
   it('loads deeper directory children when folders are expanded', async () => {

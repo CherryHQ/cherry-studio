@@ -67,7 +67,7 @@ validates the catalog at load time; missing `adapterFamily` fails fast.
 - `inferAdapterFamily(endpointType, catalogConfig?)` — the single source
   of truth for derivation. Catalog wins; otherwise endpoint-type default
   table; otherwise `'openai-compatible'`.
-- `buildRuntimeEndpointConfigs(...)` — copies `adapterFamily` through
+- `buildPersistedEndpointConfigs(...)` — copies connection fields such as `adapterFamily` through
   the catalog → runtime endpoint config transformation.
 - `lookupRegistryModel` / `lookupRegistryProvider` — name lookup helpers
   used by the migrator.
@@ -121,7 +121,7 @@ during transition. `api.ts` carries common host-normalisation logic.
 
 - `packages/provider-registry/src/__tests__/registry-utils.test.ts` —
   catalog wins, endpoint defaults, openai-compatible terminal fallback,
-  dual schema acceptance (5 cases) + `buildRuntimeEndpointConfigs`
+  dual schema acceptance (5 cases) + `buildPersistedEndpointConfigs`
   passthrough (9 cases).
 - `packages/aiCore` test suite (provider extension cache + tool
   resolution).

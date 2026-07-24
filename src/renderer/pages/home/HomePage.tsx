@@ -4,7 +4,7 @@ import type { ResourcePaneConfig, ResourcePaneCountButtonProps } from '@renderer
 import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
 import { AssistantResourceList } from '@renderer/components/chat/resourceList/AssistantResourceList'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
-import { ChatAppShell } from '@renderer/components/chat/shell/ChatAppShell'
+import { ChatAppShell, type PaneManualToggleSignal } from '@renderer/components/chat/shell/ChatAppShell'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
 import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
 import {
@@ -139,7 +139,7 @@ const HomePage: FC = () => {
   // otherwise read the same pre-refresh topic list twice and stack duplicate blank topics.
   const isCreatingTopicRef = useRef(false)
   const [lastUsedAssistantId, setLastUsedAssistantId] = usePersistCache(LAST_USED_ASSISTANT_CACHE_KEY)
-  const [, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
+  const [lastUsedTopicId, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
   const [, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const [, setTopicExpansionAssistant] = usePersistCache('ui.topic.expansion.assistant')
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
@@ -233,6 +233,13 @@ const HomePage: FC = () => {
 
   const routeActiveTopicId = isMessageOnlyView ? null : (routeTopicId ?? tabMetadataTopicId ?? null)
   const [activeTopicId, setActiveTopicId] = useState<string | null>(() => routeActiveTopicId)
+  // Resume target frozen at mount: `last_used_topic_id` is rewritten as soon as any topic
+  // activates, so a reactive read would chase this page's own writes. Route / tab-metadata
+  // targets and assistant deep links take precedence over resume.
+  const [resumeTopicId] = useState<string | null>(() =>
+    shouldAutoCreateTopic && !routeActiveTopicId && !routeAssistantId ? lastUsedTopicId : null
+  )
+  const { topic: resumeApiTopic, isLoading: isResumeTopicLoading } = useTopicById(resumeTopicId ?? undefined)
 
   useEffect(() => {
     setActiveTopicId(routeActiveTopicId)
@@ -403,19 +410,28 @@ const HomePage: FC = () => {
   const handleResourceListAutoCollapseChange = useCallback((collapsed: boolean) => {
     setAutoCollapsedResourceList(collapsed)
   }, [])
+  const [paneManualToggle, setPaneManualToggle] = useState<PaneManualToggleSignal | undefined>()
+  const markManualPaneToggle = useCallback(
+    (open: boolean) => {
+      setPaneManualToggle((previous) => ({ seq: (previous?.seq ?? 0) + 1, open }))
+      setResourceListOpen(open)
+    },
+    [setResourceListOpen]
+  )
+  const [topicPaneUserOpenIntentSeq, setTopicPaneUserOpenIntentSeq] = useState(0)
   const toggleResourceListOpen = useCallback(() => {
     if (isMessageOnlyView) return
 
     if (effectiveShowSidebar) {
-      setResourceListOpen(false)
+      markManualPaneToggle(false)
       return
     }
 
-    setResourceListOpen(true)
+    markManualPaneToggle(true)
     requestAnimationFrame(() => {
       void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
     })
-  }, [effectiveShowSidebar, isMessageOnlyView, setResourceListOpen])
+  }, [effectiveShowSidebar, isMessageOnlyView, markManualPaneToggle])
   useCommandHandler('app.sidebar.toggle', toggleResourceListOpen)
 
   useEffect(() => {
@@ -581,6 +597,19 @@ const HomePage: FC = () => {
   useEffect(() => {
     if (!shouldAutoCreateTopic || initialTopicStartStateRef.current.firstLaunchStarted || state?.topic) return
     if (activeTopic || isActiveTopicLoading) return
+
+    // Resume the last-focused topic before falling back to the most-recently-updated one —
+    // "last viewed" and "last edited" differ, and sidebar/restart re-entry should land on
+    // what the user was looking at. A deleted (or unfetchable) last-used topic falls through.
+    if (resumeTopicId) {
+      if (isResumeTopicLoading) return
+      if (resumeApiTopic) {
+        initialTopicStartStateRef.current.firstLaunchStarted = true
+        setActiveTopic(mapApiTopicToRendererTopic(resumeApiTopic))
+        return
+      }
+    }
+
     if (!isLatestTopicReady) return
 
     // Resume the globally most-recently-updated topic as soon as `/latest` resolves — the chat center
@@ -607,7 +636,10 @@ const HomePage: FC = () => {
     isActiveTopicLoading,
     isAssistantListResolved,
     isLatestTopicReady,
+    isResumeTopicLoading,
     latestTopic,
+    resumeApiTopic,
+    resumeTopicId,
     routeAssistantId,
     setActiveTopic,
     shouldAutoCreateTopic,
@@ -836,6 +868,7 @@ const HomePage: FC = () => {
         onCreateTopicAfterClear={(assistantId) => createAndActivateFreshTopic({ assistantId })}
         onSelectedAssistantClick={() => {
           closeSurface()
+          if (!topicPaneOpen) setTopicPaneUserOpenIntentSeq((seq) => seq + 1)
           setTopicPaneOpen(!topicPaneOpen)
         }}
         onCreateTopic={handleCreateEmptyTopicForAssistant}
@@ -908,6 +941,7 @@ const HomePage: FC = () => {
       present={!centerSurface}
       defaultOpen={topicPaneOpen}
       onOpenChange={isClassicTopicLayout ? setTopicPaneOpen : undefined}
+      userOpenIntentSeq={topicPaneUserOpenIntentSeq}
       revealRequest={topicRevealRequest}>
       <Container id="home-page">
         <ContentContainer $detached={isWindowFrame}>
@@ -917,8 +951,9 @@ const HomePage: FC = () => {
             pane={pane}
             paneOpen={effectiveShowSidebar}
             panePosition={shellPanePosition}
-            onPaneCollapse={() => setResourceListOpen(false)}
+            onPaneCollapse={() => markManualPaneToggle(false)}
             onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
+            paneManualToggle={paneManualToggle}
             onNewTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
             onCreateEmptyTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
             showResourceListControls={!isMessageOnlyView}

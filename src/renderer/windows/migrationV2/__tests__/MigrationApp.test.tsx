@@ -118,6 +118,13 @@ vi.mock('@renderer/services/LoggerService', () => ({
   }
 }))
 
+vi.mock('@renderer/components/ToastHost', () => {
+  const React = require('react')
+  return {
+    default: () => React.createElement('div', { 'data-testid': 'toast-host' })
+  }
+})
+
 vi.mock('../components', () => {
   const React = require('react')
   return {
@@ -149,6 +156,10 @@ vi.mock('../components', () => {
           )
         : null,
     Confetti: () => null,
+    MigrationDiagnosticPanel: () =>
+      React.createElement('div', {
+        'data-testid': 'migration-diagnostic-panel'
+      }),
     MigrationWindowControls: () => null,
     MigratorProgressList: () => null,
     SkipMigrationDialog: () => null
@@ -471,6 +482,48 @@ describe('MigrationApp', () => {
 
     expect(await screen.findByText('migration.migration.title')).toBeInTheDocument()
     expect(screen.queryByText('migration.error.title')).not.toBeInTheDocument()
+  })
+
+  it.each(['error', 'version_incompatible'])('mounts diagnostics for the %s stage', (stage) => {
+    migrationHookMock.progress = {
+      currentMessage: stage,
+      migrators: [],
+      overallProgress: 0,
+      stage
+    }
+
+    render(<MigrationApp />)
+
+    expect(screen.getByTestId('migration-diagnostic-panel')).toBeInTheDocument()
+  })
+
+  it.each(['introduction', 'migration', 'completed'])('does not mount diagnostics during the %s stage', (stage) => {
+    migrationHookMock.progress = {
+      currentMessage: stage,
+      migrators: [],
+      overallProgress: 0,
+      stage
+    }
+
+    render(<MigrationApp />)
+
+    expect(screen.queryByTestId('migration-diagnostic-panel')).not.toBeInTheDocument()
+  })
+
+  it('keeps exactly one window-level toast host mounted across stages', () => {
+    const { rerender } = render(<MigrationApp />)
+
+    expect(screen.getAllByTestId('toast-host')).toHaveLength(1)
+
+    migrationHookMock.progress = {
+      currentMessage: 'Failed',
+      migrators: [],
+      overallProgress: 0,
+      stage: 'error'
+    }
+    rerender(<MigrationApp />)
+
+    expect(screen.getAllByTestId('toast-host')).toHaveLength(1)
   })
 
   describe('theme toggle', () => {

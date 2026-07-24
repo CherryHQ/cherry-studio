@@ -219,7 +219,7 @@ vi.mock('@renderer/utils/citation', () => ({
 // Mock Markdown component
 vi.mock('@renderer/components/chat/messages/markdown/ChatMarkdown', () => ({
   __esModule: true,
-  default: ({ block, inlineHtmlPreviewMode, postProcess, components }: any) => {
+  default: ({ block, postProcess, components }: any) => {
     const content = postProcess ? postProcess(block.content) : block.content
     const tokenPlaceholderPattern =
       /<span data-composer-token-index="(\d+)" data-composer-token-block="([^"]+)"><\/span>/g
@@ -244,7 +244,7 @@ vi.mock('@renderer/components/chat/messages/markdown/ChatMarkdown', () => ({
     if (cursor < content.length) nodes.push(content.slice(cursor))
 
     return (
-      <div data-testid="mock-markdown" data-content={content} data-inline-html-preview-mode={inlineHtmlPreviewMode}>
+      <div data-testid="mock-markdown" data-content={content}>
         Markdown: {nodes}
       </div>
     )
@@ -269,7 +269,6 @@ describe('MainTextBlock', () => {
   const renderMainTextBlock = (props: {
     id?: string
     content: string
-    inlineHtmlPreviewMode?: 'generating' | 'ready'
     isStreaming?: boolean
     citations?: Citation[]
     citationReferences?: { citationBlockId?: string; citationBlockSource?: any }[]
@@ -282,7 +281,6 @@ describe('MainTextBlock', () => {
       <MainTextBlock
         id={props.id ?? 'test-block-1'}
         content={props.content}
-        inlineHtmlPreviewMode={props.inlineHtmlPreviewMode}
         isStreaming={props.isStreaming ?? false}
         citations={props.citations}
         citationReferences={props.citationReferences}
@@ -304,46 +302,6 @@ describe('MainTextBlock', () => {
       expect(getRenderedMarkdown()).toBeInTheDocument()
       expect(screen.getByText('Markdown: Assistant response')).toBeInTheDocument()
       expect(getRenderedPlainText()).not.toBeInTheDocument()
-    })
-
-    it('keeps inline HTML generating until smoothed content reaches the completed source', () => {
-      const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 1)
-      const view = render(
-        <MainTextBlock
-          id="html-block"
-          content="```html\n<div>"
-          inlineHtmlPreviewMode="generating"
-          isStreaming
-          role="assistant"
-        />
-      )
-
-      try {
-        view.rerender(
-          <MainTextBlock
-            id="html-block"
-            content="```html\n<div>Complete</div>\n```"
-            inlineHtmlPreviewMode="ready"
-            isStreaming={false}
-            role="assistant"
-          />
-        )
-
-        expect(getRenderedMarkdown()).toHaveAttribute('data-inline-html-preview-mode', 'generating')
-      } finally {
-        view.unmount()
-        requestAnimationFrameSpy.mockRestore()
-      }
-    })
-
-    it('renders completed inline HTML as ready when no smoothed content is pending', () => {
-      renderMainTextBlock({
-        content: '```html\n<div>Complete</div>\n```',
-        inlineHtmlPreviewMode: 'ready',
-        role: 'assistant'
-      })
-
-      expect(getRenderedMarkdown()).toHaveAttribute('data-inline-html-preview-mode', 'ready')
     })
 
     it('should render in plain text mode for user messages when setting disabled', () => {

@@ -1223,6 +1223,8 @@
         "label": "思维链长度",
         "low": "浮想",
         "low_description": "低强度推理",
+        "max": "极致",
+        "max_description": "最高强度推理",
         "medium": "斟酌",
         "medium_description": "中强度推理",
         "minimal": "微念",
@@ -1389,6 +1391,7 @@
       },
       "generate_image": "生成图片",
       "generate_image_no_model": "请在 设置 › 默认模型 中配置画图模型",
+      "image_preview_failed": "图片预览失败",
       "knowledge_base": "知识库",
       "knowledge_base_disabled_by_files": "移除附件后可使用知识库",
       "knowledge_base_unavailable": "请选择支持工具调用的模型，或启用提示词工具调用",
@@ -1559,6 +1562,23 @@
       "quote": "引用",
       "regenerate": {
         "model": "切换模型"
+      },
+      "token_details": {
+        "cache_read": "缓存读取",
+        "cache_write": "缓存写入",
+        "input": "输入",
+        "input_breakdown": "输入构成",
+        "output": "输出",
+        "reasoning": "推理",
+        "reasoning_time": "推理",
+        "request_duration": "生成计时",
+        "text_generation": "文本生成",
+        "text_output": "文本输出",
+        "tokens": "{{value}} Tokens",
+        "tokens_per_second_value": "{{value}} Token/秒",
+        "uncached": "未缓存",
+        "usage": "Token 使用",
+        "waiting_first_token": "等待"
       },
       "useful": {
         "label": "设置为上下文",
@@ -1969,6 +1989,7 @@
         "default": "默认",
         "high": "高",
         "low": "低",
+        "max": "极致",
         "medium": "中",
         "minimal": "最小",
         "xhigh": "超高"
@@ -2163,6 +2184,7 @@
     "copy_failed": "复制失败",
     "create_success": "创建成功",
     "current": "当前",
+    "decline": "不同意",
     "default": "默认",
     "delete": "删除",
     "delete_confirm": "确定要删除吗？",
@@ -2304,6 +2326,7 @@
     "image-generation": "图像生成 (OpenAI)",
     "jina-rerank": "Jina 重排序",
     "openai": "OpenAI",
+    "openai-embeddings": "嵌入 (OpenAI)",
     "openai-response": "OpenAI-Response"
   },
   "error": {
@@ -2358,6 +2381,8 @@
       "payload": "请求内容过大，请减少发送的文件或文本量",
       "proxy": "代理或 SSL 证书错误，请检查代理和网络设置",
       "quota": "账户额度已用完，请充值或更换服务商",
+      "rate_limit": "请求过于频繁，请稍等片刻再试，或更换为更高速率的模型",
+      "region": "服务在你所在的地区不可用，请配置代理或更换为可用的服务商",
       "server": "服务器异常，建议稍后重试",
       "stream": "响应传输中断，请检查网络稳定性或重试",
       "unknown": "发生了一个错误",
@@ -2369,6 +2394,7 @@
     "http": {
       "400": "请求错误，请检查请求参数是否正确。如果修改了模型设置，请重置到默认设置",
       "401": "身份验证失败，请检查 API 密钥是否正确",
+      "402": "需要支付。账户余额或额度已用完，请到服务商网站充值，或切换到其他服务商",
       "403": "禁止访问，请翻译具体报错信息查看原因，或联系服务商询问被禁止原因",
       "404": "模型不存在或者请求路径错误",
       "429": "请求速率超过限制，请稍后再试",
@@ -4256,10 +4282,13 @@
       "embedding": "嵌入",
       "free": "免费",
       "function_calling": "工具",
+      "image": "图片",
       "reasoning": "推理",
       "rerank": "重排",
       "select": "模型类型",
+      "speech": "语音",
       "text": "文本",
+      "transcription": "转录",
       "video": "视频",
       "vision": "视觉",
       "websearch": "联网"
@@ -4439,6 +4468,14 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "privacy": {
+      "accept_and_continue": "同意并继续",
+      "accept_policy": "同意隐私协议",
+      "notice": "我已阅读并同意",
+      "period": "",
+      "policy": "隐私协议",
+      "update_failed": "无法保存隐私协议同意状态，请重试"
+    },
     "provider_setup": {
       "missing_model": "请先启用该服务商下的至少一个模型",
       "missing_provider": "请先启用一个服务商",
@@ -4463,7 +4500,7 @@
       "other_provider": "配置其他服务商",
       "select_other_provider": "选择其他服务商",
       "setup_hint": "您可以随时在设置中更换服务商",
-      "subtitle": "连接服务商，开启您的 AI 工作空间",
+      "subtitle": "连接服务商，开启您的全能 AI 工作站",
       "title": "欢迎使用 Cherry Studio"
     }
   },
@@ -4628,6 +4665,7 @@
     "title": "Intel OVMS"
   },
   "paintings": {
+    "add_image": "添加图片",
     "aspect_ratio": "画幅比例",
     "aspect_ratios": {
       "landscape": "横图",
@@ -4780,6 +4818,8 @@
     "prompt_placeholder": "描述你想创建的图片，例如：一个宁静的湖泊，夕阳西下，远处是群山",
     "prompt_placeholder_edit": "输入你的图片描述，文本绘制用 \"双引号\" 包裹",
     "prompt_placeholder_en": "输入 \"英文\" 图片描述，目前仅支持英文提示词",
+    "prompt_placeholder_upload": "描述你想要的图片，或上传图片进行编辑",
+    "prompt_placeholder_upload_required": "请上传图片，并描述你想要的编辑",
     "prompt_required": "请输入提示词",
     "proxy_required": "打开代理并开启 \"TUN 模式\" 查看生成图片或复制到浏览器打开，后续会支持国内直连",
     "quality": "质量",
@@ -4955,6 +4995,16 @@
     "source": "查看源代码",
     "zoom_in": "放大",
     "zoom_out": "缩小"
+  },
+  "privacy_policy": {
+    "load_failed": "无法加载隐私协议",
+    "title": "隐私协议"
+  },
+  "privacy_policy_update": {
+    "acknowledge_failed": "无法保存确认状态，请重试",
+    "description_before_link": "我们更新了隐私协议。请查看最新的",
+    "policy": "隐私协议",
+    "title": "隐私协议更新"
   },
   "prompts": {
     "explanation": "帮我解释一下这个概念",
@@ -6180,14 +6230,55 @@
       "addToolDescription": "使用 mise 工具键添加工具（例如 github:sharkdp/fd、uv、bun）。",
       "checkUpdates": "检查更新",
       "coreDepsMissing": "核心依赖未安装",
-      "customTools": "自定义工具",
-      "customToolsEmpty": "暂无自定义工具，点击上方添加。",
       "description": "管理应用运行所需的二进制工具和运行时依赖。",
       "duplicateName": "已存在相同名称的工具",
       "fieldVersion": "版本（可选，默认为最新）",
-      "install": "安装",
       "installError": "工具安装失败",
+      "installErrorHint": "安装命令执行失败。复制下方日志以便排查或寻求帮助。",
+      "installSettings": {
+        "description": "微调内置 CLI 工具的安装方式。所有字段均为可选，留空则保持默认。",
+        "githubMirror": {
+          "help": "GitHub Release 下载的代理前缀（如 https://ghfast.top）。GitHub API 仍会直连；遇到限流时请配置 Token。",
+          "label": "GitHub 镜像",
+          "placeholder": "https://ghfast.top（留空则直连）"
+        },
+        "githubToken": {
+          "help": "提高工具查询时的 GitHub API 速率限制。以明文保存在本地。留空则使用 CHERRY_GITHUB_TOKEN 环境变量。",
+          "hide": "隐藏令牌",
+          "label": "GitHub 令牌",
+          "placeholder": "ghp_…",
+          "show": "显示令牌"
+        },
+        "invalidUrl": "请输入包含 https:// 的合法 URL",
+        "npmRegistry": {
+          "help": "npm: 类工具使用的镜像源。留空则在中国大陆自动选择镜像。",
+          "label": "npm 镜像源",
+          "placeholder": "留空则自动（中国镜像）"
+        },
+        "pipIndexUrl": {
+          "help": "pipx: 类工具使用的索引地址。留空则在中国大陆自动选择镜像。",
+          "label": "pip 索引地址",
+          "placeholder": "留空则自动（中国镜像）"
+        },
+        "presetLabels": {
+          "aliyun": "阿里云（中国）",
+          "default": "默认（不使用镜像）",
+          "ghfast": "ghfast.top",
+          "ghproxy": "ghproxy.net",
+          "npmOfficial": "npmjs（官方）",
+          "npmmirror": "npmmirror（中国）",
+          "pypiOfficial": "PyPI（官方）",
+          "tsinghua": "清华大学（中国）"
+        },
+        "presets": "预设",
+        "title": "高级安装设置",
+        "verifySignatures": {
+          "help": "校验 aqua 类工具的 Sigstore/SLSA 签名。仅当你的网络无法完成校验时才关闭——关闭会跳过供应链校验。",
+          "label": "校验工具签名"
+        }
+      },
       "installing": "安装中...",
+      "installingHint": "首次安装可能需要下载运行时，耗时数分钟",
       "invalidTool": "工具名称或标识无效",
       "localModels": {
         "cancel": "取消",
@@ -6217,12 +6308,21 @@
       "notInstalled": "未安装",
       "openBinariesDir": "打开二进制文件目录",
       "remove": "移除工具",
-      "removeConfirmMessage": "确定要移除 \"{{name}}\" 吗？二进制文件将被删除。",
+      "removeConfirmMessage": "要从 Cherry Studio 中移除 \"{{name}}\" 吗？其可移植工具定义将被删除；如果存在 Cherry 管理的 mise 副本，也会一并清理。系统和应用内置的可执行文件不会被修改。",
       "removeConfirmTitle": "移除工具",
+      "removeDefinitionOnlyConfirmMessage": "Cherry 无法安全清理 \"{{name}}\"：{{details}} 仅移除定义会隐藏该卡片，但后端文件仍会保留。是否继续？",
+      "removeDefinitionOnlyConfirmTitle": "仅移除定义？",
+      "removeDefinitionOnlyDependents": "以下已安装工具依赖它：{{dependents}}。",
+      "removeError": "工具移除失败",
+      "removeErrorHint": "清理命令执行失败。复制下方日志以便排查或寻求帮助。",
+      "removeRuntimeConfirmMessage": "要从 Cherry Studio 中移除 \"{{name}}\" 吗？Cherry 只会清理其管理的 mise 副本，系统和应用内置的运行时不会被修改。如果已安装的 npm 或 pip 工具依赖此运行时，移除操作会被阻止。",
+      "runtimeDependency": "运行时依赖",
+      "runtimeDependencyHint": "npm/pip 工具使用的运行时",
       "searchFailed": "搜索失败，请查看日志",
       "searchRegistry": "搜索 mise 工具仓库...",
       "source": {
-        "bundled": "内置"
+        "bundled": "内置",
+        "system": "系统"
       },
       "title": "环境依赖",
       "tools": {
@@ -6241,8 +6341,15 @@
         "rtk": "CLI 代理工具，通过压缩终端输出来减少 LLM token 消耗。",
         "uv": "用于 MCP 服务与依赖安装的 Python 包管理工具。"
       },
+      "uninstall": "卸载",
+      "uninstallConfirmMessage": "确定要卸载 \"{{name}}\" 吗？Cherry Studio 管理的后端副本将被删除。",
+      "uninstallConfirmTitle": "卸载工具",
+      "uninstallFailed": "工具卸载失败",
+      "uninstallSuccess": "工具已卸载",
       "update": "更新到最新版本",
-      "updateCheckFailed": "检查更新失败"
+      "updateCheckFailed": "检查更新失败",
+      "updateCheckSuccess": "版本检查完成",
+      "viewErrorDetails": "查看详情"
     },
     "developer": {
       "enable_developer_mode": "启用开发者模式",
@@ -6255,8 +6362,11 @@
       },
       "custom": {
         "css": {
-          "cherrycss": "从 cherrycss.com 获取",
+          "export": "导出旧版 CSS",
+          "export_error": "旧版自定义 CSS 导出失败",
+          "export_success": "旧版自定义 CSS 已导出",
           "label": "自定义 CSS",
+          "legacy_warning": "旧版 CSS 已失效，请升级至 v2 样式方案。",
           "placeholder": "/* 这里写自定义 CSS */"
         }
       },
@@ -6784,6 +6894,9 @@
       "add": {
         "add_model": "添加模型",
         "batch_add_models": "批量添加模型",
+        "capabilities": {
+          "label": "模型能力"
+        },
         "context_window": {
           "label": "上下文窗口",
           "placeholder": "例如 128000"
@@ -6799,6 +6912,9 @@
           "label": "分组名称",
           "placeholder": "例如 ChatGPT",
           "tooltip": "例如 ChatGPT"
+        },
+        "input_modalities": {
+          "label": "输入模态"
         },
         "max_input_tokens": {
           "label": "最大输入 Token",
@@ -6821,6 +6937,26 @@
           "label": "模型名称",
           "placeholder": "例如 GPT-5.5",
           "tooltip": "例如 GPT-4"
+        },
+        "model_type": {
+          "label": "模型类型"
+        },
+        "purpose": {
+          "chat": {
+            "description": "使用 Provider 的文本 API",
+            "label": "对话"
+          },
+          "chat_protocol": "对话协议",
+          "description": "选择这个模型的用途",
+          "image_edit": {
+            "description": "接收输入图片并返回编辑后的图片",
+            "label": "图像编辑"
+          },
+          "image_generation": {
+            "description": "根据提示词生成图片",
+            "label": "图像生成"
+          },
+          "label": "模型用途"
         },
         "supported_text_delta": {
           "label": "支持增量文本输出",
@@ -6879,7 +7015,7 @@
       "default_assistant_model": "默认助手模型",
       "default_assistant_model_description": "助手没有模型时使用这个模型",
       "docs": "模型文档",
-      "empty": "没有模型",
+      "empty": "请选择模型",
       "empty_hint": "点击上方的获取模型列表按钮添加模型",
       "enabled_models": "已启用",
       "expand_all": "全部展开",
@@ -7197,8 +7333,9 @@
       },
       "balance": "余额",
       "base_url": {
+        "invalid": "请输入有效的 HTTP 或 HTTPS 地址",
         "label": "Base URL",
-        "placeholder": "https://api.example.com",
+        "placeholder": "Base URL：https://example.com",
         "required": "请输入 Base URL"
       },
       "basic_auth": {
@@ -7290,6 +7427,23 @@
         "toggle_headers_editor_list": "切换为键值列表"
       },
       "create_custom": {
+        "endpoint_fields": {
+          "default_chat": "默认",
+          "label": "端点设置",
+          "more": "更多设置",
+          "more_configured": "已配置 {{count}} 项",
+          "set_default_chat": "设为默认",
+          "text_endpoint_required": "请至少配置一个文本端点",
+          "url_help": "填写 API 根地址后会显示实际请求路径"
+        },
+        "preset_instance": {
+          "description": "适用于 Coding Plan 接入、多个账号管理或项目隔离；Base URL 和 API Key 可独立配置",
+          "empty": "没有匹配的 Provider 预设",
+          "placeholder": "从 Provider 预设创建…",
+          "search_placeholder": "搜索 Provider 预设",
+          "title": "从预设创建（可选）"
+        },
+        "request_preview": "请求路径：{{path}}",
         "title": "添加自定义提供商"
       },
       "delete": {
@@ -7329,13 +7483,23 @@
         "sign_in_success": "已登录 Grok CLI",
         "signing_in": "等待浏览器…"
       },
+      "image_endpoints": {
+        "image_edit_base_url": {
+          "help": "用于 /images/edits；留空时使用默认对话端点的 Base URL",
+          "label": "图像编辑 Base URL"
+        },
+        "image_generation_base_url": {
+          "help": "用于 /images/generations；留空时使用默认对话端点的 Base URL",
+          "label": "图像生成 Base URL"
+        }
+      },
       "logo_upload_failed": "无法处理所选图片",
       "misc": "其他",
       "more_endpoints": {
         "add": "添加端点",
-        "anthropic": "Anthropic Messages",
-        "gemini": "Google Gemini",
-        "openai_chat": "OpenAI Chat Completions",
+        "anthropic": "Anthropic",
+        "gemini": "Gemini",
+        "openai_chat": "OpenAI",
         "openai_responses": "OpenAI Responses",
         "toggle": "更多端点"
       },
