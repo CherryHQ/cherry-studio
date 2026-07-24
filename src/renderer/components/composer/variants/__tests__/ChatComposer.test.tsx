@@ -4,6 +4,7 @@ import { toast } from '@renderer/services/toast'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { type ReactNode, useEffect } from 'react'
@@ -24,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   setSelectedKnowledgeBases: vi.fn(),
   setIsExpanded: vi.fn(),
   updateAssistant: vi.fn(),
+  updateAssistantSettings: vi.fn(),
   focusComposer: vi.fn(),
   insertToken: vi.fn(),
   replaceDraft: vi.fn(),
@@ -58,7 +60,15 @@ const mocks = vi.hoisted(() => ({
   chatWrite: undefined as any,
   files: undefined as any[] | undefined,
   topicLayout: undefined as string | undefined,
-  inputAdapterFocus: vi.fn()
+  inputAdapterFocus: vi.fn(),
+  runtimeHostProps: undefined as
+    | {
+        reasoning?: {
+          effort: string
+          onEffortChange: (effort: string) => void
+        }
+      }
+    | undefined
 }))
 
 const originalResizeObserver = globalThis.ResizeObserver
@@ -109,13 +119,6 @@ const modelBWithFunctionCall = {
   ...modelB,
   capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
 } satisfies Model
-
-vi.mock('@data/CacheService', () => ({
-  cacheService: {
-    getCasual: vi.fn(() => ''),
-    setCasual: vi.fn()
-  }
-}))
 
 vi.mock('@renderer/components/composer/ComposerSurface', () => {
   function MockComposerSurface(props: ComposerSurfaceProps) {
@@ -210,7 +213,10 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
     mocks.derivedToolState = { couldAddImageFile, extensions }
     return <>{children}</>
   },
-  ComposerToolRuntimeHost: () => null,
+  ComposerToolRuntimeHost: (props: { reasoning?: { effort: string; onEffortChange: (effort: string) => void } }) => {
+    mocks.runtimeHostProps = props
+    return null
+  },
   ComposerToolMenu: () => <button type="button">tool menu</button>,
   ComposerActiveToolControls: () => null,
   ComposerPinnedToolsProvider: ({ children }: { children: ReactNode }) => children,
@@ -384,7 +390,11 @@ vi.mock('@renderer/utils/model', () => ({
   // The first two predicates are stubbed to false here, so it reduces to the function-call check.
   canModelUseAssistantWebSearch: (currentModel?: Model) =>
     currentModel?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false,
-  getThinkModelType: () => 'default',
+  resolveReasoningEffortForModel: (currentModel: Model, currentEffort?: string) => {
+    const supported = ['default', ...(currentModel.reasoning?.selectableEfforts ?? [])]
+    if (supported.length === 1) return undefined
+    return currentEffort && supported.includes(currentEffort) ? currentEffort : supported[0]
+  },
   isAudioModel: () => false,
   isAudioModels: () => false,
   isEmbeddingModel: () => false,
@@ -400,9 +410,7 @@ vi.mock('@renderer/utils/model', () => ({
   isVideoModels: () => false,
   isVisionModel: () => false,
   isVisionModels: () => false,
-  isWebSearchModel: () => false,
-  MODEL_SUPPORTED_OPTIONS: { default: ['none'] },
-  MODEL_SUPPORTED_REASONING_EFFORT: { default: ['none'] }
+  isWebSearchModel: () => false
 }))
 
 vi.mock('@renderer/data/hooks/useCache', async () => {
@@ -440,7 +448,8 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
     isModelPending: mocks.modelPending,
     isModelMissing: mocks.modelMissing ?? (!mocks.assistantLoading && !mocks.modelPending && !mocks.model),
     setModel: mocks.setModel,
-    updateAssistant: mocks.updateAssistant
+    updateAssistant: mocks.updateAssistant,
+    updateAssistantSettings: mocks.updateAssistantSettings
   })
 }))
 
@@ -559,6 +568,7 @@ const StartEditingButton = ({ message, parts }: { message: any; parts: any }) =>
 
 describe('ChatComposer', () => {
   beforeEach(() => {
+    MockCacheUtils.resetMocks()
     resizeObserverMockInstances.length = 0
     globalThis.ResizeObserver = vi.fn((callback: ResizeObserverCallback) => {
       const instance: ResizeObserverMockInstance = {
@@ -589,6 +599,7 @@ describe('ChatComposer', () => {
     mocks.createTopic.mockReset()
     mocks.updateTopic.mockReset()
     mocks.setModel.mockReset()
+    mocks.setModel.mockResolvedValue(undefined)
     mocks.setDefaultModel.mockReset()
     mocks.setFiles.mockReset()
     mocks.setFiles.mockImplementation((value) => {
@@ -607,6 +618,8 @@ describe('ChatComposer', () => {
     )
     mocks.setIsExpanded.mockReset()
     mocks.updateAssistant.mockReset()
+    mocks.updateAssistantSettings.mockReset()
+    mocks.updateAssistantSettings.mockResolvedValue(undefined)
     mocks.focusComposer.mockReset()
     mocks.insertToken.mockReset()
     mocks.replaceDraft.mockReset()
@@ -678,6 +691,7 @@ describe('ChatComposer', () => {
     mocks.ipcOn.mockReset()
     mocks.chatWrite = undefined
     mocks.topicLayout = undefined
+    mocks.runtimeHostProps = undefined
     mocks.ipcOn.mockImplementation((channel: string, listener: (_event: unknown, payload: unknown) => void) => {
       mocks.ipcListeners.set(channel, listener)
       return () => mocks.ipcListeners.delete(channel)
@@ -721,6 +735,53 @@ describe('ChatComposer', () => {
       within(screen.getByTestId('composer-send-accessory')).queryByRole('button', { name: 'tool menu' })
     ).not.toBeInTheDocument()
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
+  })
+
+  it('snapshots a newly selected reasoning effort before its assistant PATCH finishes', async () => {
+    mocks.model = {
+      ...model,
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'effort' as const, values: ['low' as const, 'high' as const] }],
+        selectableEfforts: ['low' as const, 'high' as const]
+      }
+    }
+    const onSend = vi.fn()
+    let finishPatch: (() => void) | undefined
+    mocks.updateAssistantSettings.mockReturnValue(
+      new Promise<void>((resolve) => {
+        finishPatch = resolve
+      })
+    )
+
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    act(() => mocks.runtimeHostProps?.reasoning?.onEffortChange('high'))
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+    })
+
+    expect(mocks.updateAssistantSettings).toHaveBeenCalledWith({ reasoning_effort: 'high' })
+    expect(onSend).toHaveBeenCalledWith('hello', expect.objectContaining({ reasoningEffort: 'high' }))
+
+    await act(async () => finishPatch?.())
+  })
+
+  it('rolls back a local reasoning selection when its assistant PATCH fails', async () => {
+    mocks.model = {
+      ...model,
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'effort' as const, values: ['low' as const, 'high' as const] }],
+        selectableEfforts: ['low' as const, 'high' as const]
+      }
+    }
+    mocks.updateAssistantSettings.mockRejectedValue(new Error('write failed'))
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    act(() => mocks.runtimeHostProps?.reasoning?.onEffortChange('high'))
+    await waitFor(() => expect(mocks.runtimeHostProps?.reasoning?.effort).toBe('default'))
   })
 
   it('keeps reasoning and web search shortcuts in the assistant composer toolbar', () => {

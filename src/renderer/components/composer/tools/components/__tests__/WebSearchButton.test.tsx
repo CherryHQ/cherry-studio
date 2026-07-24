@@ -77,7 +77,6 @@ vi.mock('@renderer/utils/model', () => {
 
   return {
     canModelUseAssistantWebSearch,
-    getThinkModelType: () => 'default',
     hasModelBuiltinWebSearch,
     isFunctionCallingModel,
     isGemini3Model: () => false,
@@ -87,9 +86,7 @@ vi.mock('@renderer/utils/model', () => {
     isOpenAIWebSearchModel: () => false,
     isSupportedReasoningEffortModel: () => false,
     isSupportedThinkingTokenModel: () => false,
-    isWebSearchModel,
-    MODEL_SUPPORTED_OPTIONS: { default: ['none'] },
-    MODEL_SUPPORTED_REASONING_EFFORT: { default: ['none'] }
+    isWebSearchModel
   }
 })
 

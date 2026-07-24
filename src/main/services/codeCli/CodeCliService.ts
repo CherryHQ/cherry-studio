@@ -5,10 +5,11 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac, isWin } from '@main/core/platform'
-import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
-import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
+import { dedupePathSegments, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
+import { getBundledGitDir } from '@main/utils/bundledGit'
 import { removeEnvProxy } from '@main/utils/processRunner'
-import { getShellEnv } from '@main/utils/shellEnv'
+import { getRawShellEnv, getShellEnv } from '@main/utils/shellEnv'
+import { CODE_CLI_TOOL_PRESET_MAP } from '@shared/data/presets/codeCliTools'
 import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
 import {
   CodeCli,
@@ -25,7 +26,6 @@ import { promisify } from 'util'
 
 import { writeCliConfigFiles } from './configWriter'
 import { sanitizeEnvForLogging } from './envRedaction'
-import { getCodeCliInstallSpec, getCodeCliPackageSpec } from './packages'
 import { isShellSafeModelId, posixQuote } from './shellQuote'
 import {
   MACOS_TERMINALS,
@@ -37,6 +37,22 @@ import {
 const execAsync = promisify(require('child_process').exec)
 const execFileAsync = promisify(execFile)
 const logger = loggerService.withContext('CodeCliService')
+
+/**
+ * Append the bundled MinGit dir (Windows-only; null elsewhere) to the tail of
+ * every PATH-cased key so a launched CLI resolves a bare `git` as a last resort
+ * while any git already on PATH keeps winning (#16402).
+ */
+function appendBundledGitPathTail(env: Record<string, string>): void {
+  const gitDir = getBundledGitDir()
+  if (!gitDir) return
+  const pathKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
+  const canonicalKey = pathKeys[0] ?? 'Path'
+  const segments = pathKeys.flatMap((key) => (env[key] ?? '').split(';'))
+  const updated = dedupePathSegments([...segments, gitDir]).join(';')
+  for (const key of pathKeys) env[key] = updated
+  if (pathKeys.length === 0) env[canonicalKey] = updated
+}
 const MACOS_APPLICATION_LOOKUP_SCRIPT = [
   'ObjC.import("AppKit")',
   'function run(argv) {',
@@ -123,14 +139,6 @@ export class CodeCliService extends BaseService {
     } catch (error) {
       logger.warn('Terminal preloading failed:', error as Error)
     }
-  }
-
-  private getToolInstallSpec(cliTool: CodeCli): { name: string; tool: string } {
-    return getCodeCliInstallSpec(cliTool)
-  }
-
-  public async getCliExecutableName(cliTool: CodeCli) {
-    return getCodeCliPackageSpec(cliTool).executable
   }
 
   /**
@@ -348,8 +356,6 @@ export class CodeCliService extends BaseService {
   async run(input: CodeCliRunInput): Promise<OperationResult> {
     const { cliTool, directory } = input
     logger.info(`Starting CLI tool launch: ${cliTool} in directory: ${directory}`)
-    const env: Record<string, string> = { ...getBinaryExecutionEnv() }
-    logger.debug(`Environment variables:`, Object.keys(env))
     logger.debug(`Launch mode: ${input.mode}`)
     if (cliTool === CodeCli.OPENCLAW) {
       const message = 'OpenClaw is managed through openclaw.* IPC, not code_cli.run'
@@ -386,38 +392,60 @@ export class CodeCliService extends BaseService {
       }
     }
 
-    const executableName = await this.getCliExecutableName(cliTool)
-    const spec = this.getToolInstallSpec(cliTool)
+    const preset = CODE_CLI_TOOL_PRESET_MAP[cliTool]
+    const executableName = preset.executable
+    const spec = { name: executableName, tool: preset.miseTool }
 
     logger.debug(`Executable name: ${executableName}`)
     logger.debug(`Tool install spec: ${spec.tool}`)
 
-    // Check if package is already installed
-    let isInstalled = await isBinaryExists(executableName)
+    // Prefer mise/bundled binaries, then the user's login-shell PATH. Only
+    // install when no currently available source can execute the CLI.
+    const binaryManager = application.get('BinaryManager')
+    let snapshot = (await binaryManager.getToolSnapshots([executableName]))[executableName]
+    let { availability } = snapshot
 
-    // Install via BinaryManager if not present
-    if (!isInstalled) {
+    if (availability.source === 'none') {
       logger.info(`${cliTool} not installed, installing via BinaryManager...`)
       try {
-        await application.get('BinaryManager').installTool(spec)
-        isInstalled = true
+        // Name-only lazy install: BinaryManager resolves the Code CLI's fixed
+        // recipe itself and writes no Preference — the CLI is a code-owned tool,
+        // not a user-added custom one.
+        await binaryManager.installByName({ name: executableName })
         logger.info(`${cliTool} installed successfully`)
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
         logger.error(`Failed to install ${cliTool}:`, error as Error)
         return { success: false, message: `Failed to install ${cliTool}: ${errorMessage}` }
       }
+
+      snapshot = (await binaryManager.getToolSnapshots([executableName]))[executableName]
+      availability = snapshot.availability
+      if (availability.source === 'none') {
+        const message = `${cliTool} is not available after install`
+        logger.error(message)
+        return { success: false, message }
+      }
     }
 
-    // Re-verify the binary is on disk before spawning. getBinaryPath() below
-    // silently falls back to the bare name when the file is missing, so without
-    // this guard we'd launch a phantom (or a same-named binary on PATH) and
-    // still report success.
-    if (!(await isBinaryExists(executableName))) {
-      const message = `${cliTool} is not available after install`
-      logger.error(message)
-      return { success: false, message }
-    }
+    const executablePath = availability.path
+    const usesCherryExecutionEnv = availability.source !== 'system'
+
+    // Cherry's MISE_* variables are needed for currently available mise shims
+    // and bundled binaries. A system CLI receives no Cherry environment: adding
+    // it could redirect a user mise shim to Cherry's isolated data directory.
+    // The install request above is the only operation that declares ownership;
+    // execution depends only on this live availability fact.
+    const rawShellEnv = usesCherryExecutionEnv ? await getRawShellEnv() : undefined
+    const rawPathEnv = Object.fromEntries(
+      Object.entries(rawShellEnv ?? {}).filter(([key]) => key.toLowerCase() === 'path')
+    )
+    const env: Record<string, string> = usesCherryExecutionEnv ? mergeBinaryExecutionEnv(rawPathEnv) : {}
+    // For a managed Windows launch buildEnvPrefix rewrites PATH inside the
+    // terminal from `env`, so the bundled-git tail must land here too, not only
+    // in the spawn env assembled below.
+    if (usesCherryExecutionEnv && isWin) appendBundledGitPathTail(env)
+    logger.debug(`Environment variables:`, Object.keys(env))
 
     // Select different terminal based on operating system
     const platform = process.platform
@@ -454,18 +482,26 @@ export class CodeCliService extends BaseService {
 
         const envCommands = validEntries
           .map(([key, value]) => {
-            const sanitizedValue = String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')
-            const exportCmd = `export ${key}="${sanitizedValue}"`
+            const exportCmd = `export ${key}=${posixQuote(String(value))}`
             logger.debug(`Setting env var: ${key}=<redacted>`)
             return exportCmd
           })
           .join(' && ')
-        return envCommands
+        const clearAmbientMise = usesCherryExecutionEnv
+          ? 'for _cherry_mise_key in $(env | sed -n \'s/^\\(MISE_[A-Za-z0-9_]*\\)=.*/\\1/p\'); do unset "$_cherry_mise_key"; done'
+          : ''
+        return [clearAmbientMise, envCommands].filter(Boolean).join(' && ')
       }
     }
 
-    const executablePath = await getBinaryPath(executableName)
-    let baseCommand = `"${executablePath}"`
+    const needsBatchCall = platform === 'win32' && ['.cmd', '.bat'].includes(path.extname(executablePath).toLowerCase())
+    // The win32 command is only ever embedded in the generated .bat below, where
+    // cmd.exe expands %…% even inside double quotes — double it like the
+    // directory paths, or a path such as "100% tools" corrupts the launch.
+    let baseCommand =
+      platform === 'win32'
+        ? `${needsBatchCall ? 'call ' : ''}"${executablePath.replace(/%/g, '%%')}"`
+        : posixQuote(executablePath)
 
     // OpenCode reads its provider AND default model from the opencode.json written by the
     // config flow (top-level `model: "<providerKey>/<modelId>"`), so the launch command
@@ -709,14 +745,21 @@ export class CodeCliService extends BaseService {
         throw new Error(`Unsupported operating system: ${platform}`)
     }
 
-    // Windows: base the terminal env on getShellEnv() so its PATH additions
-    // (mise shims, cherry.bin, bundled MinGit tail — see shellEnv.ts) reach the
-    // CLIs launched inside the terminal; bare `git` then resolves even with no
-    // system git installed. macOS/Linux terminals start login shells that
-    // rebuild their own env, and those platforms ship no bundled git.
-    const baseEnv = isWin ? await getShellEnv().catch(() => process.env) : process.env
-    const processEnv = { ...baseEnv, ...env }
-    removeEnvProxy(processEnv as Record<string, string>)
+    const baseProcessEnv = usesCherryExecutionEnv ? rawShellEnv! : await getRawShellEnv()
+    const processEnv = Object.fromEntries(
+      Object.entries(baseProcessEnv).filter(
+        ([key]) =>
+          !usesCherryExecutionEnv ||
+          !(platform === 'win32' ? key.toUpperCase().startsWith('MISE_') : key.startsWith('MISE_'))
+      )
+    )
+    Object.assign(processEnv, env)
+    // Bundled MinGit rides at the very tail of every Windows launch PATH so a
+    // bare `git` resolves even with no system git, while any real git ahead
+    // still wins (#16402). The tail is the only Cherry addition a system CLI
+    // receives — it must not reintroduce MISE_* redirection into the user's env.
+    if (platform === 'win32') appendBundledGitPathTail(processEnv)
+    removeEnvProxy(processEnv)
 
     // Launch terminal process
     try {

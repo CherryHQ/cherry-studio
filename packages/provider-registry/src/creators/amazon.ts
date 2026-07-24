@@ -5,5 +5,6 @@ export default defineCreator({
   name: 'Amazon',
   modelsDevProviders: ['amazon-bedrock'],
   families: ['nova', 'titan'],
-  idPrefixes: ['nova', 'titan']
+  idPrefixes: ['nova', 'titan'],
+  reasoningFamilies: [{ pattern: '^nova-2' }]
 })

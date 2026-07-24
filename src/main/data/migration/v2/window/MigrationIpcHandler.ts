@@ -4,7 +4,10 @@
 
 import type { VersionBlockReason } from '@data/migration/v2/core/versionPolicy'
 import { loggerService } from '@logger'
+import { validateSender } from '@main/core/security/validateSender'
 import {
+  type MigrationDiagnosticSavePayload,
+  type MigrationDiagnosticSaveResult,
   type MigrationExportFileWriteMode,
   MigrationIpcChannels,
   type MigrationProgress,
@@ -12,20 +15,25 @@ import {
   type MigrationSummary,
   type StartMigrationPayload
 } from '@shared/data/migration/v2/types'
-import { app, ipcMain } from 'electron'
+import { app, dialog, ipcMain, type IpcMainInvokeEvent, shell } from 'electron'
 import fs from 'fs/promises'
 import path from 'path'
+import * as z from 'zod'
 
 import { migrationEngine } from '../core/MigrationEngine'
+import { isValidLocalDate } from '../utils/localDate'
 import { migrationWindowManager } from './MigrationWindowManager'
 
 const logger = loggerService.withContext('MigrationIpcHandler')
 const CONCURRENT_MIGRATION_ERROR = 'Migration is already in progress.'
 
 let inFlightMigration: Promise<MigrationResult> | null = null
+let inFlightDiagnosticSave: Promise<MigrationDiagnosticSaveResult> | null = null
 // Set once a deferred quit has been registered, so repeated confirmations while a migration
 // write is in flight don't stack a second allSettled().then(confirmQuit).
 let quitScheduled = false
+
+let lastSavedDiagnosticBundlePath: string | null = null
 
 // Current migration progress
 let currentProgress: MigrationProgress = {
@@ -39,6 +47,15 @@ let currentProgress: MigrationProgress = {
 // Held separately from currentProgress so it survives Retry (which rebuilds the
 // introduction progress from scratch) instead of vanishing after a failed run.
 let dataLocationNotice: string | null = null
+
+function assertMigrationDiagnosticSender(event: IpcMainInvokeEvent): void {
+  if (!validateSender(event)) throw new Error('Unauthorized migration diagnostic IPC sender.')
+}
+
+const MigrationDiagnosticSavePayloadSchema: z.ZodType<MigrationDiagnosticSavePayload> = z.strictObject({
+  dialogTitle: z.string().trim().min(1).max(120),
+  logDate: z.string().refine(isValidLocalDate)
+})
 
 /**
  * Register all migration IPC handlers
@@ -110,6 +127,67 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
       }
     }
   )
+
+  ipcMain.handle(
+    MigrationIpcChannels.SaveDiagnosticBundle,
+    async (event: IpcMainInvokeEvent, payload: unknown): Promise<MigrationDiagnosticSaveResult> => {
+      assertMigrationDiagnosticSender(event)
+      const parsedPayload = MigrationDiagnosticSavePayloadSchema.safeParse(payload)
+      if (!parsedPayload.success) throw new Error('Invalid migration diagnostic save payload.')
+      const { dialogTitle, logDate } = parsedPayload.data
+      const stage = currentProgress.stage
+      if (stage !== 'error' && stage !== 'version_incompatible') {
+        throw new Error('Invalid migration diagnostic stage.')
+      }
+      if (inFlightDiagnosticSave) return { status: 'failed' }
+
+      const savePromise: Promise<MigrationDiagnosticSaveResult> = (async () => {
+        const { canceled, filePath } = await dialog.showSaveDialog({
+          title: dialogTitle,
+          defaultPath: 'cherry-studio-migration-diagnostics.zip',
+          filters: [{ name: 'ZIP', extensions: ['zip'] }],
+          properties: ['createDirectory', 'showOverwriteConfirmation']
+        })
+        if (canceled || !filePath) return { status: 'canceled' }
+
+        try {
+          const { saveMigrationDiagnosticBundle } = await import('../migrationDiagnosticBundle')
+          const logs = await saveMigrationDiagnosticBundle({
+            destination: filePath,
+            stage,
+            logDate
+          })
+          if (!logs) return { status: 'failed' }
+          lastSavedDiagnosticBundlePath = filePath
+          return { status: 'saved', logs }
+        } catch (error) {
+          logger.error('Failed to save migration diagnostic bundle', error as Error)
+          return { status: 'failed' }
+        }
+      })()
+      inFlightDiagnosticSave = savePromise
+      try {
+        return await savePromise
+      } finally {
+        if (inFlightDiagnosticSave === savePromise) {
+          inFlightDiagnosticSave = null
+        }
+      }
+    }
+  )
+
+  ipcMain.handle(MigrationIpcChannels.ShowDiagnosticBundleInFolder, async (event: IpcMainInvokeEvent) => {
+    assertMigrationDiagnosticSender(event)
+    if (!lastSavedDiagnosticBundlePath) return false
+    try {
+      await fs.access(lastSavedDiagnosticBundlePath)
+      shell.showItemInFolder(lastSavedDiagnosticBundlePath)
+      return true
+    } catch (error) {
+      logger.warn('Failed to show migration diagnostic bundle in folder', error as Error)
+      return false
+    }
+  })
 
   // Start the migration process
   ipcMain.handle(MigrationIpcChannels.StartMigration, async (_event, payload: StartMigrationPayload) => {
@@ -363,8 +441,10 @@ function createMigrationSummary(result: MigrationResult, progress: MigrationProg
  */
 export function resetMigrationData(): void {
   inFlightMigration = null
+  inFlightDiagnosticSave = null
   quitScheduled = false
   dataLocationNotice = null
+  lastSavedDiagnosticBundlePath = null
   currentProgress = {
     stage: 'introduction',
     overallProgress: 0,
