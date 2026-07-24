@@ -179,7 +179,9 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
                 <div className={oauthCardClasses.loggedInName}>
                   {t('settings.provider.oauth.cherryIn.not_logged_in')}
                 </div>
-                <div className={oauthCardClasses.loggedInEmail}>{t('settings.provider.oauth.cherryIn.tagline')}</div>
+                <div className={cn(oauthCardClasses.loggedInEmail, 'text-muted-foreground')}>
+                  {t('settings.provider.oauth.cherryIn.tagline')}
+                </div>
               </div>
             </div>
             <Button variant="emphasis" onClick={handleOAuthLogin}>
