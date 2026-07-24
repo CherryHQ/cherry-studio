@@ -1,3 +1,8 @@
+/* Deliberately UNLAYERED, unlike other app styles (see index.css layer order):
+   emoji-picker-react injects its stylesheet at runtime via flairup, also
+   unlayered — moving these overrides into the `app` layer would make every
+   normal declaration here lose to it. These rules win by specificity instead. */
+
 /* emoji-picker-react forces its native emoji font stack with !important. */
 body[os='windows'] .cherry-emoji-picker-react .epr-emoji-native {
   font-family:

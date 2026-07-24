@@ -351,6 +351,7 @@ describe('AppShellTabBar', () => {
     const normalTab = screen.getByRole('button', { name: 'A' })
     const pinnedTab = screen.getByRole('button', { name: 'P' })
 
+    expect(tabStrip.closest('header')).toHaveAttribute('data-ui', 'app.tab-bar')
     expect(tabStrip).not.toHaveClass('nodrag')
     expect(tabStrip).not.toHaveClass('[-webkit-app-region:no-drag]')
     expect(chatTab).toHaveClass('nodrag')

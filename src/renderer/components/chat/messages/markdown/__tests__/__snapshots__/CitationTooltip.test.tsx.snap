@@ -12,6 +12,7 @@ exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
     data-testid="tooltip-content"
   >
     <div
+      data-ui="chat.citation-tooltip"
       style="user-select: text;"
     >
       <a
@@ -29,11 +30,13 @@ exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
         <div
           aria-level="3"
           class="overflow-hidden text-ellipsis whitespace-nowrap text-foreground text-sm leading-[1.4]"
+          data-ui="chat.citation-tooltip.heading"
           role="heading"
           title="Example Article"
         >
           <div
             class="overflow-hidden whitespace-nowrap"
+            data-ui="ui.marquee-text"
           >
             <div
               class="inline-block whitespace-nowrap"
@@ -46,6 +49,7 @@ exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
       <div
         aria-label="Citation content"
         class="mb-2 overflow-hidden text-[13px] text-foreground-secondary leading-normal [-webkit-box-orient:vertical] [-webkit-line-clamp:3] [display:-webkit-box]"
+        data-ui="chat.citation-tooltip.article"
         role="article"
         style="display: -webkit-box; overflow: hidden; -webkit-line-clamp: 3;"
       >

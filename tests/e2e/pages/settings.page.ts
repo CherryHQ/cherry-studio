@@ -1,5 +1,6 @@
 import type { Locator, Page } from '@playwright/test'
 
+import { uiLocator } from '../utils'
 import { BasePage } from './base.page'
 
 /**
@@ -19,7 +20,7 @@ export class SettingsPage extends BasePage {
 
   constructor(page: Page) {
     super(page)
-    this.settingsContainer = page.locator('[id="content-container"], [class*="Settings"]')
+    this.settingsContainer = uiLocator(page, 'settings.view')
     this.providerMenuItem = page.locator('a[href*="/settings/provider"]')
     this.modelMenuItem = page.locator('a[href*="/settings/model"]')
     this.generalMenuItem = page.locator('a[href*="/settings/general"]')
@@ -35,7 +36,7 @@ export class SettingsPage extends BasePage {
    */
   async goto(): Promise<void> {
     await this.navigateTo('/settings/provider')
-    await this.waitForElement('[id="content-container"], [class*="Settings"]')
+    await this.settingsContainer.waitFor({ state: 'visible' })
   }
 
   /**

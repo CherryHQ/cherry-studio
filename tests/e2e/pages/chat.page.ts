@@ -1,5 +1,6 @@
 import type { Locator, Page } from '@playwright/test'
 
+import { uiLocator } from '../utils'
 import { BasePage } from './base.page'
 
 /**
@@ -19,19 +20,17 @@ export class ChatPage extends BasePage {
 
   constructor(page: Page) {
     super(page)
-    this.chatContainer = page.locator('#chat, [class*="Chat"]')
-    this.inputArea = page.locator(
-      '[class*="Inputbar"] textarea, [class*="InputBar"] textarea, [contenteditable="true"]'
-    )
-    this.sendButton = page.locator(
-      '[class*="SendMessageButton"], [class*="send-button"], button[aria-label*="send"], button[title*="send"]'
-    )
-    this.messageList = page.locator('#messages, [class*="Messages"], [class*="MessageList"]')
+    this.chatContainer = uiLocator(page, 'chat.view')
+    this.inputArea = uiLocator(page, 'chat.composer')
+      .locator('[data-ui~="part:composer-input"]')
+      .locator('textarea, [contenteditable="true"], input[type="text"]')
+    this.sendButton = uiLocator(page, 'chat.composer.action.send')
+    this.messageList = uiLocator(page, 'chat.message-list')
     this.userMessages = page.locator('[class*="UserMessage"], [class*="user-message"]')
     this.assistantMessages = page.locator('[class*="AssistantMessage"], [class*="assistant-message"]')
-    this.newTopicButton = page.locator('[class*="NewTopicButton"], [class*="new-topic"]')
-    this.topicList = page.locator('[class*="TopicList"], [class*="topic-list"]')
-    this.stopButton = page.locator('[class*="StopButton"], [class*="stop-button"]')
+    this.newTopicButton = uiLocator(page, 'chat.topic-list.action.create')
+    this.topicList = uiLocator(page, 'chat.topic-list')
+    this.stopButton = uiLocator(page, 'chat.composer.action.pause')
   }
 
   /**

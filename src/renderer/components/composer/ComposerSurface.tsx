@@ -2083,6 +2083,7 @@ export default function ComposerSurface({
   const sendAction = showPauseButton ? (
     <Tooltip content={t('chat.input.pause')} placement="top">
       <button
+        data-ui="chat.composer.action.pause"
         type="button"
         className="flex size-7.5 items-center justify-center rounded-full text-error-base hover:bg-accent"
         aria-label={t('chat.input.pause')}
@@ -2135,6 +2136,7 @@ export default function ComposerSurface({
   const inputbarElement = (
     <div
       id="inputbar"
+      data-ui="chat.composer"
       data-composer-inputbar=""
       data-composer-presentation={isCompact ? 'compact' : 'regular'}
       className={cn(
@@ -2199,6 +2201,7 @@ export default function ComposerSurface({
         {leadingContent ? <div className="shrink-0 pt-1.5 pl-3.5">{leadingContent}</div> : null}
         <div
           ref={frameRef}
+          data-ui="part:composer-input"
           data-composer-editor-frame=""
           className={cn('min-w-0 flex-1 overflow-hidden transition-[height] ease-out', editingState && 'mt-2')}
           onTransitionEnd={handleTransitionEnd}
@@ -2213,7 +2216,7 @@ export default function ComposerSurface({
           />
         </div>
         {isCompact ? (
-          <div className="flex shrink-0 flex-row items-center gap-1.5">
+          <div data-ui="part:composer-actions" className="flex shrink-0 flex-row items-center gap-1.5">
             {compactControls}
             {sendAccessoryElement}
             {sendAction}
@@ -2223,6 +2226,7 @@ export default function ComposerSurface({
 
       {!isCompact ? (
         <div
+          data-ui="part:composer-actions"
           data-composer-toolbar=""
           className="relative z-2 flex h-10 shrink-0 flex-row justify-between gap-4 px-2 py-1.25">
           <div className="flex min-w-0 flex-1 items-center overflow-hidden">

@@ -129,7 +129,9 @@ export const AppShell = () => {
 
   const contentArea = (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col pr-2 pb-2">
-      <main className="relative min-h-0 flex-1 overflow-hidden rounded-[12px] border-[0.5px] border-border bg-background">
+      <main
+        data-ui="app.content"
+        className="relative min-h-0 flex-1 overflow-hidden rounded-[12px] border-[0.5px] border-border bg-background">
         {/* Route Tabs: Only render non-dormant tabs */}
         {tabs
           .filter((t) => t.type === 'route' && !t.isDormant)

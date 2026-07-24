@@ -4,6 +4,7 @@ exports[`CodeToolbar > basic rendering > should match snapshot with mixed tools 
 <div>
   <div
     class="pointer-events-none sticky top-7 z-10 h-0"
+    data-ui="ui.code-toolbar"
   >
     <div
       class="code-toolbar pointer-events-auto absolute right-2 bottom-1 flex h-6 items-center gap-1"
@@ -45,6 +46,7 @@ exports[`CodeToolbar > basic rendering > should match snapshot with only core to
 <div>
   <div
     class="pointer-events-none sticky top-7 z-10 h-0"
+    data-ui="ui.code-toolbar"
   >
     <div
       class="code-toolbar pointer-events-auto absolute right-2 bottom-1 flex h-6 items-center gap-1"

@@ -88,6 +88,7 @@
 | [CodeBlockView](./references/components/code-block-view.md) | Code block view component |
 | [Image Preview](./references/components/image-preview.md) | Image preview components |
 | [Code Execution](./references/components/code-execution.md) | Python code execution via Pyodide |
+| [UI Semantic Contract](./references/ui-semantic-contract.md) | Stable `data-ui` protocol for themes, tests, and AI tooling |
 
 ### Other
 
