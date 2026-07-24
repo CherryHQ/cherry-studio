@@ -2,7 +2,7 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { cn } from '@renderer/utils/style'
 import { AnimatePresence, motion } from 'motion/react'
 import type { CSSProperties, ReactNode } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -21,9 +21,18 @@ export interface PageSidebarProps {
   className?: string
   style?: CSSProperties
   onPaneCollapse?: () => void
+  onResizingChange?: (resizing: boolean) => void
 }
 
-export function PageSidebar({ children, open, width, className, style, onPaneCollapse }: PageSidebarProps) {
+export function PageSidebar({
+  children,
+  open,
+  width,
+  className,
+  style,
+  onPaneCollapse,
+  onResizingChange
+}: PageSidebarProps) {
   const { t } = useTranslation()
   const [hasOpened, setHasOpened] = useState(Boolean(open))
   const { isResizing, paneRef, paneWidth, startResizing, setPaneWidth } = useResourceListPaneResize({ onPaneCollapse })
@@ -34,6 +43,13 @@ export function PageSidebar({ children, open, width, className, style, onPaneCol
   }, [open])
 
   const shouldRender = Boolean(children && (open || hasOpened))
+  const onResizingChangeRef = useRef(onResizingChange)
+  useEffect(() => {
+    onResizingChangeRef.current = onResizingChange
+  }, [onResizingChange])
+  useEffect(() => {
+    onResizingChangeRef.current?.(isResizing)
+  }, [isResizing])
 
   return (
     <AnimatePresence initial={false}>

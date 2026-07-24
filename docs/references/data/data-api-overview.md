@@ -40,6 +40,10 @@ DataApi must not be used as a general-purpose RPC layer. It is the **data** busi
 - Explicit cache control via query options
 - Supports large datasets with pagination
 
+### Data Change Notifications (opt-in)
+- After a business write commits, main broadcasts which read models changed; renderers subscribe per endpoint and decide their own convergence — data itself stays fetch-on-demand
+- Renderer usage: [DataApi in Renderer — Data Change Notifications](./data-api-in-renderer.md#data-change-notifications); main-side publish point and fences: [src/main/data/README.md](../../../src/main/data/README.md#data-change-notification)
+
 ## Architecture Diagram
 
 ```

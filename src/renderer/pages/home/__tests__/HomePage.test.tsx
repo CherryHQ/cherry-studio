@@ -95,6 +95,9 @@ const homeMocks = vi.hoisted(() => ({
   routeSearch: {} as Record<string, unknown>,
   routeTopic: undefined as Topic | undefined,
   routeTopicLoading: false,
+  // Topics resolvable by id through `useTopicById` (resume-by-last-used reads it); an id
+  // missing from the map behaves like a deleted topic.
+  topicsById: new Map<string, Topic>(),
   setShowSidebar: vi.fn(),
   topicPanelTopicsSource: undefined as unknown,
   isActiveTab: false
@@ -380,7 +383,7 @@ vi.mock('@renderer/hooks/useTopic', async () => {
       }
     },
     useTopicById: (topicId?: string) => ({
-      topic: topicId ? homeMocks.routeTopic : undefined,
+      topic: topicId ? (homeMocks.topicsById.get(topicId) ?? homeMocks.routeTopic) : undefined,
       isLoading: homeMocks.routeTopicLoading,
       error: undefined
     })
@@ -423,7 +426,8 @@ vi.mock('../Chat', () => ({
     onNewTopic,
     onLocateMessageHandled,
     onPaneCollapse,
-    onPaneAutoCollapseChange
+    onPaneAutoCollapseChange,
+    paneManualToggle
   }: {
     activeTopic?: Topic
     centerFallback?: ReactNode
@@ -440,6 +444,7 @@ vi.mock('../Chat', () => ({
     onLocateMessageHandled?: () => void
     onPaneCollapse?: () => void
     onPaneAutoCollapseChange?: (collapsed: boolean) => void
+    paneManualToggle?: { seq: number; open: boolean }
   }) => {
     const showConversation = Boolean(activeTopic && !centerSurface)
 
@@ -447,6 +452,9 @@ vi.mock('../Chat', () => ({
       <section data-testid="home-chat-shell">
         <output data-testid="pane-open">{String(paneOpen)}</output>
         <output data-testid="pane-position">{panePosition ?? ''}</output>
+        <output data-testid="pane-manual-toggle">
+          {paneManualToggle ? `${paneManualToggle.seq}:${paneManualToggle.open}` : 'none'}
+        </output>
         {centerSurface?.content}
         {!centerSurface && !activeTopic && centerFallback}
         {showConversation && activeTopic && (
@@ -629,18 +637,21 @@ vi.mock('../components/TopicRightPane', () => {
       defaultOpen,
       onOpenChange,
       present,
-      resourcePane
+      resourcePane,
+      userOpenIntentSeq
     }: {
       children: ReactNode
       defaultOpen?: boolean
       onOpenChange?: (open: boolean) => void
       present?: boolean
       resourcePane?: { node?: ReactNode; label?: string } | null
+      userOpenIntentSeq?: number
     }) => (
       <div
         data-default-open={String(Boolean(defaultOpen))}
         data-default-tab={resourcePane ? 'resources' : 'branch'}
         data-present={String(present !== false)}
+        data-user-open-intent-seq={String(userOpenIntentSeq ?? 0)}
         data-testid="topic-right-pane-provider">
         {onOpenChange && (
           <button type="button" onClick={() => onOpenChange(false)}>
@@ -835,6 +846,7 @@ describe('HomePage', () => {
     homeMocks.routeSearch = {}
     homeMocks.routeTopic = undefined
     homeMocks.routeTopicLoading = false
+    homeMocks.topicsById.clear()
     homeMocks.activeTopicOptions = undefined
     homeMocks.assistantResourceListTopicsSource = undefined
     homeMocks.assistantTopicsSourceOptions = []
@@ -985,6 +997,56 @@ describe('HomePage', () => {
 
     expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-default-open', 'false')
     expect(homeMocks.cacheSetPersist).not.toHaveBeenCalledWith('ui.chat.right_pane_open_override', true)
+  })
+
+  it('marks the sidebar collapse control as a manual pane toggle', () => {
+    render(<HomePage />)
+
+    expect(screen.getByTestId('pane-manual-toggle')).toHaveTextContent('none')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse pane' }))
+
+    expect(screen.getByTestId('pane-manual-toggle')).toHaveTextContent('1:false')
+  })
+
+  it('does not mark the topic-position layout reset as a manual pane toggle', async () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
+    homeMocks.preferenceValues.set('topic.tab.position', 'left')
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move topics right' }))
+    await waitFor(() =>
+      expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.right_pane_open_override', true)
+    )
+
+    expect(screen.getByTestId('pane-manual-toggle')).toHaveTextContent('none')
+  })
+
+  it('records a user open intent when the rail header opens the classic topic pane', () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+    homeMocks.persistCacheValues.set('ui.chat.right_pane_open_override', false)
+
+    render(<HomePage />)
+
+    expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-user-open-intent-seq', '0')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle selected assistant pane' }))
+
+    expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.right_pane_open_override', true)
+    expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-user-open-intent-seq', '1')
+  })
+
+  it('does not record a user open intent when the rail header closes the classic topic pane', () => {
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'assistant')
+    homeMocks.persistCacheValues.set('ui.chat.right_pane_open_override', true)
+
+    render(<HomePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle selected assistant pane' }))
+
+    expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.right_pane_open_override', false)
+    expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-user-open-intent-seq', '0')
   })
 
   it('toggles the classic topic pane when the selected assistant is clicked again', () => {
@@ -1345,6 +1407,67 @@ describe('HomePage', () => {
 
     await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-off-page'))
     expect(homeMocks.createTopic).not.toHaveBeenCalled()
+  })
+
+  it('resumes the last-used topic over the most-recently-active one on first entry', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
+    // The last-viewed topic is older than the latest-active one; re-entry must land on
+    // what the user was looking at, not what last changed.
+    MockCacheUtils.setInitialState({
+      persist: [['ui.chat.last_used_topic_id', 'topic-last-viewed']]
+    })
+    homeMocks.topicsById.set('topic-last-viewed', {
+      ...historyTopic,
+      id: 'topic-last-viewed',
+      lastActivityAt: '2026-01-01T00:00:00.000Z'
+    })
+    homeMocks.latestTopicOverride = {
+      ...historyTopic,
+      id: 'topic-latest',
+      lastActivityAt: '2026-01-09T00:00:00.000Z'
+    }
+
+    render(<HomePage />)
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-last-viewed'))
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the most-recently-active topic when the last-used topic no longer exists', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
+    MockCacheUtils.setInitialState({
+      persist: [['ui.chat.last_used_topic_id', 'topic-deleted']]
+    })
+    homeMocks.latestTopicOverride = {
+      ...historyTopic,
+      id: 'topic-latest',
+      lastActivityAt: '2026-01-09T00:00:00.000Z'
+    }
+
+    render(<HomePage />)
+
+    await waitFor(() => expect(screen.getByTestId('active-topic')).toHaveTextContent('topic-latest'))
+    expect(homeMocks.createTopic).not.toHaveBeenCalled()
+  })
+
+  it('prefers the route topic over the last-used topic', async () => {
+    homeMocks.locationState = undefined
+    homeMocks.preferenceValues.set('topic.tab.display_mode', 'time')
+    homeMocks.routeSearch = { topicId: 'topic-from-url' }
+    MockCacheUtils.setInitialState({
+      persist: [['ui.chat.last_used_topic_id', 'topic-last-viewed']]
+    })
+    homeMocks.topicsById.set('topic-last-viewed', {
+      ...historyTopic,
+      id: 'topic-last-viewed',
+      lastActivityAt: '2026-01-01T00:00:00.000Z'
+    })
+
+    render(<HomePage />)
+
+    await waitFor(() => expect(homeMocks.activeTopicOptions?.activeTopicId).toBe('topic-from-url'))
   })
 
   it('creates an empty topic on modern first entry only when the topic library is empty', async () => {

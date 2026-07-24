@@ -29,6 +29,13 @@ const errorActionsMock = vi.hoisted(() => ({
   openErrorDetail: vi.fn(),
   navigateErrorTarget: vi.fn()
 }))
+const useMessageErrorActionsMock = vi.hoisted(() =>
+  vi.fn<(options?: unknown) => typeof errorActionsMock>(() => errorActionsMock)
+)
+const dataApiMocks = vi.hoisted(() => ({
+  get: vi.fn(),
+  patch: vi.fn()
+}))
 const leafCapabilitiesMock = vi.hoisted(() => ({
   previewFile: vi.fn(),
   subscribeToolProgress: vi.fn(),
@@ -69,6 +76,10 @@ vi.mock('@data/CacheService', () => ({
     get: vi.fn(() => undefined),
     set: vi.fn()
   }
+}))
+
+vi.mock('@data/DataApiService', () => ({
+  dataApiService: dataApiMocks
 }))
 
 vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
@@ -123,7 +134,7 @@ vi.mock('@renderer/components/chat/messages/hooks/useMessageExportActions', () =
 }))
 
 vi.mock('@renderer/components/chat/messages/hooks/useMessageErrorActions', () => ({
-  useMessageErrorActions: () => errorActionsMock
+  useMessageErrorActions: useMessageErrorActionsMock
 }))
 
 vi.mock('@renderer/components/chat/messages/hooks/useMessageLeafCapabilities', () => ({
@@ -358,6 +369,126 @@ describe('useAgentMessageListProviderValue', () => {
     eventMocks.emit.mockClear()
     value?.actions.locateMessage?.('assistant-1', true)
     expect(eventMocks.emit).toHaveBeenCalledWith('LOCATE_MESSAGE:assistant-1', true)
+  })
+
+  it('injects Agent-session diagnosis persistence into the shared error UI', async () => {
+    const topic = {
+      id: 'agent-session:session-1',
+      assistantId: 'agent-1',
+      name: 'Agent session',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+    dataApiMocks.get.mockResolvedValue({
+      data: { parts: [{ type: 'data-error', data: { name: 'AgentRuntimeError', message: 'failed' } }] }
+    })
+
+    const Probe = () => {
+      useAgentMessageListProviderValue({
+        topic,
+        messages: [],
+        partsByMessageId: {},
+        isLoading: false,
+        messageNavigation: 'anchor'
+      })
+      return null
+    }
+    render(<Probe />)
+
+    const options = useMessageErrorActionsMock.mock.calls.at(-1)?.[0] as {
+      persistDiagnosis: (partId: string, diagnosis: { summary: string }) => Promise<void>
+    }
+    await options.persistDiagnosis('message-1-part-0', { summary: 'Runtime failed' })
+
+    expect(dataApiMocks.get).toHaveBeenCalledWith('/agent-sessions/session-1/messages/message-1')
+    expect(dataApiMocks.patch).toHaveBeenCalledWith('/agent-sessions/session-1/messages/message-1', {
+      body: {
+        data: {
+          parts: [
+            expect.objectContaining({
+              providerMetadata: expect.objectContaining({
+                cherry: expect.objectContaining({ diagnosis: expect.objectContaining({ summary: 'Runtime failed' }) })
+              })
+            })
+          ]
+        }
+      }
+    })
+  })
+
+  it('renders terminal fallbacks in both current and sealed history layers', () => {
+    const topic = {
+      id: 'agent-session:session-1',
+      assistantId: 'agent-1',
+      name: 'Agent session',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+    const messages = [
+      {
+        id: 'assistant-error',
+        role: 'assistant',
+        parts: [],
+        metadata: { createdAt: '2026-01-01T00:00:00.000Z', status: 'error' }
+      },
+      {
+        id: 'assistant-empty-success',
+        role: 'assistant',
+        parts: [],
+        metadata: { createdAt: '2026-01-01T00:00:01.000Z', status: 'success' }
+      },
+      {
+        id: 'assistant-pending',
+        role: 'assistant',
+        parts: [],
+        metadata: { createdAt: '2026-01-01T00:00:02.000Z', status: 'pending' }
+      },
+      {
+        id: 'assistant-hidden-success',
+        role: 'assistant',
+        parts: [{ type: 'data-agent-task-event', data: {} }],
+        metadata: { createdAt: '2026-01-01T00:00:03.000Z', status: 'success' }
+      }
+    ] as CherryUIMessage[]
+    const partsByMessageId = Object.fromEntries(messages.map((message) => [message.id, message.parts ?? []]))
+    const streamingLayers = { historyPartsByMessageId: partsByMessageId, liveMessageIds: [] }
+    let value: MessageListProviderValue | undefined
+
+    const Probe = () => {
+      value = useAgentMessageListProviderValue({
+        topic,
+        messages,
+        partsByMessageId,
+        streamingLayers,
+        isLoading: false,
+        messageNavigation: 'none'
+      })
+      return null
+    }
+
+    render(<Probe />)
+
+    expect(value?.state.partsByMessageId?.['assistant-error']).toEqual([
+      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+    ])
+    expect(value?.state.partsByMessageId?.['assistant-empty-success']).toEqual([
+      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+    ])
+    expect(value?.state.partsByMessageId?.['assistant-pending']).toEqual([])
+    expect(value?.state.partsByMessageId?.['assistant-hidden-success']).toEqual([
+      expect.objectContaining({ type: 'data-agent-task-event' }),
+      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+    ])
+    expect(value?.state.streamingLayers?.historyPartsByMessageId['assistant-error']).toEqual([
+      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+    ])
+    expect(value?.state.streamingLayers?.historyPartsByMessageId['assistant-hidden-success']).toEqual([
+      expect.objectContaining({ type: 'data-agent-task-event' }),
+      expect.objectContaining({ type: 'data-error', data: expect.objectContaining({ message: expect.any(String) }) })
+    ])
+    expect(value?.state.streamingLayers?.liveMessageIds).toEqual([])
   })
 
   it('preserves sealed MessageListItem identities when only the active agent message changes', () => {

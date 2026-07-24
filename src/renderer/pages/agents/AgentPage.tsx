@@ -5,6 +5,7 @@ import { loggerService } from '@logger'
 import type { ResourcePaneConfig, ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
 import { AgentResourceList } from '@renderer/components/chat/resourceList/AgentResourceList'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
+import type { PaneManualToggleSignal } from '@renderer/components/chat/shell/ChatAppShell'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
 import {
   createRecentSessionEntryFromSession,
@@ -148,6 +149,13 @@ const AgentPage = () => {
   const [lastUsedAgentId, setLastUsedAgentId] = usePersistCache('ui.agent.last_used_agent_id')
   const [lastUsedWorkspaceId, setLastUsedWorkspaceId] = usePersistCache('ui.agent.last_used_workspace_id')
   const [sessionExpansionAgent, setSessionExpansionAgent] = usePersistCache('ui.agent.session.expansion.agent')
+  // Resume target frozen at mount: `last_used_session_id` is rewritten as soon as any session
+  // activates, so a reactive read would chase this page's own writes. Route / tab-metadata
+  // targets take precedence over resume.
+  const [resumeSessionId] = useState<string | null>(() =>
+    isMessageOnlyView || routeActiveSessionId ? null : cacheService.getPersist('ui.agent.last_used_session_id')
+  )
+  const { session: resumeSession, isLoading: isResumeSessionLoading } = useSession(resumeSessionId)
   const lastRecordedRecentSessionRef = useRef<string | undefined>(undefined)
   const [sessionRevealRequest, setSessionRevealRequest] = useState<ResourceListRevealRequest>()
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
@@ -298,9 +306,18 @@ const AgentPage = () => {
   const handleResourceListAutoCollapseChange = useCallback((collapsed: boolean) => {
     setAutoCollapsedResourceList(collapsed)
   }, [])
+  const [paneManualToggle, setPaneManualToggle] = useState<PaneManualToggleSignal | undefined>()
+  const markManualPaneToggle = useCallback(
+    (open: boolean) => {
+      setPaneManualToggle((previous) => ({ seq: (previous?.seq ?? 0) + 1, open }))
+      setResourceListOpen(open)
+    },
+    [setResourceListOpen]
+  )
+  const [sessionPaneUserOpenIntentSeq, setSessionPaneUserOpenIntentSeq] = useState(0)
   const toggleResourceListOpen = useCallback(() => {
-    setResourceListOpen(!effectiveShowSidebar)
-  }, [effectiveShowSidebar, setResourceListOpen])
+    markManualPaneToggle(!effectiveShowSidebar)
+  }, [effectiveShowSidebar, markManualPaneToggle])
   useCommandHandler(
     'app.sidebar.toggle',
     () => {
@@ -658,6 +675,20 @@ const AgentPage = () => {
       return
     }
 
+    // Resume the last-focused session before falling back to the most-recently-active one —
+    // "last viewed" and "last edited" differ, and sidebar/restart re-entry should land on
+    // what the user was looking at. A deleted (or unfetchable) last-used session falls through.
+    if (resumeSessionId) {
+      if (isResumeSessionLoading) return
+      if (resumeSession) {
+        initialEmptySessionEvaluatedRef.current = true
+        setPendingLocateMessageId(undefined)
+        setMissingAgentSelection(false)
+        setActiveSession(resumeSession)
+        return
+      }
+    }
+
     // Resume the globally most-recently-active session — both layouts, so switching layout never
     // changes what you land on. Only a genuinely empty list falls through.
     if (!isLatestSessionReady) return
@@ -691,8 +722,11 @@ const AgentPage = () => {
     isAgentsLoading,
     isLatestSessionReady,
     isMessageOnlyView,
+    isResumeSessionLoading,
     latestSession,
     missingAgentSelection,
+    resumeSession,
+    resumeSessionId,
     setActiveSession,
     setActiveSessionId
   ])
@@ -866,6 +900,7 @@ const AgentPage = () => {
         onSelectEmptyAgent={handleEmptyAgentSelect}
         onSelectedAgentClick={() => {
           closeSurface()
+          if (!sessionPaneOpen) setSessionPaneUserOpenIntentSeq((seq) => seq + 1)
           setSessionPaneOpen(!sessionPaneOpen)
         }}
         onCreateSession={handleCreateSessionForAgent}
@@ -978,8 +1013,9 @@ const AgentPage = () => {
           paneOpen={effectiveShowSidebar}
           panePosition={shellPanePosition}
           centerSurface={centerSurface}
-          onPaneCollapse={() => setResourceListOpen(false)}
+          onPaneCollapse={() => markManualPaneToggle(false)}
           onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
+          paneManualToggle={paneManualToggle}
           showResourceListControls={!isMessageOnlyView}
           sidebarOpen={effectiveShowSidebar}
           onSidebarToggle={toggleResourceListOpen}
@@ -998,6 +1034,7 @@ const AgentPage = () => {
           resourcePaneRevealRequest={sessionRevealRequest}
           sessionPaneOpen={isAgentResourceLayout ? sessionPaneOpen : undefined}
           onSessionPaneOpenChange={isAgentResourceLayout ? setSessionPaneOpen : undefined}
+          sessionPaneUserOpenIntentSeq={sessionPaneUserOpenIntentSeq}
         />
       </div>
       <AgentCreateDialog

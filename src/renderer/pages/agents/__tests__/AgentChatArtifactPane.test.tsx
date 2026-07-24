@@ -274,7 +274,10 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
   )
 
   const MockArtifactPaneView = ({
+    headerVariant,
     model,
+    paneActions,
+    paneTitle,
     searchKeyword,
     onSearchKeywordChange,
     selectedFile,
@@ -283,29 +286,42 @@ vi.mock('@renderer/components/chat/panes/ArtifactPane', () => {
     previewFileSelection,
     onPreviewClose
   }: {
+    headerVariant?: 'overlay' | 'pane'
     model: {
       effectiveExpandedIds: ReadonlySet<string>
       setExpandedIds: (ids: ReadonlySet<string>) => void
     }
     searchKeyword: string
     onSearchKeywordChange: (keyword: string) => void
+    paneActions?: ReactNode
+    paneTitle?: ReactNode
     selectedFile: string | null
     onSelectedFileChange: (file: string | null) => void
     workspacePath?: string
     previewFileSelection?: { workspacePath: string; filePath: string } | null
     onPreviewClose?: () => void
   }) => (
-    <MockArtifactPane
-      workspacePath={workspacePath}
-      previewFileSelection={previewFileSelection}
-      onPreviewClose={onPreviewClose}
-      selectedFile={selectedFile}
-      onSelectedFileChange={onSelectedFileChange}
-      fileTreeExpandedIds={new Set(Array.from(model.effectiveExpandedIds).filter((id) => id !== '__workspace_root__'))}
-      onFileTreeExpandedIdsChange={model.setExpandedIds}
-      fileTreeSearchKeyword={searchKeyword}
-      onFileTreeSearchKeywordChange={onSearchKeywordChange}
-    />
+    <div>
+      {headerVariant === 'pane' ? (
+        <div data-testid="artifact-pane-header">
+          <span>{previewFileSelection?.filePath ?? paneTitle}</span>
+          {paneActions}
+        </div>
+      ) : null}
+      <MockArtifactPane
+        workspacePath={workspacePath}
+        previewFileSelection={previewFileSelection}
+        onPreviewClose={onPreviewClose}
+        selectedFile={selectedFile}
+        onSelectedFileChange={onSelectedFileChange}
+        fileTreeExpandedIds={
+          new Set(Array.from(model.effectiveExpandedIds).filter((id) => id !== '__workspace_root__'))
+        }
+        onFileTreeExpandedIdsChange={model.setExpandedIds}
+        fileTreeSearchKeyword={searchKeyword}
+        onFileTreeSearchKeywordChange={onSearchKeywordChange}
+      />
+    </div>
   )
 
   return {

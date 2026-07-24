@@ -161,6 +161,42 @@ describe('AgentSessionMessageService', () => {
     expect(updated.updatedAt).toBe('2023-11-14T22:13:20.500Z')
   })
 
+  it('reads and updates message data within the owning Agent session', async () => {
+    const otherSessionId = 'session-other-update'
+    await seedSession({ id: otherSessionId, name: 'Other Session', orderKey: 'b0' })
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'error',
+        data: { parts: [{ type: 'data-error', data: { message: 'failed' } }] }
+      }
+    })
+
+    expect(agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID).status).toBe('error')
+    expect(() => agentSessionMessageService.getSessionMessage(otherSessionId, ASSISTANT_MESSAGE_ID)).toThrow(
+      "Message with id '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d002' not found"
+    )
+
+    const data = {
+      parts: [
+        {
+          type: 'data-error' as const,
+          data: { message: 'failed' },
+          providerMetadata: { cherry: { diagnosis: { summary: 'Check the provider' } } }
+        }
+      ]
+    }
+    const updated = agentSessionMessageService.updateSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID, { data })
+
+    expect(updated.data).toEqual(data)
+    expect(updated.status).toBe('error')
+    expect(() =>
+      agentSessionMessageService.updateSessionMessage(otherSessionId, ASSISTANT_MESSAGE_ID, { data })
+    ).toThrow("Message with id '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d002' not found")
+  })
+
   it('uses one timestamp for a batch of newly saved messages', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(1_700_000_001_000)
 

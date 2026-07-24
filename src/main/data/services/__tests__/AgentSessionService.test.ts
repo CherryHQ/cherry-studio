@@ -781,6 +781,37 @@ describe('AgentSessionService', () => {
     })
   })
 
+  describe('touchUpdatedAtTx', () => {
+    it('bumps only the target session updatedAt', async () => {
+      const workspace = await createWorkspace('touch')
+      await dbh.db.insert(agentSessionTable).values([
+        {
+          id: 'touched',
+          agentId: 'agent-session-test',
+          name: 'A',
+          workspaceId: workspace.id,
+          orderKey: 'a0',
+          updatedAt: 100
+        },
+        {
+          id: 'untouched',
+          agentId: 'agent-session-test',
+          name: 'B',
+          workspaceId: workspace.id,
+          orderKey: 'a1',
+          updatedAt: 100
+        }
+      ])
+
+      dbh.db.transaction((tx) => agentSessionService.touchUpdatedAtTx(tx, 'touched', 999))
+
+      const rows = await dbh.db.select().from(agentSessionTable)
+      const byId = new Map(rows.map((row) => [row.id, row.updatedAt]))
+      expect(byId.get('touched')).toBe(999)
+      expect(byId.get('untouched')).toBe(100)
+    })
+  })
+
   it('binds a session to an explicit workspace', async () => {
     const workspace = await createWorkspace('explicit')
 

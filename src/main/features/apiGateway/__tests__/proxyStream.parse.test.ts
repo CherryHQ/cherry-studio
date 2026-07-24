@@ -8,10 +8,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * `2026-06-06-api-gateway-model-id-separator.md`.
  */
 
-const { mockStreamPrompt, mockGetProvider, mockListModels, captured } = vi.hoisted(() => ({
+const {
+  mockStreamPrompt,
+  mockGetProvider,
+  mockListModels,
+  mockExtractStreamOptions,
+  mockExtractProviderOptions,
+  captured
+} = vi.hoisted(() => ({
   mockStreamPrompt: vi.fn(),
   mockGetProvider: vi.fn(),
   mockListModels: vi.fn(),
+  mockExtractStreamOptions: vi.fn(),
+  mockExtractProviderOptions: vi.fn(),
   captured: { opts: undefined as { uniqueModelId?: string; listener?: StreamListener } | undefined }
 }))
 
@@ -36,8 +45,8 @@ vi.mock('../adapters', () => ({
     create: () => ({
       toUIMessages: () => [],
       toAiSdkTools: () => undefined,
-      extractStreamOptions: () => ({}),
-      extractProviderOptions: () => undefined
+      extractStreamOptions: mockExtractStreamOptions,
+      extractProviderOptions: mockExtractProviderOptions
     })
   },
   StreamAdapterFactory: {
@@ -59,6 +68,8 @@ beforeEach(() => {
     throw new Error('Provider not found')
   })
   mockListModels.mockReturnValue([])
+  mockExtractStreamOptions.mockReturnValue({})
+  mockExtractProviderOptions.mockReturnValue(undefined)
   mockStreamPrompt.mockImplementation((opts) => {
     captured.opts = opts
   })
@@ -160,6 +171,20 @@ describe('processMessage model-id parsing', () => {
   it('splits on the first colon for a simple provider:model', async () => {
     mockAvailableModel('openai', 'gpt-4')
     expect(await resolveValid('openai:gpt-4')).toBe(createUniqueModelId('openai', 'gpt-4'))
+  })
+
+  it('passes the normalized max output tokens to provider option extraction', async () => {
+    mockAvailableModel('openai', 'gpt-4')
+    mockExtractStreamOptions.mockReturnValue({ maxOutputTokens: 1024 })
+
+    await resolveValid('openai:gpt-4')
+
+    expect(mockExtractProviderOptions).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'openai' }),
+      expect.objectContaining({ apiModelId: 'gpt-4' }),
+      expect.objectContaining({ model: 'openai:gpt-4' }),
+      1024
+    )
   })
 
   it('keeps later colons in the model id (split on FIRST colon only)', async () => {

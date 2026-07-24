@@ -12,8 +12,6 @@ const {
   deleteMock,
   deleteByAgentIdMock,
   deleteByIdsMock,
-  listSessionMessagesMock,
-  deleteSessionMessageMock,
   reorderMock,
   reorderBatchMock
 } = vi.hoisted(() => ({
@@ -28,8 +26,6 @@ const {
   deleteMock: vi.fn(),
   deleteByAgentIdMock: vi.fn(),
   deleteByIdsMock: vi.fn(),
-  listSessionMessagesMock: vi.fn(),
-  deleteSessionMessageMock: vi.fn(),
   reorderMock: vi.fn(),
   reorderBatchMock: vi.fn()
 }))
@@ -49,13 +45,6 @@ vi.mock('@data/services/AgentSessionService', () => ({
     deleteByIds: deleteByIdsMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock
-  }
-}))
-
-vi.mock('@data/services/AgentSessionMessageService', () => ({
-  agentSessionMessageService: {
-    listSessionMessages: listSessionMessagesMock,
-    deleteSessionMessage: deleteSessionMessageMock
   }
 }))
 
@@ -283,27 +272,6 @@ describe('agentSessionHandlers', () => {
       ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
 
       expect(deleteByIdsMock).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('/agent-sessions/:sessionId/messages', () => {
-    it('forwards messageId query to agentSessionMessageService.listSessionMessages', async () => {
-      const response = { items: [], nextCursor: undefined }
-      listSessionMessagesMock.mockResolvedValueOnce(response)
-
-      const result = await agentSessionHandlers['/agent-sessions/:sessionId/messages'].GET({
-        params: { sessionId: 'session-1' },
-        query: {
-          messageId: 'message-1',
-          limit: '25'
-        }
-      } as never)
-
-      expect(listSessionMessagesMock).toHaveBeenCalledWith('session-1', {
-        messageId: 'message-1',
-        limit: 25
-      })
-      expect(result).toBe(response)
     })
   })
 })
