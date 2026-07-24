@@ -5,19 +5,13 @@ import { fetchGenerate } from '@renderer/utils/aiGeneration'
 import { isMcpErrorMessage, isQuotaErrorMessage } from '@renderer/utils/errorClassifier'
 import { readDefaultModel } from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
+import type { DiagnosisResult } from '@shared/data/types/uiParts'
 
 const logger = loggerService.withContext('errorDiagnosis')
 
-export interface DiagnosisStep {
-  text: string
-}
-
-export interface DiagnosisResult {
-  summary: string
-  category: string
-  explanation: string
-  steps: DiagnosisStep[]
-}
+// Diagnosis types live in the shared layer (persisted on data-error parts).
+// Re-exported so existing renderer importers keep compiling unchanged.
+export type { DiagnosisResult, DiagnosisStep } from '@shared/data/types/uiParts'
 
 export interface DiagnosisContext {
   errorSource?: string
