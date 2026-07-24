@@ -168,6 +168,13 @@
       "when": 1784270529294,
       "tag": "0023_last_mac_gargan",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1784860499109,
+      "tag": "0024_shallow_chimera",
+      "breakpoints": true
     }
   ],
   "version": "7"

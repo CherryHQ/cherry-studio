@@ -98,11 +98,12 @@ function WizardFooter({
 
 /**
  * Stepped create flow shared by assistant + agent. Steps 1–2 (basic info,
- * persona) are identical across kinds; step 3 differs (knowledge base vs.
- * capability config). A left rail tracks step progress (done = check, current =
- * filled number); the right pane swaps the active step's form as the footer
- * drives navigation. One form collects every field and hands the validated
- * payload to `onSubmit`. Replaces the former single-page ResourceCreateDialog.
+ * persona) are identical across kinds; agents then configure skills before
+ * both kinds configure knowledge bases. A left rail tracks step progress
+ * (done = check, current = filled number); the right pane swaps the active
+ * step's form as the footer drives navigation. One form collects every field
+ * and hands the validated payload to `onSubmit`. Replaces the former
+ * single-page ResourceCreateDialog.
  *
  * The shell intentionally does NOT subscribe to form values — avatar/footer
  * watching lives in leaf components — so ordinary field edits do not re-render
@@ -138,11 +139,11 @@ export function ResourceCreateWizard({
   const steps = useMemo<{ id: StepId; label: string }[]>(() => {
     const basic = { id: 'basic' as const, label: t('library.config.dialogs.create.step.basic') }
     const persona = { id: 'persona' as const, label: t('library.config.dialogs.create.step.persona') }
-    const last =
-      kind === 'assistant'
-        ? { id: 'knowledge' as const, label: t('library.config.dialogs.create.step.knowledge') }
-        : { id: 'capability' as const, label: t('library.config.dialogs.create.step.capability') }
-    return [basic, persona, last]
+    const knowledge = { id: 'knowledge' as const, label: t('library.config.dialogs.create.step.knowledge') }
+    if (kind === 'assistant') return [basic, persona, knowledge]
+
+    const capability = { id: 'capability' as const, label: t('library.config.dialogs.create.step.capability') }
+    return [basic, persona, capability, knowledge]
   }, [kind, t])
 
   useEffect(() => {
@@ -250,7 +251,7 @@ export function ResourceCreateWizard({
   const title = t(
     kind === 'assistant' ? 'library.config.dialogs.create.assistant_title' : 'library.config.dialogs.create.agent_title'
   )
-  const currentStep = steps[stepIndex]
+  const currentStep = steps[Math.min(stepIndex, steps.length - 1)]
 
   return (
     <Dialog key={dialogKey} open={open} onOpenChange={(nextOpen) => !submitting && onOpenChange(nextOpen)}>

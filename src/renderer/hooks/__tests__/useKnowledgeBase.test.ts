@@ -461,7 +461,7 @@ describe('useDeleteKnowledgeBase', () => {
     mockIpcRequest.mockResolvedValue(undefined)
   })
 
-  it('deletes a knowledge base through runtime IPC and refreshes the knowledge base list', async () => {
+  it('deletes a knowledge base through runtime IPC and refreshes dependent caches', async () => {
     const { result } = renderHook(() => useDeleteKnowledgeBase())
 
     await act(async () => {
@@ -470,7 +470,13 @@ describe('useDeleteKnowledgeBase', () => {
 
     expect(mockUseMutation).not.toHaveBeenCalled()
     expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.delete_base', { baseId: 'base-1' })
-    expect(mockInvalidateCache).toHaveBeenCalledWith('/knowledge-bases')
+    expect(mockInvalidateCache).toHaveBeenCalledWith([
+      '/knowledge-bases',
+      '/agents',
+      '/agents/*',
+      '/assistants',
+      '/assistants/*'
+    ])
     expect(result.current.isDeleting).toBe(false)
     expect(result.current.deleteError).toBeUndefined()
   })
@@ -484,7 +490,13 @@ describe('useDeleteKnowledgeBase', () => {
       await expect(result.current.deleteBase('base-1')).rejects.toBe(deleteError)
     })
 
-    expect(mockInvalidateCache).toHaveBeenCalledWith('/knowledge-bases')
+    expect(mockInvalidateCache).toHaveBeenCalledWith([
+      '/knowledge-bases',
+      '/agents',
+      '/agents/*',
+      '/assistants',
+      '/assistants/*'
+    ])
     expect(result.current.isDeleting).toBe(false)
     expect(result.current.deleteError).toBe(deleteError)
     expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to delete knowledge base', deleteError, {

@@ -208,6 +208,7 @@ async function deriveConnectionConfigFromSnapshot(
     maxTurns: agent.configuration?.max_turns ?? null,
     envVars: Object.entries(agent.configuration?.env_vars ?? {}).sort(([a], [b]) => a.localeCompare(b)),
     disabledTools: [...(agent.disabledTools ?? [])].sort(),
+    knowledgeBaseIds: [...(agent.knowledgeBaseIds ?? [])].sort(),
     mcp: materialized?.mcp ?? deriveMcpDefinitionFacts(agent.mcps),
     linkedChannelId
   }
@@ -328,6 +329,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     options,
     initializeTimeoutMs: settings.warmQueryInitializeTimeoutMs,
     credentialsFingerprint: route.credentialsFingerprint,
+    knowledgeBaseIds: [...(agent.knowledgeBaseIds ?? [])].sort(),
     settings,
     sdkModelId
   }
@@ -600,6 +602,7 @@ export async function buildClaudeCodeWarmQueryRequestForAgentSession(
     key: request.key,
     options: request.options,
     initializeTimeoutMs: request.initializeTimeoutMs,
-    credentialsFingerprint: request.credentialsFingerprint
+    credentialsFingerprint: request.credentialsFingerprint,
+    knowledgeBaseIds: request.knowledgeBaseIds
   }
 }

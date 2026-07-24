@@ -24,6 +24,7 @@ export function buildCreateAgentDto(values: ResourceCreateValues): CreateAgentDt
     smallModel: values.modelId,
     description: values.description,
     instructions: values.prompt,
+    knowledgeBaseIds: values.knowledgeBaseIds,
     skillIds: values.skillIds,
     configuration: {
       avatar: values.avatar,
