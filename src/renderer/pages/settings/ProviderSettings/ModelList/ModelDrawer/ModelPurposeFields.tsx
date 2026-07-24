@@ -79,10 +79,10 @@ export function ModelPurposeFields({
               key={option}
               htmlFor={optionId}
               className={cn(
-                'flex min-h-10 cursor-pointer items-start gap-3 rounded-lg border border-border/70 px-3 py-2.5',
-                'transition-[background-color,border-color,box-shadow] duration-150 hover:bg-accent/30',
-                'focus-within:ring-2 focus-within:ring-ring/40',
-                purpose === option && 'border-primary/60 bg-primary/5'
+                'flex min-h-10 cursor-pointer items-start gap-3 rounded-lg border border-border-subtle px-3 py-2.5',
+                'transition-[background-color,border-color,box-shadow] duration-150 hover:bg-accent',
+                'focus-within:ring-2 focus-within:ring-ring',
+                purpose === option && 'border-primary bg-accent'
               )}>
               <RadioGroupItem id={optionId} value={option} className="mt-0.5" />
               <span>

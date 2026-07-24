@@ -98,13 +98,7 @@ export default function AddModelFormPanel({
 
   const mode: ModelDrawerMode = provider ? getModelDrawerMode(provider) : 'legacy'
   const providerChatEndpointTypes = provider ? getProviderChatEndpointTypes(provider) : []
-  const defaultChatEndpoint =
-    providerChatEndpointTypes[0] ??
-    (provider?.defaultChatEndpoint === ENDPOINT_TYPE.OPENAI_RESPONSES ||
-    provider?.defaultChatEndpoint === ENDPOINT_TYPE.ANTHROPIC_MESSAGES ||
-    provider?.defaultChatEndpoint === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
-      ? provider.defaultChatEndpoint
-      : ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+  const defaultChatEndpoint = providerChatEndpointTypes[0] ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
   const modelPurpose = inferModelPurpose(purposeFields)
   const chatEndpointType = getInitialChatEndpointType(purposeFields, defaultChatEndpoint)
 

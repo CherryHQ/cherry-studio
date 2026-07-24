@@ -995,6 +995,48 @@ describe('ProviderEditorDrawer', () => {
     expect(responsesInput).toHaveAttribute('aria-invalid', 'false')
   })
 
+  it('reveals an invalid Anthropic field when Responses is the duplicate default endpoint', () => {
+    const onSubmit = vi.fn()
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{
+          kind: 'duplicate',
+          source: {
+            id: 'openai',
+            name: 'OpenAI',
+            presetProviderId: 'openai',
+            defaultChatEndpoint: 'openai-responses',
+            authType: 'api-key'
+          } as any
+        }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />
+    )
+
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.add.name.placeholder'), {
+      target: { value: 'Invalid Anthropic' }
+    })
+    toggleMoreSettings()
+    fireEvent.change(screen.getByLabelText('settings.provider.more_endpoints.anthropic'), {
+      target: { value: 'not-a-url' }
+    })
+    toggleMoreSettings()
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.duplicate.menu_label' }))
+
+    const anthropicInput = screen.getByLabelText('settings.provider.more_endpoints.anthropic')
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(
+      screen.getByRole('button', {
+        name: /settings\.provider\.create_custom\.endpoint_fields\.more/
+      })
+    ).toHaveAttribute('aria-expanded', 'true')
+    expect(anthropicInput).toHaveAttribute('aria-invalid', 'true')
+    expect(anthropicInput.parentElement).toContainElement(screen.getByText('settings.provider.base_url.invalid'))
+  })
+
   it('duplicate of an iam-azure source: keeps source defaultChatEndpoint + iam-azure auth, URL-keyed off it', () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined)
     render(

@@ -466,7 +466,7 @@ export default function ProviderEditorDrawer({
       if (invalidUrl) {
         if (
           invalidUrl.field === 'endpointUrl' &&
-          ADDITIONAL_CUSTOM_PROVIDER_ENDPOINTS.some((endpointType) => endpointType === invalidUrl.endpointType)
+          duplicateAdditionalEndpoints.some((endpointType) => endpointType === invalidUrl.endpointType)
         ) {
           setMoreEndpointsOpen(true)
         }
