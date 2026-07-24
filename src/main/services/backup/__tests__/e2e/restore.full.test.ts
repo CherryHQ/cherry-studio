@@ -41,6 +41,7 @@ import { ImportOrchestrator, type ImportOrchestratorDeps } from '../../ImportOrc
 import { BACKUP_FORMAT_VERSION, type BackupManifest } from '../../manifest'
 import { MergeEngine } from '../../merge/MergeEngine'
 import { resolvePreset } from '../../presets'
+import { planResources } from '../../resourcePlanning'
 
 const MIGRATIONS_FOLDER = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -225,7 +226,13 @@ describe('e2e-restore real data / backfill + degrade', () => {
     },
     mergeBackupIntoWork: (workSqlite, workDb, ctx) =>
       new MergeEngine(registry).mergeBackupIntoWork(workSqlite, workDb, ctx),
-    stageFileResources: async () => []
+    planResources,
+    planRoots: {
+      files: join(tmpDir, 'Data', 'Files'),
+      knowledge: join(tmpDir, 'Data', 'KnowledgeBase'),
+      skills: join(tmpDir, 'Data', 'Skills'),
+      notes: () => undefined
+    }
   })
 
   const runRestore = async (restoreId: string): Promise<Database.Database> => {

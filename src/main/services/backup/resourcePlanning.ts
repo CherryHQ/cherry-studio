@@ -19,8 +19,7 @@
 import { existsSync, lstatSync } from 'node:fs'
 import path from 'node:path'
 
-import type { PathResolvableEntry } from '@main/services/file/utils/pathResolver'
-import { resolvePhysicalPath } from '@main/services/file/utils/pathResolver'
+import { type PathResolvableEntry, resolvePhysicalPath } from '@main/services/file'
 import { isPathInside } from '@main/utils/file'
 import { SafeNameSchema } from '@shared/data/types/file'
 import type { ResourceClass } from '@shared/types/backup'
@@ -317,9 +316,7 @@ export function planResources(ctx: PlanCtx): ResourcePlan {
 
     // ── skills (folderName is merge identity; A2 matches backupRow.folder_name) ──
     for (const { folderName } of manifest.skills.folders) {
-      const backupRow = backupDb
-        .prepare('SELECT 1 AS ok FROM agent_global_skill WHERE folder_name = ?')
-        .get(folderName)
+      const backupRow = backupDb.prepare('SELECT 1 AS ok FROM agent_global_skill WHERE folder_name = ?').get(folderName)
       if (!backupRow) archiveCorrupt(`skill ${folderName}: missing from backup DB`)
       const stagingAbs = path.join(workDir, 'skills', folderName)
       assertStagingDir(stagingAbs)

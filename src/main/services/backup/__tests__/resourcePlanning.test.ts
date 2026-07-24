@@ -10,12 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BackupArchiveCorruptError } from '../errors'
 import type { BackupManifest } from '../manifest'
-import {
-  assertFullManifestInvariants,
-  planResources,
-  type PlanCtx,
-  type PlanRoots
-} from '../resourcePlanning'
+import { assertFullManifestInvariants, type PlanCtx, planResources, type PlanRoots } from '../resourcePlanning'
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -123,7 +118,7 @@ function baseManifest(over: Partial<BackupManifest> = {}): BackupManifest {
   }
 }
 
-function roots(notes?: string | undefined): PlanRoots {
+function roots(notes?: string): PlanRoots {
   return {
     files: filesRoot,
     knowledge: knowledgeRoot,
@@ -132,7 +127,7 @@ function roots(notes?: string | undefined): PlanRoots {
   }
 }
 
-function ctx(manifest: BackupManifest, notes?: string | undefined): PlanCtx {
+function ctx(manifest: BackupManifest, notes?: string): PlanCtx {
   return {
     manifest,
     workDir,
@@ -237,7 +232,9 @@ describe('planResources', () => {
       ctx(
         baseManifest({
           preset: 'lite',
-          domains: BACKUP_DOMAINS.filter((d) => d !== 'KNOWLEDGE' && d !== 'PAINTINGS' && d !== 'FILE_STORAGE' && d !== 'TRANSLATE_HISTORY')
+          domains: BACKUP_DOMAINS.filter(
+            (d) => d !== 'KNOWLEDGE' && d !== 'PAINTINGS' && d !== 'FILE_STORAGE' && d !== 'TRANSLATE_HISTORY'
+          )
         })
       )
     )

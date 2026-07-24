@@ -1,32 +1,40 @@
 /**
  * e2e-restore full-preset resource fixtures — workstream B3 (full-restore-plan §10.7).
  *
- * Runnable NOW (pre-A2 spine wiring):
+ * Runnable:
  * - fixture integrity: a well-formed full archive round-trips through admitArchive
  *   with every resource tree extracted; corruption fixtures produce exactly the
  *   manifest↔archive divergence planning must detect
  * - the merge side of the frozen ResourcePlan contract: skippedFileEntryIds prunes
  *   file_entry aggregates, stagedFileEntryIds suppresses attachment disclosure
  *
- * Deferred to A1/A2 (it.todo below, wired via these same fixtures): planResources
- * conflict/ARCHIVE_CORRUPT behavior, §9 manifest invariants at admission, and the
- * ImportOrchestrator journal → promotion end-to-end path.
+ * A1/A2 landed; spine e2e below. Planning conflict/ARCHIVE_CORRUPT remain
+ * unit-covered in resourcePlanning.test.ts; restorePromotion clean-expire is
+ * follow-up beyond A2.
  */
-import { existsSync, mkdtempSync, rmSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { application } from '@application'
+import { setBackupInProgress } from '@main/data/db/backup/quiesceGate'
+import type { DbService } from '@main/data/db/DbService'
+import { checkpointTruncateAssert } from '@main/data/db/restore/checkpoint'
+import { readRestoreJournal } from '@main/data/db/restore/restoreJournal'
 import { snapshotTo } from '@main/data/db/restore/snapshot'
 import { contributorManager } from '@main/services/backup/contributors/ContributorManager'
+import { BackupArchiveCorruptError } from '@main/services/backup/errors'
 import { setupTestDatabase } from '@test-helpers/db'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { admitArchive } from '../../admitArchive'
+import { ImportOrchestrator, type ImportOrchestratorDeps } from '../../ImportOrchestrator'
 import { MergeEngine } from '../../merge/MergeEngine'
+import { planResources } from '../../resourcePlanning'
 import { buildFullArchive } from './fullArchiveFixture'
 
 const MIGRATIONS_FOLDER = resolve(
@@ -40,18 +48,49 @@ describe('e2e-restore full resource fixtures (B3)', () => {
 
   let tmpDir: string
   let workDir: string
+  let stagingRoot: string
+  let journalPath: string
+  let liveDbPath: string
   let archivePath: string
   let backupDbPath: string
+  let filesRoot: string
 
   beforeEach(async () => {
     tmpDir = mkdtempSync(join(tmpdir(), 'cs-e2e-restore-full-res-'))
     workDir = join(tmpDir, 'workdir')
+    stagingRoot = join(tmpDir, 'restore-staging')
+    journalPath = join(tmpDir, 'restore-journal.json')
+    liveDbPath = dbh.sqlite.name
     archivePath = join(tmpDir, 'backup.cherrybackup')
     backupDbPath = join(tmpDir, 'backup.sqlite')
+    filesRoot = join(tmpDir, 'Data', 'Files')
+    mkdirSync(filesRoot, { recursive: true })
+    mkdirSync(join(tmpDir, 'Data', 'KnowledgeBase'), { recursive: true })
+    mkdirSync(join(tmpDir, 'Data', 'Skills'), { recursive: true })
     await dbh.sqlite.backup(backupDbPath)
+    setBackupInProgress(false)
+
+    vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+      switch (key) {
+        case 'feature.backup.restore.file':
+          return journalPath
+        case 'feature.backup.restore.staging':
+          return stagingRoot
+        case 'app.userdata':
+          return tmpDir
+        case 'app.database.file':
+          return liveDbPath
+        case 'feature.files.data':
+          return filename ? join(filesRoot, filename) : filesRoot
+        default:
+          return filename ? join(tmpDir, key, filename) : join(tmpDir, key)
+      }
+    })
   })
 
   afterEach(() => {
+    setBackupInProgress(false)
+    vi.restoreAllMocks()
     if (tmpDir) rmSync(tmpDir, { recursive: true, force: true })
   })
 
@@ -168,7 +207,7 @@ describe('e2e-restore full resource fixtures (B3)', () => {
     }
   })
 
-  it('forged full manifest (includeFiles=false) is admitted today — FLIP to reject when §9 invariants land', async () => {
+  it('forged full manifest (includeFiles=false with files.ids) is rejected by §9 invariants (A2 assertFull)', async () => {
     await buildFullArchive({
       stageRoot: tmpDir,
       archivePath,
@@ -177,12 +216,10 @@ describe('e2e-restore full resource fixtures (B3)', () => {
       manifestOverrides: { includeFiles: false }
     })
 
-    // Pins the pre-§9 hole: preset=full resources stage while includeFiles=false makes
-    // the DB side behave lite. assertFullManifestInvariants (workstream A) must turn
-    // this into an admission rejection — update this test alongside that change.
-    const ctx = await admitArchive(archivePath, workDir, MIGRATIONS_FOLDER)
-    expect(ctx.manifest.preset).toBe('full')
-    expect(ctx.includeFiles).toBe(false)
+    // §9 invariant (A2 assertFullManifestInvariants): full + includeFiles=false while
+    // files.ids is non-empty is corrupt — resources would stage while the DB side
+    // behaves lite. Rejected at admission.
+    await expect(admitArchive(archivePath, workDir, MIGRATIONS_FOLDER)).rejects.toThrow(BackupArchiveCorruptError)
   })
 
   it('merge consumes plan.skippedFileEntryIds: the conflicted file_entry row is not imported', async () => {
@@ -244,14 +281,86 @@ describe('e2e-restore full resource fixtures (B3)', () => {
     }
   })
 
-  // ── A1/A2-dependent scenarios (wire these fixtures through planResources / the spine) ──
-  it.todo('planning: conflict (local DB row OR disk exists) all-skips per class with reasons — full-restore-plan §4')
-  it.todo('planning: manifest-claimed blob missing / wrong type / external id / symlink → ARCHIVE_CORRUPT — §8')
-  it.todo('admission: forged full manifest cross-field invariants rejected (flip the pinned test above) — §9')
+  // ── A1/A2-dependent scenarios ──
+  // Planning conflict / ARCHIVE_CORRUPT: unit-covered in resourcePlanning.test.ts
   it.todo(
-    'spine: ImportOrchestrator seals journal.fileResources = plan.resources and reports plan.toRestore/skips — §5'
+    'planning: conflict (local DB row OR disk exists) all-skips per class with reasons — unit-covered in resourcePlanning.test.ts'
   )
   it.todo(
-    'spine: staged journal add-target appears before boot → whole batch clean-expires (e2e over restorePromotion) — §10.7'
+    'planning: manifest-claimed blob missing / wrong type / external id / symlink → ARCHIVE_CORRUPT — unit-covered in resourcePlanning.test.ts'
+  )
+
+  it('spine: ImportOrchestrator seals journal.fileResources = plan.resources and reports plan.toRestore/skips', async () => {
+    const now = Date.now()
+    seedBackup((db) => {
+      seedRow(db, 'file_entry', { id: 'fe-1', origin: 'internal', name: 'pic.png', size: 14, ext: 'png' })
+      db.prepare(
+        `INSERT INTO knowledge_base (
+           id, name, embedding_model_id, dimensions, status, chunk_size, chunk_overlap, created_at, updated_at
+         ) VALUES (?, ?, NULL, NULL, 'completed', 500, 50, ?, ?)`
+      ).run('kb-1', 'kb-1', now, now)
+      db.prepare(
+        `INSERT INTO agent_global_skill (id, name, folder_name, source, tags, content_hash, is_enabled, created_at, updated_at)
+         VALUES (?, ?, ?, 'local', '[]', 'hash', 1, ?, ?)`
+      ).run('skill-1', 'my-skill', 'my-skill', now, now)
+    })
+    await buildFullArchive({
+      stageRoot: tmpDir,
+      archivePath,
+      dbCopyPath: backupDbPath,
+      files: [{ id: 'fe-1', content: 'blob-content-1' }],
+      knowledgeBases: [{ baseId: 'kb-1', files: { 'doc.md': 'kb doc' } }],
+      skills: [{ folderName: 'my-skill', files: { 'SKILL.md': 'skill doc' } }],
+      notes: [{ relPath: 'folder/note.md', content: 'note body' }]
+    })
+
+    const makeDeps = (): ImportOrchestratorDeps => ({
+      dbService: {
+        checkpointTruncate: () => checkpointTruncateAssert(dbh.sqlite),
+        createSnapshot: (workPath: string) => snapshotTo(dbh.sqlite, workPath)
+      } as unknown as DbService,
+      migrationsFolder: MIGRATIONS_FOLDER,
+      liveDbPath,
+      restoreStagingRoot: stagingRoot,
+      userData: tmpDir,
+      journalPath,
+      admitArchive,
+      quiesceWriters: async () => {
+        setBackupInProgress(true)
+      },
+      mergeBackupIntoWork: (workSqlite, workDb, ctx) =>
+        new MergeEngine(registry).mergeBackupIntoWork(workSqlite, workDb, ctx),
+      planResources,
+      planRoots: {
+        files: filesRoot,
+        knowledge: join(tmpDir, 'Data', 'KnowledgeBase'),
+        skills: join(tmpDir, 'Data', 'Skills'),
+        // No managed notes root → note paths become plan.skips (not journal fields).
+        notes: () => undefined
+      }
+    })
+
+    const restoreId = 'rst-e2e-full-res-spine'
+    const result = await new ImportOrchestrator(makeDeps()).importBackup({ archivePath, restoreId })
+
+    expect(result.plan.toRestore).toEqual([
+      { kind: 'file', count: 1 },
+      { kind: 'knowledge', count: 1 },
+      { kind: 'skill', count: 1 }
+    ])
+    expect(result.plan.skips).toEqual([{ id: 'folder/note.md', kind: 'note', reason: 'no managed notesRoot' }])
+    expect(result.plan.resources).toHaveLength(3)
+
+    const journal = readRestoreJournal()
+    expect(journal.kind).toBe('ok')
+    if (journal.kind !== 'ok') throw new Error('unreachable')
+    // P1-5: journal carries additive resources only — skips stay on the in-memory plan.
+    expect(journal.journal.fileResources).toEqual(result.plan.resources)
+    expect(journal.journal).not.toHaveProperty('skips')
+  })
+
+  // restorePromotion e2e — follow-up beyond A2
+  it.todo(
+    'spine: staged journal add-target appears before boot → whole batch clean-expires (e2e over restorePromotion) — follow-up'
   )
 })

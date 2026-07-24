@@ -38,6 +38,7 @@ import {
 } from './errors'
 import { BACKUP_FORMAT_VERSION, type BackupManifest, readManifest } from './manifest'
 import { resolvePreset } from './presets'
+import { assertFullManifestInvariants } from './resourcePlanning'
 
 /**
  * Recognized top-level archive entries. Unknown top-level entries are ignored (not
@@ -173,6 +174,8 @@ export async function admitArchiveWithLimits(
       throw new UnsupportedBackupFormatError(manifest.backupFormatVersion, BACKUP_FORMAT_VERSION)
     }
     assertLiteManifestInvariants(manifest)
+    // Full-preset cross-field invariants (domains / include* / unique ids) — no-op for lite.
+    assertFullManifestInvariants(manifest)
 
     // --- Unpack recognized entries (ignore unknown; zip-slip already ran on ALL entries) ---
     await unpackRecognized(zip, workDir, plan.recognizedFiles, limits, budget)
