@@ -329,6 +329,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
     options,
     initializeTimeoutMs: settings.warmQueryInitializeTimeoutMs,
     credentialsFingerprint: route.credentialsFingerprint,
+    knowledgeBaseIds: [...(agent.knowledgeBaseIds ?? [])].sort(),
     settings,
     sdkModelId
   }
@@ -601,6 +602,7 @@ export async function buildClaudeCodeWarmQueryRequestForAgentSession(
     key: request.key,
     options: request.options,
     initializeTimeoutMs: request.initializeTimeoutMs,
-    credentialsFingerprint: request.credentialsFingerprint
+    credentialsFingerprint: request.credentialsFingerprint,
+    knowledgeBaseIds: request.knowledgeBaseIds
   }
 }

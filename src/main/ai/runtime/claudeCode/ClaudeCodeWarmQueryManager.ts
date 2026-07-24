@@ -26,6 +26,8 @@ export interface WarmQueryRequest {
    * this fingerprint keeps the signature sensitive to the key set actually changing.
    */
   credentialsFingerprint?: string
+  /** Agent knowledge bindings baked into cherry-tools at startup. */
+  knowledgeBaseIds?: readonly string[]
 }
 
 export function stripWarmQueryOptions(options: Options): Options {
@@ -93,14 +95,19 @@ function stripCredentialEnvForSignature(options: Options): Options {
   return { ...options, env: cleanedEnv }
 }
 
-export function createClaudeCodeWarmQuerySignature(options: Options, credentialsFingerprint?: string): string {
+export function createClaudeCodeWarmQuerySignature(
+  options: Options,
+  credentialsFingerprint?: string,
+  knowledgeBaseIds: readonly string[] = []
+): string {
   const stripped = stripCredentialEnvForSignature(stripWarmQueryOptions(options))
   const signatureSource = stripped.mcpServers
     ? { ...stripped, mcpServers: sanitizeMcpServersForSignature(stripped.mcpServers) }
     : stripped
   return JSON.stringify({
     options: normalizeForSignature(signatureSource),
-    credentials: credentialsFingerprint ?? null
+    credentials: credentialsFingerprint ?? null,
+    knowledgeBaseIds: [...knowledgeBaseIds].sort()
   })
 }
 
@@ -143,7 +150,11 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
 
   prewarm(request: WarmQueryRequest): void {
     const warmOptions = stripWarmQueryOptions(request.options)
-    const signature = createClaudeCodeWarmQuerySignature(warmOptions, request.credentialsFingerprint)
+    const signature = createClaudeCodeWarmQuerySignature(
+      warmOptions,
+      request.credentialsFingerprint,
+      request.knowledgeBaseIds
+    )
     const existing = this.entries.get(request.key)
 
     if (existing?.signature === signature) {
@@ -172,7 +183,11 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
 
   async consume(request: WarmQueryRequest): Promise<WarmQuery | undefined> {
     const warmOptions = stripWarmQueryOptions(request.options)
-    const signature = createClaudeCodeWarmQuerySignature(warmOptions, request.credentialsFingerprint)
+    const signature = createClaudeCodeWarmQuerySignature(
+      warmOptions,
+      request.credentialsFingerprint,
+      request.knowledgeBaseIds
+    )
     const entry = this.entries.get(request.key)
     if (!entry) return undefined
 

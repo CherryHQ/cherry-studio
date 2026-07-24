@@ -101,20 +101,13 @@ type ToolModelOutput =
 interface ToolHandler {
   description: string
   inputSchema: z.ZodType
+  /** This handler is unavailable unless the agent has at least one bound knowledge base. */
+  requiresKnowledgeScope?: true
   // `signal` is honoured only by handlers whose core supports cancellation (web → WebSearchService).
   // The kb handlers ignore it: KnowledgeService exposes no AbortSignal plumbing (see knowledgeLookup).
   // `allowedIds` scopes the kb handlers to the agent's bound knowledge bases (non-kb handlers ignore it).
   run: (args: unknown, signal: AbortSignal, allowedIds: string[]) => Promise<ToolModelOutput>
 }
-
-// The kb_* tools are scoped/gated by the agent's bound knowledge bases. When the binding is
-// empty they are filtered out at list time (see listCherryBuiltinTools) and rejected at call time.
-const KB_TOOL_NAMES: ReadonlySet<string> = new Set([
-  KB_SEARCH_TOOL_NAME,
-  KB_READ_TOOL_NAME,
-  KB_LIST_TOOL_NAME,
-  KB_MANAGE_TOOL_NAME
-])
 
 const HANDLERS: Record<string, ToolHandler> = {
   [WEB_SEARCH_TOOL_NAME]: {
@@ -137,6 +130,7 @@ const HANDLERS: Record<string, ToolHandler> = {
   [KB_SEARCH_TOOL_NAME]: {
     description: KNOWLEDGE_SEARCH_DESCRIPTION,
     inputSchema: kbSearchInputSchema,
+    requiresKnowledgeScope: true,
     run: async (args, _signal, allowedIds) => {
       const { query, baseIds } = kbSearchInputSchema.parse(args)
       return knowledgeSearchModelOutput(await searchKnowledge(query, baseIds, allowedIds))
@@ -146,6 +140,7 @@ const HANDLERS: Record<string, ToolHandler> = {
   [KB_READ_TOOL_NAME]: {
     description: KNOWLEDGE_READ_DESCRIPTION,
     inputSchema: kbReadInputSchema,
+    requiresKnowledgeScope: true,
     run: async (args, _signal, allowedIds) => {
       const input = kbReadInputSchema.parse(args)
       return knowledgeReadModelOutput(await readOrGrepConcept(input, allowedIds))
@@ -155,6 +150,7 @@ const HANDLERS: Record<string, ToolHandler> = {
   [KB_LIST_TOOL_NAME]: {
     description: KNOWLEDGE_LIST_DESCRIPTION,
     inputSchema: kbListInputSchema,
+    requiresKnowledgeScope: true,
     run: async (args, _signal, allowedIds) => {
       const input = kbListInputSchema.parse(args)
       return knowledgeListModelOutput(await listOrOutlineKnowledge(input, allowedIds), input)
@@ -163,6 +159,7 @@ const HANDLERS: Record<string, ToolHandler> = {
   [KB_MANAGE_TOOL_NAME]: {
     description: KNOWLEDGE_MANAGE_DESCRIPTION,
     inputSchema: kbManageInputSchema,
+    requiresKnowledgeScope: true,
     run: async (args, _signal, allowedIds) => {
       const input = kbManageInputSchema.parse(args)
       return knowledgeManageModelOutput(await manageKnowledge(input, allowedIds))
@@ -261,7 +258,7 @@ function toMcpResult(output: ToolModelOutput): CallToolResult {
 export function listCherryBuiltinTools(allowedIds: string[]): Tool[] {
   const hasKnowledgeScope = allowedIds.length > 0
   return Object.entries(resolveHandlers())
-    .filter(([name]) => hasKnowledgeScope || !KB_TOOL_NAMES.has(name))
+    .filter(([, handler]) => hasKnowledgeScope || !handler.requiresKnowledgeScope)
     .map(([name, handler]) => ({
       name,
       description: handler.description,
@@ -281,7 +278,7 @@ export async function callCherryBuiltinTool(
   }
   // Defense in depth: kb_* tools are hidden from list when the binding is empty,
   // but reject a direct call too so an unscoped kb lookup can never run.
-  if (KB_TOOL_NAMES.has(name) && allowedIds.length === 0) {
+  if (handler.requiresKnowledgeScope && allowedIds.length === 0) {
     logger.warn('Rejected direct knowledge tool call without a bound knowledge base', { tool: name })
     return { content: [{ type: 'text', text: `Tool unavailable: ${name} (no knowledge base bound)` }], isError: true }
   }

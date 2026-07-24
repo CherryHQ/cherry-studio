@@ -227,6 +227,20 @@ describe('ResourceCreateWizard', () => {
     expect(screen.queryByTestId('capability-step')).not.toBeInTheDocument()
   })
 
+  it('does not render an invalid step when a closed agent wizard falls back to assistant kind', async () => {
+    const user = userEvent.setup()
+    const props = { open: true, onOpenChange: vi.fn(), onSubmit: vi.fn() }
+    const { rerender } = render(<ResourceCreateWizard {...props} kind="agent" />)
+
+    await user.click(screen.getByRole('button', { name: 'fill basic' }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    expect(screen.getByTestId('knowledge-step')).toBeInTheDocument()
+
+    expect(() => rerender(<ResourceCreateWizard {...props} kind="assistant" open={false} />)).not.toThrow()
+  })
+
   it('does not prefill the default model for agent kind when rejected by the model filter', async () => {
     modelHook.defaultModel = makeModel()
 

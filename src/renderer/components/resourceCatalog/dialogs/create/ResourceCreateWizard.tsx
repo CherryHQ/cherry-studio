@@ -251,7 +251,7 @@ export function ResourceCreateWizard({
   const title = t(
     kind === 'assistant' ? 'library.config.dialogs.create.assistant_title' : 'library.config.dialogs.create.agent_title'
   )
-  const currentStep = steps[stepIndex]
+  const currentStep = steps[Math.min(stepIndex, steps.length - 1)]
 
   return (
     <Dialog key={dialogKey} open={open} onOpenChange={(nextOpen) => !submitting && onOpenChange(nextOpen)}>

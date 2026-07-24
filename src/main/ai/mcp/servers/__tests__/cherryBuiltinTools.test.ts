@@ -110,7 +110,7 @@ describe('cherryBuiltinTools', () => {
   })
 
   it('advertises builtin tools with object input schemas and no $schema marker', () => {
-    const tools = listCherryBuiltinTools()
+    const tools = listCherryBuiltinTools(['kb-1'])
     expect(tools.map((t) => t.name).sort()).toEqual([
       'generate_image',
       'kb_list',
@@ -136,9 +136,10 @@ describe('cherryBuiltinTools', () => {
   })
 
   it('keeps runtime knowledge tools aligned with the shared wire-name registry', () => {
-    const runtimeWireNames = listCherryBuiltinTools()
+    const unscopedNames = new Set(listCherryBuiltinTools([]).map((tool) => tool.name))
+    const runtimeWireNames = listCherryBuiltinTools(['kb-1'])
       .map((tool) => tool.name)
-      .filter((name) => name.startsWith('kb_'))
+      .filter((name) => !unscopedNames.has(name))
       .map((name) => `mcp__cherry-tools__${name}`)
       .sort()
 
@@ -574,7 +575,7 @@ describe('cherryBuiltinTools', () => {
     getPreference.mockReturnValue('openai::dall-e-3')
     getImageGenerationSupport.mockReturnValue(support)
 
-    const tool = listCherryBuiltinTools().find(({ name }) => name === 'generate_image')!
+    const tool = listCherryBuiltinTools(['kb-1']).find(({ name }) => name === 'generate_image')!
     const schema = tool.inputSchema as {
       properties: Record<string, { enum?: string[]; maximum?: number }>
     }
@@ -666,7 +667,7 @@ describe('CherryBuiltinToolsServer autonomy tool registration', () => {
     const result = await handlers.get('tools/list')({ method: 'tools/list', params: {} }, {})
     const names = result.tools.map((t: any) => t.name)
     expect(names).toEqual(expect.arrayContaining(['cron', 'notify', 'config']))
-    expect(names).toEqual(expect.arrayContaining(listCherryBuiltinTools().map((t) => t.name)))
+    expect(names).toEqual(expect.arrayContaining(listCherryBuiltinTools(['kb-1']).map((t) => t.name)))
   })
 
   it('hides the kb_* tools when the agent has no bound knowledge base', async () => {

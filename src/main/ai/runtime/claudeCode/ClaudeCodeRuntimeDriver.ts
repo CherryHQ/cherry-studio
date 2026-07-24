@@ -205,7 +205,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           key: request.key,
           options,
           initializeTimeoutMs: request.initializeTimeoutMs,
-          credentialsFingerprint: request.credentialsFingerprint
+          credentialsFingerprint: request.credentialsFingerprint,
+          knowledgeBaseIds: request.knowledgeBaseIds
         })
 
     this.query = warmQuery
