@@ -79,7 +79,7 @@ const MessageNavigation: FC<MessageNavigationProps> = ({
     scheduleHide(500)
   }, [scheduleHide])
 
-  const getCurrentVisibleIndex = (direction: 'up' | 'down') => {
+  const getCurrentVisibleIndex = () => {
     const userMessages = messages.filter((message) => message.role === 'user')
     const assistantMessages = messages.filter((message) => message.role === 'assistant')
     const scrollContainer = scrollContainerRef.current
@@ -104,7 +104,7 @@ const MessageNavigation: FC<MessageNavigationProps> = ({
     }
 
     if (visibleIndices.length > 0) {
-      return direction === 'up' ? Math.max(...visibleIndices) : Math.min(...visibleIndices)
+      return Math.min(...visibleIndices)
     }
 
     visibleIndices = []
@@ -121,7 +121,7 @@ const MessageNavigation: FC<MessageNavigationProps> = ({
     }
 
     if (visibleIndices.length > 0) {
-      const assistantIndex = direction === 'up' ? Math.max(...visibleIndices) : Math.min(...visibleIndices)
+      const assistantIndex = Math.min(...visibleIndices)
       return assistantIndex < userMessages.length ? assistantIndex : userMessages.length - 1
     }
 
@@ -153,11 +153,11 @@ const MessageNavigation: FC<MessageNavigationProps> = ({
 
     if (userMessages.length === 0 && assistantMessages.length === 0) return scrollToBottom()
 
-    const visibleIndex = getCurrentVisibleIndex('down')
+    const visibleIndex = getCurrentVisibleIndex()
     if (visibleIndex === -1) return scrollToBottom()
 
-    const targetIndex = visibleIndex - 1
-    if (targetIndex < 0) return scrollToBottom()
+    const targetIndex = visibleIndex + 1
+    if (targetIndex >= userMessages.length) return scrollToBottom()
 
     scrollToMessageId(userMessages[targetIndex].id)
   }
@@ -168,11 +168,11 @@ const MessageNavigation: FC<MessageNavigationProps> = ({
     const assistantMessages = messages.filter((message) => message.role === 'assistant')
     if (userMessages.length === 0 && assistantMessages.length === 0) return scrollToTop()
 
-    const visibleIndex = getCurrentVisibleIndex('up')
+    const visibleIndex = getCurrentVisibleIndex()
     if (visibleIndex === -1) return scrollToTop()
 
-    const targetIndex = visibleIndex + 1
-    if (targetIndex >= userMessages.length) return scrollToTop()
+    const targetIndex = visibleIndex - 1
+    if (targetIndex < 0) return scrollToTop()
 
     scrollToMessageId(userMessages[targetIndex].id)
   }
