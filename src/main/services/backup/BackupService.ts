@@ -17,14 +17,14 @@
 //
 // SLICE SCOPE: export (FULL + LITE presets, DB + file-blob archive) + restore staging
 // spine. The renderer triggers export via backup.start_backup; restore runs the
-// ImportOrchestrator spine (quiesce → fingerprint → snapshot → merge → migrate → seal →
-// stage → 2nd fingerprint → journal → relaunch). quiesce is PARTIAL (BACKUP_IN_PROGRESS
-// flag + JobManager.pause + best-effort drain; full quiesce a1/#17014 follow-up).
-// MergeEngine (FIELD_MERGE for natural-key / SKIP for uuid-entity + junction + dangling-ref
-// repair + FTS) is wired; file/KB/Notes blob staging is
-// deferred (stageFileResources returns [] — DB-only journal). performRestoreRecovery at
-// startup GCs staging residue from a crashed prior restore; gcExportTempResidue GCs
-// unredacted export-temp DB copies from a crashed prior export.
+// ImportOrchestrator spine (quiesce → fingerprint → snapshot → planResources → merge →
+// migrate → seal → 2nd fingerprint → journal → broadcast restore_summary → renderer
+// app.relaunch). quiesce is PARTIAL
+// (BACKUP_IN_PROGRESS flag + JobManager.pause + best-effort drain; full quiesce a1/#17014
+// follow-up). MergeEngine (FIELD_MERGE for natural-key / SKIP for uuid-entity + junction +
+// dangling-ref repair + FTS) is wired; planResources feeds journal.fileResources + merge
+// skip sets. performRestoreRecovery at startup GCs staging residue from a crashed prior
+// restore; gcExportTempResidue GCs unredacted export-temp DB copies from a crashed prior export.
 
 import { randomUUID } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'node:fs'
@@ -32,6 +32,7 @@ import { lstat, readdir, stat, statfs } from 'node:fs/promises'
 import { basename, dirname, join, resolve } from 'node:path'
 
 import { application } from '@application'
+import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import {
   BaseService,
@@ -45,10 +46,16 @@ import {
 import { setBackupInProgress } from '@main/data/db/backup/quiesceGate'
 import { clearRestoreJournal, readRestoreJournal } from '@main/data/db/restore/restoreJournal'
 import { fileEntryTable } from '@main/data/db/schemas/file'
+import { getKnowledgeVectorStoreFilePathSync } from '@main/features/knowledge'
 import { isPathInside } from '@main/utils/file'
 import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
-import type { BackupProgressUpdate, BackupV2StartResult } from '@shared/types/backup'
+import type {
+  BackupProgressUpdate,
+  BackupV2StartResult,
+  RestoreResultSummary,
+  RestoreStatus
+} from '@shared/types/backup'
 import { and, eq, isNull, sum } from 'drizzle-orm'
 import { app } from 'electron'
 
@@ -70,6 +77,7 @@ import { removeExportTempResidue } from './exportTempResidue'
 import { ImportOrchestrator } from './ImportOrchestrator'
 import { MergeEngine, MergeStrategyNotImplementedError } from './merge/MergeEngine'
 import { presetIncludesFiles } from './presets'
+import { planResources } from './resourcePlanning'
 import { SqliteBackupStripper } from './SqliteBackupStripper'
 
 /** Re-export for durability unit tests (same public surface as before the GC harden). */
@@ -154,9 +162,10 @@ export class BackupService extends BaseService {
   private activeOperation: ActiveOperation | null = null
   /**
    * JobManager pause hold for the active restore's partial-quiesce window. Acquired
-   * in startRestore's quiesceWriters callback and released on any outcome (the
-   * success path disposes before relaunch, because application.relaunch → app.exit
-   * skips the finally). `undefined` outside a restore.
+   * in startRestore's quiesceWriters callback; released on failure short of seal.
+   * After seal it stays held until the user-confirmed relaunch exits the process
+   * (the write window must not reopen between disclosure and the preboot gate).
+   * `undefined` outside a restore.
    */
   private restoreQuiesceHold?: Disposable
   /** Finalized contributor registry, available only in the current backup surface. */
@@ -245,6 +254,20 @@ export class BackupService extends BaseService {
    * cleans up temp + staging. A second startBackup while one is running throws 'busy'.
    */
   async startBackup({ preset, outputPath, overwrite }: BackupV2StartOptions): Promise<BackupV2StartResult> {
+    // A sealed restore awaiting the user-confirmed relaunch (staged) or a crashed
+    // promotion (promoting) must not be raced by an export: activeOperation is null
+    // post-seal and backup.* routes bypass the quiesce gate, so without this guard the
+    // export would snapshot the pre-restore live DB while looking post-restore.
+    const priorRestore = readRestoreJournal()
+    if (
+      priorRestore.kind === 'ok' &&
+      (priorRestore.journal.state === 'staged' || priorRestore.journal.state === 'promoting')
+    ) {
+      throw new IpcError(
+        backupErrorCodes.RESTORE_PENDING,
+        `backup: a restore is in state '${priorRestore.journal.state}' — restart to apply it before exporting`
+      )
+    }
     if (!this.orchestrator || !this.schemaMigrationId) {
       // Unreachable in normal boot (onInit sets both); reached only if onInit threw +
       // error handling were changed away from fail-fast. Guard anyway.
@@ -316,15 +339,17 @@ export class BackupService extends BaseService {
 
   /**
    * Restore from a .cherrybackup archive (renderer-facing). Runs the ImportOrchestrator spine:
-   * quiesce → snapshot → merge → migrate → seal → 2nd fingerprint → staged journal,
-   * then relaunches so the preboot promotion gate (#16884) swaps work.sqlite in.
+   * quiesce → snapshot → planResources → merge → migrate → seal → 2nd fingerprint → staged
+   * journal, then broadcasts the disclosure summary and waits for the renderer-confirmed
+   * app.relaunch, whose next boot runs the preboot promotion gate (#16884) that swaps
+   * work.sqlite in. Quiesce stays held from seal to that exit.
    *
    * Partial quiesce + FIELD_MERGE (natural-key) / SKIP (uuid-entity) merge with dangling-ref
    * repair are wired (absent natural-key aggregates INSERT; conflicts column-merge keeping
-   * local row+PK and filling empty fields / absent members). File/KB/Notes blob staging is
-   * deferred (`stageFileResources` returns [] — DB-only journal). An explicit OVERWRITE/
-   * RENAME userStrategy still throws {@link MergeStrategyNotImplementedError}; the default
-   * restore path never does. Mutually exclusive with export.
+   * local row+PK and filling empty fields / absent members). Resource planning feeds merge
+   * skip sets + journal.fileResources (additive only; conflict → skip, no overwrite). An
+   * explicit OVERWRITE/RENAME userStrategy still throws {@link MergeStrategyNotImplementedError};
+   * the default restore path never does. Mutually exclusive with export.
    */
   async startRestore({ archivePath }: BackupRestoreStartOptions): Promise<BackupRestoreResult> {
     // Reserve the active slot BEFORE any work (incl. the journal read) so the null-check and
@@ -337,6 +362,15 @@ export class BackupService extends BaseService {
     const abortController = new AbortController()
     const active: ActiveOperation = { kind: 'restore', id: restoreId, abortController }
     this.activeOperation = active
+    // Flips once the journal is sealed — from then on quiesce must survive this method
+    // (the write window stays closed until the user-confirmed relaunch exits the process).
+    let sealed = false
+    // Flips once THIS invocation acquired the quiesce (inside quiesceWriters). The finally
+    // must only release what this invocation acquired: guard throws before quiesce (e.g.
+    // RESTORE_PENDING while a sealed restore awaits relaunch) would otherwise release the
+    // module-global flag + JobManager hold still owned by the sealed restore, reopening
+    // the write window and clean-expiring its whole batch at next boot.
+    let acquiredQuiesce = false
     try {
       // Never silently overwrite a prior restore's journal — #16884 has one fixed journal
       // file, and writeRestoreJournal overwrites. Any present journal (pending or terminal)
@@ -378,22 +412,9 @@ export class BackupService extends BaseService {
         // SKIP + junction + FTS + fileId disclosure) are wired. quiesce is PARTIAL
         // (BACKUP_IN_PROGRESS flag + JobManager.pause + drain; full quiesce a1/#17014
         // is follow-up). Unclean drain aborts restore (vaayne A7) — do not proceed into
-        // createSnapshot. File/KB/Notes blob staging is deferred — empty fileResources
-        // so the preboot gate promotes only the DB (DB-only / LITE restore).
-        // Reject Full archives at admission: resource staging is unfinished, so a
-        // DB-only restore would silently drop blobs (vaayne ordinary-restore-full-gate).
-        // LITE (includeFiles=false) proceeds. ImportOrchestrator e2e Full fixtures
-        // bypass this by wiring admitArchive directly.
-        admitArchive: async (path, workDir, migrationsFolder) => {
-          const ctx = await admitArchive(path, workDir, migrationsFolder)
-          if (ctx.manifest.preset === 'full') {
-            throw new IpcError(
-              backupErrorCodes.RESTORE_FULL_NOT_SUPPORTED,
-              'backup: Full archive restore is temporarily unavailable until resource staging lands; export/restore a LITE archive instead'
-            )
-          }
-          return ctx
-        },
+        // createSnapshot. Full + lite both admit; assertFullManifestInvariants runs inside
+        // admitArchive for full presets.
+        admitArchive: (path, workDir, migrationsFolder) => admitArchive(path, workDir, migrationsFolder),
         quiesceWriters: async () => {
           // PARTIAL quiesce: set BACKUP_IN_PROGRESS so IPC mutations reject
           // (DataApi/Preference/IpcApi gates), then pause JobManager (#16925) and DRAIN
@@ -405,6 +426,7 @@ export class BackupService extends BaseService {
           // aborts restore — promotion is NOT a backstop for writes that slip past
           // (vaayne A7). Full quiesce (a1 WindowManager hold) is follow-up.
           setBackupInProgress(true)
+          acquiredQuiesce = true
           const jobManager = application.get('JobManager')
           this.restoreQuiesceHold = jobManager.pause('restore-quiesce')
           const verdict = await jobManager.drainInFlight({ timeoutMs: 5000 })
@@ -431,56 +453,66 @@ export class BackupService extends BaseService {
           }
           return new MergeEngine(this.registry).mergeBackupIntoWork(workSqlite, workDb, ctx)
         },
-        stageFileResources: async () => {
-          // DB-only / lite restore: no FileStager blobs yet. Empty journal fileResources
-          // lets the spine seal + promote work.sqlite; KB/Notes/file blobs stay deferred.
-          return []
+        planResources,
+        planRoots: {
+          files: application.getPath('feature.files.data'),
+          knowledge: application.getPath('feature.knowledgebase.data'),
+          skills: application.getPath('feature.agents.skills'),
+          notes: () => this.resolveNotesRoot()
         }
       })
-      await importOrch.importBackup({
+      const { plan } = await importOrch.importBackup({
         archivePath,
         restoreId,
         signal: abortController.signal
         // onProgress wiring to the renderer lands with the restore progress UI.
       })
-      // Staged journal written → relaunch so the preboot gate promotes it. application.relaunch
-      // calls app.exit(0), which exits immediately and SKIPS the finally below + onStop — so
-      // clear activeOperation first (and, when quiesce/pause holds land, release them here too)
-      // so no in-flight state outlives the exit. The journal is already durable (committed
-      // above), so skipping onStop is intentional: the preboot gate owns the next state.
+      // Staged journal written → broadcast the disclosure summary and WAIT. The
+      // renderer's confirm dialog owns the restart via the app.relaunch route
+      // (backup.restore_summary integration contract): broadcasting and then
+      // relaunching unconditionally would leave no window to read or click.
+      // Quiesce + BACKUP_IN_PROGRESS stay HELD from seal to process exit so the
+      // write window never reopens between disclosure and the preboot gate —
+      // post-seal writes would raise whole-batch clean-expire risk. `sealed`
+      // routes the finally: only a failure short of seal releases the holds.
+      // A second restore in this session is blocked by the staged-journal guard
+      // above, not by activeOperation.
+      sealed = true
       this.activeOperation = null
-      // Do NOT release partial-quiesce holds here — application.relaunch → app.exit(0)
-      // (DEV shows a dialog then exits; prod re-execs + exits), so the flag + JobManager
-      // hold MUST stay live until process exit, keeping the write window closed across
-      // the relaunch gap. Process exit clears both (the module singleton dies; the
-      // refcounted pause hold releases via JobManager teardown). Releasing here would
-      // reopen IPC writes between release and exit (DEV dialog holds the process for
-      // seconds). Only the error path (finally below) releases, restoring writes when
-      // restore fails short of relaunch.
-      this.triggerRelaunch()
+      this.broadcastRestoreSummary({ toRestore: plan.toRestore, toSkip: plan.skips })
       return { restoreId }
     } catch (e) {
       throw this.toIpcError(e)
     } finally {
-      this.releaseRestoreQuiesce()
+      if (!sealed && acquiredQuiesce) this.releaseRestoreQuiesce()
       if (this.activeOperation === active) this.activeOperation = null
     }
   }
 
   /**
-   * Relaunch the app so the preboot restore gate runs. Dev mode shows a dialog + exits
-   * (no auto-restart); packaged re-execs + exits. The staged journal is picked up on
-   * the next boot. (application.relaunch, not raw app.relaunch — the latter doesn't
-   * exit the current process, so the gate would never run.)
+   * Broadcast the pre-relaunch disclosure summary (backup.restore_summary) after the
+   * journal is sealed. The renderer renders it in the confirm-restart dialog and
+   * triggers the relaunch via the app.relaunch route — the spine never relaunches on
+   * its own. Failures are swallowed: the journal is already durable and the renderer
+   * falls back to an empty summary on the resolved request, so a broadcast hiccup
+   * must not surface as a restore error.
+   *
+   * The summary is the resource plan (plan.toRestore / plan.skips) — what the staged
+   * journal will restore / will skip and why.
    */
-  private triggerRelaunch(): void {
-    application.relaunch()
+  private broadcastRestoreSummary(summary: RestoreResultSummary): void {
+    try {
+      application.get('IpcApiService').broadcast('backup.restore_summary', summary)
+    } catch (e) {
+      logger.error('restore summary broadcast failed (renderer falls back to empty summary)', e as Error)
+    }
   }
 
   /**
    * Clear BACKUP_IN_PROGRESS and release the JobManager pause hold. No-op when no
-   * quiesce is held. Called on both the success path (before relaunch, which skips
-   * the finally via app.exit) and the finally (error path), so the gate never sticks.
+   * quiesce is held. Called only when restore fails short of seal — after seal the
+   * holds stay live until the user-confirmed relaunch exits the process, keeping the
+   * write window closed across the disclosure + relaunch gap.
    */
   private releaseRestoreQuiesce(): void {
     setBackupInProgress(false)
@@ -493,7 +525,8 @@ export class BackupService extends BaseService {
    *  - staging residue: a restore that crashed mid-staging (before writing the journal)
    *    leaves a half-built work.sqlite + staging tree with no journal to direct cleanup.
    *    With no pending/terminal journal, GC the whole staging root.
-   *  - terminal/corrupt journal: kept for post-boot reporting; cleanup lands later.
+   *  - terminal/corrupt journal: terminal journals are KEPT (they carry the outcome
+   *    disclosed via backup.restore_status until acknowledged); corrupt ones are cleared.
    */
   private performRestoreRecovery(): void {
     const journal = readRestoreJournal()
@@ -503,19 +536,16 @@ export class BackupService extends BaseService {
     }
     if (journal.kind === 'ok') {
       const state = journal.journal.state
-      if (state === 'completed') {
-        // KEEP the completed journal: the gate (restorePromotion.ts) leaves terminal journals for
-        // BackupService to report + delete together ("Reporting + deletion of terminal journals is
-        // owned by BackupService"). A completed journal is the cross-restart disclosure signal for
-        // B3; it is cleared later by B3 (after acknowledge) or by startRestore (next restore). It
-        // blocks nothing here — hasPendingRestore ignores terminal states and the gate skips them.
+      if (state === 'completed' || state === 'failed' || state === 'expired') {
+        // KEEP terminal journals: the gate (restorePromotion.ts) leaves them for BackupService
+        // to report + delete together ("Reporting + deletion of terminal journals is owned by
+        // BackupService"). A terminal journal is the cross-restart disclosure signal consumed
+        // by backup.restore_status; it is cleared by backup.restore_acknowledge (user saw the
+        // outcome) or by the next startRestore. It blocks nothing here — hasPendingRestore
+        // ignores terminal states and the gate only re-runs staging cleanup on them.
         logger.warn(
-          `completed restore journal kept at init (awaiting disclosure): restoreId=${journal.journal.restoreId}`
+          `terminal restore journal kept at init (awaiting acknowledgement): state=${state} restoreId=${journal.journal.restoreId}`
         )
-      } else if (state === 'failed' || state === 'expired') {
-        // Terminal but not the success-report carrier — clear for hygiene so it doesn't linger.
-        logger.warn(`clearing terminal restore journal at init: state=${state} restoreId=${journal.journal.restoreId}`)
-        clearRestoreJournal()
       } else {
         // staged/promoting: the preboot gate (runs before services start) should have consumed
         // these; reaching onInit with one is unexpected — leave it for the gate on the next boot.
@@ -525,6 +555,113 @@ export class BackupService extends BaseService {
       // Belt: the gate quarantines corrupt journals before services start (rarely reached here).
       logger.warn('clearing corrupt restore journal at BackupService init')
       clearRestoreJournal()
+    }
+  }
+
+  /**
+   * Map the restore journal onto the UI-facing outcome (backup.restore_status).
+   * Corrupt journals report as `none`: the preboot gate quarantines them, and
+   * there is nothing actionable to show the user.
+   */
+  getRestoreStatus(): RestoreStatus {
+    const journal = readRestoreJournal()
+    if (journal.kind !== 'ok') {
+      return { state: 'none' }
+    }
+    const state = journal.journal.state
+    if (state === 'staged' || state === 'promoting') {
+      return { state: 'pending' }
+    }
+    if (state === 'failed' || state === 'expired') {
+      return { state, reason: journal.journal.reason }
+    }
+    return { state: 'completed' }
+  }
+
+  /**
+   * User has seen a terminal restore outcome — clear the journal so it stops
+   * being reported. Pending journals (staged/promoting) are never cleared here:
+   * they belong to the preboot gate's crash-recovery state.
+   */
+  acknowledgeRestoreOutcome(): { cleared: boolean } {
+    const journal = readRestoreJournal()
+    if (journal.kind !== 'ok') {
+      return { cleared: false }
+    }
+    const state = journal.journal.state
+    if (state !== 'completed' && state !== 'failed' && state !== 'expired') {
+      return { cleared: false }
+    }
+    logger.info(
+      `restore outcome acknowledged — clearing journal: state=${state} restoreId=${journal.journal.restoreId}`
+    )
+    clearRestoreJournal()
+    return { cleared: true }
+  }
+
+  /**
+   * Post-restore knowledge reindex (workstream B2, full-restore-plan §10.6).
+   *
+   * A restored knowledge base dir arrives without `.cherry/index.sqlite` (excluded
+   * at export — FileStager R1), and an empty index never auto-rebuilds
+   * (KnowledgeVectorStoreService.reportInvisibleIndexContents) — search would stay
+   * silently empty. On the first boot after promotion the completed journal is
+   * still present (performRestoreRecovery keeps it for disclosure), so this is the
+   * cross-restart signal: derive restored baseIds from its `dir-add` entries under
+   * the knowledge root and enqueue a reindex of their completed roots.
+   *
+   * onAllReady (not onInit): reindex admission needs KnowledgeService and
+   * JobManager, which are only guaranteed across phases once the whole system is
+   * ready.
+   */
+  protected async onAllReady(): Promise<void> {
+    try {
+      await this.enqueueRestoredKnowledgeReindex()
+    } catch (e) {
+      // Best-effort repair — a reindex scan failure must not affect boot.
+      logger.error('post-restore knowledge reindex scan failed', e as Error)
+    }
+  }
+
+  /**
+   * Cross-boot idempotency: only bases whose index file is still absent are
+   * enqueued. Export excludes the index, so a just-promoted base has none; once a
+   * rebuild has started the store file exists and later boots (journal still
+   * awaiting disclosure) skip — no sidecar marker state. A crash between store
+   * creation and rebuild completion parks items at failed (reindex handler
+   * recovery 'abandon'), where manual reindex remains available.
+   */
+  private async enqueueRestoredKnowledgeReindex(): Promise<void> {
+    const journal = readRestoreJournal()
+    if (journal.kind !== 'ok' || journal.journal.state !== 'completed') return
+    const userData = application.getPath('app.userdata')
+    const knowledgeRoot = resolve(application.getPath('feature.knowledgebase.data'))
+    const baseIds = new Set<string>()
+    for (const entry of journal.journal.fileResources) {
+      if (entry.kind !== 'dir-add') continue
+      const live = resolve(userData, entry.livePath)
+      // Only direct children of the knowledge root are base dirs (skills folders
+      // are dir-add too, under a different root).
+      if (!isPathInside(live, knowledgeRoot) || dirname(live) !== knowledgeRoot) continue
+      baseIds.add(basename(live))
+    }
+    if (baseIds.size === 0) return
+    const knowledgeService = application.get('KnowledgeService')
+    for (const baseId of baseIds) {
+      // Per-base isolation: one un-reindexable base (missing row, blocked subtree,
+      // missing source) must not block the others.
+      try {
+        if (existsSync(getKnowledgeVectorStoreFilePathSync(baseId))) continue
+        const rootItemIds = knowledgeItemService
+          .getRootItemsByBaseId(baseId)
+          .filter((item) => item.status === 'completed')
+          .map((item) => item.id)
+        if (rootItemIds.length === 0) continue
+        await knowledgeService.reindexItems(baseId, rootItemIds)
+        logger.info(`enqueued post-restore knowledge reindex: baseId=${baseId} roots=${rootItemIds.length}`)
+      } catch (e) {
+        logger.error(`post-restore knowledge reindex enqueue failed: baseId=${baseId}`, e as Error)
+      }
     }
   }
 

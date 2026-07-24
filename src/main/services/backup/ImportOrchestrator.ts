@@ -13,9 +13,10 @@
 //  3. db.chain from readAppliedChain(work), never from the bundled migration list.
 //  4. add-target livePaths must not pre-exist (enforced at promotion admission).
 //
-// The merge engine, write-quiesce, and file-resource staging are NOT yet implemented
-// — they are injected as deps so the spine is testable in isolation, with production
-// deps throwing fail-closed (NO journal is written without a real merge + quiesce).
+// Resource planning runs after snapshot and before merge so skipped* sets are
+// merge inputs (no dangling file_entry / knowledge_base / skill rows). Journal
+// fileResources come from the plan (additive only); skips stay in-memory for
+// RestoreResultSummary (B4), not in the journal schema.
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -35,6 +36,8 @@ import type { ArchiveContext } from './admitArchive'
 import { BackupCancelledError, RestoreFingerprintMismatchError } from './errors'
 import { captureLiveFingerprint } from './fingerprintProducer'
 import type { MergeContext, MergeResult } from './merge/types'
+import { presetIncludesFiles } from './presets'
+import type { PlanCtx, PlanRoots, ResourcePlan } from './resourcePlanning'
 
 const logger = loggerService.withContext('ImportOrchestrator')
 
@@ -71,13 +74,18 @@ export interface ImportBackupResult {
   readonly restoreId: string
   /** Absolute path the staged journal was written to (for diagnostics; the gate reads it via the path key). */
   readonly journalPath: string
+  /**
+   * Planning skips / toRestore for relaunch-confirm disclosure (B4); not written
+   * into the journal. Deliberately excludes `resources` — the journal's
+   * fileResources is the single source for what gets promoted, and a second
+   * consumer here could only drift from it.
+   */
+  readonly plan: Pick<ResourcePlan, 'skips' | 'toRestore'>
 }
 
 /**
- * Collaborators + unimplemented steps. The three function deps (quiesceWriters /
- * mergeBackupIntoWork / stageFileResources) are the not-yet-landed tracks; production
- * wires them to throwing impls so restore stays unavailable, tests wire no-ops to
- * exercise the spine end-to-end.
+ * Collaborators for the restore spine. `planResources` runs after snapshot and
+ * before merge (P0-4); journal.fileResources come from the plan (no stage stub).
  */
 export interface ImportOrchestratorDeps {
   readonly dbService: DbService
@@ -88,18 +96,23 @@ export interface ImportOrchestratorDeps {
   readonly restoreStagingRoot: string
   /** Absolute path to userData — journal paths are stored relative to this. */
   readonly userData: string
-  /** Archive admission — validate + safely unpack the .cherrybackup into the staging subtree BEFORE quiesce (backup-architecture §9 step 0). Returns ArchiveContext; importBackup awaits WITHOUT binding — consumer binding (merge/stage) lands in spine-wiring. */
+  /** Archive admission — validate + safely unpack the .cherrybackup into the staging subtree BEFORE quiesce (backup-architecture §9 step 0). */
   readonly admitArchive: (archivePath: string, workDir: string, migrationsFolder: string) => Promise<ArchiveContext>
-  /** Quiesce all main-side writers + renderer mutation admission. Throws until #16849/#16850 land. */
+  /** Quiesce all main-side writers + renderer mutation admission. */
   readonly quiesceWriters: (signal?: AbortSignal) => Promise<void>
-  /** Merge backup rows into the detached work.sqlite. Throws until the merge engine lands. */
+  /** Merge backup rows into the detached work.sqlite. */
   readonly mergeBackupIntoWork: (
     workSqlite: Database.Database,
     workDb: DbType,
     ctx: MergeContext
   ) => Promise<MergeResult>
-  /** Stage file resources; return journal entries. Return [] until staging lands (safe — nothing to promote). */
-  readonly stageFileResources: () => Promise<RestoreJournal['fileResources']>
+  /**
+   * Resource planning (merge input + journal resources). Caller supplies roots via
+   * {@link planRoots}; the orchestrator builds {@link PlanCtx} after snapshot.
+   */
+  readonly planResources: (ctx: PlanCtx) => ResourcePlan
+  /** Live FS roots for planning livePath resolution + containment. */
+  readonly planRoots: PlanRoots
   /** Absolute path to the restore journal file (feature.backup.restore.file). */
   readonly journalPath: string
 }
@@ -142,7 +155,8 @@ export class ImportOrchestrator {
       const archiveContext = await this.deps.admitArchive(options.archivePath, workDir, this.deps.migrationsFolder)
       this.assertNotCancelled(options)
       // Prepare the staging subtree: work.sqlite must NOT exist (snapshotTo asserts this).
-      fs.mkdirSync(workDir, { recursive: true })
+      // 0700 like admission's mkdir — the tree holds secrets until promotion deletes it.
+      fs.mkdirSync(workDir, { recursive: true, mode: 0o700 })
       if (fs.existsSync(workPath)) {
         throw new Error(`importBackup: work.sqlite already exists (interrupted prior restore?): ${workPath}`)
       }
@@ -173,6 +187,21 @@ export class ImportOrchestrator {
       this.deps.dbService.createSnapshot(workPath)
       this.assertNotCancelled(options)
 
+      // (e') Plan resources AFTER snapshot and BEFORE opening the write work connection
+      // (P0-4). planResources opens work.sqlite readonly itself and closes in finally —
+      // never share a write handle with planning. Skipped* sets feed merge; resources
+      // become journal.fileResources. Skips stay in-memory for B4 disclosure.
+      this.emit(options, 'stage', 0, 1, 'planning file resources')
+      const plan = this.deps.planResources({
+        manifest: archiveContext.manifest,
+        workDir,
+        backupDbPath: archiveContext.backupDbPath,
+        workPath,
+        userData: this.deps.userData,
+        roots: this.deps.planRoots
+      })
+      this.assertNotCancelled(options)
+
       // Open the detached work connection. VACUUM INTO copies the live DB's header (including
       // its WAL journal_mode flag), so explicitly switch work to DELETE mode before any
       // merge/migrate write — the gate renames only the main file, so work must carry no
@@ -182,19 +211,20 @@ export class ImportOrchestrator {
       const workDb = drizzle({ client: workSqlite, casing: 'snake_case' })
 
       // (b) Merge backup rows into work. FIELD_MERGE (natural-key) / SKIP (uuid-entity) +
-      // dangling-ref repair; skippedFileEntryIds would prune file_entry rows whose blobs were
-      // not staged. stagedFileEntryIds drives message.data fileEntryId soft-ref disclosure
-      // (DB-only restore passes empty → disclose all). userStrategy omitted → per-aggregate
-      // conflictDefault (防 UI 默认 SKIP 覆盖 PROVIDERS FIELD_MERGE 丢凭证).
+      // dangling-ref repair. skipped* sets from planning prune file_entry / knowledge_base /
+      // skill roots whose blobs/dirs were not staged. stagedFileEntryIds drives message.data
+      // fileEntryId soft-ref disclosure. includeFiles uses presetIncludesFiles(preset) (P0-3)
+      // — not archiveContext.includeFiles (export may set includeFiles from filesTotal>0).
+      // userStrategy omitted → per-aggregate conflictDefault.
       this.emit(options, 'merge', 0, 1, 'merging backup rows into work.sqlite')
       const ctx: MergeContext = {
         backupDbPath: archiveContext.backupDbPath,
         domains: archiveContext.domains,
-        skippedFileEntryIds: new Set<string>(),
-        stagedFileEntryIds: new Set<string>(),
-        // Lite (includeFiles=false) stages zero note bodies — MergeEngine must skip
-        // all `note` overlays so restore does not leave dangling starred/expanded state.
-        includeFiles: archiveContext.includeFiles
+        skippedFileEntryIds: plan.skippedFileEntryIds,
+        stagedFileEntryIds: plan.stagedFileEntryIds,
+        skippedKnowledgeBaseIds: plan.skippedKnowledgeBaseIds,
+        skippedSkillFolderNames: plan.skippedSkillFolderNames,
+        includeFiles: presetIncludesFiles(archiveContext.manifest.preset)
       }
       const result = await this.deps.mergeBackupIntoWork(workSqlite, workDb, ctx)
       if (result.degradedToSkips.length > 0) {
@@ -226,14 +256,6 @@ export class ImportOrchestrator {
       this.assertSealed(workPath)
       this.assertNotCancelled(options)
 
-      // (e) Stage file resources → journal entries. Empty until the staging track lands.
-      // Staging+sealing runs BEFORE the 2nd fingerprint so the fingerprint is the last async
-      // check before the synchronous journal write (plan (c) 时序: work seal → resource seal →
-      // 2nd fingerprint → journal).
-      this.emit(options, 'stage', 0, 1, 'staging file resources')
-      const fileResources = await this.deps.stageFileResources()
-      this.assertNotCancelled(options)
-
       // (c) Second fingerprint — the LAST async check before the journal write. Re-capture live
       // (checkpointTruncate + hash) and compare. A checkpoint fold is required so a writer whose
       // data still sits in the WAL (main file unchanged) is still detected. A mismatch means a
@@ -256,7 +278,8 @@ export class ImportOrchestrator {
           fingerprint,
           chain
         },
-        fileResources
+        // Additive resources only — skips are not journal fields (P1-5); B4 reads plan.skips.
+        fileResources: plan.resources
       }
       // writeRestoreJournal renames the journal before its parent-dir fsync; a throw after the
       // rename still leaves a valid staged journal on disk (plan R1-M3). Reread: if it landed
@@ -281,7 +304,11 @@ export class ImportOrchestrator {
       }
       committed = true
 
-      return { restoreId: options.restoreId, journalPath: this.deps.journalPath }
+      return {
+        restoreId: options.restoreId,
+        journalPath: this.deps.journalPath,
+        plan: { skips: plan.skips, toRestore: plan.toRestore }
+      }
     } finally {
       // Fail-closed cleanup: if the journal was NOT committed, tear down this restore's
       // staging subtree so no half-built work.sqlite lingers. The startup GC (plan (h))

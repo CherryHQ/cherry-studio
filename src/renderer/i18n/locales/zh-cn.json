@@ -5720,12 +5720,30 @@
           "restore": {
             "confirm_content": "恢复将把备份数据合并到当前数据中（本地非空数据会保留），并重启应用，是否继续？",
             "failure": "恢复失败。",
-            "full_button": "完整恢复",
-            "full_unavailable": "完整恢复暂时不可用：资源暂存（文件、知识库、笔记、技能）尚未落地。请使用「恢复」处理仅数据库（LITE）备份。",
+            "outcome": {
+              "acknowledge_button": "知道了",
+              "completed": "上次恢复已成功应用。",
+              "expired": "上次恢复未生效：暂存数据未通过启动检查，原数据保持不变。",
+              "failed": "上次恢复失败，已回滚到恢复前的数据。"
+            },
             "pick_prompt": "请选择要恢复的 .cherrybackup 备份文件。",
             "relaunching": "恢复已暂存，应用正在重启…",
             "selected": "已选择的备份：",
-            "skip_only": "当前仅支持跳过（SKIP）合并策略，覆盖与重命名尚未支持。"
+            "skip_only": "当前仅支持跳过（SKIP）合并策略，覆盖与重命名尚未支持。",
+            "summary": {
+              "kind": {
+                "file": "文件",
+                "knowledge": "知识库",
+                "note": "笔记",
+                "skill": "技能"
+              },
+              "none": "没有需要恢复的资源文件",
+              "pending_hint": "恢复已暂存，将在重启后生效。本次恢复摘要：",
+              "relaunch_failed": "重启失败，点击重试。",
+              "restart_button": "立即重启",
+              "will_restore": "将恢复",
+              "will_skip": "将跳过（保留本地版本）"
+            }
           }
         },
         "v2_unavailable": "V2 备份恢复尚未上线，敬请期待"

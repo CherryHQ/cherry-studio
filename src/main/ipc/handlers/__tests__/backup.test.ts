@@ -10,7 +10,9 @@ import { backupHandlers } from '../backup'
 const backupService = {
   startBackup: vi.fn(),
   startRestore: vi.fn(),
-  cancel: vi.fn()
+  cancel: vi.fn(),
+  getRestoreStatus: vi.fn(),
+  acknowledgeRestoreOutcome: vi.fn()
 }
 
 beforeEach(() => {
@@ -84,5 +86,28 @@ describe('backupHandlers', () => {
       backupHandlers['backup.start_restore']({ archivePath: '/backups/lite.cherrybackup' }, { senderId: null })
     ).rejects.toMatchObject({ code: backupErrorCodes.INVALID_SENDER })
     expect(backupService.startRestore).not.toHaveBeenCalled()
+  })
+
+  it('restore_status returns the service outcome', async () => {
+    backupService.getRestoreStatus.mockReturnValue({ state: 'failed', reason: 'disk full' })
+    const result = await backupHandlers['backup.restore_status'](undefined, ctx)
+    expect(result).toEqual({ state: 'failed', reason: 'disk full' })
+  })
+
+  it('restore_acknowledge returns { cleared } from the service', async () => {
+    backupService.acknowledgeRestoreOutcome.mockReturnValue({ cleared: true })
+    const result = await backupHandlers['backup.restore_acknowledge'](undefined, ctx)
+    expect(result).toEqual({ cleared: true })
+  })
+
+  it('restore_status and restore_acknowledge reject when senderId is null', async () => {
+    await expect(backupHandlers['backup.restore_status'](undefined, { senderId: null })).rejects.toMatchObject({
+      code: backupErrorCodes.INVALID_SENDER
+    })
+    await expect(backupHandlers['backup.restore_acknowledge'](undefined, { senderId: null })).rejects.toMatchObject({
+      code: backupErrorCodes.INVALID_SENDER
+    })
+    expect(backupService.getRestoreStatus).not.toHaveBeenCalled()
+    expect(backupService.acknowledgeRestoreOutcome).not.toHaveBeenCalled()
   })
 })

@@ -3,10 +3,9 @@
  *
  * Scope (intentionally narrow):
  * - Proves the DB restore spine end-to-end: partial quiesce → fingerprint →
- *   snapshot → MergeEngine SKIP/INSERT → migrate → seal → journal.
+ *   snapshot → planResources → MergeEngine SKIP/INSERT → migrate → seal → journal.
  * - Uses a synthetic **lite** TOPICS-only `.cherrybackup` (no file / knowledge / notes blobs).
- * - FileStager / KB / Notes resource staging are **deferred** — `stageFileResources`
- *   returns `[]` (same DB-only contract as packaged `BackupService.startRestore`).
+ * - planResources early-returns empty for lite (same DB-only journal as packaged BackupService).
  *
  * Out of scope: file blob promotion, knowledge/notes stagers, explicit OVERWRITE/RENAME
  * strategies, and the multi-domain backfill/conflict matrix (see `restore.full.test.ts`).
@@ -33,6 +32,7 @@ import { ImportOrchestrator, type ImportOrchestratorDeps } from '../../ImportOrc
 import { BACKUP_FORMAT_VERSION, type BackupManifest } from '../../manifest'
 import { MergeEngine } from '../../merge/MergeEngine'
 import { resolvePreset } from '../../presets'
+import { planResources } from '../../resourcePlanning'
 
 const MIGRATIONS_FOLDER = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -127,7 +127,7 @@ describe('e2e-restore lite / SKIP DB only', () => {
 
   /**
    * Production-shaped deps: partial quiesce sets BACKUP_IN_PROGRESS + JobManager
-   * pause/drain; stageFileResources is empty (lite / SKIP DB only — no blob stagers).
+   * pause/drain; real planResources (lite → empty plan).
    */
   const makeDeps = (): ImportOrchestratorDeps => ({
     dbService: {
@@ -150,7 +150,13 @@ describe('e2e-restore lite / SKIP DB only', () => {
       expect(workSqlite.name.endsWith('work.sqlite')).toBe(true)
       return new MergeEngine(registry).mergeBackupIntoWork(workSqlite, workDb, ctx)
     },
-    stageFileResources: async () => []
+    planResources,
+    planRoots: {
+      files: join(tmpDir, 'Data', 'Files'),
+      knowledge: join(tmpDir, 'Data', 'KnowledgeBase'),
+      skills: join(tmpDir, 'Data', 'Skills'),
+      notes: () => undefined
+    }
   })
 
   it('roundtrips lite SKIP DB spine: quiesce → merge SKIP → staged journal (no file blobs)', async () => {
