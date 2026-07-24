@@ -19,7 +19,7 @@ import ArtifactPane, {
   getArtifactPaneSelectionPath,
   resolveArtifactPaneFileSelection
 } from '../ArtifactPane'
-import { useArtifactFileTreeModel } from '../useArtifactFileTreeModel'
+import { ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS, useArtifactFileTreeModel } from '../useArtifactFileTreeModel'
 
 /** Mimics the agent pane's single Viewport while its docked/maximized layout changes. */
 function PersistentArtifactPaneHarness({ workspacePath }: { workspacePath: string }) {
@@ -107,6 +107,10 @@ function EditablePaneHarness({ workspacePath }: { workspacePath: string }) {
     </SWRConfig>
   )
 }
+
+it('watches an allowed missing workspace without limiting discovery depth', () => {
+  expect(ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS).toEqual({ watchMissingRoot: true })
+})
 
 const mocks = vi.hoisted(() => ({
   treeCreate: vi.fn(),
