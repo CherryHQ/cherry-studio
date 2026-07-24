@@ -178,7 +178,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const request = await buildClaudeCodeQueryRequestForAgentSession(
       this.input.sessionId,
       this.resumeToken,
-      this.input.modelId
+      this.input.modelId,
+      this.input.reasoningEffort ?? 'default'
     )
     if (!request) {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
@@ -261,7 +262,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     return true
   }
 
-  async reconcile(input: { modelId: UniqueModelId }): Promise<AgentRuntimeReconcileResult> {
+  async reconcile(input: {
+    modelId: UniqueModelId
+    reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
+  }): Promise<AgentRuntimeReconcileResult> {
     // Serialize per connection: a push (agent-updated) and a pull (fresh-turn check) reconciling
     // concurrently could interleave the SDK setPermissionMode and snapshot writes, leaving the local
     // gate and the subprocess on different policies.
@@ -273,9 +277,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     return run
   }
 
-  private async reconcileOnce(input: { modelId: UniqueModelId }): Promise<AgentRuntimeReconcileResult> {
+  private async reconcileOnce(input: {
+    modelId: UniqueModelId
+    reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
+  }): Promise<AgentRuntimeReconcileResult> {
     if (!this.query) return 'rebuild'
-    const derived = await deriveConnectionConfig(this.input.sessionId, input.modelId)
+    const derived = await deriveConnectionConfig(
+      this.input.sessionId,
+      input.modelId,
+      input.reasoningEffort ?? 'default'
+    )
     if (!derived.ok) return 'invalid'
     const baseline = this.connectionConfig
     // A connection without its materialized baseline cannot prove what the subprocess serves.

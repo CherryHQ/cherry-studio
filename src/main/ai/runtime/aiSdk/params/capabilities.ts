@@ -64,12 +64,11 @@ export function resolveCapabilities(
   assistant: Assistant,
   options: ResolveCapabilitiesOptions = {}
 ): ResolvedCapabilities {
-  // `isFixedReasoningModel` covers models where reasoning is always on regardless
-  // of user setting (e.g. OpenAI o1 / o3 — they reason by construction).
+  // This flag means the model exposes reasoning behavior, not that the persisted assistant setting
+  // enabled it. The request snapshot may legitimately be `none`, `default`, or a freshly selected
+  // effort that has not reached assistant persistence yet; the resolver/profile decides what emits.
   const enableReasoning =
-    ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
-      assistant.settings?.reasoning_effort !== undefined) ||
-    isFixedReasoningModel(model)
+    isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model) || isFixedReasoningModel(model)
 
   const hasExternalSearch = !!options.webSearchProviderId
   const enableWebSearch =

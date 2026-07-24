@@ -155,9 +155,6 @@ export type UseCacheSchema = {
   /** Whether translating input text */
   'translate.translating': CacheValueTypes.TranslatingState
 
-  // Assistant reasoning effort cache (per-assistant, not persisted to DB)
-  'assistant.reasoning_effort_cache.${assistantId}': string | undefined
-
   // Painting in-flight generation state, keyed by paintingId. Survives page
   // navigation so the spinner reappears when the user returns mid-run.
   'painting.generation.${paintingId}': CacheValueTypes.CachePaintingGenerationState | null
@@ -227,9 +224,6 @@ export const DefaultUseCache: UseCacheSchema = {
     isTranslating: false,
     abortKey: null
   },
-
-  // Assistant reasoning effort cache
-  'assistant.reasoning_effort_cache.${assistantId}': undefined,
 
   'painting.generation.${paintingId}': null,
 
