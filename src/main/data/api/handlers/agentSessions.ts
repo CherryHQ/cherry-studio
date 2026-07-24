@@ -12,9 +12,12 @@ import { toDataApiError } from '@shared/data/api/errors'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   type AgentSessionSchemas,
+  AgentSessionStatsQuerySchema,
   CreateAgentSessionSchema,
   DeleteAgentSessionsQuerySchema,
+  LatestAgentSessionQuerySchema,
   ListAgentSessionsQuerySchema,
+  ReusableAgentSessionPlaceholdersQuerySchema,
   SetAgentSessionWorkspaceSchema,
   UpdateAgentSessionSchema
 } from '@shared/data/api/schemas/agentSessions'
@@ -28,7 +31,7 @@ const AgentSessionsParamsSchema = z.strictObject({
 export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
   '/agent-sessions': {
     GET: async ({ query }) => {
-      const parsed = ListAgentSessionsQuerySchema.safeParse(query ?? {})
+      const parsed = ListAgentSessionsQuerySchema.safeParse(query)
       if (!parsed.success) throw toDataApiError(parsed.error)
       return agentSessionService.listByCursor(parsed.data)
     },
@@ -47,8 +50,26 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
   },
 
   '/agent-sessions/latest': {
-    GET: async () => {
-      return { session: agentSessionService.getLatestUpdated() }
+    GET: async ({ query }) => {
+      const parsed = LatestAgentSessionQuerySchema.safeParse(query ?? {})
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      return { session: agentSessionService.getLatestActive(parsed.data) }
+    }
+  },
+
+  '/agent-sessions/reusable-placeholders': {
+    GET: async ({ query }) => {
+      const parsed = ReusableAgentSessionPlaceholdersQuerySchema.safeParse(query)
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      return { sessions: agentSessionService.listReusablePlaceholders(parsed.data) }
+    }
+  },
+
+  '/agent-sessions/stats': {
+    GET: async ({ query }) => {
+      const parsed = AgentSessionStatsQuerySchema.safeParse(query ?? {})
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      return agentSessionService.stats(parsed.data)
     }
   },
 

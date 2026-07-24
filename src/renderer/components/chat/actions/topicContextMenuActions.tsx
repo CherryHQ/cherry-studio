@@ -509,8 +509,8 @@ topicActionRegistry.registerAction({
   order: 90,
   surface: 'menu',
   danger: true,
-  // Deleting the last topic is allowed — the delete handler opens a fresh empty one afterwards, so
-  // the view is never stranded. Pinned topics must be unpinned before they can be deleted.
+  // Deleting the last topic is allowed — the selected assistant remains visible with an empty scoped
+  // list, without creating a replacement. Pinned topics must be unpinned before deletion.
   availability: ({ topic }) => ({ visible: !topic.pinned }),
   confirm: ({ t }) => ({
     title: t('chat.topics.manage.delete.confirm.title'),

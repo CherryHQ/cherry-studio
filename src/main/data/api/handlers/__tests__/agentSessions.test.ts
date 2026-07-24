@@ -4,7 +4,9 @@ const {
   listByCursorMock,
   createSessionMock,
   getByIdMock,
-  getLatestUpdatedMock,
+  getLatestActiveMock,
+  listReusablePlaceholdersMock,
+  statsMock,
   updateMock,
   setWorkspaceMock,
   deleteMock,
@@ -16,7 +18,9 @@ const {
   listByCursorMock: vi.fn(),
   createSessionMock: vi.fn(),
   getByIdMock: vi.fn(),
-  getLatestUpdatedMock: vi.fn(),
+  getLatestActiveMock: vi.fn(),
+  listReusablePlaceholdersMock: vi.fn(),
+  statsMock: vi.fn(),
   updateMock: vi.fn(),
   setWorkspaceMock: vi.fn(),
   deleteMock: vi.fn(),
@@ -31,7 +35,9 @@ vi.mock('@data/services/AgentSessionService', () => ({
     listByCursor: listByCursorMock,
     create: createSessionMock,
     getById: getByIdMock,
-    getLatestUpdated: getLatestUpdatedMock,
+    getLatestActive: getLatestActiveMock,
+    listReusablePlaceholders: listReusablePlaceholdersMock,
+    stats: statsMock,
     update: updateMock,
     setWorkspace: setWorkspaceMock,
     delete: deleteMock,
@@ -52,37 +58,91 @@ describe('agentSessionHandlers', () => {
   })
 
   describe('/agent-sessions', () => {
+    // Agent ids are UUID v4 (remapAgentPrefixIds rewrites legacy prefix ids),
+    // and AgentSessionOwnerScopeSchema enforces uuid | 'unlinked'.
+    const AGENT_ID = '018f6ed6-73b8-4f40-8d0d-9bb2f8f1d001'
+
     it('forwards query to agentSessionService.listByCursor', async () => {
       const response = { items: [], nextCursor: undefined }
       listByCursorMock.mockResolvedValueOnce(response)
 
       const result = await agentSessionHandlers['/agent-sessions'].GET({
         query: {
-          agentId: 'agent-1',
-          limit: '10'
+          agentId: AGENT_ID,
+          limit: '10',
+          pinned: false
         }
       } as never)
 
       expect(listByCursorMock).toHaveBeenCalledWith({
-        agentId: 'agent-1',
-        limit: 10
+        agentId: AGENT_ID,
+        limit: 10,
+        pinned: false
       })
       expect(result).toBe(response)
+    })
+  })
+
+  describe('/agent-sessions/stats', () => {
+    it('parses stats query and delegates to agentSessionService.stats', async () => {
+      const stats = { total: 0, pinnedCount: 0, byAgent: [] }
+      statsMock.mockReturnValueOnce(stats)
+
+      const result = await agentSessionHandlers['/agent-sessions/stats'].GET({
+        query: { agentId: 'unlinked' }
+      } as never)
+
+      expect(statsMock).toHaveBeenCalledWith({ agentId: 'unlinked' })
+      expect(result).toBe(stats)
     })
   })
 
   describe('/agent-sessions/latest', () => {
     it('wraps the latest session from AgentSessionService', async () => {
       const session = { id: 'session-latest' }
-      getLatestUpdatedMock.mockReturnValueOnce(session)
+      getLatestActiveMock.mockReturnValueOnce(session)
 
       await expect(agentSessionHandlers['/agent-sessions/latest'].GET({} as never)).resolves.toEqual({ session })
+      expect(getLatestActiveMock).toHaveBeenCalledWith({})
+    })
+
+    it('forwards a concrete agent scope', async () => {
+      const agentId = '018f6ed6-73b8-4f40-8d0d-9bb2f8f1d001'
+      getLatestActiveMock.mockReturnValueOnce(null)
+
+      await agentSessionHandlers['/agent-sessions/latest'].GET({ query: { agentId } } as never)
+
+      expect(getLatestActiveMock).toHaveBeenCalledWith({ agentId })
     })
 
     it('returns { session: null } when there are no sessions', async () => {
-      getLatestUpdatedMock.mockReturnValueOnce(null)
+      getLatestActiveMock.mockReturnValueOnce(null)
 
       await expect(agentSessionHandlers['/agent-sessions/latest'].GET({} as never)).resolves.toEqual({ session: null })
+    })
+  })
+
+  describe('/agent-sessions/reusable-placeholders', () => {
+    it('forwards the exact agent/workspace target and wraps every match', async () => {
+      const agentId = '018f6ed6-73b8-4f40-8d0d-9bb2f8f1d001'
+      const sessions = [{ id: 'session-empty' }]
+      listReusablePlaceholdersMock.mockReturnValueOnce(sessions)
+
+      await expect(
+        agentSessionHandlers['/agent-sessions/reusable-placeholders'].GET({
+          query: { agentId, workspaceId: 'system' }
+        } as never)
+      ).resolves.toEqual({ sessions })
+      expect(listReusablePlaceholdersMock).toHaveBeenCalledWith({ agentId, workspaceId: 'system' })
+    })
+
+    it('rejects aggregate owner scopes before calling the service', async () => {
+      await expect(
+        agentSessionHandlers['/agent-sessions/reusable-placeholders'].GET({
+          query: { agentId: 'unlinked' }
+        } as never)
+      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+      expect(listReusablePlaceholdersMock).not.toHaveBeenCalled()
     })
   })
 

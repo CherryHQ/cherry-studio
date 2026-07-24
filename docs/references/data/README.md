@@ -169,7 +169,7 @@ Use DataApiService when:
 
 ```typescript
 // Good: User-generated business data
-const { data: topics } = useQuery('/topics')
+const { data: topics } = useQuery('/topics', { query: { pinned: false } })
 const { trigger: createTopic } = useMutation('/topics', 'POST')
 
 // Good: Conversation history (irreplaceable)
@@ -275,4 +275,3 @@ See [App State Overview](./app-state-overview.md) for full rules and the key reg
 - `src/renderer/data/CacheService.ts` - Cache service
 - `src/renderer/data/PreferenceService.ts` - Preference service
 - `src/renderer/data/hooks/` - React hooks
-

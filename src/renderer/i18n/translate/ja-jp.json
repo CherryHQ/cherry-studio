@@ -376,7 +376,7 @@
       },
       "display": {
         "agent": "エージェント",
-        "time": "時間",
+        "time": "タスク",
         "title": "表示モード",
         "workdir": "作業ディレクトリ"
       },
@@ -404,14 +404,10 @@
         "collapse_all": "すべて折りたたむ",
         "conversation": "会話",
         "drag_hint": "ドラッグして並び替えます。タスクをドラッグして表示グループと非表示グループを調整してください。",
-        "earlier": "以前",
         "expand_all": "すべて展開",
         "no_workdir": "作業ディレクトリがありません",
         "show_more": "表示を拡大",
-        "this_week": "今週",
-        "today": "今日",
-        "unknown_agent": "不明なエージェント",
-        "yesterday": "昨日"
+        "unknown_agent": "不明なエージェント"
       },
       "label_one": "セッション",
       "label_other": "セッション",
@@ -1777,7 +1773,7 @@
       "display": {
         "assistant": "アシスタント",
         "tag": "タグ",
-        "time": "時間",
+        "time": "会話",
         "title": "表示モード"
       },
       "edit": {
@@ -1843,13 +1839,9 @@
       "group": {
         "collapse": "折りたたみ表示",
         "collapse_all": "すべて折りたたむ",
-        "earlier": "以前",
         "expand_all": "すべて展開",
         "show_more": "表示を拡大",
-        "this_week": "今週",
-        "today": "今日",
-        "unknown_assistant": "リンクされていないアシスタント",
-        "yesterday": "昨日"
+        "unknown_assistant": "リンクされていないアシスタント"
       },
       "list": "トピックリスト",
       "manage": {
@@ -1886,6 +1878,11 @@
         },
         "label": "トピック提示語",
         "tips": "トピック提示語：現在のトピックに対して追加の補足提示語を提供"
+      },
+      "reorder": {
+        "error": {
+          "failed": "[to be translated]:Failed to reorder conversations"
+        }
       },
       "search": {
         "placeholder": "トピックを検索...",
@@ -2226,6 +2223,7 @@
     "invalid_value": "無効な値",
     "knowledge_base": "ナレッジベース",
     "language": "言語",
+    "list_options": "[to be translated]:List options",
     "loading": "読み込み中...",
     "maximize": "最大化",
     "minimize": "最小化",
@@ -2275,11 +2273,16 @@
     "sessions": "セッション",
     "settings": "設定",
     "sort": {
+      "created_at": "[to be translated]:Creation time",
+      "last_active": "[to be translated]:Last active",
+      "manual_order": "[to be translated]:Manual order",
       "pinyin": {
         "asc": "ピンインで昇順ソート",
         "desc": "ピンインで降順ソート",
         "label": "ピンインでソート"
-      }
+      },
+      "title": "[to be translated]:Sort order",
+      "updated_at": "[to be translated]:Updated time"
     },
     "stop": "停止",
     "subscribe": "購読",
@@ -2746,8 +2749,6 @@
       "filter": {
         "selectAgent": "エージェントを選択",
         "selectAssistant": "アシスタントを選択",
-        "statusLabel": "ステータス",
-        "statusPlaceholder": "ステータスを選択",
         "unlinkedAssistant": "リンクされていないアシスタント"
       },
       "loading": {
@@ -2759,11 +2760,6 @@
       "searchSession": "タスクを検索...",
       "searchTopic": "会話を検索...",
       "shortTitle": "歴史",
-      "status": {
-        "completed": "完了",
-        "failed": "失敗",
-        "running": "走っている"
-      },
       "table": {
         "actions": "アクション",
         "conversation": "会話",

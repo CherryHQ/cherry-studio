@@ -7,7 +7,7 @@ import {
   type ResourceEditDialogTarget
 } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { useMutation } from '@renderer/data/hooks/useDataApi'
-import { useAgents } from '@renderer/hooks/agent/useAgent'
+import { useAgents, useDeleteAgent } from '@renderer/hooks/agent/useAgent'
 import type { AgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { usePins } from '@renderer/hooks/usePins'
@@ -23,13 +23,13 @@ import { useTranslation } from 'react-i18next'
 import {
   buildResolvedIconTypeMenuAction,
   buildResolvedResourceEntityMenuAction,
+  buildResourceOwnerFallbackIds,
   type ConversationResourceMenuItem,
   renderAgentEntityIcon,
   ResourceList,
   SessionListOptionsMenu
 } from './base'
 import { ResourceEntityRail, type ResourceEntityRailItem } from './ResourceEntityRail'
-import { sortResourceItemsByPinnedTime } from './resourceEntitySort'
 import { type ResourceEntityRailReorderAnchor, useResourceEntityRail } from './useResourceEntityRail'
 
 const logger = loggerService.withContext('AgentResourceList')
@@ -50,16 +50,16 @@ type AgentResourceListProps = {
   onAddAgent?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
   onSelectSession: (sessionId: string, session: AgentSessionEntity) => void
+  onSelectEmptyAgent?: (agentId: string) => void
   onSelectedAgentClick?: () => void | Promise<void>
   onCreateSession: (agentId: string) => void | Promise<unknown>
   onShowMissingAgentSelection?: () => void | Promise<void>
   resourceMenuItems?: readonly ConversationResourceMenuItem[]
   /**
-   * Called after the currently-active agent is deleted so the classic-layout page can
-   * settle (select the latest remaining session / clear). This is the classic
-   * layout's reset.
+   * Called after the active agent is deleted. Candidate ids preserve the
+   * owner rail's pre-removal display order.
    */
-  onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
+  onActiveAgentDeleted?: (agentId: string, candidateAgentIds: readonly string[]) => void | Promise<void>
 }
 
 export function AgentResourceList({
@@ -69,6 +69,7 @@ export function AgentResourceList({
   onAddAgent,
   onOpenHistoryRecords,
   onSelectSession,
+  onSelectEmptyAgent,
   onSelectedAgentClick,
   onCreateSession,
   onShowMissingAgentSelection,
@@ -80,16 +81,14 @@ export function AgentResourceList({
   const [assistantIconType, setAssistantIconType] = usePreference('agent.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')
   const [sessionDisplayMode, setSessionDisplayMode] = usePreference('agent.session.display_mode')
+  const [sessionSortBy, setSessionSortBy] = usePreference('agent.session.sort_type')
   const { agents, isLoading: isAgentsLoading, error: agentsError, refetch: refetchAgents } = useAgents()
   const {
-    sessions,
-    pinIdBySessionId,
-    isLoading,
-    isLoadingAll,
-    isFullyLoaded,
-    isPinsLoading,
-    error: sessionsError,
-    reload
+    stats: sessionStats,
+    isStatsLoading: isSessionStatsLoading,
+    statsError: sessionsError,
+    refetchStats: reload,
+    loadLatestSession
   } = agentSessionsSource
   const {
     isLoading: isAgentPinsLoading,
@@ -99,9 +98,7 @@ export function AgentResourceList({
     togglePin: toggleAgentPin
   } = usePins('agent')
   const closeConversationTabs = useCloseConversationTabs()
-  const { trigger: deleteAgent } = useMutation('DELETE', '/agents/:agentId', {
-    refresh: ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
-  })
+  const deleteAgent = useDeleteAgent()
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
@@ -109,9 +106,12 @@ export function AgentResourceList({
   const manageAgentsMenuItem = resourceMenuItems?.find((item) => item.id === 'agent-resource-view')
   const agentPinnedIdSet = useMemo(() => new Set(agentPinnedIds), [agentPinnedIds])
   const isAgentPinActionDisabled = isAgentPinsLoading || isAgentPinsRefreshing || isAgentPinsMutating
-  const sessionItems = useMemo<SessionListItem[]>(
-    () => sessions.map((session) => ({ ...session, pinned: pinIdBySessionId.has(session.id) })),
-    [pinIdBySessionId, sessions]
+  const sessionCountByAgentId = useMemo(
+    () =>
+      new Map(
+        (sessionStats?.byAgent ?? []).flatMap(({ agentId, count }) => (agentId ? [[agentId, count] as const] : []))
+      ),
+    [sessionStats?.byAgent]
   )
 
   const entities = useMemo<ResourceEntityRailItem[]>(
@@ -142,15 +142,15 @@ export function AgentResourceList({
     [agentPinnedIdSet, agents, assistantIconType, defaultModelId, onCreateSession, t]
   )
 
-  const sortSessionsForEntity = useCallback(
-    (entitySessions: SessionListItem[]) => sortResourceItemsByPinnedTime(entitySessions, new Date()),
-    []
-  )
-  const getSessionAgentId = useCallback((session: SessionListItem) => session.agentId, [])
   const handlePickSession = useCallback(
     (session: SessionListItem) => onSelectSession(session.id, session),
     [onSelectSession]
   )
+  const handleEmptyAgentSelection = useCallback(
+    (agent: ResourceEntityRailItem) => onSelectEmptyAgent?.(agent.id),
+    [onSelectEmptyAgent]
+  )
+  const loadLatestSessionForAgent = useCallback((agentId: string) => loadLatestSession(agentId), [loadLatestSession])
   const reorderAgentEntity = useCallback(
     async (agentId: string, anchor: ResourceEntityRailReorderAnchor) => {
       await reorderAgent({ params: { id: agentId }, body: anchor })
@@ -167,14 +167,13 @@ export function AgentResourceList({
 
   const { items, listStatus, selectedId, handleSelect, handleReorder } = useResourceEntityRail({
     entities,
-    resources: sessionItems,
-    getResourceParentId: getSessionAgentId,
+    resourceCountByEntityId: sessionCountByAgentId,
     activeEntityId: activeAgentId,
-    isLoading: isAgentsLoading || isLoading || isLoadingAll || !isFullyLoaded || isPinsLoading,
+    isLoading: isAgentsLoading || isSessionStatsLoading,
     isError: !!(agentsError || sessionsError),
-    sortResourcesForEntity: sortSessionsForEntity,
     onPickResource: handlePickSession,
-    onCreateResource: onCreateSession,
+    onEmptyResource: handleEmptyAgentSelection,
+    loadResourceForEntity: loadLatestSessionForAgent,
     reorder: reorderAgentEntity,
     refetchEntities: refetchAgents,
     onReorderError: handleReorderError
@@ -217,10 +216,14 @@ export function AgentResourceList({
         })
         if (!confirmed) return
 
+        const fallbackAgentIds = buildResourceOwnerFallbackIds(
+          items.map((item) => item.id),
+          agentId
+        )
         const result = await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
         closeConversationTabs('agents', result.deletedSessionIds ?? [])
         if (activeAgentId === agentId) {
-          await onActiveAgentDeleted?.(agentId)
+          await onActiveAgentDeleted?.(agentId, fallbackAgentIds)
         }
 
         await refetchAgents()
@@ -233,7 +236,17 @@ export function AgentResourceList({
         setDeletingAgentId(null)
       }
     },
-    [activeAgentId, closeConversationTabs, deleteAgent, deletingAgentId, onActiveAgentDeleted, refetchAgents, reload, t]
+    [
+      activeAgentId,
+      closeConversationTabs,
+      deleteAgent,
+      deletingAgentId,
+      items,
+      onActiveAgentDeleted,
+      refetchAgents,
+      reload,
+      t
+    ]
   )
 
   const getContextMenuActions = useCallback(
@@ -319,6 +332,8 @@ export function AgentResourceList({
             onChange={(nextMode) => void setSessionDisplayMode(nextMode)}
             onManageAgents={manageAgentsMenuItem?.onSelect}
             onOpenHistoryRecords={onOpenHistoryRecords}
+            onSortByChange={(nextSortBy) => void setSessionSortBy(nextSortBy)}
+            sortBy={sessionSortBy}
           />
         }
         onSelect={handleSelect}

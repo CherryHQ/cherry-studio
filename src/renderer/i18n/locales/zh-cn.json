@@ -376,7 +376,7 @@
       },
       "display": {
         "agent": "智能体",
-        "time": "时间",
+        "time": "任务",
         "title": "展示方式",
         "workdir": "工作目录"
       },
@@ -404,14 +404,10 @@
         "collapse_all": "全部折叠",
         "conversation": "对话",
         "drag_hint": "拖拽可排序，也可拖拽任务调整展示/隐藏分组。",
-        "earlier": "更早",
         "expand_all": "全部展开",
         "no_workdir": "无工作目录",
         "show_more": "展开显示",
-        "this_week": "本周",
-        "today": "今天",
-        "unknown_agent": "未知智能体",
-        "yesterday": "昨天"
+        "unknown_agent": "未知智能体"
       },
       "label_one": "会话",
       "label_other": "会话",
@@ -1777,7 +1773,7 @@
       "display": {
         "assistant": "助手",
         "tag": "标签",
-        "time": "时间",
+        "time": "对话",
         "title": "展示方式"
       },
       "edit": {
@@ -1843,13 +1839,9 @@
       "group": {
         "collapse": "折叠显示",
         "collapse_all": "全部折叠",
-        "earlier": "更早",
         "expand_all": "全部展开",
         "show_more": "展开显示",
-        "this_week": "本周",
-        "today": "今天",
-        "unknown_assistant": "未关联助手",
-        "yesterday": "昨天"
+        "unknown_assistant": "未关联助手"
       },
       "list": "对话列表",
       "manage": {
@@ -1886,6 +1878,11 @@
         },
         "label": "对话提示词",
         "tips": "对话提示词：针对当前对话提供额外的补充提示词"
+      },
+      "reorder": {
+        "error": {
+          "failed": "对话排序失败"
+        }
       },
       "search": {
         "placeholder": "搜索对话...",
@@ -2226,6 +2223,7 @@
     "invalid_value": "无效值",
     "knowledge_base": "知识库",
     "language": "语言",
+    "list_options": "列表选项",
     "loading": "加载中...",
     "maximize": "最大化",
     "minimize": "最小化",
@@ -2275,11 +2273,16 @@
     "sessions": "会话",
     "settings": "设置",
     "sort": {
+      "created_at": "创建时间",
+      "last_active": "最近活跃时间",
+      "manual_order": "手动排序",
       "pinyin": {
         "asc": "按拼音升序",
         "desc": "按拼音降序",
         "label": "按拼音排序"
-      }
+      },
+      "title": "排序方式",
+      "updated_at": "更新时间"
     },
     "stop": "停止",
     "subscribe": "订阅",
@@ -2746,8 +2749,6 @@
       "filter": {
         "selectAgent": "请选择智能体",
         "selectAssistant": "请选择助手",
-        "statusLabel": "状态",
-        "statusPlaceholder": "请选择状态",
         "unlinkedAssistant": "未关联助手"
       },
       "loading": {
@@ -2759,11 +2760,6 @@
       "searchSession": "搜索任务...",
       "searchTopic": "搜索对话...",
       "shortTitle": "历史记录",
-      "status": {
-        "completed": "已完成",
-        "failed": "失败",
-        "running": "运行中"
-      },
       "table": {
         "actions": "操作",
         "conversation": "对话",

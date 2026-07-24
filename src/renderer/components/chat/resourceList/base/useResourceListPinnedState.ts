@@ -4,6 +4,7 @@ export type UseResourceListPinnedStateOptions = {
   disabled?: boolean
   onTogglePin: (id: string) => Promise<void>
   pinnedIds: readonly string[]
+  resetKey?: string
 }
 
 export type UseResourceListPinnedStateResult = {
@@ -13,10 +14,29 @@ export type UseResourceListPinnedStateResult = {
   togglingIds: ReadonlySet<string>
 }
 
+type ResourceListPinnableItem = {
+  id: string
+  pinned?: boolean
+}
+
+type UseResourceListPinnedItemsOptions<T extends ResourceListPinnableItem> = {
+  disabled?: boolean
+  items: readonly T[]
+  onTogglePin: (item: T) => Promise<void>
+  resetKey?: string
+}
+
+type UseResourceListPinnedItemsResult<T extends ResourceListPinnableItem> = {
+  items: T[]
+  togglePinned: (item: T) => Promise<void>
+  togglingIds: ReadonlySet<string>
+}
+
 export function useResourceListPinnedState({
   disabled = false,
   onTogglePin,
-  pinnedIds: sourcePinnedIds
+  pinnedIds: sourcePinnedIds,
+  resetKey
 }: UseResourceListPinnedStateOptions): UseResourceListPinnedStateResult {
   const [optimisticPinnedById, setOptimisticPinnedById] = useState<Record<string, boolean>>({})
   const [togglingIds, setTogglingIds] = useState<ReadonlySet<string>>(() => new Set())
@@ -45,11 +65,15 @@ export function useResourceListPinnedState({
     })
   }, [sourcePinnedIdSet])
 
+  useEffect(() => {
+    setOptimisticPinnedById({})
+  }, [resetKey])
+
   const pinnedIds = useMemo(() => {
     const ids = sourcePinnedIds.filter((id) => optimisticPinnedById[id] !== false)
     for (const [id, pinned] of Object.entries(optimisticPinnedById)) {
       if (pinned && !sourcePinnedIdSet.has(id)) {
-        ids.push(id)
+        ids.unshift(id)
       }
     }
     return ids
@@ -94,4 +118,114 @@ export function useResourceListPinnedState({
     togglePinned,
     togglingIds
   }
+}
+
+/**
+ * Applies {@link useResourceListPinnedState} to full list rows and retains the
+ * toggled row until the authoritative pinned/unpinned window catches up.
+ */
+export function useResourceListPinnedItems<T extends ResourceListPinnableItem>({
+  disabled = false,
+  items: sourceItems,
+  onTogglePin,
+  resetKey
+}: UseResourceListPinnedItemsOptions<T>): UseResourceListPinnedItemsResult<T> {
+  const [pendingItemsById, setPendingItemsById] = useState<Record<string, T>>({})
+  const sourceItemsById = useMemo(() => new Map(sourceItems.map((item) => [item.id, item])), [sourceItems])
+  const sourcePinnedIds = useMemo(() => sourceItems.filter((item) => item.pinned).map((item) => item.id), [sourceItems])
+  const sourceItemsByIdRef = useRef(sourceItemsById)
+  const pendingItemsByIdRef = useRef(pendingItemsById)
+
+  sourceItemsByIdRef.current = sourceItemsById
+  pendingItemsByIdRef.current = pendingItemsById
+
+  const toggleSourcePin = useCallback(
+    async (id: string) => {
+      const item = sourceItemsByIdRef.current.get(id) ?? pendingItemsByIdRef.current[id]
+      if (item) await onTogglePin(item)
+    },
+    [onTogglePin]
+  )
+  const {
+    isPinned,
+    togglePinned: togglePinnedId,
+    togglingIds
+  } = useResourceListPinnedState({
+    disabled,
+    onTogglePin: toggleSourcePin,
+    pinnedIds: sourcePinnedIds,
+    resetKey
+  })
+
+  useEffect(() => {
+    pendingItemsByIdRef.current = {}
+    setPendingItemsById({})
+  }, [resetKey])
+
+  useEffect(() => {
+    setPendingItemsById((current) => {
+      let changed = false
+      const next = { ...current }
+
+      for (const id of Object.keys(current)) {
+        const sourceItem = sourceItemsById.get(id)
+        if (!togglingIds.has(id) && sourceItem?.pinned === isPinned(id)) {
+          delete next[id]
+          changed = true
+        }
+      }
+
+      return changed ? next : current
+    })
+  }, [isPinned, sourceItemsById, togglingIds])
+
+  const items = useMemo(() => {
+    const byId = new Map(sourceItemsById)
+    for (const [id, item] of Object.entries(pendingItemsById)) {
+      if (!byId.has(id)) byId.set(id, item)
+    }
+
+    const projectedItems = [...byId.values()].map((item) => {
+      const pinned = isPinned(item.id)
+      return pinned === item.pinned ? item : { ...item, pinned }
+    })
+    const newlyPinnedIds = Object.entries(pendingItemsById)
+      .filter(([, item]) => !item.pinned && isPinned(item.id))
+      .map(([id]) => id)
+      .reverse()
+    if (newlyPinnedIds.length === 0) return projectedItems
+
+    const newlyPinnedIdSet = new Set(newlyPinnedIds)
+    const itemById = new Map(projectedItems.map((item) => [item.id, item]))
+    return [
+      ...newlyPinnedIds.flatMap((id) => {
+        const item = itemById.get(id)
+        return item ? [item] : []
+      }),
+      ...projectedItems.filter((item) => !newlyPinnedIdSet.has(item.id))
+    ]
+  }, [isPinned, pendingItemsById, sourceItemsById])
+
+  const togglePinned = useCallback(
+    async (item: T) => {
+      if (disabled || togglingIds.has(item.id) || pendingItemsByIdRef.current[item.id]) return
+
+      const nextPendingItems = { ...pendingItemsByIdRef.current, [item.id]: item }
+      pendingItemsByIdRef.current = nextPendingItems
+      setPendingItemsById(nextPendingItems)
+
+      try {
+        await togglePinnedId(item.id)
+      } catch (error) {
+        const next = { ...pendingItemsByIdRef.current }
+        delete next[item.id]
+        pendingItemsByIdRef.current = next
+        setPendingItemsById(next)
+        throw error
+      }
+    },
+    [disabled, togglePinnedId, togglingIds]
+  )
+
+  return { items, togglePinned, togglingIds }
 }

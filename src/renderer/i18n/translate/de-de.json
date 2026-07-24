@@ -376,7 +376,7 @@
       },
       "display": {
         "agent": "Agent",
-        "time": "Zeit",
+        "time": "Aufgabe",
         "title": "Anzeigemodus",
         "workdir": "Arbeitsverzeichnis"
       },
@@ -404,14 +404,10 @@
         "collapse_all": "Alle einklappen",
         "conversation": "Gespräche",
         "drag_hint": "Ziehen zum Neuanordnen. Ziehen Sie Aufgaben, um angezeigte und ausgeblendete Gruppen anzupassen.",
-        "earlier": "Früher",
         "expand_all": "Alle erweitern",
         "no_workdir": "Kein Arbeitsverzeichnis",
         "show_more": "Anzeige erweitern",
-        "this_week": "Diese Woche",
-        "today": "Heute",
-        "unknown_agent": "Unbekannter Agent",
-        "yesterday": "Gestern"
+        "unknown_agent": "Unbekannter Agent"
       },
       "label_one": "Sitzung",
       "label_other": "Sitzungen",
@@ -1777,7 +1773,7 @@
       "display": {
         "assistant": "Assistent",
         "tag": "Etikett",
-        "time": "Zeit",
+        "time": "Unterhaltung",
         "title": "Anzeigemodus"
       },
       "edit": {
@@ -1843,13 +1839,9 @@
       "group": {
         "collapse": "Anzeige einklappen",
         "collapse_all": "Alles einklappen",
-        "earlier": "Früher",
         "expand_all": "Alle erweitern",
         "show_more": "Anzeige erweitern",
-        "this_week": "Diese Woche",
-        "today": "Heute",
-        "unknown_assistant": "Unverknüpfter Assistent",
-        "yesterday": "Gestern"
+        "unknown_assistant": "Unverknüpfter Assistent"
       },
       "list": "Themenliste",
       "manage": {
@@ -1886,6 +1878,11 @@
         },
         "label": "Themen-Prompt",
         "tips": "Themen-Prompt: Bietet zusätzliche ergänzende Prompts für das aktuelle Thema"
+      },
+      "reorder": {
+        "error": {
+          "failed": "[to be translated]:Failed to reorder conversations"
+        }
       },
       "search": {
         "placeholder": "Themen durchsuchen...",
@@ -2226,6 +2223,7 @@
     "invalid_value": "Ungültiger Wert",
     "knowledge_base": "Wissensdatenbank",
     "language": "Sprache",
+    "list_options": "[to be translated]:List options",
     "loading": "Lädt...",
     "maximize": "Maximieren",
     "minimize": "Minimieren",
@@ -2275,11 +2273,16 @@
     "sessions": "Sitzungen",
     "settings": "Einstellungen",
     "sort": {
+      "created_at": "[to be translated]:Creation time",
+      "last_active": "[to be translated]:Last active",
+      "manual_order": "[to be translated]:Manual order",
       "pinyin": {
         "asc": "Pinyin aufsteigend",
         "desc": "Pinyin absteigend",
         "label": "Nach Pinyin sortieren"
-      }
+      },
+      "title": "[to be translated]:Sort order",
+      "updated_at": "[to be translated]:Updated time"
     },
     "stop": "Stoppen",
     "subscribe": "Abonnieren",
@@ -2746,8 +2749,6 @@
       "filter": {
         "selectAgent": "Agent auswählen",
         "selectAssistant": "Assistent auswählen",
-        "statusLabel": "Status",
-        "statusPlaceholder": "Status auswählen",
         "unlinkedAssistant": "Unverknüpfter Assistent"
       },
       "loading": {
@@ -2759,11 +2760,6 @@
       "searchSession": "Aufgaben suchen...",
       "searchTopic": "Unterhaltungen durchsuchen...",
       "shortTitle": "Geschichte",
-      "status": {
-        "completed": "Abgeschlossen",
-        "failed": "Fehlgeschlagen",
-        "running": "Laufen"
-      },
       "table": {
         "actions": "Aktionen",
         "conversation": "Unterhaltung",

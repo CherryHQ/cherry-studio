@@ -115,10 +115,25 @@ export const MockCherrystudioUI = {
   DialogFooter: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
   DialogHeader: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
   DialogTitle: ({ children, ...props }: { children?: ReactNode }) => <h2 {...props}>{children}</h2>,
-  EmptyState: ({ description, title }: { description?: string; title: string }) => (
+  EmptyState: ({
+    description,
+    title,
+    actionLabel,
+    onAction
+  }: {
+    description?: string
+    title: string
+    actionLabel?: string
+    onAction?: () => void
+  }) => (
     <div>
       <h2>{title}</h2>
       {description && <p>{description}</p>}
+      {actionLabel && (
+        <button type="button" onClick={onAction}>
+          {actionLabel}
+        </button>
+      )}
     </div>
   ),
   FieldError: ({ children, ...props }: { children?: ReactNode }) => <p {...props}>{children}</p>,

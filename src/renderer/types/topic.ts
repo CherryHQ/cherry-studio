@@ -16,6 +16,8 @@ export type Topic = {
    */
   assistantId: string | undefined
   name: string
+  /** DataApi-backed Topic projections always provide this value. */
+  lastActivityAt?: string
   createdAt: string
   updatedAt: string
   /**

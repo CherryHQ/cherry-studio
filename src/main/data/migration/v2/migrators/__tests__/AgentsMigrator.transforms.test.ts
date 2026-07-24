@@ -23,6 +23,7 @@ type LegacyMessageRow = {
 describe('importLegacySessionMessages', () => {
   const dbh = setupTestDatabase()
   const insertedSessions: string[] = []
+  const sessionCreatedAt = Date.parse('2025-12-31T23:59:59.000Z')
 
   beforeEach(async () => {
     await dbh.db.delete(agentSessionMessageTable)
@@ -58,7 +59,10 @@ describe('importLegacySessionMessages', () => {
       agentId: 'a1',
       name: id,
       workspaceId,
-      orderKey: 'a0'
+      orderKey: 'a0',
+      lastActivityAt: sessionCreatedAt,
+      createdAt: sessionCreatedAt,
+      updatedAt: sessionCreatedAt
     })
     insertedSessions.push(id)
   }
@@ -138,6 +142,10 @@ describe('importLegacySessionMessages', () => {
     expect(row.data).toEqual({ parts: [{ type: 'text', text: 'hello' }] })
     expect(JSON.stringify(row.data)).not.toContain('"message"')
     expect(row.runtimeResumeToken).toBe('sdk-1')
+    expect(row.terminalAt).toBe(Date.parse('2026-01-01T00:00:01.000Z'))
+    const [session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 's-legacy'))
+    expect(session.lastActivityAt).toBe(Date.parse('2026-01-01T00:00:01.000Z'))
+    expect(session.updatedAt).toBe(sessionCreatedAt)
   })
 
   it('converts legacy block envelopes during import without a second pass', async () => {

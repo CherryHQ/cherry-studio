@@ -42,17 +42,128 @@ export const UpdateTopicSchema = TopicSchema.pick({
 export type UpdateTopicDto = z.infer<typeof UpdateTopicSchema>
 
 /**
- * Query parameters for `GET /topics` (cursor pagination + search).
+ * Atomically move a topic to a live Assistant at one concrete visible-neighbour
+ * position. Ownership-only changes continue to use `PATCH /topics/:id`.
  */
-export const ListTopicsQuerySchema = z.strictObject({
-  /** Opaque cursor from previous page's `nextCursor`. */
+export const MoveTopicSchema = z.strictObject({
+  assistantId: z.uuidv4(),
+  order: z.union([z.object({ before: z.string().min(1) }).strict(), z.object({ after: z.string().min(1) }).strict()])
+})
+export type MoveTopicDto = z.infer<typeof MoveTopicSchema>
+
+/**
+ * Owner scope for topic list/stats filters: a concrete assistant id, or the
+ * literal `'unlinked'` for topics with no live owner (`assistantId IS NULL` or
+ * the referenced assistant is soft-deleted). Assistant ids are UUIDs, so the
+ * sentinel cannot collide with a real id.
+ */
+export const TopicOwnerScopeSchema = z.union([z.uuidv4(), z.literal('unlinked')])
+export type TopicOwnerScope = z.infer<typeof TopicOwnerScopeSchema>
+
+/**
+ * Sort profiles for `GET /topics`. Direction is derived
+ * server-side from the profile — there is no caller-controlled `sortOrder`:
+ * - `createdAt` → creation order (`createdAt DESC, id ASC`)
+ * - `lastActivityAt` → activity order (`lastActivityAt DESC, id ASC`)
+ * - `orderKey` → manual drag order (`orderKey ASC, id ASC`)
+ */
+export const TopicSortBySchema = z.enum(['createdAt', 'lastActivityAt', 'orderKey'])
+export type TopicSortBy = z.infer<typeof TopicSortBySchema>
+
+/**
+ * Search scope for `q` on `GET /topics`: `name` matches the topic name only
+ * (resource-list behavior); `name-or-owner` additionally matches the owning
+ * (live) assistant's name (Assistant History behavior).
+ */
+export const TopicSearchScopeSchema = z.enum(['name', 'name-or-owner'])
+export type TopicSearchScope = z.infer<typeof TopicSearchScopeSchema>
+
+/** Topic lists expose only pin identity; pin order remains an internal cursor key. */
+export type TopicListItem = Topic & { pinned: boolean; pinId: string | null }
+
+/**
+ * Query parameters for `GET /topics`.
+ *
+ * Two independent streams that never mix in one response or cursor:
+ * - `pinned=true` → pin-owned stream ordered by `pin.orderKey ASC, id ASC`;
+ *   PinService inserts new pins first and this variant does not accept `sortBy`.
+ * - `pinned=false` → ordinary keyset stream ordered by `sortBy` (defaulting to
+ *   `createdAt`) with a `(sortValue, id)` cursor, excluding pinned rows.
+ *
+ * The record filters below apply on either path. Omitting `sortBy` means
+ * `createdAt`, never a legacy composite pinned-then-ordinary view.
+ */
+const ListTopicsCommonQuerySchema = z.strictObject({
+  /** Opaque cursor from previous page's `nextCursor`. Valid only with the same filter+sort query. */
   cursor: z.string().optional(),
   /** Page size; defaults to 50 in the service. */
   limit: z.coerce.number().int().positive().max(200).optional(),
-  /** Substring filter on topic name (case-insensitive LIKE). */
-  q: z.string().optional()
+  /** Literal substring search term (escaped LIKE; `%`/`_`/`\` are not wildcards). */
+  q: z.string().optional(),
+  /** Search scope for `q`; defaults to `name` in the service. */
+  searchScope: TopicSearchScopeSchema.optional(),
+  /** Owner scope: concrete live assistant id, or 'unlinked' (no live assistant). */
+  assistantId: TopicOwnerScopeSchema.optional()
 })
+
+export const ListTopicsQuerySchema = z.discriminatedUnion('pinned', [
+  ListTopicsCommonQuerySchema.extend({
+    /** Pin-owned stream; persisted pin order is the only valid ordering. */
+    pinned: z.literal(true)
+  }),
+  ListTopicsCommonQuerySchema.extend({
+    /** Ordinary stream excluding pinned rows. */
+    pinned: z.literal(false),
+    /** Sort profile for the ordinary stream; defaults to `createdAt`. */
+    sortBy: TopicSortBySchema.optional()
+  })
+])
 export type ListTopicsQuery = z.infer<typeof ListTopicsQuerySchema>
+
+/** Optional owner scope for `GET /topics/latest`; omitted means global latest. */
+export const LatestTopicQuerySchema = z.strictObject({
+  assistantId: TopicOwnerScopeSchema.optional()
+})
+export type LatestTopicQuery = z.infer<typeof LatestTopicQuerySchema>
+
+/**
+ * Exact owner target for reusable empty-topic lookup. `unassigned` means
+ * `assistantId IS NULL` only; unlike the list's `unlinked` aggregate it does
+ * not include topics whose former assistant was soft-deleted.
+ */
+export const ReusableTopicPlaceholderQuerySchema = z.strictObject({
+  assistantId: z.union([z.uuidv4(), z.literal('unassigned')])
+})
+export type ReusableTopicPlaceholderQuery = z.infer<typeof ReusableTopicPlaceholderQuerySchema>
+
+/**
+ * Query parameters for `GET /topics/stats`. Only filters used by current
+ * aggregation consumers are exposed; pagination, pin state and bounded id
+ * lookup remain list-only concerns.
+ */
+export const TopicStatsQuerySchema = z.strictObject({
+  q: z.string().optional(),
+  assistantId: TopicOwnerScopeSchema.optional()
+})
+export type TopicStatsQuery = z.infer<typeof TopicStatsQuerySchema>
+
+export interface CountWithPins {
+  count: number
+  pinnedCount: number
+}
+
+/**
+ * Response for `GET /topics/stats`. Factual aggregation only — the renderer
+ * derives display counts (e.g. ordinary group count = `count - pinnedCount`).
+ * `byAssistant` is an array so the unlinked scope (`assistantId: null`) is
+ * representable. Stats and list calls are separate SQLite snapshots; transient
+ * disagreement during concurrent mutation is reconciled by invalidation.
+ */
+export interface TopicStats {
+  total: number
+  pinnedCount: number
+  byAssistant: Array<{ assistantId: string | null } & CountWithPins>
+}
 
 /**
  * DTO for setting active node. Pins the exact `nodeId` — the conversation
@@ -105,8 +216,13 @@ export interface DeleteTopicsResult {
   deletedCount: number
 }
 
-/** Response for `GET /topics/latest` — the globally most-recently-updated topic, or `null` when empty. */
+/** Response for `GET /topics/latest` — the most-recently-active topic in the requested scope, or `null`. */
 export interface LatestTopicResponse {
+  topic: Topic | null
+}
+
+/** The newest reusable empty topic for the exact creation owner, or `null`. */
+export interface ReusableTopicPlaceholderResponse {
   topic: Topic | null
 }
 
@@ -133,14 +249,14 @@ export type DeleteTopicsQuery = z.input<typeof DeleteTopicsQuerySchema>
  * Topic API Schema definitions.
  *
  * Reorder endpoints (`/topics/:id/order`, `/topics/order:batch`) are injected
- * via `& OrderEndpoints<'/topics'>`. Topic order is global across assistants;
- * callers only provide the relative anchor.
+ * via `& OrderEndpoints<'/topics'>`. Topics share one global `orderKey`
+ * sequence — reorder operates across all assistants and a batch may span them.
  */
 export type TopicSchemas = {
   /**
    * Topics collection endpoint
-   * @example GET /topics?limit=50
-   * @example GET /topics?cursor=...&q=search
+   * @example GET /topics?pinned=false&limit=50
+   * @example GET /topics?pinned=false&cursor=...&q=search
    * @example POST /topics { "name": "New Topic", "assistantId": "asst_123" }
    * @example DELETE /topics?ids=topic_1,topic_2
    */
@@ -148,15 +264,14 @@ export type TopicSchemas = {
     /**
      * List topics with cursor pagination + optional name search.
      *
-     * The list is a server-composed view: pinned topics first (joining the
-     * `pin` table on `entityType = 'topic'` ordered by `pin.orderKey`), then
-     * unpinned topics ordered by `topic.orderKey ASC, id ASC` (manual/creation
-     * order + id tiebreak). The cursor encodes the section + last boundary so
-     * paging across the boundary is seamless.
+     * Two independent streams (see `ListTopicsQuerySchema`): `pinned=true`
+     * pages the pin-owned band by `pin.orderKey ASC, id ASC`; `pinned=false`
+     * pages the ordinary band by `sortBy` (default `createdAt`) with a
+     * `(sortValue, id)` keyset cursor. A response/cursor never mixes the two.
      */
     GET: {
-      query?: ListTopicsQuery
-      response: CursorPaginationResponse<Topic>
+      query: ListTopicsQuery
+      response: CursorPaginationResponse<TopicListItem>
     }
     /** Create a new topic. */
     POST: {
@@ -177,18 +292,46 @@ export type TopicSchemas = {
   }
 
   /**
-   * Most-recently-updated topic across all assistants.
+   * Most-recently-active topic, globally or within one owner scope.
    *
-   * First-entry restore reads this to resume the last-touched conversation.
+   * First-entry restore reads this to resume the most-recently-active conversation.
    * Declared before `/topics/:id` and matched exactly by the server router, so
-   * `latest` is never mistaken for a topic id. Proves global latest via
-   * `updatedAt DESC LIMIT 1`, unlike the pinned-first `/topics` first page.
+   * `latest` is never mistaken for a topic id. Omitting `assistantId` proves
+   * global latest; a concrete id or `unlinked` restricts the lookup.
    *
    * @example GET /topics/latest
    */
   '/topics/latest': {
     GET: {
+      query?: LatestTopicQuery
       response: LatestTopicResponse
+    }
+  }
+
+  /**
+   * Newest structurally empty, untitled placeholder for one exact creation
+   * owner. This derived read is independent of list pagination and pin order.
+   */
+  '/topics/reusable-placeholder': {
+    GET: {
+      query: ReusableTopicPlaceholderQuery
+      response: ReusableTopicPlaceholderResponse
+    }
+  }
+
+  /**
+   * Factual aggregation over topics: totals, pinned counts, and
+   * per-assistant breakdowns under the same record filters as the list.
+   * Declared before `/topics/:id` and matched exactly by the server router, so
+   * `stats` is never mistaken for a topic id.
+   *
+   * @example GET /topics/stats
+   * @example GET /topics/stats?assistantId=unlinked
+   */
+  '/topics/stats': {
+    GET: {
+      query?: TopicStatsQuery
+      response: TopicStats
     }
   }
 
@@ -213,6 +356,14 @@ export type TopicSchemas = {
     /** Delete a topic and all its messages */
     DELETE: {
       params: { id: string }
+      response: void
+    }
+  }
+
+  '/topics/:id/move': {
+    POST: {
+      params: { id: string }
+      body: MoveTopicDto
       response: void
     }
   }

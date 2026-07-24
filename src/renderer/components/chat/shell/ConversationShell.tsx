@@ -8,6 +8,13 @@ import { ChatAppShell, type PaneManualToggleSignal } from './ChatAppShell'
 import { ConversationTopBarPortalProvider } from './ConversationTopBarPortal'
 import type { ChatPanePosition } from './paneLayout'
 
+export type ConversationCenterSurface = {
+  className?: string
+  content: ReactNode
+  id?: string
+  ref?: Ref<HTMLDivElement>
+}
+
 export interface ConversationShellProps {
   id?: string
   className?: string
@@ -18,6 +25,7 @@ export interface ConversationShellProps {
   topRightTool?: ReactNode
   showTopRightToolWhenPaneOpen?: boolean
   center: ReactNode
+  centerSurface?: ConversationCenterSurface | null
   sidePanel?: ReactNode
   centerOverlay?: ReactNode
   /** Overlay scoped to the center area but rendered above the center's transform/stacking layer. */
@@ -42,6 +50,7 @@ export default function ConversationShell({
   topRightTool,
   showTopRightToolWhenPaneOpen = false,
   center,
+  centerSurface,
   sidePanel,
   centerOverlay,
   centerTopOverlay,
@@ -56,14 +65,16 @@ export default function ConversationShell({
 }: ConversationShellProps) {
   const { mode } = useWindowFrame()
   const isWindow = mode === 'window'
+  const hasCenterSurface = centerSurface !== null && centerSurface !== undefined
 
-  const resolvedTopBar = topRightTool ? (
-    <ConversationShellTopBar topRightTool={topRightTool} showTopRightToolWhenPaneOpen={showTopRightToolWhenPaneOpen}>
-      {topBar}
-    </ConversationShellTopBar>
-  ) : (
-    topBar
-  )
+  const resolvedTopBar =
+    !hasCenterSurface && topRightTool ? (
+      <ConversationShellTopBar topRightTool={topRightTool} showTopRightToolWhenPaneOpen={showTopRightToolWhenPaneOpen}>
+        {topBar}
+      </ConversationShellTopBar>
+    ) : hasCenterSurface ? undefined : (
+      topBar
+    )
   return (
     <div
       id={id}
@@ -79,15 +90,15 @@ export default function ConversationShell({
             paneOpen={paneOpen}
             panePosition={panePosition}
             topBar={resolvedTopBar}
-            centerContent={center}
-            sidePanel={sidePanel}
-            centerOverlay={centerOverlay}
-            centerTopOverlay={centerTopOverlay}
-            rightPane={rightPane}
-            overlay={overlay}
-            centerId={centerId}
-            centerRef={centerRef}
-            centerClassName={centerClassName}
+            centerContent={hasCenterSurface ? centerSurface.content : center}
+            sidePanel={hasCenterSurface ? undefined : sidePanel}
+            centerOverlay={hasCenterSurface ? undefined : centerOverlay}
+            centerTopOverlay={hasCenterSurface ? undefined : centerTopOverlay}
+            rightPane={hasCenterSurface ? undefined : rightPane}
+            overlay={hasCenterSurface ? undefined : overlay}
+            centerId={hasCenterSurface ? centerSurface.id : centerId}
+            centerRef={hasCenterSurface ? centerSurface.ref : centerRef}
+            centerClassName={hasCenterSurface ? centerSurface.className : centerClassName}
             onPaneCollapse={onPaneCollapse}
             onPaneAutoCollapseChange={onPaneAutoCollapseChange}
             paneManualToggle={paneManualToggle}

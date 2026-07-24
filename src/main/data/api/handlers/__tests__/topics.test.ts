@@ -7,11 +7,14 @@ const {
   deleteMock,
   duplicateMock,
   getByIdMock,
-  getLatestUpdatedMock,
+  getLatestActiveMock,
+  getReusablePlaceholderMock,
   listByCursorMock,
+  moveMock,
   reorderBatchMock,
   reorderMock,
   setActiveNodeMock,
+  statsMock,
   updateMock
 } = vi.hoisted(() => ({
   createMock: vi.fn(),
@@ -20,11 +23,14 @@ const {
   deleteMock: vi.fn(),
   duplicateMock: vi.fn(),
   getByIdMock: vi.fn(),
-  getLatestUpdatedMock: vi.fn(),
+  getLatestActiveMock: vi.fn(),
+  getReusablePlaceholderMock: vi.fn(),
   listByCursorMock: vi.fn(),
+  moveMock: vi.fn(),
   reorderBatchMock: vi.fn(),
   reorderMock: vi.fn(),
   setActiveNodeMock: vi.fn(),
+  statsMock: vi.fn(),
   updateMock: vi.fn()
 }))
 
@@ -36,11 +42,14 @@ vi.mock('@data/services/TopicService', () => ({
     deleteByIds: deleteByIdsMock,
     duplicate: duplicateMock,
     getById: getByIdMock,
-    getLatestUpdated: getLatestUpdatedMock,
+    getLatestActive: getLatestActiveMock,
+    getReusablePlaceholder: getReusablePlaceholderMock,
     listByCursor: listByCursorMock,
+    move: moveMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock,
     setActiveNode: setActiveNodeMock,
+    stats: statsMock,
     update: updateMock
   }
 }))
@@ -53,6 +62,16 @@ describe('topicHandlers', () => {
   })
 
   describe('/topics', () => {
+    it('requires and forwards an explicit list stream', async () => {
+      const response = { items: [], nextCursor: undefined }
+      listByCursorMock.mockReturnValueOnce(response)
+
+      await expect(topicHandlers['/topics'].GET({ query: { pinned: false, limit: '10' } } as never)).resolves.toBe(
+        response
+      )
+      expect(listByCursorMock).toHaveBeenCalledWith({ pinned: false, limit: 10 })
+    })
+
     it('delegates selected topic delete to TopicService', async () => {
       const result = { deletedIds: ['topic-a', 'topic-b'], deletedCount: 2 }
       deleteByIdsMock.mockResolvedValueOnce(result)
@@ -94,15 +113,59 @@ describe('topicHandlers', () => {
   describe('/topics/latest', () => {
     it('wraps the latest topic from TopicService', async () => {
       const topic = { id: 'topic-latest' }
-      getLatestUpdatedMock.mockReturnValueOnce(topic)
+      getLatestActiveMock.mockReturnValueOnce(topic)
 
       await expect(topicHandlers['/topics/latest'].GET({} as never)).resolves.toEqual({ topic })
+      expect(getLatestActiveMock).toHaveBeenCalledWith({})
+    })
+
+    it('forwards an owner scope', async () => {
+      getLatestActiveMock.mockReturnValueOnce(null)
+
+      await topicHandlers['/topics/latest'].GET({ query: { assistantId: 'unlinked' } } as never)
+
+      expect(getLatestActiveMock).toHaveBeenCalledWith({ assistantId: 'unlinked' })
     })
 
     it('returns { topic: null } when the library is empty', async () => {
-      getLatestUpdatedMock.mockReturnValueOnce(null)
+      getLatestActiveMock.mockReturnValueOnce(null)
 
       await expect(topicHandlers['/topics/latest'].GET({} as never)).resolves.toEqual({ topic: null })
+    })
+  })
+
+  describe('/topics/reusable-placeholder', () => {
+    it('forwards an exact creation owner and wraps the reusable topic', async () => {
+      const assistantId = '11111111-1111-4111-8111-111111111111'
+      const topic = { id: 'topic-empty' }
+      getReusablePlaceholderMock.mockReturnValueOnce(topic)
+
+      await expect(
+        topicHandlers['/topics/reusable-placeholder'].GET({ query: { assistantId } } as never)
+      ).resolves.toEqual({ topic })
+      expect(getReusablePlaceholderMock).toHaveBeenCalledWith({ assistantId })
+    })
+
+    it('keeps unassigned distinct from the unlinked list aggregate', async () => {
+      getReusablePlaceholderMock.mockReturnValueOnce(null)
+
+      await expect(
+        topicHandlers['/topics/reusable-placeholder'].GET({ query: { assistantId: 'unassigned' } } as never)
+      ).resolves.toEqual({ topic: null })
+      expect(getReusablePlaceholderMock).toHaveBeenCalledWith({ assistantId: 'unassigned' })
+    })
+  })
+
+  describe('/topics/stats', () => {
+    it('parses record filters and delegates to TopicService', async () => {
+      const result = { total: 2, pinnedCount: 1, byAssistant: [] }
+      statsMock.mockReturnValueOnce(result)
+
+      await expect(
+        topicHandlers['/topics/stats'].GET({ query: { assistantId: 'unlinked', q: ' needle ' } } as never)
+      ).resolves.toBe(result)
+
+      expect(statsMock).toHaveBeenCalledWith({ assistantId: 'unlinked', q: ' needle ' })
     })
   })
 
@@ -146,6 +209,23 @@ describe('topicHandlers', () => {
       expect(duplicateMock).toHaveBeenCalledWith('source-topic', {
         nodeId: 'source-node',
         name: 'Source (Copy)'
+      })
+    })
+  })
+
+  describe('/topics/:id/move', () => {
+    it('delegates the parsed owner and order as one service operation', async () => {
+      const assistantId = '22222222-2222-4222-8222-222222222222'
+
+      await expect(
+        topicHandlers['/topics/:id/move'].POST({
+          params: { id: 'topic-1' },
+          body: { assistantId, order: { after: 'topic-2' } }
+        } as never)
+      ).resolves.toBeUndefined()
+      expect(moveMock).toHaveBeenCalledWith('topic-1', {
+        assistantId,
+        order: { after: 'topic-2' }
       })
     })
   })

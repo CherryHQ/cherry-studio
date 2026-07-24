@@ -6,6 +6,18 @@ Before using, read the [Row → Entity Mapping](../../../../../docs/references/d
 
 ## File Index
 
+### `activityTime.ts` — Topic / Agent Session activity invariants
+
+Shared bounded-phase helpers for Topic and Agent Session content persistence:
+
+- `resolveResponseTerminalAt` records the first assistant-response terminal
+  transition and preserves it across later row updates.
+- `getMessageActivityTimestamp` maps user/assistant rows to their activity
+  contribution while excluding structural and system rows.
+
+The helpers do not write either parent table. Message services call the owning
+Topic or Agent Session service for parent updates and deletion recomputation.
+
 ### `rowMappers.ts` — Row → Entity mapping utilities
 
 Serves each Service's `rowToEntity` function, performing the boundary translation from a SQLite row to a domain entity.
@@ -117,7 +129,7 @@ Backs every list endpoint that pages by a `(sortKey, id)` tuple. Owns the `<key>
 
 - **Two decode policies, deliberately split**: list browsing warns and falls back to the first page (`decodeListCursor` → `null`), while search throws 422 (`ftsSearch.decodeSearchCursor`). A stale server-issued list token must not lock the renderer; a malformed search cursor is a client contract violation.
 - **Warn message is locked**: `'decodeCursor: cursor unparseable, falling back to first page'` — kept uniform across call sites; the `context` field distinguishes the source.
-- **Single-tuple keyset only**: covers `(key, id)` pagination. Multi-band / sentinel cursors (e.g. `TopicService`'s pin/topic union with a first-page sentinel) cannot be expressed as one `(key, id)` tuple, and their malformed-fallback returns a sentinel rather than `null` — they keep their own codec and must NOT be routed here.
+- **Single-tuple keyset only**: covers `(key, id)` pagination. Multiple display bands must be exposed as independent queries and cursor chains (as Topic and AgentSession do), never encoded into one sentinel cursor.
 - **Direction is declared once**: `keysetOrdering` emits both the `where` predicate and the matching `orderBy` from a single `{ major, tie }`, so the WHERE clause and the `ORDER BY` cannot disagree — the classic keyset skip/repeat bug becomes unrepresentable.
 
 **Example:**

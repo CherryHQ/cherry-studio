@@ -11,10 +11,11 @@ import Sessions from './components/Sessions'
 import type { CreateAgentSessionDefaults } from './types'
 
 interface AgentSidePanelProps {
+  activeSession?: AgentSessionEntity | null
   activeSessionId: string | null
   historyRecordsActive?: boolean
   agentSessionsSource: AgentSessionsSource
-  onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
+  onActiveAgentDeleted?: (agentId: string, candidateAgentIds: readonly string[]) => void | Promise<void>
   onAddAgent?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
@@ -29,6 +30,7 @@ interface AgentSidePanelProps {
 }
 
 const AgentSidePanel = ({
+  activeSession,
   activeSessionId,
   historyRecordsActive,
   agentSessionsSource,
@@ -54,6 +56,7 @@ const AgentSidePanel = ({
       }}>
       <div className="flex flex-1 flex-col overflow-hidden">
         <Sessions
+          activeSession={activeSession}
           agentSessionsSource={agentSessionsSource}
           activeSessionId={activeSessionId}
           historyRecordsActive={historyRecordsActive}

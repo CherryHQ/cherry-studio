@@ -376,7 +376,7 @@
       },
       "display": {
         "agent": "Агент",
-        "time": "Время",
+        "time": "Задача",
         "title": "Режим отображения",
         "workdir": "Рабочий каталог"
       },
@@ -404,14 +404,10 @@
         "collapse_all": "Свернуть все",
         "conversation": "Разговоры",
         "drag_hint": "Перетащите, чтобы изменить порядок. Перетащите задачи, чтобы настроить отображаемые и скрытые группы.",
-        "earlier": "Ранее",
         "expand_all": "Развернуть все",
         "no_workdir": "Нет рабочего каталога",
         "show_more": "Развернуть дисплей",
-        "this_week": "На этой неделе",
-        "today": "Сегодня",
-        "unknown_agent": "Неизвестный агент",
-        "yesterday": "Вчера"
+        "unknown_agent": "Неизвестный агент"
       },
       "label_one": "Сессия",
       "label_other": "Сессии",
@@ -1777,7 +1773,7 @@
       "display": {
         "assistant": "Ассистент",
         "tag": "Тег",
-        "time": "Время",
+        "time": "Диалог",
         "title": "Режим отображения"
       },
       "edit": {
@@ -1843,13 +1839,9 @@
       "group": {
         "collapse": "Свернуть отображение",
         "collapse_all": "Свернуть все",
-        "earlier": "Раньше",
         "expand_all": "Развернуть все",
         "show_more": "Развернуть дисплей",
-        "this_week": "На этой неделе",
-        "today": "Сегодня",
-        "unknown_assistant": "Несвязанный помощник",
-        "yesterday": "Вчера"
+        "unknown_assistant": "Несвязанный помощник"
       },
       "list": "Список топиков",
       "manage": {
@@ -1886,6 +1878,11 @@
         },
         "label": "Тематические подсказки",
         "tips": "Тематические подсказки: Дополнительные подсказки, предоставленные для текущей темы"
+      },
+      "reorder": {
+        "error": {
+          "failed": "[to be translated]:Failed to reorder conversations"
+        }
       },
       "search": {
         "placeholder": "Искать темы...",
@@ -2226,6 +2223,7 @@
     "invalid_value": "недопустимое значение",
     "knowledge_base": "База знаний",
     "language": "Язык",
+    "list_options": "[to be translated]:List options",
     "loading": "Загрузка...",
     "maximize": "Максимизировать",
     "minimize": "Минимизировать",
@@ -2275,11 +2273,16 @@
     "sessions": "Сессии",
     "settings": "Настройки",
     "sort": {
+      "created_at": "[to be translated]:Creation time",
+      "last_active": "[to be translated]:Last active",
+      "manual_order": "[to be translated]:Manual order",
       "pinyin": {
         "asc": "Сортировать по пиньинь (А-Я)",
         "desc": "Сортировать по пиньинь (Я-А)",
         "label": "Сортировать по пиньинь"
-      }
+      },
+      "title": "[to be translated]:Sort order",
+      "updated_at": "[to be translated]:Updated time"
     },
     "stop": "остановить",
     "subscribe": "Подписаться",
@@ -2746,8 +2749,6 @@
       "filter": {
         "selectAgent": "Выберите агента",
         "selectAssistant": "Выберите ассистента",
-        "statusLabel": "Статус",
-        "statusPlaceholder": "Выберите статус",
         "unlinkedAssistant": "Несвязанный ассистент"
       },
       "loading": {
@@ -2759,11 +2760,6 @@
       "searchSession": "Поиск задач...",
       "searchTopic": "Поиск бесед...",
       "shortTitle": "История",
-      "status": {
-        "completed": "Завершено",
-        "failed": "Не удалось",
-        "running": "Бег"
-      },
       "table": {
         "actions": "Действия",
         "conversation": "Разговор",

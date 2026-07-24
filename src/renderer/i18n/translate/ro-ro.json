@@ -376,7 +376,7 @@
       },
       "display": {
         "agent": "Agent",
-        "time": "Timp",
+        "time": "Sarcină",
         "title": "Mod de afișare",
         "workdir": "Director de lucru"
       },
@@ -404,14 +404,10 @@
         "collapse_all": "Restrânge tot",
         "conversation": "Conversații",
         "drag_hint": "Trage pentru a reordona. Trage sarcinile pentru a ajusta grupurile afișate și ascunse.",
-        "earlier": "Mai devreme",
         "expand_all": "Extinde tot",
         "no_workdir": "Niciun director de lucru",
         "show_more": "Extinde afișajul",
-        "this_week": "Săptămâna aceasta",
-        "today": "Astăzi",
-        "unknown_agent": "Agent necunoscut",
-        "yesterday": "Ieri"
+        "unknown_agent": "Agent necunoscut"
       },
       "label_one": "Sesiune",
       "label_other": "Sesiuni",
@@ -1777,7 +1773,7 @@
       "display": {
         "assistant": "Asistent",
         "tag": "Etichetă",
-        "time": "Timp",
+        "time": "Conversație",
         "title": "Mod afișare"
       },
       "edit": {
@@ -1843,13 +1839,9 @@
       "group": {
         "collapse": "Restrânge afișarea",
         "collapse_all": "Restrânge tot",
-        "earlier": "Mai devreme",
         "expand_all": "Extinde tot",
         "show_more": "Extinde afișajul",
-        "this_week": "Săptămâna aceasta",
-        "today": "Astăzi",
-        "unknown_assistant": "Asistent Deconectat",
-        "yesterday": "Ieri"
+        "unknown_assistant": "Asistent Deconectat"
       },
       "list": "Listă subiecte",
       "manage": {
@@ -1886,6 +1878,11 @@
         },
         "label": "Prompturi subiect",
         "tips": "Prompturi subiect: Prompturi suplimentare furnizate pentru subiectul curent"
+      },
+      "reorder": {
+        "error": {
+          "failed": "[to be translated]:Failed to reorder conversations"
+        }
       },
       "search": {
         "placeholder": "Caută subiecte...",
@@ -2226,6 +2223,7 @@
     "invalid_value": "Valoare invalidă",
     "knowledge_base": "Bază de cunoștințe",
     "language": "Limbă",
+    "list_options": "[to be translated]:List options",
     "loading": "Se încarcă...",
     "maximize": "Maximizează",
     "minimize": "Minimize",
@@ -2275,11 +2273,16 @@
     "sessions": "Sesiuni",
     "settings": "Setări",
     "sort": {
+      "created_at": "[to be translated]:Creation time",
+      "last_active": "[to be translated]:Last active",
+      "manual_order": "[to be translated]:Manual order",
       "pinyin": {
         "asc": "Sortează după Pinyin (A-Z)",
         "desc": "Sortează după Pinyin (Z-A)",
         "label": "Sortează după Pinyin"
-      }
+      },
+      "title": "[to be translated]:Sort order",
+      "updated_at": "[to be translated]:Updated time"
     },
     "stop": "Oprește",
     "subscribe": "Abonează-te",
@@ -2746,8 +2749,6 @@
       "filter": {
         "selectAgent": "Selectează un agent",
         "selectAssistant": "Selectează un asistent",
-        "statusLabel": "Stare",
-        "statusPlaceholder": "Selectează starea",
         "unlinkedAssistant": "Asistent deconectat"
       },
       "loading": {
@@ -2759,11 +2760,6 @@
       "searchSession": "Căutare sarcini...",
       "searchTopic": "Caută conversații...",
       "shortTitle": "Istorie",
-      "status": {
-        "completed": "Finalizat",
-        "failed": "Eșuat",
-        "running": "Alergare"
-      },
       "table": {
         "actions": "Acțiuni",
         "conversation": "Conversație",

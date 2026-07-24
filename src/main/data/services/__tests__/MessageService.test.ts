@@ -17,7 +17,7 @@ import { rootRow, setupTestDatabase, withRoot } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { and, eq, isNull } from 'drizzle-orm'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 function mainText(content: string): MessageData {
   return { parts: [{ type: 'text', text: content }] }
@@ -1484,6 +1484,122 @@ describe('MessageService', () => {
       })
 
       expect(message.parentId).toBe(rootId)
+    })
+  })
+
+  describe('lastActivityAt (topic activity time)', () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    async function seedActivityTopic(topicId: string, lastActivityAt: number) {
+      await dbh.db.insert(topicTable).values({ id: topicId, activeNodeId: null, orderKey: 'a0', lastActivityAt })
+      messageService.createRootMessageTx(dbh.db, topicId)
+    }
+
+    const readLastActivityAt = async (topicId: string) => {
+      const [row] = await dbh.db
+        .select({ lastActivityAt: topicTable.lastActivityAt })
+        .from(topicTable)
+        .where(eq(topicTable.id, topicId))
+      return row?.lastActivityAt
+    }
+
+    it('advances lastActivityAt to a created user message createdAt', async () => {
+      const NOW = 5_000_000
+      await seedActivityTopic('topic-activity-create', 1)
+      vi.spyOn(Date, 'now').mockReturnValue(NOW)
+
+      const message = messageService.create('topic-activity-create', {
+        role: 'user',
+        parentId: null,
+        data: mainText('hello'),
+        status: 'success'
+      })
+
+      const [row] = await dbh.db
+        .select({ createdAt: messageTable.createdAt })
+        .from(messageTable)
+        .where(eq(messageTable.id, message.id))
+      expect(row.createdAt).toBe(NOW)
+      expect(await readLastActivityAt('topic-activity-create')).toBe(NOW)
+    })
+
+    it('advances lastActivityAt when a response reaches a terminal status', async () => {
+      const CREATED_AT = 5_000_000
+      const TERMINAL_AT = 5_000_500
+      await seedActivityTopic('topic-activity-terminal', 1)
+
+      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(CREATED_AT)
+      const assistant = messageService.create('topic-activity-terminal', {
+        role: 'assistant',
+        parentId: null,
+        data: mainText(''),
+        status: 'pending'
+      })
+      // A pending assistant contributes its createdAt only.
+      expect(await readLastActivityAt('topic-activity-terminal')).toBe(CREATED_AT)
+
+      nowSpy.mockReturnValue(TERMINAL_AT)
+      messageService.update(assistant.id, { status: 'success' })
+
+      // The terminal transition timestamp advances activity past the createdAt.
+      expect(await readLastActivityAt('topic-activity-terminal')).toBe(TERMINAL_AT)
+    })
+
+    it('recomputes lastActivityAt downward when the newest message is deleted', async () => {
+      await dbh.db.insert(topicTable).values({
+        id: 'topic-activity-delete',
+        activeNodeId: 'm-new',
+        orderKey: 'a0',
+        lastActivityAt: 200
+      })
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-activity-delete', [
+          {
+            id: 'm-old',
+            parentId: null,
+            topicId: 'topic-activity-delete',
+            role: 'user',
+            data: mainText('old'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 100,
+            updatedAt: 100
+          },
+          {
+            id: 'm-new',
+            parentId: 'm-old',
+            topicId: 'topic-activity-delete',
+            role: 'user',
+            data: mainText('new'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 200,
+            updatedAt: 200
+          }
+        ])
+      )
+
+      messageService.delete('m-new', false)
+
+      // Falls back to the remaining max activity (m-old @ 100), not the stale 200.
+      expect(await readLastActivityAt('topic-activity-delete')).toBe(100)
+    })
+
+    it('never regresses lastActivityAt below the current value (monotonic advance)', async () => {
+      await seedActivityTopic('topic-activity-monotonic', 10_000_000)
+      // A newly created message carries an older createdAt than the current activity time.
+      vi.spyOn(Date, 'now').mockReturnValue(5_000)
+
+      messageService.create('topic-activity-monotonic', {
+        role: 'user',
+        parentId: null,
+        data: mainText('stale'),
+        status: 'success'
+      })
+
+      expect(await readLastActivityAt('topic-activity-monotonic')).toBe(10_000_000)
     })
   })
 

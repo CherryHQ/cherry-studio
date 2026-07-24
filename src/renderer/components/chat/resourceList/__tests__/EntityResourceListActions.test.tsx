@@ -1,5 +1,6 @@
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
 import type { ResourceEntityRailItem } from '@renderer/components/chat/resourceList/ResourceEntityRail'
+import type * as UseAgentModule from '@renderer/hooks/agent/useAgent'
 import type { AgentSessionsSource, AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -48,6 +49,66 @@ vi.mock('@cherrystudio/ui', () => ({
   Tooltip: ({ children }: { children?: ReactNode }) => <>{children}</>,
   MenuDivider: () => <hr />,
   MenuList: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  DropdownMenu: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  DropdownMenuContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  DropdownMenuCheckboxItem: ({
+    children,
+    checked,
+    onCheckedChange,
+    ...props
+  }: {
+    children?: ReactNode
+    checked?: boolean
+    onCheckedChange?: (checked: boolean) => void
+    role?: string
+  }) => (
+    <button
+      type="button"
+      aria-checked={checked}
+      role={props.role ?? 'menuitemcheckbox'}
+      onClick={() => onCheckedChange?.(!checked)}>
+      {checked && <span className="lucide-check" />}
+      {children}
+    </button>
+  ),
+  DropdownMenuItem: ({
+    children,
+    disabled,
+    onSelect
+  }: {
+    children?: ReactNode
+    disabled?: boolean
+    onSelect?: (event: unknown) => void
+  }) => (
+    <button type="button" disabled={disabled} onClick={(event) => onSelect?.(event)}>
+      {children}
+    </button>
+  ),
+  DropdownMenuRadioGroup: ({
+    children,
+    onValueChange
+  }: {
+    children?: ReactNode
+    onValueChange?: (value: string) => void
+  }) => (
+    <div
+      onClick={(event) => {
+        const value = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-value]')?.dataset.value
+        if (value) onValueChange?.(value)
+      }}>
+      {children}
+    </div>
+  ),
+  DropdownMenuRadioItem: ({ children, value }: { children?: ReactNode; value: string }) => (
+    <button type="button" data-value={value}>
+      {children}
+    </button>
+  ),
+  DropdownMenuSeparator: () => <hr />,
+  DropdownMenuSub: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  DropdownMenuSubContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  DropdownMenuSubTrigger: ({ children }: { children?: ReactNode }) => <button type="button">{children}</button>,
+  DropdownMenuTrigger: ({ children }: { children?: ReactNode }) => <>{children}</>,
   Popover: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   PopoverContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   PopoverTrigger: ({ children }: { children?: ReactNode }) => <>{children}</>
@@ -74,7 +135,15 @@ vi.mock('@data/hooks/usePreference', () => ({
     }
 
     const defaultValue =
-      key === 'topic.tab.display_mode' ? 'assistant' : key === 'agent.session.display_mode' ? 'agent' : undefined
+      key === 'topic.tab.display_mode'
+        ? 'assistant'
+        : key === 'topic.sort_type'
+          ? 'createdAt'
+          : key === 'agent.session.display_mode'
+            ? 'agent'
+            : key === 'agent.session.sort_type'
+              ? 'createdAt'
+              : undefined
 
     return [
       preferenceMocks.values.get(key) ?? defaultValue,
@@ -223,7 +292,10 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/agent/useAgent', () => ({
+vi.mock('@renderer/hooks/agent/useAgent', async (importOriginal) => ({
+  // Keep the real useDeleteAgent so it registers its mutation (and refresh
+  // contract) through the mocked useMutation below.
+  ...(await importOriginal<typeof UseAgentModule>()),
   useAgents: () => ({
     agents: [
       {
@@ -258,42 +330,38 @@ vi.mock('@renderer/hooks/useGroups', () => ({
 
 function createAgentSessionsSource(): AgentSessionsSource {
   return {
-    createSession: vi.fn(),
-    deleteSession: vi.fn(),
-    deleteSessions: vi.fn(),
-    error: null,
-    hasMore: false,
-    isFullyLoaded: true,
-    isLoading: false,
-    isLoadingAll: false,
-    isLoadingMore: false,
-    isPinsLoading: false,
-    isValidating: false,
-    loadMore: vi.fn(),
-    pinIdBySessionId: new Map(),
-    reload: vi.fn(),
-    reorderSession: vi.fn(),
-    reorderSessions: vi.fn(),
-    sessions: [{ id: 'session-1', agentId: 'agent-1', name: 'Session 1' }],
-    togglePin: vi.fn(),
-    total: 1
-  } as unknown as AgentSessionsSource
+    stats: {
+      total: 1,
+      pinnedCount: 0,
+      byAgent: [{ agentId: 'agent-1', count: 1, pinnedCount: 0 }],
+      byWorkspace: []
+    },
+    isStatsLoading: false,
+    statsError: undefined,
+    refetchStats: vi.fn().mockResolvedValue(undefined),
+    loadLatestSession: vi.fn().mockResolvedValue(null),
+    loadReusableSessions: vi.fn().mockResolvedValue([])
+  }
 }
 
 function createAssistantTopicsSource(): AssistantTopicsSource {
+  const byAssistantCounts = new Map<string | null, number>()
+  for (const topic of assistantDataMocks.topics) {
+    const key = topic.assistantId ?? null
+    byAssistantCounts.set(key, (byAssistantCounts.get(key) ?? 0) + 1)
+  }
   return {
-    error: null,
-    hasNext: false,
-    isFullyLoaded: true,
-    isLoading: false,
-    isLoadingAll: false,
-    isRefreshing: false,
-    loadNext: vi.fn(),
-    mutate: vi.fn(),
-    pages: [],
-    refetch: vi.fn(),
-    topics: assistantDataMocks.topics
-  } as unknown as AssistantTopicsSource
+    stats: {
+      total: assistantDataMocks.topics.length,
+      pinnedCount: 0,
+      byAssistant: Array.from(byAssistantCounts, ([assistantId, count]) => ({ assistantId, count, pinnedCount: 0 }))
+    },
+    isStatsLoading: false,
+    statsError: undefined,
+    refetchStats: vi.fn().mockResolvedValue(undefined),
+    loadLatestTopic: vi.fn().mockResolvedValue(null),
+    loadReusableTopic: vi.fn().mockResolvedValue(null)
+  }
 }
 
 function TestAssistantResourceList({
@@ -387,7 +455,9 @@ describe('classic layout entity resource list actions', () => {
     )
     // Classic layout resets via the dedicated callback (page settles to the latest
     // remaining topic) and must NOT open the modern layout draft compose.
-    await waitFor(() => expect(onActiveAssistantDeleted).toHaveBeenCalledWith('assistant-1'))
+    await waitFor(() =>
+      expect(onActiveAssistantDeleted).toHaveBeenCalledWith('assistant-1', ['assistant-2'], 'deleted')
+    )
     expect(onCreateTopic).not.toHaveBeenCalled()
   })
 
@@ -409,13 +479,13 @@ describe('classic layout entity resource list actions', () => {
 
   it('clears assistant topics from the classic layout assistant context menu', async () => {
     const onSelectTopic = vi.fn()
-    const onCreateTopicAfterClear = vi.fn()
+    const onClearActiveTopic = vi.fn()
 
     render(
       <TestAssistantResourceList
         activeAssistantId="assistant-1"
         onSelectTopic={onSelectTopic}
-        onCreateTopicAfterClear={onCreateTopicAfterClear}
+        onClearActiveTopic={onClearActiveTopic}
         onCreateTopic={vi.fn()}
       />
     )
@@ -436,7 +506,7 @@ describe('classic layout entity resource list actions', () => {
     )
     await waitFor(() => expect(assistantDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-1'))
     await waitFor(() => expect(assistantDataMocks.refreshTopics).toHaveBeenCalledTimes(1))
-    expect(onCreateTopicAfterClear).toHaveBeenCalledWith('assistant-1')
+    expect(onClearActiveTopic).toHaveBeenCalledWith('assistant-1')
     expect(onSelectTopic).not.toHaveBeenCalled()
     expect(toast.success).toHaveBeenCalledWith('assistants.clear.success_title:1')
   })
@@ -451,12 +521,12 @@ describe('classic layout entity resource list actions', () => {
       resolveConfirm = resolve
     })
     vi.mocked(popup.confirm).mockReturnValue(confirmPromise)
-    const onCreateTopicAfterClear = vi.fn()
+    const onClearActiveTopic = vi.fn()
 
     const props = {
       activeAssistantId: 'assistant-1',
       onSelectTopic: vi.fn(),
-      onCreateTopicAfterClear,
+      onClearActiveTopic,
       onCreateTopic: vi.fn()
     }
     const { rerender } = render(<TestAssistantResourceList {...props} />)
@@ -480,11 +550,11 @@ describe('classic layout entity resource list actions', () => {
 
     expect(assistantDataMocks.deleteTopicsByAssistantId).not.toHaveBeenCalled()
     expect(assistantDataMocks.refreshTopics).not.toHaveBeenCalled()
-    expect(onCreateTopicAfterClear).not.toHaveBeenCalled()
+    expect(onClearActiveTopic).not.toHaveBeenCalled()
     expect(toast.success).not.toHaveBeenCalled()
   })
 
-  it('keeps the default assistant visible in the classic assistant rail without a create action', () => {
+  it('does not expose the unlinked pseudo-owner in the classic assistant rail', () => {
     assistantDataMocks.topics = [
       { id: 'topic-default', name: 'Default topic' },
       { id: 'topic-1', assistantId: 'assistant-1', name: 'Topic 1' }
@@ -493,35 +563,24 @@ describe('classic layout entity resource list actions', () => {
 
     render(<TestAssistantResourceList activeAssistantId={null} onSelectTopic={vi.fn()} onCreateTopic={onCreateTopic} />)
 
-    const defaultAssistantRegion = screen.getByRole('region', { name: 'chat.default.name' })
     const assistantRegion = screen.getByRole('region', { name: 'Assistant 1' })
 
-    expect(defaultAssistantRegion).toBeInTheDocument()
     expect(assistantRegion).toBeInTheDocument()
-    expect(
-      assistantRegion.compareDocumentPosition(defaultAssistantRegion) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy()
-    expect(screen.getByTestId('assistant-entity:default-context-menu')).not.toHaveTextContent('assistants.edit.title')
-    expect(screen.getByTestId('assistant-entity:default-context-menu')).not.toHaveTextContent('assistants.delete.title')
-    expect(screen.getByTestId('assistant-entity:default-context-menu')).not.toHaveTextContent(
-      'assistants.clear.menu_title'
-    )
-
-    // The default group is a display-only bucket for legacy assistant-less topics: no "new topic"
-    // action, since a null-assistant create can't reuse an empty placeholder and would stack blanks.
-    expect(within(defaultAssistantRegion).queryByRole('button', { name: 'chat.conversation.new' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'chat.default.name' })).toBeNull()
+    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-selected-id', '')
+    expect(onCreateTopic).not.toHaveBeenCalled()
   })
 
-  it('creates a fresh topic after clearing the only classic assistant topics', async () => {
+  it('clears the active topic after clearing the only classic assistant topics', async () => {
     assistantDataMocks.topics = [{ id: 'topic-2', assistantId: 'assistant-2', name: 'Topic 2' }]
     assistantDataMocks.deleteTopicsByAssistantId.mockResolvedValueOnce({ deletedIds: ['topic-2'], deletedCount: 1 })
-    const onCreateTopicAfterClear = vi.fn()
+    const onClearActiveTopic = vi.fn()
 
     render(
       <TestAssistantResourceList
         activeAssistantId="assistant-2"
         onSelectTopic={vi.fn()}
-        onCreateTopicAfterClear={onCreateTopicAfterClear}
+        onClearActiveTopic={onClearActiveTopic}
         onCreateTopic={vi.fn()}
       />
     )
@@ -535,7 +594,7 @@ describe('classic layout entity resource list actions', () => {
     await waitFor(() => expect(popup.confirm).toHaveBeenCalled())
     await waitFor(() => expect(assistantDataMocks.deleteTopicsByAssistantId).toHaveBeenCalledWith('assistant-2'))
     await waitFor(() => expect(assistantDataMocks.refreshTopics).toHaveBeenCalledTimes(1))
-    expect(onCreateTopicAfterClear).toHaveBeenCalledWith('assistant-2')
+    expect(onClearActiveTopic).toHaveBeenCalledWith('assistant-2')
     expect(toast.error).not.toHaveBeenCalled()
   })
 
@@ -601,14 +660,26 @@ describe('classic layout entity resource list actions', () => {
       <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'chat.topics.display.time' }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'chat.topics.display.time' }))
 
     await waitFor(() => {
       expect(preferenceMocks.setPreference).toHaveBeenCalledWith('topic.tab.display_mode', 'time')
     })
   })
 
-  it('keeps classic assistant rail history in the shared display menu', () => {
+  it('persists topic sorting from the classic assistant rail menu', async () => {
+    render(
+      <TestAssistantResourceList activeAssistantId="assistant-1" onSelectTopic={vi.fn()} onCreateTopic={vi.fn()} />
+    )
+
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'common.sort.last_active' }))
+
+    await waitFor(() => {
+      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('topic.sort_type', 'lastActivityAt')
+    })
+  })
+
+  it('keeps classic assistant rail history in the shared display menu', async () => {
     const onOpenHistoryRecords = vi.fn()
 
     render(
@@ -622,10 +693,12 @@ describe('classic layout entity resource list actions', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'history.records.shortTitle' }))
 
-    expect(onOpenHistoryRecords).toHaveBeenCalledTimes(1)
+    // The shared display menu defers item selection until after the menu closes
+    // (runAfterMenuClose → setTimeout), so the callback fires asynchronously.
+    await waitFor(() => expect(onOpenHistoryRecords).toHaveBeenCalledTimes(1))
   })
 
-  it('keeps assistant management in the shared display menu without adding a classic rail entry', () => {
+  it('keeps assistant management in the shared display menu without adding a classic rail entry', async () => {
     const onManageAssistants = vi.fn()
 
     render(
@@ -646,7 +719,8 @@ describe('classic layout entity resource list actions', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'assistants.presets.manage.title' }))
 
-    expect(onManageAssistants).toHaveBeenCalledTimes(1)
+    // Selection is deferred until after the menu closes (runAfterMenuClose → setTimeout).
+    await waitFor(() => expect(onManageAssistants).toHaveBeenCalledTimes(1))
     expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-active-resource-menu', 'false')
     expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-selected-id', '')
   })
@@ -683,7 +757,7 @@ describe('classic layout entity resource list actions', () => {
       })
     )
     // Classic layout resets via the dedicated callback, never the draft compose.
-    await waitFor(() => expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-1'))
+    await waitFor(() => expect(onActiveAgentDeleted).toHaveBeenCalledWith('agent-1', []))
     expect(onShowMissingAgentSelection).not.toHaveBeenCalled()
   })
 
@@ -734,10 +808,29 @@ describe('classic layout entity resource list actions', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.session.display.workdir' }))
+    // Display-mode options render as radio items (role="menuitemradio"), not plain buttons.
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'agent.session.display.workdir' }))
 
     await waitFor(() => {
       expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.display_mode', 'workdir')
+    })
+  })
+
+  it('persists session sorting from the classic agent rail menu', async () => {
+    render(
+      <AgentResourceList
+        activeAgentId="agent-1"
+        agentSessionsSource={createAgentSessionsSource()}
+        onSelectSession={vi.fn()}
+        onCreateSession={vi.fn()}
+        onShowMissingAgentSelection={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'common.sort.last_active' }))
+
+    await waitFor(() => {
+      expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.sort_type', 'lastActivityAt')
     })
   })
 
@@ -793,7 +886,7 @@ describe('classic layout entity resource list actions', () => {
     expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-selected-id', '')
   })
 
-  it('keeps classic agent rail history in the shared display menu without section toggles', () => {
+  it('keeps classic agent rail history in the shared display menu without section toggles', async () => {
     const onOpenHistoryRecords = vi.fn()
 
     render(
@@ -809,7 +902,8 @@ describe('classic layout entity resource list actions', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'history.records.shortTitle' }))
 
-    expect(onOpenHistoryRecords).toHaveBeenCalledTimes(1)
+    // Selection is deferred until after the menu closes (runAfterMenuClose → setTimeout).
+    await waitFor(() => expect(onOpenHistoryRecords).toHaveBeenCalledTimes(1))
     expect(screen.queryByText('agent.session.group.expand_all')).not.toBeInTheDocument()
     expect(screen.queryByText('agent.session.group.collapse_all')).not.toBeInTheDocument()
   })

@@ -1,12 +1,8 @@
-import dayjs from 'dayjs'
-
 export type ResourceListGroup = {
   id: string
   label: string
   count?: number
 }
-
-export type ResourceListTimeBucket = 'today' | 'yesterday' | 'this-week' | 'earlier'
 
 export type ResourceListGroupResolver<T> = (item: T) => ResourceListGroup | null
 
@@ -31,39 +27,20 @@ export type ResourceListGroupReorderPayload = {
   targetIndex: number
 }
 
-type TimestampInput = dayjs.ConfigType
-type GroupRankResolver<T> = (item: T) => number
+/**
+ * Preserve the owner's pre-removal display order, then try owners below it
+ * before walking back upward. The caller still performs authoritative scoped
+ * latest lookups because a candidate may have become empty concurrently.
+ */
+export function buildResourceOwnerFallbackIds(orderedOwnerIds: readonly string[], removedOwnerId: string): string[] {
+  const uniqueOwnerIds = [...new Set(orderedOwnerIds)]
+  const removedIndex = uniqueOwnerIds.indexOf(removedOwnerId)
+  if (removedIndex < 0) return uniqueOwnerIds.filter((ownerId) => ownerId !== removedOwnerId)
 
-export function getResourceTimeBucket(timestamp: TimestampInput, now?: TimestampInput): ResourceListTimeBucket {
-  if (timestamp === undefined) {
-    return 'earlier'
-  }
-
-  const item = dayjs(timestamp)
-  const current = now === undefined ? dayjs() : dayjs(now)
-  if (!item.isValid() || !current.isValid()) {
-    return 'earlier'
-  }
-
-  const itemStart = item.startOf('day')
-  const todayStart = current.startOf('day')
-
-  if (itemStart.isSame(todayStart)) {
-    return 'today'
-  }
-
-  const yesterdayStart = todayStart.subtract(1, 'day')
-  if (itemStart.isSame(yesterdayStart)) {
-    return 'yesterday'
-  }
-
-  const weekStart = todayStart.startOf('week')
-  if (itemStart.isSame(weekStart) || (itemStart.isAfter(weekStart) && itemStart.isBefore(yesterdayStart))) {
-    return 'this-week'
-  }
-
-  return 'earlier'
+  return [...uniqueOwnerIds.slice(removedIndex + 1), ...uniqueOwnerIds.slice(0, removedIndex).reverse()]
 }
+
+type GroupRankResolver<T> = (item: T) => number
 
 export function composeResourceListGroupResolvers<T>(
   ...resolvers: Array<ResourceListGroupResolver<T>>
@@ -87,21 +64,6 @@ export function createPinnedGroupResolver<T>({
   return (item) => (isPinned(item) ? group : null)
 }
 
-export function createTimeGroupResolver<T>({
-  getTimestamp,
-  labels,
-  now
-}: {
-  getTimestamp: (item: T) => TimestampInput
-  labels: Record<ResourceListTimeBucket, string>
-  now?: TimestampInput
-}): ResourceListGroupResolver<T> {
-  return (item) => {
-    const bucket = getResourceTimeBucket(getTimestamp(item), now)
-    return { id: `time:${bucket}`, label: labels[bucket] }
-  }
-}
-
 export function createPinnedFirstSorter<T>({ isPinned }: { isPinned: (item: T) => boolean }): GroupRankResolver<T> {
   return (item) => (isPinned(item) ? 0 : 1)
 }
@@ -113,6 +75,11 @@ export function sortByResourceGroupRank<T>(items: readonly T[], getGroupRank: Gr
     .map(({ item }) => item)
 }
 
+/**
+ * Shared topic/session display precedence: group rank first, pinned rows in
+ * their incoming server order, then the caller's within-group ordering with a
+ * stable incoming-index tiebreak.
+ */
 export function sortRankedResourceItems<T>(
   items: readonly T[],
   {
@@ -137,13 +104,24 @@ export function sortRankedResourceItems<T>(
     .map(({ item }) => item)
 }
 
-export function compareResourceRecency<T>(getUpdatedAt: (item: T) => string): (a: T, b: T) => number {
-  return (a, b) => {
-    const aMs = Date.parse(getUpdatedAt(a))
-    const bMs = Date.parse(getUpdatedAt(b))
-    if (Number.isFinite(aMs) && Number.isFinite(bMs)) return bMs - aMs
-    return 0
-  }
+function compareResourceTimestampOrder(aValue: string, bValue: string, aId: string, bId: string): number {
+  const aMs = Date.parse(aValue)
+  const bMs = Date.parse(bValue)
+  if (Number.isFinite(aMs) && Number.isFinite(bMs) && aMs !== bMs) return bMs - aMs
+  if (Number.isFinite(aMs) !== Number.isFinite(bMs)) return Number.isFinite(aMs) ? -1 : 1
+  return compareResourceIds(aId, bId)
+}
+
+export function compareResourceIds(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0
+}
+
+export function compareResourceCreationOrder<T extends { createdAt: string; id: string }>(a: T, b: T): number {
+  return compareResourceTimestampOrder(a.createdAt, b.createdAt, a.id, b.id)
+}
+
+export function compareResourceActivityOrder<T extends { lastActivityAt: string; id: string }>(a: T, b: T): number {
+  return compareResourceTimestampOrder(a.lastActivityAt, b.lastActivityAt, a.id, b.id)
 }
 
 export type ResourceListOrderAnchor = { before: string } | { after: string } | { position: 'last' }
@@ -157,12 +135,16 @@ export function compareResourceOrderKey(a?: string, b?: string) {
   return 0
 }
 
-export function buildResourceListItemDropAnchor(payload: ResourceListItemReorderPayload): ResourceListOrderAnchor {
+export function buildResourceListItemDropAnchor(
+  payload: ResourceListItemReorderPayload
+): ResourceListOrderAnchor | undefined {
   if (payload.overType === 'item') {
     return payload.position === 'before' ? { before: payload.overId } : { after: payload.overId }
   }
 
-  return { position: 'last' }
+  // A group header owns no record-order anchor. Callers may still move the
+  // record into that group while preserving its existing order key.
+  return undefined
 }
 
 export function buildResourceListGroupDropAnchor(
@@ -191,15 +173,4 @@ export function moveResourceListStringGroupAfterDrop(
   next.splice(insertIndex, 0, activeId)
 
   return next
-}
-
-export function withResourceListGroupIdPrefix<T>(
-  prefix: string,
-  resolver: ResourceListGroupResolver<T>
-): ResourceListGroupResolver<T> {
-  return (item) => {
-    const group = resolver(item)
-    if (!group) return null
-    return { ...group, id: `${prefix}${group.id}` }
-  }
 }

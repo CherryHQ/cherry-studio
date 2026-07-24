@@ -1,4 +1,12 @@
-import { Button, EmptyState as UiEmptyState, Input, MenuItem, Skeleton, Tooltip } from '@cherrystudio/ui'
+import {
+  Button,
+  DropdownMenuItem,
+  EmptyState as UiEmptyState,
+  Input,
+  MenuItem,
+  Skeleton,
+  Tooltip
+} from '@cherrystudio/ui'
 import { CommandHint } from '@renderer/components/command'
 import { cn } from '@renderer/utils/style'
 import type { CommandId } from '@shared/utils/command'
@@ -230,6 +238,28 @@ type SectionToggleMenuItemProps = Omit<ComponentProps<typeof MenuItem>, 'label' 
   sectionIds: readonly string[]
 }
 
+function useSectionToggle(sectionIds: readonly string[]) {
+  const actions = useResourceListActions()
+  const view = useResourceListView()
+  const sectionIdSet = new Set(sectionIds)
+  const sections = view.sections.filter((candidate) => sectionIdSet.has(candidate.section.id))
+  const groups = sections.flatMap((section) => section.groups)
+  const groupIds = groups.map((group) => group.group.id)
+  const expandGroupIds = [...sections.map((section) => section.section.id), ...groupIds]
+  const expandedGroupIds = groups.filter((group) => !group.collapsed).map((group) => group.group.id)
+  const hasExpandedGroup = expandedGroupIds.length > 0
+
+  const toggle = () => {
+    if (hasExpandedGroup) {
+      actions.collapseGroups(expandedGroupIds)
+    } else {
+      actions.expandGroups(expandGroupIds)
+    }
+  }
+
+  return { groupIds, hasExpandedGroup, toggle }
+}
+
 function SectionToggleMenuItem({
   collapseIcon,
   collapseLabel,
@@ -240,15 +270,7 @@ function SectionToggleMenuItem({
   sectionIds,
   ...props
 }: SectionToggleMenuItemProps) {
-  const actions = useResourceListActions()
-  const view = useResourceListView()
-  const sectionIdSet = new Set(sectionIds)
-  const sections = view.sections.filter((candidate) => sectionIdSet.has(candidate.section.id))
-  const groups = sections.flatMap((section) => section.groups)
-  const groupIds = groups.map((group) => group.group.id)
-  const expandGroupIds = [...sections.map((section) => section.section.id), ...groupIds]
-  const expandedGroupIds = groups.filter((group) => !group.collapsed).map((group) => group.group.id)
-  const hasExpandedGroup = expandedGroupIds.length > 0
+  const { groupIds, hasExpandedGroup, toggle } = useSectionToggle(sectionIds)
   const isDisabled = disabled || groupIds.length === 0
 
   return (
@@ -259,15 +281,47 @@ function SectionToggleMenuItem({
       onClick={(event) => {
         onClick?.(event)
         if (event.defaultPrevented || isDisabled) return
-
-        if (hasExpandedGroup) {
-          actions.collapseGroups(expandedGroupIds)
-        } else {
-          actions.expandGroups(expandGroupIds)
-        }
+        toggle()
       }}
       {...props}
     />
+  )
+}
+
+type SectionToggleDropdownMenuItemProps = Omit<ComponentProps<typeof DropdownMenuItem>, 'children'> & {
+  collapseIcon?: ReactNode
+  collapseLabel: string
+  expandIcon?: ReactNode
+  expandLabel: string
+  sectionIds: readonly string[]
+}
+
+function SectionToggleDropdownMenuItem({
+  collapseIcon,
+  collapseLabel,
+  disabled,
+  expandIcon,
+  expandLabel,
+  onSelect,
+  sectionIds,
+  ...props
+}: SectionToggleDropdownMenuItemProps) {
+  const { groupIds, hasExpandedGroup, toggle } = useSectionToggle(sectionIds)
+  const isDisabled = disabled || groupIds.length === 0
+  const icon = hasExpandedGroup ? collapseIcon : expandIcon
+
+  return (
+    <DropdownMenuItem
+      disabled={isDisabled}
+      onSelect={(event) => {
+        onSelect?.(event)
+        if (event.defaultPrevented || isDisabled) return
+        toggle()
+      }}
+      {...props}>
+      {icon && <span className="flex shrink-0 items-center justify-center">{icon}</span>}
+      <span>{hasExpandedGroup ? collapseLabel : expandLabel}</span>
+    </DropdownMenuItem>
   )
 }
 
@@ -574,6 +628,8 @@ type BodyProps<T extends ResourceListItemBase> = {
   emptyFallback?: ReactNode
   errorFallback?: ReactNode
   listRef?: Ref<HTMLDivElement>
+  /** Invoked when the virtual scroller approaches its bottom. */
+  onEndReached?: () => void
   renderItem: (item: T, context: ResourceListContextValue<T>) => ReactNode
   virtualClassName?: string
   /** Accessible name forwarded to the listbox scroller in both the plain and draggable paths. */
@@ -585,6 +641,7 @@ function Body<T extends ResourceListItemBase>({
   emptyFallback,
   errorFallback,
   listRef,
+  onEndReached,
   renderItem,
   virtualClassName,
   ariaLabel
@@ -606,11 +663,25 @@ function Body<T extends ResourceListItemBase>({
 
   if (draggable) {
     return (
-      <VirtualDraggableItems ref={listRef} className={virtualClassName} ariaLabel={ariaLabel} renderItem={renderItem} />
+      <VirtualDraggableItems
+        ref={listRef}
+        className={virtualClassName}
+        ariaLabel={ariaLabel}
+        onEndReached={onEndReached}
+        renderItem={renderItem}
+      />
     )
   }
 
-  return <VirtualItems ref={listRef} className={virtualClassName} ariaLabel={ariaLabel} renderItem={renderItem} />
+  return (
+    <VirtualItems
+      ref={listRef}
+      className={virtualClassName}
+      ariaLabel={ariaLabel}
+      onEndReached={onEndReached}
+      renderItem={renderItem}
+    />
+  )
 }
 
 type EmptyStateProps = ComponentProps<typeof UiEmptyState>
@@ -688,6 +759,7 @@ const ResourceList = {
   HeaderActionButton,
   GroupHeaderActionButton,
   SectionCollapseActionButton,
+  SectionToggleDropdownMenuItem,
   SectionToggleMenuItem,
   HeaderItem,
   Search,

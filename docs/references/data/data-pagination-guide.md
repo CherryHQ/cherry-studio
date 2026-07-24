@@ -194,11 +194,20 @@ cursor as "first page" (no warn) and a malformed cursor as a warn-and-fall-back
 to the first page. A server-issued opaque token going stale must never throw and
 lock the renderer. (Full-text search uses the opposite policy — see § 6.)
 
-**Multi-band cursors are not routable through `keysetOrdering`.** A cursor that
-encodes more than a single `(key, id)` tuple — e.g. `TopicService.listByCursor`,
-which pages a pinned section then an unpinned section with a first-page sentinel —
-cannot be expressed as one tuple and keeps its **own** codec. Do not force such
-endpoints through the shared helper.
+**Keep independent bands in independent cursor chains.** Topic and session
+lists require callers to select either the pinned or ordinary stream. Each
+response therefore has one `(key, id)` tuple and uses `keysetOrdering`. The
+tuple token does not encode its query identity, so callers must discard the
+cursor chain whenever the selected stream, sort profile, or filters change.
+The pinned query variant has one persisted pin order and therefore does not
+accept `sortBy`; only the ordinary variant exposes a sort profile.
+
+**Do not use a page as an existence proof.** A bounded page can answer only
+"which rows are visible in this cursor window," not "does any matching row
+exist?" or "which matching row is globally newest?" Domain decisions such as
+reusing an empty topic/session placeholder need a dedicated derived read whose
+SQL applies the complete predicate independently of pin membership, list order,
+and pagination.
 
 **Determinism under ties.** `keysetOrdering` always appends the `id` tiebreaker
 (`[<major> keyCol, <tie> idCol]`), so page-walking stays deterministic even when
@@ -287,8 +296,9 @@ lives in `src/main/data/services/utils/ftsSearch.ts`; see
   or `total` won't match the page.
 - **List cursors warn-and-fall-back; search cursors throw 422** — don't copy one
   policy into the other.
-- **Multi-band cursors keep their own codec** — `TopicService.listByCursor` is
-  not routable through `keysetOrdering`.
+- **Keep band cursors isolated** — pinned and ordinary list streams both use
+  `keysetOrdering`, but callers must maintain separate cursor chains and never
+  reuse a token after changing the selected band, sort profile, or filters.
 - **Page-load order ≠ display order** — choose `reversePages` / `reverseItems`
   in `useInfiniteFlatItems` deliberately.
 

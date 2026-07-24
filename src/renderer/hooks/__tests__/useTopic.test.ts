@@ -94,12 +94,10 @@ describe('useTopicMutations', () => {
     expect(settled[1]).toEqual({ status: 'rejected', reason: failed })
   })
 
-  it('re-homes a dragged topic into `/topics/:id` before ordering, then revalidates once', async () => {
-    const movedTopic = { id: 'topic-a', assistantId: 'assistant-2' }
-    const patch = vi
-      .mocked(dataApiService.patch)
-      .mockResolvedValueOnce(movedTopic as never)
-      .mockResolvedValueOnce(undefined as never)
+  it('moves a topic atomically, updates its by-id cache, then revalidates once', async () => {
+    const cachedTopic = { id: 'topic-a', assistantId: 'assistant-1', name: 'Topic A' }
+    MockUseDataApiUtils.seedCache('/topics/topic-a', cachedTopic as never)
+    const post = vi.mocked(dataApiService.post).mockResolvedValueOnce(undefined as never)
 
     const { result } = renderHook(() => useTopicMutations())
     const writeCacheSpy = mockUseWriteCache.mock.results[0].value as Mock
@@ -109,18 +107,20 @@ describe('useTopicMutations', () => {
       result.current.moveTopic('topic-a', { assistantId: 'assistant-2', anchor: { after: 'topic-d' } })
     )
 
-    expect(patch).toHaveBeenNthCalledWith(1, '/topics/topic-a', { body: { assistantId: 'assistant-2' } })
-    expect(patch).toHaveBeenNthCalledWith(2, '/topics/topic-a/order', { body: { after: 'topic-d' } })
-    // The PATCH response lands in `/topics/:id` before the order write, so an open conversation
-    // on the moved topic re-resolves its assistant immediately instead of waiting out the order
-    // PATCH bound to the old one.
-    expect(writeCacheSpy).toHaveBeenCalledWith('/topics/topic-a', movedTopic)
-    expect(writeCacheSpy.mock.invocationCallOrder[0]).toBeLessThan(patch.mock.invocationCallOrder[1])
-    // A single combined revalidation after both writes — not mid-flight, which would flash the
-    // optimistic reorder overlay back to the old position.
+    expect(post).toHaveBeenCalledWith('/topics/topic-a/move', {
+      body: { assistantId: 'assistant-2', order: { after: 'topic-d' } }
+    })
+    expect(dataApiService.patch).not.toHaveBeenCalled()
+    // The atomic move commits before the by-id cache changes, so an open conversation follows
+    // the new assistant without exposing a partially moved server state.
+    expect(writeCacheSpy).toHaveBeenCalledWith('/topics/topic-a', {
+      ...cachedTopic,
+      assistantId: 'assistant-2'
+    })
+    expect(writeCacheSpy.mock.invocationCallOrder[0]).toBeGreaterThan(post.mock.invocationCallOrder[0])
     expect(invalidateSpy).toHaveBeenCalledTimes(1)
-    expect(invalidateSpy).toHaveBeenCalledWith(['/topics', '/topics/topic-a'])
-    expect(invalidateSpy.mock.invocationCallOrder[0]).toBeGreaterThan(patch.mock.invocationCallOrder[1])
+    expect(invalidateSpy).toHaveBeenCalledWith(['/topics', '/topics/stats', '/topics/topic-a'])
+    expect(invalidateSpy.mock.invocationCallOrder[0]).toBeGreaterThan(writeCacheSpy.mock.invocationCallOrder[0])
   })
 
   it('reorders without an assistant change using only the order write and a list refresh', async () => {
@@ -135,13 +135,11 @@ describe('useTopicMutations', () => {
     expect(patch).toHaveBeenCalledTimes(1)
     expect(patch).toHaveBeenCalledWith('/topics/topic-a/order', { body: { before: 'topic-b' } })
     expect(writeCacheSpy).not.toHaveBeenCalled()
-    expect(invalidateSpy).toHaveBeenCalledWith('/topics')
+    expect(invalidateSpy).toHaveBeenCalledWith(['/topics', '/topics/stats'])
   })
 
-  it('reconciles caches and rethrows when ordering fails after the assistant change committed', async () => {
-    vi.mocked(dataApiService.patch)
-      .mockResolvedValueOnce({ id: 'topic-a', assistantId: 'assistant-2' } as never)
-      .mockRejectedValueOnce(new Error('order failed'))
+  it('reconciles caches and rethrows when the atomic move fails', async () => {
+    vi.mocked(dataApiService.post).mockRejectedValueOnce(new Error('move failed'))
 
     const { result } = renderHook(() => useTopicMutations())
     const invalidateSpy = mockUseInvalidateCache.mock.results[0].value as Mock
@@ -158,9 +156,8 @@ describe('useTopicMutations', () => {
     })
 
     // Rethrown so the caller can roll its optimistic UI back.
-    expect(caught).toEqual(new Error('order failed'))
-    // The assistant PATCH committed before the failure — server truth must be pulled back in.
-    expect(invalidateSpy).toHaveBeenCalledWith(['/topics', '/topics/topic-a'])
+    expect(caught).toEqual(new Error('move failed'))
+    expect(invalidateSpy).toHaveBeenCalledWith(['/topics', '/topics/stats', '/topics/topic-a'])
   })
 })
 
@@ -191,7 +188,7 @@ describe('useActiveTopic', () => {
 
   it('reports not-loading while idle, so first-entry restore is never gated on the topic list', () => {
     // Core of the /latest fast path: with no active id yet the hook resolves the active
-    // topic by id (not by scanning the loadAll list), so it is not "loading" and the
+    // topic by id (not by scanning a paged list), so it is not "loading" and the
     // first-entry effect is free to resume the latest topic immediately.
     const { result } = renderHook(() => useActiveTopic({ activeTopicId: null, setActiveTopicId: vi.fn() }))
 

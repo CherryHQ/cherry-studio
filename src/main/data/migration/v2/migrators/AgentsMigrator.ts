@@ -888,6 +888,7 @@ export async function importLegacySessionMessages(
     )
   )
   const modelCache = new Map<string, string | null>()
+  const lastActivityAtBySession = new Map<string, number>()
   let imported = 0
 
   for (const row of rows) {
@@ -912,18 +913,35 @@ export async function importLegacySessionMessages(
     const now = Date.now()
     const createdAt = legacyTimestampToMs(row.createdAt, now)
     const updatedAt = row.updatedAt == null ? createdAt : legacyTimestampToMs(row.updatedAt, createdAt)
+    const terminalAt = normalized.role === 'assistant' ? Math.max(createdAt, updatedAt) : null
     await db.insert(agentSessionMessageTable).values({
       id: uuidv7(),
       sessionId: row.sessionId,
       role: normalized.role,
       data: normalized.data,
       status: normalized.status,
+      terminalAt,
       modelId: resolveUserModelId(db, modelCache, normalized.modelId),
       runtimeResumeToken: row.agentSessionId,
       createdAt,
       updatedAt
     })
+    if (normalized.role === 'user' || normalized.role === 'assistant') {
+      const activityAt = normalized.role === 'user' ? createdAt : Math.max(createdAt, terminalAt ?? createdAt)
+      lastActivityAtBySession.set(
+        row.sessionId,
+        Math.max(lastActivityAtBySession.get(row.sessionId) ?? activityAt, activityAt)
+      )
+    }
     imported++
+  }
+
+  for (const [sessionId, lastActivityAt] of lastActivityAtBySession) {
+    db.run(
+      sql`UPDATE agent_session
+          SET last_activity_at = max(last_activity_at, ${lastActivityAt})
+          WHERE id = ${sessionId}`
+    )
   }
 
   logger.info('Imported legacy agent session messages with UUID ids', { imported })

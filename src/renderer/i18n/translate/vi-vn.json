@@ -376,7 +376,7 @@
       },
       "display": {
         "agent": "Đặc vụ",
-        "time": "Thời gian",
+        "time": "Nhiệm vụ",
         "title": "Chế độ hiển thị",
         "workdir": "Thư mục làm việc"
       },
@@ -404,14 +404,10 @@
         "collapse_all": "Thu gọn tất cả",
         "conversation": "Cuộc trò chuyện",
         "drag_hint": "Kéo để sắp xếp lại. Kéo các nhiệm vụ để điều chỉnh nhóm hiển thị và ẩn.",
-        "earlier": "Trước đó",
         "expand_all": "Mở rộng tất cả",
         "no_workdir": "Không có thư mục làm việc",
         "show_more": "Mở rộng hiển thị",
-        "this_week": "Tuần này",
-        "today": "Hôm nay",
-        "unknown_agent": "Đại lý không xác định",
-        "yesterday": "Hôm qua"
+        "unknown_agent": "Đại lý không xác định"
       },
       "label_one": "Phiên",
       "label_other": " sessions",
@@ -1777,7 +1773,7 @@
       "display": {
         "assistant": "Trợ lý",
         "tag": "Nhãn",
-        "time": "Thời gian",
+        "time": "Cuộc trò chuyện",
         "title": "Chế độ hiển thị"
       },
       "edit": {
@@ -1843,13 +1839,9 @@
       "group": {
         "collapse": "Thu gọn hiển thị",
         "collapse_all": "Thu gọn tất cả",
-        "earlier": "Trước đó",
         "expand_all": "Mở rộng tất cả",
         "show_more": "Mở rộng hiển thị",
-        "this_week": "Tuần này",
-        "today": "Hôm nay",
-        "unknown_assistant": "Trợ lý Không liên kết",
-        "yesterday": "Hôm qua"
+        "unknown_assistant": "Trợ lý Không liên kết"
       },
       "list": "Daftar Topik",
       "manage": {
@@ -1886,6 +1878,11 @@
         },
         "label": "Chủ đề Gợi ý",
         "tips": "Chủ đề Gợi ý: Các gợi ý bổ sung bổ trợ cho chủ đề hiện tại"
+      },
+      "reorder": {
+        "error": {
+          "failed": "[to be translated]:Failed to reorder conversations"
+        }
       },
       "search": {
         "placeholder": "Tìm kiếm chủ đề...",
@@ -2226,6 +2223,7 @@
     "invalid_value": "Giá trị không hợp lệ",
     "knowledge_base": "Cơ sở tri thức",
     "language": "Ngôn ngữ",
+    "list_options": "[to be translated]:List options",
     "loading": "Đang tải...",
     "maximize": "Tối đa hóa",
     "minimize": "Giảm thiểu",
@@ -2275,11 +2273,16 @@
     "sessions": "Phiên",
     "settings": "Cài đặt",
     "sort": {
+      "created_at": "[to be translated]:Creation time",
+      "last_active": "[to be translated]:Last active",
+      "manual_order": "[to be translated]:Manual order",
       "pinyin": {
         "asc": "Sắp xếp theo phiên âm (A-Z)",
         "desc": "Sắp xếp theo phiên âm (Z-A)",
         "label": "Sắp xếp theo bính âm"
-      }
+      },
+      "title": "[to be translated]:Sort order",
+      "updated_at": "[to be translated]:Updated time"
     },
     "stop": "Dừng lại",
     "subscribe": "Đăng ký",
@@ -2746,8 +2749,6 @@
       "filter": {
         "selectAgent": "Chọn tác nhân",
         "selectAssistant": "Chọn trợ lý",
-        "statusLabel": "Trạng thái",
-        "statusPlaceholder": "Chọn trạng thái",
         "unlinkedAssistant": "Trợ lý không liên kết"
       },
       "loading": {
@@ -2759,11 +2760,6 @@
       "searchSession": "Tìm kiếm nhiệm vụ...",
       "searchTopic": "Tìm kiếm cuộc trò chuyện...",
       "shortTitle": "Lịch sử",
-      "status": {
-        "completed": "Hoàn thành",
-        "failed": "Thất bại",
-        "running": "Chạy"
-      },
       "table": {
         "actions": "Hành động",
         "conversation": "Cuộc trò chuyện",

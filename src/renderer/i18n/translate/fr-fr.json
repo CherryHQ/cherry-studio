@@ -376,7 +376,7 @@
       },
       "display": {
         "agent": "Agent",
-        "time": "Temps",
+        "time": "Tâche",
         "title": "Mode d'affichage",
         "workdir": "Répertoire de travail"
       },
@@ -404,14 +404,10 @@
         "collapse_all": "Réduire tout",
         "conversation": "Conversations",
         "drag_hint": "Glisser pour réorganiser. Glisser les tâches pour ajuster les groupes affichés et masqués.",
-        "earlier": "Plus tôt",
         "expand_all": "Développer tout",
         "no_workdir": "Aucun répertoire de travail",
         "show_more": "Développer l'affichage",
-        "this_week": "Cette semaine",
-        "today": "Aujourd'hui",
-        "unknown_agent": "Agent inconnu",
-        "yesterday": "Hier"
+        "unknown_agent": "Agent inconnu"
       },
       "label_one": "Session",
       "label_other": "Séances",
@@ -1777,7 +1773,7 @@
       "display": {
         "assistant": "Assistant",
         "tag": "Étiquette",
-        "time": "Temps",
+        "time": "Conversation",
         "title": "Mode d'affichage"
       },
       "edit": {
@@ -1843,13 +1839,9 @@
       "group": {
         "collapse": "Réduire l'affichage",
         "collapse_all": "Réduire tout",
-        "earlier": "Plus tôt",
         "expand_all": "Développer tout",
         "show_more": "Développer l'affichage",
-        "this_week": "Cette semaine",
-        "today": "Aujourd'hui",
-        "unknown_assistant": "Assistant non lié",
-        "yesterday": "Hier"
+        "unknown_assistant": "Assistant non lié"
       },
       "list": "Liste des sujets",
       "manage": {
@@ -1886,6 +1878,11 @@
         },
         "label": "Indicateurs de sujet",
         "tips": "Indicateurs de sujet : fournir des indications supplémentaires pour le sujet actuel"
+      },
+      "reorder": {
+        "error": {
+          "failed": "[to be translated]:Failed to reorder conversations"
+        }
       },
       "search": {
         "placeholder": "Rechercher des sujets...",
@@ -2226,6 +2223,7 @@
     "invalid_value": "valeur invalide",
     "knowledge_base": "Base de connaissances",
     "language": "Langue",
+    "list_options": "[to be translated]:List options",
     "loading": "Chargement...",
     "maximize": "Maximiser",
     "minimize": "Minimiser",
@@ -2275,11 +2273,16 @@
     "sessions": "Sessions",
     "settings": "Paramètres",
     "sort": {
+      "created_at": "[to be translated]:Creation time",
+      "last_active": "[to be translated]:Last active",
+      "manual_order": "[to be translated]:Manual order",
       "pinyin": {
         "asc": "Сортировать по пиньинь в порядке возрастания",
         "desc": "Сортировать по пиньинь в порядке убывания",
         "label": "Сортировать по пиньинь"
-      }
+      },
+      "title": "[to be translated]:Sort order",
+      "updated_at": "[to be translated]:Updated time"
     },
     "stop": "Arrêter",
     "subscribe": "S'abonner",
@@ -2746,8 +2749,6 @@
       "filter": {
         "selectAgent": "Sélectionner un agent",
         "selectAssistant": "Sélectionner un assistant",
-        "statusLabel": "Statut",
-        "statusPlaceholder": "Sélectionner un statut",
         "unlinkedAssistant": "Assistant non lié"
       },
       "loading": {
@@ -2759,11 +2760,6 @@
       "searchSession": "Rechercher des tâches...",
       "searchTopic": "Rechercher des conversations...",
       "shortTitle": "Histoire",
-      "status": {
-        "completed": "Terminé",
-        "failed": "Échoué",
-        "running": "Courir"
-      },
       "table": {
         "actions": "Actions",
         "conversation": "Conversation",

@@ -376,7 +376,7 @@
       },
       "display": {
         "agent": "Agente",
-        "time": "Tempo",
+        "time": "Tarefa",
         "title": "Modo de exibição",
         "workdir": "Diretório de trabalho"
       },
@@ -404,14 +404,10 @@
         "collapse_all": "Recolher tudo",
         "conversation": "Conversas",
         "drag_hint": "Arraste para reordenar. Arraste as tarefas para ajustar os grupos exibidos e ocultos.",
-        "earlier": "Anterior",
         "expand_all": "Expandir tudo",
         "no_workdir": "Sem diretório de trabalho",
         "show_more": "Expandir exibição",
-        "this_week": "Esta semana",
-        "today": "Hoje",
-        "unknown_agent": "Agente desconhecido",
-        "yesterday": "Ontem"
+        "unknown_agent": "Agente desconhecido"
       },
       "label_one": "Sessão",
       "label_other": "Sessões",
@@ -1777,7 +1773,7 @@
       "display": {
         "assistant": "Assistente",
         "tag": "Etiqueta",
-        "time": "Tempo",
+        "time": "Conversa",
         "title": "Modo de exibição"
       },
       "edit": {
@@ -1843,13 +1839,9 @@
       "group": {
         "collapse": "Recolher exibição",
         "collapse_all": "Recolher tudo",
-        "earlier": "Anterior",
         "expand_all": "Expandir tudo",
         "show_more": "Expandir exibição",
-        "this_week": "Esta semana",
-        "today": "Hoje",
-        "unknown_assistant": "Assistente Desvinculado",
-        "yesterday": "Ontem"
+        "unknown_assistant": "Assistente Desvinculado"
       },
       "list": "Lista de tópicos",
       "manage": {
@@ -1886,6 +1878,11 @@
         },
         "label": "Prompt do tópico",
         "tips": "Prompt do tópico: fornecer prompts adicionais para o tópico atual"
+      },
+      "reorder": {
+        "error": {
+          "failed": "[to be translated]:Failed to reorder conversations"
+        }
       },
       "search": {
         "placeholder": "Pesquisar tópicos...",
@@ -2226,6 +2223,7 @@
     "invalid_value": "Valor inválido",
     "knowledge_base": "Base de Conhecimento",
     "language": "Língua",
+    "list_options": "[to be translated]:List options",
     "loading": "Carregando...",
     "maximize": "Maximizar",
     "minimize": "Minimizar",
@@ -2275,11 +2273,16 @@
     "sessions": "Sessões",
     "settings": "Configurações",
     "sort": {
+      "created_at": "[to be translated]:Creation time",
+      "last_active": "[to be translated]:Last active",
+      "manual_order": "[to be translated]:Manual order",
       "pinyin": {
         "asc": "Ordenar por Pinyin em ordem crescente",
         "desc": "Ordenar por Pinyin em ordem decrescente",
         "label": "Ordenar por Pinyin"
-      }
+      },
+      "title": "[to be translated]:Sort order",
+      "updated_at": "[to be translated]:Updated time"
     },
     "stop": "Parar",
     "subscribe": "Subscrever",
@@ -2746,8 +2749,6 @@
       "filter": {
         "selectAgent": "Selecionar um agente",
         "selectAssistant": "Selecionar um assistente",
-        "statusLabel": "Estado",
-        "statusPlaceholder": "Selecionar estado",
         "unlinkedAssistant": "Assistente desvinculado"
       },
       "loading": {
@@ -2759,11 +2760,6 @@
       "searchSession": "Pesquisar tarefas...",
       "searchTopic": "Pesquisar conversas...",
       "shortTitle": "História",
-      "status": {
-        "completed": "Concluído",
-        "failed": "Falhou",
-        "running": "Correndo"
-      },
       "table": {
         "actions": "Ações",
         "conversation": "Conversa",

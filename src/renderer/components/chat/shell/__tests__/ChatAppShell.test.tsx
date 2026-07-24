@@ -252,6 +252,64 @@ describe('ChatAppShell', () => {
     expect(paneMounts).toEqual(['mounted'])
   })
 
+  it('keeps the pane mounted while it is collapsed and reopened', () => {
+    const paneMounts: string[] = []
+
+    function Pane() {
+      const [query, setQuery] = useState('')
+
+      useEffect(() => {
+        paneMounts.push('mounted')
+      }, [])
+
+      return <input aria-label="Pane query" value={query} onChange={(event) => setQuery(event.target.value)} />
+    }
+
+    const { container, rerender } = render(<ChatAppShell pane={<Pane />} paneOpen centerContent={<div>content</div>} />)
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Pane query' }), { target: { value: 'persisted' } })
+
+    rerender(<ChatAppShell pane={<Pane />} paneOpen={false} centerContent={<div>content</div>} />)
+
+    expect(container.querySelector('[data-resource-list-pane]')).toHaveAttribute('aria-hidden', 'true')
+    expect(screen.getByLabelText('Pane query')).toHaveValue('persisted')
+
+    rerender(<ChatAppShell pane={<Pane />} paneOpen centerContent={<div>content</div>} />)
+
+    expect(screen.getByRole('textbox', { name: 'Pane query' })).toHaveValue('persisted')
+    expect(paneMounts).toEqual(['mounted'])
+  })
+
+  it('defers mounting a pane that has never been opened', () => {
+    const paneMounts: string[] = []
+
+    function Pane() {
+      useEffect(() => {
+        paneMounts.push('mounted')
+      }, [])
+
+      return <aside>topics</aside>
+    }
+
+    const { rerender } = render(<ChatAppShell pane={<Pane />} paneOpen={false} centerContent={<div />} />)
+
+    expect(screen.queryByText('topics')).not.toBeInTheDocument()
+    expect(paneMounts).toEqual([])
+
+    rerender(<ChatAppShell pane={<Pane />} paneOpen centerContent={<div />} />)
+
+    expect(screen.getByText('topics')).toBeInTheDocument()
+    expect(paneMounts).toEqual(['mounted'])
+  })
+
+  it('mounts the pane only in the selected position', () => {
+    render(<ChatAppShell pane={<aside>topics</aside>} paneOpen panePosition="right" centerContent={<div />} />)
+
+    expect(screen.getAllByText('topics')).toHaveLength(1)
+    expect(document.querySelector('[data-resource-list-pane]')).not.toBeInTheDocument()
+    expect(document.querySelector('[data-right-pane]')).toBeInTheDocument()
+  })
+
   it('drives the left resource pane width from persist cache', () => {
     persistCacheMock.state.width = 180
 

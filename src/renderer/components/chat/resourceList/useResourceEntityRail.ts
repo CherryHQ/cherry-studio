@@ -7,22 +7,23 @@ import {
   type ResourceListStatus
 } from './base'
 import type { ResourceEntityRailItem } from './ResourceEntityRail'
+import { useOwnerResourceActivation } from './useOwnerResourceActivation'
 
-export type ResourceEntityRailReorderAnchor = ReturnType<typeof buildResourceListItemDropAnchor>
+export type ResourceEntityRailReorderAnchor = NonNullable<ReturnType<typeof buildResourceListItemDropAnchor>>
 
 type UseResourceEntityRailParams<TEntity extends ResourceEntityRailItem, TResource> = {
   /** Every entity (already mapped to a rail item). The hook filters to those with resources and orders them. */
   entities: readonly TEntity[]
-  /** Every resource for the current scope; an entity is only visible while it owns at least one. */
-  resources: readonly TResource[]
-  getResourceParentId: (resource: TResource) => string | null | undefined
+  /** Factual server counts used to keep only entities that own at least one resource. */
+  resourceCountByEntityId: ReadonlyMap<string, number>
   activeEntityId?: string | null
   isLoading: boolean
   isError: boolean
-  /** Orders an entity's own resources so `handleSelect` can enter the first one (time/pin precedence). */
-  sortResourcesForEntity: (resources: TResource[]) => readonly TResource[]
   onPickResource: (resource: TResource) => void
-  onCreateResource: (entityId: string) => void | Promise<unknown>
+  /** Keep the selected owner scope visible when its latest lookup confirms no resource. */
+  onEmptyResource?: (entity: TEntity) => void
+  /** Load the entity's most-recently-active resource before navigating. */
+  loadResourceForEntity: (entityId: string) => Promise<TResource | null>
   reorder: (entityId: string, anchor: ResourceEntityRailReorderAnchor) => Promise<void>
   refetchEntities: () => Promise<unknown>
   onReorderError: (error: unknown) => void
@@ -32,35 +33,44 @@ type UseResourceEntityRailResult<TEntity> = {
   items: TEntity[]
   listStatus: ResourceListStatus
   selectedId: string | null
-  handleSelect: (item: TEntity) => void
+  handleSelect: (item: TEntity) => Promise<void>
   handleReorder: (payload: ResourceListReorderPayload) => Promise<void>
 }
 
 /**
  * Shared behavior for the classic-layout entity rail (assistants / agents): only entities that own
  * resources are shown, ordered by `orderKey` with optimistic drag reordering, clicking enters the
- * first resource (or creates a blank resource), and reordering persists the real `orderKey`. Data fetching,
+ * latest resource (or leaves the selected owner empty), and reordering persists the real `orderKey`. Data fetching,
  * pins, deletion, and context menus stay in the per-variant component.
  */
 export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TResource>({
   entities,
-  resources,
-  getResourceParentId,
+  resourceCountByEntityId,
   activeEntityId,
   isLoading,
   isError,
-  sortResourcesForEntity,
   onPickResource,
-  onCreateResource,
+  onEmptyResource,
+  loadResourceForEntity,
   reorder,
   refetchEntities,
   onReorderError
 }: UseResourceEntityRailParams<TEntity, TResource>): UseResourceEntityRailResult<TEntity> {
   const [optimisticOrderIds, setOptimisticOrderIds] = useState<readonly string[] | null>(null)
+  const loadResourceForOwner = useCallback((item: TEntity) => loadResourceForEntity(item.id), [loadResourceForEntity])
+  const { activateOwnerResource: handleSelect, cancelOwnerResourceActivation } = useOwnerResourceActivation({
+    loadResourceForOwner,
+    onActivateResource: onPickResource,
+    onEmptyOwner: onEmptyResource
+  })
+
+  useEffect(() => {
+    cancelOwnerResourceActivation()
+  }, [activeEntityId, cancelOwnerResourceActivation])
 
   const entityIdsWithResources = useMemo(
-    () => new Set(resources.map(getResourceParentId).filter((id): id is string => !!id)),
-    [getResourceParentId, resources]
+    () => new Set([...resourceCountByEntityId].flatMap(([entityId, count]) => (count > 0 ? [entityId] : []))),
+    [resourceCountByEntityId]
   )
   const orderSignature = useMemo(
     () => entities.map((entity) => `${entity.id}:${entity.orderKey ?? ''}`).join('|'),
@@ -94,27 +104,13 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
   const listStatus: ResourceListStatus = isError ? 'error' : isLoading && items.length === 0 ? 'loading' : 'idle'
   const selectedId = activeEntityId && entityIdsWithResources.has(activeEntityId) ? activeEntityId : null
 
-  const handleSelect = useCallback(
-    (item: TEntity) => {
-      // A visible rail entity always owns at least one loaded resource (rail visibility derives from
-      // `resources`), so enter its first/most-recent resource — no need to wait for the full load.
-      // Only the (effectively unreachable) no-resource case falls back to creating a blank resource.
-      const entityResources = resources.filter((resource) => getResourceParentId(resource) === item.id)
-      const first = sortResourcesForEntity(entityResources)[0]
-      if (first) {
-        onPickResource(first)
-        return
-      }
-      void onCreateResource(item.id)
-    },
-    [getResourceParentId, onCreateResource, onPickResource, resources, sortResourcesForEntity]
-  )
-
   const handleReorder = useCallback(
     async (payload: ResourceListReorderPayload) => {
       if (payload.type !== 'item') return
 
       const activeId = payload.activeId
+      const anchor = buildResourceListItemDropAnchor(payload)
+      if (!anchor) return
       const nextIds = items.map((item) => item.id)
       const activeIndex = nextIds.indexOf(activeId)
       const overIndex = nextIds.indexOf(payload.overId)
@@ -127,7 +123,7 @@ export function useResourceEntityRail<TEntity extends ResourceEntityRailItem, TR
       setOptimisticOrderIds(nextIds)
 
       try {
-        await reorder(activeId, buildResourceListItemDropAnchor(payload))
+        await reorder(activeId, anchor)
       } catch (error) {
         setOptimisticOrderIds(null)
         onReorderError(error)
