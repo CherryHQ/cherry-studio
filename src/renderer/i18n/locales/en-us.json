@@ -2184,6 +2184,7 @@
     "copy_failed": "Copy failed",
     "create_success": "Created successfully",
     "current": "Current",
+    "decline": "Decline",
     "default": "Default",
     "delete": "Delete",
     "delete_confirm": "Are you sure you want to delete?",
@@ -4464,6 +4465,14 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "privacy": {
+      "accept_and_continue": "Accept and Continue",
+      "accept_policy": "Agree to the Privacy Policy",
+      "notice": "I have read and agree to the",
+      "period": ".",
+      "policy": "Privacy Policy",
+      "update_failed": "Unable to save your privacy agreement. Please try again."
+    },
     "provider_setup": {
       "missing_model": "Enable at least one model from the enabled provider",
       "missing_provider": "Enable a provider to continue",
@@ -4488,7 +4497,7 @@
       "other_provider": "Set up another provider",
       "select_other_provider": "Select Other Provider",
       "setup_hint": "You can change providers anytime in Settings",
-      "subtitle": "Connect a provider to power your AI workspace",
+      "subtitle": "Connect a provider to unlock your All-in-One AI Workstation",
       "title": "Welcome to Cherry Studio"
     }
   },
@@ -4980,6 +4989,16 @@
     "source": "View Source Code",
     "zoom_in": "Zoom In",
     "zoom_out": "Zoom Out"
+  },
+  "privacy_policy": {
+    "load_failed": "Unable to load the privacy policy.",
+    "title": "Privacy Policy"
+  },
+  "privacy_policy_update": {
+    "acknowledge_failed": "Unable to save your acknowledgement. Please try again.",
+    "description_before_link": "We have updated the privacy policy. Please review the latest ",
+    "policy": "Privacy Policy",
+    "title": "Privacy Policy Updated"
   },
   "prompts": {
     "explanation": "Explain this concept to me",
@@ -6970,7 +6989,7 @@
       "default_assistant_model": "Default Assistant Model",
       "default_assistant_model_description": "Used when an assistant has no model.",
       "docs": "Model docs",
-      "empty": "No models found",
+      "empty": "Select a model",
       "empty_hint": "Click the Get model list button above to add models.",
       "enabled_models": "Enabled",
       "expand_all": "Expand all",

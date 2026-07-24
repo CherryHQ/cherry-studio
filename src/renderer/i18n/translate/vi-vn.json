@@ -640,11 +640,6 @@
       }
     },
     "sidebar_title": "Đại lý",
-    "skill": {
-      "manage": {
-        "title": "Quản lý kỹ năng"
-      }
-    },
     "tasks": {
       "add": "Thêm Nhiệm vụ",
       "cancel": "Hủy",
@@ -1228,6 +1223,8 @@
         "label": "Nỗ lực lý luận",
         "low": "Thấp",
         "low_description": "Lý luận cấp thấp",
+        "max": "[to be translated]:Max",
+        "max_description": "[to be translated]:Maximum reasoning effort",
         "medium": "Trung bình",
         "medium_description": "Lý luận mức độ trung bình",
         "minimal": "Tối thiểu",
@@ -1394,6 +1391,7 @@
       },
       "generate_image": "Tạo hình ảnh",
       "generate_image_no_model": "Cấu hình mô hình vẽ trong Cài đặt › Mô hình mặc định",
+      "image_preview_failed": "[to be translated]:Image preview failed",
       "knowledge_base": "Cơ sở tri thức",
       "knowledge_base_disabled_by_files": "Gỡ các tệp đính kèm để sử dụng Cơ sở tri thức",
       "knowledge_base_unavailable": "Chọn một mô hình có khả năng sử dụng công cụ hoặc bật tính năng sử dụng công cụ trong lời nhắc",
@@ -1565,6 +1563,23 @@
       "regenerate": {
         "model": "Chuyển đổi mô hình"
       },
+      "token_details": {
+        "cache_read": "[to be translated]:Cache read",
+        "cache_write": "[to be translated]:Cache write",
+        "input": "[to be translated]:Input",
+        "input_breakdown": "[to be translated]:Input breakdown",
+        "output": "[to be translated]:Output",
+        "reasoning": "[to be translated]:Reasoning",
+        "reasoning_time": "[to be translated]:Reasoning",
+        "request_duration": "[to be translated]:Generation timing",
+        "text_generation": "[to be translated]:Text generation",
+        "text_output": "[to be translated]:Text output",
+        "tokens": "[to be translated]:{{value}} Tokens",
+        "tokens_per_second_value": "[to be translated]:{{value}} Tokens/s",
+        "uncached": "[to be translated]:Uncached",
+        "usage": "[to be translated]:Token usage",
+        "waiting_first_token": "[to be translated]:Waiting"
+      },
       "useful": {
         "label": "Đặt làm ngữ cảnh",
         "tip": "Trong nhóm tin nhắn này, tin nhắn này sẽ được chọn để tham gia vào ngữ cảnh"
@@ -1590,8 +1605,7 @@
     "resource_view": {
       "menu": {
         "agent": "Tác nhân",
-        "assistant": "Trợ lý",
-        "skill": "Kỹ năng"
+        "assistant": "Trợ lý"
       }
     },
     "save": {
@@ -1975,6 +1989,7 @@
         "default": "Mặc định",
         "high": "Cao",
         "low": "Thấp",
+        "max": "[to be translated]:Max",
         "medium": "Trung bình",
         "minimal": "Tối thiểu",
         "xhigh": "Cao đặc biệt"
@@ -2169,6 +2184,7 @@
     "copy_failed": "Sao chép thất bại",
     "create_success": "Đã tạo thành công",
     "current": "Hiện tại",
+    "decline": "[to be translated]:Decline",
     "default": "Mặc định",
     "delete": "Xóa",
     "delete_confirm": "Bạn có chắc chắn muốn xóa không?",
@@ -2427,13 +2443,19 @@
     "text": "Văn bản",
     "toolInput": "Tool input",
     "toolName": "Tên công cụ",
+    "tool_call_limit_reached": "[to be translated]:The assistant reached the tool-call limit before producing a final answer. Try again or reduce the task scope.",
     "truncated": "Dữ liệu bị cắt ngắn, kích thước ban đầu",
     "truncatedBadge": "Bị cắt ngắn",
     "unknown": "Lỗi không xác định",
     "usage": "Utilización",
     "user_message_not_found": "Không tìm thấy tin nhắn gốc để gửi lại",
     "value": "Giá trị",
-    "values": "Valores"
+    "values": "Valores",
+    "web_lookup_network_error": "[to be translated]:Web access failed. Check your network connection and try again.",
+    "web_search_api_host_invalid": "[to be translated]:Web search is unavailable because the configured provider's API host is invalid. Enter a valid HTTP(S) URL in Settings → Web Search, then try again.",
+    "web_search_api_host_missing": "[to be translated]:Web search is unavailable because the configured provider is missing an API host. Add one in Settings → Web Search, then try again.",
+    "web_search_api_key_missing": "[to be translated]:Web search is unavailable because the configured provider is missing an API key. Add one in Settings → Web Search, then try again.",
+    "web_search_provider_unavailable": "[to be translated]:Web search is unavailable because no compatible provider is configured. Configure one in Settings → Web Search, then try again."
   },
   "export": {
     "assistant": "Trợ lý",
@@ -4443,6 +4465,21 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "privacy": {
+      "accept_and_continue": "Đồng ý và tiếp tục",
+      "accept_policy": "Đồng ý với Chính sách quyền riêng tư",
+      "notice": "Tôi đã đọc và đồng ý với",
+      "period": ".",
+      "policy": "Chính sách quyền riêng tư",
+      "update_failed": "Không thể lưu sự đồng ý của bạn với chính sách quyền riêng tư. Vui lòng thử lại."
+    },
+    "provider_setup": {
+      "missing_model": "[to be translated]:Enable at least one model from the enabled provider",
+      "missing_provider": "[to be translated]:Enable a provider to continue",
+      "next": "[to be translated]:Next",
+      "subtitle": "[to be translated]:Add an API key or sign in with CherryIN, then enable a provider.",
+      "title": "[to be translated]:Choose a Provider"
+    },
     "select_model": {
       "change_later": "Bạn có thể thay đổi điều này bất cứ lúc nào trong phần cài đặt",
       "start": "Bắt đầu",
@@ -4451,6 +4488,7 @@
     },
     "skip": "Bỏ qua",
     "toast": {
+      "complete_failed": "[to be translated]:Unable to complete setup. Please try again.",
       "connected": "Đã kết nối thành công với CherryIN"
     },
     "welcome": {
@@ -4459,7 +4497,7 @@
       "other_provider": "Chọn Nhà Cung Cấp Khác",
       "select_other_provider": "Chọn Nhà Cung Cấp Khác",
       "setup_hint": "Vui lòng cấu hình ít nhất một nhà cung cấp để có trải nghiệm tốt nhất",
-      "subtitle": "Tận hưởng các dịch vụ AI hàng đầu với CherryIN",
+      "subtitle": "Kết nối nhà cung cấp để khởi động trạm làm việc AI tất cả trong một",
       "title": "Chào mừng bạn đến với Cherry Studio"
     }
   },
@@ -4951,6 +4989,16 @@
     "source": "Ver Código Fuente",
     "zoom_in": "Phóng to",
     "zoom_out": "Zum Herauszoomen"
+  },
+  "privacy_policy": {
+    "load_failed": "[to be translated]:Unable to load the privacy policy.",
+    "title": "[to be translated]:Privacy Policy"
+  },
+  "privacy_policy_update": {
+    "acknowledge_failed": "[to be translated]:Unable to save your acknowledgement. Please try again.",
+    "description_before_link": "[to be translated]:We have updated the privacy policy. Please review the latest ",
+    "policy": "[to be translated]:Privacy Policy",
+    "title": "[to be translated]:Privacy Policy Updated"
   },
   "prompts": {
     "explanation": "Giải thích khái niệm này cho tôi",
@@ -6258,6 +6306,9 @@
       "removeConfirmTitle": "Remove Tool",
       "removeDefinitionOnlyConfirmMessage": "[to be translated]:Cherry could not safely clean up \"{{name}}\". Removing only its definition will hide the card but leave its backend files installed. Continue?",
       "removeDefinitionOnlyConfirmTitle": "[to be translated]:Remove Definition Only?",
+      "removeDefinitionOnlyDependents": "[to be translated]:Installed tools depend on it: {{dependents}}.",
+      "removeError": "[to be translated]:Failed to remove tool",
+      "removeErrorHint": "[to be translated]:The cleanup command failed. Copy the log below to troubleshoot or share it for help.",
       "removeRuntimeConfirmMessage": "[to be translated]:Are you sure you want to remove \"{{name}}\"? Uninstalling this runtime may break npm or pip tools that depend on it.",
       "runtimeDependency": "[to be translated]:Runtime",
       "runtimeDependencyHint": "[to be translated]:Runtime for npm/pip tools",
@@ -6938,7 +6989,7 @@
       "default_assistant_model": "Mô hình Trợ lý Mặc định",
       "default_assistant_model_description": "Dùng khi trợ lý chưa có mô hình",
       "docs": "Tài liệu mô hình",
-      "empty": "Không tìm thấy mô hình nào",
+      "empty": "Chọn mô hình",
       "empty_hint": "[to be translated]:Click the Get model list button above to add models.",
       "enabled_models": "Đã bật",
       "expand_all": "Mở rộng tất cả",

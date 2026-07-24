@@ -640,11 +640,6 @@
       }
     },
     "sidebar_title": "Agents",
-    "skill": {
-      "manage": {
-        "title": "Gérer les compétences"
-      }
-    },
     "tasks": {
       "add": "Ajouter une tâche",
       "cancel": "Annuler",
@@ -1228,6 +1223,8 @@
         "label": "Longueur de la chaîne de raisonnement",
         "low": "Court",
         "low_description": "Raisonnement de bas niveau",
+        "max": "[to be translated]:Max",
+        "max_description": "[to be translated]:Maximum reasoning effort",
         "medium": "Moyen",
         "medium_description": "Raisonnement de niveau moyen",
         "minimal": "minimal",
@@ -1394,6 +1391,7 @@
       },
       "generate_image": "Générer une image",
       "generate_image_no_model": "Configurez un modèle de peinture dans Paramètres › Modèle par défaut",
+      "image_preview_failed": "[to be translated]:Image preview failed",
       "knowledge_base": "Base de connaissances",
       "knowledge_base_disabled_by_files": "Supprimez les fichiers joints pour utiliser la base de connaissances",
       "knowledge_base_unavailable": "Sélectionnez un modèle compatible avec les outils ou activez l'utilisation d'outils dans l'invite",
@@ -1565,6 +1563,23 @@
       "regenerate": {
         "model": "Changer de modèle"
       },
+      "token_details": {
+        "cache_read": "[to be translated]:Cache read",
+        "cache_write": "[to be translated]:Cache write",
+        "input": "[to be translated]:Input",
+        "input_breakdown": "[to be translated]:Input breakdown",
+        "output": "[to be translated]:Output",
+        "reasoning": "[to be translated]:Reasoning",
+        "reasoning_time": "[to be translated]:Reasoning",
+        "request_duration": "[to be translated]:Generation timing",
+        "text_generation": "[to be translated]:Text generation",
+        "text_output": "[to be translated]:Text output",
+        "tokens": "[to be translated]:{{value}} Tokens",
+        "tokens_per_second_value": "[to be translated]:{{value}} Tokens/s",
+        "uncached": "[to be translated]:Uncached",
+        "usage": "[to be translated]:Token usage",
+        "waiting_first_token": "[to be translated]:Waiting"
+      },
       "useful": {
         "label": "Définir comme contexte",
         "tip": "Dans ce groupe de messages, ce message sera sélectionné pour être inclus dans le contexte"
@@ -1590,8 +1605,7 @@
     "resource_view": {
       "menu": {
         "agent": "Agents",
-        "assistant": "Assistants",
-        "skill": "Compétences"
+        "assistant": "Assistants"
       }
     },
     "save": {
@@ -1975,6 +1989,7 @@
         "default": "Par défaut",
         "high": "Élevé",
         "low": "Faible",
+        "max": "[to be translated]:Max",
         "medium": "Moyen",
         "minimal": "Minimal",
         "xhigh": "Extra Haut"
@@ -2169,6 +2184,7 @@
     "copy_failed": "Échec de la copie",
     "create_success": "Créé avec succès",
     "current": "Actuel",
+    "decline": "[to be translated]:Decline",
     "default": "Défaut",
     "delete": "Supprimer",
     "delete_confirm": "Êtes-vous sûr de vouloir supprimer ?",
@@ -2427,13 +2443,19 @@
     "text": "texte",
     "toolInput": "entrée de l'outil",
     "toolName": "Nom de l'outil",
+    "tool_call_limit_reached": "[to be translated]:The assistant reached the tool-call limit before producing a final answer. Try again or reduce the task scope.",
     "truncated": "Données tronquées, taille d'origine",
     "truncatedBadge": "Tronqué",
     "unknown": "Неизвестная ошибка",
     "usage": "Quantité",
     "user_message_not_found": "Impossible de trouver le message d'utilisateur original",
     "value": "valeur",
-    "values": "valeur"
+    "values": "valeur",
+    "web_lookup_network_error": "[to be translated]:Web access failed. Check your network connection and try again.",
+    "web_search_api_host_invalid": "[to be translated]:Web search is unavailable because the configured provider's API host is invalid. Enter a valid HTTP(S) URL in Settings → Web Search, then try again.",
+    "web_search_api_host_missing": "[to be translated]:Web search is unavailable because the configured provider is missing an API host. Add one in Settings → Web Search, then try again.",
+    "web_search_api_key_missing": "[to be translated]:Web search is unavailable because the configured provider is missing an API key. Add one in Settings → Web Search, then try again.",
+    "web_search_provider_unavailable": "[to be translated]:Web search is unavailable because no compatible provider is configured. Configure one in Settings → Web Search, then try again."
   },
   "export": {
     "assistant": "Assistant",
@@ -4443,6 +4465,21 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "privacy": {
+      "accept_and_continue": "Accepter et continuer",
+      "accept_policy": "Accepter la Politique de confidentialité",
+      "notice": "J'ai lu et j'accepte la",
+      "period": ".",
+      "policy": "Politique de confidentialité",
+      "update_failed": "Impossible d'enregistrer votre acceptation de la politique de confidentialité. Veuillez réessayer."
+    },
+    "provider_setup": {
+      "missing_model": "[to be translated]:Enable at least one model from the enabled provider",
+      "missing_provider": "[to be translated]:Enable a provider to continue",
+      "next": "[to be translated]:Next",
+      "subtitle": "[to be translated]:Add an API key or sign in with CherryIN, then enable a provider.",
+      "title": "[to be translated]:Choose a Provider"
+    },
     "select_model": {
       "change_later": "Vous pouvez modifier cela à tout moment dans les paramètres",
       "start": "Commencer",
@@ -4451,6 +4488,7 @@
     },
     "skip": "Passer",
     "toast": {
+      "complete_failed": "[to be translated]:Unable to complete setup. Please try again.",
       "connected": "Connecté avec succès à CherryIN"
     },
     "welcome": {
@@ -4459,7 +4497,7 @@
       "other_provider": "Choisir d'autres fournisseurs",
       "select_other_provider": "Sélectionner un autre fournisseur",
       "setup_hint": "Veuillez configurer au moins un fournisseur pour une meilleure expérience",
-      "subtitle": "Profitez de services d'IA de premier ordre avec CherryIN",
+      "subtitle": "Connectez un fournisseur pour activer votre station de travail IA tout-en-un",
       "title": "Bienvenue à Cherry Studio"
     }
   },
@@ -4951,6 +4989,16 @@
     "source": "Voir le code source",
     "zoom_in": "agrandir",
     "zoom_out": "réduire"
+  },
+  "privacy_policy": {
+    "load_failed": "[to be translated]:Unable to load the privacy policy.",
+    "title": "[to be translated]:Privacy Policy"
+  },
+  "privacy_policy_update": {
+    "acknowledge_failed": "[to be translated]:Unable to save your acknowledgement. Please try again.",
+    "description_before_link": "[to be translated]:We have updated the privacy policy. Please review the latest ",
+    "policy": "[to be translated]:Privacy Policy",
+    "title": "[to be translated]:Privacy Policy Updated"
   },
   "prompts": {
     "explanation": "Aidez-moi à expliquer ce concept",
@@ -6258,6 +6306,9 @@
       "removeConfirmTitle": "Remove Tool",
       "removeDefinitionOnlyConfirmMessage": "[to be translated]:Cherry could not safely clean up \"{{name}}\". Removing only its definition will hide the card but leave its backend files installed. Continue?",
       "removeDefinitionOnlyConfirmTitle": "[to be translated]:Remove Definition Only?",
+      "removeDefinitionOnlyDependents": "[to be translated]:Installed tools depend on it: {{dependents}}.",
+      "removeError": "[to be translated]:Failed to remove tool",
+      "removeErrorHint": "[to be translated]:The cleanup command failed. Copy the log below to troubleshoot or share it for help.",
       "removeRuntimeConfirmMessage": "[to be translated]:Are you sure you want to remove \"{{name}}\"? Uninstalling this runtime may break npm or pip tools that depend on it.",
       "runtimeDependency": "[to be translated]:Runtime",
       "runtimeDependencyHint": "[to be translated]:Runtime for npm/pip tools",
@@ -6938,7 +6989,7 @@
       "default_assistant_model": "Modèle d'assistant par défaut",
       "default_assistant_model_description": "Utilisé lorsqu'un assistant n'a pas de modèle.",
       "docs": "Documentation du modèle",
-      "empty": "Aucun modèle",
+      "empty": "Sélectionnez un modèle",
       "empty_hint": "[to be translated]:Click the Get model list button above to add models.",
       "enabled_models": "Activés",
       "expand_all": "Tout développer",

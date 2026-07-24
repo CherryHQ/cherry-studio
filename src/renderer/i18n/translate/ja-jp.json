@@ -640,11 +640,6 @@
       }
     },
     "sidebar_title": "エージェント",
-    "skill": {
-      "manage": {
-        "title": "スキルを管理する"
-      }
-    },
     "tasks": {
       "add": "タスクを追加",
       "cancel": "キャンセル",
@@ -1228,6 +1223,8 @@
         "label": "思考連鎖の長さ",
         "low": "少しの思考",
         "low_description": "低レベル推論",
+        "max": "[to be translated]:Max",
+        "max_description": "[to be translated]:Maximum reasoning effort",
         "medium": "普通の思考",
         "medium_description": "中レベル推論",
         "minimal": "最小限の思考",
@@ -1394,6 +1391,7 @@
       },
       "generate_image": "画像を生成する",
       "generate_image_no_model": "設定 › デフォルトモデルでペインティングモデルを設定してください",
+      "image_preview_failed": "[to be translated]:Image preview failed",
       "knowledge_base": "ナレッジベース",
       "knowledge_base_disabled_by_files": "ナレッジベースを使用するには、添付ファイルを削除してください。",
       "knowledge_base_unavailable": "ツール対応モデルを選択するか、プロンプトでのツール使用を有効にしてください",
@@ -1565,6 +1563,23 @@
       "regenerate": {
         "model": "モデルを切り替え"
       },
+      "token_details": {
+        "cache_read": "[to be translated]:Cache read",
+        "cache_write": "[to be translated]:Cache write",
+        "input": "[to be translated]:Input",
+        "input_breakdown": "[to be translated]:Input breakdown",
+        "output": "[to be translated]:Output",
+        "reasoning": "[to be translated]:Reasoning",
+        "reasoning_time": "[to be translated]:Reasoning",
+        "request_duration": "[to be translated]:Generation timing",
+        "text_generation": "[to be translated]:Text generation",
+        "text_output": "[to be translated]:Text output",
+        "tokens": "[to be translated]:{{value}} Tokens",
+        "tokens_per_second_value": "[to be translated]:{{value}} Tokens/s",
+        "uncached": "[to be translated]:Uncached",
+        "usage": "[to be translated]:Token usage",
+        "waiting_first_token": "[to be translated]:Waiting"
+      },
       "useful": {
         "label": "上下文として設定する",
         "tip": "このメッセージは、このメッセージセットの中でコンテキストに含まれるために選択されます"
@@ -1590,8 +1605,7 @@
     "resource_view": {
       "menu": {
         "agent": "エージェント",
-        "assistant": "アシスタント",
-        "skill": "スキル"
+        "assistant": "アシスタント"
       }
     },
     "save": {
@@ -1975,6 +1989,7 @@
         "default": "デフォルト",
         "high": "高",
         "low": "低",
+        "max": "[to be translated]:Max",
         "medium": "ミディアム",
         "minimal": "最小限",
         "xhigh": "エクストラハイ"
@@ -2169,6 +2184,7 @@
     "copy_failed": "コピーに失敗しました",
     "create_success": "正常に作成されました",
     "current": "現在",
+    "decline": "[to be translated]:Decline",
     "default": "デフォルト",
     "delete": "削除",
     "delete_confirm": "削除してもよろしいですか？",
@@ -2427,13 +2443,19 @@
     "text": "テキスト",
     "toolInput": "ツール入力",
     "toolName": "ツール名",
+    "tool_call_limit_reached": "[to be translated]:The assistant reached the tool-call limit before producing a final answer. Try again or reduce the task scope.",
     "truncated": "データが切り捨てられました、元のサイズ",
     "truncatedBadge": "切り捨て",
     "unknown": "不明なエラー",
     "usage": "用量",
     "user_message_not_found": "元のユーザーメッセージを見つけることができませんでした",
     "value": "値",
-    "values": "値"
+    "values": "値",
+    "web_lookup_network_error": "[to be translated]:Web access failed. Check your network connection and try again.",
+    "web_search_api_host_invalid": "[to be translated]:Web search is unavailable because the configured provider's API host is invalid. Enter a valid HTTP(S) URL in Settings → Web Search, then try again.",
+    "web_search_api_host_missing": "[to be translated]:Web search is unavailable because the configured provider is missing an API host. Add one in Settings → Web Search, then try again.",
+    "web_search_api_key_missing": "[to be translated]:Web search is unavailable because the configured provider is missing an API key. Add one in Settings → Web Search, then try again.",
+    "web_search_provider_unavailable": "[to be translated]:Web search is unavailable because no compatible provider is configured. Configure one in Settings → Web Search, then try again."
   },
   "export": {
     "assistant": "アシスタント",
@@ -4443,6 +4465,21 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "privacy": {
+      "accept_and_continue": "同意して続行",
+      "accept_policy": "プライバシーポリシーに同意する",
+      "notice": "以下を読み、同意します：",
+      "period": "",
+      "policy": "プライバシーポリシー",
+      "update_failed": "プライバシーポリシーへの同意を保存できませんでした。もう一度お試しください。"
+    },
+    "provider_setup": {
+      "missing_model": "[to be translated]:Enable at least one model from the enabled provider",
+      "missing_provider": "[to be translated]:Enable a provider to continue",
+      "next": "[to be translated]:Next",
+      "subtitle": "[to be translated]:Add an API key or sign in with CherryIN, then enable a provider.",
+      "title": "[to be translated]:Choose a Provider"
+    },
     "select_model": {
       "change_later": "いつでも設定で変更できます",
       "start": "始めましょう",
@@ -4451,6 +4488,7 @@
     },
     "skip": "スキップ",
     "toast": {
+      "complete_failed": "[to be translated]:Unable to complete setup. Please try again.",
       "connected": "CherryINに正常に接続されました"
     },
     "welcome": {
@@ -4459,7 +4497,7 @@
       "other_provider": "他のプロバイダーを選択",
       "select_other_provider": "他のプロバイダーを選択",
       "setup_hint": "ベストな体験のために、少なくとも1つのプロバイダーを設定してください",
-      "subtitle": "CherryINでトップクラスのAIサービスをお楽しみください",
+      "subtitle": "プロバイダーに接続して、オールインワンAIワークステーションを始めましょう",
       "title": "Cherry Studioへようこそ"
     }
   },
@@ -4951,6 +4989,16 @@
     "source": "ソースコードを表示",
     "zoom_in": "拡大",
     "zoom_out": "縮小"
+  },
+  "privacy_policy": {
+    "load_failed": "[to be translated]:Unable to load the privacy policy.",
+    "title": "[to be translated]:Privacy Policy"
+  },
+  "privacy_policy_update": {
+    "acknowledge_failed": "[to be translated]:Unable to save your acknowledgement. Please try again.",
+    "description_before_link": "[to be translated]:We have updated the privacy policy. Please review the latest ",
+    "policy": "[to be translated]:Privacy Policy",
+    "title": "[to be translated]:Privacy Policy Updated"
   },
   "prompts": {
     "explanation": "この概念を説明してください",
@@ -6258,6 +6306,9 @@
       "removeConfirmTitle": "Remove Tool",
       "removeDefinitionOnlyConfirmMessage": "[to be translated]:Cherry could not safely clean up \"{{name}}\". Removing only its definition will hide the card but leave its backend files installed. Continue?",
       "removeDefinitionOnlyConfirmTitle": "[to be translated]:Remove Definition Only?",
+      "removeDefinitionOnlyDependents": "[to be translated]:Installed tools depend on it: {{dependents}}.",
+      "removeError": "[to be translated]:Failed to remove tool",
+      "removeErrorHint": "[to be translated]:The cleanup command failed. Copy the log below to troubleshoot or share it for help.",
       "removeRuntimeConfirmMessage": "[to be translated]:Are you sure you want to remove \"{{name}}\"? Uninstalling this runtime may break npm or pip tools that depend on it.",
       "runtimeDependency": "[to be translated]:Runtime",
       "runtimeDependencyHint": "[to be translated]:Runtime for npm/pip tools",
@@ -6938,7 +6989,7 @@
       "default_assistant_model": "デフォルトアシスタントモデル",
       "default_assistant_model_description": "アシスタントにモデルがない場合に使用されます",
       "docs": "モデルドキュメント",
-      "empty": "モデルが見つかりません",
+      "empty": "モデルを選択",
       "empty_hint": "[to be translated]:Click the Get model list button above to add models.",
       "enabled_models": "有効",
       "expand_all": "すべて展開",

@@ -640,11 +640,6 @@
       }
     },
     "sidebar_title": "Πράκτορες",
-    "skill": {
-      "manage": {
-        "title": "Διαχείριση δεξιοτήτων"
-      }
-    },
     "tasks": {
       "add": "Προσθήκη εργασίας",
       "cancel": "Ακύρωση",
@@ -1228,6 +1223,8 @@
         "label": "Μήκος λογισμικού αλυσίδας",
         "low": "Μικρό",
         "low_description": "Χαμηλού επιπέδου συλλογιστική",
+        "max": "[to be translated]:Max",
+        "max_description": "[to be translated]:Maximum reasoning effort",
         "medium": "Μεσαίο",
         "medium_description": "Αιτιολόγηση μεσαίου επιπέδου",
         "minimal": "ελάχιστος",
@@ -1394,6 +1391,7 @@
       },
       "generate_image": "Δημιουργία εικόνας",
       "generate_image_no_model": "Ρυθμίστε ένα μοντέλο ζωγραφικής στις Ρυθμίσεις › Προεπιλεγμένο Μοντέλο",
+      "image_preview_failed": "[to be translated]:Image preview failed",
       "knowledge_base": "Βάση γνώσεων",
       "knowledge_base_disabled_by_files": "Αφαιρέστε τα συνημμένα αρχεία για να χρησιμοποιήσετε τη Βάση Γνώσεων",
       "knowledge_base_unavailable": "Επιλέξτε ένα μοντέλο με δυνατότητα χρήσης εργαλείων ή ενεργοποιήστε τη χρήση εργαλείων στο prompt",
@@ -1565,6 +1563,23 @@
       "regenerate": {
         "model": "Εναλλαγή μοντέλου"
       },
+      "token_details": {
+        "cache_read": "[to be translated]:Cache read",
+        "cache_write": "[to be translated]:Cache write",
+        "input": "[to be translated]:Input",
+        "input_breakdown": "[to be translated]:Input breakdown",
+        "output": "[to be translated]:Output",
+        "reasoning": "[to be translated]:Reasoning",
+        "reasoning_time": "[to be translated]:Reasoning",
+        "request_duration": "[to be translated]:Generation timing",
+        "text_generation": "[to be translated]:Text generation",
+        "text_output": "[to be translated]:Text output",
+        "tokens": "[to be translated]:{{value}} Tokens",
+        "tokens_per_second_value": "[to be translated]:{{value}} Tokens/s",
+        "uncached": "[to be translated]:Uncached",
+        "usage": "[to be translated]:Token usage",
+        "waiting_first_token": "[to be translated]:Waiting"
+      },
       "useful": {
         "label": "Ορισμός ως πλαίσιο αναφοράς",
         "tip": "Σε αυτή την ομάδα μηνυμάτων, αυτό το μήνυμα θα επιλεγεί για να συμπεριληφθεί στο πλαίσιο"
@@ -1590,8 +1605,7 @@
     "resource_view": {
       "menu": {
         "agent": "Πράκτορες",
-        "assistant": "Βοηθοί",
-        "skill": "Δεξιότητες"
+        "assistant": "Βοηθοί"
       }
     },
     "save": {
@@ -1975,6 +1989,7 @@
         "default": "Προεπιλογή",
         "high": "Υψηλή",
         "low": "Χαμηλός",
+        "max": "[to be translated]:Max",
         "medium": "Μέτριο",
         "minimal": "Ελάχιστο",
         "xhigh": "Εξαιρετικά Υψηλό"
@@ -2169,6 +2184,7 @@
     "copy_failed": "Αποτυχία αντιγραφής",
     "create_success": "Δημιουργήθηκε με επιτυχία",
     "current": "Τρέχων",
+    "decline": "[to be translated]:Decline",
     "default": "Προεπιλογή",
     "delete": "Διαγραφή",
     "delete_confirm": "Είστε βέβαιοι ότι θέλετε να διαγράψετε;",
@@ -2427,13 +2443,19 @@
     "text": "κείμενο",
     "toolInput": "εισαγωγή εργαλείου",
     "toolName": "Όνομα εργαλείου",
+    "tool_call_limit_reached": "[to be translated]:The assistant reached the tool-call limit before producing a final answer. Try again or reduce the task scope.",
     "truncated": "Δεδομένα περικόπηκαν, αρχικό μέγεθος",
     "truncatedBadge": "Αποκομμένο",
     "unknown": "Άγνωστο σφάλμα",
     "usage": "δοσολογία",
     "user_message_not_found": "Αδυναμία εύρεσης της αρχικής μηνύματος χρήστη",
     "value": "τιμή",
-    "values": "τιμή"
+    "values": "τιμή",
+    "web_lookup_network_error": "[to be translated]:Web access failed. Check your network connection and try again.",
+    "web_search_api_host_invalid": "[to be translated]:Web search is unavailable because the configured provider's API host is invalid. Enter a valid HTTP(S) URL in Settings → Web Search, then try again.",
+    "web_search_api_host_missing": "[to be translated]:Web search is unavailable because the configured provider is missing an API host. Add one in Settings → Web Search, then try again.",
+    "web_search_api_key_missing": "[to be translated]:Web search is unavailable because the configured provider is missing an API key. Add one in Settings → Web Search, then try again.",
+    "web_search_provider_unavailable": "[to be translated]:Web search is unavailable because no compatible provider is configured. Configure one in Settings → Web Search, then try again."
   },
   "export": {
     "assistant": "βοηθός",
@@ -4443,6 +4465,21 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "privacy": {
+      "accept_and_continue": "Αποδοχή και συνέχεια",
+      "accept_policy": "Αποδοχή της Πολιτικής Απορρήτου",
+      "notice": "Έχω διαβάσει και συμφωνώ με την",
+      "period": ".",
+      "policy": "Πολιτική Απορρήτου",
+      "update_failed": "Δεν ήταν δυνατή η αποθήκευση της συγκατάθεσής σας. Δοκιμάστε ξανά."
+    },
+    "provider_setup": {
+      "missing_model": "[to be translated]:Enable at least one model from the enabled provider",
+      "missing_provider": "[to be translated]:Enable a provider to continue",
+      "next": "[to be translated]:Next",
+      "subtitle": "[to be translated]:Add an API key or sign in with CherryIN, then enable a provider.",
+      "title": "[to be translated]:Choose a Provider"
+    },
     "select_model": {
       "change_later": "Μπορείς να το αλλάξεις οποιαδήποτε στιγμή από τις ρυθμίσεις",
       "start": "Ξεκινήστε",
@@ -4451,6 +4488,7 @@
     },
     "skip": "Παράλειψη",
     "toast": {
+      "complete_failed": "[to be translated]:Unable to complete setup. Please try again.",
       "connected": "Συνδέθηκε επιτυχώς με το CherryIN"
     },
     "welcome": {
@@ -4459,7 +4497,7 @@
       "other_provider": "Επιλέξτε Άλλους Παρόχους",
       "select_other_provider": "Επιλέξτε Άλλο Πάροχο",
       "setup_hint": "Παρακαλούμε ρυθμίστε τουλάχιστον έναν πάροχο για την καλύτερη εμπειρία",
-      "subtitle": "Απολαύστε κορυφαίες υπηρεσίες τεχνητής νοημοσύνης με την CherryIN",
+      "subtitle": "Συνδέστε έναν πάροχο για να ενεργοποιήσετε τον ολοκληρωμένο σταθμό εργασίας AI σας",
       "title": "Καλώς ήρθατε στο Cherry Studio"
     }
   },
@@ -4951,6 +4989,16 @@
     "source": "Προβολή πηγαίου κώδικα",
     "zoom_in": "Μεγέθυνση",
     "zoom_out": "συρρίκνωση"
+  },
+  "privacy_policy": {
+    "load_failed": "[to be translated]:Unable to load the privacy policy.",
+    "title": "[to be translated]:Privacy Policy"
+  },
+  "privacy_policy_update": {
+    "acknowledge_failed": "[to be translated]:Unable to save your acknowledgement. Please try again.",
+    "description_before_link": "[to be translated]:We have updated the privacy policy. Please review the latest ",
+    "policy": "[to be translated]:Privacy Policy",
+    "title": "[to be translated]:Privacy Policy Updated"
   },
   "prompts": {
     "explanation": "Με βοηθήστε να εξηγήσετε αυτό το όρισμα",
@@ -6258,6 +6306,9 @@
       "removeConfirmTitle": "Remove Tool",
       "removeDefinitionOnlyConfirmMessage": "[to be translated]:Cherry could not safely clean up \"{{name}}\". Removing only its definition will hide the card but leave its backend files installed. Continue?",
       "removeDefinitionOnlyConfirmTitle": "[to be translated]:Remove Definition Only?",
+      "removeDefinitionOnlyDependents": "[to be translated]:Installed tools depend on it: {{dependents}}.",
+      "removeError": "[to be translated]:Failed to remove tool",
+      "removeErrorHint": "[to be translated]:The cleanup command failed. Copy the log below to troubleshoot or share it for help.",
       "removeRuntimeConfirmMessage": "[to be translated]:Are you sure you want to remove \"{{name}}\"? Uninstalling this runtime may break npm or pip tools that depend on it.",
       "runtimeDependency": "[to be translated]:Runtime",
       "runtimeDependencyHint": "[to be translated]:Runtime for npm/pip tools",
@@ -6938,7 +6989,7 @@
       "default_assistant_model": "Πρόεδρος Υπηρεσίας προεπιλεγμένου μοντέλου",
       "default_assistant_model_description": "Χρησιμοποιείται όταν ένας βοηθός δεν έχει μοντέλο.",
       "docs": "Τεκμηρίωση μοντέλου",
-      "empty": "Δεν υπάρχουν μοντέλα",
+      "empty": "Επιλέξτε μοντέλο",
       "empty_hint": "[to be translated]:Click the Get model list button above to add models.",
       "enabled_models": "Ενεργοποιημένα",
       "expand_all": "Ανάπτυξη όλων",
