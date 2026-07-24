@@ -348,6 +348,35 @@ describe('FilesPage keyboard rename', () => {
     expect(screen.getByRole('button', { name: 'files.actions' })).toBeDisabled()
   })
 
+  it('shows the unified empty state once the file list loads empty', () => {
+    mockFileStats({ activeTotal: 0, trashTotal: 0, extCounts: [] })
+    mockFiles([])
+    render(<FilesPage />)
+
+    expect(screen.getByText('files.empty.title')).toBeInTheDocument()
+    expect(screen.queryByText('files.empty.no_match_title')).toBeNull()
+  })
+
+  it('shows loading feedback instead of an empty state while the file list is loading', () => {
+    mockFileStats({ activeTotal: 0, trashTotal: 0, extCounts: [] })
+    mockUseInfiniteQuery.mockImplementation(() => ({
+      pages: [],
+      isLoading: true,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn().mockResolvedValue(undefined),
+      reset: vi.fn(),
+      mutate: vi.fn().mockResolvedValue(undefined)
+    }))
+    render(<FilesPage />)
+
+    expect(screen.getByText('common.loading')).toBeInTheDocument()
+    expect(screen.queryByText('files.empty.title')).toBeNull()
+    expect(screen.queryByText('files.empty.no_match_title')).toBeNull()
+  })
+
   it('uses stats for type counts before all active pages are loaded', () => {
     mockFileStats({
       activeTotal: 170,

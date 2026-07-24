@@ -88,6 +88,7 @@ const BaseNavigator = ({
         </div>
 
         <BaseNavigatorContent
+          hasBases={bases.length > 0}
           sections={knowledgeBaseGroupSections}
           groups={groups}
           groupById={groupById}

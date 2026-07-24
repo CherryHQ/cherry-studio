@@ -8,6 +8,7 @@ import type { BaseNavigatorContentProps } from './types'
 import { UNGROUPED_SECTION_VALUE } from './types'
 
 const BaseNavigatorContent = ({
+  hasBases,
   sections,
   groups,
   groupById,
@@ -50,8 +51,14 @@ const BaseNavigatorContent = ({
 
   return (
     <Scrollbar className="min-h-0 flex-1 overflow-x-hidden px-2.5 pb-3">
-      {sections.length === 0 || (flatSection && flatSection.items.length === 0) ? (
+      {!hasBases ? (
+        // Truly empty (no bases at all — empty groups may still exist and are
+        // deliberately hidden behind the state) names the list state here; the
+        // content pane carries the "build knowledge with AI" invitation.
         <EmptyState preset="no-knowledge" title={t('knowledge.empty')} compact className="h-full" />
+      ) : sections.length === 0 || (flatSection && flatSection.items.length === 0) ? (
+        // Bases exist but nothing survived filtering — the search matched nothing.
+        <EmptyState preset="no-result" title={t('common.no_results')} compact className="h-full" />
       ) : flatSection ? (
         <div className="space-y-1">
           {flatSection.items.map((base) => (

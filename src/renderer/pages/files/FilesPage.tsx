@@ -1015,17 +1015,26 @@ function FilesPage() {
             }
           }}>
           {filteredFiles.length === 0 ? (
-            <div className="flex flex-1 flex-col items-center justify-center px-6 py-16">
-              {!isFilesLoading && files.filter((f) => !f.trashed).length === 0 ? (
-                <EmptyState preset="no-file" />
-              ) : (
-                <EmptyState
-                  preset="no-result"
-                  title={t('files.empty.no_match_title')}
-                  description={t('files.empty.no_match_description')}
-                />
-              )}
-            </div>
+            // While the first load is in flight, show loading feedback instead of
+            // an empty state — otherwise the no-result state flashes before the
+            // list arrives.
+            isFilesLoading ? (
+              <div className="flex h-full flex-1 items-center justify-center text-muted-foreground text-sm">
+                {t('common.loading')}
+              </div>
+            ) : (
+              <div className="flex h-full flex-1 flex-col items-center justify-center px-6">
+                {files.filter((f) => !f.trashed).length === 0 ? (
+                  <EmptyState title={t('files.empty.title')} />
+                ) : (
+                  <EmptyState
+                    preset="no-result"
+                    title={t('files.empty.no_match_title')}
+                    description={t('files.empty.no_match_description')}
+                  />
+                )}
+              </div>
+            )
           ) : (
             <>
               {isImageGrid ? (

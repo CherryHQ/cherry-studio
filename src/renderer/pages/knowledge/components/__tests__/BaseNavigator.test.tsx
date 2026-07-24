@@ -446,6 +446,7 @@ vi.mock('react-i18next', () => ({
           'knowledge.add.title': '新建知识库',
           'knowledge.search': '搜索知识库',
           'knowledge.empty': '暂无知识库',
+          'common.no_results': '无结果',
           'knowledge.groups.add': '新建分组',
           'knowledge.groups.create_base_here': '在此分组新建',
           'knowledge.groups.default': '默认',
@@ -518,6 +519,50 @@ const getMenuButton = (name: string) => {
 }
 
 describe('BaseNavigator', () => {
+  const baseProps = {
+    groups: [] as Group[],
+    width: 280,
+    selectedBaseId: '',
+    onSelectBase: vi.fn(),
+    onCreateGroup: vi.fn(),
+    onCreateBase: vi.fn(),
+    onMoveBase: vi.fn(),
+    onRenameBase: vi.fn(),
+    onRenameGroup: vi.fn(),
+    onDeleteGroup: vi.fn(),
+    onDeleteBase: vi.fn(),
+    onResizeStart: vi.fn()
+  }
+
+  it('names the empty list state when no bases exist', () => {
+    render(<BaseNavigator {...baseProps} bases={[]} />)
+
+    // Truly empty names the list state; the search no-result hint is reserved
+    // for filtered-out searches over existing bases.
+    expect(screen.getByText('暂无知识库')).toBeInTheDocument()
+    expect(screen.queryByText('无结果')).toBeNull()
+  })
+
+  it('names the empty list state when bases are cleared but groups remain', () => {
+    // buildKnowledgeBaseGroupSections keeps the default group and all empty
+    // known groups when the search is empty, so sections is non-empty here —
+    // the global empty state must still win over a row of hollow group headers.
+    render(<BaseNavigator {...baseProps} bases={[]} groups={[createGroup({ id: 'group-1', name: 'Research' })]} />)
+
+    expect(screen.getByText('暂无知识库')).toBeInTheDocument()
+    expect(screen.queryByText('Research')).toBeNull()
+    expect(screen.queryByText('无结果')).toBeNull()
+  })
+
+  it('shows a no-results hint when the search filters out every base', () => {
+    render(<BaseNavigator {...baseProps} bases={[createKnowledgeBase({ id: 'base-1', name: 'Alpha' })]} />)
+
+    fireEvent.change(screen.getByPlaceholderText('搜索知识库...'), { target: { value: 'zzz' } })
+
+    expect(screen.getByText('无结果')).toBeInTheDocument()
+    expect(screen.queryByText('暂无知识库')).toBeNull()
+  })
+
   it('keeps stable horizontal layout around the knowledge base list', () => {
     const { container } = render(
       <BaseNavigator

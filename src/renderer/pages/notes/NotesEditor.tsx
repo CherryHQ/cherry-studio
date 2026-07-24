@@ -67,7 +67,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
     if (!activeNodeId) {
       return (
         <div className="flex h-full w-full flex-1 items-center justify-center">
-          <EmptyState preset="no-note" title={t('notes.empty')} compact />
+          <EmptyState preset="no-note" title={t('notes.empty')} />
         </div>
       )
     }
@@ -79,7 +79,6 @@ const NotesEditor: FC<NotesEditorProps> = memo(
             preset="no-note"
             title={t('notes.load_failed')}
             description={t('notes.load_failed_description')}
-            compact
           />
         </div>
       )
