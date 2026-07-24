@@ -46,9 +46,9 @@ describe('errorDetails light import graph (B6)', () => {
     vi.resetModules()
     loaded = vi.fn()
     for (const dep of HEAVY_DEPS) {
-      vi.doMock(dep, async (importOriginal) => {
+      vi.doMock(dep, () => {
         loaded(dep)
-        return await importOriginal()
+        return {}
       })
     }
   })
@@ -66,13 +66,12 @@ describe('errorDetails light import graph (B6)', () => {
     expect(loaded).not.toHaveBeenCalled()
   })
 
-  it('probe control: importing utils/error does evaluate the heavy deps', async () => {
-    await import('../error')
+  it('probe control: a static heavy-dependency graph activates every interceptor', async () => {
+    await import('./fixtures/errorDetailsHeavyProbe')
 
-    // Any single probe firing proves the doMock interception layer is alive, which is
-    // all this control exists for. Do NOT tighten back to per-dep assertions: under CI
-    // load the interception randomly misses one dep (observed on main for both axios
-    // and zod, with and without a warmup), turning an optimizer race into a red push.
-    expect(loaded).toHaveBeenCalled()
+    expect(loaded).toHaveBeenCalledTimes(HEAVY_DEPS.length)
+    for (const dep of HEAVY_DEPS) {
+      expect(loaded).toHaveBeenCalledWith(dep)
+    }
   })
 })
