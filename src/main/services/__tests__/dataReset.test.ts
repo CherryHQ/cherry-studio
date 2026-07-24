@@ -1,5 +1,5 @@
 import { createMockApplication } from '@test-mocks/main/application'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * Tests for src/main/services/dataReset.ts — both faces: runDataReset (the
@@ -367,6 +367,10 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
+afterEach(() => {
+  vi.useRealTimers()
+})
+
 describe('runDataReset', () => {
   it('does nothing without a pending marker', async () => {
     stubAll(null)
@@ -523,9 +527,25 @@ describe('runDataReset', () => {
 
     expect(rmSyncMock).not.toHaveBeenCalled()
     expect(markerExists()).toBe(false)
-    expect(bootConfigFlushMock).toHaveBeenCalled()
-    expect(showErrorBoxMock).toHaveBeenCalled()
+    expect(bootConfigSetMock).not.toHaveBeenCalled()
+    expect(bootConfigFlushMock).not.toHaveBeenCalled()
+    expect(showErrorBoxMock).toHaveBeenCalledWith('Data Reset Cancelled', expect.any(String))
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
+  })
+
+  it('quits without wiping when the current physical identity cannot be resolved', async () => {
+    stubAll(pendingMarker())
+    realpathNativeMock.mockImplementation(() => {
+      throw new Error('EACCES: cannot resolve userData')
+    })
+    await runReset()
+
+    expect(rmSyncMock).not.toHaveBeenCalled()
+    expect(markerExists()).toBe(true)
+    expect(bootConfigSetMock).not.toHaveBeenCalled()
+    expect(showErrorBoxMock).toHaveBeenCalledWith('Data Reset Failed', expect.any(String))
+    expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
   })
 
   it('quits without wiping when the attempt count cannot be durably recorded', async () => {
@@ -723,6 +743,21 @@ describe('requestDataReset', () => {
     )
   })
 
+  it('rejects before staging when the current physical identity cannot be resolved', async () => {
+    stubAll(null)
+    realpathNativeMock.mockImplementation(() => {
+      throw new Error('EACCES: cannot resolve userData')
+    })
+
+    await expect(requestReset()).rejects.toThrow('cannot resolve userData')
+
+    expect(fsCtl.commits).toHaveLength(0)
+    expect(markerExists()).toBe(false)
+    expect(defaultSession.clearStorageData).not.toHaveBeenCalled()
+    expect(applicationMock.shutdown).not.toHaveBeenCalled()
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
+  })
+
   it('uses the guarded graceful relaunch when the marker rename commits but its directory fsync fails', async () => {
     if (process.platform === 'win32') return
     stubAll(null)
@@ -758,6 +793,21 @@ describe('requestDataReset', () => {
     defaultSession.clearStorageData.mockRejectedValueOnce(new Error('session gone'))
 
     await expect(requestReset()).resolves.toBeUndefined()
+    expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
+  })
+
+  it('bounds a Chromium clear that never settles after the marker is staged', async () => {
+    stubAll(null)
+    defaultSession.clearCache.mockImplementation(() => new Promise(() => {}))
+    const { requestDataReset } = await import('../dataReset')
+    vi.useFakeTimers()
+
+    const request = requestDataReset()
+    await vi.advanceTimersByTimeAsync(5_000)
+    await expect(request).resolves.toBeUndefined()
+
+    expect(markerExists()).toBe(true)
+    expect(applicationMock.shutdown).toHaveBeenCalledTimes(1)
     expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
   })
 

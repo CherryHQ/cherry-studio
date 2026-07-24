@@ -427,7 +427,7 @@ export function runDataReset(): void {
         recorded: marker.canonicalPath,
         actual: actualCanonical
       })
-      abandonReset()
+      refuseResetForPathMismatch()
       return
     }
 
@@ -438,7 +438,7 @@ export function runDataReset(): void {
       logger.error('Data reset abandoned: attempt cap reached with critical failures — clearing the marker', {
         attempts
       })
-      abandonReset()
+      abandonIncompleteReset()
       return
     }
 
@@ -501,7 +501,7 @@ export function runDataReset(): void {
       logger.error('Data reset abandoned: attempt cap reached with critical failures — clearing the marker', {
         failures
       })
-      abandonReset()
+      abandonIncompleteReset()
       return
     }
 
@@ -570,12 +570,21 @@ export function runDataReset(): void {
 }
 
 /**
- * Give-up cleanup shared by the refusal paths (identity mismatch, attempt
- * cap): reset BootConfig's other keys, then remove the marker. No destructive
- * pass runs on these paths, but boot may continue only after the marker is
- * gone.
+ * Refuse a reset whose target no longer has the physical identity the user
+ * confirmed. No destructive pass ran, so preserve BootConfig and only disarm
+ * the stale authorization before allowing startup.
  */
-function abandonReset(): void {
+function refuseResetForPathMismatch(): void {
+  deleteMarker()
+  showPathMismatchWarning()
+}
+
+/**
+ * Give up after a destructive pass could not remove every required entry.
+ * Reset BootConfig to match the partially wiped profile, then disarm the
+ * marker so later user data is not deleted by another automatic pass.
+ */
+function abandonIncompleteReset(): void {
   resetBootConfigToDefaults()
   bootConfigService.flush()
   deleteMarker()
@@ -597,35 +606,64 @@ function shouldWipe(entry: string): boolean {
  * Clear every storage kind of the sessions Cherry uses (the same pair the
  * "Clear cache" feature targets: default + the miniapp webview partition).
  * No `storages` filter — a data reset clears everything the API knows,
- * including kinds a future Chromium adds.
+ * including kinds a future Chromium adds. The whole best-effort pass is
+ * bounded because its marker is already armed: a stuck Electron promise must
+ * not leave the writable app running indefinitely before shutdown begins.
  */
 async function clearChromiumState(): Promise<void> {
-  const sessions = [session.defaultSession, session.fromPartition('persist:webview')]
-  for (const s of sessions) {
-    try {
-      await s.clearCache()
-      await s.clearStorageData()
-      await s.clearAuthCache()
-    } catch (error) {
-      logger.warn('Failed to clear a session during data reset request', { error: String(error) })
+  const clearSessions = async () => {
+    const sessions = [session.defaultSession, session.fromPartition('persist:webview')]
+    for (const s of sessions) {
+      try {
+        await s.clearCache()
+        await s.clearStorageData()
+        await s.clearAuthCache()
+      } catch (error) {
+        logger.warn('Failed to clear a session during data reset request', { error: String(error) })
+      }
     }
+  }
+
+  let timeout: NodeJS.Timeout | undefined
+  try {
+    await Promise.race([
+      clearSessions(),
+      new Promise<void>((resolve) => {
+        timeout = setTimeout(() => {
+          logger.warn('Chromium state clear timed out during data reset request — continuing with shutdown')
+          resolve()
+        }, SHUTDOWN_TIMEOUT_MS)
+      })
+    ])
+  } finally {
+    if (timeout) clearTimeout(timeout)
   }
 }
 
 /**
  * Filesystem identity for the marker binding: resolve symlinks and junctions
  * so the wipe authorization sticks to the physical directory the request
- * targeted. `.native` also restores the on-disk casing on Windows. A path
- * realpath cannot resolve either does not exist or is unreadable — lexical
- * resolve is enough there (the wipe itself then fails loudly).
+ * targeted. `.native` also restores the on-disk casing on Windows. Failure
+ * is intentionally propagated: lexical fallback would turn a failed identity
+ * check into authorization for whichever target the path resolves to later.
  */
 function canonicalize(p: string): string {
-  const resolved = path.resolve(p)
-  try {
-    return fs.realpathSync.native(resolved)
-  } catch {
-    return resolved
-  }
+  return fs.realpathSync.native(path.resolve(p))
+}
+
+/**
+ * Tell the user that a stale authorization was cancelled without deleting
+ * data. Deliberately hardcoded en-US: this runs at preboot, before
+ * PreferenceService exists, while main i18n's t() resolves the active locale
+ * through that service.
+ */
+function showPathMismatchWarning(): void {
+  dialog.showErrorBox(
+    'Data Reset Cancelled',
+    'Cherry Studio did not run Data Reset because the data location changed after confirmation.\n\n' +
+      'No data was removed, and the pending request has been cleared. ' +
+      'Run Data Reset again from Settings if you still want to erase this profile.'
+  )
 }
 
 /**
