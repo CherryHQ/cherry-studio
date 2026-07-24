@@ -365,8 +365,35 @@ const InteractiveHtmlPreview = memo(function InteractiveHtmlPreview({
   )
 })
 
-const InteractiveHtmlFullscreen = memo(function InteractiveHtmlFullscreen({
+const StaticHtmlFullscreenPreview = memo(function StaticHtmlFullscreenPreview({
+  html,
+  title,
+  zoom
+}: {
+  html: string
+  title: string
+  zoom: number
+}) {
+  const zoomScale = zoom / 100
+
+  return (
+    <div data-testid="static-html-fullscreen-preview" className="relative h-full w-full overflow-hidden">
+      <div
+        className="origin-top-left"
+        style={{
+          width: `${100 / zoomScale}%`,
+          height: `${100 / zoomScale}%`,
+          transform: `scale(${zoomScale})`
+        }}>
+        <HtmlPreviewFrame html={html} title={title} sandbox="allow-same-origin" csp={HTML_PREVIEW_RESTRICTED_CSP} />
+      </div>
+    </div>
+  )
+})
+
+const HtmlArtifactFullscreen = memo(function HtmlArtifactFullscreen({
   open,
+  interactive,
   html,
   title,
   zoom,
@@ -376,6 +403,7 @@ const InteractiveHtmlFullscreen = memo(function InteractiveHtmlFullscreen({
   onClose
 }: {
   open: boolean
+  interactive: boolean
   html: string
   title: string
   zoom: number
@@ -405,7 +433,7 @@ const InteractiveHtmlFullscreen = memo(function InteractiveHtmlFullscreen({
         if (!nextOpen) onClose()
       }}>
       <DialogContent
-        data-testid="interactive-html-fullscreen"
+        data-testid="html-artifact-fullscreen"
         showCloseButton={false}
         closeOnOverlayClick={false}
         overlayClassName="hidden"
@@ -465,7 +493,11 @@ const InteractiveHtmlFullscreen = memo(function InteractiveHtmlFullscreen({
             </div>
           </header>
           <div className="min-h-0 overflow-hidden bg-background">
-            <InteractiveHtmlPreview html={html} title={title} zoom={zoom} forwardBoundaryWheel={false} />
+            {interactive ? (
+              <InteractiveHtmlPreview html={html} title={title} zoom={zoom} forwardBoundaryWheel={false} />
+            ) : (
+              <StaticHtmlFullscreenPreview html={html} title={title} zoom={zoom} />
+            )}
           </div>
         </div>
       </DialogContent>
@@ -542,12 +574,12 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({ html, title }: 
   const [zoom, setZoom] = useState(DEFAULT_ZOOM)
   const [previewHeight, setPreviewHeight] = useState(INITIAL_PREVIEW_HEIGHT)
   const [approvedInteractiveHtml, setApprovedInteractiveHtml] = useState<string | null>(null)
-  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [fullscreenHtml, setFullscreenHtml] = useState<string | null>(null)
   const hasContent = html.trim().length > 0
   const requiresUserConsent = useMemo(() => htmlArtifactRequiresUserConsent(html), [html])
   const isInteractivePreviewApproved = requiresUserConsent && approvedInteractiveHtml === html
   const isPreviewBlocked = requiresUserConsent && !isInteractivePreviewApproved
-  const isInteractiveFullscreen = isInteractivePreviewApproved && isFullscreen
+  const isFullscreen = fullscreenHtml === html && !isPreviewBlocked
   const showCode = viewMode === 'code'
   const surfaceHeight = showCode ? Math.max(INITIAL_PREVIEW_HEIGHT, previewHeight) : previewHeight
   const toggleLabel = t(showCode ? 'html_artifacts.preview' : 'html_artifacts.code')
@@ -566,12 +598,12 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({ html, title }: 
   const handleApproveInteractivePreview = () => {
     setApprovedInteractiveHtml(html)
     setViewMode('preview')
-    setIsFullscreen(false)
+    setFullscreenHtml(null)
   }
   const handleOpenInteractiveFullscreen = () => {
     setApprovedInteractiveHtml(html)
     setViewMode('preview')
-    setIsFullscreen(true)
+    setFullscreenHtml(html)
   }
   const handleOpenExternal = async () => {
     try {
@@ -613,7 +645,7 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({ html, title }: 
 
   return (
     <div data-testid="html-artifact-view" className="w-full">
-      {!isInteractiveFullscreen && (
+      {!isFullscreen && (
         <div
           data-testid="html-artifact-surface"
           className="group relative w-full overflow-hidden"
@@ -695,7 +727,7 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({ html, title }: 
                 <DownloadIcon className="size-3" />
               </Button>
             </Tooltip>
-            {requiresUserConsent && !showCode && (
+            {!showCode && (
               <Tooltip content={t('common.maximize')} delay={500}>
                 <Button
                   type="button"
@@ -703,7 +735,7 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({ html, title }: 
                   size="icon-sm"
                   className="size-6"
                   aria-label={t('common.maximize')}
-                  onClick={() => setIsFullscreen(true)}>
+                  onClick={() => setFullscreenHtml(html)}>
                   <Maximize2 className="size-3" />
                 </Button>
               </Tooltip>
@@ -724,18 +756,17 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({ html, title }: 
           </div>
         </div>
       )}
-      {requiresUserConsent && (
-        <InteractiveHtmlFullscreen
-          open={isInteractiveFullscreen}
-          html={html}
-          title={title}
-          zoom={zoom}
-          onZoomOut={handleZoomOut}
-          onResetZoom={handleResetZoom}
-          onZoomIn={handleZoomIn}
-          onClose={() => setIsFullscreen(false)}
-        />
-      )}
+      <HtmlArtifactFullscreen
+        open={isFullscreen}
+        interactive={requiresUserConsent}
+        html={html}
+        title={title}
+        zoom={zoom}
+        onZoomOut={handleZoomOut}
+        onResetZoom={handleResetZoom}
+        onZoomIn={handleZoomIn}
+        onClose={() => setFullscreenHtml(null)}
+      />
     </div>
   )
 })

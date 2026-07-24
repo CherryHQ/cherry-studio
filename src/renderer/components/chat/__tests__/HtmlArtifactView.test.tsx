@@ -184,20 +184,46 @@ describe('HtmlArtifactView', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
 
-    expect(screen.getByTestId('interactive-html-fullscreen')).toBeInTheDocument()
+    expect(screen.getByTestId('html-artifact-fullscreen')).toBeInTheDocument()
     expect(screen.queryByTestId('html-artifact-surface')).not.toBeInTheDocument()
     expect(screen.getByTestId('interactive-html-webview')).toHaveAttribute('partition', 'html-artifact-preview')
 
     fireEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
 
-    expect(screen.queryByTestId('interactive-html-fullscreen')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('html-artifact-fullscreen')).not.toBeInTheDocument()
     expect(screen.getByTestId('html-artifact-surface')).toBeInTheDocument()
     expect(screen.getByTestId('interactive-html-webview')).toHaveAttribute('partition', 'html-artifact-preview')
 
     fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
 
-    expect(screen.getByTestId('interactive-html-fullscreen')).toBeInTheDocument()
+    expect(screen.getByTestId('html-artifact-fullscreen')).toBeInTheDocument()
     expect(screen.queryByTestId('html-artifact-surface')).not.toBeInTheDocument()
+  })
+
+  it('opens static HTML fullscreen in the restricted iframe', () => {
+    const html = '<main><style>h1 { color: red; }</style><h1>Hello</h1></main>'
+
+    render(<HtmlArtifactView html={html} title="Preview" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+
+    expect(screen.getByTestId('html-artifact-fullscreen')).toBeInTheDocument()
+    expect(screen.getByTestId('static-html-fullscreen-preview')).toBeInTheDocument()
+    expect(screen.queryByTestId('html-artifact-surface')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('interactive-html-webview')).not.toBeInTheDocument()
+    expect(mocks.HtmlPreviewFrame).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        html,
+        sandbox: 'allow-same-origin',
+        csp: expect.stringContaining("default-src 'none'")
+      }),
+      undefined
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
+
+    expect(screen.queryByTestId('html-artifact-fullscreen')).not.toBeInTheDocument()
+    expect(screen.getByTestId('html-artifact-surface')).toBeInTheDocument()
   })
 
   it('renders static inline HTML immediately in the restricted iframe', () => {
