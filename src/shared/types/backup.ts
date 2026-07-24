@@ -59,3 +59,17 @@ export interface BackupV2StartResult {
   readonly backupId: string
   readonly archivePath: string
 }
+
+/**
+ * Restore result summary shown in the relaunch-confirm dialog BEFORE promotion
+ * applies. Promotion hasn't run yet at this point (preboot may expire the whole
+ * batch via assertNoAddConflicts), so UI copy MUST use future tense
+ * ("will restore / will skip"), never "restored".
+ *
+ * Main→renderer event payload (TCB source → pure type, not zod-parsed).
+ * `toSkip` mirrors plan.skips 1:1 (see @main/services/backup/resourcePlanning).
+ */
+export interface RestoreResultSummary {
+  readonly toRestore: ReadonlyArray<{ readonly kind: string; readonly count: number }>
+  readonly toSkip: ReadonlyArray<{ readonly id: string; readonly kind: string; readonly reason: string }>
+}
