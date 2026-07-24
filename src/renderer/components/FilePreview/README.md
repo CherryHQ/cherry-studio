@@ -7,7 +7,7 @@ text/source files.
 
 ## Path Contract
 
-- Accept local absolute `FilePath` values only. POSIX and Windows paths are supported.
+- Accept local absolute `AbsoluteFilePath` values only. POSIX and Windows paths are supported.
 - Do not pass relative paths, `file://` URLs, HTTP URLs, Base64 values, or in-memory data.
 - `FilePreview` lexically normalizes the path before resolving a plugin. It does not resolve symlinks or call `realpath`.
 - When a path comes from IPC or another untyped string source, validate it with `normalizeFilePreviewPath`. Do not bypass runtime validation with a type assertion.
@@ -25,12 +25,12 @@ Import `FilePreview` from the module root and place it in a parent with a define
 ```tsx
 import { Button } from '@cherrystudio/ui'
 import { FilePreview } from '@renderer/components/FilePreview'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { useTranslation } from 'react-i18next'
 
 interface FileDetailsProps {
   fileName: string
-  filePath: FilePath
+  filePath: AbsoluteFilePath
   onBack: () => void
   refreshKey?: number
 }
@@ -67,10 +67,10 @@ Use `useOpenFilePreviewTab` below `TabsProvider`. The hook normalizes the path, 
 ```tsx
 import { Button } from '@cherrystudio/ui'
 import { useOpenFilePreviewTab } from '@renderer/components/FilePreview'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { useTranslation } from 'react-i18next'
 
-export function OpenPreviewButton({ filePath }: { filePath: FilePath }) {
+export function OpenPreviewButton({ filePath }: { filePath: AbsoluteFilePath }) {
   const { t } = useTranslation()
   const openFilePreviewTab = useOpenFilePreviewTab()
 
@@ -119,7 +119,7 @@ The plugin component receives the normalized path, extracted filename, and a req
 
 ```ts
 interface FilePreviewPluginProps {
-  filePath: FilePath
+  filePath: AbsoluteFilePath
   fileName: string
   refreshKey: number
 }
