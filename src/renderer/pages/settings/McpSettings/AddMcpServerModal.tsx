@@ -29,7 +29,7 @@ import { parseJSON } from '@renderer/utils/json'
 import { objectKeys } from '@renderer/utils/object'
 import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { UploadIcon } from 'lucide-react'
+import { ImportIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -423,7 +423,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
               src={packageFile ? [packageFile] : undefined}
               onDrop={(files) => setPackageFile(files[0] ?? null)}>
               <div className="flex flex-col items-center gap-1 text-sm">
-                <UploadIcon className="size-5 text-muted-foreground" />
+                <ImportIcon className="size-5 text-muted-foreground" />
                 <span>
                   {packageFile?.name ??
                     t(

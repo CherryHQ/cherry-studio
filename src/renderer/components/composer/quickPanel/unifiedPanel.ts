@@ -379,6 +379,7 @@ function createUnifiedSectionItems(
   options: {
     source: ComposerToolLauncherSource
     seenLauncherIds: Set<string>
+    excludedLauncherIds?: ReadonlySet<string>
     inputAdapter?: QuickPanelInputAdapter
     quickPanel: QuickPanelContextType
     onToolLauncherSelect?: ComposerUnifiedPanelSelectHandler
@@ -386,7 +387,9 @@ function createUnifiedSectionItems(
   }
 ) {
   return launchers.flatMap((launcher) => {
-    if (launcher.hidden || options.seenLauncherIds.has(launcher.id)) return []
+    if (launcher.hidden || options.seenLauncherIds.has(launcher.id) || options.excludedLauncherIds?.has(launcher.id)) {
+      return []
+    }
 
     const children = getSectionChildren(launcher, options.source)
     const supportsSource = launcherSupportsSource(launcher, options.source)
@@ -461,6 +464,7 @@ export function createUnifiedQuickPanelOpenOptions(
     queryAnchor?: number
     triggerInfo?: QuickPanelTriggerInfo
     initialSearchText?: string
+    excludedLauncherIds?: ReadonlySet<string>
   }
 ): QuickPanelOpenOptions {
   const getRootPanelOptions = () =>
@@ -502,9 +506,14 @@ export function createUnifiedQuickPanelOpenOptions(
   const additionalItems = isCategoryView
     ? options.additionalItems?.filter((item) => !item.fixedToBottom)
     : options.additionalItems
+  // Leading items (e.g. Chat's new-conversation / Agent's new-task shortcuts) go through the same
+  // exclusion filter as launchers, so pinning one to the toolbar removes it here too.
+  const leadingItems = options.excludedLauncherIds
+    ? options.leadingItems?.filter((item) => !item.id || !options.excludedLauncherIds?.has(item.id))
+    : options.leadingItems
   const nextSortOrder = { value: 0 }
   const list = [
-    ...tagUnifiedPanelSectionItems(options.leadingItems, 'primary-tools', nextSortOrder),
+    ...tagUnifiedPanelSectionItems(leadingItems, 'primary-tools', nextSortOrder),
     ...tagUnifiedPanelSectionItems(primaryItems, 'primary-tools', nextSortOrder),
     ...tagUnifiedPanelSectionItems(commandItems, 'commands', nextSortOrder),
     ...tagUnifiedPanelSectionItems(additionalItems, 'commands', nextSortOrder),
