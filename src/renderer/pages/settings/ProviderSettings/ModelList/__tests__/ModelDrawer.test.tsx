@@ -1,4 +1,4 @@
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -73,39 +73,6 @@ vi.mock('@renderer/hooks/useModel', () => ({
     createModel: (...args: any[]) => createModelMock(...args),
     updateModel: (...args: any[]) => updateModelMock(...args)
   })
-}))
-
-vi.mock('@renderer/components/tags/Model', () => ({
-  VisionTag: ({ onClick }: any) => (
-    <button type="button" onClick={onClick}>
-      vision
-    </button>
-  ),
-  WebSearchTag: ({ onClick }: any) => (
-    <button type="button" onClick={onClick}>
-      web_search
-    </button>
-  ),
-  ReasoningTag: ({ onClick }: any) => (
-    <button type="button" onClick={onClick}>
-      reasoning
-    </button>
-  ),
-  ToolsCallingTag: ({ onClick }: any) => (
-    <button type="button" onClick={onClick}>
-      function_calling
-    </button>
-  ),
-  RerankerTag: ({ onClick }: any) => (
-    <button type="button" onClick={onClick}>
-      rerank
-    </button>
-  ),
-  EmbeddingTag: ({ onClick }: any) => (
-    <button type="button" onClick={onClick}>
-      embedding
-    </button>
-  )
 }))
 
 vi.mock('@renderer/components/icons/CopyIcon', () => ({
@@ -188,7 +155,7 @@ describe('Model drawers', () => {
     expect(createModelMock).not.toHaveBeenCalled()
   })
 
-  it('renders the new-api add drawer with the shared select surface and keeps endpoint type in create payload', async () => {
+  it('renders the New API model-purpose surface and keeps the default chat endpoint in create payload', async () => {
     useProviderMock.mockReturnValue({
       provider: { id: 'new-api', name: 'New API' }
     })
@@ -196,7 +163,8 @@ describe('Model drawers', () => {
     render(<AddModelDrawer providerId="new-api" open prefill={null} onClose={vi.fn()} />)
 
     expect(screen.getByTestId('provider-settings-model-add-dialog')).toBeInTheDocument()
-    expect(screen.getByTestId('provider-settings-model-endpoint-type-field')).toBeInTheDocument()
+    expect(screen.queryByTestId('provider-settings-model-endpoint-type-field')).not.toBeInTheDocument()
+    expect(screen.getByText('settings.models.add.purpose.label')).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('settings.models.add.model_id.label'), {
       target: { value: 'claude-4-sonnet' }
@@ -210,6 +178,68 @@ describe('Model drawers', () => {
         providerId: 'new-api',
         modelId: 'claude-4-sonnet',
         endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      })
+    )
+  })
+
+  it('atomically maps a custom model to image editing from the purpose surface', async () => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'custom-provider',
+        name: 'Custom Provider',
+        defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.example.com' }
+        }
+      }
+    })
+
+    render(<AddModelDrawer providerId="custom-provider" open prefill={null} onClose={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('radio', { name: /settings\.models\.add\.purpose\.image_edit\.label/ }))
+    fireEvent.change(screen.getByLabelText('settings.models.add.model_id.label'), {
+      target: { value: 'image-editor' }
+    })
+
+    await act(async () => {
+      fireEvent.submit(screen.getByTestId('provider-settings-model-add-drawer-content'))
+    })
+
+    expect(createModelMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerId: 'custom-provider',
+        modelId: 'image-editor',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT],
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        inputModalities: [MODALITY.IMAGE],
+        outputModalities: [MODALITY.IMAGE]
+      })
+    )
+  })
+
+  it('saves independent model type, capability, and input-modality selections when adding', async () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'openai', name: 'OpenAI' }
+    })
+
+    render(<AddModelDrawer providerId="openai" open prefill={null} onClose={vi.fn()} />)
+
+    fireEvent.change(screen.getByLabelText('settings.models.add.model_id.label'), {
+      target: { value: 'custom-image-model' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.moresetting.label' }))
+    fireEvent.click(screen.getByRole('button', { name: 'models.type.image' }))
+    fireEvent.click(screen.getByRole('button', { name: 'models.type.reasoning' }))
+    fireEvent.click(screen.getByRole('button', { name: 'models.type.audio' }))
+
+    await act(async () => {
+      fireEvent.submit(screen.getByTestId('provider-settings-model-add-drawer-content'))
+    })
+
+    expect(createModelMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION, MODEL_CAPABILITY.REASONING],
+        inputModalities: [MODALITY.AUDIO]
       })
     )
   })
@@ -324,6 +354,127 @@ describe('Model drawers', () => {
       'claude-4-sonnet',
       expect.objectContaining({
         name: 'Claude 4 Sonnet Updated'
+      })
+    )
+  })
+
+  it('auto-saves an atomic image-generation mapping from the custom model purpose surface', async () => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'custom-provider',
+        name: 'Custom Provider',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.example.com' }
+        }
+      }
+    })
+
+    render(
+      <EditModelDrawer
+        providerId="custom-provider"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'custom-provider::image-model',
+            providerId: 'custom-provider',
+            name: 'Image Model',
+            capabilities: [],
+            endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+            supportsStreaming: true,
+            pricing: {
+              input: { perMillionTokens: 0, currency: 'USD' },
+              output: { perMillionTokens: 0, currency: 'USD' }
+            }
+          } as any
+        }
+      />
+    )
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('radio', { name: /settings\.models\.add\.purpose\.image_generation\.label/ }))
+    })
+
+    expect(updateModelMock).toHaveBeenCalledWith(
+      'custom-provider',
+      'image-model',
+      expect.objectContaining({
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        outputModalities: [MODALITY.IMAGE]
+      })
+    )
+  })
+
+  it('keeps model type, capabilities, and input modalities independently editable', async () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'openai', name: 'OpenAI' }
+    })
+
+    render(
+      <EditModelDrawer
+        providerId="openai"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'openai::custom-embedding',
+            providerId: 'openai',
+            name: 'Custom Embedding',
+            group: 'Custom',
+            capabilities: [MODEL_CAPABILITY.EMBEDDING],
+            inputModalities: [],
+            supportsStreaming: true,
+            pricing: {
+              input: { perMillionTokens: 0, currency: 'USD' },
+              output: { perMillionTokens: 0, currency: 'USD' }
+            }
+          } as any
+        }
+      />
+    )
+
+    const imageType = screen.getByRole('button', { name: 'models.type.image' })
+    const reasoning = screen.getByRole('button', { name: 'models.type.reasoning' })
+    const videoInput = screen.getByRole('button', { name: 'models.type.video' })
+    expect(imageType).not.toBeDisabled()
+    expect(reasoning).not.toBeDisabled()
+    expect(videoInput).not.toBeDisabled()
+
+    await act(async () => {
+      fireEvent.click(imageType)
+    })
+    expect(updateModelMock).toHaveBeenLastCalledWith(
+      'openai',
+      'custom-embedding',
+      expect.objectContaining({
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        inputModalities: []
+      })
+    )
+
+    await act(async () => {
+      fireEvent.click(reasoning)
+    })
+    expect(updateModelMock).toHaveBeenLastCalledWith(
+      'openai',
+      'custom-embedding',
+      expect.objectContaining({
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION, MODEL_CAPABILITY.REASONING],
+        inputModalities: []
+      })
+    )
+
+    await act(async () => {
+      fireEvent.click(videoInput)
+    })
+    expect(updateModelMock).toHaveBeenLastCalledWith(
+      'openai',
+      'custom-embedding',
+      expect.objectContaining({
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION, MODEL_CAPABILITY.REASONING],
+        inputModalities: [MODALITY.VIDEO]
       })
     )
   })
@@ -659,7 +810,7 @@ describe('Model drawers', () => {
     )
   })
 
-  it('prevents clearing the last endpoint type from the edit drawer', async () => {
+  it('allows clearing the last endpoint type from the edit drawer', async () => {
     useProviderMock.mockReturnValue({
       provider: { id: 'cherryin', name: 'CherryIN' }
     })
@@ -691,12 +842,16 @@ describe('Model drawers', () => {
       'button',
       { name: 'endpoint_type.openai-response' }
     )
-    expect(responseEndpointButton).toHaveAttribute('aria-disabled', 'true')
+    expect(responseEndpointButton).not.toHaveAttribute('aria-disabled')
 
     await act(async () => {
       fireEvent.click(responseEndpointButton)
     })
 
-    expect(updateModelMock).not.toHaveBeenCalled()
+    expect(updateModelMock).toHaveBeenCalledWith(
+      'cherryin',
+      'claude-4-sonnet',
+      expect.objectContaining({ endpointTypes: [] })
+    )
   })
 })

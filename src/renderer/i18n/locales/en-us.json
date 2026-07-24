@@ -2326,6 +2326,7 @@
     "image-generation": "Image Generation (OpenAI)",
     "jina-rerank": "Jina Rerank",
     "openai": "OpenAI",
+    "openai-embeddings": "Embeddings (OpenAI)",
     "openai-response": "OpenAI-Response"
   },
   "error": {
@@ -2380,6 +2381,8 @@
       "payload": "Request content too large, please reduce file or text size",
       "proxy": "Proxy or SSL certificate error, check proxy and network settings",
       "quota": "Account quota exhausted, please recharge or switch provider",
+      "rate_limit": "Too many requests in a short time. Wait a moment and retry, or switch to a model with a higher rate limit",
+      "region": "Service unavailable in your region. Configure a proxy or switch to a provider available in your area",
       "server": "Server error, please retry later",
       "stream": "Response interrupted, check network stability or retry",
       "unknown": "An error occurred",
@@ -2391,6 +2394,7 @@
     "http": {
       "400": "Request failed. Please check if the request parameters are correct. If you have changed the model settings, please reset them to the default settings",
       "401": "Authentication failed. Please check if your API key is correct",
+      "402": "Payment required. Your account balance or quota is exhausted - top up on the provider's website or switch to another provider",
       "403": "Access denied. Please check if your account is verified, or contact the service provider for more information",
       "404": "Model not found or request path is incorrect",
       "429": "Too many requests. Please try again later",
@@ -4278,10 +4282,13 @@
       "embedding": "Embedding",
       "free": "Free",
       "function_calling": "Tool",
+      "image": "Image",
       "reasoning": "Reasoning",
       "rerank": "Reranker",
       "select": "Model Types",
+      "speech": "Speech",
       "text": "Text",
+      "transcription": "Transcription",
       "video": "Video",
       "vision": "Vision",
       "websearch": "WebSearch"
@@ -4658,6 +4665,7 @@
     "title": "Intel OVMS"
   },
   "paintings": {
+    "add_image": "Add image",
     "aspect_ratio": "Aspect Ratio",
     "aspect_ratios": {
       "landscape": "Landscape",
@@ -4810,6 +4818,8 @@
     "prompt_placeholder": "Describe the image you want to create, e.g. A serene lake at sunset with mountains in the background",
     "prompt_placeholder_edit": "Enter your image description, text drawing uses \"double quotes\" to wrap",
     "prompt_placeholder_en": "Enter your image description, currently only supports English prompts",
+    "prompt_placeholder_upload": "Describe the image you want, or upload one to edit",
+    "prompt_placeholder_upload_required": "Upload an image to edit, then describe the changes",
     "prompt_required": "Please enter a prompt",
     "proxy_required": "Open the proxy and enable \"TUN mode\" to view generated images or copy them to the browser for opening. In the future, domestic direct connection will be supported",
     "quality": "Quality",
@@ -6352,8 +6362,11 @@
       },
       "custom": {
         "css": {
-          "cherrycss": "Get from cherrycss.com",
+          "export": "Export legacy CSS",
+          "export_error": "Failed to export legacy custom CSS",
+          "export_success": "Legacy custom CSS exported",
           "label": "Custom CSS",
+          "legacy_warning": "Legacy CSS is no longer supported. Please upgrade to a v2-compatible stylesheet.",
           "placeholder": "/* Put custom CSS here */"
         }
       },
@@ -6881,6 +6894,9 @@
       "add": {
         "add_model": "Add Model",
         "batch_add_models": "Batch Add Models",
+        "capabilities": {
+          "label": "Model Capabilities"
+        },
         "context_window": {
           "label": "Context window",
           "placeholder": "e.g. 128000"
@@ -6896,6 +6912,9 @@
           "label": "Group Name",
           "placeholder": "e.g. ChatGPT",
           "tooltip": "Optional e.g. ChatGPT"
+        },
+        "input_modalities": {
+          "label": "Input Modalities"
         },
         "max_input_tokens": {
           "label": "Max input tokens",
@@ -6918,6 +6937,26 @@
           "label": "Model Name",
           "placeholder": "e.g. GPT-5.5",
           "tooltip": "Optional e.g. GPT-4"
+        },
+        "model_type": {
+          "label": "Model Type"
+        },
+        "purpose": {
+          "chat": {
+            "description": "Use the provider's text API",
+            "label": "Chat"
+          },
+          "chat_protocol": "Chat protocol",
+          "description": "Choose how this model is used",
+          "image_edit": {
+            "description": "Accept an input image and return an edited image",
+            "label": "Image editing"
+          },
+          "image_generation": {
+            "description": "Generate images from a prompt",
+            "label": "Image generation"
+          },
+          "label": "Model purpose"
         },
         "supported_text_delta": {
           "label": "Support incremental text output",
@@ -7294,8 +7333,9 @@
       },
       "balance": "Balance",
       "base_url": {
+        "invalid": "Enter a valid HTTP or HTTPS URL",
         "label": "Base URL",
-        "placeholder": "https://api.example.com",
+        "placeholder": "Base URL: https://example.com",
         "required": "Please enter the Base URL"
       },
       "basic_auth": {
@@ -7387,6 +7427,23 @@
         "toggle_headers_editor_list": "Switch to header list"
       },
       "create_custom": {
+        "endpoint_fields": {
+          "default_chat": "Default",
+          "label": "Endpoint settings",
+          "more": "More options",
+          "more_configured": "{{count}} configured",
+          "set_default_chat": "Set as default",
+          "text_endpoint_required": "Configure at least one text endpoint",
+          "url_help": "Enter the API root URL to preview the final request path"
+        },
+        "preset_instance": {
+          "description": "For Coding Plan services, multiple accounts, or project isolation; configure each Base URL and API key independently",
+          "empty": "No matching Provider presets",
+          "placeholder": "Create from a Provider preset…",
+          "search_placeholder": "Search Provider presets",
+          "title": "Start from a preset (optional)"
+        },
+        "request_preview": "Request path: {{path}}",
         "title": "Add Custom Provider"
       },
       "delete": {
@@ -7426,13 +7483,23 @@
         "sign_in_success": "Signed in to Grok CLI",
         "signing_in": "Waiting for browser…"
       },
+      "image_endpoints": {
+        "image_edit_base_url": {
+          "help": "Used for /images/edits; leave blank to use the default chat endpoint Base URL",
+          "label": "Image Edit Base URL"
+        },
+        "image_generation_base_url": {
+          "help": "Used for /images/generations; leave blank to use the default chat endpoint Base URL",
+          "label": "Image Generation Base URL"
+        }
+      },
       "logo_upload_failed": "Failed to process the selected image",
       "misc": "Other",
       "more_endpoints": {
         "add": "Add Endpoint",
-        "anthropic": "Anthropic Messages",
-        "gemini": "Google Gemini",
-        "openai_chat": "OpenAI Chat Completions",
+        "anthropic": "Anthropic",
+        "gemini": "Gemini",
+        "openai_chat": "OpenAI",
         "openai_responses": "OpenAI Responses",
         "toggle": "More Endpoints"
       },
