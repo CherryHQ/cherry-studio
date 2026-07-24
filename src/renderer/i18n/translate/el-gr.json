@@ -6362,7 +6362,6 @@
       },
       "custom": {
         "css": {
-          "cherrycss": "Λήψη από cherrycss.com",
           "label": "Προσαρμοστική CSS",
           "placeholder": "/* Γράψτε εδώ την προσαρμοστική CSS */"
         }

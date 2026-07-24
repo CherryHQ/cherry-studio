@@ -6362,7 +6362,6 @@
       },
       "custom": {
         "css": {
-          "cherrycss": "Obtener desde cherrycss.com",
           "label": "CSS personalizado",
           "placeholder": "/* Escribe tu CSS personalizado aquí */"
         }

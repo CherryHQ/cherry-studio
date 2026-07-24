@@ -38,9 +38,8 @@ import { isLinux, isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import type { LanguageVarious, MenuPresentationMode } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { hasV1CustomCssMarker, removeV1CustomCssMarker } from '@shared/utils/customCssMigration'
 import { defaultLanguage } from '@shared/utils/languages'
-import { AlertTriangle, Download, Minus, Monitor, Moon, Plus, Sun } from 'lucide-react'
+import { Minus, Monitor, Moon, Plus, Sun } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -127,21 +126,6 @@ const AppearanceSettings: FC = () => {
   const [currentZoom, setCurrentZoom] = useState(1.0)
   const [fontList, setFontList] = useState<string[]>([])
   const isDefaultZoom = Math.abs(currentZoom - DEFAULT_ZOOM_FACTOR) < 0.001
-  const isV1CustomCss = hasV1CustomCssMarker(customCss)
-
-  const handleExportV1CustomCss = async () => {
-    try {
-      const savedPath = await window.api.file.save('cherry-studio-v1-custom.css', removeV1CustomCssMarker(customCss), {
-        filters: [{ name: 'CSS', extensions: ['css'] }]
-      })
-      if (savedPath) {
-        toast.success(t('settings.display.custom.css.export_success'))
-      }
-    } catch (error) {
-      logger.error('Failed to export v1 custom CSS', error as Error)
-      toast.error(t('settings.display.custom.css.export_error'))
-    }
-  }
 
   const resolvedLanguage = i18n.resolvedLanguage ?? i18n.language
   const displayLanguage = isAppLanguage(language)
@@ -553,18 +537,6 @@ const AppearanceSettings: FC = () => {
 
       <SettingGroup theme={theme} className={appearanceSectionClassName}>
         <SettingTitle>{t('settings.display.custom.css.label')}</SettingTitle>
-        {isV1CustomCss ? (
-          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg bg-warning-bg px-3 py-2 text-warning">
-            <div className="flex min-w-0 flex-1 items-center gap-2">
-              <AlertTriangle className="size-4 shrink-0" />
-              <span className="text-xs">{t('settings.display.custom.css.legacy_warning')}</span>
-            </div>
-            <Button variant="secondary" size="sm" className="shrink-0" onClick={() => void handleExportV1CustomCss()}>
-              <Download />
-              {t('settings.display.custom.css.export')}
-            </Button>
-          </div>
-        ) : null}
         <div className="mt-4 overflow-hidden rounded-lg border border-border/60">
           <CodeEditor
             theme={activeCmTheme}

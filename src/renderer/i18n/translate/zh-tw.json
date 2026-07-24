@@ -6362,7 +6362,6 @@
       },
       "custom": {
         "css": {
-          "cherrycss": "從 cherrycss.com 取得",
           "label": "自訂 CSS",
           "placeholder": "/* 這裡寫自訂 CSS */"
         }

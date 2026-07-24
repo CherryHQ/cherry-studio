@@ -6362,7 +6362,6 @@
       },
       "custom": {
         "css": {
-          "cherrycss": "cherrycss.comから取得",
           "label": "カスタムCSS",
           "placeholder": "/* ここにカスタムCSSを入力 */"
         }

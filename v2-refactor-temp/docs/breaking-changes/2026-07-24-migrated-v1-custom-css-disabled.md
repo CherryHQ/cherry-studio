@@ -8,7 +8,7 @@ date: 2026-07-24
 
 ## What changed
 
-Migrated v1 custom CSS remains in the Custom CSS editor but is prefixed with a versioned marker and is no longer applied automatically in v2. The warning also provides an export action for saving the original stylesheet as a CSS file.
+Migrated v1 custom CSS remains in the Custom CSS editor but is prefixed with a versioned marker and is no longer applied automatically in v2.
 
 ## Why this matters to the user
 
@@ -16,7 +16,7 @@ Users upgrading with custom CSS will initially see the standard v2 appearance. T
 
 ## What the user should do
 
-Open Settings → Appearance and export the legacy stylesheet if you want to keep a copy. Replace the editor contents with CSS written for the v2 interface before using custom styles again.
+Open Settings → Appearance, adapt the stylesheet for the v2 interface, then remove the first-line marker to enable it.
 
 ## Notes for release manager
 

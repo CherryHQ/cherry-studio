@@ -6362,7 +6362,6 @@
       },
       "custom": {
         "css": {
-          "cherrycss": "Obține de la cherrycss.com",
           "label": "CSS personalizat",
           "placeholder": "/* Pune CSS personalizat aici */"
         }

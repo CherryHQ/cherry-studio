@@ -16,15 +16,3 @@ export function hasV1CustomCssMarker(cssText: string | undefined): boolean {
     cssText?.startsWith(`${V1_CUSTOM_CSS_MARKER}\r\n`) === true
   )
 }
-
-/** Remove only the first-line v1 marker, leaving the original CSS payload unchanged. */
-export function removeV1CustomCssMarker(cssText: string): string {
-  if (cssText === V1_CUSTOM_CSS_MARKER) return ''
-  if (cssText.startsWith(`${V1_CUSTOM_CSS_MARKER}\r\n`)) {
-    return cssText.slice(V1_CUSTOM_CSS_MARKER.length + 2)
-  }
-  if (cssText.startsWith(`${V1_CUSTOM_CSS_MARKER}\n`)) {
-    return cssText.slice(V1_CUSTOM_CSS_MARKER.length + 1)
-  }
-  return cssText
-}

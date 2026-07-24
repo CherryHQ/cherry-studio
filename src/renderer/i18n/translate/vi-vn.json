@@ -6362,7 +6362,6 @@
       },
       "custom": {
         "css": {
-          "cherrycss": "Lấy từ cherrycss.com",
           "label": "CSS Tùy chỉnh",
           "placeholder": "/* Đặt CSS tùy chỉnh tại đây */"
         }
