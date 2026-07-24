@@ -57,6 +57,8 @@ export interface FileEditSession {
   status: 'idle' | 'loading' | 'ready' | 'unsupported' | 'error'
   /** Last content known to be on disk (feeds an uncontrolled editor on load/reload). */
   savedContent: string
+  /** Exact byte size reported by the latest successful read or write. */
+  savedSizeBytes?: number
   /** Current editable content (the controlled editor value). */
   draft: string
   isDirty: boolean
@@ -132,6 +134,7 @@ export function useFileEditSession(path: FilePath | undefined): FileEditSession 
 
   const [draft, setDraftState] = useState('')
   const [savedContent, setSavedContentState] = useState('')
+  const [savedSizeBytes, setSavedSizeBytes] = useState<number | undefined>(undefined)
   const [conflict, setConflictState] = useState(false)
   const [saveError, setSaveErrorState] = useState<Error | undefined>(undefined)
   const [isSaving, setIsSaving] = useState(false)
@@ -144,6 +147,7 @@ export function useFileEditSession(path: FilePath | undefined): FileEditSession 
     if (modelRef.current !== model) return
     setDraftState(model.draft)
     setSavedContentState(model.snapshot.content)
+    setSavedSizeBytes(model.snapshot.version.size)
     setConflictState(model.conflict)
     setSaveErrorState(model.lastWriteError ?? undefined)
     setReady(true)
@@ -281,6 +285,7 @@ export function useFileEditSession(path: FilePath | undefined): FileEditSession 
       modelRef.current = null
       setDraftState('')
       setSavedContentState('')
+      setSavedSizeBytes(undefined)
       setConflictState(false)
       setSaveErrorState(undefined)
       setIsSaving(false)
@@ -304,7 +309,10 @@ export function useFileEditSession(path: FilePath | undefined): FileEditSession 
 
   const discard = useCallback(() => {
     const model = modelRef.current
-    if (!model) return
+    // An IPC write that has already started cannot be cancelled safely. Keep
+    // the draft stable until it settles; consumers also disable discard while
+    // `isSaving` is true, and this guard protects future callers.
+    if (!model || model.writeRunning) return
     debouncedWrite.cancel()
     model.draft = model.snapshot.content
     model.lastWriteError = null
@@ -396,6 +404,7 @@ export function useFileEditSession(path: FilePath | undefined): FileEditSession 
     return {
       status,
       savedContent,
+      savedSizeBytes,
       draft,
       isDirty: draft !== savedContent,
       isSaving,
@@ -415,6 +424,7 @@ export function useFileEditSession(path: FilePath | undefined): FileEditSession 
     ready,
     isLoading,
     savedContent,
+    savedSizeBytes,
     draft,
     isSaving,
     conflict,

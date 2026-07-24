@@ -4362,6 +4362,7 @@
     "export_to_pdf_failed": "导出为 PDF 失败",
     "export_to_pdf_success": "已导出为 PDF",
     "export_to_word_failed": "导出为 Word 失败",
+    "file_removed_draft": "该笔记已从磁盘删除，未保存的草稿仍保留在编辑器中。",
     "folder": "文件夹",
     "leave": {
       "description": "离开当前笔记将丢失尚未保存的编辑。是否继续？",

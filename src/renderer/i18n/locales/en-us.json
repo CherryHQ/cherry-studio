@@ -4362,6 +4362,7 @@
     "export_to_pdf_failed": "Failed to export to PDF",
     "export_to_pdf_success": "Exported to PDF",
     "export_to_word_failed": "Failed to export to Word",
+    "file_removed_draft": "This note was removed from disk. Your unsaved draft is still available in the editor.",
     "folder": "folder",
     "leave": {
       "description": "Leaving this note will discard your unsaved edits. Do you want to continue?",

@@ -558,12 +558,12 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   const shouldSniffSelectedFile = !isPdfSelection && !isOfficeDocumentSelection && !isImageSelection
   const sniffedIsText = useIsTextFile(previewWorkspacePath, previewFilePath, { enabled: shouldSniffSelectedFile })
   const isText = shouldSniffSelectedFile ? sniffedIsText : 'binary'
-  const fileSize = useFileSize(previewWorkspacePath, previewFilePath)
+  const fileSize = useFileSize(previewWorkspacePath, previewFilePath, contentRefreshToken)
+  const hasActiveEditSession = editMode === 'edit' && fileSession?.status === 'ready'
   const canEditSelection =
     Boolean(fileSession && overlaySelection) &&
     isText === 'text' &&
-    fileSize.status === 'ok' &&
-    fileSize.size <= ARTIFACT_PREVIEW_MAX_SIZE_BYTES
+    (hasActiveEditSession || (fileSize.status === 'ok' && fileSize.size <= ARTIFACT_PREVIEW_MAX_SIZE_BYTES))
   const isEditDirty = fileSession?.isDirty ?? false
 
   useEffect(() => {
@@ -572,6 +572,14 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     setContentRefreshToken(0)
     setStaleConflictOpen(false)
   }, [previewKey])
+
+  // Successful writes return an exact byte size through the edit session.
+  // Invalidate the separate metadata gate whenever that size changes so a
+  // saved file that crosses the preview limit cannot reuse stale metadata.
+  useEffect(() => {
+    if (fileSession?.savedSizeBytes === undefined) return
+    setContentRefreshToken((value) => value + 1)
+  }, [fileSession?.savedSizeBytes])
 
   // Surface an external-change conflict (a stale autosave) as the reload dialog.
   useEffect(() => {
@@ -582,6 +590,9 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   // mode — toast why and fall back to preview.
   useEffect(() => {
     if (editMode !== 'edit' || fileSession?.status !== 'unsupported') return
+    if (fileSession.unsupportedReason === 'size') {
+      setContentRefreshToken((value) => value + 1)
+    }
     toast.error(
       fileSession.unsupportedReason === 'size'
         ? t('agent.preview_pane.too_large.description', { limit: ARTIFACT_PREVIEW_MAX_SIZE_LABEL })
@@ -958,7 +969,12 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
               onClick={() => void handleRetryFailedSave()}>
               {t('common.retry')}
             </Button>
-            <Button type="button" variant="destructive" size="sm" onClick={handleDiscardFailedSave}>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              disabled={fileSession.isSaving}
+              onClick={handleDiscardFailedSave}>
               {t('agent.preview_pane.edit.discard')}
             </Button>
           </div>
@@ -970,7 +986,6 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
               value={fileSession.draft}
               language={getLanguageByFilePath(overlaySelection.filePath)}
               theme={activeCmTheme}
-              editable={!fileSession.isSaving}
               onChange={(content) => fileSession.setDraft(content)}
               height="100%"
               expanded={false}

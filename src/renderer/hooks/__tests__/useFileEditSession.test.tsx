@@ -60,6 +60,7 @@ describe('useFileEditSession', () => {
     })
     expect(result.current.draft).toBe('hello\n')
     expect(result.current.savedContent).toBe('hello\n')
+    expect(result.current.savedSizeBytes).toBe(6)
     expect(result.current.isDirty).toBe(false)
   })
 
@@ -326,6 +327,39 @@ describe('useFileEditSession', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('does not discard while an explicit retry write is still running', async () => {
+    ipcMocks.request.mockResolvedValueOnce(readResult(utf8('hello\n')))
+    const { result } = renderSession()
+    await waitFor(() => expect(result.current.status).toBe('ready'))
+
+    act(() => result.current.setDraft('unsaved'))
+    const diskFull = new Error('disk full')
+    ipcMocks.request.mockRejectedValueOnce(diskFull)
+    await act(async () => {
+      await expect(result.current.flush()).rejects.toBe(diskFull)
+    })
+
+    let resolveRetry!: (value: ReturnType<typeof writeResult>) => void
+    ipcMocks.request.mockImplementationOnce(() => new Promise((resolve) => (resolveRetry = resolve)))
+    let retryPromise!: Promise<void>
+    act(() => {
+      retryPromise = result.current.flush()
+    })
+    await waitFor(() => expect(result.current.isSaving).toBe(true))
+
+    act(() => result.current.discard())
+    expect(result.current.draft).toBe('unsaved')
+    expect(result.current.isDirty).toBe(true)
+
+    await act(async () => {
+      resolveRetry(writeResult(2, 7))
+      await retryPromise
+    })
+    expect(result.current.savedContent).toBe('unsaved')
+    expect(result.current.savedSizeBytes).toBe(7)
+    expect(writeCalls()).toHaveLength(2)
   })
 
   it('flush rejects while the draft cannot be persisted, then resolves after a successful retry', async () => {

@@ -54,6 +54,9 @@ const mocks = vi.hoisted(() => {
     t: (key: string) => key,
     toggleShowWorkspace: vi.fn(),
     treeRoot: {},
+    treeVersion: 0,
+    treeIsLoading: false,
+    projectedNodes: [noteNode],
     updateNotesPath: vi.fn(),
     updateSettings: vi.fn(),
     updateSortType: vi.fn(),
@@ -109,6 +112,7 @@ vi.mock('@cherrystudio/ui', async () => {
     PopoverContent: passthrough('div'),
     PopoverTrigger: ({ children }: any) => React.createElement('div', { 'data-testid': 'popover-trigger' }, children),
     RowFlex: passthrough('div'),
+    Skeleton: (props: any) => React.createElement('div', { ...props, 'data-testid': 'skeleton' }),
     Tooltip: ({ children }: any) => children,
     ConfirmDialog: ({
       open,
@@ -195,10 +199,10 @@ vi.mock('@renderer/hooks/command', () => ({
 vi.mock('@renderer/hooks/useDirectoryTree', () => ({
   useDirectoryTree: () => ({
     root: mocks.treeRoot,
-    isLoading: false,
+    isLoading: mocks.treeIsLoading,
     error: null,
-    version: 0,
-    treeId: null,
+    version: mocks.treeVersion,
+    treeId: 'notes-tree',
     getNode: mocks.getNode
   })
 }))
@@ -231,7 +235,7 @@ vi.mock('@renderer/hooks/useFileEditSession', () => ({
 }))
 
 vi.mock('@renderer/services/NotesService', () => ({
-  projectNotesTree: vi.fn(() => [mocks.noteNode]),
+  projectNotesTree: vi.fn(() => mocks.projectedNodes),
   sortTree: mocks.sortTree,
   addDir: vi.fn(),
   addNote: vi.fn(),
@@ -244,7 +248,7 @@ vi.mock('@renderer/services/NotesService', () => ({
 vi.mock('../NotesEditor', async () => {
   const React = await import('react')
 
-  function MockNotesEditor({ codeEditorRef, currentContent, editorRef, onMarkdownChange }: any) {
+  function MockNotesEditor({ activeNodeId, codeEditorRef, currentContent, editorRef, onMarkdownChange }: any) {
     React.useEffect(() => {
       codeEditorRef.current =
         mocks.mountedEditor === 'rich'
@@ -277,7 +281,11 @@ vi.mock('../NotesEditor', async () => {
       }
     }, [codeEditorRef, editorRef, onMarkdownChange])
 
-    return React.createElement('div', { 'data-current-content': currentContent, 'data-testid': 'notes-editor' })
+    return React.createElement('div', {
+      'data-active-node-id': activeNodeId,
+      'data-current-content': currentContent,
+      'data-testid': 'notes-editor'
+    })
   }
 
   return {
@@ -337,6 +345,9 @@ describe('NotesPage print payloads', () => {
     mocks.isActiveTab = true
     mocks.showWorkspace = false
     mocks.printShortcutLabel = 'Ctrl+P'
+    mocks.treeVersion = 0
+    mocks.treeIsLoading = false
+    mocks.projectedNodes = [mocks.noteNode]
 
     Object.assign(window, {
       api: {
@@ -493,6 +504,22 @@ describe('NotesPage print payloads', () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('notes.load_failed'))
   })
 
+  it('does not mount the note editor until the file session is ready', async () => {
+    mocks.sessionStatus = 'loading'
+    const { rerender } = render(<NotesPage />)
+
+    expect(await screen.findByRole('status')).toHaveTextContent('common.loading')
+    expect(screen.getAllByTestId('skeleton')).toHaveLength(3)
+    expect(screen.queryByTestId('notes-editor')).not.toBeInTheDocument()
+    expect(mocks.editorReady).not.toHaveBeenCalled()
+    expect(mocks.setDraft).not.toHaveBeenCalled()
+
+    mocks.sessionStatus = 'ready'
+    rerender(<NotesPage />)
+
+    await waitFor(() => expect(screen.getByTestId('notes-editor')).toBeInTheDocument())
+  })
+
   it('prompts before leaving a dirty note and keeps the draft when cancelled', async () => {
     mocks.sessionIsDirty = true
     mocks.sessionDraft = 'unsaved draft'
@@ -571,5 +598,31 @@ describe('NotesPage print payloads', () => {
       mocks.setActiveFilePath.mock.invocationCallOrder[0]
     )
     expect(mocks.flushSession).not.toHaveBeenCalled()
+  })
+
+  it('keeps a dirty draft accessible when the active file is removed and leaving is cancelled', async () => {
+    mocks.sessionIsDirty = true
+    mocks.sessionDraft = 'recoverable draft'
+    const { rerender } = render(<NotesPage />)
+
+    await waitFor(() =>
+      expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-current-content', 'recoverable draft')
+    )
+
+    mocks.projectedNodes = []
+    mocks.treeVersion += 1
+    rerender(<NotesPage />)
+
+    await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent('notes.leave.title'))
+    expect(screen.getByRole('alert')).toHaveTextContent('notes.file_removed_draft')
+    expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-active-node-id', '/notes/note.md')
+    expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-current-content', 'recoverable draft')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-current-content', 'recoverable draft')
+    expect(mocks.discardSession).not.toHaveBeenCalled()
+    expect(mocks.setActiveFilePath).not.toHaveBeenCalledWith(undefined)
   })
 })

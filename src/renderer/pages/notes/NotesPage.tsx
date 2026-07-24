@@ -1,4 +1,4 @@
-import { Button, ConfirmDialog } from '@cherrystudio/ui'
+import { Button, ConfirmDialog, Skeleton } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { CodeEditorHandles } from '@renderer/components/CodeEditor'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
@@ -58,6 +58,17 @@ const NOTES_TREE_OPTIONS: DirectoryTreeOptions = {
 
 type NoteMetadataSnapshot = Pick<Note, 'path' | 'isStarred' | 'isExpanded'>
 
+function NotesEditorLoading({ label }: { label: string }) {
+  return (
+    <div role="status" aria-live="polite" className="space-y-3 p-4">
+      <span className="sr-only">{label}</span>
+      <Skeleton className="h-4 w-full" />
+      <Skeleton className="h-4 w-full" />
+      <Skeleton className="h-4 w-2/3" />
+    </div>
+  )
+}
+
 const NotesPage: FC = () => {
   const editorRef = useRef<RichEditorRef>(null)
   const codeEditorRef = useRef<CodeEditorHandles>(null)
@@ -75,6 +86,7 @@ const NotesPage: FC = () => {
     root: treeRoot,
     version: treeVersion,
     treeId,
+    isLoading: isTreeLoading,
     error: treeError
   } = useDirectoryTree(notesPath || undefined, NOTES_TREE_OPTIONS)
 
@@ -91,6 +103,7 @@ const NotesPage: FC = () => {
   // file↔memory session (SWR read + debounced autosave through the
   // `file.write_if_unchanged` optimistic lock, with encoding/BOM/CRLF preserved).
   const [notesTree, setNotesTree] = useState<NotesTreeNode[]>([])
+  const [hasProjectedTree, setHasProjectedTree] = useState(false)
   const noteByPathRef = useRef(noteByPath)
   const { activeNode } = useActiveNode(notesTree, activeFilePath)
 
@@ -177,11 +190,13 @@ const NotesPage: FC = () => {
   useEffect(() => {
     if (!treeRoot || !notesPath) {
       setNotesTree([])
+      setHasProjectedTree(false)
       return
     }
     const projected = projectNotesTree(treeRoot, notesPath)
     const sorted = sortTree(projected, sortType)
     setNotesTree(mergeTreeState(sorted))
+    setHasProjectedTree(true)
     // `treeVersion` participates so that watcher-driven mutations re-derive
     // the projection even though `treeRoot` is the same object identity.
   }, [treeRoot, treeVersion, notesPath, sortType, mergeTreeState])
@@ -316,12 +331,21 @@ const NotesPage: FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notesPath])
 
+  const shouldRetainMissingDraft =
+    hasProjectedTree && !isTreeLoading && Boolean(activeFilePath) && !activeNode && fileSession.isDirty
+  const editorNodeId = activeNode?.id ?? (shouldRetainMissingDraft ? activeFilePath : undefined)
+
   // 处理树同步时的状态管理
   useEffect(() => {
-    if (notesTree.length === 0) return
     // 如果有activeFilePath但找不到对应节点，清空选择
     // 但要排除正在同步树结构、重命名或创建笔记的情况，避免在这些操作中误清空
-    const shouldClearPath = activeFilePath && !activeNode && !isRenamingRef.current && !isCreatingNoteRef.current
+    const shouldClearPath =
+      hasProjectedTree &&
+      !isTreeLoading &&
+      activeFilePath &&
+      !activeNode &&
+      !isRenamingRef.current &&
+      !isCreatingNoteRef.current
 
     if (shouldClearPath) {
       logger.warn('Clearing activeFilePath - node not found in tree', {
@@ -330,7 +354,7 @@ const NotesPage: FC = () => {
       })
       requestFileTransition(() => setActiveFilePath(undefined))
     }
-  }, [notesTree, activeFilePath, activeNode, requestFileTransition, setActiveFilePath])
+  }, [notesTree, hasProjectedTree, isTreeLoading, activeFilePath, activeNode, requestFileTransition, setActiveFilePath])
 
   // Clear create/rename suppression once the new node appears in the tree.
   // Replaces a 500ms timer that could race chokidar on slow filesystems
@@ -1078,15 +1102,24 @@ const NotesPage: FC = () => {
               </Button>
             </div>
           )}
-          <NotesEditor
-            activeNodeId={activeNode?.id}
-            currentContent={currentContent}
-            contentLoadError={contentLoadError}
-            tokenCount={tokenCount}
-            onMarkdownChange={handleMarkdownChange}
-            editorRef={editorRef}
-            codeEditorRef={codeEditorRef}
-          />
+          {shouldRetainMissingDraft && (
+            <div role="alert" className="shrink-0 border-warning border-b bg-warning-bg px-3 py-2 text-warning text-xs">
+              {t('notes.file_removed_draft')}
+            </div>
+          )}
+          {activeFilePath && fileSession.status === 'loading' ? (
+            <NotesEditorLoading label={t('common.loading')} />
+          ) : (
+            <NotesEditor
+              activeNodeId={editorNodeId}
+              currentContent={currentContent}
+              contentLoadError={contentLoadError}
+              tokenCount={tokenCount}
+              onMarkdownChange={handleMarkdownChange}
+              editorRef={editorRef}
+              codeEditorRef={codeEditorRef}
+            />
+          )}
         </div>
       </div>
       <ConfirmDialog

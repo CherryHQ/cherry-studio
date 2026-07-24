@@ -288,6 +288,7 @@ vi.mock('@cherrystudio/ui', async (importActual) => {
         <textarea
           data-testid="code-editor"
           data-font-size={props.fontSize}
+          readOnly={props.editable === false}
           value={props.value}
           onChange={(event) => props.onChange?.(event.currentTarget.value)}
         />
@@ -1701,12 +1702,18 @@ describe('ArtifactPane', () => {
 
   it('autosaves an oversized in-memory draft — the size cap gates loading for edit, not writing', async () => {
     const oversizedDraft = '你'.repeat(Math.floor(ARTIFACT_PREVIEW_MAX_SIZE_BYTES / 3) + 1)
-    expect(new Blob([oversizedDraft]).size).toBeGreaterThan(ARTIFACT_PREVIEW_MAX_SIZE_BYTES)
+    const oversizedDraftBytes = new Blob([oversizedDraft]).size
+    expect(oversizedDraftBytes).toBeGreaterThan(ARTIFACT_PREVIEW_MAX_SIZE_BYTES)
+    let diskSize = 1024
+    mocks.getMetadata.mockImplementation(async () => ({ kind: 'file', size: diskSize }))
     mockWorkspaceTree('/tmp/workspace', ['draft.md'])
     mocks.fsReadText.mockResolvedValue('# small')
     mocks.ipcRequest
       .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('# small')))
-      .mockResolvedValueOnce({ mtime: 2, size: 1 })
+      .mockImplementationOnce(async () => {
+        diskSize = oversizedDraftBytes
+        return { mtime: 2, size: oversizedDraftBytes }
+      })
     mocks.useRealCodeEditor = true
 
     render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
@@ -1728,6 +1735,56 @@ describe('ArtifactPane', () => {
     const writeCall = mocks.ipcRequest.mock.calls.find(([route]) => route === 'file.write_if_unchanged')
     if (!writeCall) throw new Error('Expected a file.write_if_unchanged request')
     expect((writeCall[1] as { data: Uint8Array }).data.byteLength).toBeGreaterThan(ARTIFACT_PREVIEW_MAX_SIZE_BYTES)
+
+    // The active session stays editable even though the saved file is now too
+    // large to reopen. Switching to Preview must refresh the size gate before
+    // any text renderer reads the saved content.
+    await waitFor(() => expect(mocks.getMetadata.mock.calls.length).toBeGreaterThanOrEqual(3))
+    expect(mocks.codeEditorRef).not.toBeNull()
+    mocks.fsReadText.mockClear()
+    fireEvent.click(within(overlay).getByRole('button', { name: 'common.preview' }))
+
+    await waitFor(() => expect(screen.getByText('agent.preview_pane.too_large.title')).toBeInTheDocument())
+    expect(mocks.fsReadText).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('markdown')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('code-viewer')).not.toBeInTheDocument()
+  })
+
+  it('keeps the editor writable and disables discard while a failed save retry is running', async () => {
+    let resolveRetry!: (value: { mtime: number; size: number }) => void
+    mockWorkspaceTree('/tmp/workspace', ['draft.md'])
+    mocks.fsReadText.mockResolvedValue('# small')
+    mocks.ipcRequest
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('# small')))
+      .mockRejectedValueOnce(new Error('disk full'))
+      .mockImplementationOnce(() => new Promise((resolve) => (resolveRetry = resolve)))
+      .mockResolvedValueOnce({ mtime: 3, size: 12 })
+
+    render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-draft.md')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-draft.md'))
+
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
+    const editor = await within(overlay).findByTestId('code-editor')
+    fireEvent.change(editor, { target: { value: 'unsaved' } })
+
+    const alert = await within(overlay).findByRole('alert', undefined, { timeout: 3000 })
+    fireEvent.click(within(alert).getByRole('button', { name: 'common.retry' }))
+
+    await waitFor(() =>
+      expect(within(alert).getByRole('button', { name: 'agent.preview_pane.edit.discard' })).toBeDisabled()
+    )
+    expect(editor).not.toHaveAttribute('readonly')
+    fireEvent.change(editor, { target: { value: 'queued edit' } })
+    expect(editor).toHaveValue('queued edit')
+
+    await act(async () => {
+      resolveRetry({ mtime: 2, size: 7 })
+    })
+    await waitFor(() =>
+      expect(mocks.ipcRequest.mock.calls.filter(([route]) => route === 'file.write_if_unchanged')).toHaveLength(3)
+    )
   })
 
   it('edits at 14px and preserves UTF-8 BOM and CRLF when saving', async () => {
