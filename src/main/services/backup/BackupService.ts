@@ -249,6 +249,20 @@ export class BackupService extends BaseService {
    * cleans up temp + staging. A second startBackup while one is running throws 'busy'.
    */
   async startBackup({ preset, outputPath, overwrite }: BackupV2StartOptions): Promise<BackupV2StartResult> {
+    // A sealed restore awaiting the user-confirmed relaunch (staged) or a crashed
+    // promotion (promoting) must not be raced by an export: activeOperation is null
+    // post-seal and backup.* routes bypass the quiesce gate, so without this guard the
+    // export would snapshot the pre-restore live DB while looking post-restore.
+    const priorRestore = readRestoreJournal()
+    if (
+      priorRestore.kind === 'ok' &&
+      (priorRestore.journal.state === 'staged' || priorRestore.journal.state === 'promoting')
+    ) {
+      throw new IpcError(
+        backupErrorCodes.RESTORE_PENDING,
+        `backup: a restore is in state '${priorRestore.journal.state}' — restart to apply it before exporting`
+      )
+    }
     if (!this.orchestrator || !this.schemaMigrationId) {
       // Unreachable in normal boot (onInit sets both); reached only if onInit threw +
       // error handling were changed away from fail-fast. Guard anyway.
@@ -346,6 +360,12 @@ export class BackupService extends BaseService {
     // Flips once the journal is sealed — from then on quiesce must survive this method
     // (the write window stays closed until the user-confirmed relaunch exits the process).
     let sealed = false
+    // Flips once THIS invocation acquired the quiesce (inside quiesceWriters). The finally
+    // must only release what this invocation acquired: guard throws before quiesce (e.g.
+    // RESTORE_PENDING while a sealed restore awaits relaunch) would otherwise release the
+    // module-global flag + JobManager hold still owned by the sealed restore, reopening
+    // the write window and clean-expiring its whole batch at next boot.
+    let acquiredQuiesce = false
     try {
       // Never silently overwrite a prior restore's journal — #16884 has one fixed journal
       // file, and writeRestoreJournal overwrites. Any present journal (pending or terminal)
@@ -401,6 +421,7 @@ export class BackupService extends BaseService {
           // aborts restore — promotion is NOT a backstop for writes that slip past
           // (vaayne A7). Full quiesce (a1 WindowManager hold) is follow-up.
           setBackupInProgress(true)
+          acquiredQuiesce = true
           const jobManager = application.get('JobManager')
           this.restoreQuiesceHold = jobManager.pause('restore-quiesce')
           const verdict = await jobManager.drainInFlight({ timeoutMs: 5000 })
@@ -458,7 +479,7 @@ export class BackupService extends BaseService {
     } catch (e) {
       throw this.toIpcError(e)
     } finally {
-      if (!sealed) this.releaseRestoreQuiesce()
+      if (!sealed && acquiredQuiesce) this.releaseRestoreQuiesce()
       if (this.activeOperation === active) this.activeOperation = null
     }
   }

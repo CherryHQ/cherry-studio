@@ -166,6 +166,14 @@ describe('BackupService restore journal lifecycle (A7)', () => {
       expect(clearRestoreJournalMock).not.toHaveBeenCalled()
     })
 
+    it('rejects startBackup while a restore journal is staged (CR-007)', async () => {
+      readRestoreJournalMock.mockReturnValue(okJournal('staged'))
+      const service = new BackupService()
+      await expect(
+        service.startBackup({ preset: 'lite', outputPath: '/tmp/out.cherrybackup', overwrite: false })
+      ).rejects.toMatchObject({ code: 'BACKUP_RESTORE_PENDING' })
+    })
+
     it('clears + proceeds for completed (same-session second restore)', async () => {
       readRestoreJournalMock.mockReturnValue(okJournal('completed', 'integrity-ok'))
       const service = new BackupService()
@@ -281,6 +289,28 @@ describe('BackupService restore journal lifecycle (A7)', () => {
       expect(relaunchMock).not.toHaveBeenCalled()
       expect(isBackupInProgress()).toBe(true)
       setBackupInProgress(false)
+    })
+
+    it('a second startRestore during the sealed wait does NOT release the held quiesce (CR-001)', async () => {
+      drainInFlight.mockResolvedValue({ stragglerIds: [], startupRecoveryPending: false })
+      const holdDispose = vi.fn()
+      jobManagerPause.mockReturnValue({ dispose: holdDispose })
+      const service = new BackupService()
+
+      await service.startRestore({ archivePath: '/x.cherrybackup' }) // seals; quiesce held
+      expect(isBackupInProgress()).toBe(true)
+
+      // The sealed restore's journal is staged; the second call is rejected by the
+      // journal guard BEFORE acquiring quiesce — its finally must not release the
+      // first restore's module-global flag or JobManager hold.
+      readRestoreJournalMock.mockReturnValue(okJournal('staged'))
+      await expect(service.startRestore({ archivePath: '/y.cherrybackup' })).rejects.toMatchObject({
+        code: 'BACKUP_RESTORE_PENDING'
+      })
+      expect(isBackupInProgress()).toBe(true)
+      expect(holdDispose).not.toHaveBeenCalled()
+
+      setBackupInProgress(false) // module-singleton gate — reset for later tests
     })
 
     it('a broadcast failure does not fail the sealed restore (renderer falls back)', async () => {
