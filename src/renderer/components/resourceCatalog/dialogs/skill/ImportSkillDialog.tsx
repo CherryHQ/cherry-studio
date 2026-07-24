@@ -1,4 +1,13 @@
-import { Alert, Button, Dialog, DialogContent, Dropzone, DropzoneEmptyState, Scrollbar } from '@cherrystudio/ui'
+import {
+  Alert,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  Dropzone,
+  DropzoneEmptyState,
+  Scrollbar
+} from '@cherrystudio/ui'
 import { useSkillInstall } from '@renderer/hooks/useSkills'
 import { toast } from '@renderer/services/toast'
 import type { InstalledSkill } from '@shared/types/skill'
@@ -43,6 +52,8 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
   const [status, setStatus] = useState<ImportStatus>({ kind: 'idle' })
   const [installing, setInstalling] = useState<InstallingKey>(null)
   const [items, setItems] = useState<ImportItem[]>([])
+  const hasCompletedResults =
+    !installing && items.length > 0 && items.every((item) => item.status === 'success' || item.status === 'error')
 
   // Reset transient state on open / close.
   useEffect(() => {
@@ -298,6 +309,13 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
           <ImportResultList items={items} />
           <StatusBanner status={status} />
         </div>
+        {hasCompletedResults ? (
+          <DialogFooter>
+            <Button type="button" variant="emphasis" onClick={close}>
+              {t('common.completed')}
+            </Button>
+          </DialogFooter>
+        ) : null}
       </DialogContent>
     </Dialog>
   )

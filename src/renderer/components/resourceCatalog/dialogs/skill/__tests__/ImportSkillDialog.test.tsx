@@ -126,6 +126,28 @@ describe('ImportSkillDialog', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'settings.skills.installFromZip' })).toBeEnabled())
   })
 
+  it('shows the completion action only after an import result finishes and closes through it', async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    let resolveInstall: (value: unknown) => void = () => {}
+    installFromZip.mockReturnValue(new Promise((resolve) => (resolveInstall = resolve)))
+
+    render(<ImportSkillDialog open onOpenChange={onOpenChange} />)
+
+    expect(screen.queryByRole('button', { name: 'common.completed' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'settings.skills.installFromZip' }))
+    await waitFor(() => expect(installFromZip).toHaveBeenCalledWith('/tmp/broken.zip'))
+    expect(screen.queryByRole('button', { name: 'common.completed' })).not.toBeInTheDocument()
+
+    resolveInstall({ id: 'agentic-engineering', name: 'agentic-engineering' })
+
+    const completionButton = await screen.findByRole('button', { name: 'common.completed' })
+    await user.click(completionButton)
+
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
   it('shows the failure inline without a second toast (the install hook already toasts)', async () => {
     const user = userEvent.setup()
     installFromZip.mockRejectedValue(new Error('corrupt archive'))
@@ -138,6 +160,7 @@ describe('ImportSkillDialog', () => {
     await waitFor(() => expect(screen.getByText('corrupt archive')).toBeInTheDocument())
     // ...and does NOT add its own toast on top of the hook's `reportAndRethrowSkillMutationError`.
     expect(toast.error).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'common.completed' })).toBeInTheDocument()
   })
 
   it('uses the marketplace success toast without a duplicate success banner', async () => {
