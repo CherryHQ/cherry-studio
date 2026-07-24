@@ -440,6 +440,70 @@ export default defineConfig([
       ]
     }
   },
+  // Path brand integrity — `as AbsoluteFilePath` / `as CanonicalFilePath` forge the
+  // brands, skipping the validation each asserts. `AbsoluteFilePath` asserts shape
+  // validation (build via AbsoluteFilePathSchema.parse); `CanonicalFilePath` asserts
+  // the byte-faithful lexical form that backs the external-path dedup key
+  // (build via the canonicalizeFilePath() factory). A forged
+  // `as CanonicalFilePath` silently bypasses canonicalization and can write a
+  // ghost-duplicate key, so the stronger brand is guarded too.
+  // Exemptions: test fixtures; and one deliberate raw-OS-path regime — the
+  // tree builder (tree/**) holds raw chokidar/OS event paths that are compared
+  // byte-for-byte against event paths and are trusted as-is, so they `as AbsoluteFilePath`
+  // rather than routing through validation.
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: [
+      'src/main/services/file/tree/**',
+      'src/**/__tests__/**',
+      'src/**/__mocks__/**',
+      'src/**/*.test.*'
+    ],
+    plugins: {
+      'filepath-brand': {
+        rules: {
+          'no-as-filepath': {
+            meta: {
+              type: 'problem',
+              docs: {
+                description:
+                  'Disallow `as AbsoluteFilePath` / `as CanonicalFilePath` casts. Both are Zod-derived brands: AbsoluteFilePath asserts shape validation (absolute path, no null bytes), CanonicalFilePath additionally asserts the byte-faithful lexical form backing the dedup key. Forging either bypasses its validation. Construct via AbsoluteFilePathSchema.parse() / canonicalizeFilePath().',
+                recommended: true
+              },
+              messages: {
+                noAsFilePath:
+                  '`as AbsoluteFilePath` forges the brand, skipping AbsoluteFilePathSchema\'s absolute-path validation. Build it with AbsoluteFilePathSchema.parse(value) instead. If this is a deliberate raw-path regime, move it under an exempted path or justify with an eslint-disable + reason.',
+                noAsCanonicalFilePath:
+                  '`as CanonicalFilePath` forges the brand, skipping canonicalization — a non-canonical value silently becomes a ghost-duplicate dedup key. Build it with canonicalizeFilePath(value) instead, or justify the sanctioned producer with an eslint-disable + reason.'
+              }
+            },
+            create(context) {
+              // Matches both `x as T` (TSAsExpression) and `<T>x` (TSTypeAssertion).
+              // Limitation: name-based, so an aliased import (`import { AbsoluteFilePath as AFP }`
+              // then `x as AFP`) is not caught — aliasing a brand solely to forge it is not a
+              // real-world pattern, and resolving aliases would require full scope analysis.
+              function checkAssertion(node) {
+                const ann = node.typeAnnotation
+                if (ann?.type !== 'TSTypeReference' || ann.typeName?.type !== 'Identifier') return
+                if (ann.typeName.name === 'AbsoluteFilePath') {
+                  context.report({ node, messageId: 'noAsFilePath' })
+                } else if (ann.typeName.name === 'CanonicalFilePath') {
+                  context.report({ node, messageId: 'noAsCanonicalFilePath' })
+                }
+              }
+              return {
+                TSAsExpression: checkAssertion,
+                TSTypeAssertion: checkAssertion
+              }
+            }
+          }
+        }
+      }
+    },
+    rules: {
+      'filepath-brand/no-as-filepath': process.env.CI ? 'error' : 'warn'
+    }
+  },
   // Application lifecycle - all quit-related APIs and events are managed by Application.ts
   {
     files: ['src/main/**/*.{ts,tsx,js,jsx}'],

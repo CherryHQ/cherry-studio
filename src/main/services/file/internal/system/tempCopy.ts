@@ -15,7 +15,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { copy as fsCopy, removeDir as fsRemoveDir } from '@main/utils/file'
 import type { FileEntryId } from '@shared/data/types/file'
-import type { FilePath } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { resolvePhysicalPath } from '../../utils/pathResolver'
 import type { FileManagerDeps } from '../deps'
@@ -35,7 +35,7 @@ export async function withTempCopy<T>(
   const parent = application.getPath('feature.files.tempcopy.temp')
   const dir = await mkdtemp(path.join(parent, 'tc-'))
   const filename = `${entry.name}${entry.ext ? `.${entry.ext}` : ''}` || 'file'
-  const target = path.join(dir, filename) as FilePath
+  const target = AbsoluteFilePathSchema.parse(path.join(dir, filename))
   try {
     await fsCopy(physical, target)
     return await fn(target)
@@ -50,7 +50,7 @@ export async function withTempCopy<T>(
     // on the next OS-level temp cleanup. No application-side sweeper is
     // planned.
     try {
-      await fsRemoveDir(dir as FilePath)
+      await fsRemoveDir(AbsoluteFilePathSchema.parse(dir))
     } catch (cleanupErr) {
       logger.warn('withTempCopy: temp dir cleanup failed; directory will leak until OS temp reap', {
         dir,

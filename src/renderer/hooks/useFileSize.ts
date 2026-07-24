@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { joinPath } from '@renderer/utils/path'
-import type { FilePath } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 import { useEffect, useState } from 'react'
 
@@ -26,7 +26,7 @@ export function useFileSize(
 
     void (async () => {
       try {
-        const metadata = await window.api.file.getMetadata(createFilePathHandle(absPath as FilePath))
+        const metadata = await window.api.file.getMetadata(createFilePathHandle(AbsoluteFilePathSchema.parse(absPath)))
         if (!cancelled) setState({ status: 'ok', size: metadata.size })
       } catch (err) {
         if (cancelled) return

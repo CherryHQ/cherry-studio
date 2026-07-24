@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { cleanup, render, screen } from '@testing-library/react'
 import type { ComponentPropsWithoutRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -47,7 +47,15 @@ beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
   mocks.load.mockReset()
   mocks.load.mockResolvedValue({
-    default: ({ filePath, fileName, refreshKey }: { filePath: FilePath; fileName: string; refreshKey: number }) => (
+    default: ({
+      filePath,
+      fileName,
+      refreshKey
+    }: {
+      filePath: AbsoluteFilePath
+      fileName: string
+      refreshKey: number
+    }) => (
       <FilePreviewLayout.Frame>
         <FilePreviewToolbar aria-label="Preview tools">
           <button type="button">Zoom in</button>
@@ -75,13 +83,13 @@ describe('FilePreview plugin loading', () => {
   it('shows a localized loading state while the plugin is pending', () => {
     mocks.load.mockImplementationOnce(() => new Promise(() => {}))
 
-    render(<FilePreview filePath={'/tmp/README.md' as FilePath} />)
+    render(<FilePreview filePath={'/tmp/README.md' as AbsoluteFilePath} />)
 
     expect(screen.getByText('file_preview.loading')).toBeInTheDocument()
   })
 
   it('lazy loads a matching plugin with the canonical file descriptor', async () => {
-    render(<FilePreview filePath={'/tmp/workspace/notes/../README.md' as FilePath} refreshKey={4} />)
+    render(<FilePreview filePath={'/tmp/workspace/notes/../README.md' as AbsoluteFilePath} refreshKey={4} />)
 
     expect(await screen.findByTestId('plugin-preview')).toHaveAttribute('data-file-path', '/tmp/workspace/README.md')
     expect(screen.getByTestId('plugin-preview')).toHaveAttribute('data-file-name', 'README.md')
@@ -92,7 +100,7 @@ describe('FilePreview plugin loading', () => {
   it('places an embedded header on the left and the plugin toolbar on the right of one row', async () => {
     render(
       <FilePreview
-        filePath={'/tmp/README.md' as FilePath}
+        filePath={'/tmp/README.md' as AbsoluteFilePath}
         header={<span data-testid="preview-title">README.md</span>}
       />
     )
@@ -110,7 +118,7 @@ describe('FilePreview plugin loading', () => {
   it('contains plugin loader failures inside the preview surface', async () => {
     mocks.load.mockRejectedValueOnce(new Error('failed to fetch plugin chunk'))
 
-    render(<FilePreview filePath={'/tmp/README.md' as FilePath} />)
+    render(<FilePreview filePath={'/tmp/README.md' as AbsoluteFilePath} />)
 
     expect(await screen.findByText('file_preview.load_error.title')).toBeInTheDocument()
     expect(screen.getByText('file_preview.load_error.description')).toBeInTheDocument()
@@ -123,7 +131,7 @@ describe('FilePreview plugin loading', () => {
       }
     })
 
-    render(<FilePreview filePath={'/tmp/README.md' as FilePath} />)
+    render(<FilePreview filePath={'/tmp/README.md' as AbsoluteFilePath} />)
 
     expect(await screen.findByText('file_preview.load_error.title')).toBeInTheDocument()
     expect(screen.getByText('file_preview.load_error.description')).toBeInTheDocument()

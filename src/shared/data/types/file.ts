@@ -108,8 +108,9 @@
  *   unmanaged `@main/utils/file/fs.remove(path)` separately.
  */
 
-import { type FilePath, SafeExtSchema } from '@shared/types/file'
-import { canonicalizeAbsolutePath } from '@shared/utils/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
+import { AbsoluteFilePathSchema, SafeExtSchema } from '@shared/types/file'
+import { CanonicalFilePathSchema } from '@shared/utils/file'
 import * as z from 'zod'
 
 import { MessageIdSchema } from './message'
@@ -161,87 +162,6 @@ export type FileEntryId = z.infer<typeof FileEntryIdSchema>
 
 export const FileEntryOriginSchema = z.enum(['internal', 'external'])
 export type FileEntryOrigin = z.infer<typeof FileEntryOriginSchema>
-
-// ─── Absolute Path ───
-
-/**
- * Absolute filesystem path (Unix or Windows). Rejects `file://` URLs — use a
- * dedicated URL schema if needed.
- *
- * **Storage invariant for `externalPath`**: values persisted in
- * `file_entry.externalPath` must be the output of
- * `canonicalizeExternalPath()` — currently `path.resolve` + Unicode NFC +
- * trailing-separator strip. Zod cannot enforce this shape
- * at the schema level; `ensureExternalEntry` and `fileEntryService.findByExternalPath`
- * are the application-layer enforcement points. See `pathResolver.ts` for
- * the full contract, including deliberately deferred normalization steps
- * (case-insensitive FS dedupe, symlink target resolution).
- */
-export const AbsolutePathSchema = z
-  .string()
-  .min(1)
-  .refine((s) => !s.includes('\0'), 'externalPath must not contain null bytes')
-  .refine((s) => s.startsWith('/') || /^[A-Za-z]:\\/.test(s), 'externalPath must be an absolute filesystem path')
-
-// ─── Canonical External Path (TS phantom brand) ───
-
-/**
- * A `string` already processed through `canonicalizeExternalPath`.
- *
- * This is a **TypeScript-only phantom brand** (zero runtime cost, zero wire
- * cost) that acts as a compile-time guard for every DB read/write surface on
- * `externalPath`: any query entry point that filters by `externalPath` MUST
- * narrow its input to this type, which forces callers through
- * `canonicalizeExternalPath()` instead of accepting a raw user path.
- *
- * ## Why a brand and not runtime validation
- *
- * The correctness invariant — "the string equals `canonicalizeExternalPath(x)`
- * for some `x`" — cannot be verified at runtime without re-running
- * canonicalization, which would defeat the purpose. The brand expresses
- * "this value was produced by the authorized factory" structurally, so the
- * type system (not runtime checks) enforces the contract.
- *
- * ## Authorized construction
- *
- * - **Production code**: only `canonicalizeExternalPath()` in
- *   `src/main/services/file/utils/pathResolver.ts` may produce values of this type.
- *   Other production code importing `CanonicalExternalPath` MUST receive it
- *   from that function (directly or transitively) — never via `as` cast.
- * - **Tests and fixtures**: may cast known-canonical string literals with
- *   `'/abs/path' as CanonicalExternalPath` for readability.
- * - **DB rows**: the `externalPath` column is typed as `string | null` in
- *   Drizzle (SQLite has no brand concept); upcasting into
- *   `CanonicalExternalPath` at the service boundary is acceptable because
- *   writes on that column already go through the canonicalization path.
- */
-// String-literal brand rather than a `unique symbol`: a `unique symbol` brand
-// (named or inline) is inaccessible when TS emits a large inferred aggregate
-// type that transitively embeds it (e.g. preload's
-// `export type WindowApiType = typeof api`, via `FileEntry.externalPath`),
-// triggering TS2527/TS4023. A literal-keyed brand is fully nameable across
-// modules, so it dodges that while keeping the nominal identity — a plain
-// `string` still lacks the property, so the value can only be produced by the
-// canonicalization path or an explicit `as` cast, exactly as documented above.
-export type CanonicalExternalPath = string & { readonly __brand: 'CanonicalExternalPath' }
-
-/**
- * Intersection brand carried by the `externalPath` field on the FileEntry
- * BO: a string that is both **canonical** (provenance: passed through
- * `canonicalizeAbsolutePath` / `canonicalizeExternalPath`) and **satisfies
- * the `FilePath` template-literal shape** (so it can flow into any
- * `@main/utils/file/*` API without a cast).
- *
- * Round 2 S5: the schema's `externalPath` field used to be plain
- * `AbsolutePathSchema` (inferred as `string`), forcing five production
- * sites to `as FilePath`-cast at every read. The schema now `refine`s
- * against `canonicalizeAbsolutePath` (real runtime check; rejects any
- * non-canonical input at parse time) and then `transform`s the result
- * into this intersection — so consumers reading `entry.externalPath`
- * get a value typed exactly as they need it, with the canonical
- * provenance proven at the schema boundary.
- */
-export type CanonicalFilePath = FilePath & CanonicalExternalPath
 
 // ─── FileEntry Schema (discriminated union on origin, branded) ───
 //
@@ -329,29 +249,20 @@ export const ExternalEntrySchema = z.strictObject({
   ...CommonEntryFields,
   origin: z.literal('external'),
   /**
-   * Absolute filesystem path to the user-provided file. The schema runs a
-   * **real** `canonicalize` equivalence check (not just a shape match): the
-   * input must equal `canonicalizeAbsolutePath(input)`, otherwise parse
-   * rejects. Combined with the `.transform` below, this means any value the
-   * BO ever exposes is provably canonical AND carries the `FilePath` shape,
-   * eliminating the five `as FilePath` casts that used to sit at every read
-   * site (rename.ts, lifecycle.ts, danglingCache.ts, …).
+   * Absolute filesystem path to the user-provided file, as a
+   * `CanonicalFilePath` — the byte-faithful lexical form produced by
+   * `canonicalizeFilePath` (segment-resolve + trailing-strip + drive-upcase,
+   * NOT Unicode-normalized). Validated by `CanonicalFilePathSchema`, which is
+   * assert-only: this byte-faithful form is guaranteed at WRITE time
+   * (external-entry insert / rename), and on READ a stored value not already in
+   * that lexical form (a raw `./` / `..` / trailing-slash path) is REJECTED
+   * (surfaced via `rowToFileEntrySafe`'s warn-skip), never silently repaired —
+   * a byte-faithful path, including one carrying NFD Unicode, is accepted
+   * as-is. Rejecting rather than repairing keeps the lookup/dedup key stable,
+   * so a re-canonicalization migration is the only sanctioned way to fix
+   * historically non-canonical rows.
    */
-  externalPath: AbsolutePathSchema.refine((s) => {
-    // canonicalizeAbsolutePath throws on structural failures (non-absolute,
-    // contains \0) — both already surfaced by `AbsolutePathSchema`'s own
-    // refines, but Zod does not short-circuit on prior refine failure, so we
-    // must absorb the throw here. Failure → return false → schema rejects
-    // with the canonicalization message (and the prior issue is also
-    // reported, giving the caller the full picture).
-    try {
-      return s === canonicalizeAbsolutePath(s)
-    } catch {
-      return false
-    }
-  }, 'externalPath must be canonicalized via canonicalizeExternalPath() before persistence').transform(
-    (s): CanonicalFilePath => s as CanonicalFilePath
-  )
+  externalPath: CanonicalFilePathSchema
 })
 
 /**
@@ -400,7 +311,7 @@ export type DanglingState = z.infer<typeof DanglingStateSchema>
  * the file's ownership or registration status:
  * - `FileEntryHandle` carries a `FileEntryId` — the call goes through the entry
  *   system (FileManager, versionCache, DanglingCache, …).
- * - `FilePathHandle` carries an absolute `FilePath` — the call bypasses the
+ * - `FilePathHandle` carries an absolute `AbsoluteFilePath` — the call bypasses the
  *   entry system and hits `@main/utils/file/*` directly.
  *
  * The same physical file can be referenced by either form (with different
@@ -418,7 +329,7 @@ export type FileEntryHandle = {
 
 export type FilePathHandle = {
   readonly kind: 'path'
-  readonly path: FilePath
+  readonly path: AbsoluteFilePath
 }
 
 export type FileHandle = FileEntryHandle | FilePathHandle
@@ -436,7 +347,7 @@ export const FileEntryHandleSchema = z.strictObject({
 
 export const FilePathHandleSchema = z.strictObject({
   kind: z.literal('path'),
-  path: AbsolutePathSchema
+  path: AbsoluteFilePathSchema
 })
 
 export const FileHandleSchema = z.discriminatedUnion('kind', [FileEntryHandleSchema, FilePathHandleSchema])

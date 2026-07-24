@@ -1,4 +1,4 @@
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
@@ -186,7 +186,7 @@ vi.mock('@renderer/services/toast', () => ({
   toast: { error: mocks.toastError }
 }))
 
-const filePath = '/tmp/workspace/paper.pdf' as FilePath
+const filePath = '/tmp/workspace/paper.pdf' as AbsoluteFilePath
 
 function renderPreview(refreshKey = 0) {
   return render(<PdfFilePreview filePath={filePath} fileName="paper.pdf" refreshKey={refreshKey} />)

@@ -1,4 +1,4 @@
-import type { FilePath, FileUrlString } from '@shared/types/file'
+import type { AbsoluteFilePath, FileUrlString } from '@shared/types/file'
 import { describe, expect, it } from 'vitest'
 
 import { fileUrlToPath, isDangerExt, normalizeExt, toFileUrl, toSafeFileUrl } from '../url'
@@ -79,22 +79,22 @@ describe('isDangerExt', () => {
 
 describe('toFileUrl', () => {
   it('encodes unix paths with spaces and special chars', () => {
-    expect(toFileUrl('/foo/bar baz.pdf' as FilePath)).toBe('file:///foo/bar%20baz.pdf')
-    expect(toFileUrl('/foo/a#b.txt' as FilePath)).toBe('file:///foo/a%23b.txt')
-    expect(toFileUrl('/foo/a?b.txt' as FilePath)).toBe('file:///foo/a%3Fb.txt')
+    expect(toFileUrl('/foo/bar baz.pdf' as AbsoluteFilePath)).toBe('file:///foo/bar%20baz.pdf')
+    expect(toFileUrl('/foo/a#b.txt' as AbsoluteFilePath)).toBe('file:///foo/a%23b.txt')
+    expect(toFileUrl('/foo/a?b.txt' as AbsoluteFilePath)).toBe('file:///foo/a%3Fb.txt')
   })
 
   it('preserves Windows drive letters unencoded', () => {
-    expect(toFileUrl('C:\\foo\\bar baz.pdf' as FilePath)).toBe('file:///C:/foo/bar%20baz.pdf')
-    expect(toFileUrl('D:\\folder\\file.txt' as FilePath)).toBe('file:///D:/folder/file.txt')
+    expect(toFileUrl('C:\\foo\\bar baz.pdf' as AbsoluteFilePath)).toBe('file:///C:/foo/bar%20baz.pdf')
+    expect(toFileUrl('D:\\folder\\file.txt' as AbsoluteFilePath)).toBe('file:///D:/folder/file.txt')
   })
 
   it('normalizes backslashes to forward slashes', () => {
-    expect(toFileUrl('C:\\a\\b\\c.txt' as FilePath)).toBe('file:///C:/a/b/c.txt')
+    expect(toFileUrl('C:\\a\\b\\c.txt' as AbsoluteFilePath)).toBe('file:///C:/a/b/c.txt')
   })
 
   it('encodes non-ASCII characters', () => {
-    expect(toFileUrl('/foo/中文.pdf' as FilePath)).toBe('file:///foo/%E4%B8%AD%E6%96%87.pdf')
+    expect(toFileUrl('/foo/中文.pdf' as AbsoluteFilePath)).toBe('file:///foo/%E4%B8%AD%E6%96%87.pdf')
   })
 })
 
@@ -123,28 +123,28 @@ describe('fileUrlToPath', () => {
 
 describe('toSafeFileUrl', () => {
   it('returns the file URL for non-dangerous extensions', () => {
-    expect(toSafeFileUrl('/foo/bar.pdf' as FilePath, 'pdf')).toBe('file:///foo/bar.pdf')
-    expect(toSafeFileUrl('/foo/img.png' as FilePath, 'png')).toBe('file:///foo/img.png')
+    expect(toSafeFileUrl('/foo/bar.pdf' as AbsoluteFilePath, 'pdf')).toBe('file:///foo/bar.pdf')
+    expect(toSafeFileUrl('/foo/img.png' as AbsoluteFilePath, 'png')).toBe('file:///foo/img.png')
   })
 
   it('returns the dirname URL for dangerous extensions', () => {
-    expect(toSafeFileUrl('/foo/bar/payload.exe' as FilePath, 'exe')).toBe('file:///foo/bar')
-    expect(toSafeFileUrl('/foo/bar/payload.exe' as FilePath, '.exe')).toBe('file:///foo/bar')
-    expect(toSafeFileUrl('/foo/bar/icon.svg' as FilePath, 'svg')).toBe('file:///foo/bar')
+    expect(toSafeFileUrl('/foo/bar/payload.exe' as AbsoluteFilePath, 'exe')).toBe('file:///foo/bar')
+    expect(toSafeFileUrl('/foo/bar/payload.exe' as AbsoluteFilePath, '.exe')).toBe('file:///foo/bar')
+    expect(toSafeFileUrl('/foo/bar/icon.svg' as AbsoluteFilePath, 'svg')).toBe('file:///foo/bar')
   })
 
   it('returns the dirname for dangerous extension on Windows paths', () => {
-    expect(toSafeFileUrl('C:\\foo\\bar\\payload.exe' as FilePath, 'exe')).toBe('file:///C:/foo/bar')
+    expect(toSafeFileUrl('C:\\foo\\bar\\payload.exe' as AbsoluteFilePath, 'exe')).toBe('file:///C:/foo/bar')
   })
 
   it('handles null ext as safe (returns full file URL)', () => {
-    expect(toSafeFileUrl('/foo/bar' as FilePath, null)).toBe('file:///foo/bar')
+    expect(toSafeFileUrl('/foo/bar' as AbsoluteFilePath, null)).toBe('file:///foo/bar')
   })
 
   it('handles mixed separators when computing dirname', () => {
     // Defensive: mixed forward-slash / backslash inputs sometimes appear from
     // legacy IPC paths. The dirname should still pick the right cut point.
-    expect(toSafeFileUrl('/a/b\\c.exe' as FilePath, 'exe')).toBe('file:///a/b')
+    expect(toSafeFileUrl('/a/b\\c.exe' as AbsoluteFilePath, 'exe')).toBe('file:///a/b')
   })
 
   it('wraps root-level dangerous files (POSIX / Windows drive root)', () => {
@@ -153,7 +153,7 @@ describe('toSafeFileUrl', () => {
     // the original path here would defeat the entire safety contract — the
     // renderer would end up with `file:///payload.exe`, which `<embed>` /
     // `<img src>` can hand to OS file associations.
-    expect(toSafeFileUrl('/payload.exe' as FilePath, 'exe')).toBe('file:///')
-    expect(toSafeFileUrl('C:\\payload.exe' as FilePath, 'exe')).toBe('file:///C:')
+    expect(toSafeFileUrl('/payload.exe' as AbsoluteFilePath, 'exe')).toBe('file:///')
+    expect(toSafeFileUrl('C:\\payload.exe' as AbsoluteFilePath, 'exe')).toBe('file:///C:/')
   })
 })

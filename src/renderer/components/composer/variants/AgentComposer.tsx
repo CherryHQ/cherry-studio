@@ -66,9 +66,8 @@ import type { AgentEntity } from '@shared/data/types/agent'
 import type { FileUIPart } from '@shared/data/types/message'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { OutputFor } from '@shared/ipc/types'
-import type { FilePath } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
-import { canonicalizeAbsolutePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
+import { type CanonicalFilePath, canonicalizeFilePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
 import {
   Bot,
   Cable,
@@ -140,7 +139,7 @@ const FILE_IPC_BATCH_SIZE = 500
 
 type AccessibleAttachment = {
   attachment: ComposerAttachment
-  filePath: FilePath
+  filePath: CanonicalFilePath
   index: number
 }
 
@@ -170,7 +169,7 @@ const requestAccessiblePathMetadata = async (
 
 const buildAccessiblePathFilePart = (
   attachment: ComposerAttachment,
-  filePath: FilePath,
+  filePath: CanonicalFilePath,
   metadataByPath: OutputFor<'file.batch_get_metadata'>
 ): FileUIPart => {
   const metadata = metadataByPath[filePath]
@@ -201,7 +200,7 @@ const buildAgentFilePartsForAttachments = async (
     if (isPathWithinAccessiblePath(attachment.path, accessiblePaths)) {
       accessibleAttachments.push({
         attachment,
-        filePath: canonicalizeAbsolutePath(attachment.path) as FilePath,
+        filePath: canonicalizeFilePath(attachment.path),
         index
       })
       return

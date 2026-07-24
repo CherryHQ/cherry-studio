@@ -22,7 +22,8 @@ import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { isMac } from '@renderer/utils/platform'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { OutputFor } from '@shared/ipc/types'
-import type { FilePath, FileType } from '@shared/types/file'
+import type { AbsoluteFilePath, FileType } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFileEntryHandle, getFileTypeByExt, toSafeFileUrl } from '@shared/utils/file'
 import { ArrowLeft, MoreHorizontal, Upload } from 'lucide-react'
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
@@ -51,7 +52,7 @@ type FileBatchMutationRoute = 'file.batch_trash' | 'file.batch_restore' | 'file.
 
 interface EmbeddedFilePreview {
   fileName: string
-  filePath: FilePath
+  filePath: AbsoluteFilePath
   refreshKey: number
 }
 
@@ -130,7 +131,7 @@ async function requestBatchedInternalEntryCreates(paths: readonly string[]): Pro
   const results = await Promise.all(
     chunks.map((chunk) =>
       ipcApi.request('file.batch_create_internal_entries', {
-        items: chunk.map((path) => ({ source: 'path' as const, path }))
+        items: chunk.map((path) => ({ source: 'path' as const, path: AbsoluteFilePathSchema.parse(path) }))
       })
     )
   )
@@ -202,7 +203,7 @@ function toFileItem(
       ...base,
       ...originFields,
       type,
-      previewUrl: physicalPath ? toSafeFileUrl(physicalPath as FilePath, entry.ext) : undefined
+      previewUrl: physicalPath ? toSafeFileUrl(physicalPath, entry.ext) : undefined
     }
   }
 

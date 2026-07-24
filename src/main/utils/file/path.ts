@@ -9,7 +9,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { isMac, isWin } from '@main/core/platform'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 const notImplemented = (op: string): never => {
   throw new Error(`@main/utils/file/path.${op}: not implemented (deferred to Phase 2)`)
@@ -64,7 +64,7 @@ export function isUnderInternalStorage(target: string): boolean {
 }
 
 /** Check if a path is writable for the current process. */
-export async function canWrite(target: FilePath): Promise<boolean> {
+export async function canWrite(target: AbsoluteFilePath): Promise<boolean> {
   try {
     await access(target, constants.W_OK)
     return true
@@ -74,6 +74,6 @@ export async function canWrite(target: FilePath): Promise<boolean> {
 }
 
 /** Check if a directory is non-empty. */
-export async function isNotEmptyDir(_path: FilePath): Promise<boolean> {
+export async function isNotEmptyDir(_path: AbsoluteFilePath): Promise<boolean> {
   return notImplemented('isNotEmptyDir')
 }

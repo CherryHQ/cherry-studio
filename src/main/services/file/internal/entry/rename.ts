@@ -14,9 +14,8 @@ import { loggerService } from '@logger'
 import { exists, isSameFile, move as fsMove } from '@main/utils/file'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import { SafeNameSchema } from '@shared/data/types/file'
-import type { FilePath } from '@shared/types/file'
+import { canonicalizeFilePath } from '@shared/utils/file'
 
-import { canonicalizeExternalPath } from '../../utils/pathResolver'
 import type { FileManagerDeps } from '../deps'
 
 const logger = loggerService.withContext('internal/entry/rename')
@@ -34,17 +33,18 @@ export async function rename(deps: FileManagerDeps, id: FileEntryId, newName: st
     return deps.fileEntryService.update(id, { name: newName })
   }
   // entry.origin === 'external' from here on; the schema discriminator
-  // guarantees externalPath is present as `AbsolutePathSchema` (no `null`
+  // guarantees externalPath is present as `AbsoluteFilePathSchema` (no `null`
   // branch exists on ExternalEntrySchema), so the prior defensive
   // `if (!entry.externalPath)` throw was unreachable and has been removed.
   const dir = path.dirname(entry.externalPath)
   const ext = entry.ext ? `.${entry.ext}` : ''
-  // Canonicalize the target so the no-op check below tolerates NFC/NFD,
-  // trailing-separator, and `.`/`..` noise — `entry.externalPath` is already
-  // canonical (written through `ensureExternalEntry`), so string equality
-  // here is a reliable "same logical path" test.
+  // Canonicalize the target so the no-op check below tolerates trailing-
+  // separator and `.`/`..` noise — `entry.externalPath` is already canonical
+  // (byte-faithful, written through `ensureExternalEntry`), so string equality
+  // here is a reliable "same byte path" test. Canonicalization is byte-faithful
+  // (no NFC), so NFC and NFD spellings of a name are distinct targets.
   const oldPath = entry.externalPath
-  const target = canonicalizeExternalPath(path.join(dir, `${newName}${ext}`))
+  const target = canonicalizeFilePath(path.join(dir, `${newName}${ext}`))
   // Defense in depth: `SafeNameSchema.parse(newName)` above already rejects
   // path separators and `..`, but a future regression in the schema (or any
   // canonicalization behaviour change) must not be able to relocate the
@@ -55,17 +55,17 @@ export async function rename(deps: FileManagerDeps, id: FileEntryId, newName: st
   if (target === entry.externalPath) {
     return entry
   }
-  if (await exists(target as FilePath)) {
+  if (await exists(target)) {
     // On case-insensitive filesystems (macOS APFS / Windows NTFS) a
     // `Foo.pdf → foo.pdf` rename hits this branch because `exists` reports
     // the file under its on-disk case. If both paths resolve to the same
     // inode it's a legitimate case-only rename — fall through to `fsMove`,
     // which the OS treats as an in-place case fix.
-    if (!(await isSameFile(target as FilePath, oldPath))) {
+    if (!(await isSameFile(target, oldPath))) {
       throw new Error(`rename: target path already exists: ${target}`)
     }
   }
-  await fsMove(oldPath, target as FilePath)
+  await fsMove(oldPath, target)
   const canonical = target
   // Single atomic DB write — `setExternalPathAndName` is the only sanctioned
   // mutation site for `externalPath`. Doing both column changes in one
@@ -86,7 +86,7 @@ export async function rename(deps: FileManagerDeps, id: FileEntryId, newName: st
     renamed = deps.fileEntryService.setExternalPathAndName(id, canonical, newName)
   } catch (dbErr) {
     try {
-      await fsMove(canonical as FilePath, oldPath)
+      await fsMove(canonical, oldPath)
     } catch (rollbackErr) {
       logger.warn('rename: FS-DB skew — file moved to target but DB update failed, and rollback failed', {
         id,
@@ -107,7 +107,7 @@ export async function rename(deps: FileManagerDeps, id: FileEntryId, newName: st
   // Reverse-index swap. The old path is fully invalidated; the new path
   // takes over with a fresh 'present' observation since fsMove just succeeded.
   deps.danglingCache.removeEntry(id, oldPath)
-  deps.danglingCache.addEntry(id, canonical as FilePath)
-  deps.danglingCache.onFsEvent(canonical as FilePath, 'present', 'ops')
+  deps.danglingCache.addEntry(id, canonical)
+  deps.danglingCache.onFsEvent(canonical, 'present', 'ops')
   return renamed
 }

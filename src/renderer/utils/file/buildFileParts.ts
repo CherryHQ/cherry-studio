@@ -15,7 +15,7 @@
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { FileUIPart } from '@shared/data/types/message'
 import { withCherryMeta } from '@shared/data/types/uiParts'
-import type { FilePath } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 
 export function withComposerFilePartMeta(
@@ -35,11 +35,20 @@ export function withComposerFilePartMeta(
  * FileEntry (Cherry copies the bytes into its own storage) and return a
  * `FileUIPart` that carries the new `fileEntryId` plus a `file://` URL
  * pointing at the freshly-copied physical file.
+ *
+ * `attachment.path` is validated through `AbsoluteFilePathSchema.parse` (not an `as`
+ * cast). Any failure — a non-absolute / malformed path, or a rejected
+ * `createInternalEntry` — rejects the whole batch, so the caller's send-flow
+ * try/catch surfaces it (toast + keep editing) rather than silently dropping a
+ * file the user attached.
  */
 export async function buildFilePartsForAttachments(attachments: ComposerAttachment[]): Promise<FileUIPart[]> {
   return Promise.all(
     attachments.map(async (attachment) => {
-      const entry = await window.api.file.createInternalEntry({ source: 'path', path: attachment.path as FilePath })
+      const entry = await window.api.file.createInternalEntry({
+        source: 'path',
+        path: AbsoluteFilePathSchema.parse(attachment.path)
+      })
       const physicalPath = await window.api.file.getPhysicalPath({ id: entry.id })
       const metadata = await window.api.file.getMetadata(createFilePathHandle(physicalPath))
       const basePart: FileUIPart = {

@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
-import { type FileInfo, FileInfoSchema } from '@shared/types/file'
+import { FileInfoSchema } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -53,7 +53,7 @@ const documentFile = FileInfoSchema.parse({
   type: 'document',
   createdAt: 1,
   modifiedAt: 1
-}) as FileInfo
+})
 
 const imageFile = FileInfoSchema.parse({
   path: '/tmp/input.png',
@@ -64,7 +64,7 @@ const imageFile = FileInfoSchema.parse({
   type: 'image',
   createdAt: 1,
   modifiedAt: 1
-}) as FileInfo
+})
 
 function createConfig(feature: 'image_to_text' | 'document_to_markdown', modelId: string): FileProcessorMerged {
   return {

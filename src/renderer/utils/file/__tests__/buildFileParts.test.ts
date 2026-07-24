@@ -68,6 +68,16 @@ describe('buildFilePartsForAttachments', () => {
     expect(part.url).toBe('file:///p/fe-3.pdf')
   })
 
+  it('rejects the whole batch when an attachment path is non-absolute (send flow surfaces it)', async () => {
+    // A non-absolute path fails `AbsoluteFilePathSchema.parse`, which rejects the
+    // Promise.all batch rather than silently dropping the attachment — the
+    // caller's send-flow try/catch turns that into a toast + keep-editing.
+    const goodAttachment = attachment()
+    const badAttachment = attachment({ path: 'not-absolute.png', name: 'bad.png' })
+
+    await expect(buildFilePartsForAttachments([goodAttachment, badAttachment])).rejects.toThrow(/absolute/i)
+  })
+
   it('keeps the safe pasted-text marker on the sent file part', async () => {
     const [part] = await buildFilePartsForAttachments([
       attachment({

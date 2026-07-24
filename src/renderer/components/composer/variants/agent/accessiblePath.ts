@@ -7,7 +7,7 @@
 // case-insensitivity handling resolved first, so this module stays an
 // agent-local stopgap until then.
 import { isMac, isWin } from '@renderer/utils/platform'
-import { canonicalizeAbsolutePath } from '@shared/utils/file'
+import { canonicalizeFilePath } from '@shared/utils/file'
 
 /**
  * Case-folding matches the main-side `isPathInside` (`src/main/utils/file/path.ts`):
@@ -23,10 +23,10 @@ const withTrailingSlash = (value: string) => (value.endsWith('/') ? value : `${v
 
 /** Canonicalized, `/`-separated form of an accessible base path, or null if the match fails. */
 const findAccessibleBasePath = (filePath: string, accessiblePaths: readonly string[]): string | null => {
-  const comparisonFilePath = toComparisonKey(normalizeSeparators(canonicalizeAbsolutePath(filePath)))
+  const comparisonFilePath = toComparisonKey(normalizeSeparators(canonicalizeFilePath(filePath)))
 
   for (const basePath of accessiblePaths) {
-    const normalizedBasePath = normalizeSeparators(canonicalizeAbsolutePath(basePath))
+    const normalizedBasePath = normalizeSeparators(canonicalizeFilePath(basePath))
     const comparisonBasePath = toComparisonKey(normalizedBasePath)
     if (
       comparisonFilePath === comparisonBasePath ||
@@ -47,5 +47,5 @@ export const isPathWithinAccessiblePath = (filePath: string, accessiblePaths: re
 export const getAccessiblePathRelativePath = (filePath: string, accessiblePaths: readonly string[]): string => {
   const basePath = findAccessibleBasePath(filePath, accessiblePaths)
   if (basePath === null) return filePath
-  return normalizeSeparators(canonicalizeAbsolutePath(filePath)).slice(withTrailingSlash(basePath).length)
+  return normalizeSeparators(canonicalizeFilePath(filePath)).slice(withTrailingSlash(basePath).length)
 }

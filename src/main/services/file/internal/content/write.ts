@@ -1,5 +1,5 @@
 /**
- * Write content to a managed FileEntry or a raw FilePath.
+ * Write content to a managed FileEntry or a raw AbsoluteFilePath.
  *
  * Pure functions taking `FileManagerDeps` as the first argument. Each entry-
  * aware write goes through `atomicWriteFile` (or `atomicWriteIfUnchanged`)
@@ -22,7 +22,7 @@ import {
   stat as fsStat
 } from '@main/utils/file'
 import type { FileEntryId } from '@shared/data/types/file'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { type FileVersion, StaleVersionError } from '../../FileManager'
 import { resolvePhysicalPath } from '../../utils/pathResolver'
@@ -120,13 +120,17 @@ export function createWriteStream(deps: FileManagerDeps, id: FileEntryId): Atomi
   return stream
 }
 
-export async function writeByPath(_deps: FileManagerDeps, target: FilePath, data: string | Uint8Array): Promise<void> {
+export async function writeByPath(
+  _deps: FileManagerDeps,
+  target: AbsoluteFilePath,
+  data: string | Uint8Array
+): Promise<void> {
   await atomicWriteFile(target, data)
 }
 
 export async function writeIfUnchangedByPath(
   _deps: FileManagerDeps,
-  target: FilePath,
+  target: AbsoluteFilePath,
   data: string | Uint8Array,
   expected: { mtime: number; size: number },
   expectedContentHash?: string

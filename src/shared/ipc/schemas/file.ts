@@ -1,12 +1,6 @@
-import {
-  AbsolutePathSchema,
-  DanglingStateSchema,
-  FileEntryIdSchema,
-  FileEntrySchema,
-  SafeNameSchema
-} from '@shared/data/types/file'
+import { DanglingStateSchema, FileEntryIdSchema, FileEntrySchema, SafeNameSchema } from '@shared/data/types/file'
 import { FileHandleSchema } from '@shared/data/types/file'
-import { PhysicalFileMetadataSchema, SafeExtSchema } from '@shared/types/file'
+import { AbsoluteFilePathSchema, PhysicalFileMetadataSchema, SafeExtSchema } from '@shared/types/file'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
@@ -35,14 +29,14 @@ const batchCreateResultSchema = z.strictObject({
 })
 
 // TODO(file-ipc): Unify these schemas with the branded transport types in
-// `src/shared/types/file/ipc.ts`. `FilePath`, `Base64String`, and `UrlString` are
+// `src/shared/types/file/ipc.ts`. `AbsoluteFilePath`, `Base64String`, and `UrlString` are
 // TS-only aliases while their runtime schemas live elsewhere, so a successful
 // Zod parse still cannot prove `CreateInternalEntryIpcParams` without an `as`
 // cast in the handler. Keeping the type and schema definitions separate risks
 // future drift; refactor them to share one source of truth before migrating the
 // remaining File IPC surface.
 const createInternalEntryInputSchema = z.discriminatedUnion('source', [
-  z.strictObject({ source: z.literal('path'), path: AbsolutePathSchema }),
+  z.strictObject({ source: z.literal('path'), path: AbsoluteFilePathSchema }),
   z.strictObject({ source: z.literal('url'), url: z.url() }),
   z.strictObject({ source: z.literal('base64'), data: z.string().min(1), name: SafeNameSchema.optional() }),
   z.strictObject({
@@ -70,7 +64,7 @@ export const fileRequestSchemas = {
   }),
   'file.batch_get_physical_paths': defineRoute({
     input: fileEntryIdsInputSchema,
-    output: z.record(z.string(), AbsolutePathSchema.nullable())
+    output: z.record(z.string(), AbsoluteFilePathSchema.nullable())
   }),
   'file.batch_get_dangling_states': defineRoute({
     input: fileEntryIdsInputSchema,

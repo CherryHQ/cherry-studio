@@ -22,6 +22,8 @@ vi.mock('@main/services/file', async () => {
   }
 })
 
+import type { AbsoluteFilePath } from '@shared/types/file'
+
 import { fileHandlers } from '../file'
 
 const ids = ['019606a0-0000-7000-8000-000000000001', '019606a0-0000-7000-8000-000000000002']
@@ -65,7 +67,7 @@ describe('fileHandlers', () => {
   it('batch_get_metadata dispatches FileHandle items inside the IPC adapter', async () => {
     const items = [
       { key: ids[0], handle: { kind: 'entry' as const, entryId: ids[0] } },
-      { key: '/tmp/a.txt', handle: { kind: 'path' as const, path: '/tmp/a.txt' } },
+      { key: '/tmp/a.txt', handle: { kind: 'path' as const, path: '/tmp/a.txt' as AbsoluteFilePath } },
       { key: ids[1], handle: { kind: 'entry' as const, entryId: ids[1] } }
     ]
     fileManager.getMetadata.mockResolvedValueOnce(metadata).mockRejectedValueOnce(new Error('ENOENT'))
@@ -130,8 +132,8 @@ describe('fileHandlers', () => {
   })
 
   it('dispatches path system commands without FileManager entry lookup', async () => {
-    await fileHandlers['file.open']({ kind: 'path', path: '/tmp/report.md' }, ctx)
-    await fileHandlers['file.show_in_folder']({ kind: 'path', path: '/tmp/report.md' }, ctx)
+    await fileHandlers['file.open']({ kind: 'path', path: '/tmp/report.md' as AbsoluteFilePath }, ctx)
+    await fileHandlers['file.show_in_folder']({ kind: 'path', path: '/tmp/report.md' as AbsoluteFilePath }, ctx)
 
     expect(safeOpenMock).toHaveBeenCalledWith('/tmp/report.md')
     expect(showPathInFolderMock).toHaveBeenCalledWith('/tmp/report.md')
@@ -142,8 +144,8 @@ describe('fileHandlers', () => {
   it('delegates internal-entry batch create items to FileManager', async () => {
     const result = { succeeded: [{ id: ids[0], sourceRef: '/tmp/a.txt' }], failed: [] }
     const items = [
-      { source: 'path' as const, path: '/tmp/a.txt' },
-      { source: 'path' as const, path: '/tmp/b.txt' }
+      { source: 'path' as const, path: '/tmp/a.txt' as AbsoluteFilePath },
+      { source: 'path' as const, path: '/tmp/b.txt' as AbsoluteFilePath }
     ]
     fileManager.batchCreateInternalEntries.mockResolvedValue(result)
 
