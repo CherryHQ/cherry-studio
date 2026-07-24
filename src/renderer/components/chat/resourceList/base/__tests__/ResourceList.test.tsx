@@ -24,6 +24,7 @@ const virtualMocks = vi.hoisted(() => ({
         size: 40
       })),
     getTotalSize: () => options.count * 40,
+    measure: vi.fn(),
     measureElement: vi.fn(),
     scrollElement: null,
     scrollToIndex: virtualMocks.scrollToIndex

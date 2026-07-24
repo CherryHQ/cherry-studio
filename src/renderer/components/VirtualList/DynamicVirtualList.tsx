@@ -1,7 +1,16 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
 import type { Range, ScrollToOptions, VirtualItem, VirtualizerOptions } from '@tanstack/react-virtual'
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
-import React, { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 
 const SCROLLBAR_AUTO_HIDE_DELAY = 2000
 const STICKY_ITEM_Z_INDEX = 1
@@ -258,6 +267,16 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
       handleScrollbarHide(instance.isScrolling)
     }
   })
+  const previousListLengthRef = useRef(list.length)
+
+  useLayoutEffect(() => {
+    const wasEmpty = previousListLengthRef.current === 0
+    previousListLengthRef.current = list.length
+
+    if (wasEmpty && list.length > 0) {
+      virtualizer.measure()
+    }
+  }, [list.length, virtualizer])
 
   useEffect(() => {
     return () => {
