@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import { PortalContainerProvider } from '@cherrystudio/ui/components/primitives/portal-container'
+import {
+  DialogPortalContainerProvider,
+  PortalContainerProvider
+} from '@cherrystudio/ui/components/primitives/portal-container'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import * as React from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -230,6 +233,23 @@ describe('PageSidePanel', () => {
       )
     }
 
+    function PageLevelPanel() {
+      const [pageContainer, setPageContainer] = React.useState<HTMLDivElement | null>(null)
+      const [nestedContainer, setNestedContainer] = React.useState<HTMLDivElement | null>(null)
+
+      return (
+        <div ref={setPageContainer} data-testid="page-portal-root">
+          <div ref={setNestedContainer} data-testid="nested-portal-root">
+            <DialogPortalContainerProvider container={pageContainer}>
+              <PortalContainerProvider container={nestedContainer}>
+                <PageSidePanel open={true} onClose={vi.fn()} />
+              </PortalContainerProvider>
+            </DialogPortalContainerProvider>
+          </div>
+        </div>
+      )
+    }
+
     it('uses the design shell classes by default', () => {
       render(
         <PageSidePanel open={true} onClose={vi.fn()} header={<span>Panel title</span>}>
@@ -286,11 +306,20 @@ describe('PageSidePanel', () => {
       expect(backdrop?.parentElement).toBe(root)
     })
 
-    it('uses absolute positioning when portaled into a provided container', async () => {
+    it('prefers the page-level dialog portal over a nested floating-overlay container', async () => {
+      render(<PageLevelPanel />)
+
+      const pageRoot = screen.getByTestId('page-portal-root')
+      const nestedRoot = screen.getByTestId('nested-portal-root')
+      await waitFor(() => expect(screen.getByRole('dialog').parentElement).toBe(pageRoot))
+      expect(nestedRoot.querySelector('[data-slot="page-side-panel"]')).not.toBeInTheDocument()
+    })
+
+    it('keeps a container-positioned panel scoped while the backdrop covers the viewport', async () => {
       render(<ScopedPanel />)
 
       await waitFor(() => expect(screen.getByRole('dialog')).toHaveClass('absolute'))
-      expect(document.querySelector('[data-slot="page-side-panel-backdrop"]')).toHaveClass('absolute')
+      expect(document.querySelector('[data-slot="page-side-panel-backdrop"]')).toHaveClass('fixed', 'inset-0')
     })
 
     it('applies design inset classes by default', () => {

@@ -4,7 +4,7 @@ import { type ButtonHTMLAttributes, createElement, type HTMLAttributes } from 'r
 export const WindowControlsContainer = ({ className, ...props }: HTMLAttributes<HTMLDivElement>) =>
   createElement('div', {
     ...props,
-    className: cn('z-[9999] flex h-full min-h-0 select-none items-stretch [-webkit-app-region:no-drag]', className)
+    className: cn('flex h-full min-h-0 select-none items-stretch [-webkit-app-region:no-drag]', className)
   })
 
 export const ControlButton = ({
