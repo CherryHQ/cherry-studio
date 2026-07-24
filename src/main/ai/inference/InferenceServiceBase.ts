@@ -241,6 +241,16 @@ export abstract class InferenceServiceBase extends BaseService {
   }
 
   /**
+   * Recreates the worker after its current request so process-level environment
+   * changes take effect without rejecting in-flight inference. Higher priority
+   * puts the restart ahead of already-queued and newly-arriving requests.
+   */
+  async restartAfterCurrentRequest(): Promise<void> {
+    this.clearIdleReleaseTimer()
+    await this.queue.add(() => this.terminate(), { priority: 1 })
+  }
+
+  /**
    * Kill the worker (cancels any in-flight download and frees the model).
    * Pending requests reject immediately, but the returned promise only
    * resolves once the OS thread has actually exited — callers that delete

@@ -365,6 +365,25 @@ describe('InferenceService request queue', () => {
     await expect(second).resolves.toEqual([[0.2]])
   })
 
+  it('restarts after the current request and before an already-queued request', async () => {
+    const first = embeddingInferenceService.embed(['a'], SOURCE, 'org/model', 'q8')
+    const worker = fakeWorkers.at(-1)!
+    const second = embeddingInferenceService.embed(['b'], SOURCE, 'org/model', 'q8')
+
+    const restarted = embeddingInferenceService.restartAfterCurrentRequest()
+    expect(worker.terminate).not.toHaveBeenCalled()
+
+    worker.emit('message', { type: 'result', id: lastRequestId(worker), embeddings: [[0.1]] })
+    await first
+    await restarted
+
+    expect(worker.terminate).toHaveBeenCalledTimes(1)
+    const replacement = fakeWorkers.at(-1)!
+    expect(replacement).not.toBe(worker)
+    replacement.emit('message', { type: 'result', id: lastRequestId(replacement), embeddings: [[0.2]] })
+    await expect(second).resolves.toEqual([[0.2]])
+  })
+
   it('rejects a queued request immediately once dequeued if its signal was already aborted while waiting', async () => {
     const first = embeddingInferenceService.embed(['a'], SOURCE, 'org/model', 'q8')
     const worker = fakeWorkers.at(-1)!

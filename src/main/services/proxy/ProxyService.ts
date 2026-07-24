@@ -129,6 +129,7 @@ export class ProxyService extends BaseService {
     else this.clearSystemProxyMonitor()
 
     await this.setGlobalProxy(config)
+    this.restartInferenceWorkers()
     this.appliedKey = proxyConfigKey(config)
   }
 
@@ -155,6 +156,15 @@ export class ProxyService extends BaseService {
   private getNodeProxyController(): NodeProxyController {
     this.nodeProxyController ??= new NodeProxyController(logger)
     return this.nodeProxyController
+  }
+
+  private restartInferenceWorkers(): void {
+    void Promise.all([
+      application.get('EmbeddingInferenceService').restartAfterCurrentRequest(),
+      application.get('OcrInferenceService').restartAfterCurrentRequest()
+    ]).catch((error) => {
+      logger.warn('Failed to restart inference workers after proxy change', error as Error)
+    })
   }
 
   private async setSessionsProxy(config: ProxyConfig): Promise<void> {
