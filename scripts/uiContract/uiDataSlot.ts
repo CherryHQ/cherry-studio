@@ -107,8 +107,15 @@ export function UiDataSlot({
   // slot implementations may forward behavior props without forwarding data-ui.
   if (Object.keys(slotProps).length === 0 && ref == null) return children
   const slotDataUi = typeof slotProps['data-ui'] === 'string' ? slotProps['data-ui'] : ''
-  // eslint-disable-next-line @eslint-react/no-children-count -- a slot must validate its single child, like Radix's SlotClone.
-  if (Children.count(children) !== 1 || !isValidElement(children)) return null
+  // eslint-disable-next-line @eslint-react/no-children-count -- a slot must validate its single child, like Radix's Slot.
+  if (Children.count(children) !== 1 || !isValidElement(children)) {
+    // Verbatim Radix Slot semantics: empty children render as-is; anything else
+    // that cannot slot is an authoring error and must throw, never vanish.
+    if (children || children === 0) {
+      throw new Error('UiDataSlot failed to slot onto its children. Expected a single React element child.')
+    }
+    return children
+  }
   const child = children
 
   const childProps = child.props as AnyProps
