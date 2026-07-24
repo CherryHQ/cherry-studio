@@ -179,6 +179,7 @@ interface RenderGroupedEntryOptions {
   enableAnimation?: boolean
   expandedTextPartIds?: ReadonlySet<string>
   readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
+  onTextPlayoutSettledChange?: (partId: string, settled: boolean) => void
   onTextPartExpandedChange?: (partId: string, expanded: boolean) => void
   reasoningDisplay?: 'content' | 'disclosure'
   settleActiveTools?: boolean
@@ -533,6 +534,7 @@ function renderPart(
           composer={cherryMeta?.composer}
           readOnlyFilePreviews={options?.readOnlyFilePreviews}
           userContentExpanded={message.role === 'user' ? options?.expandedTextPartIds?.has(partId) : undefined}
+          onPlayoutSettledChange={options?.onTextPlayoutSettledChange}
           onUserContentExpandedChange={
             message.role === 'user' && options?.onTextPartExpandedChange
               ? (expanded) => options.onTextPartExpandedChange?.(partId, expanded)
@@ -546,7 +548,14 @@ function renderPart(
       const codeData = (part as { data: { content: string; language?: string } }).data
       const codeContent = `\`\`\`${codeData.language ?? ''}\n${codeData.content}\n\`\`\``
       return (
-        <MainTextBlock key={partId} id={partId} content={codeContent} isStreaming={isStreaming} role={message.role} />
+        <MainTextBlock
+          key={partId}
+          id={partId}
+          content={codeContent}
+          isStreaming={isStreaming}
+          role={message.role}
+          onPlayoutSettledChange={options?.onTextPlayoutSettledChange}
+        />
       )
     }
 
@@ -1253,6 +1262,9 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     wasActiveTurnProcessingRef.current = isActiveTurnProcessing
   }, [isActiveTurnProcessing, requestFollowRecovery])
   const [expandedTextPartIds, setExpandedTextPartIds] = React.useState<ReadonlySet<string>>(() => new Set())
+  const [unsettledTextPlayoutPartIds, setUnsettledTextPlayoutPartIds] = React.useState<ReadonlySet<string>>(
+    () => new Set()
+  )
   const handleTextPartExpandedChange = React.useCallback((partId: string, expanded: boolean) => {
     setExpandedTextPartIds((current) => {
       const hasPartId = current.has(partId)
@@ -1263,6 +1275,20 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
         next.add(partId)
       } else {
         next.delete(partId)
+      }
+      return next
+    })
+  }, [])
+  const handleTextPlayoutSettledChange = React.useCallback((partId: string, settled: boolean) => {
+    setUnsettledTextPlayoutPartIds((current) => {
+      const isUnsettled = current.has(partId)
+      if (isUnsettled === !settled) return current
+
+      const next = new Set(current)
+      if (settled) {
+        next.delete(partId)
+      } else {
+        next.add(partId)
       }
       return next
     })
@@ -1296,10 +1322,13 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     () => ({
       expandedTextPartIds,
       readOnlyFilePreviews,
+      onTextPlayoutSettledChange: handleTextPlayoutSettledChange,
       onTextPartExpandedChange: handleTextPartExpandedChange
     }),
-    [expandedTextPartIds, handleTextPartExpandedChange, readOnlyFilePreviews]
+    [expandedTextPartIds, handleTextPartExpandedChange, handleTextPlayoutSettledChange, readOnlyFilePreviews]
   )
+  const canRenderReportArtifacts =
+    !isActiveTurnProcessing && unsettledTextPlayoutPartIds.size === 0 && reportArtifactToolResponses.length > 0
 
   // No parts to render — normal for user messages (content is in message text, not parts)
   // But if the message is processing (pending/streaming), show the loading placeholder
@@ -1328,8 +1357,8 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
         message={message}
         renderOptions={renderOptions}
       />
-      {reportArtifactToolResponses.length > 0 && (
-        <AnimatedBlockWrapper key={`report-artifacts-${message.id}`} enableAnimation={isStreamLive} animation="fade">
+      {canRenderReportArtifacts && (
+        <AnimatedBlockWrapper key={`report-artifacts-${message.id}`} enableAnimation={false} animation="fade">
           <MessageReportArtifacts toolResponses={reportArtifactToolResponses} />
         </AnimatedBlockWrapper>
       )}

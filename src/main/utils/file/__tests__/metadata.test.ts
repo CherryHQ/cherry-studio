@@ -74,6 +74,13 @@ describe('decodeTextBufferIfText', () => {
     expect(decodeTextBufferIfText(iconv.encode(text, encoding))).toBe(text)
   })
 
+  it('accepts a truncated sample that ends inside a UTF-8 character', () => {
+    const text = `${'a'.repeat(8191)}中文`
+    const sample = Buffer.from(text).subarray(0, 8192)
+
+    expect(decodeTextBufferIfText(sample, { sampleMayBeTruncated: true })).toBe('a'.repeat(8191))
+  })
+
   it.each([
     ['PDF', Buffer.from('%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj')],
     ['ZIP', Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00, 0x08, 0x00, 0xff, 0x00, 0x80, 0x01])],

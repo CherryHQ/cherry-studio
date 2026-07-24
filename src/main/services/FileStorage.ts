@@ -1028,12 +1028,16 @@ class FileStorage {
     try {
       const length = 8 * KB
       const fileHandle = await fs.promises.open(filePath, 'r')
-      const buffer = Buffer.alloc(length)
-      const { bytesRead } = await fileHandle.read(buffer, 0, length, 0)
-      await fileHandle.close()
+      try {
+        const buffer = Buffer.alloc(length)
+        const fileSize = (await fileHandle.stat()).size
+        const { bytesRead } = await fileHandle.read(buffer, 0, length, 0)
 
-      const sampleBuffer = buffer.subarray(0, bytesRead)
-      return decodeTextBufferIfText(sampleBuffer) !== null
+        const sampleBuffer = buffer.subarray(0, bytesRead)
+        return decodeTextBufferIfText(sampleBuffer, { sampleMayBeTruncated: bytesRead < fileSize }) !== null
+      } finally {
+        await fileHandle.close()
+      }
     } catch (error) {
       logger.error('Failed to check if file is text:', error as Error)
       return false

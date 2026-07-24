@@ -32,6 +32,7 @@ interface Props {
   composer?: ComposerMessageSnapshot
   readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
   userContentExpanded?: boolean
+  onPlayoutSettledChange?: (partId: string, settled: boolean) => void
   onUserContentExpandedChange?: (expanded: boolean) => void
 }
 
@@ -260,6 +261,7 @@ const MainTextBlock: React.FC<Props> = ({
   composer,
   readOnlyFilePreviews,
   userContentExpanded,
+  onPlayoutSettledChange,
   onUserContentExpandedChange
 }) => {
   const { renderInputMessageAsMarkdown } = useMessageRenderConfig()
@@ -296,6 +298,17 @@ const MainTextBlock: React.FC<Props> = ({
   useEffect(() => {
     updateSmoothStream(content, !isStreaming)
   }, [content, isStreaming, updateSmoothStream])
+
+  const isPlayoutSettled = !isStreaming && smoothedContent === content
+  useEffect(() => {
+    onPlayoutSettledChange?.(id, isPlayoutSettled)
+  }, [id, isPlayoutSettled, onPlayoutSettledChange])
+  useEffect(
+    () => () => {
+      onPlayoutSettledChange?.(id, true)
+    },
+    [id, onPlayoutSettledChange]
+  )
 
   const block: MarkdownSource = {
     id,
