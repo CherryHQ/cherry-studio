@@ -2735,11 +2735,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.13
+          "perMillionTokens": 0.15
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.52
+          "perMillionTokens": 0.6
         }
       }
     },
@@ -4637,7 +4637,7 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "image-recognition", "audio-recognition", "file-input"],
-      "contextWindow": 524288,
+      "contextWindow": 1048576,
       "family": "ling",
       "id": "inkling",
       "inputModalities": ["text", "image", "audio"],
@@ -4731,6 +4731,28 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.03
+        }
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning"],
+      "contextWindow": 262144,
+      "family": "ling",
+      "id": "ling-3-0-flash",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 256000,
+      "metadata": {},
+      "name": "Ling 3.0 Flash",
+      "outputModalities": ["text"],
+      "ownedBy": "bailing",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
         }
       }
     },
@@ -6928,6 +6950,74 @@
     {
       "capabilities": [
         "function-call",
+        "reasoning",
+        "image-recognition",
+        "image-generation",
+        "audio-recognition",
+        "video-recognition",
+        "file-input"
+      ],
+      "contextWindow": 1048576,
+      "family": "gemini-pro",
+      "id": "deep-research-max-preview-04-2026",
+      "inputModalities": ["text", "image", "video", "audio"],
+      "maxOutputTokens": 65536,
+      "metadata": {},
+      "name": "Deep Research Max Preview",
+      "outputModalities": ["text", "image"],
+      "ownedBy": "google",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 12
+        }
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "image-generation",
+        "audio-recognition",
+        "video-recognition",
+        "file-input"
+      ],
+      "contextWindow": 1048576,
+      "family": "gemini-pro",
+      "id": "deep-research-preview-04-2026",
+      "inputModalities": ["text", "image", "video", "audio"],
+      "maxOutputTokens": 65536,
+      "metadata": {},
+      "name": "Gemini Deep Research Preview",
+      "outputModalities": ["text", "image"],
+      "ownedBy": "google",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 12
+        }
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
         "image-recognition",
         "audio-recognition",
         "video-recognition",
@@ -6986,6 +7076,28 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.3
+        }
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "web-search"],
+      "contextWindow": 128000,
+      "family": "gemini-pro",
+      "id": "gemini-2-5-computer-use-preview-10-2025",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 64000,
+      "metadata": {},
+      "name": "Gemini 2.5 Computer Use Preview",
+      "outputModalities": ["text"],
+      "ownedBy": "google",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
         }
       }
     },
@@ -7585,7 +7697,14 @@
       }
     },
     {
-      "capabilities": ["reasoning", "image-recognition", "image-generation", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "image-generation",
+        "structured-output",
+        "file-input"
+      ],
       "contextWindow": 65536,
       "family": "gemini",
       "id": "gemini-3-1-flash-lite-image",
@@ -7612,15 +7731,16 @@
       "reasoning": {
         "controls": [
           {
+            "kind": "effort",
+            "values": ["minimal", "high"]
+          },
+          {
             "kind": "budget",
             "max": 24576,
             "min": 0
-          },
-          {
-            "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["none", "auto"],
+        "supportedEfforts": ["minimal", "high"],
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
@@ -7676,6 +7796,75 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
+        }
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "audio-recognition",
+        "audio-generation",
+        "video-recognition",
+        "file-input"
+      ],
+      "contextWindow": 131072,
+      "family": "gemini-flash",
+      "id": "gemini-3-1-flash-live-preview",
+      "inputModalities": ["text", "image", "video", "audio"],
+      "maxOutputTokens": 65536,
+      "metadata": {},
+      "name": "Gemini 3.1 Flash Live Preview",
+      "outputModalities": ["text", "audio"],
+      "ownedBy": "google",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.75
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.5
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["minimal", "low", "medium", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 24576,
+            "min": 0
+          }
+        ],
+        "supportedEfforts": ["minimal", "low", "medium", "high"],
+        "thinkingTokenLimits": {
+          "max": 24576,
+          "min": 0
+        }
+      }
+    },
+    {
+      "capabilities": ["audio-generation"],
+      "contextWindow": 8192,
+      "family": "gemini-flash",
+      "id": "gemini-3-1-flash-tts-preview",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Gemini 3.1 Flash TTS Preview",
+      "outputModalities": ["audio"],
+      "ownedBy": "google",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 20
         }
       }
     },
@@ -7848,7 +8037,7 @@
         "web-search"
       ],
       "contextWindow": 1048576,
-      "family": "gemini",
+      "family": "gemini-flash-lite",
       "id": "gemini-3-5-flash-lite",
       "inputModalities": ["text", "image", "video", "audio"],
       "maxOutputTokens": 65536,
@@ -7890,6 +8079,28 @@
       }
     },
     {
+      "capabilities": ["audio-recognition", "audio-generation"],
+      "contextWindow": 131072,
+      "family": "gemini-pro",
+      "id": "gemini-3-5-live-translate-preview",
+      "inputModalities": ["audio"],
+      "maxOutputTokens": 65536,
+      "metadata": {},
+      "name": "Gemini 3.5 Live Translate Preview",
+      "outputModalities": ["audio", "text"],
+      "ownedBy": "google",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 3.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 21
+        }
+      }
+    },
+    {
       "capabilities": [
         "function-call",
         "reasoning",
@@ -7900,7 +8111,7 @@
         "file-input"
       ],
       "contextWindow": 1048576,
-      "family": "gemini",
+      "family": "gemini-flash",
       "id": "gemini-3-6-flash",
       "inputModalities": ["text", "image", "video", "audio"],
       "maxOutputTokens": 65536,
@@ -8242,14 +8453,26 @@
       }
     },
     {
-      "capabilities": ["embedding"],
+      "capabilities": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "embedding"],
+      "contextWindow": 8192,
       "family": "gemini-embedding",
       "id": "gemini-embedding-2",
-      "inputModalities": ["text"],
+      "inputModalities": ["text", "image", "audio", "video"],
+      "maxOutputTokens": 3072,
       "metadata": {},
       "name": "Gemini Embedding 2",
       "outputModalities": ["vector"],
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      }
     },
     {
       "capabilities": [
@@ -8437,6 +8660,44 @@
           "max": 32768,
           "min": 128
         }
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "audio-recognition",
+        "video-recognition",
+        "structured-output",
+        "file-input"
+      ],
+      "contextWindow": 131072,
+      "family": "gemini",
+      "id": "gemini-robotics-er-1-6-preview",
+      "inputModalities": ["text", "image", "video", "audio"],
+      "maxOutputTokens": 65536,
+      "metadata": {},
+      "name": "Gemini Robotics-ER 1.6 Preview",
+      "outputModalities": ["text"],
+      "ownedBy": "google",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -9140,6 +9401,50 @@
       "ownedBy": "google"
     },
     {
+      "capabilities": ["image-recognition", "audio-generation", "structured-output", "file-input"],
+      "contextWindow": 1048576,
+      "family": "lyria",
+      "id": "lyria-3-clip-preview",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 65536,
+      "metadata": {},
+      "name": "Lyria 3 Clip Preview",
+      "outputModalities": ["text", "audio"],
+      "ownedBy": "google",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      }
+    },
+    {
+      "capabilities": ["image-recognition", "audio-generation", "structured-output", "file-input"],
+      "contextWindow": 1048576,
+      "family": "lyria",
+      "id": "lyria-3-pro-preview",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 8192,
+      "metadata": {},
+      "name": "Lyria 3 Pro Preview",
+      "outputModalities": ["text", "audio"],
+      "ownedBy": "google",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      }
+    },
+    {
       "capabilities": ["embedding"],
       "contextWindow": 8192,
       "family": "text-embedding",
@@ -9161,6 +9466,40 @@
       "metadata": {},
       "name": "Text Multilingual Embedding 002",
       "outputModalities": ["vector"],
+      "ownedBy": "google"
+    },
+    {
+      "capabilities": ["image-recognition", "video-recognition", "video-generation", "file-input"],
+      "contextWindow": 1024,
+      "family": "veo",
+      "id": "veo-3-1-fast-generate-preview",
+      "inputModalities": ["text", "image", "video"],
+      "metadata": {},
+      "name": "Veo 3.1 Fast Preview",
+      "outputModalities": ["video"],
+      "ownedBy": "google"
+    },
+    {
+      "capabilities": ["image-recognition", "video-generation", "file-input"],
+      "contextWindow": 1024,
+      "family": "veo",
+      "id": "veo-3-1-generate-preview",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 1,
+      "metadata": {},
+      "name": "Veo 3.1 Preview",
+      "outputModalities": ["video"],
+      "ownedBy": "google"
+    },
+    {
+      "capabilities": ["image-recognition", "video-generation", "file-input"],
+      "contextWindow": 1024,
+      "family": "veo",
+      "id": "veo-3-1-lite-generate-preview",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Veo 3.1 Lite Preview",
+      "outputModalities": ["video"],
       "ownedBy": "google"
     },
     {
@@ -10568,6 +10907,15 @@
       "inputModalities": ["text", "image"],
       "metadata": {},
       "name": "Microsoft: MAI-Image-2.5",
+      "outputModalities": ["image"],
+      "ownedBy": "microsoft"
+    },
+    {
+      "capabilities": ["image-recognition", "image-generation"],
+      "id": "mai-image-2-5-pro",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Microsoft: MAI-Image-2.5 Pro",
       "outputModalities": ["image"],
       "ownedBy": "microsoft"
     },
@@ -17317,15 +17665,21 @@
     {
       "capabilities": ["reasoning", "function-call"],
       "contextWindow": 262144,
+      "family": "hy3",
       "id": "hy3",
       "inputModalities": ["text"],
       "maxInputTokens": 196608,
       "maxOutputTokens": 131072,
       "metadata": {},
       "name": "Hunyuan 3",
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "tencent",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.035
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.14
@@ -17334,6 +17688,15 @@
           "currency": "USD",
           "perMillionTokens": 0.58
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["none", "low", "high"]
+          }
+        ],
+        "supportedEfforts": ["none", "low", "high"]
       }
     },
     {
@@ -17557,6 +17920,41 @@
           }
         ],
         "supportedEfforts": ["low", "medium", "high"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning"],
+      "contextWindow": 1048576,
+      "family": "laguna-s",
+      "id": "laguna-s-2-1",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 131072,
+      "metadata": {},
+      "name": "Laguna S 2.1",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "vercel",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.01
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -19858,5 +20256,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "96e79ec0a16c027e"
+  "version": "898b1da6cadbba8a"
 }
