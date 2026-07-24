@@ -1,9 +1,9 @@
 ---
-title: V1 custom CSS requires review before use in v2
+title: Migrated v1 custom CSS is disabled in v2
 category: data-migration
 severity: breaking
-introduced_in_pr: "#17300"
-date: 2026-07-23
+introduced_in_pr: "#17344"
+date: 2026-07-24
 ---
 
 ## What changed
