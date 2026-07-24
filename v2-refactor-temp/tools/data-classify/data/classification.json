@@ -1022,7 +1022,7 @@
         {
           "originalKey": "windowStyle",
           "type": "PreferenceTypes.WindowStyle",
-          "defaultValue": "opaque",
+          "defaultValue": "transparent",
           "status": "classified",
           "category": "preferences",
           "targetKey": "ui.window_style"
