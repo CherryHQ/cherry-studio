@@ -2326,6 +2326,7 @@
     "image-generation": "Image Generation (OpenAI)",
     "jina-rerank": "Jina Rerank",
     "openai": "OpenAI",
+    "openai-embeddings": "Embeddings (OpenAI)",
     "openai-response": "OpenAI-Response"
   },
   "error": {
@@ -4312,10 +4313,13 @@
       "embedding": "Embedding",
       "free": "Free",
       "function_calling": "Tool",
+      "image": "Image",
       "reasoning": "Reasoning",
       "rerank": "Reranker",
       "select": "Model Types",
+      "speech": "Speech",
       "text": "Text",
+      "transcription": "Transcription",
       "video": "Video",
       "vision": "Vision",
       "websearch": "WebSearch"
@@ -6386,8 +6390,11 @@
       },
       "custom": {
         "css": {
-          "cherrycss": "Get from cherrycss.com",
+          "export": "Export legacy CSS",
+          "export_error": "Failed to export legacy custom CSS",
+          "export_success": "Legacy custom CSS exported",
           "label": "Custom CSS",
+          "legacy_warning": "Legacy CSS is no longer supported. Please upgrade to a v2-compatible stylesheet.",
           "placeholder": "/* Put custom CSS here */"
         }
       },
@@ -6915,6 +6922,9 @@
       "add": {
         "add_model": "Add Model",
         "batch_add_models": "Batch Add Models",
+        "capabilities": {
+          "label": "Model Capabilities"
+        },
         "context_window": {
           "label": "Context window",
           "placeholder": "e.g. 128000"
@@ -6930,6 +6940,9 @@
           "label": "Group Name",
           "placeholder": "e.g. ChatGPT",
           "tooltip": "Optional e.g. ChatGPT"
+        },
+        "input_modalities": {
+          "label": "Input Modalities"
         },
         "max_input_tokens": {
           "label": "Max input tokens",
@@ -6952,6 +6965,9 @@
           "label": "Model Name",
           "placeholder": "e.g. GPT-5.5",
           "tooltip": "Optional e.g. GPT-4"
+        },
+        "model_type": {
+          "label": "Model Type"
         },
         "supported_text_delta": {
           "label": "Support incremental text output",
