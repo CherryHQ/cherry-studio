@@ -2,37 +2,131 @@ import path from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { buildThemeContractCss, loadThemeContractInputs } from '../build-theme-css'
+import {
+  buildThemeContractCss,
+  CHERRY_PRODUCT_COLOR_TOKENS,
+  COMPATIBILITY_SEMANTIC_COLOR_TOKENS,
+  COMPATIBILITY_STATUS_COLOR_TOKENS,
+  loadThemeContractInputs,
+  RUNTIME_THEME_INPUT_TOKENS,
+  SHADCN_COLOR_TOKENS
+} from '../build-theme-css'
+import { assertGeneratedThemeCssCurrent, checkThemeContract } from '../check-theme-contract'
 
 describe('buildThemeContractCss', () => {
+  it('detects stale generated theme output', () => {
+    expect(() => assertGeneratedThemeCssCurrent('current', 'current')).not.toThrow()
+    expect(() => assertGeneratedThemeCssCurrent('stale', 'current')).toThrow('generated theme.css is stale')
+  })
+
+  it('keeps the committed theme.css current', async () => {
+    await expect(checkThemeContract()).resolves.not.toThrow()
+  })
+
+  it('keeps compatibility color allowlists shrink-only', () => {
+    const frozenSemanticColors: readonly string[] = [
+      'primary-hover',
+      'destructive-hover',
+      'foreground-secondary',
+      'foreground-muted',
+      'menu-item-hover',
+      'border-muted',
+      'border-hover',
+      'border-active',
+      'secondary-hover',
+      'secondary-active',
+      'ghost-hover',
+      'ghost-active'
+    ]
+    const frozenStatusColors: readonly string[] = [
+      'error-base',
+      'error-text',
+      'error-bg',
+      'error-text-hover',
+      'error-bg-hover',
+      'error-border-hover',
+      'error-active',
+      'success-base',
+      'success-text-hover',
+      'success-bg',
+      'success-bg-hover',
+      'warning-base',
+      'warning-text-hover',
+      'warning-bg',
+      'warning-bg-hover',
+      'warning-active',
+      'info-base',
+      'info-text-hover',
+      'info-bg',
+      'info-bg-hover',
+      'info-active'
+    ]
+
+    expect(COMPATIBILITY_SEMANTIC_COLOR_TOKENS.filter((token) => !frozenSemanticColors.includes(token))).toEqual([])
+    expect(COMPATIBILITY_STATUS_COLOR_TOKENS.filter((token) => !frozenStatusColors.includes(token))).toEqual([])
+  })
+
   it('maps token sources into the public theme contract', async () => {
     const stylesDir = path.resolve(import.meta.dirname, '../../src/styles')
     const css = buildThemeContractCss(await loadThemeContractInputs(stylesDir))
 
-    expect(css).toContain("@import './tokens.css';")
-    expect(css).toContain('/* Runtime Theme Inputs */')
-    expect(css).toContain('--cs-theme-primary: var(--cs-primary);')
-    expect(css).toContain('--cs-theme-ring: color-mix(in srgb, var(--cs-theme-primary) 40%, transparent);')
+    expect(css).toContain("@import './contract.css';")
+    expect(css).not.toContain("@import './tokens.css';")
+    expect(css).not.toContain("@import './shadcn.css';")
+    expect(css).toContain('@theme inline {')
+    expect(css).not.toContain('/* Runtime Theme Inputs */')
+    for (const token of RUNTIME_THEME_INPUT_TOKENS) {
+      expect(css).not.toContain(`--cs-theme-${token}:`)
+      expect(css).not.toContain(`--color-theme-${token}:`)
+    }
     expect(css).not.toContain('--cs-user-font-family:')
     expect(css).not.toContain('--cs-user-code-font-family:')
-    expect(css).not.toContain('/* Compatibility Aliases */')
-    expect(css).not.toContain('--primary:')
+    expect(css).not.toContain('--primary: var(--color-primary);')
     expect(css).not.toContain('--ring: var(--color-ring);')
-    expect(css).not.toContain('/* Spacing */')
     expect(css).toContain('--color-neutral-50: var(--cs-neutral-50);')
     expect(css).toContain('--color-brand-500: var(--cs-brand-500);')
-    expect(css).toContain('/* Semantic Colors */')
-    expect(css).toContain('--color-primary: var(--cs-theme-primary);')
-    expect(css).toContain('--color-ring: var(--cs-theme-ring);')
+    expect(css).toContain('/* Canonical Shadcn Colors */')
+    expect(css).toContain('/* Cherry Studio Product Colors */')
+    expect(css).toContain('--color-background: var(--background);')
+    expect(css).toContain('--color-primary: var(--primary);')
+    expect(css).toContain('--color-muted-foreground: var(--muted-foreground);')
+    expect(css).toContain('--color-chart-5: var(--chart-5);')
+    expect(css).toContain('--color-sidebar-ring: var(--sidebar-ring);')
+    expect(css).toContain('--color-success-subtle: var(--success-subtle);')
+    expect(css).toContain('--color-error-border: var(--error-border);')
+    expect(css).toContain('--color-ring: var(--ring);')
+    expect(css).not.toContain('--color-primary: var(--cs-theme-primary);')
     expect(css).not.toContain('--color-ring: var(--cs-ring);')
-    expect(css).toContain('--color-destructive: var(--cs-destructive);')
+    expect(css).toContain('--color-destructive: var(--destructive);')
+    expect(css).toContain('--color-primary-hover: var(--cs-primary-hover);')
     expect(css).toContain('--color-error-base: var(--cs-error-base);')
-    expect(css).toContain('--radius-md: var(--cs-radius-md);')
+    expect(css).toContain('--radius-sm: calc(var(--radius) * 0.6);')
+    expect(css).toContain('--radius-md: calc(var(--radius) * 0.8);')
+    expect(css).toContain('--radius-lg: var(--radius);')
+    expect(css).toContain('--radius-4xl: calc(var(--radius) * 2.6);')
+    expect(css).toContain('--radius-full: var(--cs-radius-round);')
+    expect(css).toContain('--radius-round: var(--cs-radius-round);')
     expect(css).toContain('--font-size-body-md: var(--cs-font-size-body-md);')
     expect(css).toContain('--animate-checkbox-bounce: checkbox-bounce 300ms cubic-bezier(0.4, 0, 0.2, 1);')
     expect(css).toContain('--animate-checkbox-icon-in: checkbox-icon-in 160ms ease-out both;')
     expect(css).toContain('@keyframes checkbox-bounce {')
     expect(css).toContain('@keyframes checkbox-icon-in {')
     expect(css).not.toContain('.dark {')
+
+    for (const token of SHADCN_COLOR_TOKENS) {
+      expect(css).toContain(`--color-${token}: var(--${token});`)
+    }
+
+    for (const token of CHERRY_PRODUCT_COLOR_TOKENS) {
+      expect(css).toContain(`--color-${token}: var(--${token});`)
+    }
+
+    for (const token of COMPATIBILITY_SEMANTIC_COLOR_TOKENS) {
+      expect(css).toContain(`--color-${token}: var(--cs-${token});`)
+    }
+
+    for (const token of COMPATIBILITY_STATUS_COLOR_TOKENS) {
+      expect(css).toContain(`--color-${token}: var(--cs-${token});`)
+    }
   })
 })

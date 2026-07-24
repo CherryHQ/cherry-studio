@@ -1,0 +1,353 @@
+{
+  "version": 1,
+  "contract": "shadcn-v2",
+  "defaultKind": "css-custom-property",
+  "exclude": [
+    "packages/ui/src/styles/theme.css",
+    "packages/ui/src/styles/contract.css",
+    "packages/ui/src/styles/theme-input.css",
+    "packages/ui/src/styles/shadcn.css",
+    "packages/ui/src/styles/product.css",
+    "packages/ui/src/styles/tokens/**",
+    "packages/ui/scripts/migrations/**",
+    "src/renderer/assets/styles/legacy-vars.css",
+    "src/renderer/assets/styles/tailwind.css",
+    "src/main/ai/mcp/servers/browser/tabbarHtml.ts",
+    "resources/devtools/main-network/panel.css",
+    "packages/ui/scripts/__tests__/**",
+    "scripts/__tests__/check-legacy-css-vars.test.ts",
+    "**/dist/**",
+    "**/node_modules/**",
+    "**/*.snap"
+  ],
+  "rules": [
+    { "source": "--cs-background", "target": "--background", "strategy": "exact" },
+    { "source": "--cs-foreground", "target": "--foreground", "strategy": "exact" },
+    { "source": "--cs-card", "target": "--card", "strategy": "exact" },
+    { "source": "--cs-card-foreground", "target": "--card-foreground", "strategy": "exact" },
+    { "source": "--cs-popover", "target": "--popover", "strategy": "exact" },
+    { "source": "--cs-popover-foreground", "target": "--popover-foreground", "strategy": "exact" },
+    {
+      "source": "--cs-primary",
+      "target": "--primary",
+      "strategy": "contextual",
+      "reason": "The canonical variable participates in runtime user-theme overrides while the old value does not."
+    },
+    { "source": "--cs-primary-foreground", "target": "--primary-foreground", "strategy": "exact" },
+    { "source": "--cs-secondary", "target": "--secondary", "strategy": "exact" },
+    { "source": "--cs-secondary-foreground", "target": "--secondary-foreground", "strategy": "exact" },
+    { "source": "--cs-muted", "target": "--muted", "strategy": "exact" },
+    { "source": "--cs-foreground-secondary", "target": null, "strategy": "review" },
+    { "source": "--cs-muted-foreground", "target": "--muted-foreground", "strategy": "exact" },
+    { "source": "--cs-accent", "target": "--accent", "strategy": "exact" },
+    { "source": "--cs-accent-foreground", "target": "--accent-foreground", "strategy": "exact" },
+    { "source": "--cs-destructive", "target": "--destructive", "strategy": "exact" },
+    {
+      "source": "--cs-destructive-foreground",
+      "target": "--destructive-foreground",
+      "strategy": "exact"
+    },
+    { "source": "--cs-border", "target": "--border", "strategy": "exact" },
+    { "source": "--cs-input", "target": "--input", "strategy": "exact" },
+    { "source": "--cs-ring", "target": "--ring", "strategy": "exact" },
+    { "source": "--cs-sidebar", "target": "--sidebar", "strategy": "exact" },
+    { "source": "--cs-sidebar-foreground", "target": "--sidebar-foreground", "strategy": "exact" },
+    { "source": "--cs-sidebar-primary", "target": "--sidebar-primary", "strategy": "exact" },
+    {
+      "source": "--cs-sidebar-primary-foreground",
+      "target": "--sidebar-primary-foreground",
+      "strategy": "exact"
+    },
+    { "source": "--cs-sidebar-accent", "target": "--sidebar-accent", "strategy": "exact" },
+    {
+      "source": "--cs-sidebar-accent-foreground",
+      "target": "--sidebar-accent-foreground",
+      "strategy": "exact"
+    },
+    { "source": "--cs-sidebar-border", "target": "--sidebar-border", "strategy": "exact" },
+    { "source": "--cs-sidebar-ring", "target": "--sidebar-ring", "strategy": "exact" },
+    { "source": "--cs-background-subtle", "target": "--background-subtle", "strategy": "exact" },
+    { "source": "--cs-border-subtle", "target": "--border-subtle", "strategy": "exact" },
+    { "source": "--cs-border-strong", "target": "--border-strong", "strategy": "exact" },
+    { "source": "--cs-success", "target": "--success", "strategy": "exact" },
+    { "source": "--cs-success-subtle", "target": "--success-subtle", "strategy": "exact" },
+    {
+      "source": "--cs-success-subtle-foreground",
+      "target": "--success-subtle-foreground",
+      "strategy": "exact"
+    },
+    { "source": "--cs-success-border", "target": "--success-border", "strategy": "exact" },
+    { "source": "--cs-warning", "target": "--warning", "strategy": "exact" },
+    { "source": "--cs-warning-subtle", "target": "--warning-subtle", "strategy": "exact" },
+    {
+      "source": "--cs-warning-subtle-foreground",
+      "target": "--warning-subtle-foreground",
+      "strategy": "exact"
+    },
+    { "source": "--cs-warning-border", "target": "--warning-border", "strategy": "exact" },
+    { "source": "--cs-info", "target": "--info", "strategy": "exact" },
+    { "source": "--cs-info-subtle", "target": "--info-subtle", "strategy": "exact" },
+    { "source": "--cs-info-subtle-foreground", "target": "--info-subtle-foreground", "strategy": "exact" },
+    { "source": "--cs-info-border", "target": "--info-border", "strategy": "exact" },
+    { "source": "--cs-error", "target": "--error", "strategy": "exact" },
+    { "source": "--cs-error-subtle", "target": "--error-subtle", "strategy": "exact" },
+    {
+      "source": "--cs-error-subtle-foreground",
+      "target": "--error-subtle-foreground",
+      "strategy": "exact"
+    },
+    { "source": "--cs-error-border", "target": "--error-border", "strategy": "exact" },
+    {
+      "source": "--cs-link",
+      "target": null,
+      "strategy": "review",
+      "reason": "Historical blue link styling is not equivalent to the runtime primary used by current rendered content."
+    },
+    { "source": "--cs-code-block", "target": "--code-block", "strategy": "exact" },
+    { "source": "--cs-inline-code", "target": "--inline-code", "strategy": "exact" },
+    {
+      "source": "--cs-inline-code-foreground",
+      "target": "--inline-code-foreground",
+      "strategy": "exact"
+    },
+    { "source": "--cs-reference", "target": "--reference", "strategy": "exact" },
+    { "source": "--cs-reference-foreground", "target": "--reference-foreground", "strategy": "exact" },
+    { "source": "--cs-reference-subtle", "target": "--reference-subtle", "strategy": "exact" },
+    { "source": "--cs-highlight", "target": "--highlight", "strategy": "exact" },
+    { "source": "--cs-highlight-foreground", "target": "--highlight-foreground", "strategy": "exact" },
+    { "source": "--cs-highlight-accent", "target": "--highlight-accent", "strategy": "exact" },
+    { "source": "--cs-chat-user", "target": "--chat-user", "strategy": "exact" },
+    {
+      "source": "--cs-user-font-family",
+      "target": null,
+      "strategy": "review",
+      "reason": "User font selection is a renderer-owned runtime input under --app-user-font-family."
+    },
+    {
+      "source": "--cs-user-code-font-family",
+      "target": null,
+      "strategy": "review",
+      "reason": "User code font selection is a renderer-owned runtime input under --app-user-code-font-family."
+    },
+    {
+      "source": "--cs-sidebar-active-bg",
+      "target": null,
+      "strategy": "review",
+      "reason": "The active-row effect is owned by the Renderer Sidebar rather than the shared product contract."
+    },
+    {
+      "source": "--cs-sidebar-active-border",
+      "target": null,
+      "strategy": "review",
+      "reason": "The active-row effect is owned by the Renderer Sidebar rather than the shared product contract."
+    },
+    {
+      "source": "--cs-sidebar-glow-bg",
+      "target": null,
+      "strategy": "review",
+      "reason": "The decorative glow is owned by the Renderer Sidebar rather than the shared product contract."
+    },
+    {
+      "source": "--cs-sidebar-glow-line",
+      "target": null,
+      "strategy": "review",
+      "reason": "The decorative glow is owned by the Renderer Sidebar rather than the shared product contract."
+    },
+    {
+      "source": "--cs-border-hover",
+      "target": "--border-strong",
+      "strategy": "contextual",
+      "contexts": ["border-color"],
+      "reason": "Hover-state usage must remain a component state instead of becoming a static strong border."
+    },
+    {
+      "source": "--cs-foreground-muted",
+      "target": null,
+      "strategy": "review",
+      "contexts": ["color", "fill", "stroke"],
+      "reason": "The old token mixes tertiary content with disabled component state."
+    },
+    { "source": "--cs-error-base", "target": "--error", "strategy": "exact" },
+    { "source": "--cs-error-text", "target": "--error-subtle-foreground", "strategy": "exact" },
+    { "source": "--cs-error-bg", "target": "--error-subtle", "strategy": "exact" },
+    { "source": "--cs-success-base", "target": "--success", "strategy": "exact" },
+    { "source": "--cs-success-bg", "target": "--success-subtle", "strategy": "exact" },
+    {
+      "source": "--cs-warning-base",
+      "target": "--warning",
+      "strategy": "contextual",
+      "reason": "The legacy light-mode base uses amber-400 while the product warning token uses amber-500."
+    },
+    { "source": "--cs-warning-bg", "target": "--warning-subtle", "strategy": "exact" },
+    { "source": "--cs-info-base", "target": "--info", "strategy": "exact" },
+    { "source": "--cs-info-bg", "target": "--info-subtle", "strategy": "exact" },
+    { "source": "--color-text-1", "target": "--foreground", "strategy": "exact" },
+    { "source": "--color-text-2", "target": null, "strategy": "review" },
+    { "source": "--color-text-3", "target": null, "strategy": "review" },
+    { "source": "--color-text", "target": "--foreground", "strategy": "exact" },
+    { "source": "--color-text-secondary", "target": null, "strategy": "review" },
+    { "source": "--color-text-soft", "target": null, "strategy": "review" },
+    { "source": "--color-text-light", "target": "--foreground", "strategy": "exact" },
+    { "source": "--color-background-soft", "target": null, "strategy": "review" },
+    { "source": "--color-background-mute", "target": null, "strategy": "review" },
+    {
+      "source": "--color-background-opacity",
+      "target": null,
+      "strategy": "review"
+    },
+    { "source": "--color-border-soft", "target": null, "strategy": "review" },
+    { "source": "--color-border-mute", "target": null, "strategy": "review" },
+    { "source": "--color-error", "target": "--error", "strategy": "exact" },
+    {
+      "source": "--color-link",
+      "target": null,
+      "strategy": "review",
+      "reason": "Historical blue link styling requires owner context and must not create an unconsumed shared product role."
+    },
+    {
+      "source": "--color-primary-bg",
+      "target": null,
+      "strategy": "contextual",
+      "reason": "The historical value followed the user-selected color, whose long-term role is intentionally separate from Shadcn primary."
+    },
+    { "source": "--color-fill-secondary", "target": null, "strategy": "review" },
+    { "source": "--color-fill-2", "target": null, "strategy": "review" },
+    { "source": "--color-bg-base", "target": "--background", "strategy": "exact" },
+    { "source": "--color-bg-1", "target": null, "strategy": "review" },
+    { "source": "--color-code-background", "target": "--code-block", "strategy": "exact" },
+    {
+      "source": "--color-inline-code-background",
+      "target": "--inline-code",
+      "strategy": "exact"
+    },
+    {
+      "source": "--color-inline-code-text",
+      "target": "--inline-code-foreground",
+      "strategy": "exact"
+    },
+    { "source": "--color-hover", "target": null, "strategy": "review" },
+    { "source": "--color-active", "target": null, "strategy": "review" },
+    { "source": "--color-frame-border", "target": null, "strategy": "review" },
+    {
+      "source": "--color-group-background",
+      "target": null,
+      "strategy": "review"
+    },
+    { "source": "--color-reference", "target": "--reference", "strategy": "exact" },
+    {
+      "source": "--color-reference-text",
+      "target": "--reference-foreground",
+      "strategy": "exact"
+    },
+    {
+      "source": "--color-reference-background",
+      "target": "--reference-subtle",
+      "strategy": "exact"
+    },
+    { "source": "--color-list-item", "target": null, "strategy": "review" },
+    { "source": "--color-list-item-hover", "target": null, "strategy": "review" },
+    { "source": "--color-highlight", "target": "--highlight-foreground", "strategy": "exact" },
+    {
+      "source": "--color-background-highlight",
+      "target": "--highlight",
+      "strategy": "exact"
+    },
+    {
+      "source": "--color-background-highlight-accent",
+      "target": "--highlight-accent",
+      "strategy": "exact"
+    },
+    {
+      "source": "--navbar-background-mac",
+      "target": null,
+      "strategy": "review"
+    },
+    { "source": "--navbar-background", "target": null, "strategy": "review" },
+    { "source": "--modal-background", "target": null, "strategy": "review" },
+    { "source": "--chat-background", "target": null, "strategy": "review" },
+    { "source": "--chat-background-user", "target": "--chat-user", "strategy": "exact" },
+    {
+      "source": "--chat-background-assistant",
+      "target": null,
+      "strategy": "review"
+    },
+    {
+      "source": "--chat-text-user",
+      "target": null,
+      "strategy": "review",
+      "reason": "The historical text role has no current runtime consumer; keep it local until a concrete paired surface requires promotion."
+    },
+    { "source": "--list-item-border-radius", "target": null, "strategy": "review" },
+    { "source": "--color-gray-1", "target": null, "strategy": "review" },
+    { "source": "--color-gray-2", "target": null, "strategy": "review" },
+    { "source": "--color-gray-3", "target": null, "strategy": "review" },
+    { "source": "--color-icon-white", "target": null, "strategy": "review" },
+    { "source": "--color-primary-1", "target": null, "strategy": "review" },
+    {
+      "source": "--color-primary-6",
+      "target": "--primary",
+      "strategy": "contextual",
+      "reason": "The historical alias represented the user-selected color; Shadcn primary may map to a distinct semantic role."
+    },
+    { "source": "--color-status-success", "target": "--success", "strategy": "exact" },
+    { "source": "--color-status-error", "target": "--error", "strategy": "exact" },
+    { "source": "--color-status-warning", "target": "--warning", "strategy": "exact" },
+    { "source": "--app-icon", "target": null, "strategy": "review" },
+    { "source": "--app-sidebar", "target": "--sidebar", "strategy": "exact" },
+    { "source": "--app-sidebar-accent", "target": "--sidebar-accent", "strategy": "exact" },
+    { "source": "--app-sidebar-foreground", "target": "--sidebar-foreground", "strategy": "exact" },
+    {
+      "source": "--app-sidebar-active-bg",
+      "target": null,
+      "strategy": "review",
+      "reason": "The active-row effect is owned by the Renderer Sidebar rather than the shared product contract."
+    },
+    {
+      "source": "--app-sidebar-active-border",
+      "target": null,
+      "strategy": "review",
+      "reason": "The active-row effect is owned by the Renderer Sidebar rather than the shared product contract."
+    },
+    {
+      "source": "--app-sidebar-glow-bg",
+      "target": null,
+      "strategy": "review",
+      "reason": "The decorative glow is owned by the Renderer Sidebar rather than the shared product contract."
+    },
+    {
+      "source": "--app-sidebar-glow-line",
+      "target": null,
+      "strategy": "review",
+      "reason": "The decorative glow is owned by the Renderer Sidebar rather than the shared product contract."
+    },
+    { "source": "--app-sidebar-primary", "target": "--sidebar-primary", "strategy": "exact" },
+    {
+      "source": "--app-sidebar-primary-foreground",
+      "target": "--sidebar-primary-foreground",
+      "strategy": "exact"
+    },
+    {
+      "source": "--app-sidebar-accent-foreground",
+      "target": "--sidebar-accent-foreground",
+      "strategy": "exact"
+    },
+    { "source": "--app-sidebar-border", "target": "--sidebar-border", "strategy": "exact" },
+    { "source": "--app-sidebar-ring", "target": "--sidebar-ring", "strategy": "exact" },
+    { "source": "--app-primary-foreground", "target": "--primary-foreground", "strategy": "exact" },
+    { "source": "--app-card-foreground", "target": "--card-foreground", "strategy": "exact" },
+    { "source": "--app-popover-foreground", "target": "--popover-foreground", "strategy": "exact" },
+    {
+      "source": "--app-secondary-foreground",
+      "target": "--secondary-foreground",
+      "strategy": "exact"
+    },
+    { "source": "--app-muted-foreground", "target": "--muted-foreground", "strategy": "exact" },
+    { "source": "--app-accent-foreground", "target": "--accent-foreground", "strategy": "exact" },
+    {
+      "source": "--app-destructive-foreground",
+      "target": "--destructive-foreground",
+      "strategy": "exact"
+    },
+    { "source": "--app-input", "target": "--input", "strategy": "exact" }
+  ]
+}

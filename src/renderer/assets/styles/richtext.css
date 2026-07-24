@@ -1,4 +1,7 @@
 .tiptap {
+  --rich-text-border-soft: color-mix(in srgb, var(--border) 60%, transparent);
+  --rich-text-divider-color: var(--border);
+  --rich-text-table-heading-background: var(--muted);
   /* 预留5px给scrollbar */
   padding: var(--editor-padding, 12px 55px 12px 60px);
   outline: none;
@@ -82,7 +85,7 @@
 }
 
 .tiptap a {
-  color: var(--color-primary);
+  color: var(--primary);
   text-decoration: none;
   cursor: pointer;
 }
@@ -92,28 +95,28 @@
 }
 
 .tiptap blockquote {
-  border-left: 4px solid var(--color-primary);
+  border-left: 4px solid var(--primary);
   margin: 1.5rem 0;
   padding-left: 1rem;
 }
 
 .tiptap code {
-  background-color: var(--color-muted);
+  background-color: var(--inline-code);
   border-radius: 0.4rem;
-  color: var(--color-error-text);
+  color: var(--inline-code-foreground);
   font-size: 0.85rem;
   padding: 0.25em 0.3em;
   font-family: var(--code-font-family);
 }
 
 .tiptap pre {
-  background: var(--color-muted);
+  background: var(--code-block);
   border-radius: 0.5rem;
-  color: var(--color-foreground);
+  color: var(--foreground);
   font-family: var(--code-font-family);
   margin: 1.5rem 0;
   padding: 0.75rem 1rem;
-  border: 1px solid var(--color-border-muted);
+  border: 1px solid var(--rich-text-border-soft);
 }
 
 .tiptap pre code {
@@ -126,7 +129,7 @@
 
 .tiptap hr {
   border: none;
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--rich-text-divider-color);
   margin: 2rem 0;
 }
 
@@ -150,7 +153,8 @@
 .tiptap .placeholder:before {
   content: attr(data-placeholder);
   position: absolute;
-  color: var(--color-foreground-secondary);
+  /* Resolve at the use site while preserving the previous 60% secondary ink. */
+  color: color-mix(in srgb, var(--foreground) 66.6667%, transparent);
   opacity: 0.6;
   pointer-events: none;
   font-style: var(--editor-placeholder-font-style, italic);
@@ -211,7 +215,7 @@
 
 .tiptap td,
 .tiptap th {
-  border: 1px solid var(--color-border-muted);
+  border: 1px solid var(--rich-text-border-soft);
   box-sizing: border-box;
   display: table-cell;
   min-width: 120px;
@@ -233,7 +237,7 @@
 
 .tiptap th,
 .tiptap th * {
-  background-color: var(--color-muted);
+  background-color: var(--rich-text-table-heading-background);
   font-weight: bold;
   text-align: left;
 }
@@ -247,7 +251,7 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  border: 0 solid var(--color-primary);
+  border: 0 solid var(--primary);
   border-radius: 0;
 }
 
@@ -268,7 +272,7 @@
 }
 
 .tiptap .column-resize-handle {
-  background-color: var(--color-primary);
+  background-color: var(--primary);
   bottom: -2px;
   pointer-events: none;
   position: absolute;
@@ -343,8 +347,8 @@
 
 .tiptap .tableWrapper .add-row-button,
 .tiptap .tableWrapper .add-column-button {
-  border: 1px solid var(--color-border);
-  background: var(--color-background);
+  border: 1px solid var(--border);
+  background: var(--background);
   border-radius: 4px;
   font-size: 12px;
   line-height: 1;
@@ -352,7 +356,7 @@
   display: none;
   align-items: center;
   justify-content: center;
-  color: var(--color-foreground);
+  color: var(--foreground);
   z-index: 20;
   transition: all 0.2s ease;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -361,9 +365,9 @@
 
 .tiptap .tableWrapper .add-row-button:hover,
 .tiptap .tableWrapper .add-column-button:hover {
-  background: var(--color-primary);
+  background: var(--primary);
   color: white;
-  border-color: var(--color-primary);
+  border-color: var(--primary);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
@@ -414,9 +418,9 @@
   position: absolute;
   height: 20px;
   border-radius: 8px;
-  background: var(--color-primary);
+  background: var(--primary);
   color: #fff;
-  border: 1px solid var(--color-primary);
+  border: 1px solid var(--primary);
   display: none;
   align-items: center;
   justify-content: center;
@@ -493,7 +497,8 @@
 
 /* Checked task item appearance */
 .tiptap ul[data-type='taskList'] li[data-checked='true'] > div {
-  color: var(--color-foreground-secondary);
+  /* Resolve at the use site while preserving the previous 60% secondary ink. */
+  color: color-mix(in srgb, var(--foreground) 66.6667%, transparent);
   text-decoration: line-through;
 }
 
@@ -503,9 +508,9 @@
 
 /* Use primary color for checked checkbox */
 .tiptap ul[data-type='taskList'] input[type='checkbox']:checked {
-  accent-color: var(--color-primary);
-  background-color: var(--color-primary);
-  border-color: var(--color-primary);
+  accent-color: var(--primary);
+  background-color: var(--primary);
+  border-color: var(--primary);
 }
 
 .tiptap ul[data-type='taskList'] ul[data-type='taskList'] {
