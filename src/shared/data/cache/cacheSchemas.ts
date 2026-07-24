@@ -323,6 +323,9 @@ export type RendererPersistCacheSchema = {
   'ui.agent.last_used_session_id': string | null
   'ui.agent.last_used_agent_id': string | null
   'ui.agent.last_used_workspace_id': string | null
+  // Best-effort UI snapshots captured from live session usage. Renderer-owned:
+  // page entry/session switches read this cache without asking the runtime to recount.
+  'ui.agent.context_usage_snapshots': CacheValueTypes.AgentSessionContextUsageSnapshotStore
   // Kept separate so the assistant and agent surfaces don't bleed into each other.
   'ui.agent.right_pane_open_override': boolean | null
   'ui.agent.session.expansion.time': string[]
@@ -352,6 +355,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.agent.last_used_session_id': null,
   'ui.agent.last_used_agent_id': null,
   'ui.agent.last_used_workspace_id': null,
+  'ui.agent.context_usage_snapshots': {},
   'ui.agent.right_pane_open_override': null,
   'ui.agent.session.expansion.time': [],
   'ui.agent.session.expansion.agent': null,

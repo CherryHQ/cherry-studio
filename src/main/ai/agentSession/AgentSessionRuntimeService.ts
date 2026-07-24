@@ -24,6 +24,7 @@ import {
   type AgentSessionSlashCommand
 } from '@shared/ai/agentSessionSlashCommands'
 import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
+import type { AgentSessionContextUsageSummary } from '@shared/data/cache/cacheValueTypes'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
 import { createUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -880,7 +881,8 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     entry.connection = connection
-    this.refreshContextUsage(entry, connection)
+    // Opening an agent page primes a live connection for slash commands. Context usage can fall back
+    // to a billable model request, so only refresh it after an actual turn or compaction.
     this.refreshSupportedCommands(entry, connection)
     entry.connectionLoop = this.runConnectionLoop(entry, connection).finally(() => {
       if (entry.connection === connection) {
@@ -911,7 +913,6 @@ export class AgentSessionRuntimeService extends BaseService {
     switch (event.type) {
       case 'resume-token':
         entry.lastResumeToken = event.token
-        this.refreshContextUsage(entry)
         break
       case 'chunk': {
         // Mid-roll: A1a is closed and A2's stream isn't open yet — buffer the post-steer chunks so
@@ -958,9 +959,6 @@ export class AgentSessionRuntimeService extends BaseService {
         break
       case 'compaction-error':
         this.handleCompactionError(entry, event.error)
-        break
-      case 'context-usage':
-        this.persistContextUsage(entry, event.usage)
         break
       case 'supported-commands':
         // SDK pushed a refreshed catalog (`commands_changed`) — replace the cached list so the
@@ -1032,15 +1030,18 @@ export class AgentSessionRuntimeService extends BaseService {
       const usage = await connection.getContextUsage?.()
       if (!usage) return
       if (!this.isCurrentEntry(entry) || entry.connection !== connection) return
-      this.persistContextUsage(entry, usage)
+      this.publishContextUsage(entry, usage)
     })().catch((error) => {
       logger.warn('Failed to refresh agent session context usage', { sessionId: entry.sessionId, error })
     })
   }
 
-  private persistContextUsage(entry: AgentSessionRuntimeEntry, usage: AgentSessionContextUsage): void {
+  private publishContextUsage(entry: AgentSessionRuntimeEntry, usage: AgentSessionContextUsage): void {
     if (!this.isCurrentEntry(entry)) return
-    application.get('CacheService').setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId), usage)
+
+    application
+      .get('CacheService')
+      .setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId), createContextUsageSnapshot(usage))
   }
 
   // The initial slash command catalog read (`query.supportedCommands()`) once the connection is live.
@@ -1517,6 +1518,16 @@ export class AgentSessionRuntimeService extends BaseService {
     void Promise.resolve(connection?.close()).catch((error) =>
       logger.warn('Agent runtime connection close failed', { sessionId: entry.sessionId, error })
     )
+  }
+}
+
+function createContextUsageSnapshot(usage: AgentSessionContextUsage): AgentSessionContextUsageSummary {
+  return {
+    categories: usage.categories.map(({ name, tokens }) => ({ name, tokens })),
+    totalTokens: usage.totalTokens,
+    maxTokens: usage.maxTokens,
+    percentage: usage.percentage,
+    model: usage.model
   }
 }
 

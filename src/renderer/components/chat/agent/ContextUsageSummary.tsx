@@ -1,5 +1,5 @@
 import { cn } from '@renderer/utils/style'
-import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
+import type { AgentSessionContextUsageSummary } from '@shared/data/cache/cacheValueTypes'
 import { useTranslation } from 'react-i18next'
 
 // Category names are free-form English strings produced by the Claude Code CLI
@@ -18,7 +18,7 @@ const CATEGORY_NAME_KEYS: Record<string, string> = {
 }
 
 interface ContextUsageSummaryProps {
-  usage: AgentSessionContextUsage | null
+  usage: AgentSessionContextUsageSummary | null
   percentage: number | null
   color?: string
   className?: string

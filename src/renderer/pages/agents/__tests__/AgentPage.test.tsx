@@ -104,7 +104,8 @@ const agentPageMocks = vi.hoisted(() => ({
   // `undefined` → derive the latest from `classicLayoutSessions`; `null` → none; a session → that exact
   // session (used to prove first-entry restore reads the dedicated latest query, not the paged list).
   latestSessionOverride: undefined as { id: string; updatedAt: string } | null | undefined,
-  sessionExpansionAgent: [] as string[]
+  sessionExpansionAgent: [] as string[],
+  persistContextUsageSnapshots: vi.fn()
 }))
 
 const activeSessionMocks = vi.hoisted(() => ({
@@ -137,6 +138,10 @@ vi.mock('@renderer/hooks/resourceViewSources', () => ({
     agentPageMocks.createdAgentSessionsSource = source
     return source
   }
+}))
+
+vi.mock('@renderer/hooks/agent/useAgentSessionContextUsage', () => ({
+  usePersistAgentSessionContextUsageSnapshots: agentPageMocks.persistContextUsageSnapshots
 }))
 
 vi.mock('@renderer/hooks/command', () => ({
@@ -781,6 +786,23 @@ describe('AgentPage', () => {
     expect(agentPageMocks.agentSessionsSourceOptions).toEqual([{ enabled: true }])
     expect(agentPageMocks.agentResourceListSessionsSource).toBe(agentPageMocks.createdAgentSessionsSource)
     expect(agentPageMocks.rightPanelSessionsSource).toBe(agentPageMocks.createdAgentSessionsSource)
+  })
+
+  it('observes context usage for the full session source and the visible session', () => {
+    agentPageMocks.classicLayoutSessions = [
+      { ...agentPageMocks.persistedSession, id: 'session-a' },
+      { ...agentPageMocks.persistedSession, id: 'session-b' }
+    ]
+    activeSessionMocks.session = { ...agentPageMocks.persistedSession, id: 'session-visible' }
+    activeSessionMocks.sessionSource = 'query'
+
+    render(<AgentPage />)
+
+    expect(agentPageMocks.persistContextUsageSnapshots).toHaveBeenLastCalledWith([
+      'session-a',
+      'session-b',
+      'session-visible'
+    ])
   })
 
   it('hides resource management entries from the left rail when sessions are on the right', () => {

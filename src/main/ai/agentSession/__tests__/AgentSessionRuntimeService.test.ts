@@ -122,6 +122,16 @@ function createDeferred<T>() {
   return { promise, resolve, reject }
 }
 
+function contextUsageSnapshot(usage: any) {
+  return {
+    categories: usage.categories.map(({ name, tokens }: any) => ({ name, tokens })),
+    totalTokens: usage.totalTokens,
+    maxTokens: usage.maxTokens,
+    percentage: usage.percentage,
+    model: usage.model
+  }
+}
+
 describe('AgentSessionRuntimeService', () => {
   beforeEach(() => {
     BaseService.resetInstances()
@@ -147,7 +157,12 @@ describe('AgentSessionRuntimeService', () => {
           terminateHeldTopicStream: mocks.terminateHeldTopicStream
         }
       }
-      if (name === 'CacheService') return { setShared: mocks.cacheSetShared, deleteShared: mocks.cacheDeleteShared }
+      if (name === 'CacheService') {
+        return {
+          setShared: mocks.cacheSetShared,
+          deleteShared: mocks.cacheDeleteShared
+        }
+      }
       throw new Error(`Unexpected application.get(${name})`)
     })
   })
@@ -1382,7 +1397,7 @@ describe('AgentSessionRuntimeService', () => {
     await expect(reader.read()).resolves.toMatchObject({ done: true })
   })
 
-  it('publishes runtime context usage through persist cache', async () => {
+  it('publishes runtime context usage after turn completion', async () => {
     const events = createAsyncQueue<any>()
     const usage = {
       categories: [],
@@ -1422,14 +1437,19 @@ describe('AgentSessionRuntimeService', () => {
     const reader = stream.getReader()
 
     await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    expect(connection.getContextUsage).not.toHaveBeenCalled()
 
-    await vi.waitFor(() =>
-      expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
-    )
+    events.push({ type: 'resume-token', token: 'resume-1' })
+    await vi.waitFor(() => expect(service.inspect('session-1')).toMatchObject({ resumeToken: 'resume-1' }))
+    expect(connection.getContextUsage).not.toHaveBeenCalled()
 
     events.push({ type: 'turn-complete' })
     await expect(reader.read()).resolves.toMatchObject({ done: true })
-    await vi.waitFor(() => expect(connection.getContextUsage).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => expect(connection.getContextUsage).toHaveBeenCalledTimes(1))
+    expect(mocks.cacheSetShared).toHaveBeenCalledWith(
+      'agent.session.context_usage.session-1',
+      contextUsageSnapshot(usage)
+    )
   })
 
   describe('primeConnection — eager command load on session open', () => {
@@ -1440,6 +1460,7 @@ describe('AgentSessionRuntimeService', () => {
         send: vi.fn(),
         close: vi.fn(),
         reconcile: vi.fn().mockResolvedValue('current'),
+        getContextUsage: vi.fn(),
         getSupportedCommands: vi.fn().mockResolvedValue(commands)
       }
       const connect = vi.fn().mockResolvedValue(connection)
@@ -1465,6 +1486,7 @@ describe('AgentSessionRuntimeService', () => {
       await vi.waitFor(() =>
         expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.slash_commands.session-1', commands)
       )
+      expect(connection.getContextUsage).not.toHaveBeenCalled()
       // No turn was admitted — the entry sits idle and the stream manager was never asked to start one.
       expect(service.inspect('session-1')?.status).toBe('idle')
       expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
@@ -1640,50 +1662,11 @@ describe('AgentSessionRuntimeService', () => {
     )
   })
 
-  it('persists context usage events from the runtime', () => {
-    const usage = {
-      categories: [],
-      totalTokens: 64,
-      maxTokens: 100,
-      rawMaxTokens: 100,
-      percentage: 64,
-      gridRows: [],
-      model: 'claude-sonnet-4-5',
-      memoryFiles: [],
-      mcpTools: [],
-      agents: [],
-      isAutoCompactEnabled: true,
-      apiUsage: null
-    }
-    const service = new AgentSessionRuntimeService()
-    service.beginTurn(baseTurnInput)
-
-    ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'context-usage', usage })
-
-    expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
-  })
-
   it('clears session-scoped shared cache entries when closing a session', () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
 
     ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'compaction-start' })
-    ;(service as any).handleRuntimeEvent(getEntry(service), {
-      type: 'context-usage',
-      usage: {
-        categories: [],
-        totalTokens: 1,
-        maxTokens: 100,
-        rawMaxTokens: 100,
-        percentage: 1,
-        gridRows: [],
-        model: 'claude-sonnet-4-5',
-        memoryFiles: [],
-        mcpTools: [],
-        agents: [],
-        apiUsage: null
-      }
-    })
 
     service.closeSession('session-1')
 
@@ -1768,7 +1751,10 @@ describe('AgentSessionRuntimeService', () => {
       status: 'idle'
     })
     await vi.waitFor(() =>
-      expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
+      expect(mocks.cacheSetShared).toHaveBeenCalledWith(
+        'agent.session.context_usage.session-1',
+        contextUsageSnapshot(usage)
+      )
     )
 
     events.push({ type: 'turn-complete' })

@@ -134,7 +134,18 @@ export type CachePaintingGenerationState = {
   progress: number | null
 }
 
-export type CacheAgentSessionContextUsage = AgentSessionContextUsage | null
+// Persisted and shared view model: intentionally excludes SDK details such as local memory-file paths,
+// MCP tool metadata, agents, skills, and message breakdowns that the UI does not render.
+export type AgentSessionContextUsageSummary = Pick<
+  AgentSessionContextUsage,
+  'totalTokens' | 'maxTokens' | 'percentage' | 'model'
+> & {
+  categories: Array<Pick<AgentSessionContextUsage['categories'][number], 'name' | 'tokens'>>
+}
+
+export type AgentSessionContextUsageSnapshotStore = Record<string, AgentSessionContextUsageSummary>
+
+export type CacheAgentSessionContextUsage = AgentSessionContextUsageSummary | null
 export type CacheAgentSessionCompactionState = AgentSessionCompactionState | null
 export type CacheAgentSessionSlashCommands = AgentSessionSlashCommand[] | null
 
