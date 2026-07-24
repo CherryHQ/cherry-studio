@@ -6921,7 +6921,7 @@
       "default_assistant_model": "デフォルトアシスタントモデル",
       "default_assistant_model_description": "アシスタントにモデルがない場合に使用されます",
       "docs": "モデルドキュメント",
-      "empty": "モデルが見つかりません",
+      "empty": "モデルを選択",
       "enabled_models": "有効",
       "expand_all": "すべて展開",
       "filter": {

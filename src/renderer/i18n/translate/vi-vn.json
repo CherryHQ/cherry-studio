@@ -6921,7 +6921,7 @@
       "default_assistant_model": "Mô hình Trợ lý Mặc định",
       "default_assistant_model_description": "Dùng khi trợ lý chưa có mô hình",
       "docs": "Tài liệu mô hình",
-      "empty": "Không tìm thấy mô hình nào",
+      "empty": "Chọn mô hình",
       "enabled_models": "Đã bật",
       "expand_all": "Mở rộng tất cả",
       "filter": {

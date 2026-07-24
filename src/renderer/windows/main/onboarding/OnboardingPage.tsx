@@ -8,6 +8,7 @@ import {
   SelectValue,
   Tooltip
 } from '@cherrystudio/ui'
+import { dataApiService } from '@data/DataApiService'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import AppLogo from '@renderer/assets/images/logo.png'
 import { WindowControls } from '@renderer/components/WindowControls'
@@ -20,7 +21,8 @@ import { ProviderSettingsPage, useProviderModelSync } from '@renderer/pages/sett
 import { oauthWithCherryIn } from '@renderer/services/oauth'
 import { toast } from '@renderer/services/toast'
 import type { OnboardingProviderSetupStatus } from '@shared/data/preference/preferenceTypes'
-import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import type { Model } from '@shared/data/types/model'
 import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 import { defaultLanguage } from '@shared/utils/languages'
 import { createMemoryHistory, createRootRoute, createRouter, RouterProvider } from '@tanstack/react-router'
@@ -37,6 +39,7 @@ type PrivacyProtectedAction = () => void | Promise<void>
 const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
 const CHERRYIN_LOGIN_LOADING_TIMEOUT_MS = 10_000
 const PESSIMISTIC_PREFERENCE_OPTIONS = { optimistic: false } as const
+const isOnboardingModel = (model: Model) => model.providerId !== CHERRYAI_PROVIDER_ID
 const ONBOARDING_PREFERENCE_KEYS = {
   providerSetupStatus: 'app.onboarding.provider_setup.status',
   dataCollectionEnabled: 'app.privacy.data_collection.enabled',
@@ -74,7 +77,9 @@ export default function OnboardingPage() {
   const loginAttemptRef = useRef(0)
   const loginLoadingTimeoutRef = useRef<number | null>(null)
   const pendingPrivacyActionRef = useRef<PrivacyProtectedAction | null>(null)
-  const canCompleteModelSetup = Boolean(defaultModel && quickModel && translateModel)
+  const canCompleteModelSetup = [defaultModel, quickModel, translateModel].every(
+    (model) => model && isOnboardingModel(model)
+  )
   const eligibleProviderIds = new Set(
     enabledProviders.filter((provider) => provider.id !== CHERRYAI_PROVIDER_ID).map((provider) => provider.id)
   )
@@ -96,6 +101,25 @@ export default function OnboardingPage() {
       ? resolvedLanguage
       : defaultLanguage
   const displayLanguageLabel = appLanguageOptions.find((option) => option.value === displayLanguage)?.label
+
+  const updateSeededResourceModels = useCallback(async (model: Model) => {
+    const assistantUpdate = dataApiService
+      .get('/assistants', { query: { limit: 2 } })
+      .then(async ({ items, total }) => {
+        const assistant = total === 1 ? items[0] : undefined
+        if (assistant?.modelId === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID) {
+          await dataApiService.patch(`/assistants/${assistant.id}`, { body: { modelId: model.id } })
+        }
+      })
+    const agentUpdate = dataApiService.get('/agents', { query: { limit: 2 } }).then(async ({ items, total }) => {
+      const agent = total === 1 ? items[0] : undefined
+      if (agent?.model === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID) {
+        await dataApiService.patch(`/agents/${agent.id}`, { body: { model: model.id } })
+      }
+    })
+
+    await Promise.all([assistantUpdate, agentUpdate])
+  }, [])
 
   const handleLanguageChange = (value: string) => {
     if (!isAppLanguage(value)) return
@@ -384,9 +408,13 @@ export default function OnboardingPage() {
                   <div className="flex w-full max-w-[440px] items-center">
                     <div className="w-full">
                       <ModelSettings
+                        autoFillEmptyModels
+                        onDefaultModelSelected={updateSeededResourceModels}
                         showSettingsButton={false}
                         showDescription={false}
                         showDividers={false}
+                        showPaintingModel={false}
+                        modelFilter={isOnboardingModel}
                         compact
                         className="mt-4 min-h-0 w-full flex-none overflow-visible"
                       />

@@ -6921,7 +6921,7 @@
       "default_assistant_model": "Standard-Assistent-Modell",
       "default_assistant_model_description": "Wird verwendet, wenn ein Assistent kein Modell hat.",
       "docs": "Modelldokumentation",
-      "empty": "Kein Modell",
+      "empty": "Modell auswählen",
       "enabled_models": "Aktiviert",
       "expand_all": "Alle ausklappen",
       "filter": {

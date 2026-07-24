@@ -6921,7 +6921,7 @@
       "default_assistant_model": "Model asistent implicit",
       "default_assistant_model_description": "Folosit când un asistent nu are model.",
       "docs": "Documentația modelului",
-      "empty": "Nu s-au găsit modele",
+      "empty": "Selectați un model",
       "enabled_models": "Activate",
       "expand_all": "Extinde tot",
       "filter": {

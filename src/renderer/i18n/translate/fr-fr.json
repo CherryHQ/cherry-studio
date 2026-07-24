@@ -6921,7 +6921,7 @@
       "default_assistant_model": "Modèle d'assistant par défaut",
       "default_assistant_model_description": "Utilisé lorsqu'un assistant n'a pas de modèle.",
       "docs": "Documentation du modèle",
-      "empty": "Aucun modèle",
+      "empty": "Sélectionnez un modèle",
       "enabled_models": "Activés",
       "expand_all": "Tout développer",
       "filter": {

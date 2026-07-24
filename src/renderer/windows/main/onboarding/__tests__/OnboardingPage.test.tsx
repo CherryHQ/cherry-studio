@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 import {
   mockUseMultiplePreferences,
@@ -20,6 +21,11 @@ const oauthWithCherryInMock = vi.fn()
 const syncProviderModelsMock = vi.fn()
 const toastSuccessMock = vi.fn()
 const toastErrorMock = vi.fn()
+const modelSettingsPropsMock = vi.fn()
+const dataApiMocks = vi.hoisted(() => ({
+  get: vi.fn(),
+  patch: vi.fn()
+}))
 const i18nMock = vi.hoisted(() => ({
   changeLanguage: vi.fn(),
   language: 'en-US',
@@ -28,15 +34,19 @@ const i18nMock = vi.hoisted(() => ({
 const enabledProvidersMock: Array<{ id: string; isEnabled: boolean }> = []
 const enabledModelsMock: Array<{ id: string; providerId: string; isEnabled: boolean }> = []
 const selectedModelsMock: {
-  defaultModel?: { id: string }
-  quickModel?: { id: string }
-  translateModel?: { id: string }
+  defaultModel?: { id: string; providerId: string }
+  quickModel?: { id: string; providerId: string }
+  translateModel?: { id: string; providerId: string }
 } = {}
 const defaultUsePreferenceImplementation = mockUsePreference.getMockImplementation()
 const defaultUseMultiplePreferencesImplementation = mockUseMultiplePreferences.getMockImplementation()
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
+}))
+
+vi.mock('@data/DataApiService', () => ({
+  dataApiService: dataApiMocks
 }))
 
 vi.mock('@renderer/i18n/resolver', () => ({
@@ -82,7 +92,15 @@ vi.mock('@renderer/pages/settings/ProviderSettings', () => ({
 }))
 
 vi.mock('@renderer/pages/settings/ModelSettings/ModelSettings', () => ({
-  default: () => <div data-testid="model-settings" />
+  default: (props: {
+    autoFillEmptyModels?: boolean
+    modelFilter?: (model: { providerId: string }) => boolean
+    onDefaultModelSelected?: (model: { id: string; providerId: string }) => void | Promise<void>
+    showPaintingModel?: boolean
+  }) => {
+    modelSettingsPropsMock(props)
+    return <div data-testid="model-settings" />
+  }
 }))
 
 vi.mock('../../privacy/PrivacyPolicyDialog', () => ({
@@ -130,9 +148,9 @@ describe('OnboardingPage', () => {
       providerId: 'openai',
       isEnabled: true
     })
-    selectedModelsMock.defaultModel = { id: 'default-model' }
-    selectedModelsMock.quickModel = { id: 'quick-model' }
-    selectedModelsMock.translateModel = { id: 'translate-model' }
+    selectedModelsMock.defaultModel = { id: 'default-model', providerId: 'openai' }
+    selectedModelsMock.quickModel = { id: 'quick-model', providerId: 'openai' }
+    selectedModelsMock.translateModel = { id: 'translate-model', providerId: 'openai' }
     MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', 'pending')
     MockUsePreferenceUtils.setPreferenceValue('app.privacy.data_collection.enabled', true)
     MockUsePreferenceUtils.setPreferenceValue('app.privacy.policy_version', LATEST_PRIVACY_POLICY_VERSION)
@@ -209,6 +227,93 @@ describe('OnboardingPage', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'onboarding.provider_setup.next' }))
 
     expect(screen.getByRole('button', { name: /onboarding\.select_model\.start/ })).toBeDisabled()
+  })
+
+  it('excludes CherryAI models, hides painting, and rejects built-in selections', async () => {
+    selectedModelsMock.defaultModel = { id: 'cherryai::qwen', providerId: CHERRYAI_PROVIDER_ID }
+    selectedModelsMock.quickModel = { id: 'cherryai::qwen', providerId: CHERRYAI_PROVIDER_ID }
+    selectedModelsMock.translateModel = { id: 'cherryai::qwen', providerId: CHERRYAI_PROVIDER_ID }
+    render(<OnboardingPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /onboarding\.welcome\.other_provider/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'onboarding.provider_setup.next' }))
+
+    const modelSettingsProps = modelSettingsPropsMock.mock.lastCall?.[0]
+    expect(modelSettingsProps?.autoFillEmptyModels).toBe(true)
+    expect(modelSettingsProps?.onDefaultModelSelected).toBeTypeOf('function')
+    expect(modelSettingsProps?.showPaintingModel).toBe(false)
+    expect(modelSettingsProps?.modelFilter?.({ providerId: CHERRYAI_PROVIDER_ID })).toBe(false)
+    expect(modelSettingsProps?.modelFilter?.({ providerId: 'openai' })).toBe(true)
+    expect(screen.getByRole('button', { name: /onboarding\.select_model\.start/ })).toBeDisabled()
+  })
+
+  it('replaces the sole seeded assistant and agent models after selecting the default model', async () => {
+    dataApiMocks.get.mockImplementation(async (path: string) => {
+      if (path === '/assistants') {
+        return {
+          items: [{ id: 'assistant-1', modelId: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID }],
+          total: 1
+        }
+      }
+      if (path === '/agents') {
+        return {
+          items: [{ id: 'agent-1', model: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID }],
+          total: 1
+        }
+      }
+      throw new Error(`Unexpected path: ${path}`)
+    })
+    dataApiMocks.patch.mockResolvedValue(undefined)
+    render(<OnboardingPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /onboarding\.welcome\.other_provider/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'onboarding.provider_setup.next' }))
+
+    const onDefaultModelSelected = modelSettingsPropsMock.mock.lastCall?.[0]?.onDefaultModelSelected
+    await act(async () => {
+      await onDefaultModelSelected?.({ id: 'openai::gpt-4o', providerId: 'openai' })
+    })
+
+    expect(dataApiMocks.get).toHaveBeenCalledWith('/assistants', { query: { limit: 2 } })
+    expect(dataApiMocks.get).toHaveBeenCalledWith('/agents', { query: { limit: 2 } })
+    expect(dataApiMocks.patch).toHaveBeenCalledWith('/assistants/assistant-1', {
+      body: { modelId: 'openai::gpt-4o' }
+    })
+    expect(dataApiMocks.patch).toHaveBeenCalledWith('/agents/agent-1', {
+      body: { model: 'openai::gpt-4o' }
+    })
+  })
+
+  it('preserves assistant and agent models unless both replacement conditions match', async () => {
+    dataApiMocks.get.mockImplementation(async (path: string) => {
+      if (path === '/assistants') {
+        return {
+          items: [
+            { id: 'assistant-1', modelId: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID },
+            { id: 'assistant-2', modelId: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID }
+          ],
+          total: 2
+        }
+      }
+      if (path === '/agents') {
+        return {
+          items: [{ id: 'agent-1', model: 'openai::existing' }],
+          total: 1
+        }
+      }
+      throw new Error(`Unexpected path: ${path}`)
+    })
+    render(<OnboardingPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /onboarding\.welcome\.other_provider/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'onboarding.provider_setup.next' }))
+
+    const onDefaultModelSelected = modelSettingsPropsMock.mock.lastCall?.[0]?.onDefaultModelSelected
+    await act(async () => {
+      await onDefaultModelSelected?.({ id: 'openai::gpt-4o', providerId: 'openai' })
+    })
+
+    expect(dataApiMocks.patch).not.toHaveBeenCalled()
   })
 
   it('records a skipped status when the user skips onboarding', async () => {
@@ -482,9 +587,9 @@ describe('OnboardingPage', () => {
       providerId: 'cherryai',
       isEnabled: true
     })
-    selectedModelsMock.defaultModel = { id: 'cherryai::qwen' }
-    selectedModelsMock.quickModel = { id: 'cherryai::qwen' }
-    selectedModelsMock.translateModel = { id: 'cherryai::qwen' }
+    selectedModelsMock.defaultModel = { id: 'cherryai::qwen', providerId: CHERRYAI_PROVIDER_ID }
+    selectedModelsMock.quickModel = { id: 'cherryai::qwen', providerId: CHERRYAI_PROVIDER_ID }
+    selectedModelsMock.translateModel = { id: 'cherryai::qwen', providerId: CHERRYAI_PROVIDER_ID }
     oauthWithCherryInMock.mockImplementation(async (setKey: (keys: string) => Promise<void>) => {
       await setKey('sk-one, sk-two')
       return 'sk-one, sk-two'

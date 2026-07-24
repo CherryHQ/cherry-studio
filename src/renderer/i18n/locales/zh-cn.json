@@ -6976,7 +6976,7 @@
       "default_assistant_model": "默认助手模型",
       "default_assistant_model_description": "助手没有模型时使用这个模型",
       "docs": "模型文档",
-      "empty": "没有模型",
+      "empty": "请选择模型",
       "empty_hint": "点击上方的获取模型列表按钮添加模型",
       "enabled_models": "已启用",
       "expand_all": "全部展开",

@@ -6921,7 +6921,7 @@
       "default_assistant_model": "Модель ассистента по умолчанию",
       "default_assistant_model_description": "Используется, если у ассистента нет модели.",
       "docs": "Документация модели",
-      "empty": "Модели не найдены",
+      "empty": "Выберите модель",
       "enabled_models": "Включены",
       "expand_all": "Развернуть все",
       "filter": {
