@@ -654,8 +654,8 @@ function canonicalize(p: string): string {
 /**
  * Tell the user that a stale authorization was cancelled without deleting
  * data. Deliberately hardcoded en-US: this runs at preboot, before
- * PreferenceService exists, while main i18n's t() resolves the active locale
- * through that service.
+ * PreferenceService exists, while the main i18n translation helper resolves
+ * the active locale through that service.
  */
 function showPathMismatchWarning(): void {
   dialog.showErrorBox(
