@@ -1,4 +1,5 @@
 import { cacheService } from '@data/CacheService'
+import { dataApiService } from '@data/DataApiService'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
 import type { FileUIPart } from '@shared/data/types/message'
@@ -579,6 +580,14 @@ function getAgentSkillsPanelItems() {
 
 describe('AgentComposer', () => {
   beforeEach(() => {
+    // The `@` panel's entity-reference merge hits these paths; the mock factory has no
+    // canned data for them, so default both to empty results.
+    const dataApiGetBase = vi.mocked(dataApiService.get).getMockImplementation()
+    vi.mocked(dataApiService.get).mockImplementation((async (path: string, options?: unknown) => {
+      if (path === '/agent-sessions') return { items: [] }
+      if (path === '/search/entities') return { query: '', groups: [] }
+      return dataApiGetBase?.(path as never, options as never)
+    }) as never)
     mocks.openResourceEditDialog.mockReset()
     mocks.registeredLaunchers.clear()
     mocks.optionalQuickPanel = null
@@ -1642,6 +1651,45 @@ describe('AgentComposer', () => {
     ])
     expect(setFilesUpdater([selectedFile])).toBeInstanceOf(Array)
     expect(setFilesUpdater([selectedFile])).toHaveLength(1)
+  })
+
+  it('groups files and sessions under header rows when @ has no query', async () => {
+    mocks.listDirectoryEntries.mockResolvedValue(
+      Array.from({ length: 7 }, (_, index) => ({ path: `/workspace/docs/f${index}.md`, isDirectory: false }))
+    )
+    vi.mocked(dataApiService.get).mockImplementation((async (path: string) => {
+      if (path === '/agent-sessions') {
+        return {
+          items: [{ id: 's1', agentId: 'agent-1', name: 'Session One', updatedAt: '2026-01-01T00:00:00.000Z' }]
+        }
+      }
+      if (path === '/search/entities') return { query: '', groups: [] }
+      return undefined
+    }) as never)
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const source = mocks.surfaceProps?.suggestionSources?.[0]
+    const items = await source?.items({ query: '', editor: {} as any })
+    const ids = items?.map((item) => item.id)
+
+    expect(ids?.[0]).toBe('agent-resource:files-header')
+    expect(ids).toContain('agent-resource:sessions-header')
+    expect(ids).toContain('reference:session:s1')
+    // Files are capped below the fold so the sessions group stays visible.
+    const fileRows = items?.filter((item) => item.id?.startsWith('agent-resource:') && !item.disabled)
+    expect(fileRows).toHaveLength(5)
+    expect(ids?.indexOf('agent-resource:sessions-header')).toBeGreaterThan(
+      Number(ids?.indexOf('agent-resource:files-header'))
+    )
   })
 
   it('keeps ComposerSurface suggestion sources stable across streaming rerenders', () => {

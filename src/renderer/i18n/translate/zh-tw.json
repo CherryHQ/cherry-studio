@@ -1407,6 +1407,23 @@
       "pause": "暫停",
       "placeholder": "輸入訊息，按 {{key}} 傳送，輸入 / 選擇工具或操作",
       "placeholder_without_triggers": "在此輸入您的訊息，按 {{key}} 傳送",
+      "reference_panel": {
+        "load_failed": "[to be translated]:Failed to load the referenced conversation",
+        "session": {
+          "no_results": {
+            "description": "[to be translated]:No sessions match your search",
+            "label": "[to be translated]:No Sessions Found"
+          },
+          "title": "[to be translated]:Sessions"
+        },
+        "topic": {
+          "no_results": {
+            "description": "[to be translated]:No topics match your search",
+            "label": "[to be translated]:No Topics Found"
+          },
+          "title": "[to be translated]:Topics"
+        }
+      },
       "resize_height": "調整輸入框高度",
       "resource_panel": {
         "categories": {
@@ -6938,6 +6955,23 @@
         "model_type": {
           "label": "[to be translated]:Model Type"
         },
+        "purpose": {
+          "chat": {
+            "description": "[to be translated]:Use the provider's text API",
+            "label": "[to be translated]:Chat"
+          },
+          "chat_protocol": "[to be translated]:Chat protocol",
+          "description": "[to be translated]:Choose how this model is used",
+          "image_edit": {
+            "description": "[to be translated]:Accept an input image and return an edited image",
+            "label": "[to be translated]:Image editing"
+          },
+          "image_generation": {
+            "description": "[to be translated]:Generate images from a prompt",
+            "label": "[to be translated]:Image generation"
+          },
+          "label": "[to be translated]:Model purpose"
+        },
         "supported_text_delta": {
           "label": "支援增量文字輸出",
           "tooltip": "模型每次回傳文字增量，而不是一次性回傳所有文字，預設開啟，如果模型不支援，請關閉"
@@ -7313,6 +7347,7 @@
       },
       "balance": "餘額",
       "base_url": {
+        "invalid": "[to be translated]:Enter a valid HTTP or HTTPS URL",
         "label": "Base URL",
         "placeholder": "https://api.example.com",
         "required": "請輸入 Base URL"
@@ -7406,6 +7441,23 @@
         "toggle_headers_editor_list": "切換到標頭清單"
       },
       "create_custom": {
+        "endpoint_fields": {
+          "default_chat": "[to be translated]:Default",
+          "label": "[to be translated]:Endpoint settings",
+          "more": "[to be translated]:More options",
+          "more_configured": "[to be translated]:{{count}} configured",
+          "set_default_chat": "[to be translated]:Set as default",
+          "text_endpoint_required": "[to be translated]:Configure at least one text endpoint",
+          "url_help": "[to be translated]:Enter the API root URL to preview the final request path"
+        },
+        "preset_instance": {
+          "description": "[to be translated]:For Coding Plan services, multiple accounts, or project isolation; configure each Base URL and API key independently",
+          "empty": "[to be translated]:No matching Provider presets",
+          "placeholder": "[to be translated]:Create from a Provider preset…",
+          "search_placeholder": "[to be translated]:Search Provider presets",
+          "title": "[to be translated]:Start from a preset (optional)"
+        },
+        "request_preview": "[to be translated]:Request path: {{path}}",
         "title": "新增自訂提供商"
       },
       "delete": {
@@ -7444,6 +7496,16 @@
         "sign_in_failed": "登入失敗，請重試。",
         "sign_in_success": "已登入 Grok CLI",
         "signing_in": "等待瀏覽器…"
+      },
+      "image_endpoints": {
+        "image_edit_base_url": {
+          "help": "[to be translated]:Used for /images/edits; leave blank to use the default chat endpoint Base URL",
+          "label": "[to be translated]:Image Edit Base URL"
+        },
+        "image_generation_base_url": {
+          "help": "[to be translated]:Used for /images/generations; leave blank to use the default chat endpoint Base URL",
+          "label": "[to be translated]:Image Generation Base URL"
+        }
       },
       "logo_upload_failed": "無法處理所選圖片",
       "misc": "其他",

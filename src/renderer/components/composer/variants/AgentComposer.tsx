@@ -124,6 +124,7 @@ import { useComposerQuoteInsertion } from './shared/composerQuote'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
+import { useEntityReferenceMentionItems } from './shared/useEntityReferenceMentionSource'
 import { useLatest } from './shared/useLatest'
 
 const logger = loggerService.withContext('AgentComposer')
@@ -1404,11 +1405,13 @@ const AgentComposerInner = ({
     ]
   )
 
+  const getEntityReferenceItems = useEntityReferenceMentionItems({ entityType: 'session', excludeId: sessionId })
   const resourceMentionSources = useAgentResourceMentionSource({
     accessiblePaths,
     files,
     setFiles,
-    enabled: enableResourceMention
+    enabled: enableResourceMention,
+    getAdditionalItems: getEntityReferenceItems
   })
 
   const renderWorkspaceControl = ({ side, iconOnly = false }: { side: 'top' | 'bottom'; iconOnly?: boolean }) => (
