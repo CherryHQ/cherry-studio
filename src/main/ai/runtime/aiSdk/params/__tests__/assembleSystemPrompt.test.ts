@@ -51,6 +51,31 @@ describe('assembleSystemPrompt', () => {
     expect(await assembleSystemPrompt({ model })).toBeUndefined()
   })
 
+  it('returns undefined when no assistant is supplied, kbSearchActive is false, and tools are absent', async () => {
+    expect(await assembleSystemPrompt({ model, kbSearchActive: false })).toBeUndefined()
+  })
+
+  it('injects KB notification instruction when kbSearchActive is true', async () => {
+    const out = await assembleSystemPrompt({
+      model,
+      kbSearchActive: true
+    })
+    expect(out).toContain('kb_search')
+    expect(out).toContain('knowledge base')
+    expect(out).toContain('MUST')
+  })
+
+  it('injects KB notification instruction alongside assistant prompt', async () => {
+    const out = await assembleSystemPrompt({
+      assistant: makeAssistant({ prompt: 'base' }),
+      model,
+      kbSearchActive: true
+    })
+    expect(out).toContain('base')
+    expect(out).toContain('kb_search')
+    expect(out).toContain('MUST')
+  })
+
   it('resolves template variables in assistant.prompt', async () => {
     const out = await assembleSystemPrompt({
       assistant: makeAssistant({ prompt: 'Today is {{date}}' }),
