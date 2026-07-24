@@ -16,6 +16,7 @@ import { normalizeAssistantMessageCitations } from '../persistence/normalizeCita
 import {
   dropEmptyContentParts,
   dropSubThresholdPrepareParts,
+  finalizeInterruptedParts,
   type PersistenceBackend,
   statsFromTerminal
 } from '../persistence/PersistenceBackend'
@@ -125,7 +126,9 @@ export class PersistenceListener implements StreamListener {
     const finalMessageForPersistence = normalizedMessage
       ? {
           ...normalizedMessage,
-          parts: dropSubThresholdPrepareParts(dropEmptyContentParts(normalizedMessage.parts as CherryMessagePart[]))
+          parts: dropSubThresholdPrepareParts(
+            finalizeInterruptedParts(dropEmptyContentParts(normalizedMessage.parts as CherryMessagePart[]), status)
+          )
         }
       : normalizedMessage
 

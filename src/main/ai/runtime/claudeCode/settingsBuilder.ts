@@ -19,6 +19,7 @@ import type {
   HookCallback,
   HookJSONOutput,
   McpServerConfig,
+  Options,
   PermissionResult,
   SdkPluginConfig
 } from '@anthropic-ai/claude-agent-sdk'
@@ -233,8 +234,8 @@ export interface ClaudeCodeSessionOptions {
   /** Channel binding captured by the request builder; `null` means the session was local. */
   linkedChannelSnapshot?: LinkedChannelSnapshot
   thinkingOptions?: {
-    effort?: 'low' | 'medium' | 'high' | 'max'
-    thinking?: { type: 'adaptive' } | { type: 'enabled'; budgetTokens?: number } | { type: 'disabled' }
+    effort?: Options['effort']
+    thinking?: Options['thinking']
   }
   /** Prepare-timeline recorder — instruments the sequential build sub-steps when present. */
   recorder?: PrepareTimelineRecorder

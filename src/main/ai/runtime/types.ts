@@ -3,8 +3,10 @@ import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } 
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { Tool } from '@shared/ai/tool'
-import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { UIMessageChunk } from 'ai'
 
 export type AiRuntimeCapability = 'agent-session' | 'chat-turn' | 'generate-text' | 'embed' | 'image'
@@ -39,6 +41,8 @@ export interface AgentRuntimeConnectInput {
   sessionId: string
   agentId: string
   modelId: UniqueModelId
+  /** Canonical reasoning selection frozen for this connection's turn. */
+  reasoningEffort?: ReasoningEffortOption
   resumeToken?: string
   trace?: AgentRuntimeTraceContext
   /**
@@ -112,11 +116,15 @@ export interface AgentRuntimeConnection {
    * decides the verdict (see {@link AgentRuntimeReconcileResult}). Serialized per connection:
    * concurrent push/pull reconciles queue instead of interleaving SDK and snapshot writes.
    *
-   * `modelId` is the model the connection should serve right now (a live turn's captured model, or
-   * the agent's latest) — the same pinning the host uses for `connect`.
+   * The input is the config the connection should serve right now (a live turn's frozen model and
+   * reasoning selection, or the agent's latest model with defaults) — the same pinning the host uses
+   * for `connect`.
    */
   // ponytail: single driver — make optional with a capability fallback when a 2nd connection type ships
-  reconcile(input: { modelId: UniqueModelId }): Promise<AgentRuntimeReconcileResult>
+  reconcile(input: {
+    modelId: UniqueModelId
+    reasoningEffort?: ReasoningEffortOption
+  }): Promise<AgentRuntimeReconcileResult>
   /**
    * Read the live context-window usage for this connection's session. Returns null when the
    * underlying runtime can't report it (no query yet, or a driver that doesn't support it).

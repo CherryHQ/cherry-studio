@@ -36,7 +36,13 @@ const logger = loggerService.withContext('ModelSettings')
 interface ModelSettingsProps {
   showSettingsButton?: boolean
   showDescription?: boolean
+  showDividers?: boolean
+  showPaintingModel?: boolean
+  modelFilter?: (model: Model) => boolean
+  autoFillEmptyModels?: boolean
+  onDefaultModelSelected?: (model: Model) => void | Promise<void>
   compact?: boolean
+  className?: string
 }
 
 interface ModelSettingRowProps {
@@ -145,7 +151,13 @@ const DefaultModelSelector: FC<DefaultModelSelectorProps> = ({
 const ModelSettings: FC<ModelSettingsProps> = ({
   showSettingsButton = true,
   showDescription = true,
-  compact = false
+  showDividers = true,
+  showPaintingModel = true,
+  modelFilter,
+  autoFillEmptyModels = false,
+  onDefaultModelSelected,
+  compact = false,
+  className
 }) => {
   const {
     defaultModel,
@@ -164,17 +176,31 @@ const ModelSettings: FC<ModelSettingsProps> = ({
 
   const [translateModelPrompt, setTranslateModelPrompt] = usePreference('feature.translate.model_prompt')
 
-  const modelFilter = useCallback((model: Model) => !isNonChatModel(model), [])
+  const chatModelFilter = useCallback(
+    (model: Model) => !isNonChatModel(model) && (modelFilter?.(model) ?? true),
+    [modelFilter]
+  )
+  const selectableDefaultModel = defaultModel && chatModelFilter(defaultModel) ? defaultModel : undefined
+  const selectableQuickModel = quickModel && chatModelFilter(quickModel) ? quickModel : undefined
+  const selectableTranslateModel = translateModel && chatModelFilter(translateModel) ? translateModel : undefined
+  const shouldAutoFillEmptyModels =
+    autoFillEmptyModels && !selectableDefaultModel && !selectableQuickModel && !selectableTranslateModel
 
   const onSelectDefault = useCallback(
     (selected: Model | undefined) => {
       if (!selected) return
-      void setDefaultModel(selected).catch((error) => {
-        logger.error('Failed to set default model', { modelId: selected.id, error })
-        toast.error(t('settings.models.manage.operation_failed'))
-      })
+
+      const updatePromise = shouldAutoFillEmptyModels
+        ? setDefaultModel(selected, { forceCascade: true })
+        : setDefaultModel(selected)
+      void updatePromise
+        .then(() => onDefaultModelSelected?.(selected))
+        .catch((error) => {
+          logger.error('Failed to handle default model selection', { modelId: selected.id, error })
+          toast.error(t('settings.models.manage.operation_failed'))
+        })
     },
-    [setDefaultModel, t]
+    [onDefaultModelSelected, setDefaultModel, shouldAutoFillEmptyModels, t]
   )
 
   const onSelectQuick = useCallback(
@@ -215,9 +241,9 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const containerProps = compact ? { style: { padding: 0, background: 'transparent' } } : {}
 
   return (
-    <div className="relative flex min-h-0 flex-1">
+    <div className={cn('relative flex min-h-0 flex-1', className)}>
       <ContainerComponent theme={theme} {...containerProps}>
-        <SettingGroup theme={theme} style={groupStyle}>
+        <SettingGroup theme={theme} style={groupStyle} className={compact ? 'space-y-3' : undefined}>
           {!compact && (
             <>
               <SettingTitle>{t('settings.model')}</SettingTitle>
@@ -230,15 +256,15 @@ const ModelSettings: FC<ModelSettingsProps> = ({
             title={t('settings.models.default_assistant_model')}
             description={showDescription ? t('settings.models.default_assistant_model_description') : undefined}>
             <DefaultModelSelector
-              model={defaultModel}
+              model={selectableDefaultModel}
               providers={providers}
-              filter={modelFilter}
+              filter={chatModelFilter}
               compact={compact}
               onSelect={onSelectDefault}
               placeholder={t('settings.models.empty')}
             />
           </ModelSettingRow>
-          <SettingDivider />
+          {showDividers && <SettingDivider />}
           <ModelSettingRow
             compact={compact}
             icon={<Rocket size={16} className="lucide-custom shrink-0 text-foreground" />}
@@ -250,9 +276,9 @@ const ModelSettings: FC<ModelSettingsProps> = ({
             }
             description={showDescription ? t('settings.models.quick_model.description') : undefined}>
             <DefaultModelSelector
-              model={quickModel}
+              model={selectableQuickModel}
               providers={providers}
-              filter={modelFilter}
+              filter={chatModelFilter}
               compact={compact}
               onSelect={onSelectQuick}
               placeholder={t('settings.models.empty')}
@@ -268,16 +294,16 @@ const ModelSettings: FC<ModelSettingsProps> = ({
               </Button>
             )}
           </ModelSettingRow>
-          <SettingDivider />
+          {showDividers && <SettingDivider />}
           <ModelSettingRow
             compact={compact}
             icon={<Languages size={16} className="lucide-custom shrink-0 text-foreground" />}
             title={t('settings.models.translate_model')}
             description={showDescription ? t('settings.models.translate_model_description') : undefined}>
             <DefaultModelSelector
-              model={translateModel}
+              model={selectableTranslateModel}
               providers={providers}
-              filter={modelFilter}
+              filter={chatModelFilter}
               compact={compact}
               onSelect={onSelectTranslate}
               placeholder={t('settings.models.empty')}
@@ -302,21 +328,25 @@ const ModelSettings: FC<ModelSettingsProps> = ({
               </>
             )}
           </ModelSettingRow>
-          <SettingDivider />
-          <ModelSettingRow
-            compact={compact}
-            icon={<Palette size={16} className="lucide-custom shrink-0 text-foreground" />}
-            title={t('settings.models.painting_model')}
-            description={showDescription ? t('settings.models.painting_model_description') : undefined}>
-            <DefaultModelSelector
-              model={paintingModel}
-              providers={providers}
-              filter={isGenerateImageModel}
-              compact={compact}
-              onSelect={onSelectPainting}
-              placeholder={t('settings.models.empty')}
-            />
-          </ModelSettingRow>
+          {showPaintingModel && (
+            <>
+              <SettingDivider />
+              <ModelSettingRow
+                compact={compact}
+                icon={<Palette size={16} className="lucide-custom shrink-0 text-foreground" />}
+                title={t('settings.models.painting_model')}
+                description={showDescription ? t('settings.models.painting_model_description') : undefined}>
+                <DefaultModelSelector
+                  model={paintingModel}
+                  providers={providers}
+                  filter={isGenerateImageModel}
+                  compact={compact}
+                  onSelect={onSelectPainting}
+                  placeholder={t('settings.models.empty')}
+                />
+              </ModelSettingRow>
+            </>
+          )}
         </SettingGroup>
       </ContainerComponent>
       {showSettingsButton && (

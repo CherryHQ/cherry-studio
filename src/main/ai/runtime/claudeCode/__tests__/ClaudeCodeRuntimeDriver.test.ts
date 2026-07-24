@@ -206,6 +206,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       'session-1',
       'resume-1',
       'claude-code::sonnet',
+      'default',
       expect.any(PrepareTimelineRecorder)
     )
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
