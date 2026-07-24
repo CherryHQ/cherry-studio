@@ -1,6 +1,6 @@
 import { resolve } from 'node:path'
 
-import type { Plugin } from 'vite'
+import { normalizePath, type Plugin } from 'vite'
 
 import { isUiSourceFile, windowNameFromHtml } from './scan'
 import { normalizeSourceFile } from './semanticId'
@@ -23,8 +23,10 @@ export function uiContractPlugin(options: UiContractPluginOptions = {}): Plugin 
     },
     load(id) {
       if (id !== RESOLVED_RUNTIME_MODULE_ID) return null
-      const runtimePath = resolve(root, 'scripts/uiContract/runtime.ts')
-      const slotPath = resolve(root, 'scripts/uiContract/uiDataSlot.ts')
+      // normalizePath keeps the import specifiers forward-slashed on Windows,
+      // where raw resolve() output would fail Vite module resolution.
+      const runtimePath = normalizePath(resolve(root, 'scripts/uiContract/runtime.ts'))
+      const slotPath = normalizePath(resolve(root, 'scripts/uiContract/uiDataSlot.ts'))
       return `
 export { mergeDataUi, mergeUiProps } from ${JSON.stringify(runtimePath)}
 export { UiDataSlot } from ${JSON.stringify(slotPath)}
