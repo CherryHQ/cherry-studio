@@ -29,6 +29,8 @@ const mockUseKnowledgeItems = vi.fn()
 const mockUseReindexKnowledgeItem = vi.fn()
 const mockDetailHeaderRender = vi.fn()
 const mockDataSourcePanelRender = vi.fn()
+const mockRagConfigPanelModuleLoad = vi.fn()
+const mockRecallTestPanelModuleLoad = vi.fn()
 
 vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
   useKnowledgeBases: () => mockUseKnowledgeBases(),
@@ -310,20 +312,26 @@ vi.mock('../panels/dataSource/KnowledgeItemChunkDetailPanel', () => ({
   )
 }))
 
-vi.mock('../panels/ragConfig/RagConfigPanel', () => ({
-  default: ({ base, onRestoreBase }: { base: KnowledgeBase; onRestoreBase: (base: KnowledgeBase) => void }) => (
-    <div data-testid="rag-config-panel">
-      {base.name}
-      <button type="button" onClick={() => onRestoreBase(base)}>
-        RagRestore {base.name}
-      </button>
-    </div>
-  )
-}))
+vi.mock('../panels/ragConfig/RagConfigPanel', () => {
+  mockRagConfigPanelModuleLoad()
+  return {
+    default: ({ base, onRestoreBase }: { base: KnowledgeBase; onRestoreBase: (base: KnowledgeBase) => void }) => (
+      <div data-testid="rag-config-panel">
+        {base.name}
+        <button type="button" onClick={() => onRestoreBase(base)}>
+          RagRestore {base.name}
+        </button>
+      </div>
+    )
+  }
+})
 
-vi.mock('../panels/recallTest/RecallTestPanel', () => ({
-  default: () => <div data-testid="recall-test-panel">recall-test-panel</div>
-}))
+vi.mock('../panels/recallTest/RecallTestPanel', () => {
+  mockRecallTestPanelModuleLoad()
+  return {
+    default: () => <div data-testid="recall-test-panel">recall-test-panel</div>
+  }
+})
 
 vi.mock('../components/AddKnowledgeItemDialog', () => ({
   default: ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) =>
@@ -735,14 +743,19 @@ describe('KnowledgePage', () => {
     })
     expect(screen.queryByTestId('rag-config-panel')).not.toBeInTheDocument()
     expect(screen.queryByTestId('recall-test-panel')).not.toBeInTheDocument()
+    expect(mockRagConfigPanelModuleLoad).not.toHaveBeenCalled()
+    expect(mockRecallTestPanelModuleLoad).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'OpenRagConfig' }))
-    expect(screen.getByTestId('rag-config-panel')).toHaveTextContent('Base 1')
+    expect(await screen.findByTestId('rag-config-panel')).toHaveTextContent('Base 1')
+    expect(mockRagConfigPanelModuleLoad).toHaveBeenCalledOnce()
+    expect(mockRecallTestPanelModuleLoad).not.toHaveBeenCalled()
     // Data source stays visible behind the drawer
     expect(screen.getByTestId('data-source-panel')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'OpenRecallTest' }))
-    expect(screen.getByTestId('recall-test-panel')).toBeInTheDocument()
+    expect(await screen.findByTestId('recall-test-panel')).toBeInTheDocument()
+    expect(mockRecallTestPanelModuleLoad).toHaveBeenCalledOnce()
   })
 
   it('opens and closes the add-source dialog from the data source panel when a knowledge base is selected', async () => {
