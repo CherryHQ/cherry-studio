@@ -466,6 +466,38 @@ describe('runDataReset', () => {
     expect(appRelaunchMock).not.toHaveBeenCalled()
   })
 
+  it('quits without wiping when the marker cannot be read', async () => {
+    stubAll(null)
+    const error = Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' })
+    readFileSyncMock.mockImplementation(() => {
+      throw error
+    })
+
+    await runReset()
+
+    expect(renameSyncMock).not.toHaveBeenCalled()
+    expect(rmSyncMock).not.toHaveBeenCalled()
+    expect(showErrorBoxMock).toHaveBeenCalled()
+    expect(appExitMock).toHaveBeenCalledWith(1)
+    expect(appRelaunchMock).not.toHaveBeenCalled()
+  })
+
+  it('quits without wiping when an invalid marker cannot be quarantined', async () => {
+    stubAll(null)
+    seedRawMarker('{ this is not valid json')
+    renameSyncMock.mockImplementation(() => {
+      throw new Error('EACCES: permission denied')
+    })
+
+    await runReset()
+
+    expect(markerExists()).toBe(true)
+    expect(rmSyncMock).not.toHaveBeenCalled()
+    expect(showErrorBoxMock).toHaveBeenCalled()
+    expect(appExitMock).toHaveBeenCalledWith(1)
+    expect(appRelaunchMock).not.toHaveBeenCalled()
+  })
+
   it('renames a schema-invalid marker aside and continues booting', async () => {
     stubAll(null)
     // Valid JSON but fails the zod schema (missing required canonicalPath,
@@ -552,6 +584,17 @@ describe('runDataReset', () => {
     expect(showErrorBoxMock).toHaveBeenCalled()
   })
 
+  it('quits rather than booting writable when abandoning a marker fails', async () => {
+    stubAll(pendingMarker({ attempts: 2 }))
+    fsCtl.failDelete = true
+    await runReset()
+
+    expect(markerExists()).toBe(true)
+    expect(showErrorBoxMock).toHaveBeenCalled()
+    expect(appExitMock).toHaveBeenCalledWith(1)
+    expect(appRelaunchMock).not.toHaveBeenCalled()
+  })
+
   it('treats an absent attempts value as zero (arms the first pass)', async () => {
     stubAll(pendingMarker())
     await runReset()
@@ -623,7 +666,7 @@ describe('runDataReset', () => {
     expect(appExitMock).toHaveBeenCalledWith(0)
   })
 
-  it('continues boot when the module itself throws unexpectedly', async () => {
+  it('quits when the module itself throws unexpectedly', async () => {
     stubElectron()
     stubApplication(USER_DATA, { throwOnUserData: true })
     stubI18n()
@@ -633,7 +676,9 @@ describe('runDataReset', () => {
     await runReset()
 
     expect(rmSyncMock).not.toHaveBeenCalled()
-    expect(appExitMock).not.toHaveBeenCalled()
+    expect(showErrorBoxMock).toHaveBeenCalled()
+    expect(appExitMock).toHaveBeenCalledWith(1)
+    expect(appRelaunchMock).not.toHaveBeenCalled()
   })
 })
 

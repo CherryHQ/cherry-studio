@@ -181,14 +181,14 @@ function markerPath(): string {
 /**
  * Read and validate the pending marker.
  *   - absent (ENOENT) → null (no reset pending; boot normally).
- *   - present but corrupt (unreadable, bad JSON, or failing the schema) →
- *     log, rename it aside to `data-reset.pending.invalid`, return null.
+ *   - present but invalid (bad JSON or failing the schema) → rename it aside
+ *     to `data-reset.pending.invalid`, return null.
+ *   - unreadable or unable to quarantine an invalid marker → throw: a marker
+ *     may never coexist with a writable app.
  *
- * Renaming rather than refusing to boot is deliberate: a corrupt marker
- * cannot drive a wipe anyway (there is no trusted canonicalPath to authorize
- * one), and treating "unparseable marker" as a permanent boot failure would
- * brick the app. The rename keeps the evidence for diagnosis while letting
- * the next boot proceed as if nothing were pending.
+ * Renaming a validated-invalid marker rather than refusing to boot is
+ * deliberate: it cannot drive a wipe (there is no trusted canonicalPath to
+ * authorize one), and the quarantine keeps the evidence for diagnosis.
  */
 function readMarker(): DataResetMarker | null {
   const file = markerPath()
@@ -197,9 +197,7 @@ function readMarker(): DataResetMarker | null {
     raw = fs.readFileSync(file, 'utf8')
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
-    logger.error('Data reset marker could not be read — renaming aside and ignoring', { error: String(error) })
-    renameMarkerAside(file)
-    return null
+    throw error
   }
 
   let parsed: unknown
@@ -222,16 +220,10 @@ function readMarker(): DataResetMarker | null {
   return result.data
 }
 
-/** Best-effort: move a corrupt marker to `data-reset.pending.invalid`. */
+/** Move an invalid marker to `data-reset.pending.invalid` durably. */
 function renameMarkerAside(file: string): void {
-  try {
-    fs.renameSync(file, path.join(path.dirname(file), 'data-reset.pending.invalid'))
-    syncParentDirectory(file)
-  } catch (error) {
-    logger.error('Could not rename the corrupt data reset marker aside — leaving it in place', {
-      error: String(error)
-    })
-  }
+  fs.renameSync(file, path.join(path.dirname(file), 'data-reset.pending.invalid'))
+  syncParentDirectory(file)
 }
 
 /**
@@ -413,8 +405,8 @@ export async function requestDataReset(): Promise<void> {
  * - It then relaunches: the reset session must not keep running in the
  *   process that wiped it (stale Chromium flags, cached ensured paths); the
  *   next boot starts fresh with no marker.
- * Anything unexpected is logged and boot continues — a half-wiped state is
- * acceptable for a reset; refusing to start over it is not.
+ * Anything unexpected fails closed: a marker may never coexist with a
+ * writable app.
  */
 export function runDataReset(): void {
   try {
@@ -468,14 +460,13 @@ export function runDataReset(): void {
       logger.error('Data reset halted: the attempt count could not be durably recorded — refusing to boot', {
         error: String(error)
       })
-      dialog.showErrorBox(
+      showDataResetError(
         'Data Reset Failed',
         'Cherry Studio could not record the data reset state ' +
           `in ${markerPath()}.\n\n` +
           'Starting now could erase data you create later, so the app will quit instead.\n\n' +
           'Please check disk space and file permissions, then start Cherry Studio again.'
       )
-      app.exit(1)
       return
     }
 
@@ -533,13 +524,12 @@ export function runDataReset(): void {
           error: String(markerError)
         })
       }
-      dialog.showErrorBox(
+      showDataResetError(
         'Data Reset Incomplete',
         'Cherry Studio erased its data but could not save the reset settings. ' +
           'The app will quit instead of reporting the reset as successful.\n\n' +
           'Please check disk space and file permissions before starting Cherry Studio again.'
       )
-      app.exit(1)
       return
     }
 
@@ -552,16 +542,13 @@ export function runDataReset(): void {
       logger.error('Data reset wiped successfully but the marker could not be removed — refusing to boot', {
         error: String(error)
       })
-      dialog.showErrorBox(
+      showDataResetError(
         'Data Reset Incomplete',
         'Cherry Studio erased its data but could not remove the reset marker ' +
           `at ${markerPath()}.\n\n` +
           'Starting now would erase anything you create on the next launch, so the app will quit instead.\n\n' +
           'Please check disk space and file permissions, then start Cherry Studio again.'
       )
-      // Deliberately app.exit(), not application.quit(): non-zero exit code,
-      // and no before-quit handlers — nothing may write files after the wipe.
-      app.exit(1)
       return
     }
 
@@ -573,28 +560,33 @@ export function runDataReset(): void {
     app.relaunch()
     app.exit(0)
   } catch (error) {
-    logger.error('Data reset failed — continuing boot', error as Error)
+    logger.error('Data reset failed — refusing to boot', error as Error)
+    showDataResetError(
+      'Data Reset Failed',
+      'Cherry Studio could not safely complete a pending data reset. ' +
+        'The app will quit instead of starting with a reset marker still present.\n\n' +
+        'Please check disk space and file permissions, then start Cherry Studio again.'
+    )
   }
 }
 
 /**
  * Give-up cleanup shared by the refusal paths (identity mismatch, attempt
- * cap): reset BootConfig's other keys, then remove the marker best-effort.
- * No destructive pass runs on these paths, so a marker that survives the
- * delete is simply re-read and re-abandoned on the next boot — the same
- * tolerance the old flush()-based clear had.
+ * cap): reset BootConfig's other keys, then remove the marker. No destructive
+ * pass runs on these paths, but boot may continue only after the marker is
+ * gone.
  */
 function abandonReset(): void {
   resetBootConfigToDefaults()
   bootConfigService.flush()
-  try {
-    deleteMarker()
-  } catch (error) {
-    logger.warn('Could not remove the data reset marker on the give-up path — leaving it for the next boot', {
-      error: String(error)
-    })
-  }
+  deleteMarker()
   showIncompleteResetWarning()
+}
+
+/** Show a preboot-native error and terminate without running quit handlers. */
+function showDataResetError(title: string, message: string): void {
+  dialog.showErrorBox(title, message)
+  app.exit(1)
 }
 
 /** Whitelist membership: exact names only. */
