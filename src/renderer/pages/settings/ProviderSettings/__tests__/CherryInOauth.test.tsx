@@ -52,7 +52,7 @@ describe('CherryInOauth', () => {
     vi.clearAllMocks()
     ipcApiRequestMock.mockImplementation((route: string) => {
       if (route === 'cherryin.get_endpoint_selection') {
-        return Promise.resolve({ host: 'https://open.cherryin.net', mode: 'auto', source: 'probe' })
+        return Promise.resolve({ host: 'https://open.cherryin.net', mode: 'auto' })
       }
       if (route === 'cherryin.get_balance') return Promise.resolve(DEFAULT_BALANCE)
       if (route === 'oauth.has_token') return Promise.resolve(true)
@@ -89,7 +89,7 @@ describe('CherryInOauth', () => {
   it('keeps balance fetch failures quiet and shows the empty balance state', async () => {
     ipcApiRequestMock.mockImplementation((route: string) => {
       if (route === 'cherryin.get_endpoint_selection') {
-        return Promise.resolve({ host: 'https://open.cherryin.net', mode: 'auto', source: 'probe' })
+        return Promise.resolve({ host: 'https://open.cherryin.net', mode: 'auto' })
       }
       if (route === 'cherryin.get_balance') {
         return Promise.reject(new Error('Failed to get balance: HTTP 401 Unauthorized'))

@@ -16,6 +16,7 @@ import { useDefaultModel, useModels } from '@renderer/hooks/useModel'
 import { useProvider, useProviders } from '@renderer/hooks/useProvider'
 import { appLanguageOptions, isAppLanguage } from '@renderer/i18n/languages'
 import i18n from '@renderer/i18n/resolver'
+import { ipcApi } from '@renderer/ipc'
 import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
 import { ProviderSettingsPage, useProviderModelSync } from '@renderer/pages/settings/ProviderSettings'
 import { oauthWithCherryIn } from '@renderer/services/oauth'
@@ -36,7 +37,6 @@ type OnboardingStep = 'welcome' | 'provider' | 'select-model'
 type OnboardingCompletionStatus = Exclude<OnboardingProviderSetupStatus, 'pending'>
 type PrivacyProtectedAction = () => void | Promise<void>
 
-const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
 const CHERRYIN_LOGIN_LOADING_TIMEOUT_MS = 10_000
 const PESSIMISTIC_PREFERENCE_OPTIONS = { optimistic: false } as const
 const isOnboardingModel = (model: Model) => model.providerId !== CHERRYAI_PROVIDER_ID
@@ -247,6 +247,7 @@ export default function OnboardingPage() {
     }, CHERRYIN_LOGIN_LOADING_TIMEOUT_MS)
 
     try {
+      const selection = await ipcApi.request('cherryin.get_endpoint_selection')
       await oauthWithCherryIn(
         async (apiKeys) => {
           if (loginAttemptRef.current !== attemptId) return
@@ -259,7 +260,7 @@ export default function OnboardingPage() {
           await Promise.all(keys.map((key) => addApiKey(key, 'OAuth')))
           await updateProvider({ isEnabled: true })
         },
-        { oauthServer: CHERRYIN_OAUTH_SERVER }
+        { oauthServer: selection.host }
       )
       if (loginAttemptRef.current !== attemptId) return
 

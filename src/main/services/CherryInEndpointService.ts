@@ -94,10 +94,7 @@ export class CherryInEndpointService extends BaseService {
   }
 
   private async resolveMode(mode: CherryInHostMode, revision: number): Promise<CherryInEndpointSelection> {
-    const selection =
-      mode === 'auto'
-        ? await this.probePreferredHost()
-        : { host: CHERRYIN_HOSTS[mode], mode, source: 'manual' as const }
+    const selection = mode === 'auto' ? await this.probePreferredHost() : { host: CHERRYIN_HOSTS[mode], mode }
 
     if (revision !== this.selectionRevision) {
       return this.currentSelection ?? selection
@@ -132,7 +129,7 @@ export class CherryInEndpointService extends BaseService {
       host: result.host,
       source: result.source
     })
-    return { ...result, mode: 'auto' }
+    return { host: result.host, mode: 'auto' }
   }
 
   private async probeHost(host: CherryInHost, round: number): Promise<number | null> {

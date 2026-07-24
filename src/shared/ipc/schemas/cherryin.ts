@@ -31,8 +31,7 @@ export type CherryInBalance = z.infer<typeof cherryInBalanceSchema>
 const cherryInHostModeSchema = z.enum(['auto', 'china', 'global'])
 const cherryInEndpointSelectionSchema = z.object({
   host: z.enum([CHERRYIN_HOSTS.china, CHERRYIN_HOSTS.global]),
-  mode: cherryInHostModeSchema,
-  source: z.enum(['fallback', 'manual', 'probe'])
+  mode: cherryInHostModeSchema
 })
 const apiHostInput = z.object({ apiHost: z.string() })
 

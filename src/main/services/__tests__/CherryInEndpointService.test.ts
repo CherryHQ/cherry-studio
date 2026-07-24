@@ -80,7 +80,7 @@ describe('CherryInEndpointService', () => {
     mocks.fetch.mockImplementation((url: string) => Promise.resolve(response(url.startsWith(CHERRYIN_HOSTS.global))))
     const service = new CherryInEndpointService()
 
-    await expect(service.getSelection()).resolves.toMatchObject({ host: CHERRYIN_HOSTS.global, mode: 'auto' })
+    await expect(service.getSelection()).resolves.toEqual({ host: CHERRYIN_HOSTS.global, mode: 'auto' })
 
     expect(mocks.fetch).toHaveBeenCalledTimes(4)
     expect(mocks.updateProvider).toHaveBeenCalledWith('cherryin', {
@@ -103,8 +103,7 @@ describe('CherryInEndpointService', () => {
 
     await expect(service.setMode('global')).resolves.toEqual({
       host: CHERRYIN_HOSTS.global,
-      mode: 'global',
-      source: 'manual'
+      mode: 'global'
     })
     await automatic
 

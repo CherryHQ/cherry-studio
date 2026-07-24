@@ -26,7 +26,7 @@ const HOST_MODE_OPTIONS = [
   {
     value: 'auto',
     labelKey: 'settings.provider.cherryin.route.auto',
-    description: 'Auto'
+    description: undefined
   },
   {
     value: 'china',
@@ -38,7 +38,7 @@ const HOST_MODE_OPTIONS = [
     labelKey: 'settings.provider.cherryin.route.global',
     description: 'open.cherryin.ai'
   }
-] satisfies Array<{ value: CherryInHostMode; labelKey: string; description: string }>
+] satisfies Array<{ value: CherryInHostMode; labelKey: string; description?: string }>
 
 const CherryInSettings: FC<CherryInSettingsProps> = ({ providerId }) => {
   const { provider } = useProvider(providerId)

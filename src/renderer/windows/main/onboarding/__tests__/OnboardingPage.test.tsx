@@ -18,6 +18,7 @@ const responsiveStyles = readFileSync(join(process.cwd(), 'src/renderer/assets/s
 const addApiKeyMock = vi.fn()
 const updateProviderMock = vi.fn()
 const oauthWithCherryInMock = vi.fn()
+const ipcApiRequestMock = vi.fn()
 const syncProviderModelsMock = vi.fn()
 const toastSuccessMock = vi.fn()
 const toastErrorMock = vi.fn()
@@ -68,6 +69,12 @@ vi.mock('@renderer/hooks/useModel', () => ({
 
 vi.mock('@renderer/services/oauth', () => ({
   oauthWithCherryIn: (...args: unknown[]) => oauthWithCherryInMock(...args)
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: (...args: unknown[]) => ipcApiRequestMock(...args)
+  }
 }))
 
 vi.mock('@renderer/services/toast', () => ({
@@ -138,6 +145,10 @@ describe('OnboardingPage', () => {
     }
     MockUsePreferenceUtils.resetMocks()
     i18nMock.changeLanguage.mockResolvedValue(undefined)
+    ipcApiRequestMock.mockResolvedValue({
+      host: 'https://open.cherryin.net',
+      mode: 'auto'
+    })
     oauthWithCherryInMock.mockResolvedValue('sk-test')
     addApiKeyMock.mockResolvedValue(undefined)
     updateProviderMock.mockResolvedValue(undefined)
@@ -605,6 +616,18 @@ describe('OnboardingPage', () => {
     expect(updateProviderMock).toHaveBeenCalledWith({ isEnabled: true })
     expect(syncProviderModelsMock).toHaveBeenCalledTimes(1)
     expect(toastSuccessMock).toHaveBeenCalledWith('onboarding.toast.connected')
+  })
+
+  it('uses the selected CherryIN endpoint for onboarding login', async () => {
+    render(<OnboardingPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: /onboarding\.welcome\.login_cherryin/ }))
+
+    await waitFor(() => expect(oauthWithCherryInMock).toHaveBeenCalledTimes(1))
+    expect(ipcApiRequestMock).toHaveBeenCalledWith('cherryin.get_endpoint_selection')
+    expect(oauthWithCherryInMock).toHaveBeenCalledWith(expect.any(Function), {
+      oauthServer: 'https://open.cherryin.net'
+    })
   })
 
   it('returns to provider setup when CherryIN sync finds no enabled model', async () => {

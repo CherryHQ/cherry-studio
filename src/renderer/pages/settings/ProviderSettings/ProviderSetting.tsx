@@ -14,7 +14,13 @@ interface ProviderSettingProps {
   isOnboarding?: boolean
 }
 
-function ProviderSettingSections({ providerId }: { providerId: string }) {
+function ProviderSettingSections({
+  providerId,
+  allowManualModelAdd
+}: {
+  providerId: string
+  allowManualModelAdd: boolean
+}) {
   const health = useModelListHealth()
   const [modelPullGuideVersion, setModelPullGuideVersion] = useState(0)
   const requestModelPullGuide = useCallback(() => {
@@ -29,7 +35,11 @@ function ProviderSettingSections({ providerId }: { providerId: string }) {
           onOpenModelHealthCheck={health.openHealthCheck}
           onRequestModelPullGuide={requestModelPullGuide}
         />
-        <ModelList providerId={providerId} modelPullGuideVersion={modelPullGuideVersion} />
+        <ModelList
+          providerId={providerId}
+          modelPullGuideVersion={modelPullGuideVersion}
+          allowManualModelAdd={allowManualModelAdd}
+        />
       </div>
     </Scrollbar>
   )
@@ -58,7 +68,7 @@ export default function ProviderSetting({ providerId, isOnboarding = false }: Pr
             </div>
           </div>
           <ModelListHealthProvider providerId={providerId}>
-            <ProviderSettingSections providerId={providerId} />
+            <ProviderSettingSections providerId={providerId} allowManualModelAdd={provider.id !== 'cherryin'} />
           </ModelListHealthProvider>
         </div>
       </div>

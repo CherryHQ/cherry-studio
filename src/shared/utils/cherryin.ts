@@ -5,12 +5,10 @@ export const CHERRYIN_HOSTS = {
 
 export type CherryInHost = (typeof CHERRYIN_HOSTS)[keyof typeof CHERRYIN_HOSTS]
 export type CherryInHostMode = 'auto' | keyof typeof CHERRYIN_HOSTS
-export type CherryInSelectionSource = 'fallback' | 'manual' | 'probe'
 
 export interface CherryInEndpointSelection {
   host: CherryInHost
   mode: CherryInHostMode
-  source: CherryInSelectionSource
 }
 
 const HOSTS = new Set<CherryInHost>(Object.values(CHERRYIN_HOSTS))

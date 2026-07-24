@@ -9,7 +9,7 @@ const ipcMocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  MenuItem: ({ description, label }: { description: string; label: string }) => (
+  MenuItem: ({ description, label }: { description?: string; label: string }) => (
     <div>
       {label}
       {description}
@@ -46,8 +46,7 @@ describe('CherryInSettings', () => {
     ipcMocks.endpointSelectedHandler = undefined
     ipcMocks.request.mockResolvedValue({
       host: CHERRYIN_HOSTS.china,
-      mode: 'china',
-      source: 'manual'
+      mode: 'china'
     } satisfies CherryInEndpointSelection)
   })
 
@@ -55,12 +54,12 @@ describe('CherryInSettings', () => {
     render(<CherryInSettings providerId="cherryin" />)
 
     await waitFor(() => expect(screen.getByText('open.cherryin.net')).toBeInTheDocument())
+    expect(screen.queryByText('Auto')).not.toBeInTheDocument()
 
     act(() => {
       ipcMocks.endpointSelectedHandler?.({
         host: CHERRYIN_HOSTS.global,
-        mode: 'global',
-        source: 'manual'
+        mode: 'global'
       })
     })
 

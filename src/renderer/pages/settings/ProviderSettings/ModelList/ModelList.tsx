@@ -12,14 +12,17 @@ import ProviderModelPullReconcile from './ProviderModelPullReconcile'
 interface ModelListProps {
   providerId: string
   modelPullGuideVersion?: number
+  allowManualModelAdd?: boolean
 }
 
 function ModelListContent({
   providerId,
-  modelPullGuideVersion = 0
+  modelPullGuideVersion = 0,
+  allowManualModelAdd
 }: {
   providerId: string
   modelPullGuideVersion?: number
+  allowManualModelAdd: boolean
 }) {
   const { isHealthChecking } = useModelListHealthRun()
   const disabled = isHealthChecking
@@ -38,9 +41,9 @@ function ModelListContent({
             />
             {providerId === 'ovms' ? (
               <ProviderModelDownload providerId={providerId} disabled={toolbarDisabled} />
-            ) : (
+            ) : allowManualModelAdd ? (
               <ProviderModelAdd providerId={providerId} disabled={toolbarDisabled} />
-            )}
+            ) : null}
           </ButtonGroup>
         )}
       />
@@ -49,11 +52,15 @@ function ModelListContent({
   )
 }
 
-const ModelList: React.FC<ModelListProps> = ({ providerId, modelPullGuideVersion = 0 }) => {
+const ModelList: React.FC<ModelListProps> = ({ providerId, modelPullGuideVersion = 0, allowManualModelAdd = true }) => {
   return (
     <div className={modelListClasses.cqRoot}>
       <section data-testid="provider-model-list" className={modelListClasses.section}>
-        <ModelListContent providerId={providerId} modelPullGuideVersion={modelPullGuideVersion} />
+        <ModelListContent
+          providerId={providerId}
+          modelPullGuideVersion={modelPullGuideVersion}
+          allowManualModelAdd={allowManualModelAdd}
+        />
       </section>
     </div>
   )

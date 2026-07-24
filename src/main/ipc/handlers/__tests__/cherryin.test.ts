@@ -23,8 +23,8 @@ beforeEach(() => {
 
 describe('cherryinHandlers', () => {
   it('dispatches endpoint selection commands', async () => {
-    endpointService.getSelection.mockResolvedValue({ host: 'https://open.cherryin.net', mode: 'auto', source: 'probe' })
-    endpointService.setMode.mockResolvedValue({ host: 'https://open.cherryin.ai', mode: 'global', source: 'manual' })
+    endpointService.getSelection.mockResolvedValue({ host: 'https://open.cherryin.net', mode: 'auto' })
+    endpointService.setMode.mockResolvedValue({ host: 'https://open.cherryin.ai', mode: 'global' })
 
     await cherryinHandlers['cherryin.get_endpoint_selection'](undefined, { senderId: 'w1' })
     await cherryinHandlers['cherryin.set_host_mode']({ mode: 'global' }, { senderId: 'w1' })
