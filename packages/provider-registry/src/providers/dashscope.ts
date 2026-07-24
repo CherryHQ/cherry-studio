@@ -30,6 +30,18 @@ const responsesEffortWire: ReasoningWireProfile = {
   effort: { operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }] }
 }
 
+/**
+ * Bailian's Responses API controls reasoning via `reasoning.effort` (none/minimal/low/medium/high,
+ * default medium) — `thinking_budget` is NOT supported there and `enable_thinking` is being retired
+ * (help.aliyun.com/zh/model-studio/compatibility-with-openai-responses-api#深度思考). So the responses
+ * contract exposes effort options, while the chat contract keeps qwen's native toggle + thinking_budget.
+ */
+const qwenResponsesSupport: ReasoningSupport = {
+  controls: [{ kind: 'effort', values: ['none', 'minimal', 'low', 'medium', 'high'], default: 'medium' }],
+  defaultEffort: 'medium',
+  supportedEfforts: ['none', 'minimal', 'low', 'medium', 'high']
+}
+
 const qwen38Support: ReasoningSupport = {
   controls: [{ kind: 'effort', values: ['none', 'low', 'medium', 'xhigh'], default: 'xhigh' }],
   defaultEffort: 'xhigh',
@@ -95,11 +107,75 @@ const qwenChatModels = [
   'qwen3-vl-235b-a22b'
 ]
 
+/**
+ * SKUs for which Bailian serves built-in web search (help.aliyun.com/zh/model-studio/web-search 支持的模型).
+ * A Bailian-platform serving feature, so it rides the provider (not the alibaba creator). Chat-endpoint
+ * models get it via `enable_search`/`search_options` params (getWebSearchParams); responses-only models
+ * get the native `{type:'web_search'}` tool.
+ */
+const webSearchModels = new Set([
+  ...qwenChatModels,
+  'qwen3-8-max-preview',
+  'qwen-plus-character',
+  'qwq-plus',
+  'deepseek-v4-pro',
+  'deepseek-v4-flash',
+  'deepseek-v3-2',
+  'deepseek-v3-1',
+  'deepseek-r1',
+  'deepseek-v3',
+  'kimi-k2',
+  'minimax-m2-1'
+])
+
+/**
+ * Bailian Responses API support (help.aliyun.com/zh/model-studio model support list). The provider
+ * defaults to the Responses endpoint (`{type:'web_search'}` tool + future web_extractor); these SKUs
+ * serve it. Dual-support models keep Chat Completions selectable (no pin); everything else pins to chat.
+ */
+const responsesModels = new Set([
+  'qwen-plus',
+  'qwen-flash',
+  'qwen-plus-character',
+  'qwen3-5-27b',
+  'qwen3-5-35b-a3b',
+  'qwen3-5-122b-a10b',
+  'qwen3-5-397b-a17b',
+  'qwen3-5-flash',
+  'qwen3-5-plus',
+  'qwen3-6-35b-a3b',
+  'qwen3-6-flash',
+  'qwen3-6-plus',
+  'qwen3-7-plus',
+  'qwen3-7-max',
+  'qwen3-max',
+  'qwen3-8-max-preview'
+])
+
+/** Newest qwen served ONLY via the Responses API — Chat Completions errors (仅 Responses API 支持). */
+const responsesOnlyModels = new Set(['qwen3-7-max', 'qwen3-6-plus', 'qwen3-6-flash', 'qwen3-8-max-preview'])
+
+const webSearchCapability = { capabilities: { add: ['web-search' as const] } }
+
+/**
+ * Per-model endpoint restriction under the responses-default provider. Responses-only → pinned to
+ * responses; dual-support → no pin (defaults to responses, chat still selectable); the rest → pinned
+ * to chat (they don't serve Responses).
+ */
+const endpointPin = (modelId: string): Partial<ProviderModelOverride> =>
+  responsesOnlyModels.has(modelId)
+    ? { endpointTypes: ['openai-responses'] }
+    : responsesModels.has(modelId)
+      ? {}
+      : { endpointTypes: ['openai-chat-completions'] }
+
 const qwenReasoningOverrides: Partial<ProviderModelOverride>[] = qwenChatModels.map((modelId) => ({
   modelId,
+  ...(webSearchModels.has(modelId) ? webSearchCapability : {}),
+  ...endpointPin(modelId),
   reasoningContracts: {
     'openai-chat-completions': { wire: qwenChatWire },
-    'openai-responses': { wire: responsesEffortWire }
+    'openai-responses': { support: qwenResponsesSupport, wire: responsesEffortWire }
   }
 }))
 
@@ -109,6 +185,8 @@ const endpointReasoningOverrides: Partial<ProviderModelOverride>[] = [
     apiModelId: 'qwen3.8-max-preview',
     modelId: 'qwen3-8-max-preview',
     name: 'Qwen3.8 Max Preview',
+    ...webSearchCapability,
+    ...endpointPin('qwen3-8-max-preview'),
     reasoningContracts: {
       'openai-chat-completions': { support: qwen38Support, wire: qwen38ChatWire },
       'openai-responses': { support: qwen38Support, wire: responsesEffortWire }
@@ -116,6 +194,7 @@ const endpointReasoningOverrides: Partial<ProviderModelOverride>[] = [
   },
   {
     modelId: 'minimax-m3',
+    ...endpointPin('minimax-m3'),
     reasoningContracts: {
       'openai-chat-completions': {
         support: { controls: [{ kind: 'toggle', default: true }] },
@@ -125,6 +204,8 @@ const endpointReasoningOverrides: Partial<ProviderModelOverride>[] = [
   },
   ...['deepseek-v4-pro', 'deepseek-v4-flash', 'glm-5', 'glm-5-1', 'glm-5-2'].map((modelId) => ({
     modelId,
+    ...(webSearchModels.has(modelId) ? webSearchCapability : {}),
+    ...endpointPin(modelId),
     reasoningContracts: {
       'openai-chat-completions': { support: highMaxSupport, wire: effortChatWire }
     }
@@ -132,16 +213,27 @@ const endpointReasoningOverrides: Partial<ProviderModelOverride>[] = [
   {
     apiModelId: 'kimi/kimi-k3',
     modelId: 'kimi-k3',
+    ...endpointPin('kimi-k3'),
     reasoningContracts: {
       'openai-chat-completions': { support: kimiK3Support, wire: effortChatWire }
     }
-  }
+  },
+  // Web-search rows: Bailian-hosted third-party (chat-only) + qwq-plus + qwen-plus-character.
+  ...['qwq-plus', 'deepseek-v3-2', 'deepseek-v3-1', 'deepseek-r1', 'deepseek-v3', 'kimi-k2', 'minimax-m2-1'].map(
+    (modelId) => ({ modelId, ...webSearchCapability, ...endpointPin(modelId) })
+  ),
+  // qwen-plus-character: role-play SKU that supports Responses + built-in search (help.aliyun.com
+  // web-search 支持的模型). qwen-flash-character / qwen3.5-ocr are not in the catalog yet — skipped.
+  { modelId: 'qwen-plus-character', ...webSearchCapability, ...endpointPin('qwen-plus-character') }
 ]
 
 export default defineProvider({
   id: 'dashscope',
   name: 'Bailian',
-  defaultChatEndpoint: 'openai-chat-completions',
+  // Bailian's Responses API is the forward path (native web_search / web_extractor tools). Default to it;
+  // Chat-only SKUs are pinned back to chat via endpointPin (dashscope serves only its override list, so
+  // this is bounded — no unlisted catalog model silently flips to an unsupported endpoint).
+  defaultChatEndpoint: 'openai-responses',
   endpointConfigs: {
     'anthropic-messages': {
       adapterFamily: 'anthropic',

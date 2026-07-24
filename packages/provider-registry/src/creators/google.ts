@@ -14,6 +14,8 @@ export default defineCreator({
     },
     { pattern: '^gemini-3-pro', effort: ['low', 'high'] },
     { pattern: '^gemini-3\\.\\d+-pro|^gemini-pro-latest', effort: ['low', 'medium', 'high'] },
+    // Robotics ER (vision-language-action) exposes a thinking on/off toggle; not a flash/pro budget SKU.
+    { pattern: '^gemini-robotics', toggle: true },
     // Gemini 2.x budget models: flash can be turned off (budget 0); pro
     // cannot (budget-only via the tiers below — no vocabulary rule).
     { pattern: '^gemini-[\\d.]+.*flash', toggle: true, template: true },

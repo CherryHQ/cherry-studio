@@ -140,6 +140,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   },
   { pattern: '^gemini-3-pro', effort: ['low', 'high'] },
   { pattern: '^gemini-3\\.\\d+-pro|^gemini-pro-latest', effort: ['low', 'medium', 'high'] },
+  { pattern: '^gemini-robotics', toggle: true },
   { pattern: '^gemini-[\\d.]+.*flash', toggle: true, template: true },
   { pattern: 'gemini-2[.-]5-flash-lite.*$', budget: { min: 512, max: 24576 }, template: true },
   { pattern: 'gemini-flash-lite-latest$', budget: { min: 512, max: 24576 }, template: true },

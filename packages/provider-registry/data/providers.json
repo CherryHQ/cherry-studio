@@ -941,7 +941,7 @@
       "name": "BAICHUAN AI"
     },
     {
-      "defaultChatEndpoint": "openai-chat-completions",
+      "defaultChatEndpoint": "openai-responses",
       "description": "Bailian - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -1849,5 +1849,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "da71f20f551395f3"
+  "version": "92547b2ca34f953b"
 }
