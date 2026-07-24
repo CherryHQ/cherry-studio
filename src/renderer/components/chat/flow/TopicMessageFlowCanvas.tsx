@@ -14,7 +14,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { TOPIC_MESSAGE_FLOW_NODE_SIZE } from './topicMessageFlowLayout'
+import { TOPIC_MESSAGE_FLOW_INACTIVE_EDGE_COLOR, TOPIC_MESSAGE_FLOW_NODE_SIZE } from './topicMessageFlowLayout'
 import TopicMessageFlowLegend from './TopicMessageFlowLegend'
 import TopicMessageFlowNode from './TopicMessageFlowNode'
 import type { TopicMessageFlowEdgeModel, TopicMessageFlowLayout, TopicMessageFlowNodeModel } from './types'
@@ -47,9 +47,9 @@ const proOptions: ReactFlowProps<TopicMessageFlowNodeModel, TopicMessageFlowEdge
 function getMiniMapNodeColor(node: TopicMessageFlowNodeModel) {
   const data = node.data
 
-  if (data.role === 'user') return 'var(--color-success)'
-  if (data.role === 'assistant') return 'var(--color-info)'
-  return 'var(--color-muted)'
+  if (data.role === 'user') return 'var(--success)'
+  if (data.role === 'assistant') return 'var(--info)'
+  return 'var(--muted)'
 }
 
 function getEdgeStyle(edge: TopicMessageFlowEdgeModel): TopicMessageFlowEdgeModel['style'] {
@@ -57,10 +57,10 @@ function getEdgeStyle(edge: TopicMessageFlowEdgeModel): TopicMessageFlowEdgeMode
 
   return {
     stroke: data?.isActivePath
-      ? 'var(--color-success)'
+      ? 'var(--success)'
       : data?.isInactiveBranch
-        ? 'var(--color-gray-400)'
-        : 'var(--color-border)',
+        ? TOPIC_MESSAGE_FLOW_INACTIVE_EDGE_COLOR
+        : 'var(--border)',
     strokeWidth: data?.isActivePath ? 2.25 : 1.5,
     strokeDasharray: data?.isActivePath || data?.isSiblingBranch || data?.isInactiveBranch ? '4 4' : undefined,
     ...edge.style
@@ -252,9 +252,9 @@ const TopicMessageFlowCanvas = ({
           zoomOnDoubleClick={false}>
           <TopicMessageFlowLegend />
           <MiniMap
-            bgColor="var(--color-card)"
+            bgColor="var(--card)"
             className="overflow-hidden rounded-md border border-border shadow-sm"
-            maskColor="color-mix(in srgb, var(--color-background) 72%, transparent)"
+            maskColor="color-mix(in srgb, var(--background) 72%, transparent)"
             nodeColor={getMiniMapNodeColor}
             pannable
             position="bottom-right"

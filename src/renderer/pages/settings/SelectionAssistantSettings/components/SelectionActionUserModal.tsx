@@ -171,7 +171,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                       (iconNames.includes(formData.icon as any) ? (
                         <DynamicIcon name={formData.icon as any} size={18} />
                       ) : (
-                        <OctagonX size={18} color="var(--color-error-base)" />
+                        <OctagonX size={18} color="var(--error)" />
                       ))}
                   </IconPreview>
                 </div>

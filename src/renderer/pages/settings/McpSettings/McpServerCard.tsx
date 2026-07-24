@@ -177,7 +177,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
                 fontFamily: 'monospace',
                 userSelect: 'text',
                 marginRight: 20,
-                color: 'var(--color-error-base)'
+                color: 'var(--error)'
               }}>
               {errorDetails}
             </div>

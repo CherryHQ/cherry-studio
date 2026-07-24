@@ -19,10 +19,10 @@ const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({ icon, message, onCl
   const isDark = theme === 'dark'
 
   const colors = {
-    border: isDark ? 'var(--color-border, #ffffff19)' : '#d0d7de',
-    background: isDark ? 'var(--color-muted)' : 'var(--color-background-subtle)',
-    hoverBorder: isDark ? 'var(--color-primary, #2f81f7)' : '#0969da',
-    hoverBackground: isDark ? 'rgba(56, 139, 253, 0.15)' : 'var(--color-accent)'
+    border: isDark ? 'var(--border, #ffffff19)' : '#d0d7de',
+    background: isDark ? 'color-mix(in srgb, var(--background) 96%, var(--foreground) 4%)' : 'var(--background-subtle)',
+    hoverBorder: isDark ? 'var(--primary, #2f81f7)' : '#0969da',
+    hoverBackground: isDark ? 'rgba(56, 139, 253, 0.15)' : 'var(--accent)'
   }
 
   return (

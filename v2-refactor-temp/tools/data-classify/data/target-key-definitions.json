@@ -99,14 +99,14 @@
     {
       "targetKey": "chat.input.toolbar.pinned_tools",
       "type": "string[]",
-      "defaultValue": ["thinking", "web-search"],
+      "defaultValue": ["composer:new-conversation", "thinking", "web-search"],
       "status": "classified",
       "description": "Ordered tool ids pinned on the chat composer toolbar (v2 new feature, no v1 source)"
     },
     {
       "targetKey": "agent.input.toolbar.pinned_tools",
       "type": "string[]",
-      "defaultValue": ["thinking", "skills"],
+      "defaultValue": ["composer:new-session", "thinking", "skills"],
       "status": "classified",
       "description": "Ordered tool ids pinned on the agent composer toolbar (v2 new feature, no v1 source)"
     },
@@ -150,13 +150,6 @@
       "defaultValue": [],
       "status": "classified",
       "description": "Launchpad built-in app tile order, independent from the sidebar favorites order (new v2 preference, no v1 source). Empty defaults to the canonical app order; unknown/missing apps are normalized at read time"
-    },
-    {
-      "targetKey": "ui.custom_css",
-      "type": "string",
-      "defaultValue": "",
-      "status": "classified",
-      "description": "Custom CSS for v2. Non-empty v1 CSS is preserved in this key with a versioned first-line marker that keeps it disabled until reviewed."
     },
     {
       "targetKey": "chat.default_model_id",

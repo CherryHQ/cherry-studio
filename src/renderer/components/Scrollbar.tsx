@@ -59,9 +59,9 @@ const Scrollbar: FC<ScrollbarProps> = ({
     <div
       {...htmlProps} // Pass other HTML attributes
       className={cn(
-        'overflow-y-auto [scrollbar-gutter:stable] [&::-webkit-scrollbar-thumb:hover]:bg-[var(--color-scrollbar-thumb-hover)] [&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-[2000ms]',
+        'overflow-y-auto [scrollbar-gutter:stable] [&::-webkit-scrollbar-thumb:hover]:bg-[var(--scrollbar-thumb-hover)] [&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-[2000ms]',
         isScrolling
-          ? '[&::-webkit-scrollbar-thumb]:bg-[var(--color-scrollbar-thumb)]'
+          ? '[&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)]'
           : '[&::-webkit-scrollbar-thumb]:bg-transparent',
         className
       )}
@@ -70,7 +70,7 @@ const Scrollbar: FC<ScrollbarProps> = ({
       ref={passedRef}
       style={{
         ...style,
-        scrollbarColor: isScrolling ? 'var(--color-scrollbar-thumb) transparent' : 'transparent transparent'
+        scrollbarColor: isScrolling ? 'var(--scrollbar-thumb) transparent' : 'transparent transparent'
       }}>
       {children}
     </div>

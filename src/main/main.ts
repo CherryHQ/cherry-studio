@@ -61,7 +61,7 @@ const startApp = async () => {
   // app's notifications, taskbar icon grouping, and Jump Lists (no-op on macOS/Linux).
   // Must run before any window is created or notification fires, hence after the
   // migration gate returns and before lifecycle bootstrap.
-  electronApp.setAppUserModelId('com.cherryai.cherrystudio')
+  electronApp.setAppUserModelId('com.kangfenmao.CherryStudio')
 
   // Start lifecycle (BeforeReady runs parallel with app.whenReady)
   application.registerAll(serviceList)

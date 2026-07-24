@@ -1545,8 +1545,7 @@
           "defaultValue": "",
           "status": "classified",
           "category": "preferences",
-          "targetKey": null,
-          "note": "Migrated via complex mapping: custom_css_v1_marker"
+          "targetKey": "ui.custom_css"
         },
         {
           "originalKey": "topicNamingPrompt",

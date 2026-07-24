@@ -6362,11 +6362,8 @@
       },
       "custom": {
         "css": {
-          "export": "Export legacy CSS",
-          "export_error": "Failed to export legacy custom CSS",
-          "export_success": "Legacy custom CSS exported",
+          "cherrycss": "Get from cherrycss.com",
           "label": "Custom CSS",
-          "legacy_warning": "Legacy CSS is no longer supported. Please upgrade to a v2-compatible stylesheet.",
           "placeholder": "/* Put custom CSS here */"
         }
       },

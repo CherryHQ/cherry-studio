@@ -1,3 +1,5 @@
+import './Sidebar.css'
+
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
@@ -119,7 +121,7 @@ export function Sidebar({
       <div className="fixed inset-0 z-40" onClick={handleDismiss}>
         <div
           className={cn(
-            'slide-in-from-left-2 fixed top-0 bottom-0 left-0 flex w-43.5 animate-in select-none flex-col rounded-r-sm rounded-br-2xl bg-sidebar shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200 [-webkit-app-region:drag]',
+            'sidebar-theme slide-in-from-left-2 fixed top-0 bottom-0 left-0 flex w-43.5 animate-in select-none flex-col rounded-r-sm rounded-br-2xl bg-sidebar shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200 [-webkit-app-region:drag]',
             isMac && 'pt-[env(titlebar-area-height)]'
           )}
           onClick={(event) => event.stopPropagation()}
@@ -200,7 +202,7 @@ export function Sidebar({
       ref={sidebarRef}
       style={{ width: actualWidth }}
       className={cn(
-        'group/sidebar relative z-20 flex h-full shrink-0 select-none flex-col [-webkit-app-region:drag]',
+        'sidebar-theme group/sidebar relative z-20 flex h-full shrink-0 select-none flex-col [-webkit-app-region:drag]',
         isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
       )}>
       {/* Header */}

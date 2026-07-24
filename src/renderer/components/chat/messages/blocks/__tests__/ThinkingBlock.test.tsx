@@ -269,7 +269,10 @@ describe('ThinkingBlock', () => {
 
         const styledDiv = screen.getByTestId('mock-markdown').parentElement
 
-        expect(styledDiv).toHaveClass('text-foreground-muted', '[&_.markdown>p:only-child]:mb-0!')
+        expect(styledDiv).toHaveClass('[&_.markdown>p:only-child]:mb-0!')
+        expect(styledDiv).toHaveStyle(
+          '--markdown-foreground: color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
+        )
         expect(styledDiv).toHaveStyle({
           fontFamily: expectedFont,
           fontSize: expectedSize
