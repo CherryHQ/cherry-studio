@@ -2,6 +2,7 @@ import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 import { useEffect, useState } from 'react'
 
 export const MESSAGE_LIST_INITIAL_LOADING_DELAY_MS = 1000
+const MESSAGE_LIST_LOADING_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
 
 export function MessageListInitialLoading({ delayMs = MESSAGE_LIST_INITIAL_LOADING_DELAY_MS }: { delayMs?: number }) {
   const [visible, setVisible] = useState(() => delayMs <= 0)
@@ -19,7 +20,7 @@ export function MessageListInitialLoading({ delayMs = MESSAGE_LIST_INITIAL_LOADI
 
   return (
     <div className="flex h-full flex-1 items-center justify-center">
-      {visible && <LoadingIcon color="var(--color-foreground-secondary)" />}
+      {visible && <LoadingIcon color={MESSAGE_LIST_LOADING_COLOR} />}
     </div>
   )
 }

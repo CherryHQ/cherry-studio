@@ -188,8 +188,8 @@ export interface PathVersion {
 /**
  * Path-level version-mismatch error. Thrown by `atomicWriteIfUnchanged`.
  *
- * `internal/content/write.writeIfUnchanged` catches this and re-wraps it in
- * the entry-aware `StaleVersionError` exported by `FileManager.ts`.
+ * Entry-aware writes catch this and re-wrap it in `StaleVersionError`; path-arm
+ * writes propagate it to the File IPC adapter for domain-error mapping.
  */
 export class PathStaleVersionError extends Error {
   constructor(

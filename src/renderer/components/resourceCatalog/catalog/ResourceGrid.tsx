@@ -31,13 +31,13 @@ import {
   ChevronLeft,
   ChevronRight,
   FolderSearch,
+  Import,
   Library,
   Pencil,
   Plus,
   Search,
   Tag,
-  Trash2,
-  Upload
+  Trash2
 } from 'lucide-react'
 import type { FC, ReactNode, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -136,7 +136,7 @@ function AssistantAddActions({ onNew, onImport, onOpenLibrary }: AssistantAddAct
         </Button>
       ) : null}
       <Button variant="outline" size="sm" onClick={onImport} className="shrink-0">
-        <Upload size={12} />
+        <Import size={12} />
         <span>{t('assistants.presets.import.action')}</span>
       </Button>
     </>
@@ -173,7 +173,7 @@ function SkillAddActions({ onSearchMarketplace, onSearchSystem, onImportLocal }:
           </DropdownMenuItem>
         ) : null}
         <DropdownMenuItem onSelect={onImportLocal} className="gap-2">
-          <Upload size={13} />
+          <Import size={13} />
           <span>{t('library.skill_add.local_import')}</span>
         </DropdownMenuItem>
       </DropdownMenuContent>

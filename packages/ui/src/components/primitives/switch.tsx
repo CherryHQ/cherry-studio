@@ -161,7 +161,7 @@ const DescriptionSwitch = ({
         {/* TODO: use standard typography component */}
         {description && (
           <span
-            className={cn('text-foreground-secondary', {
+            className={cn('text-muted-foreground', {
               'text-[10px] leading-3': size === 'sm',
               'text-xs leading-3.5': size === 'md',
               'text-sm leading-4': size === 'lg'

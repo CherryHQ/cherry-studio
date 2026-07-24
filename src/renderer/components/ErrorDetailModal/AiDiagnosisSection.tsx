@@ -7,14 +7,15 @@ import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('AIDiagnosisSection')
+const AI_DIAGNOSIS_RESULT_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
 
 const diagPanelStyle: React.CSSProperties = {
-  border: '1px solid color-mix(in srgb, var(--color-primary) 15%, transparent)',
-  background: 'color-mix(in srgb, var(--color-primary) 3%, transparent)'
+  border: '1px solid color-mix(in srgb, var(--primary) 15%, transparent)',
+  background: 'color-mix(in srgb, var(--primary) 3%, transparent)'
 }
 
 const stepBgStyle: React.CSSProperties = {
-  background: 'color-mix(in srgb, var(--color-primary) 4%, transparent)'
+  background: 'color-mix(in srgb, var(--primary) 4%, transparent)'
 }
 
 export interface AiDiagnosisSectionHandle {
@@ -90,22 +91,20 @@ const AiDiagnosisSectionWithStatus = memo(
     return (
       <div className="mt-4 rounded-lg p-3.5 px-4" style={diagPanelStyle}>
         {status === 'loading' && (
-          <div className="flex items-center gap-1.5 font-semibold text-sm" style={{ color: 'var(--color-primary)' }}>
+          <div className="flex items-center gap-1.5 font-semibold text-sm" style={{ color: 'var(--primary)' }}>
             <Loader2 size={14} className="animation-rotate" />
             {t('error.diagnosis.ai_loading')}...
           </div>
         )}
         {status === 'error' && (
           <>
-            <div
-              className="mb-2.5 flex items-center gap-1.5 font-semibold text-sm"
-              style={{ color: 'var(--color-error-base)' }}>
+            <div className="mb-2.5 flex items-center gap-1.5 font-semibold text-sm" style={{ color: 'var(--error)' }}>
               {diagError}
             </div>
             <button
               type="button"
               className="cursor-pointer rounded border px-2 py-1 text-xs"
-              style={{ borderColor: 'var(--color-border)', color: 'var(--color-foreground)' }}
+              style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
               onClick={() => void runDiagnosis()}>
               {t('common.retry')}
             </button>
@@ -113,13 +112,11 @@ const AiDiagnosisSectionWithStatus = memo(
         )}
         {status === 'done' && result && (
           <>
-            <div
-              className="mb-2.5 flex items-center gap-1.5 font-semibold text-sm"
-              style={{ color: 'var(--color-primary)' }}>
+            <div className="mb-2.5 flex items-center gap-1.5 font-semibold text-sm" style={{ color: 'var(--primary)' }}>
               <CheckCircle size={14} />
               {t('error.diagnosis.ai_result')}
             </div>
-            <div className="text-[13px] leading-[1.7]" style={{ color: 'var(--color-foreground-secondary)' }}>
+            <div className="text-[13px] leading-[1.7]" style={{ color: AI_DIAGNOSIS_RESULT_COLOR }}>
               {result.explanation || result.summary}
             </div>
             {result.steps.length > 0 && (
@@ -131,7 +128,7 @@ const AiDiagnosisSectionWithStatus = memo(
                     style={stepBgStyle}>
                     <span
                       className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-bold text-[10px] text-white"
-                      style={{ background: 'var(--color-primary)' }}>
+                      style={{ background: 'var(--primary)' }}>
                       {i + 1}
                     </span>
                     <span>{step.text}</span>

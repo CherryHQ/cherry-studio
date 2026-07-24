@@ -6362,8 +6362,8 @@
       },
       "custom": {
         "css": {
-          "cherrycss": "Von cherrycss.com beziehen",
           "label": "Benutzerdefiniertes CSS",
+          "migration_notice": "Dieses Stylesheet wurde aus v1 migriert und ist derzeit deaktiviert. Passen Sie es für v2 an und entfernen Sie anschließend die erste Zeile, um es zu aktivieren.",
           "placeholder": "/* Hier benutzerdefiniertes CSS einfügen */"
         }
       },

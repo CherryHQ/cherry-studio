@@ -6362,8 +6362,8 @@
       },
       "custom": {
         "css": {
-          "cherrycss": "Obtenir depuis cherrycss.com",
           "label": "CSS personnalisé",
+          "migration_notice": "Cette feuille de style a été migrée depuis la v1 et est actuellement désactivée. Adaptez-la à la v2, puis supprimez la première ligne pour l’activer.",
           "placeholder": "/* Écrire votre CSS personnalisé ici */"
         }
       },
