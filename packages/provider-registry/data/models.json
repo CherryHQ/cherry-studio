@@ -2735,11 +2735,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.13
+          "perMillionTokens": 0.15
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.52
+          "perMillionTokens": 0.6
         }
       }
     },
@@ -3781,7 +3781,7 @@
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 128000,
       "metadata": {},
-      "name": "Claude Opus 4.6 (US)",
+      "name": "Claude Opus 4.6",
       "outputModalities": ["text"],
       "ownedBy": "anthropic",
       "pricing": {
@@ -4637,7 +4637,7 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "image-recognition", "audio-recognition", "file-input"],
-      "contextWindow": 524288,
+      "contextWindow": 1048576,
       "family": "ling",
       "id": "inkling",
       "inputModalities": ["text", "image", "audio"],
@@ -4731,6 +4731,28 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 0.03
+        }
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning"],
+      "contextWindow": 262144,
+      "family": "ling",
+      "id": "ling-3-0-flash",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 256000,
+      "metadata": {},
+      "name": "Ling 3.0 Flash",
+      "outputModalities": ["text"],
+      "ownedBy": "bailing",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
         }
       }
     },
@@ -5228,6 +5250,16 @@
     },
     {
       "capabilities": ["function-call"],
+      "contextWindow": 262144,
+      "id": "doubao-1-5-pro-256k",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Doubao 1.5 Pro 256k",
+      "outputModalities": ["text"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["function-call"],
       "contextWindow": 131072,
       "id": "doubao-1-5-pro-32k",
       "inputModalities": ["text"],
@@ -5238,15 +5270,90 @@
       "ownedBy": "bytedance"
     },
     {
+      "capabilities": ["reasoning", "function-call"],
+      "contextWindow": 131072,
       "id": "doubao-1-5-thinking-pro",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 16384,
       "metadata": {},
-      "name": "doubao-1-5-thinking-pro",
+      "name": "Doubao 1.5 Thinking Pro",
+      "outputModalities": ["text"],
       "ownedBy": "bytedance"
     },
     {
-      "id": "doubao-1-5-thinking-vision-pro",
+      "capabilities": ["reasoning", "function-call"],
+      "contextWindow": 131072,
+      "id": "doubao-1-5-thinking-pro-m",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 16384,
       "metadata": {},
-      "name": "doubao-1-5-thinking-vision-pro",
+      "name": "Doubao 1.5 Thinking Pro M",
+      "outputModalities": ["text"],
+      "ownedBy": "bytedance",
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["none", "auto", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
+          }
+        ],
+        "supportedEfforts": ["none", "auto", "high"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
+      }
+    },
+    {
+      "capabilities": ["reasoning", "function-call", "image-recognition"],
+      "contextWindow": 131072,
+      "id": "doubao-1-5-thinking-vision-pro",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 16384,
+      "metadata": {},
+      "name": "Doubao 1.5 Thinking Vision Pro",
+      "outputModalities": ["text"],
+      "ownedBy": "bytedance",
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["none", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
+          }
+        ],
+        "supportedEfforts": ["none", "high"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
+      }
+    },
+    {
+      "capabilities": ["computer-use", "image-recognition", "function-call"],
+      "id": "doubao-1-5-ui-tars",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Doubao 1.5 UI-TARS",
+      "outputModalities": ["text"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["image-recognition", "function-call"],
+      "id": "doubao-1-5-vision-lite",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Doubao 1.5 Vision Lite",
+      "outputModalities": ["text"],
       "ownedBy": "bytedance"
     },
     {
@@ -5258,6 +5365,45 @@
       "metadata": {},
       "name": "Doubao 1.5 Vision Pro",
       "outputModalities": ["text"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["image-recognition", "function-call"],
+      "contextWindow": 32768,
+      "id": "doubao-1-5-vision-pro-32k",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 12288,
+      "metadata": {},
+      "name": "Doubao 1.5 Vision Pro 32k",
+      "outputModalities": ["text"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["embedding"],
+      "id": "doubao-embedding-large-text",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Doubao Embedding Large Text",
+      "outputModalities": ["vector"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["embedding"],
+      "id": "doubao-embedding-text",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Doubao Embedding Text",
+      "outputModalities": ["vector"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["embedding"],
+      "contextWindow": 131072,
+      "id": "doubao-embedding-vision",
+      "inputModalities": ["text", "image", "video"],
+      "metadata": {},
+      "name": "Doubao Embedding Vision",
+      "outputModalities": ["vector"],
       "ownedBy": "bytedance"
     },
     {
@@ -5326,6 +5472,42 @@
           }
         ],
         "supportedEfforts": ["none", "high"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
+      }
+    },
+    {
+      "capabilities": [
+        "reasoning",
+        "function-call",
+        "image-recognition",
+        "video-recognition",
+        "file-input",
+        "structured-output"
+      ],
+      "contextWindow": 262144,
+      "id": "doubao-seed-1-6-lite",
+      "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 32768,
+      "metadata": {},
+      "name": "Doubao Seed 1.6 Lite",
+      "outputModalities": ["text"],
+      "ownedBy": "bytedance",
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["none", "auto", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
+          }
+        ],
+        "supportedEfforts": ["none", "auto", "high"],
         "thinkingTokenLimits": {
           "max": 30720,
           "min": 0
@@ -5544,8 +5726,55 @@
       }
     },
     {
+      "capabilities": [
+        "reasoning",
+        "function-call",
+        "image-recognition",
+        "video-recognition",
+        "file-input",
+        "structured-output"
+      ],
+      "contextWindow": 131072,
+      "id": "doubao-seed-character",
+      "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 32768,
+      "metadata": {},
+      "name": "Doubao Seed Character",
+      "outputModalities": ["text"],
+      "ownedBy": "bytedance"
+    },
+    {
       "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition", "file-input"],
       "contextWindow": 262144,
+      "id": "doubao-seed-code-preview",
+      "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 32768,
+      "metadata": {},
+      "name": "Doubao Seed Code",
+      "outputModalities": ["text"],
+      "ownedBy": "bytedance",
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["none", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 30720,
+            "min": 0
+          }
+        ],
+        "supportedEfforts": ["none", "high"],
+        "thinkingTokenLimits": {
+          "max": 30720,
+          "min": 0
+        }
+      }
+    },
+    {
+      "capabilities": ["reasoning", "function-call", "image-recognition", "video-recognition", "file-input"],
+      "contextWindow": 1024000,
       "id": "doubao-seed-evolving",
       "inputModalities": ["text", "image", "video"],
       "maxOutputTokens": 262144,
@@ -5555,11 +5784,104 @@
       "ownedBy": "bytedance"
     },
     {
+      "capabilities": [],
+      "contextWindow": 4096,
+      "id": "doubao-seed-translation",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 3072,
+      "metadata": {},
+      "name": "Doubao Seed Translation",
+      "outputModalities": ["text"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["image-recognition", "video-generation", "file-input"],
+      "id": "doubao-seedance-1-0-lite-i2v",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Doubao Seedance 1.0 Lite I2V",
+      "outputModalities": ["video"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["video-generation"],
+      "id": "doubao-seedance-1-0-lite-t2v",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Doubao Seedance 1.0 Lite T2V",
+      "outputModalities": ["video"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["image-recognition", "video-generation", "file-input"],
+      "id": "doubao-seedance-1-0-pro",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Doubao Seedance 1.0 Pro",
+      "outputModalities": ["video"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["image-recognition", "video-generation", "file-input"],
+      "id": "doubao-seedance-1-0-pro-fast",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Doubao Seedance 1.0 Pro Fast",
+      "outputModalities": ["video"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["image-recognition", "video-generation", "file-input"],
+      "id": "doubao-seedance-2-0",
+      "inputModalities": ["text", "image", "video", "audio"],
+      "metadata": {},
+      "name": "Doubao Seedance 2.0",
+      "outputModalities": ["video"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["image-recognition", "video-generation", "file-input"],
+      "id": "doubao-seedance-2-0-fast",
+      "inputModalities": ["text", "image", "video", "audio"],
+      "metadata": {},
+      "name": "Doubao Seedance 2.0 Fast",
+      "outputModalities": ["video"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["image-recognition", "video-generation", "file-input"],
+      "id": "doubao-seedance-2-0-mini",
+      "inputModalities": ["text", "image", "video"],
+      "metadata": {},
+      "name": "Doubao Seedance 2.0 Mini",
+      "outputModalities": ["video"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "doubao-seededit-3-0-i2i",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Doubao SeedEdit 3.0 I2I",
+      "outputModalities": ["image"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "doubao-seedream-3-0-t2i",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Doubao Seedream 3.0 T2I",
+      "outputModalities": ["image"],
+      "ownedBy": "bytedance"
+    },
+    {
       "capabilities": ["image-generation"],
       "id": "doubao-seedream-4-0",
       "imageGeneration": {
         "modes": {
           "generate": {
+            "maxInputImages": 14,
             "supports": {
               "addWatermark": {
                 "type": "switch"
@@ -5570,8 +5892,16 @@
                 "render": "chips",
                 "type": "enum"
               },
-              "seed": {
-                "type": "text"
+              "maxImages": {
+                "default": 15,
+                "max": 15,
+                "min": 1,
+                "type": "range"
+              },
+              "sequentialImageGeneration": {
+                "default": "disabled",
+                "options": ["disabled", "auto"],
+                "type": "enum"
               }
             }
           }
@@ -5589,18 +5919,27 @@
       "imageGeneration": {
         "modes": {
           "generate": {
+            "maxInputImages": 14,
             "supports": {
               "addWatermark": {
                 "type": "switch"
               },
               "imageResolution": {
                 "default": "2K",
-                "options": ["1K", "2K", "4K"],
+                "options": ["2K", "4K"],
                 "render": "chips",
                 "type": "enum"
               },
-              "seed": {
-                "type": "text"
+              "maxImages": {
+                "default": 15,
+                "max": 15,
+                "min": 1,
+                "type": "range"
+              },
+              "sequentialImageGeneration": {
+                "default": "disabled",
+                "options": ["disabled", "auto"],
+                "type": "enum"
               }
             }
           }
@@ -5609,6 +5948,81 @@
       "inputModalities": ["text", "image"],
       "metadata": {},
       "name": "Doubao Seedream 4 5",
+      "outputModalities": ["image"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "doubao-seedream-5-0-lite",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "maxInputImages": 14,
+            "supports": {
+              "addWatermark": {
+                "type": "switch"
+              },
+              "imageResolution": {
+                "default": "2K",
+                "options": ["2K", "3K", "4K"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "maxImages": {
+                "default": 15,
+                "max": 15,
+                "min": 1,
+                "type": "range"
+              },
+              "outputFormat": {
+                "default": "jpeg",
+                "options": ["jpeg", "png"],
+                "type": "enum"
+              },
+              "sequentialImageGeneration": {
+                "default": "disabled",
+                "options": ["disabled", "auto"],
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Doubao Seedream 5.0 Lite",
+      "outputModalities": ["image"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "doubao-seedream-5-0-pro",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "maxInputImages": 10,
+            "supports": {
+              "addWatermark": {
+                "type": "switch"
+              },
+              "imageResolution": {
+                "default": "2K",
+                "options": ["1K", "2K"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "outputFormat": {
+                "default": "jpeg",
+                "options": ["jpeg", "png"],
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Doubao Seedream 5.0 Pro",
       "outputModalities": ["image"],
       "ownedBy": "bytedance"
     },
@@ -6724,12 +7138,12 @@
     {
       "capabilities": ["function-call", "reasoning", "structured-output"],
       "contextWindow": 163840,
-      "family": "deepseek",
+      "family": "deepseek-thinking",
       "id": "deepseek-v3-2",
       "inputModalities": ["text"],
       "maxOutputTokens": 65536,
       "metadata": {},
-      "name": "DeepSeek V3.2",
+      "name": "DeepSeek V3.2 Thinking",
       "outputModalities": ["text"],
       "ownedBy": "deepseek",
       "pricing": {
@@ -6739,11 +7153,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.28
+          "perMillionTokens": 0.62
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.42
+          "perMillionTokens": 1.85
         }
       },
       "reasoning": {
@@ -6928,6 +7342,74 @@
     {
       "capabilities": [
         "function-call",
+        "reasoning",
+        "image-recognition",
+        "image-generation",
+        "audio-recognition",
+        "video-recognition",
+        "file-input"
+      ],
+      "contextWindow": 1048576,
+      "family": "gemini-pro",
+      "id": "deep-research-max-preview-04-2026",
+      "inputModalities": ["text", "image", "video", "audio"],
+      "maxOutputTokens": 65536,
+      "metadata": {},
+      "name": "Deep Research Max Preview",
+      "outputModalities": ["text", "image"],
+      "ownedBy": "google",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 12
+        }
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "image-generation",
+        "audio-recognition",
+        "video-recognition",
+        "file-input"
+      ],
+      "contextWindow": 1048576,
+      "family": "gemini-pro",
+      "id": "deep-research-preview-04-2026",
+      "inputModalities": ["text", "image", "video", "audio"],
+      "maxOutputTokens": 65536,
+      "metadata": {},
+      "name": "Gemini Deep Research Preview",
+      "outputModalities": ["text", "image"],
+      "ownedBy": "google",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 12
+        }
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
         "image-recognition",
         "audio-recognition",
         "video-recognition",
@@ -6990,6 +7472,28 @@
       }
     },
     {
+      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "web-search"],
+      "contextWindow": 128000,
+      "family": "gemini-pro",
+      "id": "gemini-2-5-computer-use-preview-10-2025",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 64000,
+      "metadata": {},
+      "name": "Gemini 2.5 Computer Use Preview",
+      "outputModalities": ["text"],
+      "ownedBy": "google",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      }
+    },
+    {
       "capabilities": [
         "function-call",
         "reasoning",
@@ -7012,7 +7516,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.075
+          "perMillionTokens": 0.03
         },
         "cacheWrite": {
           "currency": "USD",
@@ -7076,7 +7580,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.03
+          "perMillionTokens": 0.075
         },
         "input": {
           "currency": "USD",
@@ -7510,7 +8014,7 @@
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3
+          "perMillionTokens": 60
         }
       },
       "reasoning": {
@@ -7585,14 +8089,21 @@
       }
     },
     {
-      "capabilities": ["reasoning", "image-recognition", "image-generation", "structured-output", "file-input"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "image-generation",
+        "structured-output",
+        "file-input"
+      ],
       "contextWindow": 65536,
-      "family": "gemini",
+      "family": "gemini-flash-lite",
       "id": "gemini-3-1-flash-lite-image",
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 4096,
       "metadata": {},
-      "name": "Gemini 3.1 Flash Lite Image (Nano Banana 2 Lite)",
+      "name": "Nano Banana 2 Lite",
       "outputModalities": ["text", "image"],
       "ownedBy": "google",
       "pricing": {
@@ -7606,21 +8117,22 @@
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.5
+          "perMillionTokens": 30
         }
       },
       "reasoning": {
         "controls": [
           {
+            "kind": "effort",
+            "values": ["minimal", "high"]
+          },
+          {
             "kind": "budget",
             "max": 24576,
             "min": 0
-          },
-          {
-            "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["none", "auto"],
+        "supportedEfforts": ["minimal", "high"],
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
@@ -7676,6 +8188,75 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
+        }
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "audio-recognition",
+        "audio-generation",
+        "video-recognition",
+        "file-input"
+      ],
+      "contextWindow": 131072,
+      "family": "gemini-flash",
+      "id": "gemini-3-1-flash-live-preview",
+      "inputModalities": ["text", "image", "video", "audio"],
+      "maxOutputTokens": 65536,
+      "metadata": {},
+      "name": "Gemini 3.1 Flash Live Preview",
+      "outputModalities": ["text", "audio"],
+      "ownedBy": "google",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.75
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.5
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["minimal", "low", "medium", "high"]
+          },
+          {
+            "kind": "budget",
+            "max": 24576,
+            "min": 0
+          }
+        ],
+        "supportedEfforts": ["minimal", "low", "medium", "high"],
+        "thinkingTokenLimits": {
+          "max": 24576,
+          "min": 0
+        }
+      }
+    },
+    {
+      "capabilities": ["audio-generation"],
+      "contextWindow": 8192,
+      "family": "gemini-flash",
+      "id": "gemini-3-1-flash-tts-preview",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Gemini 3.1 Flash TTS Preview",
+      "outputModalities": ["audio"],
+      "ownedBy": "google",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 20
         }
       }
     },
@@ -7848,7 +8429,7 @@
         "web-search"
       ],
       "contextWindow": 1048576,
-      "family": "gemini",
+      "family": "gemini-flash-lite",
       "id": "gemini-3-5-flash-lite",
       "inputModalities": ["text", "image", "video", "audio"],
       "maxOutputTokens": 65536,
@@ -7890,6 +8471,28 @@
       }
     },
     {
+      "capabilities": ["audio-recognition", "audio-generation"],
+      "contextWindow": 131072,
+      "family": "gemini-pro",
+      "id": "gemini-3-5-live-translate-preview",
+      "inputModalities": ["audio"],
+      "maxOutputTokens": 65536,
+      "metadata": {},
+      "name": "Gemini 3.5 Live Translate Preview",
+      "outputModalities": ["audio", "text"],
+      "ownedBy": "google",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 3.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 21
+        }
+      }
+    },
+    {
       "capabilities": [
         "function-call",
         "reasoning",
@@ -7900,7 +8503,7 @@
         "file-input"
       ],
       "contextWindow": 1048576,
-      "family": "gemini",
+      "family": "gemini-flash",
       "id": "gemini-3-6-flash",
       "inputModalities": ["text", "image", "video", "audio"],
       "maxOutputTokens": 65536,
@@ -8242,14 +8845,26 @@
       }
     },
     {
-      "capabilities": ["embedding"],
-      "family": "gemini-embedding",
+      "capabilities": ["image-recognition", "audio-recognition", "video-recognition", "file-input", "embedding"],
+      "contextWindow": 8192,
+      "family": "gemini",
       "id": "gemini-embedding-2",
-      "inputModalities": ["text"],
+      "inputModalities": ["text", "image", "audio", "video"],
+      "maxOutputTokens": 3072,
       "metadata": {},
       "name": "Gemini Embedding 2",
       "outputModalities": ["vector"],
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.2
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      }
     },
     {
       "capabilities": [
@@ -8366,7 +8981,7 @@
       "maxOutputTokens": 65536,
       "metadata": {},
       "name": "Gemini Omni Flash Preview",
-      "outputModalities": ["text", "video"],
+      "outputModalities": ["video", "text"],
       "ownedBy": "google",
       "pricing": {
         "input": {
@@ -8375,7 +8990,7 @@
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 9
+          "perMillionTokens": 17.5
         }
       },
       "reasoning": {
@@ -8437,6 +9052,44 @@
           "max": 32768,
           "min": 128
         }
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "audio-recognition",
+        "video-recognition",
+        "structured-output",
+        "file-input"
+      ],
+      "contextWindow": 131072,
+      "family": "gemini",
+      "id": "gemini-robotics-er-1-6-preview",
+      "inputModalities": ["text", "image", "video", "audio"],
+      "maxOutputTokens": 65536,
+      "metadata": {},
+      "name": "Gemini Robotics-ER 1.6 Preview",
+      "outputModalities": ["text"],
+      "ownedBy": "google",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -9140,6 +9793,50 @@
       "ownedBy": "google"
     },
     {
+      "capabilities": ["image-recognition", "audio-generation", "structured-output", "file-input"],
+      "contextWindow": 1048576,
+      "family": "lyria",
+      "id": "lyria-3-clip-preview",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 65536,
+      "metadata": {},
+      "name": "Lyria 3 Clip Preview",
+      "outputModalities": ["text", "audio"],
+      "ownedBy": "google",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      }
+    },
+    {
+      "capabilities": ["image-recognition", "audio-generation", "structured-output", "file-input"],
+      "contextWindow": 1048576,
+      "family": "lyria",
+      "id": "lyria-3-pro-preview",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 8192,
+      "metadata": {},
+      "name": "Lyria 3 Pro Preview",
+      "outputModalities": ["text", "audio"],
+      "ownedBy": "google",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      }
+    },
+    {
       "capabilities": ["embedding"],
       "contextWindow": 8192,
       "family": "text-embedding",
@@ -9161,6 +9858,40 @@
       "metadata": {},
       "name": "Text Multilingual Embedding 002",
       "outputModalities": ["vector"],
+      "ownedBy": "google"
+    },
+    {
+      "capabilities": ["image-recognition", "video-recognition", "video-generation", "file-input"],
+      "contextWindow": 1024,
+      "family": "veo",
+      "id": "veo-3-1-fast-generate-preview",
+      "inputModalities": ["text", "image", "video"],
+      "metadata": {},
+      "name": "Veo 3.1 Fast Preview",
+      "outputModalities": ["video"],
+      "ownedBy": "google"
+    },
+    {
+      "capabilities": ["image-recognition", "video-generation", "file-input"],
+      "contextWindow": 1024,
+      "family": "veo",
+      "id": "veo-3-1-generate-preview",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 1,
+      "metadata": {},
+      "name": "Veo 3.1 Preview",
+      "outputModalities": ["video"],
+      "ownedBy": "google"
+    },
+    {
+      "capabilities": ["image-recognition", "video-generation", "file-input"],
+      "contextWindow": 1024,
+      "family": "veo",
+      "id": "veo-3-1-lite-generate-preview",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Veo 3.1 Lite Preview",
+      "outputModalities": ["video"],
       "ownedBy": "google"
     },
     {
@@ -10572,6 +11303,15 @@
       "ownedBy": "microsoft"
     },
     {
+      "capabilities": ["image-recognition", "image-generation"],
+      "id": "mai-image-2-5-pro",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Microsoft: MAI-Image-2.5 Pro",
+      "outputModalities": ["image"],
+      "ownedBy": "microsoft"
+    },
+    {
       "capabilities": ["structured-output"],
       "contextWindow": 16384,
       "id": "phi-4",
@@ -11245,18 +11985,18 @@
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 128000,
       "metadata": {},
-      "name": "Magistral Small",
+      "name": "Magistral Small 2506",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "mistral",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.5
+          "perMillionTokens": 0
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.5
+          "perMillionTokens": 0
         }
       }
     },
@@ -11493,18 +12233,18 @@
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 262144,
       "metadata": {},
-      "name": "Mistral Large 3",
+      "name": "Mistral Large 2.1",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "mistral",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.5
+          "perMillionTokens": 2
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.5
+          "perMillionTokens": 6
         }
       }
     },
@@ -11533,23 +12273,23 @@
     {
       "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 262144,
-      "family": "mistral",
+      "family": "mistral-large",
       "id": "mistral-large-3-675b-instruct",
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 262144,
       "metadata": {},
-      "name": "Mistral Large 3",
+      "name": "Mistral Large 3 675B Instruct 2512",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "mistral",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.5
+          "perMillionTokens": 0
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.5
+          "perMillionTokens": 0
         }
       }
     },
@@ -11584,18 +12324,18 @@
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 262144,
       "metadata": {},
-      "name": "Mistral Medium 3.5",
+      "name": "Mistral Medium 3.1",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "mistral",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.5
+          "perMillionTokens": 0.4
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 7.5
+          "perMillionTokens": 2
         }
       },
       "reasoning": {
@@ -12227,7 +12967,7 @@
         "file-input"
       ],
       "contextWindow": 262144,
-      "family": "kimi",
+      "family": "kimi-k2",
       "id": "kimi-k2-5",
       "inputModalities": ["text", "image", "video"],
       "maxOutputTokens": 262144,
@@ -13184,18 +13924,18 @@
       "inputModalities": ["text"],
       "maxOutputTokens": 131072,
       "metadata": {},
-      "name": "NVIDIA Nemotron Nano 9B v2",
+      "name": "nvidia-nemotron-nano-9b-v2",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "nvidia",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.06
+          "perMillionTokens": 0
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.23
+          "perMillionTokens": 0
         }
       },
       "reasoning": {
@@ -15760,18 +16500,18 @@
       "inputModalities": ["text"],
       "maxOutputTokens": 131072,
       "metadata": {},
-      "name": "gpt-oss-120b",
+      "name": "GPT-OSS-120B",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.15
+          "perMillionTokens": 0
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.6
+          "perMillionTokens": 0
         }
       },
       "reasoning": {
@@ -15824,18 +16564,18 @@
       "inputModalities": ["text"],
       "maxOutputTokens": 32768,
       "metadata": {},
-      "name": "gpt-oss-20b",
+      "name": "GPT OSS 20B",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.07
+          "perMillionTokens": 0
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.3
+          "perMillionTokens": 0
         }
       },
       "reasoning": {
@@ -16906,7 +17646,7 @@
       "inputModalities": ["text"],
       "maxOutputTokens": 262114,
       "metadata": {},
-      "name": "Step 3.5 Flash 2603",
+      "name": "Step 3.5 Flash",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "stepfun",
@@ -16917,21 +17657,21 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.1
+          "perMillionTokens": 0
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.3
+          "perMillionTokens": 0
         }
       },
       "reasoning": {
         "controls": [
           {
             "kind": "effort",
-            "values": ["low", "high", "medium"]
+            "values": ["low", "medium", "high"]
           }
         ],
-        "supportedEfforts": ["low", "high", "medium"]
+        "supportedEfforts": ["low", "medium", "high"]
       }
     },
     {
@@ -16956,25 +17696,25 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.037
+          "perMillionTokens": 0.04
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.185
+          "perMillionTokens": 0
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1.11
+          "perMillionTokens": 0
         }
       },
       "reasoning": {
         "controls": [
           {
             "kind": "effort",
-            "values": ["low", "medium", "high", "minimal", "xhigh", "max"]
+            "values": ["minimal", "low", "medium", "high", "xhigh", "max"]
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "minimal", "xhigh", "max"]
+        "supportedEfforts": ["minimal", "low", "medium", "high", "xhigh", "max"]
       }
     },
     {
@@ -17317,15 +18057,21 @@
     {
       "capabilities": ["reasoning", "function-call"],
       "contextWindow": 262144,
+      "family": "hy3",
       "id": "hy3",
       "inputModalities": ["text"],
       "maxInputTokens": 196608,
       "maxOutputTokens": 131072,
       "metadata": {},
       "name": "Hunyuan 3",
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "tencent",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.035
+        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 0.14
@@ -17334,6 +18080,15 @@
           "currency": "USD",
           "perMillionTokens": 0.58
         }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["none", "low", "high"]
+          }
+        ],
+        "supportedEfforts": ["none", "low", "high"]
       }
     },
     {
@@ -17557,6 +18312,41 @@
           }
         ],
         "supportedEfforts": ["low", "medium", "high"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning"],
+      "contextWindow": 1048576,
+      "family": "laguna-s",
+      "id": "laguna-s-2-1",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 131072,
+      "metadata": {},
+      "name": "Laguna S 2.1 Free",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "vercel",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.01
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"]
       }
     },
     {
@@ -18640,10 +19430,11 @@
       "ownedBy": "xai"
     },
     {
-      "capabilities": ["video-generation"],
+      "capabilities": ["image-recognition", "video-recognition", "video-generation", "file-input"],
+      "contextWindow": 1024,
       "family": "grok",
       "id": "grok-imagine-video-1-5",
-      "inputModalities": ["text"],
+      "inputModalities": ["text", "image", "video"],
       "metadata": {},
       "name": "Grok Imagine Video 1.5",
       "outputModalities": ["video"],
@@ -18729,12 +19520,12 @@
         "file-input"
       ],
       "contextWindow": 1050000,
-      "family": "mimo",
+      "family": "mimo-v2.5",
       "id": "mimo-v2-5",
       "inputModalities": ["text", "image", "audio", "video"],
       "maxOutputTokens": 131100,
       "metadata": {},
-      "name": "MiMo-V2.5",
+      "name": "MiMo M2.5",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "xiaomi",
@@ -18764,12 +19555,12 @@
     {
       "capabilities": ["function-call", "reasoning", "structured-output", "file-input"],
       "contextWindow": 1050000,
-      "family": "mimo",
+      "family": "mimo-v2.5-pro",
       "id": "mimo-v2-5-pro",
       "inputModalities": ["text"],
       "maxOutputTokens": 131072,
       "metadata": {},
-      "name": "MiMo-V2.5-Pro",
+      "name": "MiMo V2.5 Pro",
       "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "xiaomi",
@@ -19361,11 +20152,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.07
+          "perMillionTokens": 0
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.4
+          "perMillionTokens": 0
         }
       },
       "reasoning": {
@@ -19623,11 +20414,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 1.4
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0
+          "perMillionTokens": 4.4
         }
       },
       "reasoning": {
@@ -19724,7 +20515,7 @@
       "inputModalities": ["text"],
       "maxOutputTokens": 131100,
       "metadata": {},
-      "name": "GLM-5-Turbo",
+      "name": "GLM 5 Turbo",
       "outputModalities": ["text"],
       "ownedBy": "zhipu",
       "pricing": {
@@ -19775,7 +20566,7 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.24
+          "perMillionTokens": 1.2
         },
         "cacheWrite": {
           "currency": "USD",
@@ -19783,11 +20574,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 1.2
+          "perMillionTokens": 5
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 4
+          "perMillionTokens": 22
         }
       },
       "reasoning": {
@@ -19858,5 +20649,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "96e79ec0a16c027e"
+  "version": "8a399577fcb4de44"
 }

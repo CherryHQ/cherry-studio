@@ -857,26 +857,6 @@
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
-      "description": "Yi - AI model provider",
-      "endpointConfigs": {
-        "openai-chat-completions": {
-          "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.lingyiwanwu.com"
-        }
-      },
-      "id": "yi",
-      "metadata": {
-        "website": {
-          "apiKey": "https://platform.lingyiwanwu.com/apikeys",
-          "docs": "https://platform.lingyiwanwu.com/docs",
-          "models": "https://platform.lingyiwanwu.com/docs",
-          "official": "https://platform.lingyiwanwu.com/"
-        }
-      },
-      "name": "Yi"
-    },
-    {
-      "defaultChatEndpoint": "openai-chat-completions",
       "description": "Moonshot AI - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -961,7 +941,7 @@
       "name": "BAICHUAN AI"
     },
     {
-      "defaultChatEndpoint": "openai-chat-completions",
+      "defaultChatEndpoint": "openai-responses",
       "description": "Bailian - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -1019,7 +999,7 @@
       "name": "StepFun"
     },
     {
-      "defaultChatEndpoint": "openai-chat-completions",
+      "defaultChatEndpoint": "openai-responses",
       "description": "doubao - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
@@ -1076,32 +1056,12 @@
       "metadata": {
         "website": {
           "apiKey": "https://www.volcengine.com/experience/ark",
-          "docs": "https://www.volcengine.com/docs/82379/1182403",
-          "models": "https://console.volcengine.com/ark/region:ark+cn-beijing/endpoint",
+          "docs": "https://console.volcengine.com/ark/region:cn-beijing/docs/82379/1099455?lang=zh",
+          "models": "https://console.volcengine.com/ark/region:cn-beijing/model?view=CARD_VIEW",
           "official": "https://console.volcengine.com/ark/"
         }
       },
       "name": "doubao"
-    },
-    {
-      "defaultChatEndpoint": "openai-chat-completions",
-      "description": "Infini - AI model provider",
-      "endpointConfigs": {
-        "openai-chat-completions": {
-          "adapterFamily": "openai-compatible",
-          "baseUrl": "https://cloud.infini-ai.com/maas"
-        }
-      },
-      "id": "infini",
-      "metadata": {
-        "website": {
-          "apiKey": "https://cloud.infini-ai.com/iam/secret/key",
-          "docs": "https://docs.infini-ai.com/gen-studio/api/maas.html",
-          "models": "https://cloud.infini-ai.com/genstudio/model",
-          "official": "https://cloud.infini-ai.com/"
-        }
-      },
-      "name": "Infini"
     },
     {
       "apiFeatures": {
@@ -1363,26 +1323,6 @@
       "name": "Grok"
     },
     {
-      "defaultChatEndpoint": "openai-chat-completions",
-      "description": "Hyperbolic - AI model provider",
-      "endpointConfigs": {
-        "openai-chat-completions": {
-          "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.hyperbolic.xyz"
-        }
-      },
-      "id": "hyperbolic",
-      "metadata": {
-        "website": {
-          "apiKey": "https://app.hyperbolic.xyz/settings",
-          "docs": "https://docs.hyperbolic.xyz",
-          "models": "https://app.hyperbolic.xyz/models",
-          "official": "https://app.hyperbolic.xyz"
-        }
-      },
-      "name": "Hyperbolic"
-    },
-    {
       "apiFeatures": {
         "streamOptions": false
       },
@@ -1491,166 +1431,6 @@
         }
       },
       "name": "Xirang"
-    },
-    {
-      "defaultChatEndpoint": "openai-chat-completions",
-      "description": "hunyuan - AI model provider",
-      "endpointConfigs": {
-        "openai-chat-completions": {
-          "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.hunyuan.cloud.tencent.com",
-          "reasoningFormat": {
-            "type": "openai-chat",
-            "wire": {
-              "auto": {
-                "budget": {
-                  "missing": {
-                    "type": "omit-value"
-                  }
-                },
-                "operations": [
-                  {
-                    "target": "enable_thinking",
-                    "value": {
-                      "source": "literal",
-                      "value": true
-                    }
-                  },
-                  {
-                    "target": "thinking_budget",
-                    "value": {
-                      "source": "budget"
-                    }
-                  }
-                ]
-              },
-              "effort": {
-                "budget": {
-                  "missing": {
-                    "type": "omit-value"
-                  }
-                },
-                "operations": [
-                  {
-                    "target": "enable_thinking",
-                    "value": {
-                      "source": "literal",
-                      "value": true
-                    }
-                  },
-                  {
-                    "target": "thinking_budget",
-                    "value": {
-                      "source": "budget"
-                    }
-                  }
-                ]
-              },
-              "off": {
-                "operations": [
-                  {
-                    "target": "enable_thinking",
-                    "value": {
-                      "source": "literal",
-                      "value": false
-                    }
-                  }
-                ]
-              }
-            }
-          }
-        }
-      },
-      "id": "hunyuan",
-      "metadata": {
-        "website": {
-          "apiKey": "https://console.cloud.tencent.com/hunyuan/api-key",
-          "docs": "https://cloud.tencent.com/document/product/1729/111007",
-          "models": "https://cloud.tencent.com/document/product/1729/104753",
-          "official": "https://cloud.tencent.com/product/hunyuan"
-        }
-      },
-      "name": "hunyuan"
-    },
-    {
-      "defaultChatEndpoint": "openai-chat-completions",
-      "description": "Tencent Cloud TI - AI model provider",
-      "endpointConfigs": {
-        "openai-chat-completions": {
-          "adapterFamily": "openai-compatible",
-          "baseUrl": "https://api.lkeap.cloud.tencent.com",
-          "reasoningFormat": {
-            "type": "openai-chat",
-            "wire": {
-              "auto": {
-                "budget": {
-                  "missing": {
-                    "type": "omit-value"
-                  }
-                },
-                "operations": [
-                  {
-                    "target": "enable_thinking",
-                    "value": {
-                      "source": "literal",
-                      "value": true
-                    }
-                  },
-                  {
-                    "target": "thinking_budget",
-                    "value": {
-                      "source": "budget"
-                    }
-                  }
-                ]
-              },
-              "effort": {
-                "budget": {
-                  "missing": {
-                    "type": "omit-value"
-                  }
-                },
-                "operations": [
-                  {
-                    "target": "enable_thinking",
-                    "value": {
-                      "source": "literal",
-                      "value": true
-                    }
-                  },
-                  {
-                    "target": "thinking_budget",
-                    "value": {
-                      "source": "budget"
-                    }
-                  }
-                ]
-              },
-              "off": {
-                "operations": [
-                  {
-                    "target": "enable_thinking",
-                    "value": {
-                      "source": "literal",
-                      "value": false
-                    }
-                  }
-                ]
-              }
-            }
-          }
-        }
-      },
-      "id": "tencent-cloud-ti",
-      "metadata": {
-        "website": {
-          "apiKey": "https://console.cloud.tencent.com/lkeap/api",
-          "docs": "https://cloud.tencent.com/document/product/1772",
-          "models": "https://console.cloud.tencent.com/tione/v2/aimarket",
-          "official": "https://cloud.tencent.com/product/ti"
-        }
-      },
-      "name": "Tencent Cloud TI"
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -2069,5 +1849,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "0098e5789b9ccc42"
+  "version": "92547b2ca34f953b"
 }
