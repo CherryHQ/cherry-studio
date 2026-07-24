@@ -308,12 +308,13 @@ describe('useUpdateAgent', () => {
       MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agents/:agentId', mockTrigger)
 
       const { result } = renderHook(() => useUpdateAgent())
-      await act(async () => result.current.updateModel('agent-1', 'anthropic::new-model'))
+      const updated = await act(async () => result.current.updateModel('agent-1', 'anthropic::new-model'))
 
       expect(mockTrigger).toHaveBeenCalledWith({
         params: { agentId: 'agent-1' },
         body: { model: 'anthropic::new-model' }
       })
+      expect(updated?.model).toBe('anthropic::new-model')
     })
   })
 })

@@ -44,7 +44,7 @@ export const userProviderTable = sqliteTable(
      */
     logoKey: text('logo_key'),
 
-    /** Per-endpoint-type configuration (baseUrl, reasoningFormatType, modelsApiUrls) */
+    /** Per-endpoint-type connection configuration (baseUrl, modelsApiUrls, adapterFamily) */
     endpointConfigs: text('endpoint_configs', { mode: 'json' }).$type<Partial<Record<EndpointType, EndpointConfig>>>(),
 
     /** Default text generation endpoint (when supporting multiple) */

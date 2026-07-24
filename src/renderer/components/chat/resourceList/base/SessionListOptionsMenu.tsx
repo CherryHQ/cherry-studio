@@ -21,38 +21,28 @@ const SESSION_DISPLAY_ICONS: Record<AgentSessionDisplayMode, ReactNode> = {
 type SessionListOptionsMenuProps = {
   historyRecordsActive?: boolean
   manageAgentsActive?: boolean
-  manageSkillsActive?: boolean
-  manageSkillsIcon?: ReactNode
   mode: AgentSessionDisplayMode
   onChange: (mode: AgentSessionDisplayMode) => void
   onManageAgents?: () => void | Promise<void>
-  onManageSkills?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
-  sectionId?: string
+  sectionIds?: readonly string[]
 }
 
 export function SessionListOptionsMenu({
   historyRecordsActive,
   manageAgentsActive,
-  manageSkillsActive,
-  manageSkillsIcon,
   mode,
   onChange,
   onManageAgents,
-  onManageSkills,
   onOpenHistoryRecords,
-  sectionId
+  sectionIds
 }: SessionListOptionsMenuProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
-  const hasManagementItems = !!(onManageAgents || onManageSkills)
   const runAfterMenuClose = (action: () => void) => {
     setOpen(false)
     window.setTimeout(action, 0)
   }
-  const manageSkillsMenuIcon = manageSkillsIcon ? (
-    <span className="inline-flex size-4 items-center justify-center [&_svg]:size-4">{manageSkillsIcon}</span>
-  ) : undefined
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -78,14 +68,14 @@ export function SessionListOptionsMenu({
               }}
             />
           ))}
-          {sectionId && (
+          {sectionIds && sectionIds.length > 0 && (
             <>
               <MenuDivider />
               <ResourceList.SectionToggleMenuItem
                 size="sm"
                 expandIcon={<ChevronsUpDown size={16} />}
                 collapseIcon={<ChevronsDownUp size={16} />}
-                sectionId={sectionId}
+                sectionIds={sectionIds}
                 expandLabel={t('agent.session.group.expand_all')}
                 collapseLabel={t('agent.session.group.collapse_all')}
                 onClick={() => {
@@ -107,7 +97,7 @@ export function SessionListOptionsMenu({
               }}
             />
           )}
-          {hasManagementItems && <MenuDivider />}
+          {onManageAgents && <MenuDivider />}
           {onManageAgents && (
             <MenuItem
               size="sm"
@@ -117,18 +107,6 @@ export function SessionListOptionsMenu({
               onClick={() => {
                 setOpen(false)
                 void onManageAgents()
-              }}
-            />
-          )}
-          {onManageSkills && (
-            <MenuItem
-              size="sm"
-              icon={manageSkillsMenuIcon}
-              label={t('agent.skill.manage.title')}
-              active={manageSkillsActive}
-              onClick={() => {
-                setOpen(false)
-                void onManageSkills()
               }}
             />
           )}
