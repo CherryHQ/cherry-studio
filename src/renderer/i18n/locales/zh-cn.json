@@ -2326,6 +2326,7 @@
     "image-generation": "图像生成 (OpenAI)",
     "jina-rerank": "Jina 重排序",
     "openai": "OpenAI",
+    "openai-embeddings": "嵌入 (OpenAI)",
     "openai-response": "OpenAI-Response"
   },
   "error": {
@@ -2380,6 +2381,8 @@
       "payload": "请求内容过大，请减少发送的文件或文本量",
       "proxy": "代理或 SSL 证书错误，请检查代理和网络设置",
       "quota": "账户额度已用完，请充值或更换服务商",
+      "rate_limit": "请求过于频繁，请稍等片刻再试，或更换为更高速率的模型",
+      "region": "服务在你所在的地区不可用，请配置代理或更换为可用的服务商",
       "server": "服务器异常，建议稍后重试",
       "stream": "响应传输中断，请检查网络稳定性或重试",
       "unknown": "发生了一个错误",
@@ -2391,6 +2394,7 @@
     "http": {
       "400": "请求错误，请检查请求参数是否正确。如果修改了模型设置，请重置到默认设置",
       "401": "身份验证失败，请检查 API 密钥是否正确",
+      "402": "需要支付。账户余额或额度已用完，请到服务商网站充值，或切换到其他服务商",
       "403": "禁止访问，请翻译具体报错信息查看原因，或联系服务商询问被禁止原因",
       "404": "模型不存在或者请求路径错误",
       "429": "请求速率超过限制，请稍后再试",
@@ -4278,10 +4282,13 @@
       "embedding": "嵌入",
       "free": "免费",
       "function_calling": "工具",
+      "image": "图片",
       "reasoning": "推理",
       "rerank": "重排",
       "select": "模型类型",
+      "speech": "语音",
       "text": "文本",
+      "transcription": "转录",
       "video": "视频",
       "vision": "视觉",
       "websearch": "联网"
@@ -4658,6 +4665,7 @@
     "title": "Intel OVMS"
   },
   "paintings": {
+    "add_image": "添加图片",
     "aspect_ratio": "画幅比例",
     "aspect_ratios": {
       "landscape": "横图",
@@ -4810,6 +4818,8 @@
     "prompt_placeholder": "描述你想创建的图片，例如：一个宁静的湖泊，夕阳西下，远处是群山",
     "prompt_placeholder_edit": "输入你的图片描述，文本绘制用 \"双引号\" 包裹",
     "prompt_placeholder_en": "输入 \"英文\" 图片描述，目前仅支持英文提示词",
+    "prompt_placeholder_upload": "描述你想要的图片，或上传图片进行编辑",
+    "prompt_placeholder_upload_required": "请上传图片，并描述你想要的编辑",
     "prompt_required": "请输入提示词",
     "proxy_required": "打开代理并开启 \"TUN 模式\" 查看生成图片或复制到浏览器打开，后续会支持国内直连",
     "quality": "质量",
@@ -6881,6 +6891,9 @@
       "add": {
         "add_model": "添加模型",
         "batch_add_models": "批量添加模型",
+        "capabilities": {
+          "label": "模型能力"
+        },
         "context_window": {
           "label": "上下文窗口",
           "placeholder": "例如 128000"
@@ -6896,6 +6909,9 @@
           "label": "分组名称",
           "placeholder": "例如 ChatGPT",
           "tooltip": "例如 ChatGPT"
+        },
+        "input_modalities": {
+          "label": "输入模态"
         },
         "max_input_tokens": {
           "label": "最大输入 Token",
@@ -6918,6 +6934,26 @@
           "label": "模型名称",
           "placeholder": "例如 GPT-5.5",
           "tooltip": "例如 GPT-4"
+        },
+        "model_type": {
+          "label": "模型类型"
+        },
+        "purpose": {
+          "chat": {
+            "description": "使用 Provider 的文本 API",
+            "label": "对话"
+          },
+          "chat_protocol": "对话协议",
+          "description": "选择这个模型的用途",
+          "image_edit": {
+            "description": "接收输入图片并返回编辑后的图片",
+            "label": "图像编辑"
+          },
+          "image_generation": {
+            "description": "根据提示词生成图片",
+            "label": "图像生成"
+          },
+          "label": "模型用途"
         },
         "supported_text_delta": {
           "label": "支持增量文本输出",
@@ -7294,8 +7330,9 @@
       },
       "balance": "余额",
       "base_url": {
+        "invalid": "请输入有效的 HTTP 或 HTTPS 地址",
         "label": "Base URL",
-        "placeholder": "https://api.example.com",
+        "placeholder": "Base URL：https://example.com",
         "required": "请输入 Base URL"
       },
       "basic_auth": {
@@ -7387,6 +7424,23 @@
         "toggle_headers_editor_list": "切换为键值列表"
       },
       "create_custom": {
+        "endpoint_fields": {
+          "default_chat": "默认",
+          "label": "端点设置",
+          "more": "更多设置",
+          "more_configured": "已配置 {{count}} 项",
+          "set_default_chat": "设为默认",
+          "text_endpoint_required": "请至少配置一个文本端点",
+          "url_help": "填写 API 根地址后会显示实际请求路径"
+        },
+        "preset_instance": {
+          "description": "适用于 Coding Plan 接入、多个账号管理或项目隔离；Base URL 和 API Key 可独立配置",
+          "empty": "没有匹配的 Provider 预设",
+          "placeholder": "从 Provider 预设创建…",
+          "search_placeholder": "搜索 Provider 预设",
+          "title": "从预设创建（可选）"
+        },
+        "request_preview": "请求路径：{{path}}",
         "title": "添加自定义提供商"
       },
       "delete": {
@@ -7426,13 +7480,23 @@
         "sign_in_success": "已登录 Grok CLI",
         "signing_in": "等待浏览器…"
       },
+      "image_endpoints": {
+        "image_edit_base_url": {
+          "help": "用于 /images/edits；留空时使用默认对话端点的 Base URL",
+          "label": "图像编辑 Base URL"
+        },
+        "image_generation_base_url": {
+          "help": "用于 /images/generations；留空时使用默认对话端点的 Base URL",
+          "label": "图像生成 Base URL"
+        }
+      },
       "logo_upload_failed": "无法处理所选图片",
       "misc": "其他",
       "more_endpoints": {
         "add": "添加端点",
-        "anthropic": "Anthropic Messages",
-        "gemini": "Google Gemini",
-        "openai_chat": "OpenAI Chat Completions",
+        "anthropic": "Anthropic",
+        "gemini": "Gemini",
+        "openai_chat": "OpenAI",
         "openai_responses": "OpenAI Responses",
         "toggle": "更多端点"
       },

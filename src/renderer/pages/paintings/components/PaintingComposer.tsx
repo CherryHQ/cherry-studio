@@ -20,9 +20,10 @@ import {
 import { fileToComposerToken } from '@renderer/components/composer/variants/shared/composerTokens'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useModels } from '@renderer/hooks/useModel'
+import { FILE_TYPE } from '@renderer/types/file'
 import type { FileEntry } from '@shared/data/types/file'
 import type { Model } from '@shared/data/types/model'
-import { imageExts } from '@shared/utils/file'
+import { getFileTypeByExt, imageExts } from '@shared/utils/file'
 import { isEditImageModel } from '@shared/utils/model'
 import { Settings2 } from 'lucide-react'
 import { type FC, useCallback, useMemo, useState } from 'react'
@@ -36,10 +37,15 @@ import { useImageGenerationSupport } from '../hooks/useImageGenerationSupport'
 import { usePaintingComposerInputFiles } from '../hooks/usePaintingComposerInputFiles'
 import type { PaintingData } from '../model/types/paintingData'
 import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
+import { PaintingImageAddButton, PaintingImageGallery } from './PaintingImageGallery'
 import PaintingModelSelector from './PaintingModelSelector'
 import PaintingSettings from './PaintingSettings'
 
 const PAINTING_MANAGED_TOKEN_KINDS: readonly ComposerDraftToken['kind'][] = ['file']
+// Edit-image models render their inputs via the top reference-image tray, not file
+// pills, so the composer manages no tokens then (empty set = no doc token reconcile).
+const PAINTING_NO_MANAGED_TOKEN_KINDS: readonly ComposerDraftToken['kind'][] = []
+const EMPTY_TOKENS: readonly ComposerDraftToken[] = []
 const PAINTING_IMAGE_EXTS = imageExts.map((ext) => (ext.startsWith('.') ? ext : `.${ext}`))
 const PAINTING_SCOPE = 'painting' as const
 
@@ -185,6 +191,28 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const config = getComposerToolConfig(PAINTING_SCOPE)
 
+  // `couldAddImageFile` is modality-based (isEditImageModel → inputModalities includes
+  // image): whether the model takes an image at all. Whether an image is *required* —
+  // the model can only edit, not generate from text — is the one thing modality can't
+  // answer, so it reads the registry's modes (no `generate` mode ⇒ image mandatory).
+  const support = useImageGenerationSupport(painting.providerId, painting.model)
+  const imageRequired =
+    couldAddImageFile && !!support?.modes && !support.modes.generate && Object.keys(support.modes).length > 0
+  // Gate on the *transferred* input images (`painting.inputFiles`, image-type only) —
+  // the state generation actually consumes — not the transient composer `files`, so an
+  // attachment still being transferred can't slip through as a valid image. The pipeline
+  // (`canonicalGenerate`) enforces the same rule authoritatively as a backstop.
+  const inputImageCount = (painting.inputFiles ?? []).filter(
+    (entry) => getFileTypeByExt(entry.ext ?? '') === FILE_TYPE.IMAGE
+  ).length
+  const missingRequiredImage = imageRequired && inputImageCount === 0
+
+  const placeholder = !couldAddImageFile
+    ? t('paintings.prompt_placeholder')
+    : imageRequired
+      ? t('paintings.prompt_placeholder_upload_required')
+      : t('paintings.prompt_placeholder_upload')
+
   usePaintingComposerInputFiles({
     paintingId: painting.id,
     inputFiles: painting.inputFiles ?? [],
@@ -193,7 +221,12 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
     onInputFilesChange
   })
 
-  const tokens = useMemo(() => files.map(fileToComposerToken), [files])
+  // Edit-image models: images live in the top reference-image tray (reads `files` from
+  // context), so emit no file pills and manage no tokens — `files` stays authoritative.
+  const tokens = useMemo(
+    () => (couldAddImageFile ? EMPTY_TOKENS : files.map(fileToComposerToken)),
+    [couldAddImageFile, files]
+  )
   const handleTokensChange = useComposerTokenReconcile({ scope: PAINTING_SCOPE, model })
 
   const handleTextChange = useCallback(
@@ -218,10 +251,13 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
         text={text}
         onTextChange={handleTextChange}
         tokens={tokens}
-        managedTokenKinds={PAINTING_MANAGED_TOKEN_KINDS}
+        managedTokenKinds={couldAddImageFile ? PAINTING_NO_MANAGED_TOKEN_KINDS : PAINTING_MANAGED_TOKEN_KINDS}
         onTokensChange={handleTokensChange}
-        placeholder={t('paintings.prompt_placeholder')}
-        sendDisabled={generating || (text.trim().length === 0 && files.length === 0) || !model}
+        topContent={couldAddImageFile ? <PaintingImageGallery /> : undefined}
+        leadingContent={couldAddImageFile ? <PaintingImageAddButton /> : undefined}
+        placeholder={placeholder}
+        sendDisabled={generating || !model || (text.trim().length === 0 && files.length === 0) || missingRequiredImage}
+        sendBlockedReason={missingRequiredImage ? t('paintings.edit.image_required') : undefined}
         isLoading={generating}
         onSendDraft={handleSendDraft}
         onPause={onCancel}
