@@ -1,6 +1,6 @@
 ---
 name: cherry-web-ppt
-description: 从主题、提纲或文档制作演示文稿，默认输出真实 PPTX，用户明确选择时输出单文件 HTML；“修改 PPT”只能根据附件提取文本重做，不保留原版式。不要处理普通文档转换或 Excel 分析。
+description: 从主题、提纲、文档或 HTML 制作普通演示文稿，默认输出真实 PPTX；用户指定 Cherry-PPT 或 Cherry Studio 品牌模板时转交 `cherry-ppt`。HTML → PPTX 采用内容重建，用户明确选择网页演示时才输出单文件 HTML。“修改 PPT”只能根据附件提取文本重做，不保留原版式。
 ---
 
 # Cherry Presentation
@@ -12,6 +12,7 @@ description: 从主题、提纲或文档制作演示文稿，默认输出真实 
 - 输出：`.pptx`；只有用户明确说网页、HTML 或浏览器演示时才输出 `.html`。
 - 篇幅：8 页、约 10 分钟；风格：白底、深色正文、单一强调色。
 - 结构：封面、问题、结论、2-4 页论据或方案、行动项、结束页。
+- 用户要求 Cherry-PPT、Cherry Studio PPT 模板、正式红白、企业蓝、Young 或 CY2K 风格时，立即调用 `cherry-ppt`；不要继续使用本 Skill 的 Markdown 导出路径。
 
 ## 工作流
 
@@ -23,6 +24,16 @@ description: 从主题、提纲或文档制作演示文稿，默认输出真实 
 ## Office / PDF 输入
 
 Office/PDF 只能使用附件提取文本或分页读取结果。提醒用户文本框、图表、图片、备注和版式可能丢失。无法提取时报告 `unsupported`，不要猜测内容。
+
+## HTML → PPTX
+
+用户把 HTML 作为输入并要求 PPTX 时，默认做可编辑的内容重建，不要把它误判成 HTML 输出模式：
+
+1. 读取 HTML 和可访问的本地素材，按标题、段落、列表、表格和图片引用提取语义内容。
+2. 将内容整理成上述页纲和中间 Markdown；保留文字、数据口径与素材来源，不声称 CSS 已被转换。
+3. 使用 `markdown_to_pptx` 生成真实 `.pptx`，再按正常流程校验和登记。
+
+CSS 背景、渐变、粒子效果、交互和动画不会自动进入 PPTX。用户未要求视觉复刻时直接交付内容重建版；用户明确要求高保真视觉复刻时，保留已提取内容并交给 `cherry-skill-marketplace` 补足该能力，整个流程不得停在 `unsupported`。
 
 ## PPTX 导出
 
@@ -42,4 +53,4 @@ Office/PDF 只能使用附件提取文本或分页读取结果。提醒用户文
 
 - 不承诺复刻输入 PPT/PDF 的字体、动画、母版或版式。
 - 不编造图片、引用或业务数据；素材缺失时用明确占位说明。
-- 复杂母版、动画或高保真复刻先报告 `unsupported`，再交给 `cherry-skill-marketplace` 搜索恰好缺少的能力；安装第三方 Skill 仍需用户明确确认。
+- 复杂母版、动画或高保真复刻先标记能力缺口，再交给 `cherry-skill-marketplace` 搜索恰好缺少的能力；没有合适结果时由市场 Skill 调用内置 `skill-creator`，随后回到当前任务。安装第三方 Skill 仍需用户明确确认，且不得停在 `unsupported`。

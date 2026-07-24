@@ -13,6 +13,23 @@ const DOC_WRITER_PATH = path.join(
   ROOT_DIR,
   'resources/builtin-agents/cherry-assistant/.claude/skills/cherry-doc-writer/SKILL.md'
 )
+const MARKETPLACE_PATH = path.join(
+  ROOT_DIR,
+  'resources/builtin-agents/cherry-assistant/.claude/skills/cherry-skill-marketplace/SKILL.md'
+)
+const SKILLS_MANAGER_PATH = path.join(
+  ROOT_DIR,
+  'resources/builtin-agents/cherry-assistant/.claude/skills/skills-manager/SKILL.md'
+)
+const WEB_PPT_PATH = path.join(
+  ROOT_DIR,
+  'resources/builtin-agents/cherry-assistant/.claude/skills/cherry-web-ppt/SKILL.md'
+)
+const CHERRY_PPT_PATH = path.join(
+  ROOT_DIR,
+  'resources/builtin-agents/cherry-assistant/.claude/skills/cherry-ppt/SKILL.md'
+)
+const SKILL_CREATOR_PATH = path.join(ROOT_DIR, 'resources/skills/skill-creator/SKILL.md')
 const SUPPORTING_PROMPT_PATHS = [
   'resources/builtin-agents/cherry-assistant/SOUL.md',
   'resources/builtin-agents/cherry-assistant/USER.md',
@@ -66,6 +83,14 @@ describe('Cherry Assistant guide', () => {
     }
   })
 
+  it('defaults the generated assistant to auto-edit mode', () => {
+    const agent = JSON.parse(fs.readFileSync(AGENT_TEMPLATE_PATH, 'utf-8')) as {
+      configuration: { permission_mode: string }
+    }
+
+    expect(agent.configuration.permission_mode).toBe('acceptEdits')
+  })
+
   it('keeps supporting prompts on the same dynamic product lookup path', () => {
     const supportingPrompts = SUPPORTING_PROMPT_PATHS.map((relativePath) =>
       fs.readFileSync(path.join(ROOT_DIR, relativePath), 'utf-8')
@@ -84,6 +109,40 @@ describe('Cherry Assistant guide', () => {
     expect(docWriter).toContain('内容重建式转换')
     expect(docWriter).not.toContain('不要声称支持 DOCX/PDF 互转')
     expect(docWriter).toContain('扫描件 OCR、高保真互转')
+  })
+
+  it('routes Cherry Studio template requests through Cherry-PPT', () => {
+    const agent = JSON.parse(fs.readFileSync(AGENT_TEMPLATE_PATH, 'utf-8')) as { skills: string[] }
+    const webPpt = fs.readFileSync(WEB_PPT_PATH, 'utf-8')
+    const cherryPpt = fs.readFileSync(CHERRY_PPT_PATH, 'utf-8')
+
+    expect(agent.skills).toContain('cherry-ppt')
+    expect(webPpt).toContain('立即调用 `cherry-ppt`')
+    expect(cherryPpt).toContain('operation = cherry_ppt_to_pptx')
+    expect(cherryPpt).toContain('保留 Master/Layout')
+  })
+
+  it('escalates unsupported requests through skill search and authoring instead of stopping', () => {
+    const agent = JSON.parse(fs.readFileSync(AGENT_TEMPLATE_PATH, 'utf-8')) as {
+      instructions: Record<'en-US' | 'zh-CN', string>
+    }
+    const marketplace = fs.readFileSync(MARKETPLACE_PATH, 'utf-8')
+    const skillsManager = fs.readFileSync(SKILLS_MANAGER_PATH, 'utf-8')
+    const webPpt = fs.readFileSync(WEB_PPT_PATH, 'utf-8')
+    const skillCreator = fs.readFileSync(SKILL_CREATOR_PATH, 'utf-8')
+
+    expect(agent.instructions['en-US']).toContain('A capability gap is not a stopping condition')
+    expect(agent.instructions['zh-CN']).toContain('能力缺口不是停止条件')
+    expect(Object.values(agent.instructions).join('\n')).toContain('skill-creator')
+    expect(marketplace).toContain('action="search"')
+    expect(marketplace).toContain('调用内置 `skill-creator`')
+    expect(marketplace).toContain('不要自行编写 `SKILL.md`')
+    expect(skillCreator).toContain('action="init"')
+    expect(skillCreator).toContain('action="register"')
+    expect(marketplace).toContain('回到原始任务')
+    expect(skillsManager).toContain('没有合适结果时直接创建')
+    expect(webPpt).toContain('HTML → PPTX')
+    expect(webPpt).toContain('不得停在 `unsupported`')
   })
 
   it('does not retain removed v1 branding, static product counts, or obsolete browser calls', () => {

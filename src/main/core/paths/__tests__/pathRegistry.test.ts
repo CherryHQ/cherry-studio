@@ -38,6 +38,14 @@ describe('pathRegistry.buildPathRegistry', () => {
       '/mock/app/resources/builtin-agents/cherry-assistant/product-manifest.json'
     )
   })
+
+  it('registers Cherry-PPT templates inside bundled resources', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['feature.agents.assistant.cherry_ppt.templates']).toBe(
+      '/mock/app/resources/builtin-agents/cherry-assistant/.claude/skills/cherry-ppt/assets/templates'
+    )
+  })
 })
 
 describe('pathRegistry.shouldAutoEnsure', () => {
@@ -194,6 +202,10 @@ describe('pathRegistry.shouldAutoEnsure', () => {
 
     it('returns false for the bundled Cherry Assistant product manifest', () => {
       expect(shouldAutoEnsure('feature.agents.assistant.manifest.file')).toBe(false)
+    })
+
+    it('returns false for the bundled Cherry-PPT templates', () => {
+      expect(shouldAutoEnsure('feature.agents.assistant.cherry_ppt.templates')).toBe(false)
     })
   })
 

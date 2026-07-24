@@ -23,11 +23,11 @@
         "sourcePath": "skills/cherry-skill-marketplace",
         "filename": "cherry-skill-marketplace",
         "name": "cherry-skill-marketplace",
-        "description": "仅在用户明确要求搜索、安装、卸载或创建 Skill，或匹配的内置 Skill 已报告 unsupported 时触发。通过 `mcp__skills__skills` 管理 Skill。不要为普通文档、PPT 或表格任务预先搜索市场。",
+        "description": "当用户明确要求搜索、安装、卸载或创建 Skill，或内置 Skill / 工具出现能力缺口、无法完成当前任务时触发。通过 `mcp__skills__skills` 搜索和管理 Skill；没有合适结果时调用内置 `skill-creator` 创建并验证自定义 Skill，再继续原任务。普通任务仍先尝试内置能力。",
         "category": "skills",
         "type": "skill",
-        "size": 2612,
-        "contentHash": "8f508a171928c5f52855ef9129e511b3e2ad82882bc25b040e1769c36c910d72"
+        "size": 3921,
+        "contentHash": "71b115d60f7b5311df962e8b16d09762203f821ce2177b151617efd303a61623"
       }
     },
     {
@@ -51,11 +51,25 @@
         "sourcePath": "skills/cherry-web-ppt",
         "filename": "cherry-web-ppt",
         "name": "cherry-web-ppt",
-        "description": "从主题、提纲或文档制作演示文稿，默认输出真实 PPTX，用户明确选择时输出单文件 HTML；“修改 PPT”只能根据附件提取文本重做，不保留原版式。不要处理普通文档转换或 Excel 分析。",
+        "description": "从主题、提纲、文档或 HTML 制作普通演示文稿，默认输出真实 PPTX；用户指定 Cherry-PPT 或 Cherry Studio 品牌模板时转交 `cherry-ppt`。HTML → PPTX 采用内容重建，用户明确选择网页演示时才输出单文件 HTML。“修改 PPT”只能根据附件提取文本重做，不保留原版式。",
         "category": "skills",
         "type": "skill",
-        "size": 2771,
-        "contentHash": "f390ca97056c4342ba1e1834bcaa581702c2c2c900ef1c060e0e89eaa4043e9a"
+        "size": 3970,
+        "contentHash": "ef1b455d95a956833e8d11d36a293b1e62a89f552fb7c16eaf3efd1b742bcb35"
+      }
+    },
+    {
+      "filename": "cherry-ppt",
+      "type": "skill",
+      "metadata": {
+        "sourcePath": "skills/cherry-ppt",
+        "filename": "cherry-ppt",
+        "name": "cherry-ppt",
+        "description": "使用 Cherry Studio 内置 Cherry-PPT 品牌模板生成真实、可编辑并保留 Master/Layout 的 PPTX。用户要求使用 Cherry-PPT、Cherry Studio PPT 模板，或正式红白、企业蓝、Young、CY2K 风格制作演示文稿时触发。不要用于网页演示、普通无模板 PPT 或修改任意外部 PPTX。",
+        "category": "skills",
+        "type": "skill",
+        "size": 7898743,
+        "contentHash": "ef018357a838a7abcaab75d6c47e170403afc40317fe9fefa670bf28ec4a56e6"
       }
     },
     {
@@ -124,8 +138,8 @@
         "description": "当 Cherry Studio 的 mcp__skills__skills 不可用，或用户明确要求使用 npx 时，通过 npx CLI 搜索、安装或创建 Claude Code Agent Skills。正常情况下优先使用 cherry-skill-marketplace。",
         "category": "skills",
         "type": "skill",
-        "size": 1731,
-        "contentHash": "ee93ad096946082f961dd8959835f89a4b8d5acb31d6f34e8f0894c7f80b0db5"
+        "size": 2042,
+        "contentHash": "40d3eb584891f3e4a0b724967789741ef5f7464750481c94bbfeefe25e729ed1"
       }
     }
   ]

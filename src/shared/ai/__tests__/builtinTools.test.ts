@@ -117,7 +117,7 @@ describe('builtin tool contracts', () => {
     expect(REPORT_ARTIFACTS_DESCRIPTION).toContain('final deliverable')
   })
 
-  it('keeps the office export contract limited to the four supported conversions and three inputs', () => {
+  it('keeps the office export contract limited to the supported conversions and three inputs', () => {
     expect(
       exportOfficeInputSchema.parse({
         operation: 'markdown_to_pptx',
@@ -125,6 +125,13 @@ describe('builtin tool contracts', () => {
         output_path: 'slides.pptx'
       })
     ).toEqual({ operation: 'markdown_to_pptx', source_path: 'slides.md', output_path: 'slides.pptx' })
+    expect(
+      exportOfficeInputSchema.parse({
+        operation: 'cherry_ppt_to_pptx',
+        source_path: 'slides.json',
+        output_path: 'slides.pptx'
+      })
+    ).toEqual({ operation: 'cherry_ppt_to_pptx', source_path: 'slides.json', output_path: 'slides.pptx' })
     expect(
       exportOfficeInputSchema.safeParse({ operation: 'docx_to_pdf', source_path: 'a.docx', output_path: 'a.pdf' })
         .success

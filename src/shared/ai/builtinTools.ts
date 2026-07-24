@@ -473,11 +473,14 @@ export const OFFICE_EXPORT_OPERATIONS = [
   'markdown_to_docx',
   'markdown_to_pdf',
   'markdown_to_pptx',
+  'cherry_ppt_to_pptx',
   'csv_to_xlsx'
 ] as const
 
 export const exportOfficeInputSchema = z.object({
-  operation: z.enum(OFFICE_EXPORT_OPERATIONS).describe('Conversion to run: Markdown to DOCX/PDF/PPTX, or CSV to XLSX.'),
+  operation: z
+    .enum(OFFICE_EXPORT_OPERATIONS)
+    .describe('Conversion to run: Markdown to DOCX/PDF/PPTX, Cherry-PPT JSON to PPTX, or CSV to XLSX.'),
   source_path: z
     .string()
     .trim()
@@ -495,9 +498,9 @@ export const exportOfficeInputSchema = z.object({
 })
 
 export const EXPORT_OFFICE_DESCRIPTION =
-  'Create a real Office or PDF file from a workspace source: Markdown to DOCX, PDF, or PPTX; CSV to XLSX. ' +
+  'Create a real Office or PDF file from a workspace source: Markdown to DOCX, PDF, or PPTX; Cherry-PPT JSON to branded PPTX; CSV to XLSX. ' +
   'Both paths must stay inside the session workspace, the output must be a new file, and the file extensions must match the operation. ' +
-  'Embedded images are omitted; their alt text is preserved when possible.'
+  'Markdown exports omit embedded images; Cherry-PPT preserves its bundled template assets.'
 
 export type OfficeExportOperation = (typeof OFFICE_EXPORT_OPERATIONS)[number]
 export type ExportOfficeInput = z.infer<typeof exportOfficeInputSchema>

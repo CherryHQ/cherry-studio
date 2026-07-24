@@ -291,7 +291,7 @@ const CLAUDE_TOOL_REGISTRY = {
     name: 'mcp__cherry-tools__export_office',
     category: 'file',
     exposure: 'user',
-    description: 'Creates DOCX, PDF, PPTX, or XLSX files from workspace Markdown or CSV sources',
+    description: 'Creates DOCX, PDF, PPTX, or XLSX files from workspace Markdown, Cherry-PPT JSON, or CSV sources',
     mcpServer: 'cherry-tools'
   },
   CherryKbSearch: {

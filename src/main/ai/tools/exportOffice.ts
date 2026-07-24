@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 
+import { application } from '@application'
 import * as XLSX from '@e965/xlsx'
 import { loggerService } from '@logger'
 import { validatePath } from '@main/ai/mcp/servers/filesystem'
@@ -11,6 +12,8 @@ import type { ExportOfficeInput, OfficeExportOperation } from '@shared/ai/builti
 import type { FilePath } from '@shared/types/file'
 import MarkdownIt from 'markdown-it'
 import PptxGenJS from 'pptxgenjs'
+
+import { renderCherryPptx } from './cherryPpt'
 
 interface SlideDraft {
   title: string
@@ -25,6 +28,7 @@ const OPERATION_EXTENSIONS: Record<OfficeExportOperation, { source: readonly str
   markdown_to_docx: { source: ['.md', '.markdown'], output: '.docx' },
   markdown_to_pdf: { source: ['.md', '.markdown'], output: '.pdf' },
   markdown_to_pptx: { source: ['.md', '.markdown'], output: '.pptx' },
+  cherry_ppt_to_pptx: { source: ['.json'], output: '.pptx' },
   csv_to_xlsx: { source: ['.csv'], output: '.xlsx' }
 }
 
@@ -311,6 +315,12 @@ export async function exportOfficeArtifact(
         break
       case 'markdown_to_pptx': {
         const data = await renderMarkdownToPptx(source, fallbackTitle)
+        await atomicWriteFile(stagingPath, data, { signal })
+        break
+      }
+      case 'cherry_ppt_to_pptx': {
+        const templateDirectory = application.getPath('feature.agents.assistant.cherry_ppt.templates')
+        const data = await renderCherryPptx(source, templateDirectory, signal)
         await atomicWriteFile(stagingPath, data, { signal })
         break
       }

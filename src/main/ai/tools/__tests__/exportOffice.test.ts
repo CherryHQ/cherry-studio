@@ -14,6 +14,10 @@ import { exportOfficeArtifact } from '../exportOffice'
 
 const signal = new AbortController().signal
 const execFileAsync = promisify(execFile)
+const CHERRY_PPT_TEMPLATE_DIRECTORY = path.resolve(
+  __dirname,
+  '../../../../../resources/builtin-agents/cherry-assistant/.claude/skills/cherry-ppt/assets/templates'
+)
 
 describe('exportOfficeArtifact', () => {
   let workspacePath: string
@@ -36,6 +40,10 @@ describe('exportOfficeArtifact', () => {
     vi.mocked(application.get).mockImplementation((name: string) => {
       if (name === 'WindowManager') return windowManager as never
       throw new Error(`Unexpected application.get(${name})`)
+    })
+    vi.mocked(application.getPath).mockImplementation((key: string) => {
+      if (key === 'feature.agents.assistant.cherry_ppt.templates') return CHERRY_PPT_TEMPLATE_DIRECTORY
+      throw new Error(`Unexpected application.getPath(${key})`)
     })
   })
 
@@ -98,6 +106,47 @@ describe('exportOfficeArtifact', () => {
       expect(resultsSlide).toContain('Chart')
       expect(resultsSlide).not.toContain('**')
       expect(resultsSlide).not.toContain('example.com')
+    } finally {
+      await zip.close()
+    }
+  })
+
+  it('exports a Cherry-PPT JSON spec with its bundled template', async () => {
+    await writeFile(
+      path.join(workspacePath, 'deck.json'),
+      JSON.stringify({
+        template: 'enterprise-blue',
+        slides: [
+          {
+            layout: 'cover',
+            title: 'Cherry-PPT',
+            subtitle: 'Brand template',
+            author: 'Cherry Studio',
+            date: '2026 / 07'
+          },
+          {
+            layout: 'closing',
+            title: 'Thank you',
+            subtitle: 'Bundled master',
+            contact: 'CHERRYAI.COM.CN'
+          }
+        ]
+      })
+    )
+
+    const result = await exportOfficeArtifact(
+      workspacePath,
+      { operation: 'cherry_ppt_to_pptx', source_path: 'deck.json', output_path: 'deck.pptx' },
+      signal
+    )
+
+    expect(result).toEqual({ path: 'deck.pptx' })
+    expect(application.getPath).toHaveBeenCalledWith('feature.agents.assistant.cherry_ppt.templates')
+    const zip = new StreamZip.async({ file: path.join(workspacePath, 'deck.pptx') })
+    try {
+      const slideNames = Object.keys(await zip.entries()).filter((name) => /^ppt\/slides\/slide\d+\.xml$/.test(name))
+      expect(slideNames).toHaveLength(2)
+      expect((await zip.entryData(slideNames[0])).toString()).toContain('Cherry-PPT')
     } finally {
       await zip.close()
     }

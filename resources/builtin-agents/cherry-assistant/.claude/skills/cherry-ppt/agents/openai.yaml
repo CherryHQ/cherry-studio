@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cherry-PPT"
+  short_description: "使用 Cherry Studio 品牌模板生成可编辑 PPTX"
+  default_prompt: "Use $cherry-ppt to create an editable presentation with a Cherry Studio template."
