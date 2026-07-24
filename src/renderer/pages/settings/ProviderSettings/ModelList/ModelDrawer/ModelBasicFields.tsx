@@ -19,6 +19,7 @@ interface ModelBasicFieldsProps {
   modelIdInputRef?: Ref<HTMLInputElement>
   modelIdAction?: ReactNode
   modelIdError?: string
+  endpointTypeError?: string
   onModelIdChange: (value: string) => void
   onNameChange: (value: string) => void
   onNameBlur?: () => void
@@ -37,6 +38,7 @@ export function ModelBasicFields({
   modelIdInputRef,
   modelIdAction,
   modelIdError,
+  endpointTypeError,
   onModelIdChange,
   onNameChange,
   onNameBlur,
@@ -121,7 +123,8 @@ export function ModelBasicFields({
           title={t('settings.models.add.endpoint_type.label')}
           titleClassName={drawerClasses.fieldTitle}
           layout={layout}
-          className={drawerClasses.field}>
+          className={drawerClasses.field}
+          help={endpointTypeError ? <div className={drawerClasses.errorText}>{endpointTypeError}</div> : null}>
           <div data-testid="provider-settings-model-endpoint-type-field">
             {endpointTypeControl === 'chips' ? (
               <ModelEndpointTypeChips value={values.endpointTypes ?? []} onChange={onEndpointTypesChange} />
