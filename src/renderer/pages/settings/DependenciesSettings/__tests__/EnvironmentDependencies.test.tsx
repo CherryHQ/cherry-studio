@@ -1,3 +1,4 @@
+import babeldocIcon from '@renderer/assets/images/dependencies/babeldoc.png'
 import type { BinaryToolSnapshot } from '@shared/types/binary'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import React from 'react'
@@ -239,6 +240,18 @@ describe('EnvironmentDependencies', () => {
     render(<EnvironmentDependencies />)
     expect(await screen.findByText('Bun')).toBeInTheDocument()
     expect(screen.getByText('ripgrep')).toBeInTheDocument()
+    expect(screen.getByText('BabelDOC')).toBeInTheDocument()
+  })
+
+  it('renders the BabelDOC preset with its bundled image icon (not the fallback glyph)', async () => {
+    render(<EnvironmentDependencies />)
+
+    const card = (await screen.findByText('BabelDOC')).closest<HTMLElement>('[role="listitem"]')
+    expect(card).not.toBeNull()
+    // BabelDOC has no iconify mark, so it must resolve to the bundled PNG — dropping the `name`
+    // prop would silently fall back to the Terminal glyph and this src would disappear.
+    const icon = card!.querySelector('img')
+    expect(icon?.getAttribute('src')).toBe(babeldocIcon)
   })
 
   it('gives the public icon-only dependency actions accessible names', async () => {

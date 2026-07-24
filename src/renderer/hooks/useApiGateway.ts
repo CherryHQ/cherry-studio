@@ -109,13 +109,10 @@ export const useApiGateway = () => {
     }
   }, [apiGatewayLoading, setApiGatewayEnabled, t])
 
-  // Keep the UI toggle in sync when Main auto-starts the gateway (e.g. when
-  // agents exist) while the persisted `enabled` flag is still false.
-  useEffect(() => {
-    if (apiGatewayRunning && !apiGatewayConfig.enabled) {
-      setApiGatewayEnabled(true)
-    }
-  }, [apiGatewayRunning, apiGatewayConfig.enabled, setApiGatewayEnabled])
+  // We deliberately do NOT infer `enabled` from `apiGatewayRunning`. `running` reflects the server
+  // actually listening — including while a transient lease (e.g. a PDF translation) holds it up — so
+  // a `running → enabled` sync would persist an "enabled" the user never chose. Main owns the
+  // auto-start decision (agents / `enabled` pref); the renderer must not promote a lease into it.
 
   return {
     apiGatewayConfig,

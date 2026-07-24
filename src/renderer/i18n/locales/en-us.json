@@ -6323,6 +6323,7 @@
       },
       "title": "Dependencies",
       "tools": {
+        "babeldoc": "Layout-preserving PDF translation engine. Layout model assets are downloaded on the first translation.",
         "bun": "JavaScript runtime used by MCP services and related toolchains.",
         "claude": "Anthropic's agentic coding tool for the terminal.",
         "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
@@ -8145,6 +8146,43 @@
     },
     "output": {
       "placeholder": "Translation"
+    },
+    "pdf": {
+      "action": {
+        "close": "Close PDF translation",
+        "export": "Export translated PDF",
+        "install_babeldoc": "Install BabelDOC"
+      },
+      "dependency": {
+        "checking": "Checking BabelDOC...",
+        "description": "Install the BabelDOC plugin to translate PDFs while preserving their original layout.",
+        "installing": "Installing BabelDOC...",
+        "title": "PDF detected"
+      },
+      "error": {
+        "generic": "Something went wrong during translation. Please try again.",
+        "ocr_required": "Scanned PDFs are not supported yet.",
+        "title": "PDF translation failed"
+      },
+      "export_failed": "Failed to export translated PDF",
+      "pane": {
+        "translated": "Translated PDF",
+        "translated_text": "Translation"
+      },
+      "progress": {
+        "analyzing": "Analyzing document layout",
+        "downloading_assets": "Downloading PDF processing resources...",
+        "generating": "Generating translated PDF",
+        "percent": "{{progress}}%",
+        "preparing": "Preparing document",
+        "translating": "Translating content",
+        "value": "{{stage}}, {{progress}}%"
+      },
+      "ready": {
+        "description": "Select a target language and start translation.",
+        "title": "Ready to translate"
+      },
+      "success": "Translated PDF generated"
     },
     "preferred_target": "Preferred Target",
     "processing": "Translation in progress...",

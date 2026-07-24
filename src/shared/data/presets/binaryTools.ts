@@ -1,3 +1,5 @@
+import type { BinaryToolSnapshot } from '@shared/types/binary'
+
 // Tool identity validators, shared so the renderer can reject malformed custom
 // tools before sending the install request — not just
 // the main-process install path.
@@ -57,6 +59,18 @@ export interface BinaryToolPreset {
   icon?: string
   repoUrl: string
   homepage?: string
+}
+
+/** The BinaryManager tool name for the BabelDOC PDF layout-preserving engine. */
+export const BABELDOC_TOOL_NAME = 'babeldoc'
+
+/**
+ * Whether the managed BabelDOC recipe is installed and applied. Shared by the renderer (to
+ * gate the layout-preserving PDF workflow) and the main service (to resolve the sidecar) so
+ * the installed predicate lives in one place instead of being duplicated per process.
+ */
+export function isBabelDocInstalled(snapshot: BinaryToolSnapshot | undefined): boolean {
+  return snapshot?.application?.status === 'applied'
 }
 
 export const PRESETS_BINARY_TOOLS: BinaryToolPreset[] = [
@@ -125,6 +139,12 @@ export const PRESETS_BINARY_TOOLS: BinaryToolPreset[] = [
     tool: 'pi',
     repoUrl: 'https://github.com/earendil-works/pi',
     homepage: 'https://pi.dev'
+  },
+  {
+    name: BABELDOC_TOOL_NAME,
+    displayName: 'BabelDOC',
+    tool: 'pipx:babeldoc',
+    repoUrl: 'https://github.com/funstory-ai/BabelDOC'
   }
   // CLI code tools (claude, codex, opencode, openclaw) are managed
   // in the Code CLI page instead of here.

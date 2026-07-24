@@ -1,10 +1,12 @@
 import type * as TranslateHooks from '@renderer/hooks/translate'
 import { toast } from '@renderer/services/toast'
 import type * as TranslateUtils from '@renderer/utils/translate'
+import type { BinaryToolSnapshot } from '@shared/types/binary'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
+import { useEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fileMock = vi.hoisted(() => ({
@@ -23,6 +25,21 @@ const fileMock = vi.hoisted(() => ({
 const useJobMock = vi.hoisted(() => vi.fn())
 const uuidMock = vi.hoisted(() => vi.fn(() => 'abort-key'))
 const ipcRequestMock = vi.hoisted(() => vi.fn())
+const ipcEventHandlers = vi.hoisted(() => new Map<string, (payload: unknown) => void>())
+const babeldocInstalledSnapshot: BinaryToolSnapshot = {
+  name: 'babeldoc',
+  availability: { source: 'mise', path: '/shims/babeldoc' },
+  application: { status: 'applied' }
+}
+const binaryMock = vi.hoisted(() => ({
+  snapshots: {
+    babeldoc: {
+      name: 'babeldoc',
+      availability: { source: 'mise', path: '/shims/babeldoc' },
+      application: { status: 'applied' }
+    }
+  } as Record<string, BinaryToolSnapshot>
+}))
 
 const dropMock = vi.hoisted(() => ({
   getFilesFromDropEvent: vi.fn(),
@@ -41,7 +58,10 @@ const loggerWarnMock = vi.hoisted(() => vi.fn())
 const loggerErrorMock = vi.hoisted(() => vi.fn())
 const clipboardWriteTextMock = vi.hoisted(() => vi.fn())
 const modelSelectorMock = vi.hoisted(() => vi.fn())
+const languageBarMock = vi.hoisted(() => vi.fn())
 const exportContentToNotesMock = vi.hoisted(() => vi.fn())
+const pdfViewMock = vi.hoisted(() => vi.fn())
+const pdfHandleMock = vi.hoisted(() => ({ cancel: vi.fn(), start: vi.fn() }))
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -165,7 +185,10 @@ vi.mock('@renderer/services/ExportService', () => ({
 }))
 
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: ipcRequestMock }
+  ipcApi: { request: ipcRequestMock },
+  useIpcOn: (event: string, handler: (payload: unknown) => void) => {
+    ipcEventHandlers.set(event, handler)
+  }
 }))
 
 vi.mock('@logger', () => ({
@@ -298,7 +321,10 @@ vi.mock('../components/TranslateInputPane', () => ({
 }))
 
 vi.mock('../components/TranslateLanguageBar', () => ({
-  default: () => null
+  default: (props: { isBidirectional: boolean }) => {
+    languageBarMock(props)
+    return null
+  }
 }))
 
 vi.mock('../components/TranslateOutputPane', () => ({
@@ -322,6 +348,40 @@ vi.mock('../components/TranslateOutputPane', () => ({
 vi.mock('../TranslateSettings', () => ({
   default: ({ visible }: { visible: boolean }) => (visible ? <div data-testid="translate-settings-open" /> : null)
 }))
+
+vi.mock('../pdf/PdfTranslationView', () => {
+  const MockPdfTranslationView = (props: {
+    file: { name: string; path: string }
+    modelId?: string
+    sourceLangCode: string
+    babelDocAvailability: 'checking' | 'available' | 'missing'
+    babelDocInstalling: boolean
+    textFallback?: { content: React.ReactNode; ocrRequired: boolean }
+    onClose: () => void
+    onHandleChange: (handle: typeof pdfHandleMock | null) => void
+    onStatusChange: (status: { phase: 'idle'; running: false }) => void
+    onInstallBabelDoc: () => void
+  }) => {
+    const { onHandleChange, onStatusChange } = props
+    pdfViewMock(props)
+    useEffect(() => {
+      onHandleChange(pdfHandleMock)
+      onStatusChange({ phase: 'idle', running: false })
+      return () => onHandleChange(null)
+    }, [onHandleChange, onStatusChange])
+    return (
+      <div data-testid="pdf-translation-view" data-file-path={props.file.path}>
+        <span data-testid="babeldoc-availability">{props.babelDocAvailability}</span>
+        {props.babelDocAvailability === 'missing' && !props.textFallback && (
+          <button type="button" aria-label="translate.pdf.action.install_babeldoc" onClick={props.onInstallBabelDoc} />
+        )}
+        {props.textFallback?.content}
+        <button type="button" aria-label="translate.pdf.action.close" onClick={props.onClose} />
+      </div>
+    )
+  }
+  return { default: MockPdfTranslationView }
+})
 
 import TranslatePage from '../TranslatePage'
 
@@ -361,9 +421,14 @@ describe('TranslatePage', () => {
       status: 'pending'
     })
     ipcRequestMock.mockReset()
-    ipcRequestMock.mockImplementation((channel: string, payload?: unknown) =>
-      channel === 'file_processing.start_job' ? fileMock.startJob(payload) : Promise.resolve(undefined)
-    )
+    ipcEventHandlers.clear()
+    binaryMock.snapshots = { babeldoc: babeldocInstalledSnapshot }
+    ipcRequestMock.mockImplementation((channel: string, payload?: unknown) => {
+      if (channel === 'file_processing.start_job') return fileMock.startJob(payload)
+      if (channel === 'binary.get_tool_snapshots') return Promise.resolve(binaryMock.snapshots)
+      if (channel === 'binary.install_tool') return Promise.resolve(undefined)
+      return Promise.resolve(undefined)
+    })
     fileMock.readExternal.mockResolvedValue('document content')
     uuidMock.mockReset()
     uuidMock.mockReturnValue('abort-key')
@@ -388,9 +453,13 @@ describe('TranslatePage', () => {
     loggerErrorMock.mockReset()
     clipboardWriteTextMock.mockReset()
     modelSelectorMock.mockReset()
+    languageBarMock.mockReset()
     clipboardWriteTextMock.mockResolvedValue(undefined)
     exportContentToNotesMock.mockReset()
     exportContentToNotesMock.mockResolvedValue(undefined)
+    pdfViewMock.mockReset()
+    pdfHandleMock.cancel.mockReset()
+    pdfHandleMock.start.mockReset()
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: {
@@ -622,18 +691,247 @@ describe('TranslatePage', () => {
     expect(toast.success).not.toHaveBeenCalled()
   })
 
-  it('uses readExternal for selected document files', async () => {
+  it('opens selected PDFs in layout-preserving translation mode instead of extracting text', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1'
+    })
     fileMock.getFileExtension.mockReturnValue('.pdf')
-    fileMock.onSelectFile.mockResolvedValue([{ path: '/tmp/input.pdf', size: 10, type: 'document' }])
-    fileMock.readExternal.mockResolvedValueOnce('pdf content')
+    fileMock.onSelectFile.mockResolvedValue([{ name: 'input.pdf', path: '/tmp/input.pdf', size: 10, type: 'document' }])
 
     render(<TranslatePage />)
 
     fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
 
-    await waitFor(() => expect(fileMock.readExternal).toHaveBeenCalledWith('/tmp/input.pdf', true))
+    await waitFor(() =>
+      expect(screen.getByTestId('pdf-translation-view')).toHaveAttribute('data-file-path', '/tmp/input.pdf')
+    )
+    expect(pdfViewMock).toHaveBeenCalledWith(
+      expect.objectContaining({ file: { name: 'input.pdf', path: '/tmp/input.pdf' } })
+    )
+    expect(fileMock.readExternal).not.toHaveBeenCalled()
     expect(fileMock.startJob).not.toHaveBeenCalled()
-    await waitFor(() => expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('pdf content'))
+
+    const translateButton = screen.getByRole('button', { name: 'translate.button.translate' })
+    await waitFor(() => expect(translateButton).toBeEnabled())
+    fireEvent.click(translateButton)
+
+    expect(pdfHandleMock.start).toHaveBeenCalledWith('en-us')
+  })
+
+  it('warns and skips layout-preserving translation when source and target language are the same', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'en-us',
+      'feature.translate.page.target_language': 'en-us'
+    })
+    fileMock.getFileExtension.mockReturnValue('.pdf')
+    fileMock.onSelectFile.mockResolvedValue([{ name: 'input.pdf', path: '/tmp/input.pdf', size: 10, type: 'document' }])
+
+    render(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+
+    await waitFor(() => expect(screen.getByTestId('babeldoc-availability')).toHaveTextContent('available'))
+    const translateButton = screen.getByRole('button', { name: 'translate.button.translate' })
+    await waitFor(() => expect(translateButton).toBeEnabled())
+    fireEvent.click(translateButton)
+
+    // A same-language layout translation is a no-op that still spawns BabelDOC and bills a run —
+    // guard it exactly like the text path, so it never reaches the sidecar.
+    expect(toast.warning).toHaveBeenCalledWith('translate.language.same')
+    expect(pdfHandleMock.start).not.toHaveBeenCalled()
+  })
+
+  it('falls back to streamed text translation when BabelDOC is not installed', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'en-us',
+      'feature.translate.page.target_language': 'zh-cn'
+    })
+    binaryMock.snapshots = {}
+    fileMock.getFileExtension.mockReturnValue('.pdf')
+    fileMock.onSelectFile.mockResolvedValue([{ name: 'input.pdf', path: '/tmp/input.pdf', size: 10, type: 'document' }])
+    fileMock.readExternal.mockResolvedValue('PDF extracted text')
+    translateCoreMock.translateText.mockImplementationOnce(
+      async (_text: string, _targetLanguage: string, onResponse?: (text: string, isComplete: boolean) => void) => {
+        onResponse?.('streamed translation', false)
+        return 'translated text'
+      }
+    )
+
+    render(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+
+    await waitFor(() => expect(screen.getByTestId('babeldoc-availability')).toHaveTextContent('missing'))
+    const translateButton = screen.getByRole('button', { name: 'translate.button.translate' })
+    await waitFor(() => expect(translateButton).toBeEnabled())
+    fireEvent.click(translateButton)
+
+    await waitFor(() => expect(fileMock.readExternal).toHaveBeenCalledWith('/tmp/input.pdf', true))
+    await waitFor(() =>
+      expect(translateCoreMock.translateText).toHaveBeenCalledWith(
+        'PDF extracted text',
+        'zh-cn',
+        expect.any(Function),
+        expect.any(AbortSignal)
+      )
+    )
+    expect(pdfHandleMock.start).not.toHaveBeenCalled()
+    expect(screen.getByTestId('translate-output-content')).toHaveTextContent('streamed translation')
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.pdf.action.close' }))
+    expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('')
+    expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('')
+  })
+
+  it('installs BabelDOC from the PDF prompt without starting translation', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', 'openai::gpt-4.1')
+    binaryMock.snapshots = {}
+    fileMock.getFileExtension.mockReturnValue('.pdf')
+    fileMock.onSelectFile.mockResolvedValue([{ name: 'input.pdf', path: '/tmp/input.pdf', size: 10, type: 'document' }])
+
+    render(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+
+    await waitFor(() => expect(screen.getByTestId('babeldoc-availability')).toHaveTextContent('missing'))
+    fireEvent.click(screen.getByRole('button', { name: 'translate.pdf.action.install_babeldoc' }))
+
+    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('binary.install_tool', { name: 'babeldoc' }))
+    await waitFor(() => expect(screen.getByTestId('babeldoc-availability')).toHaveTextContent('available'))
+    expect(pdfHandleMock.start).not.toHaveBeenCalled()
+  })
+
+  it('keeps text fallback available when inline BabelDOC installation fails', async () => {
+    const installError = new Error('install failed')
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'en-us',
+      'feature.translate.page.target_language': 'zh-cn'
+    })
+    binaryMock.snapshots = {}
+    fileMock.getFileExtension.mockReturnValue('.pdf')
+    fileMock.onSelectFile.mockResolvedValue([{ name: 'input.pdf', path: '/tmp/input.pdf', size: 10, type: 'document' }])
+    ipcRequestMock.mockImplementation((channel: string) => {
+      if (channel === 'binary.get_tool_snapshots') return Promise.resolve(binaryMock.snapshots)
+      if (channel === 'binary.install_tool') return Promise.reject(installError)
+      return Promise.resolve(undefined)
+    })
+
+    render(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+
+    await waitFor(() => expect(screen.getByTestId('babeldoc-availability')).toHaveTextContent('missing'))
+    fireEvent.click(screen.getByRole('button', { name: 'translate.pdf.action.install_babeldoc' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('settings.dependencies.installError'))
+    expect(screen.getByTestId('babeldoc-availability')).toHaveTextContent('missing')
+    await waitFor(() => expect(screen.getByRole('button', { name: 'translate.button.translate' })).toBeEnabled())
+  })
+
+  it('reports OCR as required when text fallback extracts no content', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.target_language': 'zh-cn'
+    })
+    binaryMock.snapshots = {}
+    fileMock.getFileExtension.mockReturnValue('.pdf')
+    fileMock.onSelectFile.mockResolvedValue([{ name: 'scan.pdf', path: '/tmp/scan.pdf', size: 10, type: 'document' }])
+    fileMock.readExternal.mockResolvedValue('  ')
+
+    render(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+
+    const translateButton = screen.getByRole('button', { name: 'translate.button.translate' })
+    await waitFor(() => expect(translateButton).toBeEnabled())
+    fireEvent.click(translateButton)
+
+    await waitFor(() =>
+      expect(pdfViewMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ textFallback: expect.objectContaining({ ocrRequired: true }) })
+      )
+    )
+    expect(translateCoreMock.translateText).not.toHaveBeenCalled()
+  })
+
+  it('clears extracted PDF text cache when a different PDF is selected', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'en-us',
+      'feature.translate.page.target_language': 'zh-cn'
+    })
+    binaryMock.snapshots = {}
+    fileMock.getFileExtension.mockReturnValue('.pdf')
+    fileMock.onSelectFile
+      .mockResolvedValueOnce([{ name: 'first.pdf', path: '/tmp/first.pdf', size: 10, type: 'document' }])
+      .mockResolvedValueOnce([{ name: 'second.pdf', path: '/tmp/second.pdf', size: 10, type: 'document' }])
+    fileMock.readExternal.mockImplementation(async (filePath: string) =>
+      filePath.includes('first') ? 'first PDF text' : 'second PDF text'
+    )
+
+    render(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+    const translateButton = screen.getByRole('button', { name: 'translate.button.translate' })
+    await waitFor(() => expect(translateButton).toBeEnabled())
+    fireEvent.click(translateButton)
+    await waitFor(() => expect(fileMock.readExternal).toHaveBeenCalledWith('/tmp/first.pdf', true))
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.pdf.action.close' }))
+    expect(MockUseCacheUtils.getCacheValue('translate.input')).toBe('')
+    expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('')
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+    await waitFor(() =>
+      expect(screen.getByTestId('pdf-translation-view')).toHaveAttribute('data-file-path', '/tmp/second.pdf')
+    )
+    await waitFor(() => expect(screen.getByRole('button', { name: 'translate.button.translate' })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+
+    await waitFor(() => expect(fileMock.readExternal).toHaveBeenCalledWith('/tmp/second.pdf', true))
+    expect(fileMock.readExternal).toHaveBeenCalledTimes(2)
+  })
+
+  it('previews a selected PDF but keeps translation disabled until a model is selected', async () => {
+    fileMock.getFileExtension.mockReturnValue('.pdf')
+    fileMock.onSelectFile.mockResolvedValue([{ name: 'input.pdf', path: '/tmp/input.pdf', size: 10, type: 'document' }])
+
+    render(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+
+    await waitFor(() => expect(screen.getByTestId('pdf-translation-view')).toBeInTheDocument())
+    expect(pdfViewMock).toHaveBeenCalledWith(expect.objectContaining({ modelId: undefined }))
+    expect(screen.getByRole('button', { name: 'translate.button.translate' })).toBeDisabled()
+  })
+
+  it('uses explicit language controls and requires a concrete target in PDF mode', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.bidirectional_enabled': true,
+      'feature.translate.page.target_language': 'unknown'
+    })
+    fileMock.getFileExtension.mockReturnValue('.pdf')
+    fileMock.onSelectFile.mockResolvedValue([{ name: 'input.pdf', path: '/tmp/input.pdf', size: 10, type: 'document' }])
+
+    render(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+
+    await waitFor(() => expect(screen.getByTestId('pdf-translation-view')).toBeInTheDocument())
+    expect(languageBarMock).toHaveBeenLastCalledWith(expect.objectContaining({ isBidirectional: false }))
+    expect(screen.getByRole('button', { name: 'translate.button.translate' })).toBeDisabled()
+    expect(pdfHandleMock.start).not.toHaveBeenCalled()
+  })
+
+  it('filters models that the API gateway cannot route while translating PDFs', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', 'openai::gpt-4.1')
+    fileMock.getFileExtension.mockReturnValue('.pdf')
+    fileMock.onSelectFile.mockResolvedValue([{ name: 'input.pdf', path: '/tmp/input.pdf', size: 10, type: 'document' }])
+
+    render(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+
+    await waitFor(() => expect(screen.getByTestId('pdf-translation-view')).toBeInTheDocument())
+    const filter = modelSelectorMock.mock.calls.at(-1)?.[0].filter as (model: {
+      capabilities: string[]
+      providerId: string
+    }) => boolean
+    expect(filter({ capabilities: [], providerId: 'corp:west' })).toBe(false)
   })
 
   it('shows an unavailable error when startJob rejects before an OCR job exists', async () => {
@@ -1067,6 +1365,42 @@ describe('TranslatePage', () => {
 
     expect(signal?.aborted).toBe(true)
     expect(toast.info).toHaveBeenCalledWith('translate.info.aborted')
+  })
+
+  it('ignores dropped and pasted files while translation is running', async () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'feature.translate.model_id': 'openai::gpt-4.1',
+      'feature.translate.page.source_language': 'zh-cn'
+    })
+    let resolveTranslate: (value: string) => void = () => {}
+    translateCoreMock.translateText.mockReturnValueOnce(
+      new Promise<string>((resolve) => {
+        resolveTranslate = resolve
+      })
+    )
+    dropMock.getFilesFromDropEvent.mockResolvedValue([{ path: '/tmp/replacement.png', size: 10, type: 'image' }])
+
+    const { rerender } = render(<TranslatePage />)
+    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), { target: { value: 'hello' } })
+    rerender(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.stop' })).toBeInTheDocument())
+
+    fireEvent.drop(screen.getByTestId('translate-input-pane'))
+    fireEvent.paste(screen.getByLabelText('translate.input.placeholder'), {
+      clipboardData: {
+        getData: () => '',
+        files: [{ name: 'replacement.png', type: 'image/png' }]
+      }
+    })
+
+    expect(dropMock.getTextFromDropEvent).not.toHaveBeenCalled()
+    expect(dropMock.getFilesFromDropEvent).not.toHaveBeenCalled()
+    expect(fileMock.getPathForFile).not.toHaveBeenCalled()
+
+    await act(async () => {
+      resolveTranslate('done')
+    })
   })
 
   it('keeps streamed translation text when stop is clicked', async () => {

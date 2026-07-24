@@ -6323,6 +6323,7 @@
       },
       "title": "环境依赖",
       "tools": {
+        "babeldoc": "保留版式的 PDF 翻译引擎。首次翻译时会下载版面模型资源。",
         "bun": "MCP 服务及相关工具链使用的 JavaScript 运行时。",
         "claude": "Anthropic 的终端智能编程工具。",
         "codex": "OpenAI 的开源编程代理，可读取、编辑和执行本地仓库中的代码。",
@@ -8145,6 +8146,43 @@
     },
     "output": {
       "placeholder": "翻译"
+    },
+    "pdf": {
+      "action": {
+        "close": "关闭 PDF 翻译",
+        "export": "导出译文 PDF",
+        "install_babeldoc": "安装 BabelDOC"
+      },
+      "dependency": {
+        "checking": "正在检测 BabelDOC...",
+        "description": "安装 BabelDOC 插件即可在翻译 PDF 时保留原始版式。",
+        "installing": "正在安装 BabelDOC...",
+        "title": "检测到 PDF"
+      },
+      "error": {
+        "generic": "翻译过程中出现错误，请重试。",
+        "ocr_required": "暂不支持扫描版 PDF",
+        "title": "PDF 翻译失败"
+      },
+      "export_failed": "导出译文 PDF 失败",
+      "pane": {
+        "translated": "译文 PDF",
+        "translated_text": "译文"
+      },
+      "progress": {
+        "analyzing": "正在分析文档版式",
+        "downloading_assets": "正在下载 PDF 处理资源...",
+        "generating": "正在生成译文 PDF",
+        "percent": "{{progress}}%",
+        "preparing": "正在准备文档",
+        "translating": "正在翻译内容",
+        "value": "{{stage}}，{{progress}}%"
+      },
+      "ready": {
+        "description": "选择目标语言并开始翻译。",
+        "title": "等待翻译"
+      },
+      "success": "译文 PDF 已生成"
     },
     "preferred_target": "首选目标",
     "processing": "翻译中...",

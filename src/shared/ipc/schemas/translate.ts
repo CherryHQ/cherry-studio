@@ -1,7 +1,11 @@
-import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import { type TranslateLangCode, TranslateLangCodeSchema } from '@shared/data/preference/preferenceTypes'
+import { AbsolutePathSchema } from '@shared/data/types/file'
+import { UniqueModelIdSchema } from '@shared/data/types/model'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
+
+const pdfJobInputSchema = z.strictObject({ jobId: z.uuid() })
 
 /**
  * Translate IPC schema — an independent micro-domain (plan ruling 16). `translate.open`
@@ -20,5 +24,46 @@ export const translateRequestSchemas = {
       sourceLangCode: z.custom<TranslateLangCode>().optional()
     }),
     output: z.object({ streamId: z.string() })
-  })
+  }),
+  'translate.pdf.start': defineRoute({
+    input: pdfJobInputSchema.extend({
+      sourcePath: AbsolutePathSchema,
+      sourceLangCode: z.union([z.literal('auto'), TranslateLangCodeSchema]),
+      targetLangCode: TranslateLangCodeSchema.refine((code) => code !== 'unknown', {
+        message: 'targetLangCode must be a concrete language, not "unknown"'
+      }),
+      modelId: UniqueModelIdSchema
+    }),
+    output: z.strictObject({ outputPath: AbsolutePathSchema, fileName: z.string().min(1) })
+  }),
+  'translate.pdf.cancel': defineRoute({ input: pdfJobInputSchema, output: z.void() }),
+  'translate.pdf.cleanup': defineRoute({ input: pdfJobInputSchema, output: z.void() })
+}
+
+export type PdfTranslationProgressStage =
+  | 'parsing'
+  | 'analyzing'
+  | 'extracting_terms'
+  | 'translating'
+  | 'typesetting'
+  | 'rendering'
+  | 'processing'
+
+export interface PdfTranslationProgress {
+  stage: PdfTranslationProgressStage
+  /** Overall completion, 0–100. */
+  progress: number
+}
+
+/** Coarse pipeline stage reported via `onStage`, distinct from the fine-grained `PdfTranslationProgressStage`. */
+export type PdfTranslationStage = 'preparing' | 'downloading_assets' | 'translating'
+
+export type TranslateEventSchemas = {
+  'translate.pdf.stage': {
+    jobId: string
+    stage: PdfTranslationStage
+  }
+  'translate.pdf.progress': PdfTranslationProgress & {
+    jobId: string
+  }
 }

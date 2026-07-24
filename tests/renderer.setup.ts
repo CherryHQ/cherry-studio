@@ -770,12 +770,23 @@ vi.mock('@cherrystudio/ui', () => {
     TextBadge: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'text-badge' }, children),
     Badge: ({ children, ...props }) => React.createElement('span', { ...props, 'data-testid': 'badge' }, children),
-    EmptyState: ({ title, description, actionLabel, onAction, secondaryLabel, onSecondary, ...props }) =>
+    EmptyState: ({
+      children,
+      title,
+      description,
+      actionLabel,
+      onAction,
+      secondaryLabel,
+      onSecondary,
+      preset,
+      ...props
+    }) =>
       React.createElement(
         'div',
-        { ...props, 'data-testid': 'empty-state' },
+        { ...props, 'data-testid': 'empty-state', 'data-preset': preset },
         title ? React.createElement('div', {}, title) : null,
         description ? React.createElement('div', {}, description) : null,
+        children,
         actionLabel && onAction
           ? React.createElement('button', { type: 'button', onClick: onAction }, actionLabel)
           : null,
@@ -802,14 +813,6 @@ vi.mock('@cherrystudio/ui', () => {
           onChange?.(event.target.value === '' ? null : event.target.valueAsNumber)
       }),
     Skeleton: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'skeleton' }, children),
-    EmptyState: ({ children, title, description, preset, ...props }) =>
-      React.createElement(
-        'div',
-        { ...props, 'data-testid': 'empty-state', 'data-preset': preset },
-        title ? React.createElement('div', {}, title) : null,
-        description ? React.createElement('div', {}, description) : null,
-        children
-      ),
     HelpTooltip: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'help-tooltip' }, children),
     InfoTooltip: ({ children, ...props }) =>

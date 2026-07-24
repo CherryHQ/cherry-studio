@@ -22,6 +22,7 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
+import babeldocIcon from '@renderer/assets/images/dependencies/babeldoc.png'
 import {
   BinaryInstallErrorDialog,
   BinaryInstallFailureRow,
@@ -81,7 +82,17 @@ const logger = loggerService.withContext('EnvironmentDependencies')
 
 type CleanupBlockedResult = Extract<BinaryRemoveResult, { status: 'cleanup_blocked' }>
 
-const ToolIcon: FC<{ icon?: string; className?: string }> = ({ icon, className }) => {
+// Tools whose brand mark isn't in an icon font (iconify) ship a bundled image instead, keyed by
+// preset name. Lives here rather than on the shared preset, which must not import renderer assets.
+const TOOL_IMAGE_ICONS: Record<string, string> = {
+  babeldoc: babeldocIcon
+}
+
+const ToolIcon: FC<{ name?: string; icon?: string; className?: string }> = ({ name, icon, className }) => {
+  const imageSrc = name ? TOOL_IMAGE_ICONS[name] : undefined
+  if (imageSrc) {
+    return <img src={imageSrc} alt="" className={cn('size-5 rounded-[5px]', className)} />
+  }
   if (icon) {
     return <Icon icon={icon} className={cn('size-5', className)} />
   }
@@ -543,7 +554,7 @@ const BinaryToolPresetCard: FC<{
               'flex size-10 shrink-0 items-center justify-center rounded-xl',
               present ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
             )}>
-            <ToolIcon icon={tool.icon} />
+            <ToolIcon name={tool.name} icon={tool.icon} />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
