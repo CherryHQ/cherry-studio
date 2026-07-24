@@ -64,6 +64,39 @@ describe('validateThemeContractSources', () => {
     expect(() => validateThemeContractSources(sources)).toThrow(/declares unregistered runtime input/)
   })
 
+  it('rejects custom property names outside the contract convention', async () => {
+    const sources = await loadSources()
+    sources.product += '\n:root {\n  --sidebarWidth: 1px;\n}\n'
+
+    expect(() => validateThemeContractSources(sources)).toThrow(
+      /product\.css declares invalid custom property --sidebarWidth/
+    )
+  })
+
+  it('resolves references with whitespace after var opening', async () => {
+    const sources = await loadSources()
+    sources.providerColors = sources.providerColors.replace(
+      '--cs-primary: var(--cs-brand-500);',
+      '--cs-primary: var( --cs-missing-primary);'
+    )
+
+    expect(() => validateThemeContractSources(sources)).toThrow(
+      /light --cs-primary .* references undefined --cs-missing-primary/
+    )
+  })
+
+  it('rejects invalid referenced custom property names', async () => {
+    const sources = await loadSources()
+    sources.product = sources.product.replace(
+      '--highlight-foreground: var(--foreground);',
+      '--highlight-foreground: var(--foregroundMuted);'
+    )
+
+    expect(() => validateThemeContractSources(sources)).toThrow(
+      /product\.css references invalid custom property --foregroundMuted/
+    )
+  })
+
   it('rejects a runtime input declared by the foundation layer', async () => {
     const sources = await loadSources()
     sources.primitiveColors += '\n:root {\n  --cs-theme-speculative: hotpink;\n}\n'
@@ -110,6 +143,27 @@ describe('validateThemeContractSources', () => {
     expect(() => validateThemeContractSources(sources)).toThrow(/light variable cycle/)
   })
 
+  it('rejects unresolved references introduced by a dark override', async () => {
+    const sources = await loadSources()
+    sources.providerColors = sources.providerColors.replace(
+      '--cs-background: oklch(0.209 0 0 / 0.55);',
+      '--cs-background: var( --cs-missing-dark-background);'
+    )
+
+    expect(() => validateThemeContractSources(sources)).toThrow(
+      /dark --cs-background .* references undefined --cs-missing-dark-background/
+    )
+  })
+
+  it('rejects variable cycles introduced by dark overrides', async () => {
+    const sources = await loadSources()
+    sources.product = sources.product
+      .replace('--code-block: #323232;', '--code-block: var(--inline-code);')
+      .replace('--inline-code: #323232;', '--inline-code: var(--code-block);')
+
+    expect(() => validateThemeContractSources(sources)).toThrow(/dark variable cycle/)
+  })
+
   it('rejects an ambiguous semantic entry order', async () => {
     const sources = await loadSources()
     sources.contractEntry = sources.contractEntry.replace(
@@ -118,5 +172,12 @@ describe('validateThemeContractSources', () => {
     )
 
     expect(() => validateThemeContractSources(sources)).toThrow(/contract.css imports must be exactly/)
+  })
+
+  it('rejects extra token imports written with url syntax', async () => {
+    const sources = await loadSources()
+    sources.tokensIndex += "\n@import url('./colors/escape.css');\n"
+
+    expect(() => validateThemeContractSources(sources)).toThrow(/tokens\/index\.css imports must be exactly/)
   })
 })

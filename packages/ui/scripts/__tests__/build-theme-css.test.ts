@@ -11,12 +11,59 @@ import {
   RUNTIME_THEME_INPUT_TOKENS,
   SHADCN_COLOR_TOKENS
 } from '../build-theme-css'
-import { assertGeneratedThemeCssCurrent } from '../check-theme-contract'
+import { assertGeneratedThemeCssCurrent, checkThemeContract } from '../check-theme-contract'
 
 describe('buildThemeContractCss', () => {
   it('detects stale generated theme output', () => {
     expect(() => assertGeneratedThemeCssCurrent('current', 'current')).not.toThrow()
     expect(() => assertGeneratedThemeCssCurrent('stale', 'current')).toThrow('generated theme.css is stale')
+  })
+
+  it('keeps the committed theme.css current', async () => {
+    await expect(checkThemeContract()).resolves.not.toThrow()
+  })
+
+  it('keeps compatibility color allowlists shrink-only', () => {
+    const frozenSemanticColors: readonly string[] = [
+      'primary-hover',
+      'destructive-hover',
+      'foreground-secondary',
+      'foreground-muted',
+      'menu-item-hover',
+      'border-muted',
+      'border-hover',
+      'border-active',
+      'secondary-hover',
+      'secondary-active',
+      'ghost-hover',
+      'ghost-active'
+    ]
+    const frozenStatusColors: readonly string[] = [
+      'error-base',
+      'error-text',
+      'error-bg',
+      'error-text-hover',
+      'error-bg-hover',
+      'error-border-hover',
+      'error-active',
+      'success-base',
+      'success-text-hover',
+      'success-bg',
+      'success-bg-hover',
+      'warning-base',
+      'warning-text-hover',
+      'warning-bg',
+      'warning-bg-hover',
+      'warning-active',
+      'info-base',
+      'info-text-hover',
+      'info-bg',
+      'info-bg-hover',
+      'info-active'
+    ]
+
+    expect(COMPATIBILITY_SEMANTIC_COLOR_TOKENS.filter((token) => !frozenSemanticColors.includes(token))).toEqual([])
+    expect(COMPATIBILITY_STATUS_COLOR_TOKENS.filter((token) => !frozenStatusColors.includes(token))).toEqual([])
   })
 
   it('maps token sources into the public theme contract', async () => {

@@ -21,4 +21,17 @@ describe('useUserTheme', () => {
 
     expect(document.documentElement.style.getPropertyValue('--cs-theme-primary-foreground')).toBe(foreground)
   })
+
+  it('keeps user font inputs in the renderer-owned namespace', () => {
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'ui.theme_user.font_family': 'Inter',
+      'ui.theme_user.code_font_family': 'Fira Code'
+    })
+    const { result } = renderHook(() => useUserTheme())
+
+    act(() => result.current.initUserTheme({ colorPrimary: '#00B96B' }))
+
+    expect(document.documentElement.style.getPropertyValue('--app-user-font-family')).toBe("'Inter'")
+    expect(document.documentElement.style.getPropertyValue('--app-user-code-font-family')).toBe("'Fira Code'")
+  })
 })

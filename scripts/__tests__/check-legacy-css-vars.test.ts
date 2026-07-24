@@ -154,7 +154,7 @@ describe('check-legacy-css-vars', () => {
   it('auto-fixes exact variables in code strings and embedded CSS', () => {
     const content = [
       'const className = "text-(--color-text-2) bg-(--color-background-soft)"',
-      'const linkStyle = { color: "var(--color-link)" }',
+      'const codeStyle = { background: "var(--color-code-background)" }',
       'const iconStyle = { color: "var(--app-icon)" }',
       '// var(--color-text-1)',
       'const localTheme = `:root {',
@@ -166,7 +166,7 @@ describe('check-legacy-css-vars', () => {
 
     expect(result.replacements).toBe(2)
     expect(result.content).toContain('text-(--color-text-2) bg-(--color-background-soft)')
-    expect(result.content).toContain('var(--link)')
+    expect(result.content).toContain('var(--code-block)')
     expect(result.content).toContain('var(--app-icon)')
     expect(result.content).toContain('// var(--color-text-1)')
     expect(result.content).toContain('--foreground: var(--color-foreground);')
@@ -178,6 +178,16 @@ describe('check-legacy-css-vars', () => {
 
     expect(findings.map(({ variable, strategy }) => ({ variable, strategy }))).toEqual([
       { variable: '--cs-primary', strategy: 'contextual' }
+    ])
+    expect(fixLegacyVarsInContent(content, 'src/renderer/example.css')).toEqual({ content, replacements: 0 })
+  })
+
+  it('reports historical link colors for owner review without creating a shared alias', () => {
+    const content = '.link { color: var(--color-link); }'
+    const findings = findLegacyVarHitsInContent(content, 'src/renderer/example.css')
+
+    expect(findings.map(({ variable, strategy }) => ({ variable, strategy }))).toEqual([
+      { variable: '--color-link', strategy: 'review' }
     ])
     expect(fixLegacyVarsInContent(content, 'src/renderer/example.css')).toEqual({ content, replacements: 0 })
   })

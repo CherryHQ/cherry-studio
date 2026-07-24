@@ -124,6 +124,11 @@ This boundary deliberately avoids asserting that a user-selected color is perman
 operation. A future consumer-backed theme model may route the same inputs to different semantic roles without
 changing component APIs.
 
+Renderer-only runtime settings are not shared theme inputs. For example, user-selected UI and code fonts are
+written as `--app-user-font-family` and `--app-user-code-font-family` and consumed only by the renderer-owned
+`font.css`. Such values use the host-local `--app-*` namespace and are not registered in
+`RUNTIME_THEME_INPUT_TOKENS`.
+
 ### 3.3 Official Shadcn semantic layer
 
 Unprefixed Shadcn variables are the ecosystem-compatible public theme API:
@@ -178,6 +183,11 @@ Rules:
 All product variables are stable, consumer-backed Cherry Studio semantics not covered by Shadcn.
 `CHERRY_PRODUCT_VARIABLE_TOKENS` is the explicit runtime allowlist. Tailwind exposure is a separate concern and
 does not change API stability.
+
+A product semantic should reference an existing foundation or official semantic when that dependency expresses
+its role. It may own a light/dark literal only when no foundation token represents the product-specific value,
+the role has concrete consumers, and the literal remains centralized in `product.css`. Literal ownership is not
+permission for consumers to hard-code the same value.
 
 Example:
 
@@ -410,8 +420,9 @@ The current runtime primary inputs are declared in `theme-input.css` and remain 
 the stronger WCAG contrast ratio. `--ring` resolves independently through the mode-aware `--cs-ring` provider, so
 an extreme user primary such as white in light mode or black in dark mode cannot also make the focus indicator
 disappear. Runtime code still does not mutate official semantics, `--color-primary`, or component variables
-directly. The current connection is a compatibility mapping, not a promise that runtime selection and Shadcn
-primary are the same concept forever.
+directly. Renderer-owned font selection is separate from this shared graph and writes only host-local
+`--app-user-*` variables. The current primary connection is a compatibility mapping, not a promise that runtime
+selection and Shadcn primary are the same concept forever.
 
 Rules:
 
@@ -439,11 +450,10 @@ Examples:
 | --- | --- | --- |
 | `--cs-background` | `--background` | `exact` |
 | `--cs-foreground` | `--foreground` | `exact` |
-| `--color-background` | Tailwind adapter output | `preserve` |
 | `--color-text-1` | `--foreground` | `exact` |
 | `--color-text-2` | no universal target | `review` |
 | `--color-text-3` | no universal target | `review` |
-| `--cs-foreground-muted` | muted content or disabled component state | `contextual` |
+| `--cs-foreground-muted` | no universal target | `review` |
 | duplicated `--app-{shadcn-role}` | matching official Shadcn variable | `exact` |
 | historical chat and navbar roots | no universal target | `review` |
 | renderer Sidebar active/glow effects | owner-local implementation variables | `review` |
@@ -492,6 +502,7 @@ The generated contract must validate that:
 - generated CSS matches committed output;
 - migration records use a known strategy and do not contain duplicate sources;
 - the renderer theme entry cannot reintroduce legacy aliases, own host-local `--app-*` values, or add a second Tailwind adapter;
+- renderer runtime code can write only registered shared `--cs-theme-*` inputs; owner-local runtime values use `--app-*`;
 - renderer CSS and TypeScript/TSX-authored style strings cannot consume generated `--color-*` adapter variables.
 
 Run `pnpm --filter @cherrystudio/ui theme:check` to validate the canonical graph, committed generated CSS,

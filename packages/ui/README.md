@@ -142,7 +142,7 @@ Default consumption rules:
 1. Regular application packages should depend on `@cherrystudio/ui/styles/theme.css` by default
 2. Components should prefer semantic utilities such as `bg-background`, `text-muted-foreground`, and `bg-success`; custom CSS may use the matching official or product variable
 3. Only design-system-adjacent packages that explicitly need foundation-level access should depend on `@cherrystudio/ui/styles/tokens.css`
-4. Runtime theme logic should only write to registered inputs such as `--cs-theme-*`, not directly to official semantics or derived `--color-*` variables
+4. Runtime theme logic should write shared theme values only through registered `--cs-theme-*` inputs, not directly to official semantics or derived `--color-*` variables; renderer-only runtime values stay owner-local under `--app-*`
 
 ### Shadcn CLI Ownership
 

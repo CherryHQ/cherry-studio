@@ -21,8 +21,8 @@ export default function useUserTheme() {
 
     document.documentElement.style.setProperty('--cs-theme-primary', colorPrimary.toString())
     document.documentElement.style.setProperty('--cs-theme-primary-foreground', getForegroundColor(colorPrimary.hex()))
-    setOptionalCssVar('--cs-user-font-family', userFontFamily)
-    setOptionalCssVar('--cs-user-code-font-family', userCodeFontFamily)
+    setOptionalCssVar('--app-user-font-family', userFontFamily)
+    setOptionalCssVar('--app-user-code-font-family', userCodeFontFamily)
   }
 
   return {

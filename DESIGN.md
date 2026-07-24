@@ -93,7 +93,7 @@ exact migration treatment private to the owning component.
 - Use semantic border utilities (`border-border`, `border-border-subtle`, `border-border-strong`, `border-input`, `border-sidebar-border`) instead of hard-coded colors.
 - Plain `border`, `border-t`, `border-r`, `border-b`, and `border-l` are acceptable only when the global theme base provides the color fallback; reusable components should still name a semantic border color when the role is known.
 - For 0.5px hairline dividers, use an explicit token-backed property such as `[border-bottom:0.5px_solid_var(--border)]` or `[border-right:0.5px_solid_var(--border-subtle)]`.
-- Legacy opacity-modified border classes (`border-border/10` through `border-border/80`, plus hover/focus/active variants) are compatibility-mapped in `@cherrystudio/ui/styles/theme.css` so old surfaces do not fall back to `currentColor`.
+- Existing opacity-modified border classes (`border-border/10` through `border-border/80`, plus hover/focus/active variants) continue to resolve through Tailwind v4's native color-opacity modifier support; `theme.css` does not enumerate separate compatibility mappings for them.
 - Do not introduce new opacity-modified semantic border classes such as `border-border/60`, `border-border/40`, `border-border/30`, or `border-border/15`. Use the semantic border utilities above so the visual role is explicit.
 
 ### Semantic Status — Single-token aliases
@@ -117,8 +117,9 @@ in new component APIs.
 Do not use a page-local chromatic brand color for new UI chrome. `--cs-brand-*` is a foundation scale, not a component-facing semantic contract; new component styling should express action hierarchy through `var(--primary)` and status through the stable product roles.
 
 ### Links
-Application links use the official primary role. Rendered rich-text content may use the stable product-specific
-`var(--link)` role because its link treatment is intentionally independent of application chrome.
+Application and rendered-content links use the official `var(--primary)` role so user theme selection remains
+consistent across Markdown and rich-text surfaces. A separate link color requires a concrete product requirement
+and consumer review before becoming a stable product variable.
 
 ### Floating Scrims
 No dedicated public glass or overlay product role is exported today. `--color-*` is reserved for generated Tailwind mappings; a future shared runtime role would require an approved unprefixed semantic contract. Use the shared primitive defaults first:

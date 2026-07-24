@@ -97,7 +97,12 @@
       "strategy": "exact"
     },
     { "source": "--cs-error-border", "target": "--error-border", "strategy": "exact" },
-    { "source": "--cs-link", "target": "--link", "strategy": "exact" },
+    {
+      "source": "--cs-link",
+      "target": null,
+      "strategy": "review",
+      "reason": "Historical blue link styling is not equivalent to the runtime primary used by current rendered content."
+    },
     { "source": "--cs-code-block", "target": "--code-block", "strategy": "exact" },
     { "source": "--cs-inline-code", "target": "--inline-code", "strategy": "exact" },
     {
@@ -112,6 +117,18 @@
     { "source": "--cs-highlight-foreground", "target": "--highlight-foreground", "strategy": "exact" },
     { "source": "--cs-highlight-accent", "target": "--highlight-accent", "strategy": "exact" },
     { "source": "--cs-chat-user", "target": "--chat-user", "strategy": "exact" },
+    {
+      "source": "--cs-user-font-family",
+      "target": null,
+      "strategy": "review",
+      "reason": "User font selection is a renderer-owned runtime input under --app-user-font-family."
+    },
+    {
+      "source": "--cs-user-code-font-family",
+      "target": null,
+      "strategy": "review",
+      "reason": "User code font selection is a renderer-owned runtime input under --app-user-code-font-family."
+    },
     {
       "source": "--cs-sidebar-active-bg",
       "target": null,
@@ -181,7 +198,12 @@
     { "source": "--color-border-soft", "target": null, "strategy": "review" },
     { "source": "--color-border-mute", "target": null, "strategy": "review" },
     { "source": "--color-error", "target": "--error", "strategy": "exact" },
-    { "source": "--color-link", "target": "--link", "strategy": "exact" },
+    {
+      "source": "--color-link",
+      "target": null,
+      "strategy": "review",
+      "reason": "Historical blue link styling requires owner context and must not create an unconsumed shared product role."
+    },
     {
       "source": "--color-primary-bg",
       "target": null,

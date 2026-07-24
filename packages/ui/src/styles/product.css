@@ -32,7 +32,6 @@
   --error-border: var(--cs-error-border);
 
   /* Stable product domain: rich text and code */
-  --link: #1677ff;
   --code-block: #e3e3e3;
   --inline-code: rgba(0, 0, 0, 0.06);
   --inline-code-foreground: rgb(218, 97, 92);
@@ -51,7 +50,6 @@
 
 .dark {
   /* Stable product domain: rich text and code */
-  --link: #338cff;
   --code-block: #323232;
   --inline-code: #323232;
 

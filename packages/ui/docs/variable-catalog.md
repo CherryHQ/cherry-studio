@@ -43,6 +43,10 @@ The current registered runtime inputs are `--cs-theme-primary` and `--cs-theme-p
 logic writes them as a pair, deriving the foreground for contrast; only the semantic layer may consume them.
 They are not stable product variables, component APIs, or Tailwind colors.
 
+Renderer-only runtime inputs use the owner-local `--app-*` namespace instead of the shared `--cs-*` namespace.
+The current examples are `--app-user-font-family` and `--app-user-code-font-family`, both owned and consumed by
+the renderer's font setup.
+
 All other shared `--cs-*` variables are internal value providers. Public semantics are unprefixed: the official
 and product inventories remain separate in the machine contract, but consumers use one canonical namespace.
 
@@ -133,7 +137,6 @@ Use `--destructive` for a dangerous action. Use the `--error*` family for error 
 
 | Domain | Variables | Intended properties |
 | --- | --- | --- |
-| Rich-text links | `--link` | Link `color` inside rendered content |
 | Code blocks | `--code-block` | Block code `background-color` |
 | Inline code | `--inline-code`, `--inline-code-foreground` | Inline code `background-color` / `color` |
 | References | `--reference`, `--reference-foreground`, `--reference-subtle` | Reference surface, content, and quiet surface variant |
@@ -172,7 +175,7 @@ Preferred custom CSS usage:
 
 ```css
 .rich-text a {
-  color: var(--link);
+  color: var(--primary);
 }
 
 .reference {

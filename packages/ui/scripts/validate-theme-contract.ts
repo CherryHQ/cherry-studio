@@ -18,11 +18,13 @@ import {
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const DEFAULT_STYLES_DIR = path.resolve(__dirname, '../src/styles')
+const CUSTOM_PROPERTY_NAME_PATTERN = /^--[a-z0-9-]+$/
 
 export interface ThemeContractSources {
   variableCatalog: string
   contractEntry: string
   tokensEntry: string
+  tokensIndex: string
   themeInput: string
   primitiveColors: string
   providerColors: string
@@ -51,11 +53,20 @@ function escapeRegExp(value: string): string {
 }
 
 function extractDeclarations(source: string, sourceName: string): Declaration[] {
-  return [...stripComments(source).matchAll(/^\s*(--[a-z0-9-]+)\s*:\s*([^;]+);/gm)].map((match) => ({
-    name: match[1],
-    value: match[2].trim(),
-    source: sourceName
-  }))
+  const declarations = [...stripComments(source).matchAll(/(?=(?:^|[;{])\s*(--[^\s:;{}]+)\s*:\s*([^;{}]+);)/g)]
+
+  return declarations.map((match) => {
+    const name = match[1]
+    if (!CUSTOM_PROPERTY_NAME_PATTERN.test(name)) {
+      throw new Error(`[theme-contract] ${sourceName} declares invalid custom property ${name}`)
+    }
+
+    return {
+      name,
+      value: match[2].trim(),
+      source: sourceName
+    }
+  })
 }
 
 function extractModeDeclarations(source: string, sourceName: string, selector: ':root' | '.dark'): Declaration[] {
@@ -69,12 +80,27 @@ function extractModeDeclarations(source: string, sourceName: string, selector: '
   return declarations
 }
 
-function extractReferences(value: string): string[] {
-  return [...value.matchAll(/var\((--[a-z0-9-]+)/g)].map((match) => match[1])
+function extractReferences(value: string, sourceName: string): string[] {
+  return [...value.matchAll(/var\(\s*(--[^\s,)]+)/g)].map((match) => {
+    const name = match[1]
+    if (!CUSTOM_PROPERTY_NAME_PATTERN.test(name)) {
+      throw new Error(`[theme-contract] ${sourceName} references invalid custom property ${name}`)
+    }
+    return name
+  })
 }
 
 function extractImports(source: string): string[] {
-  return [...stripComments(source).matchAll(/@import\s+['"]([^'"]+)['"]\s*;/g)].map((match) => match[1])
+  return [...stripComments(source).matchAll(/@import\s+([^;]+);/g)].map((match) => {
+    const importValue = match[1].trim()
+    const stringMatch = importValue.match(/^(['"])([^'"]+)\1$/)
+    if (stringMatch) return stringMatch[2]
+
+    const urlMatch = importValue.match(/^url\(\s*(?:(['"])([^'"]+)\1|([^'")\s][^)]*?))\s*\)$/)
+    if (urlMatch) return (urlMatch[2] ?? urlMatch[3]).trim()
+
+    throw new Error(`[theme-contract] unsupported @import syntax: ${importValue}`)
+  })
 }
 
 function assertUnique(label: string, values: readonly string[]): void {
@@ -156,7 +182,7 @@ function assertCompatibilityTokensDeclared(
 
 function assertReferencesResolve(mode: string, declarations: Map<string, Declaration>): void {
   for (const declaration of declarations.values()) {
-    for (const reference of extractReferences(declaration.value)) {
+    for (const reference of extractReferences(declaration.value, declaration.source)) {
       if (!declarations.has(reference)) {
         throw new Error(
           `[theme-contract] ${mode} ${declaration.name} in ${declaration.source} references undefined ${reference}`
@@ -183,7 +209,7 @@ function assertNoCycles(mode: string, declarations: Map<string, Declaration>): v
 
     const declaration = declarations.get(name)
     if (declaration) {
-      for (const reference of extractReferences(declaration.value)) {
+      for (const reference of extractReferences(declaration.value, declaration.source)) {
         if (declarations.has(reference)) visit(reference)
       }
     }
@@ -215,7 +241,7 @@ function assertLayerDependencies(sources: ThemeContractSources): void {
       if (declaration.name.startsWith(runtimeVariablePrefix)) {
         throw new Error(`[theme-contract] foundation cannot declare runtime input ${declaration.name}`)
       }
-      for (const reference of extractReferences(declaration.value)) {
+      for (const reference of extractReferences(declaration.value, declaration.source)) {
         if (
           reference.startsWith(runtimeVariablePrefix) ||
           officialVariables.has(reference) ||
@@ -233,7 +259,7 @@ function assertLayerDependencies(sources: ThemeContractSources): void {
     if (!runtimeVariables.has(declaration.name)) {
       throw new Error(`[theme-contract] theme-input.css declares unregistered runtime input ${declaration.name}`)
     }
-    for (const reference of extractReferences(declaration.value)) {
+    for (const reference of extractReferences(declaration.value, declaration.source)) {
       if (officialVariables.has(reference) || productVariables.has(reference) || reference.startsWith('--color-')) {
         throw new Error(`[theme-contract] runtime input ${declaration.name} cannot depend on upper-layer ${reference}`)
       }
@@ -247,7 +273,7 @@ function assertLayerDependencies(sources: ThemeContractSources): void {
     if (declaration.name.startsWith(runtimeVariablePrefix)) {
       throw new Error(`[theme-contract] shadcn.css cannot own runtime input ${declaration.name}`)
     }
-    for (const reference of extractReferences(declaration.value)) {
+    for (const reference of extractReferences(declaration.value, declaration.source)) {
       if (productVariables.has(reference) || reference.startsWith('--color-') || reference.startsWith('--app-')) {
         throw new Error(`[theme-contract] Shadcn ${declaration.name} cannot depend on product/adapter ${reference}`)
       }
@@ -255,7 +281,7 @@ function assertLayerDependencies(sources: ThemeContractSources): void {
   }
 
   for (const declaration of extractDeclarations(sources.product, 'product.css')) {
-    for (const reference of extractReferences(declaration.value)) {
+    for (const reference of extractReferences(declaration.value, declaration.source)) {
       const validNamespace =
         reference.startsWith('--cs-') || officialVariables.has(reference) || productVariables.has(reference)
       if (!validNamespace) {
@@ -342,6 +368,14 @@ export function validateThemeContractSources(sources: ThemeContractSources): voi
   assertSurfacePairs('product contract', CHERRY_PRODUCT_SURFACE_PAIRS, productVariables)
 
   assertExactImports('tokens.css', sources.tokensEntry, ['./tokens/index.css'])
+  assertExactImports('tokens/index.css', sources.tokensIndex, [
+    './colors/primitive.css',
+    './colors/status-legacy.css',
+    './colors/providers.css',
+    './spacing.css',
+    './radius.css',
+    './typography.css'
+  ])
   assertExactImports('contract.css', sources.contractEntry, [
     './tokens.css',
     './theme-input.css',
@@ -392,6 +426,7 @@ export async function loadThemeContractSources(stylesDir = DEFAULT_STYLES_DIR): 
     variableCatalog,
     contractEntry,
     tokensEntry,
+    tokensIndex,
     themeInput,
     primitiveColors,
     providerColors,
@@ -405,6 +440,7 @@ export async function loadThemeContractSources(stylesDir = DEFAULT_STYLES_DIR): 
     fs.readFile(path.resolve(stylesDir, '../../docs/variable-catalog.md'), 'utf8'),
     fs.readFile(path.join(stylesDir, 'contract.css'), 'utf8'),
     fs.readFile(path.join(stylesDir, 'tokens.css'), 'utf8'),
+    fs.readFile(path.join(tokensDir, 'index.css'), 'utf8'),
     fs.readFile(path.join(stylesDir, 'theme-input.css'), 'utf8'),
     fs.readFile(path.join(tokensDir, 'colors/primitive.css'), 'utf8'),
     fs.readFile(path.join(tokensDir, 'colors/providers.css'), 'utf8'),
@@ -420,6 +456,7 @@ export async function loadThemeContractSources(stylesDir = DEFAULT_STYLES_DIR): 
     variableCatalog,
     contractEntry,
     tokensEntry,
+    tokensIndex,
     themeInput,
     primitiveColors,
     providerColors,

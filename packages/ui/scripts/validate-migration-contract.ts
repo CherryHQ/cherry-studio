@@ -4,16 +4,22 @@ import { fileURLToPath } from 'node:url'
 
 import ts from 'typescript'
 
-import { CHERRY_PRODUCT_VARIABLE_TOKENS, SHADCN_VARIABLE_TOKENS } from './theme-contract'
+import { parseMigrationRegistry } from './migration-registry'
+import { CHERRY_PRODUCT_VARIABLE_TOKENS, RUNTIME_THEME_INPUT_TOKENS, SHADCN_VARIABLE_TOKENS } from './theme-contract'
+
+export { type MigrationRegistry, type MigrationRule, parseMigrationRegistry } from './migration-registry'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const DEFAULT_REPOSITORY_ROOT = path.resolve(__dirname, '../../..')
-const VARIABLE_NAME_PATTERN = /^--[a-z0-9-]+$/
 const TAILWIND_ADAPTER_VARIABLE_PATTERN = /--color-[a-z0-9-]*/
-const MIGRATION_STRATEGIES = new Set(['exact', 'contextual', 'review', 'preserve'])
 const STYLE_SOURCE_EXTENSIONS = new Set(['.css'])
 const TYPESCRIPT_SOURCE_EXTENSIONS = new Set(['.ts', '.tsx'])
+const RUNTIME_THEME_INPUT_VARIABLES = new Set(RUNTIME_THEME_INPUT_TOKENS.map((token) => `--cs-theme-${token}`))
+const PUBLIC_SEMANTIC_VARIABLES = new Set([
+  ...SHADCN_VARIABLE_TOKENS.map((token) => `--${token}`),
+  ...CHERRY_PRODUCT_VARIABLE_TOKENS.map((token) => `--${token}`)
+])
 const REQUIRED_EXCLUDES = [
   'packages/ui/src/styles/theme.css',
   'packages/ui/src/styles/contract.css',
@@ -29,20 +35,6 @@ const REQUIRED_EXCLUDES = [
   'packages/ui/scripts/__tests__/**'
 ] as const
 
-export interface MigrationRule {
-  source: string
-  target: string | null
-  strategy: string
-}
-
-export interface MigrationRegistry {
-  version: number
-  contract: string
-  defaultKind: string
-  exclude: string[]
-  rules: MigrationRule[]
-}
-
 export interface MigrationContractSources {
   migrationRegistry: string
   legacyAliases: string
@@ -52,60 +44,6 @@ export interface MigrationContractSources {
 }
 
 type SourceEntry = readonly [fileName: string, source: string]
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function parseMigrationRegistry(source: string): MigrationRegistry {
-  let parsed: unknown
-
-  try {
-    parsed = JSON.parse(source) as unknown
-  } catch (error) {
-    throw new Error('[theme-contract] migration registry is not valid JSON', { cause: error })
-  }
-
-  if (!isRecord(parsed) || !Array.isArray(parsed.exclude) || !Array.isArray(parsed.rules)) {
-    throw new Error('[theme-contract] migration registry has an invalid top-level shape')
-  }
-  if (!parsed.exclude.every((entry) => typeof entry === 'string')) {
-    throw new Error('[theme-contract] migration registry exclude entries must be strings')
-  }
-
-  const rules = parsed.rules.map((entry, index): MigrationRule => {
-    if (
-      !isRecord(entry) ||
-      typeof entry.source !== 'string' ||
-      (entry.target !== null && typeof entry.target !== 'string') ||
-      typeof entry.strategy !== 'string'
-    ) {
-      throw new Error(`[theme-contract] migration rule ${index} has an invalid shape`)
-    }
-
-    return {
-      source: entry.source,
-      target: entry.target,
-      strategy: entry.strategy
-    }
-  })
-
-  if (
-    typeof parsed.version !== 'number' ||
-    typeof parsed.contract !== 'string' ||
-    typeof parsed.defaultKind !== 'string'
-  ) {
-    throw new Error('[theme-contract] migration registry metadata is invalid')
-  }
-
-  return {
-    version: parsed.version,
-    contract: parsed.contract,
-    defaultKind: parsed.defaultKind,
-    exclude: parsed.exclude,
-    rules
-  }
-}
 
 function stripComments(source: string): string {
   return source.replace(/\/\*[\s\S]*?\*\//g, '')
@@ -165,6 +103,48 @@ function findTypeScriptAdapterVariable(source: string, fileName: string): string
   return adapterVariable
 }
 
+function findTypeScriptDisallowedThemeWrite(source: string, fileName: string): string | undefined {
+  if (!source.includes('setProperty')) return undefined
+
+  const scriptKind = fileName.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS
+  const sourceFile = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, scriptKind)
+  let disallowedVariable: string | undefined
+
+  const visit = (node: ts.Node): void => {
+    if (disallowedVariable) return
+
+    if (
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      node.expression.name.text === 'setProperty'
+    ) {
+      const [nameArgument] = node.arguments
+      let variableName: string | undefined
+
+      if (nameArgument && (ts.isStringLiteral(nameArgument) || ts.isNoSubstitutionTemplateLiteral(nameArgument))) {
+        variableName = nameArgument.text
+      } else if (nameArgument && ts.isTemplateExpression(nameArgument)) {
+        variableName = nameArgument.head.text.startsWith('--') ? `${nameArgument.head.text}*` : undefined
+      }
+
+      if (
+        variableName &&
+        ((variableName.startsWith('--cs-') && !RUNTIME_THEME_INPUT_VARIABLES.has(variableName)) ||
+          PUBLIC_SEMANTIC_VARIABLES.has(variableName) ||
+          variableName.startsWith('--color-'))
+      ) {
+        disallowedVariable = variableName
+        return
+      }
+    }
+
+    ts.forEachChild(node, visit)
+  }
+
+  visit(sourceFile)
+  return disallowedVariable
+}
+
 export function validateMigrationContractSources(sources: MigrationContractSources): void {
   const registry = parseMigrationRegistry(sources.migrationRegistry)
   const canonicalNames = new Set<string>([
@@ -184,31 +164,10 @@ export function validateMigrationContractSources(sources: MigrationContractSourc
     }
   }
 
-  const rulesBySource = new Map<string, MigrationRule>()
   for (const rule of registry.rules) {
-    if (!VARIABLE_NAME_PATTERN.test(rule.source)) {
-      throw new Error(`[theme-contract] invalid migration source ${rule.source}`)
-    }
-    if (rulesBySource.has(rule.source)) {
-      throw new Error(`[theme-contract] duplicate migration source ${rule.source}`)
-    }
-    if (!MIGRATION_STRATEGIES.has(rule.strategy)) {
-      throw new Error(`[theme-contract] ${rule.source} uses unknown migration strategy ${rule.strategy}`)
-    }
-    if (rule.strategy === 'exact' && !rule.target) {
-      throw new Error(`[theme-contract] exact migration ${rule.source} requires a target`)
-    }
-    if (rule.target && !VARIABLE_NAME_PATTERN.test(rule.target)) {
-      throw new Error(`[theme-contract] invalid migration target ${rule.target}`)
-    }
     if (rule.target && !canonicalNames.has(rule.target)) {
       throw new Error(`[theme-contract] migration ${rule.source} points outside the canonical contract: ${rule.target}`)
     }
-    if (rule.target === rule.source) {
-      throw new Error(`[theme-contract] migration ${rule.source} cannot target itself`)
-    }
-
-    rulesBySource.set(rule.source, rule)
   }
 
   if (sources.legacyAliases.trim() !== '') {
@@ -239,13 +198,18 @@ export function validateMigrationContractSources(sources: MigrationContractSourc
   }
 
   for (const [fileName, source] of Object.entries(sources.rendererTypeScriptSources)) {
-    if (!source.includes('--color-')) continue
-
-    const adapterVariable = findTypeScriptAdapterVariable(source, fileName)
+    const adapterVariable = source.includes('--color-') ? findTypeScriptAdapterVariable(source, fileName) : undefined
 
     if (adapterVariable) {
       throw new Error(
         `[theme-contract] renderer TypeScript source ${fileName} cannot use Tailwind adapter variable ${adapterVariable}; use runtime semantic variables or Tailwind utilities`
+      )
+    }
+
+    const disallowedWrite = findTypeScriptDisallowedThemeWrite(source, fileName)
+    if (disallowedWrite) {
+      throw new Error(
+        `[theme-contract] renderer TypeScript source ${fileName} cannot write shared theme variable ${disallowedWrite}; use a registered --cs-theme-* input or an owner-local --app-* variable`
       )
     }
   }

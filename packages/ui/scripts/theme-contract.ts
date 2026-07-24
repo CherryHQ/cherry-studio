@@ -87,7 +87,6 @@ export const CHERRY_PRODUCT_VARIABLE_TOKENS = [
   'error-border',
 
   /* Product domains */
-  'link',
   'code-block',
   'inline-code',
   'inline-code-foreground',

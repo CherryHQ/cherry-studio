@@ -4,34 +4,15 @@ import * as path from 'node:path'
 import postcss, { type AtRule, type ChildNode, type Declaration, type Rule } from 'postcss'
 import ts from 'typescript'
 
+import { parseMigrationRegistry } from '../packages/ui/scripts/migration-registry'
+
 const REPO_ROOT = path.resolve(__dirname, '..')
 const MIGRATION_REGISTRY_PATH = path.join(REPO_ROOT, 'packages/ui/scripts/migrations/shadcn-v2.json')
 const CHECK_EXTENSIONS = new Set(['.css', '.ts', '.tsx'])
 const IGNORED_DIR_NAMES = new Set(['.context', '.git', 'build', 'coverage', 'dist', 'node_modules', 'out'])
 
-interface MigrationRule {
-  source: string
-  target: string | null
-  strategy: string
-}
-
-interface MigrationRegistry {
-  exclude: string[]
-  rules: MigrationRule[]
-}
-
-function loadMigrationRegistry(): MigrationRegistry {
-  return JSON.parse(fs.readFileSync(MIGRATION_REGISTRY_PATH, 'utf8')) as MigrationRegistry
-}
-
-const MIGRATION_REGISTRY = loadMigrationRegistry()
+const MIGRATION_REGISTRY = parseMigrationRegistry(fs.readFileSync(MIGRATION_REGISTRY_PATH, 'utf8'))
 const DEPRECATED_RULES = MIGRATION_REGISTRY.rules.filter((rule) => rule.strategy !== 'preserve')
-
-for (const rule of DEPRECATED_RULES) {
-  if (rule.strategy === 'exact' && !rule.target) {
-    throw new Error(`Exact migration ${rule.source} must have a target`)
-  }
-}
 
 export const DEPRECATED_VARS = DEPRECATED_RULES.map((rule) => rule.source)
 
