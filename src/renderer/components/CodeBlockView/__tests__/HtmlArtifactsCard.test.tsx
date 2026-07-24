@@ -19,11 +19,8 @@ vi.mock('@cherrystudio/ui', () => ({
     <button type="button" {...props}>
       {children}
     </button>
-  )
-}))
-
-vi.mock('@cherrystudio/ui/lib/utils', () => ({
-  cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
+  ),
+  Tooltip: ({ children }: any) => children
 }))
 
 vi.mock('@logger', () => ({
@@ -145,5 +142,17 @@ describe('HtmlArtifactsCard', () => {
       }),
       undefined
     )
+  })
+
+  it('escapes the surrounding Markdown code block styling', () => {
+    const { container } = render(<HtmlArtifactsCard html={html} />)
+
+    expect(container.firstElementChild).toHaveClass('special-preview', 'font-[var(--font-family-body)]')
+  })
+
+  it('uses the localized HTML preview name when the document has no title', () => {
+    render(<HtmlArtifactsCard html="<main>Page</main>" />)
+
+    expect(screen.getByTitle('common.html_preview')).toBeInTheDocument()
   })
 })

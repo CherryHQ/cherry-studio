@@ -88,14 +88,14 @@ export const HtmlPreviewFrame = memo<HtmlPreviewFrameProps>(
     const withBase = injectHtmlPreviewBase(html, baseUrl)
     const srcDoc = csp ? injectHtmlPreviewCsp(withBase, csp) : withBase
     return (
-      <div className="h-full w-full overflow-hidden bg-background">
+      <div className="h-full w-full overflow-hidden bg-white">
         {html.trim() ? (
           <iframe
             ref={iframeRef}
             srcDoc={srcDoc}
             title={title}
             sandbox={sandbox}
-            className="h-full w-full border-0 bg-background"
+            className="h-full w-full border-0 bg-white"
           />
         ) : emptyText ? (
           <div className="flex h-full w-full items-center justify-center bg-muted text-muted-foreground text-sm">

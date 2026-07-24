@@ -31,6 +31,12 @@ const mocks = vi.hoisted(() => {
           Save HTML
         </button>
       </div>
+    )),
+    MessageHtmlArtifact: vi.fn(({ html, isStreaming }) => (
+      <div data-testid="message-html-artifact">
+        <span>{html}</span>
+        <span data-testid="html-streaming-state">{String(isStreaming)}</span>
+      </div>
     ))
   }
 })
@@ -61,6 +67,10 @@ vi.mock('@renderer/components/CodeBlockView/CodeBlockView', () => ({
 
 vi.mock('@renderer/components/CodeBlockView/HtmlArtifactsCard', () => ({
   default: mocks.HtmlArtifactsCard
+}))
+
+vi.mock('@renderer/components/chat/messages/blocks/MessageHtmlArtifact', () => ({
+  MessageHtmlArtifact: mocks.MessageHtmlArtifact
 }))
 
 // Mock ClickableFilePath
@@ -281,6 +291,39 @@ describe('CodeBlock', () => {
         undefined
       )
     })
+
+    it('renders completed HTML directly in its original Markdown position', () => {
+      render(
+        <CodeBlock
+          {...defaultProps}
+          className="language-html"
+          children="<h1>Hello</h1>"
+          inlineHtmlPreviewMode="ready"
+        />
+      )
+
+      expect(mocks.HtmlArtifactsCard).not.toHaveBeenCalled()
+      expect(mocks.MessageHtmlArtifact).toHaveBeenCalledWith(
+        expect.objectContaining({ html: '<h1>Hello</h1>', isStreaming: false }),
+        undefined
+      )
+    })
+
+    it.each([
+      '<script>document.body.textContent = "interactive"</script>',
+      '<link rel="stylesheet" href="https://example.com/style.css">'
+    ])('keeps interactive HTML in the message surface for consent gating: %s', (html) => {
+      render(<CodeBlock {...defaultProps} className="language-html" children={html} inlineHtmlPreviewMode="ready" />)
+
+      expect(mocks.HtmlArtifactsCard).not.toHaveBeenCalled()
+      expect(mocks.MessageHtmlArtifact).toHaveBeenCalledWith(
+        expect.objectContaining({
+          html,
+          isStreaming: false
+        }),
+        undefined
+      )
+    })
   })
 
   describe('save', () => {
@@ -336,6 +379,21 @@ describe('CodeBlock', () => {
       render(<CodeBlock {...htmlProps} />)
 
       expect(screen.getByTestId('html-streaming-state')).toHaveTextContent('true')
+    })
+
+    it('routes streaming HTML to the message artifact without rendering the legacy card', () => {
+      render(
+        <CodeBlock {...defaultProps} className="language-html" inlineHtmlPreviewMode="generating">
+          {'<h1>Hello</h1>'}
+        </CodeBlock>
+      )
+
+      expect(screen.getByTestId('html-streaming-state')).toHaveTextContent('true')
+      expect(mocks.HtmlArtifactsCard).not.toHaveBeenCalled()
+      expect(mocks.MessageHtmlArtifact).toHaveBeenCalledWith(
+        expect.objectContaining({ html: '<h1>Hello</h1>', isStreaming: true }),
+        undefined
+      )
     })
   })
 })

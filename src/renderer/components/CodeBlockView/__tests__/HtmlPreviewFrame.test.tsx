@@ -23,6 +23,14 @@ describe('HtmlPreviewFrame', () => {
     expect(iframe?.getAttribute('srcdoc')).toContain('<base href="about:srcdoc">')
   })
 
+  it('uses a white browser canvas when the HTML does not declare a background', () => {
+    const { container } = render(<HtmlPreviewFrame html="<main>Preview</main>" title="common.html_preview" />)
+    const iframe = container.querySelector('iframe')
+
+    expect(iframe).toHaveClass('bg-white')
+    expect(iframe?.parentElement).toHaveClass('bg-white')
+  })
+
   it('renders untrusted local files in a fully restricted, script-less sandbox with a strict CSP', () => {
     const { container } = render(
       <HtmlPreviewFrame

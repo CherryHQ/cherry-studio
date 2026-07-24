@@ -2796,6 +2796,10 @@
     "code": "代码",
     "empty_preview": "无内容可展示",
     "generating": "生成中",
+    "interactive_preview": {
+      "action": "查看网页",
+      "description": "此网页包含脚本或外部资源，打开后可能运行代码并连接网络。"
+    },
     "preview": "预览",
     "split": "分屏",
     "view_mode": "视图模式"

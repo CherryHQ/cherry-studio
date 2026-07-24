@@ -2796,6 +2796,10 @@
     "code": "Code",
     "empty_preview": "Kein Inhalt zum Anzeigen",
     "generating": "Wird generiert",
+    "interactive_preview": {
+      "action": "Webseite anzeigen",
+      "description": "Diese Webseite enthält Skripte oder externe Ressourcen. Beim Öffnen kann Code ausgeführt und eine Internetverbindung hergestellt werden."
+    },
     "preview": "Vorschau",
     "split": "Geteilte Ansicht",
     "view_mode": "Ansichtsmodus"

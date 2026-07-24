@@ -8,19 +8,37 @@ import { WindowType } from '@main/core/window/types'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { MainWindowInitData } from '@shared/types/mainWindow'
+import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import type { BrowserWindow } from 'electron'
-import { app, nativeImage, nativeTheme, shell } from 'electron'
+import { app, nativeImage, nativeTheme, session, shell } from 'electron'
 import path, { join } from 'path'
 
 import iconPath from '../../../build/icon.png?asset'
 import { isSafeExternalUrl } from '../utils/externalUrlSafety'
+import { sanitizeRemoteUrl } from '../utils/remoteUrlSafety'
 import { contextMenu } from './ContextMenu'
 
 const logger = loggerService.withContext('MainWindowService')
 
 // Create nativeImage for Linux window icon (required for Wayland)
 const linuxIcon = isLinux ? nativeImage.createFromPath(iconPath) : undefined
+
+function isAllowedHtmlArtifactRequest(rawUrl: string): boolean {
+  try {
+    const url = new URL(rawUrl)
+    if (url.protocol === 'data:' || url.protocol === 'blob:') return true
+
+    if (url.protocol === 'ws:' || url.protocol === 'wss:') {
+      url.protocol = url.protocol === 'ws:' ? 'http:' : 'https:'
+    }
+
+    sanitizeRemoteUrl(url.toString())
+    return true
+  } catch {
+    return false
+  }
+}
 
 @Injectable('MainWindowService')
 @ServicePhase(Phase.WhenReady)
@@ -54,6 +72,7 @@ export class MainWindowService extends BaseService {
 
   protected async onInit() {
     const windowManager = application.get('WindowManager')
+    this.setupHtmlArtifactPreviewSession()
 
     // Wire business listeners onto fresh main windows. Reuse paths (singleton reopen)
     // do not fire onWindowCreatedByType — by design, since listeners are already attached.
@@ -198,6 +217,7 @@ export class MainWindowService extends BaseService {
     this.setupMaximize(mainWindow, saved?.isMaximized ?? false)
 
     this.setupContextMenu(mainWindow)
+    this.setupHtmlArtifactWebviews(mainWindow)
     this.setupSpellCheck(mainWindow)
     this.setupWindowEvents(mainWindow)
     this.setupWebContentsHandlers(mainWindow)
@@ -253,13 +273,68 @@ export class MainWindowService extends BaseService {
     app.on('web-contents-created', (_, webContents) => {
       contextMenu.contextMenu(webContents)
     })
+  }
 
-    // Dangerous API
-    if (isDev) {
-      mainWindow.webContents.on('will-attach-webview', (_, webPreferences) => {
-        webPreferences.preload = join(__dirname, '../preload/preload.js')
+  private setupHtmlArtifactPreviewSession() {
+    const previewSession = session.fromPartition(HTML_ARTIFACT_PREVIEW_PARTITION)
+    const handleWillDownload = (event: Electron.Event) => event.preventDefault()
+    const userAgent = previewSession
+      .getUserAgent()
+      .replace(/CherryStudio\/\S+\s/, '')
+      .replace(/Electron\/\S+\s/, '')
+
+    previewSession.setUserAgent(userAgent)
+    previewSession.setPermissionCheckHandler(() => false)
+    previewSession.setPermissionRequestHandler((_, __, callback) => callback(false))
+    previewSession.on('will-download', handleWillDownload)
+    previewSession.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, callback) => {
+      callback({ cancel: !isAllowedHtmlArtifactRequest(details.url) })
+    })
+
+    this.registerDisposable(() => {
+      previewSession.setPermissionCheckHandler(null)
+      previewSession.setPermissionRequestHandler(null)
+      previewSession.removeListener('will-download', handleWillDownload)
+      previewSession.webRequest.onBeforeRequest(null)
+    })
+  }
+
+  private setupHtmlArtifactWebviews(mainWindow: BrowserWindow) {
+    const previewSession = session.fromPartition(HTML_ARTIFACT_PREVIEW_PARTITION)
+
+    mainWindow.webContents.on('will-attach-webview', (event, webPreferences, params) => {
+      if (params.partition !== HTML_ARTIFACT_PREVIEW_PARTITION) {
+        // Dangerous API retained for existing development-only MiniApp debugging.
+        if (isDev) {
+          webPreferences.preload = join(__dirname, '../preload/preload.js')
+        }
+        return
+      }
+
+      if (!params.src.startsWith(HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX)) {
+        event.preventDefault()
+        return
+      }
+
+      delete webPreferences.preload
+      webPreferences.nodeIntegration = false
+      webPreferences.nodeIntegrationInSubFrames = false
+      webPreferences.contextIsolation = true
+      webPreferences.sandbox = true
+      webPreferences.webSecurity = true
+      webPreferences.allowRunningInsecureContent = false
+    })
+
+    mainWindow.webContents.on('did-attach-webview', (_, webContents) => {
+      if (webContents.session !== previewSession) return
+
+      webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+      webContents.on('will-navigate', (event, url) => {
+        if (!url.startsWith(HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX)) {
+          event.preventDefault()
+        }
       })
-    }
+    })
   }
 
   private setupWindowEvents(mainWindow: BrowserWindow) {

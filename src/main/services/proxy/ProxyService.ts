@@ -3,6 +3,7 @@ import { loggerService } from '@logger'
 import { createLatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { ProxyMode, UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
+import { HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
 import type { ProxyConfig } from 'electron'
 import { app, session } from 'electron'
 import { getSystemProxy } from 'os-proxy-config'
@@ -158,7 +159,11 @@ export class ProxyService extends BaseService {
   }
 
   private async setSessionsProxy(config: ProxyConfig): Promise<void> {
-    const sessions = [session.defaultSession, session.fromPartition('persist:webview')]
+    const sessions = [
+      session.defaultSession,
+      session.fromPartition('persist:webview'),
+      session.fromPartition(HTML_ARTIFACT_PREVIEW_PARTITION)
+    ]
     // Await the session AND app proxy config together so a one-shot apply can't fail
     // silently and callers can rely on the proxy being in effect once this resolves.
     await Promise.all([...sessions.map((s) => s.setProxy(config)), app.setProxy(config)])

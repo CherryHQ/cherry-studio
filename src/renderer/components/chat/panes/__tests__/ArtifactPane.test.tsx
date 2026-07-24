@@ -1269,7 +1269,7 @@ describe('ArtifactPane', () => {
     expect(srcDoc).toContain('<a href="about.html">About</a>')
     expect(iframe).toHaveAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms')
     expect(iframe).toHaveAttribute('title', 'index.html')
-    expect(iframe).toHaveClass('h-full', 'w-full', 'border-0', 'bg-background')
+    expect(iframe).toHaveClass('h-full', 'w-full', 'border-0', 'bg-white')
     expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveClass('overflow-hidden')
   })
 
