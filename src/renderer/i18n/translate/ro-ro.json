@@ -7876,6 +7876,28 @@
       },
       "title": "Folosește bara de titlu a sistemului (Linux)"
     },
+    "webui": {
+      "access_key": "Cheie de acces",
+      "access_key_generated": "A fost generată o cheie de acces nouă",
+      "access_key_placeholder": "Obligatorie pentru pornire",
+      "access_key_required": "Setați o cheie de acces înainte de a activa WebUI",
+      "description": "Continuați sesiunile Agent de pe desktop în browser. Ascultă pe adresa selectată, cheie de acces obligatorie, previzualizări de fișiere doar în citire.",
+      "enable_lan_access": "Activează accesul LAN",
+      "generate_access_key": "Generează cheie",
+      "hide_access_key": "Ascunde cheia",
+      "host_custom": "IP personalizat",
+      "host_custom_placeholder": "Introduceți o adresă IPv4",
+      "host_invalid": "Introduceți o adresă IPv4 validă",
+      "host_lan": "LAN (0.0.0.0)",
+      "host_loopback": "Doar acest dispozitiv (127.0.0.1)",
+      "listen_host": "Adresă de ascultare",
+      "port": "Port",
+      "running": "În funcțiune",
+      "service_status": "Starea serviciului",
+      "show_access_key": "Afișează cheia",
+      "stopped": "Oprit",
+      "title": "WebUI"
+    },
     "zoom": {
       "reset": "Resetează",
       "title": "Zoom pagină"
