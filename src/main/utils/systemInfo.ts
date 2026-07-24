@@ -2,7 +2,7 @@ import { application } from '@application'
 import { app } from 'electron'
 import macosRelease from 'macos-release'
 import os from 'os'
-import { v4 as uuidv4 } from 'uuid'
+import { v4 as uuidv4, validate as isUuid } from 'uuid'
 
 /**
  * System information interface
@@ -101,8 +101,7 @@ export function getClientId(): string {
   const preferenceService = application.get('PreferenceService')
   let clientId = preferenceService.get('app.user.id')
 
-  // If it's the placeholder value, generate a new UUID
-  if (!clientId || clientId.length === 0) {
+  if (!isUuid(clientId)) {
     clientId = uuidv4()
     void preferenceService.set('app.user.id', clientId)
   }
