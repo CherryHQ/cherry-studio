@@ -3761,6 +3761,7 @@
         "title": "删除确认"
       },
       "failed": "删除失败",
+      "first_turn_not_supported": "不能删除第一条用户消息。",
       "success": "删除成功"
     },
     "dialog": {

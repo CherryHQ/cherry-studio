@@ -97,24 +97,25 @@ export function useChatWriteActions(params: Params): Result {
     }
   }, [clearBranchCache, clearTopicMessagesTrigger, rollbackBranch, topic.id])
 
+  const canDeleteMessage = useCallback(
+    (id: string) => {
+      const message = uiMessages.find((item) => item.id === id)
+      return !(message?.role === 'user' && isFirstTurnId(message.metadata?.parentId))
+    },
+    [isFirstTurnId, uiMessages]
+  )
+
   const handleDeleteMessage = useCallback<ChatWriteActions['deleteMessage']>(
     async (id, options) => {
-      // Deleting a first-turn message cascades (remove the turn): a non-cascade splice would
-      // reparent its replies onto the virtual root, stranding them as parent-less assistants.
-      const target = uiMessages.find((m) => m.id === id)
-      const isFirstTurn = target?.role === 'user' && isFirstTurnId(target.metadata?.parentId)
-      const shouldCascade = options?.cascade ?? isFirstTurn
+      const shouldCascade = options?.cascade ?? false
 
-      // A first-turn splice cannot be made safe from the renderer: checking its children and
-      // deleting it are separate DataApi transactions, so a reply could appear in between and
-      // be reparented onto the virtual root. Reject the whole multi-select plan before its first
-      // mutation, even when another selected message is processed before the first-turn user.
+      // A first-turn user message anchors the conversation branch. Reject both direct deletion
+      // and any multi-select plan containing it before the first optimistic or persistent write.
       const selectionContainsFirstTurn = options?.selectedMessageIds?.some((messageId) => {
-        const message = uiMessages.find((item) => item.id === messageId)
-        return message?.role === 'user' && isFirstTurnId(message.metadata?.parentId)
+        return !canDeleteMessage(messageId)
       })
-      if ((isFirstTurn && options?.cascade === false) || selectionContainsFirstTurn) {
-        throw new Error('Cannot delete a first-turn user message without cascading its replies')
+      if (!canDeleteMessage(id) || selectionContainsFirstTurn) {
+        throw new Error('Cannot delete a first-turn user message')
       }
 
       const optimisticIds = new Set([id])
@@ -133,7 +134,7 @@ export function useChatWriteActions(params: Params): Result {
       }
       logger.info('Deleted message', { id })
     },
-    [branchWithoutIds, deleteMessageTrigger, isFirstTurnId, uiMessages, rollbackBranch, seedOptimisticBranch]
+    [branchWithoutIds, canDeleteMessage, deleteMessageTrigger, rollbackBranch, seedOptimisticBranch, uiMessages]
   )
 
   const handleDeleteMessageGroup = useCallback<ChatWriteActions['deleteMessageGroup']>(
@@ -369,6 +370,7 @@ export function useChatWriteActions(params: Params): Result {
     () => ({
       regenerate: async (messageId, options) => regenerateWithCapabilities(messageId, options),
       resend: handleResend,
+      canDeleteMessage,
       deleteMessage: handleDeleteMessage,
       deleteMessageGroup: handleDeleteMessageGroup,
       pause: stop,
@@ -382,6 +384,7 @@ export function useChatWriteActions(params: Params): Result {
     [
       regenerateWithCapabilities,
       handleResend,
+      canDeleteMessage,
       handleDeleteMessage,
       handleDeleteMessageGroup,
       stop,

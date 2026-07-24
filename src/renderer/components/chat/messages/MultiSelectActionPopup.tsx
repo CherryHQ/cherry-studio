@@ -12,6 +12,7 @@ interface Props {
   onSave?: () => void
   onCopy?: () => void
   onDelete?: () => void
+  deleteDisabled?: boolean
   onClose: () => void
 }
 
@@ -21,6 +22,7 @@ const MultiSelectActionPopup: FC<Props> = ({
   onSave,
   onCopy,
   onDelete,
+  deleteDisabled = false,
   onClose
 }) => {
   const { t } = useTranslation()
@@ -49,11 +51,11 @@ const MultiSelectActionPopup: FC<Props> = ({
             </Tooltip>
           )}
           {onDelete && (
-            <Tooltip content={t('common.delete')}>
+            <Tooltip content={deleteDisabled ? t('message.delete.first_turn_not_supported') : t('common.delete')}>
               <Button
                 className="rounded-full"
                 variant="ghost"
-                disabled={isActionDisabled}
+                disabled={isActionDisabled || deleteDisabled}
                 onClick={onDelete}
                 size="icon">
                 <DeleteIcon size={16} className="lucide-custom" />

@@ -35,6 +35,7 @@ export interface RegenerateOptions {
 export interface ChatWriteActions {
   regenerate: (messageId?: string, options?: RegenerateOptions) => Promise<void>
   resend: (messageId?: string) => Promise<void>
+  canDeleteMessage: (id: string) => boolean
   deleteMessage: (id: string, options?: DeleteMessageOptions) => Promise<void>
   deleteMessageGroup: (id: string) => Promise<void>
   pause: () => void

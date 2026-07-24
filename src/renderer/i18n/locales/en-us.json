@@ -3761,6 +3761,7 @@
         "title": "Delete Confirmation"
       },
       "failed": "Delete Failed",
+      "first_turn_not_supported": "The first user message cannot be deleted.",
       "success": "Delete Successful"
     },
     "dialog": {

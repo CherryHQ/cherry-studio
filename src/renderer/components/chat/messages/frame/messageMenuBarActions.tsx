@@ -385,7 +385,15 @@ registerToolbarAction({
           destructive: true
         }
       : undefined,
-  availability: toolbarAvailability('delete', ({ actions }) => !!actions.deleteMessage)
+  availability: ({ actions, isProcessing, message, t, toolbarButtonIds }) => {
+    const visible = toolbarButtonIds.has('delete') && !!actions.deleteMessage
+    const canDelete = actions.canDeleteMessage?.(message.id) ?? true
+    return {
+      visible,
+      enabled: visible && !isProcessing && canDelete,
+      reason: canDelete ? undefined : t('message.delete.first_turn_not_supported')
+    }
+  }
 })
 
 registerToolbarAction({

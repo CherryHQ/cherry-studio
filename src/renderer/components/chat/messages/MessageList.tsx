@@ -686,6 +686,7 @@ const MessageList = () => {
       <MultiSelectActionPopup
         selectedMessageIds={selectedMessageIds}
         isMultiSelectMode={isMultiSelectMode}
+        deleteDisabled={selectedMessageIds.some((messageId) => actions.canDeleteMessage?.(messageId) === false)}
         onSave={
           actions.saveSelectedMessages ? () => void actions.saveSelectedMessages?.(selectedMessageIds) : undefined
         }

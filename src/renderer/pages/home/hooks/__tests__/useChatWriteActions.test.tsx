@@ -58,32 +58,34 @@ describe('useChatWriteActions — first-turn delete', () => {
   // vroot → u1(user) → a1(assistant). rootId = 'vroot'.
   const tree = () => [uiMsg('u1', 'user', 'vroot'), uiMsg('a1', 'assistant', 'u1')]
 
-  it('cascades a first-turn USER delete (parentId === rootId), not a splice', async () => {
-    // Regression: classifying via the projected `askId` (undefined for user rows) made this
-    // a splice, stranding a1 on the virtual root. Real parentId === rootId ⇒ cascade.
-    const { actions, cache } = renderActions('vroot', tree())
-    await actions.deleteMessage('u1')
-    expect(cache.deleteMessageTrigger).toHaveBeenCalledWith({ params: { id: 'u1' }, query: { cascade: true } })
+  it('reports first-turn deletion availability from the authoritative root id', () => {
+    const { actions } = renderActions('vroot', tree())
+
+    expect(actions.canDeleteMessage('u1')).toBe(false)
+    expect(actions.canDeleteMessage('a1')).toBe(true)
   })
 
-  it('rejects a direct first-turn splice before any optimistic or persisted delete', async () => {
-    const cache = makeCache()
-    const { actions } = renderActions('vroot', tree(), cache)
+  it.each([undefined, false, true])(
+    'rejects direct first-turn deletion before any write (cascade: %s)',
+    async (cascade) => {
+      const cache = makeCache()
+      const { actions } = renderActions('vroot', tree(), cache)
 
-    await expect(actions.deleteMessage('u1', { cascade: false })).rejects.toThrow(
-      'Cannot delete a first-turn user message without cascading its replies'
-    )
+      await expect(actions.deleteMessage('u1', cascade === undefined ? undefined : { cascade })).rejects.toThrow(
+        'Cannot delete a first-turn user message'
+      )
 
-    expect(cache.seedOptimisticBranch).not.toHaveBeenCalled()
-    expect(cache.deleteMessageTrigger).not.toHaveBeenCalled()
-  })
+      expect(cache.seedOptimisticBranch).not.toHaveBeenCalled()
+      expect(cache.deleteMessageTrigger).not.toHaveBeenCalled()
+    }
+  )
 
   it('rejects a multi-select plan containing a first-turn user before deleting its assistant first', async () => {
     const cache = makeCache()
     const { actions } = renderActions('vroot', tree(), cache)
 
     await expect(actions.deleteMessage('a1', { cascade: false, selectedMessageIds: ['u1', 'a1'] })).rejects.toThrow(
-      'Cannot delete a first-turn user message without cascading its replies'
+      'Cannot delete a first-turn user message'
     )
 
     expect(cache.seedOptimisticBranch).not.toHaveBeenCalled()
