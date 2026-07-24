@@ -34,6 +34,7 @@ describe('resource create DTO mapping', () => {
       smallModel: 'provider::model',
       description: 'Investigates a topic',
       instructions: 'Use cited sources',
+      knowledgeBaseIds: ['kb-1'],
       skillIds: ['skill-1'],
       configuration: {
         avatar: '🤖',
