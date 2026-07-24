@@ -214,6 +214,22 @@ export const useMiniApps = () => {
   const { removeMiniApp: removeSidebarFavoriteMiniApp } = useSidebarFavorites()
   const tabsContext = useOptionalTabsContext()
 
+  /**
+   * Exit a mini app: remove it from the keep-alive pool (unmounting its pooled
+   * webview) and clear its persisted webview state. Idempotent — exiting an
+   * app that is not in the pool is a no-op. `current_id` is reset only when it
+   * points at the exiting app, so exiting a background app never blanks the
+   * one still on screen.
+   */
+  const exitMiniApp = useCallback(
+    (appId: string) => {
+      setOpenedKeepAliveMiniApps((prev) => prev.filter((app) => app.appId !== appId))
+      setCurrentMiniAppId((prev) => (prev === appId ? '' : prev))
+      clearWebviewState(appId)
+    },
+    [setCurrentMiniAppId, setOpenedKeepAliveMiniApps]
+  )
+
   // === Mutations (DataApi) ===
   const invalidate = useInvalidateCache()
 
@@ -290,11 +306,15 @@ export const useMiniApps = () => {
   const setAppStatusBulk = useCallback(
     async (updates: ReadonlyArray<{ appId: string; status: MiniApp['status'] }>) => {
       if (updates.length === 0) return Promise.resolve([] as MiniApp[])
-      return Promise.allSettled(updates.map((u) => patchApp(u.appId, { status: u.status }))).then((results) =>
-        settleAndInvalidate(results, invalidate, 'setAppStatusBulk')
-      )
+      const results = await Promise.allSettled(updates.map((u) => patchApp(u.appId, { status: u.status })))
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled' && updates[index].status === 'disabled') {
+          exitMiniApp(updates[index].appId)
+        }
+      })
+      return settleAndInvalidate(results, invalidate, 'setAppStatusBulk')
     },
-    [patchApp, invalidate]
+    [patchApp, invalidate, exitMiniApp]
   )
 
   const createCustomMiniApp = useCallback(
@@ -333,22 +353,6 @@ export const useMiniApps = () => {
       }
     },
     [setOpenedKeepAliveMiniApps, tabsContext]
-  )
-
-  /**
-   * Exit a mini app: remove it from the keep-alive pool (unmounting its pooled
-   * webview) and clear its persisted webview state. Idempotent — exiting an
-   * app that is not in the pool is a no-op. `current_id` is reset only when it
-   * points at the exiting app, so exiting a background app never blanks the
-   * one still on screen.
-   */
-  const exitMiniApp = useCallback(
-    (appId: string) => {
-      setOpenedKeepAliveMiniApps((prev) => prev.filter((app) => app.appId !== appId))
-      setCurrentMiniAppId((prev) => (prev === appId ? '' : prev))
-      clearWebviewState(appId)
-    },
-    [setCurrentMiniAppId, setOpenedKeepAliveMiniApps]
   )
 
   const cleanupOpenedCustomMiniApp = useCallback(

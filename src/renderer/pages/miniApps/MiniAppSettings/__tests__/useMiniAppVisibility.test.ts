@@ -1,5 +1,5 @@
 import type { MiniApp } from '@shared/data/types/miniApp'
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useMiniAppVisibility } from '../useMiniAppVisibility'
@@ -18,7 +18,8 @@ const mocks = vi.hoisted(() => ({
   disabled: [] as MiniApp[],
   updateAppStatus: vi.fn().mockResolvedValue(undefined),
   setAppStatusBulk: vi.fn().mockResolvedValue(undefined),
-  reorderMiniAppsByStatus: vi.fn().mockResolvedValue(undefined)
+  reorderMiniAppsByStatus: vi.fn().mockResolvedValue(undefined),
+  exitMiniApp: vi.fn()
 }))
 
 vi.mock('@renderer/hooks/useMiniApps', () => ({
@@ -27,9 +28,20 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
     disabled: mocks.disabled,
     updateAppStatus: mocks.updateAppStatus,
     setAppStatusBulk: mocks.setAppStatusBulk,
-    reorderMiniAppsByStatus: mocks.reorderMiniAppsByStatus
+    reorderMiniAppsByStatus: mocks.reorderMiniAppsByStatus,
+    exitMiniApp: mocks.exitMiniApp
   })
 }))
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
 
 describe('useMiniAppVisibility', () => {
   beforeEach(() => {
@@ -38,6 +50,7 @@ describe('useMiniAppVisibility', () => {
     mocks.updateAppStatus.mockClear()
     mocks.setAppStatusBulk.mockClear()
     mocks.reorderMiniAppsByStatus.mockClear()
+    mocks.exitMiniApp.mockClear()
   })
 
   it('initializes from useMiniApps', () => {
@@ -57,6 +70,30 @@ describe('useMiniAppVisibility', () => {
     // Critical: command-style API never references unrelated rows, so no
     // bulk call is issued and no other row's status can drift.
     expect(mocks.setAppStatusBulk).not.toHaveBeenCalled()
+  })
+
+  it('exits a hidden app only after its disabled status is persisted', async () => {
+    const deferred = createDeferred<void>()
+    mocks.updateAppStatus.mockReturnValueOnce(deferred.promise)
+    const { result } = renderHook(() => useMiniAppVisibility())
+
+    act(() => result.current.hide(mocks.miniApps[0]))
+    expect(mocks.exitMiniApp).not.toHaveBeenCalled()
+
+    deferred.resolve()
+    await waitFor(() => expect(mocks.exitMiniApp).toHaveBeenCalledWith('a'))
+  })
+
+  it('does not exit an app when persisting its disabled status fails', async () => {
+    const deferred = createDeferred<void>()
+    mocks.updateAppStatus.mockReturnValueOnce(deferred.promise)
+    const { result } = renderHook(() => useMiniAppVisibility())
+
+    act(() => result.current.hide(mocks.miniApps[0]))
+    deferred.reject(new Error('write failed'))
+
+    await waitFor(() => expect(mocks.updateAppStatus).toHaveBeenCalledWith('a', 'disabled'))
+    expect(mocks.exitMiniApp).not.toHaveBeenCalled()
   })
 
   it('show flips a single row to enabled via updateAppStatus', () => {

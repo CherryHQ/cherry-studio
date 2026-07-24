@@ -681,12 +681,13 @@ describe('useMiniApps', () => {
   // === setAppStatusBulk partial-failure ===
 
   describe('setAppStatusBulk partial-failure', () => {
-    it('throws when one of the PATCHes fails and invalidates the cache', async () => {
-      const apps = [createMiniApp('app1', { status: 'disabled' }), createMiniApp('app2', { status: 'disabled' })]
+    it('throws when one PATCH fails but exits each app that was successfully disabled', async () => {
+      const apps = [createMiniApp('app1', { status: 'enabled' }), createMiniApp('app2', { status: 'enabled' })]
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', apps)
 
       vi.mocked(dataApiService.patch).mockImplementation(async (path: string) => {
-        if (path === '/mini-apps/app1') return { success: true } as never
+        if (path === '/mini-apps/app1') return { ...apps[0], status: 'disabled' } as never
         if (path === '/mini-apps/app2') throw new Error('Server error')
         return undefined as never
       })
@@ -696,11 +697,17 @@ describe('useMiniApps', () => {
       await act(async () => {
         await expect(
           result.current.setAppStatusBulk([
-            { appId: 'app1', status: 'enabled' },
-            { appId: 'app2', status: 'enabled' }
+            { appId: 'app1', status: 'disabled' },
+            { appId: 'app2', status: 'disabled' }
           ])
         ).rejects.toThrow()
       })
+
+      expect(mockClearWebviewState).toHaveBeenCalledTimes(1)
+      expect(mockClearWebviewState).toHaveBeenCalledWith('app1')
+      expect((MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive') ?? []).map((app) => app.appId)).toEqual([
+        'app2'
+      ])
     })
   })
 })
