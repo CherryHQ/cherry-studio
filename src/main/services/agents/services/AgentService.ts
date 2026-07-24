@@ -27,6 +27,7 @@ import {
 } from '../database/schema'
 import type { AgentModelField } from '../errors'
 import { skillService } from '../skills/SkillService'
+import { type AgentDataRepair, normalizeAgentDataRow } from './agentDataNormalization'
 import { CHERRY_CLAW_AGENT_ID, isBuiltinAgentId } from './builtin/BuiltinAgentIds'
 import { seedWorkspaceTemplates } from './cherryclaw/seedWorkspace'
 
@@ -34,61 +35,6 @@ const logger = loggerService.withContext('AgentService')
 
 type AgentDatabase = Awaited<ReturnType<BaseService['getDatabase']>>
 type AgentTransaction = Parameters<Parameters<AgentDatabase['transaction']>[0]>[0]
-type AgentTimestampUpdate = Partial<Pick<AgentRow, 'created_at' | 'updated_at'>>
-
-interface AgentTimestampRepair {
-  id: string
-  original: Pick<AgentRow, 'created_at' | 'updated_at'>
-  updates: AgentTimestampUpdate
-}
-
-interface AgentTimestampNormalizationResult {
-  normalizedRow: AgentRow
-  repair: AgentTimestampRepair | null
-}
-
-const EPOCH_TIMESTAMP_PATTERN = /^(\d{10}|\d{13})Z?$/i
-
-const normalizeAgentTimestampValue = (value: string): string | null => {
-  const trimmedValue = value.trim()
-  const epochMatch = EPOCH_TIMESTAMP_PATTERN.exec(trimmedValue)
-  const date = epochMatch
-    ? new Date(Number(epochMatch[1]) * (epochMatch[1].length === 10 ? 1000 : 1))
-    : new Date(trimmedValue)
-
-  return Number.isNaN(date.getTime()) ? null : date.toISOString()
-}
-
-const normalizeAgentTimestamps = (row: AgentRow, fallbackTimestamp: string): AgentTimestampNormalizationResult => {
-  const normalizedCreatedAt = normalizeAgentTimestampValue(row.created_at)
-  const normalizedUpdatedAt = normalizeAgentTimestampValue(row.updated_at)
-  const createdAt = normalizedCreatedAt ?? normalizedUpdatedAt ?? fallbackTimestamp
-  const updatedAt = normalizedUpdatedAt ?? normalizedCreatedAt ?? fallbackTimestamp
-  const updates: AgentTimestampUpdate = {}
-
-  if (createdAt !== row.created_at) {
-    updates.created_at = createdAt
-  }
-  if (updatedAt !== row.updated_at) {
-    updates.updated_at = updatedAt
-  }
-
-  if (updates.created_at === undefined && updates.updated_at === undefined) {
-    return { normalizedRow: row, repair: null }
-  }
-
-  return {
-    normalizedRow: { ...row, ...updates },
-    repair: {
-      id: row.id,
-      original: {
-        created_at: row.created_at,
-        updated_at: row.updated_at
-      },
-      updates
-    }
-  }
-}
 
 export type BuiltinAgentInitResult =
   | { agentId: string; skippedReason?: undefined }
@@ -193,7 +139,11 @@ export class AgentService extends BaseService {
       return null
     }
 
-    const agent = this.deserializeJsonFields(row) as GetAgentResponse
+    const normalization = normalizeAgentDataRow(row, new Date().toISOString())
+    const database = await this.getDatabase()
+    await this.persistAgentRepairs(database, normalization.repair ? [normalization.repair] : [])
+
+    const agent = this.deserializeJsonFields(normalization.normalizedRow) as GetAgentResponse
     const { tools, legacyIdMap } = await this.listMcpTools(agent.type, agent.mcps)
     agent.tools = tools
     agent.allowed_tools = this.normalizeAllowedTools(agent.allowed_tools, agent.tools, legacyIdMap)
@@ -201,7 +151,7 @@ export class AgentService extends BaseService {
     return agent
   }
 
-  private async persistAgentTimestampRepairs(database: AgentDatabase, repairs: AgentTimestampRepair[]): Promise<void> {
+  private async persistAgentRepairs(database: AgentDatabase, repairs: AgentDataRepair[]): Promise<void> {
     if (repairs.length === 0) {
       return
     }
@@ -209,24 +159,27 @@ export class AgentService extends BaseService {
     try {
       await database.transaction(async (tx) => {
         for (const repair of repairs) {
-          const createdAtChanged = repair.updates.created_at !== undefined
-          const updatedAtChanged = repair.updates.updated_at !== undefined
-          const whereClause =
-            createdAtChanged && updatedAtChanged
-              ? and(
-                  eq(agentsTable.id, repair.id),
-                  eq(agentsTable.created_at, repair.original.created_at),
-                  eq(agentsTable.updated_at, repair.original.updated_at)
-                )
-              : createdAtChanged
-                ? and(eq(agentsTable.id, repair.id), eq(agentsTable.created_at, repair.original.created_at))
-                : and(eq(agentsTable.id, repair.id), eq(agentsTable.updated_at, repair.original.updated_at))
+          const conditions = [eq(agentsTable.id, repair.id)]
 
-          await tx.update(agentsTable).set(repair.updates).where(whereClause)
+          if (repair.updates.created_at !== undefined) {
+            conditions.push(eq(agentsTable.created_at, repair.original.created_at))
+          }
+          if (repair.updates.updated_at !== undefined) {
+            conditions.push(eq(agentsTable.updated_at, repair.original.updated_at))
+          }
+          if (repair.updates.mcps !== undefined) {
+            const originalMcps = repair.original.mcps
+            conditions.push(originalMcps === null ? isNull(agentsTable.mcps) : eq(agentsTable.mcps, originalMcps))
+          }
+
+          await tx
+            .update(agentsTable)
+            .set(repair.updates)
+            .where(and(...conditions))
         }
       })
 
-      logger.warn('Repaired invalid agent timestamps', {
+      logger.warn('Repaired invalid agent fields', {
         count: repairs.length,
         repairs: repairs.map((repair) => ({
           id: repair.id,
@@ -234,7 +187,7 @@ export class AgentService extends BaseService {
         }))
       })
     } catch (error) {
-      logger.warn('Failed to persist repaired agent timestamps', {
+      logger.warn('Failed to persist repaired agent fields', {
         count: repairs.length,
         agentIds: repairs.map((repair) => repair.id),
         error: error instanceof Error ? error.message : String(error)
@@ -272,10 +225,10 @@ export class AgentService extends BaseService {
         : await baseQuery
 
     const fallbackTimestamp = new Date().toISOString()
-    const normalizedResults = result.map((row) => normalizeAgentTimestamps(row, fallbackTimestamp))
+    const normalizedResults = result.map((row) => normalizeAgentDataRow(row, fallbackTimestamp))
     const repairs = normalizedResults.flatMap(({ repair }) => (repair ? [repair] : []))
 
-    await this.persistAgentTimestampRepairs(database, repairs)
+    await this.persistAgentRepairs(database, repairs)
 
     const agents = normalizedResults.map(({ normalizedRow }) =>
       this.deserializeJsonFields(normalizedRow)

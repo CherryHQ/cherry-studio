@@ -1,4 +1,5 @@
 import { createClient } from '@libsql/client'
+import { GetAgentResponseSchema, ListAgentsResponseSchema } from '@types'
 import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/libsql'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -266,7 +267,7 @@ describe('AgentService built-in agent lifecycle', () => {
   })
 })
 
-describe('AgentService.listAgents timestamp repair', () => {
+describe('AgentService data repair', () => {
   const service = AgentService.getInstance()
 
   beforeEach(() => {
@@ -370,6 +371,91 @@ describe('AgentService.listAgents timestamp repair', () => {
       const result = await service.listAgents()
 
       expect(result.agents[0].updated_at).toBe('2026-07-23T12:43:20.097Z')
+      expect(databaseWithFailedTransaction.transaction).toHaveBeenCalledOnce()
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('keeps valid MCP IDs, removes invalid entries, and persists the repair', async () => {
+    const invalidMcps = JSON.stringify(['server-id', { mcpServers: {} }])
+    const { cleanup, database } = await createAgentDatabase([createAgentRow({ mcps: invalidMcps })])
+
+    try {
+      vi.spyOn(service as never, 'getDatabase').mockResolvedValue(database as never)
+
+      const result = await service.listAgents()
+      const stored = await database.select().from(agentsTable)
+
+      expect(result.agents[0].mcps).toEqual(['server-id'])
+      expect(stored[0].mcps).toBe(JSON.stringify(['server-id']))
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('returns a schema-valid list when timestamps and MCP IDs are corrupted and persistence fails', async () => {
+    const invalidMcps = JSON.stringify([
+      {
+        mcpServers: {
+          obsidian: {
+            command: 'cmd',
+            args: ['/c', 'npx', '-y', '@istrejo/obsidian-mcp'],
+            env: { OBSIDIAN_VAULT_PATH: 'C:\\Users\\lenovo\\Documents\\Obsidian Vault' }
+          }
+        }
+      }
+    ])
+    const { cleanup, database } = await createAgentDatabase([
+      createAgentRow({ updated_at: '1784810600097Z', mcps: invalidMcps })
+    ])
+    const databaseWithFailedTransaction = {
+      select: database.select.bind(database),
+      transaction: vi.fn().mockRejectedValue(new Error('database is read-only'))
+    }
+
+    try {
+      vi.spyOn(service as never, 'getDatabase').mockResolvedValue(databaseWithFailedTransaction as never)
+
+      const result = await service.listAgents()
+      const response = {
+        data: result.agents,
+        total: result.total,
+        limit: 20,
+        offset: 0
+      }
+
+      expect(result.agents[0].updated_at).toBe('2026-07-23T12:43:20.097Z')
+      expect(result.agents[0].mcps).toEqual([])
+      expect(ListAgentsResponseSchema.safeParse(response).success).toBe(true)
+      expect(databaseWithFailedTransaction.transaction).toHaveBeenCalledOnce()
+    } finally {
+      cleanup()
+    }
+  })
+
+  it('returns a schema-valid agent when its repair cannot be persisted', async () => {
+    const agentId = 'agent_1783338427757_corrupted'
+    const { cleanup, database } = await createAgentDatabase([
+      createAgentRow({
+        id: agentId,
+        updated_at: '1784810600097Z',
+        mcps: JSON.stringify([{ mcpServers: { obsidian: {} } }])
+      })
+    ])
+    const databaseWithFailedTransaction = {
+      select: database.select.bind(database),
+      transaction: vi.fn().mockRejectedValue(new Error('database is read-only'))
+    }
+
+    try {
+      vi.spyOn(service as never, 'getDatabase').mockResolvedValue(databaseWithFailedTransaction as never)
+
+      const agent = await service.getAgent(agentId)
+
+      expect(agent?.updated_at).toBe('2026-07-23T12:43:20.097Z')
+      expect(agent?.mcps).toEqual([])
+      expect(GetAgentResponseSchema.safeParse(agent).success).toBe(true)
       expect(databaseWithFailedTransaction.transaction).toHaveBeenCalledOnce()
     } finally {
       cleanup()
