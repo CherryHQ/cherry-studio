@@ -191,7 +191,7 @@ Data-shape layer    FileEntry                          FileInfo
 
 Picking a handle variant is a **call-site choice of reference form**, not a statement about the file itself. Crucially, **the two axes are orthogonal**:
 
-- **Reference form** (this layer): `FileEntryHandle` routes through the entry system (FileManager, versionCache, DanglingCache updates); `FilePathHandle` bypasses it and hits the `@main/utils/file/*` primitives directly.
+- **Reference form** (this layer): `FileEntryHandle` routes through the entry system (FileManager, versionCache, DanglingCache updates); `FilePathHandle` bypasses FileEntry state coordination and delegates to the file-module path helper, which then uses the underlying FS primitive.
 - **Content ownership** (`FileEntry.origin`, not visible in the handle): `internal` means Cherry owns `{userData}/Data/Files/{id}.{ext}`; `external` means Cherry only records a reference to a user-owned path.
 
 The **same physical external file** can therefore be reached by either handle variant. A `FileEntryHandle` to its entry goes through the entry-aware code path (dangling updates, version cache, identity-tracked operations); a `FilePathHandle` to the same absolute path goes through pure FS. Picking one is a matter of which subsystem the caller wants in the loop — not a property of the file.

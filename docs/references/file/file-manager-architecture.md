@@ -354,7 +354,7 @@ export const fileHandlers = {
 
 **Impact of adding a new handle kind** (e.g., `virtual` pointing into archive members, `remote` pointing to an S3 URI):
 
-1. `src/shared/file/types/handle.ts` — add variant to handle union
+1. `src/shared/data/types/file.ts` — add variant to handle union
 2. Relevant `internal/*/*.ts` or `utils/*.ts` — add the entry-aware or path-like operation
 3. `src/main/ipc/handlers/file.ts` — extend `dispatchHandle`; each IPC handler explicitly handles that kind (or throws "unsupported")
 
@@ -381,7 +381,7 @@ implemented in `utils/*` and re-exported through the barrel. ESLint's
 |---|---|---|
 | Split business methods into 5 lifecycle services | ❌ | Overkill—lifecycle registration, dependency ordering, and test mocking costs all 5×, in exchange only for "methods split across files" |
 | FileManager as facade + `internal/*` pure functions | ✅ | Only 1 lifecycle node; pure functions can be unit-tested with stub deps directly; external API surface remains stable |
-| FileAccessor as a standalone class handling `FileHandle` dispatch | ❌ | Dispatch itself is a proper responsibility of the IPC adapter layer; converging into the `dispatchHandle` helper inside FileManager suffices; splitting off another layer adds pure complexity |
+| FileAccessor as a standalone class handling `FileHandle` dispatch | ❌ | Dispatch belongs to the IPC adapter layer; the adapter reuses `dispatchHandle` from `internal/dispatch.ts` via the file-module barrel, so another class would add pure complexity |
 | FileManager public API switched to handle-native | ❌ | IPC and Main-side call contracts need not share shape; main-side business services using entry-native directly is more intuitive, without needing a `createFileEntryHandle` wrapper |
 | Extract versionCache as a module singleton | ❌ | As a FileManager private field, it naturally supports test isolation (new instance = fresh cache) |
 
@@ -403,7 +403,6 @@ class FileManager extends BaseService {
 
   protected override onInit(): void {
     this.registerIpcHandlers()
-    this.initVersionCache()
     danglingCache.initFromDb()
 
     // Wire internal events → renderer broadcast. Each disposable auto-cleans on stop.
@@ -413,8 +412,6 @@ class FileManager extends BaseService {
       this.windowManager.broadcast('file-manager-event', { type: 'entry-content', ...e })))
     this.registerDisposable(this.onDanglingStateChanged((e) =>
       this.windowManager.broadcast('file-manager-event', { type: 'dangling-state', ...e })))
-
-    void this.runOrphanSweep().catch((err) => logger.error('Orphan sweep failed', err))
   }
 }
 ```

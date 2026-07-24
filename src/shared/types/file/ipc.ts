@@ -35,17 +35,17 @@
 
 import type { DanglingState, FileEntry, FileEntryId, FileHandle } from '@shared/data/types/file'
 
-import type { Base64String, DirectoryListOptions, FilePath, PhysicalFileMetadata, UrlString } from './common'
+import type {
+  Base64String,
+  DirectoryListOptions,
+  FilePath,
+  FileVersion,
+  PhysicalFileMetadata,
+  UrlString
+} from './common'
 import type { OrphanReport } from './sweep'
 
-export type { DirectoryListOptions, FilePath } from './common'
-
-// ─── Version ───
-
-export interface FileVersion {
-  mtime: number
-  size: number
-}
+export type { DirectoryListOptions, FilePath, FileVersion } from './common'
 
 export interface ReadResult<T> {
   content: T
