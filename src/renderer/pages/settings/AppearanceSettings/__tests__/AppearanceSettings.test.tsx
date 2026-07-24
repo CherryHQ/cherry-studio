@@ -19,7 +19,7 @@ vi.mock('@renderer/i18n/resolver', () => ({
   default: i18nMock
 }))
 
-const mocks = vi.hoisted(() => ({ request: vi.fn() }))
+const mocks = vi.hoisted(() => ({ request: vi.fn(), save: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
 
 vi.mock('@cherrystudio/ui', async () => {
@@ -171,7 +171,6 @@ vi.mock('@renderer/components/SettingsPrimitives', async () => {
       React.createElement(tag, props, children)
 
   return {
-    SettingDescription: passthrough('p'),
     SettingDivider: passthrough('hr'),
     SettingGroup: passthrough('section'),
     SettingRow: passthrough('div'),
@@ -276,7 +275,10 @@ describe('AppearanceSettings selectors', () => {
     MockUsePreferenceUtils.resetMocks()
     i18nMock.language = 'zh-CN'
     i18nMock.resolvedLanguage = 'zh-CN'
+    window.api.file.save = mocks.save
     mocks.request.mockReset()
+    mocks.save.mockReset()
+    mocks.save.mockResolvedValue('/tmp/cherry-studio-v1-custom.css')
     mocks.request.mockImplementation((route: string) => {
       if (route === 'system.get_fonts') return Promise.resolve([])
       if (route === 'app.adjust_zoom') return Promise.resolve(1)
@@ -328,7 +330,7 @@ describe('AppearanceSettings selectors', () => {
     ])
   })
 
-  it('keeps migrated v1 CSS visible and enables it by removing the marker', async () => {
+  it('keeps migrated v1 CSS visible and exports its original payload', async () => {
     const legacyCustomCss = 'body { color: tomato; }'
     const markedCss = `${V1_CUSTOM_CSS_MARKER}\n${legacyCustomCss}`
     MockUsePreferenceUtils.setPreferenceValue('ui.custom_css', markedCss)
@@ -337,12 +339,17 @@ describe('AppearanceSettings selectors', () => {
 
     expect(screen.getByPlaceholderText('settings.display.custom.css.placeholder')).toHaveValue(markedCss)
     expect(screen.getByText('settings.display.custom.css.legacy_warning')).toBeInTheDocument()
-    expect(screen.getByText('settings.display.custom.css.cherrycss')).toBeInTheDocument()
+    expect(screen.queryByText('settings.display.custom.css.placeholder')).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.display.custom.css.cherrycss')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.display.custom.css.enable_v2' })).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'settings.display.custom.css.enable_v2' }))
+    fireEvent.click(screen.getByRole('button', { name: 'settings.display.custom.css.export' }))
 
     await waitFor(() => {
-      expect(MockUsePreferenceUtils.getPreferenceValue('ui.custom_css')).toBe(legacyCustomCss)
+      expect(mocks.save).toHaveBeenCalledWith('cherry-studio-v1-custom.css', legacyCustomCss, {
+        filters: [{ name: 'CSS', extensions: ['css'] }]
+      })
+      expect(toast.success).toHaveBeenCalledWith('settings.display.custom.css.export_success')
     })
   })
 
@@ -352,6 +359,6 @@ describe('AppearanceSettings selectors', () => {
     render(<AppearanceSettings />)
 
     expect(screen.queryByText('settings.display.custom.css.legacy_warning')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'settings.display.custom.css.enable_v2' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.display.custom.css.export' })).not.toBeInTheDocument()
   })
 })
