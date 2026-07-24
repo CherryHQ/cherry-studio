@@ -17,6 +17,7 @@ import {
 } from '@shared/ai/agentSessionCompaction'
 import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
+  AGENT_SESSION_CONTEXT_USAGE_SNAPSHOT_CACHE_KEY,
   type AgentSessionContextUsage
 } from '@shared/ai/agentSessionContextUsage'
 import {
@@ -163,6 +164,16 @@ type AgentSessionRuntimeEntry = {
   /** Whether the post-steer continuation turn should keep responder-less/headless enforcement. */
   rollHeadless?: boolean
   compacting?: boolean
+  contextUsageLatestCapturedAt?: number
+  contextUsageCaptureSequence?: number
+  contextUsageLatestCaptureSequence?: number
+  ignoreContextUsageEventsUntilNextTurn?: boolean
+}
+
+type ContextUsagePersistOptions = {
+  allowClosed?: boolean
+  captureSequence?: number
+  suppressDriverEventsAfterPersist?: boolean
 }
 
 class AgentSessionRuntimeTerminalListener implements StreamListener {
@@ -784,6 +795,26 @@ export class AgentSessionRuntimeService extends BaseService {
       : { modelId: entry.modelId, reasoningEffort: 'default' }
   }
 
+  private beginContextUsageCapture(entry: AgentSessionRuntimeEntry): { capturedAt: number; sequence: number } {
+    const sequence = (entry.contextUsageCaptureSequence ?? 0) + 1
+    const capturedAt = Date.now()
+    entry.contextUsageCaptureSequence = sequence
+    entry.contextUsageLatestCaptureSequence = sequence
+    return { capturedAt, sequence }
+  }
+
+  private getAcceptedContextUsageCapturedAt(
+    entry: AgentSessionRuntimeEntry,
+    capturedAt: number,
+    sequence?: number
+  ): number | undefined {
+    if (sequence !== undefined && sequence < (entry.contextUsageLatestCaptureSequence ?? 0)) return undefined
+    if (entry.contextUsageLatestCapturedAt !== undefined && capturedAt < entry.contextUsageLatestCapturedAt) {
+      return undefined
+    }
+    return capturedAt
+  }
+
   private connectionTargetEquals(entry: AgentSessionRuntimeEntry, target: AgentSessionConnectionTarget): boolean {
     const current = this.connectionTarget(entry)
     return current.modelId === target.modelId && current.reasoningEffort === target.reasoningEffort
@@ -885,6 +916,7 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.connectionLoop = this.runConnectionLoop(entry, connection).finally(() => {
       if (entry.connection === connection) {
         entry.connection = undefined
+        this.deleteContextUsageCache(entry.sessionId)
       }
       if (entry.connectionLoop) entry.connectionLoop = undefined
     })
@@ -960,7 +992,8 @@ export class AgentSessionRuntimeService extends BaseService {
         this.handleCompactionError(entry, event.error)
         break
       case 'context-usage':
-        this.persistContextUsage(entry, event.usage)
+        if (entry.ignoreContextUsageEventsUntilNextTurn) break
+        this.persistContextUsage(entry, event.usage, event.capturedAt ?? Date.now())
         break
       case 'supported-commands':
         // SDK pushed a refreshed catalog (`commands_changed`) — replace the cached list so the
@@ -969,7 +1002,7 @@ export class AgentSessionRuntimeService extends BaseService {
         break
       case 'turn-complete':
         this.closeCurrentTurn(entry, 'success')
-        this.refreshContextUsage(entry)
+        this.refreshContextUsage(entry, undefined, { suppressDriverEventsAfterPersist: true })
         break
       case 'error':
         this.handleRuntimeError(entry, event.error)
@@ -1025,22 +1058,59 @@ export class AgentSessionRuntimeService extends BaseService {
     })
   }
 
-  private refreshContextUsage(entry: AgentSessionRuntimeEntry, connection = entry.connection): void {
+  private refreshContextUsage(
+    entry: AgentSessionRuntimeEntry,
+    connection = entry.connection,
+    options: ContextUsagePersistOptions = {}
+  ): void {
     if (!connection?.getContextUsage) return
+    const capture = this.beginContextUsageCapture(entry)
 
     void (async () => {
       const usage = await connection.getContextUsage?.()
       if (!usage) return
-      if (!this.isCurrentEntry(entry) || entry.connection !== connection) return
-      this.persistContextUsage(entry, usage)
+      if (!options.allowClosed && (!this.isCurrentEntry(entry) || entry.connection !== connection)) return
+      const persisted = this.persistContextUsage(entry, usage, capture.capturedAt, {
+        ...options,
+        captureSequence: capture.sequence
+      })
+      if (persisted && options.suppressDriverEventsAfterPersist) {
+        entry.ignoreContextUsageEventsUntilNextTurn = true
+      }
     })().catch((error) => {
       logger.warn('Failed to refresh agent session context usage', { sessionId: entry.sessionId, error })
     })
   }
 
-  private persistContextUsage(entry: AgentSessionRuntimeEntry, usage: AgentSessionContextUsage): void {
-    if (!this.isCurrentEntry(entry)) return
-    application.get('CacheService').setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId), usage)
+  private persistContextUsage(
+    entry: AgentSessionRuntimeEntry,
+    usage: AgentSessionContextUsage,
+    capturedAt: number,
+    options: ContextUsagePersistOptions = {}
+  ): boolean {
+    const currentEntry = this.entries.get(entry.sessionId)
+    const isCurrent = currentEntry === entry
+    if (!isCurrent && !options.allowClosed) return false
+    if (currentEntry && !isCurrent) return false
+    const acceptedCapturedAt = this.getAcceptedContextUsageCapturedAt(entry, capturedAt, options.captureSequence)
+    if (acceptedCapturedAt === undefined) return false
+
+    try {
+      const snapshot = agentSessionService.upsertContextUsageSnapshot(entry.sessionId, usage, acceptedCapturedAt)
+      if (!snapshot) return false
+
+      entry.contextUsageLatestCapturedAt = acceptedCapturedAt
+      if (isCurrent) {
+        application.get('CacheService').setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId), usage)
+      }
+      application
+        .get('CacheService')
+        .setShared(AGENT_SESSION_CONTEXT_USAGE_SNAPSHOT_CACHE_KEY(entry.sessionId), snapshot)
+      return true
+    } catch (error) {
+      logger.warn('Failed to persist agent session context usage snapshot', { sessionId: entry.sessionId, error })
+      return false
+    }
   }
 
   // The initial slash command catalog read (`query.supportedCommands()`) once the connection is live.
@@ -1092,6 +1162,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (turn.admitted) return
     turn.admitted = true
     entry.status = 'active'
+    entry.ignoreContextUsageEventsUntilNextTurn = false
     // `Set.delete` returns whether it was queued as a steer — consume the flag as we admit the turn.
     const systemReminder = entry.steerMessageIds?.delete(turn.userMessage.id) ?? false
     await entry.connection?.send({ message: turn.userMessage, systemReminder })
@@ -1485,7 +1556,9 @@ export class AgentSessionRuntimeService extends BaseService {
     application.get('CacheService').deleteShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId))
     application.get('CacheService').deleteShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(entry.sessionId))
 
+    this.refreshContextUsage(entry, entry.connection, { allowClosed: true })
     const connection = this.closeConnection(entry)
+    if (!connection) this.deleteContextUsageCache(entry.sessionId)
     entry.currentTurn = undefined
     entry.startingNextTurn = false
 
@@ -1509,6 +1582,7 @@ export class AgentSessionRuntimeService extends BaseService {
     const connection = entry.connection
     entry.connection = undefined
     entry.connectionLoop = undefined
+    if (connection) this.deleteContextUsageCache(entry.sessionId)
     return connection
   }
 
@@ -1517,6 +1591,10 @@ export class AgentSessionRuntimeService extends BaseService {
     void Promise.resolve(connection?.close()).catch((error) =>
       logger.warn('Agent runtime connection close failed', { sessionId: entry.sessionId, error })
     )
+  }
+
+  private deleteContextUsageCache(sessionId: string): void {
+    application.get('CacheService').deleteShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId))
   }
 }
 

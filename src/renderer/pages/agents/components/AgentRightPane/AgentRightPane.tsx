@@ -38,7 +38,9 @@ import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@rendere
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
 import { cn } from '@renderer/utils/style'
-import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { AgentSessionContextUsageSnapshot } from '@shared/ai/agentSessionContextUsage'
+import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
+import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import {
   Activity,
   Bot,
@@ -94,6 +96,8 @@ interface AgentRightPaneMeta {
   agentId?: string
   agentName?: string
   agentAvatar?: string
+  modelFallback?: ModelSnapshot
+  lastContextUsage?: AgentSessionContextUsageSnapshot | null
   conversationState: AgentConversationState
   workspaceId?: string
   workspacePath?: string
@@ -163,6 +167,17 @@ function useAgentRightPaneRuntime(): AgentRightPaneRuntime {
   const value = use(AgentRightPaneRuntimeContext)
   if (!value) throw new Error('useAgentRightPaneRuntime must be used within <AgentRightPane.Scope>')
   return value
+}
+
+function getContextUsageModelCandidates(model: ModelSnapshot | undefined): string[] | undefined {
+  if (!model) return undefined
+  const modelId = isUniqueModelId(model.id) ? parseUniqueModelId(model.id).modelId : model.id
+  return [model.id, modelId].filter((value, index, values) => value && values.indexOf(value) === index)
+}
+
+function useAgentRightPaneContextUsage(meta: AgentRightPaneMeta) {
+  const expectedModels = useMemo(() => getContextUsageModelCandidates(meta.modelFallback), [meta.modelFallback])
+  return useAgentSessionContextUsage(meta.sessionId, expectedModels, meta.lastContextUsage)
 }
 
 function useAgentRightPaneFileState(): AgentRightPaneFileState {
@@ -264,6 +279,8 @@ function AgentRightPaneStateProvider({
   agentId,
   agentName,
   agentAvatar,
+  modelFallback,
+  lastContextUsage,
   conversationState = 'ready',
   present = true,
   resourcePane = null,
@@ -342,11 +359,25 @@ function AgentRightPaneStateProvider({
       agentId,
       agentName,
       agentAvatar,
+      modelFallback,
+      lastContextUsage,
       conversationState,
       workspaceId,
       workspacePath
     }),
-    [agentAvatar, agentId, agentName, conversationState, sessionId, sessionName, traceId, workspaceId, workspacePath]
+    [
+      agentAvatar,
+      agentId,
+      agentName,
+      conversationState,
+      lastContextUsage,
+      modelFallback,
+      sessionId,
+      sessionName,
+      traceId,
+      workspaceId,
+      workspacePath
+    ]
   )
   const scope = useMemo<AgentRightPanelScope>(
     () => ({
@@ -592,7 +623,7 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
   const meta = useAgentRightPaneMeta()
   const { t } = useTranslation()
   const status = useAgentRightPaneStatus(active)
-  const { usage, percentage } = useAgentSessionContextUsage(meta.sessionId)
+  const { usage, percentage, source, capturedAt } = useAgentRightPaneContextUsage(meta)
   const compaction = useAgentSessionCompaction(meta.sessionId)
   const isCompacting = compaction.status === 'compacting'
   const contextUsageColor = percentage === null ? undefined : getAgentContextUsageColor(percentage)
@@ -636,6 +667,8 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
         percentage={percentage}
         color={contextUsageColor}
         isCompacting={isCompacting}
+        source={source}
+        capturedAt={capturedAt}
         className="rounded-md border border-border-subtle px-3 py-2"
       />
       <AgentRightPaneHighlights status={status} includeTasks={false} />
@@ -851,7 +884,7 @@ function AgentRightPaneHighlights({
 function AgentRightPaneStatusPreview() {
   const meta = useAgentRightPaneMeta()
   const status = useAgentRightPaneStatus()
-  const { usage, percentage } = useAgentSessionContextUsage(meta.sessionId)
+  const { usage, percentage, source, capturedAt } = useAgentRightPaneContextUsage(meta)
   const compaction = useAgentSessionCompaction(meta.sessionId)
   const isCompacting = compaction.status === 'compacting'
   const contextUsageColor = percentage === null ? undefined : getAgentContextUsageColor(percentage)
@@ -863,6 +896,8 @@ function AgentRightPaneStatusPreview() {
         percentage={percentage}
         color={contextUsageColor}
         isCompacting={isCompacting}
+        source={source}
+        capturedAt={capturedAt}
       />
       <AgentRightPaneHighlights status={status} compact />
     </Scrollbar>

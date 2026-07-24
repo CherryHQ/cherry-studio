@@ -298,6 +298,7 @@
           "system_tools": "系统工具"
         },
         "context_usage": "上下文用量",
+        "context_usage_snapshot": "上次统计",
         "label": "任务信息",
         "more": "还有 {{count}} 项",
         "no_artifacts": "暂无声明产物",

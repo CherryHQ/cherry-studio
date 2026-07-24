@@ -298,6 +298,7 @@
           "system_tools": "System tools"
         },
         "context_usage": "Context usage",
+        "context_usage_snapshot": "Last measured",
         "label": "Session information",
         "more": "+{{count}} more",
         "no_artifacts": "No declared deliverables",

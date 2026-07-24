@@ -2,7 +2,12 @@ import { randomBytes } from 'node:crypto'
 
 import { application } from '@application'
 import { agentTable as agentsTable } from '@data/db/schemas/agent'
-import { type AgentSessionRow as SessionRow, agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
+import {
+  type AgentSessionRow as SessionRow,
+  type AgentSessionStateRow as StateRow,
+  agentSessionStateTable,
+  agentSessionTable as sessionsTable
+} from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { pinTable } from '@data/db/schemas/pin'
@@ -12,6 +17,7 @@ import { agentWorkspaceService, rowToAgentWorkspace } from '@data/services/Agent
 import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
+import type { AgentSessionContextUsage, AgentSessionContextUsageSnapshot } from '@shared/ai/agentSessionContextUsage'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type {
@@ -44,6 +50,7 @@ type SessionEntitySearchItem = Extract<EntitySearchItem, { type: 'session' }>
 type JoinedSessionRow = {
   session: SessionRow
   workspace: AgentWorkspaceRow
+  state?: StateRow | null
 }
 
 function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
@@ -53,6 +60,11 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
     // agentId is legitimately nullable (orphans only via cascade) — preserve T | null.
     agentId: row.session.agentId,
     workspace: rowToAgentWorkspace(row.workspace),
+    // Context usage is a detail-only field: only reads that join the state table (getById) carry it.
+    // List projections leave `state` undefined and omit the field rather than ship the blob per row.
+    // Entity keeps the `lastContextUsage` name (persisted snapshot vs the renderer's live value); the
+    // column is just `context_usage` since a single per-session row has no "last vs all" to disambiguate.
+    ...(row.state !== undefined ? { lastContextUsage: row.state?.contextUsage ?? null } : {}),
     createdAt: timestampToISO(row.session.createdAt),
     updatedAt: timestampToISO(row.session.updatedAt)
   }
@@ -178,9 +190,10 @@ export class AgentSessionService {
   getById(id: string): AgentSessionEntity {
     const db = application.get('DbService').getDb()
     const [row] = db
-      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .select({ session: sessionsTable, workspace: agentWorkspaceTable, state: agentSessionStateTable })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .leftJoin(agentSessionStateTable, eq(sessionsTable.id, agentSessionStateTable.sessionId))
       .where(eq(sessionsTable.id, id))
       .limit(1)
       .all()
@@ -347,6 +360,49 @@ export class AgentSessionService {
   updateTx(tx: DbOrTx, id: string, patch: UpdateAgentSessionDto): SessionRow | undefined {
     const [row] = tx.update(sessionsTable).set(patch).where(eq(sessionsTable.id, id)).returning().all()
     return row
+  }
+
+  upsertContextUsageSnapshot(
+    sessionId: string,
+    usage: AgentSessionContextUsage,
+    capturedAt = Date.now()
+  ): AgentSessionContextUsageSnapshot | undefined {
+    const snapshot = {
+      usage,
+      capturedAt
+    }
+
+    return withSqliteErrors(
+      () =>
+        application.get('DbService').withWriteTx((tx) => {
+          const [current] = tx
+            .select({ contextUsage: agentSessionStateTable.contextUsage })
+            .from(agentSessionStateTable)
+            .where(eq(agentSessionStateTable.sessionId, sessionId))
+            .limit(1)
+            .all()
+          if (
+            current?.contextUsage?.capturedAt !== undefined &&
+            current.contextUsage.capturedAt > snapshot.capturedAt
+          ) {
+            return undefined
+          }
+
+          tx.insert(agentSessionStateTable)
+            .values({ sessionId, contextUsage: snapshot })
+            .onConflictDoUpdate({
+              target: agentSessionStateTable.sessionId,
+              set: { contextUsage: snapshot }
+            })
+            .run()
+
+          return snapshot
+        }),
+      {
+        ...defaultHandlersFor('Session context usage', sessionId),
+        foreignKey: () => DataApiErrorFactory.notFound('Session', sessionId)
+      }
+    )
   }
 
   /**

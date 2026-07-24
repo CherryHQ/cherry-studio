@@ -298,6 +298,7 @@
           "system_tools": "システムツール"
         },
         "context_usage": "コンテキストの使用",
+        "context_usage_snapshot": "前回の計測",
         "label": "セッション情報",
         "more": "+{{count}} 件",
         "no_artifacts": "宣言された成果物なし",

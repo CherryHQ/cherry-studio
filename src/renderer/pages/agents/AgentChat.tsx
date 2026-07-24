@@ -20,7 +20,7 @@ import { useAgent } from '@renderer/hooks/agent/useAgent'
 import type { AgentSessionSource } from '@renderer/hooks/agent/useSession'
 import type { GetAgentResponse } from '@renderer/types/agent'
 import type { Citation } from '@renderer/types/message'
-import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
+import { getAgentAvatarFromConfiguration, getAgentModelFallbackSnapshot } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -470,6 +470,8 @@ function AgentChatLayout({
       agentId={sessionSnapshot?.agentId ?? undefined}
       agentName={activeAgent?.name}
       agentAvatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
+      modelFallback={getAgentModelFallbackSnapshot(activeAgent)}
+      lastContextUsage={sessionSnapshot?.lastContextUsage}
       present={!centerSurface}
       revealRequest={resourcePaneRevealRequest}>
       <ConversationShell
