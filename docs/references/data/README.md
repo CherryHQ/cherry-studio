@@ -218,7 +218,6 @@ See [App State Overview](./app-state-overview.md) for full rules and the key reg
 - **Draft content** (e.g., unsaved message): Use `useSharedCache` for cross-window, consider auto-save to DataApi for recovery
 - **Computed statistics**: Use `useCache` with TTL - regenerate when expired
 - **User-created templates/presets**: Use **DataApiService** - user-generated content that can grow
-- **Destructive operation deletes its own SQLite container**: `app_state` cannot retain the operation marker. A path-registry profile-local sidecar is permitted only when it must survive the destructive work and has one owning module. The owner removes it last after success, or durably abandons it before normal writable startup. Data Reset's pending marker is the concrete example.
 
 ---
 
