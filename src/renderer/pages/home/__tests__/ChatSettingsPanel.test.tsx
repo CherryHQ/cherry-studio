@@ -1,5 +1,5 @@
 import type { Topic } from '@renderer/types/topic'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { PropsWithChildren, ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import Chat from '../Chat'
 
 const renderCounters = vi.hoisted(() => ({
+  branchLiveStateCallbacks: new Map<string, (state: unknown) => void>(),
   chatContent: 0,
   navbar: 0,
   eventEmit: vi.fn(),
@@ -141,6 +142,25 @@ vi.mock('../components/TopicRightPane', () => {
         <button type="button" onClick={() => onCancelBranchDraft?.('assistant-next')}>
           cancel branch draft to next
         </button>
+        <button type="button" onClick={() => onCancelBranchDraft?.('assistant-other')}>
+          cancel branch draft to other
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            onCancelBranchDraft?.('assistant-next')
+            onCancelBranchDraft?.()
+          }}>
+          select next branch
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            onCancelBranchDraft?.('assistant-other')
+            onCancelBranchDraft?.()
+          }}>
+          select other branch
+        </button>
       </div>
     )
   })
@@ -153,12 +173,14 @@ vi.mock('../components/TopicRightPane', () => {
 
 vi.mock('../ChatContent', () => ({
   default: ({
+    topic,
     onBranchLiveStateChange,
     getBranchDraftAnchorId,
     onLocateMessageHandled,
     onOpenCitationsPanel,
     locateMessageId
   }: {
+    topic: Topic
     onBranchLiveStateChange?: (state: unknown) => void
     getBranchDraftAnchorId?: () => string | null
     onLocateMessageHandled?: () => void
@@ -166,6 +188,9 @@ vi.mock('../ChatContent', () => ({
     locateMessageId?: string
   }) => {
     renderCounters.chatContent += 1
+    if (onBranchLiveStateChange) {
+      renderCounters.branchLiveStateCallbacks.set(topic.id, onBranchLiveStateChange)
+    }
     return (
       <>
         <output data-testid="chat-content-locate-message-id">{locateMessageId ?? ''}</output>
@@ -180,11 +205,25 @@ vi.mock('../ChatContent', () => ({
           onClick={() =>
             onBranchLiveStateChange?.({
               activeNodeId: 'assistant-live',
-              nodes: [],
-              topicId: 'topic-1'
+              nodes: [{ id: 'assistant-live', preview: 'stream frame 1' }],
+              topicId: topic.id
             })
           }>
           push live branch state
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            onBranchLiveStateChange?.({
+              activeNodeId: 'assistant-live',
+              nodes: [{ id: 'assistant-live', preview: 'stream frame 2' }],
+              topicId: topic.id
+            })
+          }>
+          push next live branch state
+        </button>
+        <button type="button" onClick={() => onBranchLiveStateChange?.(null)}>
+          finish live branch state
         </button>
         <button type="button" onClick={() => renderCounters.readBranchAnchor(getBranchDraftAnchorId?.() ?? null)}>
           read branch anchor
@@ -222,6 +261,7 @@ describe('Chat panels', () => {
   }
 
   beforeEach(() => {
+    renderCounters.branchLiveStateCallbacks.clear()
     renderCounters.chatContent = 0
     renderCounters.navbar = 0
     renderCounters.eventEmit.mockReset()
@@ -271,7 +311,112 @@ describe('Chat panels', () => {
     expect(renderCounters.chatContent).toBe(initialChatContentRenders)
     expect(renderCounters.setBranchLiveState).toHaveBeenCalledWith('topic-1', {
       activeNodeId: 'assistant-live',
-      nodes: [],
+      nodes: [{ id: 'assistant-live', preview: 'stream frame 1' }],
+      topicId: 'topic-1'
+    })
+  })
+
+  it('keeps the user-selected branch active while streaming snapshots continue', () => {
+    renderChat(activeTopic)
+
+    fireEvent.click(screen.getByRole('button', { name: 'push live branch state' }))
+    fireEvent.click(screen.getByRole('button', { name: 'select next branch' }))
+    renderCounters.setBranchLiveState.mockClear()
+
+    fireEvent.click(screen.getByRole('button', { name: 'push next live branch state' }))
+
+    expect(renderCounters.setBranchLiveState).toHaveBeenLastCalledWith('topic-1', {
+      activeNodeId: 'assistant-next',
+      nodes: [{ id: 'assistant-live', preview: 'stream frame 2' }],
+      topicId: 'topic-1'
+    })
+  })
+
+  it('releases the user-selected branch override when streaming finishes', () => {
+    renderChat(activeTopic)
+
+    fireEvent.click(screen.getByRole('button', { name: 'push live branch state' }))
+    fireEvent.click(screen.getByRole('button', { name: 'select next branch' }))
+    fireEvent.click(screen.getByRole('button', { name: 'finish live branch state' }))
+    renderCounters.setBranchLiveState.mockClear()
+
+    fireEvent.click(screen.getByRole('button', { name: 'push next live branch state' }))
+
+    expect(renderCounters.setBranchLiveState).toHaveBeenLastCalledWith('topic-1', {
+      activeNodeId: 'assistant-live',
+      nodes: [{ id: 'assistant-live', preview: 'stream frame 2' }],
+      topicId: 'topic-1'
+    })
+  })
+
+  it('replaces the active branch override when the user selects again', () => {
+    renderChat(activeTopic)
+
+    fireEvent.click(screen.getByRole('button', { name: 'push live branch state' }))
+    fireEvent.click(screen.getByRole('button', { name: 'select next branch' }))
+    fireEvent.click(screen.getByRole('button', { name: 'select other branch' }))
+    renderCounters.setBranchLiveState.mockClear()
+
+    fireEvent.click(screen.getByRole('button', { name: 'push next live branch state' }))
+
+    expect(renderCounters.setBranchLiveState).toHaveBeenLastCalledWith('topic-1', {
+      activeNodeId: 'assistant-other',
+      nodes: [{ id: 'assistant-live', preview: 'stream frame 2' }],
+      topicId: 'topic-1'
+    })
+  })
+
+  it('does not carry a user-selected branch override into another topic', () => {
+    const view = renderChat(activeTopic)
+
+    fireEvent.click(screen.getByRole('button', { name: 'push live branch state' }))
+    fireEvent.click(screen.getByRole('button', { name: 'select next branch' }))
+
+    view.rerender(<Chat activeTopic={{ ...activeTopic, id: 'topic-2' }} />)
+    renderCounters.setBranchLiveState.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'push next live branch state' }))
+
+    expect(renderCounters.setBranchLiveState).toHaveBeenLastCalledWith('topic-2', {
+      activeNodeId: 'assistant-live',
+      nodes: [{ id: 'assistant-live', preview: 'stream frame 2' }],
+      topicId: 'topic-2'
+    })
+  })
+
+  it('ignores a late terminal callback from the previous topic when the current topic has an override', () => {
+    const view = renderChat(activeTopic)
+
+    fireEvent.click(screen.getByRole('button', { name: 'push live branch state' }))
+    const topicALiveStateCallback = renderCounters.branchLiveStateCallbacks.get('topic-1')
+    expect(topicALiveStateCallback).toBeDefined()
+
+    view.rerender(<Chat activeTopic={{ ...activeTopic, id: 'topic-2' }} />)
+    fireEvent.click(screen.getByRole('button', { name: 'push live branch state' }))
+    fireEvent.click(screen.getByRole('button', { name: 'select next branch' }))
+    act(() => topicALiveStateCallback?.(null))
+    expect(renderCounters.setBranchLiveState).toHaveBeenLastCalledWith('topic-1', null)
+    renderCounters.setBranchLiveState.mockClear()
+
+    fireEvent.click(screen.getByRole('button', { name: 'push next live branch state' }))
+
+    expect(renderCounters.setBranchLiveState).toHaveBeenLastCalledWith('topic-2', {
+      activeNodeId: 'assistant-next',
+      nodes: [{ id: 'assistant-live', preview: 'stream frame 2' }],
+      topicId: 'topic-2'
+    })
+  })
+
+  it('does not carry a non-streaming branch selection into a later live snapshot', () => {
+    renderChat(activeTopic)
+
+    fireEvent.click(screen.getByRole('button', { name: 'select next branch' }))
+    renderCounters.setBranchLiveState.mockClear()
+
+    fireEvent.click(screen.getByRole('button', { name: 'push live branch state' }))
+
+    expect(renderCounters.setBranchLiveState).toHaveBeenLastCalledWith('topic-1', {
+      activeNodeId: 'assistant-live',
+      nodes: [{ id: 'assistant-live', preview: 'stream frame 1' }],
       topicId: 'topic-1'
     })
   })

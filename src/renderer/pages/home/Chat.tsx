@@ -60,6 +60,8 @@ const Chat: FC<Props> = (props) => {
   const setTopicBranchLiveState = useTopicBranchLiveStateSetter()
   const branchDraftAnchorIdRef = useRef<string | null>(null)
   const branchSendAnchorOverrideIdRef = useRef<string | null>(null)
+  const branchLiveTopicIdsRef = useRef(new Set<string>())
+  const branchActiveNodeOverrideRef = useRef<{ topicId: string; activeNodeId: string } | null>(null)
 
   const mainRef = React.useRef<HTMLDivElement>(null)
   const contentSearchRef = useRef<ContentSearchRef>(null)
@@ -76,12 +78,25 @@ const Chat: FC<Props> = (props) => {
     branchDraftAnchorIdRef.current = null
     branchSendAnchorOverrideIdRef.current = null
     setBranchLocateMessageId(undefined)
-    if (!activeTopicId) return
+    if (!activeTopicId) {
+      branchLiveTopicIdsRef.current.clear()
+      branchActiveNodeOverrideRef.current = null
+      return
+    }
 
+    const liveTopicIds = branchLiveTopicIdsRef.current
+    liveTopicIds.delete(activeTopicId)
+    if (branchActiveNodeOverrideRef.current?.topicId === activeTopicId) {
+      branchActiveNodeOverrideRef.current = null
+    }
     setTopicBranchLiveState(activeTopicId, null)
     return () => {
       branchDraftAnchorIdRef.current = null
       branchSendAnchorOverrideIdRef.current = null
+      liveTopicIds.delete(activeTopicId)
+      if (branchActiveNodeOverrideRef.current?.topicId === activeTopicId) {
+        branchActiveNodeOverrideRef.current = null
+      }
       setTopicBranchLiveState(activeTopicId, null)
     }
   }, [activeTopicId, setTopicBranchLiveState])
@@ -168,7 +183,23 @@ const Chat: FC<Props> = (props) => {
   const handleBranchLiveStateChange = useCallback(
     (state: Parameters<typeof setTopicBranchLiveState>[1]) => {
       const topicId = state?.topicId ?? activeTopicId
-      if (topicId) setTopicBranchLiveState(topicId, state)
+      if (!topicId) return
+
+      if (!state) {
+        branchLiveTopicIdsRef.current.delete(topicId)
+        if (branchActiveNodeOverrideRef.current?.topicId === topicId) {
+          branchActiveNodeOverrideRef.current = null
+        }
+        setTopicBranchLiveState(topicId, null)
+        return
+      }
+
+      branchLiveTopicIdsRef.current.add(topicId)
+      const activeNodeId =
+        branchActiveNodeOverrideRef.current?.topicId === topicId
+          ? branchActiveNodeOverrideRef.current.activeNodeId
+          : state.activeNodeId
+      setTopicBranchLiveState(topicId, activeNodeId === state.activeNodeId ? state : { ...state, activeNodeId })
     },
     [activeTopicId, setTopicBranchLiveState]
   )
@@ -179,11 +210,21 @@ const Chat: FC<Props> = (props) => {
   const clearBranchDraft = useCallback(() => {
     branchDraftAnchorIdRef.current = null
     branchSendAnchorOverrideIdRef.current = null
-  }, [])
+    if (branchActiveNodeOverrideRef.current?.topicId === activeTopicId) {
+      branchActiveNodeOverrideRef.current = null
+    }
+  }, [activeTopicId])
   const handleCancelBranchDraft = useCallback(
     (nextActiveNodeId?: string | null) => {
       branchDraftAnchorIdRef.current = null
       branchSendAnchorOverrideIdRef.current = nextActiveNodeId ?? null
+      if (nextActiveNodeId !== undefined && activeTopicId) {
+        if (nextActiveNodeId && branchLiveTopicIdsRef.current.has(activeTopicId)) {
+          branchActiveNodeOverrideRef.current = { topicId: activeTopicId, activeNodeId: nextActiveNodeId }
+        } else if (branchActiveNodeOverrideRef.current?.topicId === activeTopicId) {
+          branchActiveNodeOverrideRef.current = null
+        }
+      }
       if (!activeTopicId) return
 
       if (nextActiveNodeId === undefined) {
@@ -209,6 +250,9 @@ const Chat: FC<Props> = (props) => {
 
       branchDraftAnchorIdRef.current = anchorMessageId
       branchSendAnchorOverrideIdRef.current = null
+      if (branchActiveNodeOverrideRef.current?.topicId === activeTopicId) {
+        branchActiveNodeOverrideRef.current = null
+      }
       const draftNodeId = `branch-draft:${anchorMessageId}`
       const draftState: TopicMessageFlowLiveState = {
         topicId: activeTopicId,
