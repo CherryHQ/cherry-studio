@@ -130,6 +130,8 @@ export type QuickPanelListItem = {
    * while filtering and remain part of keyboard navigation after regular rows.
    */
   fixedToBottom?: boolean
+  /** Keep the current panel open after this item's action runs. */
+  keepOpenOnAction?: boolean
   action?: (options: QuickPanelCallBackOptions) => void
 }
 

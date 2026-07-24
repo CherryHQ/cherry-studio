@@ -908,10 +908,10 @@
         {
           "originalKey": "userId",
           "type": "string",
-          "defaultValue": "uuid()",
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "app.user.id"
+          "defaultValue": "",
+          "status": "pending",
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "showPrompt",
@@ -1901,10 +1901,18 @@
         {
           "originalKey": "enableDataCollection",
           "type": "boolean",
-          "defaultValue": false,
+          "defaultValue": true,
           "status": "classified",
           "category": "preferences",
           "targetKey": "app.privacy.data_collection.enabled"
+        },
+        {
+          "originalKey": "privacyPolicyVersion",
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.privacy.policy_version"
         },
         {
           "originalKey": "enableSpellCheck",
@@ -3392,12 +3400,12 @@
       ],
       "ClientId": [
         {
-          "originalKey": "ClientId",
-          "type": "unknown",
-          "defaultValue": null,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "originalKey": "clientId",
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.user.id"
         }
       ],
       "GitBashPath": [
