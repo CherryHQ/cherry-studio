@@ -566,7 +566,7 @@
       },
       "prompt": "提示設定",
       "skills": {
-        "addMore": "添加更多技能",
+        "addMore": "管理技能",
         "builtin": "內建",
         "noFilterResults": "沒有符合的技能",
         "noSkills": "未安裝任何技能。請前往「設定」>「技能」安裝技能。",
@@ -1222,6 +1222,8 @@
         "label": "思維鏈長度",
         "low": "稍微思考",
         "low_description": "低階推理",
+        "max": "全力思考",
+        "max_description": "最高階推理",
         "medium": "正常思考",
         "medium_description": "中等程度推理",
         "minimal": "最少思考",
@@ -1468,6 +1470,18 @@
           }
         },
         "unsupported_model": "目前模型不支援可調整的推理"
+      },
+      "toolbar": {
+        "customize": "自訂工具列",
+        "drag": {
+          "cancelled": "已取消對 {{name}} 的重新排序。",
+          "dropped": "已放下 {{name}}。",
+          "instructions": "重新排序：按空白鍵或 Enter 拿起工具，用方向鍵移動，再按空白鍵或 Enter 放下，按 Esc 取消。",
+          "over": "{{name}} 移動到 {{over}} 上方。",
+          "picked_up": "已拿起 {{name}}。"
+        },
+        "drag_handle": "拖曳以重新排序 {{name}}",
+        "restore_default": "還原預設"
       },
       "tools": {
         "collapse": "折疊",
@@ -1743,6 +1757,7 @@
     "thinking_tokens": "約 {{tokens}} tokens",
     "topics": {
       "auto_rename": "自動重新命名對話",
+      "auto_rename_failed": "自動產生對話名稱失敗",
       "clear": {
         "title": "清空訊息"
       },
@@ -1970,6 +1985,7 @@
         "default": "預設",
         "high": "高",
         "low": "低",
+        "max": "全力思考",
         "medium": "中",
         "minimal": "最小",
         "xhigh": "超高"
@@ -2164,6 +2180,7 @@
     "copy_failed": "複製失敗",
     "create_success": "已成功建立",
     "current": "目前",
+    "decline": "不同意",
     "default": "預設",
     "delete": "刪除",
     "delete_confirm": "確定要刪除嗎？",
@@ -2440,6 +2457,80 @@
       "reasoning_truncated": "思維鏈無法分塊，已截斷"
     },
     "user": "使用者"
+  },
+  "file_preview": {
+    "html": {
+      "empty": {
+        "description": "此 HTML 檔案沒有內容。",
+        "title": "空檔案"
+      },
+      "mode": {
+        "label": "HTML 檢視模式",
+        "preview": "預覽",
+        "source": "來源"
+      },
+      "read_error": {
+        "title": "無法讀取此檔案"
+      },
+      "too_large": {
+        "description": "超過 {{limit}} MiB 的 HTML 檔案無法預覽。",
+        "title": "檔案太大"
+      }
+    },
+    "invalid_path": {
+      "description": "檔案預覽需要有效的絕對本機路徑。",
+      "title": "無法預覽此檔案"
+    },
+    "load_error": {
+      "description": "無法載入預覽內容。",
+      "title": "預覽失敗"
+    },
+    "loading": "載入預覽中...",
+    "markdown": {
+      "empty": {
+        "description": "這個 Markdown 檔案沒有內容。",
+        "title": "空檔案"
+      },
+      "mode": {
+        "label": "Markdown 檢視模式",
+        "preview": "預覽",
+        "source": "來源"
+      },
+      "read_error": {
+        "title": "無法讀取此檔案"
+      },
+      "too_large": {
+        "description": "Markdown 檔案大小超過 {{limit}} MiB 時無法預覽。",
+        "title": "檔案太大"
+      }
+    },
+    "pdf": {
+      "too_large": {
+        "action": "使用預設應用程式開啟",
+        "description": "超過 {{limit}} MiB 的 PDF 檔案無法預覽。",
+        "open_error": "無法開啟此檔案",
+        "title": "檔案太大"
+      }
+    },
+    "text": {
+      "empty": {
+        "description": "此文字檔案沒有內容。",
+        "title": "空檔案"
+      },
+      "read_error": {
+        "title": "無法讀取此檔案"
+      },
+      "too_large": {
+        "description": "超過 {{limit}} MiB 的文字檔案無法預覽。",
+        "title": "檔案太大"
+      }
+    },
+    "unsupported": {
+      "action": "使用預設應用程式開啟",
+      "description": "此檔案類型尚無法預覽。",
+      "open_error": "無法開啟此檔案",
+      "title": "無法預覽"
+    }
   },
   "files": {
     "actions": "操作",
@@ -3484,8 +3575,10 @@
       "title": "圖書館"
     },
     "skill_add": {
+      "add": "新增 Skill",
       "local_import": "本機匯入",
-      "online_search": "線上搜尋"
+      "online_search": "線上搜尋",
+      "system_search": "系統搜尋"
     },
     "skill_detail": {
       "created_at": "建立時間",
@@ -3513,6 +3606,19 @@
       "updated": "依更新時間"
     },
     "subtitle": "管理你的助手、智能體與技能",
+    "system_skill": {
+      "conflict": "名稱衝突",
+      "description": "匯入系統中已安裝的 Skill。",
+      "empty_description": "未在這台裝置的其他程式開發工具中找到可匯入的 Skill。",
+      "empty_title": "沒有可匯入的 Skill",
+      "enable_success": "已啟用 {{name}}",
+      "enabled": "已啟用",
+      "import": "匯入",
+      "import_success": "已匯入 {{name}}",
+      "imported": "已匯入",
+      "search_placeholder": "搜尋系統 Skill...",
+      "title": "系統 Skill"
+    },
     "tag_picker": {
       "no_tags": "尚無標籤",
       "placeholder": "新標籤名稱..."
@@ -4330,14 +4436,30 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "privacy": {
+      "accept_and_continue": "同意並繼續",
+      "accept_policy": "同意隱私協議",
+      "notice": "我已閱讀並同意",
+      "period": "",
+      "policy": "隱私協議",
+      "update_failed": "無法儲存隱私協議同意狀態，請重試"
+    },
+    "provider_setup": {
+      "missing_model": "請先啟用該服務商下的至少一個模型",
+      "missing_provider": "請先啟用一個服務商",
+      "next": "下一步",
+      "subtitle": "新增 API Key 或登入 CherryIN，然後啟用一個服務商。",
+      "title": "選擇服務商"
+    },
     "select_model": {
       "change_later": "您可以隨時在設定中更改此項目",
       "start": "開始使用",
       "subtitle": "為每個情境選擇預設模型",
-      "title": "選擇您的預設模型"
+      "title": "選擇預設模型"
     },
     "skip": "跳過",
     "toast": {
+      "complete_failed": "無法完成引導，請重試",
       "connected": "成功連接到 CherryIN"
     },
     "welcome": {
@@ -4346,7 +4468,7 @@
       "other_provider": "選擇其他供應商",
       "select_other_provider": "選擇其他供應商",
       "setup_hint": "請至少設定一個提供者以獲得最佳體驗",
-      "subtitle": "享受頂尖 AI 服務，盡在 CherryIN",
+      "subtitle": "連接服務商，開啟您的全能 AI 工作站",
       "title": "歡迎來到 Cherry Studio"
     }
   },
@@ -4686,6 +4808,7 @@
     "req_error_text": "伺服器繁忙或提示詞中出現「版權詞」或「敏感詞」，請重試。",
     "req_error_token": "請檢查權杖的有效性",
     "required_field": "必填欄位",
+    "revealing": "正在呈現產生的圖片",
     "safety_tolerance": "安全容忍度",
     "safety_tolerance_tip": "數值越高 = 篩選條件越寬鬆；0 為最嚴格，6 為最寬鬆",
     "seed": "隨機種子",
@@ -4834,6 +4957,16 @@
     "source": "檢視原始碼",
     "zoom_in": "放大",
     "zoom_out": "縮小"
+  },
+  "privacy_policy": {
+    "load_failed": "無法載入隱私協議",
+    "title": "隱私協議"
+  },
+  "privacy_policy_update": {
+    "acknowledge_failed": "無法儲存確認狀態，請重試",
+    "description_before_link": "我們更新了隱私協議。請查看最新的",
+    "policy": "隱私協議",
+    "title": "隱私協議更新"
   },
   "prompts": {
     "explanation": "幫我解釋一下這個概念",
@@ -5343,7 +5476,7 @@
         "icon": {
           "error": "無效的圖示名稱，請檢查輸入",
           "label": "圖示",
-          "placeholder": "輸入 Lucide 圖示名稱",
+          "placeholder": "圖示名稱",
           "random": "隨機圖示",
           "tooltip": "Lucide 圖示名稱為小寫，如 arrow-right",
           "view_all": "檢視所有圖示"
@@ -5526,14 +5659,15 @@
         "select": "變更目錄",
         "select_error": "變更資料目錄失敗",
         "select_error_in_app_path": "新路徑與應用安裝路徑相同，請選擇其他路徑",
+        "select_error_protected_path": "所選路徑受作業系統或 Cherry Studio 保護，請選擇其他資料夾",
         "select_error_root_path": "新路徑不能是根路徑",
         "select_error_same_path": "新路徑與舊路徑相同，請選擇其他路徑",
         "select_error_write_permission": "新路徑沒有寫入權限",
         "select_not_empty_dir": "新路徑不為空",
-        "select_not_empty_dir_content": "新路徑不為空，若選擇複製將覆寫新路徑中的資料，可能導致資料遺失或複製失敗。是否繼續？",
         "select_success": "資料目錄已變更，應用程式將重新啟動以套用變更",
         "select_title": "變更應用程式資料目錄",
-        "stop_quit_app_reason": "應用程式目前正在移轉資料，無法關閉"
+        "stop_quit_app_reason": "應用程式目前正在移轉資料，無法關閉",
+        "switch_existing_notice": "將直接使用這個非空目錄，不會覆寫其中的現有檔案。"
       },
       "app_logs": {
         "button": "開啟日誌",
@@ -6057,14 +6191,55 @@
       "addToolDescription": "使用 mise 工具鍵新增工具（例如 github:sharkdp/fd、uv、bun）。",
       "checkUpdates": "檢查更新",
       "coreDepsMissing": "核心依賴未安裝",
-      "customTools": "自訂工具",
-      "customToolsEmpty": "尚無自訂工具。請新增一個以開始使用。",
       "description": "管理應用程式執行所需的二進位工具和執行階段依賴。",
       "duplicateName": "已存在相同名稱的工具",
       "fieldVersion": "版本（選填，預設為最新）",
-      "install": "安裝",
       "installError": "工具安裝失敗",
+      "installErrorHint": "安裝命令執行失敗。複製下方日誌以便排查或尋求協助。",
+      "installSettings": {
+        "description": "微調內建 CLI 工具的安裝方式。所有欄位皆為選填，留空則保持預設。",
+        "githubMirror": {
+          "help": "GitHub Release 下載的代理前綴（例如 https://ghfast.top）。GitHub API 仍會直連；遇到速率限制時請設定 Token。",
+          "label": "GitHub 鏡像",
+          "placeholder": "https://ghfast.top（留空則直連）"
+        },
+        "githubToken": {
+          "help": "提高工具查詢時的 GitHub API 速率限制。以純文字儲存在本機。留空則使用 CHERRY_GITHUB_TOKEN 環境變數。",
+          "hide": "隱藏權杖",
+          "label": "GitHub Token",
+          "placeholder": "ghp_…",
+          "show": "顯示 Token"
+        },
+        "invalidUrl": "請輸入包含 https:// 的有效 URL",
+        "npmRegistry": {
+          "help": "npm: 類工具使用的鏡像來源。留空則在中國大陸自動選擇鏡像。",
+          "label": "npm 鏡像來源",
+          "placeholder": "留空則自動（中國鏡像）"
+        },
+        "pipIndexUrl": {
+          "help": "pipx: 類工具使用的索引網址。留空則在中國大陸自動選擇鏡像。",
+          "label": "pip 索引網址",
+          "placeholder": "留空則自動（中國鏡像）"
+        },
+        "presetLabels": {
+          "aliyun": "阿里雲（中國）",
+          "default": "預設（不使用鏡像）",
+          "ghfast": "ghfast.top",
+          "ghproxy": "ghproxy.net",
+          "npmOfficial": "npmjs（官方）",
+          "npmmirror": "npmmirror（中國）",
+          "pypiOfficial": "PyPI（官方）",
+          "tsinghua": "清華大學（中國）"
+        },
+        "presets": "預設",
+        "title": "進階安裝設定",
+        "verifySignatures": {
+          "help": "驗證 aqua 類工具的 Sigstore/SLSA 簽章。僅當你的網路無法完成驗證時才關閉——關閉會略過供應鏈驗證。",
+          "label": "驗證工具簽章"
+        }
+      },
       "installing": "安裝中...",
+      "installingHint": "首次安裝可能需要下載執行環境，耗時數分鐘",
       "invalidTool": "工具名稱或識別碼無效",
       "localModels": {
         "cancel": "取消",
@@ -6088,17 +6263,24 @@
           "downloading": "下載中…",
           "ready": "已就緒"
         },
-        "title": "本機模型"
+        "title": "本機模型",
+        "unsupported": "目前平台不支援本機模型。"
       },
       "notInstalled": "未安裝",
       "openBinariesDir": "開啟二進位檔案目錄",
       "remove": "移除工具",
       "removeConfirmMessage": "確定要移除「{{name}}」嗎？二進位檔案將會被刪除。",
       "removeConfirmTitle": "移除工具",
+      "removeDefinitionOnlyConfirmMessage": "[to be translated]:Cherry could not safely clean up \"{{name}}\". Removing only its definition will hide the card but leave its backend files installed. Continue?",
+      "removeDefinitionOnlyConfirmTitle": "[to be translated]:Remove Definition Only?",
+      "removeRuntimeConfirmMessage": "確定要移除「{{name}}」嗎？解除安裝此執行時可能導致依賴它的 npm 或 pip 工具無法使用。",
+      "runtimeDependency": "執行時依賴",
+      "runtimeDependencyHint": "npm/pip 工具使用的執行時",
       "searchFailed": "搜尋失敗，請查看日誌",
       "searchRegistry": "搜尋 mise 工具倉庫...",
       "source": {
-        "bundled": "內建"
+        "bundled": "內建",
+        "system": "系統"
       },
       "title": "環境依賴",
       "tools": {
@@ -6117,8 +6299,15 @@
         "rtk": "CLI 代理工具，透過壓縮終端輸出來減少 LLM token 消耗。",
         "uv": "用於 MCP 服務與依賴安裝的 Python 套件管理工具。"
       },
+      "uninstall": "[to be translated]:Uninstall",
+      "uninstallConfirmMessage": "[to be translated]:Are you sure you want to uninstall \"{{name}}\"? Cherry Studio's backend copy will be deleted.",
+      "uninstallConfirmTitle": "[to be translated]:Uninstall Tool",
+      "uninstallFailed": "[to be translated]:Failed to uninstall tool",
+      "uninstallSuccess": "[to be translated]:Tool uninstalled",
       "update": "更新到最新版本",
-      "updateCheckFailed": "檢查更新失敗"
+      "updateCheckFailed": "檢查更新失敗",
+      "updateCheckSuccess": "版本檢查完成",
+      "viewErrorDetails": "檢視詳情"
     },
     "developer": {
       "enable_developer_mode": "啟用開發者模式",
@@ -6562,10 +6751,10 @@
       "user": "使用者"
     },
     "menuGroups": {
-      "automation": "自動化",
-      "capabilities": "能力與工具",
+      "automation": "效率",
+      "capabilities": "工具",
       "models": "模型",
-      "personal": "個人",
+      "personal": "偏好",
       "quickAccess": "快捷入口",
       "system": "系統"
     },
@@ -6755,7 +6944,7 @@
       "default_assistant_model": "預設助手模型",
       "default_assistant_model_description": "建立新助手時使用的模型，如果助手未設定模型，則使用此模型",
       "docs": "模型文件",
-      "empty": "找不到模型",
+      "empty": "請選擇模型",
       "enabled_models": "已啟用",
       "expand_all": "全部展開",
       "filter": {
@@ -7722,6 +7911,8 @@
   },
   "tab": {
     "close": "關閉分頁",
+    "close_others": "關閉其他標籤頁",
+    "close_to_right": "關閉右側標籤頁",
     "move_to_first": "移至第一個",
     "new": "新標籤頁",
     "open_in_new_window": "在新視窗中開啟",

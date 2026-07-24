@@ -62,7 +62,7 @@ export function ToolArgsTable({
 }
 
 export const ArgsSection = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('py-2 font-(--font-family-mono,monospace) text-xs leading-normal', className)} {...props} />
+  <div className={cn('font-(family-name:--code-font-family) py-2 text-xs leading-normal', className)} {...props} />
 )
 
 export const ArgsSectionTitle = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (

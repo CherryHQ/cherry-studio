@@ -1,6 +1,7 @@
 import type * as TranslateHooks from '@renderer/hooks/translate'
 import { toast } from '@renderer/services/toast'
 import type * as TranslateUtils from '@renderer/utils/translate'
+import type { BinaryToolSnapshot } from '@shared/types/binary'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -25,12 +26,19 @@ const useJobMock = vi.hoisted(() => vi.fn())
 const uuidMock = vi.hoisted(() => vi.fn(() => 'abort-key'))
 const ipcRequestMock = vi.hoisted(() => vi.fn())
 const ipcEventHandlers = vi.hoisted(() => new Map<string, (payload: unknown) => void>())
+const babeldocInstalledSnapshot: BinaryToolSnapshot = {
+  name: 'babeldoc',
+  availability: { source: 'mise', path: '/shims/babeldoc' },
+  application: { status: 'applied' }
+}
 const binaryMock = vi.hoisted(() => ({
-  state: {
-    tools: {
-      babeldoc: { tool: 'pipx:babeldoc', version: '0.6.3' }
+  snapshots: {
+    babeldoc: {
+      name: 'babeldoc',
+      availability: { source: 'mise', path: '/shims/babeldoc' },
+      application: { status: 'applied' }
     }
-  } as { tools: Record<string, { tool: string; version: string }> }
+  } as Record<string, BinaryToolSnapshot>
 }))
 
 const dropMock = vi.hoisted(() => ({
@@ -414,15 +422,11 @@ describe('TranslatePage', () => {
     })
     ipcRequestMock.mockReset()
     ipcEventHandlers.clear()
-    binaryMock.state = {
-      tools: {
-        babeldoc: { tool: 'pipx:babeldoc', version: '0.6.3' }
-      }
-    }
+    binaryMock.snapshots = { babeldoc: babeldocInstalledSnapshot }
     ipcRequestMock.mockImplementation((channel: string, payload?: unknown) => {
       if (channel === 'file_processing.start_job') return fileMock.startJob(payload)
-      if (channel === 'binary.get_state') return Promise.resolve(binaryMock.state)
-      if (channel === 'binary.install_tool') return Promise.resolve({ version: '0.6.3' })
+      if (channel === 'binary.get_tool_snapshots') return Promise.resolve(binaryMock.snapshots)
+      if (channel === 'binary.install_tool') return Promise.resolve(undefined)
       return Promise.resolve(undefined)
     })
     fileMock.readExternal.mockResolvedValue('document content')
@@ -743,7 +747,7 @@ describe('TranslatePage', () => {
       'feature.translate.page.source_language': 'en-us',
       'feature.translate.page.target_language': 'zh-cn'
     })
-    binaryMock.state = { tools: {} }
+    binaryMock.snapshots = {}
     fileMock.getFileExtension.mockReturnValue('.pdf')
     fileMock.onSelectFile.mockResolvedValue([{ name: 'input.pdf', path: '/tmp/input.pdf', size: 10, type: 'document' }])
     fileMock.readExternal.mockResolvedValue('PDF extracted text')
@@ -779,9 +783,9 @@ describe('TranslatePage', () => {
     expect(MockUseCacheUtils.getCacheValue('translate.output')).toBe('')
   })
 
-  it('installs the pinned BabelDOC version from the PDF prompt without starting translation', async () => {
+  it('installs BabelDOC from the PDF prompt without starting translation', async () => {
     MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', 'openai::gpt-4.1')
-    binaryMock.state = { tools: { babeldoc: { tool: 'pipx:babeldoc', version: '0.6.2' } } }
+    binaryMock.snapshots = {}
     fileMock.getFileExtension.mockReturnValue('.pdf')
     fileMock.onSelectFile.mockResolvedValue([{ name: 'input.pdf', path: '/tmp/input.pdf', size: 10, type: 'document' }])
 
@@ -791,13 +795,7 @@ describe('TranslatePage', () => {
     await waitFor(() => expect(screen.getByTestId('babeldoc-availability')).toHaveTextContent('missing'))
     fireEvent.click(screen.getByRole('button', { name: 'translate.pdf.action.install_babeldoc' }))
 
-    await waitFor(() =>
-      expect(ipcRequestMock).toHaveBeenCalledWith('binary.install_tool', {
-        name: 'babeldoc',
-        tool: 'pipx:babeldoc',
-        version: '0.6.3'
-      })
-    )
+    await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('binary.install_tool', { name: 'babeldoc' }))
     await waitFor(() => expect(screen.getByTestId('babeldoc-availability')).toHaveTextContent('available'))
     expect(pdfHandleMock.start).not.toHaveBeenCalled()
   })
@@ -809,11 +807,11 @@ describe('TranslatePage', () => {
       'feature.translate.page.source_language': 'en-us',
       'feature.translate.page.target_language': 'zh-cn'
     })
-    binaryMock.state = { tools: {} }
+    binaryMock.snapshots = {}
     fileMock.getFileExtension.mockReturnValue('.pdf')
     fileMock.onSelectFile.mockResolvedValue([{ name: 'input.pdf', path: '/tmp/input.pdf', size: 10, type: 'document' }])
     ipcRequestMock.mockImplementation((channel: string) => {
-      if (channel === 'binary.get_state') return Promise.resolve(binaryMock.state)
+      if (channel === 'binary.get_tool_snapshots') return Promise.resolve(binaryMock.snapshots)
       if (channel === 'binary.install_tool') return Promise.reject(installError)
       return Promise.resolve(undefined)
     })
@@ -834,7 +832,7 @@ describe('TranslatePage', () => {
       'feature.translate.model_id': 'openai::gpt-4.1',
       'feature.translate.page.target_language': 'zh-cn'
     })
-    binaryMock.state = { tools: {} }
+    binaryMock.snapshots = {}
     fileMock.getFileExtension.mockReturnValue('.pdf')
     fileMock.onSelectFile.mockResolvedValue([{ name: 'scan.pdf', path: '/tmp/scan.pdf', size: 10, type: 'document' }])
     fileMock.readExternal.mockResolvedValue('  ')
@@ -860,7 +858,7 @@ describe('TranslatePage', () => {
       'feature.translate.page.source_language': 'en-us',
       'feature.translate.page.target_language': 'zh-cn'
     })
-    binaryMock.state = { tools: {} }
+    binaryMock.snapshots = {}
     fileMock.getFileExtension.mockReturnValue('.pdf')
     fileMock.onSelectFile
       .mockResolvedValueOnce([{ name: 'first.pdf', path: '/tmp/first.pdf', size: 10, type: 'document' }])

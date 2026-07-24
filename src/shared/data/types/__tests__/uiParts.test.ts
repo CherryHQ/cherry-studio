@@ -3,13 +3,30 @@ import { describe, expect, it } from 'vitest'
 
 import type { CherryMessagePart } from '../message'
 import {
+  CherryErrorMetaSchema,
   CherryFileMetaSchema,
   CherryReasoningMetaSchema,
   CherryTextMetaSchema,
   CherryToolMetaSchema,
+  type DiagnosisResult,
   readCherryMeta,
   withCherryMeta
 } from '../uiParts'
+
+const diagnosis: DiagnosisResult = {
+  summary: 'OpenAI API key is invalid',
+  category: 'auth',
+  explanation: 'The server rejected the request because the key is invalid.',
+  steps: [{ text: 'Open provider settings and check the key' }]
+}
+
+function dataErrorPart(cherry?: Record<string, unknown>): Extract<CherryMessagePart, { type: 'data-error' }> {
+  return {
+    type: 'data-error',
+    data: { name: 'AuthError', message: 'Unauthorized' },
+    ...(cherry ? { providerMetadata: { cherry } } : {})
+  } as unknown as Extract<CherryMessagePart, { type: 'data-error' }>
+}
 
 // ============================================================================
 // Schema sanity — declared shape matches expectation
@@ -73,6 +90,21 @@ describe('CherryFileMetaSchema', () => {
     const bad = CherryFileMetaSchema.safeParse({ composerFileKind: 'local-path' })
 
     expect(bad.success).toBe(false)
+  })
+})
+
+describe('CherryErrorMetaSchema', () => {
+  it('accepts a fully-formed diagnosis and an empty object', () => {
+    expect(CherryErrorMetaSchema.safeParse({ diagnosis }).success).toBe(true)
+    expect(CherryErrorMetaSchema.safeParse({}).success).toBe(true)
+  })
+
+  it('rejects a diagnosis with a non-string summary', () => {
+    expect(CherryErrorMetaSchema.safeParse({ diagnosis: { ...diagnosis, summary: 42 } }).success).toBe(false)
+  })
+
+  it('rejects a diagnosis whose steps are not step objects', () => {
+    expect(CherryErrorMetaSchema.safeParse({ diagnosis: { ...diagnosis, steps: ['plain'] } }).success).toBe(false)
   })
 })
 
@@ -143,6 +175,14 @@ describe('readCherryMeta', () => {
       fileTokenSourceId: 'source-1',
       composerFileKind: 'pasted-text'
     })
+  })
+
+  it('reads CherryErrorMeta diagnosis from a data-error part', () => {
+    expect(readCherryMeta(dataErrorPart({ diagnosis }))?.diagnosis).toEqual(diagnosis)
+  })
+
+  it('returns undefined for a data-error part with a malformed diagnosis', () => {
+    expect(readCherryMeta(dataErrorPart({ diagnosis: { summary: 42 } }))).toBeUndefined()
   })
 
   it('returns undefined when providerMetadata is missing', () => {
@@ -230,6 +270,11 @@ describe('withCherryMeta', () => {
     const next = withCherryMeta(part, { fileTokenSourceId: 'source-1' })
 
     expect(next.providerMetadata?.cherry).toEqual({ fileTokenSourceId: 'source-1' })
+  })
+
+  it('round-trips a diagnosis onto a data-error part', () => {
+    const next = withCherryMeta(dataErrorPart(), { diagnosis })
+    expect(readCherryMeta(next)?.diagnosis).toEqual(diagnosis)
   })
 
   // ── Compile-time negatives — `tsc --noEmit` enforces these. ──────────

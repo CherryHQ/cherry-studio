@@ -51,7 +51,7 @@ const TEST_ROOT = path.join(os.tmpdir(), 'cherry-pdf-translation-service-test')
 const SOURCE_PATH = path.join(TEST_ROOT, 'source', 'research paper.pdf')
 const MANAGED_BINARY = path.join(TEST_ROOT, 'managed', 'babeldoc')
 
-const binaryManager = { getState: vi.fn() }
+const binaryManager = { getToolSnapshots: vi.fn() }
 const apiGateway = {
   acquireLease: vi.fn(),
   ensureValidApiKey: vi.fn(),
@@ -85,8 +85,12 @@ describe('PdfTranslationService', () => {
       isEnabled: true,
       name: 'GPT-4.1'
     })
-    binaryManager.getState.mockReturnValue({
-      tools: { babeldoc: { tool: 'pipx:babeldoc', version: '0.6.3' } }
+    binaryManager.getToolSnapshots.mockResolvedValue({
+      babeldoc: {
+        name: 'babeldoc',
+        availability: { source: 'mise', path: MANAGED_BINARY },
+        application: { status: 'applied' }
+      }
     })
     apiGateway.acquireLease.mockResolvedValue(undefined)
     apiGateway.ensureValidApiKey.mockResolvedValue('cs-sk-test')
@@ -126,7 +130,7 @@ describe('PdfTranslationService', () => {
       targetLangCode: 'zh-cn'
     })
 
-    expect(binaryManager.getState).toHaveBeenCalledTimes(1)
+    expect(binaryManager.getToolSnapshots).toHaveBeenCalledTimes(1)
     expect(apiGateway.acquireLease).toHaveBeenCalledTimes(1)
     expect(apiGateway.releaseLease).toHaveBeenCalledTimes(1)
     expect(mocks.spawn).toHaveBeenCalledWith(
@@ -246,9 +250,12 @@ describe('PdfTranslationService', () => {
 
   it.each([
     ['missing', {}],
-    ['outdated', { babeldoc: { tool: 'pipx:babeldoc', version: '0.6.2' } }]
-  ])('requires the pinned BabelDOC version to be installed manually when it is %s', async (_case, tools) => {
-    binaryManager.getState.mockReturnValueOnce({ tools })
+    [
+      'not applied',
+      { babeldoc: { name: 'babeldoc', availability: { source: 'none' }, application: { status: 'absent' } } }
+    ]
+  ])('requires BabelDOC to be installed manually when it is %s', async (_case, snapshots) => {
+    binaryManager.getToolSnapshots.mockResolvedValueOnce(snapshots)
     const service = new PdfTranslationService()
 
     const translation = service.translate({

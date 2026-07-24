@@ -1,4 +1,5 @@
 import { electronAPI } from '@electron-toolkit/preload'
+import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
   UnifiedPreferenceKeyType,
@@ -66,18 +67,12 @@ const api = {
   resolvePath: (path: string) => ipcRenderer.invoke(IpcChannel.App_ResolvePath, path),
   isPathInside: (childPath: string, parentPath: string) =>
     ipcRenderer.invoke(IpcChannel.App_IsPathInside, childPath, parentPath),
-  setAppDataPath: (path: string) => ipcRenderer.invoke(IpcChannel.App_SetAppDataPath, path),
-  getDataPathFromArgs: () => ipcRenderer.invoke(IpcChannel.App_GetDataPathFromArgs),
-  copy: (oldPath: string, newPath: string, occupiedDirs: string[] = []) =>
-    ipcRenderer.invoke(IpcChannel.App_Copy, oldPath, newPath, occupiedDirs),
   application: {
     preventQuit: (reason: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Application_PreventQuit, reason),
     allowQuit: (holdId: string): Promise<void> => ipcRenderer.invoke(IpcChannel.Application_AllowQuit, holdId),
     relaunch: (options?: Electron.RelaunchOptions): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.Application_Relaunch, options)
   },
-  flushAppData: () => ipcRenderer.invoke(IpcChannel.App_FlushAppData),
-  isNotEmptyDir: (path: string) => ipcRenderer.invoke(IpcChannel.App_IsNotEmptyDir, path),
   resetData: () => ipcRenderer.invoke(IpcChannel.App_ResetData),
   getCacheSize: () => ipcRenderer.invoke(IpcChannel.App_GetCacheSize),
   clearCache: () => ipcRenderer.invoke(IpcChannel.App_ClearCache),
@@ -314,11 +309,11 @@ const api = {
   // Data API related APIs
   dataApi: {
     request: (req: any) => ipcRenderer.invoke(IpcChannel.DataApi_Request, req),
-    subscribe: (path: string, callback: (data: any, event: string) => void) => {
-      const channel = `${IpcChannel.DataApi_Stream}:${path}`
-      const listener = (_: any, data: any, event: string) => callback(data, event)
-      ipcRenderer.on(channel, listener)
-      return () => ipcRenderer.off(channel, listener)
+    // DataApi data change notifications: single fixed channel, main → all windows.
+    onDataChanged: (callback: (effects: DataApiDataChangeEffect[]) => void) => {
+      const listener = (_: any, effects: DataApiDataChangeEffect[]) => callback(effects)
+      ipcRenderer.on(IpcChannel.DataApi_DataChanged, listener)
+      return () => ipcRenderer.off(IpcChannel.DataApi_DataChanged, listener)
     }
   },
   // IpcApi RPC channel — generic forwarder; the typed facade lives in src/renderer/ipc

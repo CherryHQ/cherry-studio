@@ -26,7 +26,7 @@ import type { ComposerAttachment } from '@renderer/utils/message/composerAttachm
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { Model } from '@shared/data/types/model'
 import { Plus } from 'lucide-react'
-import React, { useCallback, useEffect, useMemo, useRef } from 'react'
+import React, { createContext, use, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ComposerUnifiedPanelControl } from './quickPanel'
@@ -64,6 +64,7 @@ interface ComposerToolRuntimeBootstrapProps {
   assistant?: Assistant
   model: Model
   session?: ToolContext['session']
+  reasoning?: ToolContext['reasoning']
 }
 
 type AnyToolDefinition = ToolDefinition<readonly ToolStateKey[], readonly ToolActionKey[]>
@@ -75,7 +76,13 @@ const ComposerToolRuntimeSlot = ({ tool, context }: { tool: AnyToolDefinition; c
   return <Runtime context={context} />
 }
 
-export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: ComposerToolRuntimeBootstrapProps) => {
+export const ComposerToolRuntimeHost = ({
+  scope,
+  assistant,
+  model,
+  session,
+  reasoning
+}: ComposerToolRuntimeBootstrapProps) => {
   const { t } = useTranslation()
   const toolState = useComposerToolProviderState()
   const { addNewTopic, onTextChange, setFiles, setMentionedModels, setSelectedKnowledgeBases, toolsRegistry } =
@@ -95,8 +102,8 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
   )
 
   const availableTools = useMemo(() => {
-    return getToolsForScope(scope, { assistant, model, session, provider })
-  }, [assistant, model, provider, scope, session])
+    return getToolsForScope(scope, { assistant, model, session, reasoning, provider })
+  }, [assistant, model, provider, reasoning, scope, session])
 
   const getLauncherApiForTool = useCallback(
     (toolKey: string): ToolRenderContext<any, any>['launcher'] => {
@@ -143,13 +150,14 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
         assistant,
         model,
         session,
+        reasoning,
         state,
         actions: runtimeActions,
         launcher: getLauncherApiForTool(tool.key),
         t
       } as ToolRenderContext<S, A>
     },
-    [assistant, getLauncherApiForTool, model, scope, session, t, toolActions, toolState]
+    [assistant, getLauncherApiForTool, model, reasoning, scope, session, t, toolActions, toolState]
   )
 
   const toolRuntimeEntries = useMemo(
@@ -340,15 +348,32 @@ interface ComposerToolMenuProps {
   unifiedPanelControl?: ComposerUnifiedPanelControl
 }
 
+// Ids the pinned toolbar bar (ComposerToolbarShortcuts) is already rendering. The variant
+// publishes them so ComposerActiveToolControls can drop those launchers (they'd otherwise
+// double-render) — and, since the pinned bar is now their persistent home, an unpinned but
+// active tool falls back into the active-controls chips.
+const ComposerPinnedToolsContext = createContext<readonly string[]>([])
+
+export const ComposerPinnedToolsProvider = ComposerPinnedToolsContext.Provider
+
+export function useComposerPinnedTools() {
+  return use(ComposerPinnedToolsContext)
+}
+
 export const ComposerActiveToolControls = ({ inputAdapter }: ComposerToolMenuProps) => {
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherController()
+  const pinnedIds = useComposerPinnedTools()
   const activeLaunchers = useMemo(
     () =>
       getLaunchers('popover').filter(
         (launcher) =>
-          launcher.active && launcher.showInActiveControls !== false && !launcher.disabled && !launcher.hidden
+          launcher.active &&
+          launcher.showInActiveControls !== false &&
+          !launcher.disabled &&
+          !launcher.hidden &&
+          !pinnedIds.includes(launcher.id)
       ),
-    [getLaunchers]
+    [getLaunchers, pinnedIds]
   )
 
   if (activeLaunchers.length === 0) return null

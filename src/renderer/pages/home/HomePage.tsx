@@ -1,13 +1,10 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { type ResourcePaneConfig, type ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
+import type { ResourcePaneConfig, ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
 import { EmptyState, LoadingState } from '@renderer/components/chat/primitives'
 import { AssistantResourceList } from '@renderer/components/chat/resourceList/AssistantResourceList'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
-import { ChatAppShell } from '@renderer/components/chat/shell/ChatAppShell'
-import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
-import ConversationPageShell from '@renderer/components/chat/shell/ConversationPageShell'
-import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
+import { ChatAppShell, type PaneManualToggleSignal } from '@renderer/components/chat/shell/ChatAppShell'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
 import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
 import {
@@ -55,7 +52,7 @@ import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { useLocation, useSearch } from '@tanstack/react-router'
 import { MessageCircle } from 'lucide-react'
-import type { FC, HTMLAttributes, ReactNode } from 'react'
+import type { FC, HTMLAttributes } from 'react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -142,7 +139,7 @@ const HomePage: FC = () => {
   // otherwise read the same pre-refresh topic list twice and stack duplicate blank topics.
   const isCreatingTopicRef = useRef(false)
   const [lastUsedAssistantId, setLastUsedAssistantId] = usePersistCache(LAST_USED_ASSISTANT_CACHE_KEY)
-  const [, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
+  const [lastUsedTopicId, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
   const [, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const [, setTopicExpansionAssistant] = usePersistCache('ui.topic.expansion.assistant')
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
@@ -153,8 +150,6 @@ const HomePage: FC = () => {
   const [panePosition, setPanePosition] = usePreference('topic.tab.position')
   const [autoCollapsedResourceList, setAutoCollapsedResourceList] = useState(false)
   const isClassicTopicLayout = topicDisplayMode === 'assistant'
-  // Classic-layout right-pane open state, cached on the assistant surface's own key.
-  const [topicPaneOpen, setTopicPaneOpen] = useClassicLayoutRightPaneOpen('chat', isClassicTopicLayout)
   const [assistantPickerOpen, setAssistantPickerOpen] = useState(false)
 
   const location = useLocation()
@@ -165,6 +160,11 @@ const HomePage: FC = () => {
   const tabMetadataTopicId = currentTab ? getTabInstanceKey(currentTab, 'assistants') : undefined
   const routeAssistantId = routeTopicId ? undefined : routeSearch.assistantId
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeTopicId
+  const isWindowFrame = useWindowFrame().mode === 'window'
+  const [topicPaneOpen, setTopicPaneOpen] = useClassicLayoutRightPaneOpen('chat', {
+    enabled: isClassicTopicLayout,
+    defaultOpen: !isWindowFrame && panePosition === 'right'
+  })
   // Shared full-topics source for classic history selection and persisted empty-topic reuse.
   // Modern layout also creates real empty topics now, so it needs the same candidates.
   const assistantTopicsSource = useAssistantTopicsSource({ enabled: !isMessageOnlyView })
@@ -175,7 +175,6 @@ const HomePage: FC = () => {
   // ≥200 pinned topics fill the first page).
   const { latestTopic, isLoading: isLatestTopicLoading } = useLatestTopic({ enabled: !isMessageOnlyView })
   const isLatestTopicReady = isMessageOnlyView || !isLatestTopicLoading
-  const isWindowFrame = useWindowFrame().mode === 'window'
   const requestedSidebarOpen = isWindowFrame ? detachedSidebarOpen : showSidebar
   const effectiveShowSidebar = !isMessageOnlyView && requestedSidebarOpen && !autoCollapsedResourceList
   const { topic: routeApiTopic, isLoading: isRouteTopicLoading } = useTopicById(
@@ -234,6 +233,13 @@ const HomePage: FC = () => {
 
   const routeActiveTopicId = isMessageOnlyView ? null : (routeTopicId ?? tabMetadataTopicId ?? null)
   const [activeTopicId, setActiveTopicId] = useState<string | null>(() => routeActiveTopicId)
+  // Resume target frozen at mount: `last_used_topic_id` is rewritten as soon as any topic
+  // activates, so a reactive read would chase this page's own writes. Route / tab-metadata
+  // targets and assistant deep links take precedence over resume.
+  const [resumeTopicId] = useState<string | null>(() =>
+    shouldAutoCreateTopic && !routeActiveTopicId && !routeAssistantId ? lastUsedTopicId : null
+  )
+  const { topic: resumeApiTopic, isLoading: isResumeTopicLoading } = useTopicById(resumeTopicId ?? undefined)
 
   useEffect(() => {
     setActiveTopicId(routeActiveTopicId)
@@ -404,19 +410,28 @@ const HomePage: FC = () => {
   const handleResourceListAutoCollapseChange = useCallback((collapsed: boolean) => {
     setAutoCollapsedResourceList(collapsed)
   }, [])
+  const [paneManualToggle, setPaneManualToggle] = useState<PaneManualToggleSignal | undefined>()
+  const markManualPaneToggle = useCallback(
+    (open: boolean) => {
+      setPaneManualToggle((previous) => ({ seq: (previous?.seq ?? 0) + 1, open }))
+      setResourceListOpen(open)
+    },
+    [setResourceListOpen]
+  )
+  const [topicPaneUserOpenIntentSeq, setTopicPaneUserOpenIntentSeq] = useState(0)
   const toggleResourceListOpen = useCallback(() => {
     if (isMessageOnlyView) return
 
     if (effectiveShowSidebar) {
-      setResourceListOpen(false)
+      markManualPaneToggle(false)
       return
     }
 
-    setResourceListOpen(true)
+    markManualPaneToggle(true)
     requestAnimationFrame(() => {
       void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
     })
-  }, [effectiveShowSidebar, isMessageOnlyView, setResourceListOpen])
+  }, [effectiveShowSidebar, isMessageOnlyView, markManualPaneToggle])
   useCommandHandler('app.sidebar.toggle', toggleResourceListOpen)
 
   useEffect(() => {
@@ -582,6 +597,19 @@ const HomePage: FC = () => {
   useEffect(() => {
     if (!shouldAutoCreateTopic || initialTopicStartStateRef.current.firstLaunchStarted || state?.topic) return
     if (activeTopic || isActiveTopicLoading) return
+
+    // Resume the last-focused topic before falling back to the most-recently-updated one —
+    // "last viewed" and "last edited" differ, and sidebar/restart re-entry should land on
+    // what the user was looking at. A deleted (or unfetchable) last-used topic falls through.
+    if (resumeTopicId) {
+      if (isResumeTopicLoading) return
+      if (resumeApiTopic) {
+        initialTopicStartStateRef.current.firstLaunchStarted = true
+        setActiveTopic(mapApiTopicToRendererTopic(resumeApiTopic))
+        return
+      }
+    }
+
     if (!isLatestTopicReady) return
 
     // Resume the globally most-recently-updated topic as soon as `/latest` resolves — the chat center
@@ -608,7 +636,10 @@ const HomePage: FC = () => {
     isActiveTopicLoading,
     isAssistantListResolved,
     isLatestTopicReady,
+    isResumeTopicLoading,
     latestTopic,
+    resumeApiTopic,
+    resumeTopicId,
     routeAssistantId,
     setActiveTopic,
     shouldAutoCreateTopic,
@@ -837,6 +868,7 @@ const HomePage: FC = () => {
         onCreateTopicAfterClear={(assistantId) => createAndActivateFreshTopic({ assistantId })}
         onSelectedAssistantClick={() => {
           closeSurface()
+          if (!topicPaneOpen) setTopicPaneUserOpenIntentSeq((seq) => seq + 1)
           setTopicPaneOpen(!topicPaneOpen)
         }}
         onCreateTopic={handleCreateEmptyTopicForAssistant}
@@ -862,8 +894,8 @@ const HomePage: FC = () => {
         panePosition="left"
       />
     )
-  // In classic layout the topic list moves into the chat's right pane as a tab; the single page-level
-  // provider owns the Shell for both views so the rail and the right panel share its open/maximize
+  // In classic layout the topic list moves into the chat's right pane as a capability; the single page-level
+  // provider owns the RightPanel for both views so the rail and the right panel share its open/maximize
   // state. New (sidebar) view passes a null config, leaving the pane as branch/trace only.
   const resourcePane: ResourcePaneConfig | null =
     isClassicTopicLayout && topicListPosition === 'right'
@@ -885,15 +917,6 @@ const HomePage: FC = () => {
           )
         }
       : null
-  const renderWithRightPane = (content: ReactNode) => (
-    <TopicRightPane
-      resourcePane={resourcePane}
-      defaultOpen={topicPaneOpen}
-      onOpenChange={isClassicTopicLayout ? setTopicPaneOpen : undefined}
-      revealRequest={topicRevealRequest}>
-      {content}
-    </TopicRightPane>
-  )
   const assistantPickerDialog = isClassicTopicLayout ? (
     <AssistantConversationPickerDialog
       open={assistantPickerOpen}
@@ -906,69 +929,44 @@ const HomePage: FC = () => {
 
   const centerSurface = historyRecordsCenter ?? resourceCenter
 
-  if (centerSurface) {
-    return (
+  // The provider, conversation shell, and viewport stay at one React ownership path while the center
+  // switches between loading, chat, history, and resource surfaces. Capability identity alone now
+  // decides whether a visited right-panel subtree survives.
+  return (
+    <TopicRightPane
+      resourcePane={resourcePane}
+      topicId={visibleTopic?.id}
+      topicName={visibleTopic?.name}
+      traceId={visibleTopic?.traceId}
+      present={!centerSurface}
+      defaultOpen={topicPaneOpen}
+      onOpenChange={isClassicTopicLayout ? setTopicPaneOpen : undefined}
+      userOpenIntentSeq={topicPaneUserOpenIntentSeq}
+      revealRequest={topicRevealRequest}>
       <Container id="home-page">
         <ContentContainer $detached={isWindowFrame}>
-          <ConversationPageShell
-            id="chat"
-            center={centerSurface}
+          <Chat
+            activeTopic={visibleTopic}
+            centerSurface={centerSurface}
             pane={pane}
             paneOpen={effectiveShowSidebar}
             panePosition={shellPanePosition}
-            onPaneCollapse={() => setResourceListOpen(false)}
+            onPaneCollapse={() => markManualPaneToggle(false)}
             onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
+            paneManualToggle={paneManualToggle}
+            onNewTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
+            onCreateEmptyTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
+            showResourceListControls={!isMessageOnlyView}
+            sidebarOpen={effectiveShowSidebar}
+            onSidebarToggle={toggleResourceListOpen}
+            locateMessageId={pendingLocateMessageId}
+            onLocateMessageHandled={handleLocateMessageHandled}
+            resourcePaneCount={topicResourcePaneCount}
           />
         </ContentContainer>
         {assistantPickerDialog}
       </Container>
-    )
-  }
-
-  const chatTopic = visibleTopic
-  if (!chatTopic) {
-    // First-entry has not resolved a topic yet (waiting on `/latest`). Mirror AgentChat's
-    // `isInitializing` branch: keep the rail + shell and show a loading center rather than a blank frame.
-    return renderWithRightPane(
-      <Container id="home-page">
-        <ContentContainer $detached={isWindowFrame}>
-          <ConversationShell
-            id="chat"
-            pane={pane}
-            paneOpen={effectiveShowSidebar}
-            panePosition={shellPanePosition}
-            onPaneCollapse={() => setResourceListOpen(false)}
-            onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
-            center={<ConversationCenterState state="loading" />}
-          />
-        </ContentContainer>
-        {assistantPickerDialog}
-      </Container>
-    )
-  }
-
-  return renderWithRightPane(
-    <Container id="home-page">
-      <ContentContainer $detached={isWindowFrame}>
-        <Chat
-          activeTopic={chatTopic}
-          pane={pane}
-          paneOpen={effectiveShowSidebar}
-          panePosition={shellPanePosition}
-          onPaneCollapse={() => setResourceListOpen(false)}
-          onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
-          onNewTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
-          onCreateEmptyTopic={isMessageOnlyView ? undefined : handleCreateEmptyTopic}
-          showResourceListControls={!isMessageOnlyView}
-          sidebarOpen={effectiveShowSidebar}
-          onSidebarToggle={toggleResourceListOpen}
-          locateMessageId={pendingLocateMessageId}
-          onLocateMessageHandled={handleLocateMessageHandled}
-          resourcePaneCount={topicResourcePaneCount}
-        />
-      </ContentContainer>
-      {assistantPickerDialog}
-    </Container>
+    </TopicRightPane>
   )
 }
 

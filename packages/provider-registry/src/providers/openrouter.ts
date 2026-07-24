@@ -11,6 +11,23 @@ export default defineProvider({
     },
     'openai-chat-completions': {
       adapterFamily: 'openrouter',
+      baseUrl: 'https://openrouter.ai/api/v1/',
+      reasoningFormat: {
+        type: 'openai-chat',
+        wire: {
+          off: { operations: [{ target: 'reasoning.effort', value: { source: 'literal', value: 'none' } }] },
+          auto: { operations: [{ target: 'reasoning.effort', value: { source: 'literal', value: 'medium' } }] },
+          effort: { operations: [{ target: 'reasoning.effort', value: { source: 'effort' } }] }
+        }
+      },
+      modelsApiUrls: {
+        default: 'https://openrouter.ai/api/v1/models',
+        embedding: 'https://openrouter.ai/api/v1/embeddings/models',
+        image: 'https://openrouter.ai/api/v1/images/models'
+      }
+    },
+    'openai-image-generation': {
+      adapterFamily: 'openrouter',
       baseUrl: 'https://openrouter.ai/api/v1/'
     }
   },

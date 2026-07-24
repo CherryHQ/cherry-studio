@@ -9,7 +9,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { topicNamingService } from '@main/services/TopicNamingService'
-import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { UIMessage } from 'ai'
@@ -120,9 +120,11 @@ export class AgentChatContextProvider implements ChatContextProvider {
       // Fire-and-forget is safe: the naming service isolates errors and rechecks state before writing.
       topicNamingService.maybeRenameAgentSessionFromFirstUserMessage(sessionId, savedUserMessage.data)
 
-      application
-        .get('AgentSessionRuntimeService')
-        .enqueueUserMessage(sessionId, userMessage, { headless: req.headless === true, messageSnapshot })
+      application.get('AgentSessionRuntimeService').enqueueUserMessage(sessionId, userMessage, {
+        headless: req.headless === true,
+        messageSnapshot,
+        reasoningEffort: req.reasoningEffort
+      })
 
       return {
         topicId: req.topicId,
@@ -193,6 +195,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       agentId,
       agentType: agent.type,
       modelId: uniqueModelId,
+      reasoningEffort: req.reasoningEffort,
       assistantMessageId,
       userMessage,
       headless: req.headless === true,
@@ -215,6 +218,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
               { id: assistantMessageId, role: 'assistant', parts: [] }
             ],
             messageId: assistantMessageId,
+            reasoningEffort: req.reasoningEffort,
             runtime: { kind: 'agent-session', sessionId, turnId: runtime.turnId }
           },
           rootSpan: turnTrace.rootSpan,

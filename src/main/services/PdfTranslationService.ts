@@ -13,7 +13,7 @@ import { getBinaryPath } from '@main/utils/binaryResolver'
 import { crossPlatformSpawn, killProcessTree } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
 import type { TranslateLangCode, TranslateSourceLanguage } from '@shared/data/preference/preferenceTypes'
-import { BABELDOC_BINARY_TOOL_PRESET, isBabelDocInstalled } from '@shared/data/presets/binaryTools'
+import { BABELDOC_TOOL_NAME, isBabelDocInstalled } from '@shared/data/presets/binaryTools'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { translateErrorCodes } from '@shared/ipc/errors/translate'
@@ -280,27 +280,19 @@ export class PdfTranslationService extends BaseService {
 
   private async resolveSidecar(): Promise<string> {
     const binaryManager = application.get('BinaryManager')
-    if (!isBabelDocInstalled(binaryManager.getState())) {
-      throw new IpcError(
-        translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED,
-        `BabelDOC ${BABELDOC_BINARY_TOOL_PRESET.version} is not installed`
-      )
+    const snapshot = (await binaryManager.getToolSnapshots([BABELDOC_TOOL_NAME]))[BABELDOC_TOOL_NAME]
+    if (!isBabelDocInstalled(snapshot)) {
+      throw new IpcError(translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED, 'BabelDOC is not installed')
     }
 
-    const installedPath = await getBinaryPath(BABELDOC_BINARY_TOOL_PRESET.name)
+    const installedPath = await getBinaryPath(BABELDOC_TOOL_NAME)
     if (!path.isAbsolute(installedPath)) {
-      throw new IpcError(
-        translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED,
-        `BabelDOC ${BABELDOC_BINARY_TOOL_PRESET.version} is not available`
-      )
+      throw new IpcError(translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED, 'BabelDOC is not available')
     }
     try {
       await fs.promises.access(installedPath, fs.constants.X_OK)
     } catch {
-      throw new IpcError(
-        translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED,
-        `BabelDOC ${BABELDOC_BINARY_TOOL_PRESET.version} is not available`
-      )
+      throw new IpcError(translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED, 'BabelDOC is not available')
     }
     return installedPath
   }

@@ -4,11 +4,13 @@
 
 import { createAgent } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
+import { isAbortError } from '@main/utils/error'
 import type { LanguageModelUsage, ModelMessage, ToolSet, UIMessage, UIMessageChunk } from 'ai'
 
 import { toModelMessages } from '../../messages/messageRules'
 import type { AppProviderSettingsMap } from '../../types'
 import { logger, safeCall, wrapForwardedHook, wrapToolsWithExecutionHooks } from './loop/hookRunner'
+import { resolveToolLoopTerminalError } from './loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentLoopParams } from './loop/types'
 import { attachUsageObserver } from './observers/usage'
 import { composeHooks } from './params/composeHooks'
@@ -107,15 +109,28 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
     const hooks = this.composedHooks()
     try {
       await safeCall('onStart', hooks.onStart)
+      signal?.throwIfAborted()
       const aiAgent = await this.buildAiSdkAgent(hooks)
       const generateInput =
         'prompt' in input
           ? { prompt: input.prompt, ...(signal && { abortSignal: signal }) }
           : { messages: input.messages, ...(signal && { abortSignal: signal }) }
       const result = await aiAgent.generate(generateInput)
+      signal?.throwIfAborted()
+      const terminalError = resolveToolLoopTerminalError({
+        steps: result.steps,
+        stopWhen: this.params.options?.stopWhen
+      })
+      if (terminalError) throw terminalError
       await safeCall('onFinish', hooks.onFinish)
       return { text: result.text, usage: result.usage }
     } catch (err) {
+      const isCancellation = signal?.aborted === true && (err === signal.reason || isAbortError(err))
+      if (isCancellation) {
+        await safeCall('onAbort', hooks.onAbort)
+        throw err
+      }
+
       logger.error('agent generate error', err as Error)
       if (hooks.onError) {
         try {
@@ -130,21 +145,40 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
 
   stream(initialMessages: UIMessage[], signal: AbortSignal): ReadableStream<UIMessageChunk> {
     const params = this.params
-    const { readable, writable } = new TransformStream<UIMessageChunk>()
+    let outputController!: TransformStreamDefaultController<UIMessageChunk>
+    let terminalOutcome: 'running' | 'success' | 'abort' = 'running'
+    let committingFinish = false
+    const claimTerminalOutcome = (outcome: 'success' | 'abort'): boolean => {
+      if (terminalOutcome !== 'running') return false
+      terminalOutcome = outcome
+      return true
+    }
+    const { readable, writable } = new TransformStream<UIMessageChunk, UIMessageChunk>({
+      start(controller) {
+        outputController = controller
+      },
+      transform(chunk, controller) {
+        // The final finish becomes success only at the actual enqueue boundary.
+        // Until then an abort may terminate a backpressured write without
+        // publishing a success marker.
+        if (committingFinish && chunk.type === 'finish' && !claimTerminalOutcome('success')) return
+        controller.enqueue(chunk)
+      }
+    })
     const writer = writable.getWriter()
     this.currentWriter = writer
     const hooks = this.composedHooks()
 
     let writerSettled = false
-    const settleWriter = async (err?: unknown): Promise<void> => {
+    const settleWriter = async (failure?: { error: unknown }): Promise<void> => {
       if (writerSettled) return
       writerSettled = true
       this.currentWriter = undefined
       try {
-        if (err === undefined) {
-          await writer.close()
+        if (failure) {
+          await writer.abort(failure.error)
         } else {
-          await writer.abort(err)
+          await writer.close()
         }
       } catch {
         // The transform stream's writer may already be closing from a peer
@@ -164,6 +198,35 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       }
     }
 
+    const commitFinish = async (finish: Extract<UIMessageChunk, { type: 'finish' }>): Promise<boolean> => {
+      const abortBeforeFinish = () => {
+        if (!claimTerminalOutcome('abort')) return
+        try {
+          // Closes the readable side cleanly and rejects the pending writable
+          // operation, so a backpressured finish cannot be delivered later.
+          outputController.terminate()
+        } catch {
+          // A peer may already have cancelled the readable side.
+        }
+      }
+
+      signal.addEventListener('abort', abortBeforeFinish, { once: true })
+      try {
+        if (signal.aborted) abortBeforeFinish()
+        if (terminalOutcome === 'abort') return false
+
+        committingFinish = true
+        await writer.write(finish)
+        return terminalOutcome === 'success'
+      } catch (error) {
+        if (terminalOutcome === 'abort') return false
+        throw error
+      } finally {
+        committingFinish = false
+        signal.removeEventListener('abort', abortBeforeFinish)
+      }
+    }
+
     ;(async () => {
       await safeCall('onStart', hooks.onStart)
 
@@ -180,8 +243,16 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         abortSignal: signal
       })
 
+      // AI SDK converts errors to lossy UI chunks. Keep the originals in the
+      // same order as the error-bearing chunks so terminal provider failures
+      // retain their metadata without stealing an earlier tool error.
+      const capturedUiErrors: Array<{ error: unknown }> = []
       const uiStream = result.toUIMessageStream({
         originalMessages: messages,
+        onError: (error) => {
+          capturedUiErrors.push({ error })
+          return error instanceof Error ? error.message : String(error)
+        },
         generateMessageId: () => {
           if (!hasUsedProvidedMessageId && params.messageId) {
             hasUsedProvidedMessageId = true
@@ -191,41 +262,93 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
         }
       })
       const reader = uiStream.getReader()
-      let readError: unknown
+      let readFailure: { error: unknown } | undefined
+      let pendingFinish: Extract<UIMessageChunk, { type: 'finish' }> | undefined
       try {
         while (true) {
           const { done, value } = await reader.read()
-          if (done || signal.aborted) break
+          if (done) break
+
+          // AI SDK calls `onError` for invalid tool input, local tool execution
+          // errors, and terminal stream errors. Consume all three projections
+          // in FIFO order; only a terminal error rejects the agent stream.
+          const capturedError =
+            value.type === 'tool-input-error' ||
+            (value.type === 'tool-output-error' && !value.providerExecuted) ||
+            value.type === 'error'
+              ? capturedUiErrors.shift()
+              : undefined
+          if (value.type === 'error' && capturedError) {
+            await reader.cancel(capturedError.error).catch(() => {})
+            throw capturedError.error
+          }
+          if (signal.aborted) break
+          // Hold the success-looking finish marker until the loop result has
+          // been classified. A cap-triggered or terminal-tool stop must reach
+          // persistence as an error instead of briefly completing as success.
+          if (value.type === 'finish') {
+            pendingFinish = value
+            continue
+          }
           await writer.write(value)
         }
       } catch (error) {
-        readError = error
+        readFailure = { error }
       } finally {
         reader.releaseLock()
       }
-      if (readError) throw readError
+      if (readFailure) throw readFailure.error
+      if (signal.aborted) {
+        await safeCall('onAbort', hooks.onAbort)
+        return
+      }
+
+      const steps = await Promise.resolve(result.steps)
+      if (signal.aborted) {
+        await safeCall('onAbort', hooks.onAbort)
+        return
+      }
+      const terminalError = resolveToolLoopTerminalError({
+        steps: steps ?? [],
+        stopWhen: params.options?.stopWhen
+      })
+      if (terminalError) throw terminalError
+      if (pendingFinish) {
+        if (!(await commitFinish(pendingFinish))) {
+          await safeCall('onAbort', hooks.onAbort)
+          return
+        }
+      } else if (signal.aborted || !claimTerminalOutcome('success')) {
+        await safeCall('onAbort', hooks.onAbort)
+        return
+      }
 
       // onFinish is success-only by current design: it fires only when the
-      // stream drains cleanly, never on the error/abort path below (which
-      // routes through invokeOnError + settleWriter instead). Failed-turn
-      // analytics must therefore accumulate via onStepFinish rather than rely
-      // on onFinish. Whether onFinish should become terminal (also firing on
-      // error/abort) is a deferred design decision — see agent-loop.md.
+      // stream drains cleanly, never on the error/abort path below. Errors
+      // route through invokeOnError; aborts settle the writer cleanly.
+      // Failed-turn analytics accumulate via onStepFinish and flush from
+      // onError rather than rely on onFinish. Whether onFinish should become
+      // terminal is a deferred design decision — see agent-loop.md.
       await safeCall('onFinish', hooks.onFinish)
     })()
       .then(() => settleWriter())
       .catch(async (err) => {
-        if (!signal.aborted) {
-          const action = await invokeOnError(err)
-          if (action === 'retry') {
-            // TODO: retry logic
-            // retry is reserved for a future implementation — today the loop logs and aborts.
-            logger.warn('agentLoop onError returned retry; retry not implemented — aborting', err)
-          } else {
-            logger.error('agentLoop error', err)
-          }
+        const isCancellation = signal.aborted && (err === signal.reason || isAbortError(err))
+        if (isCancellation) {
+          await safeCall('onAbort', hooks.onAbort)
+          await settleWriter()
+          return
         }
-        await settleWriter(err)
+
+        const action = await invokeOnError(err)
+        if (action === 'retry') {
+          // TODO: retry logic
+          // retry is reserved for a future implementation — today the loop logs and aborts.
+          logger.warn('agentLoop onError returned retry; retry not implemented — aborting', err)
+        } else {
+          logger.error('agentLoop error', err)
+        }
+        await settleWriter({ error: err })
       })
 
     return readable

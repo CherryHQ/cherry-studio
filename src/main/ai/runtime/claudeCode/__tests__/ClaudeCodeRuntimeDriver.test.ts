@@ -7,6 +7,9 @@ const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
   applicationGet: vi.fn(),
   consumeWarmQuery: vi.fn(),
+  getWarmAgentSessionIds: vi.fn(),
+  closeAgentSessionWarm: vi.fn(),
+  sweepClaudeSessionFiles: vi.fn(),
   prepareTrace: vi.fn(),
   createClaudeQuery: vi.fn(),
   collectFileAttachments: vi.fn(),
@@ -42,6 +45,10 @@ vi.mock('@main/ai/messages/attachmentRouting', () => ({
 
 vi.mock('@main/ai/messages/fileProcessor', () => ({
   materializeNativeFilePart: mocks.materializeNativeFilePart
+}))
+
+vi.mock('../sessionFileSweep', () => ({
+  sweepClaudeSessionFiles: mocks.sweepClaudeSessionFiles
 }))
 
 vi.mock('../streamAdapter', () => ({
@@ -143,11 +150,18 @@ describe('ClaudeCodeRuntimeDriver', () => {
     vi.clearAllMocks()
     mocks.adapterInstances.length = 0
     mocks.applicationGet.mockImplementation((name: string) => {
-      if (name === 'ClaudeCodeWarmQueryManager') return { consume: mocks.consumeWarmQuery }
+      if (name === 'ClaudeCodeWarmQueryManager') {
+        return {
+          consume: mocks.consumeWarmQuery,
+          getWarmAgentSessionIds: mocks.getWarmAgentSessionIds,
+          closeAgentSessionWarm: mocks.closeAgentSessionWarm
+        }
+      }
       if (name === 'ClaudeCodeTraceBridgeService') return { prepareTrace: mocks.prepareTrace }
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.consumeWarmQuery.mockResolvedValue(undefined)
+    mocks.getWarmAgentSessionIds.mockReturnValue([])
     mocks.prepareTrace.mockResolvedValue(undefined)
     mocks.collectFileAttachments.mockReturnValue([])
     mocks.prepareChatMessages.mockImplementation(async (messages) => messages)
@@ -187,7 +201,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
     // The connection routes with the host-chosen model — not a fresh DB read — so a live turn keeps
     // the model captured at its creation even if the agent was edited since.
-    expect(mocks.buildRequest).toHaveBeenCalledWith('session-1', 'resume-1', 'claude-code::sonnet')
+    expect(mocks.buildRequest).toHaveBeenCalledWith('session-1', 'resume-1', 'claude-code::sonnet', 'default')
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
 
@@ -1453,6 +1467,38 @@ describe('ClaudeCodeRuntimeDriver', () => {
       await expect(first).resolves.toBe('current')
       await expect(second).resolves.toBe('current')
       expect(secondStarted).toBe(true)
+    })
+  })
+
+  describe('sweepSessionFiles', () => {
+    it('closes warm queries of dead sessions before any file is judged', async () => {
+      mocks.getWarmAgentSessionIds.mockReturnValue(['dead-session', 'live-session'])
+      const live = {
+        isSessionLive: (id: string) => id === 'live-session',
+        isResumeTokenLive: () => false
+      }
+
+      await new ClaudeCodeRuntimeDriver().sweepSessionFiles(live)
+
+      expect(mocks.closeAgentSessionWarm).toHaveBeenCalledTimes(1)
+      expect(mocks.closeAgentSessionWarm).toHaveBeenCalledWith('dead-session')
+      expect(mocks.sweepClaudeSessionFiles).toHaveBeenCalledWith(live)
+      // The dying subprocess sits in the session's cwd — eviction must land before the sweep.
+      expect(mocks.closeAgentSessionWarm.mock.invocationCallOrder[0]).toBeLessThan(
+        mocks.sweepClaudeSessionFiles.mock.invocationCallOrder[0]
+      )
+    })
+
+    it('leaves warm queries of live sessions alone', async () => {
+      mocks.getWarmAgentSessionIds.mockReturnValue(['live-session'])
+
+      await new ClaudeCodeRuntimeDriver().sweepSessionFiles({
+        isSessionLive: () => true,
+        isResumeTokenLive: () => false
+      })
+
+      expect(mocks.closeAgentSessionWarm).not.toHaveBeenCalled()
+      expect(mocks.sweepClaudeSessionFiles).toHaveBeenCalled()
     })
   })
 })

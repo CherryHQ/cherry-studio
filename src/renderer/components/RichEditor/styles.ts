@@ -151,7 +151,7 @@ const STYLE_CONTENT = `
 .RichEditorContent .drag-handle svg {
   width: 1.25rem;
   height: 1.25rem;
-  color: var(--color-icon);
+  color: var(--color-foreground-secondary);
 }
 
 .RichEditorContent .plusButton {
@@ -329,7 +329,7 @@ const STYLE_CONTENT = `
   appearance: none;
   border: none;
   padding: 0;
-  background: var(--color-border, var(--color-border));
+  background: var(--color-border);
   height: 4px;
   border-radius: 3px;
   cursor: pointer;

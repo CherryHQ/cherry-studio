@@ -2,8 +2,10 @@ import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } 
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { Tool } from '@shared/ai/tool'
-import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { UIMessageChunk } from 'ai'
 
 export type AiRuntimeCapability = 'agent-session' | 'chat-turn' | 'generate-text' | 'embed' | 'image'
@@ -26,6 +28,8 @@ export interface AgentRuntimeConnectInput {
   sessionId: string
   agentId: string
   modelId: UniqueModelId
+  /** Canonical reasoning selection frozen for this connection's turn. */
+  reasoningEffort?: ReasoningEffortOption
   resumeToken?: string
   trace?: AgentRuntimeTraceContext
 }
@@ -89,11 +93,15 @@ export interface AgentRuntimeConnection {
    * decides the verdict (see {@link AgentRuntimeReconcileResult}). Serialized per connection:
    * concurrent push/pull reconciles queue instead of interleaving SDK and snapshot writes.
    *
-   * `modelId` is the model the connection should serve right now (a live turn's captured model, or
-   * the agent's latest) — the same pinning the host uses for `connect`.
+   * The input is the config the connection should serve right now (a live turn's frozen model and
+   * reasoning selection, or the agent's latest model with defaults) — the same pinning the host uses
+   * for `connect`.
    */
   // ponytail: single driver — make optional with a capability fallback when a 2nd connection type ships
-  reconcile(input: { modelId: UniqueModelId }): Promise<AgentRuntimeReconcileResult>
+  reconcile(input: {
+    modelId: UniqueModelId
+    reasoningEffort?: ReasoningEffortOption
+  }): Promise<AgentRuntimeReconcileResult>
   /**
    * Read the live context-window usage for this connection's session. Returns null when the
    * underlying runtime can't report it (no query yet, or a driver that doesn't support it).
@@ -108,6 +116,19 @@ export interface AgentRuntimeConnection {
    */
   getSupportedCommands?(): Promise<AgentSessionSlashCommand[] | null>
   close(): void | Promise<void>
+}
+
+/**
+ * What still exists, for sweeping external session stores: anything a driver persisted for a
+ * session/token NOT in this index is orphaned (deleted session, or messages edited away) and may
+ * be removed. Sweepers must still skip recently-written files — in-flight state (a first turn, a
+ * prewarmed query) can hold ids the index doesn't know yet.
+ */
+export interface AgentSessionLiveIndex {
+  /** Cherry session id still exists (DB row or live runtime). */
+  isSessionLive(sessionId: string): boolean
+  /** External runtime session id (resume token) still referenced (a message row or live runtime). */
+  isResumeTokenLive(token: string): boolean
 }
 
 export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
@@ -126,4 +147,15 @@ export interface AgentSessionRuntimeDriver extends AiRuntimeDriver {
    * query) without the host reaching into driver internals. Optional.
    */
   onSessionIdle?(sessionId: string): void
+  /**
+   * Garbage-collect whatever the runtime persisted outside Cherry's DB
+   * (transcripts, per-session caches, …) for sessions/tokens absent from the
+   * live index. The driver must FIRST release any session resources it still
+   * holds for dead sessions (e.g. pooled/prewarmed subprocesses running in the
+   * session's workspace cwd) — the host removes shared workspace directories
+   * after all driver sweeps and relies on this. Invoked by the host on its own
+   * schedule (boot + interval), not per deletion; best-effort — failures log,
+   * never throw. Omit when the runtime keeps no external session store.
+   */
+  sweepSessionFiles?(live: AgentSessionLiveIndex): Promise<void>
 }

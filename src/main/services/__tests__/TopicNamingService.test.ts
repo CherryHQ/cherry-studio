@@ -1,6 +1,7 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
+import { WindowType } from '@main/core/window/types'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
@@ -10,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   generateText: vi.fn(),
   broadcast: vi.fn(),
+  broadcastToType: vi.fn(),
   getTopic: vi.fn(),
   updateTopic: vi.fn(),
   getMessageById: vi.fn(),
@@ -24,7 +26,7 @@ vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
     AiService: { generateText: mocks.generateText },
-    IpcApiService: { broadcast: mocks.broadcast }
+    IpcApiService: { broadcast: mocks.broadcast, broadcastToType: mocks.broadcastToType }
   } as never)
 })
 
@@ -137,6 +139,21 @@ describe('TopicNamingService', () => {
       isNameManuallyEdited: false
     })
     expect(mocks.broadcast).toHaveBeenCalledWith('ai.topic_auto_renamed', { topicId: 'topic-1' })
+  })
+
+  it('sends a naming-failed toast event to the main window when summary generation throws', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.model_id', 'openai::gpt-4o-mini')
+    mocks.generateText.mockRejectedValue(new Error('Invalid signature'))
+
+    await createService().maybeRenameFromConversationSummary('topic-1', 'assistant-1', 'message-1', {
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Assistant response' }]
+    } as never)
+
+    expect(mocks.updateTopic).not.toHaveBeenCalled()
+    expect(mocks.broadcastToType).toHaveBeenCalledWith(WindowType.Main, 'ai.topic_naming_failed', {
+      message: 'Invalid signature'
+    })
   })
 
   it('falls back to the managed CherryAI default when topic naming model preference is empty', async () => {
