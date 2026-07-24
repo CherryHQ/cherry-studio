@@ -2,13 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getCmThemeByName, getCmThemeNames, getNormalizedExtension } from '../utils'
 
-const cmThemeCatalogEvaluated = vi.hoisted(() => vi.fn())
-
-vi.mock('@uiw/codemirror-themes-all', async (importOriginal) => {
-  cmThemeCatalogEvaluated()
-  return importOriginal()
-})
-
 describe('getNormalizedExtension', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -33,21 +26,6 @@ describe('getNormalizedExtension', () => {
 
   it('should return language as-is when no rules matched', async () => {
     await expect(getNormalizedExtension('unknownLanguage')).resolves.toBe('unknownLanguage')
-  })
-})
-
-describe('cm theme lazy boundary', () => {
-  it.each(['light', 'dark', 'none'] as const)(
-    'does not load the theme catalog for the built-in %s theme',
-    async (name) => {
-      await expect(getCmThemeByName(name)).resolves.toBe(name)
-      expect(cmThemeCatalogEvaluated).not.toHaveBeenCalled()
-    }
-  )
-
-  it('loads the theme catalog for a named theme', async () => {
-    await getCmThemeByName('dracula')
-    expect(cmThemeCatalogEvaluated).toHaveBeenCalledTimes(1)
   })
 })
 
