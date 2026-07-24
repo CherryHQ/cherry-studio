@@ -267,7 +267,8 @@ export function TabsProvider({
         newActiveId = fallbackTab.id
       } else if (closingIdSet.has(activeTabId)) {
         // Prefer the caller-designated survivor (e.g. the tab whose menu ran
-        // "close others"); otherwise fall back to the nearest neighbor.
+        // "close others"); otherwise hand the slot to the right neighbor and
+        // fall back to the left one at the end of the strip.
         const preferredTab = activateId ? remainingTabs.find((tab) => tab.id === activateId) : undefined
         if (preferredTab) {
           newActiveId = preferredTab.id
@@ -275,7 +276,7 @@ export function TabsProvider({
           const activeIndex = tabs.findIndex((tab) => tab.id === activeTabId)
           const leftTab = [...tabs.slice(0, activeIndex)].reverse().find((tab) => !closingIdSet.has(tab.id))
           const rightTab = tabs.slice(activeIndex + 1).find((tab) => !closingIdSet.has(tab.id))
-          newActiveId = (leftTab ?? rightTab)?.id ?? ''
+          newActiveId = (rightTab ?? leftTab)?.id ?? ''
         }
       }
 

@@ -1,13 +1,21 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
-import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
 import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { emitResourceListReveal, type ResourceListRevealSource } from '@renderer/services/resourceListRevealEvents'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
-import { ArrowRightFromLine, ChevronsLeft, CopyX, Pin, PinOff, Plus, X } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Plus, X } from 'lucide-react'
+import {
+  cloneElement,
+  isValidElement,
+  type ReactElement,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ShellTabBarActions, useShellTabBarLayout } from './ShellTabBarActions'
@@ -44,9 +52,16 @@ interface DragItemProps {
 interface TabToneProps {
   activeClass: string
   hoverClass: string
+  /** Static equivalent of the hover tint — pins a closing tab's look so it cannot flash. */
+  closingClass: string
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
+
+// A dragged inactive tab remains hovered, so the matching hover variants must
+// override the transparent-window tone as well as the base background/shadow.
+const DRAGGING_TAB_SURFACE_CLASS =
+  'bg-popover shadow-md hover:bg-popover hover:shadow-md dark:bg-popover dark:hover:bg-popover dark:hover:shadow-md'
 
 const Separator = () => <div className="mx-0.5 h-4 w-px shrink-0 bg-border/50" />
 
@@ -88,6 +103,7 @@ const PinnedTabButton = ({ tab, isActive, onSelect, drag, tabRef, tone, ref, ...
           'nodrag flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-150 [-webkit-app-region:no-drag]',
           drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
           isActive ? tone.activeClass : tone.hoverClass,
+          drag.isDragging && DRAGGING_TAB_SURFACE_CLASS,
           rest.className
         )}>
         <TabIcon tab={tab} size={14} />
@@ -96,8 +112,6 @@ const PinnedTabButton = ({ tab, isActive, onSelect, drag, tabRef, tone, ref, ...
   )
 }
 
-// Threshold below which the right-side X is hidden and icon-overlay X is used instead
-const NARROW_TAB_THRESHOLD = 64
 const MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE = 'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px)))'
 
 function getResourceListRevealSourceFromUrl(url: string): ResourceListRevealSource | null {
@@ -110,8 +124,17 @@ type NormalTabButtonProps = {
   tab: Tab
   isActive: boolean
   onSelect: () => void
-  onClose: () => void
+  /** Mouse-initiated closes pass the tab's current width so the bar can freeze layout (Chrome-style). */
+  onClose: (freezeWidth?: number) => void
   showClose?: boolean
+  /** When set, the tab keeps this fixed width instead of flexing (close-in-place mode). */
+  frozenWidth?: number | null
+  /** Collapsing exit animation: the tab shrinks to zero width before it is removed. */
+  isClosing?: boolean
+  /** Whether the tab was the active one when its close started — pins its tone while collapsing. */
+  closingWasActive?: boolean
+  /** Animated unfreeze: the frozen width is gliding toward its natural flexed value. */
+  isThawing?: boolean
   drag: DragItemProps
   tabRef: (el: HTMLButtonElement | null) => void
   tone: TabToneProps
@@ -124,28 +147,19 @@ const NormalTabButton = ({
   onSelect,
   onClose,
   showClose = true,
+  frozenWidth,
+  isClosing = false,
+  closingWasActive = false,
+  isThawing = false,
   drag,
   tabRef,
   tone,
   ref,
   ...rest
 }: NormalTabButtonProps) => {
-  const btnRef = useRef<HTMLButtonElement | null>(null)
-  const [isNarrow, setIsNarrow] = useState(false)
-
-  useEffect(() => {
-    const el = btnRef.current
-    if (!el) return
-    const ro = new ResizeObserver(([entry]) => {
-      setIsNarrow(entry.contentRect.width < NARROW_TAB_THRESHOLD)
-    })
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-
+  const { t } = useTranslation()
   const setRefs = useCallback(
     (el: HTMLButtonElement | null) => {
-      btnRef.current = el
       tabRef(el)
       if (typeof ref === 'function') ref(el)
       else if (ref) ref.current = el
@@ -154,8 +168,20 @@ const NormalTabButton = ({
   )
 
   const canClose = showClose
-  const showRightClose = canClose && !isNarrow
-  const showIconOverlayClose = canClose && isNarrow
+
+  const closeFromPointer = (e: React.MouseEvent<HTMLElement>) => {
+    const pointerType = (e.nativeEvent as MouseEvent & { pointerType?: string }).pointerType
+    // Touch and pen devices without hover dispatch mouseleave before click, so
+    // freezing on their synthetic click would leave the strip frozen forever.
+    if (pointerType && pointerType !== 'mouse') {
+      onClose()
+      return
+    }
+    const tabButton = (e.currentTarget as HTMLElement).closest('[data-tab-id]') as HTMLElement | null
+    // Fractional width: freezing to a rounded offsetWidth would shift every tab
+    // boundary at the freeze snap (flexbox resolves fractional widths).
+    onClose(tabButton?.getBoundingClientRect().width || undefined)
+  }
 
   return (
     // Spread injected ContextMenuTrigger props first; the explicit drag handler
@@ -167,55 +193,76 @@ const NormalTabButton = ({
       ref={setRefs}
       data-tab-id={tab.id}
       type="button"
+      // Explicit name: the close button's aria-label must not leak into the
+      // tab's accessible name via name-from-content.
+      aria-label={tab.title}
       onPointerDown={drag.onPointerDown}
-      onClick={onSelect}
+      onClick={(e) => {
+        // Chromium's click events retain PointerEvent.pointerType, while the
+        // following dblclick is a plain MouseEvent. Close on click #2 so touch
+        // and pen can skip the mouse-only width freeze without closing twice.
+        if (e.detail === 2 && canClose) {
+          e.preventDefault()
+          e.stopPropagation()
+          closeFromPointer(e)
+          return
+        }
+        onSelect()
+      }}
       onAuxClick={(e) => {
         if (e.button === 1 && canClose) {
           e.preventDefault()
           e.stopPropagation()
-          onClose()
+          closeFromPointer(e)
         }
       }}
       onDoubleClick={(e) => {
         if (!canClose) return
         e.preventDefault()
         e.stopPropagation()
-        onClose()
       }}
       style={{
+        // Frozen tabs pin their flex-basis in px; the unfrozen value keeps the same
+        // units so unfreezing animates smoothly (px→auto/percent widths cannot).
+        // A closing tab collapses to zero width so its right siblings slide over.
+        flex: isClosing ? '0 0 0px' : frozenWidth != null ? `0 0 ${frozenWidth}px` : '1 1 0px',
+        // Cancels the strip's gap-1 so the finished collapse leaves no 4px jump.
+        marginRight: isClosing ? -4 : undefined,
+        pointerEvents: isClosing ? 'none' : undefined,
         transform: `translateX(${drag.translateX}px)`,
-        transition: drag.isDragging || drag.noTransition ? 'none' : 'transform 200ms ease',
+        // Inline transition overrides the class `transition-all`, so every property
+        // involved in the close/unfreeze animations must be listed here. `flex` is
+        // transitioned ONLY during the collapse and the thaw glide — both interpolate
+        // px→px flex-basis with grow pinned at 0. Everywhere else flex changes must
+        // snap: animating flex-grow is never width-constant (entering the freeze, or
+        // swapping the thawed px back to `flex: 1 1 0`, would wobble every sibling).
+        transition:
+          drag.isDragging || drag.noTransition
+            ? 'none'
+            : isClosing || isThawing
+              ? 'transform 200ms ease, flex 200ms ease, margin 200ms ease, padding 200ms ease, opacity 200ms ease'
+              : 'transform 200ms ease, margin 200ms ease, padding 200ms ease, opacity 200ms ease',
         zIndex: drag.isDragging ? 50 : 'auto',
+        // No fade while closing — Chrome keeps the content visible and lets the
+        // shrinking width clip it; fading first reads as a white flash.
         opacity: drag.isGhost ? 0.3 : 1
       }}
       className={cn(
-        'nodrag group relative flex h-[30px] min-w-[40px] max-w-[160px] flex-1 items-center gap-1.5 rounded-[10px] transition-all duration-150 [-webkit-app-region:no-drag]',
-        showRightClose ? 'pr-1.5 pl-2' : 'px-2',
+        'nodrag group relative flex h-[30px] min-w-[56px] max-w-[160px] items-center gap-1.5 rounded-[10px] px-2 transition-all duration-150 [-webkit-app-region:no-drag]',
         drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
-        isActive ? tone.activeClass : tone.hoverClass
+        // While closing, pin the tone the tab had when the close started — losing
+        // the active/hover state mid-collapse reads as a white flash.
+        isClosing
+          ? closingWasActive
+            ? tone.activeClass
+            : tone.closingClass
+          : isActive
+            ? tone.activeClass
+            : tone.hoverClass,
+        drag.isDragging && DRAGGING_TAB_SURFACE_CLASS,
+        isClosing && 'min-w-0 overflow-hidden px-0'
       )}>
-      {/* Icon — on narrow tabs, X overlay replaces icon on hover (Chrome-style) */}
-      <div className="relative flex h-3.5 w-3.5 shrink-0 items-center justify-center">
-        <TabIcon tab={tab} size={14} className={cn(showIconOverlayClose && 'group-hover:hidden')} />
-        {showIconOverlayClose && (
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={(e) => {
-              e.stopPropagation()
-              onClose()
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.stopPropagation()
-                onClose()
-              }
-            }}
-            className="nodrag absolute inset-0 hidden cursor-pointer items-center justify-center rounded-sm group-hover:flex">
-            <X size={11} />
-          </div>
-        )}
-      </div>
+      <TabIcon tab={tab} size={14} className="shrink-0" />
       <span
         className="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left font-normal text-xs leading-none"
         style={{
@@ -224,14 +271,22 @@ const NormalTabButton = ({
         }}>
         {tab.title}
       </span>
-      {/* Right-side close button — only on wide tabs */}
-      {showRightClose && (
+      {canClose && (
+        // Chrome-style right-side X: always visible on the active tab, hover-revealed
+        // elsewhere. Hidden via opacity (not display) so it stays keyboard-focusable;
+        // pointer events stay off until hover/focus so an invisible X never swallows clicks.
         <div
           role="button"
           tabIndex={0}
+          aria-label={t('tab.close')}
           onClick={(e) => {
             e.stopPropagation()
-            onClose()
+            if (e.detail > 0) closeFromPointer(e)
+            else onClose()
+          }}
+          onDoubleClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
           }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
@@ -240,8 +295,14 @@ const NormalTabButton = ({
             }
           }}
           className={cn(
-            'nodrag ml-auto flex h-[18px] w-[18px] shrink-0 cursor-pointer items-center justify-center rounded-sm transition-all duration-150 hover:bg-foreground/10',
-            isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+            // Width collapses with the opacity so a hidden X frees its space for the
+            // title instead of reserving a blank slot at the tab's right edge.
+            'nodrag ml-auto flex h-[18px] shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-sm transition-all duration-150 hover:bg-foreground/10',
+            // A closing tab keeps its X visible (Chrome-style) — hover no longer
+            // matches once pointer events are off, and the handover cleared isActive.
+            isActive || isClosing
+              ? 'w-[18px] opacity-100'
+              : 'pointer-events-none w-0 opacity-0 focus-visible:pointer-events-auto focus-visible:w-[18px] focus-visible:opacity-100 group-hover:pointer-events-auto group-hover:w-[18px] group-hover:opacity-100'
           )}>
           <X size={10} />
         </div>
@@ -332,6 +393,7 @@ const TabRightClickMenu = ({
   children: React.ReactNode
 }) => {
   const { t } = useTranslation()
+  const [menuOpen, setMenuOpen] = useState(false)
 
   const items = useMemo<CommandContextMenuExtraItem[]>(() => {
     const entries: Array<{ enabled: boolean; item: CommandContextMenuExtraItem }> = [
@@ -341,7 +403,6 @@ const TabRightClickMenu = ({
           type: 'item',
           id: 'tab.move-to-first',
           label: t('tab.move_to_first'),
-          icon: <ChevronsLeft size={14} />,
           onSelect: onMoveToFirst
         }
       },
@@ -351,7 +412,6 @@ const TabRightClickMenu = ({
           type: 'item',
           id: 'tab.pin',
           label: isPinned ? t('tab.unpin') : t('tab.pin'),
-          icon: isPinned ? <PinOff size={14} /> : <Pin size={14} />,
           onSelect: onTogglePin
         }
       },
@@ -361,7 +421,6 @@ const TabRightClickMenu = ({
           type: 'item',
           id: 'tab.open-in-new-window',
           label: t('tab.open_in_new_window'),
-          icon: <OpenInNewWindowIcon size={14} />,
           onSelect: onDetach
         }
       },
@@ -375,7 +434,6 @@ const TabRightClickMenu = ({
           type: 'item',
           id: 'tab.close',
           label: t('tab.close'),
-          icon: <X size={14} />,
           onSelect: onClose
         }
       },
@@ -385,7 +443,6 @@ const TabRightClickMenu = ({
           type: 'item',
           id: 'tab.close-others',
           label: t('tab.close_others'),
-          icon: <CopyX size={14} />,
           onSelect: onCloseOthers
         }
       },
@@ -395,7 +452,6 @@ const TabRightClickMenu = ({
           type: 'item',
           id: 'tab.close-to-right',
           label: t('tab.close_to_right'),
-          icon: <ArrowRightFromLine size={14} />,
           onSelect: onCloseToRight
         }
       }
@@ -408,8 +464,18 @@ const TabRightClickMenu = ({
   }
 
   return (
-    <CommandContextMenu location="webcontents.context" extraItems={items} contentClassName="min-w-[130px]">
-      {children}
+    <CommandContextMenu
+      location="webcontents.context"
+      extraItems={items}
+      contentClassName="min-w-[130px]"
+      onOpenChange={setMenuOpen}>
+      {/* data-menu-open drives the tab's menu-open highlight. Unlike Radix's
+          data-state, it is also set when the menu shows as a native OS popup. */}
+      {isValidElement(children)
+        ? cloneElement(children as ReactElement<{ 'data-menu-open'?: boolean }>, {
+            'data-menu-open': menuOpen || undefined
+          })
+        : children}
     </CommandContextMenu>
   )
 }
@@ -438,15 +504,66 @@ export const AppShellTabBar = ({
         ? {
             activeClass:
               'border border-black/8 bg-white/78 text-sidebar-foreground backdrop-blur-sm dark:border-0 dark:bg-white/10 dark:text-sidebar-foreground dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]',
+            // data-[menu-open=true] mirrors hover: TabRightClickMenu sets it while the
+            // tab's right-click menu is open, in both cherry and native menu modes.
             hoverClass:
-              'text-muted-foreground hover:bg-black/6 hover:text-sidebar-foreground hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)] dark:hover:bg-white/6 dark:hover:text-sidebar-foreground dark:hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]'
+              'text-muted-foreground hover:bg-black/6 hover:text-sidebar-foreground hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)] dark:hover:bg-white/6 dark:hover:text-sidebar-foreground dark:hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)] data-[menu-open=true]:bg-black/6 data-[menu-open=true]:text-sidebar-foreground data-[menu-open=true]:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)] dark:data-[menu-open=true]:bg-white/6 dark:data-[menu-open=true]:text-sidebar-foreground dark:data-[menu-open=true]:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]',
+            closingClass: 'bg-accent text-accent-foreground'
           }
         : {
             activeClass: 'bg-black/8 text-sidebar-foreground dark:bg-sidebar-accent dark:text-sidebar-foreground',
             hoverClass:
-              'text-muted-foreground hover:bg-white hover:text-sidebar-foreground dark:hover:bg-white/10 dark:hover:text-sidebar-foreground'
+              'text-muted-foreground hover:bg-white hover:text-sidebar-foreground dark:hover:bg-white/10 dark:hover:text-sidebar-foreground data-[menu-open=true]:bg-white data-[menu-open=true]:text-sidebar-foreground dark:data-[menu-open=true]:bg-white/10 dark:data-[menu-open=true]:text-sidebar-foreground',
+            closingClass: 'bg-popover text-popover-foreground dark:bg-accent dark:text-accent-foreground'
           },
     [isMacTransparentWindow]
+  )
+
+  // Chrome-style close-in-place: a pointer-initiated close freezes every normal
+  // tab at the closed tab's width, so the next tab's X lands under the cursor for
+  // repeated closing. Tabs re-flex once the mouse leaves the strip.
+  const [frozenTabWidth, setFrozenTabWidth] = useState<number | null>(null)
+  // Animated unfreeze: frozen width glides to its natural flexed value, then unfreezes.
+  const [isThawing, setIsThawing] = useState(false)
+  // Tabs currently playing their collapse animation (id → whether they were the
+  // active tab when the close started); removal is deferred until the animation ends.
+  const [closingTabIds, setClosingTabIds] = useState<ReadonlyMap<string, boolean>>(() => new Map())
+  // Pointer closes are registered before the double-rAF animation starts. This
+  // deduplicates click/double-click sequences and lets concurrent closes skip
+  // every tab that is already on its way out.
+  const pendingCloseIdsRef = useRef(new Set<string>())
+  const animationFrameIdsRef = useRef(new Set<number>())
+  const closeTimersRef = useRef<number[]>([])
+  const thawTimerRef = useRef<number | null>(null)
+  const stripRef = useRef<HTMLDivElement | null>(null)
+  const stripPointerInsideRef = useRef(false)
+  const thawAfterCollapseRef = useRef(false)
+  const handleStripMouseLeaveRef = useRef<() => void>(() => undefined)
+  // The deferred close/handover callbacks (double-rAF + 200ms) must not act on
+  // click-time closures: TabsProvider's closeTabs reads tabs/activeTabId
+  // non-functionally, so a stale reference computes fallback/active decisions
+  // against a world that no longer exists (e.g. two rapid closes skip the
+  // launchpad fallback and leave a dangling active id).
+  const closeTabRef = useRef(closeTab)
+  closeTabRef.current = closeTab
+  const setActiveTabRef = useRef(setActiveTab)
+  setActiveTabRef.current = setActiveTab
+  const requestTrackedAnimationFrame = useCallback((callback: FrameRequestCallback) => {
+    const frameId = requestAnimationFrame((timestamp) => {
+      animationFrameIdsRef.current.delete(frameId)
+      callback(timestamp)
+    })
+    animationFrameIdsRef.current.add(frameId)
+  }, [])
+  useEffect(
+    () => () => {
+      animationFrameIdsRef.current.forEach((frameId) => cancelAnimationFrame(frameId))
+      animationFrameIdsRef.current.clear()
+      closeTimersRef.current.forEach((timer) => window.clearTimeout(timer))
+      if (thawTimerRef.current != null) window.clearTimeout(thawTimerRef.current)
+      pendingCloseIdsRef.current.clear()
+    },
+    []
   )
 
   const { pinnedTabs, normalTabs } = useMemo(() => {
@@ -461,6 +578,10 @@ export const AppShellTabBar = ({
     }
     return { pinnedTabs: pinned, normalTabs: normal }
   }, [tabs])
+  const visualTabsRef = useRef<Tab[]>([])
+  visualTabsRef.current = [...pinnedTabs, ...normalTabs]
+  const activeTabIdRef = useRef(activeTabId)
+  activeTabIdRef.current = activeTabId
   const hasUnpinnedTabs = normalTabs.length > 0
   const normalReorderStartIndex = 0
   // Shared input for `getTabCapabilities` — every per-tab affordance is derived
@@ -559,6 +680,97 @@ export const AppShellTabBar = ({
     openTab('/app/launchpad', { title: t('title.launchpad'), forceNew: true })
   }
 
+  // ─── Close-in-place freeze/thaw ─────────────────────────────────────────────
+
+  /**
+   * Width each normal tab would get once the strip un-freezes. Switching straight
+   * back to `flex: 1 1 0%` cannot animate (grow-driven widths jump), so the thaw
+   * glides the frozen px value to this target first, then swaps to flex.
+   */
+  const computeThawedTabWidth = () => {
+    const strip = stripRef.current
+    const pendingCloseIds = pendingCloseIdsRef.current
+    const aliveTabs = normalTabs.filter((tab) => !pendingCloseIds.has(tab.id))
+    const firstEl = aliveTabs[0] ? tabRefs.current.get(aliveTabs[0].id) : undefined
+    if (!strip || !firstEl || aliveTabs.length === 0) return null
+    // A scrolled overflowing strip breaks the viewport-rect math below (the first
+    // tab sits behind the strip's left edge) — fall back to the instant unfreeze.
+    if (strip.scrollLeft > 0) return null
+    const gap = 4 // strip gap-1
+    const launchpad = strip.querySelector<HTMLElement>('[data-launchpad-button]')
+    const rightLimit =
+      strip.getBoundingClientRect().right -
+      4 /* pr-1 */ -
+      (launchpad ? launchpad.offsetWidth + gap + 2 /* ml-0.5 */ : 0)
+    // Tabs still collapsing left of the first alive tab shift its rect right by
+    // their transient width; that space belongs to the post-close layout.
+    const firstAliveIndex = normalTabs.findIndex((tab) => tab.id === aliveTabs[0].id)
+    const closingBeforeFootprint = normalTabs
+      .slice(0, firstAliveIndex)
+      .filter((tab) => pendingCloseIds.has(tab.id))
+      .reduce((sum, tab) => {
+        const element = tabRefs.current.get(tab.id)
+        if (!element) return sum
+        const marginRight = Number.parseFloat(window.getComputedStyle(element).marginRight) || 0
+        return sum + element.getBoundingClientRect().width + gap + marginRight
+      }, 0)
+    const available =
+      rightLimit - (firstEl.getBoundingClientRect().left - closingBeforeFootprint) - (aliveTabs.length - 1) * gap
+    if (available <= 0) return null
+    // Keep the fraction: flexbox resolves fractional widths, and rounding here
+    // would make the final frozen→flex swap visibly shift the strip.
+    return Math.min(160, Math.max(56, available / aliveTabs.length))
+  }
+
+  const handleStripMouseLeave = () => {
+    stripPointerInsideRef.current = false
+    if ([...pendingCloseIdsRef.current].some((id) => !closingTabIds.has(id))) {
+      thawAfterCollapseRef.current = true
+      return
+    }
+    if (frozenTabWidth == null) return
+    // A leave→re-enter→leave during an in-flight glide must not fall through to
+    // the instant unfreeze (a mid-transition swap snaps the remaining distance),
+    // and the previous glide's timer must not fire into the restarted one.
+    if (thawTimerRef.current != null) {
+      window.clearTimeout(thawTimerRef.current)
+      thawTimerRef.current = null
+    }
+    const target = computeThawedTabWidth()
+    if (target == null || (target === frozenTabWidth && !isThawing)) {
+      setIsThawing(false)
+      setFrozenTabWidth(null)
+      return
+    }
+    setIsThawing(true)
+    setFrozenTabWidth(target)
+    // Buffer over the 200ms glide: swapping while the CSS transition is still
+    // running would snap the remaining distance instantly.
+    thawTimerRef.current = window.setTimeout(() => {
+      thawTimerRef.current = null
+      setIsThawing(false)
+      // The px value now matches the flexed width, so the swap is invisible.
+      setFrozenTabWidth(null)
+    }, 280)
+  }
+  handleStripMouseLeaveRef.current = handleStripMouseLeave
+
+  // Opening tabs while frozen (keyboard, launchpad `+` — the cursor never leaves
+  // the strip) would render the newcomers at the stale frozen width; a growing
+  // tab set unfreezes immediately instead, like Chrome's relayout-on-open.
+  const prevNormalCountRef = useRef(normalTabs.length)
+  useEffect(() => {
+    if (normalTabs.length > prevNormalCountRef.current && frozenTabWidth != null) {
+      if (thawTimerRef.current != null) {
+        window.clearTimeout(thawTimerRef.current)
+        thawTimerRef.current = null
+      }
+      setIsThawing(false)
+      setFrozenTabWidth(null)
+    }
+    prevNormalCountRef.current = normalTabs.length
+  }, [normalTabs.length, frozenTabWidth])
+
   // ─── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -573,8 +785,14 @@ export const AppShellTabBar = ({
         )}>
         {/* Tab buttons are no-drag; empty tabbar space remains available for moving the window. */}
         <div
+          ref={stripRef}
           data-testid="app-shell-tab-strip"
           style={isMac && !isFullscreen ? { paddingLeft: MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE } : undefined}
+          onMouseEnter={() => {
+            stripPointerInsideRef.current = true
+            thawAfterCollapseRef.current = false
+          }}
+          onMouseLeave={handleStripMouseLeave}
           className="flex flex-1 items-center gap-1 overflow-x-auto pr-1 [&::-webkit-scrollbar]:hidden">
           {/* Pinned tabs */}
           {pinnedTabs.length > 0 && (
@@ -639,8 +857,77 @@ export const AppShellTabBar = ({
                   tab={tab}
                   isActive={tab.id === activeTabId}
                   onSelect={() => handleSelectTab(tab)}
-                  onClose={() => closeTab(tab.id)}
+                  onClose={(freezeWidth) => {
+                    // Non-pointer closes (keyboard) remove immediately — the collapse
+                    // animation and width freeze only make sense with a cursor parked
+                    // on the strip.
+                    if (!freezeWidth) {
+                      closeTab(tab.id)
+                      return
+                    }
+                    if (pendingCloseIdsRef.current.has(tab.id)) return
+                    pendingCloseIdsRef.current.add(tab.id)
+                    stripPointerInsideRef.current = true
+                    if (thawTimerRef.current != null) {
+                      window.clearTimeout(thawTimerRef.current)
+                      thawTimerRef.current = null
+                    }
+                    setIsThawing(false)
+                    setFrozenTabWidth(freezeWidth)
+                    const wasActive = tab.id === activeTabIdRef.current
+                    // Two-phase: let the freeze snap paint first, then start the
+                    // collapse — otherwise the collapse transition starts from the
+                    // flexed grow-based state and every sibling wobbles. The active
+                    // handover happens in the SAME commit as the tone pinning: doing
+                    // it earlier leaves the tab active-less but not yet pinned for a
+                    // couple of frames, which flashes the hover tint.
+                    requestTrackedAnimationFrame(() =>
+                      requestTrackedAnimationFrame(() => {
+                        const activeId = activeTabIdRef.current
+                        const pendingCloseIds = pendingCloseIdsRef.current
+                        if (pendingCloseIds.has(activeId)) {
+                          const currentTabs = visualTabsRef.current
+                          const activeIndex = currentTabs.findIndex((candidate) => candidate.id === activeId)
+                          const rightTab = currentTabs
+                            .slice(activeIndex + 1)
+                            .find((candidate) => !pendingCloseIds.has(candidate.id))
+                          const leftTab = [...currentTabs.slice(0, activeIndex)]
+                            .reverse()
+                            .find((candidate) => !pendingCloseIds.has(candidate.id))
+                          const survivor = rightTab ?? leftTab
+                          if (survivor) {
+                            // Keep deferred callbacks in this frame consistent even
+                            // before React propagates the new activeTabId prop.
+                            activeTabIdRef.current = survivor.id
+                            setActiveTabRef.current(survivor.id)
+                          }
+                        }
+                        setClosingTabIds((prev) => (prev.has(tab.id) ? prev : new Map(prev).set(tab.id, wasActive)))
+                        if (thawAfterCollapseRef.current && !stripPointerInsideRef.current) {
+                          thawAfterCollapseRef.current = false
+                          requestTrackedAnimationFrame(() => {
+                            if (!stripPointerInsideRef.current) handleStripMouseLeaveRef.current()
+                          })
+                        }
+                        closeTimersRef.current.push(
+                          window.setTimeout(() => {
+                            pendingCloseIdsRef.current.delete(tab.id)
+                            setClosingTabIds((prev) => {
+                              const nextMap = new Map(prev)
+                              nextMap.delete(tab.id)
+                              return nextMap
+                            })
+                            closeTabRef.current(tab.id)
+                          }, 200)
+                        )
+                      })
+                    )
+                  }}
                   showClose={caps.close}
+                  frozenWidth={frozenTabWidth}
+                  isClosing={closingTabIds.has(tab.id)}
+                  closingWasActive={closingTabIds.get(tab.id) ?? false}
+                  isThawing={isThawing}
                   tone={tabTone}
                   drag={{
                     isDragging: isDragging(tab.id),
@@ -666,6 +953,7 @@ export const AppShellTabBar = ({
           <Tooltip placement="bottom" content={t('title.launchpad')} delay={800}>
             <button
               type="button"
+              data-launchpad-button
               aria-label={t('title.launchpad')}
               onClick={handleOpenLaunchpad}
               className={cn(
