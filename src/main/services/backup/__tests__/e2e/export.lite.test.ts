@@ -16,6 +16,7 @@ import { chatMessageFileRefTable } from '@main/data/db/schemas/fileRelations'
 import { knowledgeBaseTable } from '@main/data/db/schemas/knowledge'
 import { messageTable } from '@main/data/db/schemas/message'
 import { topicTable } from '@main/data/db/schemas/topic'
+import type { AssistantSettings } from '@shared/data/types/assistant'
 import { setupTestDatabase } from '@test-helpers/db'
 import Database from 'better-sqlite3'
 import StreamZip from 'node-stream-zip'
@@ -25,7 +26,7 @@ import { contributorManager } from '../../contributors/ContributorManager'
 import { SqliteBackupStripper } from '../../ExcludedDomainStripper'
 import { ExportOrchestrator } from '../../ExportOrchestrator'
 
-const ASSISTANT_SETTINGS = {
+const ASSISTANT_SETTINGS: AssistantSettings = {
   temperature: 1.0,
   enableTemperature: false,
   topP: 1,

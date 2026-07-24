@@ -22,6 +22,7 @@ import { paintingTable } from '@main/data/db/schemas/painting'
 import { topicTable } from '@main/data/db/schemas/topic'
 import { translateHistoryTable } from '@main/data/db/schemas/translateHistory'
 import { translateLanguageTable } from '@main/data/db/schemas/translateLanguage'
+import type { AssistantSettings } from '@shared/data/types/assistant'
 import { setupTestDatabase } from '@test-helpers/db'
 import Database from 'better-sqlite3'
 import { describe, expect, it } from 'vitest'
@@ -33,7 +34,7 @@ import { SqliteBackupStripper } from '../ExcludedDomainStripper'
  * any consumer that reads these keys, but the DB column itself only enforces
  * NOT NULL on the JSON blob, not its inner shape).
  */
-const ASSISTANT_SETTINGS = {
+const ASSISTANT_SETTINGS: AssistantSettings = {
   temperature: 1.0,
   enableTemperature: false,
   topP: 1,

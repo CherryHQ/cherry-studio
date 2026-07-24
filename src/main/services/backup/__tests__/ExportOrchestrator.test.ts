@@ -16,6 +16,7 @@ import { chatMessageFileRefTable } from '@main/data/db/schemas/fileRelations'
 import { knowledgeBaseTable } from '@main/data/db/schemas/knowledge'
 import { messageTable } from '@main/data/db/schemas/message'
 import { topicTable } from '@main/data/db/schemas/topic'
+import type { AssistantSettings } from '@shared/data/types/assistant'
 import type { BackupProgressUpdate } from '@shared/types/backup'
 import { setupTestDatabase } from '@test-helpers/db'
 import Database from 'better-sqlite3'
@@ -553,7 +554,7 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
     try {
       // Seed: included anchors + excluded-domain rows + the 2 cross-domain junction
       // referrers (chat_message_file_ref→file_entry, assistant_knowledge_base→knowledge_base).
-      const ASSISTANT_SETTINGS = {
+      const ASSISTANT_SETTINGS: AssistantSettings = {
         temperature: 1.0,
         enableTemperature: false,
         topP: 1,
