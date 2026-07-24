@@ -75,6 +75,9 @@ const FileResourceSchema = z.strictObject({
   asidePath: z.string().min(1).optional()
 })
 
+/** A single file resource entry staged for preboot promotion. Exported for resource planning (§6 ResourcePlan). */
+export type FileResource = z.infer<typeof FileResourceSchema>
+
 // All journal paths (db.*, fileResources[].*) are stored userData-relative;
 // readers join them onto the currently resolved userData. Schema only checks
 // non-empty strings — preboot consumption (restorePromotion) independently
