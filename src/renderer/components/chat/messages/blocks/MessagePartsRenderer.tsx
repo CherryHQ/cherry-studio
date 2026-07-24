@@ -33,7 +33,7 @@ import React, { useMemo } from 'react'
 
 import MessageAttachments from '../frame/MessageAttachments'
 import MessageVideo from '../frame/MessageVideo'
-import { useMessageRenderConfig } from '../MessageListProvider'
+import { useMessageListActiveTurnStatus, useMessageRenderConfig } from '../MessageListProvider'
 import { isReportArtifactsToolResponse, MessageReportArtifacts } from '../tools/agent'
 import MessageTools, { canRenderMessageTool } from '../tools/MessageTools'
 import { isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'
@@ -1247,6 +1247,9 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   messageParts
 }: MessagePartsRendererContentProps) {
   const requestFollowRecovery = useRequestScrollFollowRecovery()
+  // Inline ephemeral status for the live turn (e.g. agent api-retry). Only the active-turn message
+  // renders it; the node itself renders nothing when there is no such state.
+  const activeTurnStatus = useMessageListActiveTurnStatus()
   const wasActiveTurnProcessingRef = React.useRef(isActiveTurnProcessing)
   React.useEffect(() => {
     if (wasActiveTurnProcessingRef.current && !isActiveTurnProcessing) requestFollowRecovery()
@@ -1305,12 +1308,15 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   // But if the message is processing (pending/streaming), show the loading placeholder
   if (partEntries.length === 0 || (!hasVisibleEntry && reportArtifactToolResponses.length === 0)) {
     if (isActiveTurnProcessing) {
+      const placeholder = (
+        <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
+          <PlaceholderBlock isProcessing={true} createdAt={message.createdAt} status={placeholderStatus} />
+        </AnimatedBlockWrapper>
+      )
+      // The status renderer replaces the placeholder while active (e.g. an api-retry line) and falls
+      // back to it otherwise.
       return (
-        <AnimatePresence mode="sync">
-          <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
-            <PlaceholderBlock isProcessing={true} createdAt={message.createdAt} status={placeholderStatus} />
-          </AnimatedBlockWrapper>
-        </AnimatePresence>
+        <AnimatePresence mode="sync">{activeTurnStatus ? activeTurnStatus(placeholder) : placeholder}</AnimatePresence>
       )
     }
     return null
@@ -1328,6 +1334,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
         message={message}
         renderOptions={renderOptions}
       />
+      {isActiveTurnProcessing && activeTurnStatus?.(null)}
       {reportArtifactToolResponses.length > 0 && (
         <AnimatedBlockWrapper key={`report-artifacts-${message.id}`} enableAnimation={isStreamLive} animation="fade">
           <MessageReportArtifacts toolResponses={reportArtifactToolResponses} />

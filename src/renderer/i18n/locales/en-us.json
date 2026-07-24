@@ -360,6 +360,11 @@
         "label": "Pre-approved tools",
         "placeholder": "Select pre-approved tools"
       },
+      "api_retry": {
+        "reason": "Request failed ({{error}}, HTTP {{status}}) — retrying",
+        "retrying": "Retrying {{attempt}}/{{max}}…",
+        "retrying_in": "Retrying {{attempt}}/{{max}} in {{seconds}}s"
+      },
       "auto_rename": "Generate task name",
       "create": {
         "error": {

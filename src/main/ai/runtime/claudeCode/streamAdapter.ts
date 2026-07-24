@@ -858,6 +858,10 @@ export class ClaudeCodeStreamAdapter {
         this.handleThinkingTokensSystemMessage(message, ctx)
         return
       case 'api_retry':
+        // Defensive fallback for future non-driver consumers. ClaudeCodeRuntimeDriver intercepts
+        // api_retry before this adapter and emits it as an ephemeral runtime event, so nothing is
+        // emitted into the message stream here (retry status is never persisted conversation content).
+        return
       case 'hook_started':
       case 'hook_progress':
       case 'hook_response':

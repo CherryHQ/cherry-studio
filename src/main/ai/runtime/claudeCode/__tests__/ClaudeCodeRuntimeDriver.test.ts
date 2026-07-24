@@ -693,6 +693,88 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('maps an SDK api_retry message to an ephemeral api-retry runtime event during an active turn', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    // Open a turn so the adapter exists — retry status is turn-scoped and only forwarded below the
+    // no-adapter drop.
+    queryQueue.push({ type: 'system', subtype: 'init', session_id: 'resume-init' })
+    await expect(events.next()).resolves.toMatchObject({ value: { type: 'resume-token', token: 'resume-init' } })
+    await connection.send({ message: userMessage() })
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'chunk', chunk: { type: 'message-metadata', messageMetadata: { modelId: 'sonnet-sdk' } } }
+    })
+
+    queryQueue.push({
+      type: 'system',
+      subtype: 'api_retry',
+      session_id: 'resume-init',
+      attempt: 7,
+      max_retries: 10,
+      retry_delay_ms: 36_000,
+      error_status: 500,
+      error: 'server_error'
+    })
+
+    await expect(events.next()).resolves.toMatchObject({
+      value: {
+        type: 'api-retry',
+        retry: {
+          attempt: 7,
+          maxRetries: 10,
+          retryDelayMs: 36_000,
+          errorStatus: 500,
+          errorCategory: 'server_error'
+        }
+      }
+    })
+
+    void connection.close()
+  })
+
+  it('drops an SDK api_retry message when there is no active turn', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    // No `send()` → no adapter (prewarm / turn-less). A turn-less retry has no message to attach to and
+    // no clear boundary (init recovery only emits a resume-token), so it must be dropped, not surfaced
+    // as a stuck "retrying" state. Assert the retry produces nothing by proving the NEXT emitted event
+    // is the following commands_changed push.
+    queryQueue.push({
+      type: 'system',
+      subtype: 'api_retry',
+      session_id: 'resume-1',
+      attempt: 3,
+      max_retries: 10,
+      retry_delay_ms: 12_000,
+      error_status: 500,
+      error: 'server_error'
+    })
+    const commands = [{ name: 'deploy', description: 'Deploy the app', argumentHint: '' }]
+    queryQueue.push({ type: 'system', subtype: 'commands_changed', commands, session_id: 'resume-1' })
+
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'supported-commands', commands }
+    })
+
+    void connection.close()
+  })
+
   it('maps an SDK commands_changed message to a supported-commands event without an active turn', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
