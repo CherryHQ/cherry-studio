@@ -85,7 +85,7 @@ extraResources:
   - from: "packages/provider-registry/data"
     to: "provider-registry"
 win:
-  executableName: CherryStudio
+  executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
   target:
     - target: nsis
@@ -103,6 +103,7 @@ nsis:
   include: build/nsis-installer.nsh
   buildUniversalInstaller: false
   differentialPackage: false
+  guid: 41a4ccd8-bcc0-5710-9eee-0e164da68057
 portable:
   artifactName: ${productName}-${version}-${arch}-portable.${ext}
   buildUniversalInstaller: false
