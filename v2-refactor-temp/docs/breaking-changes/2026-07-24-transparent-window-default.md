@@ -2,7 +2,7 @@
 title: Transparent windows are enabled by default on macOS
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: "#17350"
 date: 2026-07-24
 ---
 
