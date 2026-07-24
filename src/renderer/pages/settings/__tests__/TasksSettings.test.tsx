@@ -572,6 +572,17 @@ vi.mock('@cherrystudio/ui', () => {
     ItemMedia: passthrough('div', 'item-media'),
     ItemSeparator: () => <hr />,
     ItemTitle: passthrough('div', 'item-title'),
+    Pagination: passthrough('nav', 'pagination'),
+    PaginationContent: passthrough('ul', 'pagination-content'),
+    PaginationItem: passthrough('li', 'pagination-item'),
+    PaginationNext: ({
+      children,
+      ...props
+    }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { children?: React.ReactNode }) => <a {...props}>{children}</a>,
+    PaginationPrevious: ({
+      children,
+      ...props
+    }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { children?: React.ReactNode }) => <a {...props}>{children}</a>,
     RowFlex: passthrough('div'),
     Scrollbar: passthrough('div', 'scrollbar'),
     SearchInput: ({
@@ -821,8 +832,9 @@ describe('TasksSettings routing and creation', () => {
     render(<TasksSettings />)
 
     await screen.findByText('settings.scheduledTasks.paginationStatus')
-    fireEvent.click(screen.getByRole('button', { name: 'common.next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'common.previous' }))
+    expect(screen.getByRole('navigation', { name: 'settings.scheduledTasks.paginationLabel' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('link', { name: 'common.next' }))
+    fireEvent.click(screen.getByRole('link', { name: 'common.previous' }))
 
     expect(taskMutationMocks.nextPage).toHaveBeenCalledTimes(1)
     expect(taskMutationMocks.prevPage).toHaveBeenCalledTimes(1)

@@ -36,6 +36,11 @@ import {
   ItemGroup,
   ItemSeparator,
   ItemTitle,
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
   RowFlex,
   Scrollbar,
   SearchInput,
@@ -93,7 +98,6 @@ import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import type { TFunction } from 'i18next'
 import {
   ArrowLeft,
-  ArrowRight,
   Bot,
   CalendarClock,
   ChevronDown,
@@ -1550,19 +1554,43 @@ const TasksSettings: FC = () => {
               </ItemGroup>
             )}
             {pageCount > 1 && (
-              <RowFlex className="justify-center gap-3 pt-4">
-                <Button type="button" variant="ghost" size="sm" disabled={!hasPrev} onClick={prevPage}>
-                  <ArrowLeft size={16} />
-                  {t('common.previous')}
-                </Button>
-                <SettingDescription className="mt-0">
-                  {t('settings.scheduledTasks.paginationStatus', { page, pageCount, total })}
-                </SettingDescription>
-                <Button type="button" variant="ghost" size="sm" disabled={!hasNext} onClick={nextPage}>
-                  {t('common.next')}
-                  <ArrowRight size={16} />
-                </Button>
-              </RowFlex>
+              <Pagination aria-label={t('settings.scheduledTasks.paginationLabel')} className="pt-4">
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      href="#"
+                      aria-disabled={!hasPrev}
+                      aria-label={t('common.previous')}
+                      tabIndex={hasPrev ? undefined : -1}
+                      className={hasPrev ? undefined : 'pointer-events-none opacity-40'}
+                      onClick={(event) => {
+                        event.preventDefault()
+                        prevPage()
+                      }}>
+                      {t('common.previous')}
+                    </PaginationPrevious>
+                  </PaginationItem>
+                  <PaginationItem>
+                    <SettingDescription className="mt-0 px-2 tabular-nums">
+                      {t('settings.scheduledTasks.paginationStatus', { page, pageCount, total })}
+                    </SettingDescription>
+                  </PaginationItem>
+                  <PaginationItem>
+                    <PaginationNext
+                      href="#"
+                      aria-disabled={!hasNext}
+                      aria-label={t('common.next')}
+                      tabIndex={hasNext ? undefined : -1}
+                      className={hasNext ? undefined : 'pointer-events-none opacity-40'}
+                      onClick={(event) => {
+                        event.preventDefault()
+                        nextPage()
+                      }}>
+                      {t('common.next')}
+                    </PaginationNext>
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
             )}
           </>
         )}
