@@ -35,10 +35,6 @@ vi.mock('electron', () => ({
   dialog: { showErrorBox: vi.fn() }
 }))
 
-// Importing the module for its constants must not construct the real
-// BootConfigService (module-load fs reads).
-vi.mock('@main/data/bootConfig', () => ({ bootConfigService: {} }))
-
 const registry = buildPathRegistry()
 const userData = registry['app.userdata']
 
@@ -90,13 +86,25 @@ describe('dataReset ↔ pathRegistry conformance', () => {
 
   it('the data-reset marker survives its own wipe (a deliberate third category)', () => {
     // The pending marker is neither wiped user state nor a kept machine
-    // artifact: it must outlive the wipe pass so runDataReset can remove it
-    // LAST and prove the reset completed. It is therefore excluded from the
-    // classification loop below and pinned here instead.
+    // artifact: it must outlive the wipe pass so runDataReset can commit the
+    // durable `completed` record over it and only then remove it. It is
+    // therefore excluded from the classification loop below and pinned here
+    // instead.
     const markerEntry = firstSegment(registry['feature.data_reset.marker_file'], userData)
     expect(markerEntry).toBe('data-reset.pending.json')
     expect(isWiped(markerEntry)).toBe(false)
     expect(USER_DATA_KEPT).not.toContain(markerEntry)
+  })
+
+  it('retains Data Reset sidecar residue as classified diagnostics', () => {
+    // Known artifacts of the marker protocol itself, deliberately retained
+    // (see the classification in dataReset's kept-contract comment): the
+    // quarantined invalid marker and writeMarker's crash-orphaned temp file.
+    // Pinned so neither name drifts into the wipe list.
+    for (const residue of ['data-reset.pending.invalid', 'data-reset.pending.json.tmp-123-abc']) {
+      expect(isWiped(residue)).toBe(false)
+      expect(USER_DATA_KEPT).not.toContain(residue)
+    }
   })
 
   it('classifies every userData registry entry as wiped user state or a kept machine artifact', () => {

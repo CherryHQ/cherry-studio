@@ -5,13 +5,10 @@ import path from 'node:path'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { SHUTDOWN_TIMEOUT_MS } from '@main/core/lifecycle'
-import { bootConfigService } from '@main/data/bootConfig'
 // Request side only: t resolves the language through PreferenceService,
 // which exists in the live app but NOT at preboot — the execution side's
 // dialogs below are deliberately hardcoded en-US instead.
 import { t } from '@main/i18n'
-import { DefaultBootConfig } from '@shared/data/bootConfig/bootConfigSchemas'
-import type { BootConfigKey } from '@shared/data/bootConfig/bootConfigTypes'
 import { dialog, session } from 'electron'
 import * as z from 'zod'
 
@@ -59,10 +56,10 @@ const MAX_WIPE_ATTEMPTS = 2
  * directory a marker can legitimately point at (#17138 review).
  *
  * NOTE: the pending-marker file itself is deliberately NOT listed — it must
- * survive its own wipe pass so the
- * success path can prove it removed the marker LAST (a wiped-then-missing
- * marker is indistinguishable from a never-armed one). runDataReset deletes
- * it explicitly after a clean pass.
+ * survive its own wipe pass so the success path can commit the durable
+ * `completed` terminal record over it (a wiped-then-missing marker is
+ * indistinguishable from a never-armed one). runDataReset disarms it
+ * explicitly after a clean pass.
  *
  * Cherry user state:
  * - `cherrystudio.sqlite` (+ `-wal`/`-shm`) — the app database and its WAL
@@ -136,6 +133,15 @@ export const USER_DATA_WIPE = [
  * - `Runtime`, `Toolchain`, `tesseract` — re-downloadable machine artifacts
  *   (model weights, onnxruntime, OCR traineddata); they survive a reset the
  *   way an OS survives a phone reset (#17131, #16838).
+ *
+ * Data Reset's own sidecar residue is also deliberately retained (kept by
+ * the whitelist simply not naming it) — known artifacts of this module,
+ * classified as diagnostics rather than unknown debris (#17138 review):
+ * - `data-reset.pending.invalid` — an invalid marker quarantined by
+ *   readMarker, kept as evidence for diagnosis.
+ * - `data-reset.pending.json.tmp-*` — writeMarker's temp file, orphaned only
+ *   if the process dies mid-write (the failure path unlinks it otherwise);
+ *   inert, never read back.
  */
 export const USER_DATA_KEPT = ['logs', 'Crashpad', 'Runtime', 'Toolchain', 'tesseract']
 
@@ -149,21 +155,41 @@ export const USER_DATA_KEPT = ['logs', 'Crashpad', 'Runtime', 'Toolchain', 'tess
 const RM_OPTIONS = { recursive: true, force: true, maxRetries: 3, retryDelay: 100 } as const
 
 /**
- * The marker's on-disk shape. Module-private — nothing outside this file
- * reads it, so it does not belong in @shared.
+ * The marker's on-disk shapes, versioned and strict. Module-private —
+ * nothing outside this file reads them, so they do not belong in @shared.
+ * The marker is a persistent destructive authorization, so parsing is
+ * deliberately unforgiving: unknown fields, unknown statuses, or a
+ * missing/unknown version fail validation wholesale and are quarantined by
+ * readMarker instead of being partially accepted (#17138 review).
  *
- * `canonicalPath` is REQUIRED (unlike a plain userData string): a pass whose
- * realpath re-resolution disagrees with it refuses to wipe, so a replaced
- * symlink/junction cannot redirect a recorded authorization onto a new
- * directory (#17138 review). There is no `userDataPath` field — the marker
- * file's own location is the "which userData" answer.
+ * `pending` arms a wipe. `canonicalPath` is REQUIRED (unlike a plain
+ * userData string): a pass whose realpath re-resolution disagrees with it
+ * refuses to wipe, so a replaced symlink/junction cannot redirect a recorded
+ * authorization onto a new directory (#17138 review). There is no
+ * `userDataPath` field — the marker file's own location is the "which
+ * userData" answer. `attempts` is constrained to a non-negative integer so a
+ * hand-edited value cannot re-open the retry cap.
+ *
+ * `completed` is the durable terminal record a clean pass commits over the
+ * pending marker BEFORE removing it: completion must be positive on-disk
+ * state, not the absence of a file, because an unlink's durability cannot be
+ * proven (see the success path in runDataReset). A resurrected completed
+ * marker is recognized as "done" and never authorizes another wipe.
  */
-const dataResetMarkerSchema = z.object({
-  status: z.literal('pending'),
-  requestedAt: z.string(),
-  attempts: z.number().optional(),
-  canonicalPath: z.string()
-})
+const dataResetMarkerSchema = z.discriminatedUnion('status', [
+  z.strictObject({
+    version: z.literal(1),
+    status: z.literal('pending'),
+    requestedAt: z.string(),
+    attempts: z.number().int().nonnegative().optional(),
+    canonicalPath: z.string()
+  }),
+  z.strictObject({
+    version: z.literal(1),
+    status: z.literal('completed'),
+    completedAt: z.string()
+  })
+])
 type DataResetMarker = z.infer<typeof dataResetMarkerSchema>
 
 /** A marker rename landed, but its parent-directory fsync did not complete. */
@@ -260,7 +286,18 @@ function writeMarker(marker: DataResetMarker): void {
   }
 }
 
-/** Fsync a marker's parent directory so a rename or unlink survives power loss; Windows skips it. */
+/**
+ * Fsync a marker's parent directory so a rename or unlink survives power
+ * loss. Windows is a deliberate ceiling: Node exposes no supported way to
+ * make directory metadata durable there (fs.rename has no write-through
+ * mode, and fsync on a directory handle is not a documented Windows
+ * contract), so this returns without a barrier and rename/unlink durability
+ * is whatever the volume provides — NTFS metadata journaling in the common
+ * case, nothing on FAT/exFAT or network shares. Remaining exposure on such
+ * volumes: a power loss that rolls back the pending→completed transition
+ * after the app already booted writable. Upgrade trigger: a Node API
+ * offering write-through rename or directory metadata flush on Windows.
+ */
 function syncParentDirectory(file: string): void {
   if (process.platform === 'win32') return
   const fd = fs.openSync(path.dirname(file), 'r')
@@ -272,12 +309,15 @@ function syncParentDirectory(file: string): void {
 }
 
 /**
- * Remove the marker. ENOENT is success (already gone — matches the old
- * "a lost clear is re-cleared by the cap path" tolerance). Any other error
- * throws: the marker provably still exists, and the caller decides whether
- * that is critical (a clean wipe must not boot writable over it) or
- * tolerable (a give-up pass runs no wipe, so a survivor is harmlessly
- * re-abandoned next boot).
+ * Remove the marker. ENOENT is success (already gone). Any other error
+ * throws: the marker provably still exists, and what that means is the
+ * caller's contract —
+ * - the give-up paths (path mismatch, attempt cap) let the throw propagate
+ *   to runDataReset's outer catch, which force-exits: fail closed rather
+ *   than boot writable over a still-pending marker;
+ * - the terminal-state paths (clearing a `completed` marker after a clean
+ *   pass, or one resurrected on a later boot) catch and tolerate it: a
+ *   completed marker authorizes nothing, so a survivor is inert.
  */
 function deleteMarker(): void {
   const file = markerPath()
@@ -324,6 +364,7 @@ export async function requestDataReset(): Promise<void> {
   // possibly committed marker never coexists with a writable app.
   try {
     writeMarker({
+      version: 1,
       status: 'pending',
       requestedAt: new Date().toISOString(),
       canonicalPath: canonicalize(userDataPath)
@@ -371,13 +412,18 @@ export async function requestDataReset(): Promise<void> {
 /**
  * Execution face (#17131). Consumes the pending-marker file written by
  * {@link requestDataReset}: deletes the {@link USER_DATA_WIPE} entries from
- * userData, resets BootConfig's other keys to defaults, removes the marker,
- * then relaunches so the app boots a fresh-install state in a clean process.
+ * userData, commits a durable `completed` record over the marker, then
+ * relaunches so the app boots a fresh-install state in a clean process.
  *
- * Scope: userData only. `~/.cherrystudio` is machine domain (tool binaries,
- * models, OVMS registry, config/mcp/trace) and is deliberately untouched
- * (#17138 maintainer decision); the retained credentials there are
- * documented in the breaking-changes entry.
+ * Scope: this userData profile only. `~/.cherrystudio` is machine domain
+ * (tool binaries, models, OVMS registry, config/mcp/trace) and is
+ * deliberately untouched (#17138 maintainer decision); the retained
+ * credentials there are documented in the breaking-changes entry. BootConfig
+ * is part of that machine domain and is NOT touched either: boot-config.json
+ * is a machine-global control-plane file shared by instances using different
+ * userData directories, and BootConfigService persists whole-file snapshots,
+ * so writing it from a per-profile wipe could overwrite another instance's
+ * concurrent update (#17138 review).
  *
  * Timing contract: runs at the top of startApp() — after
  * requireSingleInstance() (destructive fs operations must hold the
@@ -398,10 +444,15 @@ export async function requestDataReset(): Promise<void> {
  *   straight back into preboot to retry. At the cap it gives up: marker
  *   removed, failure surfaced in a dialog, boot continues over whatever
  *   remains.
- * - After a clean pass the reset BootConfig defaults are synchronously
- *   persisted, then the marker file is removed LAST. Either failure quits
- *   without reporting success; a persistence failure first clears the marker
- *   so it cannot arm a future writable profile.
+ * - After a clean pass a durable `completed` record is committed over the
+ *   marker via the same atomic write path, and only then is the file
+ *   removed, best-effort: completion is positive durable state, never the
+ *   unprovable absence of a file. A failed completion commit quits (the
+ *   durable on-disk state may still be `pending`); a failed removal is
+ *   tolerated (a resurrected `completed` marker is recognized and inert).
+ *   A later boot that READS a completed marker re-commits it durably before
+ *   tolerating anything, since the boot that wrote it may have quit exactly
+ *   because durability could not be proven (sol review).
  * - It then relaunches: the reset session must not keep running in the
  *   process that wiped it (stale Chromium flags, cached ensured paths); the
  *   next boot starts fresh with no marker.
@@ -414,6 +465,35 @@ export function runDataReset(): void {
     // No marker file in this userData → nothing pending, boot normally. The
     // marker's location IS the ownership, so there is no cross-instance check.
     if (!marker) return
+
+    // A completed terminal record is a finished reset whose best-effort
+    // removal did not survive (an unproven unlink can be rolled back by a
+    // crash). The record exists precisely so this boot recognizes the reset
+    // as done instead of re-wiping data created since.
+    if (marker.status === 'completed') {
+      logger.info('Found a completed data reset marker — clearing it and booting normally', {
+        completedAt: marker.completedAt
+      })
+      // The record was READ from the live directory, but nothing on THIS
+      // boot has proven it durable — the boot that wrote it may have quit on
+      // a failed directory sync, leaving `pending` as the last state known
+      // persisted. Re-commit it through the same atomic write path before
+      // tolerating anything; a failure propagates to the outer catch and
+      // quits, because booting writable while the durable state may still be
+      // `pending` reopens exactly the resurrection wipe this record exists
+      // to prevent (sol review).
+      writeMarker(marker)
+      // Durability proven — removal is genuinely best-effort from here: a
+      // survivor or resurrected file reads as `completed` and is inert.
+      try {
+        deleteMarker()
+      } catch (error) {
+        logger.warn('Could not remove a completed data reset marker — leaving it for a later boot', {
+          error: String(error)
+        })
+      }
+      return
+    }
 
     const userData = application.getPath('app.userdata')
 
@@ -431,9 +511,10 @@ export function runDataReset(): void {
       return
     }
 
-    // zod guarantees `attempts` is a number or absent (a non-number marker is
-    // rejected as corrupt in readMarker), so this just maps absence to 0.
-    const attempts = Number(marker.attempts) || 0
+    // The schema guarantees `attempts` is a non-negative integer or absent
+    // (negative, fractional, or non-number values are quarantined as invalid
+    // in readMarker), so this just maps absence to 0.
+    const attempts = marker.attempts ?? 0
     if (attempts >= MAX_WIPE_ATTEMPTS) {
       logger.error('Data reset abandoned: attempt cap reached with critical failures — clearing the marker', {
         attempts
@@ -495,9 +576,9 @@ export function runDataReset(): void {
         return
       }
       // Out of attempts: give up NOW instead of leaving the marker pending.
-      // The marker removal is best-effort here — a survivor is re-read and
-      // re-abandoned by the cap path on the next boot without another
-      // destructive pass.
+      // If clearing the marker fails, the throw reaches the outer catch and
+      // the app quits — fail closed rather than boot writable over a marker
+      // that could arm another pass.
       logger.error('Data reset abandoned: attempt cap reached with critical failures — clearing the marker', {
         failures
       })
@@ -505,57 +586,47 @@ export function runDataReset(): void {
       return
     }
 
-    // Reset BootConfig's other keys to defaults and persist them before
-    // clearing the marker. Deliberately keeps `app.user_data_path`: the custom
-    // data-directory *location* is machine configuration — the reset wipes
-    // the data at that location, not the choice of location.
+    // Commit the durable terminal record BEFORE removing the marker: an
+    // unlink's durability cannot be proven, and a crash after an unproven
+    // unlink can resurrect the pending marker and re-authorize a wipe of
+    // data created after the reset (#17138 review). The record rides the
+    // same atomic write path as the pending marker (rename over it). Any
+    // failure — including a rename that landed without a durable directory
+    // sync — quits: the durable on-disk state may still be `pending`.
     try {
-      resetBootConfigToDefaults()
-      bootConfigService.persist()
+      writeMarker({ version: 1, status: 'completed', completedAt: new Date().toISOString() })
     } catch (error) {
-      logger.error('Data reset wiped successfully but could not persist reset BootConfig defaults', {
-        error: String(error)
-      })
-      try {
-        // Do not leave a stale pending marker to wipe a later fresh profile.
-        deleteMarker()
-      } catch (markerError) {
-        logger.error('Data reset could not durably clear its marker after a BootConfig persistence failure', {
-          error: String(markerError)
-        })
-      }
-      showDataResetError(
-        'Data Reset Incomplete',
-        'Cherry Studio erased its data but could not save the reset settings. ' +
-          'The app will quit instead of reporting the reset as successful.\n\n' +
-          'Please check disk space and file permissions before starting Cherry Studio again.'
+      logger.error(
+        'Data reset wiped successfully but the completion record could not be committed — refusing to boot',
+        {
+          error: String(error)
+        }
       )
-      return
-    }
-
-    // Remove the marker LAST. If it cannot be removed the marker provably
-    // still exists: booting on would let the user rebuild data that the next
-    // start wipes again, so quitting is the only honest option.
-    try {
-      deleteMarker()
-    } catch (error) {
-      logger.error('Data reset wiped successfully but the marker could not be removed — refusing to boot', {
-        error: String(error)
-      })
       showDataResetError(
         'Data Reset Incomplete',
-        'Cherry Studio erased its data but could not remove the reset marker ' +
-          `at ${markerPath()}.\n\n` +
-          'Starting now would erase anything you create on the next launch, so the app will quit instead.\n\n' +
+        'Cherry Studio erased its data but could not record the reset as finished ' +
+          `in ${markerPath()}.\n\n` +
+          'Starting now could erase anything you create on the next launch, so the app will quit instead.\n\n' +
           'Please check disk space and file permissions, then start Cherry Studio again.'
       )
       return
     }
 
-    // Relaunch instead of continuing: the marker is removed, so the next boot
+    // With the terminal record durable, removal is genuinely best-effort: if
+    // the unlink (or its directory sync) does not survive, the next boot
+    // reads `completed` and clears it without wiping anything.
+    try {
+      deleteMarker()
+    } catch (error) {
+      logger.warn('Could not remove the completed data reset marker — the next boot will clear it', {
+        error: String(error)
+      })
+    }
+
+    // Relaunch instead of continuing: the marker is disarmed, so the next boot
     // is a normal fresh-install boot — in a clean process whose
-    // module-top-level Chromium flags read the post-reset BootConfig values
-    // (#17138 suggestion). No loop: no marker, no action on the next pass.
+    // module-top-level Chromium flags are read fresh (#17138 suggestion).
+    // No loop: an absent or completed marker arms nothing on the next pass.
     logger.info('Data reset completed — relaunching into a fresh state')
     application.relaunch()
   } catch (error) {
@@ -571,8 +642,9 @@ export function runDataReset(): void {
 
 /**
  * Refuse a reset whose target no longer has the physical identity the user
- * confirmed. No destructive pass ran, so preserve BootConfig and only disarm
- * the stale authorization before allowing startup.
+ * confirmed. No destructive pass ran, so only the stale authorization is
+ * disarmed before allowing startup. A deleteMarker failure propagates to the
+ * outer catch and quits — never boot writable over a pending marker.
  */
 function refuseResetForPathMismatch(): void {
   deleteMarker()
@@ -580,13 +652,12 @@ function refuseResetForPathMismatch(): void {
 }
 
 /**
- * Give up after a destructive pass could not remove every required entry.
- * Reset BootConfig to match the partially wiped profile, then disarm the
- * marker so later user data is not deleted by another automatic pass.
+ * Give up after the attempt cap: disarm the marker so later user data is not
+ * deleted by another automatic pass, and tell the user what remains. A
+ * deleteMarker failure propagates to the outer catch and quits — fail closed
+ * rather than boot writable over a still-pending marker.
  */
 function abandonIncompleteReset(): void {
-  resetBootConfigToDefaults()
-  bootConfigService.flush()
   deleteMarker()
   showIncompleteResetWarning()
 }
@@ -680,14 +751,6 @@ function showIncompleteResetWarning(): void {
       'The app will start with whatever remains. ' +
       'Please check file permissions (or antivirus locks) and run Data Reset again from Settings.'
   )
-}
-
-/** Reset every BootConfig key to its default except the data-dir location. */
-function resetBootConfigToDefaults(): void {
-  for (const key of Object.keys(DefaultBootConfig) as BootConfigKey[]) {
-    if (key === 'app.user_data_path') continue
-    bootConfigService.set(key, DefaultBootConfig[key])
-  }
 }
 
 /**

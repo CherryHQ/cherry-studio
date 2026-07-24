@@ -8,8 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  * Mocking strategy (mirrors userDataLocation.test.ts):
  *   - `vi.doMock` + `vi.resetModules()` + dynamic import of the module under
  *     test in each scenario.
- *   - `electron`, `node:fs`, `@application`, `@main/i18n`, and
- *     `@main/data/bootConfig` are shadowed per test.
+ *   - `electron`, `node:fs`, `@application`, and `@main/i18n` are shadowed
+ *     per test.
  *   - The pending marker is now a FILE at `feature.data_reset.marker_file`,
  *     not a BootConfig key. The fs stub keeps a small in-memory file map
  *     backing the marker protocol (open/write/fsync/close/rename/unlink/read)
@@ -36,17 +36,21 @@ const fsyncSyncMock = vi.fn()
 const closeSyncMock = vi.fn()
 const renameSyncMock = vi.fn()
 const unlinkSyncMock = vi.fn()
-const bootConfigGetMock = vi.fn()
-const bootConfigSetMock = vi.fn()
-const bootConfigFlushMock = vi.fn()
-const bootConfigPersistMock = vi.fn()
 
-type DataResetMarker = {
-  status: 'pending'
-  requestedAt: string
-  attempts?: number
-  canonicalPath: string
-} | null
+type DataResetMarker =
+  | {
+      version: 1
+      status: 'pending'
+      requestedAt: string
+      attempts?: number
+      canonicalPath: string
+    }
+  | {
+      version: 1
+      status: 'completed'
+      completedAt: string
+    }
+  | null
 
 /** In-memory backing for the marker protocol's fs ops. */
 type FsControl = {
@@ -61,6 +65,8 @@ type FsControl = {
   failDelete: boolean
   /** When set, fsyncing the marker parent directory throws. */
   failDirectorySync: boolean
+  /** Number of parent-directory fsyncs to let succeed before failing. */
+  directorySyncFailuresToSkip: number
   /** Filesystem operation order for marker durability assertions. */
   operations: string[]
 }
@@ -176,31 +182,6 @@ function stubI18n() {
   vi.doMock('@main/i18n', () => ({ t: (key: string) => key }))
 }
 
-/** BootConfig now only carries the NON-marker keys the reset restores. */
-function stubBootConfig() {
-  const store: Record<string, unknown> = {
-    'app.disable_hardware_acceleration': true,
-    'app.user_data_path': { '/mock/exe': USER_DATA },
-    'temp.user_data_relocation': null
-  }
-  bootConfigGetMock.mockImplementation((key: string) => store[key])
-  bootConfigSetMock.mockImplementation((key: string, value: unknown) => {
-    store[key] = value
-  })
-  bootConfigFlushMock.mockImplementation(() => undefined)
-  bootConfigPersistMock.mockImplementation(() => undefined)
-  vi.doMock('@main/data/bootConfig', () => ({
-    bootConfigService: {
-      get: bootConfigGetMock,
-      set: bootConfigSetMock,
-      flush: bootConfigFlushMock,
-      persist: bootConfigPersistMock,
-      getFilePath: () => '/mock/home/.cherrystudio/boot-config.json'
-    }
-  }))
-  return store
-}
-
 function stubFs(listing: string[] | Error = DEFAULT_LISTING) {
   fsCtl = {
     files: new Map(),
@@ -210,6 +191,7 @@ function stubFs(listing: string[] | Error = DEFAULT_LISTING) {
     failWrite: false,
     failDelete: false,
     failDirectorySync: false,
+    directorySyncFailuresToSkip: 0,
     operations: []
   }
 
@@ -255,6 +237,10 @@ function stubFs(listing: string[] | Error = DEFAULT_LISTING) {
     const p = fsCtl.fds.get(fd)
     if (p) fsCtl.operations.push(`fsync:${p}`)
     if (p === USER_DATA && fsCtl.failDirectorySync) {
+      if (fsCtl.directorySyncFailuresToSkip > 0) {
+        fsCtl.directorySyncFailuresToSkip--
+        return
+      }
       throw new Error('EIO: failed to sync marker directory')
     }
   })
@@ -314,10 +300,8 @@ function stubAll(marker: DataResetMarker) {
   stubElectron()
   stubApplication()
   stubI18n()
-  const store = stubBootConfig()
   stubFs()
   if (marker) seedMarker(marker)
-  return store
 }
 
 /** Write a valid marker into the in-memory map at this instance's marker path. */
@@ -339,12 +323,24 @@ function readStoredMarker(): DataResetMarker {
   return raw ? (JSON.parse(raw) as DataResetMarker) : null
 }
 
-function pendingMarker(overrides: Partial<NonNullable<DataResetMarker>> = {}): NonNullable<DataResetMarker> {
+type PendingMarker = Extract<NonNullable<DataResetMarker>, { status: 'pending' }>
+type CompletedMarker = Extract<NonNullable<DataResetMarker>, { status: 'completed' }>
+
+function pendingMarker(overrides: Partial<PendingMarker> = {}): PendingMarker {
   return {
+    version: 1,
     status: 'pending',
     requestedAt: '2026-07-20T00:00:00.000Z',
     canonicalPath: USER_DATA,
     ...overrides
+  }
+}
+
+function completedMarker(): CompletedMarker {
+  return {
+    version: 1,
+    status: 'completed',
+    completedAt: '2026-07-21T00:00:00.000Z'
   }
 }
 
@@ -378,7 +374,6 @@ describe('runDataReset', () => {
 
     expect(rmSyncMock).not.toHaveBeenCalled()
     expect(applicationMock.relaunch).not.toHaveBeenCalled()
-    expect(bootConfigSetMock).not.toHaveBeenCalled()
   })
 
   it("boots normally when no marker file exists in this userData (a sibling instance's marker lives in its own userData and is invisible here)", async () => {
@@ -393,8 +388,8 @@ describe('runDataReset', () => {
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
 
-  it('wipes exactly the whitelist, resets BootConfig, removes the marker, and relaunches', async () => {
-    const store = stubAll(pendingMarker())
+  it('wipes exactly the whitelist, commits a completed record, removes the marker, and relaunches', async () => {
+    stubAll(pendingMarker())
     await runReset()
 
     const wiped = wipedEntries()
@@ -408,13 +403,9 @@ describe('runDataReset', () => {
     // hands path ensuring to the fresh process).
     expect(rmSyncMock).toHaveBeenCalledWith(APP_TEMP, expect.anything())
 
-    // BootConfig reset: other keys back to defaults, data-dir location
-    // preserved; the marker is no longer a BootConfig key so it lives in the
-    // file and is removed LAST.
-    expect(store['app.disable_hardware_acceleration']).toBe(false)
-    expect(store['app.user_data_path']).toEqual({ '/mock/exe': USER_DATA })
-    expect(bootConfigPersistMock).toHaveBeenCalledTimes(1)
-    expect(bootConfigFlushMock).not.toHaveBeenCalled()
+    // Marker protocol: arm (attempts 1), then the durable completed terminal
+    // record, then best-effort removal.
+    expect(fsCtl.commits.map((c) => c?.status)).toEqual(['pending', 'completed'])
     expect(markerExists()).toBe(false)
 
     // Post-wipe relaunch into a clean process (#17138 suggestion).
@@ -427,14 +418,19 @@ describe('runDataReset', () => {
     stubAll(pendingMarker())
     await runReset()
 
-    const armRename = fsCtl.operations.indexOf(`rename:${MARKER_FILE}`)
-    const firstDirectorySync = fsCtl.operations.indexOf(`fsync:${USER_DATA}`)
-    const markerUnlink = fsCtl.operations.indexOf(`unlink:${MARKER_FILE}`)
-    const finalDirectorySync = fsCtl.operations.lastIndexOf(`fsync:${USER_DATA}`)
-    expect(armRename).toBeGreaterThanOrEqual(0)
-    expect(firstDirectorySync).toBeGreaterThan(armRename)
-    expect(markerUnlink).toBeGreaterThan(firstDirectorySync)
-    expect(finalDirectorySync).toBeGreaterThan(markerUnlink)
+    // arm (attempts 1) → completed terminal record → best-effort unlink,
+    // each committed with a parent-directory sync.
+    const markerOps = fsCtl.operations.filter((op) =>
+      [`rename:${MARKER_FILE}`, `fsync:${USER_DATA}`, `unlink:${MARKER_FILE}`].includes(op)
+    )
+    expect(markerOps).toEqual([
+      `rename:${MARKER_FILE}`,
+      `fsync:${USER_DATA}`,
+      `rename:${MARKER_FILE}`,
+      `fsync:${USER_DATA}`,
+      `unlink:${MARKER_FILE}`,
+      `fsync:${USER_DATA}`
+    ])
   })
 
   it('leaves the pending marker file in place during the wipe pass', async () => {
@@ -445,7 +441,7 @@ describe('runDataReset', () => {
     await runReset()
 
     expect(wipedEntries()).not.toContain(MARKER_FILE)
-    // It was removed separately (unlink), last, after a clean pass.
+    // It was disarmed separately (completed record + unlink) after the pass.
     expect(unlinkSyncMock).toHaveBeenCalledWith(MARKER_FILE)
     expect(markerExists()).toBe(false)
   })
@@ -515,9 +511,10 @@ describe('runDataReset', () => {
     seedMarker(pendingMarker({ canonicalPath: '/mock/physical/CherryStudio' }))
     await runReset()
 
-    const armed = fsCtl.commits[0]
-    expect(armed?.canonicalPath).toBe('/mock/physical/CherryStudio')
-    expect(armed?.attempts).toBe(1)
+    expect(fsCtl.commits[0]).toMatchObject({
+      canonicalPath: '/mock/physical/CherryStudio',
+      attempts: 1
+    })
   })
 
   it('refuses to wipe when the recorded physical identity no longer matches', async () => {
@@ -527,8 +524,6 @@ describe('runDataReset', () => {
 
     expect(rmSyncMock).not.toHaveBeenCalled()
     expect(markerExists()).toBe(false)
-    expect(bootConfigSetMock).not.toHaveBeenCalled()
-    expect(bootConfigFlushMock).not.toHaveBeenCalled()
     expect(showErrorBoxMock).toHaveBeenCalledWith('Data Reset Cancelled', expect.any(String))
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
@@ -542,7 +537,6 @@ describe('runDataReset', () => {
 
     expect(rmSyncMock).not.toHaveBeenCalled()
     expect(markerExists()).toBe(true)
-    expect(bootConfigSetMock).not.toHaveBeenCalled()
     expect(showErrorBoxMock).toHaveBeenCalledWith('Data Reset Failed', expect.any(String))
     expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
     expect(applicationMock.relaunch).not.toHaveBeenCalled()
@@ -568,7 +562,7 @@ describe('runDataReset', () => {
 
     // The arming write committed attempts:1 and the marker is left pending for
     // the retry pass.
-    expect(readStoredMarker()?.attempts).toBe(1)
+    expect(readStoredMarker()).toMatchObject({ status: 'pending', attempts: 1 })
     expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
     expect(showErrorBoxMock).not.toHaveBeenCalled()
@@ -582,7 +576,6 @@ describe('runDataReset', () => {
     await runReset()
 
     expect(markerExists()).toBe(false)
-    expect(bootConfigFlushMock).toHaveBeenCalled()
     expect(showErrorBoxMock).toHaveBeenCalled()
     expect(applicationMock.relaunch).not.toHaveBeenCalled()
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
@@ -612,35 +605,127 @@ describe('runDataReset', () => {
     stubAll(pendingMarker())
     await runReset()
 
-    expect(fsCtl.commits[0]?.attempts).toBe(1)
+    expect(fsCtl.commits[0]).toMatchObject({ attempts: 1 })
     expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
 
-  it('clears the marker and exits incomplete when persisting reset defaults fails after the wipe', async () => {
-    const store = stubAll(pendingMarker())
-    bootConfigPersistMock.mockImplementation(() => {
-      throw new Error('ENOSPC: no space left on device')
-    })
+  it('quits after a clean wipe when the completion record cannot be durably committed', async () => {
+    if (process.platform === 'win32') return
+    stubAll(pendingMarker())
+    // Let the arming write commit, then fail the completed record's
+    // directory sync: the rename landed but its durability is unproven, so
+    // the durable on-disk state may still be `pending` — fail closed.
+    fsCtl.failDirectorySync = true
+    fsCtl.directorySyncFailuresToSkip = 1
     await runReset()
 
-    expect(store['app.disable_hardware_acceleration']).toBe(false)
-    expect(store['app.user_data_path']).toEqual({ '/mock/exe': USER_DATA })
-    expect(bootConfigPersistMock).toHaveBeenCalledTimes(1)
-    expect(bootConfigFlushMock).not.toHaveBeenCalled()
-    expect(markerExists()).toBe(false)
-    expect(showErrorBoxMock).toHaveBeenCalled()
+    expect(readStoredMarker()?.status).toBe('completed')
+    expect(showErrorBoxMock).toHaveBeenCalledWith('Data Reset Incomplete', expect.any(String))
     expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
     expect(applicationMock.relaunch).not.toHaveBeenCalled()
   })
 
-  it('quits after a clean wipe whose marker cannot be removed', async () => {
+  it('relaunches after a clean wipe even when the marker unlink cannot be proven durable', async () => {
+    if (process.platform === 'win32') return
+    stubAll(pendingMarker())
+    // Arm and completed-record syncs succeed; the sync after the final
+    // unlink fails. The durable completed record already disarmed the
+    // marker, so an unprovable unlink is tolerable: a resurrected file
+    // reads as completed and never re-authorizes a wipe.
+    fsCtl.failDirectorySync = true
+    fsCtl.directorySyncFailuresToSkip = 2
+    await runReset()
+
+    expect(showErrorBoxMock).not.toHaveBeenCalled()
+    expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
+  })
+
+  it('relaunches after a clean wipe even when the completed marker cannot be removed', async () => {
     stubAll(pendingMarker())
     fsCtl.failDelete = true
     await runReset()
 
-    expect(showErrorBoxMock).toHaveBeenCalled()
+    // The durable completed record disarms the marker; removal is best-effort.
+    expect(readStoredMarker()?.status).toBe('completed')
+    expect(showErrorBoxMock).not.toHaveBeenCalled()
+    expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
+  })
+
+  it('recognizes a resurrected completed marker: clears it and boots normally without wiping', async () => {
+    stubAll(completedMarker())
+    await runReset()
+
+    expect(rmSyncMock).not.toHaveBeenCalled()
+    expect(markerExists()).toBe(false)
+    expect(showErrorBoxMock).not.toHaveBeenCalled()
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
+  })
+
+  it('fails closed across boots until the completed record is proven durable', async () => {
+    if (process.platform === 'win32') return
+    stubAll(pendingMarker())
+    // Boot 1: clean wipe; the completed rename lands but its directory sync
+    // fails — the durable on-disk state may still be `pending`, so quit.
+    fsCtl.failDirectorySync = true
+    fsCtl.directorySyncFailuresToSkip = 1
+    await runReset()
     expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
+    expect(readStoredMarker()?.status).toBe('completed')
+
+    // Boot 2: the completed record is visible but nothing has yet proven it
+    // durable, and the directory sync keeps failing — the re-commit must
+    // fail closed again rather than boot writable over a possibly-pending
+    // durable state (sol review).
+    vi.clearAllMocks()
+    await runReset()
+    expect(rmSyncMock).not.toHaveBeenCalled()
+    expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
+
+    // Boot 3: syncs recover — the re-commit proves durability, the marker is
+    // cleared, and the app finally boots writable.
+    vi.clearAllMocks()
+    fsCtl.failDirectorySync = false
+    await runReset()
+    expect(rmSyncMock).not.toHaveBeenCalled()
+    expect(markerExists()).toBe(false)
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
+  })
+
+  it('boots normally even when a resurrected completed marker cannot be cleared', async () => {
+    stubAll(completedMarker())
+    fsCtl.failDelete = true
+    await runReset()
+
+    // A completed marker authorizes nothing, so a failed cleanup is inert —
+    // no wipe, no quit; a later boot retries the removal.
+    expect(rmSyncMock).not.toHaveBeenCalled()
+    expect(markerExists()).toBe(true)
+    expect(showErrorBoxMock).not.toHaveBeenCalled()
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['negative attempts', { ...pendingMarker(), attempts: -100 }],
+    ['fractional attempts', { ...pendingMarker(), attempts: 0.5 }],
+    ['missing version', { status: 'pending', requestedAt: 'now', canonicalPath: USER_DATA }],
+    ['unknown extra field', { ...pendingMarker(), extra: true }],
+    ['unknown status', { version: 1, status: 'wiping', requestedAt: 'now', canonicalPath: USER_DATA }]
+  ])('quarantines a schema-valid-looking marker (%s) without wiping', async (_name, raw) => {
+    // The marker is a persistent destructive authorization: values the
+    // schema does not positively allow (a negative `attempts` would re-open
+    // the retry cap by ~100 passes) are rejected wholesale, never coerced.
+    stubAll(null)
+    seedRawMarker(JSON.stringify(raw))
+    await runReset()
+
+    expect(renameSyncMock).toHaveBeenCalledWith(MARKER_FILE, MARKER_ASIDE)
+    expect(rmSyncMock).not.toHaveBeenCalled()
+    expect(applicationMock.forceExit).not.toHaveBeenCalled()
     expect(applicationMock.relaunch).not.toHaveBeenCalled()
   })
 
@@ -657,12 +742,11 @@ describe('runDataReset', () => {
     stubElectron()
     stubApplication()
     stubI18n()
-    stubBootConfig()
     stubFs(new Error('EACCES: permission denied'))
     seedMarker(pendingMarker())
     await runReset()
 
-    expect(readStoredMarker()?.attempts).toBe(1)
+    expect(readStoredMarker()).toMatchObject({ status: 'pending', attempts: 1 })
     expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
@@ -685,7 +769,6 @@ describe('runDataReset', () => {
     stubElectron()
     stubApplication(USER_DATA, { throwOnUserData: true })
     stubI18n()
-    stubBootConfig()
     stubFs()
     seedMarker(pendingMarker())
     await runReset()
@@ -722,6 +805,7 @@ describe('requestDataReset', () => {
 
     expect(fsCtl.commits[0]).toEqual(
       expect.objectContaining({
+        version: 1,
         status: 'pending',
         // realpath resolves to the lexical path in the fs stub.
         canonicalPath: USER_DATA
