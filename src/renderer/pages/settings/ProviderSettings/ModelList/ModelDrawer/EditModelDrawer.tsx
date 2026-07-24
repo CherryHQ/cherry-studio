@@ -27,16 +27,24 @@ import ProviderSection from '../../primitives/ProviderSection'
 import ProviderSettingsDrawer from '../../primitives/ProviderSettingsDrawer'
 import { drawerClasses, fieldClasses } from '../../primitives/ProviderSettingsPrimitives'
 import {
-  getInitialSelectedCapabilities,
+  areModelClassificationsEqual,
+  buildModelCapabilities,
+  buildModelInputModalities,
+  getInitialModelClassification,
   getModelApiId,
   MODEL_DRAWER_CURRENCY_SYMBOLS,
-  readCurrency,
-  toggleSetToCaps
+  readCurrency
 } from './helpers'
 import { ModelBasicFields } from './ModelBasicFields'
-import { ModelCapabilityToggles } from './ModelCapabilityToggles'
+import { ModelClassificationControls } from './ModelClassificationControls'
 import { ModelContextWindowFields } from './ModelContextWindowFields'
-import type { ModelCapabilityToggle, ModelDrawerMode } from './types'
+import type {
+  ModelCapabilityToggle,
+  ModelClassificationState,
+  ModelDrawerMode,
+  ModelInputModality,
+  ModelPrimaryType
+} from './types'
 
 interface EditModelDrawerProps {
   providerId: string
@@ -49,7 +57,7 @@ interface BuildPatchOverrides {
   name?: string
   group?: string
   endpointTypes?: EndpointType[]
-  caps?: Set<ModelCapabilityToggle>
+  classification?: ModelClassificationState
   supportsStreaming?: boolean
   currencySymbol?: ModelDrawerCurrencySymbol
   inputPrice?: string
@@ -99,8 +107,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [group, setGroup] = useState('')
   const [endpointTypes, setEndpointTypes] = useState<EndpointType[]>([])
   const [showMoreSettings, setShowMoreSettings] = useState(true)
-  const [selectedCaps, setSelectedCaps] = useState<Set<ModelCapabilityToggle>>(new Set())
-  const [hasUserModified, setHasUserModified] = useState(false)
+  const [classification, setClassification] = useState<ModelClassificationState>(() => getInitialModelClassification())
   const [supportsStreaming, setSupportsStreaming] = useState<Model['supportsStreaming']>(true)
   const [currencySymbol, setCurrencySymbol] = useState<ModelDrawerCurrencySymbol>('$')
   const [inputPrice, setInputPrice] = useState('0')
@@ -113,10 +120,8 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
 
   const mode: ModelDrawerMode = provider && isNewApiProvider(provider) ? 'new-api' : 'legacy'
   const apiModelId = useMemo(() => (model ? getModelApiId(model) : ''), [model])
-  const savedCaps = useMemo(
-    () => (model ? getInitialSelectedCapabilities(model) : new Set<ModelCapabilityToggle>()),
-    [model]
-  )
+  const savedClassification = useMemo(() => getInitialModelClassification(model), [model])
+  const hasClassificationChanges = !areModelClassificationsEqual(classification, savedClassification)
 
   useEffect(() => {
     if (!open || !model) {
@@ -130,8 +135,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     setGroup(model.group ?? '')
     setEndpointTypes(model.endpointTypes?.length ? [...model.endpointTypes] : [])
     setShowMoreSettings(true)
-    setSelectedCaps(getInitialSelectedCapabilities(model))
-    setHasUserModified(false)
+    setClassification(getInitialModelClassification(model))
     setSupportsStreaming(model.supportsStreaming)
     setCurrencySymbol(nextCurrencySymbol ?? '$')
     setInputPrice(String(model.pricing?.input?.perMillionTokens ?? 0))
@@ -147,6 +151,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         name: patch.name,
         group: patch.group,
         capabilities: patch.capabilities,
+        inputModalities: patch.inputModalities,
         supportsStreaming: patch.supportsStreaming,
         endpointTypes: patch.endpointTypes,
         contextWindow: patch.contextWindow,
@@ -169,16 +174,21 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         symbolToCurrency(nextCurrencySymbol) ?? symbolToCurrency(readCurrency(model)) ?? CURRENCY.USD
       const nextName = overrides?.name ?? name
       const nextGroup = overrides?.group ?? group
-      const nextEndpointTypes = overrides?.endpointTypes ?? endpointTypes
+      const hasEndpointTypesOverride = overrides && Object.hasOwn(overrides, 'endpointTypes')
+      const nextClassification = overrides?.classification
 
       return {
         name: nextName || model.name,
         group: nextGroup || model.group,
-        endpointTypes: mode === 'new-api' && nextEndpointTypes.length ? [...nextEndpointTypes] : undefined,
-        capabilities: toggleSetToCaps(
-          model.capabilities ?? [],
-          overrides?.caps ?? selectedCaps
-        ) as Model['capabilities'],
+        ...(hasEndpointTypesOverride
+          ? { endpointTypes: mode === 'new-api' ? [...(overrides.endpointTypes ?? [])] : undefined }
+          : {}),
+        ...(nextClassification
+          ? {
+              capabilities: buildModelCapabilities(model.capabilities ?? [], nextClassification),
+              inputModalities: buildModelInputModalities(model.inputModalities ?? [], nextClassification)
+            }
+          : {}),
         supportsStreaming: overrides?.supportsStreaming ?? supportsStreaming,
         contextWindow: Number(overrides?.contextWindow ?? contextWindow) || undefined,
         maxInputTokens: Number(overrides?.maxInputTokens ?? maxInputTokens) || undefined,
@@ -197,7 +207,6 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     },
     [
       currencySymbol,
-      endpointTypes,
       group,
       contextWindow,
       inputPrice,
@@ -207,7 +216,6 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       model,
       name,
       outputPrice,
-      selectedCaps,
       supportsStreaming
     ]
   )
@@ -252,28 +260,54 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     [buildPatch, model, processAutoSaveQueue, providerId]
   )
 
-  const handleToggleCapability = useCallback(
-    (type: ModelCapabilityToggle) => {
-      setHasUserModified(true)
-      const next = new Set(selectedCaps)
-
-      if (next.has(type)) {
-        next.delete(type)
-      } else {
-        next.add(type)
-      }
-
-      setSelectedCaps(next)
-      autoSave({ caps: next })
+  const commitClassification = useCallback(
+    (next: ModelClassificationState) => {
+      setClassification(next)
+      autoSave({ classification: next })
     },
-    [autoSave, selectedCaps]
+    [autoSave]
   )
 
-  const handleResetCapabilities = useCallback(() => {
-    setSelectedCaps(new Set(savedCaps))
-    setHasUserModified(false)
-    autoSave({ caps: new Set(savedCaps) })
-  }, [autoSave, savedCaps])
+  const handlePrimaryTypeChange = useCallback(
+    (primaryType: ModelPrimaryType) => {
+      commitClassification({ ...classification, primaryType })
+    },
+    [classification, commitClassification]
+  )
+
+  const handleToggleCapability = useCallback(
+    (capability: ModelCapabilityToggle) => {
+      const capabilities = new Set(classification.capabilities)
+      if (capabilities.has(capability)) {
+        capabilities.delete(capability)
+      } else {
+        capabilities.add(capability)
+      }
+      commitClassification({ ...classification, capabilities })
+    },
+    [classification, commitClassification]
+  )
+
+  const handleToggleInputModality = useCallback(
+    (modality: ModelInputModality) => {
+      const inputModalities = new Set(classification.inputModalities)
+      if (inputModalities.has(modality)) {
+        inputModalities.delete(modality)
+      } else {
+        inputModalities.add(modality)
+      }
+      commitClassification({ ...classification, inputModalities })
+    },
+    [classification, commitClassification]
+  )
+
+  const handleResetClassification = useCallback(() => {
+    commitClassification({
+      ...savedClassification,
+      capabilities: new Set(savedClassification.capabilities),
+      inputModalities: new Set(savedClassification.inputModalities)
+    })
+  }, [commitClassification, savedClassification])
 
   if (!provider || !model) {
     return <ProviderSettingsDrawer open={open} onClose={onClose} title={t('models.edit')} />
@@ -347,11 +381,13 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
           <ProviderSection className={drawerClasses.section}>
             <div data-testid="provider-settings-model-more-settings" className="space-y-4">
               <div className={drawerClasses.sectionCard}>
-                <ModelCapabilityToggles
-                  selectedCaps={selectedCaps}
-                  hasUserModified={hasUserModified}
-                  onToggle={handleToggleCapability}
-                  onReset={handleResetCapabilities}
+                <ModelClassificationControls
+                  value={classification}
+                  hasChanges={hasClassificationChanges}
+                  onPrimaryTypeChange={handlePrimaryTypeChange}
+                  onCapabilityToggle={handleToggleCapability}
+                  onInputModalityToggle={handleToggleInputModality}
+                  onReset={handleResetClassification}
                 />
               </div>
 

@@ -404,8 +404,12 @@ export const modelSyncClasses = {
     'absolute right-2 top-1/2 flex h-[18px] w-[18px] -translate-y-1/2 items-center justify-center rounded-full text-foreground/45 transition-colors hover:bg-accent/40 hover:text-foreground/65',
   manageIconButton: 'size-8 rounded-lg text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground',
   manageTabs: 'w-full gap-0',
-  manageTabsList: 'h-auto w-full max-w-full justify-stretch gap-1 rounded-lg bg-muted/40 p-1',
-  manageTabsTrigger: 'h-7 min-w-0 flex-1 rounded-md px-2 text-center text-xs',
+  manageTabsList:
+    'h-auto w-full max-w-full justify-start gap-1 overflow-x-auto overflow-y-hidden rounded-lg bg-muted/40 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+  manageTabsTrigger: 'h-7 shrink-0 cursor-pointer gap-1.5 rounded-md px-2 text-xs',
+  manageTabsTriggerDestructive:
+    'text-error-text hover:text-error-text data-[state=active]:border-error-border data-[state=active]:bg-error-bg data-[state=active]:text-error-text dark:text-error-text dark:data-[state=active]:border-error-border dark:data-[state=active]:bg-error-bg dark:data-[state=active]:text-error-text',
+  manageTabCount: 'text-[11px] text-muted-foreground/70 tabular-nums',
   manageScrollArea: 'min-h-0 flex-1 pr-1 [scrollbar-gutter:stable]',
   manageLoading: 'flex min-h-52 items-center justify-center text-muted-foreground',
   manageList: 'pb-1',
