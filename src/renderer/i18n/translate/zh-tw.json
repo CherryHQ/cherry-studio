@@ -2180,6 +2180,7 @@
     "copy_failed": "複製失敗",
     "create_success": "已成功建立",
     "current": "目前",
+    "decline": "不同意",
     "default": "預設",
     "delete": "刪除",
     "delete_confirm": "確定要刪除嗎？",
@@ -4435,6 +4436,14 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "privacy": {
+      "accept_and_continue": "同意並繼續",
+      "accept_policy": "同意隱私協議",
+      "notice": "我已閱讀並同意",
+      "period": "",
+      "policy": "隱私協議",
+      "update_failed": "無法儲存隱私協議同意狀態，請重試"
+    },
     "provider_setup": {
       "missing_model": "請先啟用該服務商下的至少一個模型",
       "missing_provider": "請先啟用一個服務商",
@@ -4459,7 +4468,7 @@
       "other_provider": "選擇其他供應商",
       "select_other_provider": "選擇其他供應商",
       "setup_hint": "請至少設定一個提供者以獲得最佳體驗",
-      "subtitle": "享受頂尖 AI 服務，盡在 CherryIN",
+      "subtitle": "連接服務商，開啟您的全能 AI 工作站",
       "title": "歡迎來到 Cherry Studio"
     }
   },
@@ -4948,6 +4957,16 @@
     "source": "檢視原始碼",
     "zoom_in": "放大",
     "zoom_out": "縮小"
+  },
+  "privacy_policy": {
+    "load_failed": "無法載入隱私協議",
+    "title": "隱私協議"
+  },
+  "privacy_policy_update": {
+    "acknowledge_failed": "無法儲存確認狀態，請重試",
+    "description_before_link": "我們更新了隱私協議。請查看最新的",
+    "policy": "隱私協議",
+    "title": "隱私協議更新"
   },
   "prompts": {
     "explanation": "幫我解釋一下這個概念",
@@ -6925,7 +6944,7 @@
       "default_assistant_model": "預設助手模型",
       "default_assistant_model_description": "建立新助手時使用的模型，如果助手未設定模型，則使用此模型",
       "docs": "模型文件",
-      "empty": "找不到模型",
+      "empty": "請選擇模型",
       "enabled_models": "已啟用",
       "expand_all": "全部展開",
       "filter": {
