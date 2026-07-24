@@ -1,4 +1,5 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
+import { getMessageDeleteUnavailableText } from '@renderer/components/chat/messages/utils/messageDeleteAvailability'
 import CopyIcon from '@renderer/components/icons/CopyIcon'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import type { MessageDeleteAvailability } from '@renderer/hooks/chat/ChatWriteContext'
@@ -31,12 +32,7 @@ const MultiSelectActionPopup: FC<Props> = ({
   if (!isMultiSelectMode) return null
 
   const isActionDisabled = selectedMessageIds.length === 0
-  const deleteTooltip =
-    deleteDisabledReason === 'root-unavailable'
-      ? t('message.delete.root_unavailable')
-      : deleteDisabledReason === 'first-turn'
-        ? t('message.delete.first_turn_not_supported')
-        : t('common.delete')
+  const deleteTooltip = getMessageDeleteUnavailableText(deleteDisabledReason, t) ?? t('common.delete')
 
   return (
     <Container>

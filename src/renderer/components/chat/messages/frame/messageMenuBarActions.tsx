@@ -4,6 +4,7 @@ import {
   type MessageMenuBarButtonId,
   STREAMING_DISABLED_BUTTON_IDS
 } from '@renderer/components/chat/messages/frame/messageMenuBarConfig'
+import { getMessageDeleteUnavailableText } from '@renderer/components/chat/messages/utils/messageDeleteAvailability'
 import CopyIcon from '@renderer/components/icons/CopyIcon'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import EditIcon from '@renderer/components/icons/EditIcon'
@@ -388,11 +389,10 @@ registerToolbarAction({
   availability: ({ actions, isProcessing, message, t, toolbarButtonIds }) => {
     const visible = toolbarButtonIds.has('delete') && !!actions.deleteMessage
     const deleteAvailability = actions.getMessageDeleteAvailability?.(message.id) ?? { enabled: true }
-    const reason = deleteAvailability.enabled
-      ? undefined
-      : deleteAvailability.reason === 'root-unavailable'
-        ? t('message.delete.root_unavailable')
-        : t('message.delete.first_turn_not_supported')
+    const reason = getMessageDeleteUnavailableText(
+      deleteAvailability.enabled ? undefined : deleteAvailability.reason,
+      t
+    )
     return {
       visible,
       enabled: visible && !isProcessing && deleteAvailability.enabled,

@@ -109,6 +109,17 @@ describe('useChatWriteActions — first-turn delete', () => {
     expect(cache.clearTopicMessagesTrigger).toHaveBeenCalledWith({ params: { topicId: 't1' } })
     expect(cache.deleteMessageTrigger).not.toHaveBeenCalled()
   })
+
+  it.each([
+    [null, 'a1'],
+    ['vroot', 'u1']
+  ])('rejects unavailable message group deletion (rootId: %s, id: %s)', async (rootId, id) => {
+    const { actions, cache } = renderActions(rootId, tree())
+
+    await expect(actions.deleteMessageGroup(id)).rejects.toThrow()
+    expect(cache.seedOptimisticBranch).not.toHaveBeenCalled()
+    expect(cache.deleteMessageTrigger).not.toHaveBeenCalled()
+  })
 })
 
 describe('useChatWriteActions — edit message', () => {

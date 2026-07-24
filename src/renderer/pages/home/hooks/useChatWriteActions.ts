@@ -147,6 +147,9 @@ export function useChatWriteActions(params: Params): Result {
         await handleClearTopicMessages()
         return
       }
+      if (!getMessageDeleteAvailability(id).enabled) {
+        throw new Error('Message group deletion is unavailable')
+      }
       await seedOptimisticBranch((prev) => branchWithoutIds(prev, new Set([id])))
       try {
         const result = await deleteMessageTrigger({ params: { id }, query: { cascade: true } })
@@ -161,6 +164,7 @@ export function useChatWriteActions(params: Params): Result {
     [
       branchWithoutIds,
       deleteMessageTrigger,
+      getMessageDeleteAvailability,
       handleClearTopicMessages,
       isFirstTurnId,
       rollbackBranch,
