@@ -59,7 +59,7 @@
     "data_reset": {
       "cancel": "Cancel",
       "confirm": "Erase Everything",
-      "detail": "This cannot be undone. The app will relaunch immediately and erase all chats, assistants, knowledge bases, files, and settings on startup.",
+      "detail": "This cannot be undone. The app will relaunch immediately and erase all chats, assistants, knowledge bases, files, and settings on startup. MCP and GitHub Copilot credentials in ~/.cherrystudio are retained and must be removed manually.",
       "message": "All data will be lost, do you want to continue?",
       "title": "Data Reset"
     },
