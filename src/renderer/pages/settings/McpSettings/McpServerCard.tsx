@@ -76,11 +76,11 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, onEdit }) => {
         if (active) {
           await updateMcpServer({ body: { isActive: true } })
           try {
-            await fetchServerVersion({ ...serverForUpdate, isActive: true })
             await ipcApi.request('mcp.server.refresh_tools', {
               serverId: serverForUpdate.id,
               interactive: true
             })
+            await fetchServerVersion({ ...serverForUpdate, isActive: true })
           } catch (error: any) {
             void popup.error({
               title: t('settings.mcp.startError'),
