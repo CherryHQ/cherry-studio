@@ -38,6 +38,7 @@ import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
 import { topicTable } from '@data/db/schemas/topic'
 import { translateHistoryTable } from '@data/db/schemas/translateHistory'
 import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
+import { usageLedgerTable } from '@data/db/schemas/usageLedger'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import type { DbType } from '@data/db/types'
@@ -336,6 +337,7 @@ export class MigrationEngine {
     // Order matters: child tables must be cleared before parent tables
     const tables = [
       { table: pinTable, name: 'pin' },
+      { table: usageLedgerTable, name: 'usage_ledger' },
       { table: entityTagTable, name: 'entity_tag' },
       { table: tagTable, name: 'tag' },
       { table: userModelTable, name: 'user_model' }, // Must clear before user_provider

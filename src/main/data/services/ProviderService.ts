@@ -167,6 +167,11 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
   }
 }
 
+/** Internal cache key holding the rotation pointer (id of the key last handed out). */
+function rotationCacheKey(providerId: string): string {
+  return `settings.provider.${providerId}.last_used_key_id`
+}
+
 /** The provider logo slot for a given providerId. */
 function logoSlot(providerId: string) {
   return { sourceType: providerLogoRef.sourceType, sourceId: providerId }
@@ -392,6 +397,17 @@ class ProviderService {
   }
 
   /**
+   * Read-only view of the key-rotation pointer: the id of the key most
+   * recently handed out by {@link getRotatedApiKey} (only written when the
+   * provider has more than one enabled key). In-memory — lost on restart.
+   * ProviderService is the single owner of this cache key; consumers
+   * (e.g. usage-ledger attribution) must read it through this method.
+   */
+  getLastUsedApiKeyId(providerId: string): string | undefined {
+    return application.get('CacheService').get<string>(rotationCacheKey(providerId))
+  }
+
+  /**
    * Get a rotated API key for a provider (round-robin across enabled keys).
    * Returns empty string for providers that don't have keys.
    */
@@ -415,7 +431,7 @@ class ProviderService {
 
     // Round-robin using CacheService
     const cache = application.get('CacheService')
-    const cacheKey = `settings.provider.${providerId}.last_used_key_id`
+    const cacheKey = rotationCacheKey(providerId)
     const lastUsedKeyId = cache.get<string>(cacheKey)
 
     if (!lastUsedKeyId) {

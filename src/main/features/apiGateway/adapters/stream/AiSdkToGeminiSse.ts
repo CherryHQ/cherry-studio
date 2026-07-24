@@ -72,7 +72,6 @@ function toGeminiFinishReason(reason: FinishReason | undefined): string {
 export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentResponse> {
   /** Accumulated parts, in emission order, for the non-streaming response. */
   private accumulatedParts: GeminiResponsePart[] = []
-  private thoughtsTokens = 0
   private finishReason = 'STOP'
 
   constructor(options: StreamAdapterOptions) {
@@ -155,9 +154,8 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
   /** Track cumulative usage from the `message-metadata` projection. */
   private applyUsageMetadata(metadata: GatewayUsageMetadata | undefined): void {
     if (!metadata) return
-    if (metadata.promptTokens !== undefined) this.state.inputTokens = metadata.promptTokens
-    if (metadata.completionTokens !== undefined) this.state.outputTokens = metadata.completionTokens
-    if (metadata.thoughtsTokens !== undefined) this.thoughtsTokens = metadata.thoughtsTokens
+    if (metadata.stats?.inputTokens !== undefined) this.state.inputTokens = metadata.stats.inputTokens
+    if (metadata.stats?.outputTokens !== undefined) this.state.outputTokens = metadata.stats.outputTokens
   }
 
   private buildUsageMetadata(): GeminiUsageMetadata {
@@ -166,7 +164,6 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
       candidatesTokenCount: this.state.outputTokens,
       totalTokenCount: this.state.inputTokens + this.state.outputTokens
     }
-    if (this.thoughtsTokens > 0) usage.thoughtsTokenCount = this.thoughtsTokens
     return usage
   }
 

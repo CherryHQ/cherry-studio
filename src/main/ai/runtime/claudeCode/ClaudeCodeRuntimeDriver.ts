@@ -63,7 +63,7 @@ import {
   disposeToolPolicySnapshot,
   prepareClaudeCodeWorkspaceDirectory
 } from './settingsBuilder'
-import { ClaudeCodeStreamAdapter, convertClaudeCodeUsage } from './streamAdapter'
+import { ClaudeCodeStreamAdapter, convertClaudeCodeUsage, v3UsageToStats } from './streamAdapter'
 import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
@@ -493,26 +493,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   private emitUsageMetadata(usage: BetaUsage | undefined): void {
     if (!usage) return
-    const v3Usage = convertClaudeCodeUsage(usage)
-    const promptTokens = v3Usage.inputTokens.total ?? 0
-    const completionTokens = v3Usage.outputTokens.total ?? 0
-    const reasoningTokens = v3Usage.outputTokens.reasoning
-    const noCacheTokens = v3Usage.inputTokens.noCache
-    const cacheReadTokens = v3Usage.inputTokens.cacheRead
-    const cacheWriteTokens = v3Usage.inputTokens.cacheWrite
     this.eventQueue.push({
       type: 'chunk',
       chunk: {
         type: 'message-metadata',
-        messageMetadata: {
-          totalTokens: promptTokens + completionTokens,
-          promptTokens,
-          completionTokens,
-          ...(reasoningTokens !== undefined ? { thoughtsTokens: reasoningTokens } : {}),
-          ...(noCacheTokens !== undefined ? { noCacheTokens } : {}),
-          ...(cacheReadTokens !== undefined ? { cacheReadTokens } : {}),
-          ...(cacheWriteTokens !== undefined ? { cacheWriteTokens } : {})
-        }
+        messageMetadata: { stats: v3UsageToStats(convertClaudeCodeUsage(usage)) }
       }
     })
   }

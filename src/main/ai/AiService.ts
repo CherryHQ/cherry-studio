@@ -13,6 +13,7 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
+import { usageLedgerService } from '@main/data/services/UsageLedgerService'
 import { installBuiltinSkills } from '@main/utils/builtinSkills'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import type { AiToolApprovalRespondRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
@@ -32,6 +33,8 @@ import {
 } from 'ai'
 
 import { isAgentSessionTopic } from './agentSession/topic'
+import { createAnalyticsHook } from './hooks/analyticsHook'
+import { createBillingHook, recordImageUsage } from './hooks/billingHook'
 import { prepareChatMessages } from './messages/attachmentRouting'
 import { resolveMediaCapabilities } from './messages/messageCapabilities'
 import { resolveImageTransport } from './provider/custom/imageTransportRegistry'
@@ -41,7 +44,7 @@ import { buildVendorProviderOptions } from './provider/custom/wire/buildImageReq
 import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
 import { listModels as listModelsFromProvider } from './provider/listModels'
 import type { AgentLoopHooks, RequestFeature } from './runtime/aiSdk'
-import { Agent, buildAgentParams, mergeUsage, ZERO_USAGE } from './runtime/aiSdk'
+import { Agent, buildAgentParams } from './runtime/aiSdk'
 import { skillService } from './skills/SkillService'
 import { WebContentsListener } from './streamManager'
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin/registerBuiltinTools'
@@ -97,6 +100,10 @@ export interface AiRequestOptions extends AiTransportOptions {
 /** Widens `requestOptions` to accept the in-process shape on `AiService.*` method signatures. */
 export type AsInProcess<T extends AiBaseRequest> = Omit<T, 'requestOptions'> & {
   requestOptions?: AiRequestOptions
+}
+
+interface UsageRecordingOptions {
+  recordUsage?: boolean
 }
 
 /** Non-streaming text generation request — pure transport data. */
@@ -408,7 +415,7 @@ export class AiService extends BaseService {
       tools,
       system,
       options,
-      hookParts: [this.analyticsHookPart(model), ...hookParts],
+      hookParts: [this.analyticsHookPart(model), createBillingHook(model, request.messageId), ...hookParts],
       mediaCapabilities: resolveMediaCapabilities(model)
     })
 
@@ -416,32 +423,15 @@ export class AiService extends BaseService {
   }
 
   private analyticsHookPart(model: Model): Partial<AgentLoopHooks> {
-    let total: LanguageModelUsage = ZERO_USAGE
-    let flushed = false
-    const flush = () => {
-      if (flushed) return
-      flushed = true
-      this.trackUsage(model, total)
-    }
-
-    return {
-      onStepFinish: (step) => {
-        if (step.usage) total = mergeUsage(total, step.usage)
-      },
-      onFinish: flush,
-      onAbort: flush,
-      onError: () => {
-        flush()
-        return 'abort'
-      }
-    }
+    return createAnalyticsHook(model, (trackedModel, usage) => this.trackUsage(trackedModel, usage))
   }
 
   // ── Non-streaming text generation (agent.generate) ──
 
   async generateText(
     request: AsInProcess<AiGenerateRequest>,
-    extraFeatures: readonly RequestFeature[] = []
+    extraFeatures: readonly RequestFeature[] = [],
+    usageOptions: UsageRecordingOptions = {}
   ): Promise<AiGenerateResult> {
     logger.info('generateText started', { assistantId: request.assistantId })
     const signal = request.requestOptions?.signal
@@ -460,7 +450,11 @@ export class AiService extends BaseService {
       tools,
       system: request.system ?? system,
       options,
-      hookParts: [this.analyticsHookPart(model), ...hookParts]
+      hookParts: [
+        this.analyticsHookPart(model),
+        ...(usageOptions.recordUsage === false ? [] : [createBillingHook(model)]),
+        ...hookParts
+      ]
     })
 
     // prompt and messages are mutually exclusive in AI SDK; preserve that.
@@ -496,7 +490,7 @@ export class AiService extends BaseService {
     logger.info('generateImage started', { assistantId: request.assistantId, uniqueModelId: request.uniqueModelId })
     const signal = request.requestOptions?.signal
 
-    const { sdkConfig } = await this.buildAgentParamsFor(request, signal)
+    const { sdkConfig, model } = await this.buildAgentParamsFor(request, signal)
 
     const promptParam = request.inputImages
       ? { text: request.prompt, images: request.inputImages, ...(request.mask && { mask: request.mask }) }
@@ -591,6 +585,8 @@ export class AiService extends BaseService {
     }
     const fileManager = application.get('FileManager')
     const files = await Promise.all(dataUrls.map((data) => fileManager.createInternalEntry({ source: 'base64', data })))
+
+    void recordImageUsage(crypto.randomUUID(), model, files.length)
 
     return { files }
   }
@@ -695,7 +691,10 @@ export class AiService extends BaseService {
 
   // ── Embedding ──
 
-  async embedMany(request: AsInProcess<AiEmbedRequest>): Promise<AiEmbedResult> {
+  async embedMany(
+    request: AsInProcess<AiEmbedRequest>,
+    usageOptions: UsageRecordingOptions = {}
+  ): Promise<AiEmbedResult> {
     logger.info('embedMany started', { assistantId: request.assistantId, count: request.values.length })
     const signal = request.requestOptions?.signal
 
@@ -708,6 +707,23 @@ export class AiService extends BaseService {
     })
 
     this.trackUsage(model, { inputTokens: result.usage?.tokens ?? 0, outputTokens: 0 })
+
+    // Usage ledger: embeddings are token-priced (input rate only); cost is
+    // enriched inside recordRequest from the model's pricing.
+    if (usageOptions.recordUsage !== false && result.usage?.tokens) {
+      const tokens = result.usage.tokens
+      void usageLedgerService
+        .recordRequest({
+          id: crypto.randomUUID(),
+          modelId: model.id,
+          modality: 'embedding',
+          stats: { inputTokens: tokens, totalTokens: tokens }
+        })
+        .catch((err) => {
+          logger.warn('usage ledger record failed', { modelId: model.id, err })
+        })
+    }
+
     return { embeddings: result.embeddings, usage: result.usage }
   }
 
@@ -812,9 +828,9 @@ export class AiService extends BaseService {
         return result
       })
     } else if (isEmbeddingModel(model)) {
-      probe = this.embedMany({ ...probeRequest, values: ['test'] })
+      probe = this.embedMany({ ...probeRequest, values: ['test'] }, { recordUsage: false })
     } else {
-      probe = this.generateText({ ...probeRequest, system: 'test', prompt: 'hi' })
+      probe = this.generateText({ ...probeRequest, system: 'test', prompt: 'hi' }, [], { recordUsage: false })
     }
 
     try {

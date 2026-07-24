@@ -53,6 +53,7 @@ describe('endpoint classification', () => {
       | '/topics/:topicId/path'
       | '/translate/histories'
       | '/translate/languages'
+      | '/usage-ledger/entries'
     >()
   })
 

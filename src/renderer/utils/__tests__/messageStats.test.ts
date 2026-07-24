@@ -6,13 +6,10 @@ import { getCacheTokenStats, statsToMetrics, statsToUsage } from '../messageStat
 describe('statsToUsage', () => {
   it('projects all token fields and keeps required fields defaulted to 0 when missing', () => {
     const stats: MessageStats = {
-      promptTokens: 30,
-      completionTokens: 12,
+      inputTokens: 30,
+      outputTokens: 12,
       totalTokens: 42,
-      thoughtsTokens: 3,
-      noCacheTokens: 5,
-      cacheReadTokens: 20,
-      cacheWriteTokens: 5,
+      outputTokenDetails: { reasoningTokens: 3 },
       cost: 0.000123
     }
 
@@ -21,10 +18,29 @@ describe('statsToUsage', () => {
       completion_tokens: 12,
       total_tokens: 42,
       thoughts_tokens: 3,
-      no_cache_tokens: 5,
-      cache_read_tokens: 20,
-      cache_write_tokens: 5,
       cost: 0.000123
+    })
+  })
+
+  it('projects cache breakdown and cost metadata', () => {
+    const stats: MessageStats = {
+      inputTokens: 100,
+      outputTokens: 50,
+      totalTokens: 900,
+      inputTokenDetails: { noCacheTokens: 100, cacheReadTokens: 700, cacheWriteTokens: 100 },
+      cost: 0.0042,
+      costSource: 'computed',
+      costCurrency: 'USD',
+      costBreakdown: { input: 0.001, output: 0.002, cacheRead: 0.0012 }
+    }
+
+    expect(statsToUsage(stats)).toMatchObject({
+      cache_read_tokens: 700,
+      cache_write_tokens: 100,
+      cost: 0.0042,
+      cost_source: 'computed',
+      cost_currency: 'USD',
+      cost_breakdown: { input: 0.001, output: 0.002, cacheRead: 0.0012 }
     })
   })
 
@@ -54,7 +70,9 @@ describe('statsToUsage', () => {
 
 describe('getCacheTokenStats', () => {
   it('computes cache hit rate and saved input tokens for one message', () => {
-    expect(getCacheTokenStats({ noCacheTokens: 10, cacheReadTokens: 70, cacheWriteTokens: 20 })).toEqual({
+    expect(
+      getCacheTokenStats({ inputTokenDetails: { noCacheTokens: 10, cacheReadTokens: 70, cacheWriteTokens: 20 } })
+    ).toEqual({
       noCacheTokens: 10,
       cacheReadTokens: 70,
       cacheWriteTokens: 20,
@@ -65,18 +83,18 @@ describe('getCacheTokenStats', () => {
   })
 
   it('returns undefined when no cache counters exist', () => {
-    expect(getCacheTokenStats({ promptTokens: 10 })).toBeUndefined()
+    expect(getCacheTokenStats({ inputTokens: 10 })).toBeUndefined()
   })
 
   it('returns undefined when only non-cache input tokens exist', () => {
-    expect(getCacheTokenStats({ noCacheTokens: 100 })).toBeUndefined()
+    expect(getCacheTokenStats({ inputTokenDetails: { noCacheTokens: 100 } })).toBeUndefined()
   })
 })
 
 describe('statsToMetrics', () => {
   it('projects all timing fields and completion tokens', () => {
     const stats: MessageStats = {
-      completionTokens: 12,
+      outputTokens: 12,
       timeCompletionMs: 1501,
       timeFirstTokenMs: 250,
       timeThinkingMs: 400

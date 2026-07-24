@@ -9,7 +9,7 @@ import {
 } from '../messageListItem'
 
 describe('toMessageListItem', () => {
-  it('projects live top-level token metadata into message stats', () => {
+  it('projects the top-level totalTokens mirror into message stats', () => {
     const message = {
       id: 'message-1',
       role: 'assistant',
@@ -17,34 +17,26 @@ describe('toMessageListItem', () => {
       metadata: {
         status: 'pending',
         createdAt: '2026-01-01T00:00:00.000Z',
-        totalTokens: 20,
-        promptTokens: 10,
-        completionTokens: 5,
-        thoughtsTokens: 5
+        totalTokens: 20
       }
     } as CherryUIMessage
 
-    expect(toMessageListItem(message, { topicId: 'topic-1' }).stats).toEqual({
-      totalTokens: 20,
-      promptTokens: 10,
-      completionTokens: 5,
-      thoughtsTokens: 5
-    })
+    expect(toMessageListItem(message, { topicId: 'topic-1' }).stats).toEqual({ totalTokens: 20 })
   })
 
-  it('lets live token metadata override persisted stats while streaming', () => {
+  it('lets the top-level totalTokens mirror override persisted stats while streaming', () => {
     const message = {
       id: 'message-1',
       role: 'assistant',
       parts: [],
       metadata: {
         status: 'pending',
-        stats: { thoughtsTokens: 100 },
-        thoughtsTokens: 150
+        stats: { totalTokens: 100 },
+        totalTokens: 150
       }
     } as CherryUIMessage
 
-    expect(toMessageListItem(message, { topicId: 'topic-1' }).stats?.thoughtsTokens).toBe(150)
+    expect(toMessageListItem(message, { topicId: 'topic-1' }).stats?.totalTokens).toBe(150)
   })
 
   it('resolves a snapshot-less row from its own frozen modelId', () => {
@@ -153,7 +145,7 @@ describe('getDirectAssistantModelsByUserId', () => {
       model: { id: 'model-a', name: 'Model A', provider: 'provider-a' }
     } as MessageListItem
     const previous = getDirectAssistantModelsByUserId([reply])
-    const next = getDirectAssistantModelsByUserId([{ ...reply, stats: { completionTokens: 1 } }])
+    const next = getDirectAssistantModelsByUserId([{ ...reply, stats: { outputTokens: 1 } }])
 
     expect(shareDirectAssistantModelsByUserId(previous, next)).toBe(previous)
   })

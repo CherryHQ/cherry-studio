@@ -17,6 +17,7 @@ import { PreferencesMigrator } from './PreferencesMigrator'
 import { PromptMigrator } from './PromptMigrator'
 import { ProviderModelMigrator } from './ProviderModelMigrator'
 import { TranslateMigrator } from './TranslateMigrator'
+import { UsageLedgerMigrator } from './UsageLedgerMigrator'
 
 /**
  * Get all registered migrators in execution order
@@ -35,6 +36,7 @@ export function getAllMigrators() {
     new KnowledgeMigrator(),
     new KnowledgeVectorMigrator(),
     new ChatMigrator(),
+    new UsageLedgerMigrator(),
     new PaintingMigrator(),
     new TranslateMigrator(),
     new PromptMigrator()

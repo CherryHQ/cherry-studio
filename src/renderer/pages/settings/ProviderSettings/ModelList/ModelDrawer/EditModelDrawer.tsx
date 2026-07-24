@@ -54,6 +54,7 @@ interface BuildPatchOverrides {
   currencySymbol?: ModelDrawerCurrencySymbol
   inputPrice?: string
   outputPrice?: string
+  cacheReadPrice?: string
   contextWindow?: string
   maxInputTokens?: string
   maxOutputTokens?: string
@@ -105,6 +106,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [currencySymbol, setCurrencySymbol] = useState<ModelDrawerCurrencySymbol>('$')
   const [inputPrice, setInputPrice] = useState('0')
   const [outputPrice, setOutputPrice] = useState('0')
+  const [cacheReadPrice, setCacheReadPrice] = useState('0')
   const [contextWindow, setContextWindow] = useState('')
   const [maxInputTokens, setMaxInputTokens] = useState('')
   const [maxOutputTokens, setMaxOutputTokens] = useState('')
@@ -136,6 +138,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     setCurrencySymbol(nextCurrencySymbol ?? '$')
     setInputPrice(String(model.pricing?.input?.perMillionTokens ?? 0))
     setOutputPrice(String(model.pricing?.output?.perMillionTokens ?? 0))
+    setCacheReadPrice(String(model.pricing?.cacheRead?.perMillionTokens ?? 0))
     setContextWindow(model.contextWindow != null ? String(model.contextWindow) : '')
     setMaxInputTokens(model.maxInputTokens != null ? String(model.maxInputTokens) : '')
     setMaxOutputTokens(model.maxOutputTokens != null ? String(model.maxOutputTokens) : '')
@@ -191,7 +194,12 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
           output: {
             perMillionTokens: Number(overrides?.outputPrice ?? outputPrice) || 0,
             currency: finalCurrency
-          }
+          },
+          cacheRead: {
+            perMillionTokens: Number(overrides?.cacheReadPrice ?? cacheReadPrice) || 0,
+            currency: finalCurrency
+          },
+          ...(model.pricing?.cacheWrite ? { cacheWrite: model.pricing.cacheWrite } : {})
         }
       }
     },
@@ -199,6 +207,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       currencySymbol,
       endpointTypes,
       group,
+      cacheReadPrice,
       contextWindow,
       inputPrice,
       maxInputTokens,
@@ -241,7 +250,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       }
 
       const { modelId } = parseUniqueModelId(model.id)
-      const item = {
+      const item: AutoSaveQueueItem = {
         providerId: model.providerId ?? providerId,
         modelId,
         patch: buildPatch(overrides)
@@ -455,6 +464,27 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                         setOutputPrice(event.target.value)
                       }}
                       onBlur={() => autoSave({ outputPrice })}
+                    />
+                    <span className={drawerClasses.valueSuffix}>
+                      {currentCurrency} / {t('models.price.million_tokens')}
+                    </span>
+                  </div>
+                </ProviderField>
+
+                <ProviderField title={t('models.price.cache_read')} titleClassName={drawerClasses.fieldTitle}>
+                  <div className={drawerClasses.responsiveValueRow}>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      aria-label={t('models.price.cache_read')}
+                      value={cacheReadPrice}
+                      placeholder="0.00"
+                      className={drawerClasses.input}
+                      onChange={(event) => {
+                        setCacheReadPrice(event.target.value)
+                      }}
+                      onBlur={() => autoSave({ cacheReadPrice })}
                     />
                     <span className={drawerClasses.valueSuffix}>
                       {currentCurrency} / {t('models.price.million_tokens')}

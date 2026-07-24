@@ -25,7 +25,8 @@ const {
   downloadMock,
   getByProviderIdMock,
   getByKeyMock,
-  providerToAiSdkConfigMock
+  providerToAiSdkConfigMock,
+  recordRequestMock
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   readMock: vi.fn(),
@@ -38,7 +39,8 @@ const {
   downloadMock: vi.fn(),
   getByProviderIdMock: vi.fn(),
   getByKeyMock: vi.fn(),
-  providerToAiSdkConfigMock: vi.fn()
+  providerToAiSdkConfigMock: vi.fn(),
+  recordRequestMock: vi.fn()
 }))
 
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
@@ -46,6 +48,9 @@ vi.mock('../../imageTransportRegistry', () => ({ resolveImageTransport: resolveI
 vi.mock('../../../config', () => ({ providerToAiSdkConfig: providerToAiSdkConfigMock }))
 vi.mock('@main/data/services/ProviderService', () => ({ providerService: { getByProviderId: getByProviderIdMock } }))
 vi.mock('@main/data/services/ModelService', () => ({ modelService: { getByKey: getByKeyMock } }))
+vi.mock('@main/data/services/UsageLedgerService', () => ({
+  usageLedgerService: { recordRequest: recordRequestMock }
+}))
 vi.mock('@main/utils/downloadAsBase64', () => ({ downloadImageAsBase64: downloadMock }))
 
 const { imageGenerationJobHandler } = await import('../imageGenerationJobHandler')
@@ -82,9 +87,14 @@ beforeEach(() => {
     }
     throw new Error(`Unexpected application.get(${name})`)
   })
-  getByProviderIdMock.mockResolvedValue({ id: 'ppio' })
-  getByKeyMock.mockResolvedValue({ id: 'qwen-image', apiModelId: 'qwen-image' })
+  getByProviderIdMock.mockReturnValue({ id: 'ppio' })
+  getByKeyMock.mockReturnValue({
+    id: 'ppio::qwen-image',
+    apiModelId: 'qwen-image',
+    pricing: { perImage: { price: 0.02 } }
+  })
   providerToAiSdkConfigMock.mockResolvedValue({ providerId: 'ppio', providerSettings: { apiKey: 'k' } })
+  recordRequestMock.mockResolvedValue(undefined)
   cancelMock.mockResolvedValue(undefined)
   permanentDeleteMock.mockResolvedValue(undefined)
   resolveImageTransportMock.mockReturnValue({ submit: submitMock, poll: pollMock, cancel: cancelMock })
@@ -133,6 +143,18 @@ describe('imageGenerationJobHandler.execute', () => {
     expect(ctx.reportProgress).toHaveBeenCalledWith(50, { stage: 'polling' })
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'done' })
     expect(downloadMock).toHaveBeenCalledWith('https://cdn.example.com/a.png')
+    expect(recordRequestMock).toHaveBeenCalledWith({
+      id: 'img-job-1',
+      modelId: 'ppio::qwen-image',
+      modality: 'image',
+      imageCount: 1,
+      stats: {
+        cost: 0.02,
+        costSource: 'computed',
+        costCurrency: 'USD',
+        costBreakdown: { image: 0.02 }
+      }
+    })
   })
 
   it('resume: metadata.taskId present → skips submit, polls the persisted task', async () => {

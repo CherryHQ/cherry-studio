@@ -6,6 +6,8 @@ export {
   hasApiVersion,
   isWithTrailingSharp,
   joinApiKeyString,
+  maskApiKey,
+  maskApiKeyForSnapshot,
   splitApiKeyString,
   withoutTrailingApiVersion,
   withoutTrailingSharp,

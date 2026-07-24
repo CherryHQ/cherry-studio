@@ -161,28 +161,28 @@ const MessageTokenDetailsCard = ({
     return null
   }
 
-  const inputTokens = stats.promptTokens ?? 0
-  const outputTokens = stats.completionTokens ?? 0
+  const inputTokens = stats.inputTokens ?? 0
+  const outputTokens = stats.outputTokens ?? 0
   const totalTokens = stats.totalTokens ?? inputTokens + outputTokens
-  const reasoningTokens = Math.min(Math.max(stats.thoughtsTokens ?? 0, 0), outputTokens)
+  const reasoningTokens = Math.min(Math.max(stats.outputTokenDetails?.reasoningTokens ?? 0, 0), outputTokens)
   const textOutputTokens = Math.max(outputTokens - reasoningTokens, 0)
   const inputBreakdownSegments: MetricSegment[] = [
     {
       id: 'uncached',
       label: t('chat.message.token_details.uncached'),
-      value: stats.noCacheTokens ?? 0,
+      value: stats.inputTokenDetails?.noCacheTokens ?? 0,
       colorClassName: 'bg-neutral-400'
     },
     {
       id: 'cache-read',
       label: t('chat.message.token_details.cache_read'),
-      value: stats.cacheReadTokens ?? 0,
+      value: stats.inputTokenDetails?.cacheReadTokens ?? 0,
       colorClassName: 'bg-teal-500'
     },
     {
       id: 'cache-write',
       label: t('chat.message.token_details.cache_write'),
-      value: stats.cacheWriteTokens ?? 0,
+      value: stats.inputTokenDetails?.cacheWriteTokens ?? 0,
       colorClassName: 'bg-amber-500'
     }
   ]

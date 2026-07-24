@@ -13,6 +13,7 @@ import {
 import { cn } from '@renderer/utils/style'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import {
+  Activity,
   Bell,
   CalendarClock,
   Cloud,
@@ -155,6 +156,14 @@ const SettingsPage: FC = () => {
                 label={t('settings.data.title')}
                 active={isActive('/settings/data')}
                 onClick={() => go('/settings/data')}
+              />
+              <MenuItem
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
+                icon={<Activity />}
+                label={t('settings.usage.title')}
+                active={isActive('/settings/usage')}
+                onClick={() => go('/settings/usage')}
               />
               <MenuDivider className={settingsSubmenuDividerClassName} />
               <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.automation')}</div>

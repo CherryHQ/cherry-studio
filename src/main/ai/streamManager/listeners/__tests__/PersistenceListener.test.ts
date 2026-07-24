@@ -15,6 +15,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const appendMessageMock = vi.fn()
 const messageUpdateMock = vi.fn()
+// Cost enrichment is the seam between persistAssistant and the DB write; mock it
+// to assert the success-path wiring (args in, enriched stats out) without
+// re-testing its internals (covered by costEnrichment.test.ts). Default is a
+// pass-through so the other backends' tests see stats unchanged.
+const enrichStatsWithCostMock = vi.fn((...args: unknown[]) => Promise.resolve(args[0]))
+
+vi.mock('@main/data/services/utils/costEnrichment', () => ({
+  enrichStatsWithCost: (...args: unknown[]) => enrichStatsWithCostMock(...args)
+}))
 
 vi.mock('@main/data/services/TemporaryChatService', () => ({
   temporaryChatService: {
@@ -61,6 +70,7 @@ function makeListener(modelId?: UniqueModelId) {
     modelId,
     backend: new TemporaryChatBackend({
       topicId: 'abc',
+      messageId: 'assistant-message-id',
       modelId,
       messageSnapshot: { id: 'a1', name: 'A', emoji: '', model: { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' } }
     })
@@ -79,13 +89,15 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     await listener.onDone({ finalMessage: makeFinalMessage(), status: 'success', modelId: 'openai::gpt-4o' })
 
     expect(appendMessageMock).toHaveBeenCalledTimes(1)
-    const [topicId, payload] = appendMessageMock.mock.calls[0]
+    const [topicId, payload, messageId] = appendMessageMock.mock.calls[0]
     expect(topicId).toBe('abc')
     expect(payload.role).toBe('assistant')
     expect(payload.status).toBe('success')
     expect(payload.modelId).toBe('openai::gpt-4o')
-    // The service allocates the DB id; the listener/backend must not leak the UIMessage id.
+    // The payload stays a CreateMessageDto while the stable stream id is passed
+    // through the service's explicit internal id parameter.
     expect(payload.id).toBeUndefined()
+    expect(messageId).toBe('assistant-message-id')
   })
 
   it('strips empty text/reasoning parts before the backend write', async () => {
@@ -119,15 +131,14 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
       id: 'msg-x',
       role: 'assistant',
       parts: [{ type: 'text', text: 'hi' }],
-      // agentLoop.messageMetadata projects AI SDK usage onto these legacy names.
+      // Usage writers emit a full nested `stats` snapshot — the single carrier.
       metadata: {
-        totalTokens: 42,
-        promptTokens: 30,
-        completionTokens: 12,
-        thoughtsTokens: 3,
-        noCacheTokens: 4,
-        cacheReadTokens: 20,
-        cacheWriteTokens: 6
+        stats: {
+          totalTokens: 42,
+          inputTokens: 30,
+          outputTokens: 12,
+          outputTokenDetails: { reasoningTokens: 3 }
+        }
       }
     } as unknown as CherryUIMessage
 
@@ -135,15 +146,12 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
 
     expect(appendMessageMock).toHaveBeenCalledTimes(1)
     const payload = appendMessageMock.mock.calls[0][1]
-    // statsFromTerminal projects 1:1 from UIMessage.metadata to MessageStats.
+    // statsFromTerminal copies metadata.stats 1:1 (plus timings).
     expect(payload.stats).toEqual({
       totalTokens: 42,
-      promptTokens: 30,
-      completionTokens: 12,
-      thoughtsTokens: 3,
-      noCacheTokens: 4,
-      cacheReadTokens: 20,
-      cacheWriteTokens: 6
+      inputTokens: 30,
+      outputTokens: 12,
+      outputTokenDetails: { reasoningTokens: 3 }
     })
   })
 
@@ -212,7 +220,7 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
       id: 'msg-w',
       role: 'assistant',
       parts: [{ type: 'text', text: 'hi' }],
-      metadata: { totalTokens: 7, promptTokens: 5, completionTokens: 2 }
+      metadata: { stats: { totalTokens: 7, inputTokens: 5, outputTokens: 2 } }
     } as unknown as CherryUIMessage
 
     await listener.onDone({
@@ -224,8 +232,8 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     const payload = appendMessageMock.mock.calls[0][1]
     expect(payload.stats).toEqual({
       totalTokens: 7,
-      promptTokens: 5,
-      completionTokens: 2,
+      inputTokens: 5,
+      outputTokens: 2,
       timeFirstTokenMs: 100,
       timeCompletionMs: 500
     })
@@ -512,6 +520,59 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
     expect(onPersistFailed).toHaveBeenCalledTimes(1)
     expect(onPersistFailed).toHaveBeenCalledWith(
       expect.objectContaining({ message: expect.stringContaining('write failed') })
+    )
+  })
+})
+
+describe('PersistenceListener + MessageServiceBackend — success-path cost enrichment', () => {
+  beforeEach(() => {
+    messageUpdateMock.mockReset()
+    messageUpdateMock.mockReturnValue({ id: 'assistant-1' })
+    enrichStatsWithCostMock.mockClear()
+    enrichStatsWithCostMock.mockImplementation(async (stats: unknown) => stats)
+  })
+
+  it('enriches persisted stats with cost and threads providerCostUsd into the DB update', async () => {
+    const enriched = {
+      inputTokens: 10,
+      outputTokens: 5,
+      totalTokens: 15,
+      cost: 0.42,
+      costSource: 'provider',
+      costCurrency: 'USD'
+    }
+    enrichStatsWithCostMock.mockResolvedValue(enriched)
+
+    const finalMessage = {
+      id: 'msg-x',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'hi' }],
+      // token snapshot rides in metadata.stats; providerCostUsd is the transient
+      // provider-reported candidate the backend must thread into enrichment.
+      metadata: {
+        stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+        providerCostUsd: 0.42
+      }
+    } as unknown as CherryUIMessage
+
+    const listener = new PersistenceListener({
+      topicId: 'topic-1',
+      modelId: 'openrouter::x' as UniqueModelId,
+      backend: new MessageServiceBackend({ assistantMessageId: 'assistant-1' })
+    })
+
+    await listener.onDone({ finalMessage, status: 'success', modelId: 'openrouter::x' as UniqueModelId })
+
+    // Wiring in: base stats (from metadata.stats) + modelId + providerCostUsd.
+    expect(enrichStatsWithCostMock).toHaveBeenCalledWith(
+      expect.objectContaining({ inputTokens: 10, outputTokens: 5, totalTokens: 15 }),
+      'openrouter::x',
+      0.42
+    )
+    // Wiring out: the enriched result (with cost) is exactly what the DB row gets.
+    expect(messageUpdateMock).toHaveBeenCalledWith(
+      'assistant-1',
+      expect.objectContaining({ status: 'success', stats: enriched })
     )
   })
 })

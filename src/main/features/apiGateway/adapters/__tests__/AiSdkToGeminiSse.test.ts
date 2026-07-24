@@ -12,7 +12,7 @@ const toolCall = (toolName: string, input: unknown): UIMessageChunk => ({
   toolName,
   input
 })
-const finish = (finishReason: FinishReason = 'stop', usage?: Record<string, number>): UIMessageChunk => ({
+const finish = (finishReason: FinishReason = 'stop', usage?: Record<string, unknown>): UIMessageChunk => ({
   type: 'finish',
   finishReason,
   ...(usage ? { messageMetadata: usage } : {})
@@ -73,12 +73,11 @@ describe('AiSdkToGeminiSse (streaming)', () => {
   })
 
   it('projects usage onto the terminal frame', () => {
-    const frames = run([textDelta('x'), finish('stop', { promptTokens: 10, completionTokens: 20, thoughtsTokens: 5 })])
+    const frames = run([textDelta('x'), finish('stop', { stats: { inputTokens: 10, outputTokens: 20 } })])
     expect(frames[frames.length - 1].usageMetadata).toEqual({
       promptTokenCount: 10,
       candidatesTokenCount: 20,
-      totalTokenCount: 30,
-      thoughtsTokenCount: 5
+      totalTokenCount: 30
     })
   })
 
@@ -95,7 +94,7 @@ describe('AiSdkToGeminiSse.buildNonStreamingResponse', () => {
       textDelta('Hel'),
       textDelta('lo'),
       toolCall('search', { q: 'x' }),
-      finish('stop', { promptTokens: 3, completionTokens: 4 })
+      finish('stop', { stats: { inputTokens: 3, outputTokens: 4 } })
     ]) {
       adapter.transformChunk(chunk)
     }

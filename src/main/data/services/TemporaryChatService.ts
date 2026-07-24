@@ -25,6 +25,7 @@ import { eq, isNull } from 'drizzle-orm'
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
 import { messageService } from './MessageService'
+import { usageLedgerService } from './UsageLedgerService'
 import { insertWithOrderKey } from './utils/orderKey'
 
 const logger = loggerService.withContext('DataApi:TemporaryChatService')
@@ -96,7 +97,7 @@ export class TemporaryChatService {
     logger.info('Deleted temporary topic', { id })
   }
 
-  appendMessage(topicId: string, dto: CreateMessageDto): Message {
+  appendMessage(topicId: string, dto: CreateMessageDto, messageId?: string): Message {
     if (!this.topics.has(topicId)) {
       throw DataApiErrorFactory.notFound('TemporaryTopic', topicId)
     }
@@ -104,7 +105,7 @@ export class TemporaryChatService {
 
     const now = Date.now()
     const row: TemporaryMessageRow = {
-      id: uuidv7(),
+      id: messageId ?? uuidv7(),
       topicId,
       parentId: null,
       role: dto.role,
@@ -228,6 +229,18 @@ export class TemporaryChatService {
       this.topics.set(topicId, topic)
       this.messages.set(topicId, msgs)
       throw err
+    }
+
+    // Usage ledger: the generation was already captured under this stable
+    // message id. Upsert it after promotion to add persistent topic/source
+    // attribution without creating a second charge.
+    for (const m of msgs) {
+      if (m.role !== 'assistant' || !m.stats) continue
+      void usageLedgerService
+        .recordFromMessage({ id: m.id, topicId: topic.id, role: m.role, modelId: m.modelId ?? null, stats: m.stats })
+        .catch((err) => {
+          logger.warn('usage ledger record failed for persisted temporary message', { messageId: m.id, err })
+        })
     }
 
     logger.info('Persisted temporary topic', { topicId, messageCount: msgs.length })

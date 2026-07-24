@@ -1,10 +1,13 @@
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
+import { usageLedgerTable } from '@data/db/schemas/usageLedger'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { TemporaryChatService } from '@data/services/TemporaryChatService'
 import type { MessageData } from '@shared/data/types/message'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 function fieldsOf(err: unknown): Record<string, string[]> {
   const details = (err as { details?: { fieldErrors?: Record<string, string[]> } }).details
@@ -136,6 +139,18 @@ describe('TemporaryChatService', () => {
       expect(msg.stats).toEqual({ totalTokens: 42 })
       expect(typeof msg.createdAt).toBe('string')
     })
+
+    it('uses a caller-provided stable message id', () => {
+      const topic = service.createTopic({ name: 'T' })
+      const msg = service.appendMessage(
+        topic.id,
+        { role: 'assistant', data: mainText('world') },
+        'assistant-message-id'
+      )
+
+      expect(msg.id).toBe('assistant-message-id')
+      expect(service.listMessages(topic.id)[0].id).toBe('assistant-message-id')
+    })
   })
 
   describe('listMessages — deep-clone isolation', () => {
@@ -206,6 +221,63 @@ describe('TemporaryChatService', () => {
 
     it('unknown topicId → notFound', () => {
       expect(() => service.persist('no-such-id')).toThrow(/not found/i)
+    })
+
+    it('records usage ledger entries for stats-bearing assistant messages on persist', async () => {
+      // message.modelId is an FK to user_model — seed the chain.
+      await dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI', orderKey: 'a0' })
+      await dbh.db.insert(userModelTable).values({
+        id: 'openai::gpt-4o',
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        presetModelId: 'gpt-4o',
+        name: 'gpt-4o',
+        isEnabled: true,
+        isHidden: false,
+        orderKey: 'a0'
+      })
+
+      const topic = service.createTopic({ name: 'billed' })
+      service.appendMessage(topic.id, { role: 'user', data: mainText('hi') })
+      const assistant = service.appendMessage(
+        topic.id,
+        {
+          role: 'assistant',
+          data: mainText('yo'),
+          modelId: 'openai::gpt-4o',
+          stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
+        },
+        'assistant-message-id'
+      )
+
+      // Simulate the generation-time billing hook. Promotion must enrich this
+      // same row with topic attribution instead of inserting a second charge.
+      await dbh.db.insert(usageLedgerTable).values({
+        messageId: assistant.id,
+        providerId: 'openai',
+        modelId: 'openai::gpt-4o',
+        modality: 'language',
+        inputTokens: 10,
+        outputTokens: 5,
+        totalTokens: 15,
+        updatedAt: Date.now()
+      })
+
+      service.persist(topic.id)
+
+      // The ledger write is post-commit fire-and-forget.
+      await vi.waitFor(async () => {
+        const rows = await dbh.db.select().from(usageLedgerTable)
+        expect(rows).toHaveLength(1)
+        expect(rows[0]).toMatchObject({
+          messageId: assistant.id,
+          topicId: topic.id,
+          providerId: 'openai',
+          inputTokens: 10,
+          outputTokens: 5,
+          totalTokens: 15
+        })
+      })
     })
 
     it('persisted topic has a non-empty fractional-indexing orderKey', async () => {

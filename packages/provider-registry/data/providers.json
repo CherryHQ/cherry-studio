@@ -464,6 +464,9 @@
       "name": "Qiniu"
     },
     {
+      "apiFeatures": {
+        "reportsActualCost": true
+      },
       "defaultChatEndpoint": "openai-chat-completions",
       "description": "OpenRouter - AI model provider",
       "endpointConfigs": {

@@ -2,6 +2,8 @@ import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as StreamAdapterModule from '../streamAdapter'
+
 const mocks = vi.hoisted(() => ({
   buildRequest: vi.fn(),
   deriveConfig: vi.fn(),
@@ -57,7 +59,9 @@ vi.mock('../sessionFileSweep', () => ({
   sweepClaudeSessionFiles: mocks.sweepClaudeSessionFiles
 }))
 
-vi.mock('../streamAdapter', () => ({
+vi.mock('../streamAdapter', async (importActual) => ({
+  // Keep the real `v3UsageToStats` projection; only stub the SDK-dependent bits.
+  ...(await importActual<typeof StreamAdapterModule>()),
   convertClaudeCodeUsage: (usage: any) => ({
     inputTokens: {
       total:
@@ -778,14 +782,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
         type: 'chunk',
         chunk: {
           type: 'message-metadata',
-          messageMetadata: {
-            totalTokens: 20,
-            promptTokens: 15,
-            completionTokens: 5,
-            noCacheTokens: 10,
-            cacheReadTokens: 2,
-            cacheWriteTokens: 3
-          }
+          messageMetadata: { stats: { totalTokens: 20, inputTokens: 10, outputTokens: 5 } }
         }
       }
     })
