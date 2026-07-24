@@ -36,6 +36,9 @@ const NON_DOM_COMPONENTS = new Set([
 const BOUNDARY_ATTRIBUTES = ['data-testid', 'id', 'name', 'role']
 const SVG_OPT_IN_ATTRIBUTES = ['data-testid', 'role']
 const DATA_SLOT_VALUE = /^[A-Za-z0-9][A-Za-z0-9._:~-]*$/
+// Mirrors SEMANTIC_ID in src/renderer/utils/uiContract/tokens.ts so authored
+// tokens that the consumer grammar would reject fail the build instead.
+const SEMANTIC_ID = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/
 export const UI_CONTRACT_RUNTIME_MODULE_ID = 'virtual:cherry-ui-contract-runtime'
 
 const RUNTIME_MERGE_DATA_UI = '__cherryUiContractMergeDataUi'
@@ -93,19 +96,6 @@ function jsxName(name: JSXElementName): string {
   return `${jsxName(name.object)}.${name.property.value}`
 }
 
-function expressionIdentifier(value: unknown): string | undefined {
-  if (!isRecord(value)) return undefined
-  if (value.type === 'Identifier' && typeof value.value === 'string') return value.value
-  if (value.type === 'MemberExpression' && isRecord(value.property)) {
-    const property = expressionIdentifier(value.property)
-    return property
-  }
-  if ((value.type === 'CallExpression' || value.type === 'OptionalChainingExpression') && isRecord(value.callee)) {
-    return expressionIdentifier(value.callee)
-  }
-  return undefined
-}
-
 function directHandlerIdentifier(value: unknown): string | undefined {
   if (!isRecord(value)) return undefined
   if (value.type === 'Identifier' && typeof value.value === 'string') return value.value
@@ -138,6 +128,18 @@ function namespaceTokenValues(value: string | undefined, namespace: string): str
     .split(/\s+/)
     .filter((token) => token.startsWith(prefix) && token.length > prefix.length)
     .map((token) => token.slice(prefix.length))
+}
+
+function assertAuthoredDataUi(value: string | undefined): void {
+  for (const token of (value ?? '').split(/\s+/).filter(Boolean)) {
+    const separator = token.indexOf(':')
+    if (separator === -1) {
+      if (!SEMANTIC_ID.test(token)) throw new Error(`Invalid data-ui semantic token: ${token}`)
+      continue
+    }
+    if (token.slice(0, separator) !== 'part') throw new Error(`Unknown data-ui token namespace: ${token}`)
+    if (!DATA_SLOT_VALUE.test(token.slice(separator + 1))) throw new Error(`Invalid data-ui part token: ${token}`)
+  }
 }
 
 function staticDataSlot(attributes: Map<string, AttributeInfo>): string | undefined {
@@ -177,6 +179,7 @@ function openingElementInfo(opening: JSXOpeningElement): OpeningElementInfo {
     (part): part is string => Boolean(part)
   )
   const staticDataUi = attributes.get('data-ui')?.dynamic ? undefined : attributes.get('data-ui')?.value
+  assertAuthoredDataUi(staticDataUi)
   const authoredDataUi = mergePartsDataUi(staticDataUi, parts)
 
   return {
@@ -193,17 +196,6 @@ function openingElementInfo(opening: JSXOpeningElement): OpeningElementInfo {
 function explicitSemanticId(dataUi: AttributeInfo | undefined): string | undefined {
   if (!dataUi?.value || dataUi.dynamic) return undefined
   return dataUi.value.split(/\s+/).find((token) => token && !token.includes(':'))
-}
-
-function dynamicUiSemanticId(dataUi: AttributeInfo | undefined): string | undefined {
-  const value = dataUi?.attribute?.value
-  if (!dataUi?.dynamic || value?.type !== 'JSXExpressionContainer' || value.expression.type !== 'CallExpression') {
-    return undefined
-  }
-  if (expressionIdentifier(value.expression.callee) !== 'uiTokens') return undefined
-  const firstArgument = value.expression.arguments[0]
-  if (!firstArgument || firstArgument.spread || firstArgument.expression.type !== 'StringLiteral') return undefined
-  return firstArgument.expression.value
 }
 
 function byteOffsetMap(source: string): (byteOffset: number) => number {
@@ -368,8 +360,7 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
     if (SKIPPED_HTML_TAGS.has(info.element)) return
 
     const existingDataUi = info.attributes.get('data-ui')
-    const dynamicSemanticId = dynamicUiSemanticId(existingDataUi)
-    const explicitSemantic = explicitSemanticId(existingDataUi) ?? dynamicSemanticId
+    const explicitSemantic = explicitSemanticId(existingDataUi)
     const isIntrinsicElement = /^[a-z]/.test(info.element)
     if (!isIntrinsicElement) {
       if (
@@ -379,12 +370,15 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
       ) {
         injectDataUi(opening, existingDataUi, info.authoredDataUi)
       }
-      if (!explicitSemantic) return
+      if (!explicitSemantic && info.parts.length === 0) return
       descriptors.push({
         component,
         element: info.element,
         kind: 'jsx',
-        semanticId: explicitSemantic,
+        parts: info.parts,
+        // A part-only call site joins the contract through its parts; the
+        // semantic id lives on the component implementation's own root.
+        semanticId: explicitSemantic ?? '',
         semanticSource: 'explicit',
         sourceFile: options.sourceFile,
         sourceOffset: spanToCharacter(opening.span.start)
@@ -414,6 +408,7 @@ export function transformJsx(source: string, options: TransformJsxOptions): UiSo
       component,
       element: info.element,
       kind: 'jsx',
+      parts: info.parts,
       semanticId,
       semanticSource: explicitSemantic ? 'explicit' : 'inferred',
       sourceFile: options.sourceFile,
@@ -632,6 +627,7 @@ export function transformHtml(source: string, options: TransformHtmlOptions): Ui
 
   for (const tag of tags) {
     if (SKIPPED_HTML_TAGS.has(tag.name)) continue
+    assertAuthoredDataUi(htmlAttribute(tag, 'data-ui'))
     const dataSlotPart = staticHtmlDataSlot(tag)
     if (tag.insideSvg && tag.name !== 'svg' && !hasHtmlSvgContractOptIn(tag)) continue
     const parent = tag.parentIndex === undefined ? undefined : tags[tag.parentIndex]
@@ -663,6 +659,7 @@ export function transformHtml(source: string, options: TransformHtmlOptions): Ui
       component: options.windowName,
       element: tag.name,
       kind: 'html',
+      parts,
       semanticId,
       semanticSource: explicitSemantic ? 'explicit' : 'inferred',
       sourceFile: options.sourceFile,
@@ -674,10 +671,13 @@ export function transformHtml(source: string, options: TransformHtmlOptions): Ui
     const value = mergeDataUi(authoredDataUi, descriptor.semanticId)
     if (existing !== undefined) {
       const attribute = tag.source.match(/\sdata-ui\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/i)
-      if (attribute?.index !== undefined) {
-        const start = tag.start + attribute.index
-        magicString.overwrite(start, start + attribute[0].length, ` data-ui=${JSON.stringify(value)}`)
+      if (attribute?.index === undefined) {
+        // The descriptor above promises this anchor exists in the DOM; leaving
+        // the tag unrewritten would silently break that promise.
+        throw new Error(`Failed to rewrite data-ui attribute on <${tag.name}> in ${options.sourceFile}`)
       }
+      const start = tag.start + attribute.index
+      magicString.overwrite(start, start + attribute[0].length, ` data-ui=${JSON.stringify(value)}`)
     } else {
       let insertAt = tag.source.endsWith('/>') ? tag.end - 2 : tag.end - 1
       while (/\s/.test(source[insertAt - 1])) insertAt -= 1

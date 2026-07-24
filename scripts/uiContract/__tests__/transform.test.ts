@@ -266,7 +266,11 @@ const Message = () => {
       }
     )
 
-    expect(result.descriptors).toHaveLength(0)
+    // The call site carries no semantic id of its own, but its forwarded part
+    // is a contract point scan/query must see.
+    expect(result.descriptors).toHaveLength(1)
+    expect(result.descriptors[0].semanticId).toBe('')
+    expect(result.descriptors[0].parts).toEqual(['dialog-trigger'])
     expect(result.code).toContain('data-ui="part:dialog-trigger"')
     expect(result.code).toContain('data-slot="dialog-trigger"')
     expect(result.code).toContain('__cherryUiContractMergeUiProps(props')
@@ -276,6 +280,27 @@ const Message = () => {
     expect(() => transformJsx('const Button = ({ slot }) => <button data-slot={slot} />', options)).toThrow(
       'data-slot must be a static token'
     )
+  })
+
+  it('rejects authored semantic tokens the consumer grammar would refuse', () => {
+    expect(() => transformJsx('const Message = () => <div data-ui="Chat.Message" />', options)).toThrow(
+      'Invalid data-ui semantic token: Chat.Message'
+    )
+    expect(() => transformHtml('<body data-ui="App.Window"></body>', { ...options, windowName: 'main' })).toThrow(
+      'Invalid data-ui semantic token: App.Window'
+    )
+  })
+
+  it('rejects authored tokens in unknown namespaces instead of dropping them', () => {
+    expect(() => transformJsx('const Message = () => <div data-ui="chat.foo state:active" />', options)).toThrow(
+      'Unknown data-ui token namespace: state:active'
+    )
+  })
+
+  it('fails instead of reporting a descriptor when an HTML data-ui attribute cannot be rewritten', () => {
+    expect(() =>
+      transformHtml('<body data-ui></body>', { ...options, injectDataUi: true, windowName: 'main' })
+    ).toThrow('Failed to rewrite data-ui attribute on <body>')
   })
 
   it('does not register component boundaries that cannot render DOM', () => {

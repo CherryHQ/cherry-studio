@@ -43,8 +43,10 @@ export async function scanUiSources(root: string): Promise<UiNodeDescriptor[]> {
         try {
           return await collectFiles(resolve(root, sourceRoot))
         } catch (error) {
-          if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
-          throw error
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+          // A missing hardcoded root means a wrong cwd or a renamed directory;
+          // an empty result here would be indistinguishable from "no matches".
+          throw new Error(`UI contract source root not found: ${sourceRoot} (scanning from ${root})`, { cause: error })
         }
       })
     )
@@ -64,6 +66,9 @@ export async function scanUiSources(root: string): Promise<UiNodeDescriptor[]> {
     } catch (error) {
       throw new Error(`Failed to scan UI contract source ${sourceFile}`, { cause: error })
     }
+  }
+  if (descriptors.length === 0) {
+    throw new Error(`UI contract scan found no semantic boundaries under ${root}`)
   }
   return descriptors
 }
