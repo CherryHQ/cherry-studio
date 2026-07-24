@@ -43,10 +43,12 @@ export function useDefaultModel() {
     translateModel,
     paintingModel,
     // v2 Model.id is already the UniqueModelId — store it directly.
-    setDefaultModel: async (next: { id: UniqueModelId }) => {
+    setDefaultModel: async (next: { id: UniqueModelId }, options?: { forceCascade?: boolean }) => {
       await setDefaultModelId(next.id)
-      if (!quickModelId) await setQuickModelId(next.id)
-      if (!translateModelId) await setTranslateModelId(next.id)
+      await Promise.all([
+        options?.forceCascade || !quickModelId ? setQuickModelId(next.id) : Promise.resolve(),
+        options?.forceCascade || !translateModelId ? setTranslateModelId(next.id) : Promise.resolve()
+      ])
     },
     setQuickModel: (next: { id: UniqueModelId }) => setQuickModelId(next.id),
     setTranslateModel: (next: { id: UniqueModelId }) => setTranslateModelId(next.id),
