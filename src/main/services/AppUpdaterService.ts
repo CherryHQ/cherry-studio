@@ -11,36 +11,23 @@ import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { APP_NAME } from '@shared/utils/constants'
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
 import { CancellationToken } from 'builder-util-runtime'
-import { app, net } from 'electron'
+import { app } from 'electron'
 import type { Logger, NsisUpdater, UpdateCheckResult } from 'electron-updater'
 import { autoUpdater } from 'electron-updater'
-import semver from 'semver'
 
 const logger = loggerService.withContext('AppUpdaterService')
 
-export enum FeedUrl {
-  PRODUCTION = 'https://releases.cherry-ai.com',
-  GITHUB_LATEST = 'https://github.com/CherryHQ/cherry-studio/releases/latest/download'
-}
+type ReleaseRegion = 'cn' | 'global'
 
-export enum UpdateConfigUrl {
-  GITHUB = 'https://raw.githubusercontent.com/CherryHQ/cherry-studio/refs/heads/x-files/app-upgrade-config/app-upgrade-config.json',
-  GITCODE = 'https://raw.gitcode.com/CherryHQ/cherry-studio/raw/x-files%2Fapp-upgrade-config/app-upgrade-config.json'
-}
-
-export enum UpdateMirror {
-  GITHUB = 'github',
-  GITCODE = 'gitcode'
-}
-
-function getCommonHeaders() {
+function getUpdateHeaders(region: ReleaseRegion) {
   return {
     'User-Agent': generateUserAgent(),
     'Cache-Control': 'no-cache',
     'Client-Id': getClientId(),
     'App-Name': APP_NAME,
     'App-Version': `v${app.getVersion()}`,
-    OS: process.platform
+    OS: process.platform,
+    'X-Region': region
   }
 }
 
@@ -73,28 +60,6 @@ const CHECK_RETRY_POLICY: RetryPolicy = {
   maxDelayMs: 60 * 60 * 1000
 }
 
-interface UpdateConfig {
-  lastUpdated: string
-  versions: {
-    [versionKey: string]: VersionConfig
-  }
-}
-
-interface VersionConfig {
-  minCompatibleVersion: string
-  description: string
-  channels: {
-    latest: ChannelConfig | null
-    rc: ChannelConfig | null
-    beta: ChannelConfig | null
-  }
-}
-
-interface ChannelConfig {
-  version: string
-  feedUrls: Record<UpdateMirror, string>
-}
-
 @Injectable('AppUpdaterService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['WindowManager', 'SchedulerService'])
@@ -106,16 +71,14 @@ export class AppUpdaterService extends BaseService {
 
   protected async onInit(): Promise<void> {
     autoUpdater.logger = logger as Logger
+    // Packaged builds use app-update.yml generated from electron-builder.yml;
+    // development uses the repository's dev-app-update.yml.
     autoUpdater.forceDevUpdateConfig = !app.isPackaged
     autoUpdater.autoDownload = application.get('PreferenceService').get('app.dist.auto_update.enabled')
     // Never auto-install on quit - user must explicitly click "Install Now"
     // Auto-install on quit can cause issues: unexpected updates on restart,
     // corruption if system shuts down during install, or app uninstall on force shutdown
     autoUpdater.autoInstallOnAppQuit = false
-    autoUpdater.requestHeaders = {
-      ...autoUpdater.requestHeaders,
-      ...getCommonHeaders()
-    }
 
     this.registerAutoUpdaterListeners()
 
@@ -142,11 +105,11 @@ export class AppUpdaterService extends BaseService {
 
   protected async onAllReady(): Promise<void> {
     application.get('PowerService').registerShutdownHandler(() => {
-      this.setAutoUpdate(false)
+      autoUpdater.autoDownload = false
     })
 
-    // Dev builds and portable builds never auto-update; the manual "check for
-    // update" button still works in those cases.
+    // Development builds skip automatic checks but still support manual checks.
+    // Portable builds do not perform update checks.
     if (!app.isPackaged || this.isPortable()) {
       return
     }
@@ -190,173 +153,31 @@ export class AppUpdaterService extends BaseService {
     this.registerDisposable(() => autoUpdater.removeListener('update-downloaded', onUpdateDownloaded))
   }
 
-  public setAutoUpdate(isActive: boolean) {
-    autoUpdater.autoDownload = isActive
-    // autoInstallOnAppQuit is always false - user must explicitly click "Install Now"
-  }
+  private async configureUpdaterForCheck() {
+    const currentVersion = app.getVersion()
+    const testPlan = application.get('PreferenceService').get('app.dist.test_plan.enabled')
+    const requestedChannel = testPlan
+      ? application.get('PreferenceService').get('app.dist.test_plan.channel') || UpgradeChannel.RC
+      : UpgradeChannel.LATEST
 
-  private _getChannelByVersion(version: string) {
-    if (version.includes(`-${UpgradeChannel.BETA}.`)) {
-      return UpgradeChannel.BETA
+    const ipCountry = await regionService.getCountry()
+    const region: ReleaseRegion = ipCountry.toLowerCase() === 'cn' ? 'cn' : 'global'
+
+    const updateHeaders = getUpdateHeaders(region)
+    autoUpdater.requestHeaders = {
+      ...autoUpdater.requestHeaders,
+      ...updateHeaders
     }
-    if (version.includes(`-${UpgradeChannel.RC}.`)) {
-      return UpgradeChannel.RC
-    }
-    return UpgradeChannel.LATEST
-  }
-
-  private _getTestChannel() {
-    const currentChannel = this._getChannelByVersion(app.getVersion())
-    const savedChannel = application.get('PreferenceService').get('app.dist.test_plan.channel')
-
-    if (currentChannel === UpgradeChannel.LATEST) {
-      return savedChannel || UpgradeChannel.RC
-    }
-
-    if (savedChannel === currentChannel) {
-      return savedChannel
-    }
-
-    // if the upgrade channel is not equal to the current channel, use the latest channel
-    return UpgradeChannel.LATEST
-  }
-
-  /**
-   * Fetch update configuration from GitHub or GitCode based on mirror
-   * @param mirror - Mirror to fetch config from
-   * @returns UpdateConfig object or null if fetch fails
-   */
-  private async _fetchUpdateConfig(mirror: UpdateMirror): Promise<UpdateConfig | null> {
-    const configUrl = mirror === UpdateMirror.GITCODE ? UpdateConfigUrl.GITCODE : UpdateConfigUrl.GITHUB
-
-    try {
-      logger.info(`Fetching update config from ${configUrl} (mirror: ${mirror})`)
-      const response = await net.fetch(configUrl, {
-        headers: {
-          ...getCommonHeaders(),
-          Accept: 'application/json'
-        }
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const config = (await response.json()) as UpdateConfig
-      logger.info(`Update config fetched successfully, last updated: ${config.lastUpdated}`)
-      return config
-    } catch (error) {
-      logger.error('Failed to fetch update config:', error as Error)
-      return null
-    }
-  }
-
-  /**
-   * Find compatible channel configuration based on current version
-   * @param currentVersion - Current app version
-   * @param requestedChannel - Requested upgrade channel (latest/rc/beta)
-   * @param config - Update configuration object
-   * @returns Object containing ChannelConfig and actual channel if found, null otherwise
-   */
-  private _findCompatibleChannel(
-    currentVersion: string,
-    requestedChannel: UpgradeChannel,
-    config: UpdateConfig
-  ): { config: ChannelConfig; channel: UpgradeChannel } | null {
-    // Get all version keys and sort descending (newest first)
-    const versionKeys = Object.keys(config.versions).sort(semver.rcompare)
 
     logger.info(
-      `Finding compatible channel for version ${currentVersion}, requested channel: ${requestedChannel}, available versions: ${versionKeys.join(', ')}`
+      `Using managed update feed for version ${currentVersion}, testPlan: ${testPlan}, channel: ${requestedChannel}, region: ${region} (IP country: ${ipCountry})`
     )
-
-    for (const versionKey of versionKeys) {
-      const versionConfig = config.versions[versionKey]
-      const channelConfig = versionConfig.channels[requestedChannel]
-      const latestChannelConfig = versionConfig.channels[UpgradeChannel.LATEST]
-
-      if (!semver.gte(currentVersion, versionConfig.minCompatibleVersion)) {
-        continue
-      }
-
-      // Check version compatibility and channel availability
-      if (channelConfig !== null) {
-        logger.info(
-          `Found compatible version: ${versionKey} (minCompatibleVersion: ${versionConfig.minCompatibleVersion}), version: ${channelConfig.version}`
-        )
-
-        if (
-          requestedChannel !== UpgradeChannel.LATEST &&
-          latestChannelConfig &&
-          semver.gte(latestChannelConfig.version, channelConfig.version)
-        ) {
-          logger.info(
-            `latest channel version is greater than the requested channel version: ${latestChannelConfig.version} > ${channelConfig.version}, using latest instead`
-          )
-          return { config: latestChannelConfig, channel: UpgradeChannel.LATEST }
-        }
-
-        return { config: channelConfig, channel: requestedChannel }
-      } else if (requestedChannel !== UpgradeChannel.LATEST && latestChannelConfig !== null) {
-        // Fallback: requested channel (rc/beta) is null, but latest channel is available
-        logger.info(
-          `Requested channel ${requestedChannel} is null for ${versionKey}, falling back to latest channel: ${latestChannelConfig.version}`
-        )
-        return { config: latestChannelConfig, channel: UpgradeChannel.LATEST }
-      }
-    }
-
-    logger.warn(`No compatible channel found for version ${currentVersion} and channel ${requestedChannel}`)
-    return null
-  }
-
-  private _setChannel(channel: UpgradeChannel, feedUrl: string) {
-    autoUpdater.channel = channel
-    autoUpdater.setFeedURL(feedUrl)
+    autoUpdater.channel = requestedChannel
 
     // disable downgrade after change the channel
     autoUpdater.allowDowngrade = false
-    // github and gitcode don't support multiple range download
+    // Keep differential downloads disabled for the current release artifacts.
     autoUpdater.disableDifferentialDownload = true
-  }
-
-  private async _setFeedUrl() {
-    const currentVersion = app.getVersion()
-    const testPlan = application.get('PreferenceService').get('app.dist.test_plan.enabled')
-    const requestedChannel = testPlan ? this._getTestChannel() : UpgradeChannel.LATEST
-
-    // Determine mirror based on IP country
-    const ipCountry = await regionService.getCountry()
-    const mirror = ipCountry.toLowerCase() === 'cn' ? UpdateMirror.GITCODE : UpdateMirror.GITHUB
-
-    logger.info(
-      `Setting feed URL for version ${currentVersion}, testPlan: ${testPlan}, requested channel: ${requestedChannel}, mirror: ${mirror} (IP country: ${ipCountry})`
-    )
-
-    // Try to fetch update config from remote
-    const config = await this._fetchUpdateConfig(mirror)
-
-    if (config) {
-      // Use new config-based system
-      const result = this._findCompatibleChannel(currentVersion, requestedChannel, config)
-
-      if (result) {
-        const { config: channelConfig, channel: actualChannel } = result
-        const feedUrl = channelConfig.feedUrls[mirror]
-        logger.info(
-          `Using config-based feed URL: ${feedUrl} for channel ${actualChannel} (requested: ${requestedChannel}, mirror: ${mirror})`
-        )
-        this._setChannel(actualChannel, feedUrl)
-        return
-      }
-    }
-
-    logger.info('Failed to fetch update config, falling back to default feed URL')
-    // Fallback: use default feed URL based on mirror
-    const defaultFeedUrl = mirror === UpdateMirror.GITCODE ? FeedUrl.PRODUCTION : FeedUrl.GITHUB_LATEST
-
-    logger.info(`Using fallback feed URL: ${defaultFeedUrl}`)
-    this._setChannel(UpgradeChannel.LATEST, defaultFeedUrl)
   }
 
   public cancelDownload() {
@@ -372,14 +193,14 @@ export class AppUpdaterService extends BaseService {
   }
 
   /**
-   * Throwing core of the update check: feed-url setup → check → (manual) download
+   * Throwing core of the update check: updater setup → check → (manual) download
    * trigger. A check/network failure REJECTS so callers that need a failure
    * signal — the scheduler's backoff — can observe it. The public IPC entry
    * `checkForUpdates()` wraps this and swallows the error to preserve its
    * event-driven contract: errors reach the renderer via the `UpdateError`
    * broadcast (see `registerAutoUpdaterListeners`), not the return value.
    */
-  private async _runUpdateCheck() {
+  private async performUpdateCheck() {
     void application.get('AnalyticsService').trackAppUpdate()
 
     if (this.isPortable()) {
@@ -389,7 +210,7 @@ export class AppUpdaterService extends BaseService {
       }
     }
 
-    await this._setFeedUrl()
+    await this.configureUpdaterForCheck()
 
     this.updateCheckResult = await autoUpdater.checkForUpdates()
     logger.info(
@@ -411,7 +232,7 @@ export class AppUpdaterService extends BaseService {
 
   public async checkForUpdates() {
     try {
-      return await this._runUpdateCheck()
+      return await this.performUpdateCheck()
     } catch (error) {
       logger.error('Failed to check for update:', error as Error)
       return {
@@ -440,11 +261,11 @@ export class AppUpdaterService extends BaseService {
     try {
       // Gate per tick rather than subscribing to the preference: when disabled
       // the loop keeps ticking (harmless no-op) and resumes automatically once
-      // re-enabled. Only the detection failure of `_runUpdateCheck` drives
+      // re-enabled. Only the detection failure of `performUpdateCheck` drives
       // backoff — the manual download trigger is fire-and-forget and surfaces
       // its own errors via the `UpdateError` event.
       if (application.get('PreferenceService').get('app.dist.auto_update.enabled')) {
-        await this._runUpdateCheck()
+        await this.performUpdateCheck()
       }
       this.updateCheckFailures = 0
       this.scheduleNextUpdateCheck(this.nextUpdateCheckDelayMs())
