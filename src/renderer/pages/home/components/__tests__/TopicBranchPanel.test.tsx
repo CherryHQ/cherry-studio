@@ -5,6 +5,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import TopicBranchPanel from '../TopicBranchPanel'
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
+}
+
 const mocks = vi.hoisted(() => ({
   copyBranchToNewTopic: vi.fn().mockResolvedValue({ id: 'copied-topic' }),
   refetchTree: vi.fn(),
@@ -245,6 +253,74 @@ describe('TopicBranchPanel', () => {
       params: { id: 'topic-1' }
     })
     expect(mocks.refetchTree).toHaveBeenCalled()
+  })
+
+  it('locates a selected node only after switching and refreshing its branch', async () => {
+    const onLocateMessage = vi.fn()
+    const setActiveNodeRequest = createDeferred<void>()
+    const refetchTreeRequest = createDeferred<void>()
+    mocks.setActiveNode.mockReturnValueOnce(setActiveNodeRequest.promise)
+    mocks.refetchTree.mockReturnValueOnce(refetchTreeRequest.promise)
+
+    render(<TopicBranchPanel open={true} topicId="topic-1" onLocateMessage={onLocateMessage} />)
+
+    fireEvent.click(screen.getByTestId('topic-message-flow-node-message-1'))
+
+    await waitFor(() => {
+      expect(mocks.setActiveNode).toHaveBeenCalledWith({
+        body: { nodeId: 'leaf-1' },
+        params: { id: 'topic-1' }
+      })
+    })
+    expect(onLocateMessage).not.toHaveBeenCalled()
+    expect(mocks.refetchTree).not.toHaveBeenCalled()
+
+    setActiveNodeRequest.resolve()
+
+    await waitFor(() => {
+      expect(mocks.refetchTree).toHaveBeenCalledTimes(1)
+    })
+    expect(onLocateMessage).not.toHaveBeenCalled()
+
+    refetchTreeRequest.resolve()
+
+    await waitFor(() => {
+      expect(onLocateMessage).toHaveBeenCalledWith('message-1')
+    })
+    expect(onLocateMessage).not.toHaveBeenCalledWith('leaf-1')
+    expect(onLocateMessage).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not locate when switching the selected branch fails', async () => {
+    const onLocateMessage = vi.fn()
+    const switchError = new Error('failed to switch branch')
+    mocks.setActiveNode.mockRejectedValueOnce(switchError)
+
+    render(<TopicBranchPanel open={true} topicId="topic-1" onLocateMessage={onLocateMessage} />)
+
+    fireEvent.click(screen.getByTestId('topic-message-flow-node-message-1'))
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('common.error')
+    })
+    expect(mocks.refetchTree).not.toHaveBeenCalled()
+    expect(onLocateMessage).not.toHaveBeenCalled()
+  })
+
+  it('does not locate when refreshing the selected branch fails', async () => {
+    const onLocateMessage = vi.fn()
+    const refreshError = new Error('failed to refresh branch')
+    mocks.refetchTree.mockRejectedValueOnce(refreshError)
+
+    render(<TopicBranchPanel open={true} topicId="topic-1" onLocateMessage={onLocateMessage} />)
+
+    fireEvent.click(screen.getByTestId('topic-message-flow-node-message-1'))
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith('common.error')
+    })
+    expect(mocks.setActiveNode).toHaveBeenCalled()
+    expect(onLocateMessage).not.toHaveBeenCalled()
   })
 
   it('locates the current active node without writing branch state', async () => {

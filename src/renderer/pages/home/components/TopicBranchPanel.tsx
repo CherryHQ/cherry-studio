@@ -115,6 +115,7 @@ const TopicBranchPanel: FC<Props> = ({
         })
         await refetch()
         onCancelBranchDraft?.()
+        onLocateMessage?.(messageId)
       } catch (err) {
         if (err instanceof DataApiError && err.code === ErrorCode.NOT_FOUND) {
           logger.warn('setActiveBranch from topic flow on missing message', { messageId, topicId })

@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import type * as ToolApprovalOverridesModule from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { mockUseInvalidateCache, mockUseMutation } from '@test-mocks/renderer/useDataApi'
@@ -246,6 +247,7 @@ describe('ChatContent', () => {
   let streamOpen: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
+    mockEventEmit.mockResolvedValue(undefined)
     streamOpen = vi.fn().mockResolvedValue({ mode: 'started', userMessageId: 'user-1' })
     // Route ai.stream_open through the spy; other stream routes/events are inert here
     // (useChatWithHistory is mocked, so the real transport never runs).
@@ -1517,5 +1519,98 @@ describe('ChatContent', () => {
       expect(mockEventEmit).toHaveBeenCalledWith('LOCATE_MESSAGE:target-message', true)
       expect(onLocateMessageHandled).toHaveBeenCalledTimes(1)
     })
+  })
+
+  it('keeps one found locate request pending across equivalent message array updates', async () => {
+    let finishLocate!: () => void
+    const locateRequest = new Promise<void>((resolve) => {
+      finishLocate = resolve
+    })
+    const onLocateMessageHandled = vi.fn()
+    const loadOlder = vi.fn()
+    const refresh = vi.fn().mockResolvedValue([])
+    const mutate = vi.fn().mockResolvedValue(undefined)
+    mockEventEmit.mockReturnValueOnce(locateRequest)
+    mockUseTopicMessages.mockReturnValue({
+      uiMessages: [createUiMessage('target-message', 'assistant')],
+      siblingsMap: {},
+      isLoading: false,
+      refresh,
+      activeNodeId: 'target-message',
+      loadOlder,
+      hasOlder: false,
+      mutate
+    })
+
+    const view = render(
+      <ChatContent topic={topic} locateMessageId="target-message" onLocateMessageHandled={onLocateMessageHandled} />
+    )
+
+    await waitFor(() => {
+      expect(mockEventEmit).toHaveBeenCalledWith('LOCATE_MESSAGE:target-message', true)
+    })
+    expect(onLocateMessageHandled).not.toHaveBeenCalled()
+
+    mockUseTopicMessages.mockReturnValue({
+      uiMessages: [createUiMessage('target-message', 'assistant'), createUiMessage('unrelated-message', 'assistant')],
+      siblingsMap: {},
+      isLoading: false,
+      refresh,
+      activeNodeId: 'target-message',
+      loadOlder,
+      hasOlder: false,
+      mutate
+    })
+    view.rerender(
+      <ChatContent topic={topic} locateMessageId="target-message" onLocateMessageHandled={onLocateMessageHandled} />
+    )
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(mockEventEmit).toHaveBeenCalledTimes(1)
+    expect(onLocateMessageHandled).not.toHaveBeenCalled()
+
+    await act(async () => {
+      finishLocate()
+      await locateRequest
+    })
+
+    expect(onLocateMessageHandled).toHaveBeenCalledTimes(1)
+  })
+
+  it('logs a rejected locate event and terminates the request exactly once', async () => {
+    const locateError = new Error('message runtime failed')
+    const loggerError = vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
+    const onLocateMessageHandled = vi.fn()
+    mockEventEmit.mockRejectedValueOnce(locateError)
+    mockUseTopicMessages.mockReturnValue({
+      uiMessages: [createUiMessage('target-message', 'assistant')],
+      siblingsMap: {},
+      isLoading: false,
+      refresh: vi.fn().mockResolvedValue([]),
+      activeNodeId: 'target-message',
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn().mockResolvedValue(undefined)
+    })
+
+    try {
+      render(
+        <ChatContent topic={topic} locateMessageId="target-message" onLocateMessageHandled={onLocateMessageHandled} />
+      )
+
+      await waitFor(() => {
+        expect(onLocateMessageHandled).toHaveBeenCalledTimes(1)
+      })
+      expect(mockEventEmit).toHaveBeenCalledTimes(1)
+      expect(loggerError).toHaveBeenCalledWith(
+        'Failed to locate message',
+        locateError,
+        expect.objectContaining({ messageId: 'target-message' })
+      )
+    } finally {
+      loggerError.mockRestore()
+    }
   })
 })
