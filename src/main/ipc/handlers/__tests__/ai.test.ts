@@ -26,7 +26,6 @@ const aiStreamManager = {
 
 const claudeCodeWarmQueryManager = { prewarmAgentSession: vi.fn(), closeAgentSessionWarm: vi.fn() }
 const agentSessionRuntimeService = {
-  hydrateContextUsage: vi.fn(),
   primeConnection: vi.fn(),
   releaseIdleConnection: vi.fn()
 }
@@ -210,14 +209,12 @@ describe('aiHandlers — agent sessions & tasks', () => {
     claudeCodeTraceBridgeService.isTraceModeEnabled.mockReturnValue(false)
     agentSessionRuntimeService.primeConnection.mockResolvedValue(undefined)
     await aiHandlers['ai.prewarm_agent_session']({ sessionId: 's1' }, ctx)
-    expect(agentSessionRuntimeService.hydrateContextUsage).toHaveBeenCalledWith('s1')
     expect(agentSessionRuntimeService.primeConnection).toHaveBeenCalledWith('s1')
   })
 
-  it('prewarm_agent_session hydrates usage without priming a connection while trace mode is on', async () => {
+  it('prewarm_agent_session skips priming a connection while trace mode is on', async () => {
     claudeCodeTraceBridgeService.isTraceModeEnabled.mockReturnValue(true)
     await aiHandlers['ai.prewarm_agent_session']({ sessionId: 's1' }, ctx)
-    expect(agentSessionRuntimeService.hydrateContextUsage).toHaveBeenCalledWith('s1')
     expect(agentSessionRuntimeService.primeConnection).not.toHaveBeenCalled()
   })
 

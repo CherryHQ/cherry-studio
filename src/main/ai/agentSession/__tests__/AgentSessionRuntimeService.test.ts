@@ -13,12 +13,8 @@ const mocks = vi.hoisted(() => ({
   pauseRuntimeTurn: vi.fn(),
   broadcastTopicError: vi.fn(),
   terminateHeldTopicStream: vi.fn(),
-  cacheGetPersist: vi.fn(),
-  cacheSetPersist: vi.fn(),
-  cacheGetShared: vi.fn(),
   cacheSetShared: vi.fn(),
   cacheDeleteShared: vi.fn(),
-  persistedContextUsageSnapshots: {} as Record<string, any>,
   getSessionById: vi.fn(),
   getAgent: vi.fn(),
   ensureTraceId: vi.fn()
@@ -149,18 +145,6 @@ describe('AgentSessionRuntimeService', () => {
     mocks.findPendingAssistantMessageIds.mockReturnValue([])
     mocks.markMessagesError.mockReturnValue(undefined)
     mocks.ensureTraceId.mockReturnValue('b'.repeat(32))
-    mocks.persistedContextUsageSnapshots = {}
-    mocks.cacheGetPersist.mockImplementation((key: string) => {
-      if (key === 'agent.session.context_usage_snapshots') return mocks.persistedContextUsageSnapshots
-      throw new Error(`Unexpected CacheService.getPersist(${key})`)
-    })
-    mocks.cacheSetPersist.mockImplementation((key: string, value: Record<string, any>) => {
-      if (key !== 'agent.session.context_usage_snapshots') {
-        throw new Error(`Unexpected CacheService.setPersist(${key})`)
-      }
-      mocks.persistedContextUsageSnapshots = value
-    })
-    mocks.cacheGetShared.mockReturnValue(undefined)
     // A live agent with a model — the drain re-reads this to bail on a deleted model. Tests exercising
     // the deleted-model path override it with `{ model: null }`.
     mocks.getAgent.mockReturnValue({ id: 'agent-1', type: 'test-runtime', model: baseTurnInput.modelId })
@@ -175,9 +159,6 @@ describe('AgentSessionRuntimeService', () => {
       }
       if (name === 'CacheService') {
         return {
-          getPersist: mocks.cacheGetPersist,
-          setPersist: mocks.cacheSetPersist,
-          getShared: mocks.cacheGetShared,
           setShared: mocks.cacheSetShared,
           deleteShared: mocks.cacheDeleteShared
         }
@@ -1458,46 +1439,10 @@ describe('AgentSessionRuntimeService', () => {
     events.push({ type: 'turn-complete' })
     await expect(reader.read()).resolves.toMatchObject({ done: true })
     await vi.waitFor(() => expect(connection.getContextUsage).toHaveBeenCalledTimes(1))
-    expect(mocks.cacheSetPersist).toHaveBeenCalledWith('agent.session.context_usage_snapshots', {
-      'session-1': contextUsageSnapshot(usage)
-    })
     expect(mocks.cacheSetShared).toHaveBeenCalledWith(
       'agent.session.context_usage.session-1',
       contextUsageSnapshot(usage)
     )
-  })
-
-  describe('hydrateContextUsage', () => {
-    it('restores headless usage after shared cleanup and reopening without recounting', () => {
-      const usage = {
-        categories: [{ name: 'Messages', tokens: 42, color: '#fff' }],
-        totalTokens: 42,
-        maxTokens: 100,
-        rawMaxTokens: 100,
-        percentage: 42,
-        gridRows: [],
-        model: 'claude-sonnet-4-5',
-        memoryFiles: [],
-        mcpTools: [],
-        agents: [],
-        isAutoCompactEnabled: false,
-        apiUsage: null
-      }
-      const snapshot = contextUsageSnapshot(usage)
-
-      const service = new AgentSessionRuntimeService()
-      service.beginTurn({ ...baseTurnInput, headless: true })
-      ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'context-usage', usage })
-      service.closeSession('session-1')
-
-      expect(mocks.persistedContextUsageSnapshots).toEqual({ 'session-1': snapshot })
-      expect(mocks.cacheDeleteShared).toHaveBeenCalledWith('agent.session.context_usage.session-1')
-      mocks.cacheSetShared.mockClear()
-
-      service.hydrateContextUsage('session-1')
-
-      expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', snapshot)
-    })
   })
 
   describe('primeConnection — eager command load on session open', () => {
@@ -1710,68 +1655,11 @@ describe('AgentSessionRuntimeService', () => {
     )
   })
 
-  it('keeps only the 100 most recently updated context-usage snapshots', () => {
-    mocks.persistedContextUsageSnapshots = Object.fromEntries(
-      Array.from({ length: 100 }, (_, index) => [
-        `session-${index}`,
-        {
-          categories: [],
-          totalTokens: index,
-          maxTokens: 100,
-          percentage: index,
-          model: 'claude-sonnet-4-5'
-        }
-      ])
-    )
-    const usage = {
-      categories: [],
-      totalTokens: 100,
-      maxTokens: 100,
-      rawMaxTokens: 100,
-      percentage: 100,
-      gridRows: [],
-      model: 'claude-sonnet-4-5',
-      memoryFiles: [],
-      mcpTools: [],
-      agents: [],
-      isAutoCompactEnabled: true,
-      apiUsage: null
-    }
-    const service = new AgentSessionRuntimeService()
-    service.beginTurn({ ...baseTurnInput, sessionId: 'session-100' })
-
-    ;(service as any).handleRuntimeEvent((service as any).entries.get('session-100'), {
-      type: 'context-usage',
-      usage
-    })
-
-    expect(Object.keys(mocks.persistedContextUsageSnapshots)).toHaveLength(100)
-    expect(mocks.persistedContextUsageSnapshots['session-0']).toBeUndefined()
-    expect(mocks.persistedContextUsageSnapshots['session-1']).toBeDefined()
-    expect(mocks.persistedContextUsageSnapshots['session-100']).toEqual(contextUsageSnapshot(usage))
-  })
-
   it('clears session-scoped shared cache entries when closing a session', () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
 
     ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'compaction-start' })
-    ;(service as any).handleRuntimeEvent(getEntry(service), {
-      type: 'context-usage',
-      usage: {
-        categories: [],
-        totalTokens: 1,
-        maxTokens: 100,
-        rawMaxTokens: 100,
-        percentage: 1,
-        gridRows: [],
-        model: 'claude-sonnet-4-5',
-        memoryFiles: [],
-        mcpTools: [],
-        agents: [],
-        apiUsage: null
-      }
-    })
 
     service.closeSession('session-1')
 

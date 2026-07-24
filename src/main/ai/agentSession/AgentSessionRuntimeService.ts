@@ -17,7 +17,6 @@ import {
 } from '@shared/ai/agentSessionCompaction'
 import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
-  AGENT_SESSION_CONTEXT_USAGE_SNAPSHOT_CACHE_KEY,
   type AgentSessionContextUsage
 } from '@shared/ai/agentSessionContextUsage'
 import {
@@ -25,10 +24,7 @@ import {
   type AgentSessionSlashCommand
 } from '@shared/ai/agentSessionSlashCommands'
 import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
-import type {
-  AgentSessionContextUsageSnapshotStore,
-  AgentSessionContextUsageSummary
-} from '@shared/data/cache/cacheValueTypes'
+import type { AgentSessionContextUsageSummary } from '@shared/data/cache/cacheValueTypes'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
 import { createUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -59,7 +55,6 @@ import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } 
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
-const MAX_CONTEXT_USAGE_SNAPSHOTS = 100
 const SESSION_FILE_SWEEP_INTERVAL_MS = 30 * 60 * 1000
 const SESSION_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -433,16 +428,6 @@ export class AgentSessionRuntimeService extends BaseService {
     } catch (error) {
       logger.warn('Failed to prime agent session connection', { sessionId, error })
     }
-  }
-
-  /** Republish persisted usage for the renderer without opening a runtime connection. */
-  hydrateContextUsage(sessionId: string): void {
-    const cache = application.get('CacheService')
-    const sharedKey = AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId)
-    if (cache.getShared(sharedKey)) return
-
-    const snapshot = cache.getPersist(AGENT_SESSION_CONTEXT_USAGE_SNAPSHOT_CACHE_KEY)[sessionId]
-    if (snapshot) cache.setShared(sharedKey, snapshot)
   }
 
   /**
@@ -945,9 +930,6 @@ export class AgentSessionRuntimeService extends BaseService {
       case 'compaction-error':
         this.handleCompactionError(entry, event.error)
         break
-      case 'context-usage':
-        this.persistContextUsage(entry, event.usage)
-        break
       case 'supported-commands':
         // SDK pushed a refreshed catalog (`commands_changed`) — replace the cached list so the
         // composer and channel `/help` reflect commands discovered after the initial read.
@@ -1018,23 +1000,18 @@ export class AgentSessionRuntimeService extends BaseService {
       const usage = await connection.getContextUsage?.()
       if (!usage) return
       if (!this.isCurrentEntry(entry) || entry.connection !== connection) return
-      this.persistContextUsage(entry, usage)
+      this.publishContextUsage(entry, usage)
     })().catch((error) => {
       logger.warn('Failed to refresh agent session context usage', { sessionId: entry.sessionId, error })
     })
   }
 
-  private persistContextUsage(entry: AgentSessionRuntimeEntry, usage: AgentSessionContextUsage): void {
+  private publishContextUsage(entry: AgentSessionRuntimeEntry, usage: AgentSessionContextUsage): void {
     if (!this.isCurrentEntry(entry)) return
 
-    const cache = application.get('CacheService')
-    const snapshot = createContextUsageSnapshot(usage)
-    const snapshots = cache.getPersist(AGENT_SESSION_CONTEXT_USAGE_SNAPSHOT_CACHE_KEY)
-    cache.setPersist(
-      AGENT_SESSION_CONTEXT_USAGE_SNAPSHOT_CACHE_KEY,
-      upsertContextUsageSnapshot(snapshots, entry.sessionId, snapshot)
-    )
-    cache.setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId), snapshot)
+    application
+      .get('CacheService')
+      .setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId), createContextUsageSnapshot(usage))
   }
 
   // The initial slash command catalog read (`query.supportedCommands()`) once the connection is live.
@@ -1516,16 +1493,6 @@ function createContextUsageSnapshot(usage: AgentSessionContextUsage): AgentSessi
     percentage: usage.percentage,
     model: usage.model
   }
-}
-
-function upsertContextUsageSnapshot(
-  snapshots: AgentSessionContextUsageSnapshotStore,
-  sessionId: string,
-  snapshot: AgentSessionContextUsageSummary
-): AgentSessionContextUsageSnapshotStore {
-  const entries = Object.entries(snapshots).filter(([existingSessionId]) => existingSessionId !== sessionId)
-  entries.push([sessionId, snapshot])
-  return Object.fromEntries(entries.slice(-MAX_CONTEXT_USAGE_SNAPSHOTS))
 }
 
 function isAbortError(error: unknown): boolean {

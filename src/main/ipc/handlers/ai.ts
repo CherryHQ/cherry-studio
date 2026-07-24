@@ -85,15 +85,13 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
 
   // ── Agent sessions & tasks — delegate to the owning services. ──
   'ai.prewarm_agent_session': async ({ sessionId }) => {
-    const runtimeService = application.get('AgentSessionRuntimeService')
-    runtimeService.hydrateContextUsage(sessionId)
     // Trace mode needs each connection created fresh with trace env at turn start; priming a
     // trace-less connection ahead of the turn would have the first traced turn reuse it. Mirror the
     // old warm-query path and skip prewarm entirely while trace mode is on.
     if (application.get('ClaudeCodeTraceBridgeService').isTraceModeEnabled()) return
     // Open the live connection eagerly (not just a warm-query park) so the session's slash-command
     // catalog is read into the cache before the first message — the warm-query handle can't expose it.
-    await runtimeService.primeConnection(sessionId)
+    await application.get('AgentSessionRuntimeService').primeConnection(sessionId)
   },
   'ai.close_agent_session_warm': async ({ sessionId }) => {
     application.get('ClaudeCodeWarmQueryManager').closeAgentSessionWarm(sessionId)

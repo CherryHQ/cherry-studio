@@ -329,6 +329,9 @@ export type RendererPersistCacheSchema = {
   'ui.agent.last_used_session_id': string | null
   'ui.agent.last_used_agent_id': string | null
   'ui.agent.last_used_workspace_id': string | null
+  // Best-effort UI snapshots captured from live session usage. Renderer-owned:
+  // page entry/session switches read this cache without asking the runtime to recount.
+  'ui.agent.context_usage_snapshots': CacheValueTypes.AgentSessionContextUsageSnapshotStore
   // Kept separate so the assistant and agent surfaces don't bleed into each other.
   'ui.agent.right_pane_open_override': boolean | null
   'ui.agent.session.expansion.time': string[]
@@ -360,6 +363,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.agent.last_used_session_id': null,
   'ui.agent.last_used_agent_id': null,
   'ui.agent.last_used_workspace_id': null,
+  'ui.agent.context_usage_snapshots': {},
   'ui.agent.right_pane_open_override': null,
   'ui.agent.session.expansion.time': [],
   'ui.agent.session.expansion.agent': null,
@@ -380,8 +384,6 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
  * with, or readable by the renderer.
  */
 export type MainPersistCacheSchema = {
-  // Last UI-facing context-usage snapshot per session; main owns both production and restoration.
-  'agent.session.context_usage_snapshots': CacheValueTypes.AgentSessionContextUsageSnapshotStore
   // Persist-layer self-test key: exercises the typed persist API and round-trip
   // tests for the generic mechanism, independent of any real consumer.
   'internal.persist_probe': number
@@ -393,7 +395,6 @@ export type MainPersistCacheSchema = {
 }
 
 export const DefaultMainPersistCache: MainPersistCacheSchema = {
-  'agent.session.context_usage_snapshots': {},
   'internal.persist_probe': 0,
   'window.bounds': {}
 }

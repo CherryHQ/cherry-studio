@@ -20,6 +20,7 @@ import { ConversationResourceView } from '@renderer/components/resourceCatalog/c
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useInvalidateCache } from '@renderer/data/hooks/useDataApi'
 import { useAgent, useAgents } from '@renderer/hooks/agent/useAgent'
+import { usePersistAgentSessionContextUsageSnapshots } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useActiveSession, useLatestSession, useSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
@@ -257,6 +258,15 @@ const AgentPage = () => {
   const visibleSession = isMessageOnlyView
     ? routeSession
     : (activeSession ?? (isActiveSessionLoading ? lastVisibleSessionRef.current : null))
+  const visibleSessionId = visibleSession?.id
+  const contextUsageSessionIds = useMemo(
+    () =>
+      Array.from(
+        new Set([...agentSessions.map((session) => session.id), ...(visibleSessionId ? [visibleSessionId] : [])])
+      ),
+    [agentSessions, visibleSessionId]
+  )
+  usePersistAgentSessionContextUsageSnapshots(contextUsageSessionIds)
   const resourceConversationKey = useMemo(() => {
     if (visibleSession?.id) return `session:${visibleSession.id}`
     if (missingAgentSelection) return 'missing-agent-selection'

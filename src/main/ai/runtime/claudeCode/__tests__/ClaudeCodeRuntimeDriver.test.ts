@@ -560,26 +560,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
   it('emits resume token, chunks, and turn-complete events', async () => {
     const queryQueue = createAsyncQueue<any>()
-    const contextUsage = {
-      categories: [],
-      totalTokens: 42,
-      maxTokens: 100,
-      rawMaxTokens: 100,
-      percentage: 42,
-      gridRows: [],
-      model: 'sonnet',
-      memoryFiles: [],
-      mcpTools: [],
-      agents: [],
-      isAutoCompactEnabled: true,
-      apiUsage: null
-    }
-    const query = {
-      ...queryQueue.iterable,
-      interrupt: vi.fn(),
-      close: vi.fn(),
-      getContextUsage: vi.fn().mockResolvedValue(contextUsage)
-    }
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
     mocks.createClaudeQuery.mockReturnValue(query)
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
@@ -638,9 +619,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     await expect(events.next()).resolves.toMatchObject({
       value: { type: 'turn-complete' }
-    })
-    await expect(events.next()).resolves.toMatchObject({
-      value: { type: 'context-usage', usage: contextUsage }
     })
     void connection.close()
   })
