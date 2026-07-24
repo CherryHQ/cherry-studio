@@ -32,6 +32,7 @@ import { lstat, readdir, stat, statfs } from 'node:fs/promises'
 import { basename, dirname, join, resolve } from 'node:path'
 
 import { application } from '@application'
+import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import {
   BaseService,
@@ -45,6 +46,7 @@ import {
 import { setBackupInProgress } from '@main/data/db/backup/quiesceGate'
 import { clearRestoreJournal, readRestoreJournal } from '@main/data/db/restore/restoreJournal'
 import { fileEntryTable } from '@main/data/db/schemas/file'
+import { getKnowledgeVectorStoreFilePathSync } from '@main/features/knowledge'
 import { isPathInside } from '@main/utils/file'
 import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -525,6 +527,72 @@ export class BackupService extends BaseService {
       // Belt: the gate quarantines corrupt journals before services start (rarely reached here).
       logger.warn('clearing corrupt restore journal at BackupService init')
       clearRestoreJournal()
+    }
+  }
+
+  /**
+   * Post-restore knowledge reindex (workstream B2, full-restore-plan §10.6).
+   *
+   * A restored knowledge base dir arrives without `.cherry/index.sqlite` (excluded
+   * at export — FileStager R1), and an empty index never auto-rebuilds
+   * (KnowledgeVectorStoreService.reportInvisibleIndexContents) — search would stay
+   * silently empty. On the first boot after promotion the completed journal is
+   * still present (performRestoreRecovery keeps it for disclosure), so this is the
+   * cross-restart signal: derive restored baseIds from its `dir-add` entries under
+   * the knowledge root and enqueue a reindex of their completed roots.
+   *
+   * onAllReady (not onInit): reindex admission needs KnowledgeService and
+   * JobManager, which are only guaranteed across phases once the whole system is
+   * ready.
+   */
+  protected async onAllReady(): Promise<void> {
+    try {
+      await this.enqueueRestoredKnowledgeReindex()
+    } catch (e) {
+      // Best-effort repair — a reindex scan failure must not affect boot.
+      logger.error('post-restore knowledge reindex scan failed', e as Error)
+    }
+  }
+
+  /**
+   * Cross-boot idempotency: only bases whose index file is still absent are
+   * enqueued. Export excludes the index, so a just-promoted base has none; once a
+   * rebuild has started the store file exists and later boots (journal still
+   * awaiting disclosure) skip — no sidecar marker state. A crash between store
+   * creation and rebuild completion parks items at failed (reindex handler
+   * recovery 'abandon'), where manual reindex remains available.
+   */
+  private async enqueueRestoredKnowledgeReindex(): Promise<void> {
+    const journal = readRestoreJournal()
+    if (journal.kind !== 'ok' || journal.journal.state !== 'completed') return
+    const userData = application.getPath('app.userdata')
+    const knowledgeRoot = resolve(application.getPath('feature.knowledgebase.data'))
+    const baseIds = new Set<string>()
+    for (const entry of journal.journal.fileResources) {
+      if (entry.kind !== 'dir-add') continue
+      const live = resolve(userData, entry.livePath)
+      // Only direct children of the knowledge root are base dirs (skills folders
+      // are dir-add too, under a different root).
+      if (!isPathInside(live, knowledgeRoot) || dirname(live) !== knowledgeRoot) continue
+      baseIds.add(basename(live))
+    }
+    if (baseIds.size === 0) return
+    const knowledgeService = application.get('KnowledgeService')
+    for (const baseId of baseIds) {
+      // Per-base isolation: one un-reindexable base (missing row, blocked subtree,
+      // missing source) must not block the others.
+      try {
+        if (existsSync(getKnowledgeVectorStoreFilePathSync(baseId))) continue
+        const rootItemIds = knowledgeItemService
+          .getRootItemsByBaseId(baseId)
+          .filter((item) => item.status === 'completed')
+          .map((item) => item.id)
+        if (rootItemIds.length === 0) continue
+        await knowledgeService.reindexItems(baseId, rootItemIds)
+        logger.info(`enqueued post-restore knowledge reindex: baseId=${baseId} roots=${rootItemIds.length}`)
+      } catch (e) {
+        logger.error(`post-restore knowledge reindex enqueue failed: baseId=${baseId}`, e as Error)
+      }
     }
   }
 
