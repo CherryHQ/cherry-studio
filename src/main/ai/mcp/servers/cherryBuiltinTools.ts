@@ -1,45 +1,29 @@
 /**
  * In-process MCP server exposing Cherry Studio's builtin tools to Claude Code.
  *
- * Wraps the same `webLookup` / `knowledgeLookup` cores the AI-SDK builtin tools
- * use, so Claude Code's web search/fetch and knowledge-base tools run identical
- * logic against the user's configured `WebSearchService` provider and knowledge
- * bases. Injected by `settingsBuilder` as an `sdk`-type MCP server; Claude calls
- * these tools as `mcp__cherry-tools__web_search`, `…__web_fetch`, `…__kb_search`,
- * `…__kb_read`, `…__kb_list`, `…__kb_manage`, `…__report_artifacts`, and
+ * Wraps the same `webLookup` / painting cores the AI-SDK builtin tools use, so
+ * Claude Code's web search/fetch and image generation run identical logic against
+ * the user's configured `WebSearchService` provider and painting model. Injected by
+ * `settingsBuilder` as an `sdk`-type MCP server; Claude calls these tools as
+ * `mcp__cherry-tools__web_search`, `…__web_fetch`, `…__report_artifacts`, and
  * `…__generate_image`.
  *
- * KB scope comes from the agent's bound knowledge bases (`CherryAgentContext.
- * getKnowledgeBaseIds()`), mirroring the assistant path: the kb_* tools are exposed
- * only when the agent has at least one bound base, and their lookups are scoped
- * to those bases. The live binding is re-read for each tool listing and builtin
- * tool call so narrowing the scope takes effect without waiting for a running
- * session to rebuild. An agent with no bound bases sees no kb_* tools at all. The
- * destructive `kb_manage` tool relies on Claude Code's own per-call permission
- * prompt for approval (the AI-SDK path uses the tool's `needsApproval` instead).
+ * These stateless builtins carry no per-agent authorization, so their handlers take
+ * only `(args, signal)`. Domain tools that act on behalf of the session's agent are
+ * split into sibling providers this server merely aggregates and dispatches to by
+ * protocol — it stays unaware of their domain logic:
+ * - {@link CherryAutonomyTools} (`…__cron`, `…__notify`, `…__config`) — schedules,
+ *   notifies, and self-configures the agent.
+ * - {@link CherryKnowledgeTools} (`…__kb_search`, `…__kb_read`, `…__kb_list`,
+ *   `…__kb_manage`) — owns knowledge-base exposure and per-call scope authorization.
  *
- * The server also hosts the agent autonomy tools (`…__cron`, `…__notify`,
- * `…__config` — see `cherryAutonomyTools.ts`), which act on behalf of the
- * session's agent via the {@link CherryAgentContext} passed at construction.
+ * Both act on the session's agent via the {@link CherryAgentContext} passed at
+ * construction.
  */
 
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { buildGenerateImageToolSchema, type GenerateImageToolInput } from '@main/ai/tools/generateImageTool'
-import {
-  KNOWLEDGE_LIST_DESCRIPTION,
-  KNOWLEDGE_MANAGE_DESCRIPTION,
-  KNOWLEDGE_READ_DESCRIPTION,
-  KNOWLEDGE_SEARCH_DESCRIPTION,
-  knowledgeListModelOutput,
-  knowledgeManageModelOutput,
-  knowledgeReadModelOutput,
-  knowledgeSearchModelOutput,
-  listOrOutlineKnowledge,
-  manageKnowledge,
-  readOrGrepConcept,
-  searchKnowledge
-} from '@main/ai/tools/knowledgeLookup'
 import {
   type ConfiguredPaintingModel,
   GENERATE_IMAGE_DESCRIPTION,
@@ -65,14 +49,6 @@ import {
 } from '@modelcontextprotocol/sdk/types.js'
 import {
   GENERATE_IMAGE_TOOL_NAME,
-  KB_LIST_TOOL_NAME,
-  KB_MANAGE_TOOL_NAME,
-  KB_READ_TOOL_NAME,
-  KB_SEARCH_TOOL_NAME,
-  kbListInputSchema,
-  kbManageInputSchema,
-  kbReadInputSchema,
-  kbSearchInputSchema,
   REPORT_ARTIFACTS_DESCRIPTION,
   REPORT_ARTIFACTS_TOOL_NAME,
   reportArtifactsInputSchema,
@@ -84,6 +60,7 @@ import {
 import * as z from 'zod'
 
 import { type CherryAgentContext, CherryAutonomyTools } from './cherryAutonomyTools'
+import { CherryKnowledgeTools } from './cherryKnowledgeTools'
 
 export type { CherryAgentContext }
 
@@ -101,12 +78,8 @@ type ToolModelOutput =
 interface ToolHandler {
   description: string
   inputSchema: z.ZodType
-  /** This handler is unavailable unless the agent has at least one bound knowledge base. */
-  requiresKnowledgeScope?: true
   // `signal` is honoured only by handlers whose core supports cancellation (web → WebSearchService).
-  // The kb handlers ignore it: KnowledgeService exposes no AbortSignal plumbing (see knowledgeLookup).
-  // `allowedIds` scopes the kb handlers to the agent's bound knowledge bases (non-kb handlers ignore it).
-  run: (args: unknown, signal: AbortSignal, allowedIds: string[]) => Promise<ToolModelOutput>
+  run: (args: unknown, signal: AbortSignal) => Promise<ToolModelOutput>
 }
 
 const HANDLERS: Record<string, ToolHandler> = {
@@ -124,45 +97,6 @@ const HANDLERS: Record<string, ToolHandler> = {
     run: async (args, signal) => {
       const { urls } = webFetchInputSchema.parse(args)
       return webLookupModelOutput(await fetchWeb(urls, signal))
-    }
-  },
-  // kb handlers take no `signal`: KnowledgeService has no cancellation plumbing (see knowledgeLookup).
-  [KB_SEARCH_TOOL_NAME]: {
-    description: KNOWLEDGE_SEARCH_DESCRIPTION,
-    inputSchema: kbSearchInputSchema,
-    requiresKnowledgeScope: true,
-    run: async (args, _signal, allowedIds) => {
-      const { query, baseIds } = kbSearchInputSchema.parse(args)
-      return knowledgeSearchModelOutput(await searchKnowledge(query, baseIds, allowedIds))
-    }
-  },
-  // kb_read has two modes (read the document / grep it for `pattern`); readOrGrepConcept routes by `pattern`.
-  [KB_READ_TOOL_NAME]: {
-    description: KNOWLEDGE_READ_DESCRIPTION,
-    inputSchema: kbReadInputSchema,
-    requiresKnowledgeScope: true,
-    run: async (args, _signal, allowedIds) => {
-      const input = kbReadInputSchema.parse(args)
-      return knowledgeReadModelOutput(await readOrGrepConcept(input, allowedIds))
-    }
-  },
-  // kb_list has two modes (list the bases / outline one base); listOrOutlineKnowledge routes by `baseId`.
-  [KB_LIST_TOOL_NAME]: {
-    description: KNOWLEDGE_LIST_DESCRIPTION,
-    inputSchema: kbListInputSchema,
-    requiresKnowledgeScope: true,
-    run: async (args, _signal, allowedIds) => {
-      const input = kbListInputSchema.parse(args)
-      return knowledgeListModelOutput(await listOrOutlineKnowledge(input, allowedIds), input)
-    }
-  },
-  [KB_MANAGE_TOOL_NAME]: {
-    description: KNOWLEDGE_MANAGE_DESCRIPTION,
-    inputSchema: kbManageInputSchema,
-    requiresKnowledgeScope: true,
-    run: async (args, _signal, allowedIds) => {
-      const input = kbManageInputSchema.parse(args)
-      return knowledgeManageModelOutput(await manageKnowledge(input, allowedIds))
     }
   },
   // Pure declaration tool: the model reports its final deliverable file(s). The value lives in the
@@ -250,40 +184,22 @@ function toMcpResult(output: ToolModelOutput): CallToolResult {
   return { content: [{ type: 'text', text }] }
 }
 
-/**
- * List the builtin tools available for the given knowledge scope. When `allowedIds`
- * is empty the agent has no knowledge access, so the kb_* tools are filtered out
- * (mirrors the assistant path, where an empty binding hides the knowledge tools).
- */
-export function listCherryBuiltinTools(allowedIds: string[]): Tool[] {
-  const hasKnowledgeScope = allowedIds.length > 0
-  return Object.entries(resolveHandlers())
-    .filter(([, handler]) => hasKnowledgeScope || !handler.requiresKnowledgeScope)
-    .map(([name, handler]) => ({
-      name,
-      description: handler.description,
-      inputSchema: toMcpInputSchema(handler.inputSchema)
-    }))
+/** List the stateless builtin tools (web / report / image); domain tools live in their providers. */
+export function listCherryBuiltinTools(): Tool[] {
+  return Object.entries(resolveHandlers()).map(([name, handler]) => ({
+    name,
+    description: handler.description,
+    inputSchema: toMcpInputSchema(handler.inputSchema)
+  }))
 }
 
-export async function callCherryBuiltinTool(
-  name: string,
-  args: unknown,
-  signal: AbortSignal,
-  allowedIds: string[]
-): Promise<CallToolResult> {
+export async function callCherryBuiltinTool(name: string, args: unknown, signal: AbortSignal): Promise<CallToolResult> {
   const handler = resolveHandler(name)
   if (!handler) {
     return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true }
   }
-  // Defense in depth: kb_* tools are hidden from list when the binding is empty,
-  // but reject a direct call too so an unscoped kb lookup can never run.
-  if (handler.requiresKnowledgeScope && allowedIds.length === 0) {
-    logger.warn('Rejected direct knowledge tool call without a bound knowledge base', { tool: name })
-    return { content: [{ type: 'text', text: `Tool unavailable: ${name} (no knowledge base bound)` }], isError: true }
-  }
   try {
-    return toMcpResult(await handler.run(args ?? {}, signal, allowedIds))
+    return toMcpResult(await handler.run(args ?? {}, signal))
   } catch (error) {
     if (signal.aborted || isAbortError(error)) throw error
     const normalizedError = error instanceof Error ? error : new Error(String(error))
@@ -298,16 +214,20 @@ export class CherryBuiltinToolsServer {
 
   constructor(agentContext: CherryAgentContext) {
     const autonomy = new CherryAutonomyTools(agentContext)
+    const knowledge = new CherryKnowledgeTools(agentContext)
     this.mcpServer = new McpServer({ name: 'cherry-tools', version: '1.0.0' }, { capabilities: { tools: {} } })
     this.mcpServer.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [...listCherryBuiltinTools(agentContext.getKnowledgeBaseIds()), ...autonomy.tools()]
+      tools: [...listCherryBuiltinTools(), ...knowledge.tools(), ...autonomy.tools()]
     }))
     this.mcpServer.server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
       const { name } = request.params
       if (autonomy.handles(name)) {
         return autonomy.call(name, (request.params.arguments ?? {}) as Record<string, string | undefined>)
       }
-      return callCherryBuiltinTool(name, request.params.arguments, extra.signal, agentContext.getKnowledgeBaseIds())
+      if (knowledge.handles(name)) {
+        return knowledge.call(name, request.params.arguments)
+      }
+      return callCherryBuiltinTool(name, request.params.arguments, extra.signal)
     })
   }
 }

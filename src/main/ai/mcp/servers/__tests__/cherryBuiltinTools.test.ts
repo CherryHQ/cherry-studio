@@ -61,18 +61,32 @@ const {
   listCherryBuiltinTools: listCherryBuiltinToolsRaw,
   CherryBuiltinToolsServer
 } = await import('../cherryBuiltinTools')
+const { CherryKnowledgeTools } = await import('../cherryKnowledgeTools')
 const { CLAUDE_KNOWLEDGE_TOOL_NAMES } = await import('@shared/ai/claudecode/toolRegistry')
 const { WEB_LOOKUP_ERROR_NOTE } = await import('@main/ai/tools/webLookup')
 
 const signal = new AbortController().signal
 
-// The kb_* tools are scoped to the agent's bound knowledge bases. These wrappers default the
-// scope to a non-empty binding so the (unchanged) tool-behaviour tests exercise the scoped path;
-// the gating tests below pass an explicit `[]` to assert the empty-binding behaviour.
+// The kb_* tools now live in their own provider (CherryKnowledgeTools), scoped to the agent's bound
+// knowledge bases. These wrappers route kb_* calls/listings through a provider constructed with the
+// given scope (default: a non-empty binding, so the unchanged tool-behaviour tests exercise the
+// scoped path) and everything else through the generic builtin pipeline; the gating tests below pass
+// an explicit `[]` to assert the empty-binding behaviour.
 const KB_SCOPE = ['b1', 'b2']
+const KB_TOOL_NAMES = new Set(['kb_search', 'kb_read', 'kb_list', 'kb_manage'])
+const makeKnowledgeTools = (allowedIds: string[]) =>
+  new CherryKnowledgeTools({
+    agentId: 'agent_test',
+    workspaceSource: { type: 'system' as const },
+    workspacePath: '/tmp/workspace',
+    getKnowledgeBaseIds: () => allowedIds
+  })
 const callCherryBuiltinTool = (name: string, args: unknown, sig: AbortSignal, allowedIds: string[] = KB_SCOPE) =>
-  callCherryBuiltinToolRaw(name, args, sig, allowedIds)
-const listCherryBuiltinTools = (allowedIds: string[] = KB_SCOPE) => listCherryBuiltinToolsRaw(allowedIds)
+  KB_TOOL_NAMES.has(name) ? makeKnowledgeTools(allowedIds).call(name, args) : callCherryBuiltinToolRaw(name, args, sig)
+const listCherryBuiltinTools = (allowedIds: string[] = KB_SCOPE) => [
+  ...listCherryBuiltinToolsRaw(),
+  ...makeKnowledgeTools(allowedIds).tools()
+]
 
 function webResponse() {
   return {
@@ -136,14 +150,21 @@ describe('cherryBuiltinTools', () => {
   })
 
   it('keeps runtime knowledge tools aligned with the shared wire-name registry', () => {
-    const unscopedNames = new Set(listCherryBuiltinTools([]).map((tool) => tool.name))
-    const runtimeWireNames = listCherryBuiltinTools(['kb-1'])
-      .map((tool) => tool.name)
-      .filter((name) => !unscopedNames.has(name))
-      .map((name) => `mcp__cherry-tools__${name}`)
+    const runtimeWireNames = makeKnowledgeTools(['kb-1'])
+      .tools()
+      .map((tool) => `mcp__cherry-tools__${tool.name}`)
       .sort()
 
     expect(runtimeWireNames).toEqual([...CLAUDE_KNOWLEDGE_TOOL_NAMES].sort())
+  })
+
+  it('claims only its own kb_* tools, not inherited object keys', () => {
+    const knowledge = makeKnowledgeTools(['kb-1'])
+    expect(knowledge.handles('kb_search')).toBe(true)
+    expect(knowledge.handles('web_search')).toBe(false)
+    // Guards against an `in` regression: prototype keys must not be claimed and routed here.
+    expect(knowledge.handles('constructor')).toBe(false)
+    expect(knowledge.handles('toString')).toBe(false)
   })
 
   it('routes web_search through WebSearchService and returns mapped json content', async () => {

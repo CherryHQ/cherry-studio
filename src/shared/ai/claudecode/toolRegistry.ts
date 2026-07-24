@@ -378,7 +378,7 @@ export const isMcpTool = (def: ClaudeToolDescriptorDef): boolean => def.mcpServe
 
 /**
  * MCP wire names of the in-process knowledge-base tools (kb_search / kb_read / kb_list /
- * kb_manage). The edit-dialog catalog uses this set; cherryBuiltinTools maintains the
+ * kb_manage). The edit-dialog catalog uses this set; cherryKnowledgeTools maintains the
  * corresponding bare runtime names, with a drift test keeping the two surfaces aligned.
  */
 export const CLAUDE_KNOWLEDGE_TOOL_NAMES: ReadonlySet<string> = new Set(
