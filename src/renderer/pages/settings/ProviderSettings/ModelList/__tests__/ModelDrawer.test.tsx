@@ -75,39 +75,6 @@ vi.mock('@renderer/hooks/useModel', () => ({
   })
 }))
 
-vi.mock('@renderer/components/tags/Model', () => ({
-  VisionTag: ({ onClick }: any) => (
-    <button type="button" onClick={onClick}>
-      vision
-    </button>
-  ),
-  WebSearchTag: ({ onClick }: any) => (
-    <button type="button" onClick={onClick}>
-      web_search
-    </button>
-  ),
-  ReasoningTag: ({ onClick }: any) => (
-    <button type="button" onClick={onClick}>
-      reasoning
-    </button>
-  ),
-  ToolsCallingTag: ({ onClick }: any) => (
-    <button type="button" onClick={onClick}>
-      function_calling
-    </button>
-  ),
-  RerankerTag: ({ onClick }: any) => (
-    <button type="button" onClick={onClick}>
-      rerank
-    </button>
-  ),
-  EmbeddingTag: ({ onClick }: any) => (
-    <button type="button" onClick={onClick}>
-      embedding
-    </button>
-  )
-}))
-
 vi.mock('@renderer/components/icons/CopyIcon', () => ({
   default: () => <span>copy-icon</span>
 }))
@@ -233,6 +200,7 @@ describe('Model drawers', () => {
     fireEvent.change(screen.getByLabelText('settings.models.add.model_id.label'), {
       target: { value: 'image-editor' }
     })
+
     await act(async () => {
       fireEvent.submit(screen.getByTestId('provider-settings-model-add-drawer-content'))
     })
@@ -245,6 +213,33 @@ describe('Model drawers', () => {
         capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
         inputModalities: [MODALITY.IMAGE],
         outputModalities: [MODALITY.IMAGE]
+      })
+    )
+  })
+
+  it('saves independent model type, capability, and input-modality selections when adding', async () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'openai', name: 'OpenAI' }
+    })
+
+    render(<AddModelDrawer providerId="openai" open prefill={null} onClose={vi.fn()} />)
+
+    fireEvent.change(screen.getByLabelText('settings.models.add.model_id.label'), {
+      target: { value: 'custom-image-model' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.moresetting.label' }))
+    fireEvent.click(screen.getByRole('button', { name: 'models.type.image' }))
+    fireEvent.click(screen.getByRole('button', { name: 'models.type.reasoning' }))
+    fireEvent.click(screen.getByRole('button', { name: 'models.type.audio' }))
+
+    await act(async () => {
+      fireEvent.submit(screen.getByTestId('provider-settings-model-add-drawer-content'))
+    })
+
+    expect(createModelMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION, MODEL_CAPABILITY.REASONING],
+        inputModalities: [MODALITY.AUDIO]
       })
     )
   })
@@ -408,6 +403,78 @@ describe('Model drawers', () => {
         endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
         capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
         outputModalities: [MODALITY.IMAGE]
+      })
+    )
+  })
+
+  it('keeps model type, capabilities, and input modalities independently editable', async () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'openai', name: 'OpenAI' }
+    })
+
+    render(
+      <EditModelDrawer
+        providerId="openai"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'openai::custom-embedding',
+            providerId: 'openai',
+            name: 'Custom Embedding',
+            group: 'Custom',
+            capabilities: [MODEL_CAPABILITY.EMBEDDING],
+            inputModalities: [],
+            supportsStreaming: true,
+            pricing: {
+              input: { perMillionTokens: 0, currency: 'USD' },
+              output: { perMillionTokens: 0, currency: 'USD' }
+            }
+          } as any
+        }
+      />
+    )
+
+    const imageType = screen.getByRole('button', { name: 'models.type.image' })
+    const reasoning = screen.getByRole('button', { name: 'models.type.reasoning' })
+    const videoInput = screen.getByRole('button', { name: 'models.type.video' })
+    expect(imageType).not.toBeDisabled()
+    expect(reasoning).not.toBeDisabled()
+    expect(videoInput).not.toBeDisabled()
+
+    await act(async () => {
+      fireEvent.click(imageType)
+    })
+    expect(updateModelMock).toHaveBeenLastCalledWith(
+      'openai',
+      'custom-embedding',
+      expect.objectContaining({
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        inputModalities: []
+      })
+    )
+
+    await act(async () => {
+      fireEvent.click(reasoning)
+    })
+    expect(updateModelMock).toHaveBeenLastCalledWith(
+      'openai',
+      'custom-embedding',
+      expect.objectContaining({
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION, MODEL_CAPABILITY.REASONING],
+        inputModalities: []
+      })
+    )
+
+    await act(async () => {
+      fireEvent.click(videoInput)
+    })
+    expect(updateModelMock).toHaveBeenLastCalledWith(
+      'openai',
+      'custom-embedding',
+      expect.objectContaining({
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION, MODEL_CAPABILITY.REASONING],
+        inputModalities: [MODALITY.VIDEO]
       })
     )
   })
@@ -743,7 +810,7 @@ describe('Model drawers', () => {
     )
   })
 
-  it('prevents clearing the last endpoint type from the edit drawer', async () => {
+  it('allows clearing the last endpoint type from the edit drawer', async () => {
     useProviderMock.mockReturnValue({
       provider: { id: 'cherryin', name: 'CherryIN' }
     })
@@ -775,12 +842,16 @@ describe('Model drawers', () => {
       'button',
       { name: 'endpoint_type.openai-response' }
     )
-    expect(responseEndpointButton).toHaveAttribute('aria-disabled', 'true')
+    expect(responseEndpointButton).not.toHaveAttribute('aria-disabled')
 
     await act(async () => {
       fireEvent.click(responseEndpointButton)
     })
 
-    expect(updateModelMock).not.toHaveBeenCalled()
+    expect(updateModelMock).toHaveBeenCalledWith(
+      'cherryin',
+      'claude-4-sonnet',
+      expect.objectContaining({ endpointTypes: [] })
+    )
   })
 })

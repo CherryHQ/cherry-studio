@@ -26,14 +26,16 @@ import ProviderSection from '../../primitives/ProviderSection'
 import ProviderSettingsDrawer from '../../primitives/ProviderSettingsDrawer'
 import { drawerClasses, fieldClasses } from '../../primitives/ProviderSettingsPrimitives'
 import {
-  getInitialSelectedCapabilities,
+  areModelClassificationsEqual,
+  buildModelCapabilities,
+  buildModelInputModalities,
+  getInitialModelClassification,
   getModelApiId,
   MODEL_DRAWER_CURRENCY_SYMBOLS,
-  readCurrency,
-  toggleSetToCaps
+  readCurrency
 } from './helpers'
 import { ModelBasicFields } from './ModelBasicFields'
-import { ModelCapabilityToggles } from './ModelCapabilityToggles'
+import { ModelClassificationControls } from './ModelClassificationControls'
 import { ModelContextWindowFields } from './ModelContextWindowFields'
 import {
   applyModelPurpose,
@@ -44,7 +46,13 @@ import {
   type ModelPurposeFields
 } from './modelPurpose'
 import { ModelPurposeFields as ModelPurposeFieldsControl } from './ModelPurposeFields'
-import type { ModelCapabilityToggle, ModelDrawerMode } from './types'
+import type {
+  ModelCapabilityToggle,
+  ModelClassificationState,
+  ModelDrawerMode,
+  ModelInputModality,
+  ModelPrimaryType
+} from './types'
 
 interface EditModelDrawerProps {
   providerId: string
@@ -58,7 +66,7 @@ interface BuildPatchOverrides {
   group?: string
   endpointTypes?: EndpointType[]
   purposeFields?: ModelPurposeFields
-  caps?: Set<ModelCapabilityToggle>
+  classification?: ModelClassificationState
   supportsStreaming?: boolean
   currencySymbol?: ModelDrawerCurrencySymbol
   inputPrice?: string
@@ -109,8 +117,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [endpointTypes, setEndpointTypes] = useState<EndpointType[]>([])
   const [purposeFields, setPurposeFields] = useState<ModelPurposeFields>({})
   const [showMoreSettings, setShowMoreSettings] = useState(true)
-  const [selectedCaps, setSelectedCaps] = useState<Set<ModelCapabilityToggle>>(new Set())
-  const [hasUserModified, setHasUserModified] = useState(false)
+  const [classification, setClassification] = useState<ModelClassificationState>(() => getInitialModelClassification())
   const [supportsStreaming, setSupportsStreaming] = useState<Model['supportsStreaming']>(true)
   const [currencySymbol, setCurrencySymbol] = useState<ModelDrawerCurrencySymbol>('$')
   const [inputPrice, setInputPrice] = useState('0')
@@ -127,10 +134,8 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const modelPurpose = inferModelPurpose(purposeFields)
   const chatEndpointType = getInitialChatEndpointType(purposeFields, defaultChatEndpoint)
   const apiModelId = useMemo(() => (model ? getModelApiId(model) : ''), [model])
-  const savedCaps = useMemo(
-    () => (model ? getInitialSelectedCapabilities(model) : new Set<ModelCapabilityToggle>()),
-    [model]
-  )
+  const savedClassification = useMemo(() => getInitialModelClassification(model), [model])
+  const hasClassificationChanges = !areModelClassificationsEqual(classification, savedClassification)
 
   useEffect(() => {
     if (!open || !model) {
@@ -150,8 +155,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       outputModalities: model.outputModalities
     })
     setShowMoreSettings(true)
-    setSelectedCaps(getInitialSelectedCapabilities(model))
-    setHasUserModified(false)
+    setClassification(getInitialModelClassification(model))
     setSupportsStreaming(model.supportsStreaming)
     setCurrencySymbol(nextCurrencySymbol ?? '$')
     setInputPrice(String(model.pricing?.input?.perMillionTokens ?? 0))
@@ -191,23 +195,60 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         symbolToCurrency(nextCurrencySymbol) ?? symbolToCurrency(readCurrency(model)) ?? CURRENCY.USD
       const nextName = overrides?.name ?? name
       const nextGroup = overrides?.group ?? group
-      const nextEndpointTypes = overrides?.endpointTypes ?? endpointTypes
+      const hasEndpointTypesOverride = overrides != null && Object.hasOwn(overrides, 'endpointTypes')
+      const hasPurposeFieldsOverride = overrides != null && Object.hasOwn(overrides, 'purposeFields')
       const nextPurposeFields = overrides?.purposeFields ?? purposeFields
-      const capabilitySource =
-        mode === 'purpose' ? [...(nextPurposeFields.capabilities ?? [])] : (model.capabilities ?? [])
+      const nextClassification = overrides?.classification
+      const shouldApplyPurpose = mode === 'purpose' && (hasPurposeFieldsOverride || nextClassification != null)
+      const effectiveClassification = nextClassification ?? classification
+      const classifiedCapabilities =
+        shouldApplyPurpose || nextClassification
+          ? buildModelCapabilities(model.capabilities ?? [], effectiveClassification)
+          : undefined
+      const classifiedInputModalities =
+        shouldApplyPurpose || nextClassification
+          ? buildModelInputModalities(model.inputModalities ?? [], effectiveClassification)
+          : undefined
+      const resolvedPurposeFields =
+        shouldApplyPurpose && classifiedCapabilities && classifiedInputModalities
+          ? applyModelPurpose(
+              {
+                ...nextPurposeFields,
+                capabilities: classifiedCapabilities,
+                inputModalities: classifiedInputModalities
+              },
+              inferModelPurpose(nextPurposeFields),
+              {
+                previousPurpose: inferModelPurpose(nextPurposeFields),
+                chatEndpointType: getInitialChatEndpointType(nextPurposeFields, defaultChatEndpoint)
+              }
+            )
+          : null
 
       return {
         name: nextName || model.name,
         group: nextGroup || model.group,
-        endpointTypes:
-          mode === 'purpose'
-            ? [...(nextPurposeFields.endpointTypes ?? [])]
-            : mode === 'endpoint-types' && nextEndpointTypes.length
-              ? [...nextEndpointTypes]
-              : undefined,
-        capabilities: toggleSetToCaps(capabilitySource, overrides?.caps ?? selectedCaps) as Model['capabilities'],
-        inputModalities: mode === 'purpose' ? nextPurposeFields.inputModalities?.slice() : undefined,
-        outputModalities: mode === 'purpose' ? nextPurposeFields.outputModalities?.slice() : undefined,
+        ...(hasPurposeFieldsOverride && resolvedPurposeFields
+          ? { endpointTypes: [...resolvedPurposeFields.endpointTypes] }
+          : hasEndpointTypesOverride
+            ? {
+                endpointTypes: mode === 'endpoint-types' ? [...(overrides.endpointTypes ?? [])] : undefined
+              }
+            : {}),
+        ...(resolvedPurposeFields
+          ? {
+              capabilities: resolvedPurposeFields.capabilities,
+              inputModalities: resolvedPurposeFields.inputModalities
+            }
+          : nextClassification && classifiedCapabilities && classifiedInputModalities
+            ? {
+                capabilities: classifiedCapabilities,
+                inputModalities: classifiedInputModalities
+              }
+            : {}),
+        ...(hasPurposeFieldsOverride && resolvedPurposeFields
+          ? { outputModalities: resolvedPurposeFields.outputModalities }
+          : {}),
         supportsStreaming: overrides?.supportsStreaming ?? supportsStreaming,
         contextWindow: Number(overrides?.contextWindow ?? contextWindow) || undefined,
         maxInputTokens: Number(overrides?.maxInputTokens ?? maxInputTokens) || undefined,
@@ -226,7 +267,6 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     },
     [
       currencySymbol,
-      endpointTypes,
       group,
       contextWindow,
       inputPrice,
@@ -237,7 +277,8 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       name,
       outputPrice,
       purposeFields,
-      selectedCaps,
+      classification,
+      defaultChatEndpoint,
       supportsStreaming
     ]
   )
@@ -282,28 +323,54 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     [buildPatch, model, processAutoSaveQueue, providerId]
   )
 
-  const handleToggleCapability = useCallback(
-    (type: ModelCapabilityToggle) => {
-      setHasUserModified(true)
-      const next = new Set(selectedCaps)
-
-      if (next.has(type)) {
-        next.delete(type)
-      } else {
-        next.add(type)
-      }
-
-      setSelectedCaps(next)
-      autoSave({ caps: next })
+  const commitClassification = useCallback(
+    (next: ModelClassificationState) => {
+      setClassification(next)
+      autoSave({ classification: next })
     },
-    [autoSave, selectedCaps]
+    [autoSave]
   )
 
-  const handleResetCapabilities = useCallback(() => {
-    setSelectedCaps(new Set(savedCaps))
-    setHasUserModified(false)
-    autoSave({ caps: new Set(savedCaps) })
-  }, [autoSave, savedCaps])
+  const handlePrimaryTypeChange = useCallback(
+    (primaryType: ModelPrimaryType) => {
+      commitClassification({ ...classification, primaryType })
+    },
+    [classification, commitClassification]
+  )
+
+  const handleToggleCapability = useCallback(
+    (capability: ModelCapabilityToggle) => {
+      const capabilities = new Set(classification.capabilities)
+      if (capabilities.has(capability)) {
+        capabilities.delete(capability)
+      } else {
+        capabilities.add(capability)
+      }
+      commitClassification({ ...classification, capabilities })
+    },
+    [classification, commitClassification]
+  )
+
+  const handleToggleInputModality = useCallback(
+    (modality: ModelInputModality) => {
+      const inputModalities = new Set(classification.inputModalities)
+      if (inputModalities.has(modality)) {
+        inputModalities.delete(modality)
+      } else {
+        inputModalities.add(modality)
+      }
+      commitClassification({ ...classification, inputModalities })
+    },
+    [classification, commitClassification]
+  )
+
+  const handleResetClassification = useCallback(() => {
+    commitClassification({
+      ...savedClassification,
+      capabilities: new Set(savedClassification.capabilities),
+      inputModalities: new Set(savedClassification.inputModalities)
+    })
+  }, [commitClassification, savedClassification])
 
   if (!provider || !model) {
     return <ProviderSettingsDrawer open={open} onClose={onClose} title={t('models.edit')} />
@@ -369,9 +436,19 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                     previousPurpose: modelPurpose,
                     chatEndpointType
                   })
+                  const nextClassification = {
+                    ...classification,
+                    primaryType:
+                      nextPurpose === 'chat'
+                        ? classification.primaryType === 'image'
+                          ? ('text' as const)
+                          : classification.primaryType
+                        : ('image' as const)
+                  }
                   setPurposeFields(nextPurposeFields)
                   setEndpointTypes(nextPurposeFields.endpointTypes)
-                  autoSave({ purposeFields: nextPurposeFields })
+                  setClassification(nextClassification)
+                  autoSave({ purposeFields: nextPurposeFields, classification: nextClassification })
                 }}
                 onChatEndpointTypeChange={(nextEndpointType) => {
                   const nextPurposeFields = applyModelPurpose(purposeFields, 'chat', {
@@ -402,11 +479,13 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
           <ProviderSection className={drawerClasses.section}>
             <div data-testid="provider-settings-model-more-settings" className="space-y-4">
               <div className={drawerClasses.sectionCard}>
-                <ModelCapabilityToggles
-                  selectedCaps={selectedCaps}
-                  hasUserModified={hasUserModified}
-                  onToggle={handleToggleCapability}
-                  onReset={handleResetCapabilities}
+                <ModelClassificationControls
+                  value={classification}
+                  hasChanges={hasClassificationChanges}
+                  onPrimaryTypeChange={handlePrimaryTypeChange}
+                  onCapabilityToggle={handleToggleCapability}
+                  onInputModalityToggle={handleToggleInputModality}
+                  onReset={handleResetClassification}
                 />
               </div>
 

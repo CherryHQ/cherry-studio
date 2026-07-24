@@ -13,7 +13,7 @@
     "clean": "rm -rf dist",
     "test": "vitest run",
     "test:watch": "vitest",
-    "generate": "tsx scripts/generate-catalog.ts --write && biome format --write data/models.json data/provider-models.json data/providers.json",
+    "generate": "tsx scripts/generate-catalog.ts --write && biome format --write data/models.json data/provider-models.json data/providers.json src/patterns/reasoning-families.gen.ts",
     "generate:check": "tsx scripts/generate-catalog.ts --report"
   },
   "author": "Cherry Studio",
@@ -56,7 +56,7 @@
     }
   },
   "devDependencies": {
-    "@ai-sdk/provider-utils": "^4.0.23",
+    "@ai-sdk/provider-utils": "^4.0.40",
     "@types/json-schema": "^7.0.15",
     "@types/node": "^24.10.2",
     "dotenv": "^17.2.3",

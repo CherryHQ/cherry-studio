@@ -6,8 +6,8 @@
 import * as z from 'zod'
 
 import { MetadataSchema, ProviderIdSchema, VersionSchema } from './common'
-import { ENDPOINT_TYPE, type EndpointType, GEMINI_THINKING_LEVEL, objectValues, REASONING_EFFORT } from './enums'
-import { CommonReasoningFieldsSchema } from './model'
+import { ENDPOINT_TYPE, type EndpointType, objectValues } from './enums'
+import { ReasoningWireProfileSchema } from './reasoningWire'
 
 export const EndpointTypeSchema = z.enum(objectValues(ENDPOINT_TYPE))
 const endpointTypeValues: readonly string[] = objectValues(ENDPOINT_TYPE)
@@ -43,128 +43,29 @@ export const ApiFeaturesSchema = z.object({
 // (effort levels, token limits) are in model.ts ReasoningSupportSchema.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const ReasoningEffortSchema = z.enum(objectValues(REASONING_EFFORT))
-
-/** Provider reasoning format — discriminated union by format type */
-export const ProviderReasoningFormatSchema = z.discriminatedUnion('type', [
+const reasoningFormat = <T extends string>(type: T) =>
   z.object({
-    type: z.literal('openai-chat'),
-    params: z
-      .object({
-        reasoningEffort: ReasoningEffortSchema.optional()
-      })
-      .optional()
-  }),
-  z.object({
-    type: z.literal('openai-responses'),
-    params: z
-      .object({
-        reasoning: z.object({
-          effort: ReasoningEffortSchema.optional(),
-          summary: z.enum(['auto', 'concise', 'detailed']).optional()
-        })
-      })
-      .optional()
-  }),
-  z.object({
-    type: z.literal('anthropic'),
-    params: z
-      .object({
-        type: z.union([z.literal('enabled'), z.literal('disabled'), z.literal('adaptive')]),
-        budgetTokens: z.number().optional(),
-        effort: ReasoningEffortSchema.optional()
-      })
-      .optional()
-  }),
-  z.object({
-    type: z.literal('gemini'),
-    params: z
-      .union([
-        z
-          .object({
-            thinkingConfig: z.object({
-              includeThoughts: z.boolean().optional(),
-              thinkingBudget: z.number().optional()
-            })
-          })
-          .optional(),
-        z
-          .object({
-            thinkingLevel: z.enum(objectValues(GEMINI_THINKING_LEVEL)).optional()
-          })
-          .optional()
-      ])
-      .optional()
-  }),
-  z.object({
-    type: z.literal('openrouter'),
-    params: z
-      .object({
-        reasoning: z
-          .object({
-            effort: z
-              .union([
-                z.literal('none'),
-                z.literal('minimal'),
-                z.literal('low'),
-                z.literal('medium'),
-                z.literal('high')
-              ])
-              .optional(),
-            maxTokens: z.number().optional(),
-            exclude: z.boolean().optional()
-          })
-          .refine(
-            (v) => v.effort == null || v.maxTokens == null,
-            'Only one of effort or maxTokens can be specified, not both'
-          )
-      })
-      .optional()
-  }),
-  z.object({
-    type: z.literal('enable-thinking'),
-    params: z
-      .object({
-        enableThinking: z.boolean(),
-        thinkingBudget: z.number().optional()
-      })
-      .optional(),
-    ...CommonReasoningFieldsSchema
-  }),
-  z.object({
-    type: z.literal('thinking-type'),
-    params: z
-      .object({
-        thinking: z.object({
-          type: z.union([z.literal('enabled'), z.literal('disabled'), z.literal('auto')])
-        })
-      })
-      .optional()
-  }),
-  z.object({
-    type: z.literal('dashscope'),
-    params: z
-      .object({
-        enableThinking: z.boolean(),
-        incrementalOutput: z.boolean().optional()
-      })
-      .optional()
-  }),
-  // TODO: API layer must convert camelCase → snake_case (chat_template_kwargs, enable_thinking, thinking_budget)
-  // when building the actual request payload for vLLM/SGLang/nvidia endpoints
-  z.object({
-    type: z.literal('self-hosted'),
-    params: z
-      .object({
-        chatTemplateKwargs: z.object({
-          enableThinking: z.boolean().optional(),
-          thinking: z.boolean().optional(),
-          thinkingBudget: z.number().optional()
-        })
-      })
-      .optional()
+    type: z.literal(type),
+    /** Endpoint-wide wire behavior, interpreted only in Main. */
+    wire: ReasoningWireProfileSchema.optional()
   })
+
+/** Provider reasoning format — discriminated union by format type. */
+export const ProviderReasoningFormatSchema = z.discriminatedUnion('type', [
+  reasoningFormat('openai-chat'),
+  reasoningFormat('openai-responses'),
+  reasoningFormat('anthropic'),
+  reasoningFormat('gemini'),
+  reasoningFormat('ollama'),
+  reasoningFormat('none')
 ])
+
+/** The discriminator values of {@link ProviderReasoningFormatSchema} — the ONE
+ *  source of the format-type list (shared re-derives its zod enum from this). */
+export type ReasoningFormatType = z.infer<typeof ProviderReasoningFormatSchema>['type']
+export const REASONING_FORMAT_TYPES = ProviderReasoningFormatSchema.options.map(
+  (option) => option.shape.type.value
+) as [ReasoningFormatType, ...ReasoningFormatType[]]
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Provider Config

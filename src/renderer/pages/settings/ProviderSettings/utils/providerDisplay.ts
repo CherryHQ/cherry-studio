@@ -72,7 +72,7 @@ export function matchKeywordsInProvider(keywords: string[], provider: Provider, 
 
 /**
  * Replace the domain (host) in all endpointConfigs baseUrls while preserving URL paths
- * and other EndpointConfig fields (reasoningFormatType, modelsApiUrls).
+ * and other EndpointConfig fields (modelsApiUrls, adapterFamily).
  * Used by CherryIN/DMXAPI domain switching.
  */
 export function replaceEndpointConfigDomain(

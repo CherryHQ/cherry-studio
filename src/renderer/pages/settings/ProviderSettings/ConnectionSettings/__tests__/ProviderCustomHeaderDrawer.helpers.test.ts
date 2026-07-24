@@ -38,27 +38,26 @@ const SECONDARY = 'anthropic-messages' as any
 
 describe('mergeEndpointConfigs', () => {
   it('writes a non-primary baseUrl from a non-empty draft', () => {
-    const out = mergeEndpointConfigs({}, { [SECONDARY]: 'https://anthropic.example.com' }, PRIMARY)
+    const out = mergeEndpointConfigs({}, { [SECONDARY]: { baseUrl: 'https://anthropic.example.com' } })
     expect(out[SECONDARY]).toEqual({ baseUrl: 'https://anthropic.example.com' })
   })
 
   it('drops a non-primary entry entirely when its draft is cleared', () => {
-    const out = mergeEndpointConfigs({ [SECONDARY]: { baseUrl: 'https://old' } }, { [SECONDARY]: '' }, PRIMARY)
+    const out = mergeEndpointConfigs({ [SECONDARY]: { baseUrl: 'https://old' } }, { [SECONDARY]: { baseUrl: '' } })
     expect(SECONDARY in out).toBe(false)
   })
 
-  it('keeps the primary entry (strips only baseUrl) when its draft is cleared but siblings exist', () => {
-    const out = mergeEndpointConfigs(
-      { [PRIMARY]: { baseUrl: 'https://old', reasoningFormatType: 'openai-responses' } as any },
-      { [PRIMARY]: '  ' },
-      PRIMARY
-    )
-    expect(out[PRIMARY]).toEqual({ reasoningFormatType: 'openai-responses' })
+  it('removes the primary entry when cleared and no other fields remain', () => {
+    const out = mergeEndpointConfigs({ [PRIMARY]: { baseUrl: 'https://old' } }, { [PRIMARY]: { baseUrl: '' } })
+    expect(PRIMARY in out).toBe(false)
   })
 
-  it('removes the primary entry when cleared and no other fields remain', () => {
-    const out = mergeEndpointConfigs({ [PRIMARY]: { baseUrl: 'https://old' } }, { [PRIMARY]: '' }, PRIMARY)
-    expect(PRIMARY in out).toBe(false)
+  it('preserves unrelated configured fields on a drafted endpoint', () => {
+    const out = mergeEndpointConfigs(
+      { [PRIMARY]: { baseUrl: 'https://old', modelsApiUrls: ['https://models'] } as any },
+      { [PRIMARY]: { baseUrl: 'https://new' } }
+    )
+    expect(out[PRIMARY]).toEqual({ baseUrl: 'https://new', modelsApiUrls: ['https://models'] })
   })
 })
 
@@ -90,13 +89,17 @@ describe('resolveEndpointTypes', () => {
 
 describe('findInvalidSecondaryEndpointUrl', () => {
   it('returns the offending type for a non-empty invalid secondary url', () => {
-    expect(findInvalidSecondaryEndpointUrl({ [SECONDARY]: 'garbage://x' }, PRIMARY)).toBe(SECONDARY)
+    expect(findInvalidSecondaryEndpointUrl({ [SECONDARY]: { baseUrl: 'garbage://x' } }, PRIMARY)).toBe(SECONDARY)
   })
 
   it('ignores the primary slot and empty/valid secondaries', () => {
     expect(
       findInvalidSecondaryEndpointUrl(
-        { [PRIMARY]: 'garbage://primary', [SECONDARY]: '   ', 'gemini-generate-content': 'https://ok.example.com' },
+        {
+          [PRIMARY]: { baseUrl: 'garbage://primary' },
+          [SECONDARY]: { baseUrl: '   ' },
+          'gemini-generate-content': { baseUrl: 'https://ok.example.com' }
+        },
         PRIMARY
       )
     ).toBeNull()

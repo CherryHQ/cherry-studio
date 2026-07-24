@@ -640,11 +640,6 @@
       }
     },
     "sidebar_title": "Агенты",
-    "skill": {
-      "manage": {
-        "title": "Управление навыками"
-      }
-    },
     "tasks": {
       "add": "Добавить задачу",
       "cancel": "Отмена",
@@ -1059,12 +1054,18 @@
     "edit": {
       "title": "Редактировать ассистента"
     },
+    "groups": {
+      "delete": "[to be translated]:Delete Group",
+      "deleteConfirm": "[to be translated]:Are you sure you want to delete this group?",
+      "group_by": "[to be translated]:Show in groups",
+      "ungroup": "[to be translated]:Stop grouping",
+      "ungrouped": "[to be translated]:Ungrouped"
+    },
     "icon": {
       "type": "Иконка ассистента"
     },
     "list": {
-      "showByList": "Список",
-      "showByTags": "По тегам"
+      "showByList": "Список"
     },
     "pin": {
       "title": "Пин-ассистент"
@@ -1222,6 +1223,8 @@
         "label": "Настройки размышлений",
         "low": "Меньше думать",
         "low_description": "Низкоуровневое рассуждение",
+        "max": "[to be translated]:Max",
+        "max_description": "[to be translated]:Maximum reasoning effort",
         "medium": "Среднее",
         "medium_description": "Средний уровень рассуждения",
         "minimal": "минимальный",
@@ -1248,20 +1251,6 @@
         "label": "Режим использования инструментов",
         "prompt": "Подсказка"
       }
-    },
-    "tags": {
-      "add": "Добавить тег",
-      "delete": "Удалить тег",
-      "deleteConfirm": "Вы уверены, что хотите удалить этот тег?",
-      "group_by": "Группировать по тегу",
-      "manage": "Управление тегами",
-      "modify": "Изменить тег",
-      "none": "Нет тегов",
-      "settings": {
-        "title": "Настройки тегов"
-      },
-      "ungroup": "Отключить группировку тегов",
-      "untagged": "Несгруппированные метки"
     },
     "title": "Ассистенты",
     "unpin": {
@@ -1402,6 +1391,7 @@
       },
       "generate_image": "Сгенерировать изображение",
       "generate_image_no_model": "Настройте модель для рисования в разделе Настройки › Модель по умолчанию",
+      "image_preview_failed": "[to be translated]:Image preview failed",
       "knowledge_base": "База знаний",
       "knowledge_base_disabled_by_files": "Удалите прикреплённые файлы, чтобы использовать базу знаний",
       "knowledge_base_unavailable": "Выберите модель с поддержкой инструментов или включите использование инструментов в запросе",
@@ -1573,6 +1563,23 @@
       "regenerate": {
         "model": "Переключить модель"
       },
+      "token_details": {
+        "cache_read": "[to be translated]:Cache read",
+        "cache_write": "[to be translated]:Cache write",
+        "input": "[to be translated]:Input",
+        "input_breakdown": "[to be translated]:Input breakdown",
+        "output": "[to be translated]:Output",
+        "reasoning": "[to be translated]:Reasoning",
+        "reasoning_time": "[to be translated]:Reasoning",
+        "request_duration": "[to be translated]:Generation timing",
+        "text_generation": "[to be translated]:Text generation",
+        "text_output": "[to be translated]:Text output",
+        "tokens": "[to be translated]:{{value}} Tokens",
+        "tokens_per_second_value": "[to be translated]:{{value}} Tokens/s",
+        "uncached": "[to be translated]:Uncached",
+        "usage": "[to be translated]:Token usage",
+        "waiting_first_token": "[to be translated]:Waiting"
+      },
       "useful": {
         "label": "установить в качестве контекста",
         "tip": "В этой группе сообщений данное сообщение будет выбрано для включения в контекст"
@@ -1598,8 +1605,7 @@
     "resource_view": {
       "menu": {
         "agent": "Агенты",
-        "assistant": "Ассистенты",
-        "skill": "Навыки"
+        "assistant": "Ассистенты"
       }
     },
     "save": {
@@ -1983,6 +1989,7 @@
         "default": "По умолчанию",
         "high": "Высокий",
         "low": "Низкий",
+        "max": "[to be translated]:Max",
         "medium": "Средний",
         "minimal": "Минимальный",
         "xhigh": "Экстра высокий"
@@ -2177,6 +2184,7 @@
     "copy_failed": "Не удалось скопировать",
     "create_success": "Успешно создано",
     "current": "Текущий",
+    "decline": "[to be translated]:Decline",
     "default": "По умолчанию",
     "delete": "Удалить",
     "delete_confirm": "Вы уверены, что хотите удалить?",
@@ -2279,6 +2287,7 @@
     "swap": "Поменять местами",
     "topics": "Топики",
     "translate_text": "Перевести текст",
+    "undo": "[to be translated]:Undo",
     "unknown": "Неизвестно",
     "unnamed": "Без имени",
     "unsubscribe": "Отписаться",
@@ -2317,6 +2326,7 @@
     "image-generation": "Генерация изображений (OpenAI)",
     "jina-rerank": "Jina Rerank",
     "openai": "OpenAI",
+    "openai-embeddings": "[to be translated]:Embeddings (OpenAI)",
     "openai-response": "OpenAI-Response"
   },
   "error": {
@@ -2433,13 +2443,19 @@
     "text": "текст",
     "toolInput": "ввод инструмента",
     "toolName": "имя инструмента",
+    "tool_call_limit_reached": "[to be translated]:The assistant reached the tool-call limit before producing a final answer. Try again or reduce the task scope.",
     "truncated": "Данные усечены, исходный размер",
     "truncatedBadge": "Усечённый",
     "unknown": "Неизвестная ошибка",
     "usage": "Дозировка",
     "user_message_not_found": "Не удалось найти исходное сообщение пользователя",
     "value": "значение",
-    "values": "значение"
+    "values": "значение",
+    "web_lookup_network_error": "[to be translated]:Web access failed. Check your network connection and try again.",
+    "web_search_api_host_invalid": "[to be translated]:Web search is unavailable because the configured provider's API host is invalid. Enter a valid HTTP(S) URL in Settings → Web Search, then try again.",
+    "web_search_api_host_missing": "[to be translated]:Web search is unavailable because the configured provider is missing an API host. Add one in Settings → Web Search, then try again.",
+    "web_search_api_key_missing": "[to be translated]:Web search is unavailable because the configured provider is missing an API key. Add one in Settings → Web Search, then try again.",
+    "web_search_provider_unavailable": "[to be translated]:Web search is unavailable because no compatible provider is configured. Configure one in Settings → Web Search, then try again."
   },
   "export": {
     "assistant": "Ассистент",
@@ -3118,7 +3134,7 @@
       "duplicate": "Дубликат",
       "edit": "Редактировать",
       "enable": "Включить",
-      "manage_tags": "Управление тегами",
+      "manage_groups": "[to be translated]:Manage groups",
       "uninstall": "Удалить"
     },
     "assistant_catalog": {
@@ -3317,6 +3333,9 @@
             "hint": "Ограничивает диапазон выборки токенов при включении"
           }
         },
+        "group": "[to be translated]:Group",
+        "group_empty": "[to be translated]:No groups available",
+        "group_placeholder": "[to be translated]:Select group",
         "json_invalid": "Неверный формат JSON",
         "max_tokens": "Максимальное количество токенов",
         "max_tool_calls": "Максимальное количество вызовов инструментов",
@@ -3415,6 +3434,11 @@
         "insert_variable": "Вставить переменную",
         "label": "Системный промпт",
         "placeholder": "Введите инструкции для ассистента, например стиль ответа, роль или контекст",
+        "polish": "[to be translated]:Polish prompt",
+        "polish_failed_description": "[to be translated]:Check or change the default model, then try again.",
+        "polish_failed_title": "[to be translated]:Failed to polish prompt",
+        "polish_variables_changed_description": "[to be translated]:The polished result changed or removed prompt variables. Try again.",
+        "polish_variables_changed_title": "[to be translated]:Could not apply polished prompt",
         "title": "Промпт",
         "tokens_label": "Токены:",
         "variables_description": "Вставьте эти системные переменные в системный промпт; перед каждым ответом ассистента они заполняются актуальной информацией.",
@@ -3517,6 +3541,10 @@
       "title": "Нет ресурсов"
     },
     "export_assistant_failed": "Не удалось экспортировать ассистента",
+    "group_picker": {
+      "no_groups": "[to be translated]:No groups yet"
+    },
+    "group_sync_failed": "[to be translated]:Failed to sync groups",
     "import_dialog": {
       "clipboard": {
         "button": "Разобрать и импортировать",
@@ -3564,7 +3592,6 @@
     },
     "sidebar": {
       "all_resources": "Все ресурсы",
-      "all_tags": "Все теги",
       "no_tags": "Пока нет меток",
       "subtitle": "Управляйте своими ресурсами ИИ",
       "tags": "Теги",
@@ -3629,11 +3656,11 @@
     },
     "title": "Библиотека",
     "toolbar": {
-      "add_tag_placeholder": "Имя тега...",
-      "all_tags": "Все теги",
+      "add_group_placeholder": "[to be translated]:Group name...",
+      "all_groups": "[to be translated]:All groups",
+      "group_button": "[to be translated]:Group",
       "new_resource": "Новый ресурс",
-      "search_placeholder": "Поиск ресурсов...",
-      "tag_button": "Тег"
+      "search_placeholder": "Поиск ресурсов..."
     },
     "type": {
       "agent": "Агент",
@@ -4205,6 +4232,9 @@
       "selected": "Выбранные теги"
     },
     "function_calling": "Вызов функции",
+    "group": {
+      "ungrouped": "[to be translated]:Ungrouped"
+    },
     "invalid_model": "Недействительная модель",
     "json_parse_error": "Неверный формат JSON",
     "multi_select": {
@@ -4249,10 +4279,13 @@
       "embedding": "Встраиваемые",
       "free": "Бесплатные",
       "function_calling": "Инструкция",
+      "image": "[to be translated]:Image",
       "reasoning": "Рассуждение",
       "rerank": "Переупорядочить",
       "select": "Выберите тип модели",
+      "speech": "[to be translated]:Speech",
       "text": "Текст",
+      "transcription": "[to be translated]:Transcription",
       "video": "Видео",
       "vision": "Визуальные",
       "websearch": "Веб-поисковые"
@@ -4432,6 +4465,21 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "privacy": {
+      "accept_and_continue": "Принять и продолжить",
+      "accept_policy": "Принять Политику конфиденциальности",
+      "notice": "Я прочитал(-а) и принимаю",
+      "period": ".",
+      "policy": "Политику конфиденциальности",
+      "update_failed": "Не удалось сохранить согласие с политикой конфиденциальности. Повторите попытку."
+    },
+    "provider_setup": {
+      "missing_model": "[to be translated]:Enable at least one model from the enabled provider",
+      "missing_provider": "[to be translated]:Enable a provider to continue",
+      "next": "[to be translated]:Next",
+      "subtitle": "[to be translated]:Add an API key or sign in with CherryIN, then enable a provider.",
+      "title": "[to be translated]:Choose a Provider"
+    },
     "select_model": {
       "change_later": "Вы можете изменить это в любое время в настройках",
       "start": "Начать",
@@ -4440,6 +4488,7 @@
     },
     "skip": "Пропустить",
     "toast": {
+      "complete_failed": "[to be translated]:Unable to complete setup. Please try again.",
       "connected": "Успешно подключено к CherryIN"
     },
     "welcome": {
@@ -4448,7 +4497,7 @@
       "other_provider": "Выбрать других поставщиков",
       "select_other_provider": "Выбрать другого поставщика",
       "setup_hint": "Пожалуйста, настройте хотя бы одного поставщика для лучшего опыта",
-      "subtitle": "Наслаждайтесь услугами ИИ высшего уровня с CherryIN",
+      "subtitle": "Подключите провайдера, чтобы активировать универсальную рабочую станцию с ИИ",
       "title": "Добро пожаловать в Cherry Studio"
     }
   },
@@ -4713,6 +4762,7 @@
     "inference_steps": "Шаги вывода",
     "inference_steps_tip": "Количество шагов вывода для выполнения. Больше шагов производят более высокое качество, но занимают больше времени",
     "input_image": "Входное изображение",
+    "input_image_limit_exceeded": "[to be translated]:Too many reference images for the selected model. Remove some images and try again.",
     "input_parameters": "Ввести параметры",
     "invalid_image_url": "Неверный формат URL изображения",
     "learn_more": "Узнать больше",
@@ -4737,6 +4787,7 @@
     "number_images": "Количество изображений",
     "number_images_tip": "Количество изображений для генерации (1-4)",
     "operation_failed": "Операция не удалась, повторите попытку позже",
+    "output_compression": "[to be translated]:Output Compression",
     "paint_course": "Руководство / Учебник",
     "per_image": "за изображение",
     "per_images": "за изображения",
@@ -4885,6 +4936,7 @@
     "install": "установка",
     "install_plugins_from_browser": "Просмотрите доступные плагины, чтобы начать работу",
     "installing": "Установка...",
+    "manage_skills": "[to be translated]:Manage skills",
     "name": "название",
     "no_description": "Без описания",
     "no_installed_plugins": "Плагины ещё не установлены",
@@ -4937,6 +4989,16 @@
     "source": "Смотреть исходный код",
     "zoom_in": "Увеличить",
     "zoom_out": "Уменьшить"
+  },
+  "privacy_policy": {
+    "load_failed": "[to be translated]:Unable to load the privacy policy.",
+    "title": "[to be translated]:Privacy Policy"
+  },
+  "privacy_policy_update": {
+    "acknowledge_failed": "[to be translated]:Unable to save your acknowledgement. Please try again.",
+    "description_before_link": "[to be translated]:We have updated the privacy policy. Please review the latest ",
+    "policy": "[to be translated]:Privacy Policy",
+    "title": "[to be translated]:Privacy Policy Updated"
   },
   "prompts": {
     "explanation": "Объясните мне этот концепт",
@@ -5508,6 +5570,7 @@
       "create_new": "Новый ассистент",
       "empty_text": "Пока нет ассистентов",
       "filter": "Фильтровать помощников",
+      "group_filter": "[to be translated]:Filter by group",
       "multi_hint": "(взаимоисключающий с многомодельным)",
       "multi_label": "Многопомощниковый параллелизм",
       "search_placeholder": "Поиск ассистентов…"
@@ -5629,14 +5692,15 @@
         "select": "Изменить директорию",
         "select_error": "Не удалось изменить директорию данных",
         "select_error_in_app_path": "Новый путь совпадает с исходным путем, пожалуйста, выберите другой путь",
+        "select_error_protected_path": "[to be translated]:The selected path is protected by the operating system or Cherry Studio. Please choose another folder.",
         "select_error_root_path": "Новый путь не может быть корневым",
         "select_error_same_path": "Новый путь совпадает с исходным путем, пожалуйста, выберите другой путь",
         "select_error_write_permission": "Новый путь не имеет разрешения на запись",
         "select_not_empty_dir": "Новый путь не пуст",
-        "select_not_empty_dir_content": "Новый путь не пуст, он перезапишет данные в новом пути, есть риск потери данных и ошибки копирования, продолжить?",
         "select_success": "Директория данных изменена, приложение будет перезапущено для применения изменений",
         "select_title": "Изменить директорию данных приложения",
-        "stop_quit_app_reason": "Приложение в настоящее время перемещает данные и не может быть закрыто"
+        "stop_quit_app_reason": "Приложение в настоящее время перемещает данные и не может быть закрыто",
+        "switch_existing_notice": "[to be translated]:This non-empty directory will be used as-is. Its existing files will not be overwritten."
       },
       "app_logs": {
         "button": "Открыть логи",
@@ -6160,14 +6224,55 @@
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
       "checkUpdates": "Проверить обновления",
       "coreDepsMissing": "Core dependencies not installed",
-      "customTools": "Custom Tools",
-      "customToolsEmpty": "Пользовательских инструментов пока нет. Добавьте один, чтобы начать.",
       "description": "Управляйте бинарными инструментами и зависимостями среды выполнения, необходимыми приложению.",
       "duplicateName": "A tool with the same name already exists",
       "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "Установить",
       "installError": "Failed to install tool",
+      "installErrorHint": "[to be translated]:The install command failed. Copy the log below to troubleshoot or share it for help.",
+      "installSettings": {
+        "description": "[to be translated]:Fine-tune how bundled CLI tools are installed. All fields are optional — leave them empty to keep the defaults.",
+        "githubMirror": {
+          "help": "[to be translated]:Proxy prefix for GitHub downloads and the GitHub API (e.g. https://ghfast.top). Leave empty for direct access.",
+          "label": "[to be translated]:GitHub mirror",
+          "placeholder": "[to be translated]:https://ghfast.top (direct if empty)"
+        },
+        "githubToken": {
+          "help": "[to be translated]:Raises the GitHub API rate limit for tool lookups. Stored locally in plain text. Leave empty to use the CHERRY_GITHUB_TOKEN environment variable.",
+          "hide": "[to be translated]:Hide token",
+          "label": "[to be translated]:GitHub token",
+          "placeholder": "[to be translated]:ghp_…",
+          "show": "[to be translated]:Show token"
+        },
+        "invalidUrl": "[to be translated]:Enter a valid URL including https://",
+        "npmRegistry": {
+          "help": "[to be translated]:Registry for npm: tools. Leave empty to auto-select a mirror in mainland China.",
+          "label": "[to be translated]:npm registry",
+          "placeholder": "[to be translated]:Auto (China mirror) if empty"
+        },
+        "pipIndexUrl": {
+          "help": "[to be translated]:Index URL for pipx: tools. Leave empty to auto-select a mirror in mainland China.",
+          "label": "[to be translated]:pip index URL",
+          "placeholder": "[to be translated]:Auto (China mirror) if empty"
+        },
+        "presetLabels": {
+          "aliyun": "[to be translated]:Aliyun (China)",
+          "default": "[to be translated]:Default (no mirror)",
+          "ghfast": "[to be translated]:ghfast.top",
+          "ghproxy": "[to be translated]:ghproxy.net",
+          "npmOfficial": "[to be translated]:npmjs (official)",
+          "npmmirror": "[to be translated]:npmmirror (China)",
+          "pypiOfficial": "[to be translated]:PyPI (official)",
+          "tsinghua": "[to be translated]:Tsinghua (China)"
+        },
+        "presets": "[to be translated]:Presets",
+        "title": "[to be translated]:Advanced install settings",
+        "verifySignatures": {
+          "help": "[to be translated]:Verifies Sigstore/SLSA signatures for aqua-backed tools. Disable only if verification fails on your network — it skips supply-chain checks.",
+          "label": "[to be translated]:Verify tool signatures"
+        }
+      },
       "installing": "Установка...",
+      "installingHint": "[to be translated]:The first install may download a runtime and take a few minutes",
       "invalidTool": "Неверное имя или ключ инструмента",
       "localModels": {
         "cancel": "Отмена",
@@ -6199,10 +6304,19 @@
       "remove": "Remove tool",
       "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
       "removeConfirmTitle": "Remove Tool",
+      "removeDefinitionOnlyConfirmMessage": "[to be translated]:Cherry could not safely clean up \"{{name}}\". Removing only its definition will hide the card but leave its backend files installed. Continue?",
+      "removeDefinitionOnlyConfirmTitle": "[to be translated]:Remove Definition Only?",
+      "removeDefinitionOnlyDependents": "[to be translated]:Installed tools depend on it: {{dependents}}.",
+      "removeError": "[to be translated]:Failed to remove tool",
+      "removeErrorHint": "[to be translated]:The cleanup command failed. Copy the log below to troubleshoot or share it for help.",
+      "removeRuntimeConfirmMessage": "[to be translated]:Are you sure you want to remove \"{{name}}\"? Uninstalling this runtime may break npm or pip tools that depend on it.",
+      "runtimeDependency": "[to be translated]:Runtime",
+      "runtimeDependencyHint": "[to be translated]:Runtime for npm/pip tools",
       "searchFailed": "Search failed, check logs",
       "searchRegistry": "Search mise registry...",
       "source": {
-        "bundled": "bundled"
+        "bundled": "bundled",
+        "system": "[to be translated]:System"
       },
       "title": "Зависимости окружения",
       "tools": {
@@ -6221,8 +6335,15 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
+      "uninstall": "[to be translated]:Uninstall",
+      "uninstallConfirmMessage": "[to be translated]:Are you sure you want to uninstall \"{{name}}\"? Cherry Studio's backend copy will be deleted.",
+      "uninstallConfirmTitle": "[to be translated]:Uninstall Tool",
+      "uninstallFailed": "[to be translated]:Failed to uninstall tool",
+      "uninstallSuccess": "[to be translated]:Tool uninstalled",
       "update": "Update to latest version",
-      "updateCheckFailed": "Не удалось проверить наличие обновлений"
+      "updateCheckFailed": "Не удалось проверить наличие обновлений",
+      "updateCheckSuccess": "[to be translated]:Version check complete",
+      "viewErrorDetails": "[to be translated]:View details"
     },
     "developer": {
       "enable_developer_mode": "Включить разработчик",
@@ -6764,6 +6885,9 @@
       "add": {
         "add_model": "Добавить модель",
         "batch_add_models": "Пакетное добавление моделей",
+        "capabilities": {
+          "label": "[to be translated]:Model Capabilities"
+        },
         "context_window": {
           "label": "Контекстное окно",
           "placeholder": "например, 128000"
@@ -6779,6 +6903,9 @@
           "label": "Имя группы",
           "placeholder": "Например, ChatGPT",
           "tooltip": "Необязательно, например, ChatGPT"
+        },
+        "input_modalities": {
+          "label": "[to be translated]:Input Modalities"
         },
         "max_input_tokens": {
           "label": "Максимальное количество входных токенов",
@@ -6801,6 +6928,9 @@
           "label": "Имя модели",
           "placeholder": "Например, GPT-5.5",
           "tooltip": "Необязательно, например, GPT-4"
+        },
+        "model_type": {
+          "label": "[to be translated]:Model Type"
         },
         "supported_text_delta": {
           "label": "Поддержка инкрементного текстового вывода",
@@ -6859,7 +6989,8 @@
       "default_assistant_model": "Модель ассистента по умолчанию",
       "default_assistant_model_description": "Используется, если у ассистента нет модели.",
       "docs": "Документация модели",
-      "empty": "Модели не найдены",
+      "empty": "Выберите модель",
+      "empty_hint": "[to be translated]:Click the Get model list button above to add models.",
       "enabled_models": "Включены",
       "expand_all": "Развернуть все",
       "filter": {
@@ -7357,9 +7488,6 @@
         "usage_title": "Использование",
         "usage_unit": "tokens"
       },
-      "openai": {
-        "alert": "Поставщик OpenAI больше не поддерживает старые методы вызова. Если вы используете сторонний API, создайте нового поставщика услуг."
-      },
       "remove_duplicate_keys": "Удалить дубликаты ключей",
       "remove_invalid_keys": "Удалить недействительные ключи",
       "reorder_failed": "Не удалось изменить порядок поставщиков",
@@ -7435,6 +7563,7 @@
         "autoEmpty": "Нет включённых MCP-серверов",
         "description": "Просмотр текущего статуса сервера MCP",
         "disabled": "MCP отключен для этого ассистента",
+        "open_config": "[to be translated]:Configure MCP servers",
         "unknownServer": "Неизвестный MCP-сервер"
       },
       "multiple": "Множественный выбор",

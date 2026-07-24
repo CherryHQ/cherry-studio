@@ -11,8 +11,15 @@ import { useTranslation } from 'react-i18next'
 import ProviderActions from '../../primitives/ProviderActions'
 import ProviderSection from '../../primitives/ProviderSection'
 import { drawerClasses } from '../../primitives/ProviderSettingsPrimitives'
-import { getInitialAddModelFormState, splitModelIds } from './helpers'
+import {
+  buildModelCapabilities,
+  buildModelInputModalities,
+  getInitialAddModelFormState,
+  getInitialModelClassification,
+  splitModelIds
+} from './helpers'
 import { ModelBasicFields } from './ModelBasicFields'
+import { ModelClassificationControls } from './ModelClassificationControls'
 import { ModelContextWindowFields } from './ModelContextWindowFields'
 import {
   applyModelPurpose,
@@ -23,7 +30,14 @@ import {
   type ModelPurposeFields
 } from './modelPurpose'
 import { ModelPurposeFields as ModelPurposeFieldsControl } from './ModelPurposeFields'
-import type { AddModelDrawerPrefill, ModelBasicFormState, ModelDrawerMode } from './types'
+import type {
+  AddModelDrawerPrefill,
+  ModelBasicFormState,
+  ModelCapabilityToggle,
+  ModelDrawerMode,
+  ModelInputModality,
+  ModelPrimaryType
+} from './types'
 
 function getInitialPurposeFields(
   prefill: AddModelDrawerPrefill | null,
@@ -73,6 +87,7 @@ export default function AddModelFormPanel({
   const [purposeFields, setPurposeFields] = useState<ModelPurposeFields>(() =>
     getInitialPurposeFields(null, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
   )
+  const [classification, setClassification] = useState(() => getInitialModelClassification())
   const [modelIdTouched, setModelIdTouched] = useState(false)
   const [endpointTypeTouched, setEndpointTypeTouched] = useState(false)
   const [showMoreSettings, setShowMoreSettings] = useState(false)
@@ -96,6 +111,7 @@ export default function AddModelFormPanel({
   useEffect(() => {
     setFormState(getInitialAddModelFormState(prefill, defaultChatEndpoint))
     setPurposeFields(getInitialPurposeFields(prefill, defaultChatEndpoint))
+    setClassification(getInitialModelClassification(prefill?.model))
     setModelIdTouched(false)
     setEndpointTypeTouched(false)
     setShowMoreSettings(false)
@@ -135,20 +151,38 @@ export default function AddModelFormPanel({
         return false
       }
 
+      const classifiedCapabilities = buildModelCapabilities(prefill?.model?.capabilities ?? [], classification)
+      const classifiedInputModalities = buildModelInputModalities(prefill?.model?.inputModalities ?? [], classification)
+      const submittedPurposeFields =
+        mode === 'purpose'
+          ? applyModelPurpose(
+              {
+                ...purposeFields,
+                capabilities: classifiedCapabilities,
+                inputModalities: classifiedInputModalities
+              },
+              modelPurpose,
+              {
+                previousPurpose: 'chat',
+                chatEndpointType
+              }
+            )
+          : null
+
       await createModel({
         providerId,
         modelId,
         name: values.name ? values.name : modelId.toUpperCase(),
         group: values.group || getDefaultGroupName(modelId),
         endpointTypes:
-          mode === 'purpose'
-            ? [...(purposeFields.endpointTypes ?? [])]
+          submittedPurposeFields != null
+            ? [...submittedPurposeFields.endpointTypes]
             : mode === 'endpoint-types' && values.endpointTypes?.length
               ? [...values.endpointTypes]
               : undefined,
-        capabilities: mode === 'purpose' ? [...(purposeFields.capabilities ?? [])] : undefined,
-        inputModalities: mode === 'purpose' ? purposeFields.inputModalities?.slice() : undefined,
-        outputModalities: mode === 'purpose' ? purposeFields.outputModalities?.slice() : undefined,
+        capabilities: submittedPurposeFields?.capabilities ?? classifiedCapabilities,
+        inputModalities: submittedPurposeFields?.inputModalities ?? classifiedInputModalities,
+        outputModalities: submittedPurposeFields?.outputModalities,
         ...(values.contextWindow ? { contextWindow: Number(values.contextWindow) } : {}),
         ...(values.maxInputTokens ? { maxInputTokens: Number(values.maxInputTokens) } : {}),
         ...(values.maxOutputTokens ? { maxOutputTokens: Number(values.maxOutputTokens) } : {})
@@ -156,7 +190,19 @@ export default function AddModelFormPanel({
 
       return true
     },
-    [createModel, mode, models, provider, providerId, purposeFields, t]
+    [
+      chatEndpointType,
+      classification,
+      createModel,
+      mode,
+      modelPurpose,
+      models,
+      prefill?.model,
+      provider,
+      providerId,
+      purposeFields,
+      t
+    ]
   )
 
   const submitAddModel = useCallback(async () => {
@@ -220,6 +266,34 @@ export default function AddModelFormPanel({
       setIsSubmitting(false)
     }
   }, [addSingleModel, formState, mode, onSuccess, t])
+
+  const handlePrimaryTypeChange = useCallback((primaryType: ModelPrimaryType) => {
+    setClassification((current) => ({ ...current, primaryType }))
+  }, [])
+
+  const handleCapabilityToggle = useCallback((capability: ModelCapabilityToggle) => {
+    setClassification((current) => {
+      const capabilities = new Set(current.capabilities)
+      if (capabilities.has(capability)) {
+        capabilities.delete(capability)
+      } else {
+        capabilities.add(capability)
+      }
+      return { ...current, capabilities }
+    })
+  }, [])
+
+  const handleInputModalityToggle = useCallback((modality: ModelInputModality) => {
+    setClassification((current) => {
+      const inputModalities = new Set(current.inputModalities)
+      if (inputModalities.has(modality)) {
+        inputModalities.delete(modality)
+      } else {
+        inputModalities.add(modality)
+      }
+      return { ...current, inputModalities }
+    })
+  }, [])
 
   const handleFormSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -299,6 +373,11 @@ export default function AddModelFormPanel({
               chatEndpointType={chatEndpointType}
               chatEndpointTypes={providerChatEndpointTypes}
               onPurposeChange={(nextPurpose) => {
+                setClassification((current) => ({
+                  ...current,
+                  primaryType:
+                    nextPurpose === 'chat' ? (current.primaryType === 'image' ? 'text' : current.primaryType) : 'image'
+                }))
                 setPurposeFields((current) =>
                   applyModelPurpose(current, nextPurpose, {
                     previousPurpose: inferModelPurpose(current),
@@ -340,15 +419,26 @@ export default function AddModelFormPanel({
 
       {showMoreSettings && (
         <ProviderSection className={drawerClasses.section}>
-          <div className={drawerClasses.sectionCard}>
-            <ModelContextWindowFields
-              contextWindow={formState.contextWindow}
-              maxInputTokens={formState.maxInputTokens}
-              maxOutputTokens={formState.maxOutputTokens}
-              onContextWindowChange={(value) => setFormState((current) => ({ ...current, contextWindow: value }))}
-              onMaxInputTokensChange={(value) => setFormState((current) => ({ ...current, maxInputTokens: value }))}
-              onMaxOutputTokensChange={(value) => setFormState((current) => ({ ...current, maxOutputTokens: value }))}
-            />
+          <div className="space-y-4">
+            <div className={drawerClasses.sectionCard}>
+              <ModelClassificationControls
+                value={classification}
+                onPrimaryTypeChange={handlePrimaryTypeChange}
+                onCapabilityToggle={handleCapabilityToggle}
+                onInputModalityToggle={handleInputModalityToggle}
+              />
+            </div>
+
+            <div className={drawerClasses.sectionCard}>
+              <ModelContextWindowFields
+                contextWindow={formState.contextWindow}
+                maxInputTokens={formState.maxInputTokens}
+                maxOutputTokens={formState.maxOutputTokens}
+                onContextWindowChange={(value) => setFormState((current) => ({ ...current, contextWindow: value }))}
+                onMaxInputTokensChange={(value) => setFormState((current) => ({ ...current, maxInputTokens: value }))}
+                onMaxOutputTokensChange={(value) => setFormState((current) => ({ ...current, maxOutputTokens: value }))}
+              />
+            </div>
           </div>
         </ProviderSection>
       )}
