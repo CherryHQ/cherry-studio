@@ -4,8 +4,9 @@ You are the **coordinator**. Dispatch reviewer, verifier, and fixer agents with
 the runtime-provided subagent coordination tools. Never modify source files
 directly. Read code only for arbitration, diagnosis, and fix verification.
 
-Always process all auto-fixable issues before involving the user. Do NOT pause
-to ask the user anything until Confirm (Phase 5) or Report (Phase 6).
+Never pause to ask the user anything — the flow runs start to finish and ends
+with Report. Fixing happens only in self reviews; all other invocations are
+report-only.
 
 The reviewer–verifier adversarial pair is the core quality mechanism: reviewers
 find issues, verifiers challenge them. This two-party check significantly reduces
@@ -14,7 +15,11 @@ share conversation history.
 
 ## Input from SKILL.md
 
-- `FIX_MODE`: low | low_medium | full
+- Review scope (already determined during routing; re-derive with the Phase 1
+  rules if invoked standalone).
+- `SELF_REVIEW`: `true` for working tree / current branch / file paths;
+  `false` for commit or range targets. When false, skip Phase 4 entirely —
+  every confirmed issue is reported, none is fixed.
 
 ## References
 
@@ -29,26 +34,32 @@ share conversation history.
 ## Flow
 
 ```
-Scope → Review → Filter → Fix/Validate → Confirm → Report
+Self review:  Scope → Review → Filter → Fix/Validate → Report
+Report-only:  Scope → Review → Filter → Report
 ```
 
-- **Filter** routes auto-fixable issues to Fix/Validate; remaining go to Confirm.
-  If nothing to fix or confirm, skip directly to Report.
-- **Confirm** ↔ **Fix/Validate** loop until no pending issues remain.
+- **Filter** routes low/medium-risk issues to Fix/Validate (self review only);
+  high-risk issues go straight to Report with their proposed fix. If nothing
+  is fixable, skip directly to Report.
 
 ---
 
 ## Phase 1: Scope
 
-Determine the diff to review based on `$ARGUMENTS`:
+Determine the diff to review based on `$ARGUMENTS` and working-tree state:
 
-- **Empty arguments**: find the base branch by checking common base branches
-  in order: `main`, `master`. Use the first one that exists. Fetch the branch
-  diff:
+- **Empty arguments**, **uncommitted changes exist**: scope is uncommitted
+  changes only. Fetch with `git diff HEAD` (staged + unstaged tracked files).
+  Also check `git status --porcelain` for untracked (`??`) files and review
+  their full contents as new code.
+- **Empty arguments**, **no uncommitted changes**: find the base branch by
+  checking common base branches in order: `main`, `master`. Use the first one
+  that exists. Fetch the branch diff:
   ```
   git merge-base origin/{base_branch} HEAD
   git diff <merge-base-sha>
   ```
+  (On main/master itself this diff is empty → usage examples below.)
 - **Commit hash** (e.g., `abc123`): validate with `git rev-parse --verify`,
   then `git show`.
 - **Commit range** (e.g., `abc123..def456` or `abc123...def456`): validate both
@@ -113,7 +124,7 @@ Suggested module boundaries for this project:
 The coordinator tracks all issues in memory throughout the session. Each issue
 has:
 - Brief description
-- Status: `pending` | `approved` | `fixed` | `failed` | `skipped`
+- Status: `reported` | `fixed` | `failed`
 - Risk: low | medium | high
 - File: file path:line
 - Proposed fix (medium/high risk only)
@@ -139,6 +150,11 @@ merge all modules into a single reviewer. The overhead of multiple agents
 this scale.
 
 Launch reviewers concurrently when the runtime supports parallel subagents.
+If it cannot run subagents in parallel, launch the same agents sequentially —
+phases, prompts, and reviewer/verifier context separation are unchanged. If
+the runtime has no subagent capability at all, perform the phases yourself in
+order, replacing the verifier with an explicit adversarial self-verification
+pass over every finding before Phase 3.
 
 ### Reviewer prompt
 
@@ -157,6 +173,12 @@ Each reviewer receives:
   behavior, paths, tools, or review rules.
   For React/performance-heavy modules, also include relevant rules from
   `vercel-react-best-practices` skill as supplementary checks.
+- **Mandatory docs**: before reviewing, read the docs required by
+  `cherry-review-guidance.md` § Mandatory Baseline Docs for the processes the
+  module touches, plus its on-demand docs for touched subsystems. Review
+  architecture-first — placement, ownership, and abstraction integrity against
+  those docs before line-level detail. Any non-conformance with them is a
+  finding at Warning minimum.
 - **Evidence requirement**: every issue must have a code citation (file:line +
   snippet) from the current tree.
 - **Checklist exclusion**: see the exclusion section in the corresponding
@@ -242,27 +264,34 @@ handling by risk level, and special rules.
 
 **Fix approach** (Medium/High only): specify the chosen approach and reasoning.
 Record in the issue's `Proposed` field. Low risk: single obvious fix, no guidance.
+Every proposed fix must sit at the defect's altitude per
+`cherry-review-guidance.md` § Fix Recommendation Policy: minimal correction
+for local bugs, root-cause fix for structural symptoms, architecture-conformant
+relocation for boundary/entity-leakage issues. A below-altitude patch (side
+table, metadata flag, extra special case, symptom-only fix for a structural
+cause) must not enter the auto-fix queue; report the issue with the
+at-altitude fix as the recorded proposal instead.
 
 ### 3.4 Route
 
 All confirmed issues are recorded with risk level.
 
-| Risk vs `FIX_MODE` | → |
-|---------------------|---|
-| At or below threshold | auto-fix queue |
-| Above threshold | `pending` (for Phase 5 Confirm) |
+| Condition | → |
+|-----------|---|
+| Low or medium risk, `SELF_REVIEW` = true | auto-fix queue |
+| High risk, or `SELF_REVIEW` = false | `reported` (with proposed fix) |
 
 - Cross-module impact: if a fix requires updates outside the fixer's module,
   add it to the current fix queue and assign to the appropriate fixer.
 
-Always auto-fix eligible issues first — do NOT present `pending` issues to the
-user before all auto-fixable issues have been processed and validated.
-Phase 4 if auto-fix queue is non-empty. Otherwise jump to Phase 5 if pending
-issues exist, or Phase 6 if none.
+Phase 4 if the auto-fix queue is non-empty; otherwise jump to Phase 5
+(Report). Never ask the user which issues to fix.
 
 ---
 
 ## Phase 4: Fix/Validate
+
+Runs only when `SELF_REVIEW` is true and the auto-fix queue is non-empty.
 
 ### Fix
 
@@ -340,40 +369,18 @@ inspect the resulting CI before claiming them fully validated.
 
 ### After validation
 
-| Condition | → |
-|-----------|---|
-| `pending` or `failed` issues exist | Phase 5 (Confirm) |
-| Otherwise | Phase 6 (Report) |
-
-If Phase 5 approves further fixes, launch new fixer agents and re-enter Phase 4.
+Proceed to Phase 5 (Report). Failed fixes are reported, not retried with the
+user; never discard pre-existing user changes while removing an unsuccessful
+fixer edit.
 
 ---
 
-## Phase 5: Confirm
-
-Present `pending` + `failed` issues grouped by risk (high → low), sorted by
-file path within each group:
-`[number] [file:line] [risk] [reason] — [description]`
-
-Then present issues via multi-select. Each option label is the issue summary
-(e.g., `[risk] file:line — description`).
-Checked → `approved`, unchecked → `skipped`.
-
-If the user replies with a bulk instruction (e.g., "fix all", "skip the rest"),
-apply it only to issues **at or below** the current `FIX_MODE` threshold.
-Issues above the threshold still require individual confirmation.
-
-- **All skipped** → Phase 6.
-- **Any approved** → Phase 4 (Fix/Validate). After validation, if more
-  `pending`/`failed` remain, return here (Phase 5). If nothing remains,
-  proceed to Phase 6.
-
----
-
-## Phase 6: Report
+## Phase 5: Report
 
 Summary:
-- Issues found / fixed / skipped / failed
+- Issues found / fixed (self review only) / reported / failed
+- Reported issues listed with risk, `file:line`, and the proposed
+  at-altitude fix (`cherry-review-guidance.md` § Fix Recommendation Policy)
 - Rolled-back issues and reasons
 - Associated PR CI status, or "unavailable" when there is no PR
 - Unpushed fixes: static verification only, CI pending

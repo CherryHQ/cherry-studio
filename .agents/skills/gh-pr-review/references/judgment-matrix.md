@@ -13,15 +13,14 @@ low or high risk depending on scope and impact.
 
 ## Handling by Risk Level
 
-| `FIX_MODE` | Low risk | Medium risk | High risk |
-|------------|----------|-------------|-----------|
-| full       | Auto-fix | Auto-fix    | Auto-fix  |
-| low_medium | Auto-fix | Auto-fix    | Confirm   |
-| low        | Auto-fix | Confirm     | Confirm   |
+| Review type | Low risk | Medium risk | High risk |
+|-------------|----------|-------------|-----------|
+| Self review (working tree / current branch / file paths) | Auto-fix | Auto-fix | Report with proposed fix |
+| Report-only (PR, commit, range targets) | Report | Report | Report |
 
-**Special rule for "full" mode**: issues that would change test baselines
-(screenshot comparisons, golden files) are always deferred for user confirmation,
-regardless of risk level.
+Never ask the user which issues to fix. **Test-baseline rule**: fixes that
+would change test baselines (screenshot comparisons, golden files) are never
+auto-applied — report them instead, regardless of risk level.
 
 **Legacy-data rule on `main`**: Redux is removed, and Dexie/ElectronStore are
 throwaway v1 stacks. Do not repair or extend them. When the diff introduces new
@@ -62,6 +61,16 @@ defines **whether to fix** a discovered issue.
   them for the user's awareness rather than auto-fixing.
 - `console.log` → `loggerService`: always worth fixing (project convention).
 - Hardcoded UI strings → i18n: always worth fixing (project convention).
+- Mandatory-doc violations (naming conventions, process architecture docs,
+  data docs, plus on-demand lifecycle/IPC/window/job docs when touched):
+  always worth reporting at Warning minimum; never excluded as style
+  preference or "matches nearby code".
+- Entity leakage into a generic surface (cross-module or intra-module): always
+  worth reporting. The only valid fix restores ownership — relocating the
+  concern to its owning domain or an explicit extension point. Side tables,
+  metadata flags on generic contracts, or additional special cases are not
+  fixes and must not be applied or suggested as such. Typically medium risk
+  when the extension point already exists, high when it must be designed.
 - DataApi misuse for pure side effects: always worth reporting; fixing is high
   risk if it changes IPC/API contracts.
 - Handler-level business logic: worth fixing when the owning service and

@@ -109,26 +109,27 @@ signal. Do not replace CI with local lint, test, or format runs.
 
 ## Step 3: Review
 
-**Internal analysis**:
+Run the multi-agent reviewer–verifier mechanism from
+`references/teams-review.md` inside the worktree: partition the diff into
+review modules per its Phase 1 "Module partition" (including the small-diff
+merge rule), then execute its Phase 2 — reviewers, then the adversarial
+verifier — with `REVIEW_DIR` as every agent's explicit working tree. Skip
+teams-review's Filter and Fix/Validate phases entirely: a PR review reports and
+submits comments; it never edits code. Use `judgment-matrix.md` only to decide
+whether each confirmed issue is worth reporting.
 
-1. Based on the diff, read relevant code context as needed to understand the
-   change's correctness (e.g., surrounding logic, base classes, callers).
-2. Read `PR_BODY` to understand the stated motivation. Verify the
-   implementation actually achieves what the author describes.
-3. Apply `code-checklist.md` to code files and `doc-checklist.md` to
-   documentation files. Apply `cherry-review-guidance.md` to code, mixed,
-   Cherry architecture documentation, and project-skill changes, loading only
-   the internal references it routes to for the changed areas. For React
-   component changes, also consult `vercel-react-best-practices` for detailed
-   performance patterns. Use `judgment-matrix.md` to decide whether each issue
-   is worth reporting.
-4. Check whether issues raised in previous PR comments have been fixed.
-5. For each potential issue, perform a second-pass verification: re-read the
-   surrounding code and check — is there a guard or early return elsewhere
-   that handles this? Does the call chain guarantee preconditions? Am I
-   misunderstanding lifetime or ownership?
-6. **Discard all ruled-out issues. Keep only issues confirmed to exist.**
-7. De-duplicate confirmed issues against existing PR comments.
+Coordinator duties around the agent phases:
+
+1. Read `PR_BODY` to understand the stated motivation and include it in
+   reviewer prompts. Verify the implementation actually achieves what the
+   author describes.
+2. Reviewer prompts follow teams-review's rules — checklists verbatim,
+   `cherry-review-guidance.md`, and the mandatory baseline docs (read from the
+   worktree's `docs/references/`), reviewing architecture-first.
+3. When `PR_COMMENTS` exist, dispatch the PR-comment reviewer to check whether
+   previously raised issues have been fixed.
+4. After verification, de-duplicate confirmed issues against existing PR
+   comments.
 
 **Output rule**: only present the final confirmed issues to the user. Do not
 output analysis process, exclusion reasoning, or issues that were considered
@@ -155,34 +156,26 @@ Present results to user:
 - Overall assessment: code quality evaluation and key improvement directions.
 - Issue list (or "no issues found" if clean).
 
-If no issues → ask whether to submit an approval review AND merge the PR:
+If no issues → report that the review found no issues and stop. Do not submit
+an approval and do not merge; only run these when the user explicitly asks
+afterwards:
 
-1. Submit Approval:
-   ```bash
-   gh pr-review review start --repo {OWNER_REPO} --pr {number}
-   # Save the returned review-id
-   gh pr-review review submit --repo {OWNER_REPO} --pr {number} \
-     --review-id "<review-id>" --event "APPROVE" --body "LGTM"
-   ```
+```bash
+gh pr-review review start --repo {OWNER_REPO} --pr {number}
+# Save the returned review-id
+gh pr-review review submit --repo {OWNER_REPO} --pr {number} \
+  --review-id "<review-id>" --event "APPROVE" --body "LGTM"
+gh pr merge {number} --squash --delete-branch
+```
 
-2. Merge (squash):
-   ```bash
-   gh pr merge {number} --squash --delete-branch
-   ```
-
-If the user declines, do nothing. Skip the comment submission below.
-
-If issues found → present confirmed issues to user in the following format:
+If issues found → submit **all** confirmed issues via the flow below (no
+selection question), then present them to the user in the following format:
 
 ```
 {N}. [{priority}] {file}:{line} — {description of the problem and suggested fix}
 ```
 
-Where `{priority}` is the checklist item ID (e.g., A2, B1, C7). Then ask the
-user to select which issues to submit using **a single multi-select question**
-where each option's label is the issue summary (e.g.,
-`[A2] file:line — description`). User checks multiple options in one prompt.
-Unchecked issues are skipped.
+Where `{priority}` is the checklist item ID (e.g., A2, B1, C7).
 
 ### Prerequisites
 
@@ -224,8 +217,9 @@ comments. Do not use `gh pr comment` or raw `gh api` for review submission.
    gh pr-review review preview --repo {OWNER_REPO} --pr {number} \
      --review-id "{REVIEW_ID}"
    ```
-   Show preview to user and ask for confirmation. Skip if user explicitly
-   waives preview.
+   Use the preview as a self-check — every comment anchors to a valid diff
+   line and the set matches the confirmed issues. Do not ask the user for
+   confirmation.
 
 4. Submit the review:
    ```bash
@@ -254,7 +248,7 @@ comments. Do not use `gh pr comment` or raw `gh api` for review submission.
 - Provide a concrete suggestion with code snippet when applicable.
 - Write in the user's conversation language.
 
-Summary of issues found / submitted / skipped.
+Summary of issues found / submitted.
 
 ---
 

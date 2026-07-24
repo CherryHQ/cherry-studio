@@ -1,7 +1,16 @@
 # Local Review
 
-Single-agent review for local changes. Reviews the diff, presents confirmed
-issues, and lets the user interactively choose which ones to fix.
+Single-agent review for small local changes (routed here by `SKILL.md` when
+the diff is ≤ 1000 changed lines and ≤ 20 files). Reviews the diff and
+reports confirmed issues; when the scope is a self review, low- and
+medium-risk fixes are applied automatically. Never asks the user questions.
+
+## Input from SKILL.md
+
+- Review scope (already determined during routing; re-derive with the Step 1
+  rules if invoked standalone).
+- `SELF_REVIEW`: `true` for working tree / current branch / file paths;
+  `false` for commit or range targets.
 
 ## References
 
@@ -53,11 +62,16 @@ If diff is empty → show usage examples and exit:
 
 Review the diff. Apply `code-checklist.md` to code files,
 `doc-checklist.md` to documentation files. Apply `cherry-review-guidance.md` to
-code, mixed, Cherry architecture documentation, and project-skill changes. For
-React component changes, also consult `vercel-react-best-practices` skill for
-detailed performance patterns. When changed lines depend on surrounding context,
-read the relevant sections or related definitions as needed. Untracked files
-have no diff — review their full contents as new code.
+code, mixed, Cherry architecture documentation, and project-skill changes:
+first read the docs its "Mandatory Baseline Docs" section requires for the
+touched processes, then load only the on-demand references it routes to.
+Review architecture-first — settle placement, ownership, and
+abstraction-integrity findings against those docs before line-level detail;
+doc violations are Warning minimum. For React component changes, also consult
+`vercel-react-best-practices` skill for detailed performance patterns. When
+changed lines depend on surrounding context, read the relevant sections or
+related definitions as needed. Untracked files have no diff — review their
+full contents as new code.
 
 If the branch has an associated GitHub PR, inspect its checks with `gh pr
 checks` and include failing or pending CI in the review. Do not run `pnpm lint`,
@@ -85,19 +99,21 @@ If no issues remain after filtering → report "no issues found" and exit.
 
 ---
 
-## Step 4: Report and fix
+## Step 4: Fix and report
 
-Present a summary of what was reviewed, then list all confirmed issues. Ask
-which ones to fix via multi-select. Each option's label is the issue summary
-(e.g., `[risk] file:line — description`). Follow the grouping rule in
-`SKILL.md`: ≤4 items → one question; >4 items → group by priority or category
-(each group ≤4 options), then present all groups as separate questions in a
-single prompt.
+Do not ask the user which issues to fix.
 
-If the user selects any issues, apply the fixes. Do not run local lint, test, or
-format commands as part of the review flow. Report that existing CI covers the
-reviewed commit, not unpushed local fixes; re-check CI only after the fixes are
-published through a user-authorized workflow.
+- **`SELF_REVIEW` = true**: auto-fix low- and medium-risk issues, with every
+  fix at the defect's altitude per `cherry-review-guidance.md` § Fix
+  Recommendation Policy. High-risk issues are reported with the proposed
+  at-altitude fix, not applied.
+- **`SELF_REVIEW` = false**: report all issues; edit nothing.
+
+Present a summary of what was reviewed, the issues fixed (self review only),
+and the issues reported with their proposed fixes. Do not run local lint,
+test, or format commands as part of the review flow. Report that existing CI
+covers the reviewed commit, not unpushed local fixes; re-check CI only after
+the fixes are published through a user-authorized workflow.
 
 ---
 
