@@ -1569,7 +1569,7 @@ describe('ComposerSurface', () => {
   })
 
   it('removes persistent actions from the button root and restores an unpinned launcher', async () => {
-    mocks.pinnedLauncherIds = ['thinking']
+    mocks.pinnedLauncherIds = ['thinking', 'new-topic']
     const getToolLaunchers = () => [
       {
         id: 'thinking',
@@ -1609,7 +1609,6 @@ describe('ComposerSurface', () => {
             fixedToBottom: true
           }
         ]}
-        hideRootPanelLeadingItemsOnButtonOpen
         renderLeftControls={(_inputAdapter, unifiedPanelControl) => (
           <>
             <button type="button" aria-label="open plus panel" onClick={() => unifiedPanelControl?.open()}>
@@ -1641,8 +1640,16 @@ describe('ComposerSurface', () => {
       expect.objectContaining({
         symbol: 'thinking',
         list: [expect.objectContaining({ id: 'thinking-low' })],
+        // Opening a launcher directly is an explicit request, so its parentPanel is the
+        // undeduped root (includes pinned launchers), not the browsable "+" panel's list.
+        // The fixedToBottom customize-toolbar footer is also dropped here since this is a
+        // category view (seeded with the "Thinking" search text).
         parentPanel: expect.objectContaining({
-          list: [expect.objectContaining({ id: 'attachment' })]
+          list: [
+            expect.objectContaining({ id: 'new-topic' }),
+            expect.objectContaining({ id: 'thinking' }),
+            expect.objectContaining({ id: 'attachment' })
+          ]
         })
       })
     )
@@ -1653,6 +1660,7 @@ describe('ComposerSurface', () => {
     fireEvent.click(screen.getByRole('button', { name: 'open plus panel' }))
 
     expect(mocks.quickPanelOpen.mock.calls.at(-1)?.[0].list.map((item: QuickPanelListItem) => item.id)).toEqual([
+      'new-topic',
       'thinking',
       'attachment',
       'composer:customize-toolbar'
@@ -2413,7 +2421,6 @@ describe('ComposerSurface', () => {
             icon: 'sparkles'
           }
         ]}
-        hideRootPanelLeadingItemsOnButtonOpen
       />
     )
 

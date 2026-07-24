@@ -993,7 +993,6 @@ const ChatComposerInner = ({
       }
     ]
   }, [addNewTopic, hasNewTopicAction, newTopicDisabled, t])
-  const newTopicPinned = pinnedToolIds.includes(CHAT_NEW_CONVERSATION_TOOL_ID)
   const toolbarCustomTools = useMemo<ComposerToolbarCustomTool[]>(
     () => [
       ...(hasNewTopicAction
@@ -1460,7 +1459,6 @@ const ChatComposerInner = ({
           toolLaunchersVersion={toolLaunchersVersion}
           rootPanelLeadingItems={rootPanelLeadingItems}
           rootPanelAdditionalItems={rootPanelCustomizeItems}
-          hideRootPanelLeadingItemsOnButtonOpen={newTopicPinned}
           onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
           {...controlSlots}
         />

@@ -255,6 +255,20 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
     expect(unpinned.list.map((item) => item.id)).toEqual(['thinking', 'attachment', 'composer:customize-toolbar'])
   })
 
+  it('excludes leading items by the same excludedLauncherIds filter as launchers', () => {
+    const leadingItems = [{ id: 'new-topic', label: 'New conversation', icon: 'plus' }]
+
+    const pinned = createUnifiedQuickPanelOpenOptions([], {
+      quickPanel,
+      leadingItems,
+      excludedLauncherIds: new Set(['new-topic'])
+    })
+    expect(pinned.list).toEqual([])
+
+    const unpinned = createUnifiedQuickPanelOpenOptions([], { quickPanel, leadingItems })
+    expect(unpinned.list.map((item) => item.id)).toEqual(['new-topic'])
+  })
+
   it('drops bottom-pinned chrome from category views seeded with a search text', () => {
     const additionalItems = [
       { id: 'skill:pdf', label: 'Agent skill', filterText: 'Skills', icon: 'skill' },

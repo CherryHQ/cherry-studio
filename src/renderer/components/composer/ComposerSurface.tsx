@@ -168,7 +168,6 @@ export interface ComposerSurfaceProps {
   queueContent?: React.ReactNode
   rootPanelLeadingItems?: readonly QuickPanelListItem[]
   rootPanelAdditionalItems?: readonly QuickPanelListItem[]
-  hideRootPanelLeadingItemsOnButtonOpen?: boolean
   onRootPanelOpen?: () => void
   onToolLauncherSelect?: ComposerUnifiedPanelSelectHandler
   renderLeftControls?: (
@@ -572,7 +571,6 @@ export default function ComposerSurface({
   queueContent,
   rootPanelLeadingItems,
   rootPanelAdditionalItems,
-  hideRootPanelLeadingItemsOnButtonOpen = false,
   onRootPanelOpen,
   onToolLauncherSelect,
   renderLeftControls,
@@ -958,7 +956,6 @@ export default function ComposerSurface({
     resourceProvider,
     rootPanelLeadingItems,
     rootPanelAdditionalItems,
-    hideRootPanelLeadingItemsOnButtonOpen,
     pinnedLauncherIdSet,
     unifiedResourceItems
   })
@@ -972,13 +969,11 @@ export default function ComposerSurface({
       resourceProvider,
       rootPanelLeadingItems,
       rootPanelAdditionalItems,
-      hideRootPanelLeadingItemsOnButtonOpen,
       pinnedLauncherIdSet,
       unifiedResourceItems
     }
   }, [
     getToolLaunchers,
-    hideRootPanelLeadingItemsOnButtonOpen,
     onRootPanelOpen,
     onToolLauncherSelect,
     pinnedLauncherIdSet,
@@ -1007,7 +1002,6 @@ export default function ComposerSurface({
     }): QuickPanelOpenOptions => {
       const {
         getToolLaunchers,
-        hideRootPanelLeadingItemsOnButtonOpen,
         onToolLauncherSelect,
         pinnedLauncherIdSet,
         quickPanel,
@@ -1022,7 +1016,7 @@ export default function ComposerSurface({
         inputAdapter,
         quickPanel,
         title: t('settings.quickPanel.title'),
-        leadingItems: hideRootPanelLeadingItemsOnButtonOpen && isButtonRoot ? undefined : rootPanelLeadingItems,
+        leadingItems: rootPanelLeadingItems,
         additionalItems: rootPanelAdditionalItems,
         resourceItems,
         queryAnchor,
@@ -1155,23 +1149,17 @@ export default function ComposerSurface({
       triggerInfo?: QuickPanelTriggerInfo
     }) => {
       const { quickPanel } = rootSuggestionStateRef.current
+      // Opening a specific launcher is an explicit request, so it should not be filtered out by
+      // the pinned-launcher dedup that applies to the browsable root panel.
       const rootPanelOptions = createUnifiedPanelOptions({
         initialSearchText: searchText,
         inputAdapter,
         queryAnchor,
         resourceItems: [],
-        triggerInfo
+        triggerInfo,
+        includePinnedLaunchers: true
       })
-      const launcherItem =
-        rootPanelOptions.list.find((item) => item.id === launcherId) ??
-        createUnifiedPanelOptions({
-          initialSearchText: searchText,
-          inputAdapter,
-          queryAnchor,
-          resourceItems: [],
-          triggerInfo,
-          includePinnedLaunchers: true
-        }).list.find((item) => item.id === launcherId)
+      const launcherItem = rootPanelOptions.list.find((item) => item.id === launcherId)
       if (!launcherItem?.isMenu || launcherItem.disabled) return false
 
       launcherItem.action?.({

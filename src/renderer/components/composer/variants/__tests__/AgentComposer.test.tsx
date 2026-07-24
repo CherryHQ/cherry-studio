@@ -953,7 +953,6 @@ describe('AgentComposer', () => {
     ).not.toBeInTheDocument()
     fireEvent.click(newSessionButton)
     expect(onCreateEmptySession).toHaveBeenCalledTimes(1)
-    expect(mocks.surfaceProps?.hideRootPanelLeadingItemsOnButtonOpen).toBe(true)
 
     const newSessionItem = mocks.surfaceProps?.rootPanelLeadingItems?.[0]
     expect(newSessionItem).toEqual(
@@ -1001,7 +1000,6 @@ describe('AgentComposer', () => {
         name: 'agent.session.new'
       })
     ).not.toBeInTheDocument()
-    expect(mocks.surfaceProps?.hideRootPanelLeadingItemsOnButtonOpen).toBe(false)
     expect(mocks.surfaceProps?.rootPanelLeadingItems).toEqual([expect.objectContaining({ id: 'composer:new-session' })])
 
     act(() => {
@@ -1900,7 +1898,6 @@ describe('AgentComposer', () => {
   })
 
   it('stops excluding the skills launcher when the toolbar shortcut is unpinned in place', () => {
-    const pinnedToolIds = mocks.pinnedToolIds
     const renderComposer = () => (
       <AgentComposer
         agentId="agent-1"
@@ -1914,7 +1911,7 @@ describe('AgentComposer', () => {
 
     expect(mocks.pinnedLauncherIds).toContain('agent-skills')
 
-    pinnedToolIds.splice(pinnedToolIds.indexOf('skills'), 1)
+    mocks.pinnedToolIds = mocks.pinnedToolIds.filter((id) => id !== 'skills')
     rerender(renderComposer())
 
     expect(mocks.pinnedLauncherIds).not.toContain('agent-skills')
