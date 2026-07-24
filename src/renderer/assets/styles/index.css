@@ -34,7 +34,8 @@
   }
 
   .lucide:not(.lucide-custom) {
-    color: var(--color-foreground-secondary);
+    /* 90% foreground × 2/3 preserves the previous 60% secondary ink. */
+    color: color-mix(in srgb, var(--foreground) 66.6667%, transparent);
   }
 }
 
@@ -63,7 +64,7 @@
   body {
     display: flex;
     min-height: 100vh;
-    color: var(--color-foreground);
+    color: var(--foreground);
     font-size: 14px;
     line-height: 1.6;
     overflow: hidden;
@@ -185,7 +186,7 @@
     .message-content-container {
     border-radius: 10px;
     padding: 10px 16px 10px 16px;
-    background-color: var(--color-secondary);
+    background-color: var(--chat-user);
     align-self: self-end;
   }
 
@@ -207,7 +208,7 @@
   }
 
   :is(.bubble.messages-container, .bubble .messages-container):not(.multi-select-mode) code {
-    color: var(--color-foreground);
+    color: var(--foreground);
   }
 
   :is(.bubble.messages-container, .bubble .messages-container):not(.multi-select-mode) .markdown {
@@ -215,12 +216,12 @@
   }
 
   ::highlight(search-matches) {
-    background-color: var(--color-warning-bg);
-    color: var(--color-foreground);
+    background-color: var(--highlight);
+    color: var(--highlight-foreground);
   }
 
   ::highlight(current-match) {
-    background-color: var(--color-warning-bg-hover);
+    background-color: var(--highlight-accent);
   }
 
   textarea::-webkit-resizer {

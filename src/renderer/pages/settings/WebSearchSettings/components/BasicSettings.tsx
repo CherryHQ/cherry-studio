@@ -154,7 +154,7 @@ const BasicSettings: FC = () => {
             {maxResults > 20 && compressionConfig?.method === 'none' && (
               <InfoTooltip
                 content={t('settings.tool.websearch.search_max_result.tooltip')}
-                iconProps={{ size: 16, color: 'var(--color-foreground-secondary)', className: 'ml-1 cursor-pointer' }}
+                iconProps={{ size: 16, color: 'var(--muted-foreground)', className: 'ml-1 cursor-pointer' }}
               />
             )}
           </SettingRowTitle>
@@ -165,7 +165,7 @@ const BasicSettings: FC = () => {
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  className="text-foreground-secondary hover:text-foreground"
+                  className="text-muted-foreground hover:text-foreground"
                   aria-label={t('common.reset')}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={resetMaxResults}>

@@ -4,7 +4,7 @@ Cherry Studio UI component library for React applications.
 
 ## ✨ Features
 
-- 🎨 **Design System**: Full Cherry Studio design tokens with 17 color families, 11 shades, and semantic theme mappings
+- 🎨 **Design System**: Cherry Studio primitive palettes, product semantics, and Shadcn-compatible theme mappings
 - 🌓 **Dark Mode**: Built-in light and dark theme support
 - 🚀 **Tailwind v4**: Built on top of the latest Tailwind CSS v4
 - 📦 **Flexible Imports**: Two style integration modes for different adoption paths
@@ -47,14 +47,14 @@ Use the full Cherry Studio design system so Tailwind theme tokens resolve to Che
 - ✅ Use standard Tailwind utility names directly (`bg-primary`, `bg-red-500`, `p-4`, `rounded-lg`)
 - ✅ Colors resolve to Cherry Studio design values
 - ✅ Uses Tailwind's standard numeric spacing scale
-- ✅ Includes the extended radius scale (`rounded-4xs` through `rounded-3xl`, plus `rounded-round`)
+- ✅ Includes Shadcn-derived radii through `rounded-4xl` plus `rounded-full`; smaller Cherry aliases remain available for compatibility
 - ⚠️ Overrides the default Tailwind theme contract for the imported app bundle
 
 **Example:**
 
 ```tsx
 <Button className="bg-primary text-red-500 p-4 rounded-lg">
-  {/* bg-primary -> Cherry Studio brand color */}
+  {/* bg-primary -> the current primary action semantic */}
   {/* text-red-500 -> Cherry Studio red-500 */}
   {/* p-4 -> Tailwind numeric spacing */}
   {/* rounded-lg -> semantic radius token */}
@@ -64,12 +64,12 @@ Use the full Cherry Studio design system so Tailwind theme tokens resolve to Che
 <div className="rounded-xs">Small radius (0.125rem)</div>
 <div className="rounded-md">Medium radius (0.5rem)</div>
 <div className="rounded-xl">Large radius (0.875rem)</div>
-<div className="rounded-round">Full radius (999px)</div>
+<div className="rounded-full">Full radius (9999px)</div>
 ```
 
-#### Mode 2: Selective Token Consumption 🎯
+#### Mode 2: Selective Foundation Consumption 🎯
 
-Import only the design tokens and decide which theme mappings your app wants to expose.
+Import only primitives and existing foundation providers, then decide which values your design system exposes.
 
 ```css
 /* app.css */
@@ -77,8 +77,8 @@ Import only the design tokens and decide which theme mappings your app wants to 
 @import '@cherrystudio/ui/styles/tokens.css';
 
 /* Re-export only the parts you need */
-@theme {
-  --color-primary: var(--cs-primary); /* Use the Cherry Studio primary color */
+@theme inline {
+  --color-primary: var(--cs-brand-500); /* Adopt a Cherry Studio foundation value */
   --color-red-500: oklch(...); /* Keep your own red scale */
   --radius-lg: 1rem; /* Keep your own radius */
 }
@@ -87,15 +87,16 @@ Import only the design tokens and decide which theme mappings your app wants to 
 **Characteristics:**
 
 - ✅ Does not override the full Tailwind theme
-- ✅ Gives access to all Cherry Studio design tokens through CSS variables (`var(--cs-primary)`, `var(--cs-red-500)`)
+- ✅ Gives access to Cherry Studio foundation values (`var(--cs-brand-500)`, `var(--cs-red-500)`)
 - ✅ Lets you choose what to adopt and what to keep
-- ✅ Works well when you already have a design system and only want selected Cherry Studio tokens
+- ✅ Works when you already own the semantic contract and only need selected Cherry Studio foundations
+- ⚠️ Does not expose the complete Shadcn or Cherry Studio product contract
 
 **Example:**
 
 ```tsx
 {/* Use Cherry Studio tokens directly via CSS variables */}
-<button style={{ backgroundColor: 'var(--cs-primary)' }}>
+<button style={{ backgroundColor: 'var(--cs-brand-500)' }}>
   Use the Cherry Studio brand color
 </button>
 
@@ -107,27 +108,54 @@ Import only the design tokens and decide which theme mappings your app wants to 
 {/* Available CSS variables */}
 <div
   style={{
-    color: 'var(--cs-primary)', // Brand color
+    color: 'var(--cs-brand-500)', // Brand foundation value
     backgroundColor: 'var(--cs-red-500)', // Red-500
     borderRadius: 'var(--cs-radius-lg)', // Radius
   }}
 />
 ```
 
+`src/styles/contract.css` is an internal composition layer used by the generated `theme.css` entry to preserve the
+foundation → runtime input → Shadcn → product import order. It is not a public package export or a supported
+consumer entry point.
+
 ### CSS Variable Rules
 
-To avoid mixing tokens, theme mappings, and runtime overrides, use the following rules:
+The normative v2 architecture, Shadcn contract, and migration boundary are defined in
+[Design Token System](./docs/design-token-system.md). Official Shadcn variables remain unprefixed; approved
+Cherry Studio product variables extend the same unprefixed public namespace. Use the
+[Variable Catalog](./docs/variable-catalog.md) to select a stable role and distinguish runtime API from internal
+providers and tooling-only historical names.
 
-1. `--cs-*` is the design token namespace, sourced from `tokens/*`
-2. `--color-*`, `--radius-*`, and `--font-*` are public theme contracts and should be the default choice for components and external consumers
-3. `--cs-theme-*` is a runtime override input and should only be used for controlled runtime overrides
+To avoid mixing value sources, semantic variables, theme mappings, and runtime overrides, use these rules:
+
+1. `--background`, `--primary`, `--muted-foreground`, and the other variables in `shadcn.css` are the official Shadcn contract
+2. Approved Cherry Studio product semantics are also unprefixed, such as `--success` and `--background-subtle`
+3. Historical migration names are tooling-only and must not be recreated as runtime product variables
+4. Shared `--cs-*` variables are internal value providers; `--cs-theme-*` is the reserved host-written input subset
+5. `--color-*`, `--radius-*`, and `--font-*` are Tailwind adapter output; only the adapter owner declares `--color-*` inside `@theme`, while component CSS, page CSS, and renderer TypeScript/TSX-authored styles must neither declare nor consume it
+6. `--cs-theme-*` is a controlled host-written input, not a component-facing semantic role or Tailwind utility
+7. Component-, page-, and Electron-shell variables stay in their owning stylesheet and are not added to the shared contract merely because they are CSS custom properties
 
 Default consumption rules:
 
 1. Regular application packages should depend on `@cherrystudio/ui/styles/theme.css` by default
-2. Regular application packages should prefer public contracts such as `--color-*` and should not bind directly to primitive tokens like `--cs-brand-500`
-3. Only design-system-adjacent packages that explicitly need token-level access should depend on `@cherrystudio/ui/styles/tokens.css`
-4. Runtime theme logic should only write to controlled entry variables such as `--cs-theme-*`, not directly to derived `--color-*` variables
+2. Components should prefer semantic utilities such as `bg-background`, `text-muted-foreground`, and `bg-success`; custom CSS may use the matching official or product variable
+3. Only design-system-adjacent packages that explicitly need foundation-level access should depend on `@cherrystudio/ui/styles/tokens.css`
+4. Runtime theme logic should write shared theme values only through registered `--cs-theme-*` inputs, not directly to official semantics or derived `--color-*` variables; renderer-only runtime values stay owner-local under `--app-*`
+
+### Shadcn CLI Ownership
+
+Use the Shadcn CLI to scaffold or update component source and dependency metadata only. Cherry Studio's authored
+theme layers and generator own the shared CSS contract, even though `components.json` points the CLI at the generated
+`src/styles/theme.css` entry.
+
+- Do not retain direct CLI edits to `src/styles/theme.css`; `pnpm theme:build` is its only writer.
+- Review any CSS proposed by `shadcn add` and place it according to ownership: official semantics in `shadcn.css`,
+  Cherry Studio product semantics in `product.css` and `theme-contract.ts`, and component-local styles with the
+  component.
+- Add Tailwind mappings through the theme generator rather than by hand-editing its output.
+- Run `pnpm theme:build` followed by `pnpm theme:check` after accepting a component that changes theme requirements.
 
 ## Usage
 
@@ -139,11 +167,11 @@ import { Button, Input } from '@cherrystudio/ui'
 function App() {
   return (
     <div>
-      <Button variant="primary" size="md">Click me</Button>
+      <Button variant="default" size="default">Click me</Button>
       <Input
         type="text"
         placeholder="Type here"
-        onChange={(value) => console.log(value)}
+        onChange={(event) => console.log(event.currentTarget.value)}
       />
     </div>
   )
@@ -157,7 +185,7 @@ function App() {
 import { Button } from '@cherrystudio/ui/components'
 
 // Utilities only
-import { cn, formatFileSize } from '@cherrystudio/ui/utils'
+import { DIALOG_CLOSE_DURATION_MS, toUndefinedIfNull } from '@cherrystudio/ui/utils'
 ```
 
 ## Development
@@ -174,6 +202,9 @@ pnpm build
 
 # Type check
 pnpm type:check
+
+# Validate the variable graph, generated adapter, registry, and renderer authored-CSS boundary
+pnpm theme:check
 
 # Run tests
 pnpm test
@@ -288,58 +319,45 @@ A button component with multiple variants and sizes.
 
 **Props:**
 
-- `variant`: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger'
-- `size`: 'sm' | 'md' | 'lg'
-- `loading`: boolean
-- `fullWidth`: boolean
-- `leftIcon` / `rightIcon`: React.ReactNode
+- `variant`: `default` | `destructive` | `outline` | `secondary` | `emphasis` | `ghost` | `link`
+- `size`: `default` | `sm` | `lg` | `icon` | `icon-sm` | `icon-lg` | `icon-navbar`
+- `loading`, `loadingIcon`, `loadingIconClassName`: loading-state controls
+- `asChild`: render through Radix `Slot`
+- all standard React button props
 
 ### Input
 
-An input component with error handling and password visibility support.
+The Shadcn-compatible native input primitive.
 
 **Props:**
 
-- `type`: 'text' | 'password' | 'email' | 'number'
-- `error`: boolean
-- `errorMessage`: string
-- `onChange`: (value: string) => void
+- accepts standard React input props, including native `type`, `value`, and event-based `onChange`
+- use `aria-invalid` for invalid-state styling
+- use `className` for supported layout composition
 
 ## Hooks
 
-### useDebounce
+### useDndReorder
 
-Debounces state updates or callback execution.
+Keeps drag reordering correct when the rendered list is a filtered subset of the source list.
 
-### useLocalStorage
+### useDndState
 
-React hook wrapper for local storage.
-
-### useClickOutside
-
-Detects clicks outside an element.
-
-### useCopyToClipboard
-
-Copies text to the clipboard.
+Reads the active and hovered identifiers from the current dnd-kit context.
 
 ## Utilities
 
-### cn(...inputs)
+### toUndefinedIfNull(value)
 
-Class name merge helper built on top of `clsx`.
+Converts `null` to `undefined` at API boundaries.
 
-### formatFileSize(bytes)
+### toNullIfUndefined(value)
 
-Formats byte sizes into readable strings.
+Converts `undefined` to `null` at API boundaries.
 
-### debounce(func, delay)
+### DIALOG_CLOSE_DURATION_MS
 
-Debounce helper.
-
-### throttle(func, delay)
-
-Throttle helper.
+Shared duration for coordinating work with the Dialog close animation.
 
 ## License
 

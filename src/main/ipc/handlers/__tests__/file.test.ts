@@ -1,26 +1,38 @@
 import type * as FileDispatchModule from '@main/services/file/internal/dispatch'
+import type { FilePath } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, getMetadataByPathMock, safeOpenMock, showPathInFolderMock } = vi.hoisted(() => ({
+const {
+  appGetMock,
+  getMetadataByPathMock,
+  readByPathMock,
+  safeOpenMock,
+  showPathInFolderMock,
+  writeIfUnchangedByPathMock
+} = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   getMetadataByPathMock: vi.fn(),
+  readByPathMock: vi.fn(),
   safeOpenMock: vi.fn(),
-  showPathInFolderMock: vi.fn()
+  showPathInFolderMock: vi.fn(),
+  writeIfUnchangedByPathMock: vi.fn()
 }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
 vi.mock('@main/services/file', async () => {
-  // The handler now reaches dispatchHandle / getMetadataByPath through the file
-  // facade (previously deep-imported). dispatchHandle is exercised for real —
-  // the tests assert its routing — while the other facade exports it uses are
-  // stubbed.
+  // dispatchHandle is exercised for real so these tests cover handle routing.
   const { dispatchHandle } = await vi.importActual<typeof FileDispatchModule>('@main/services/file/internal/dispatch')
   return {
     dispatchHandle,
     getMetadataByPath: getMetadataByPathMock,
+    readByPath: readByPathMock,
     safeOpen: safeOpenMock,
-    showInFolder: showPathInFolderMock
+    showInFolder: showPathInFolderMock,
+    writeIfUnchangedByPath: writeIfUnchangedByPathMock
   }
 })
+
+import { PathStaleVersionError } from '@main/utils/file'
+import { fileErrorCodes } from '@shared/ipc/errors/file'
 
 import { fileHandlers } from '../file'
 
@@ -36,8 +48,10 @@ const metadata = {
 }
 
 const batchResult = { succeeded: [ids[0]], failed: [{ id: ids[1], error: 'failed' }] }
+const version = { mtime: 1, size: 4 }
 
 const fileManager = {
+  read: vi.fn(),
   getMetadata: vi.fn(),
   getPhysicalPath: vi.fn(),
   batchGetDanglingStates: vi.fn(),
@@ -62,6 +76,66 @@ beforeEach(() => {
 const ctx = { senderId: null }
 
 describe('fileHandlers', () => {
+  it('reads binary content by path through the generic FileHandle route', async () => {
+    const result = { content: new Uint8Array([3, 4]), mime: 'text/markdown', version }
+    readByPathMock.mockResolvedValueOnce(result)
+
+    await expect(
+      fileHandlers['file.read'](
+        { handle: { kind: 'path', path: '/tmp/report.md' }, options: { encoding: 'binary' } },
+        ctx
+      )
+    ).resolves.toBe(result)
+
+    expect(readByPathMock).toHaveBeenCalledWith('/tmp/report.md', { encoding: 'binary' })
+  })
+
+  it('reads binary content from a managed entry through the generic FileHandle route', async () => {
+    const result = { content: new Uint8Array([3, 4]), mime: 'text/markdown', version }
+    fileManager.read.mockResolvedValueOnce(result)
+
+    await expect(
+      fileHandlers['file.read']({ handle: { kind: 'entry', entryId: ids[0] }, options: { encoding: 'binary' } }, ctx)
+    ).resolves.toBe(result)
+
+    expect(fileManager.read).toHaveBeenCalledWith(ids[0], { encoding: 'binary' })
+  })
+
+  it('writes a path only when its version is unchanged', async () => {
+    const data = new Uint8Array([5, 6])
+    const expectedVersion = { mtime: 1, size: 4 }
+    const nextVersion = { mtime: 2, size: 2 }
+    writeIfUnchangedByPathMock.mockResolvedValueOnce(nextVersion)
+
+    await expect(
+      fileHandlers['file.write_if_unchanged'](
+        {
+          path: '/tmp/report.md',
+          data,
+          expectedVersion
+        },
+        ctx
+      )
+    ).resolves.toBe(nextVersion)
+
+    expect(writeIfUnchangedByPathMock).toHaveBeenCalledWith('/tmp/report.md', data, expectedVersion)
+  })
+
+  it('maps path version conflicts to FILE_STALE_VERSION', async () => {
+    const data = new Uint8Array([5, 6])
+    const expected = { mtime: 1, size: 4 }
+    const current = { mtime: 2, size: 8 }
+    writeIfUnchangedByPathMock.mockRejectedValueOnce(
+      new PathStaleVersionError('/tmp/report.md' as FilePath, expected, current)
+    )
+    await expect(
+      fileHandlers['file.write_if_unchanged']({ path: '/tmp/report.md', data, expectedVersion: expected }, ctx)
+    ).rejects.toMatchObject({
+      code: fileErrorCodes.STALE_VERSION,
+      data: { expected, current }
+    })
+  })
+
   it('batch_get_metadata dispatches FileHandle items inside the IPC adapter', async () => {
     const items = [
       { key: ids[0], handle: { kind: 'entry' as const, entryId: ids[0] } },

@@ -352,7 +352,7 @@ describe('TopicRightPane', () => {
     expect(document.querySelector('[data-shell-tab-shortcut="trace"]')).toHaveAttribute('aria-pressed', 'true')
   })
 
-  it('keeps visited capabilities mounted across switches without offering maximize', () => {
+  it('keeps visited capabilities mounted across switches and offers maximize only for the branch pane', () => {
     render(
       <TopicRightPane
         topicId="topic-a"
@@ -366,7 +366,11 @@ describe('TopicRightPane', () => {
 
     fireEvent.click(document.querySelector('[data-shell-tab-shortcut="branch"]') as HTMLElement)
     const branchPane = screen.getByTestId('branch-pane')
-    expect(screen.queryByRole('button', { name: 'common.maximize' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-maximized', 'true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-maximized', 'false')
 
     fireEvent.click(document.querySelector('[data-shell-tab-shortcut="trace"]') as HTMLElement)
 

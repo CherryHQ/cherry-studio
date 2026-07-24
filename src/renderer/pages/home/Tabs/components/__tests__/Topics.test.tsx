@@ -1966,7 +1966,7 @@ describe('Topics', () => {
     let indicatorRoot = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
     let indicator = indicatorRoot?.querySelector('.animation-pulse')
     expect(indicatorRoot).not.toHaveClass('absolute')
-    expect(indicator).toHaveClass('bg-(--color-warning)')
+    expect(indicator).toHaveClass('bg-warning')
     expect(topicRow.querySelector('[data-deleting]')).not.toBeInTheDocument()
     expect(topicStreamStatusMocks.markSeen).not.toHaveBeenCalled()
 
@@ -1979,7 +1979,7 @@ describe('Topics', () => {
     indicatorRoot = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
     indicator = indicatorRoot?.querySelector('span')
     expect(indicatorRoot).not.toHaveClass('absolute')
-    expect(indicator).toHaveClass('bg-(--color-success)')
+    expect(indicator).toHaveClass('bg-success')
     expect(indicator).not.toHaveClass('animation-pulse')
     expect(topicRow.querySelector('[data-deleting]')).not.toBeInTheDocument()
 
@@ -2009,7 +2009,7 @@ describe('Topics', () => {
 
     expect(indicator).toBeInTheDocument()
     expect(indicator).toHaveClass('absolute', 'right-1.5', 'group-hover:opacity-0')
-    expect(indicator?.querySelector('span')).toHaveClass('animation-pulse', 'bg-(--color-warning)')
+    expect(indicator?.querySelector('span')).toHaveClass('animation-pulse', 'bg-warning')
     expect(within(topicRow).getByLabelText('Delete')).toBeInTheDocument()
   })
 

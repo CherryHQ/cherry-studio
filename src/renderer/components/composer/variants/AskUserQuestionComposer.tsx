@@ -196,7 +196,9 @@ export default function AskUserQuestionComposer({ request, onRespond, className 
     <div
       data-composer-viewport-inset-target=""
       className={cn('relative z-2 flex flex-col px-4.5 pt-0 pb-4.5', className)}>
-      <div className="rounded-[17px] border-[0.5px] border-border bg-background/90 p-2.5 backdrop-blur">
+      <div
+        className="rounded-[17px] border-[0.5px] border-border p-2.5 backdrop-blur"
+        style={{ backgroundColor: 'color-mix(in srgb, var(--background) 88%, transparent)' }}>
         <div className="flex items-center justify-between gap-3 px-1">
           <h2 className="line-clamp-1 min-w-0 flex-1 font-semibold text-foreground text-sm leading-5">
             {currentQuestion.question}

@@ -149,8 +149,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
             target="_blank"
             rel="noreferrer"
             href={provider.apiKeyUrl}
-            className="mt-3.5 inline-flex items-center font-medium text-xs hover:underline"
-            style={{ color: 'var(--color-blue-600)' }}>
+            className="mt-3.5 inline-flex items-center font-medium text-blue-600 text-xs hover:underline">
             {t('settings.provider.get_api_key')}
           </a>
         )}

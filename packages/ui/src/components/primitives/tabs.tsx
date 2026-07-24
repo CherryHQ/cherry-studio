@@ -109,14 +109,14 @@ const tabsTriggerVariants = cva(
         ],
         workflow: [
           'relative gap-1.5 px-1 py-1.5 text-sm font-normal',
-          'text-foreground-muted hover:text-foreground',
+          'text-muted-foreground hover:text-foreground',
           'rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
           'data-[state=active]:text-foreground data-[state=active]:font-semibold',
           'data-[state=active]:underline data-[state=active]:underline-offset-4 data-[state=active]:decoration-1',
           "[&:not(:first-child)]:before:content-['›']",
           '[&:not(:first-child)]:before:mr-3 [&:not(:first-child)]:before:text-base',
           '[&:not(:first-child)]:before:font-normal [&:not(:first-child)]:before:no-underline',
-          '[&:not(:first-child)]:before:text-foreground-muted'
+          '[&:not(:first-child)]:before:text-muted-foreground'
         ]
       },
       orientation: {

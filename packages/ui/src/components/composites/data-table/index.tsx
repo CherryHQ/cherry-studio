@@ -87,9 +87,9 @@ const tableBodyRowClassName =
   'border-border/60 bg-background-subtle hover:bg-muted/40 data-[state=selected]:bg-muted/60'
 const tableBodyCellClassName = 'px-3 py-2.5 text-sm font-medium leading-5 text-foreground'
 const tableExpandedCellClassName = 'bg-muted/20 px-3 py-2.5 text-sm font-medium leading-5 text-foreground'
-const tableEmptyCellClassName = 'h-24 px-3 py-6 text-center text-sm font-medium text-foreground-muted'
+const tableEmptyCellClassName = 'h-24 px-3 py-6 text-center text-sm font-medium text-muted-foreground'
 const tableExpandButtonClassName =
-  'flex size-6 items-center justify-center rounded-md text-foreground-muted transition-colors hover:bg-accent/70 hover:text-foreground'
+  'flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground'
 
 function getColumnMeta<TData>(cell: Cell<TData, unknown>): DataTableColumnMeta | undefined {
   return cell.column.columnDef.meta as DataTableColumnMeta | undefined

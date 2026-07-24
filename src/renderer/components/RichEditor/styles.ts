@@ -16,9 +16,9 @@ const STYLE_CONTENT = `
   display: flex;
   flex-direction: column;
   position: relative;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--border);
   border-radius: 6px;
-  background: var(--color-background);
+  background: var(--background);
   overflow-y: hidden;
   min-height: 0;
 }
@@ -54,29 +54,29 @@ const STYLE_CONTENT = `
   align-items: center;
   gap: 4px;
   padding: 4px 8px;
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-background-subtle);
+  border-bottom: 1px solid var(--border);
+  background: var(--background-subtle);
   overflow-x: auto;
   overflow-y: hidden;
   white-space: nowrap;
   scrollbar-width: thin;
-  scrollbar-color: var(--color-border) var(--color-background-subtle);
+  scrollbar-color: var(--border) var(--background-subtle);
 }
   position: sticky;
   top: 0;
   z-index: 10;
 
 .ToolbarWrapper::-webkit-scrollbar-track {
-  background: var(--color-background-subtle);
+  background: var(--background-subtle);
 }
 
 .ToolbarWrapper::-webkit-scrollbar-thumb {
-  background: var(--color-border);
+  background: var(--border);
   border-radius: 3px;
 }
 
 .ToolbarWrapper::-webkit-scrollbar-thumb:hover {
-  background: var(--color-foreground-muted);
+  background: color-mix(in oklch, var(--foreground) 44.4444%, transparent);
 }
 
 .ToolbarButton {
@@ -88,19 +88,19 @@ const STYLE_CONTENT = `
   border: none;
   border-radius: 4px;
   background: transparent;
-  color: var(--color-foreground);
+  color: var(--foreground);
   cursor: pointer;
   transition: all 0.2s ease;
   flex-shrink: 0;
 }
 
 .ToolbarButton:hover:not(:disabled) {
-  background: var(--color-accent);
+  background: var(--accent);
 }
 
 .ToolbarButton.is-active {
-  background: var(--color-muted);
-  color: var(--color-foreground);
+  background: var(--muted);
+  color: var(--foreground);
 }
 
 .ToolbarButton:disabled,
@@ -120,7 +120,7 @@ const STYLE_CONTENT = `
 .ToolbarDivider {
   width: 1px;
   height: 20px;
-  background: var(--color-border);
+  background: var(--border);
   margin: 0 4px;
   flex-shrink: 0;
 }
@@ -145,14 +145,14 @@ const STYLE_CONTENT = `
 
 .RichEditorContent .plusButton:hover,
 .RichEditorContent .drag-handle:hover {
-  background: var(--color-accent);
+  background: var(--accent);
 }
 
 .RichEditorContent .plusButton svg,
 .RichEditorContent .drag-handle svg {
   width: 1.25rem;
   height: 1.25rem;
-  color: var(--color-foreground-secondary);
+  color: var(--muted-foreground);
 }
 
 .RichEditorContent .plusButton {
@@ -196,7 +196,7 @@ const STYLE_CONTENT = `
 
 .RichEditorContent .ProseMirror .rich-editor-link:hover {
   text-decoration-thickness: 2px;
-  background-color: var(--color-accent);
+  background-color: var(--accent);
   padding: 1px 2px;
   margin: -1px -2px;
   border-radius: 3px;
@@ -253,7 +253,7 @@ const STYLE_CONTENT = `
 .TableOfContentsWrapper .toc-item a {
   display: block;
   padding: 0.25rem 0.5rem;
-  color: var(--color-foreground-secondary);
+  color: color-mix(in oklch, var(--foreground) 66.6667%, transparent);
   text-decoration: none;
   border-radius: 4px;
   font-size: 0.9rem;
@@ -262,13 +262,13 @@ const STYLE_CONTENT = `
 }
 
 .TableOfContentsWrapper .toc-item a:hover {
-  background: var(--color-accent);
-  color: var(--color-foreground);
+  background: var(--accent);
+  color: var(--foreground);
 }
 
 .TableOfContentsWrapper .toc-item.is-active a {
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
+  background: color-mix(in srgb, var(--primary) 60%, transparent);
+  color: var(--primary);
   font-weight: 500;
 }
 
@@ -279,7 +279,7 @@ const STYLE_CONTENT = `
 .TableOfContentsWrapper .toc-empty-state {
   text-align: center;
   padding: 2rem 1rem;
-  color: var(--color-foreground-muted);
+  color: color-mix(in oklch, var(--foreground) 44.4444%, transparent);
 }
 
 .TableOfContentsWrapper .toc-empty-state p {
@@ -330,7 +330,7 @@ const STYLE_CONTENT = `
   appearance: none;
   border: none;
   padding: 0;
-  background: var(--color-border);
+  background: var(--border);
   height: 4px;
   border-radius: 3px;
   cursor: pointer;
@@ -345,18 +345,18 @@ const STYLE_CONTENT = `
 }
 
 .ToCDock .toc-rail-button:hover {
-  background: var(--color-foreground);
+  background: var(--foreground);
   opacity: 1;
   transform: scaleX(1.05);
 }
 
 .ToCDock .toc-rail-button.active {
-  background: var(--color-foreground);
+  background: var(--foreground);
   opacity: 1;
 }
 
 .ToCDock .toc-rail-button.scrolled-over {
-  background: var(--color-border);
+  background: var(--border);
   opacity: 0.9;
 }
 
@@ -393,8 +393,8 @@ const STYLE_CONTENT = `
   width: auto;
   max-width: 360px;
   min-width: 220px;
-  background: var(--color-background);
-  border: 1px solid var(--color-border);
+  background: var(--background);
+  border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
   padding: 8px 8px 0;
@@ -508,7 +508,7 @@ export const ToolbarButton = ({
     ref,
     disabled,
     className: cn('ToolbarButton', $active && 'is-active', $disabled && 'is-disabled', className),
-    style: $active ? { ...style, background: 'var(--color-muted)', color: 'var(--color-foreground)' } : style
+    style: $active ? { ...style, background: 'var(--muted)', color: 'var(--foreground)' } : style
   })
 }
 ToolbarButton.displayName = 'ToolbarButton'

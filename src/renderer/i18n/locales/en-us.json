@@ -217,6 +217,24 @@
       "code": "Code",
       "code_unavailable": "Source view not available for binary files",
       "default_app": "Default app",
+      "edit": {
+        "conflict": {
+          "description": "This file changed on disk after editing started. Reloading will discard the current draft and load the latest file.",
+          "keep_draft": "Keep draft",
+          "reload": "Reload file",
+          "title": "File changed on disk"
+        },
+        "discard": "Discard changes",
+        "leave": {
+          "description": "If you continue, your unsaved changes to this file will be lost.",
+          "discard_and_continue": "Discard and continue",
+          "title": "Discard unsaved changes?"
+        },
+        "refresh_failed": "Unable to reload the latest file content.",
+        "save_failed": "Unable to save this file. Automatic saving is paused until you retry or discard the changes.",
+        "unsaved": "Unsaved",
+        "unsupported": "This file can be previewed but not safely edited here. Editing supports UTF-8 text files with consistent LF or CRLF line endings."
+      },
       "empty": {
         "description": "Start chatting with the agent; generated code and live previews will appear here.",
         "title": "Ready"
@@ -4317,6 +4335,12 @@
     },
     "characters": "Characters",
     "collapse": "Collapse",
+    "conflict": {
+      "description": "This note was changed outside the editor. Reload to load the latest version (your unsaved edits will be discarded), or keep editing.",
+      "keep_draft": "Keep editing",
+      "reload": "Reload",
+      "title": "Note changed on disk"
+    },
     "content_placeholder": "Please enter the note content...",
     "copyContent": "Copy Content",
     "create_folder_failed": "Failed to create folder",
@@ -4338,7 +4362,13 @@
     "export_to_pdf_failed": "Failed to export to PDF",
     "export_to_pdf_success": "Exported to PDF",
     "export_to_word_failed": "Failed to export to Word",
+    "file_removed_draft": "This note was removed from disk. Your unsaved draft is still available in the editor.",
     "folder": "folder",
+    "leave": {
+      "description": "Leaving this note will discard your unsaved edits. Do you want to continue?",
+      "discard_and_continue": "Discard and continue",
+      "title": "Discard unsaved note edits?"
+    },
     "load_failed": "Failed to load note",
     "load_failed_description": "The file could not be read. Editing is disabled to protect the note content.",
     "metadata_sync_failed": "File updated, but note state sync failed. Please retry the operation.",
@@ -4361,6 +4391,9 @@
     "save": "Save to Notes",
     "save_blocked_load_failed": "Save blocked because the note failed to load",
     "save_failed": "Failed to save note",
+    "save_failure": {
+      "description": "This note could not be saved. Your edits remain in the editor and automatic saving is paused."
+    },
     "search": {
       "both": "Name+Content",
       "content": "Content",

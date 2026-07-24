@@ -319,7 +319,7 @@ const PaintingSkeletonGrid: FC<{ imageUrl?: string; onRevealReady?: () => void }
     <div
       ref={ref}
       className="relative flex h-full w-full items-center justify-center overflow-hidden"
-      style={{ color: 'var(--color-foreground)' }}>
+      style={{ color: 'var(--foreground)' }}>
       {grid && (
         <div
           key={gridKey}

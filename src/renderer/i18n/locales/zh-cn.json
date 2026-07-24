@@ -217,6 +217,24 @@
       "code": "代码",
       "code_unavailable": "二进制文件无法显示源代码",
       "default_app": "默认应用",
+      "edit": {
+        "conflict": {
+          "description": "开始编辑后，此文件已在磁盘上发生变化。重新加载会放弃当前草稿并读取最新文件。",
+          "keep_draft": "保留草稿",
+          "reload": "重新加载文件",
+          "title": "磁盘上的文件已发生变化"
+        },
+        "discard": "放弃修改",
+        "leave": {
+          "description": "如果继续，当前文件中尚未保存的修改将会丢失。",
+          "discard_and_continue": "放弃并继续",
+          "title": "放弃未保存的修改？"
+        },
+        "refresh_failed": "无法重新加载最新文件内容。",
+        "save_failed": "无法保存此文件。自动保存已暂停，请重试或放弃修改。",
+        "unsaved": "未保存",
+        "unsupported": "此文件可以预览，但暂时无法在这里安全编辑。目前仅支持换行符统一为 LF 或 CRLF 的 UTF-8 文本文件。"
+      },
       "empty": {
         "description": "开始与智能体对话，生成的代码和实时预览将在此处显示。",
         "title": "准备就绪"
@@ -4317,6 +4335,12 @@
     },
     "characters": "字符",
     "collapse": "收起",
+    "conflict": {
+      "description": "该笔记已在编辑器之外被修改。可重新加载以获取最新版本（未保存的编辑将被丢弃），或继续编辑。",
+      "keep_draft": "继续编辑",
+      "reload": "重新加载",
+      "title": "笔记已在磁盘上更改"
+    },
     "content_placeholder": "请输入笔记内容...",
     "copyContent": "复制内容",
     "create_folder_failed": "创建文件夹失败",
@@ -4338,7 +4362,13 @@
     "export_to_pdf_failed": "导出为 PDF 失败",
     "export_to_pdf_success": "已导出为 PDF",
     "export_to_word_failed": "导出为 Word 失败",
+    "file_removed_draft": "该笔记已从磁盘删除，未保存的草稿仍保留在编辑器中。",
     "folder": "文件夹",
+    "leave": {
+      "description": "离开当前笔记将丢失尚未保存的编辑。是否继续？",
+      "discard_and_continue": "放弃并继续",
+      "title": "放弃未保存的笔记修改？"
+    },
     "load_failed": "笔记加载失败",
     "load_failed_description": "无法读取该文件。为保护笔记内容，已禁用编辑。",
     "metadata_sync_failed": "文件已更新，但笔记状态同步失败，请重试该操作。",
@@ -4361,6 +4391,9 @@
     "save": "保存到笔记",
     "save_blocked_load_failed": "笔记加载失败，已阻止保存",
     "save_failed": "保存笔记失败",
+    "save_failure": {
+      "description": "该笔记无法保存。编辑内容仍保留在编辑器中，自动保存已暂停。"
+    },
     "search": {
       "both": "名称+内容",
       "content": "内容",
