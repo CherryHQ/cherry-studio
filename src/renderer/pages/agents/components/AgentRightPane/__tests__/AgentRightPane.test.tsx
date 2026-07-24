@@ -1,7 +1,8 @@
 import { useRightPanelState } from '@renderer/components/chat/panes/Shell'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { TreeDir, TreeDirRoot, TreeFile } from '@shared/utils/file'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type {
   ButtonHTMLAttributes,
   ComponentProps,
@@ -19,8 +20,10 @@ const {
   buildAgentToolFlowProjectionMock,
   fileTreeModelState,
   resolveArtifactPaneFileSelectionMock,
+  systemFileTreeState,
   useArtifactFileTreeModelMock,
-  useCommandHandlerMock
+  useCommandHandlerMock,
+  useDirectoryTreeMock
 } = vi.hoisted(() => ({
   buildAgentToolFlowProjectionMock: vi.fn(),
   fileTreeModelState: {
@@ -28,8 +31,13 @@ const {
     nodeById: new Map<string, { kind: string }>()
   },
   resolveArtifactPaneFileSelectionMock: vi.fn(),
+  systemFileTreeState: {
+    root: null as TreeDirRoot | null,
+    version: 0
+  },
   useArtifactFileTreeModelMock: vi.fn(),
-  useCommandHandlerMock: vi.fn()
+  useCommandHandlerMock: vi.fn(),
+  useDirectoryTreeMock: vi.fn()
 }))
 
 vi.mock('../agentRightPaneProjection', async (importActual) => {
@@ -181,6 +189,7 @@ vi.mock('@renderer/components/chat/panes/OpenExternalAppButton', () => ({
 }))
 
 vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => ({
+  ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS: { watchMissingRoot: true },
   isSelectableFileNode: (nodeById: ReadonlyMap<string, { kind: string }>, selectedFile: string | null) =>
     Boolean(selectedFile && nodeById.get(selectedFile)?.kind === 'file'),
   useArtifactFileTreeModel: useArtifactFileTreeModelMock
@@ -220,6 +229,10 @@ vi.mock('@renderer/hooks/tab', () => ({
 
 vi.mock('@renderer/hooks/useFileSize', () => ({
   useFileSize: () => undefined
+}))
+
+vi.mock('@renderer/hooks/useDirectoryTree', () => ({
+  useDirectoryTree: useDirectoryTreeMock
 }))
 
 vi.mock('@renderer/hooks/useIsTextFile', () => ({
@@ -308,6 +321,39 @@ function UserOpenSeqProbe() {
   return <output data-testid="user-open-seq">{userOpenSeq}</output>
 }
 
+type StatusTaskFixture = {
+  id: string
+  status: 'pending' | 'in_progress' | 'completed' | 'error'
+  title: string
+}
+
+function renderStatusTasks(tasks: StatusTaskFixture[], { openPanel = true }: { openPanel?: boolean } = {}) {
+  const parts = tasks.map(
+    (task) =>
+      ({
+        type: 'data-agent-task-event',
+        data: {
+          event: 'notification',
+          taskId: task.id,
+          status: task.status,
+          title: task.title
+        }
+      }) as unknown as CherryMessagePart
+  )
+  const messages = [{ id: 'm1', role: 'assistant', parts, metadata: {} }] as CherryUIMessage[]
+
+  render(
+    <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: parts }}>
+      <AgentRightPane.Shortcuts />
+      <AgentRightPane.Viewport />
+    </TestAgentRightPane>
+  )
+
+  if (openPanel) {
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+  }
+}
+
 describe('AgentRightPane', () => {
   const triggerRightSidebarShortcut = () => {
     const handler = useCommandHandlerMock.mock.calls
@@ -323,6 +369,9 @@ describe('AgentRightPane', () => {
     fileTreeModelState.hasLoaded = false
     fileTreeModelState.nodeById = new Map()
     resolveArtifactPaneFileSelectionMock.mockReturnValue(null)
+    systemFileTreeState.root = new TreeDirRoot('/system-workspace')
+    systemFileTreeState.version = 0
+    useDirectoryTreeMock.mockImplementation(() => systemFileTreeState)
     useArtifactFileTreeModelMock.mockImplementation(() => ({
       hasLoaded: fileTreeModelState.hasLoaded,
       nodeById: fileTreeModelState.nodeById
@@ -451,7 +500,12 @@ describe('AgentRightPane', () => {
     expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeNull()
 
     rerender(
-      <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
+      <TestAgentRightPane
+        sessionId="session-a"
+        workspacePath="/workspace"
+        workspaceType="user"
+        messages={[]}
+        partsByMessageId={{}}>
         <ArtifactCapabilityProbe />
         <AgentRightPane.Shortcuts />
       </TestAgentRightPane>
@@ -459,6 +513,61 @@ describe('AgentRightPane', () => {
 
     expect(screen.getByTestId('can-open-artifact-file')).toHaveTextContent('true')
     expect(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeInTheDocument()
+  })
+
+  it('shows the files shortcut only after a system workspace contains a file', () => {
+    const { rerender } = render(
+      <TestAgentRightPane
+        sessionId="session-a"
+        workspacePath="/system-workspace"
+        workspaceType="system"
+        messages={[]}
+        partsByMessageId={{}}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeNull()
+    expect(useDirectoryTreeMock).toHaveBeenLastCalledWith('/system-workspace', { watchMissingRoot: true })
+
+    const systemWorkspaceRoot = systemFileTreeState.root
+    if (!systemWorkspaceRoot) throw new Error('Expected the system workspace tree root')
+    const outputDirectory = new TreeDir({ path: '/system-workspace/output' })
+    systemWorkspaceRoot.attachChild(outputDirectory)
+    systemFileTreeState.version += 1
+    rerender(
+      <TestAgentRightPane
+        sessionId="session-a"
+        workspacePath="/system-workspace"
+        workspaceType="system"
+        messages={[]}
+        partsByMessageId={{}}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    expect(screen.queryByRole('button', { name: 'agent.right_pane.tabs.files' })).toBeNull()
+
+    outputDirectory.attachChild(new TreeFile({ path: '/system-workspace/output/artifact.md' }))
+    systemFileTreeState.version += 1
+    rerender(
+      <TestAgentRightPane
+        sessionId="session-a"
+        workspacePath="/system-workspace"
+        workspaceType="system"
+        messages={[]}
+        partsByMessageId={{}}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' }))
+    expect(useArtifactFileTreeModelMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ watchMissingRoot: true, workspacePath: '/system-workspace' })
+    )
   })
 
   it('hides conversation shortcuts when the conversation is unavailable', () => {
@@ -580,6 +689,65 @@ describe('AgentRightPane', () => {
 
     expect(buildAgentToolFlowProjectionMock).toHaveBeenCalledTimes(callsWhileActive)
     expect(screen.getByTestId('message-list')).toBeInTheDocument()
+  })
+
+  it.each([
+    { status: 'pending', iconClassNames: ['text-muted-foreground'] },
+    { status: 'in_progress', iconClassNames: ['animate-spin', 'text-info'] },
+    { status: 'completed', iconClassNames: ['text-success'] },
+    { status: 'error', iconClassNames: ['text-destructive'] }
+  ] as const)('centers the $status task icon within the first text line', ({ status, iconClassNames }) => {
+    const title = `${status} task`
+    renderStatusTasks([{ id: status, status, title }])
+
+    const taskText = screen.getByText(title)
+    const iconContainer = taskText.parentElement?.previousElementSibling
+
+    expect(taskText).toHaveClass('leading-5')
+    expect(iconContainer).toHaveClass('flex', 'size-5', 'shrink-0', 'items-center', 'justify-center')
+    expect(iconContainer?.querySelector('svg')).toHaveClass(...iconClassNames)
+  })
+
+  it('keeps a wrapping task icon aligned with the first text line', () => {
+    const title =
+      'Review every renderer task state and verify the status icon remains aligned when this label wraps across lines'
+    renderStatusTasks([{ id: 'wrapping-task', status: 'pending', title }])
+
+    const taskText = screen.getByText(title)
+    const textContainer = taskText.parentElement
+    const row = textContainer?.parentElement
+    const iconContainer = textContainer?.previousElementSibling
+
+    expect(row).toHaveClass('items-start')
+    expect(taskText).toHaveClass('wrap-break-word', 'leading-5')
+    expect(iconContainer).toHaveClass('flex', 'size-5', 'shrink-0', 'items-center', 'justify-center')
+  })
+
+  it('keeps shortcut preview task icons aligned while the status panel stays closed', () => {
+    const shortTitle = 'Review task state'
+    const wrappingTitle =
+      'Review every task state shown in the shortcut preview and verify this longer label keeps wrapping below its first line'
+    renderStatusTasks(
+      [
+        { id: 'short-task', status: 'pending', title: shortTitle },
+        { id: 'wrapping-task', status: 'in_progress', title: wrappingTitle }
+      ],
+      { openPanel: false }
+    )
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    const preview = screen.getByTestId('status-shortcut-preview')
+
+    for (const title of [shortTitle, wrappingTitle]) {
+      const taskText = within(preview).getByText(title)
+      const row = taskText.closest('li')
+      const iconContainer = taskText.previousElementSibling
+
+      expect(row).toHaveClass('flex', 'min-w-0', 'items-start')
+      expect(taskText.parentElement).toBe(row)
+      expect(taskText).toHaveClass('wrap-break-word', 'min-w-0', 'flex-1', 'leading-5')
+      expect(iconContainer).toHaveClass('flex', 'size-5', 'shrink-0', 'items-center', 'justify-center')
+    }
   })
 
   it('renders artifact status filenames with neutral text', () => {

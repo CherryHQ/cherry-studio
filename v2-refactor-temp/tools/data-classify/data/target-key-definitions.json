@@ -20,6 +20,13 @@
       "description": "Status of the main-window first-run provider setup onboarding flow"
     },
     {
+      "targetKey": "app.privacy.policy_version",
+      "type": "string",
+      "defaultValue": "",
+      "status": "classified",
+      "description": "Latest privacy policy version acknowledged by the user"
+    },
+    {
       "targetKey": "app.window.position.x",
       "type": "number",
       "defaultValue": 0,
@@ -92,14 +99,14 @@
     {
       "targetKey": "chat.input.toolbar.pinned_tools",
       "type": "string[]",
-      "defaultValue": ["thinking", "web-search"],
+      "defaultValue": ["composer:new-conversation", "thinking", "web-search"],
       "status": "classified",
       "description": "Ordered tool ids pinned on the chat composer toolbar (v2 new feature, no v1 source)"
     },
     {
       "targetKey": "agent.input.toolbar.pinned_tools",
       "type": "string[]",
-      "defaultValue": ["thinking", "skills"],
+      "defaultValue": ["composer:new-session", "thinking", "skills"],
       "status": "classified",
       "description": "Ordered tool ids pinned on the agent composer toolbar (v2 new feature, no v1 source)"
     },
