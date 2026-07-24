@@ -21,7 +21,6 @@ const {
   bulkUpdateMock,
   lookupModelMock,
   resolveModelsMock,
-  listProviderRegistryModelsMock,
   getImageGenerationSupportMock
 } = vi.hoisted(() => ({
   listMock: vi.fn(),
@@ -33,7 +32,6 @@ const {
   bulkUpdateMock: vi.fn(),
   lookupModelMock: vi.fn(),
   resolveModelsMock: vi.fn(),
-  listProviderRegistryModelsMock: vi.fn(),
   getImageGenerationSupportMock: vi.fn()
 }))
 
@@ -53,12 +51,13 @@ vi.mock('@data/services/ProviderRegistryService', () => ({
   providerRegistryService: {
     lookupModel: lookupModelMock,
     resolveModels: resolveModelsMock,
-    listProviderRegistryModels: listProviderRegistryModelsMock,
     getImageGenerationSupport: getImageGenerationSupportMock
   }
 }))
 
 import { modelHandlers } from '../models'
+
+const DISABLED_REASONING_PROFILE = { format: 'none', wire: { disabled: true } } as const
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -143,8 +142,7 @@ describe('/models', () => {
     const registryData = {
       presetModel: { id: 'gpt-4o', name: 'GPT-4o' },
       registryOverride: null,
-      defaultChatEndpoint: 'openai-chat-completions' as const,
-      reasoningFormatTypes: {}
+      reasoningProfile: { format: 'openai-chat' as const, wire: { disabled: true as const } }
     }
     lookupModelMock.mockReturnValue(registryData)
     createMock.mockReturnValue([{ id: 'openai::gpt-4o' }])
@@ -206,8 +204,16 @@ describe('/models', () => {
   })
 
   it('accepts a bare array body and delegates to create', async () => {
-    const registryData1 = { presetModel: { id: 'gpt-4o', name: 'GPT-4o' }, registryOverride: null }
-    const registryData2 = { presetModel: { id: 'gpt-5', name: 'GPT-5' }, registryOverride: null }
+    const registryData1 = {
+      presetModel: { id: 'gpt-4o', name: 'GPT-4o' },
+      registryOverride: null,
+      reasoningProfile: DISABLED_REASONING_PROFILE
+    }
+    const registryData2 = {
+      presetModel: { id: 'gpt-5', name: 'GPT-5' },
+      registryOverride: null,
+      reasoningProfile: DISABLED_REASONING_PROFILE
+    }
     const created = [{ id: 'openai::gpt-4o' }, { id: 'openai::gpt-5' }]
 
     lookupModelMock.mockReturnValueOnce(registryData1).mockReturnValueOnce(registryData2)
@@ -235,7 +241,11 @@ describe('/models', () => {
 
   it('falls back to custom model creation when registry lookup returns NOT_FOUND for one batch item', async () => {
     const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
-    const registryData = { presetModel: { id: 'gpt-4o', name: 'GPT-4o' }, registryOverride: null }
+    const registryData = {
+      presetModel: { id: 'gpt-4o', name: 'GPT-4o' },
+      registryOverride: null,
+      reasoningProfile: DISABLED_REASONING_PROFILE
+    }
 
     lookupModelMock.mockReturnValueOnce(registryData).mockImplementationOnce(() => {
       throw DataApiErrorFactory.notFound('Model', 'my-model')
@@ -267,7 +277,11 @@ describe('/models', () => {
 
   it('propagates create service errors without wrapping them', async () => {
     const serviceError = DataApiErrorFactory.conflict('Model', 'openai/gpt-4o')
-    const registryData = { presetModel: { id: 'gpt-4o', name: 'GPT-4o' }, registryOverride: null }
+    const registryData = {
+      presetModel: { id: 'gpt-4o', name: 'GPT-4o' },
+      registryOverride: null,
+      reasoningProfile: DISABLED_REASONING_PROFILE
+    }
 
     lookupModelMock.mockReturnValueOnce(registryData)
     createMock.mockImplementationOnce(() => {
@@ -445,29 +459,14 @@ describe('/providers/:providerId/models:resolve', () => {
     expect(resolveModelsMock).toHaveBeenCalledWith('openai', ['gpt-4o', 'o3'])
   })
 
-  it('lists active registry provider models when ids are omitted', async () => {
-    listProviderRegistryModelsMock.mockReturnValueOnce([{ id: 'openai::gpt-4o' }])
+  it('requires caller-provided ids instead of doubling as the preset catalog endpoint', async () => {
+    await expect(
+      modelHandlers['/providers/:providerId/models:resolve'].GET({
+        params: { providerId: 'openai' }
+      } as never)
+    ).rejects.toThrow()
 
-    const result = await modelHandlers['/providers/:providerId/models:resolve'].GET({
-      params: { providerId: 'openai' },
-      query: {}
-    } as never)
-
-    expect(listProviderRegistryModelsMock).toHaveBeenCalledWith({ providerId: 'openai' })
     expect(resolveModelsMock).not.toHaveBeenCalled()
-    expect(result).toEqual([{ id: 'openai::gpt-4o' }])
-  })
-
-  it('lists active registry provider models when query is omitted', async () => {
-    listProviderRegistryModelsMock.mockReturnValueOnce([{ id: 'openai::gpt-4o' }])
-
-    const result = await modelHandlers['/providers/:providerId/models:resolve'].GET({
-      params: { providerId: 'openai' }
-    } as never)
-
-    expect(listProviderRegistryModelsMock).toHaveBeenCalledWith({ providerId: 'openai' })
-    expect(resolveModelsMock).not.toHaveBeenCalled()
-    expect(result).toEqual([{ id: 'openai::gpt-4o' }])
   })
 
   it('rejects empty ids arrays before calling the registry service', async () => {

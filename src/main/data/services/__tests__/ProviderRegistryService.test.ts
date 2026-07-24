@@ -194,6 +194,37 @@ describe('ProviderRegistryService', () => {
     MockMainDbServiceUtils.setDb(dbh.db)
   })
 
+  describe('getProviderPreset', () => {
+    it('returns only the requested registry fields', () => {
+      setupRegistryData()
+      const preset = providerRegistryService.getProviderPreset('openai', ['endpointConfigs'])
+
+      expect(preset.endpointConfigs?.['openai-chat-completions']?.baseUrl).toBe('https://api.openai.com/v1')
+      expect(preset).not.toHaveProperty('models')
+    })
+
+    it('resolves a custom provider through presetProviderId and preserves its model identities', () => {
+      setupRegistryData()
+      const preset = providerRegistryService.getProviderPreset(
+        'my-openai-clone',
+        ['endpointConfigs', 'models'],
+        'openai'
+      )
+
+      expect(preset.endpointConfigs?.['openai-chat-completions']?.baseUrl).toBe('https://api.openai.com/v1')
+      expect(preset.models?.map((model) => model.id)).toEqual(['my-openai-clone::gpt-4o'])
+      expect(preset.models?.[0].providerId).toBe('my-openai-clone')
+    })
+
+    it('uses explicit empty semantics when the requested preset data is unavailable', () => {
+      setupRegistryData()
+
+      expect(
+        providerRegistryService.getProviderPreset('does-not-exist', ['endpointConfigs', 'models'], 'also-missing')
+      ).toEqual({ endpointConfigs: null, models: [] })
+    })
+  })
+
   describe('registry load failure', () => {
     it('should throw when models.json cannot be read', async () => {
       setupRegistryData()
@@ -239,6 +270,30 @@ describe('ProviderRegistryService', () => {
       expect(models[0].maxOutputTokens).toBe(4096)
     })
 
+    it('uses a persisted presetProviderId for lookup and catalog models while keeping runtime identities', async () => {
+      setupRegistryData()
+      await dbh.db.insert(userProviderTable).values({
+        providerId: 'custom-openai-models',
+        presetProviderId: 'openai',
+        name: 'Custom OpenAI',
+        orderKey: generateOrderKeyBetween(null, null)
+      })
+
+      const resolved = providerRegistryService.resolveModels('custom-openai-models', ['gpt-4o'])
+      const catalog = providerRegistryService.listProviderRegistryModels({ providerId: 'custom-openai-models' })
+
+      expect(resolved[0]).toMatchObject({
+        id: 'custom-openai-models::gpt-4o',
+        providerId: 'custom-openai-models',
+        presetModelId: 'gpt-4o'
+      })
+      expect(catalog[0]).toMatchObject({
+        id: 'custom-openai-models::gpt-4o',
+        providerId: 'custom-openai-models',
+        presetModelId: 'gpt-4o'
+      })
+    })
+
     it('should handle models not in registry', async () => {
       setupRegistryData()
 
@@ -246,6 +301,45 @@ describe('ProviderRegistryService', () => {
 
       expect(models).toHaveLength(1)
       expect(models[0].name).toBe('custom-model')
+    })
+
+    it('does not infer controls when a preset model fails the reasoning membership gate', () => {
+      mockReadModels.mockReturnValue({
+        version: '1.0',
+        models: [
+          {
+            id: 'qwen3-coder',
+            name: 'Qwen3 Coder',
+            capabilities: ['function-call']
+          }
+        ]
+      } as ReturnType<typeof readModelRegistry>)
+      mockReadProviderModels.mockReturnValue({
+        version: '1.0',
+        overrides: [{ providerId: 'openai', modelId: 'qwen3-coder' }]
+      } as ReturnType<typeof readProviderModelRegistry>)
+      mockReadProviders.mockReturnValue({
+        version: '1.0',
+        providers: [
+          {
+            id: 'openai',
+            name: 'OpenAI',
+            defaultChatEndpoint: 'openai-chat-completions',
+            endpointConfigs: {
+              'openai-chat-completions': {
+                adapterFamily: 'openai-compatible',
+                reasoningFormat: { type: 'openai-chat' }
+              }
+            },
+            metadata: {}
+          }
+        ]
+      } as ReturnType<typeof readProviderRegistry>)
+
+      const [model] = providerRegistryService.resolveModels('openai', ['qwen3-coder'])
+
+      expect(model.reasoning).toBeUndefined()
+      expect(model.capabilities).not.toContain('reasoning')
     })
 
     it('should deduplicate by modelId', async () => {
@@ -261,7 +355,7 @@ describe('ProviderRegistryService', () => {
 
       const result = providerRegistryService.lookupModel('openai', 'gpt-4o')
 
-      expect(result.defaultChatEndpoint).toBe('openai-chat-completions')
+      expect(result.reasoningProfile.format).toBe('openai-chat')
       expect(result.presetModel?.id).toBe('gpt-4o')
     })
 
@@ -275,7 +369,7 @@ describe('ProviderRegistryService', () => {
 
       expect(() => providerRegistryService.resolveModels('openai', ['gpt-4o'])).toThrow('database offline')
 
-      expect(loggerSpy).toHaveBeenCalledWith('Failed to fetch provider for reasoning config', error)
+      expect(loggerSpy).toHaveBeenCalledWith('Failed to fetch provider for reasoning profile', error)
       providerSpy.mockRestore()
     })
 
@@ -310,7 +404,7 @@ describe('ProviderRegistryService', () => {
             name: 'OpenAI',
             metadata: {},
             endpointConfigs: {
-              'openai-chat-completions': { reasoningFormatType: 'openai-chat' }
+              'openai-chat-completions': { reasoningFormat: { type: 'openai-chat' } }
             },
             defaultChatEndpoint: 'openai-chat-completions'
           }
@@ -412,6 +506,30 @@ describe('ProviderRegistryService', () => {
       } as ReturnType<typeof readProviderRegistry>)
       const result = providerRegistryService.getImageGenerationSupport('ovms', 'sd-1-5')
       expect(result).toEqual(block)
+    })
+
+    it('getImageGenerationSupport resolves a custom provider through its persisted presetProviderId', async () => {
+      const block = { modes: { generate: { supports: {} } } }
+      mockReadModels.mockReturnValue({
+        version: '1.0',
+        models: [{ id: 'image-model', name: 'Image Model', imageGeneration: block }]
+      } as ReturnType<typeof readModelRegistry>)
+      mockReadProviderModels.mockReturnValue({
+        version: '1.0',
+        overrides: [{ providerId: 'openai', modelId: 'image-model' }]
+      } as ReturnType<typeof readProviderModelRegistry>)
+      mockReadProviders.mockReturnValue({
+        version: '1.0',
+        providers: [{ id: 'openai', name: 'OpenAI', defaultChatEndpoint: null, metadata: {} }]
+      } as ReturnType<typeof readProviderRegistry>)
+      await dbh.db.insert(userProviderTable).values({
+        providerId: 'custom-openai-image',
+        presetProviderId: 'openai',
+        name: 'Custom OpenAI Image',
+        orderKey: generateOrderKeyBetween(null, null)
+      })
+
+      expect(providerRegistryService.getImageGenerationSupport('custom-openai-image', 'image-model')).toEqual(block)
     })
 
     it('getImageGenerationSupport returns null when the model is unknown', async () => {
@@ -623,7 +741,7 @@ describe('ProviderRegistryService', () => {
       expect(result.registryOverride?.apiModelId).toBe('Qwen/Qwen-Image')
     })
 
-    it('should prefer persisted provider endpoint config over registry reasoning defaults', async () => {
+    it('should ignore a legacy persisted reasoningFormatType field', async () => {
       setupRegistryData()
       await dbh.db.insert(userProviderTable).values({
         providerId: 'openai',
@@ -635,16 +753,13 @@ describe('ProviderRegistryService', () => {
             baseUrl: 'https://proxy.example/v1',
             reasoningFormatType: 'openai-responses'
           }
-        },
+        } as never,
         orderKey: generateOrderKeyBetween(null, null)
       })
 
       const result = providerRegistryService.lookupModel('openai', 'gpt-4o')
 
-      expect(result.defaultChatEndpoint).toBe('openai-chat-completions')
-      expect(result.reasoningFormatTypes).toMatchObject({
-        'openai-chat-completions': 'openai-responses'
-      })
+      expect(result.reasoningProfile.format).toBe('openai-chat')
     })
   })
 })
