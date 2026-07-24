@@ -89,5 +89,27 @@ export const fileRequestSchemas = {
     output: FileEntrySchema
   }),
   'file.open': defineRoute({ input: FileHandleSchema, output: z.void() }),
-  'file.show_in_folder': defineRoute({ input: FileHandleSchema, output: z.void() })
+  'file.show_in_folder': defineRoute({ input: FileHandleSchema, output: z.void() }),
+  /**
+   * Selection-only save dialog: returns the chosen absolute path or null on
+   * cancel. Never writes / creates / overwrites a file — unlike legacy
+   * `window.api.file.save`, which `writeFileSync`s on confirm.
+   */
+  'file.select_save': defineRoute({
+    input: z
+      .strictObject({
+        defaultPath: z.string().min(1).optional(),
+        filters: z
+          .array(
+            z.strictObject({
+              name: z.string().min(1),
+              extensions: z.array(z.string().min(1)).min(1)
+            })
+          )
+          .optional(),
+        title: z.string().min(1).optional()
+      })
+      .optional(),
+    output: AbsolutePathSchema.nullable()
+  })
 }

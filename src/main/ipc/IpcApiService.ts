@@ -4,6 +4,7 @@ import { DIAGNOSTICS_ENABLED, SLOW_THRESHOLD_MS } from '@main/core/diagnostics'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { validateSender } from '@main/core/security/validateSender'
 import type { WindowType } from '@main/core/window/types'
+import { assertNotBackupInProgress } from '@main/data/db/backup/quiesceGate'
 import { IpcError, IpcErrorCode, type IpcResult } from '@shared/ipc/errors/IpcError'
 import { type IpcEventName, type IpcRequestSchemas, ipcRequestSchemas } from '@shared/ipc/schemas/ipcSchemas'
 import type { EventPayload, IpcContext, WindowId } from '@shared/ipc/types'
@@ -15,6 +16,18 @@ import { ipcHandlers } from './handlers/ipcHandlers'
 import { IpcRouter } from './IpcRouter'
 
 const logger = loggerService.withContext('IpcApiService')
+
+/**
+ * True when an IpcApi route is read-only by naming convention (get/list/is/…).
+ * Matches the DataApi/Preference "reads not gated" restore-quiesce contract —
+ * mutations are rejected while BACKUP_IN_PROGRESS is held; reads stay open.
+ */
+function isIpcApiReadRoute(route: string): boolean {
+  const dot = route.indexOf('.')
+  if (dot < 0) return false
+  const action = route.slice(dot + 1)
+  return /^(?:get|list|is|has|check|fetch|probe|search|discover|read|batch_get)(?:_|$)/.test(action)
+}
 
 /**
  * Transport coordinator for the IpcApi RPC channel — the command-side peer of
@@ -69,6 +82,13 @@ export class IpcApiService extends BaseService {
 
     const t0 = DIAGNOSTICS_ENABLED ? performance.now() : 0
     try {
+      // Partial restore quiesce: reject mutations while BACKUP_IN_PROGRESS is held.
+      // backup.* routes stay open so restore progress / cancel can still run during the window.
+      // Read-only routes (get_/list_/is_/…) stay open — same contract as DataApi GET /
+      // Preference_Get (merge runs on a detached work.sqlite; live reads are safe).
+      if (!route.startsWith('backup.') && !isIpcApiReadRoute(route)) {
+        assertNotBackupInProgress()
+      }
       const data = await this.router.dispatch(route, input, this.makeContext(event))
       return { ok: true, data }
     } catch (e) {

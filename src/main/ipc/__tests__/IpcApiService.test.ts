@@ -4,7 +4,7 @@ import { IpcError } from '@shared/ipc/errors/IpcError'
 import { IpcChannel } from '@shared/IpcChannel'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { ipcMain } from 'electron'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { IpcApiService } from '../IpcApiService'
 
@@ -148,6 +148,54 @@ describe('IpcApiService request handling', () => {
     const disposables = (svc as unknown as { _disposables: Array<{ dispose: () => void }> })._disposables
     disposables.forEach((d) => d.dispose())
     expect(ipcMain.removeHandler).toHaveBeenCalledWith(IpcChannel.IpcApi_Request)
+  })
+
+  describe('BACKUP_IN_PROGRESS gate', () => {
+    afterEach(async () => {
+      const { setBackupInProgress } = await import('@main/data/db/backup/quiesceGate')
+      setBackupInProgress(false)
+    })
+
+    it('rejects non-backup routes while restore quiesce is held', async () => {
+      const { setBackupInProgress } = await import('@main/data/db/backup/quiesceGate')
+      setBackupInProgress(true)
+      const svc = makeService()
+      ;(svc as unknown as { onInit(): void }).onInit()
+
+      const result = await registeredHandler()(trustedEvent, 'demo.add', { a: 1 })
+
+      expect(result).toEqual({
+        ok: false,
+        error: expect.objectContaining({ code: 'BACKUP_IN_PROGRESS' })
+      })
+      expect(dispatchMock).not.toHaveBeenCalled()
+    })
+
+    it('allows backup.* routes while restore quiesce is held', async () => {
+      const { setBackupInProgress } = await import('@main/data/db/backup/quiesceGate')
+      setBackupInProgress(true)
+      dispatchMock.mockResolvedValue({ cancelled: true })
+      const svc = makeService()
+      ;(svc as unknown as { onInit(): void }).onInit()
+
+      const result = await registeredHandler()(trustedEvent, 'backup.cancel', { backupId: 'b-1' })
+
+      expect(result).toEqual({ ok: true, data: { cancelled: true } })
+      expect(dispatchMock).toHaveBeenCalledWith('backup.cancel', { backupId: 'b-1' }, { senderId: 'win-7' })
+    })
+
+    it('allows read-only routes while restore quiesce is held (reads not gated)', async () => {
+      const { setBackupInProgress } = await import('@main/data/db/backup/quiesceGate')
+      setBackupInProgress(true)
+      dispatchMock.mockResolvedValue({ version: '1.0.0' })
+      const svc = makeService()
+      ;(svc as unknown as { onInit(): void }).onInit()
+
+      const result = await registeredHandler()(trustedEvent, 'app.get_info', undefined)
+
+      expect(result).toEqual({ ok: true, data: { version: '1.0.0' } })
+      expect(dispatchMock).toHaveBeenCalled()
+    })
   })
 })
 

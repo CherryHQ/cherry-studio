@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { isPathInside } from '@main/utils/file'
 import Database from 'better-sqlite3'
 import { readMigrationFiles } from 'drizzle-orm/migrator'
 
@@ -21,6 +22,62 @@ function assertNever(x: never): never {
 type StagedJournal = Extract<RestoreJournal, { state: 'staged' }>
 type PromotingJournal = Extract<RestoreJournal, { state: 'promoting' }>
 type FileResource = RestoreJournal['fileResources'][number]
+
+/**
+ * Resolve a journal-stored userData-relative path and assert it stays inside
+ * userData. Journal is a disk file (tamperable); consumption is the trust
+ * boundary — reject absolute paths and `../` escapes before any fs op.
+ *
+ * @internal exported for unit tests
+ */
+export function assertPathInsideUserData(value: string, userData: string): string {
+  if (path.isAbsolute(value)) {
+    throw new Error(`restore journal path must be userData-relative, got absolute: ${value}`)
+  }
+  const realUserData = fs.realpathSync(userData)
+  const resolved = path.resolve(realUserData, value)
+  let canonical = resolved
+  try {
+    canonical = fs.realpathSync(resolved)
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e
+    // Leaf (or intermediate) missing — try parent realpath for symlink parents.
+    try {
+      const realParent = fs.realpathSync(path.dirname(resolved))
+      canonical = path.join(realParent, path.basename(resolved))
+    } catch {
+      // Parent also missing (e.g. nested aside dir not created yet). Lexical
+      // containment against realUserData is sufficient: resolve() already
+      // anchored at realUserData, so `../` escapes fail the check below.
+      canonical = resolved
+    }
+  }
+  if (canonical !== realUserData && !isPathInside(canonical, realUserData)) {
+    throw new Error(`restore journal path escapes userData: ${value}`)
+  }
+  return canonical
+}
+
+/**
+ * Validate every journal path the promotion gate will touch. Call before any
+ * rename/remove against journal-supplied paths.
+ *
+ * @internal exported for unit tests
+ */
+export function assertRestoreJournalPathsInsideUserData(
+  journal: Pick<RestoreJournal, 'db' | 'fileResources'>,
+  userData: string
+): void {
+  assertPathInsideUserData(journal.db.promote, userData)
+  assertPathInsideUserData(journal.db.aside, userData)
+  for (const entry of journal.fileResources) {
+    assertPathInsideUserData(entry.stagingPath, userData)
+    assertPathInsideUserData(entry.livePath, userData)
+    if (entry.asidePath !== undefined) {
+      assertPathInsideUserData(entry.asidePath, userData)
+    }
+  }
+}
 
 /**
  * After this step the work database IS the live database: crash recovery at
@@ -97,7 +154,13 @@ export function markRestoreFailedAfterCrash(): void {
   if (journal.state !== 'staged' && journal.state !== 'promoting') {
     return
   }
-  const ctx = buildContext(journal)
+  let ctx: PromotionContext
+  try {
+    ctx = buildContext(journal)
+  } catch (error) {
+    logger.warn('Escaped crash recovery: journal paths invalid — refusing fs ops', error as Error)
+    return
+  }
   if (journal.state === 'promoting' && commitLanded(ctx, journal)) {
     // The commit rename is durably on disk: the new DB is live with the old
     // DB parked aside. Freezing THAT to failed would strand a half-promoted
@@ -147,18 +210,27 @@ export function isLiveDbStranded(): boolean {
     return false
   }
   const livePath = application.getPath('app.database.file')
-  const asidePath = path.resolve(application.getPath('app.userdata'), read.journal.db.aside)
+  const userData = application.getPath('app.userdata')
+  let asidePath: string
+  try {
+    asidePath = assertPathInsideUserData(read.journal.db.aside, userData)
+  } catch {
+    // Tampered aside path — do not treat an out-of-tree file as our stranded DB.
+    return false
+  }
   return !fs.existsSync(livePath) && fs.existsSync(asidePath)
 }
 
 function buildContext(journal: StagedJournal | PromotingJournal): PromotionContext {
   const userData = application.getPath('app.userdata')
+  // Trust boundary: journal paths are disk-sourced; contain before any fs op.
+  assertRestoreJournalPathsInsideUserData(journal, userData)
   return {
     journal,
     userData,
     livePath: application.getPath('app.database.file'),
-    workPath: path.resolve(userData, journal.db.promote),
-    asidePath: path.resolve(userData, journal.db.aside)
+    workPath: assertPathInsideUserData(journal.db.promote, userData),
+    asidePath: assertPathInsideUserData(journal.db.aside, userData)
   }
 }
 

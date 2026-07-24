@@ -6,6 +6,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   renameSync,
   rmSync,
   writeFileSync
@@ -19,7 +20,13 @@ import { hashDbFile } from '@data/db/restore/hashDbFile'
 import type * as RestoreJournalModule from '@data/db/restore/restoreJournal'
 import type { RestoreJournal } from '@data/db/restore/restoreJournal'
 import { readRestoreJournal, writeRestoreJournal } from '@data/db/restore/restoreJournal'
-import { isLiveDbStranded, markRestoreFailedAfterCrash, runRestorePromotion } from '@data/db/restore/restorePromotion'
+import {
+  assertPathInsideUserData,
+  assertRestoreJournalPathsInsideUserData,
+  isLiveDbStranded,
+  markRestoreFailedAfterCrash,
+  runRestorePromotion
+} from '@data/db/restore/restorePromotion'
 import { appStateTable } from '@data/db/schemas/appState'
 import { resolveMigrationsPath } from '@test-helpers/db/internal/migrationsPath'
 import Database from 'better-sqlite3'
@@ -271,6 +278,75 @@ describe('runRestorePromotion', () => {
 
     expect(journalState()).toBe('expired')
     expect(readMarker(livePath())).toBe('old')
+  })
+
+  it('rejects absolute promote path before any fs op', async () => {
+    makeDb(livePath(), 'old')
+    makeDb(workPath(), 'new')
+    const journal = await buildJournal()
+    if (journal.state !== 'staged') throw new Error('expected staged')
+    writeRestoreJournal({
+      ...journal,
+      db: { ...journal.db, promote: workPath() }
+    })
+
+    await expect(runRestorePromotion()).rejects.toThrow(/userData-relative|absolute/)
+    expect(readMarker(livePath())).toBe('old')
+    expect(existsSync(asidePath())).toBe(false)
+    expect(journalState()).toBe('staged')
+  })
+
+  it('rejects ../ escape in aside path before any fs op', async () => {
+    makeDb(livePath(), 'old')
+    makeDb(workPath(), 'new')
+    const journal = await buildJournal()
+    if (journal.state !== 'staged') throw new Error('expected staged')
+    writeRestoreJournal({
+      ...journal,
+      db: { ...journal.db, aside: '../escape-aside.sqlite' }
+    })
+
+    await expect(runRestorePromotion()).rejects.toThrow(/escapes userData/)
+    expect(readMarker(livePath())).toBe('old')
+    expect(existsSync(asidePath())).toBe(false)
+    expect(journalState()).toBe('staged')
+  })
+
+  it('rejects absolute fileResources livePath before any fs op', async () => {
+    makeDb(livePath(), 'old')
+    makeDb(workPath(), 'new')
+    const journal = await buildJournal()
+    if (journal.state !== 'staged') throw new Error('expected staged')
+    writeRestoreJournal({
+      ...journal,
+      fileResources: [
+        {
+          kind: 'blob-add',
+          stagingPath: `restore-staging/${RID}/files/blob-1`,
+          livePath: join(tmpdir(), 'evil-blob')
+        }
+      ]
+    })
+
+    await expect(runRestorePromotion()).rejects.toThrow(/userData-relative|absolute/)
+    expect(readMarker(livePath())).toBe('old')
+    expect(existsSync(asidePath())).toBe(false)
+  })
+
+  it('assertPathInsideUserData accepts relative in-tree paths and rejects escapes', () => {
+    const resolved = assertPathInsideUserData('cherrystudio.sqlite', userData)
+    expect(resolved).toBe(join(realpathSync(userData), 'cherrystudio.sqlite'))
+    expect(() => assertPathInsideUserData('/tmp/evil', userData)).toThrow(/absolute/)
+    expect(() => assertPathInsideUserData('../outside', userData)).toThrow(/escapes userData/)
+    expect(() =>
+      assertRestoreJournalPathsInsideUserData(
+        {
+          db: { promote: '../x', aside: asideRel, fingerprint: 'f', chain: [{ folderMillis: 1, hash: 'h' }] },
+          fileResources: []
+        },
+        userData
+      )
+    ).toThrow(/escapes userData/)
   })
 
   it('promotes a valid staged restore end to end (DB swap + manifest + terminal journal)', async () => {

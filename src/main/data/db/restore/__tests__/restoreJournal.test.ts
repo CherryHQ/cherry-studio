@@ -3,7 +3,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import type { RestoreJournal } from '@data/db/restore/restoreJournal'
-import { hasPendingRestore, readRestoreJournal, writeRestoreJournal } from '@data/db/restore/restoreJournal'
+import {
+  clearRestoreJournal,
+  hasPendingRestore,
+  readRestoreJournal,
+  writeRestoreJournal
+} from '@data/db/restore/restoreJournal'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -157,6 +162,31 @@ describe('restoreJournal', () => {
 
     it('returns false when no journal exists', () => {
       expect(hasPendingRestore()).toBe(false)
+    })
+  })
+
+  describe('clearRestoreJournal', () => {
+    it('removes an existing journal file', () => {
+      writeRestoreJournal(stagedJournal())
+      expect(readRestoreJournal().kind).toBe('ok')
+
+      clearRestoreJournal()
+
+      expect(readRestoreJournal().kind).toBe('none')
+    })
+
+    it('is a no-op when no journal exists (ENOENT swallowed, never throws)', () => {
+      expect(() => clearRestoreJournal()).not.toThrow()
+      expect(readRestoreJournal().kind).toBe('none')
+    })
+
+    it('clears a terminal (completed) journal', () => {
+      const completed: RestoreJournal = { ...stagedJournal(), state: 'completed', step: 'integrity-ok' }
+      writeRestoreJournal(completed)
+
+      clearRestoreJournal()
+
+      expect(readRestoreJournal().kind).toBe('none')
     })
   })
 })

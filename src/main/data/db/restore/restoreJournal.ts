@@ -76,7 +76,9 @@ const FileResourceSchema = z.strictObject({
 })
 
 // All journal paths (db.*, fileResources[].*) are stored userData-relative;
-// readers join them onto the currently resolved userData.
+// readers join them onto the currently resolved userData. Schema only checks
+// non-empty strings — preboot consumption (restorePromotion) independently
+// asserts containment inside userData before any fs op (absolute / `../` reject).
 const commonFields = {
   version: z.literal(1),
   restoreId: z.string().min(1),
@@ -179,4 +181,21 @@ export function hasPendingRestore(): boolean {
     return true
   }
   return result.kind === 'ok' && (result.journal.state === 'staged' || result.journal.state === 'promoting')
+}
+
+/**
+ * Remove the restore journal file. Idempotent and never throws — callers run in
+ * `BackupService.startRestore` / `performRestoreRecovery` hot paths.
+ *
+ * A missed delete is harmless: the next `writeRestoreJournal` renames a fresh
+ * `.tmp` over this path, recreating it. So ENOENT (already gone), EACCES/EPERM
+ * (the rename-over will fix), and any other failure are all silently swallowed
+ * — the journal is best-effort cleanup, not a correctness gate.
+ */
+export function clearRestoreJournal(): void {
+  try {
+    fs.unlinkSync(journalFilePath())
+  } catch {
+    // Swallow intentionally — see jsdoc: a missed delete is overwritten by the next write.
+  }
 }

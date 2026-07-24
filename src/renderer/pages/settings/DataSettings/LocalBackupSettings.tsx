@@ -1,8 +1,6 @@
-import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
+import { Button, Input, RowFlex, Switch, Tooltip, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { LocalBackupManager } from '@renderer/components/LocalBackupManager'
-import { LocalBackupModal, useLocalBackupModal } from '@renderer/components/LocalBackupModals'
 import Selector from '@renderer/components/Selector'
 import {
   SettingDivider,
@@ -22,8 +20,10 @@ import { FolderOpen, RefreshCw, Save, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { BackupUnavailableGate } from './BackupUnavailableGate'
-
+import BackupExportV2Popup from './BackupExportV2Popup'
+import { LegacyLocalBackupGate } from './LegacyLocalBackupGate'
+import RestoreV2Popup from './RestoreV2Popup'
+import { isV2BackupExportReady, V2BackupRestoreFullGate, V2BackupRestoreGate } from './V2BackupActionGate'
 const logger = loggerService.withContext('LocalBackupSettings')
 
 const LocalBackupSettings: React.FC = () => {
@@ -33,20 +33,11 @@ const LocalBackupSettings: React.FC = () => {
   const [localBackupSkipBackupFile, setLocalBackupSkipBackupFile] = usePreference('data.backup.local.skip_backup_file')
   const [localBackupSyncInterval, setLocalBackupSyncInterval] = usePreference('data.backup.local.sync_interval')
 
-  const [resolvedLocalBackupDir, setResolvedLocalBackupDir] = useState<string | undefined>(undefined)
-  const [backupManagerVisible, setBackupManagerVisible] = useState(false)
-
   const [appInfo, setAppInfo] = useState<AppInfo>()
 
   useEffect(() => {
     void ipcApi.request('app.get_info').then(setAppInfo)
   }, [])
-
-  useEffect(() => {
-    if (localBackupDir) {
-      void window.api.resolvePath(localBackupDir).then(setResolvedLocalBackupDir)
-    }
-  }, [localBackupDir])
 
   const { theme } = useTheme()
 
@@ -108,7 +99,6 @@ const LocalBackupSettings: React.FC = () => {
 
     if (await checkLocalBackupDirValid(value)) {
       await setLocalBackupDir(value)
-      setResolvedLocalBackupDir(await window.api.resolvePath(value))
 
       await setLocalBackupAutoSync(true)
       void startAutoSync(true, 'local')
@@ -177,22 +167,49 @@ const LocalBackupSettings: React.FC = () => {
     )
   }
 
-  const { isModalVisible, handleBackup, handleCancel, backuping, customFileName, setCustomFileName, showBackupModal } =
-    useLocalBackupModal(resolvedLocalBackupDir)
-
-  const showBackupManager = () => {
-    setBackupManagerVisible(true)
-  }
-
-  const closeBackupManager = () => {
-    setBackupManagerVisible(false)
-  }
-
   return (
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.local.title')}</SettingTitle>
       <SettingDivider />
-      <BackupUnavailableGate>
+      <SettingRow>
+        <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
+        <RowFlex className="justify-between gap-1.25">
+          <Button
+            onClick={() => BackupExportV2Popup.show()}
+            variant="outline"
+            disabled={!isV2BackupExportReady()}
+            aria-disabled={!isV2BackupExportReady()}
+            data-testid="v2-local-backup-export-button">
+            <Save size={14} />
+            {t('settings.data.local.backup.button')}
+          </Button>
+          <V2BackupRestoreGate>
+            <Button
+              onClick={() => RestoreV2Popup.show()}
+              variant="outline"
+              data-testid="v2-local-backup-restore-button">
+              <FolderOpen size={14} />
+              {t('settings.data.local.restore.button')}
+            </Button>
+          </V2BackupRestoreGate>
+          <Tooltip title={t('settings.data.backup.v2.restore.full_unavailable')}>
+            <span className="inline-flex">
+              <V2BackupRestoreFullGate>
+                <Button
+                  onClick={() => RestoreV2Popup.show()}
+                  variant="outline"
+                  aria-label={t('settings.data.backup.v2.restore.full_unavailable')}
+                  data-testid="v2-local-backup-restore-full-button">
+                  <FolderOpen size={14} />
+                  {t('settings.data.backup.v2.restore.full_button')}
+                </Button>
+              </V2BackupRestoreFullGate>
+            </span>
+          </Tooltip>
+        </RowFlex>
+      </SettingRow>
+      <SettingDivider />
+      <LegacyLocalBackupGate>
         <SettingRow>
           <SettingRowTitle>{t('settings.data.local.directory.label')}</SettingRowTitle>
           <RowFlex className="gap-1.25">
@@ -210,20 +227,6 @@ const LocalBackupSettings: React.FC = () => {
             <Button onClick={handleClearDirectory} disabled={!localBackupDir} variant="destructive">
               <Trash2 size={14} />
               {t('common.clear')}
-            </Button>
-          </RowFlex>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
-          <RowFlex className="justify-between gap-1.25">
-            <Button onClick={showBackupModal} disabled={!localBackupDir || backuping} variant="outline">
-              <Save size={14} />
-              {t('settings.data.local.backup.button')}
-            </Button>
-            <Button onClick={showBackupManager} disabled={!localBackupDir} variant="outline">
-              <FolderOpen size={14} />
-              {t('settings.data.local.restore.button')}
             </Button>
           </RowFlex>
         </SettingRow>
@@ -285,23 +288,7 @@ const LocalBackupSettings: React.FC = () => {
             </SettingRow>
           </>
         )}
-        <>
-          <LocalBackupModal
-            isModalVisible={isModalVisible}
-            handleBackup={handleBackup}
-            handleCancel={handleCancel}
-            backuping={backuping}
-            customFileName={customFileName}
-            setCustomFileName={setCustomFileName}
-          />
-
-          <LocalBackupManager
-            visible={backupManagerVisible}
-            onClose={closeBackupManager}
-            localBackupDir={resolvedLocalBackupDir}
-          />
-        </>
-      </BackupUnavailableGate>
+      </LegacyLocalBackupGate>
     </SettingGroup>
   )
 }

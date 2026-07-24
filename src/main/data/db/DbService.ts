@@ -248,10 +248,11 @@ export class DbService extends BaseService {
 
   /**
    * Copy the live database into a fresh file via `VACUUM INTO` — a
-   * transaction-consistent snapshot taken on the live connection, used by the
-   * backup restore pipeline as its merge base (work.sqlite). The target must
-   * not exist. Synchronous and blocking by design (the restore flow blocks
-   * the UI). See src/main/data/db/restore/README.md.
+   * transaction-consistent snapshot taken on the live connection, used by both
+   * export (backup.sqlite in .cherrybackup archives) and the restore merge base
+   * (work.sqlite, worktree #16714). The target must not exist. Synchronous and
+   * blocking by design (export + restore block until the snapshot completes).
+   * See src/main/data/db/restore/README.md.
    */
   public createSnapshot(targetPath: string): void {
     if (!this.isReady) {

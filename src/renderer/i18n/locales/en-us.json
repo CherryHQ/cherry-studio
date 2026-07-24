@@ -1270,6 +1270,7 @@
       "label": "Are you sure you want to backup data?"
     },
     "content": "Backup all data, including chat history, settings, and knowledge base. Please note that the backup process may take some time, thank you for your patience.",
+    "credentials_warning": "This backup includes API keys and provider credentials in plaintext. Store the archive securely.",
     "progress": {
       "completed": "Backup completed",
       "compressing": "Compressing files...",
@@ -5703,8 +5704,49 @@
         "label": "App Logs"
       },
       "backup": {
+        "legacy_local_unavailable": "Legacy local backup controls are disabled. Use Backup / Restore above.",
         "skip_file_data_help": "Skip backing up data files such as pictures and knowledge bases during backup, and only back up chat records and settings. Reduce space occupancy and speed up the backup speed.",
         "skip_file_data_title": "Slim Backup",
+        "v2": {
+          "export": {
+            "cancel_timeout": "Cancel timed out. The backup may still be running.",
+            "cancelled": "Backup cancelled.",
+            "failure": "Backup failed.",
+            "overwrite_confirm_content": "A file already exists at this path. Replace it?",
+            "overwrite_confirm_title": "Replace existing backup?",
+            "phase": {
+              "archive": "Creating archive…",
+              "collect": "Collecting data…",
+              "journal": "Writing journal…",
+              "merge": "Merging data…",
+              "preflight": "Checking disk space…",
+              "quiesce": "Quiescing services…",
+              "relaunch": "Relaunching…",
+              "snapshot": "Copying database…",
+              "verify": "Verifying backup…"
+            },
+            "running": "Backing up…",
+            "save_dialog_title": "Save Backup",
+            "selecting": "Choose where to save the backup…",
+            "starting": "Starting backup…",
+            "success": "Backup completed."
+          },
+          "file_filter": "Cherry Backup",
+          "preset": {
+            "full": "Full backup (all data)",
+            "lite": "Lite backup (chat & settings, no knowledge/files)"
+          },
+          "restore": {
+            "confirm_content": "Restoring will merge backup data into your current data (local non-empty values are kept), then relaunch the app. Continue?",
+            "failure": "Restore failed.",
+            "full_button": "Full restore",
+            "full_unavailable": "Full restore is temporarily unavailable while resource staging lands (files, knowledge bases, notes, skills). Use Restore for database-only (LITE) archives.",
+            "pick_prompt": "Select a .cherrybackup backup archive to restore.",
+            "relaunching": "Restore staged. The app is relaunching…",
+            "selected": "Selected archive:",
+            "skip_only": "Only the skip (SKIP) merge strategy is supported. Overwrite and rename are not available yet."
+          }
+        },
         "v2_unavailable": "Backup & restore V2 is not available yet. Coming soon."
       },
       "clear_cache": {

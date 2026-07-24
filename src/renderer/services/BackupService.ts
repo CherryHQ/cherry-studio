@@ -169,6 +169,12 @@ export async function restore() {
 }
 
 export async function reset() {
+  // Packaged builds refuse reset until DevResetCoordinator lands with restore stack.
+  if (!import.meta.env.DEV) {
+    toast.error(i18n.t('settings.data.backup.v2_unavailable'))
+    return
+  }
+
   const confirmed = await popup.confirm({
     title: i18n.t('common.warning'),
     content: i18n.t('message.reset.confirm.content'),

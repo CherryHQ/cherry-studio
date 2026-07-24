@@ -21,9 +21,11 @@ import type React from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import BackupPopup from './BackupPopup'
+import BackupExportV2Popup from './BackupExportV2Popup'
 import { BackupUnavailableGate } from './BackupUnavailableGate'
-import RestorePopup from './RestorePopup'
+import RestoreV2Popup from './RestoreV2Popup'
+import { isV2BackupExportReady, V2BackupRestoreFullGate, V2BackupRestoreGate } from './V2BackupActionGate'
+
 const BasicDataSettings: React.FC = () => {
   const { t } = useTranslation()
   const [appInfo, setAppInfo] = useState<AppInfo>()
@@ -200,21 +202,42 @@ const BasicDataSettings: React.FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.title')}</SettingTitle>
         <SettingDivider />
-        <BackupUnavailableGate>
-          <SettingRow>
-            <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
-            <RowFlex className="justify-between gap-1.25">
-              <Button onClick={() => BackupPopup.show()} variant="outline">
-                <SaveIcon size={14} />
-                {t('settings.general.backup.button')}
-              </Button>
-              <Button onClick={() => RestorePopup.show()} variant="outline">
+        <SettingRow>
+          <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
+          <RowFlex className="justify-between gap-1.25">
+            <Button
+              onClick={() => BackupExportV2Popup.show()}
+              variant="outline"
+              disabled={!isV2BackupExportReady()}
+              aria-disabled={!isV2BackupExportReady()}
+              data-testid="v2-backup-export-button">
+              <SaveIcon size={14} />
+              {t('settings.general.backup.button')}
+            </Button>
+            <V2BackupRestoreGate>
+              <Button onClick={() => RestoreV2Popup.show()} variant="outline" data-testid="v2-backup-restore-button">
                 <FolderOpen size={14} />
                 {t('settings.general.restore.button')}
               </Button>
-            </RowFlex>
-          </SettingRow>
-          <SettingDivider />
+            </V2BackupRestoreGate>
+            <Tooltip title={t('settings.data.backup.v2.restore.full_unavailable')}>
+              <span className="inline-flex">
+                <V2BackupRestoreFullGate>
+                  <Button
+                    onClick={() => RestoreV2Popup.show()}
+                    variant="outline"
+                    aria-label={t('settings.data.backup.v2.restore.full_unavailable')}
+                    data-testid="v2-backup-restore-full-button">
+                    <FolderOpen size={14} />
+                    {t('settings.data.backup.v2.restore.full_button')}
+                  </Button>
+                </V2BackupRestoreFullGate>
+              </span>
+            </Tooltip>
+          </RowFlex>
+        </SettingRow>
+        <SettingDivider />
+        <BackupUnavailableGate>
           <SettingRow>
             <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
             <Switch checked={skipBackupFile} onCheckedChange={onSkipBackupFilesChange} />
@@ -274,14 +297,16 @@ const BasicDataSettings: React.FC = () => {
           </RowFlex>
         </SettingRow>
         <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.general.reset.title')}</SettingRowTitle>
-          <RowFlex className="gap-1.25">
-            <Button onClick={reset} variant="destructive">
-              {t('settings.general.reset.title')}
-            </Button>
-          </RowFlex>
-        </SettingRow>
+        {import.meta.env.DEV ? (
+          <SettingRow>
+            <SettingRowTitle>{t('settings.general.reset.title')}</SettingRowTitle>
+            <RowFlex className="gap-1.25">
+              <Button onClick={() => void reset()} variant="destructive">
+                {t('settings.general.reset.title')}
+              </Button>
+            </RowFlex>
+          </SettingRow>
+        ) : null}
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.privacy.title')}</SettingTitle>
