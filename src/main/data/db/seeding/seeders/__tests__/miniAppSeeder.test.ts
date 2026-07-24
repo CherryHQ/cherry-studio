@@ -1,8 +1,9 @@
 import { miniAppTable } from '@data/db/schemas/miniApp'
 import { MiniAppSeeder } from '@data/db/seeding/seeders/miniAppSeeder'
+import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
 import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
+import { asc, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
 describe('MiniAppSeeder', () => {
@@ -12,8 +13,9 @@ describe('MiniAppSeeder', () => {
     const seed = new MiniAppSeeder()
     seed.run(dbh.db)
 
-    const rows = await dbh.db.select().from(miniAppTable)
+    const rows = await dbh.db.select().from(miniAppTable).orderBy(asc(miniAppTable.orderKey))
     expect(rows).toHaveLength(PRESETS_MINI_APPS.length)
+    expect(rows.map(({ appId }) => appId)).toEqual(PRESETS_MINI_APPS.map(({ id }) => id))
     for (const preset of PRESETS_MINI_APPS) {
       const row = rows.find((r) => r.appId === preset.id)
       expect(row).toBeDefined()
@@ -58,6 +60,42 @@ describe('MiniAppSeeder', () => {
     const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, preset.id))
     expect(row.status).toBe('disabled')
     expect(row.orderKey).toBe('z9')
+  })
+
+  it('should preserve user order for an enabled preset on re-run', async () => {
+    const preset = PRESETS_MINI_APPS[0]
+    const customOrderKey = generateOrderKeyBetween(generateOrderKeyBetween(null, null), null)
+    await dbh.db.insert(miniAppTable).values({
+      appId: preset.id,
+      presetMiniAppId: preset.id,
+      name: preset.name,
+      url: preset.url,
+      status: 'enabled',
+      orderKey: customOrderKey
+    })
+
+    const seed = new MiniAppSeeder()
+    seed.run(dbh.db)
+
+    const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, preset.id))
+    expect(row.orderKey).toBe(customOrderKey)
+  })
+
+  it('should append missing presets after existing visible apps during upgrade', async () => {
+    await dbh.db.insert(miniAppTable).values({
+      appId: 'my-existing-app',
+      presetMiniAppId: null,
+      name: 'My Existing App',
+      url: 'https://existing.example',
+      status: 'enabled',
+      orderKey: 'a0'
+    })
+
+    const seed = new MiniAppSeeder()
+    seed.run(dbh.db)
+
+    const rows = await dbh.db.select().from(miniAppTable).orderBy(asc(miniAppTable.orderKey))
+    expect(rows.map(({ appId }) => appId)).toEqual(['my-existing-app', ...PRESETS_MINI_APPS.map(({ id }) => id)])
   })
 
   it('should leave custom (non-preset) rows untouched', async () => {

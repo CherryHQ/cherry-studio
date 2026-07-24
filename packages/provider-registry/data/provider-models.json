@@ -31507,6 +31507,41 @@
       "providerId": "qiniu"
     },
     {
+      "apiModelId": "DeepSeek-V4-Flash",
+      "modelId": "deepseek-v4-flash",
+      "providerId": "radeon-cloud"
+    },
+    {
+      "apiModelId": "DeepSeek-V4-Pro",
+      "modelId": "deepseek-v4-pro",
+      "providerId": "radeon-cloud"
+    },
+    {
+      "apiModelId": "GLM-5.1",
+      "modelId": "glm-5-1",
+      "providerId": "radeon-cloud"
+    },
+    {
+      "apiModelId": "GLM-5.2",
+      "modelId": "glm-5-2",
+      "providerId": "radeon-cloud"
+    },
+    {
+      "apiModelId": "gpt-oss-120b",
+      "modelId": "gpt-oss-120b",
+      "providerId": "radeon-cloud"
+    },
+    {
+      "apiModelId": "Kimi-K2.6",
+      "modelId": "kimi-k2-6",
+      "providerId": "radeon-cloud"
+    },
+    {
+      "apiModelId": "Qwen3.6-35B-A3B",
+      "modelId": "qwen3-6-35b-a3b",
+      "providerId": "radeon-cloud"
+    },
+    {
       "apiModelId": "deepseek-ai/DeepSeek-R1",
       "modelId": "deepseek-r1",
       "pricing": {
@@ -35383,5 +35418,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "a4e06b9748d4b4f7"
+  "version": "258d84add37f8621"
 }

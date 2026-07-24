@@ -15,6 +15,10 @@ vi.mock('@renderer/pages/settings/ProviderSettings/components/ProviderAvatar', (
   }
 }))
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => (key === 'models.type.free' ? 'Translated Free' : key) })
+}))
+
 afterEach(() => {
   cleanup()
 })
@@ -34,6 +38,24 @@ describe('ProviderListItem', () => {
     render(<ProviderListItem provider={provider} selected={false} dragging={false} onClick={vi.fn()} />)
 
     expect(screen.getByTestId('provider-list-drag-handle-silicon-flow')).toBeInTheDocument()
+  })
+
+  it('shows a compact Free badge only for AMD GPU Cloud', () => {
+    const { rerender } = render(
+      <ProviderListItem
+        provider={{ id: 'radeon-cloud', name: 'AMD GPU Cloud' } as any}
+        selected={false}
+        dragging={false}
+        onClick={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('radeon-cloud-free-badge')).toHaveTextContent('Translated Free')
+    expect(screen.getByTestId('radeon-cloud-free-badge')).toHaveClass('h-4', 'text-[9px]', 'shrink-0')
+
+    rerender(<ProviderListItem provider={provider} selected={false} dragging={false} onClick={vi.fn()} />)
+
+    expect(screen.queryByTestId('radeon-cloud-free-badge')).not.toBeInTheDocument()
   })
 
   it('shows an enabled-state dot when provider.isEnabled is true', () => {

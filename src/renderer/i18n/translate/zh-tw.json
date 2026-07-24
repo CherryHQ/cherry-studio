@@ -5038,6 +5038,7 @@
     "ppio": "PPIO 派歐雲",
     "qiniu": "七牛雲 AI 推理",
     "qwenlm": "QwenLM",
+    "radeon-cloud": "AMD GPU Cloud",
     "silicon": "SiliconFlow",
     "sophnet": "SophNet",
     "stepfun": "StepFun",
@@ -7444,6 +7445,13 @@
       },
       "openai": {
         "alert": "OpenAI Provider 不再支援舊的呼叫方法。如果使用第三方 API，請建立新的服務供應商"
+      },
+      "radeon_cloud": {
+        "benefits": {
+          "cta": "開啟 Token Factory",
+          "description": "每日 10 美元等值 API 額度，按目前費率約可使用 1,000 萬–1.11 億輸入/輸出 Token，實際用量依模型和 Token 類型而異。額度每日重設，目前暫不支援儲值。",
+          "title": "每日 10 美元免費 API 額度"
+        }
       },
       "remove_duplicate_keys": "移除重複金鑰",
       "remove_invalid_keys": "刪除無效金鑰",

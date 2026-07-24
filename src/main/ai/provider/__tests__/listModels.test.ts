@@ -465,6 +465,35 @@ describe('listModels — copied preset provider routing', () => {
   })
 })
 
+describe('listModels — Radeon Cloud source header', () => {
+  it('adds X-Source to Radeon model listing without adding it to other providers', async () => {
+    const radeonProvider = makeProvider({
+      id: 'radeon-cloud',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://developer.amd.com.cn/radeon/api/v1' }
+      }
+    })
+    const otherProvider = makeProvider({
+      id: 'other-openai-compatible',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.example.com/v1' }
+      }
+    })
+    aiSdkGetFromApiMock.mockResolvedValue({ value: { data: [] } })
+
+    await listModels(radeonProvider)
+    await listModels(otherProvider)
+
+    const radeonCall = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string; headers: Record<string, string> }
+    const otherCall = aiSdkGetFromApiMock.mock.calls[1][0] as { url: string; headers: Record<string, string> }
+    expect(radeonCall.url).toBe('https://developer.amd.com.cn/radeon/api/v1/models')
+    expect(radeonCall.headers['X-Source']).toBe('cherry-studio')
+    expect(otherCall.headers).not.toHaveProperty('X-Source')
+  })
+})
+
 describe('listModels — newApiFetcher endpoint types', () => {
   it('maps supported_endpoint_types from NewAPI model responses', async () => {
     const provider = makeProvider({
