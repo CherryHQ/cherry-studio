@@ -19,12 +19,10 @@ import {
 import { SessionResourceList } from '@renderer/components/chat/resourceList/SessionResourceList'
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
-import ObsidianExportPopup from '@renderer/components/ObsidianExportPopup'
 import {
   ResourceEditDialogHost,
   type ResourceEditDialogTarget
 } from '@renderer/components/resourceCatalog/dialogs/edit'
-import SaveToKnowledgePopup from '@renderer/components/SaveToKnowledgePopup'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
@@ -39,22 +37,7 @@ import { usePins } from '@renderer/hooks/usePins'
 import { finishTopicRenaming, startTopicRenaming } from '@renderer/hooks/useTopic'
 import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { ipcApi } from '@renderer/ipc'
-import {
-  type AgentSessionExportOptions,
-  agentSessionToMarkdown,
-  copyAgentSessionAsMarkdown,
-  copyAgentSessionAsPlainText,
-  exportAgentSessionAsMarkdown,
-  getAgentSessionExportTitle,
-  getAgentSessionMessagesForExport
-} from '@renderer/services/agentSessionExport'
-import {
-  exportContentToNotes,
-  exportMarkdownToJoplin,
-  exportMarkdownToSiyuan,
-  exportMarkdownToYuque,
-  exportMessagesToNotion
-} from '@renderer/services/ExportService'
+import type { AgentSessionExportOptions } from '@renderer/services/agentSessionExport'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getAgentModelFallbackSnapshot } from '@renderer/utils/agent'
@@ -737,6 +720,7 @@ const Sessions = ({
 
   const handleAutoRenameSession = useCallback(
     async (session: AgentSessionEntity) => {
+      const { getAgentSessionMessagesForExport } = await import('@renderer/services/agentSessionExport')
       const messages = await getAgentSessionMessagesForExport(session)
       if (messages.length < 2) return
 
@@ -795,6 +779,10 @@ const Sessions = ({
 
   const handleSaveSessionToNotes = useCallback(
     async (session: AgentSessionEntity) => {
+      const [{ agentSessionToMarkdown, getAgentSessionExportTitle }, { exportContentToNotes }] = await Promise.all([
+        import('@renderer/services/agentSessionExport'),
+        import('@renderer/services/ExportService')
+      ])
       const title = getAgentSessionExportTitle(session)
       const markdown = await agentSessionToMarkdown(session, undefined, undefined, getSessionExportOptions(session))
       await exportContentToNotes(title, markdown, notesPath)
@@ -805,6 +793,11 @@ const Sessions = ({
   const handleSaveSessionToKnowledge = useCallback(
     async (session: AgentSessionEntity) => {
       try {
+        const [{ getAgentSessionExportTitle, getAgentSessionMessagesForExport }, { default: SaveToKnowledgePopup }] =
+          await Promise.all([
+            import('@renderer/services/agentSessionExport'),
+            import('@renderer/components/SaveToKnowledgePopup')
+          ])
         const title = getAgentSessionExportTitle(session)
         const messages = await getAgentSessionMessagesForExport(session, getSessionExportOptions(session))
         const result = await SaveToKnowledgePopup.showForMessages(messages, title)
@@ -820,24 +813,32 @@ const Sessions = ({
   )
 
   const handleCopySessionMarkdown = useCallback(
-    (session: AgentSessionEntity) => copyAgentSessionAsMarkdown(session, getSessionExportOptions(session)),
+    async (session: AgentSessionEntity) => {
+      const { copyAgentSessionAsMarkdown } = await import('@renderer/services/agentSessionExport')
+      return copyAgentSessionAsMarkdown(session, getSessionExportOptions(session))
+    },
     [getSessionExportOptions]
   )
 
   const handleCopySessionPlainText = useCallback(
-    (session: AgentSessionEntity) => copyAgentSessionAsPlainText(session, getSessionExportOptions(session)),
+    async (session: AgentSessionEntity) => {
+      const { copyAgentSessionAsPlainText } = await import('@renderer/services/agentSessionExport')
+      return copyAgentSessionAsPlainText(session, getSessionExportOptions(session))
+    },
     [getSessionExportOptions]
   )
 
   const handleExportSessionMarkdown = useCallback(
-    (session: AgentSessionEntity) => {
+    async (session: AgentSessionEntity) => {
+      const { exportAgentSessionAsMarkdown } = await import('@renderer/services/agentSessionExport')
       return exportAgentSessionAsMarkdown(session, undefined, undefined, getSessionExportOptions(session))
     },
     [getSessionExportOptions]
   )
 
   const handleExportSessionMarkdownReason = useCallback(
-    (session: AgentSessionEntity) => {
+    async (session: AgentSessionEntity) => {
+      const { exportAgentSessionAsMarkdown } = await import('@renderer/services/agentSessionExport')
       return exportAgentSessionAsMarkdown(session, true, undefined, getSessionExportOptions(session))
     },
     [getSessionExportOptions]
@@ -845,6 +846,9 @@ const Sessions = ({
 
   const handleExportSessionWord = useCallback(
     async (session: AgentSessionEntity) => {
+      const { agentSessionToMarkdown, getAgentSessionExportTitle } = await import(
+        '@renderer/services/agentSessionExport'
+      )
       const title = getAgentSessionExportTitle(session)
       const markdown = await agentSessionToMarkdown(session, undefined, undefined, getSessionExportOptions(session))
       await ipcApi.request('export.word.from_markdown', {
@@ -857,6 +861,8 @@ const Sessions = ({
 
   const handleExportSessionNotion = useCallback(
     async (session: AgentSessionEntity) => {
+      const [{ getAgentSessionExportTitle, getAgentSessionMessagesForExport }, { exportMessagesToNotion }] =
+        await Promise.all([import('@renderer/services/agentSessionExport'), import('@renderer/services/ExportService')])
       const title = getAgentSessionExportTitle(session)
       const messages = await getAgentSessionMessagesForExport(session, getSessionExportOptions(session))
       await exportMessagesToNotion(title, messages)
@@ -866,6 +872,10 @@ const Sessions = ({
 
   const handleExportSessionYuque = useCallback(
     async (session: AgentSessionEntity) => {
+      const [{ agentSessionToMarkdown, getAgentSessionExportTitle }, { exportMarkdownToYuque }] = await Promise.all([
+        import('@renderer/services/agentSessionExport'),
+        import('@renderer/services/ExportService')
+      ])
       const title = getAgentSessionExportTitle(session)
       const markdown = await agentSessionToMarkdown(session, undefined, undefined, getSessionExportOptions(session))
       await exportMarkdownToYuque(title, markdown)
@@ -875,6 +885,11 @@ const Sessions = ({
 
   const handleExportSessionObsidian = useCallback(
     async (session: AgentSessionEntity) => {
+      const [{ getAgentSessionExportTitle, getAgentSessionMessagesForExport }, { default: ObsidianExportPopup }] =
+        await Promise.all([
+          import('@renderer/services/agentSessionExport'),
+          import('@renderer/components/ObsidianExportPopup')
+        ])
       const title = getAgentSessionExportTitle(session)
       const messages = await getAgentSessionMessagesForExport(session, getSessionExportOptions(session))
       await ObsidianExportPopup.show({ title: title.replace(/\\/g, '_'), messages, processingMethod: '3' })
@@ -884,6 +899,8 @@ const Sessions = ({
 
   const handleExportSessionJoplin = useCallback(
     async (session: AgentSessionEntity) => {
+      const [{ getAgentSessionExportTitle, getAgentSessionMessagesForExport }, { exportMarkdownToJoplin }] =
+        await Promise.all([import('@renderer/services/agentSessionExport'), import('@renderer/services/ExportService')])
       const title = getAgentSessionExportTitle(session)
       const messages = await getAgentSessionMessagesForExport(session, getSessionExportOptions(session))
       await exportMarkdownToJoplin(title, messages)
@@ -893,6 +910,10 @@ const Sessions = ({
 
   const handleExportSessionSiyuan = useCallback(
     async (session: AgentSessionEntity) => {
+      const [{ agentSessionToMarkdown, getAgentSessionExportTitle }, { exportMarkdownToSiyuan }] = await Promise.all([
+        import('@renderer/services/agentSessionExport'),
+        import('@renderer/services/ExportService')
+      ])
       const title = getAgentSessionExportTitle(session)
       const markdown = await agentSessionToMarkdown(session, undefined, undefined, getSessionExportOptions(session))
       await exportMarkdownToSiyuan(title, markdown)
