@@ -32,7 +32,8 @@ export function useCustomCssInjection(cssText: string | undefined): void {
 
 /**
  * Inject the user's `ui.custom_css` preference verbatim in every regular UI window.
- * `migrationV2` is the preboot exception and does not initialize preferences.
+ * The preboot windows (`migrationV2`, `userDataRelocation`) are the exceptions —
+ * they do not initialize preferences.
  */
 export function useCustomCss(): void {
   const [customCss] = usePreference('ui.custom_css')

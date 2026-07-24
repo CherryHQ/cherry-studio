@@ -51,7 +51,7 @@ explicit semantic role or `data-slot`.
 
 ## Build-time generation
 
-The pre-transform Vite plugin parses TSX/JSX with SWC before the React compiler. It annotates:
+The pre-transform Vite plugin parses TSX/JSX with SWC before React compilation. It annotates:
 
 - intrinsic roots rendered by a component or fragment branch;
 - nested nodes with an explicit `data-ui`, `data-slot`, `data-testid`, stable `id`/`name`/`role`, or a directly named
@@ -82,8 +82,10 @@ Semantic inference uses, in order:
 2. a compact source domain and the owning component name;
 3. authored `part:*`, stable semantic attributes, and trusted business-handler names when an internal node is promoted.
 
-For example, a `MessageGroup` component under the chat source domain can produce `chat.message-group`; a nested copy
-action bound to `handleCopy` can produce `chat.message-group.action.copy`. Technical path fragments such as
+For example, a hypothetical `MessageTimeline` component under the chat source domain can produce
+`chat.message-timeline`; a nested copy action bound to `handleCopy` can produce
+`chat.message-timeline.action.copy`. (The real message group carries the explicit anchor `chat.message.group`, which
+overrides inference.) Technical path fragments such as
 `components`, `runtime`, and `renderer`, and raw fallback roles such as `element.div`, are excluded. Visible text is
 never an input, so localization and copy changes do not rename selectors. Line numbers, timestamps, random values, and
 class names are also excluded.
@@ -145,7 +147,8 @@ layers (Tailwind's layers, then `app`; declared in `src/renderer/assets/styles/i
 declarations beat every layered declaration regardless of load order or selector specificity, custom CSS can use the
 full CSS surface—including `:root`, `body`, top-level at-rules, and semantic `data-ui` selectors—and wins without
 blanket `!important`. Every regular renderer window subscribes to the same `ui.custom_css` preference and injects that
-stylesheet into its own document. `migrationV2` is the preboot exception because it does not initialize preferences.
+stylesheet into its own document. The preboot windows (`migrationV2`, `userDataRelocation`) are the exceptions because
+they do not initialize preferences.
 
 Two deliberate limits: `!important` inverts layer precedence, so a layered application `!important` rule beats an
 unlayered custom `!important` rule—another reason custom CSS should not use it. And a third-party widget that injects
