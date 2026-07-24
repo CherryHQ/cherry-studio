@@ -58,7 +58,7 @@ import {
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getAgentModelFallbackSnapshot } from '@renderer/utils/agent'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import {
   type AgentSessionDisplayMode,
@@ -110,6 +110,7 @@ import {
 import AgentSessionImageCaptureHost from '../messages/AgentSessionImageCaptureHost'
 import type { CreateAgentSessionDefaults } from '../types'
 import { type AgentGroupActionContext, executeAgentGroupAction, resolveAgentGroupActions } from './agentGroupActions'
+import { useOptionalAgentFileNavigation } from './AgentRightPane'
 import SessionItem, { type SessionItemMenuActions } from './SessionItem'
 import {
   executeWorkdirGroupAction,
@@ -302,6 +303,16 @@ export function findLatestCreateSessionSeed(
   return buildCreateSessionSeed(latestSession)
 }
 
+function createSessionSeedPreservesFileWorkspace(seed: CreateSessionSeed, activeSession: SessionListItem): boolean {
+  if (seed.workspace?.type === AGENT_WORKSPACE_TYPE.USER) {
+    return activeSession.workspaceId === seed.workspace.workspaceId
+  }
+  // A path-only seed may be promoted to a persisted workspace id, and each
+  // system session owns a distinct generated-files directory. Only an exact
+  // existing user workspace id proves that the file session survives.
+  return false
+}
+
 const Sessions = ({
   agentSessionsSource,
   activeSessionId,
@@ -434,6 +445,7 @@ const Sessions = ({
   )
   const sessionItemsRef = useRef(sessionItems)
   const activeSessionIdRef = useRef(activeSessionId)
+  const requestFileNavigation = useOptionalAgentFileNavigation()
 
   useEffect(() => {
     sessionItemsRef.current = sessionItems
@@ -446,9 +458,26 @@ const Sessions = ({
   const setActiveSessionId = useCallback(
     (id: string | null) => {
       const session = id ? (sessionItemsRef.current.find((candidate) => candidate.id === id) ?? null) : null
-      setControlledActiveSessionId(id, session)
+      const transition = () => setControlledActiveSessionId(id, session)
+      const activeSession = activeSessionIdRef.current
+        ? sessionItemsRef.current.find((candidate) => candidate.id === activeSessionIdRef.current)
+        : null
+      const preservesFileWorkspace =
+        activeSession &&
+        session &&
+        buildAgentFileWorkspaceKey(activeSession.workspaceId, activeSession.workspace?.path) ===
+          buildAgentFileWorkspaceKey(session.workspaceId, session.workspace?.path)
+      if (id === activeSessionIdRef.current || preservesFileWorkspace) {
+        transition()
+        return
+      }
+      if (requestFileNavigation) {
+        requestFileNavigation(transition)
+        return
+      }
+      transition()
     },
-    [setControlledActiveSessionId]
+    [requestFileNavigation, setControlledActiveSessionId]
   )
 
   const { updateSession } = useUpdateSession()
@@ -992,9 +1021,30 @@ const Sessions = ({
     ]
   )
 
+  const requestCreateSessionFromSeed = useCallback(
+    (seed: CreateSessionSeed | null | undefined) => {
+      const transition = () => {
+        void createSessionFromSeed(seed)
+      }
+      const activeSession = activeSessionIdRef.current
+        ? sessionItemsRef.current.find((session) => session.id === activeSessionIdRef.current)
+        : undefined
+      if (seed && activeSession && createSessionSeedPreservesFileWorkspace(seed, activeSession)) {
+        transition()
+        return
+      }
+      if (requestFileNavigation) {
+        requestFileNavigation(transition)
+        return
+      }
+      transition()
+    },
+    [createSessionFromSeed, requestFileNavigation]
+  )
+
   const handleHeaderCreateSession = useCallback(() => {
-    void createSessionFromSeed(headerCreateSessionSeed)
-  }, [createSessionFromSeed, headerCreateSessionSeed])
+    requestCreateSessionFromSeed(headerCreateSessionSeed)
+  }, [headerCreateSessionSeed, requestCreateSessionFromSeed])
 
   const handleRetry = useCallback(async () => {
     await reload()
@@ -1441,7 +1491,7 @@ const Sessions = ({
                 disabled={creatingSession}
                 onClick={(event) => {
                   event.stopPropagation()
-                  void createSessionFromSeed(createSessionSeed)
+                  requestCreateSessionFromSeed(createSessionSeed)
                 }}>
                 <SquarePen className="block" />
               </ResourceList.GroupHeaderActionButton>
@@ -1454,7 +1504,6 @@ const Sessions = ({
       agentById,
       agentPinnedIdSet,
       assistantIconType,
-      createSessionFromSeed,
       creatingSession,
       deletingAgentId,
       deletingWorkspaceGroupId,
@@ -1468,6 +1517,7 @@ const Sessions = ({
       isAgentPinActionDisabled,
       isUpdatingWorkspace,
       openAgentEditor,
+      requestCreateSessionFromSeed,
       setAssistantIconType,
       t,
       workdirDisplay
@@ -1490,14 +1540,14 @@ const Sessions = ({
             disabled={creatingSession}
             onClick={(event) => {
               event.stopPropagation()
-              void createSessionFromSeed(createSessionSeed)
+              requestCreateSessionFromSeed(createSessionSeed)
             }}>
             <SquarePen className="block" />
           </ResourceList.GroupHeaderActionButton>
         </Tooltip>
       )
     },
-    [agentById, createSessionFromSeed, creatingSession, filteredGroupedSessions, t]
+    [agentById, creatingSession, filteredGroupedSessions, requestCreateSessionFromSeed, t]
   )
 
   const getGroupHeaderIcon = useCallback(

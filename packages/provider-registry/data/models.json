@@ -9550,7 +9550,7 @@
       "ownedBy": "jina"
     },
     {
-      "capabilities": ["embedding"],
+      "capabilities": ["embedding", "rerank"],
       "contextWindow": 8192,
       "id": "jina-colbert-v1-en",
       "inputModalities": ["text"],
@@ -9560,7 +9560,7 @@
       "ownedBy": "jina"
     },
     {
-      "capabilities": ["embedding"],
+      "capabilities": ["embedding", "rerank"],
       "contextWindow": 8192,
       "id": "jina-colbert-v2",
       "inputModalities": ["text"],
@@ -19858,5 +19858,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "96e79ec0a16c027e"
+  "version": "714a2b8f73a539f7"
 }

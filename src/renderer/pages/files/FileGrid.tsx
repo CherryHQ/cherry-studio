@@ -10,22 +10,22 @@ import { getFormatLabel, typeBgColors, typeIconColors, typeIcons } from './fileD
 import { InlineRename } from './InlineRename'
 
 // Decorative placeholder gradients for image thumbnails, keyed by a hash of the
-// file name. Each stop uses a primitive color token from the design system
-// (DESIGN.md §2 — decorative color must come from the primitive scales, never
-// raw hex) so these tints stay consistent with the rest of the palette.
-const GALLERY_GRADIENTS = [
-  'linear-gradient(135deg,var(--color-orange-200),var(--color-rose-400))',
-  'linear-gradient(135deg,var(--color-blue-300),var(--color-cyan-200))',
-  'linear-gradient(135deg,var(--color-pink-200),var(--color-indigo-300))',
-  'linear-gradient(135deg,var(--color-rose-200),var(--color-fuchsia-200))',
-  'linear-gradient(135deg,var(--color-teal-200),var(--color-pink-200))',
-  'linear-gradient(135deg,var(--color-amber-200),var(--color-orange-300))',
-  'linear-gradient(135deg,var(--color-green-300),var(--color-sky-300))',
-  'linear-gradient(135deg,var(--color-amber-300),var(--color-purple-400))',
-  'linear-gradient(135deg,var(--color-violet-200),var(--color-sky-300))',
-  'linear-gradient(135deg,var(--color-amber-300),var(--color-orange-400))',
-  'linear-gradient(135deg,var(--color-slate-200),var(--color-slate-100))',
-  'linear-gradient(135deg,var(--color-emerald-400),var(--color-blue-600))'
+// file name. This reviewed gallery palette intentionally uses primitive utility
+// classes rather than assigning ordinary component state to feedback semantics.
+// Explicit sRGB interpolation preserves the former CSS linear-gradient rendering.
+const GALLERY_GRADIENT_CLASSES = [
+  'bg-linear-to-br/srgb from-orange-200 to-rose-400',
+  'bg-linear-to-br/srgb from-blue-300 to-cyan-200',
+  'bg-linear-to-br/srgb from-pink-200 to-indigo-300',
+  'bg-linear-to-br/srgb from-rose-200 to-fuchsia-200',
+  'bg-linear-to-br/srgb from-teal-200 to-pink-200',
+  'bg-linear-to-br/srgb from-amber-200 to-orange-300',
+  'bg-linear-to-br/srgb from-green-300 to-sky-300',
+  'bg-linear-to-br/srgb from-amber-300 to-purple-400',
+  'bg-linear-to-br/srgb from-violet-200 to-sky-300',
+  'bg-linear-to-br/srgb from-amber-300 to-orange-400',
+  'bg-linear-to-br/srgb from-slate-200 to-slate-100',
+  'bg-linear-to-br/srgb from-emerald-400 to-blue-600'
 ]
 
 const GRID_GAP_PX = 8
@@ -61,10 +61,10 @@ function useGridColumnCount(scrollRef: RefObject<HTMLDivElement | null>) {
   return columnCount
 }
 
-function gradientFor(name: string): string {
+function gradientClassFor(name: string): string {
   let h = 0
   for (let i = 0; i < name.length; i++) h = ((h << 5) - h + name.charCodeAt(i)) | 0
-  return GALLERY_GRADIENTS[Math.abs(h) % GALLERY_GRADIENTS.length]
+  return GALLERY_GRADIENT_CLASSES[Math.abs(h) % GALLERY_GRADIENT_CLASSES.length]
 }
 
 export const FileGrid = memo(function FileGrid({
@@ -133,7 +133,7 @@ export const FileGrid = memo(function FileGrid({
               const isImage = file.type === 'image'
               const previewUrl = isImage && !file.isMissing ? file.previewUrl : undefined
               const shapeClass = isImage ? 'aspect-square rounded-lg' : 'h-[72px] rounded-t-lg'
-              const bgClass = isImage ? '' : typeBgColors[file.type]
+              const bgClass = isImage ? gradientClassFor(file.name) : typeBgColors[file.type]
               return (
                 <FileContextMenu key={file.id} file={file} isTrash={isTrash} actions={menuActions}>
                   <div
@@ -143,8 +143,7 @@ export const FileGrid = memo(function FileGrid({
                     }}
                     className="group relative cursor-pointer rounded-lg border border-border/30 transition-all hover:border-border/50 hover:bg-accent/50">
                     <div
-                      className={`${shapeClass} relative flex items-center justify-center overflow-hidden ${bgClass}`}
-                      style={isImage ? { backgroundImage: gradientFor(file.name) } : undefined}>
+                      className={`${shapeClass} relative flex items-center justify-center overflow-hidden ${bgClass}`}>
                       {previewUrl ? (
                         <img
                           src={previewUrl}

@@ -1,6 +1,6 @@
 import type { UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { Assistant, AssistantSettings } from '@shared/data/types/assistant'
-import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { DEFAULT_ASSISTANT_SETTINGS, McpModeSchema } from '@shared/data/types/assistant'
 
 // ---------------------------------------------------------------------------
 // Form state
@@ -72,6 +72,7 @@ function buildAssistantSettingsFromForm(
 
 export function initialAssistantFormState(assistant: Assistant): AssistantFormState {
   const settings = assistant.settings ?? ({} as AssistantSettings)
+  const mcpMode = McpModeSchema.safeParse(settings.mcpMode)
   return {
     name: assistant.name,
     emoji: assistant.emoji,
@@ -88,7 +89,7 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
     maxToolCalls: settings.maxToolCalls ?? UI_DEFAULT_MAX_TOOL_CALLS,
     enableMaxToolCalls: settings.enableMaxToolCalls ?? true,
     customParameters: settings.customParameters ?? [],
-    mcpMode: settings.mcpMode ?? 'auto',
+    mcpMode: mcpMode.success ? mcpMode.data : DEFAULT_ASSISTANT_SETTINGS.mcpMode,
     groupId: assistant.groupId,
     knowledgeBaseIds: assistant.knowledgeBaseIds ?? [],
     mcpServerIds: assistant.mcpServerIds ?? []

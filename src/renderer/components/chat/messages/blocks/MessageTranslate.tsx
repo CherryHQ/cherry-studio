@@ -33,7 +33,7 @@ const MessageTranslate: FC<Props> = ({ block }) => {
       </div>
       {isAwaitingFirstChunk && (
         <div className="-mt-1.25 mb-1.25 flex h-8 flex-row items-center">
-          <BeatLoader color="var(--color-foreground)" size={8} speedMultiplier={0.8} />
+          <BeatLoader color="var(--foreground)" size={8} speedMultiplier={0.8} />
         </div>
       )}
       <ChatMarkdown block={block} />

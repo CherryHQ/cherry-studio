@@ -25,6 +25,7 @@ import { useTranslation } from 'react-i18next'
 import { BackupUnavailableGate } from './BackupUnavailableGate'
 
 const logger = loggerService.withContext('LocalBackupSettings')
+const SYNC_STATUS_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
 
 const LocalBackupSettings: React.FC = () => {
   const [, setLocalBackupAutoSync] = usePreference('data.backup.local.auto_sync')
@@ -156,7 +157,7 @@ const LocalBackupSettings: React.FC = () => {
     if (!localBackupDir) return null
 
     if (!localBackupSync.lastSyncTime && !localBackupSync.syncing && !localBackupSync.lastSyncError) {
-      return <span style={{ color: 'var(--color-foreground-secondary)' }}>{t('settings.data.local.noSync')}</span>
+      return <span style={{ color: SYNC_STATUS_COLOR }}>{t('settings.data.local.noSync')}</span>
     }
 
     return (
@@ -169,7 +170,7 @@ const LocalBackupSettings: React.FC = () => {
           />
         )}
         {localBackupSync.lastSyncTime && (
-          <span style={{ color: 'var(--color-foreground-secondary)' }}>
+          <span style={{ color: SYNC_STATUS_COLOR }}>
             {t('settings.data.local.lastSync')}: {dayjs(localBackupSync.lastSyncTime).format('HH:mm:ss')}
           </span>
         )}

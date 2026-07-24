@@ -39,8 +39,15 @@ export default defineCreator({
     { id: 'jina-clip-v1', name: 'Jina CLIP v1', contextWindow: 8192, inputModalities: [...IMG] },
     { id: 'jina-code-embeddings-1-5b', name: 'Jina Code Embeddings 1.5B', contextWindow: 32768 },
     { id: 'jina-code-embeddings-0-5b', name: 'Jina Code Embeddings 0.5B', contextWindow: 32768 },
-    { id: 'jina-colbert-v2', name: 'Jina ColBERT v2', contextWindow: 8192 },
-    { id: 'jina-colbert-v1-en', name: 'Jina ColBERT v1 EN', contextWindow: 8192 },
+    // ColBERT is a late-interaction model Jina serves for BOTH embedding and reranking, but its id
+    // carries no `rerank` token, so the kind heuristic would tag it embedding-only. Declare both.
+    { id: 'jina-colbert-v2', name: 'Jina ColBERT v2', contextWindow: 8192, capabilities: ['embedding', 'rerank'] },
+    {
+      id: 'jina-colbert-v1-en',
+      name: 'Jina ColBERT v1 EN',
+      contextWindow: 8192,
+      capabilities: ['embedding', 'rerank']
+    },
     { id: 'jina-reranker-v3', name: 'Jina Reranker v3', contextWindow: 131072 },
     { id: 'jina-reranker-m0', name: 'Jina Reranker m0', contextWindow: 10240, inputModalities: [...IMG] },
     { id: 'jina-reranker-v2-base-multilingual', name: 'Jina Reranker v2 Base Multilingual', contextWindow: 1024 },

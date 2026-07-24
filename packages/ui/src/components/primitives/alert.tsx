@@ -11,10 +11,10 @@ const alertVariants = cva(
   {
     variants: {
       type: {
-        info: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300',
-        success: 'border-[var(--color-success)] bg-[var(--color-success-bg)] text-[var(--color-success)]',
-        warning: 'border-[var(--color-warning-base)] bg-[var(--color-warning-bg)] text-[var(--color-warning-base)]',
-        error: 'border-[var(--color-error-border)] bg-[var(--color-error-bg)] text-[var(--color-error-base)]'
+        info: 'border-info-border bg-info-subtle text-info-subtle-foreground',
+        success: 'border-success-border bg-success-subtle text-success-subtle-foreground',
+        warning: 'border-warning-border bg-warning-subtle text-warning-subtle-foreground',
+        error: 'border-error-border bg-error-subtle text-error-subtle-foreground'
       }
     },
     defaultVariants: {
@@ -26,10 +26,10 @@ const alertVariants = cva(
 const alertIconVariants = cva('', {
   variants: {
     type: {
-      info: 'text-blue-600 dark:text-blue-300',
-      success: 'text-[var(--color-success)]',
-      warning: 'text-[var(--color-warning-base)]',
-      error: 'text-[var(--color-error-base)]'
+      info: 'text-info',
+      success: 'text-success',
+      warning: 'text-warning',
+      error: 'text-error'
     }
   },
   defaultVariants: {
@@ -40,10 +40,10 @@ const alertIconVariants = cva('', {
 const alertIconContainerVariants = cva('mt-0.5 flex shrink-0 items-center', {
   variants: {
     type: {
-      info: 'text-blue-600 dark:text-blue-300 [&_.lucide:not(.lucide-custom)]:!text-blue-600 dark:[&_.lucide:not(.lucide-custom)]:!text-blue-300',
-      success: 'text-[var(--color-success)] [&_.lucide:not(.lucide-custom)]:!text-[var(--color-success)]',
-      warning: 'text-[var(--color-warning-base)] [&_.lucide:not(.lucide-custom)]:!text-[var(--color-warning-base)]',
-      error: 'text-[var(--color-error-base)] [&_.lucide:not(.lucide-custom)]:!text-[var(--color-error-base)]'
+      info: 'text-info [&_.lucide:not(.lucide-custom)]:!text-info',
+      success: 'text-success [&_.lucide:not(.lucide-custom)]:!text-success',
+      warning: 'text-warning [&_.lucide:not(.lucide-custom)]:!text-warning',
+      error: 'text-error [&_.lucide:not(.lucide-custom)]:!text-error'
     }
   },
   defaultVariants: {

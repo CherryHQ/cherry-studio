@@ -8,6 +8,8 @@ import { useTranslation } from 'react-i18next'
 
 import type { Command } from './command'
 
+const COMMAND_DESCRIPTION_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
+
 export interface CommandListPopoverProps extends SuggestionProps<Command> {
   ref?: React.RefObject<CommandListPopoverRef | null>
 }
@@ -126,9 +128,9 @@ const CommandListPopover = ({
   const colors = useMemo(() => {
     const isDark = theme === 'dark'
     return {
-      background: 'var(--color-popover)',
-      border: isDark ? 'var(--color-border, #ffffff19)' : '#e1e5e9',
-      selectedBackground: isDark ? 'var(--color-accent, rgba(40, 40, 40, 1))' : '#f0f0f0',
+      background: 'var(--popover)',
+      border: isDark ? 'var(--border, #ffffff19)' : '#e1e5e9',
+      selectedBackground: isDark ? 'var(--accent, rgba(40, 40, 40, 1))' : '#f0f0f0',
       boxShadow: isDark ? '0 4px 12px rgba(0, 0, 0, 0.3)' : '0 4px 12px rgba(0, 0, 0, 0.1)'
     }
   }, [theme])
@@ -180,7 +182,7 @@ const CommandListPopover = ({
               </span>
               <span
                 style={{
-                  color: 'var(--color-foreground-secondary)',
+                  color: COMMAND_DESCRIPTION_COLOR,
                   display: 'block',
                   fontSize: '12px',
                   lineHeight: '16px'

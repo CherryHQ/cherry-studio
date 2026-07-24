@@ -294,12 +294,12 @@ const HeaderNavbar = ({
   }, [activeNode, notesTree])
 
   return (
-    <NavbarHeader className="home-navbar shrink-0 justify-start [border-bottom:1px_solid_var(--color-border)]">
+    <NavbarHeader className="home-navbar shrink-0 justify-start [border-bottom:1px_solid_var(--border)]">
       <RowFlex className="flex-[0_0_auto] items-center">
         {showWorkspace && (
           <Tooltip title={t('navbar.hide_sidebar')} delay={800}>
             <BaseNavbarIcon
-              className="[&_svg]:size-4.5 [&_svg]:text-foreground-secondary"
+              className="[&_svg]:size-4.5 [&_svg]:text-muted-foreground"
               onClick={handleToggleShowWorkspace}>
               <PanelLeftClose size={18} />
             </BaseNavbarIcon>
@@ -308,7 +308,7 @@ const HeaderNavbar = ({
         {!showWorkspace && (
           <Tooltip title={t('navbar.show_sidebar')} delay={800} placement="right">
             <BaseNavbarIcon
-              className="[&_svg]:size-4.5 [&_svg]:text-foreground-secondary"
+              className="[&_svg]:size-4.5 [&_svg]:text-muted-foreground"
               onClick={handleToggleShowWorkspace}>
               <PanelRightClose size={18} />
             </BaseNavbarIcon>
@@ -364,13 +364,9 @@ const HeaderNavbar = ({
         {canShowStarButton && (
           <Tooltip title={activeNode.isStarred ? t('notes.unstar') : t('notes.star')} delay={800}>
             <div
-              className="flex h-7.5 cursor-pointer flex-row items-center justify-center rounded-lg px-1.75 transition-all duration-200 ease-in-out [-webkit-app-region:none] hover:bg-muted [&_svg]:text-foreground-secondary"
+              className="flex h-7.5 cursor-pointer flex-row items-center justify-center rounded-lg px-1.75 transition-all duration-200 ease-in-out [-webkit-app-region:none] hover:bg-muted [&_svg]:text-muted-foreground"
               onClick={handleToggleStarred}>
-              {activeNode.isStarred ? (
-                <Star size={18} fill="var(--color-warning-base)" stroke="var(--color-warning-base)" />
-              ) : (
-                <Star size={18} />
-              )}
+              {activeNode.isStarred ? <Star size={18} className="fill-amber-400 text-amber-400" /> : <Star size={18} />}
             </div>
           </Tooltip>
         )}
@@ -378,7 +374,7 @@ const HeaderNavbar = ({
           <PopoverTrigger asChild>
             <div>
               <Tooltip title={t('notes.settings.title')} delay={800}>
-                <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-foreground-secondary">
+                <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-muted-foreground">
                   <MoreHorizontal size={18} />
                 </BaseNavbarIcon>
               </Tooltip>

@@ -30,6 +30,7 @@ import { useTranslation } from 'react-i18next'
 import * as z from 'zod'
 
 const logger = loggerService.withContext('SelectionActionSearchModal')
+const SEARCH_ENGINE_ICON_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
 
 interface SearchEngineOption {
   label: string
@@ -75,25 +76,25 @@ export const DEFAULT_SEARCH_ENGINES: SearchEngineOption[] = [
     label: 'Google',
     value: 'Google',
     searchEngine: 'Google|https://www.google.com/search?q={{queryString}}',
-    icon: <LogoGoogle style={{ fontSize: '14px', color: 'var(--color-foreground-secondary)' }} />
+    icon: <LogoGoogle style={{ fontSize: '14px', color: SEARCH_ENGINE_ICON_COLOR }} />
   },
   {
     label: 'Baidu',
     value: 'Baidu',
     searchEngine: 'Baidu|https://www.baidu.com/s?wd={{queryString}}',
-    icon: <LogoBaidu style={{ fontSize: '14px', color: 'var(--color-foreground-secondary)' }} />
+    icon: <LogoBaidu style={{ fontSize: '14px', color: SEARCH_ENGINE_ICON_COLOR }} />
   },
   {
     label: 'Bing',
     value: 'Bing',
     searchEngine: 'Bing|https://www.bing.com/search?q={{queryString}}',
-    icon: <LogoBing style={{ fontSize: '14px', color: 'var(--color-foreground-secondary)' }} />
+    icon: <LogoBing style={{ fontSize: '14px', color: SEARCH_ENGINE_ICON_COLOR }} />
   },
   {
     label: '',
     value: 'custom',
     searchEngine: '',
-    icon: <Globe size={14} color="var(--color-foreground-secondary)" />
+    icon: <Globe size={14} color={SEARCH_ENGINE_ICON_COLOR} />
   }
 ]
 

@@ -263,7 +263,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           'message group/message transform-[translateZ(0)] relative flex w-full flex-col rounded-[10px] pt-2.5 pb-0 transition-colors duration-300 will-change-transform [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200': true,
           'message-assistant': isAssistantMessage,
           'message-user': !isAssistantMessage,
-          'bg-muted px-3 pb-2 opacity-70 outline-offset-[-1px] [outline:1px_solid_var(--color-border)]': isEditing,
+          'bg-muted px-3 pb-2 opacity-70 outline-offset-[-1px] [outline:1px_solid_var(--border)]': isEditing,
           'cursor-pointer': isMultiSelectMode
         }),
         enterMotionAttributes?.className

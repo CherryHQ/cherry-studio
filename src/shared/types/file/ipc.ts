@@ -35,17 +35,17 @@
 
 import type { DanglingState, FileEntry, FileEntryId, FileHandle } from '@shared/data/types/file'
 
-import type { Base64String, DirectoryListOptions, FilePath, PhysicalFileMetadata, UrlString } from './common'
+import type {
+  Base64String,
+  DirectoryListOptions,
+  FilePath,
+  FileVersion,
+  PhysicalFileMetadata,
+  UrlString
+} from './common'
 import type { OrphanReport } from './sweep'
 
-export type { DirectoryListOptions, FilePath } from './common'
-
-// ─── Version ───
-
-export interface FileVersion {
-  mtime: number
-  size: number
-}
+export type { DirectoryListOptions, FilePath, FileVersion } from './common'
 
 export interface ReadResult<T> {
   content: T
@@ -227,9 +227,9 @@ export interface BatchCreateResult {
  * underlying IPC channel is registered. Renderer code calling a method whose
  * channel is not yet registered will type-check but fail at runtime.
  *
- * | Files page IpcApi — wired | Legacy preload — still wired | Type-only / future |
+ * | IpcApi — wired | Legacy preload — still wired | Type-only / future |
  * |---|---|---|
- * | `batchCreateInternalEntries`, `batchGetMetadata`, `batchGetPhysicalPaths`, `batchGetDanglingStates`, `batchTrash`, `batchRestore`, `batchPermanentDelete`, entry `rename`, entry `open`, entry `showInFolder` | `createInternalEntry`, `ensureExternalEntry`, `getPhysicalPath`, handle `permanentDelete`, path-handle `getMetadata`, `runSweep` | everything else |
+ * | binary `read`, `batchCreateInternalEntries`, `batchGetMetadata`, `batchGetPhysicalPaths`, `batchGetDanglingStates`, `batchTrash`, `batchRestore`, `batchPermanentDelete`, entry `rename`, entry `open`, entry `showInFolder` | `createInternalEntry`, `ensureExternalEntry`, `getPhysicalPath`, handle `permanentDelete`, path-handle `getMetadata`, `runSweep` | everything else |
  *
  * Remaining `@phase 2` method shapes are *design drafts*; signatures may shift
  * when each channel actually lands alongside its first FileManager consumer.
@@ -325,7 +325,8 @@ export interface FileIpcApi {
 
   // ─── C. Read / Metadata (accepts FileHandle) ───
   //
-  // Section status: all `@phase 2`.
+  // Section status: the binary `read` option and selected metadata operations
+  // are wired through IpcApi; the remaining shapes are still `@phase 2`.
 
   /**
    * Read content as text
@@ -339,7 +340,7 @@ export interface FileIpcApi {
   read(handle: FileHandle, options: { encoding: 'base64' }): Promise<ReadResult<string>>
   /**
    * Read content as binary
-   * @phase 2 — not yet wired
+   * @phase 2 — wired as IpcApi route `file.read`.
    */
   read(handle: FileHandle, options: { encoding: 'binary' }): Promise<ReadResult<Uint8Array>>
 
@@ -415,7 +416,9 @@ export interface FileIpcApi {
    * truncates to whole seconds — see `FileVersion` JSDoc for the full
    * fallback contract.
    *
-   * @phase 2 — not yet wired
+   * @phase 2 — the generic FileHandle API is not yet wired. ArtifactPane uses
+   * the narrower path-only IpcApi route `file.write_if_unchanged`, whose OCC
+   * input is `FileVersion` only.
    */
   writeIfUnchanged(
     handle: FileHandle,

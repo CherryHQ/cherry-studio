@@ -21,6 +21,8 @@ import { useTranslation } from 'react-i18next'
 
 import { BackupUnavailableGate } from './BackupUnavailableGate'
 
+const SYNC_STATUS_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
+
 const WebDavSettings: FC = () => {
   const [, setWebdavAutoSync] = usePreference('data.backup.webdav.auto_sync')
   const [webdavDisableStream, setWebdavDisableStream] = usePreference('data.backup.webdav.disable_stream')
@@ -69,7 +71,7 @@ const WebDavSettings: FC = () => {
     if (!webdavHost) return null
 
     if (!webdavSync.lastSyncTime && !webdavSync.syncing && !webdavSync.lastSyncError) {
-      return <span style={{ color: 'var(--color-foreground-secondary)' }}>{t('settings.data.webdav.noSync')}</span>
+      return <span style={{ color: SYNC_STATUS_COLOR }}>{t('settings.data.webdav.noSync')}</span>
     }
 
     return (
@@ -82,7 +84,7 @@ const WebDavSettings: FC = () => {
           />
         )}
         {webdavSync.lastSyncTime && (
-          <span style={{ color: 'var(--color-foreground-secondary)' }}>
+          <span style={{ color: SYNC_STATUS_COLOR }}>
             {t('settings.data.webdav.lastSync')}: {dayjs(webdavSync.lastSyncTime).format('HH:mm:ss')}
           </span>
         )}
