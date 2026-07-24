@@ -4432,6 +4432,14 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "privacy": {
+      "accept_and_continue": "Zustimmen und fortfahren",
+      "accept_policy": "Der Datenschutzerklärung zustimmen",
+      "notice": "Ich habe die folgende Erklärung gelesen und stimme ihr zu:",
+      "period": "",
+      "policy": "Datenschutzerklärung",
+      "update_failed": "Ihre Zustimmung zur Datenschutzerklärung konnte nicht gespeichert werden. Bitte versuchen Sie es erneut."
+    },
     "select_model": {
       "change_later": "Sie können dies jederzeit in den Einstellungen ändern.",
       "start": "Loslegen",
@@ -4448,7 +4456,7 @@
       "other_provider": "Andere Anbieter auswählen",
       "select_other_provider": "Wählen Sie einen anderen Anbieter",
       "setup_hint": "Bitte konfigurieren Sie mindestens einen Anbieter für die beste Erfahrung.",
-      "subtitle": "Genießen Sie erstklassige KI-Dienste mit CherryIN",
+      "subtitle": "Verbinden Sie einen Anbieter, um Ihre All-in-One-KI-Workstation zu aktivieren",
       "title": "Willkommen bei Cherry Studio"
     }
   },
@@ -6913,7 +6921,7 @@
       "default_assistant_model": "Standard-Assistent-Modell",
       "default_assistant_model_description": "Wird verwendet, wenn ein Assistent kein Modell hat.",
       "docs": "Modelldokumentation",
-      "empty": "Kein Modell",
+      "empty": "Modell auswählen",
       "enabled_models": "Aktiviert",
       "expand_all": "Alle ausklappen",
       "filter": {
