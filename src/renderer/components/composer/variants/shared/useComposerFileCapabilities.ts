@@ -1,6 +1,6 @@
 import { isAudioModel, isAudioModels, isVideoModel, isVideoModels } from '@renderer/utils/model'
 import type { Model } from '@shared/data/types/model'
-import { audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file'
+import { archiveExts, audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file'
 import { useMemo } from 'react'
 
 export interface ComposerFileCapabilities {
@@ -17,12 +17,14 @@ interface ComposerFileCapabilitiesArgs {
 }
 
 const EMPTY_MODELS: Model[] = []
+const CHAT_ARCHIVE_EXTS = archiveExts.filter((ext) => ext === '.zip')
 
-const ALL_FILE_EXTS = [...imageExts, ...audioExts, ...videoExts, ...documentExts, ...textExts]
+const ALL_FILE_EXTS = [...imageExts, ...audioExts, ...videoExts, ...documentExts, ...textExts, ...archiveExts]
 
 // audio/video are the only modalities the chat surface still gates on (images always work
-// via the OCR fallback, documents/text always extract). Each maps to the predicate pair
-// that probes whether the active model set supports it (single model vs. every mentioned).
+// via the OCR fallback, documents/text always extract, ZIP images are OCR'd). Each maps to
+// the predicate pair that probes whether the active model set supports it (single model vs.
+// every mentioned).
 const MEDIA_INPUT_PREDICATES = {
   audio: [isAudioModel, isAudioModels],
   video: [isVideoModel, isVideoModels]
@@ -43,7 +45,7 @@ function isMultiModelArgs(
  *   by the agent's own tools, so the model's modality is irrelevant — every file type is
  *   attachable on any active model.
  * - **Chat**: the model consumes files directly. Images always work (sent natively to a vision
- *   model, OCR text otherwise) and documents/text always extract, regardless of the model.
+ *   model, OCR text otherwise), ZIP images are OCR'd, and documents/text always extract.
  *   Audio/video have no text fallback, so they gate on the model's audio/video input
  *   capability — every mentioned model must qualify, or (with none mentioned) the fallback.
  */
@@ -78,7 +80,8 @@ export function useComposerFileCapabilities(
         ...(audio ? audioExts : []),
         ...(video ? videoExts : []),
         ...documentExts,
-        ...textExts
+        ...textExts,
+        ...CHAT_ARCHIVE_EXTS
       ]
     }
   }, [isChatSurface, models, fallbackModel])

@@ -1,5 +1,5 @@
 import type { Model } from '@shared/data/types/model'
-import { audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file'
+import { archiveExts, audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -15,8 +15,9 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@renderer/utils/model', () => mocks)
 
 const model = (id: string) => ({ id }) as unknown as Model
-const containsAll = (haystack: string[], needles: string[]) => needles.every((n) => haystack.includes(n))
+const containsAll = (haystack: string[], needles: readonly string[]) => needles.every((n) => haystack.includes(n))
 const ALL_EXTS = [...imageExts, ...audioExts, ...videoExts, ...documentExts, ...textExts]
+const NON_ZIP_ARCHIVE_EXTS = archiveExts.filter((ext) => ext !== '.zip')
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -45,6 +46,12 @@ describe('useComposerFileCapabilities', () => {
       expect(result.current.canAddTextFile).toBe(true)
       expect(containsAll(result.current.supportedExts, ALL_EXTS)).toBe(true)
     })
+
+    it('allows common archive formats', () => {
+      const { result } = renderHook(() => useComposerFileCapabilities(model('m1')))
+
+      expect(containsAll(result.current.supportedExts, archiveExts)).toBe(true)
+    })
   })
 
   describe('chat surface (mentioned models + fallback)', () => {
@@ -62,6 +69,8 @@ describe('useComposerFileCapabilities', () => {
 
       expect(containsAll(result.current.supportedExts, audioExts)).toBe(false)
       expect(containsAll(result.current.supportedExts, videoExts)).toBe(false)
+      expect(result.current.supportedExts).toContain('.zip')
+      expect(NON_ZIP_ARCHIVE_EXTS.every((ext) => !result.current.supportedExts.includes(ext))).toBe(true)
     })
 
     it('adds audio exts only when every mentioned model supports audio input', () => {

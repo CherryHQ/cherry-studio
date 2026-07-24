@@ -1,5 +1,6 @@
 export { canonicalizeAbsolutePath } from './canonicalize'
 export {
+  archiveExts,
   audioExts,
   codeLangExts,
   customTextExts,
