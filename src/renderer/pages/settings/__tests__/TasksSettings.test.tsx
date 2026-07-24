@@ -104,6 +104,7 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
     actions,
     error,
     label,
+    minHeight,
     onChange,
     placeholder,
     value
@@ -111,6 +112,7 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
     actions?: React.ReactNode
     error?: string
     label: React.ReactNode
+    minHeight?: string
     onChange: (value: string) => void
     placeholder?: string
     value: string
@@ -122,6 +124,7 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
         aria-label="agent.tasks.prompt.label"
         aria-invalid={Boolean(error) || undefined}
         placeholder={placeholder}
+        style={{ minHeight }}
         value={value}
         onChange={(event) => onChange(event.currentTarget.value)}
       />
@@ -429,15 +432,18 @@ vi.mock('@cherrystudio/ui', () => {
     EmptyState: ({
       actionLabel,
       description,
+      icon: Icon,
       onAction,
       title
     }: {
       actionLabel?: React.ReactNode
       description?: React.ReactNode
+      icon?: React.ElementType
       onAction?: () => void
       title?: React.ReactNode
     }) => (
       <div>
+        {Icon && <Icon data-testid="empty-state-icon" />}
         {title && <h2>{title}</h2>}
         {description && <p>{description}</p>}
         {actionLabel && onAction && (
@@ -502,7 +508,7 @@ vi.mock('@cherrystudio/ui', () => {
     ItemSeparator: () => <hr />,
     ItemTitle: passthrough('div', 'item-title'),
     RowFlex: passthrough('div'),
-    Scrollbar: passthrough('div'),
+    Scrollbar: passthrough('div', 'scrollbar'),
     SearchInput: ({
       clearLabel,
       onChange,
@@ -749,6 +755,22 @@ describe('TasksSettings routing and creation', () => {
     expect(navigationMocks.openRoute).toHaveBeenCalledWith('/app/agents')
   })
 
+  it('centers the empty state in the remaining page height', async () => {
+    navigationMocks.taskId = undefined
+    dataApiMock.get.mockImplementation((path: string) => {
+      if (path === '/agents') return Promise.resolve({ items: agentDataMock.agents })
+      if (path.endsWith('/tasks')) return Promise.resolve({ items: [] })
+      throw new Error(`unexpected path: ${path}`)
+    })
+
+    render(<TasksSettings />)
+
+    const emptyState = (await screen.findByText('settings.scheduledTasks.noTasksTitle')).parentElement
+    expect(screen.getByTestId('empty-state-icon')).toHaveClass('lucide-calendar-clock')
+    expect(emptyState?.parentElement).toHaveClass('flex', 'flex-1', 'flex-col')
+    expect(emptyState?.parentElement?.parentElement).toHaveClass('flex', 'min-h-full', 'flex-col')
+  })
+
   it('opens a public xl Dialog with a daily 09:00 default', async () => {
     navigationMocks.taskId = undefined
 
@@ -770,7 +792,11 @@ describe('TasksSettings routing and creation', () => {
     expect(within(dialog).queryByText('agent.tasks.schedule.description')).not.toBeInTheDocument()
 
     expect(within(dialog).getByRole('textbox', { name: 'agent.tasks.name.label' })).toBeRequired()
+    expect(
+      within(dialog).getByRole('textbox', { name: 'agent.tasks.name.label' }).closest('[data-slot="scrollbar"]')
+    ).toHaveClass('-m-1', 'p-1', 'pr-3')
     const promptInput = within(dialog).getByLabelText('agent.tasks.prompt.label')
+    expect(promptInput).toHaveStyle({ minHeight: '100px' })
     const promptEditor = promptInput.closest('[data-slot="prompt-editor-field"]')
     expect(promptEditor).not.toBeNull()
     expect(

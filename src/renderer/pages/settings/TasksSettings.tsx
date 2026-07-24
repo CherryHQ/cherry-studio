@@ -86,6 +86,7 @@ import type { TFunction } from 'i18next'
 import {
   ArrowLeft,
   Bot,
+  CalendarClock,
   ChevronDown,
   ChevronRight,
   CircleSlash,
@@ -1092,7 +1093,7 @@ const CreateTaskDialog: FC<{
           <DialogTitle>{t('settings.scheduledTasks.createTitle')}</DialogTitle>
           <DialogDescription>{t('settings.scheduledTasks.createDescription')}</DialogDescription>
         </DialogHeader>
-        <Scrollbar className="max-h-[60vh] pr-2">
+        <Scrollbar className="-m-1 max-h-[60vh] p-1 pr-3">
           <FieldGroup>
             <Field data-invalid={(submitted && !name.trim()) || undefined}>
               <FieldLabel required htmlFor="create-task-name">
@@ -1120,7 +1121,7 @@ const CreateTaskDialog: FC<{
                 placeholder={t('agent.tasks.prompt.placeholder')}
                 error={submitted && !prompt.trim() ? t('settings.scheduledTasks.validation.prompt') : undefined}
                 resetPreviewKey={promptPreviewKey}
-                minHeight="160px"
+                minHeight="100px"
                 actions={
                   <PromptPolishActions
                     value={prompt}
@@ -1435,8 +1436,8 @@ const TasksSettings: FC = () => {
   }
 
   return (
-    <SettingsContentColumn theme={theme}>
-      <SettingGroup theme={theme}>
+    <SettingsContentColumn theme={theme} innerClassName="flex min-h-full flex-col">
+      <SettingGroup theme={theme} className="flex flex-1 flex-col">
         <SettingTitle>
           <span>{t('settings.scheduledTasks.title')}</span>
           <DropdownMenu>
@@ -1467,6 +1468,7 @@ const TasksSettings: FC = () => {
         {tasks.length === 0 ? (
           <EmptyState
             preset={agents.length === 0 ? 'no-agent' : 'no-result'}
+            icon={agents.length === 0 ? undefined : CalendarClock}
             title={
               agents.length === 0
                 ? t('settings.scheduledTasks.noAgentsTitle')
