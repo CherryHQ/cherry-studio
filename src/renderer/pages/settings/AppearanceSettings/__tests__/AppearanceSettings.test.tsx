@@ -335,7 +335,7 @@ describe('AppearanceSettings selectors', () => {
 
     render(<AppearanceSettings />)
 
-    expect(screen.getByDisplayValue(markedCss)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('settings.display.custom.css.placeholder')).toHaveValue(markedCss)
     expect(screen.getByText('settings.display.custom.css.legacy_warning')).toBeInTheDocument()
     expect(screen.getByText('settings.display.custom.css.cherrycss')).toBeInTheDocument()
 
