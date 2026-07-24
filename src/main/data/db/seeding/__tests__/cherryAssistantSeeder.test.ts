@@ -28,8 +28,8 @@ function builtinAgents(db: ReturnType<typeof setupTestDatabase>['db']) {
 describe('CherryAssistantSeeder', () => {
   const dbh = setupTestDatabase()
 
-  it('uses a constant version so preset changes cannot bypass deletion memory', () => {
-    expect(new CherryAssistantSeeder().version).toBe('1')
+  it('uses the auto-edit rollout version without tying it to preset content', () => {
+    expect(new CherryAssistantSeeder().version).toBe('3')
   })
 
   it('registers the CherryAI default model before Cherry Assistant in the production registry', () => {
@@ -70,7 +70,7 @@ describe('CherryAssistantSeeder', () => {
     })
     expect(agent.configuration).toMatchObject({
       avatar: '🍒',
-      permission_mode: 'default',
+      permission_mode: 'acceptEdits',
       max_turns: 100,
       env_vars: {},
       builtin_role: 'assistant'
@@ -86,17 +86,59 @@ describe('CherryAssistantSeeder', () => {
     expect(workspace).toMatchObject({ type: AGENT_WORKSPACE_TYPE.SYSTEM })
   })
 
-  it('skips when any active agent exists and SeedRunner still journals the one-time eligibility check', () => {
+  it('upgrades the v2 default permission mode to auto-edit without recreating the builtin agent', () => {
+    new CherryAssistantSeeder().run(dbh.db)
+    const [assistant] = builtinAgents(dbh.db)
+    dbh.db
+      .update(agentTable)
+      .set({ configuration: { ...assistant.configuration, permission_mode: 'default' } })
+      .where(eq(agentTable.id, assistant.id))
+      .run()
+    dbh.db
+      .insert(appStateTable)
+      .values({ key: 'seed:cherryAssistant', value: { version: '2' } })
+      .run()
+
+    new SeedRunner(dbh.db).runAll([new CherryAssistantSeeder()])
+
+    const [updated] = builtinAgents(dbh.db)
+    expect(builtinAgents(dbh.db)).toHaveLength(1)
+    expect(updated.configuration).toMatchObject({ permission_mode: 'acceptEdits' })
+    const [journal] = dbh.db.select().from(appStateTable).where(eq(appStateTable.key, 'seed:cherryAssistant')).all()
+    expect(journal?.value).toMatchObject({ version: '3' })
+  })
+
+  it('preserves a permission mode explicitly selected by the user during the auto-edit rollout', () => {
+    new CherryAssistantSeeder().run(dbh.db)
+    const [assistant] = builtinAgents(dbh.db)
+    dbh.db
+      .update(agentTable)
+      .set({ configuration: { ...assistant.configuration, permission_mode: 'plan' } })
+      .where(eq(agentTable.id, assistant.id))
+      .run()
+    dbh.db
+      .insert(appStateTable)
+      .values({ key: 'seed:cherryAssistant', value: { version: '2' } })
+      .run()
+
+    new SeedRunner(dbh.db).runAll([new CherryAssistantSeeder()])
+
+    const [updated] = builtinAgents(dbh.db)
+    expect(updated.configuration).toMatchObject({ permission_mode: 'plan' })
+  })
+
+  it('adds Cherry Assistant alongside existing agents and journals the rollout', () => {
     insertOrdinaryAgent()
 
     new SeedRunner(dbh.db).runAll([new CherryAssistantSeeder()])
 
-    expect(builtinAgents(dbh.db)).toHaveLength(0)
+    expect(dbh.db.select().from(agentTable).where(isNull(agentTable.deletedAt)).all()).toHaveLength(2)
+    expect(builtinAgents(dbh.db)).toHaveLength(1)
     const [journal] = dbh.db.select().from(appStateTable).where(eq(appStateTable.key, 'seed:cherryAssistant')).all()
     expect(journal?.value).toMatchObject({ version: new CherryAssistantSeeder().version })
   })
 
-  it('skips when only soft-deleted agents exist', () => {
+  it('adds Cherry Assistant when only soft-deleted ordinary agents exist', () => {
     const ordinaryAgentId = insertOrdinaryAgent()
     dbh.db
       .update(agentTable)
@@ -106,11 +148,11 @@ describe('CherryAssistantSeeder', () => {
 
     new CherryAssistantSeeder().run(dbh.db)
 
-    expect(dbh.db.select().from(agentTable).where(isNull(agentTable.deletedAt)).all()).toHaveLength(0)
-    expect(builtinAgents(dbh.db)).toHaveLength(0)
+    expect(dbh.db.select().from(agentTable).where(isNull(agentTable.deletedAt)).all()).toHaveLength(1)
+    expect(builtinAgents(dbh.db)).toHaveLength(1)
   })
 
-  it('skips when an orphan session records prior library history before the first seed journal', () => {
+  it('adds Cherry Assistant when orphan sessions record prior library history', () => {
     const agentId = 'historical-agent'
     const sessionId = 'historical-session'
 
@@ -137,7 +179,7 @@ describe('CherryAssistantSeeder', () => {
 
     new SeedRunner(dbh.db).runAll([new CherryAssistantSeeder()])
 
-    expect(builtinAgents(dbh.db)).toHaveLength(0)
+    expect(builtinAgents(dbh.db)).toHaveLength(1)
     expect(dbh.db.select().from(appStateTable).where(eq(appStateTable.key, 'seed:cherryAssistant')).all()).toHaveLength(
       1
     )
@@ -160,16 +202,26 @@ describe('CherryAssistantSeeder', () => {
     expect(journal?.value).toMatchObject({ version: new CherryAssistantSeeder().version })
   })
 
-  it('does not create later after the journal is written even if all agents are deleted', () => {
-    const ordinaryAgentId = insertOrdinaryAgent()
+  it('does not recreate a soft-deleted Cherry Assistant during the library-wide rollout', () => {
     const runner = new SeedRunner(dbh.db)
-    runner.runAll([new CherryAssistantSeeder()])
-    dbh.db.delete(agentTable).where(eq(agentTable.id, ordinaryAgentId)).run()
+    new CherryAssistantSeeder().run(dbh.db)
+    const [assistant] = builtinAgents(dbh.db)
+    dbh.db
+      .update(agentTable)
+      .set({ deletedAt: Date.UTC(2026, 0, 1) })
+      .where(eq(agentTable.id, assistant.id))
+      .run()
+    dbh.db
+      .insert(appStateTable)
+      .values({ key: 'seed:cherryAssistant', value: { version: '1' } })
+      .run()
 
     runner.runAll([new CherryAssistantSeeder()])
 
     expect(dbh.db.select().from(agentTable).where(isNull(agentTable.deletedAt)).all()).toHaveLength(0)
-    expect(builtinAgents(dbh.db)).toHaveLength(0)
+    expect(builtinAgents(dbh.db)).toHaveLength(1)
+    const [journal] = dbh.db.select().from(appStateTable).where(eq(appStateTable.key, 'seed:cherryAssistant')).all()
+    expect(journal?.value).toMatchObject({ version: '3' })
   })
 
   it('falls back to a null model when the CherryAI default model is absent', () => {
