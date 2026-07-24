@@ -1358,7 +1358,7 @@
       "metadata": {
         "website": {
           "apiKey": "https://jina.ai/",
-          "docs": "https://jina.ai",
+          "docs": "https://api.jina.ai/scalar",
           "models": "https://jina.ai",
           "official": "https://jina.ai"
         }
@@ -1849,5 +1849,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "92547b2ca34f953b"
+  "version": "feaa5f3456cb4dd5"
 }

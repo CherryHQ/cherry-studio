@@ -153,6 +153,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'gemma-?4[:-]?31b', budget: { min: 1024, max: 30720 }, template: true },
   { pattern: '^gemini.*thinking' },
   { pattern: 'gemini-3(?:[.-]\\d+)?-pro-image' },
+  { pattern: '^gemini-3(?:[.-]\\d+)?-flash-tts' },
   {
     pattern:
       '^(?!.*tts).*gemini-(?:2[.-]5.*(?:-latest)?|3(?:[.-]\\d+)?-(?:flash|pro)(?:-preview)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\\w-]+)*$'

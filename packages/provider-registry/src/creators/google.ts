@@ -32,6 +32,9 @@ export default defineCreator({
     // Membership profiles (no knobs): reasoning SKUs beyond the knob rules above.
     { pattern: '^gemini.*thinking' },
     { pattern: 'gemini-3(?:[.-]\\d+)?-pro-image' },
+    // Gemini 3.x Flash TTS ships a thinking budget/toggle upstream (unlike the older 2.5 TTS line),
+    // so claim it — the general reasoning rule below deliberately excludes all `tts` ids.
+    { pattern: '^gemini-3(?:[.-]\\d+)?-flash-tts' },
     {
       pattern:
         '^(?!.*tts).*gemini-(?:2[.-]5.*(?:-latest)?|3(?:[.-]\\d+)?-(?:flash|pro)(?:-preview)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\\w-]+)*$'

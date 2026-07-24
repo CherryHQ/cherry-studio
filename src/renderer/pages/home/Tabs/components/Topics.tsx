@@ -1761,10 +1761,7 @@ const TopicStreamIndicator = ({
   isFulfilled: boolean
   isPending: boolean
 }) => {
-  const dotClassName = cn(
-    'size-1.25 rounded-full',
-    isPending ? 'animation-pulse bg-(--color-warning)' : 'bg-(--color-success)'
-  )
+  const dotClassName = cn('size-1.25 rounded-full', isPending ? 'animation-pulse bg-warning' : 'bg-success')
 
   if (!isPending && !isFulfilled) return null
 

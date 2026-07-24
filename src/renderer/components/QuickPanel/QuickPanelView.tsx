@@ -392,7 +392,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       }
 
       // Keep the panel open in multi-select mode.
-      if (ctx.multiple) return
+      if (ctx.multiple || item.keepOpenOnAction) return
 
       if (ctx.getPanelGeneration() !== panelGenerationBeforeAction) {
         return

@@ -580,7 +580,7 @@ describe('MessageGroup', () => {
     expect(messageElement).toHaveAttribute('aria-disabled', 'true')
     expect(messageElement).toHaveClass(
       'opacity-70',
-      '[outline:1px_solid_var(--color-border)]',
+      '[outline:1px_solid_var(--border)]',
       'outline-offset-[-1px]',
       'bg-muted'
     )
@@ -712,7 +712,7 @@ describe('MessageGroup', () => {
     expect(messageElement).toHaveAttribute('aria-disabled', 'true')
     expect(messageElement).toHaveClass(
       'opacity-70',
-      '[outline:1px_solid_var(--color-border)]',
+      '[outline:1px_solid_var(--border)]',
       'outline-offset-[-1px]',
       'bg-muted'
     )

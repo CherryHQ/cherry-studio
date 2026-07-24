@@ -4038,6 +4038,84 @@
     {
       "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 1000000,
+      "family": "claude-opus",
+      "id": "claude-opus-5",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 128000,
+      "metadata": {},
+      "name": "Claude Opus 5",
+      "outputModalities": ["text"],
+      "ownedBy": "anthropic",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 6.25
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 25
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["low", "medium", "high", "xhigh", "max"]
+          }
+        ],
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "contextWindow": 1000000,
+      "family": "claude-opus",
+      "id": "claude-opus-5-fast",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 128000,
+      "metadata": {},
+      "name": "Claude Opus 5 (Fast)",
+      "outputModalities": ["text"],
+      "ownedBy": "anthropic",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 12.5
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 50
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["low", "medium", "high", "xhigh", "max"]
+          }
+        ],
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "contextWindow": 1000000,
       "id": "claude-opus-latest",
       "inputModalities": ["text", "image"],
       "metadata": {},
@@ -7349,13 +7427,13 @@
         "video-recognition",
         "file-input"
       ],
-      "contextWindow": 1048576,
+      "contextWindow": 131072,
       "family": "gemini-pro",
       "id": "deep-research-max-preview-04-2026",
       "inputModalities": ["text", "image", "video", "audio"],
       "maxOutputTokens": 65536,
       "metadata": {},
-      "name": "Deep Research Max Preview",
+      "name": "Deep Research Max Preview (Apr-21-2026)",
       "outputModalities": ["text", "image"],
       "ownedBy": "google",
       "pricing": {
@@ -7383,13 +7461,13 @@
         "video-recognition",
         "file-input"
       ],
-      "contextWindow": 1048576,
+      "contextWindow": 131072,
       "family": "gemini-pro",
       "id": "deep-research-preview-04-2026",
       "inputModalities": ["text", "image", "video", "audio"],
       "maxOutputTokens": 65536,
       "metadata": {},
-      "name": "Gemini Deep Research Preview",
+      "name": "Deep Research Preview (Apr-21-2026)",
       "outputModalities": ["text", "image"],
       "ownedBy": "google",
       "pricing": {
@@ -7473,13 +7551,13 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "web-search"],
-      "contextWindow": 128000,
+      "contextWindow": 131072,
       "family": "gemini-pro",
       "id": "gemini-2-5-computer-use-preview-10-2025",
       "inputModalities": ["text", "image"],
-      "maxOutputTokens": 64000,
+      "maxOutputTokens": 65536,
       "metadata": {},
-      "name": "Gemini 2.5 Computer Use Preview",
+      "name": "Gemini 2.5 Computer Use Preview 10-2025",
       "outputModalities": ["text"],
       "ownedBy": "google",
       "pricing": {
@@ -7936,7 +8014,7 @@
       "family": "gemini-flash",
       "id": "gemini-3-1-flash-image",
       "inputModalities": ["text", "image", "video"],
-      "maxOutputTokens": 32768,
+      "maxOutputTokens": 65536,
       "metadata": {},
       "name": "Nano Banana 2",
       "outputModalities": ["text", "image"],
@@ -8101,7 +8179,7 @@
       "family": "gemini-flash-lite",
       "id": "gemini-3-1-flash-lite-image",
       "inputModalities": ["text", "image"],
-      "maxOutputTokens": 4096,
+      "maxOutputTokens": 65536,
       "metadata": {},
       "name": "Nano Banana 2 Lite",
       "outputModalities": ["text", "image"],
@@ -8240,7 +8318,7 @@
       }
     },
     {
-      "capabilities": ["audio-generation"],
+      "capabilities": ["reasoning", "audio-generation"],
       "contextWindow": 8192,
       "family": "gemini-flash",
       "id": "gemini-3-1-flash-tts-preview",
@@ -8257,6 +8335,23 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 20
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "budget",
+            "max": 24576,
+            "min": 0
+          },
+          {
+            "kind": "toggle"
+          }
+        ],
+        "supportedEfforts": ["none", "auto"],
+        "thinkingTokenLimits": {
+          "max": 24576,
+          "min": 0
         }
       }
     },
@@ -8472,11 +8567,10 @@
     },
     {
       "capabilities": ["audio-recognition", "audio-generation"],
-      "contextWindow": 131072,
+      "contextWindow": 16384,
       "family": "gemini-pro",
       "id": "gemini-3-5-live-translate-preview",
       "inputModalities": ["audio"],
-      "maxOutputTokens": 65536,
       "metadata": {},
       "name": "Gemini 3.5 Live Translate Preview",
       "outputModalities": ["audio", "text"],
@@ -8850,7 +8944,7 @@
       "family": "gemini",
       "id": "gemini-embedding-2",
       "inputModalities": ["text", "image", "audio", "video"],
-      "maxOutputTokens": 3072,
+      "maxOutputTokens": 1,
       "metadata": {},
       "name": "Gemini Embedding 2",
       "outputModalities": ["vector"],
@@ -9820,7 +9914,7 @@
       "family": "lyria",
       "id": "lyria-3-pro-preview",
       "inputModalities": ["text", "image"],
-      "maxOutputTokens": 8192,
+      "maxOutputTokens": 65536,
       "metadata": {},
       "name": "Lyria 3 Pro Preview",
       "outputModalities": ["text", "audio"],
@@ -9862,35 +9956,34 @@
     },
     {
       "capabilities": ["image-recognition", "video-recognition", "video-generation", "file-input"],
-      "contextWindow": 1024,
+      "contextWindow": 480,
       "family": "veo",
       "id": "veo-3-1-fast-generate-preview",
       "inputModalities": ["text", "image", "video"],
       "metadata": {},
-      "name": "Veo 3.1 Fast Preview",
+      "name": "Veo 3.1 fast",
       "outputModalities": ["video"],
       "ownedBy": "google"
     },
     {
       "capabilities": ["image-recognition", "video-generation", "file-input"],
-      "contextWindow": 1024,
+      "contextWindow": 480,
       "family": "veo",
       "id": "veo-3-1-generate-preview",
       "inputModalities": ["text", "image"],
-      "maxOutputTokens": 1,
       "metadata": {},
-      "name": "Veo 3.1 Preview",
+      "name": "Veo 3.1",
       "outputModalities": ["video"],
       "ownedBy": "google"
     },
     {
       "capabilities": ["image-recognition", "video-generation", "file-input"],
-      "contextWindow": 1024,
+      "contextWindow": 480,
       "family": "veo",
       "id": "veo-3-1-lite-generate-preview",
       "inputModalities": ["text", "image"],
       "metadata": {},
-      "name": "Veo 3.1 Lite Preview",
+      "name": "Veo 3.1 lite",
       "outputModalities": ["video"],
       "ownedBy": "google"
     },
@@ -10281,7 +10374,7 @@
       "ownedBy": "jina"
     },
     {
-      "capabilities": ["embedding"],
+      "capabilities": ["embedding", "rerank"],
       "contextWindow": 8192,
       "id": "jina-colbert-v1-en",
       "inputModalities": ["text"],
@@ -10291,7 +10384,7 @@
       "ownedBy": "jina"
     },
     {
-      "capabilities": ["embedding"],
+      "capabilities": ["embedding", "rerank"],
       "contextWindow": 8192,
       "id": "jina-colbert-v2",
       "inputModalities": ["text"],
@@ -14798,48 +14891,6 @@
         "file-input",
         "web-search"
       ],
-      "contextWindow": 128000,
-      "family": "gpt-codex",
-      "id": "gpt-5-1-chat-latest",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 16384,
-      "metadata": {},
-      "name": "GPT-5.1 Chat",
-      "outputModalities": ["text"],
-      "ownedBy": "openai",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.125
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 1.25
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 10
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["medium"]
-          }
-        ],
-        "supportedEfforts": ["medium"]
-      }
-    },
-    {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "structured-output",
-        "file-input",
-        "web-search"
-      ],
       "contextWindow": 400000,
       "family": "gpt",
       "id": "gpt-5-1-codex",
@@ -15908,35 +15959,16 @@
       }
     },
     {
-      "capabilities": ["reasoning", "image-recognition", "structured-output", "file-input", "web-search"],
+      "capabilities": [
+        "function-call",
+        "reasoning",
+        "image-recognition",
+        "structured-output",
+        "file-input",
+        "web-search"
+      ],
       "contextWindow": 400000,
-      "family": "gpt-codex",
-      "id": "gpt-5-chat-latest",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 128000,
-      "metadata": {},
-      "name": "GPT-5 Chat (latest)",
-      "outputModalities": ["text"],
-      "ownedBy": "openai",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.125
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 1.25
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 10
-        }
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "web-search"],
-      "contextWindow": 400000,
-      "family": "gpt-codex",
+      "family": "gpt",
       "id": "gpt-5-codex",
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 128000,
@@ -17076,19 +17108,13 @@
         "web-search"
       ],
       "contextWindow": 200000,
-      "family": "o-mini",
       "id": "o4-mini-deep-research",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 100000,
+      "inputModalities": ["image", "text"],
       "metadata": {},
-      "name": "o4-mini-deep-research",
+      "name": "OpenAI: o4 Mini Deep Research",
       "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.5
-        },
         "input": {
           "currency": "USD",
           "perMillionTokens": 2
@@ -17500,37 +17526,10 @@
     },
     {
       "capabilities": ["image-recognition", "image-generation"],
-      "id": "riverflow-v2-fast-preview",
-      "inputModalities": ["text", "image"],
-      "metadata": {},
-      "name": "Sourceful: Riverflow V2 Fast Preview",
-      "outputModalities": ["image"],
-      "ownedBy": "sourceful"
-    },
-    {
-      "capabilities": ["image-recognition", "image-generation"],
-      "id": "riverflow-v2-max-preview",
-      "inputModalities": ["text", "image"],
-      "metadata": {},
-      "name": "Sourceful: Riverflow V2 Max Preview",
-      "outputModalities": ["image"],
-      "ownedBy": "sourceful"
-    },
-    {
-      "capabilities": ["image-recognition", "image-generation"],
       "id": "riverflow-v2-pro",
       "inputModalities": ["text", "image"],
       "metadata": {},
       "name": "Sourceful: Riverflow V2 Pro",
-      "outputModalities": ["image"],
-      "ownedBy": "sourceful"
-    },
-    {
-      "capabilities": ["image-recognition", "image-generation"],
-      "id": "riverflow-v2-standard-preview",
-      "inputModalities": ["text", "image"],
-      "metadata": {},
-      "name": "Sourceful: Riverflow V2 Standard Preview",
       "outputModalities": ["image"],
       "ownedBy": "sourceful"
     },
@@ -19430,11 +19429,11 @@
       "ownedBy": "xai"
     },
     {
-      "capabilities": ["image-recognition", "video-recognition", "video-generation", "file-input"],
+      "capabilities": ["image-recognition", "video-generation", "file-input"],
       "contextWindow": 1024,
       "family": "grok",
       "id": "grok-imagine-video-1-5",
-      "inputModalities": ["text", "image", "video"],
+      "inputModalities": ["image", "text"],
       "metadata": {},
       "name": "Grok Imagine Video 1.5",
       "outputModalities": ["video"],
@@ -20649,5 +20648,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "8a399577fcb4de44"
+  "version": "9e2eeab1484ee6cb"
 }
