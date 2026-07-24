@@ -1421,7 +1421,7 @@ describe('TasksSettings detail behavior', () => {
     await waitFor(() => expect(taskMutationMocks.refetchTasks).toHaveBeenCalled())
   })
 
-  it('keeps existing channel bindings when saving while channels are still loading', async () => {
+  it('omits unchanged channel bindings when saving while channels are still loading', async () => {
     taskDataMock.task = { ...taskDataMock.defaultTask, channelIds: ['channel-agent-1'] }
     channelDataMock.channels = []
     channelDataMock.isLoading = true
@@ -1437,14 +1437,9 @@ describe('TasksSettings detail behavior', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'agent.tasks.save' }))
 
     await waitFor(() =>
-      expect(taskMutationMocks.updateTask).toHaveBeenCalledWith(
-        'agent-1',
-        'task-1',
-        expect.objectContaining({
-          name: 'Renamed while loading',
-          channelIds: ['channel-agent-1']
-        })
-      )
+      expect(taskMutationMocks.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', {
+        name: 'Renamed while loading'
+      })
     )
   })
 
