@@ -4,6 +4,7 @@ import type {
   QuickPanelCallBackOptions,
   QuickPanelCloseAction,
   QuickPanelContextType,
+  QuickPanelController,
   QuickPanelFilterFn,
   QuickPanelKeyDownEvent,
   QuickPanelKeyDownHandler,
@@ -13,6 +14,7 @@ import type {
   QuickPanelTriggerInfo
 } from './types'
 const QuickPanelContext = createContext<QuickPanelContextType | null>(null)
+const QuickPanelControllerContext = createContext<QuickPanelController | null>(null)
 
 type RegisteredKeyDownHandler = {
   generation: number
@@ -201,6 +203,9 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   }, [])
 
   const getPanelGeneration = useCallback(() => panelGenerationRef.current, [])
+  const getSnapshot = useCallback(() => contextRef.current!, [])
+
+  const controller = useMemo<QuickPanelController>(() => ({ getSnapshot }), [getSnapshot])
 
   const value = useMemo(
     () => ({
@@ -270,7 +275,11 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
 
   contextRef.current = value
 
-  return <QuickPanelContext value={value}>{children}</QuickPanelContext>
+  return (
+    <QuickPanelControllerContext value={controller}>
+      <QuickPanelContext value={value}>{children}</QuickPanelContext>
+    </QuickPanelControllerContext>
+  )
 }
 
-export { QuickPanelContext }
+export { QuickPanelContext, QuickPanelControllerContext }

@@ -19,7 +19,7 @@ import type {
   ToolStateMap
 } from '@renderer/components/composer/tools/types'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
-import { useQuickPanel } from '@renderer/components/QuickPanel'
+import { useQuickPanelController } from '@renderer/components/QuickPanel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import type { Assistant } from '@renderer/types/assistant'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
@@ -294,7 +294,7 @@ const getSortedLaunchers = (
 
 export function useComposerToolLauncherController() {
   const triggers = useComposerToolProviderLaunchers()
-  const quickPanel = useQuickPanel()
+  const { getSnapshot: getQuickPanelSnapshot } = useQuickPanelController()
 
   const getLaunchers = useCallback(
     (source?: ComposerToolLauncherActionOptions['source']) => getSortedLaunchers(triggers, source),
@@ -309,7 +309,7 @@ export function useComposerToolLauncherController() {
       }
     ) => {
       launcher.action?.({
-        quickPanel: options.quickPanel ?? quickPanel,
+        quickPanel: options.quickPanel ?? getQuickPanelSnapshot(),
         inputAdapter: options.inputAdapter,
         triggerInfo: options.triggerInfo,
         parentPanel: options.parentPanel,
@@ -318,7 +318,7 @@ export function useComposerToolLauncherController() {
         source: options.source
       })
     },
-    [quickPanel]
+    [getQuickPanelSnapshot]
   )
 
   return { getLaunchers, dispatchLauncher }
