@@ -341,7 +341,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    className="text-foreground-secondary hover:text-foreground"
+                    className="text-muted-foreground hover:text-foreground"
                     aria-label={t('settings.provider.api.key.list.open')}
                     onClick={openApiKeyList}>
                     <List size={14} />
@@ -412,7 +412,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
                   content={t('settings.provider.basic_auth.tip')}
                   iconProps={{
                     size: 16,
-                    color: 'var(--color-foreground-secondary)',
+                    color: 'var(--muted-foreground)',
                     className: 'ml-1 cursor-pointer'
                   }}
                 />

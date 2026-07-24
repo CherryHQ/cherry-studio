@@ -16,7 +16,9 @@ import type { MessageErrorDiagnosisResult, MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'
 
 const logger = loggerService.withContext('ErrorBlock')
-const HTTP_ERROR_CODES = [400, 401, 403, 404, 429, 500, 502, 503, 504]
+const HTTP_ERROR_CODES = [400, 401, 402, 403, 404, 429, 500, 502, 503, 504]
+const ERROR_DESCRIPTION_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
+const ERROR_DETAIL_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
 
 interface Props {
   partId: string
@@ -49,9 +51,7 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
           i18nKey={i18nKey}
           values={{ provider: t(getProviderLabelKey(providerId)) }}
           components={{
-            provider: (
-              <Link style={{ color: 'var(--color-primary)' }} to="/settings/provider" search={{ id: providerId }} />
-            )
+            provider: <Link style={{ color: 'var(--primary)' }} to="/settings/provider" search={{ id: providerId }} />
           }}
         />
       )
@@ -91,10 +91,25 @@ const MessageErrorInfo: React.FC<{
     (error as Record<string, unknown> | undefined)?.status ?? (error as Record<string, unknown> | undefined)?.statusCode
   const errorProviderId = (error as Record<string, unknown> | undefined)?.providerId as string | undefined
   const errorModelId = (error as Record<string, unknown> | undefined)?.modelId as string | undefined
+  const errorResponseBody = (error as Record<string, unknown> | undefined)?.responseBody
+  const errorData = (error as Record<string, unknown> | undefined)?.data
+  const errorFinishReason = (error as Record<string, unknown> | undefined)?.finishReason
   const errorI18nKey = (error as Record<string, unknown> | undefined)?.i18nKey
   const hasAppOwnedI18nKey = typeof errorI18nKey === 'string' && i18n.exists(`error.${errorI18nKey}`)
   const classificationStatus =
     typeof errorStatus === 'number' || typeof errorStatus === 'string' ? errorStatus : undefined
+  const classificationResponseBody = typeof errorResponseBody === 'string' ? errorResponseBody : undefined
+  let classificationData: string | undefined
+  if (typeof errorData === 'string') {
+    classificationData = errorData
+  } else if (errorData !== undefined && errorData !== null) {
+    try {
+      classificationData = JSON.stringify(errorData)
+    } catch {
+      // Ignore non-serializable provider data.
+    }
+  }
+  const classificationFinishReason = typeof errorFinishReason === 'string' ? errorFinishReason : undefined
 
   const providerId = getMessageListItemModel(message)?.provider ?? errorProviderId
   const classification = useMemo(() => {
@@ -107,11 +122,21 @@ const MessageErrorInfo: React.FC<{
             status: classificationStatus,
             statusCode: classificationStatus
           }
-        : {})
+        : {}),
+      ...(classificationResponseBody !== undefined ? { responseBody: classificationResponseBody } : {}),
+      ...(classificationData !== undefined ? { data: classificationData } : {}),
+      ...(classificationFinishReason !== undefined ? { finishReason: classificationFinishReason } : {})
     }
 
     return classifyError(classificationError, providerId)
-  }, [classificationStatus, errorMessage, providerId])
+  }, [
+    classificationData,
+    classificationFinishReason,
+    classificationResponseBody,
+    classificationStatus,
+    errorMessage,
+    providerId
+  ])
 
   useEffect(() => {
     if (hasAppOwnedI18nKey || classification.category !== 'unknown' || !errorMessage || !error || !diagnoseMessageError)
@@ -215,7 +240,7 @@ const MessageErrorInfo: React.FC<{
       {/* Description */}
       <div
         className="wrap-break-word ml-5.75 line-clamp-3 text-xs leading-normal [&_a]:text-primary"
-        style={{ color: 'var(--color-foreground-secondary)' }}>
+        style={{ color: ERROR_DESCRIPTION_COLOR }}>
         <ErrorMessage error={error} />
       </div>
 
@@ -234,7 +259,7 @@ const MessageErrorInfo: React.FC<{
         {canOpenDetail && (
           <div
             className="ml-auto inline-flex items-center gap-0.5 text-xs transition-colors duration-150 group-hover:text-foreground"
-            style={{ color: 'var(--color-foreground-muted)' }}>
+            style={{ color: ERROR_DETAIL_COLOR }}>
             {t('common.detail')}
             <ChevronRight size={14} />
           </div>

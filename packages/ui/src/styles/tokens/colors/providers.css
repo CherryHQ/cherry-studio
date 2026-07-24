@@ -1,6 +1,13 @@
 /**
- * Semantic Colors - Light Mode
- * 语义化颜色 - 基于 Primitive Colors 的语义化映射
+ * Semantic Value Providers - Light & Dark Mode
+ *
+ * Internal `--cs-*` values that back the public semantic contract
+ * (`shadcn.css` / `product.css`). These are providers, not the public API:
+ * components consume the unprefixed contract, never these `--cs-*` names.
+ *
+ * The canonical Cherry Studio feedback contract lives here alongside the other
+ * providers. The frozen legacy status palette it currently draws from stays in
+ * `status-legacy.css` (shrink-only compatibility).
  */
 
 :root {
@@ -35,7 +42,7 @@
   --cs-border-subtle: oklch(0 0 0 / 0.04);
   --cs-border-hover: oklch(0 0 0 / 0.2);
   --cs-border-active: oklch(0 0 0 / 0.3);
-  --cs-frame-border: oklch(0 0 0 / 0.12);
+  --cs-border-strong: var(--cs-border-hover);
 
   /* Ring (Focus) */
   --cs-ring: color-mix(in srgb, var(--cs-primary) 40%, transparent);
@@ -59,9 +66,9 @@
   --cs-secondary-foreground: oklch(0.205 0 0);
   --cs-accent-foreground: oklch(0.205 0 0);
 
-  /* Foregrounds on solid colored fills */
+  /* Foregrounds used on solid colored fills */
   --cs-primary-foreground: oklch(0.985 0 0);
-  --cs-destructive-foreground: oklch(0.577 0.245 27.325);
+  --cs-destructive-foreground: var(--cs-white);
 
   /* Input border */
   --cs-input: oklch(0.922 0 0);
@@ -73,6 +80,25 @@
   --cs-sidebar-accent-foreground: oklch(0.205 0 0);
   --cs-sidebar-border: oklch(0.922 0 0);
   --cs-sidebar-ring: oklch(0.708 0 0);
+
+  /* Canonical Cherry Studio feedback contract.
+   * Base intents are defined above; subtle/border pairs draw from the frozen
+   * legacy status palette in status-legacy.css during migration. */
+  --cs-error: var(--cs-error-base);
+  --cs-error-subtle: var(--cs-error-bg);
+  --cs-error-subtle-foreground: var(--cs-error-text);
+
+  --cs-success-subtle: var(--cs-success-bg);
+  --cs-success-subtle-foreground: var(--cs-green-800);
+  --cs-success-border: var(--cs-green-200);
+
+  --cs-warning-subtle: var(--cs-warning-bg);
+  --cs-warning-subtle-foreground: var(--cs-amber-800);
+  --cs-warning-border: var(--cs-amber-200);
+
+  --cs-info-subtle: var(--cs-info-bg);
+  --cs-info-subtle-foreground: var(--cs-blue-800);
+  --cs-info-border: var(--cs-blue-200);
 }
 
 /* Dark Mode */
@@ -95,8 +121,6 @@
   /* Card & Popover */
   --cs-card: var(--cs-neutral-900);
   --cs-popover: var(--cs-black);
-  --cs-card-foreground: oklch(0.985 0 0);
-  --cs-popover-foreground: oklch(0.985 0 0);
 
   /* Border */
   --cs-border: oklch(1 0 0 / 0.1);
@@ -104,7 +128,6 @@
   --cs-border-subtle: oklch(1 0 0 / 0.05);
   --cs-border-hover: oklch(1 0 0 / 0.2);
   --cs-border-active: oklch(1 0 0 / 0.3);
-  --cs-frame-border: oklch(1 0 0 / 0.14);
 
   /* Ring (Focus) - 保持不变 */
   --cs-ring: oklch(0.76 0.204 131 / 0.4);
@@ -117,19 +140,39 @@
   --cs-accent: oklch(1 0 0 / 0.1); /* Accent Background */
   --cs-ghost-hover: oklch(1 0 0 / 0.1); /* Ghost Button Hover */
   --cs-ghost-active: oklch(1 0 0 / 0.15); /* Ghost Button Active */
-  --cs-secondary-foreground: oklch(0.985 0 0);
-  --cs-accent-foreground: oklch(0.985 0 0);
-  --cs-primary-foreground: oklch(0.205 0 0);
-  --cs-destructive-foreground: oklch(0.637 0.237 25.331);
-  --cs-input: oklch(0.269 0 0);
 
   /* Sidebar */
   --cs-sidebar: oklch(0.2393 0 0);
   --cs-sidebar-accent: oklch(0.269 0 0);
+
+  /* Surface-paired foregrounds */
+  --cs-card-foreground: oklch(0.985 0 0);
+  --cs-popover-foreground: oklch(0.985 0 0);
+  --cs-secondary-foreground: oklch(0.985 0 0);
+  --cs-accent-foreground: oklch(0.985 0 0);
+
+  /* Foregrounds used on solid colored fills */
+  --cs-primary-foreground: oklch(0.205 0 0);
+  --cs-destructive-foreground: var(--cs-white);
+
+  /* Input border */
+  --cs-input: oklch(0.269 0 0);
+
+  /* Sidebar sub-palette */
   --cs-sidebar-foreground: oklch(0.985 0 0);
   --cs-sidebar-primary: oklch(0.488 0.243 264.376);
   --cs-sidebar-primary-foreground: oklch(0.985 0 0);
   --cs-sidebar-accent-foreground: oklch(0.985 0 0);
   --cs-sidebar-border: oklch(0.269 0 0);
   --cs-sidebar-ring: oklch(0.439 0 0);
+
+  /* Canonical Cherry Studio feedback contract */
+  --cs-success-subtle-foreground: var(--cs-green-100);
+  --cs-success-border: var(--cs-green-700);
+
+  --cs-warning-subtle-foreground: var(--cs-amber-100);
+  --cs-warning-border: var(--cs-amber-700);
+
+  --cs-info-subtle-foreground: var(--cs-blue-100);
+  --cs-info-border: var(--cs-blue-700);
 }

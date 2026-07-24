@@ -217,6 +217,24 @@
       "code": "代码",
       "code_unavailable": "二进制文件无法显示源代码",
       "default_app": "默认应用",
+      "edit": {
+        "conflict": {
+          "description": "开始编辑后，此文件已在磁盘上发生变化。重新加载会放弃当前草稿并读取最新文件。",
+          "keep_draft": "保留草稿",
+          "reload": "重新加载文件",
+          "title": "磁盘上的文件已发生变化"
+        },
+        "discard": "放弃修改",
+        "leave": {
+          "description": "如果继续，当前文件中尚未保存的修改将会丢失。",
+          "discard_and_continue": "放弃并继续",
+          "title": "放弃未保存的修改？"
+        },
+        "refresh_failed": "无法重新加载最新文件内容。",
+        "save_failed": "无法保存此文件。自动保存已暂停，请重试或放弃修改。",
+        "unsaved": "未保存",
+        "unsupported": "此文件可以预览，但暂时无法在这里安全编辑。目前仅支持换行符统一为 LF 或 CRLF 的 UTF-8 文本文件。"
+      },
       "empty": {
         "description": "开始与智能体对话，生成的代码和实时预览将在此处显示。",
         "title": "准备就绪"
@@ -2184,6 +2202,7 @@
     "copy_failed": "复制失败",
     "create_success": "创建成功",
     "current": "当前",
+    "decline": "不同意",
     "default": "默认",
     "delete": "删除",
     "delete_confirm": "确定要删除吗？",
@@ -2325,6 +2344,7 @@
     "image-generation": "图像生成 (OpenAI)",
     "jina-rerank": "Jina 重排序",
     "openai": "OpenAI",
+    "openai-embeddings": "嵌入 (OpenAI)",
     "openai-response": "OpenAI-Response"
   },
   "error": {
@@ -2379,6 +2399,8 @@
       "payload": "请求内容过大，请减少发送的文件或文本量",
       "proxy": "代理或 SSL 证书错误，请检查代理和网络设置",
       "quota": "账户额度已用完，请充值或更换服务商",
+      "rate_limit": "请求过于频繁，请稍等片刻再试，或更换为更高速率的模型",
+      "region": "服务在你所在的地区不可用，请配置代理或更换为可用的服务商",
       "server": "服务器异常，建议稍后重试",
       "stream": "响应传输中断，请检查网络稳定性或重试",
       "unknown": "发生了一个错误",
@@ -2390,6 +2412,7 @@
     "http": {
       "400": "请求错误，请检查请求参数是否正确。如果修改了模型设置，请重置到默认设置",
       "401": "身份验证失败，请检查 API 密钥是否正确",
+      "402": "需要支付。账户余额或额度已用完，请到服务商网站充值，或切换到其他服务商",
       "403": "禁止访问，请翻译具体报错信息查看原因，或联系服务商询问被禁止原因",
       "404": "模型不存在或者请求路径错误",
       "429": "请求速率超过限制，请稍后再试",
@@ -4265,10 +4288,13 @@
       "embedding": "嵌入",
       "free": "免费",
       "function_calling": "工具",
+      "image": "图片",
       "reasoning": "推理",
       "rerank": "重排",
       "select": "模型类型",
+      "speech": "语音",
       "text": "文本",
+      "transcription": "转录",
       "video": "视频",
       "vision": "视觉",
       "websearch": "联网"
@@ -4297,6 +4323,12 @@
     },
     "characters": "字符",
     "collapse": "收起",
+    "conflict": {
+      "description": "该笔记已在编辑器之外被修改。可重新加载以获取最新版本（未保存的编辑将被丢弃），或继续编辑。",
+      "keep_draft": "继续编辑",
+      "reload": "重新加载",
+      "title": "笔记已在磁盘上更改"
+    },
     "content_placeholder": "请输入笔记内容...",
     "copyContent": "复制内容",
     "create_folder_failed": "创建文件夹失败",
@@ -4318,7 +4350,13 @@
     "export_to_pdf_failed": "导出为 PDF 失败",
     "export_to_pdf_success": "已导出为 PDF",
     "export_to_word_failed": "导出为 Word 失败",
+    "file_removed_draft": "该笔记已从磁盘删除，未保存的草稿仍保留在编辑器中。",
     "folder": "文件夹",
+    "leave": {
+      "description": "离开当前笔记将丢失尚未保存的编辑。是否继续？",
+      "discard_and_continue": "放弃并继续",
+      "title": "放弃未保存的笔记修改？"
+    },
     "load_failed": "笔记加载失败",
     "load_failed_description": "无法读取该文件。为保护笔记内容，已禁用编辑。",
     "metadata_sync_failed": "文件已更新，但笔记状态同步失败，请重试该操作。",
@@ -4341,6 +4379,9 @@
     "save": "保存到笔记",
     "save_blocked_load_failed": "笔记加载失败，已阻止保存",
     "save_failed": "保存笔记失败",
+    "save_failure": {
+      "description": "该笔记无法保存。编辑内容仍保留在编辑器中，自动保存已暂停。"
+    },
     "search": {
       "both": "名称+内容",
       "content": "内容",
@@ -4448,6 +4489,14 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "privacy": {
+      "accept_and_continue": "同意并继续",
+      "accept_policy": "同意隐私协议",
+      "notice": "我已阅读并同意",
+      "period": "",
+      "policy": "隐私协议",
+      "update_failed": "无法保存隐私协议同意状态，请重试"
+    },
     "provider_setup": {
       "missing_model": "请先启用该服务商下的至少一个模型",
       "missing_provider": "请先启用一个服务商",
@@ -4472,7 +4521,7 @@
       "other_provider": "配置其他服务商",
       "select_other_provider": "选择其他服务商",
       "setup_hint": "您可以随时在设置中更换服务商",
-      "subtitle": "连接服务商，开启您的 AI 工作空间",
+      "subtitle": "连接服务商，开启您的全能 AI 工作站",
       "title": "欢迎使用 Cherry Studio"
     }
   },
@@ -4637,6 +4686,7 @@
     "title": "Intel OVMS"
   },
   "paintings": {
+    "add_image": "添加图片",
     "aspect_ratio": "画幅比例",
     "aspect_ratios": {
       "landscape": "横图",
@@ -4789,6 +4839,8 @@
     "prompt_placeholder": "描述你想创建的图片，例如：一个宁静的湖泊，夕阳西下，远处是群山",
     "prompt_placeholder_edit": "输入你的图片描述，文本绘制用 \"双引号\" 包裹",
     "prompt_placeholder_en": "输入 \"英文\" 图片描述，目前仅支持英文提示词",
+    "prompt_placeholder_upload": "描述你想要的图片，或上传图片进行编辑",
+    "prompt_placeholder_upload_required": "请上传图片，并描述你想要的编辑",
     "prompt_required": "请输入提示词",
     "proxy_required": "打开代理并开启 \"TUN 模式\" 查看生成图片或复制到浏览器打开，后续会支持国内直连",
     "quality": "质量",
@@ -4964,6 +5016,16 @@
     "source": "查看源代码",
     "zoom_in": "放大",
     "zoom_out": "缩小"
+  },
+  "privacy_policy": {
+    "load_failed": "无法加载隐私协议",
+    "title": "隐私协议"
+  },
+  "privacy_policy_update": {
+    "acknowledge_failed": "无法保存确认状态，请重试",
+    "description_before_link": "我们更新了隐私协议。请查看最新的",
+    "policy": "隐私协议",
+    "title": "隐私协议更新"
   },
   "prompts": {
     "explanation": "帮我解释一下这个概念",
@@ -6328,8 +6390,8 @@
       },
       "custom": {
         "css": {
-          "cherrycss": "从 cherrycss.com 获取",
           "label": "自定义 CSS",
+          "migration_notice": "此样式表由 v1 迁移而来，目前处于禁用状态。请先将其适配到 v2，然后删除第一行以启用。",
           "placeholder": "/* 这里写自定义 CSS */"
         }
       },
@@ -6853,6 +6915,9 @@
       "add": {
         "add_model": "添加模型",
         "batch_add_models": "批量添加模型",
+        "capabilities": {
+          "label": "模型能力"
+        },
         "context_window": {
           "label": "上下文窗口",
           "placeholder": "例如 128000"
@@ -6868,6 +6933,9 @@
           "label": "分组名称",
           "placeholder": "例如 ChatGPT",
           "tooltip": "例如 ChatGPT"
+        },
+        "input_modalities": {
+          "label": "输入模态"
         },
         "max_input_tokens": {
           "label": "最大输入 Token",
@@ -6890,6 +6958,26 @@
           "label": "模型名称",
           "placeholder": "例如 GPT-5.5",
           "tooltip": "例如 GPT-4"
+        },
+        "model_type": {
+          "label": "模型类型"
+        },
+        "purpose": {
+          "chat": {
+            "description": "使用 Provider 的文本 API",
+            "label": "对话"
+          },
+          "chat_protocol": "对话协议",
+          "description": "选择这个模型的用途",
+          "image_edit": {
+            "description": "接收输入图片并返回编辑后的图片",
+            "label": "图像编辑"
+          },
+          "image_generation": {
+            "description": "根据提示词生成图片",
+            "label": "图像生成"
+          },
+          "label": "模型用途"
         },
         "supported_text_delta": {
           "label": "支持增量文本输出",
@@ -6948,7 +7036,7 @@
       "default_assistant_model": "默认助手模型",
       "default_assistant_model_description": "助手没有模型时使用这个模型",
       "docs": "模型文档",
-      "empty": "没有模型",
+      "empty": "请选择模型",
       "empty_hint": "点击上方的获取模型列表按钮添加模型",
       "enabled_models": "已启用",
       "expand_all": "全部展开",
@@ -7266,8 +7354,9 @@
       },
       "balance": "余额",
       "base_url": {
+        "invalid": "请输入有效的 HTTP 或 HTTPS 地址",
         "label": "Base URL",
-        "placeholder": "https://api.example.com",
+        "placeholder": "Base URL：https://example.com",
         "required": "请输入 Base URL"
       },
       "basic_auth": {
@@ -7359,6 +7448,23 @@
         "toggle_headers_editor_list": "切换为键值列表"
       },
       "create_custom": {
+        "endpoint_fields": {
+          "default_chat": "默认",
+          "label": "端点设置",
+          "more": "更多设置",
+          "more_configured": "已配置 {{count}} 项",
+          "set_default_chat": "设为默认",
+          "text_endpoint_required": "请至少配置一个文本端点",
+          "url_help": "填写 API 根地址后会显示实际请求路径"
+        },
+        "preset_instance": {
+          "description": "适用于 Coding Plan 接入、多个账号管理或项目隔离；Base URL 和 API Key 可独立配置",
+          "empty": "没有匹配的 Provider 预设",
+          "placeholder": "从 Provider 预设创建…",
+          "search_placeholder": "搜索 Provider 预设",
+          "title": "从预设创建（可选）"
+        },
+        "request_preview": "请求路径：{{path}}",
         "title": "添加自定义提供商"
       },
       "delete": {
@@ -7398,13 +7504,23 @@
         "sign_in_success": "已登录 Grok CLI",
         "signing_in": "等待浏览器…"
       },
+      "image_endpoints": {
+        "image_edit_base_url": {
+          "help": "用于 /images/edits；留空时使用默认对话端点的 Base URL",
+          "label": "图像编辑 Base URL"
+        },
+        "image_generation_base_url": {
+          "help": "用于 /images/generations；留空时使用默认对话端点的 Base URL",
+          "label": "图像生成 Base URL"
+        }
+      },
       "logo_upload_failed": "无法处理所选图片",
       "misc": "其他",
       "more_endpoints": {
         "add": "添加端点",
-        "anthropic": "Anthropic Messages",
-        "gemini": "Google Gemini",
-        "openai_chat": "OpenAI Chat Completions",
+        "anthropic": "Anthropic",
+        "gemini": "Gemini",
+        "openai_chat": "OpenAI",
         "openai_responses": "OpenAI Responses",
         "toggle": "更多端点"
       },

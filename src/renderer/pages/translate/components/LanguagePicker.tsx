@@ -74,7 +74,7 @@ const LanguagePicker: FC<Props> = ({ value, onChange, disabled, className }) => 
           role="listbox"
           onScroll={handleScroll}
           style={{
-            scrollbarColor: isScrolling ? 'var(--color-scrollbar-thumb) transparent' : 'transparent transparent'
+            scrollbarColor: isScrolling ? 'var(--scrollbar-thumb) transparent' : 'transparent transparent'
           }}
           className="max-h-60 overflow-y-auto">
           {options.map((lang) => {
