@@ -731,17 +731,24 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
 }
 
 function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] }) {
+  let icon: ReactNode
+
   switch (status) {
     case 'completed':
-      return <CheckCircle size={14} className="text-success" />
+      icon = <CheckCircle size={14} className="text-success" />
+      break
     case 'in_progress':
-      return <Loader2 size={14} className="animate-spin text-info" />
+      icon = <Loader2 size={14} className="animate-spin text-info" />
+      break
     case 'error':
-      return <Circle size={14} className="text-destructive" />
+      icon = <Circle size={14} className="text-destructive" />
+      break
     case 'pending':
     default:
-      return <Circle size={14} className="text-muted-foreground" />
+      icon = <Circle size={14} className="text-muted-foreground" />
   }
+
+  return <span className="flex size-5 shrink-0 items-center justify-center">{icon}</span>
 }
 
 function useAgentRightPaneStatus(active = true): AgentRightPaneStatus {

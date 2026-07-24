@@ -1,0 +1,13 @@
+/**
+ * Controlled runtime theme inputs.
+ *
+ * The host application may write these values. They are inputs rather than
+ * public component semantics and are therefore not exported through the
+ * Tailwind adapter. Semantic layers decide which public roles consume them.
+ */
+
+:root {
+  /* Current compatibility inputs written by useUserTheme. */
+  --cs-theme-primary: var(--cs-primary);
+  --cs-theme-primary-foreground: var(--cs-primary-foreground);
+}

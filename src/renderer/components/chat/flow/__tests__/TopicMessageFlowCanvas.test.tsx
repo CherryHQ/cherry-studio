@@ -192,7 +192,7 @@ describe('TopicMessageFlowCanvas', () => {
     expect(screen.getByTestId('react-flow')).toHaveAttribute('data-nodes-connectable', 'false')
     expect(screen.getByTestId('react-flow')).toHaveAttribute('data-edges', '1')
     expect(screen.getByTestId('flow-controls')).toBeInTheDocument()
-    expect(screen.getByTestId('flow-minimap')).toHaveAttribute('data-bg-color', 'var(--color-card)')
+    expect(screen.getByTestId('flow-minimap')).toHaveAttribute('data-bg-color', 'var(--card)')
     expect(screen.getByTestId('flow-minimap')).toHaveClass('border-border')
     expect(screen.getByTestId('topic-message-flow-legend')).toBeInTheDocument()
     expect(screen.getByText('Plan the topic branch')).toBeInTheDocument()

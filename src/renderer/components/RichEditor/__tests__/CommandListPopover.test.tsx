@@ -79,6 +79,6 @@ describe('CommandListPopover', () => {
     const { container } = renderPopover()
 
     const popover = container.querySelector('.command-list-popover') as HTMLElement
-    expect(popover.style.background).toBe('var(--color-popover)')
+    expect(popover.style.background).toBe('var(--popover)')
   })
 })

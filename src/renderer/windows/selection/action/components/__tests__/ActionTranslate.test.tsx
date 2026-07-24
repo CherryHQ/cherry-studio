@@ -228,9 +228,9 @@ describe('ActionTranslate', () => {
     expect(auxiliaryActionGroup.querySelector('.lucide-settings-2')).not.toBeNull()
     expect(auxiliaryActionGroup.querySelector('.lucide-circle-question-mark')).not.toBeNull()
     expect(auxiliaryActionGroup.querySelector('.lucide-settings-2')?.closest('button')).toHaveClass(
-      'text-foreground-secondary'
+      'text-muted-foreground'
     )
-    expect(auxiliaryActionGroup.querySelector('.lucide-circle-question-mark')).toHaveClass('text-foreground-secondary')
+    expect(auxiliaryActionGroup.querySelector('.lucide-circle-question-mark')).toHaveClass('text-muted-foreground')
     expect(detectedBadge).toHaveClass('min-w-0')
     expect(detectedLabel).toHaveClass('min-w-0', 'truncate')
     expect(detectedLabel).toHaveAttribute('title', 'English')

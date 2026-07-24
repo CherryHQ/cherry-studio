@@ -1,3 +1,4 @@
+import { configureInferenceWorkerProxy } from './inferenceWorkerProxy'
 import { l2normalize } from './pooling'
 
 /**
@@ -28,12 +29,51 @@ let cacheDir = null
 let appPath = null
 let transformers = null
 let ppu = null
+let proxyStatus = 'not-initialized'
 const pipelines = new Map() // key: repo|dtype|host -> Promise<extractor>
 const paddleServices = new Map() // key: det|rec|dict -> Promise<PaddleOcrService>
 
 // Injected from pooling.ts (single, unit-tested source). Bound to a const so the
 // call site works even if the bundler renames the function's own symbol.
 const l2normalize = ${l2normalize.toString()}
+const configureInferenceWorkerProxy = ${configureInferenceWorkerProxy.toString()}
+
+function postLog(level, message) {
+  parentPort.postMessage({ type: 'log', level, message })
+}
+
+function describeError(error) {
+  const details = []
+  const seen = new Set()
+  let current = error
+  while (current && details.length < 4) {
+    if (typeof current === 'object') {
+      if (seen.has(current)) break
+      seen.add(current)
+    }
+    const name = current && current.name ? current.name : 'Error'
+    const message = current && current.message ? current.message : String(current)
+    const code = current && current.code ? ' code=' + current.code : ''
+    details.push(name + code + ': ' + message)
+    current = current && typeof current === 'object' ? current.cause : null
+  }
+  return details.join(' <- caused by ')
+}
+
+function requestLogContext(msg) {
+  const context = ['request=' + msg.type, 'proxy=' + proxyStatus]
+  if (typeof msg.modelRepo === 'string') context.push('model=' + JSON.stringify(msg.modelRepo))
+  if (msg.source && typeof msg.source.remoteHost === 'string') {
+    let source = '<invalid>'
+    try {
+      source = new URL(msg.source.remoteHost).origin
+    } catch {
+      // Keep the invalid marker without echoing an untrusted URL into logs.
+    }
+    context.push('source=' + JSON.stringify(source))
+  }
+  return context.join(' ')
+}
 
 function getTransformers() {
   if (!transformers) {
@@ -163,6 +203,23 @@ parentPort.on('message', (msg) => {
   if (msg.type === 'init') {
     cacheDir = msg.cacheDir
     appPath = msg.appPath
+    const proxy = configureInferenceWorkerProxy(appPath)
+    proxyStatus = proxy.status
+    if (proxy.status === 'configured') {
+      postLog(
+        'info',
+        'network proxy configured origins=' +
+          proxy.proxyOrigins.join(',') +
+          ' bypassRules=' +
+          (proxy.bypassRulesConfigured ? 'configured' : 'none')
+      )
+    } else if (proxy.status === 'direct') {
+      postLog('info', 'network proxy not configured; remote model requests use a direct connection')
+    } else if (proxy.status === 'unsupported') {
+      postLog('warn', 'network proxy protocol is unsupported by the inference worker protocol=' + proxy.protocol)
+    } else {
+      postLog('error', 'network proxy configuration failed: ' + proxy.error)
+    }
     // Must be set before the first lazy require of @huggingface/transformers /
     // ppu-paddle-ocr below (getTransformers/getPpu), both of which transitively
     // require onnxruntime-node — see patches/onnxruntime-node@1.24.3.patch.
@@ -184,6 +241,7 @@ parentPort.on('message', (msg) => {
     return
   }
   run(msg).catch((err) => {
+    postLog('error', 'request failed ' + requestLogContext(msg) + ' error=' + describeError(err))
     parentPort.postMessage({ type: 'error', id: msg.id, message: err && err.message ? err.message : String(err) })
   })
 })

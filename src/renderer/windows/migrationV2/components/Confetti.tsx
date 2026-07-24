@@ -8,14 +8,7 @@
 
 import React, { useMemo } from 'react'
 
-const COLORS = [
-  'var(--color-primary)',
-  'var(--color-green-500)',
-  'var(--color-blue-500)',
-  'var(--color-amber-500)',
-  'var(--color-pink-500)',
-  'var(--color-sky-500)'
-]
+const COLOR_CLASSES = ['bg-primary', 'bg-green-500', 'bg-blue-500', 'bg-amber-500', 'bg-pink-500', 'bg-sky-500']
 
 const PIECE_COUNT = 60
 
@@ -45,7 +38,7 @@ export const Confetti: React.FC = () => {
           size: 5 + Math.random() * 6,
           rotate,
           rotateEnd: rotate * 1.35,
-          color: COLORS[i % COLORS.length],
+          colorClassName: COLOR_CLASSES[i % COLOR_CLASSES.length],
           round: Math.random() < 0.35
         }
       }),
@@ -63,11 +56,10 @@ export const Confetti: React.FC = () => {
       {pieces.map((p) => (
         <span
           key={p.id}
-          className="animation-migration-confetti-piece"
+          className={`animation-migration-confetti-piece ${p.colorClassName}`}
           style={{
             width: p.size,
             height: p.round ? p.size : p.size * 0.5,
-            background: p.color,
             borderRadius: p.round ? '9999px' : '1px',
             animationDelay: `${p.delay}s`,
             animationDuration: `${p.duration}s`,

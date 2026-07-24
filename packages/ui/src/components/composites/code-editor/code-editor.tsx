@@ -11,7 +11,7 @@ const codeEditorGutterTheme = EditorView.theme({
   '.cm-gutters': {
     backgroundColor: 'transparent',
     borderRight: 'none',
-    color: 'var(--color-muted-foreground)'
+    color: 'var(--muted-foreground)'
   },
   '.cm-activeLineGutter': {
     backgroundColor: 'transparent'

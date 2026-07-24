@@ -155,7 +155,7 @@ describe('Model drawers', () => {
     expect(createModelMock).not.toHaveBeenCalled()
   })
 
-  it('renders the new-api add drawer with the shared select surface and keeps endpoint type in create payload', async () => {
+  it('renders the New API model-purpose surface and keeps the default chat endpoint in create payload', async () => {
     useProviderMock.mockReturnValue({
       provider: { id: 'new-api', name: 'New API' }
     })
@@ -163,7 +163,8 @@ describe('Model drawers', () => {
     render(<AddModelDrawer providerId="new-api" open prefill={null} onClose={vi.fn()} />)
 
     expect(screen.getByTestId('provider-settings-model-add-dialog')).toBeInTheDocument()
-    expect(screen.getByTestId('provider-settings-model-endpoint-type-field')).toBeInTheDocument()
+    expect(screen.queryByTestId('provider-settings-model-endpoint-type-field')).not.toBeInTheDocument()
+    expect(screen.getByText('settings.models.add.purpose.label')).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('settings.models.add.model_id.label'), {
       target: { value: 'claude-4-sonnet' }
@@ -177,6 +178,41 @@ describe('Model drawers', () => {
         providerId: 'new-api',
         modelId: 'claude-4-sonnet',
         endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      })
+    )
+  })
+
+  it('atomically maps a custom model to image editing from the purpose surface', async () => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'custom-provider',
+        name: 'Custom Provider',
+        defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.example.com' }
+        }
+      }
+    })
+
+    render(<AddModelDrawer providerId="custom-provider" open prefill={null} onClose={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('radio', { name: /settings\.models\.add\.purpose\.image_edit\.label/ }))
+    fireEvent.change(screen.getByLabelText('settings.models.add.model_id.label'), {
+      target: { value: 'image-editor' }
+    })
+
+    await act(async () => {
+      fireEvent.submit(screen.getByTestId('provider-settings-model-add-drawer-content'))
+    })
+
+    expect(createModelMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerId: 'custom-provider',
+        modelId: 'image-editor',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT],
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        inputModalities: [MODALITY.IMAGE],
+        outputModalities: [MODALITY.IMAGE]
       })
     )
   })
@@ -318,6 +354,55 @@ describe('Model drawers', () => {
       'claude-4-sonnet',
       expect.objectContaining({
         name: 'Claude 4 Sonnet Updated'
+      })
+    )
+  })
+
+  it('auto-saves an atomic image-generation mapping from the custom model purpose surface', async () => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'custom-provider',
+        name: 'Custom Provider',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.example.com' }
+        }
+      }
+    })
+
+    render(
+      <EditModelDrawer
+        providerId="custom-provider"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'custom-provider::image-model',
+            providerId: 'custom-provider',
+            name: 'Image Model',
+            capabilities: [],
+            endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+            supportsStreaming: true,
+            pricing: {
+              input: { perMillionTokens: 0, currency: 'USD' },
+              output: { perMillionTokens: 0, currency: 'USD' }
+            }
+          } as any
+        }
+      />
+    )
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('radio', { name: /settings\.models\.add\.purpose\.image_generation\.label/ }))
+    })
+
+    expect(updateModelMock).toHaveBeenCalledWith(
+      'custom-provider',
+      'image-model',
+      expect.objectContaining({
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        outputModalities: [MODALITY.IMAGE]
       })
     )
   })

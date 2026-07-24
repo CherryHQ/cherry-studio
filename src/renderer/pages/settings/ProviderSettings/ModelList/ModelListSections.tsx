@@ -112,7 +112,7 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-6">
-        <LoadingIcon color="var(--color-muted-foreground)" />
+        <LoadingIcon color="var(--muted-foreground)" />
       </div>
     )
   }
