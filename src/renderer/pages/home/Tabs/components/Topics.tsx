@@ -73,7 +73,7 @@ import {
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { pickNeighbourAfterRemoval } from '@renderer/utils/resourceEntity'
 import { cn } from '@renderer/utils/style'
-import type { TopicStatusSnapshotEntry } from '@shared/ai/transport'
+import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import dayjs from 'dayjs'
@@ -1403,12 +1403,14 @@ export function Topics({
 
 type TopicListBodyVariant = 'draggable' | 'plain'
 type TopicStreamState = {
+  isAwaitingApproval: boolean
   isErrored: boolean
   isFulfilled: boolean
   isPending: boolean
 }
 
 const EMPTY_TOPIC_STREAM_STATE: TopicStreamState = Object.freeze({
+  isAwaitingApproval: false,
   isErrored: false,
   isFulfilled: false,
   isPending: false
@@ -1425,15 +1427,17 @@ const selectTopicStreamState = (
   const [statusEntry, lastSeenCompletion] = values
   const status = statusEntry?.status
   const lastCompletedAt = statusEntry?.lastCompletedAt ?? null
+  const flags = classifyTurn(status)
   const streamStatus = {
+    isAwaitingApproval: flags.isAwaitingApproval || (statusEntry?.awaitingApprovalAnchors.length ?? 0) > 0,
     isErrored: status === 'error',
     isFulfilled: status === 'done' && lastCompletedAt !== lastSeenCompletion,
-    isPending: status === 'pending' || status === 'streaming'
+    isPending: flags.isStreamLive
   }
 
   // Normalize the idle case to a module constant; the non-idle object is
   // rebuilt per run and bails out via the default shallowEqual.
-  return streamStatus.isPending || streamStatus.isFulfilled || streamStatus.isErrored
+  return streamStatus.isAwaitingApproval || streamStatus.isPending || streamStatus.isFulfilled || streamStatus.isErrored
     ? streamStatus
     : EMPTY_TOPIC_STREAM_STATE
 }
@@ -1621,14 +1625,17 @@ const TopicRow = memo(function TopicRow({
       ? 'animation-reveal'
       : ''
   const {
+    isAwaitingApproval: isTopicAwaitingApproval,
     isErrored: isTopicStreamErrored,
     isFulfilled: isTopicStreamFulfilled,
     isPending: isTopicStreamPending
   } = streamStatus
   // Running (spinner) and errored (red) are ongoing states that stay on the
   // selected row too — only the completion dot (green) is a read-receipt that
-  // clears once the row is opened (`!isActive`). All yield to hover actions.
-  const hasTopicStreamIndicator = isTopicStreamPending || isTopicStreamErrored || (!isActive && isTopicStreamFulfilled)
+  // clears once the row is opened (`!isActive`). Awaiting approval is shown as
+  // a badge instead of a spinner because the turn needs user action.
+  const hasTopicStreamIndicator =
+    (isTopicStreamPending || isTopicStreamErrored || (!isActive && isTopicStreamFulfilled)) && !isTopicAwaitingApproval
   const showPinAction = !rowState.renaming
   const showLeadingSlot = displayMode !== 'time' && !topic.pinned
   const isConfirmingDeletion = deletingTopicId === topic.id
@@ -1696,6 +1703,13 @@ const TopicRow = memo(function TopicRow({
           }}>
           {topicName}
         </ResourceList.ItemTitle>
+      )}
+      {!rowState.renaming && isTopicAwaitingApproval && (
+        <span
+          data-testid="topic-awaiting-approval-badge"
+          className="pointer-events-none max-w-28 shrink-0 truncate rounded-full bg-warning/10 px-1.5 font-medium text-[10px] text-warning leading-4 transition-[max-width,padding,opacity] duration-150 group-hover:max-w-0 group-hover:px-0 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:max-w-0 group-has-[[data-resource-list-item-actions][data-active=true]]:max-w-0 group-has-[[data-resource-list-item-actions]:focus-within]:px-0 group-has-[[data-resource-list-item-actions][data-active=true]]:px-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0">
+          {t('agent.toolPermission.pendingBadge')}
+        </span>
       )}
       {hasTopicStreamIndicator && (
         <TopicStreamIndicator

@@ -353,6 +353,7 @@ vi.mock('react-i18next', () => ({
         if (key === 'chat.add.assistant.title') return 'Add Assistant'
         if (key === 'assistants.groups.group_by') return 'Show in groups'
         if (key === 'assistants.groups.ungroup') return 'Stop grouping'
+        if (key === 'agent.toolPermission.pendingBadge') return 'Pending'
         if (key === 'assistants.groups.ungrouped') return 'Ungrouped'
         if (key === 'settings.assistant.icon.type.emoji') return 'Emoji'
         if (key === 'settings.assistant.icon.type.model') return 'Model'
@@ -665,8 +666,15 @@ const topicStreamStatusCacheKey = (topicId: string) => `topic.stream.statuses.${
 const topicStreamLastSeenCompletionCacheKey = (topicId: string) =>
   `topic.stream.last_seen_completion.${topicId}` as never
 
-function setTopicStreamCacheStatus(topicId: string, status: 'aborted' | 'done' | 'error' | 'pending' | 'streaming') {
-  cacheService.setShared(topicStreamStatusCacheKey(topicId), { status } as never)
+function setTopicStreamCacheStatus(
+  topicId: string,
+  status: 'aborted' | 'awaiting-approval' | 'done' | 'error' | 'pending' | 'streaming',
+  hasAwaitingApprovalAnchor = false
+) {
+  cacheService.setShared(topicStreamStatusCacheKey(topicId), {
+    status,
+    awaitingApprovalAnchors: hasAwaitingApprovalAnchor ? [{ executionId: 'exec-1' }] : []
+  } as never)
   cacheService.deleteShared(topicStreamLastSeenCompletionCacheKey(topicId))
 }
 
@@ -2024,6 +2032,28 @@ describe('Topics', () => {
     renderTopicList({ activeTopic })
 
     topicRow = getTopicRow('Alpha topic')
+    expect(topicRow.querySelector('[data-testid="topic-stream-indicator"]')).not.toBeInTheDocument()
+  })
+
+  it('shows an awaiting-approval badge for a terminal topic without a spinner', () => {
+    setTopicStreamCacheStatus('topic-c', 'awaiting-approval')
+    renderTopicList()
+
+    const topicRow = getTopicRow('Gamma topic')
+    const badge = within(topicRow).getByTestId('topic-awaiting-approval-badge')
+
+    expect(badge).toHaveTextContent('Pending')
+    expect(badge).toHaveClass('text-warning', 'group-hover:opacity-0')
+    expect(topicRow.querySelector('[data-testid="topic-stream-indicator"]')).not.toBeInTheDocument()
+  })
+
+  it('shows only the awaiting-approval badge when a live topic pauses for approval', () => {
+    setTopicStreamCacheStatus('topic-c', 'streaming', true)
+    renderTopicList()
+
+    const topicRow = getTopicRow('Gamma topic')
+
+    expect(within(topicRow).getByTestId('topic-awaiting-approval-badge')).toHaveTextContent('Pending')
     expect(topicRow.querySelector('[data-testid="topic-stream-indicator"]')).not.toBeInTheDocument()
   })
 
