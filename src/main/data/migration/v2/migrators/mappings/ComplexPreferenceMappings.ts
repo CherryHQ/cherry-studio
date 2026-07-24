@@ -19,7 +19,6 @@
  */
 
 import { loggerService } from '@logger'
-import { markV1CustomCss } from '@shared/data/preference/customCss'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 
 import { type LegacyModelRef, legacyModelToUniqueId } from '../transformers/ModelTransformers'
@@ -86,15 +85,6 @@ export interface ComplexMapping {
 function transformSidebarFavorites(): TransformResult {
   return {
     'ui.sidebar.favorites': DefaultPreferences.default['ui.sidebar.favorites']
-  }
-}
-
-function transformV1CustomCss(sources: Record<string, unknown>): TransformResult {
-  const customCss = sources.customCss
-  if (typeof customCss !== 'string') return {}
-
-  return {
-    'ui.custom_css': markV1CustomCss(customCss)
   }
 }
 
@@ -186,16 +176,6 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     },
     targetKeys: ['ui.sidebar.favorites'],
     transform: transformSidebarFavorites
-  },
-
-  {
-    id: 'custom_css_v1_marker',
-    description: 'Preserve legacy custom CSS behind a versioned marker until the user reviews it for v2',
-    sources: {
-      customCss: { source: 'redux', category: 'settings', key: 'customCss' }
-    },
-    targetKeys: ['ui.custom_css'],
-    transform: transformV1CustomCss
   },
 
   // File processing overrides merging

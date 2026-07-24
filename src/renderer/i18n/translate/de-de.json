@@ -2381,6 +2381,8 @@
       "payload": "Anfrageinhalt zu groß, bitte verringern Sie die Datei- oder Textgröße",
       "proxy": "Proxy- oder SSL-Zertifikatsfehler, überprüfen Sie die Proxy- und Netzwerkeinstellungen",
       "quota": "Kontoguthaben aufgebraucht, bitte aufladen oder Anbieter wechseln",
+      "rate_limit": "Zu viele Anfragen in kurzer Zeit. Bitte kurz warten und erneut versuchen, oder zu einem Modell mit höherer Ratenbegrenzung wechseln",
+      "region": "Dienst in Ihrer Region nicht verfügbar. Konfigurieren Sie einen Proxy oder wechseln Sie zu einem Anbieter, der in Ihrem Gebiet verfügbar ist",
       "server": "Serverfehler, bitte später erneut versuchen",
       "stream": "Antwort unterbrochen, überprüfen Sie die Netzwerkstabilität oder versuchen Sie es erneut",
       "unknown": "Ein Fehler ist aufgetreten",
@@ -2392,6 +2394,7 @@
     "http": {
       "400": "Anfragefehler. Bitte überprüfen Sie die Anfrageparameter. Falls Modelleinstellungen geändert wurden, setzen Sie diese auf Standardwerte zurück",
       "401": "Authentifizierung fehlgeschlagen. Bitte überprüfen Sie, ob der API-Schlüssel korrekt ist",
+      "402": "Zahlung erforderlich. Ihr Kontoguthaben oder Kontingent ist aufgebraucht - bitte auf der Website des Anbieters aufladen oder zu einem anderen Anbieter wechseln",
       "403": "Zugriff verweigert. Bitte übersetzen Sie die spezifische Fehlermeldung für Details oder kontaktieren Sie den Dienstanbieter",
       "404": "Modell existiert nicht oder Anfragepfad ist fehlerhaft",
       "429": "Anfragelimit überschritten. Bitte versuchen Sie es später erneut",
@@ -4662,6 +4665,7 @@
     "title": "Intel OVMS"
   },
   "paintings": {
+    "add_image": "Add image",
     "aspect_ratio": "Seitenverhältnis",
     "aspect_ratios": {
       "landscape": "Querformat",
@@ -4814,6 +4818,8 @@
     "prompt_placeholder": "Beschreiben Sie das gewünschte Bild, z.B.: Ein ruhiger See bei Sonnenuntergang mit Bergen in der Ferne",
     "prompt_placeholder_edit": "Geben Sie Ihre Bildbeschreibung ein. Text zum Rendern in \"Anführungszeichen\" setzen",
     "prompt_placeholder_en": "Geben Sie \"englische\" Bildbeschreibung ein, derzeit nur englische Prompts unterstützt",
+    "prompt_placeholder_upload": "Describe the image you want, or upload one to edit",
+    "prompt_placeholder_upload_required": "Upload an image to edit, then describe the changes",
     "prompt_required": "Bitte geben Sie eine Eingabeaufforderung ein",
     "proxy_required": "Öffnen Sie Proxy und aktivieren Sie \"TUN-Modus\", um generierte Bilder anzuzeigen, oder kopieren Sie in Browser. Direkte Verbindung wird später unterstützt",
     "quality": "Qualität",

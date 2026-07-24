@@ -2381,6 +2381,8 @@
       "payload": "Nội dung yêu cầu quá lớn, vui lòng giảm kích thước tệp hoặc văn bản",
       "proxy": "Lỗi proxy hoặc chứng chỉ SSL, hãy kiểm tra cài đặt proxy và mạng",
       "quota": "Hạn mức tài khoản đã cạn kiệt, vui lòng nạp tiền hoặc chuyển đổi nhà cung cấp",
+      "rate_limit": "Quá nhiều yêu cầu trong thời gian ngắn. Hãy đợi một chút rồi thử lại, hoặc chuyển sang mô hình có giới hạn tốc độ cao hơn",
+      "region": "Dịch vụ không khả dụng tại khu vực của bạn. Hãy cấu hình proxy hoặc chuyển sang nhà cung cấp có sẵn trong khu vực của bạn",
       "server": "Lỗi máy chủ, vui lòng thử lại sau",
       "stream": "Phản hồi bị gián đoạn, kiểm tra độ ổn định mạng hoặc thử lại",
       "unknown": "Đã xảy ra lỗi",
@@ -2392,6 +2394,7 @@
     "http": {
       "400": "Yêu cầu thất bại. Vui lòng kiểm tra xem các tham số yêu cầu có đúng không. Nếu bạn đã thay đổi cài đặt mô hình, hãy đặt lại chúng về cài đặt mặc định",
       "401": "Xác thực thất bại. Vui lòng kiểm tra lại xem khóa API của bạn có chính xác không",
+      "402": "Yêu cầu thanh toán. Số dư hoặc hạn mức tài khoản của bạn đã cạn - hãy nạp tiền trên trang nhà cung cấp, hoặc chuyển sang nhà cung cấp khác",
       "403": "Truy cập bị từ chối. Vui lòng kiểm tra xem tài khoản của bạn đã được xác minh chưa, hoặc liên hệ với nhà cung cấp dịch vụ để biết thêm thông tin.",
       "404": "Không tìm thấy mô hình hoặc đường dẫn yêu cầu không chính xác",
       "429": "Quá nhiều yêu cầu. Vui lòng thử lại sau.",
@@ -4662,6 +4665,7 @@
     "title": "Intel OVMS"
   },
   "paintings": {
+    "add_image": "Add image",
     "aspect_ratio": "Tỷ lệ khung hình",
     "aspect_ratios": {
       "landscape": "Phong cảnh",
@@ -4814,6 +4818,8 @@
     "prompt_placeholder": "Mô tả hình ảnh bạn muốn tạo, ví dụ: Một hồ yên tĩnh lúc hoàng hôn với dãy núi phía xa",
     "prompt_placeholder_edit": "Nhập mô tả hình ảnh của bạn, vẽ văn bản dùng \"dấu ngoặc kép\" để bao quanh",
     "prompt_placeholder_en": "Nhập mô tả hình ảnh của bạn, hiện tại chỉ hỗ trợ lời nhắc bằng tiếng Anh",
+    "prompt_placeholder_upload": "Describe the image you want, or upload one to edit",
+    "prompt_placeholder_upload_required": "Upload an image to edit, then describe the changes",
     "prompt_required": "Vui lòng nhập một l",
     "proxy_required": "Mở proxy và bật \"chế độ TUN\" để xem ảnh đã tạo hoặc sao chép chúng sang trình duyệt để mở. Trong tương lai, sẽ hỗ trợ kết nối trực tiếp trong nước.",
     "quality": "Chất lượng",

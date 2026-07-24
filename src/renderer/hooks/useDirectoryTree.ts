@@ -102,6 +102,7 @@ function applyMutation(state: MirrorState, event: TreeMutationEvent): boolean {
 }
 
 export function useDirectoryTree(rootPath: string | undefined, options?: DirectoryTreeOptions): UseDirectoryTreeResult {
+  const normalizedRootPath = rootPath?.replace(/\\/g, '/')
   const [root, setRoot] = useState<TreeDirRoot | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
@@ -130,6 +131,7 @@ export function useDirectoryTree(rootPath: string | undefined, options?: Directo
     let unsubscribeMutations: (() => void) | null = null
     let createdTreeId: string | null = null
 
+    setRoot(null)
     setIsLoading(true)
     setError(null)
 
@@ -198,9 +200,15 @@ export function useDirectoryTree(rootPath: string | undefined, options?: Directo
     // rebuild. Pass a new `rootPath` if you need a different scan.
   }, [rootPath])
 
-  const getNode = useCallback((absPath: string): TreeNode | null => {
-    return mirrorRef.current?.nodes.get(absPath) ?? null
-  }, [])
+  const currentRoot = root?.path === normalizedRootPath ? root : null
+  const getNode = useCallback(
+    (absPath: string): TreeNode | null => {
+      const mirror = mirrorRef.current
+      if (!mirror || mirror.root.path !== normalizedRootPath) return null
+      return mirror.nodes.get(absPath) ?? null
+    },
+    [normalizedRootPath]
+  )
 
-  return { root, isLoading, error, version, treeId, getNode }
+  return { root: currentRoot, isLoading, error, version, treeId: currentRoot ? treeId : null, getNode }
 }
