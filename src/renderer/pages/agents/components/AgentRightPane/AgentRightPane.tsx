@@ -24,6 +24,7 @@ import {
   useRightPanelState
 } from '@renderer/components/chat/panes/Shell'
 import {
+  ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS,
   isSelectableFileNode,
   useArtifactFileTreeModel
 } from '@renderer/components/chat/panes/useArtifactFileTreeModel'
@@ -34,11 +35,14 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
+import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
 import { cn } from '@renderer/utils/style'
+import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { TreeDirRoot } from '@shared/utils/file'
 import {
   Activity,
   Bot,
@@ -71,6 +75,16 @@ const FLOW_TAB_PREFIX = 'flow:'
 const MAX_FLOW_TAB_TITLE_LENGTH = 32
 const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'
 
+function containsFile(root: TreeDirRoot | null): boolean {
+  let found = false
+  root?.walk((node) => {
+    if (!node.isTreeFile()) return
+    found = true
+    return false
+  })
+  return found
+}
+
 function getFlowTabValue(toolCallId: string): string {
   return `${FLOW_TAB_PREFIX}${toolCallId}`
 }
@@ -97,6 +111,7 @@ interface AgentRightPaneMeta {
   conversationState: AgentConversationState
   workspaceId?: string
   workspacePath?: string
+  workspaceType?: AgentWorkspaceType
 }
 
 interface AgentRightPaneRuntime {
@@ -124,6 +139,7 @@ interface AgentRightPaneActions {
 
 interface AgentRightPanelScope {
   developerMode: boolean
+  hasSystemWorkspaceFiles: boolean
   filesTitle: string
   flowTab: AgentFlowTab | null
   meta: AgentRightPaneMeta
@@ -256,6 +272,7 @@ function AgentRightPaneStateProvider({
   children,
   workspaceId,
   workspacePath,
+  workspaceType,
   messages,
   partsByMessageId,
   sessionId,
@@ -286,6 +303,15 @@ function AgentRightPaneStateProvider({
   const previousWorkspaceKeyRef = useRef(workspaceKey)
   const flowTab = flowTabState.sessionId === sessionId ? flowTabState.tab : null
   const runtime = useMemo<AgentRightPaneRuntime>(() => ({ messages, partsByMessageId }), [messages, partsByMessageId])
+  const systemWorkspacePath = workspaceType === AGENT_WORKSPACE_TYPE.SYSTEM ? workspacePath : undefined
+  const { root: systemWorkspaceRoot, version: systemWorkspaceTreeVersion } = useDirectoryTree(
+    systemWorkspacePath,
+    ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS
+  )
+  const hasSystemWorkspaceFiles = useMemo(() => {
+    void systemWorkspaceTreeVersion
+    return containsFile(systemWorkspaceRoot)
+  }, [systemWorkspaceRoot, systemWorkspaceTreeVersion])
 
   useEffect(() => {
     setFlowTabState((current) => (current.sessionId === sessionId ? current : { sessionId, tab: null }))
@@ -344,13 +370,26 @@ function AgentRightPaneStateProvider({
       agentAvatar,
       conversationState,
       workspaceId,
-      workspacePath
+      workspacePath,
+      workspaceType
     }),
-    [agentAvatar, agentId, agentName, conversationState, sessionId, sessionName, traceId, workspaceId, workspacePath]
+    [
+      agentAvatar,
+      agentId,
+      agentName,
+      conversationState,
+      sessionId,
+      sessionName,
+      traceId,
+      workspaceId,
+      workspacePath,
+      workspaceType
+    ]
   )
   const scope = useMemo<AgentRightPanelScope>(
     () => ({
       developerMode: enableDeveloperMode,
+      hasSystemWorkspaceFiles,
       filesTitle: t('agent.right_pane.tabs.files'),
       flowTab,
       meta,
@@ -358,7 +397,7 @@ function AgentRightPaneStateProvider({
       statusTitle: t('agent.right_pane.tabs.status'),
       traceTitle: t('trace.label')
     }),
-    [enableDeveloperMode, flowTab, meta, resourcePane, t]
+    [enableDeveloperMode, flowTab, hasSystemWorkspaceFiles, meta, resourcePane, t]
   )
 
   return (
@@ -408,6 +447,7 @@ function AgentRightPaneFilesPanel({ active, scope }: RightPanelComponentProps<Ag
   const lastSelectableFileRef = useRef<string | null>(null)
   const model = useArtifactFileTreeModel({
     workspacePath: meta.workspacePath,
+    watchMissingRoot: meta.workspaceType === AGENT_WORKSPACE_TYPE.SYSTEM,
     treeOpen: meta.conversationState === 'ready' && active,
     expandedIds: state.fileTreeExpandedIds,
     searchKeyword: state.fileTreeSearchKeyword,
@@ -650,6 +690,9 @@ function AgentTraceRightPanel({ scope }: RightPanelComponentProps<AgentRightPane
 
 function resolveAgentFilesReadiness(scope: AgentRightPanelScope): RightPanelReadiness {
   if (scope.meta.conversationState !== 'ready') return scope.meta.conversationState
+  if (scope.meta.workspaceType === AGENT_WORKSPACE_TYPE.SYSTEM && !scope.hasSystemWorkspaceFiles) {
+    return 'unavailable'
+  }
   return scope.meta.workspacePath ? 'ready' : 'unavailable'
 }
 
