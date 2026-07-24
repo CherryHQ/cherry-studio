@@ -1027,6 +1027,26 @@ describe('edit dialogs', () => {
     expect(screen.getByText('Skill One')).toBeInTheDocument()
   })
 
+  it('removes externally unbound knowledge bases from an open agent form', async () => {
+    const boundAgent = { ...AGENT, knowledgeBaseIds: ['kb-1'] }
+    const { rerender } = render(<AgentEditDialog open resource={boundAgent} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+
+    selectTab('Built-in tools')
+    expect(screen.getByText('Knowledge Search')).toBeInTheDocument()
+
+    rerender(
+      <AgentEditDialog
+        open
+        resource={{ ...boundAgent, knowledgeBaseIds: [] }}
+        onOpenChange={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    )
+
+    await waitFor(() => expect(screen.queryByText('Knowledge Search')).not.toBeInTheDocument())
+    expect(updateAgentMock).not.toHaveBeenCalled()
+  })
+
   it('opens the agent edit dialog directly on the requested initial tab', () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} initialTab="tools.skills" />)
 

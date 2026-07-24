@@ -229,6 +229,10 @@ function AgentEditDialogContent({
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAgent(resource))
   const [baselineSkillIds, setBaselineSkillIds] = useState<string[]>([])
   const [baselineSkillAgentId, setBaselineSkillAgentId] = useState<string | null>(null)
+  const previousKnowledgeBaseIdsRef = useRef({
+    agentId: resource.id,
+    ids: [...(resource.knowledgeBaseIds ?? [])]
+  })
   const defaultValues = useMemo(() => defaultValuesForAgent(resource), [resource])
   const form = useForm<AgentEditFormValues>({ defaultValues })
   const values = form.watch()
@@ -300,6 +304,25 @@ function AgentEditDialogContent({
     form.setValue('skillIds', skillIdsFromQuery, { shouldDirty: false })
     setBaselineSkillAgentId(resource.id)
   }, [baselineSkillAgentId, form, open, resource.id, skillIdsFromQuery, skillsLoading, skillsRefreshing])
+
+  useEffect(() => {
+    const previous = previousKnowledgeBaseIdsRef.current
+    const nextIds = resource.knowledgeBaseIds ?? []
+    previousKnowledgeBaseIdsRef.current = { agentId: resource.id, ids: [...nextIds] }
+    if (!open || previous.agentId !== resource.id) return
+
+    // Keep unrelated local edits while removing bindings that disappeared from
+    // the authoritative Agent projection after a knowledge base was deleted.
+    const nextSet = new Set(nextIds)
+    const removedIds = new Set(previous.ids.filter((id) => !nextSet.has(id)))
+    if (removedIds.size === 0) return
+
+    const currentIds = form.getValues('knowledgeBaseIds')
+    const convergedIds = currentIds.filter((id) => !removedIds.has(id))
+    if (convergedIds.length !== currentIds.length) {
+      form.setValue('knowledgeBaseIds', convergedIds, { shouldDirty: false })
+    }
+  }, [form, open, resource.id, resource.knowledgeBaseIds])
 
   useEffect(() => {
     if (leafTabIds.has(activeTab)) return

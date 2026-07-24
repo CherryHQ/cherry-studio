@@ -173,7 +173,7 @@ export function diffAgentUpdate(
     dto.mcps = next.mcps
     dirty = true
   }
-  if (!arraysEqual(baseline.knowledgeBaseIds, next.knowledgeBaseIds)) {
+  if (!stringSetsEqual(baseline.knowledgeBaseIds, next.knowledgeBaseIds)) {
     dto.knowledgeBaseIds = next.knowledgeBaseIds
     dirty = true
   }
@@ -234,6 +234,12 @@ function arraysEqual(a: readonly string[], b: readonly string[]): boolean {
   if (a.length !== b.length) return false
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
   return true
+}
+
+function stringSetsEqual(a: readonly string[], b: readonly string[]): boolean {
+  const aSet = new Set(a)
+  const bSet = new Set(b)
+  return aSet.size === bSet.size && [...aSet].every((value) => bSet.has(value))
 }
 
 function diffSkillUpdates(baselineSkillIds: readonly string[], nextSkillIds: readonly string[]): AgentSkillUpdateDto[] {

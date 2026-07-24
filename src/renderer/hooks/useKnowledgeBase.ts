@@ -321,9 +321,9 @@ export const useDeleteKnowledgeBase = () => {
       }
 
       try {
-        await invalidateCache('/knowledge-bases')
+        await invalidateCache(['/knowledge-bases', '/agents', '/agents/*'])
       } catch (invalidateError) {
-        logger.error('Failed to refresh knowledge base list after delete', normalizeError(invalidateError), {
+        logger.error('Failed to refresh dependent data after knowledge base delete', normalizeError(invalidateError), {
           baseId
         })
       }
