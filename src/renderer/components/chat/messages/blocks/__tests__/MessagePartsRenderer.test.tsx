@@ -312,6 +312,10 @@ vi.mock('../TranslationBlock', () => ({
 }))
 
 vi.mock('../BlockErrorFallback', () => ({ __esModule: true, default: () => null }))
+vi.mock('../PrepareTimelineBlock', () => ({
+  __esModule: true,
+  default: ({ timeline }: any) => <div data-testid="mock-prepare-timeline" data-total-ms={timeline?.totalMs} />
+}))
 vi.mock('../PlaceholderBlock', () => ({
   __esModule: true,
   default: ({ createdAt, status }: any) => (
@@ -409,6 +413,17 @@ function toolPart(toolCallId: string, state = 'output-available', toolName = too
     state,
     input: { path: `${toolCallId}.txt` },
     output: state === 'output-available' ? {} : undefined
+  }
+}
+
+function prepareProgressPart(totalMs: number | null) {
+  return {
+    type: 'data-prepare-progress',
+    id: 'cs-prepare-progress',
+    data: {
+      phase: 'waiting-first-response',
+      ...(totalMs === null ? {} : { timeline: { totalMs, stages: [{ stage: 'spawn-to-init', ms: totalMs }] } })
+    }
   }
 }
 
@@ -1195,6 +1210,55 @@ describe('MessagePartsRenderer', () => {
       expect(screen.queryByText('全量')).toBeNull()
       expect(screen.queryByRole('button', { name: '收起' })).toBeNull()
       expect(screen.queryByTestId('tool-history-divider')).toBeNull()
+    })
+  })
+
+  describe('prepare-timeline process row', () => {
+    it('renders the completed process group with only the prepare row when there is no tool/reasoning history', () => {
+      renderParts([prepareProgressPart(6000), { type: 'text', text: 'Final answer' }] as unknown as CherryMessagePart[])
+
+      // The qualifying prepare row alone is enough to open the "Processed" group; the answer stays outside.
+      const historyTrigger = screen.getByTestId('completed-process-trigger')
+      expect(historyTrigger).toHaveAttribute('aria-expanded', 'false')
+      expect(screen.getByText('Final answer')).toBeInTheDocument()
+      expect(screen.queryByTestId('mock-prepare-timeline')).toBeNull()
+
+      fireEvent.click(historyTrigger)
+      const block = screen.getByTestId('mock-prepare-timeline')
+      expect(block).toHaveAttribute('data-total-ms', '6000')
+    })
+
+    it('places the prepare row at the top of a process group that also has tools', () => {
+      const { container } = renderParts([
+        prepareProgressPart(6000),
+        toolPart('read'),
+        { type: 'text', text: 'Main final answer' }
+      ] as unknown as CherryMessagePart[])
+
+      fireEvent.click(screen.getByTestId('completed-process-trigger'))
+      expandCollapsedChildToolGroups()
+
+      expect(screen.getByTestId('mock-prepare-timeline')).toBeInTheDocument()
+      const html = container.innerHTML
+      expect(html.indexOf('mock-prepare-timeline')).toBeLessThan(html.indexOf('mock-message-tools'))
+    })
+
+    it('does not render a process group for a fast (below-threshold) prepare part', () => {
+      renderParts([prepareProgressPart(4000), { type: 'text', text: 'Final answer' }] as unknown as CherryMessagePart[])
+
+      expect(screen.getByText('Final answer')).toBeInTheDocument()
+      expect(screen.queryByTestId('completed-process-trigger')).toBeNull()
+      expect(screen.queryByTestId('mock-prepare-timeline')).toBeNull()
+    })
+
+    it('keeps the loading placeholder (not the prepare row) for an otherwise-empty streaming turn', () => {
+      activateTurn('streaming')
+      // Even a finalized slow timeline must not flip an empty streaming message into visible content.
+      renderParts([prepareProgressPart(6000)] as unknown as CherryMessagePart[], msg({ status: 'pending' }))
+
+      expect(screen.getByTestId('mock-placeholder')).toBeInTheDocument()
+      expect(screen.queryByTestId('mock-prepare-timeline')).toBeNull()
+      expect(screen.queryByTestId('completed-process-trigger')).toBeNull()
     })
   })
 

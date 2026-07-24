@@ -10,7 +10,7 @@
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { dropEmptyContentParts, finalizeInterruptedParts } from '../PersistenceBackend'
+import { dropEmptyContentParts, dropSubThresholdPrepareParts, finalizeInterruptedParts } from '../PersistenceBackend'
 
 // AI SDK tool-call UIMessagePart shapes. The non-terminal states the helper
 // targets are anything NOT in {output-available, output-error, output-denied}.
@@ -302,5 +302,39 @@ describe('dropEmptyContentParts', () => {
     const result = dropEmptyContentParts([reasoning, textPart('')])
 
     expect(result).toEqual([reasoning])
+  })
+})
+
+describe('dropSubThresholdPrepareParts', () => {
+  const preparePart = (data: object): CherryMessagePart =>
+    ({ type: 'data-prepare-progress', id: 'cs-prepare-progress', data }) as unknown as CherryMessagePart
+
+  it('keeps a finalized timeline above the display threshold', () => {
+    const parts = [preparePart({ phase: 'waiting-first-response', timeline: { totalMs: 6200, stages: [] } })]
+
+    expect(dropSubThresholdPrepareParts(parts)).toBe(parts)
+  })
+
+  it('drops a finalized timeline exactly at the threshold', () => {
+    const keep = textPart('answer')
+    const result = dropSubThresholdPrepareParts([
+      preparePart({ phase: 'waiting-first-response', timeline: { totalMs: 5000, stages: [] } }),
+      keep
+    ])
+
+    expect(result).toEqual([keep])
+  })
+
+  it('drops a phase-only leftover from a turn that never finalized', () => {
+    const keep = textPart('answer')
+    const result = dropSubThresholdPrepareParts([preparePart({ phase: 'starting-runtime' }), keep])
+
+    expect(result).toEqual([keep])
+  })
+
+  it('returns the original array by reference when no prepare part is present', () => {
+    const parts: CherryMessagePart[] = [textPart('hi'), reasoningPart('thinking')]
+
+    expect(dropSubThresholdPrepareParts(parts)).toBe(parts)
   })
 })

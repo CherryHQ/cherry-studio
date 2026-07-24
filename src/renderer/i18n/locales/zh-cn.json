@@ -4063,6 +4063,40 @@
           "seconds": "{{seconds}} 秒"
         },
         "generating": "正在生成回复",
+        "prepare": {
+          "connectingMcp": "正在连接 MCP 服务器…",
+          "connectingMcpNamed": "正在连接 MCP 服务器（{{name}}）…",
+          "footer": {
+            "copy": "复制诊断信息",
+            "detail": {
+              "mcpServers": "{{count}} 个 MCP 服务器",
+              "mcpTimeout": "预热超时",
+              "shellEnvCold": "本次运行首次读取登录 shell 环境",
+              "warmQuery": {
+                "hit": "复用预热的运行时",
+                "miss-no-entry": "无可用的预热运行时",
+                "miss-signature": "预热配置不匹配"
+              }
+            },
+            "stage": {
+              "dispatch": "调度",
+              "init-to-first-chunk": "模型首个响应",
+              "mcp-metadata": "MCP 元数据",
+              "mcp-warm": "MCP 预热",
+              "request-setup": "请求配置",
+              "shell-env": "Shell 环境",
+              "skills": "技能",
+              "spawn-to-init": "运行时启动",
+              "system-prompt": "系统提示词",
+              "tool-permissions": "工具权限",
+              "warm-query": "预热查询",
+              "workspace": "工作区"
+            },
+            "summary": "响应准备耗时 {{seconds}}s"
+          },
+          "startingRuntime": "正在启动运行时…",
+          "waitingFirstResponse": "正在等待模型的首个响应…"
+        },
         "preparing": "正在准备回复",
         "thinking": "正在思考",
         "usingTools": "正在处理任务"

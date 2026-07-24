@@ -40,6 +40,7 @@ import AssistantServer from '@main/ai/mcp/servers/assistant'
 import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
 import WorkspaceMemoryServer from '@main/ai/mcp/servers/workspaceMemory'
 import { createSdkMcpServerInstance } from '@main/ai/runtime/claudeCode/createSdkMcpServerInstance'
+import type { PrepareTimelineRecorder } from '@main/ai/runtime/PrepareTimelineRecorder'
 import { skillService } from '@main/ai/skills/SkillService'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
@@ -59,7 +60,7 @@ import { autoDiscoverGitBash } from '@main/utils/commandResolver'
 import { getPathStatus, isPathInside, type PathStatus } from '@main/utils/file'
 import { redactUrlToOrigin } from '@main/utils/redactUrl'
 import { rtkRewrite } from '@main/utils/rtk'
-import { getShellEnv } from '@main/utils/shellEnv'
+import { getShellEnv, isShellEnvCached } from '@main/utils/shellEnv'
 import { CONFIG_TOOL_NAME } from '@shared/ai/builtinTools'
 import { CHANNEL_SECURITY_PROMPT, REPORT_ARTIFACTS_PROMPT } from '@shared/ai/claudecode/constants'
 import { toCamelCase } from '@shared/ai/tools/mcpToolName'
@@ -236,6 +237,8 @@ export interface ClaudeCodeSessionOptions {
     effort?: Options['effort']
     thinking?: Options['thinking']
   }
+  /** Prepare-timeline recorder — instruments the sequential build sub-steps when present. */
+  recorder?: PrepareTimelineRecorder
 }
 
 export type McpServerSnapshotMap = ReadonlyMap<string, McpServer | undefined>
@@ -273,16 +276,27 @@ export async function buildClaudeCodeSessionSettings(
   // Assistant diagnostics there. Local Cherry Assistant sessions keep the full MCP.
   const assistantMcpEnabled = isAssistant && linkedChannelSnapshot === null
 
+  const recorder = options?.recorder
+
   // Warm the agent's MCP tool caches before building approval descriptors (step 4) and tool-card
   // metadata (step 6), both of which read cache-only. Bounded so a dead server can't stall — see
   // `warmAgentMcpToolCaches`. The returned handle drives the post-timeout reconciliation below.
+  const mcpServerNames = resolveMcpServerNames(agent.mcps, options?.mcpServerSnapshots)
+  recorder?.setMcpServerNames(mcpServerNames)
+  recorder?.begin('mcp-warm', {
+    serverCount: mcpServerNames.length,
+    ...(mcpServerNames.length === 1 ? { mcpServerName: mcpServerNames[0] } : {})
+  })
   const mcpWarm = await warmAgentMcpToolCaches(agent)
+  recorder?.patch({ completedInTime: mcpWarm.completedInTime })
 
   // 1. Working directory (session-bound)
   const cwd = session.workspace.path
+  recorder?.begin('workspace')
   await prepareClaudeCodeWorkspaceDirectory(session)
 
-  // 2. Environment variables
+  // 2. Environment variables (first call this app run spawns a login shell — the dominant cold cost)
+  recorder?.begin('shell-env', { shellEnvColdFetch: !isShellEnvCached() })
   const env = await buildEnvironment(provider, agent)
 
   // 3. Plugins
@@ -304,6 +318,7 @@ export async function buildClaudeCodeSessionSettings(
   const steerHolder = getSteerHolder(session.id)
   // The hooks resolve the approval emitter / steer holder by session id at fire-time, so they are
   // not passed in; the holders above are created here only to expose them on `settings`.
+  recorder?.begin('tool-permissions')
   const { canUseTool, hooks, disallowedTools, toolPolicySnapshot } = await buildToolPermissions(
     session,
     agent,
@@ -311,9 +326,11 @@ export async function buildClaudeCodeSessionSettings(
   )
 
   // 5. System prompt
+  recorder?.begin('system-prompt')
   const systemPrompt = await buildSystemPrompt(session, agent, cwd, linkedChannelSnapshot !== null)
 
   // 6. MCP servers (session + built-in)
+  recorder?.begin('mcp-metadata')
   const mcpServers = buildMcpServers(
     session,
     agent,
@@ -357,7 +374,11 @@ export async function buildClaudeCodeSessionSettings(
   // 9. Skills — pass the SDK skill-name whitelist (managed skills enabled for this
   // agent + the workspace's own .claude/skills). The CLAUDE_CONFIG_DIR/skills mirror
   // is maintained by SkillService (install/uninstall/startup), not here.
+  recorder?.begin('skills')
   const skills = await buildSkillWhitelist(agent.id, cwd)
+  // Keep route/configuration/trace setup out of `skills`; the driver closes this explicit stage when
+  // it starts warm-query consumption, so no part of the host prepare window is unassigned.
+  recorder?.begin('request-setup')
 
   // 10. Build settings
   const settings: ClaudeCodeSettings = {
@@ -391,6 +412,16 @@ export async function buildClaudeCodeSessionSettings(
 }
 
 // ── Subsection builders ─────────────────────────────────────────────
+
+/** MCP server display names referenced by the agent (for diagnostics + the connecting-MCP label). */
+function resolveMcpServerNames(mcpIds: string[] | null | undefined, snapshots?: McpServerSnapshotMap): string[] {
+  const names: string[] = []
+  for (const mcpId of mcpIds ?? []) {
+    const server = snapshots ? snapshots.get(mcpId) : mcpServerService.findByIdOrName(mcpId)
+    if (server?.name) names.push(server.name)
+  }
+  return names
+}
 
 export function resolveClaudeExecutablePath(): string {
   const sdkRequire = createRequire(require_.resolve('@anthropic-ai/claude-agent-sdk'))

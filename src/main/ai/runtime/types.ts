@@ -1,3 +1,4 @@
+import type { PrepareProgressPartData } from '@shared/ai/agentPrepareTimeline'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
@@ -24,6 +25,18 @@ export interface AgentRuntimeTraceContext {
   rootSpanId: string
 }
 
+export interface AgentRuntimeTurnPrepare {
+  /** Stable host turn identity; prevents a reusable connection from reusing a prior turn's recorder. */
+  turnId: string
+  /** `performance.now()` captured when the host opened this turn's stream. */
+  startedAt: number
+  /**
+   * Live stage updates for THIS turn. The host routes them straight to this turn's stream controller
+   * because a connection's event queue is not drained while it is connecting.
+   */
+  onStage: (update: PrepareProgressPartData) => void
+}
+
 export interface AgentRuntimeConnectInput {
   sessionId: string
   agentId: string
@@ -32,6 +45,11 @@ export interface AgentRuntimeConnectInput {
   reasoningEffort?: ReasoningEffortOption
   resumeToken?: string
   trace?: AgentRuntimeTraceContext
+  /**
+   * The turn that caused this connection to be created. Absent for a turn-less prime. A reusable
+   * connection receives later turn instrumentation through {@link AgentRuntimeConnection.prepareTurn}.
+   */
+  prepare?: AgentRuntimeTurnPrepare
 }
 
 export interface AgentRuntimeUserInput {
@@ -76,6 +94,11 @@ export type AgentRuntimeReconcileResult = 'current' | 'patched' | 'rebuild' | 'i
 
 export interface AgentRuntimeConnection {
   readonly events: AsyncIterable<AgentRuntimeEvent>
+  /**
+   * Bind a fresh prepare recorder immediately before this turn is sent. Optional so runtimes that do
+   * not support prepare instrumentation retain their existing send contract.
+   */
+  prepareTurn?(prepare: AgentRuntimeTurnPrepare): void
   send(input: AgentRuntimeUserInput): void | Promise<void>
   /**
    * Inject a mid-turn user message (steer) into the running turn without aborting it. Returns true

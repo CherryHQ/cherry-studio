@@ -180,6 +180,50 @@ change refreshes the snapshot's disabled set in place. A rejected update is
 failed closed by the host (the connection is torn down) rather than left
 running under the old policy.
 
+## Prepare timeline
+
+The window between turn dispatch and the first qualifying model response
+is recorded per turn. `AgentSessionRuntimeService` captures the turn's
+start timestamp when it opens the stream, and passes the resulting
+`AgentRuntimeTurnPrepare` context both to a newly-created connection
+and through `prepareTurn()` immediately before every `send()`. This
+prevents a reusable connection from retaining an earlier turn's recorder
+or progress sink. A turn that
+attaches while a turn-less prime is still connecting receives a fresh
+recorder at `send()`; its `dispatch` stage covers that wait.
+
+The Claude Code driver owns a `PrepareTimelineRecorder` that tiles the
+whole host window contiguously (including dispatch and request setup),
+with `totalMs` equal to observed wall-clock end minus start. It finalizes
+on the first assistant content-bearing chunk (`text-delta`,
+`reasoning-delta`, or tool-input output), not init metadata/control
+chunks; failures before the query loop finalize too. A turn-less prime
+still records its timeline but only logs it when it is slow; it has no
+progress sink.
+
+Live progress cannot ride the connection's event queue — the queue is
+only drained after `connect()` resolves, which is after most of the
+prepare window. The turn-owned `onStage` callback therefore goes
+host-side through a turn-owned transport gate in
+`AgentSessionRuntimeService`. It holds the latest coarse phase and emits
+one `data-prepare-progress` part (stable id, reconciled in place) only at
+3s; later stage changes may update that part. The gate is cleared on turn
+terminal/close, so it cannot leak into a warm successor turn. Finalization
+always reaches this in-process gate to cancel its timer, but the gate only
+forwards timelines strictly above 5s to the stream; structured info logging
+uses the same slow-only rule. Fast recorder data is then discarded. Persistence
+mirrors that display rule: `dropSubThresholdPrepareParts` strips the part
+unless it carries that finalized slow timeline, so no message row stores a
+breakdown the renderer would never show. Diagnostics copy only stage
+timings/counts, app version, and agent type; user-controlled MCP labels
+remain in the live UI and are never copied.
+
+`ClaudeCodeWarmQueryManager.consume(...)` reports its outcome
+(`hit` / `miss-no-entry` / `miss-signature`) so the timeline records
+why a cold start happened. A `miss-signature` means prewarm and
+consume computed different settings signatures — a drift bug signal,
+not an expected state.
+
 ## Idle and shutdown
 
 After a turn reaches terminal state, the runtime entry becomes `idle`.
@@ -225,3 +269,4 @@ Focused tests:
 - `src/main/ai/__tests__/AiService.test.ts`
 - `src/main/ai/runtime/claudeCode/__tests__/streamAdapter.test.ts`
 - `src/main/ai/runtime/claudeCode/__tests__/ClaudeCodeWarmQueryManager.test.ts`
+- `src/main/ai/runtime/__tests__/PrepareTimelineRecorder.test.ts`

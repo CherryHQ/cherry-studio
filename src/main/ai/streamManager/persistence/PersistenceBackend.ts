@@ -8,6 +8,7 @@
  * synthesise UIMessages or repeat projection logic.
  */
 
+import { PREPARE_TIMELINE_FOOTER_THRESHOLD_MS, type PrepareProgressPartData } from '@shared/ai/agentPrepareTimeline'
 import type { CherryMessagePart, CherryUIMessage, MessageStats } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import {
@@ -98,6 +99,23 @@ export function dropEmptyContentParts(parts: CherryMessagePart[]): CherryMessage
   const filtered = parts.filter((part) => {
     if (part.type !== 'text' && part.type !== 'reasoning') return true
     return part.text.trim().length > 0
+  })
+  return filtered.length === parts.length ? parts : filtered
+}
+
+/**
+ * Drop a `data-prepare-progress` part unless it carries a finalized timeline above the renderer's
+ * display threshold — the only state the post-hoc breakdown ever shows. Sub-threshold timelines and
+ * phase-only leftovers (a turn that errored before finalize) are one-off live-progress data;
+ * persisting them would be dead weight in every row.
+ *
+ * Returns the original array by reference when nothing is dropped (matching `dropEmptyContentParts`).
+ */
+export function dropSubThresholdPrepareParts(parts: CherryMessagePart[]): CherryMessagePart[] {
+  const filtered = parts.filter((part) => {
+    if ((part.type as string) !== 'data-prepare-progress') return true
+    const timeline = (part as { data?: PrepareProgressPartData }).data?.timeline
+    return !!timeline && timeline.totalMs > PREPARE_TIMELINE_FOOTER_THRESHOLD_MS
   })
   return filtered.length === parts.length ? parts : filtered
 }

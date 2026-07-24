@@ -4063,6 +4063,40 @@
           "seconds": "{{seconds}}s"
         },
         "generating": "Writing response",
+        "prepare": {
+          "connectingMcp": "Connecting MCP servers…",
+          "connectingMcpNamed": "Connecting MCP server ({{name}})…",
+          "footer": {
+            "copy": "Copy diagnostics",
+            "detail": {
+              "mcpServers": "{{count}} MCP servers",
+              "mcpTimeout": "warm-up timed out",
+              "shellEnvCold": "first login-shell fetch this run",
+              "warmQuery": {
+                "hit": "reused prewarmed runtime",
+                "miss-no-entry": "no prewarmed runtime available",
+                "miss-signature": "prewarm settings mismatch"
+              }
+            },
+            "stage": {
+              "dispatch": "Dispatch",
+              "init-to-first-chunk": "First model response",
+              "mcp-metadata": "MCP metadata",
+              "mcp-warm": "MCP warm-up",
+              "request-setup": "Request setup",
+              "shell-env": "Shell environment",
+              "skills": "Skills",
+              "spawn-to-init": "Runtime startup",
+              "system-prompt": "System prompt",
+              "tool-permissions": "Tool permissions",
+              "warm-query": "Warm query",
+              "workspace": "Workspace"
+            },
+            "summary": "Response preparation took {{seconds}}s"
+          },
+          "startingRuntime": "Starting runtime…",
+          "waitingFirstResponse": "Waiting for the model's first response…"
+        },
         "preparing": "Preparing response",
         "thinking": "Thinking",
         "usingTools": "Working on the task"

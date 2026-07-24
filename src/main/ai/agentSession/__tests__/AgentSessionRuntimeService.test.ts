@@ -1234,6 +1234,273 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
+  it('delays live prepare progress until 3s, then emits the latest phase before connect resolves', async () => {
+    vi.useFakeTimers()
+    try {
+      const events = createAsyncQueue<any>()
+      const connection = {
+        events: events.iterable,
+        send: vi.fn(),
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      const connectDeferred = createDeferred<any>()
+      // The driver reports the latest phase during connect, before its event queue exists. The host
+      // holds it locally until the live-label threshold instead of creating a fast-turn data part.
+      const connect = vi.fn((input: any) => {
+        input.prepare?.onStage({ phase: 'connecting-mcp', mcpServerName: 'filesystem' })
+        return connectDeferred.promise
+      })
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect,
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const reader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: handle.turnId, signal: new AbortController().signal })
+        .getReader()
+
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      const progress = reader.read()
+      let progressSettled = false
+      void progress.then(() => {
+        progressSettled = true
+      })
+      await vi.advanceTimersByTimeAsync(2999)
+      expect(progressSettled).toBe(false)
+
+      await vi.advanceTimersByTimeAsync(1)
+      await expect(progress).resolves.toMatchObject({
+        value: {
+          type: 'data-prepare-progress',
+          id: 'cs-prepare-progress',
+          data: { phase: 'connecting-mcp', mcpServerName: 'filesystem' }
+        },
+        done: false
+      })
+      expect(connect).toHaveBeenCalledWith(
+        expect.objectContaining({
+          prepare: expect.objectContaining({ startedAt: expect.any(Number), onStage: expect.any(Function) })
+        })
+      )
+
+      // Once visible, a later stage update is forwarded immediately through the same stable part.
+      connect.mock.calls[0][0].prepare.onStage({ phase: 'waiting-first-response' })
+      await expect(reader.read()).resolves.toMatchObject({
+        value: { type: 'data-prepare-progress', data: { phase: 'waiting-first-response' } },
+        done: false
+      })
+
+      // A finalized slow timeline updates the stable part; the strict 5s boundary is covered below.
+      connect.mock.calls[0][0].prepare.onStage({
+        phase: 'waiting-first-response',
+        timeline: { totalMs: 5001, stages: [], runtimeType: 'test-runtime' }
+      })
+      await expect(reader.read()).resolves.toMatchObject({
+        value: { type: 'data-prepare-progress', data: { timeline: { totalMs: 5001 } } },
+        done: false
+      })
+
+      connectDeferred.resolve(connection)
+      await reader.cancel().catch(() => undefined)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('cancels the delayed progress label without transport at the exact 5s boundary', async () => {
+    vi.useFakeTimers()
+    try {
+      const events = createAsyncQueue<any>()
+      const connection = {
+        events: events.iterable,
+        send: vi.fn(),
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      const connectDeferred = createDeferred<any>()
+      let prepare: any
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect: vi.fn((input: any) => {
+          prepare = input.prepare
+          return connectDeferred.promise
+        }),
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const reader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: handle.turnId, signal: new AbortController().signal })
+        .getReader()
+      await reader.read()
+
+      prepare.onStage({
+        phase: 'waiting-first-response',
+        timeline: { totalMs: 5000, stages: [], runtimeType: 'test-runtime' }
+      })
+      const progress = reader.read()
+      let progressSettled = false
+      void progress.then(() => {
+        progressSettled = true
+      })
+      await vi.advanceTimersByTimeAsync(3000)
+      expect(progressSettled).toBe(false)
+
+      connectDeferred.resolve(connection)
+      await reader.cancel().catch(() => undefined)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('cancels a delayed progress label when a terminal turn is replaced by a warm successor', async () => {
+    vi.useFakeTimers()
+    try {
+      const events = createAsyncQueue<any>()
+      const connection = {
+        events: events.iterable,
+        send: vi.fn(),
+        close: vi.fn(),
+        reconcile: vi.fn().mockResolvedValue('current')
+      }
+      const deferred = createDeferred<any>()
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect: vi.fn().mockReturnValue(deferred.promise),
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const service = new AgentSessionRuntimeService()
+      const first = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const reader = service
+        .openTurnStream({ sessionId: 'session-1', turnId: first.turnId, signal: new AbortController().signal })
+        .getReader()
+      await reader.read()
+
+      void terminalListener(first).onDone({ status: 'success', isTopicDone: true })
+      service.beginTurn({ ...baseTurnInput, assistantMessageId: 'assistant-2', userMessage: userMessage('user-2') })
+
+      const progress = reader.read()
+      let progressSettled = false
+      void progress.then(() => {
+        progressSettled = true
+      })
+      await vi.advanceTimersByTimeAsync(3000)
+      expect(progressSettled).toBe(false)
+
+      deferred.resolve(connection)
+      await reader.cancel().catch(() => undefined)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('passes fresh prepare contexts at each send on a warm connection', async () => {
+    const events = createAsyncQueue<any>()
+    const connection = {
+      events: events.iterable,
+      prepareTurn: vi.fn(),
+      send: vi.fn(),
+      close: vi.fn(),
+      reconcile: vi.fn().mockResolvedValue('current')
+    }
+    const connect = vi.fn().mockResolvedValue(connection)
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+
+    const first = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const firstReader = service
+      .openTurnStream({ sessionId: 'session-1', turnId: first.turnId, signal: new AbortController().signal })
+      .getReader()
+    await firstReader.read()
+    await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
+    void terminalListener(first).onDone({ status: 'success', isTopicDone: true })
+
+    const second = service.beginTurn({
+      ...baseTurnInput,
+      assistantMessageId: 'assistant-2',
+      userMessage: userMessage('user-2')
+    })
+    const secondReader = service
+      .openTurnStream({ sessionId: 'session-1', turnId: second.turnId, signal: new AbortController().signal })
+      .getReader()
+    await secondReader.read()
+    await vi.waitFor(() => expect(connection.send).toHaveBeenCalledTimes(2))
+
+    const firstPrepare = connection.prepareTurn.mock.calls[0][0]
+    const secondPrepare = connection.prepareTurn.mock.calls[1][0]
+    expect(firstPrepare).toMatchObject({
+      turnId: first.turnId,
+      startedAt: expect.any(Number),
+      onStage: expect.any(Function)
+    })
+    expect(secondPrepare).toMatchObject({
+      turnId: second.turnId,
+      startedAt: expect.any(Number),
+      onStage: expect.any(Function)
+    })
+    expect(secondPrepare).not.toBe(firstPrepare)
+    expect(connect).toHaveBeenCalledOnce()
+
+    service.closeSession('session-1')
+    await Promise.all([firstReader.cancel().catch(() => undefined), secondReader.cancel().catch(() => undefined)])
+  })
+
+  it('passes a fresh turn context after attaching to an in-flight prime connection', async () => {
+    mocks.getSessionById.mockReturnValue({ id: 'session-1', agentId: 'agent-1' })
+    const events = createAsyncQueue<any>()
+    const connection = {
+      events: events.iterable,
+      prepareTurn: vi.fn(),
+      send: vi.fn(),
+      close: vi.fn(),
+      reconcile: vi.fn().mockResolvedValue('current')
+    }
+    const deferred = createDeferred<any>()
+    const connect = vi.fn().mockReturnValue(deferred.promise)
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    const priming = service.primeConnection('session-1')
+    await vi.waitFor(() => expect(connect).toHaveBeenCalledOnce())
+    expect(connect.mock.calls[0][0].prepare).toBeUndefined()
+
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const reader = service
+      .openTurnStream({ sessionId: 'session-1', turnId: handle.turnId, signal: new AbortController().signal })
+      .getReader()
+    await reader.read()
+
+    deferred.resolve(connection)
+    await priming
+    await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
+    expect(connection.prepareTurn).toHaveBeenCalledWith(
+      expect.objectContaining({ turnId: handle.turnId, onStage: expect.any(Function) })
+    )
+
+    service.closeSession('session-1')
+    await reader.cancel().catch(() => undefined)
+  })
+
   it('ignores per-execution terminal events until the topic is done', () => {
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn(baseTurnInput)
@@ -1858,7 +2125,13 @@ describe('AgentSessionRuntimeService', () => {
           sessionId: 'session-1',
           turnId: handle.turnId,
           modelName: 'claude-sonnet-4-5'
-        }
+        },
+        // A turn-attached connect receives this turn's prepare context.
+        prepare: expect.objectContaining({
+          turnId: handle.turnId,
+          startedAt: expect.any(Number),
+          onStage: expect.any(Function)
+        })
       })
     )
 
@@ -1911,7 +2184,13 @@ describe('AgentSessionRuntimeService', () => {
           sessionId: 'session-1',
           turnId: handle.turnId,
           modelName: 'claude-sonnet-4-5'
-        }
+        },
+        // A turn-attached connect receives this turn's prepare context.
+        prepare: expect.objectContaining({
+          turnId: handle.turnId,
+          startedAt: expect.any(Number),
+          onStage: expect.any(Function)
+        })
       })
     )
 

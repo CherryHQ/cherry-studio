@@ -15,6 +15,7 @@ import type { UIMessageChunk } from 'ai'
 import { normalizeAssistantMessageCitations } from '../persistence/normalizeCitations'
 import {
   dropEmptyContentParts,
+  dropSubThresholdPrepareParts,
   finalizeInterruptedParts,
   type PersistenceBackend,
   statsFromTerminal
@@ -119,12 +120,15 @@ export class PersistenceListener implements StreamListener {
     const normalizedMessage =
       status === 'success' && finalMessage ? normalizeAssistantMessageCitations(finalMessage) : finalMessage
     // Strip empty text/reasoning parts so invisible (zero-height) message blocks
-    // are never written to storage. Applied for all statuses. The `normalizedMessage`
+    // are never written to storage, and prepare-progress parts whose timeline the
+    // renderer would never show. Applied for all statuses. The `normalizedMessage`
     // guard is for the typed-undefined error path (no finalMessage).
     const finalMessageForPersistence = normalizedMessage
       ? {
           ...normalizedMessage,
-          parts: finalizeInterruptedParts(dropEmptyContentParts(normalizedMessage.parts as CherryMessagePart[]), status)
+          parts: dropSubThresholdPrepareParts(
+            finalizeInterruptedParts(dropEmptyContentParts(normalizedMessage.parts as CherryMessagePart[]), status)
+          )
         }
       : normalizedMessage
 

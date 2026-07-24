@@ -23,6 +23,7 @@ import { FILE_TYPE } from '@renderer/types/file'
 import { readComposerFileTokenIdSuffix } from '@renderer/utils/message/composerFileTokenSource'
 import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens'
 import { convertReferencesToCitationReferences, convertReferencesToCitations } from '@renderer/utils/partsToBlocks'
+import type { PrepareProgressPartData } from '@shared/ai/agentPrepareTimeline'
 import { classifyTurn } from '@shared/ai/transport'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
 import type { CherryProviderMetadata, ComposerMessageToken } from '@shared/data/types/uiParts'
@@ -49,6 +50,7 @@ import MainTextBlock, { buildUserMessagePreview } from './MainTextBlock'
 import {
   findOpenTextTailIndex,
   isHiddenPart,
+  isPrepareTimelineHistoryPart,
   isReasoningMessagePart,
   isResultPart,
   isSubstantiveAnswerPart,
@@ -60,6 +62,7 @@ import {
 import { useMessageParts, useTranslationOverlayEntry } from './MessagePartsContext'
 import MessageProcessGroup from './MessageProcessGroup'
 import PlaceholderBlock, { type PlaceholderStatus } from './PlaceholderBlock'
+import PrepareTimelineBlock from './PrepareTimelineBlock'
 import { useRequestScrollFollowRecovery } from './ScrollOwnershipContext'
 import ThinkingBlock, { ThinkingBlockContent } from './ThinkingBlock'
 import { ToolBlockGroup, ToolBlockGroupContent } from './ToolBlockGroup'
@@ -384,6 +387,16 @@ function getProcessingPlaceholderStatus(entries: readonly PartEntry[]): Placehol
   return 'preparing'
 }
 
+/** Extract the current prepare-progress payload (live phase + finalized timeline) if present. */
+function getPrepareProgress(parts: readonly CherryMessagePart[]): PrepareProgressPartData | undefined {
+  for (const part of parts) {
+    if ((part.type as string) === 'data-prepare-progress' && 'data' in part && part.data) {
+      return part.data as PrepareProgressPartData
+    }
+  }
+  return undefined
+}
+
 function isPotentiallyVisibleEntry(entry: PartEntry, messageId: string): boolean {
   const { part } = entry
   const partType = part.type as string
@@ -565,6 +578,15 @@ function renderPart(
     case 'data-agent-task-event':
       // Agent task events are hidden inline state consumed by the agent status panes.
       return null
+
+    case 'data-prepare-progress': {
+      // The live phase drives the placeholder label (see MessagePartsRendererContent). Once the
+      // timeline is finalized and slow enough to surface, it renders as the first row of the process
+      // timeline (promoted into process history by groupNestedHistoryEntries); otherwise it stays hidden.
+      if (!isPrepareTimelineHistoryPart(part)) return null
+      const timeline = (part as { data?: PrepareProgressPartData }).data?.timeline
+      return timeline ? <PrepareTimelineBlock key={partId} timeline={timeline} /> : null
+    }
 
     case 'file': {
       const filePart = part as { url?: string; mediaType?: string; filename?: string }
@@ -842,9 +864,12 @@ function groupNestedHistoryEntries(entries: readonly PartEntry[]): NestedHistory
   }
 
   for (const entry of entries) {
-    if (isHiddenPart(entry.part)) continue
+    // A promoted prepare-timeline part is checked before the hidden skip: it is chronologically the
+    // turn's first segment, so it opens the first process group at the top.
+    const isPrepare = isPrepareTimelineHistoryPart(entry.part)
+    if (isHiddenPart(entry.part) && !isPrepare) continue
 
-    if ((entry.part.type as string) === 'reasoning' || isToolUIPart(entry.part)) {
+    if (isPrepare || (entry.part.type as string) === 'reasoning' || isToolUIPart(entry.part)) {
       flushContent()
       processEntries.push(entry)
     } else {
@@ -1170,8 +1195,11 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
     )
   })
 
-  const hasVisibleCompletedHistory = completedHistoryEntries.some((entry) =>
-    isPotentiallyVisibleEntry(entry, message.id)
+  const hasVisibleCompletedHistory = completedHistoryEntries.some(
+    // A promoted prepare-timeline row is worth a process group on its own, even with no tool/reasoning
+    // history — it is deliberately excluded from isPotentiallyVisibleEntry (a hidden transport marker)
+    // so it never flips the active-turn empty check, so it is admitted explicitly here.
+    (entry) => isPotentiallyVisibleEntry(entry, message.id) || isPrepareTimelineHistoryPart(entry.part)
   )
   if (!hasVisibleCompletedHistory) return <>{completedResult}</>
 
@@ -1273,6 +1301,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
     [messageParts]
   )
   const placeholderStatus = useMemo(() => getProcessingPlaceholderStatus(partEntries), [partEntries])
+  const prepareProgress = useMemo(() => getPrepareProgress(messageParts), [messageParts])
   const nextReportArtifactToolResponses = useMemo(
     () => getReportArtifactToolResponses(partEntries, message.id),
     [partEntries, message.id]
@@ -1308,7 +1337,13 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
       return (
         <AnimatePresence mode="sync">
           <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
-            <PlaceholderBlock isProcessing={true} createdAt={message.createdAt} status={placeholderStatus} />
+            <PlaceholderBlock
+              isProcessing={true}
+              createdAt={message.createdAt}
+              status={placeholderStatus}
+              preparePhase={prepareProgress?.phase}
+              prepareMcpServerName={prepareProgress?.mcpServerName}
+            />
           </AnimatedBlockWrapper>
         </AnimatePresence>
       )

@@ -23,6 +23,7 @@ import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { isExternalCliProvider, isOllamaProvider, OLLAMA_PLACEHOLDER_AUTH_TOKEN } from '@shared/utils/provider'
 
 import { resolveEffectiveEndpoint } from '../../provider/endpoint'
+import type { PrepareTimelineRecorder } from '../PrepareTimelineRecorder'
 import type { WarmQueryRequest } from './ClaudeCodeWarmQueryManager'
 import { isAnthropicOfficialHost, with1mSuffix } from './contextWindowSuffix'
 import { createClaudeCodeQueryOptions } from './queryOptions'
@@ -259,8 +260,15 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
    *  agent's current model (prewarm and turn-less connections). */
   connectionModelId?: UniqueModelId,
   /** Canonical reasoning selection frozen when the turn was submitted. */
-  reasoningEffort: ReasoningEffortOption = 'default'
+  reasoningEffort: ReasoningEffortOption = 'default',
+  /** Prepare-timeline recorder — instruments the settings-build sub-steps on the connect path.
+   *  Absent on the prewarm path (that build happens off the turn's critical path). */
+  recorder?: PrepareTimelineRecorder
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
+  // Own the request's route/configuration reads explicitly instead of leaving them inside dispatch.
+  // The settings builder closes this stage when MCP warm-up begins; it opens it again for the final
+  // materialization/trace gap before the driver starts warm-query consumption.
+  recorder?.begin('request-setup')
   const session = agentSessionService.getById(sessionId)
   if (!session?.agentId) return undefined
 
@@ -296,7 +304,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
         lastAgentSessionId: resumeSessionId,
         mcpServerSnapshots,
         linkedChannelSnapshot,
-        thinkingOptions
+        thinkingOptions,
+        recorder
       },
       agent
     ),

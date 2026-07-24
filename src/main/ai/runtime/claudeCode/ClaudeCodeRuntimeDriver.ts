@@ -1,3 +1,4 @@
+import { performance } from 'node:perf_hooks'
 import { fileURLToPath } from 'node:url'
 
 import {
@@ -9,7 +10,8 @@ import {
   type SDKResultMessage,
   type SDKStatusMessage,
   type SDKSystemMessage,
-  type SDKUserMessage
+  type SDKUserMessage,
+  type WarmQuery
 } from '@anthropic-ai/claude-agent-sdk'
 import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
 
@@ -22,6 +24,7 @@ import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
+import { PrepareTimelineRecorder } from '@main/ai/runtime/PrepareTimelineRecorder'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import {
@@ -47,6 +50,7 @@ import type {
   AgentRuntimeConnection,
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
+  AgentRuntimeTurnPrepare,
   AgentRuntimeUserInput,
   AgentSessionLiveIndex,
   AgentSessionRuntimeDriver
@@ -165,70 +169,102 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   /** Set when the PreToolUse hook injects a steer; the next top-level assistant `message_start`
    *  emits a `steer-boundary` (rolls A1a + A2) and clears this. */
   private steerBoundaryPending?: AgentRuntimeUserInput[]
+  /** Prepare-timeline recorder for the turn currently awaiting its first model response. */
+  private recorder?: PrepareTimelineRecorder
+  private recorderTurnId?: string
+  private initSeen = false
 
   readonly events = this.eventQueue
+  private readonly input: Omit<AgentRuntimeConnectInput, 'prepare'>
+  private initialPrepare?: AgentRuntimeTurnPrepare
 
-  constructor(private readonly input: AgentRuntimeConnectInput) {
+  constructor(input: AgentRuntimeConnectInput) {
+    const { prepare, ...connectionInput } = input
+    this.input = connectionInput
+    this.initialPrepare = prepare
     this.resumeToken = input.resumeToken
   }
 
   async start(): Promise<this> {
-    // Route with the host-chosen model, not a fresh DB read: a live turn's connection must serve
-    // the model captured when that turn was created, even if the agent was edited since.
-    const request = await buildClaudeCodeQueryRequestForAgentSession(
-      this.input.sessionId,
-      this.resumeToken,
-      this.input.modelId,
-      this.input.reasoningEffort ?? 'default'
-    )
-    if (!request) {
-      throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
-    }
-    this.connectionConfig = request.connectionConfig
+    // The connecting turn, if any, starts a recorder before request construction so settings work is
+    // attributed to that turn. A turn-less prime keeps its recorder log-only; later warm turns create
+    // fresh recorders through prepareTurn(), where their own timestamp and sink cross the boundary.
+    const initialPrepare = this.initialPrepare
+    this.initialPrepare = undefined
+    this.beginPrepare(initialPrepare)
 
-    const traceEnv = await this.prepareTraceEnv()
-    const options: Options = {
-      ...request.options,
-      ...(traceEnv
-        ? {
-            env: {
-              ...request.options.env,
-              ...traceEnv
+    try {
+      // Route with the host-chosen model, not a fresh DB read: a live turn's connection must serve
+      // the model captured when that turn was created, even if the agent was edited since.
+      const request = await buildClaudeCodeQueryRequestForAgentSession(
+        this.input.sessionId,
+        this.resumeToken,
+        this.input.modelId,
+        this.input.reasoningEffort ?? 'default',
+        this.recorder
+      )
+      if (!request) {
+        throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
+      }
+      this.connectionConfig = request.connectionConfig
+
+      const traceEnv = await this.prepareTraceEnv()
+      const options: Options = {
+        ...request.options,
+        ...(traceEnv
+          ? {
+              env: {
+                ...request.options.env,
+                ...traceEnv
+              }
             }
-          }
-        : {}),
-      abortController: this.abortController
-    }
-    const warmQuery = traceEnv
-      ? undefined
-      : await application.get('ClaudeCodeWarmQueryManager').consume({
+          : {}),
+        abortController: this.abortController
+      }
+      this.recorder?.begin('warm-query')
+      let warmQuery: WarmQuery | undefined
+      if (traceEnv) {
+        // Trace mode never reuses a prewarmed subprocess (the per-turn trace env must be injected).
+        this.recorder?.patch({ warmQuery: 'miss-no-entry' })
+      } else {
+        const consumed = await application.get('ClaudeCodeWarmQueryManager').consume({
           key: request.key,
           options,
           initializeTimeoutMs: request.initializeTimeoutMs,
           credentialsFingerprint: request.credentialsFingerprint
         })
-
-    this.query = warmQuery
-      ? warmQuery.query(this.sdkInputQueue)
-      : createClaudeQuery({ prompt: this.sdkInputQueue, options })
-    this.adapterModelId = request.sdkModelId
-    this.approvalEmitter = request.settings.approvalEmitter
-    // Bind the approval emit once for the connection's lifetime — it only pushes into the connection
-    // event queue, so it never varies per turn. (The prior per-turn rebind was the mirror of the
-    // now-removed per-turn dispose; both gone, the emitter is plainly session-scoped.)
-    this.bindApprovalEmitter()
-    this.mcpToolMetadata = request.settings.mcpToolMetadata
-    this.toolPolicySnapshot = request.settings.toolPolicySnapshot
-    this.steerHolder = request.settings.steerHolder
-    // Arm a `steer-boundary` when the PreToolUse hook injects a steer this turn. Bound on the live
-    // connection (not the warm prewarm) so the boundary is observed by this connection's query loop.
-    if (this.steerHolder) {
-      this.steerHolder.onInjected = (inputs) => {
-        this.steerBoundaryPending = inputs
+        this.recorder?.patch({ warmQuery: consumed.outcome })
+        warmQuery = consumed.query
       }
+
+      this.query = warmQuery
+        ? warmQuery.query(this.sdkInputQueue)
+        : createClaudeQuery({ prompt: this.sdkInputQueue, options })
+      this.recorder?.begin('spawn-to-init')
+      this.adapterModelId = request.sdkModelId
+      this.approvalEmitter = request.settings.approvalEmitter
+      // Bind the approval emit once for the connection's lifetime — it only pushes into the connection
+      // event queue, so it never varies per turn. (The prior per-turn rebind was the mirror of the
+      // now-removed per-turn dispose; both gone, the emitter is plainly session-scoped.)
+      this.bindApprovalEmitter()
+      this.mcpToolMetadata = request.settings.mcpToolMetadata
+      this.toolPolicySnapshot = request.settings.toolPolicySnapshot
+      this.steerHolder = request.settings.steerHolder
+      // Arm a `steer-boundary` when the PreToolUse hook injects a steer this turn. Bound on the live
+      // connection (not the warm prewarm) so the boundary is observed by this connection's query loop.
+      if (this.steerHolder) {
+        this.steerHolder.onInjected = (inputs) => {
+          this.steerBoundaryPending = inputs
+        }
+      }
+      void this.runQueryLoop()
+      return this
+    } catch (error) {
+      // Request construction can fail before the query loop exists. Finalize while the turn's sink
+      // is still attached so a slow failed setup is observable instead of silently losing its timeline.
+      this.finalizeRecorderIfPending()
+      throw error
     }
-    void this.runQueryLoop()
-    return this
   }
 
   private async prepareTraceEnv(): Promise<Record<string, string> | undefined> {
@@ -236,8 +272,20 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     return application.get('ClaudeCodeTraceBridgeService').prepareTrace(this.input.trace)
   }
 
+  prepareTurn(prepare: AgentRuntimeTurnPrepare): void {
+    // A reusable connection must never retain the previous turn's timing or progress destination.
+    // This also handles a turn that attached while a turn-less prime was still connecting.
+    this.beginPrepare(prepare)
+  }
+
   async send(input: AgentRuntimeUserInput): Promise<void> {
     this.adapter = this.createAdapter(this.adapterModelId ?? this.input.modelId)
+
+    // A warmed connection has no new init message for this turn, so its first-response stage starts
+    // at send. A cold connection's init handler opened the same stage already, covering init → send.
+    if (this.initSeen && this.recorder?.currentStage !== 'init-to-first-chunk') {
+      this.recorder?.begin('init-to-first-chunk')
+    }
 
     if (this.pendingInitMessage) {
       this.adapter.handleMessage(this.pendingInitMessage)
@@ -343,9 +391,49 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.sdkInputQueue.close()
     this.abortController.abort('agent-runtime-closed')
     this.steerBoundaryPending = undefined
+    this.finalizeRecorderIfPending()
     this.teardownSession()
     this.query?.close()
     this.eventQueue.close()
+  }
+
+  /**
+   * Start or retarget a recorder at a turn boundary. `dispatch` deliberately owns every host-side
+   * gap before the driver can name a more specific stage (including a turn waiting on a prime).
+   */
+  private beginPrepare(prepare: AgentRuntimeTurnPrepare | undefined): void {
+    if (this.recorder && this.recorderTurnId === prepare?.turnId && !this.recorder.isFinalized) {
+      if (prepare) this.recorder.setProgressSink(prepare.onStage)
+      return
+    }
+    this.finalizeRecorderIfPending()
+
+    const startedAt = prepare?.startedAt ?? performance.now()
+    this.recorderTurnId = prepare?.turnId
+    this.recorder = new PrepareTimelineRecorder(
+      { sessionId: this.input.sessionId, agentId: this.input.agentId, runtimeType: 'claude-code' },
+      startedAt,
+      prepare?.onStage
+    )
+    this.recorder.begin('dispatch', undefined, startedAt)
+  }
+
+  /**
+   * Coordinate the recorder with the SDK `init` message. It closes `spawn-to-init` and immediately
+   * opens `init-to-first-chunk`, whether init precedes or follows send, so the timeline has no gap.
+   * A turn-less prime finalizes here — it has no sent turn to await.
+   */
+  private handleRecorderInit(): void {
+    if (this.initSeen || !this.recorder) return
+    this.initSeen = true
+    this.recorder.begin('init-to-first-chunk')
+    if (!this.recorderTurnId) this.finalizeRecorderIfPending()
+  }
+
+  private finalizeRecorderIfPending(): void {
+    if (this.recorder && !this.recorder.isFinalized) this.recorder.finalize()
+    this.recorder = undefined
+    this.recorderTurnId = undefined
   }
 
   private async runQueryLoop(): Promise<void> {
@@ -353,6 +441,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       for await (const message of this.query!) {
         if (message.type === 'system' && message.subtype === 'init') {
           this.updateResumeToken(message.session_id)
+          this.handleRecorderInit()
           if (!this.adapter) {
             this.pendingInitMessage = message
             continue
@@ -418,6 +507,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           // Steers not injected by the hook this turn (the turn called no tool after they arrived) →
           // hand them back so the host queues them as the next turn (the steer_undelivered fallback).
           this.emitPendingSteersAsUndelivered()
+          // A result can arrive without content (or after only control metadata). It still closes the
+          // turn's prepare window and must emit/log the pending timeline.
+          this.finalizeRecorderIfPending()
           this.eventQueue.push({ type: 'turn-complete' })
         }
       }
@@ -426,6 +518,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       // enough text was already buffered, salvage it as a truncated turn (the
       // adapter emits the buffered text + a `truncated` finish through the sink)
       // instead of dropping the partial response and surfacing an error.
+      // The prepare window ended without a first token (the query errored) — finalize (log-only) so
+      // the timeline is still recorded, then continue the normal error handling.
+      this.finalizeRecorderIfPending()
       const salvaged = this.adapter?.handleTruncationError(error) ?? false
       if (!salvaged && !this.abortController.signal.aborted) {
         logger.error('Claude Code query loop failed', {
@@ -451,7 +546,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       modelId,
       streamOptions: {} as never,
       sink: {
-        enqueue: (chunk) => this.eventQueue.push({ type: 'chunk', chunk })
+        enqueue: (chunk) => {
+          // `message-metadata` and other control chunks describe SDK setup, not a model response.
+          // The prepare window ends at the first assistant content-bearing chunk: text/reasoning
+          // output or a tool call. Finalize synchronously so the timeline stays ahead of that chunk.
+          if (isFirstModelResponseChunk(chunk)) this.finalizeRecorderIfPending()
+          this.eventQueue.push({ type: 'chunk', chunk })
+        }
       },
       onSessionId: (resumeToken) => this.updateResumeToken(resumeToken),
       mcpToolMetadata: this.mcpToolMetadata
@@ -568,6 +669,17 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
 function isCompactionSystemMessage(message: SDKRuntimeSystemMessage): message is SDKCompactionSystemMessage {
   return message.subtype === 'status' || message.subtype === 'compact_boundary'
+}
+
+/** First assistant output that makes the turn observable to the user; SDK metadata/control is excluded. */
+function isFirstModelResponseChunk(chunk: { type: string }): boolean {
+  return (
+    chunk.type === 'text-delta' ||
+    chunk.type === 'reasoning-delta' ||
+    chunk.type === 'tool-input-start' ||
+    chunk.type === 'tool-input-delta' ||
+    chunk.type === 'tool-input-available'
+  )
 }
 
 /**

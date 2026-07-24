@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   findOpenTextTailIndex,
+  isPrepareTimelineHistoryPart,
   type PartEntry,
   projectCompletedMessageParts,
   projectLiveMessageParts
@@ -276,6 +277,49 @@ describe('projectCompletedMessageParts', () => {
     expect(indexes(layout.resultEntries)).toEqual([1, 2, 3])
   })
 
+  const prepareProgress = (totalMs: number | null) => ({
+    type: 'data-prepare-progress',
+    id: 'cs-prepare-progress',
+    data: {
+      phase: 'waiting-first-response',
+      ...(totalMs === null ? {} : { timeline: { totalMs, stages: [{ stage: 'spawn-to-init', ms: totalMs }] } })
+    }
+  })
+
+  it('promotes a slow finalized prepare part into process history, keeping the answer in the result', () => {
+    const layout = projectCompletedMessageParts(
+      entries([prepareProgress(6000), { type: 'text', text: 'Final answer' }])
+    )
+
+    // Without promotion the leading hidden marker is pulled into the result region alongside the answer;
+    // a qualifying prepare must anchor history so it renders inside the process group.
+    expect(indexes(layout.historyEntries)).toEqual([0])
+    expect(indexes(layout.resultEntries)).toEqual([1])
+  })
+
+  it('keeps a promoted prepare part in history alongside tools', () => {
+    const layout = projectCompletedMessageParts(
+      entries([
+        prepareProgress(6000),
+        { type: 'dynamic-tool', toolCallId: 'read', toolName: 'Read', state: 'output-available' },
+        { type: 'text', text: 'Final answer' }
+      ])
+    )
+
+    expect(indexes(layout.historyEntries)).toEqual([0, 1])
+    expect(indexes(layout.resultEntries)).toEqual([2])
+  })
+
+  it('does not promote a fast or still-live prepare part (stays a hidden result-region marker)', () => {
+    const fast = projectCompletedMessageParts(entries([prepareProgress(4000), { type: 'text', text: 'Final answer' }]))
+    expect(fast.historyEntries).toEqual([])
+    expect(indexes(fast.resultEntries)).toEqual([0, 1])
+
+    const live = projectCompletedMessageParts(entries([prepareProgress(null), { type: 'text', text: 'Final answer' }]))
+    expect(live.historyEntries).toEqual([])
+    expect(indexes(live.resultEntries)).toEqual([0, 1])
+  })
+
   it('leaves pure text entirely in the result', () => {
     const layout = projectCompletedMessageParts(
       entries([
@@ -476,5 +520,21 @@ describe('projectCompletedMessageParts', () => {
     expect(indexes(layout.historyEntries)).toEqual([0])
     expect(indexes(layout.resultEntries)).toEqual([1, 3])
     expect(indexes(layout.reportEntries)).toEqual([2])
+  })
+})
+
+describe('isPrepareTimelineHistoryPart', () => {
+  const part = (data: Record<string, unknown> | undefined) =>
+    ({ type: 'data-prepare-progress', data }) as unknown as CherryMessagePart
+
+  it('is true only for a finalized timeline past the footer threshold', () => {
+    expect(isPrepareTimelineHistoryPart(part({ timeline: { totalMs: 6000, stages: [] } }))).toBe(true)
+  })
+
+  it('is false for a fast, live, or non-prepare part', () => {
+    expect(isPrepareTimelineHistoryPart(part({ timeline: { totalMs: 5000, stages: [] } }))).toBe(false)
+    expect(isPrepareTimelineHistoryPart(part({ phase: 'starting-runtime' }))).toBe(false)
+    expect(isPrepareTimelineHistoryPart(part(undefined))).toBe(false)
+    expect(isPrepareTimelineHistoryPart({ type: 'text', text: 'hi' } as unknown as CherryMessagePart)).toBe(false)
   })
 })
