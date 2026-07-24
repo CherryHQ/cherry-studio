@@ -17,14 +17,14 @@
 //
 // SLICE SCOPE: export (FULL + LITE presets, DB + file-blob archive) + restore staging
 // spine. The renderer triggers export via backup.start_backup; restore runs the
-// ImportOrchestrator spine (quiesce → fingerprint → snapshot → merge → migrate → seal →
-// stage → 2nd fingerprint → journal → relaunch). quiesce is PARTIAL (BACKUP_IN_PROGRESS
-// flag + JobManager.pause + best-effort drain; full quiesce a1/#17014 follow-up).
-// MergeEngine (FIELD_MERGE for natural-key / SKIP for uuid-entity + junction + dangling-ref
-// repair + FTS) is wired; file/KB/Notes blob staging is
-// deferred (stageFileResources returns [] — DB-only journal). performRestoreRecovery at
-// startup GCs staging residue from a crashed prior restore; gcExportTempResidue GCs
-// unredacted export-temp DB copies from a crashed prior export.
+// ImportOrchestrator spine (quiesce → fingerprint → snapshot → planResources → merge →
+// migrate → seal → 2nd fingerprint → journal → broadcast restore_summary → renderer
+// app.relaunch). quiesce is PARTIAL
+// (BACKUP_IN_PROGRESS flag + JobManager.pause + best-effort drain; full quiesce a1/#17014
+// follow-up). MergeEngine (FIELD_MERGE for natural-key / SKIP for uuid-entity + junction +
+// dangling-ref repair + FTS) is wired; planResources feeds journal.fileResources + merge
+// skip sets. performRestoreRecovery at startup GCs staging residue from a crashed prior
+// restore; gcExportTempResidue GCs unredacted export-temp DB copies from a crashed prior export.
 
 import { randomUUID } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'node:fs'
@@ -72,6 +72,7 @@ import { removeExportTempResidue } from './exportTempResidue'
 import { ImportOrchestrator } from './ImportOrchestrator'
 import { MergeEngine, MergeStrategyNotImplementedError } from './merge/MergeEngine'
 import { presetIncludesFiles } from './presets'
+import { planResources } from './resourcePlanning'
 import { SqliteBackupStripper } from './SqliteBackupStripper'
 
 /** Re-export for durability unit tests (same public surface as before the GC harden). */
@@ -319,17 +320,17 @@ export class BackupService extends BaseService {
 
   /**
    * Restore from a .cherrybackup archive (renderer-facing). Runs the ImportOrchestrator spine:
-   * quiesce → snapshot → merge → migrate → seal → 2nd fingerprint → staged journal,
-   * then broadcasts the disclosure summary and waits for the renderer-confirmed
+   * quiesce → snapshot → planResources → merge → migrate → seal → 2nd fingerprint → staged
+   * journal, then broadcasts the disclosure summary and waits for the renderer-confirmed
    * app.relaunch, whose next boot runs the preboot promotion gate (#16884) that swaps
    * work.sqlite in. Quiesce stays held from seal to that exit.
    *
    * Partial quiesce + FIELD_MERGE (natural-key) / SKIP (uuid-entity) merge with dangling-ref
    * repair are wired (absent natural-key aggregates INSERT; conflicts column-merge keeping
-   * local row+PK and filling empty fields / absent members). File/KB/Notes blob staging is
-   * deferred (`stageFileResources` returns [] — DB-only journal). An explicit OVERWRITE/
-   * RENAME userStrategy still throws {@link MergeStrategyNotImplementedError}; the default
-   * restore path never does. Mutually exclusive with export.
+   * local row+PK and filling empty fields / absent members). Resource planning feeds merge
+   * skip sets + journal.fileResources (additive only; conflict → skip, no overwrite). An
+   * explicit OVERWRITE/RENAME userStrategy still throws {@link MergeStrategyNotImplementedError};
+   * the default restore path never does. Mutually exclusive with export.
    */
   async startRestore({ archivePath }: BackupRestoreStartOptions): Promise<BackupRestoreResult> {
     // Reserve the active slot BEFORE any work (incl. the journal read) so the null-check and
@@ -386,22 +387,9 @@ export class BackupService extends BaseService {
         // SKIP + junction + FTS + fileId disclosure) are wired. quiesce is PARTIAL
         // (BACKUP_IN_PROGRESS flag + JobManager.pause + drain; full quiesce a1/#17014
         // is follow-up). Unclean drain aborts restore (vaayne A7) — do not proceed into
-        // createSnapshot. File/KB/Notes blob staging is deferred — empty fileResources
-        // so the preboot gate promotes only the DB (DB-only / LITE restore).
-        // Reject Full archives at admission: resource staging is unfinished, so a
-        // DB-only restore would silently drop blobs (vaayne ordinary-restore-full-gate).
-        // LITE (includeFiles=false) proceeds. ImportOrchestrator e2e Full fixtures
-        // bypass this by wiring admitArchive directly.
-        admitArchive: async (path, workDir, migrationsFolder) => {
-          const ctx = await admitArchive(path, workDir, migrationsFolder)
-          if (ctx.manifest.preset === 'full') {
-            throw new IpcError(
-              backupErrorCodes.RESTORE_FULL_NOT_SUPPORTED,
-              'backup: Full archive restore is temporarily unavailable until resource staging lands; export/restore a LITE archive instead'
-            )
-          }
-          return ctx
-        },
+        // createSnapshot. Full + lite both admit; assertFullManifestInvariants runs inside
+        // admitArchive for full presets.
+        admitArchive: (path, workDir, migrationsFolder) => admitArchive(path, workDir, migrationsFolder),
         quiesceWriters: async () => {
           // PARTIAL quiesce: set BACKUP_IN_PROGRESS so IPC mutations reject
           // (DataApi/Preference/IpcApi gates), then pause JobManager (#16925) and DRAIN
@@ -439,13 +427,15 @@ export class BackupService extends BaseService {
           }
           return new MergeEngine(this.registry).mergeBackupIntoWork(workSqlite, workDb, ctx)
         },
-        stageFileResources: async () => {
-          // DB-only / lite restore: no FileStager blobs yet. Empty journal fileResources
-          // lets the spine seal + promote work.sqlite; KB/Notes/file blobs stay deferred.
-          return []
+        planResources,
+        planRoots: {
+          files: application.getPath('feature.files.data'),
+          knowledge: application.getPath('feature.knowledgebase.data'),
+          skills: application.getPath('feature.agents.skills'),
+          notes: () => this.resolveNotesRoot()
         }
       })
-      await importOrch.importBackup({
+      const { plan } = await importOrch.importBackup({
         archivePath,
         restoreId,
         signal: abortController.signal
@@ -463,7 +453,7 @@ export class BackupService extends BaseService {
       // above, not by activeOperation.
       sealed = true
       this.activeOperation = null
-      this.broadcastRestoreSummary()
+      this.broadcastRestoreSummary({ toRestore: plan.toRestore, toSkip: plan.skips })
       return { restoreId }
     } catch (e) {
       throw this.toIpcError(e)
@@ -481,11 +471,10 @@ export class BackupService extends BaseService {
    * falls back to an empty summary on the resolved request, so a broadcast hiccup
    * must not surface as a restore error.
    *
-   * DB-only spine: no ResourcePlan yet (stageFileResources returns []) — the summary
-   * is empty. A2 replaces this with plan.toRestore / plan.skips.
+   * The summary is the resource plan (plan.toRestore / plan.skips) — what the staged
+   * journal will restore / will skip and why.
    */
-  private broadcastRestoreSummary(): void {
-    const summary: RestoreResultSummary = { toRestore: [], toSkip: [] }
+  private broadcastRestoreSummary(summary: RestoreResultSummary): void {
     try {
       application.get('IpcApiService').broadcast('backup.restore_summary', summary)
     } catch (e) {

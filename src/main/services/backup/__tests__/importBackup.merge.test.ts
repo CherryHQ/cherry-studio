@@ -38,6 +38,7 @@ import { ImportOrchestrator, type ImportOrchestratorDeps } from '../ImportOrches
 import { BACKUP_FORMAT_VERSION, type BackupManifest } from '../manifest'
 import { MergeEngine } from '../merge/MergeEngine'
 import { resolvePreset } from '../presets'
+import { planResources, type PlanRoots } from '../resourcePlanning'
 
 // Production drizzle migrations folder — same resolution as ImportOrchestrator.test.ts so
 // admitArchive's chain gate + applyMigrations find _journal.json.
@@ -153,9 +154,8 @@ describe('importBackup spine ↔ MergeEngine integration', () => {
   }
 
   /**
-   * Build deps with REAL admitArchive + REAL MergeEngine. quiesce + file-resource staging
-   * stay no-op (their tracks are not landed) — the spine still advances through merge to a
-   * staged journal because the no-ops do not throw.
+   * Build deps with REAL admitArchive + REAL MergeEngine + REAL planResources.
+   * Lite archives early-return empty plans; quiesce stays no-op.
    */
   const makeDeps = (overrides: Partial<ImportOrchestratorDeps> = {}): ImportOrchestratorDeps => ({
     dbService: {
@@ -178,7 +178,13 @@ describe('importBackup spine ↔ MergeEngine integration', () => {
       expect(workSqlite.name.endsWith('work.sqlite')).toBe(true)
       return new MergeEngine(registry).mergeBackupIntoWork(workSqlite, workDb, ctx)
     },
-    stageFileResources: async () => [],
+    planResources,
+    planRoots: {
+      files: join(tmpDir, 'Data', 'Files'),
+      knowledge: join(tmpDir, 'Data', 'KnowledgeBase'),
+      skills: join(tmpDir, 'Data', 'Skills'),
+      notes: () => undefined
+    } satisfies PlanRoots,
     ...overrides
   })
 

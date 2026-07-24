@@ -432,7 +432,13 @@ export class MergeEngine {
             }
           }
           const exists = localCanonicalPrimaryKey !== undefined
-          const skippedBlob = agg.root === 'file_entry' && ctx.skippedFileEntryIds.has(String(backupPrimaryKey[0]))
+          // Planning skips (conflict: local row OR disk exists) must match merge SKIP so
+          // we never INSERT a root whose blob/dir was not staged. Skills match folder_name
+          // (identity), not the uuid primary key.
+          const skippedBlob =
+            (agg.root === 'file_entry' && ctx.skippedFileEntryIds.has(String(backupPrimaryKey[0]))) ||
+            (agg.root === 'knowledge_base' && ctx.skippedKnowledgeBaseIds?.has(String(backupPrimaryKey[0]))) ||
+            (agg.root === 'agent_global_skill' && ctx.skippedSkillFolderNames?.has(String(backupRow['folder_name'])))
           let action: AggregateDecision['action'] = 'insert'
           if (skippedBlob) {
             action = 'skip'

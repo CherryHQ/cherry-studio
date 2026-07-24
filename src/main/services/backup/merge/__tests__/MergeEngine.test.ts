@@ -665,6 +665,67 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     expect(ids).not.toContain('fe-skip')
   })
 
+  it('skips knowledge_base roots whose id is in skippedKnowledgeBaseIds', async () => {
+    const now = Date.now()
+    const insertKb = (db: Database.Database, id: string): void => {
+      // completed + no embedding model → dimensions must also be NULL (status_error_check).
+      db.prepare(
+        `INSERT INTO knowledge_base (
+           id, name, embedding_model_id, dimensions, status, chunk_size, chunk_overlap, created_at, updated_at
+         ) VALUES (?, ?, NULL, NULL, 'completed', 500, 50, ?, ?)`
+      ).run(id, `kb-${id}`, now, now)
+    }
+    seedBackup((db) => {
+      insertKb(db, 'kb-keep')
+      insertKb(db, 'kb-skip')
+    })
+
+    const before = countRows('knowledge_base')
+    await runMerge({
+      backupDbPath: backupPath,
+      domains: ['KNOWLEDGE'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>(),
+      skippedKnowledgeBaseIds: new Set(['kb-skip'])
+    })
+
+    expect(countRows('knowledge_base')).toBe(before + 1)
+    const ids = (dbh.sqlite.prepare(`SELECT id FROM knowledge_base`).all() as { id: string }[]).map((r) => r.id)
+    expect(ids).toContain('kb-keep')
+    expect(ids).not.toContain('kb-skip')
+  })
+
+  it('skips agent_global_skill roots by folder_name (not uuid PK)', async () => {
+    const insertSkill = (db: Database.Database, id: string, folder: string): void => {
+      const now = Date.now()
+      db.prepare(
+        `INSERT INTO agent_global_skill (id, name, folder_name, source, tags, content_hash, is_enabled, created_at, updated_at)
+         VALUES (?, ?, ?, 'local', '[]', 'hash', 1, ?, ?)`
+      ).run(id, `skill-${id}`, folder, now, now)
+    }
+    seedBackup((db) => {
+      insertSkill(db, 'skill-keep-id', 'folder-keep')
+      insertSkill(db, 'skill-skip-id', 'folder-skip')
+    })
+
+    const before = countRows('agent_global_skill')
+    await runMerge({
+      backupDbPath: backupPath,
+      domains: ['SKILLS'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>(),
+      // Match identity folder_name — NOT the uuid primary key.
+      skippedSkillFolderNames: new Set(['folder-skip'])
+    })
+
+    expect(countRows('agent_global_skill')).toBe(before + 1)
+    const folders = (
+      dbh.sqlite.prepare(`SELECT folder_name FROM agent_global_skill`).all() as { folder_name: string }[]
+    ).map((r) => r.folder_name)
+    expect(folders).toContain('folder-keep')
+    expect(folders).not.toContain('folder-skip')
+  })
+
   it('SKIPs file_entry roots that collide on lower(external_path) (expression UNIQUE)', async () => {
     // Work has file_entry 'fe-local' with externalPath '/tmp/dup'; backup has a DIFFERENT
     // id with the same case-insensitive path. Expression UNIQUE is folded into SKIP

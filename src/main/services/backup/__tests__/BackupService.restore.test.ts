@@ -95,7 +95,7 @@ describe('BackupService restore journal lifecycle (A7)', () => {
     vi.clearAllMocks()
     readRestoreJournalMock.mockReturnValue({ kind: 'none' })
     clearRestoreJournalMock.mockImplementation(() => {})
-    importBackup.mockResolvedValue(undefined)
+    importBackup.mockResolvedValue({ plan: { toRestore: [], skips: [] } })
     admitArchiveMock.mockReset()
     getRegistry.mockReturnValue({ domains: [] })
     jobManagerPause.mockReturnValue({ dispose: vi.fn() })
@@ -201,6 +201,7 @@ describe('BackupService restore journal lifecycle (A7)', () => {
       importBackup.mockImplementation(async () => {
         await runQuiesceViaImportBackupMock()
         afterQuiesce()
+        return { plan: { toRestore: [], skips: [] } }
       })
     })
 
@@ -257,6 +258,31 @@ describe('BackupService restore journal lifecycle (A7)', () => {
       setBackupInProgress(false) // module-singleton gate — reset for later tests
     })
 
+    it('broadcasts a NON-empty plan: toSkip maps from plan.skips (not toRestore)', async () => {
+      drainInFlight.mockResolvedValue({ stragglerIds: [], startupRecoveryPending: false })
+      // Once: keep the describe's quiesce drive, but return a NON-empty plan so a
+      // toSkip↔toRestore swap would fail (empty fixtures cannot catch that).
+      importBackup.mockImplementationOnce(async () => {
+        await runQuiesceViaImportBackupMock()
+        return {
+          plan: {
+            toRestore: [{ kind: 'file', count: 2 }],
+            skips: [{ id: 'f1', kind: 'file', reason: 'live exists' }],
+            resources: []
+          }
+        }
+      })
+      const service = new BackupService()
+      await service.startRestore({ archivePath: '/x.cherrybackup' })
+      expect(broadcastMock).toHaveBeenCalledWith('backup.restore_summary', {
+        toRestore: [{ kind: 'file', count: 2 }],
+        toSkip: [{ id: 'f1', kind: 'file', reason: 'live exists' }]
+      })
+      expect(relaunchMock).not.toHaveBeenCalled()
+      expect(isBackupInProgress()).toBe(true)
+      setBackupInProgress(false)
+    })
+
     it('a broadcast failure does not fail the sealed restore (renderer falls back)', async () => {
       drainInFlight.mockResolvedValue({ stragglerIds: [], startupRecoveryPending: false })
       broadcastMock.mockImplementationOnce(() => {
@@ -272,8 +298,8 @@ describe('BackupService restore journal lifecycle (A7)', () => {
     })
   })
 
-  describe('startRestore Full archive gate (vaayne ordinary-restore-full-gate)', () => {
-    it('rejects preset=full via admitArchive wrapper — BACKUP_RESTORE_FULL_NOT_SUPPORTED', async () => {
+  describe('startRestore Full archive admission (A2 — full gate removed)', () => {
+    it('admits preset=full through admitArchive (no RESTORE_FULL_NOT_SUPPORTED)', async () => {
       admitArchiveMock.mockResolvedValue({
         backupDbPath: '/tmp/backup.sqlite',
         manifest: { preset: 'full' },
@@ -284,18 +310,25 @@ describe('BackupService restore journal lifecycle (A7)', () => {
       importBackup.mockImplementation(async () => {
         const deps = (ImportOrchestrator as unknown as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as {
           admitArchive: (a: string, b: string, c: string) => Promise<unknown>
+          planResources: unknown
+          planRoots: unknown
         }
+        expect(deps.planResources).toBeDefined()
+        expect(deps.planRoots).toBeDefined()
         await deps.admitArchive('/x.cherrybackup', '/work', '/mig')
+        return { plan: { toRestore: [], skips: [] } }
       })
       const service = new BackupService()
 
-      await expect(service.startRestore({ archivePath: '/x.cherrybackup' })).rejects.toSatisfy(
-        (err: unknown) => err instanceof IpcError && err.code === 'BACKUP_RESTORE_FULL_NOT_SUPPORTED'
-      )
+      await expect(service.startRestore({ archivePath: '/x.cherrybackup' })).resolves.toMatchObject({
+        restoreId: expect.stringMatching(/^rst-/)
+      })
+      // Sealed success broadcasts the summary and waits for the renderer's app.relaunch.
       expect(relaunchMock).not.toHaveBeenCalled()
+      expect(broadcastMock).toHaveBeenCalledWith('backup.restore_summary', { toRestore: [], toSkip: [] })
     })
 
-    it('admits preset=lite through the wrapper', async () => {
+    it('admits preset=lite through admitArchive', async () => {
       admitArchiveMock.mockResolvedValue({
         backupDbPath: '/tmp/backup.sqlite',
         manifest: { preset: 'lite' },
@@ -308,6 +341,7 @@ describe('BackupService restore journal lifecycle (A7)', () => {
           admitArchive: (a: string, b: string, c: string) => Promise<unknown>
         }
         await deps.admitArchive('/x.cherrybackup', '/work', '/mig')
+        return { plan: { toRestore: [], skips: [] } }
       })
       const service = new BackupService()
 

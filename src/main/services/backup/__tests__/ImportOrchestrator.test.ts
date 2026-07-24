@@ -30,6 +30,7 @@ import {
 } from '../errors'
 import { ImportOrchestrator, type ImportOrchestratorDeps } from '../ImportOrchestrator'
 import type { BackupManifest } from '../manifest'
+import { planResources, type PlanRoots } from '../resourcePlanning'
 
 // Resolve the production drizzle migrations folder the same way the test DB harness
 // does (relative to this file, not process.cwd()) so applyMigrations finds _journal.json.
@@ -73,6 +74,13 @@ describe('ImportOrchestrator spine', () => {
   })
 
   /** Build deps with no-op stubs; tests override the unimplemented steps as needed. */
+  const makePlanRoots = (): PlanRoots => ({
+    files: join(tmpDir, 'Data', 'Files'),
+    knowledge: join(tmpDir, 'Data', 'KnowledgeBase'),
+    skills: join(tmpDir, 'Data', 'Skills'),
+    notes: () => undefined
+  })
+
   const makeDeps = (overrides: Partial<ImportOrchestratorDeps> = {}): ImportOrchestratorDeps => ({
     dbService: {
       // Mirror DbService on the live test connection.
@@ -85,8 +93,7 @@ describe('ImportOrchestrator spine', () => {
     userData: tmpDir,
     journalPath,
     // Archive admission is real (admitArchive.ts); spine tests use a no-op stub returning
-    // a dummy ArchiveContext (importBackup awaits without binding — the return is discarded
-    // until the merge consumer lands in spine-wiring, so the manifest shape is not read here).
+    // a dummy ArchiveContext. Dummy manifest has no preset → planResources early-returns empty.
     admitArchive: async (): Promise<ArchiveContext> => ({
       backupDbPath: join(stagingRoot, 'dummy-backup.sqlite'),
       manifest: {} as BackupManifest,
@@ -96,7 +103,8 @@ describe('ImportOrchestrator spine', () => {
     }),
     quiesceWriters: async () => {},
     mergeBackupIntoWork: async () => ({ degradedToSkips: [] }),
-    stageFileResources: async () => [],
+    planResources,
+    planRoots: makePlanRoots(),
     ...overrides
   })
 
