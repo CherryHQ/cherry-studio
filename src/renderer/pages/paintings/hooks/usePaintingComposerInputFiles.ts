@@ -34,8 +34,10 @@ const withDot = (ext: string | null | undefined): string => {
  *   send-time `buildFileParts`), NOT eagerly during the draft. It promotes each
  *   composer attachment to a `FileEntry` (`createInternalEntry source:'path'`,
  *   cached by token source id so a seeded/promoted attachment never re-imports its
- *   bytes) and returns the resolved list. Nothing is written to the DB during the
- *   draft window, so the cleanup reaper has no unreferenced input row to reclaim.
+ *   bytes) and returns the resolved list plus a `complete` flag. Nothing is written
+ *   to the DB during the draft window, so the cleanup reaper has no unreferenced
+ *   input row to reclaim. Contract: an incomplete set (`complete: false`, some
+ *   attachment failed to promote) must never reach generation — the caller aborts.
  */
 export function usePaintingComposerInputFiles({ paintingId, inputFiles, files, setFiles }: Params) {
   const { t } = useTranslation()
@@ -101,7 +103,7 @@ export function usePaintingComposerInputFiles({ paintingId, inputFiles, files, s
   // MATERIALIZE — at generate time. Promote the current composer attachments to
   // FileEntry[]; a cache hit (seeded, or promoted earlier this session) is reused,
   // a miss is imported via `createInternalEntry`.
-  const materializeInputs = useCallback(async (): Promise<FileEntry[]> => {
+  const materializeInputs = useCallback(async (): Promise<{ entries: FileEntry[]; complete: boolean }> => {
     const cache = entryCacheRef.current
     const entries: FileEntry[] = []
     const failedSourceIds: string[] = []
@@ -127,8 +129,10 @@ export function usePaintingComposerInputFiles({ paintingId, inputFiles, files, s
 
     // A visible chip must imply a file that reaches generation. A promote failure
     // (swept temp file, disk/IPC error on a path the renderer doesn't own) breaks
-    // that, so drop the chip and tell the user instead of silently generating
-    // without the image — the chip is the only feedback channel.
+    // that, so drop the chip, tell the user, and report the set as incomplete — the
+    // caller must abort the send rather than generate without the image (mirrors
+    // chat aborting when buildFileParts rejects). The chip is the only feedback
+    // channel; the toast tells the user to re-add it.
     if (failedSourceIds.length > 0) {
       const failed = new Set(failedSourceIds)
       setFiles((prev) => prev.filter((file) => !failed.has(file.fileTokenSourceId)))
@@ -136,9 +140,14 @@ export function usePaintingComposerInputFiles({ paintingId, inputFiles, files, s
     }
 
     // Carry through inputs that failed to seed (transient read error) so they are
-    // not silently dropped from the generation; they land at the tail.
+    // not silently dropped from the generation; they land at the tail. A seed
+    // failure is not a promote failure — those entries already exist and stay
+    // complete.
     const preserved = unseededEntriesRef.current
-    return preserved.length ? [...entries, ...preserved] : entries
+    return {
+      entries: preserved.length ? [...entries, ...preserved] : entries,
+      complete: failedSourceIds.length === 0
+    }
   }, [setFiles, t])
 
   return { materializeInputs }

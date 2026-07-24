@@ -203,11 +203,15 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
 
   // Inputs are materialized to FileEntry[] here at send (mirroring chat's
   // send-time buildFileParts), then handed to generation. Nothing is persisted
-  // during the draft window — see usePaintingComposerInputFiles.
+  // during the draft window — see usePaintingComposerInputFiles. Contract: an
+  // incomplete input set (any attachment failed to materialize) never reaches
+  // generation — abort the send instead of running a paid generation without the
+  // user's image, matching chat.
   const handleSendDraft = useCallback(async () => {
     if (generating) return
-    const inputFiles = await materializeInputs()
-    onGenerate(inputFiles)
+    const { entries, complete } = await materializeInputs()
+    if (!complete) return
+    onGenerate(entries)
   }, [generating, materializeInputs, onGenerate])
 
   return (

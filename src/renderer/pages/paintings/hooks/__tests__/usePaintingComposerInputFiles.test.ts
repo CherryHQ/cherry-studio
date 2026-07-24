@@ -72,12 +72,13 @@ describe('usePaintingComposerInputFiles', () => {
 
     // Materialization is deferred to this call (mirroring chat's send-time
     // buildFileParts); nothing is imported during the draft window.
-    let entries: FileEntry[] = []
+    let out = { entries: [] as FileEntry[], complete: false }
     await act(async () => {
-      entries = await result.current.materializeInputs()
+      out = await result.current.materializeInputs()
     })
-    expect(entries).toHaveLength(1)
-    expect(entries[0].id).toBe('fe-new')
+    expect(out.complete).toBe(true)
+    expect(out.entries).toHaveLength(1)
+    expect(out.entries[0].id).toBe('fe-new')
     expect(window.api.file.createInternalEntry).toHaveBeenCalledWith({
       source: 'path',
       path: '/tmp/new.png',
@@ -103,11 +104,12 @@ describe('usePaintingComposerInputFiles', () => {
     const { result } = renderStatefulHarness('p-partial', [makeEntry('fe-bad'), makeEntry('fe-ok')])
 
     await waitFor(() => expect(result.current.files).toHaveLength(1))
-    let entries: FileEntry[] = []
+    let out = { entries: [] as FileEntry[], complete: false }
     await act(async () => {
-      entries = await result.current.materializeInputs()
+      out = await result.current.materializeInputs()
     })
-    expect(entries.map((entry) => entry.id)).toEqual(['fe-ok', 'fe-bad'])
+    expect(out.complete).toBe(true)
+    expect(out.entries.map((entry) => entry.id)).toEqual(['fe-ok', 'fe-bad'])
     // fe-ok came from the seed cache — no re-import.
     expect(window.api.file.createInternalEntry).not.toHaveBeenCalled()
   })
@@ -123,12 +125,13 @@ describe('usePaintingComposerInputFiles', () => {
       await Promise.resolve()
     })
 
-    let entries: FileEntry[] = []
+    let out = { entries: [] as FileEntry[], complete: false }
     await act(async () => {
-      entries = await result.current.materializeInputs()
+      out = await result.current.materializeInputs()
     })
     // A transient read error never shrinks the input list handed to generation.
-    expect(entries.map((entry) => entry.id)).toEqual(['fe-1', 'fe-2'])
+    expect(out.complete).toBe(true)
+    expect(out.entries.map((entry) => entry.id)).toEqual(['fe-1', 'fe-2'])
     expect(window.api.file.createInternalEntry).not.toHaveBeenCalled()
   })
 
@@ -158,13 +161,16 @@ describe('usePaintingComposerInputFiles', () => {
       setFiles
     })
 
-    let entries: FileEntry[] = []
+    let out = { entries: [] as FileEntry[], complete: true }
     await act(async () => {
-      entries = await result.current.materializeInputs()
+      out = await result.current.materializeInputs()
     })
 
-    // The resolved one reaches generation; the failed one does not.
-    expect(entries.map((entry) => entry.id)).toEqual(['fe-ok'])
+    // Contract: an incomplete input set (one chip failed to promote) is reported as
+    // `complete: false` so the caller aborts the send. The resolved one is still
+    // returned but must go unused.
+    expect(out.complete).toBe(false)
+    expect(out.entries.map((entry) => entry.id)).toEqual(['fe-ok'])
 
     // The failing chip is reconciled away and the user is notified.
     expect(toast.error).toHaveBeenCalled()

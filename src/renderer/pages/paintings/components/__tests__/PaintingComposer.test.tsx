@@ -13,6 +13,7 @@ vi.mock('react-i18next', () => ({
 
 const captured = { surfaceProps: undefined as ComposerSurfaceProps | undefined }
 const mockUseImageGenerationSupport = vi.hoisted(() => vi.fn())
+const mockMaterializeInputs = vi.hoisted(() => vi.fn())
 
 const imageGenerationSupportWithFields = {
   modes: {
@@ -100,7 +101,7 @@ vi.mock('@renderer/hooks/useModel', () => ({
 vi.mock('@shared/utils/model', () => ({ isEditImageModel: () => false }))
 
 vi.mock('../../hooks/usePaintingComposerInputFiles', () => ({
-  usePaintingComposerInputFiles: () => ({ materializeInputs: async () => [] })
+  usePaintingComposerInputFiles: () => ({ materializeInputs: mockMaterializeInputs })
 }))
 
 vi.mock('../../hooks/useImageGenerationSupport', () => ({
@@ -152,6 +153,8 @@ describe('PaintingComposer', () => {
     captured.surfaceProps = undefined
     mockUseImageGenerationSupport.mockReset()
     mockUseImageGenerationSupport.mockReturnValue(imageGenerationSupportWithFields)
+    mockMaterializeInputs.mockReset()
+    mockMaterializeInputs.mockResolvedValue({ entries: [], complete: true })
   })
 
   it('renders the model selector control in the toolbar', () => {
@@ -171,11 +174,24 @@ describe('PaintingComposer', () => {
   })
 
   it('triggers generation on send with the materialized inputs', async () => {
+    mockMaterializeInputs.mockResolvedValue({ entries: [{ id: 'fe-1' }], complete: true })
     const { onGenerate } = renderComposer({ painting: makePainting({ prompt: 'a cat' }) })
     fireEvent.click(screen.getByLabelText('send'))
     // Send is async now (materialize inputs → generate), so onGenerate fires after a tick.
     await waitFor(() => expect(onGenerate).toHaveBeenCalledTimes(1))
-    expect(onGenerate).toHaveBeenCalledWith([])
+    expect(onGenerate).toHaveBeenCalledWith([{ id: 'fe-1' }])
+  })
+
+  it('aborts the send without generating when an input fails to materialize', async () => {
+    // Contract: an incomplete input set must never reach generation — the composer
+    // drops the failed chip + toasts (in the hook) and does NOT call onGenerate,
+    // matching chat aborting when buildFileParts rejects.
+    mockMaterializeInputs.mockResolvedValue({ entries: [], complete: false })
+    const { onGenerate } = renderComposer({ painting: makePainting({ prompt: 'a cat' }) })
+    fireEvent.click(screen.getByLabelText('send'))
+    // Let the async materialize + guard settle before asserting the negative.
+    await waitFor(() => expect(mockMaterializeInputs).toHaveBeenCalledTimes(1))
+    expect(onGenerate).not.toHaveBeenCalled()
   })
 
   it('disables send while generating', () => {
