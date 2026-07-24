@@ -1705,7 +1705,14 @@ describe('ArtifactPane', () => {
     const oversizedDraftBytes = new Blob([oversizedDraft]).size
     expect(oversizedDraftBytes).toBeGreaterThan(ARTIFACT_PREVIEW_MAX_SIZE_BYTES)
     let diskSize = 1024
-    mocks.getMetadata.mockImplementation(async () => ({ kind: 'file', size: diskSize }))
+    let resolveOversizedMetadata!: (value: { kind: 'file'; size: number }) => void
+    mocks.getMetadata.mockImplementation(() =>
+      diskSize > ARTIFACT_PREVIEW_MAX_SIZE_BYTES
+        ? new Promise((resolve) => {
+            resolveOversizedMetadata = resolve
+          })
+        : Promise.resolve({ kind: 'file', size: diskSize })
+    )
     mockWorkspaceTree('/tmp/workspace', ['draft.md'])
     mocks.fsReadText.mockResolvedValue('# small')
     mocks.ipcRequest
@@ -1737,8 +1744,9 @@ describe('ArtifactPane', () => {
     expect((writeCall[1] as { data: Uint8Array }).data.byteLength).toBeGreaterThan(ARTIFACT_PREVIEW_MAX_SIZE_BYTES)
 
     // The active session stays editable even though the saved file is now too
-    // large to reopen. Switching to Preview must refresh the size gate before
-    // any text renderer reads the saved content.
+    // large to reopen. Switching to Preview must use the exact saved byte size
+    // while the metadata refresh is still pending, before any text renderer
+    // reads the saved content.
     await waitFor(() => expect(mocks.getMetadata.mock.calls.length).toBeGreaterThanOrEqual(3))
     expect(mocks.codeEditorRef).not.toBeNull()
     mocks.fsReadText.mockClear()
@@ -1748,6 +1756,10 @@ describe('ArtifactPane', () => {
     expect(mocks.fsReadText).not.toHaveBeenCalled()
     expect(screen.queryByTestId('markdown')).not.toBeInTheDocument()
     expect(screen.queryByTestId('code-viewer')).not.toBeInTheDocument()
+
+    await act(async () => {
+      resolveOversizedMetadata({ kind: 'file', size: oversizedDraftBytes })
+    })
   })
 
   it('keeps the editor writable and disables discard while a failed save retry is running', async () => {

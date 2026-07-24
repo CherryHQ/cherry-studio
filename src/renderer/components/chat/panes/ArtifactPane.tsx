@@ -510,6 +510,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   const artifactPaneRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
   const [contentRefreshToken, setContentRefreshToken] = useState(0)
+  const [knownFileSizeBytes, setKnownFileSizeBytes] = useState<number | undefined>(undefined)
   const [staleConflictOpen, setStaleConflictOpen] = useState(false)
   // Destructure the stable callbacks so effect/callback deps don't have to
   // list the whole `model` (a fresh object every render).
@@ -558,7 +559,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   const shouldSniffSelectedFile = !isPdfSelection && !isOfficeDocumentSelection && !isImageSelection
   const sniffedIsText = useIsTextFile(previewWorkspacePath, previewFilePath, { enabled: shouldSniffSelectedFile })
   const isText = shouldSniffSelectedFile ? sniffedIsText : 'binary'
-  const fileSize = useFileSize(previewWorkspacePath, previewFilePath, contentRefreshToken)
+  const fileSize = useFileSize(previewWorkspacePath, previewFilePath, contentRefreshToken, knownFileSizeBytes)
   const hasActiveEditSession = editMode === 'edit' && fileSession?.status === 'ready'
   const canEditSelection =
     Boolean(fileSession && overlaySelection) &&
@@ -570,6 +571,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     if (previousPreviewKeyRef.current === previewKey) return
     previousPreviewKeyRef.current = previewKey
     setContentRefreshToken(0)
+    setKnownFileSizeBytes(undefined)
     setStaleConflictOpen(false)
   }, [previewKey])
 
@@ -578,6 +580,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
   // saved file that crosses the preview limit cannot reuse stale metadata.
   useEffect(() => {
     if (fileSession?.savedSizeBytes === undefined) return
+    setKnownFileSizeBytes(fileSession.savedSizeBytes)
     setContentRefreshToken((value) => value + 1)
   }, [fileSession?.savedSizeBytes])
 
