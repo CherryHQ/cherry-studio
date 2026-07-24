@@ -4432,6 +4432,14 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "privacy": {
+      "accept_and_continue": "Đồng ý và tiếp tục",
+      "accept_policy": "Đồng ý với Chính sách quyền riêng tư",
+      "notice": "Tôi đã đọc và đồng ý với",
+      "period": ".",
+      "policy": "Chính sách quyền riêng tư",
+      "update_failed": "Không thể lưu sự đồng ý của bạn với chính sách quyền riêng tư. Vui lòng thử lại."
+    },
     "select_model": {
       "change_later": "Bạn có thể thay đổi điều này bất cứ lúc nào trong phần cài đặt",
       "start": "Bắt đầu",
@@ -4448,7 +4456,7 @@
       "other_provider": "Chọn Nhà Cung Cấp Khác",
       "select_other_provider": "Chọn Nhà Cung Cấp Khác",
       "setup_hint": "Vui lòng cấu hình ít nhất một nhà cung cấp để có trải nghiệm tốt nhất",
-      "subtitle": "Tận hưởng các dịch vụ AI hàng đầu với CherryIN",
+      "subtitle": "Kết nối nhà cung cấp để khởi động trạm làm việc AI tất cả trong một",
       "title": "Chào mừng bạn đến với Cherry Studio"
     }
   },
@@ -6914,7 +6922,7 @@
       "default_assistant_model": "Mô hình Trợ lý Mặc định",
       "default_assistant_model_description": "Dùng khi trợ lý chưa có mô hình",
       "docs": "Tài liệu mô hình",
-      "empty": "Không tìm thấy mô hình nào",
+      "empty": "Chọn mô hình",
       "enabled_models": "Đã bật",
       "expand_all": "Mở rộng tất cả",
       "filter": {
