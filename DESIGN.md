@@ -366,7 +366,7 @@ Use `PageSidePanel` for page-owned management surfaces such as mini-app display 
 - Footer: optional, `px-6 pt-3 pb-6`, for sticky action groups
 - Accessibility: role `dialog`, `aria-modal=true`, focus moves into the panel on open and returns to the trigger on close
 
-For standard settings panels, pass `title` instead of custom `header`. This renders the shared title style (`font-semibold text-base text-foreground`). Use custom `header` only when the title area needs richer layout.
+For standard settings panels, pass `title` instead of custom `header`. This renders the shared title style (`font-[550] text-base text-foreground`). Use custom `header` only when the title area needs richer layout.
 
 Use `PageSidePanelSection` and `PageSidePanelItem` as optional content primitives for settings-style panels. The structure is intentionally three-layered:
 
@@ -572,25 +572,26 @@ Source: `Switch` and `DescriptionSwitch` from `@cherrystudio/ui` (`packages/ui/s
 
 | Size | Track | Thumb | Travel | Use |
 |------|-------|-------|--------|-----|
-| `xs` | 32 × 18 | 16 × 16 | 14px | Dense inline controls |
-| `sm` | 36 × 20 | 18 × 18 | 16px | Slightly larger settings rows |
-| `md` (default) | 44 × 22 | 19 × 19 | 21px | Standard switch |
-| `lg` | 44 × 24 | 20 × 20 | 18px | Hero / marketing surfaces |
+| `xs` | 24 × 14 | 12 × 12 | 10px | Dense inline controls |
+| `sm` | 28 × 16 | 14 × 14 | 12px | Slightly larger settings rows |
+| `md` (default) | 32 × 18 | 16 × 16 | 14px | Standard switch |
+| `lg` | 36 × 20 | 18 × 18 | 16px | Hero / marketing surfaces |
 
 **Colors:**
 
 | State | Light | Dark |
 |---|---|---|
-| Track — off | `bg-gray-500/20` | `bg-gray-500/20` |
-| Track — on | `bg-brand-600` | `bg-brand-600` |
-| Loading | `bg-brand-300!` | `bg-brand-300!` |
-| Thumb glyph | white internal SVG | white internal SVG |
+| Track — off | 15% `--color-foreground` | 15% `--color-foreground` |
+| Track — on | `bg-primary` | `bg-primary` |
+| Loading | `bg-primary/60!` | `bg-primary/60!` |
+| Thumb | `bg-background` | `bg-background` |
+| Loading glyph | `LoaderCircle` in `text-primary` | `LoaderCircle` in `text-primary` |
 
 **Other rules:**
 - Track carries `shadow-xs`; do not add extra page-local shadow.
-- The thumb is rendered by the component's internal white SVG glyph. Do not add custom thumb icons from the call site.
-- `loading` state switches root/thumb coloring to `bg-brand-300!` and animates the thumb SVG.
-- Focus ring: `focus-visible:ring-[3px] focus-visible:ring-ring/50` (no track border change).
+- The thumb uses `bg-background`; do not add custom thumb icons from the call site.
+- `loading` state dims the track to `bg-primary/60!` and shows an animated `LoaderCircle` inside the thumb.
+- Focus ring: `focus-visible:ring-[1px] focus-visible:ring-ring/35`.
 
 **Don't:**
 - Don't pass page-local status colors (`bg-success`, `bg-warning`, etc.) to the track. The component owns its brand on state.

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { Combobox, type ComboboxOption } from '../combobox'
@@ -24,9 +24,98 @@ beforeAll(() => {
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  vi.useRealTimers()
 })
 
 describe('Combobox', () => {
+  it('uses the outlined input treatment for trigger search', () => {
+    render(<Combobox options={options} searchPlacement="trigger" placeholder="Pick one" emptyText="No results" />)
+
+    const trigger = screen.getByRole('combobox')
+
+    expect(trigger).toHaveClass(
+      'border-border',
+      'bg-transparent',
+      'focus-visible:border-ring',
+      'focus-visible:ring-ring/35',
+      'focus-visible:ring-[1px]'
+    )
+    expect(trigger).not.toHaveClass('border-0', 'bg-muted/50', 'focus-visible:ring-0')
+  })
+
+  it('uses the outlined input treatment for the standard trigger', () => {
+    render(<Combobox options={options} searchable={false} placeholder="Pick one" emptyText="No results" />)
+
+    const trigger = screen.getByRole('button')
+
+    expect(trigger).toHaveClass(
+      'border',
+      'border-border',
+      'bg-transparent',
+      'focus-visible:border-ring',
+      'focus-visible:ring-ring/35',
+      'focus-visible:ring-[1px]'
+    )
+    expect(trigger).not.toHaveClass('bg-muted/50', 'focus-visible:ring-3')
+  })
+
+  it('matches the dropdown width to the trigger by default', async () => {
+    render(<Combobox options={options} searchPlacement="trigger" placeholder="Pick one" emptyText="No results" />)
+
+    fireEvent.click(screen.getByRole('combobox'))
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-slot="popover-content"]')).toHaveStyle({
+        width: 'var(--radix-popover-trigger-width)'
+      })
+    })
+  })
+
+  it('only shows the dropdown scrollbar while scrolling', async () => {
+    vi.useFakeTimers()
+
+    const fontOptions = Array.from({ length: 50 }, (_, index) => ({
+      value: `font-${index}`,
+      label: `Font ${index}`
+    }))
+
+    render(
+      <Combobox
+        open
+        options={fontOptions}
+        searchPlacement="trigger"
+        placeholder="Select Font"
+        emptyText="No results"
+        popoverClassName="max-h-[320px] overflow-y-auto"
+      />
+    )
+
+    const list = document.querySelector<HTMLElement>('[data-slot="command-list"]')
+
+    expect(list).not.toBeNull()
+    expect(list).toHaveClass(
+      '[scrollbar-gutter:auto]',
+      '[scrollbar-width:none]',
+      '[&::-webkit-scrollbar]:hidden',
+      'data-[scrolling=true]:[scrollbar-gutter:stable]',
+      'data-[scrolling=true]:![scrollbar-width:auto]',
+      'data-[scrolling=true]:[&::-webkit-scrollbar]:!block'
+    )
+    expect(list).not.toHaveClass('[scrollbar-gutter:stable]')
+    expect(list).toHaveAttribute('data-scrolling', 'false')
+    expect(list).toHaveStyle('scrollbar-color: transparent transparent')
+
+    fireEvent.scroll(list!)
+
+    expect(list).toHaveAttribute('data-scrolling', 'true')
+    expect(list).toHaveStyle('scrollbar-color: var(--color-scrollbar-thumb) transparent')
+
+    await act(() => vi.advanceTimersByTimeAsync(1600))
+
+    expect(list).toHaveAttribute('data-scrolling', 'false')
+    expect(list).toHaveStyle('scrollbar-color: transparent transparent')
+  })
+
   it('maps the selected value to the trigger placeholder when opened', async () => {
     render(
       <Combobox

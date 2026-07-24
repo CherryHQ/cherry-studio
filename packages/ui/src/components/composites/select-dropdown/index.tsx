@@ -2,8 +2,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui/compon
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ChevronDown, X } from 'lucide-react'
-import type { ReactNode, RefObject } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode, RefObject } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 
 export interface SelectDropdownProps<T extends { id: string }> {
   items: T[]
@@ -23,8 +23,8 @@ export interface SelectDropdownProps<T extends { id: string }> {
   overscan?: number
   /**
    * Extra classes appended to the trigger button.
-   * Use `data-[state=open]:*` selectors to override the open-state border/ring
-   * (defaults follow `--color-primary`, which tracks the user theme color).
+   * The trigger is borderless by default; open-state shows a subtle muted
+   * background. Use `data-[state=open]:*` selectors to tweak per-instance.
    */
   triggerClassName?: string
 }
@@ -40,6 +40,32 @@ function getWheelDeltaY(event: WheelEvent, el: HTMLElement) {
     return event.deltaY * el.clientHeight
   }
   return event.deltaY
+}
+
+type OptionKeyDownHandler = (event: ReactKeyboardEvent<HTMLButtonElement>) => void
+
+function getNextOptionIndex(event: ReactKeyboardEvent<HTMLButtonElement>, currentIndex: number, itemCount: number) {
+  if (!['ArrowDown', 'ArrowUp', 'End', 'Home'].includes(event.key)) return
+  if (currentIndex < 0 || currentIndex >= itemCount || itemCount === 0) return
+
+  return event.key === 'Home'
+    ? 0
+    : event.key === 'End'
+      ? itemCount - 1
+      : event.key === 'ArrowDown'
+        ? (currentIndex + 1) % itemCount
+        : (currentIndex - 1 + itemCount) % itemCount
+}
+
+function handleOptionKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>) {
+  const currentIndex = Number(event.currentTarget.dataset.optionIndex)
+  const listbox = event.currentTarget.closest('[role="listbox"]')
+  const itemCount = listbox?.querySelectorAll('[role="option"]').length ?? 0
+  const nextIndex = getNextOptionIndex(event, currentIndex, itemCount)
+  if (nextIndex === undefined) return
+
+  event.preventDefault()
+  listbox?.querySelector<HTMLElement>(`[role="option"][data-option-index="${nextIndex}"]`)?.focus()
 }
 
 function useModalPopoverWheel(ref: RefObject<HTMLDivElement | null>) {
@@ -89,9 +115,10 @@ function VirtualRows<T extends { id: string }>({
   itemHeight: number
   maxHeight: number
   overscan: number
-  renderRow: (item: T) => ReactNode
+  renderRow: (item: T, index: number, onKeyDown: OptionKeyDownHandler) => ReactNode
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null)
+  const [pendingFocusIndex, setPendingFocusIndex] = useState<number | null>(null)
   useModalPopoverWheel(scrollerRef)
   const virtualizer = useVirtualizer({
     count: items.length,
@@ -99,18 +126,40 @@ function VirtualRows<T extends { id: string }>({
     estimateSize: () => itemHeight,
     overscan
   })
+  const virtualItems = virtualizer.getVirtualItems()
+
+  const handleVirtualOptionKeyDown: OptionKeyDownHandler = (event) => {
+    const currentIndex = Number(event.currentTarget.dataset.optionIndex)
+    const nextIndex = getNextOptionIndex(event, currentIndex, items.length)
+    if (nextIndex === undefined) return
+
+    event.preventDefault()
+    virtualizer.scrollToIndex(nextIndex, { align: 'auto' })
+    setPendingFocusIndex(nextIndex)
+  }
+
+  useLayoutEffect(() => {
+    if (pendingFocusIndex === null) return
+    const option = scrollerRef.current?.querySelector<HTMLElement>(
+      `[role="option"][data-option-index="${pendingFocusIndex}"]`
+    )
+    if (!option) return
+
+    option.focus()
+    setPendingFocusIndex(null)
+  }, [pendingFocusIndex, virtualItems])
 
   return (
     <div ref={scrollerRef} className={scrollbarClass} style={{ maxHeight }}>
       <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
-        {virtualizer.getVirtualItems().map((vItem) => {
+        {virtualItems.map((vItem) => {
           const item = items[vItem.index]
           return (
             <div
               key={item.id}
               className="absolute top-0 left-0 w-full"
               style={{ height: vItem.size, transform: `translateY(${vItem.start}px)` }}>
-              {renderRow(item)}
+              {renderRow(item, vItem.index, handleVirtualOptionKeyDown)}
             </div>
           )
         })}
@@ -137,19 +186,25 @@ export function SelectDropdown<T extends { id: string }>({
   triggerClassName
 }: SelectDropdownProps<T>) {
   const [open, setOpen] = useState(false)
+  const listboxId = useId()
+  const triggerId = useId()
   const selected = items.find((i) => i.id === selectedId)
 
-  const renderRow = (item: T) => {
+  const renderRow = (item: T, index: number, onKeyDown: OptionKeyDownHandler = handleOptionKeyDown) => {
     const isSelected = selectedId === item.id
     if (onRemove) {
       return (
         <div
           className={cn(
             'flex items-center gap-1 rounded-md pr-1 transition-colors',
-            isSelected && 'bg-primary/10 text-primary'
+            isSelected && 'bg-primary/10 text-foreground'
           )}>
           <button
             type="button"
+            role="option"
+            aria-selected={isSelected}
+            data-option-index={index}
+            onKeyDown={onKeyDown}
             onClick={() => {
               onSelect(item.id)
               setOpen(false)
@@ -170,13 +225,17 @@ export function SelectDropdown<T extends { id: string }>({
     return (
       <button
         type="button"
+        role="option"
+        aria-selected={isSelected}
+        data-option-index={index}
+        onKeyDown={onKeyDown}
         onClick={() => {
           onSelect(item.id)
           setOpen(false)
         }}
         className={cn(
           'w-full rounded-md px-2.5 py-1.5 text-left text-sm transition-colors',
-          isSelected ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-muted'
+          isSelected ? 'bg-primary/10 text-foreground' : 'text-foreground hover:bg-muted'
         )}>
         {renderItem(item, isSelected)}
       </button>
@@ -187,10 +246,14 @@ export function SelectDropdown<T extends { id: string }>({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
+          id={triggerId}
           type="button"
+          aria-controls={open ? listboxId : undefined}
+          aria-expanded={open}
+          aria-haspopup="listbox"
           className={cn(
-            'flex h-9 w-full items-center justify-between rounded-md border bg-transparent px-3 text-sm transition-colors hover:bg-muted/30',
-            open ? 'border-primary/40 ring-1 ring-primary/15' : 'border-border-muted',
+            'flex h-8 w-full items-center justify-between rounded-lg bg-muted/50 px-3 text-sm transition-colors hover:bg-muted',
+            open && 'bg-muted',
             triggerClassName
           )}>
           <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
@@ -203,14 +266,17 @@ export function SelectDropdown<T extends { id: string }>({
           </div>
           <ChevronDown
             size={12}
-            className={cn('ml-2 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')}
+            className={cn('ml-2 shrink-0 text-muted-foreground/40 transition-transform', open && 'rotate-180')}
           />
         </button>
       </PopoverTrigger>
       <PopoverContent
+        id={listboxId}
+        role="listbox"
+        aria-labelledby={triggerId}
         align="start"
         sideOffset={4}
-        className="w-(--radix-popover-trigger-width) rounded-md border border-border-muted bg-popover p-1 shadow-lg">
+        className="w-[var(--radix-popover-trigger-width)] rounded-lg border border-border-muted bg-popover/70 p-1 shadow-lg backdrop-blur-xl supports-[backdrop-filter]:bg-popover/60">
         {items.length === 0 && emptyText ? (
           <div className="px-2.5 py-3 text-muted-foreground/45 text-sm">{emptyText}</div>
         ) : virtualize ? (
@@ -223,8 +289,8 @@ export function SelectDropdown<T extends { id: string }>({
           />
         ) : (
           <ScrollContainer className={cn(onRemove && 'space-y-1')} maxHeight={maxHeight}>
-            {items.map((item) => (
-              <div key={item.id}>{renderRow(item)}</div>
+            {items.map((item, index) => (
+              <div key={item.id}>{renderRow(item, index)}</div>
             ))}
           </ScrollContainer>
         )}
