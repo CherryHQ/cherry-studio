@@ -16,9 +16,10 @@
  * merge SKIP (avoids existsSync-only divergence → orphan blob / mixed entity).
  */
 
-import type { BackupManifest } from './manifest'
 import type { FileResource } from '@main/data/db/restore/restoreJournal'
 import type { ResourceClass } from '@shared/types/backup'
+
+import type { BackupManifest } from './manifest'
 
 /** A file resource restricted to additive kinds (no overwrite/note-overwrite in this PR). */
 export type AddFileResource = Extract<FileResource, { kind: 'blob-add' | 'dir-add' | 'note-add' }>
