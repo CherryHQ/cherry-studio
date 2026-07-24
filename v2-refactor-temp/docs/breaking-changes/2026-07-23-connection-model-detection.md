@@ -2,7 +2,7 @@
 title: Provider connection fields can discover models automatically
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: 17361
 date: 2026-07-23
 ---
 
