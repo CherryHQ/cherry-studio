@@ -1,3 +1,4 @@
+import type { ScheduledTaskEntity } from '@shared/data/types/agent'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -25,7 +26,7 @@ const taskLogsMock = vi.hoisted(() => {
 })
 
 const taskDataMock = vi.hoisted(() => {
-  const defaultTask = {
+  const defaultTask: ScheduledTaskEntity = {
     id: 'task-1',
     agentId: 'agent-1',
     name: 'Daily task',
@@ -45,7 +46,7 @@ const taskDataMock = vi.hoisted(() => {
   return {
     defaultTask,
     task: { ...defaultTask },
-    tasks: null as null | Array<typeof defaultTask>
+    tasks: null as null | ScheduledTaskEntity[]
   }
 })
 
@@ -65,9 +66,19 @@ const tasksVersionMock = vi.hoisted(() => ({
 const taskMutationMocks = vi.hoisted(() => ({
   createTask: vi.fn(),
   deleteTask: vi.fn(),
+  nextPage: vi.fn(),
+  prevPage: vi.fn(),
   refetchTasks: vi.fn(),
   runTask: vi.fn(),
   updateTask: vi.fn()
+}))
+
+const taskPaginationMock = vi.hoisted(() => ({
+  page: 1,
+  pageCount: 1,
+  total: 1,
+  hasNext: false,
+  hasPrev: false
 }))
 
 const navigationMocks = vi.hoisted(() => ({
@@ -171,9 +182,15 @@ vi.mock('@renderer/hooks/agent/useTasks', () => {
       React.useSyncExternalStore(subscribeTasks, () => tasksVersionMock.version)
       return {
         tasks: taskDataMock.tasks ?? [taskDataMock.task],
-        total: (taskDataMock.tasks ?? [taskDataMock.task]).length,
+        total: taskPaginationMock.total,
+        page: taskPaginationMock.page,
+        pageCount: taskPaginationMock.pageCount,
         error: null,
         isLoading: false,
+        hasNext: taskPaginationMock.hasNext,
+        hasPrev: taskPaginationMock.hasPrev,
+        nextPage: taskMutationMocks.nextPage,
+        prevPage: taskMutationMocks.prevPage,
         refetch: async () => {
           await taskMutationMocks.refetchTasks()
           tasksVersionMock.bump()
@@ -183,6 +200,14 @@ vi.mock('@renderer/hooks/agent/useTasks', () => {
     useCreateTask: () => ({ createTask: taskMutationMocks.createTask }),
     useDeleteTask: () => ({ deleteTask: taskMutationMocks.deleteTask }),
     useRunTask: () => ({ runTask: taskMutationMocks.runTask }),
+    useTask: (taskId: string | null) => {
+      React.useSyncExternalStore(subscribeTasks, () => tasksVersionMock.version)
+      return {
+        task: taskId === taskDataMock.task.id ? taskDataMock.task : undefined,
+        error: null,
+        isLoading: false
+      }
+    },
     useTaskLogs: () => taskLogsMock,
     useUpdateTask: () => ({ updateTask: taskMutationMocks.updateTask })
   }
@@ -758,6 +783,11 @@ describe('TasksSettings routing and creation', () => {
     channelDataMock.channels = []
     channelDataMock.isLoading = false
     taskDataMock.tasks = null
+    taskPaginationMock.page = 1
+    taskPaginationMock.pageCount = 1
+    taskPaginationMock.total = 1
+    taskPaginationMock.hasNext = false
+    taskPaginationMock.hasPrev = false
     taskMutationMocks.createTask.mockResolvedValue(undefined)
     taskMutationMocks.deleteTask.mockResolvedValue(true)
     taskMutationMocks.refetchTasks.mockResolvedValue(undefined)
@@ -779,6 +809,23 @@ describe('TasksSettings routing and creation', () => {
       to: '/settings/scheduled-tasks/$taskId',
       params: { taskId: 'task-1' }
     })
+  })
+
+  it('navigates all task-list pages instead of stopping at the first page', async () => {
+    navigationMocks.taskId = undefined
+    taskPaginationMock.total = 51
+    taskPaginationMock.pageCount = 2
+    taskPaginationMock.hasNext = true
+    taskPaginationMock.hasPrev = true
+
+    render(<TasksSettings />)
+
+    await screen.findByText('settings.scheduledTasks.paginationStatus')
+    fireEvent.click(screen.getByRole('button', { name: 'common.next' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.previous' }))
+
+    expect(taskMutationMocks.nextPage).toHaveBeenCalledTimes(1)
+    expect(taskMutationMocks.prevPage).toHaveBeenCalledTimes(1)
   })
 
   it('searches tasks and filters them by Agent and status', async () => {
@@ -833,6 +880,17 @@ describe('TasksSettings routing and creation', () => {
     expect(navigationMocks.navigate).toHaveBeenCalledWith({ to: '/settings/scheduled-tasks' })
   })
 
+  it('loads a task detail independently from the current list page', async () => {
+    taskDataMock.tasks = []
+    taskPaginationMock.total = 501
+    taskPaginationMock.pageCount = 11
+
+    render(<TasksSettings />)
+
+    expect(await screen.findByText('Daily task')).toBeInTheDocument()
+    expect(screen.queryByText('settings.scheduledTasks.notFoundTitle')).not.toBeInTheDocument()
+  })
+
   it('shows a recoverable empty state for an invalid task id', async () => {
     navigationMocks.taskId = 'missing-task'
 
@@ -853,6 +911,7 @@ describe('TasksSettings routing and creation', () => {
 
     await waitFor(() => expect(taskMutationMocks.deleteTask).toHaveBeenCalledWith('agent-1', 'task-1'))
     expect(navigationMocks.navigate).toHaveBeenCalledWith({ to: '/settings/scheduled-tasks' })
+    expect(taskMutationMocks.refetchTasks).not.toHaveBeenCalled()
   })
 
   it('disables only manual creation when no Agent exists', async () => {
@@ -1054,6 +1113,7 @@ describe('TasksSettings routing and creation', () => {
       })
     )
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(taskMutationMocks.refetchTasks).not.toHaveBeenCalled()
   })
 })
 
@@ -1070,6 +1130,11 @@ describe('TasksSettings detail behavior', () => {
     channelDataMock.channels = []
     channelDataMock.isLoading = false
     taskDataMock.tasks = null
+    taskPaginationMock.page = 1
+    taskPaginationMock.pageCount = 1
+    taskPaginationMock.total = 1
+    taskPaginationMock.hasNext = false
+    taskPaginationMock.hasPrev = false
     taskMutationMocks.deleteTask.mockResolvedValue(true)
     taskMutationMocks.refetchTasks.mockResolvedValue(undefined)
     taskMutationMocks.runTask.mockResolvedValue(true)
@@ -1123,12 +1188,10 @@ describe('TasksSettings detail behavior', () => {
   })
 
   it('keeps the detail read-only and edits through the shared task Dialog', async () => {
-    taskMutationMocks.updateTask.mockResolvedValueOnce({
-      ...taskDataMock.task,
-      name: 'Server-normalized task name'
-    })
-    taskMutationMocks.refetchTasks.mockImplementation(async () => {
+    taskMutationMocks.updateTask.mockImplementationOnce(async () => {
       taskDataMock.task = { ...taskDataMock.task, name: 'Server-normalized task name' }
+      tasksVersionMock.bump()
+      return taskDataMock.task
     })
 
     render(<TasksSettings />)
@@ -1151,22 +1214,11 @@ describe('TasksSettings detail behavior', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'agent.tasks.save' }))
 
     await waitFor(() =>
-      expect(taskMutationMocks.updateTask).toHaveBeenCalledWith(
-        'agent-1',
-        'task-1',
-        expect.objectContaining({
-          name: 'Edited task name',
-          prompt: 'Run daily summary',
-          trigger: { kind: 'interval', ms: 60_000 },
-          timeoutMinutes: 10,
-          channelIds: [],
-          agentId: 'agent-1'
-        })
-      )
+      expect(taskMutationMocks.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', { name: 'Edited task name' })
     )
     await waitFor(() => expect(screen.getByText('Server-normalized task name')).toBeInTheDocument())
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(taskMutationMocks.refetchTasks).toHaveBeenCalled()
+    expect(taskMutationMocks.refetchTasks).not.toHaveBeenCalled()
   })
 
   it('persists the simplified interval editor through the shared edit Dialog', async () => {
@@ -1194,7 +1246,7 @@ describe('TasksSettings detail behavior', () => {
     )
   })
 
-  it('preserves an unlimited timeout in the read-only detail and edit Dialog', async () => {
+  it('does not rewrite an unchanged unlimited timeout', async () => {
     taskDataMock.task = { ...taskDataMock.defaultTask, timeoutMinutes: 0 }
 
     render(<TasksSettings />)
@@ -1205,14 +1257,63 @@ describe('TasksSettings detail behavior', () => {
 
     const dialog = screen.getByRole('dialog')
     expect(within(dialog).getByLabelText('agent.tasks.timeout.label')).toHaveValue('')
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'agent.tasks.name.label' }), {
+      target: { value: 'Renamed task' }
+    })
     fireEvent.click(within(dialog).getByRole('button', { name: 'agent.tasks.save' }))
 
     await waitFor(() =>
-      expect(taskMutationMocks.updateTask).toHaveBeenCalledWith(
-        'agent-1',
-        'task-1',
-        expect.objectContaining({ timeoutMinutes: null })
-      )
+      expect(taskMutationMocks.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', { name: 'Renamed task' })
+    )
+  })
+
+  it.each([
+    {
+      name: 'cron timezone and limit',
+      trigger: { kind: 'cron' as const, expr: '*/15 9-17 * * 1-5', timezone: 'Asia/Shanghai', limit: 12 }
+    },
+    {
+      name: 'interval anchor and exact milliseconds',
+      trigger: { kind: 'interval' as const, ms: 90_001, anchor: 'createdAt' as const }
+    }
+  ])('preserves $name when editing another field', async ({ trigger }) => {
+    taskDataMock.task = { ...taskDataMock.defaultTask, trigger }
+
+    render(<TasksSettings />)
+
+    await screen.findByText('Daily task')
+    fireEvent.click(screen.getByRole('button', { name: 'common.edit' }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'agent.tasks.name.label' }), {
+      target: { value: 'Renamed task' }
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'agent.tasks.save' }))
+
+    await waitFor(() =>
+      expect(taskMutationMocks.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', { name: 'Renamed task' })
+    )
+  })
+
+  it('preserves an interval anchor when the interval changes', async () => {
+    taskDataMock.task = {
+      ...taskDataMock.defaultTask,
+      trigger: { kind: 'interval', ms: 60_000, anchor: 'createdAt' }
+    }
+
+    render(<TasksSettings />)
+
+    await screen.findByText('Daily task')
+    fireEvent.click(screen.getByRole('button', { name: 'common.edit' }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByPlaceholderText('agent.tasks.intervalPlaceholder'), {
+      target: { value: '15' }
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'agent.tasks.save' }))
+
+    await waitFor(() =>
+      expect(taskMutationMocks.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', {
+        trigger: { kind: 'interval', ms: 900_000, anchor: 'createdAt' }
+      })
     )
   })
 

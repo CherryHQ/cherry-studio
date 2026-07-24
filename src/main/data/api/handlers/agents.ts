@@ -45,6 +45,14 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     }
   },
 
+  '/agent-tasks/:taskId': {
+    GET: async ({ params }) => {
+      const task = taskService.getTaskById(params.taskId)
+      if (!task) throw DataApiErrorFactory.notFound('Task', params.taskId)
+      return task
+    }
+  },
+
   '/agents': {
     GET: async ({ query }) => {
       const parsed = ListAgentsQuerySchema.safeParse(query ?? {})

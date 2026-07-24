@@ -285,6 +285,15 @@ describe('AgentTaskService (thin facade)', () => {
   })
 
   describe('getTask', () => {
+    it('returns a task by id without requiring its owning Agent id', async () => {
+      setupApplicationMocks()
+      vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSnapshot())
+
+      const result = agentTaskService.getTaskById(TASK_ID)
+
+      expect(result).toMatchObject({ id: TASK_ID, agentId: AGENT_ID })
+    })
+
     it('returns the entity when agentId matches the snapshot template', async () => {
       setupApplicationMocks()
       vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSnapshot())

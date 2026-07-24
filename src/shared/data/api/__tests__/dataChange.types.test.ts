@@ -64,6 +64,7 @@ describe('endpoint classification', () => {
     expectTypeOf<'/topics/:id'>().toExtend<ScalarGetPaths>()
     expectTypeOf<'/search/entities'>().toExtend<ScalarGetPaths>()
     expectTypeOf<'/topics/:topicId/tree'>().toExtend<ScalarGetPaths>()
+    expectTypeOf<'/agent-tasks/:taskId'>().toExtend<ScalarGetPaths>()
   })
 
   it('rejects paths without a GET read model as notification targets', () => {

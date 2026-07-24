@@ -7695,6 +7695,7 @@
       "noTasksTitle": "暂无定时任务",
       "notFoundDescription": "该任务可能已被删除，或链接无效。",
       "notFoundTitle": "未找到任务",
+      "paginationStatus": "第 {{page}} / {{pageCount}} 页 · 共 {{total}} 个任务",
       "search": "搜索定时任务",
       "searchPlaceholder": "搜索任务或 Agent",
       "selectTask": "选择一个任务以查看详情",

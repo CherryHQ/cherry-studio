@@ -12,6 +12,7 @@ const {
   listTasksMock,
   listAllTasksMock,
   createTaskMock,
+  getTaskByIdMock,
   getTaskMock,
   updateTaskMock,
   deleteTaskMock,
@@ -28,6 +29,7 @@ const {
   listTasksMock: vi.fn(),
   listAllTasksMock: vi.fn(),
   createTaskMock: vi.fn(),
+  getTaskByIdMock: vi.fn(),
   getTaskMock: vi.fn(),
   updateTaskMock: vi.fn(),
   deleteTaskMock: vi.fn(),
@@ -52,6 +54,7 @@ vi.mock('@data/services/AgentTaskService', () => ({
     listTasks: listTasksMock,
     listAllTasks: listAllTasksMock,
     createTask: createTaskMock,
+    getTaskById: getTaskByIdMock,
     getTask: getTaskMock,
     updateTask: updateTaskMock,
     deleteTask: deleteTaskMock
@@ -319,6 +322,25 @@ describe('agentHandlers', () => {
 
       expect(listAllTasksMock).toHaveBeenCalledWith({ limit: 10, offset: 10 })
       expect(result).toMatchObject({ items: [mockTask], total: 1, page: 2 })
+    })
+  })
+
+  describe('/agent-tasks/:taskId', () => {
+    it('returns a task without requiring its owning Agent id', async () => {
+      getTaskByIdMock.mockReturnValueOnce(mockTask)
+
+      const result = await agentHandlers['/agent-tasks/:taskId'].GET({ params: { taskId: TASK_ID } } as never)
+
+      expect(getTaskByIdMock).toHaveBeenCalledWith(TASK_ID)
+      expect(result).toBe(mockTask)
+    })
+
+    it('throws not found when the task does not exist', async () => {
+      getTaskByIdMock.mockReturnValueOnce(null)
+
+      await expect(
+        agentHandlers['/agent-tasks/:taskId'].GET({ params: { taskId: TASK_ID } } as never)
+      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
     })
   })
 

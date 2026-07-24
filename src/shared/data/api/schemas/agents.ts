@@ -317,6 +317,14 @@ export type AgentSchemas = {
     }
   }
 
+  /** Get a scheduled task without requiring its owning Agent in the route */
+  '/agent-tasks/:taskId': {
+    GET: {
+      params: { taskId: string }
+      response: ScheduledTaskEntity
+    }
+  }
+
   /** List tasks for an agent, create a new task */
   '/agents/:agentId/tasks': {
     GET: {

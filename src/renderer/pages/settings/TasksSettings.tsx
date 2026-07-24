@@ -71,6 +71,7 @@ import {
   useCreateTask,
   useDeleteTask,
   useRunTask,
+  useTask,
   useTaskLogs,
   useUpdateTask
 } from '@renderer/hooks/agent/useTasks'
@@ -92,6 +93,7 @@ import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import type { TFunction } from 'i18next'
 import {
   ArrowLeft,
+  ArrowRight,
   Bot,
   CalendarClock,
   ChevronDown,
@@ -293,6 +295,33 @@ function taskToDraftSnapshot(task: ScheduledTaskEntity): TaskDraftSnapshot {
     channelIds: task.channelIds ?? [],
     workspaceId: task.workspace.type === AGENT_WORKSPACE_TYPE.USER ? task.workspace.workspaceId : null
   }
+}
+
+function scheduleInputsEqual(a: ScheduleFormState, b: ScheduleFormState): boolean {
+  return a.kind === b.kind && a.value === b.value && a.weekday === b.weekday
+}
+
+function stringArraysEqual(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((value, index) => value === b[index])
+}
+
+function triggersEqual(a: Trigger, b: Trigger): boolean {
+  if (a.kind === 'cron' && b.kind === 'cron') {
+    return a.expr === b.expr && a.timezone === b.timezone && a.limit === b.limit
+  }
+  if (a.kind === 'interval' && b.kind === 'interval') return a.ms === b.ms && a.anchor === b.anchor
+  if (a.kind === 'once' && b.kind === 'once') return a.at === b.at
+  return false
+}
+
+function preserveCompatibleTriggerMetadata(previous: Trigger, next: Trigger): Trigger {
+  if (previous.kind === 'cron' && next.kind === 'cron') {
+    return { ...previous, expr: next.expr }
+  }
+  if (previous.kind === 'interval' && next.kind === 'interval') {
+    return { ...previous, ms: next.ms }
+  }
+  return next
 }
 
 function getWeekdayLabel(weekday: string, t: TFunction) {
@@ -792,8 +821,8 @@ const TaskDetail: FC<{
   ]
 
   const handleEditSave = useCallback(
-    async (agentId: string, request: CreateTaskRequest) => {
-      const result = await onUpdate(task.id, { ...request, agentId })
+    async (request: UpdateTaskRequest) => {
+      const result = await onUpdate(task.id, request)
       return result?.succeeded === true
     },
     [onUpdate, task.id]
@@ -905,7 +934,13 @@ const TaskDetail: FC<{
         </Tabs>
       </SettingGroup>
 
-      <TaskFormDialog open={editOpen} task={task} agents={agents} onOpenChange={setEditOpen} onSave={handleEditSave} />
+      <TaskFormDialog
+        open={editOpen}
+        task={task}
+        agents={agents}
+        onOpenChange={setEditOpen}
+        onUpdate={handleEditSave}
+      />
 
       <ConfirmDialog
         open={deleteConfirmOpen}
@@ -920,13 +955,25 @@ const TaskDetail: FC<{
   )
 }
 
-const TaskFormDialog: FC<{
+type TaskFormDialogProps = {
   open: boolean
-  task?: ScheduledTaskEntity
   agents: AgentInfo[]
   onOpenChange: (open: boolean) => void
-  onSave: (agentId: string, request: CreateTaskRequest) => Promise<boolean>
-}> = ({ open, task, agents, onOpenChange, onSave }) => {
+} & (
+  | {
+      task: ScheduledTaskEntity
+      onUpdate: (request: UpdateTaskRequest) => Promise<boolean>
+      onCreate?: never
+    }
+  | {
+      task?: undefined
+      onCreate: (agentId: string, request: CreateTaskRequest) => Promise<boolean>
+      onUpdate?: never
+    }
+)
+
+const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
+  const { open, task, agents, onOpenChange } = props
   const { t } = useTranslation()
   const { channels: rawChannels, error: channelsError, isLoading: channelsLoading } = useChannels()
   const channelsReady = !channelsLoading && !channelsError
@@ -941,11 +988,13 @@ const TaskFormDialog: FC<{
   const [submitted, setSubmitted] = useState(false)
   const [promptPreviewKey, setPromptPreviewKey] = useState(0)
   const wasOpenRef = useRef(false)
+  const initialDraftRef = useRef<TaskDraftSnapshot | null>(null)
   const { data: workspaces } = useQuery('/agent-workspaces')
 
   useEffect(() => {
     if (open && !wasOpenRef.current) {
       const draft = task ? taskToDraftSnapshot(task) : null
+      initialDraftRef.current = draft
       setAgentId(task?.agentId ?? (agents.length === 1 ? agents[0].id : null))
       setName(draft?.name ?? '')
       setPrompt(draft?.prompt ?? '')
@@ -988,33 +1037,46 @@ const TaskFormDialog: FC<{
     setSaving(true)
     try {
       const timeout = Number(schedule.timeoutMinutes)
-      const saved = await onSave(agentId, {
-        name: name.trim(),
-        prompt: prompt.trim(),
-        trigger,
-        workspace:
-          workspaceId === null
-            ? { type: AGENT_WORKSPACE_TYPE.SYSTEM }
-            : { type: AGENT_WORKSPACE_TYPE.USER, workspaceId },
-        timeoutMinutes: Number.isInteger(timeout) && timeout > 0 ? timeout : null,
-        channelIds: isEditing || channelIds.length > 0 ? channelIds : undefined
-      })
+      const workspace =
+        workspaceId === null
+          ? ({ type: AGENT_WORKSPACE_TYPE.SYSTEM } as const)
+          : ({ type: AGENT_WORKSPACE_TYPE.USER, workspaceId } as const)
+      const timeoutMinutes = Number.isInteger(timeout) && timeout > 0 ? timeout : null
+
+      let saved: boolean
+      if (props.task) {
+        const initialDraft = initialDraftRef.current ?? taskToDraftSnapshot(props.task)
+        const updates: UpdateTaskRequest = {}
+
+        if (agentId !== props.task.agentId) updates.agentId = agentId
+        if (name !== initialDraft.name) updates.name = name.trim()
+        if (prompt !== initialDraft.prompt) updates.prompt = prompt.trim()
+        if (schedule.timeoutMinutes !== initialDraft.schedule.timeoutMinutes) {
+          updates.timeoutMinutes = timeoutMinutes
+        }
+        if (workspaceId !== initialDraft.workspaceId) updates.workspace = workspace
+        if (!stringArraysEqual(channelIds, initialDraft.channelIds)) updates.channelIds = channelIds
+        if (!scheduleInputsEqual(schedule, initialDraft.schedule)) {
+          const nextTrigger = preserveCompatibleTriggerMetadata(props.task.trigger, trigger)
+          if (!triggersEqual(nextTrigger, props.task.trigger)) updates.trigger = nextTrigger
+        }
+
+        saved = Object.keys(updates).length === 0 || (await props.onUpdate(updates))
+      } else {
+        saved = await props.onCreate(agentId, {
+          name: name.trim(),
+          prompt: prompt.trim(),
+          trigger,
+          workspace,
+          timeoutMinutes,
+          channelIds: channelIds.length > 0 ? channelIds : undefined
+        })
+      }
       if (saved) onOpenChange(false)
     } finally {
       setSaving(false)
     }
-  }, [
-    agentId,
-    channelIds,
-    isEditing,
-    name,
-    onOpenChange,
-    onSave,
-    prompt,
-    schedule.timeoutMinutes,
-    trigger,
-    workspaceId
-  ])
+  }, [agentId, channelIds, name, onOpenChange, prompt, props, schedule, trigger, workspaceId])
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !saving && onOpenChange(nextOpen)}>
@@ -1168,8 +1230,21 @@ const TasksSettings: FC = () => {
     () => (agentsData?.items ?? []).map((agent) => ({ id: agent.id, name: agent.name })),
     [agentsData]
   )
-  const { tasks, error: tasksError, isLoading: tasksLoading, refetch: refetchTasks } = useAllTasks()
-  const loading = agentsLoading || tasksLoading
+  const {
+    tasks,
+    total,
+    page,
+    pageCount,
+    error: tasksError,
+    isLoading: tasksLoading,
+    hasNext,
+    hasPrev,
+    nextPage,
+    prevPage,
+    refetch: refetchTasks
+  } = useAllTasks()
+  const { task: taskDetails, error: taskError, isLoading: taskLoading } = useTask(taskId ?? null)
+  const loading = agentsLoading || tasksLoading || (!!taskId && taskLoading)
   const [createOpen, setCreateOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [agentFilter, setAgentFilter] = useState(ALL_TASKS_FILTER)
@@ -1199,11 +1274,11 @@ const TasksSettings: FC = () => {
   }, [])
 
   useEffect(() => {
-    if (agentsError || tasksError) {
-      logger.error('Failed to load tasks settings', (agentsError ?? tasksError) as Error)
+    if (agentsError || tasksError || taskError) {
+      logger.error('Failed to load tasks settings', (agentsError ?? tasksError ?? taskError) as Error)
       toast.error(t('agent.tasks.error.loadFailed'))
     }
-  }, [agentsError, t, tasksError])
+  }, [agentsError, t, taskError, tasksError])
 
   const getTaskUpdateTails = useCallback(() => {
     taskUpdateTailsRef.current ??= new Map()
@@ -1232,30 +1307,32 @@ const TasksSettings: FC = () => {
     async (agentId: string, request: CreateTaskRequest) => {
       const created = await createTask(agentId, request)
       if (!created) return undefined
-      // Wait for the list to include the new task before showing its detail
-      // route, or the detail view would flash "not found".
-      await refetchTasks()
       await navigate({ to: '/settings/scheduled-tasks/$taskId', params: { taskId: created.id } })
       return created
     },
-    [createTask, navigate, refetchTasks]
+    [createTask, navigate]
   )
 
   const persistTaskUpdate = useCallback(
     async (task: ScheduledTaskEntity, updates: UpdateTaskRequest): Promise<TaskUpdateResult> => {
       const updated = await updateTask(task.agentId, task.id, updates)
       if (!updated) return { succeeded: false, task }
-      // The mutation's declared refresh revalidates '/agent-tasks'; wait for it
-      // here so the detail view shows the persisted values when the op resolves.
-      await refetchTasks()
       return { succeeded: true, task: updated }
     },
-    [refetchTasks, updateTask]
+    [updateTask]
+  )
+
+  const getTaskForAction = useCallback(
+    (selectedTaskId: string) => {
+      if (taskDetails?.id === selectedTaskId) return taskDetails
+      return tasks.find((task) => task.id === selectedTaskId)
+    },
+    [taskDetails, tasks]
   )
 
   const handleUpdate = useCallback(
     (selectedTaskId: string, updates: UpdateTaskRequest): Promise<TaskUpdateResult | undefined> => {
-      const task = tasks.find((currentTask) => currentTask.id === selectedTaskId)
+      const task = getTaskForAction(selectedTaskId)
       if (!task) return Promise.resolve(undefined)
 
       let updateResult: TaskUpdateResult | undefined
@@ -1264,19 +1341,18 @@ const TasksSettings: FC = () => {
         return previousSucceeded && updateResult.succeeded
       }).then(() => updateResult)
     },
-    [enqueueTaskOperation, persistTaskUpdate, tasks]
+    [enqueueTaskOperation, getTaskForAction, persistTaskUpdate]
   )
 
   const handleDelete = useCallback(
     async (selectedTaskId: string) => {
-      const task = tasks.find((currentTask) => currentTask.id === selectedTaskId)
+      const task = getTaskForAction(selectedTaskId)
       if (!task) return
       const deleted = await deleteTask(task.agentId, selectedTaskId)
       if (!deleted) return
       await navigate({ to: '/settings/scheduled-tasks' })
-      void refetchTasks()
     },
-    [deleteTask, navigate, refetchTasks, tasks]
+    [deleteTask, getTaskForAction, navigate]
   )
 
   const handleRun = useCallback(
@@ -1294,7 +1370,7 @@ const TasksSettings: FC = () => {
 
   const handleToggleStatus = useCallback(
     async (selectedTaskId: string, newStatus: string) => {
-      const task = tasks.find((currentTask) => currentTask.id === selectedTaskId)
+      const task = getTaskForAction(selectedTaskId)
       if (!task) return
       await enqueueTaskOperation(selectedTaskId, async (previousSucceeded) => {
         const enabled = newStatus === 'active'
@@ -1303,7 +1379,7 @@ const TasksSettings: FC = () => {
         return previousSucceeded && toggleResult.succeeded
       })
     },
-    [enqueueTaskOperation, persistTaskUpdate, tasks]
+    [enqueueTaskOperation, getTaskForAction, persistTaskUpdate]
   )
 
   if (loading) {
@@ -1314,7 +1390,7 @@ const TasksSettings: FC = () => {
     )
   }
 
-  const selectedTask = taskId ? tasks.find((task) => task.id === taskId) : undefined
+  const selectedTask = taskId ? taskDetails : undefined
 
   if (taskId) {
     if (!selectedTask) {
@@ -1473,6 +1549,21 @@ const TasksSettings: FC = () => {
                 ))}
               </ItemGroup>
             )}
+            {pageCount > 1 && (
+              <RowFlex className="justify-center gap-3 pt-4">
+                <Button type="button" variant="ghost" size="sm" disabled={!hasPrev} onClick={prevPage}>
+                  <ArrowLeft size={16} />
+                  {t('common.previous')}
+                </Button>
+                <SettingDescription className="mt-0">
+                  {t('settings.scheduledTasks.paginationStatus', { page, pageCount, total })}
+                </SettingDescription>
+                <Button type="button" variant="ghost" size="sm" disabled={!hasNext} onClick={nextPage}>
+                  {t('common.next')}
+                  <ArrowRight size={16} />
+                </Button>
+              </RowFlex>
+            )}
           </>
         )}
       </SettingGroup>
@@ -1481,7 +1572,7 @@ const TasksSettings: FC = () => {
         open={createOpen}
         agents={agents}
         onOpenChange={setCreateOpen}
-        onSave={async (agentId, request) => Boolean(await handleCreate(agentId, request))}
+        onCreate={async (agentId, request) => Boolean(await handleCreate(agentId, request))}
       />
     </SettingsContentColumn>
   )

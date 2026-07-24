@@ -1,10 +1,12 @@
-import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useMutation, usePaginatedQuery, useQuery } from '@renderer/data/hooks/useDataApi'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { CreateTaskRequest, ScheduledTaskEntity, UpdateTaskRequest } from '@shared/data/types/agent'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+
+export const TASKS_PAGE_LIMIT = 50
 
 export const useTasks = (agentId: string | null) => {
   const { data, error, isLoading } = useQuery('/agents/:agentId/tasks', {
@@ -23,16 +25,38 @@ export const useTasks = (agentId: string | null) => {
 
 /** All scheduled tasks across every agent — backs the settings overview page. */
 export const useAllTasks = () => {
-  const { data, error, isLoading, refetch } = useQuery('/agent-tasks', {
-    query: { limit: 500 },
+  const { items, total, page, error, isLoading, hasNext, hasPrev, nextPage, prevPage, refresh } = usePaginatedQuery(
+    '/agent-tasks',
+    {
+      limit: TASKS_PAGE_LIMIT,
+      swrOptions: { keepPreviousData: false }
+    }
+  )
+  return {
+    tasks: items,
+    total,
+    page,
+    pageCount: Math.ceil(total / TASKS_PAGE_LIMIT),
+    error,
+    isLoading,
+    hasNext,
+    hasPrev,
+    nextPage,
+    prevPage,
+    refetch: refresh
+  }
+}
+
+export const useTask = (taskId: string | null) => {
+  const { data, error, isLoading } = useQuery('/agent-tasks/:taskId', {
+    params: { taskId: taskId! },
+    enabled: !!taskId,
     swrOptions: { keepPreviousData: false }
   })
   return {
-    tasks: data?.items ?? [],
-    total: data?.total ?? 0,
+    task: data,
     error,
-    isLoading,
-    refetch
+    isLoading
   }
 }
 
@@ -62,6 +86,7 @@ export const useUpdateTask = () => {
   const { trigger: updateTrigger } = useMutation('PATCH', '/agents/:agentId/tasks/:taskId', {
     refresh: ({ args }) => [
       '/agent-tasks',
+      `/agent-tasks/${args?.params.taskId}`,
       ...Array.from(
         new Set([args?.params.agentId, args?.body?.agentId].filter((agentId) => agentId !== undefined))
       ).map((agentId) => `/agents/${agentId}/tasks` as never)

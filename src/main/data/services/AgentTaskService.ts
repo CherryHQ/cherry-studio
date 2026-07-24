@@ -139,12 +139,16 @@ export class AgentTaskService {
     return this.toScheduledTaskEntity(snapshot)
   }
 
-  getTask(agentId: string, taskId: string): ScheduledTaskEntity | null {
+  getTaskById(taskId: string): ScheduledTaskEntity | null {
     const snapshot = jobScheduleService.getById(taskId)
     if (!snapshot || snapshot.type !== AGENT_TASK_TYPE) return null
-    const template = normalizeAgentTaskTemplate(snapshot.jobInputTemplate)
-    if (!template || template.agentId !== agentId) return null
     return this.toScheduledTaskEntity(snapshot)
+  }
+
+  getTask(agentId: string, taskId: string): ScheduledTaskEntity | null {
+    const task = this.getTaskById(taskId)
+    if (!task || task.agentId !== agentId) return null
+    return task
   }
 
   listTasks(

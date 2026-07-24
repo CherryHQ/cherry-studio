@@ -7695,6 +7695,7 @@
       "noTasksTitle": "No scheduled tasks",
       "notFoundDescription": "This task may have been deleted, or the link is invalid.",
       "notFoundTitle": "Task not found",
+      "paginationStatus": "Page {{page}} of {{pageCount}} · {{total}} tasks",
       "search": "Search scheduled tasks",
       "searchPlaceholder": "Search tasks or Agents",
       "selectTask": "Select a task to view details",
