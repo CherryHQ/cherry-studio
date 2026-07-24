@@ -273,27 +273,6 @@ const CLAUDE_TOOL_REGISTRY = {
     description: 'Fetches and reads a web page',
     mcpServer: 'cherry-tools'
   },
-  CherryReadFile: {
-    name: 'mcp__cherry-tools__read_file',
-    category: 'file',
-    exposure: 'internal',
-    description: 'Reads more text from files explicitly attached to this conversation',
-    mcpServer: 'cherry-tools'
-  },
-  CherrySaveAttachment: {
-    name: 'mcp__cherry-tools__save_attachment',
-    category: 'file',
-    exposure: 'user',
-    description: 'Copies an explicitly attached file into the session workspace after approval',
-    mcpServer: 'cherry-tools'
-  },
-  CherryExportOffice: {
-    name: 'mcp__cherry-tools__export_office',
-    category: 'file',
-    exposure: 'user',
-    description: 'Creates DOCX, PDF, PPTX, or XLSX files from workspace Markdown, Cherry-PPT JSON, or CSV sources',
-    mcpServer: 'cherry-tools'
-  },
   CherryKbSearch: {
     name: 'mcp__cherry-tools__kb_search',
     category: 'context',
@@ -428,8 +407,6 @@ export interface ClaudeUserFacingTool {
 const MCP_TOOL_LABELS: Record<string, string> = {
   'mcp__cherry-tools__web_search': 'Web Search',
   'mcp__cherry-tools__web_fetch': 'Web Fetch',
-  'mcp__cherry-tools__save_attachment': 'Save Attachment',
-  'mcp__cherry-tools__export_office': 'Export Office File',
   'mcp__cherry-tools__kb_search': 'Knowledge Search',
   'mcp__cherry-tools__kb_manage': 'Manage Knowledge',
   'mcp__agent-memory__memory': 'Memory',

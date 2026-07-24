@@ -9,11 +9,11 @@
         "sourcePath": "skills/cherry-assistant-guide",
         "filename": "cherry-assistant-guide",
         "name": "cherry-assistant-guide",
-        "description": "从当前安装包和 CherryHQ 官方发布源查询 Cherry Studio 产品信息。当用户询问功能、路由、快捷键、Provider、语言、Agent、频道、定时任务、Code CLI、当前版本或更新内容时触发。",
+        "description": "从当前安装包查询 Cherry Studio 产品信息。当用户询问功能、路由、快捷键、Provider、语言、Agent、频道、定时任务、Code CLI 或当前版本时触发。",
         "category": "skills",
         "type": "skill",
-        "size": 8044,
-        "contentHash": "133413154f6cefd9d51f36c6feb6f4d033dd72fd4194c92c4e2827b75f042625"
+        "size": 6042,
+        "contentHash": "7bf9474f893243bedb2baac14fb85da2e52ba799b792afa17378c5a44c299d9e"
       }
     },
     {
@@ -40,8 +40,8 @@
         "description": "创建、改写、总结、翻译、比较或转换办公文档，处理 Markdown、TXT、HTML、DOCX 和可提取文本的 PDF。用户说“写周报/纪要/方案”“润色/总结文档”“比较版本”“转成 Word/PDF/Markdown”“PDF 转 Word”或“Word 转 PDF”时触发。Office/PDF 转换基于可提取文本重建内容，不保留原版式。不要处理 PPT 或数据表分析。",
         "category": "skills",
         "type": "skill",
-        "size": 3032,
-        "contentHash": "1d4085af468bb9103bbe22d7572878cf2a7b0777bab0183d4a363040ef1dedd1"
+        "size": 3035,
+        "contentHash": "3010eb4fcaf60682a061ec0cfb70d8bf1b96de511bfcc0585d5ec6e205125a69"
       }
     },
     {
@@ -54,8 +54,8 @@
         "description": "从主题、提纲、文档或 HTML 制作普通演示文稿，默认输出真实 PPTX；用户指定 Cherry-PPT 或 Cherry Studio 品牌模板时转交 `cherry-ppt`。HTML → PPTX 采用内容重建，用户明确选择网页演示时才输出单文件 HTML。“修改 PPT”只能根据附件提取文本重做，不保留原版式。",
         "category": "skills",
         "type": "skill",
-        "size": 3970,
-        "contentHash": "ef1b455d95a956833e8d11d36a293b1e62a89f552fb7c16eaf3efd1b742bcb35"
+        "size": 3973,
+        "contentHash": "bacbe18a48d7bbb2057b80719ade58df3f60790d94841f0c814118a8fea8019a"
       }
     },
     {
@@ -68,8 +68,8 @@
         "description": "使用 Cherry Studio 内置 Cherry-PPT 品牌模板生成真实、可编辑并保留 Master/Layout 的 PPTX。用户要求使用 Cherry-PPT、Cherry Studio PPT 模板，或正式红白、企业蓝、Young、CY2K 风格制作演示文稿时触发。不要用于网页演示、普通无模板 PPT 或修改任意外部 PPTX。",
         "category": "skills",
         "type": "skill",
-        "size": 7898743,
-        "contentHash": "ef018357a838a7abcaab75d6c47e170403afc40317fe9fefa670bf28ec4a56e6"
+        "size": 7898746,
+        "contentHash": "3a1be916246ffab9f36e4df6198f771da1925cca70a5950ea0eea1b5806a6101"
       }
     },
     {
@@ -82,8 +82,8 @@
         "description": "读取、清洗、合并和汇总 CSV、TSV、JSON；聊天附件经用户批准保存到 workspace 后由本地脚本处理，避免全量数据进入模型上下文。Excel 附件仅做提取文本概览，逐单元格处理需先导出 CSV。支持去重、同比环比、轻量报表和 CSV 转 XLSX。不要处理普通文档或 PPT。",
         "category": "skills",
         "type": "skill",
-        "size": 3764,
-        "contentHash": "384bb7f7612df918dabba5c785c0199dfd7a8326cd140e0cbb9c0d5f84057ccd"
+        "size": 3770,
+        "contentHash": "34214ca46e026c29da48466cfef9c1b5e61089f9eb9e1f7a2f017a036cb48e44"
       }
     },
     {

@@ -7,12 +7,19 @@ import { loggerService } from '@logger'
 import { validatePath } from '@main/ai/mcp/servers/filesystem'
 import { exportService } from '@main/services/ExportService'
 import { printService } from '@main/services/PrintService'
-import { atomicWriteFile, exists, publishFileNoClobber, readBoundedRegularFile, remove } from '@main/utils/file'
-import type { ExportOfficeInput, OfficeExportOperation } from '@shared/ai/builtinTools'
+import { atomicWriteFile, exists, remove } from '@main/utils/file'
 import type { FilePath } from '@shared/types/file'
 import MarkdownIt from 'markdown-it'
 import PptxGenJS from 'pptxgenjs'
+import * as z from 'zod'
 
+import {
+  assertWorkspacePathUnchanged,
+  isErrno,
+  publishFileNoClobber,
+  readBoundedRegularFile,
+  relativeWorkspacePath
+} from './assistantFileSafety'
 import { renderCherryPptx } from './cherryPpt'
 
 interface SlideDraft {
@@ -23,6 +30,44 @@ interface SlideDraft {
 const markdownIt = new MarkdownIt({ html: false, linkify: true, typographer: false })
 const logger = loggerService.withContext('ExportOffice')
 const MAX_OFFICE_SOURCE_BYTES = 10 * 1024 * 1024
+
+export const EXPORT_OFFICE_TOOL_NAME = 'export_office'
+export const EXPORT_OFFICE_DESCRIPTION =
+  'Create a real Office or PDF file from a workspace source: Markdown to DOCX, PDF, or PPTX; Cherry-PPT JSON to branded PPTX; CSV to XLSX. ' +
+  'Both paths must stay inside the session workspace, the output must be a new file, and the file extensions must match the operation. ' +
+  'Markdown exports omit embedded images; Cherry-PPT preserves its bundled template assets.'
+
+export const OFFICE_EXPORT_OPERATIONS = [
+  'markdown_to_docx',
+  'markdown_to_pdf',
+  'markdown_to_pptx',
+  'cherry_ppt_to_pptx',
+  'csv_to_xlsx'
+] as const
+
+export type OfficeExportOperation = (typeof OFFICE_EXPORT_OPERATIONS)[number]
+
+export const exportOfficeInputSchema = z.object({
+  operation: z
+    .enum(OFFICE_EXPORT_OPERATIONS)
+    .describe('Conversion to run: Markdown to DOCX/PDF/PPTX, Cherry-PPT JSON to PPTX, or CSV to XLSX.'),
+  source_path: z
+    .string()
+    .trim()
+    .min(1)
+    .max(4096)
+    .describe('Existing source file inside the session workspace, as a relative or workspace-contained absolute path.'),
+  output_path: z
+    .string()
+    .trim()
+    .min(1)
+    .max(4096)
+    .describe(
+      'New output file inside the session workspace. Its extension must match the operation, and it must not already exist.'
+    )
+})
+
+export type ExportOfficeInput = z.infer<typeof exportOfficeInputSchema>
 
 const OPERATION_EXTENSIONS: Record<OfficeExportOperation, { source: readonly string[]; output: string }> = {
   markdown_to_docx: { source: ['.md', '.markdown'], output: '.docx' },
@@ -218,34 +263,6 @@ function renderCsvToXlsx(csv: string): Uint8Array {
   return new Uint8Array(XLSX.write(workbook, { type: 'array', bookType: 'xlsx' }))
 }
 
-function relativeWorkspacePath(workspacePath: string, outputPath: string): string {
-  return path.relative(workspacePath, outputPath).split(path.sep).join('/')
-}
-
-function pathsEqual(left: string, right: string): boolean {
-  const resolvedLeft = path.resolve(left)
-  const resolvedRight = path.resolve(right)
-  return process.platform === 'win32'
-    ? resolvedLeft.toLowerCase() === resolvedRight.toLowerCase()
-    : resolvedLeft === resolvedRight
-}
-
-async function assertWorkspacePathUnchanged(
-  requestedPath: string,
-  expectedPath: string,
-  workspacePath: string,
-  kind: 'source' | 'output'
-): Promise<void> {
-  const currentPath = await validatePath(requestedPath, workspacePath)
-  if (!pathsEqual(currentPath, expectedPath)) {
-    throw new Error(`Office export ${kind} path changed during export: ${requestedPath}`)
-  }
-}
-
-function isErrno(error: unknown, code: string): boolean {
-  return (error as NodeJS.ErrnoException)?.code === code
-}
-
 async function removeStagingBestEffort(stagingPath: FilePath): Promise<void> {
   try {
     await remove(stagingPath)
@@ -289,10 +306,20 @@ export async function exportOfficeArtifact(
   if (source.includes('\0')) {
     throw new Error(`Office export source must be UTF-8 text without NUL bytes: ${input.source_path}`)
   }
-  await assertWorkspacePathUnchanged(input.source_path, sourcePath, resolvedWorkspacePath, 'source')
+  await assertWorkspacePathUnchanged(
+    input.source_path,
+    sourcePath,
+    resolvedWorkspacePath,
+    'Office export source path changed during export'
+  )
 
   signal.throwIfAborted()
-  await assertWorkspacePathUnchanged(input.output_path, outputPath, resolvedWorkspacePath, 'output')
+  await assertWorkspacePathUnchanged(
+    input.output_path,
+    outputPath,
+    resolvedWorkspacePath,
+    'Office export output path changed during export'
+  )
   if (await exists(outputPath)) throw new Error(`Office export output already exists: ${input.output_path}`)
 
   const fallbackTitle = path.basename(sourcePath, path.extname(sourcePath)) || 'Presentation'
@@ -332,12 +359,22 @@ export async function exportOfficeArtifact(
     }
 
     signal.throwIfAborted()
-    await assertWorkspacePathUnchanged(input.output_path, outputPath, resolvedWorkspacePath, 'output')
+    await assertWorkspacePathUnchanged(
+      input.output_path,
+      outputPath,
+      resolvedWorkspacePath,
+      'Office export output path changed during export'
+    )
     try {
       await publishFileNoClobber(stagingPath, outputPath, {
         signal,
         validateTarget: () =>
-          assertWorkspacePathUnchanged(input.output_path, outputPath, resolvedWorkspacePath, 'output')
+          assertWorkspacePathUnchanged(
+            input.output_path,
+            outputPath,
+            resolvedWorkspacePath,
+            'Office export output path changed during export'
+          )
       })
     } catch (error) {
       if (isErrno(error, 'EEXIST')) {

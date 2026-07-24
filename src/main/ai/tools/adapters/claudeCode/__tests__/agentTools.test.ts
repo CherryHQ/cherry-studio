@@ -7,17 +7,14 @@
  */
 
 import {
+  ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES,
+  ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES,
   CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
   CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES,
   CHERRY_BUILTIN_MCP_SERVER,
   toCherryBuiltinRuntimeName
 } from '@main/ai/tools/adapters/claudeCode/cherryBuiltinApproval'
-import {
-  EXPORT_OFFICE_TOOL_NAME,
-  KB_MANAGE_TOOL_NAME,
-  READ_FILE_TOOL_NAME,
-  SAVE_ATTACHMENT_TOOL_NAME
-} from '@shared/ai/builtinTools'
+import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -261,16 +258,12 @@ describe('createClaudeAgentToolPolicySnapshot — production approval-gate wirin
     expect(toCherryBuiltinRuntimeName(KB_MANAGE_TOOL_NAME)).toBe(`${PREFIX}${KB_MANAGE_TOOL_NAME}`)
   })
 
-  it('auto-approves only the attachment-scoped read_file tool', () => {
-    expect(CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES).toContain(READ_FILE_TOOL_NAME)
-    expect(CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES).not.toContain(READ_FILE_TOOL_NAME)
-  })
-
-  it('keeps workspace file writes approval-gated', () => {
-    expect(CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES).toContain(EXPORT_OFFICE_TOOL_NAME)
-    expect(CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES).not.toContain(EXPORT_OFFICE_TOOL_NAME)
-    expect(CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES).toContain(SAVE_ATTACHMENT_TOOL_NAME)
-    expect(CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES).not.toContain(SAVE_ATTACHMENT_TOOL_NAME)
+  it('keeps assistant file reads and writes in disjoint policy sets', () => {
+    expect(ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES).toEqual(['mcp__assistant-files__read_file'])
+    expect(ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES).toEqual([
+      'mcp__assistant-files__export_office',
+      'mcp__assistant-files__save_attachment'
+    ])
   })
 
   it('prompts for every approval-required tool and auto-approves every allowlisted tool under the real wiring', async () => {

@@ -10,7 +10,8 @@ import * as fileUtils from '@main/utils/file'
 import StreamZip from 'node-stream-zip'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { exportOfficeArtifact } from '../exportOffice'
+import * as assistantFileSafety from '../assistantFileSafety'
+import { exportOfficeArtifact, exportOfficeInputSchema } from '../exportOffice'
 
 const signal = new AbortController().signal
 const execFileAsync = promisify(execFile)
@@ -32,6 +33,27 @@ describe('exportOfficeArtifact', () => {
     getWindow: vi.fn(() => ({ loadURL, webContents: { executeJavaScript, printToPDF } })),
     close
   }
+
+  it('limits the input contract to supported conversions and three fields', () => {
+    expect(
+      exportOfficeInputSchema.parse({
+        operation: 'markdown_to_pptx',
+        source_path: 'slides.md',
+        output_path: 'slides.pptx'
+      })
+    ).toEqual({ operation: 'markdown_to_pptx', source_path: 'slides.md', output_path: 'slides.pptx' })
+    expect(
+      exportOfficeInputSchema.parse({
+        operation: 'cherry_ppt_to_pptx',
+        source_path: 'slides.json',
+        output_path: 'slides.pptx'
+      })
+    ).toEqual({ operation: 'cherry_ppt_to_pptx', source_path: 'slides.json', output_path: 'slides.pptx' })
+    expect(
+      exportOfficeInputSchema.safeParse({ operation: 'docx_to_pdf', source_path: 'a.docx', output_path: 'a.pdf' })
+        .success
+    ).toBe(false)
+  })
 
   beforeEach(async () => {
     vi.clearAllMocks()
@@ -274,8 +296,8 @@ describe('exportOfficeArtifact', () => {
 
   it('does not create external directories when an output ancestor changes after path validation', async () => {
     await writeFile(path.join(workspacePath, 'safe.md'), '# Safe')
-    const readSource = fileUtils.readBoundedRegularFile
-    const readSpy = vi.spyOn(fileUtils, 'readBoundedRegularFile').mockImplementationOnce(async (...args) => {
+    const readSource = assistantFileSafety.readBoundedRegularFile
+    const readSpy = vi.spyOn(assistantFileSafety, 'readBoundedRegularFile').mockImplementationOnce(async (...args) => {
       const source = await readSource(...args)
       await symlink(outsidePath, path.join(workspacePath, 'output'))
       return source
@@ -323,8 +345,8 @@ describe('exportOfficeArtifact', () => {
     await writeFile(path.join(workspacePath, 'safe.md'), '# Safe')
     await mkdir(outputDirectory)
 
-    const publish = fileUtils.publishFileNoClobber
-    const publishSpy = vi.spyOn(fileUtils, 'publishFileNoClobber').mockImplementationOnce(async (...args) => {
+    const publish = assistantFileSafety.publishFileNoClobber
+    const publishSpy = vi.spyOn(assistantFileSafety, 'publishFileNoClobber').mockImplementationOnce(async (...args) => {
       await rm(outputDirectory, { recursive: true, force: true })
       await symlink(outsidePath, outputDirectory)
       const [staged, target, options] = args

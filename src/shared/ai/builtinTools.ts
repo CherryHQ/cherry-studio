@@ -433,78 +433,6 @@ export type WebSearchOutput = z.infer<typeof webSearchOutputSchema>
 export type WebFetchInput = z.infer<typeof webFetchInputSchema>
 export type WebFetchOutput = z.infer<typeof webFetchOutputSchema>
 
-// ── save_attachment ──────────────────────────────────────────────
-
-export const SAVE_ATTACHMENT_TOOL_NAME = 'save_attachment'
-
-export const saveAttachmentInputSchema = z.object({
-  filename: z
-    .string()
-    .trim()
-    .min(1)
-    .max(512)
-    .describe('Attachment handle exactly as shown in the conversation attachment manifest.'),
-  output_path: z
-    .string()
-    .trim()
-    .min(1)
-    .max(4096)
-    .refine((value) => !/^(?:[/\\]|[A-Za-z]:)/.test(value), 'Output path must be workspace-relative')
-    .refine(
-      (value) => !value.split(/[\\/]+/).some((segment) => segment === '..'),
-      'Output path must not traverse outside the workspace'
-    )
-    .describe(
-      'New workspace-relative file path. Its parent directory must exist and the destination must not already exist.'
-    )
-})
-
-export const SAVE_ATTACHMENT_DESCRIPTION =
-  'Copy the original bytes of a file explicitly attached to this conversation into a new file in the current session workspace. ' +
-  'Use the attachment handle shown in the conversation, pass a workspace-relative destination, and never overwrite an existing file. ' +
-  'This action requires user approval.'
-
-export type SaveAttachmentInput = z.infer<typeof saveAttachmentInputSchema>
-
-// ── export_office ────────────────────────────────────────────────
-
-export const EXPORT_OFFICE_TOOL_NAME = 'export_office'
-export const OFFICE_EXPORT_OPERATIONS = [
-  'markdown_to_docx',
-  'markdown_to_pdf',
-  'markdown_to_pptx',
-  'cherry_ppt_to_pptx',
-  'csv_to_xlsx'
-] as const
-
-export const exportOfficeInputSchema = z.object({
-  operation: z
-    .enum(OFFICE_EXPORT_OPERATIONS)
-    .describe('Conversion to run: Markdown to DOCX/PDF/PPTX, Cherry-PPT JSON to PPTX, or CSV to XLSX.'),
-  source_path: z
-    .string()
-    .trim()
-    .min(1)
-    .max(4096)
-    .describe('Existing source file inside the session workspace, as a relative or workspace-contained absolute path.'),
-  output_path: z
-    .string()
-    .trim()
-    .min(1)
-    .max(4096)
-    .describe(
-      'New output file inside the session workspace. Its extension must match the operation, and it must not already exist.'
-    )
-})
-
-export const EXPORT_OFFICE_DESCRIPTION =
-  'Create a real Office or PDF file from a workspace source: Markdown to DOCX, PDF, or PPTX; Cherry-PPT JSON to branded PPTX; CSV to XLSX. ' +
-  'Both paths must stay inside the session workspace, the output must be a new file, and the file extensions must match the operation. ' +
-  'Markdown exports omit embedded images; Cherry-PPT preserves its bundled template assets.'
-
-export type OfficeExportOperation = (typeof OFFICE_EXPORT_OPERATIONS)[number]
-export type ExportOfficeInput = z.infer<typeof exportOfficeInputSchema>
-
 // ── report_artifacts ─────────────────────────────────────────────
 
 export const REPORT_ARTIFACTS_TOOL_NAME = 'report_artifacts'
@@ -566,7 +494,9 @@ export const readFileInputSchema = z.object({
     .string()
     .trim()
     .min(1)
-    .describe('Opaque attachment handle exactly as shown in the conversation attachment manifest.'),
+    .describe(
+      'Opaque handle of the attached file to read, exactly as it appears in the attachment manifest in the conversation.'
+    ),
   // `.nullable()` not `.optional()`: ReadFileTool runs with `strict: true`, and a strict
   // OpenAI-compatible provider rejects a schema whose `required` omits a property (`z.toJSONSchema`
   // drops `.optional()` fields from `required`), failing every call with "Missing 'offset'".

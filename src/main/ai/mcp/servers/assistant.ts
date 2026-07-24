@@ -5,13 +5,14 @@ import path from 'node:path'
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { mcpServerService } from '@data/services/McpServerService'
+import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { appService } from '@main/services/AppService'
 import { redactUrlToOrigin } from '@main/utils/redactUrl'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
+import { ErrorCode as DataApiErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import { app } from 'electron'
@@ -144,20 +145,14 @@ const DIAGNOSE_TOOL: Tool = {
 const PRODUCT_INFO_TOOL: Tool = {
   name: 'product_info',
   description:
-    'Read current Cherry Studio product facts from the installed package manifest or official published release notes. ' +
-    'For manifest queries, request only the relevant section to keep context small.',
+    'Read current Cherry Studio product facts from the installed package manifest. Request only the relevant section to keep context small.',
   inputSchema: {
     type: 'object',
     properties: {
       source: {
         type: 'string',
-        enum: ['manifest', 'release_notes'],
-        description: 'manifest: current installed package facts. release_notes: official GitHub release information.'
-      },
-      release: {
-        type: 'string',
-        enum: ['current', 'latest'],
-        description: 'Required for release_notes: current installed version or latest published version.'
+        enum: ['manifest'],
+        description: 'Current installed package facts.'
       },
       section: {
         type: 'string',
@@ -186,9 +181,6 @@ interface ApplySettingEntry {
   hint: string
 }
 
-const BOOL_VALUES: readonly string[] = ['true', 'false']
-const parseBool = (v: string) => v === 'true'
-
 // Only settings whose change is observable to the user without an app restart
 // are listed here. Restart-required or background-only persisted toggles were
 // audited and deliberately excluded — see Cherry Assistant PR for the matrix.
@@ -199,16 +191,6 @@ const APPLY_SETTING_REGISTRY: Record<string, ApplySettingEntry> = {
     apply: async (value) => {
       await application.get('PreferenceService').set('ui.theme_mode', value as ThemeMode)
       return `Theme switched to ${value}.`
-    }
-  },
-  launch_on_boot: {
-    allowed: BOOL_VALUES,
-    hint: 'launch_on_boot: true | false (register/unregister Cherry Studio as an OS login item — effect on next OS boot)',
-    apply: async (value) => {
-      const enabled = parseBool(value)
-      await appService.setAppLaunchOnBoot(enabled)
-      await application.get('PreferenceService').set('app.launch_on_boot', enabled)
-      return `Launch-on-boot ${enabled ? 'enabled' : 'disabled'}. Registered with the OS — takes effect at next system boot.`
     }
   }
 }
@@ -384,31 +366,13 @@ class AssistantServer {
   }
 
   private async productInfo(args: Record<string, unknown>) {
-    const unsupportedArgument = Object.keys(args).find(
-      (key) => key !== 'source' && key !== 'release' && key !== 'section'
-    )
+    const unsupportedArgument = Object.keys(args).find((key) => key !== 'source' && key !== 'section')
     if (unsupportedArgument) {
       throw new McpError(ErrorCode.InvalidParams, `Unsupported product_info argument: ${unsupportedArgument}`)
     }
 
-    if (args.source === 'release_notes') {
-      if (args.section !== undefined) {
-        throw new McpError(ErrorCode.InvalidParams, "'section' is only supported for manifest")
-      }
-      if (args.release !== 'current' && args.release !== 'latest') {
-        throw new McpError(ErrorCode.InvalidParams, "'release' must be current or latest for release_notes")
-      }
-      const publishedRelease = await application.get('AppUpdaterService').getPublishedRelease(args.release)
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(publishedRelease, null, 2) }]
-      }
-    }
-
     if (args.source !== 'manifest') {
       throw new McpError(ErrorCode.InvalidParams, `Unknown product_info source: ${String(args.source)}`)
-    }
-    if (args.release !== undefined) {
-      throw new McpError(ErrorCode.InvalidParams, "'release' is only supported for release_notes")
     }
 
     const manifest = this.readProductManifest()
@@ -516,6 +480,16 @@ class AssistantServer {
     const parsedModel = UniqueModelIdSchema.safeParse(model)
     if (!parsedModel.success) {
       throw new McpError(ErrorCode.InvalidParams, `'model' must be in the form "providerId::modelId" (got "${model}")`)
+    }
+
+    const { providerId, modelId } = parseUniqueModelId(parsedModel.data)
+    try {
+      modelService.getByKey(providerId, modelId)
+    } catch (error) {
+      if (isDataApiError(error) && error.code === DataApiErrorCode.NOT_FOUND) {
+        throw new McpError(ErrorCode.InvalidParams, `Model is not configured in Cherry Studio: ${parsedModel.data}`)
+      }
+      throw error
     }
 
     try {

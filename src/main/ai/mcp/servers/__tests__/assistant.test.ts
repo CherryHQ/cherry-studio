@@ -9,28 +9,24 @@ import path from 'node:path'
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   agentCreate: vi.fn(),
   applicationGetPath: vi.fn(),
-  getPublishedRelease: vi.fn(),
-  setLaunchOnBoot: vi.fn(),
   mcpList: vi.fn(),
+  modelGetByKey: vi.fn(),
   providerGetById: vi.fn()
 }))
 
 vi.mock('@application', async () => {
   const base = (await import('@test-mocks/main/application')).mockApplicationFactory()
-  const fallbackGet = base.application.get
   return {
     ...base,
     application: {
       ...base.application,
-      get: vi.fn((name: string) =>
-        name === 'AppUpdaterService' ? { getPublishedRelease: mocks.getPublishedRelease } : fallbackGet(name)
-      ),
       getPath: mocks.applicationGetPath
     }
   }
@@ -40,12 +36,12 @@ vi.mock('@data/services/AgentService', () => ({
   agentService: { createAgent: mocks.agentCreate }
 }))
 
-vi.mock('@main/services/AppService', () => ({
-  appService: { setAppLaunchOnBoot: mocks.setLaunchOnBoot }
-}))
-
 vi.mock('@data/services/McpServerService', () => ({
   mcpServerService: { list: mocks.mcpList }
+}))
+
+vi.mock('@data/services/ModelService', () => ({
+  modelService: { getByKey: mocks.modelGetByKey }
 }))
 
 vi.mock('@data/services/ProviderService', () => ({
@@ -92,11 +88,11 @@ beforeEach(() => {
   mocks.agentCreate.mockReset()
   mocks.applicationGetPath.mockReset()
   mocks.applicationGetPath.mockReturnValue('/mock/product-manifest.json')
-  mocks.getPublishedRelease.mockReset()
-  mocks.setLaunchOnBoot.mockReset()
   mocks.mcpList.mockReset()
+  mocks.modelGetByKey.mockReset()
   mocks.providerGetById.mockReset()
   mocks.mcpList.mockReturnValue({ items: [] })
+  mocks.modelGetByKey.mockReturnValue({ id: 'anthropic::claude-sonnet' })
   mocks.agentCreate.mockReturnValue({
     id: 'agent-created',
     name: 'Reviewer',
@@ -227,48 +223,6 @@ describe('product_info', () => {
     await client.close()
   })
 
-  it('returns the updater service result for the installed release', async () => {
-    const publishedRelease = {
-      status: 'unreleased',
-      target: 'current',
-      currentVersion: '2.0.0-dev',
-      versionRelation: 'unknown',
-      release: null
-    }
-    mocks.getPublishedRelease.mockResolvedValue(publishedRelease)
-    const client = await connectAssistantClient()
-
-    const result = await client.callTool({
-      name: 'product_info',
-      arguments: { source: 'release_notes', release: 'current' }
-    })
-
-    expect(mocks.getPublishedRelease).toHaveBeenCalledWith('current')
-    expect(JSON.parse(toolResultText(result))).toEqual(publishedRelease)
-    await client.close()
-  })
-
-  it('returns the updater service result for the latest release', async () => {
-    const publishedRelease = {
-      status: 'published',
-      target: 'latest',
-      currentVersion: '2.0.0-dev',
-      versionRelation: 'behind',
-      release: { version: '2.0.0', notes: { kind: 'external-data', content: 'Release notes' } }
-    }
-    mocks.getPublishedRelease.mockResolvedValue(publishedRelease)
-    const client = await connectAssistantClient()
-
-    const result = await client.callTool({
-      name: 'product_info',
-      arguments: { source: 'release_notes', release: 'latest' }
-    })
-
-    expect(mocks.getPublishedRelease).toHaveBeenCalledWith('latest')
-    expect(JSON.parse(toolResultText(result))).toEqual(publishedRelease)
-    await client.close()
-  })
-
   it('rejects arbitrary path and URL arguments', async () => {
     writeProductManifest(JSON.stringify({ schemaVersion: 1, package: { version: '2.0.0-dev' } }))
     const client = await connectAssistantClient()
@@ -285,27 +239,17 @@ describe('product_info', () => {
     await client.close()
   })
 
-  it('enforces release and section on their respective sources', async () => {
+  it('rejects sources other than the installed manifest', async () => {
     writeProductManifest(JSON.stringify({ schemaVersion: 1, package: { version: '2.0.0-dev' } }))
     const client = await connectAssistantClient()
 
-    const missingRelease = await client.callTool({
+    const result = await client.callTool({
       name: 'product_info',
       arguments: { source: 'release_notes' }
     })
-    const releaseOnManifest = await client.callTool({
-      name: 'product_info',
-      arguments: { source: 'manifest', release: 'latest' }
-    })
-    const sectionOnRelease = await client.callTool({
-      name: 'product_info',
-      arguments: { source: 'release_notes', release: 'latest', section: 'routes' }
-    })
 
-    expect(missingRelease.isError).toBe(true)
-    expect(releaseOnManifest.isError).toBe(true)
-    expect(sectionOnRelease.isError).toBe(true)
-    expect(mocks.getPublishedRelease).not.toHaveBeenCalled()
+    expect(result.isError).toBe(true)
+    expect(toolResultText(result)).toContain('Unknown product_info source')
     await client.close()
   })
 })
@@ -356,24 +300,10 @@ describe('apply_setting', () => {
     expect(MockMainPreferenceServiceUtils.getPreferenceValue('ui.theme_mode')).toBe('dark')
   })
 
-  it('registers launch-on-boot with the OS and persists the preference', async () => {
-    await applySetting({ setting: 'launch_on_boot', value: 'true' })
-
-    expect(mocks.setLaunchOnBoot).toHaveBeenCalledWith(true)
-    expect(MockMainPreferenceServiceUtils.getPreferenceValue('app.launch_on_boot')).toBe(true)
-  })
-
-  it('does not persist launch-on-boot when OS registration fails', async () => {
-    mocks.setLaunchOnBoot.mockRejectedValueOnce(new Error('permission denied'))
-
-    await expect(applySetting({ setting: 'launch_on_boot', value: 'true' })).rejects.toThrow('permission denied')
-
-    expect(MockMainPreferenceServiceUtils.getPreferenceValue('app.launch_on_boot')).toBe(false)
-  })
-
-  it('rejects values outside the setting whitelist', async () => {
-    await expect(applySetting({ setting: 'launch_on_boot', value: 'yes' })).rejects.toThrow("Value 'yes' is not valid")
-    expect(mocks.setLaunchOnBoot).not.toHaveBeenCalled()
+  it('rejects settings outside the narrow whitelist', async () => {
+    await expect(applySetting({ setting: 'launch_on_boot', value: 'true' })).rejects.toThrow(
+      "Setting 'launch_on_boot' is not on the apply_setting whitelist"
+    )
   })
 })
 
@@ -403,6 +333,7 @@ describe('create_agent', () => {
         env_vars: {}
       }
     })
+    expect(mocks.modelGetByKey).toHaveBeenCalledWith('anthropic', 'claude-sonnet')
     expect(result.content[0].text).toContain('agent-created')
   })
 
@@ -435,6 +366,26 @@ describe('create_agent', () => {
         model: 'anthropic:claude-sonnet'
       })
     ).rejects.toThrow('providerId::modelId')
+    expect(mocks.agentCreate).not.toHaveBeenCalled()
+  })
+
+  it('rejects a well-formed model id that is not configured', async () => {
+    mocks.modelGetByKey.mockImplementationOnce(() => {
+      throw DataApiErrorFactory.notFound('Model', 'anthropic/missing')
+    })
+    const server = new AssistantServer()
+
+    await expect(
+      (
+        server as unknown as {
+          createAgent: (args: Record<string, string>) => Promise<unknown>
+        }
+      ).createAgent({
+        name: 'Reviewer',
+        instructions: 'Review code.',
+        model: 'anthropic::missing'
+      })
+    ).rejects.toThrow('Model is not configured in Cherry Studio: anthropic::missing')
     expect(mocks.agentCreate).not.toHaveBeenCalled()
   })
 })

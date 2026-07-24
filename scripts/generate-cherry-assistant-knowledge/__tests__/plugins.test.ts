@@ -42,7 +42,7 @@ describe('generateBundledPluginsManifest', () => {
   it('keeps large data attachments on the local-script path', () => {
     const skill = fs.readFileSync(path.join(AGENT_DIR, '.claude/skills/cherry-data-analyst/SKILL.md'), 'utf-8')
 
-    expect(skill).toContain('mcp__cherry-tools__save_attachment')
+    expect(skill).toContain('mcp__assistant-files__save_attachment')
     expect(skill).toContain('uv run python')
     expect(skill).toContain('不要循环调用 `read_file`')
     expect(skill).toContain('控制在 4KB 内')

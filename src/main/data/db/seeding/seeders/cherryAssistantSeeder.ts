@@ -23,26 +23,16 @@ const CHERRY_ASSISTANT_SEED = {
 
 export class CherryAssistantSeeder implements ISeeder {
   readonly name = 'cherryAssistant'
-  readonly description = 'Insert and update the builtin Cherry Assistant in every agent library'
+  readonly description = 'Insert the builtin Cherry Assistant in every agent library'
   readonly executionPolicy = 'run-on-change' as const
-  // Deliberately manual: preset content resolves from the bundle at runtime, so only
-  // rollout-policy changes should advance this version. v2 includes existing libraries;
-  // v3 upgrades the original normal-mode default to auto-edit mode.
-  readonly version = '3'
+  // This preset has not shipped. Keep the one-time insert version stable so later
+  // content changes cannot recreate a user-deleted builtin or overwrite user choices.
+  readonly version = '1'
 
   run(db: DbType): void {
     db.transaction((tx) => {
       const existing = this.findBuiltinAssistant(tx)
-      if (existing) {
-        // Migrate only the seeded v2 default. Preserve explicit user choices and deletion memory.
-        if (existing.deletedAt === null && existing.configuration.permission_mode === 'default') {
-          agentService.updateAgentTx(tx, existing.id, {
-            configuration: { ...existing.configuration, permission_mode: 'acceptEdits' },
-            updatedAt: Date.now()
-          })
-        }
-        return
-      }
+      if (existing) return
 
       const agentId = uuidv4()
       const row = agentService.createAgentTx(tx, agentId, {
@@ -72,7 +62,7 @@ export class CherryAssistantSeeder implements ISeeder {
 
   private findBuiltinAssistant(tx: DbOrTx) {
     const [existing] = tx
-      .select({ id: agentTable.id, configuration: agentTable.configuration, deletedAt: agentTable.deletedAt })
+      .select({ id: agentTable.id })
       .from(agentTable)
       .where(sql`json_extract(${agentTable.configuration}, '$.builtin_role') = 'assistant'`)
       .limit(1)

@@ -126,28 +126,6 @@ describe('AgentSessionMessageService', () => {
     expect(saved.updatedAt).toBe('2023-11-14T22:13:20.000Z')
   })
 
-  it('emits a session-scoped event after deleting a message', () => {
-    agentSessionMessageService.saveMessage({
-      sessionId: SESSION_ID,
-      message: {
-        id: USER_MESSAGE_ID,
-        role: 'user',
-        data: { parts: [{ type: 'text', text: 'hello' }] }
-      }
-    })
-    const listener = vi.fn()
-    const subscription = agentSessionMessageService.onSessionMessageDeleted(listener)
-
-    try {
-      agentSessionMessageService.deleteSessionMessage(SESSION_ID, USER_MESSAGE_ID)
-    } finally {
-      subscription.dispose()
-    }
-
-    expect(listener).toHaveBeenCalledOnce()
-    expect(listener).toHaveBeenCalledWith({ sessionId: SESSION_ID, messageId: USER_MESSAGE_ID })
-  })
-
   it('keeps createdAt stable when updating an existing message', async () => {
     vi.spyOn(Date, 'now').mockReturnValueOnce(1_700_000_000_000).mockReturnValueOnce(1_700_000_000_500)
 

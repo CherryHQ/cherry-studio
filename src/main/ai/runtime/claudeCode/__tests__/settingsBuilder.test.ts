@@ -2,10 +2,12 @@ import type * as NodeModule from 'node:module'
 import path from 'node:path'
 
 import {
+  ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES,
+  ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES,
   CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
   toCherryBuiltinRuntimeName
 } from '@main/ai/tools/adapters/claudeCode/cherryBuiltinApproval'
-import { EXPORT_OFFICE_TOOL_NAME, KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
+import { KB_MANAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { CHANNEL_SECURITY_PROMPT } from '@shared/ai/claudecode/constants'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -104,6 +106,12 @@ vi.mock('@main/ai/agents/prompt', () => ({
 
 vi.mock('@main/ai/mcp/servers/assistant', () => ({
   default: mocks.createAssistantServer
+}))
+
+vi.mock('@main/ai/mcp/servers/AssistantFileToolsServer', () => ({
+  AssistantFileToolsServer: class {
+    mcpServer = {}
+  }
 }))
 
 vi.mock('@main/ai/runtime/claudeCode/createSdkMcpServerInstance', () => ({
@@ -489,12 +497,50 @@ describe('buildClaudeCodeSessionSettings', () => {
       )
 
     expect(settings.permissionMode).toBe('bypassPermissions')
-    expect(CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES).toContain(EXPORT_OFFICE_TOOL_NAME)
+    expect(CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES).toContain(KB_MANAGE_TOOL_NAME)
     for (const toolName of CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)) {
       await expect(permissionDecisions(toolName)).resolves.toContain('ask')
     }
 
     for (const toolName of ['Bash', toCherryBuiltinRuntimeName('kb_read'), 'mcp__server__ordinary_tool']) {
+      await expect(permissionDecisions(toolName)).resolves.not.toContain('ask')
+    }
+  })
+
+  it('gates assistant file writes while auto-approving attachment reads', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      configuration: { builtin_role: 'assistant', permission_mode: 'bypassPermissions' }
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    const hooks = settings.hooks?.PreToolUse?.[0]?.hooks ?? []
+    const permissionDecisions = async (toolName: string) =>
+      Promise.all(
+        hooks.map(async (hook) => {
+          const output = await hook(
+            { hook_event_name: 'PreToolUse', tool_name: toolName, tool_input: {} } as never,
+            'tool-use-1',
+            {} as never
+          )
+          return (output as { hookSpecificOutput?: { permissionDecision?: string } }).hookSpecificOutput
+            ?.permissionDecision
+        })
+      )
+
+    for (const toolName of ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES) {
+      await expect(permissionDecisions(toolName)).resolves.toContain('ask')
+    }
+    for (const toolName of ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES) {
       await expect(permissionDecisions(toolName)).resolves.not.toContain('ask')
     }
   })
@@ -872,9 +918,13 @@ describe('buildClaudeCodeSessionSettings', () => {
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
     expect(settings.mcpServers?.assistant).toBeDefined()
+    expect(settings.mcpServers?.['assistant-files']).toBeDefined()
     // Only read-only Assistant tools are pre-approved. Mutations and diagnose must use per-call approval.
     expect(settings.allowedTools).toContain('mcp__assistant__navigate')
     expect(settings.allowedTools).toContain('mcp__assistant__product_info')
+    expect(settings.allowedTools).toContain('mcp__assistant-files__read_file')
+    expect(settings.allowedTools).not.toContain('mcp__assistant-files__save_attachment')
+    expect(settings.allowedTools).not.toContain('mcp__assistant-files__export_office')
     expect(settings.allowedTools).not.toContain('mcp__assistant__apply_setting')
     expect(settings.allowedTools).not.toContain('mcp__assistant__create_agent')
     expect(settings.allowedTools).not.toContain('mcp__assistant__*')
@@ -882,6 +932,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     const snapshotOptions = mocks.createToolPolicySnapshot.mock.calls.at(-1)?.[1]
     expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__navigate')
     expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__product_info')
+    expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant-files__read_file')
     expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__apply_setting')
     expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__create_agent')
     expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__diagnose')
@@ -937,7 +988,9 @@ describe('buildClaudeCodeSessionSettings', () => {
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
     expect(settings.mcpServers?.assistant).toBeUndefined()
+    expect(settings.mcpServers?.['assistant-files']).toBeUndefined()
     expect(settings.allowedTools).not.toContain('mcp__assistant__navigate')
+    expect(settings.allowedTools).not.toContain('mcp__assistant-files__read_file')
     const snapshotOptions = mocks.createToolPolicySnapshot.mock.calls.at(-1)?.[1]
     expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__navigate')
   })

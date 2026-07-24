@@ -41,14 +41,13 @@ const SUPPORTING_PROMPT_PATHS = [
 describe('Cherry Assistant guide', () => {
   const guide = fs.readFileSync(TEMPLATE_PATH, 'utf-8')
 
-  it('uses current package and release lookups instead of versioned product prose', () => {
+  it('uses current-package lookups instead of versioned product prose', () => {
     expect(guide).toContain('mcp__assistant__product_info({ source: "manifest" })')
     for (const section of ['routes', 'commands', 'providers', 'locales', 'agents']) {
       expect(guide).toContain(`source: "manifest", section: "${section}"`)
     }
     expect(guide).toContain('section: "all"')
-    expect(guide).toContain('mcp__assistant__product_info({ source: "release_notes", release: "current" })')
-    expect(guide).toContain('mcp__assistant__product_info({ source: "release_notes", release: "latest" })')
+    expect(guide).not.toContain('source: "release_notes"')
 
     for (const staleSection of ['## 路由表', '## 常见问题', '## 功能速查', '## 快捷键', '## 日志路径']) {
       expect(guide).not.toContain(staleSection)

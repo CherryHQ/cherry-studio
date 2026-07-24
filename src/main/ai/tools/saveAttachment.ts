@@ -5,38 +5,43 @@ import { loggerService } from '@logger'
 import { validatePath } from '@main/ai/mcp/servers/filesystem'
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import { isAbortError } from '@main/utils/error'
-import { getPathStatus, publishFileNoClobber } from '@main/utils/file'
-import { type SaveAttachmentInput, saveAttachmentInputSchema } from '@shared/ai/builtinTools'
+import { getPathStatus } from '@main/utils/file'
 import type { FilePath } from '@shared/types/file'
+import * as z from 'zod'
+
+import {
+  assertWorkspacePathUnchanged,
+  isErrno,
+  publishFileNoClobber,
+  relativeWorkspacePath
+} from './assistantFileSafety'
 
 const logger = loggerService.withContext('SaveAttachment')
 
-function isErrno(error: unknown, code: string): boolean {
-  return (error as NodeJS.ErrnoException)?.code === code
-}
+export const SAVE_ATTACHMENT_TOOL_NAME = 'save_attachment'
+export const SAVE_ATTACHMENT_DESCRIPTION =
+  'Copy the original bytes of a file explicitly attached to this conversation into a new file in the current session workspace. ' +
+  'Use the attachment handle shown in the conversation, pass a workspace-relative destination, and never overwrite an existing file. ' +
+  'This action requires user approval.'
 
-function relativeWorkspacePath(workspacePath: string, outputPath: string): string {
-  return path.relative(workspacePath, outputPath).split(path.sep).join('/')
-}
+export const saveAttachmentInputSchema = z.object({
+  filename: z.string().trim().min(1).max(512).describe('Attachment handle exactly as shown in the conversation.'),
+  output_path: z
+    .string()
+    .trim()
+    .min(1)
+    .max(4096)
+    .refine((value) => !/^(?:[/\\]|[A-Za-z]:)/.test(value), 'Output path must be workspace-relative')
+    .refine(
+      (value) => !value.split(/[\\/]+/).some((segment) => segment === '..'),
+      'Output path must not traverse outside the workspace'
+    )
+    .describe(
+      'New workspace-relative file path. Its parent directory must exist and the destination must not already exist.'
+    )
+})
 
-function pathsEqual(left: string, right: string): boolean {
-  const resolvedLeft = path.resolve(left)
-  const resolvedRight = path.resolve(right)
-  return process.platform === 'win32'
-    ? resolvedLeft.toLowerCase() === resolvedRight.toLowerCase()
-    : resolvedLeft === resolvedRight
-}
-
-async function assertWorkspacePathUnchanged(
-  requestedPath: string,
-  expectedPath: string,
-  workspacePath: string
-): Promise<void> {
-  const currentPath = await validatePath(requestedPath, workspacePath)
-  if (!pathsEqual(currentPath, expectedPath)) {
-    throw new Error(`Attachment output path changed while being saved: ${requestedPath}`)
-  }
-}
+export type SaveAttachmentInput = z.infer<typeof saveAttachmentInputSchema>
 
 export async function saveAttachmentToWorkspace(
   workspacePath: string,
@@ -64,7 +69,12 @@ export async function saveAttachmentToWorkspace(
   if (outputDirectoryStatus.kind !== 'directory') {
     throw new Error(`Attachment output parent is not a directory: ${path.dirname(validatedInput.output_path)}`)
   }
-  await assertWorkspacePathUnchanged(validatedInput.output_path, outputPath, resolvedWorkspacePath)
+  await assertWorkspacePathUnchanged(
+    validatedInput.output_path,
+    outputPath,
+    resolvedWorkspacePath,
+    'Attachment output path changed while being saved'
+  )
 
   try {
     await application.get('FileManager').withTempCopy(attachment.fileEntryId, async (tempPath) => {
@@ -72,7 +82,12 @@ export async function saveAttachmentToWorkspace(
       await publishFileNoClobber(tempPath as FilePath, outputPath, {
         signal,
         validateTarget: () =>
-          assertWorkspacePathUnchanged(validatedInput.output_path, outputPath, resolvedWorkspacePath)
+          assertWorkspacePathUnchanged(
+            validatedInput.output_path,
+            outputPath,
+            resolvedWorkspacePath,
+            'Attachment output path changed while being saved'
+          )
       })
     })
   } catch (error) {

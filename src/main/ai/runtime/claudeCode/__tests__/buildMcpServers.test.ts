@@ -56,6 +56,12 @@ vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: { listChannels: vi.fn().mockResolvedValue([]) }
 }))
 
+vi.mock('@main/ai/mcp/servers/AssistantFileToolsServer', () => ({
+  AssistantFileToolsServer: class {
+    mcpServer = {}
+  }
+}))
+
 const {
   AgentSessionWorkspaceError,
   adjustAllowedToolsForMcp,
@@ -63,8 +69,6 @@ const {
   buildMcpServers,
   prepareClaudeCodeWorkspaceDirectory
 } = await import('../settingsBuilder')
-const { createAgentSessionAttachmentHolder } = await import('../agentSessionAttachments')
-const { createFileAttachmentHandle } = await import('@main/ai/messages/attachmentHandle')
 
 const agent = { id: 'agent-1', mcps: [] } as unknown as AgentEntity
 const session = {
@@ -106,7 +110,6 @@ describe('adjustAllowedToolsForMcp', () => {
       expect.arrayContaining([
         'mcp__cherry-tools__kb_search',
         'mcp__cherry-tools__kb_list',
-        'mcp__cherry-tools__read_file',
         'mcp__cherry-tools__cron',
         'mcp__cherry-tools__notify',
         'mcp__cherry-tools__config',
@@ -126,7 +129,8 @@ describe('adjustAllowedToolsForMcp', () => {
         'mcp__cherry-tools__kb_search',
         'mcp__cherry-tools__kb_list',
         'mcp__assistant__navigate',
-        'mcp__assistant__product_info'
+        'mcp__assistant__product_info',
+        'mcp__assistant-files__read_file'
       ])
     )
     expect(allowed).not.toContain('mcp__cherry-tools__kb_manage')
@@ -137,6 +141,8 @@ describe('adjustAllowedToolsForMcp', () => {
     // the tool itself nor an assistant namespace wildcard may appear in the SDK pre-approval list.
     expect(allowed).not.toContain('mcp__assistant__diagnose')
     expect(allowed).not.toContain('mcp__assistant__*')
+    expect(allowed).not.toContain('mcp__assistant-files__save_attachment')
+    expect(allowed).not.toContain('mcp__assistant-files__export_office')
   })
 })
 
@@ -154,33 +160,9 @@ describe('buildMcpServers', () => {
     expect(result?.exa).toBeUndefined()
   })
 
-  it('lets a prebuilt cherry-tools server see attachments registered later for the live session', async () => {
-    const result = buildMcpServers(session, agent, false)
-    const cherryTools = result?.['cherry-tools']
-    expect(cherryTools).toBeDefined()
-    const server = (cherryTools as { instance: { server: unknown } }).instance
-    const holder = createAgentSessionAttachmentHolder(session.id)
-    holder.register([{ fileEntryId: 'entry-secret', handle: 'report.txt', displayName: 'report.txt' }])
-
-    try {
-      const handlers = (server.server as any)._requestHandlers
-      const callResult = await handlers.get('tools/call')(
-        {
-          method: 'tools/call',
-          params: {
-            name: 'read_file',
-            arguments: { filename: 'missing.txt', offset: null, limit: null }
-          }
-        },
-        { signal: new AbortController().signal }
-      )
-      const text = callResult.content[0].text as string
-
-      expect(text).toContain(`Available: ${createFileAttachmentHandle('entry-secret')}`)
-      expect(text).not.toContain('entry-secret')
-    } finally {
-      holder.dispose()
-    }
+  it('injects file tools only for local Cherry Assistant sessions', () => {
+    expect(buildMcpServers(session, agent, false)?.['assistant-files']).toBeUndefined()
+    expect(buildMcpServers(session, agent, true)?.['assistant-files']).toBeDefined()
   })
 })
 

@@ -7,7 +7,7 @@ import { createFileAttachmentHandle } from '@main/ai/messages/attachmentHandle'
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { saveAttachmentToWorkspace } from '../saveAttachment'
+import { saveAttachmentInputSchema, saveAttachmentToWorkspace } from '../saveAttachment'
 
 const signal = new AbortController().signal
 const sourceBytes = Buffer.from([0x52, 0x65, 0x67, 0x69, 0x6f, 0x6e, 0x00, 0xff])
@@ -21,6 +21,18 @@ describe('saveAttachmentToWorkspace', () => {
   let workspacePath: string
   let sourcePath: string
   const withTempCopy = vi.fn()
+
+  it('accepts only an attachment handle and a new workspace output path', () => {
+    expect(saveAttachmentInputSchema.parse({ filename: 'file_abcd', output_path: 'inputs/sales.csv' })).toEqual({
+      filename: 'file_abcd',
+      output_path: 'inputs/sales.csv'
+    })
+    expect(saveAttachmentInputSchema.safeParse({ fileEntryId: 'secret', output_path: 'sales.csv' }).success).toBe(false)
+    expect(saveAttachmentInputSchema.safeParse({ filename: 'file_abcd', output_path: '   ' }).success).toBe(false)
+    expect(saveAttachmentInputSchema.safeParse({ filename: 'file_abcd', output_path: 'C:relative.csv' }).success).toBe(
+      false
+    )
+  })
 
   beforeEach(async () => {
     vi.clearAllMocks()

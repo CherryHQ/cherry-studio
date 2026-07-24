@@ -9,7 +9,8 @@ const logger = loggerService.withContext('AppService')
 
 export class AppService {
   public async setAppLaunchOnBoot(isLaunchOnBoot: boolean): Promise<void> {
-    // Set login item settings for Windows and macOS; Linux uses an autostart desktop file.
+    // Set login item settings for windows and mac
+    // linux is not supported because it requires more file operations
     if (isWin || isMac) {
       app.setLoginItemSettings({ openAtLogin: isLaunchOnBoot })
     } else if (isLinux) {
@@ -18,7 +19,12 @@ export class AppService {
         const desktopFile = path.join(autostartDir, isDev ? 'cherry-studio-dev.desktop' : 'cherry-studio.desktop')
 
         if (isLaunchOnBoot) {
-          await fs.promises.mkdir(autostartDir, { recursive: true })
+          // Ensure autostart directory exists
+          try {
+            await fs.promises.access(autostartDir)
+          } catch {
+            await fs.promises.mkdir(autostartDir, { recursive: true })
+          }
 
           // Get executable path
           let executablePath = application.getPath('app.exe_file')
@@ -44,16 +50,17 @@ export class AppService {
           await fs.promises.writeFile(desktopFile, desktopContent)
           logger.info('Created autostart desktop file for Linux')
         } else {
+          // Remove desktop file
           try {
+            await fs.promises.access(desktopFile)
             await fs.promises.unlink(desktopFile)
             logger.info('Removed autostart desktop file for Linux')
-          } catch (error) {
-            if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+          } catch {
+            // File doesn't exist, no need to remove
           }
         }
       } catch (error) {
         logger.error('Failed to set launch on boot for Linux:', error as Error)
-        throw error
       }
     }
   }

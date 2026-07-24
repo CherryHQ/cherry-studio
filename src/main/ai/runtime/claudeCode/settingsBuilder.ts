@@ -37,6 +37,7 @@ import {
 } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { PromptBuilder } from '@main/ai/agents/prompt'
 import AssistantServer from '@main/ai/mcp/servers/assistant'
+import { AssistantFileToolsServer } from '@main/ai/mcp/servers/AssistantFileToolsServer'
 import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
 import WorkspaceMemoryServer from '@main/ai/mcp/servers/workspaceMemory'
 import { createSdkMcpServerInstance } from '@main/ai/runtime/claudeCode/createSdkMcpServerInstance'
@@ -45,6 +46,8 @@ import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import {
   ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES,
+  ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES,
+  ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES,
   CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
   CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES,
   toCherryBuiltinRuntimeName
@@ -77,7 +80,6 @@ import { isExternalCliProvider } from '@shared/utils/provider'
 import { app } from 'electron'
 
 import type { AgentRuntimeUserInput } from '../types'
-import { getAgentSessionAttachments } from './agentSessionAttachments'
 import { detectGlobalInstall } from './dependencyGuard'
 import { toolApprovalRegistry } from './ToolApprovalRegistry'
 import type { ClaudeCodeSettings, McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
@@ -101,6 +103,12 @@ const HEADLESS_CONFIG_MUTATION_ACTIONS = new Set([
 ])
 const CHERRY_BUILTIN_APPROVAL_REQUIRED_RUNTIME_NAMES =
   CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
+
+function approvalRequiredRuntimeNames(assistantMcpEnabled: boolean): readonly string[] {
+  return assistantMcpEnabled
+    ? [...CHERRY_BUILTIN_APPROVAL_REQUIRED_RUNTIME_NAMES, ...ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES]
+    : CHERRY_BUILTIN_APPROVAL_REQUIRED_RUNTIME_NAMES
+}
 const WORKSPACE_PATH_FIELDS = {
   Edit: 'file_path',
   Glob: 'path',
@@ -731,6 +739,7 @@ async function buildToolPermissions(
   // Raw session context for tool enable-predicates (worktree tools need a .git dir).
   const cwd = session.workspace?.path
   const conditionContext: ClaudeToolContext | undefined = cwd ? { cwd } : undefined
+  const approvalRequiredTools = approvalRequiredRuntimeNames(assistantMcpEnabled)
 
   const toolPolicySnapshot = await ensureToolPolicySnapshot(session.id, agent, {
     // cherry-tools is injected for every session. Auto-allowing these explicit tools (no per-call
@@ -744,12 +753,14 @@ async function buildToolPermissions(
     // explicit allowlist so a future cherry-tools addition does not become auto-approved by prefix.
     autoAllowRuntimeNames: [
       ...CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
-      // Assistant MCP: navigate only. diagnose reads local logs/source/config and must go through
-      // per-call approval — see ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES for the threat model.
-      ...(assistantMcpEnabled ? ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES : [])
+      // Assistant read-only lookups and attachment reads are explicit opt-ins. diagnose reads local
+      // logs/source/config and file writes must go through per-call approval.
+      ...(assistantMcpEnabled
+        ? [...ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES, ...ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES]
+        : [])
     ],
-    // Side-effecting cherry-tools must still prompt for approval.
-    autoAllowRuntimeNameExceptions: CHERRY_BUILTIN_APPROVAL_REQUIRED_RUNTIME_NAMES,
+    // Side-effecting built-in tools must still prompt for approval.
+    autoAllowRuntimeNameExceptions: approvalRequiredTools,
     conditionContext
   })
 
@@ -764,7 +775,7 @@ async function buildToolPermissions(
     // this branch stays so an interactive follow-up on a warm connection can still reach approval.
     const requiresInteractiveResponder =
       HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number]) ||
-      CHERRY_BUILTIN_APPROVAL_REQUIRED_RUNTIME_NAMES.includes(toolName)
+      approvalRequiredTools.includes(toolName)
     if (
       requiresInteractiveResponder &&
       application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)
@@ -913,7 +924,7 @@ async function buildToolPermissions(
   const approvalRequiredToolHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
-    if (!CHERRY_BUILTIN_APPROVAL_REQUIRED_RUNTIME_NAMES.includes(toolName)) return {}
+    if (!approvalRequiredTools.includes(toolName)) return {}
     if (application.get('AgentSessionRuntimeService').isCurrentTurnHeadless(session.id)) {
       return {
         hookSpecificOutput: {
@@ -1167,15 +1178,12 @@ export function buildMcpServers(
   mcpList['cherry-tools'] = {
     type: 'sdk',
     name: 'cherry-tools',
-    instance: new CherryBuiltinToolsServer(
-      {
-        agentId: agent.id,
-        workspaceSource,
-        workspacePath: session.workspace.path,
-        sourceChannelId
-      },
-      () => getAgentSessionAttachments(session.id)
-    ).mcpServer
+    instance: new CherryBuiltinToolsServer({
+      agentId: agent.id,
+      workspaceSource,
+      workspacePath: session.workspace.path,
+      sourceChannelId
+    }).mcpServer
   }
 
   // agent-memory — the FACT.md / JOURNAL.jsonl memory tool the agent prompt and the
@@ -1193,6 +1201,15 @@ export function buildMcpServers(
   if (assistantMcpEnabled) {
     const assistantServer = new AssistantServer(agent.model ?? undefined)
     mcpList.assistant = { type: 'sdk', name: 'assistant', instance: assistantServer.mcpServer }
+    const fileToolsServer = new AssistantFileToolsServer({
+      sessionId: session.id,
+      workspacePath: session.workspace.path
+    })
+    mcpList['assistant-files'] = {
+      type: 'sdk',
+      name: 'assistant-files',
+      instance: fileToolsServer.mcpServer
+    }
     logger.debug('Cherry Assistant: injected assistant MCP server', {
       agentId: session.agentId,
       totalMcpServers: Object.keys(mcpList).length
@@ -1318,7 +1335,9 @@ function resolveSourceChannel(agentId: string, sessionId: string): string | unde
 export function adjustAllowedToolsForMcp(assistantMcpEnabled: boolean): string[] {
   const result = CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName)
   result.push('mcp__agent-memory__*')
-  if (assistantMcpEnabled) result.push(...ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES)
+  if (assistantMcpEnabled) {
+    result.push(...ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES, ...ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES)
+  }
   return result
 }
 

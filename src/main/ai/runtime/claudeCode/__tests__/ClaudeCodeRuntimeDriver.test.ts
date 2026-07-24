@@ -14,7 +14,6 @@ const mocks = vi.hoisted(() => ({
   sweepClaudeSessionFiles: vi.fn(),
   prepareTrace: vi.fn(),
   createClaudeQuery: vi.fn(),
-  listSessionMessages: vi.fn(),
   collectFileAttachments: vi.fn(),
   prepareChatMessages: vi.fn(),
   materializeNativeFilePart: vi.fn(),
@@ -43,13 +42,6 @@ vi.mock('@data/services/AgentService', () => ({
 
 vi.mock('@data/services/ModelService', () => ({
   modelService: { getByKey: mocks.getModelByKey }
-}))
-
-vi.mock('@data/services/AgentSessionMessageService', () => ({
-  agentSessionMessageService: {
-    listSessionMessages: mocks.listSessionMessages,
-    onSessionMessageDeleted: () => ({ dispose: () => {} })
-  }
 }))
 
 vi.mock('@main/ai/messages/attachmentRouting', () => ({
@@ -116,7 +108,6 @@ vi.mock('../streamAdapter', () => ({
 
 const { ClaudeCodeRuntimeDriver } = await import('../ClaudeCodeRuntimeDriver')
 const { createFileAttachmentHandle } = await import('@main/ai/messages/attachmentHandle')
-const { getAgentSessionAttachments } = await import('../agentSessionAttachments')
 
 function createAsyncQueue<T>() {
   const items: T[] = []
@@ -161,6 +152,26 @@ function userMessage() {
   } as any
 }
 
+function buildRequest(settings: Record<string, unknown> = {}) {
+  return {
+    connectionConfig: {
+      rebuildSignature: 'sig-1',
+      live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+    },
+    key: 'warm-key',
+    options: { model: 'sonnet' },
+    settings,
+    sdkModelId: 'sonnet-sdk',
+    initializeTimeoutMs: 100
+  }
+}
+
+function enableAssistantFileTools(): void {
+  mocks.buildRequest.mockResolvedValueOnce(
+    buildRequest({ mcpServers: { 'assistant-files': { type: 'sdk', name: 'assistant-files', instance: {} } } })
+  )
+}
+
 describe('ClaudeCodeRuntimeDriver', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -179,21 +190,10 @@ describe('ClaudeCodeRuntimeDriver', () => {
     mocks.consumeWarmQuery.mockResolvedValue(undefined)
     mocks.getWarmAgentSessionIds.mockReturnValue([])
     mocks.prepareTrace.mockResolvedValue(undefined)
-    mocks.listSessionMessages.mockReturnValue({ items: [] })
     mocks.collectFileAttachments.mockReturnValue([])
     mocks.prepareChatMessages.mockImplementation(async (messages) => messages)
     mocks.materializeNativeFilePart.mockResolvedValue(null)
-    mocks.buildRequest.mockResolvedValue({
-      connectionConfig: {
-        rebuildSignature: 'sig-1',
-        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
-      },
-      key: 'warm-key',
-      options: { model: 'sonnet' },
-      settings: {},
-      sdkModelId: 'sonnet-sdk',
-      initializeTimeoutMs: 100
-    })
+    mocks.buildRequest.mockResolvedValue(buildRequest())
     mocks.getAgent.mockReturnValue({ id: 'agent-1' })
     mocks.getModelByKey.mockReturnValue({ capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] })
     mocks.deriveConfig.mockResolvedValue({
@@ -291,7 +291,11 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
     mocks.createClaudeQuery.mockReturnValue(query)
     mocks.collectFileAttachments.mockReturnValueOnce([
-      { fileEntryId: 'entry-secret', handle: 'ignored-by-holder', displayName: 'pixel.png' }
+      {
+        fileEntryId: 'entry-secret',
+        handle: createFileAttachmentHandle('entry-secret'),
+        displayName: 'pixel.png'
+      }
     ])
     mocks.prepareChatMessages.mockImplementationOnce(async ([message]) => {
       const image = message.parts.find((part) => part.type === 'file')
@@ -305,6 +309,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       filename: 'pixel.png',
       providerMetadata: { cherry: { fileEntryId: 'entry-secret' } }
     })
+    enableAssistantFileTools()
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
@@ -488,7 +493,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
     mocks.createClaudeQuery.mockReturnValue(query)
     mocks.collectFileAttachments.mockReturnValueOnce([
-      { fileEntryId: 'entry-1', handle: 'spec.pdf', displayName: 'spec.pdf' }
+      { fileEntryId: 'entry-1', handle: createFileAttachmentHandle('entry-1'), displayName: 'spec.pdf' }
     ])
     mocks.prepareChatMessages.mockImplementationOnce(async ([message]) => [
       {
@@ -502,6 +507,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
         ]
       }
     ])
+    enableAssistantFileTools()
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
@@ -545,243 +551,54 @@ describe('ClaudeCodeRuntimeDriver', () => {
       isToolCapable: true
     })
     expect(mocks.materializeNativeFilePart).not.toHaveBeenCalled()
-    expect(getAgentSessionAttachments('session-1')).toEqual([
+    void connection.close()
+  })
+
+  it('does not advertise attachment reads when the Assistant file server is absent', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.collectFileAttachments.mockReturnValueOnce([
       { fileEntryId: 'entry-1', handle: createFileAttachmentHandle('entry-1'), displayName: 'spec.pdf' }
     ])
+    mocks.prepareChatMessages.mockImplementationOnce(async ([message]) => [
+      { ...message, parts: [{ type: 'text', text: 'Attached file "spec.pdf":\nextracted PDF body' }] }
+    ])
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            {
+              type: 'file',
+              url: 'file:///tmp/spec.pdf',
+              mediaType: 'application/pdf',
+              filename: 'spec.pdf',
+              providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
+            }
+          ]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: { message: { content: 'Attached file "spec.pdf":\nextracted PDF body' } },
+      done: false
+    })
+    expect(mocks.prepareChatMessages).toHaveBeenCalledWith([expect.objectContaining({ id: 'user-1', role: 'user' })], {
+      attachments: [{ fileEntryId: 'entry-1', handle: createFileAttachmentHandle('entry-1'), displayName: 'spec.pdf' }],
+      nativeSupport: { image: true, pdf: false, audio: false, video: false },
+      isToolCapable: false
+    })
     void connection.close()
-    expect(getAgentSessionAttachments('session-1')).toEqual([])
-  })
-
-  it('restores historical attachment handles before registering a same-name attachment after reconnect', async () => {
-    const firstQueryQueue = createAsyncQueue<any>()
-    const secondQueryQueue = createAsyncQueue<any>()
-    mocks.createClaudeQuery
-      .mockReturnValueOnce({ ...firstQueryQueue.iterable, interrupt: vi.fn(), close: vi.fn() })
-      .mockReturnValueOnce({ ...secondQueryQueue.iterable, interrupt: vi.fn(), close: vi.fn() })
-
-    const historicalAttachment = {
-      fileEntryId: 'historical-entry',
-      handle: 'report.pdf',
-      displayName: 'report.pdf'
-    }
-    const newAttachment = { fileEntryId: 'new-entry', handle: 'report.pdf', displayName: 'report.pdf' }
-    mocks.collectFileAttachments.mockImplementation((messages) => {
-      if (messages[0]?.id === 'historical-user') return [historicalAttachment]
-      if (messages[0]?.id === 'new-user') return [newAttachment]
-      return []
-    })
-
-    const firstConnection = await new ClaudeCodeRuntimeDriver().connect({
-      sessionId: 'session-1',
-      agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
-    })
-    await firstConnection.send({
-      message: {
-        ...userMessage(),
-        id: 'historical-user',
-        data: {
-          parts: [
-            { type: 'text', text: 'first attachment' },
-            {
-              type: 'file',
-              url: 'file:///tmp/report.pdf',
-              mediaType: 'application/pdf',
-              filename: 'report.pdf',
-              providerMetadata: { cherry: { fileEntryId: 'historical-entry' } }
-            }
-          ]
-        }
-      }
-    })
-    void firstConnection.close()
-    expect(getAgentSessionAttachments('session-1')).toEqual([])
-
-    mocks.listSessionMessages.mockReturnValue({
-      items: [
-        {
-          ...userMessage(),
-          id: 'historical-user',
-          sessionId: 'session-1',
-          data: {
-            parts: [
-              { type: 'text', text: 'first attachment' },
-              {
-                type: 'file',
-                url: 'file:///tmp/report.pdf',
-                mediaType: 'application/pdf',
-                filename: 'report.pdf',
-                providerMetadata: { cherry: { fileEntryId: 'historical-entry' } }
-              }
-            ]
-          }
-        }
-      ]
-    })
-
-    const reconnected = await new ClaudeCodeRuntimeDriver().connect({
-      sessionId: 'session-1',
-      agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any,
-      resumeToken: 'resume-1'
-    })
-    await reconnected.send({
-      message: {
-        ...userMessage(),
-        id: 'new-user',
-        data: {
-          parts: [
-            { type: 'text', text: 'second attachment' },
-            {
-              type: 'file',
-              url: 'file:///tmp/report.pdf',
-              mediaType: 'application/pdf',
-              filename: 'report.pdf',
-              providerMetadata: { cherry: { fileEntryId: 'new-entry' } }
-            }
-          ]
-        }
-      }
-    })
-
-    expect(getAgentSessionAttachments('session-1')).toEqual([
-      {
-        fileEntryId: 'historical-entry',
-        handle: createFileAttachmentHandle('historical-entry'),
-        displayName: 'report.pdf'
-      },
-      { fileEntryId: 'new-entry', handle: createFileAttachmentHandle('new-entry'), displayName: 'report.pdf' }
-    ])
-
-    void reconnected.close()
-  })
-
-  it('does not let an older deferred connect replace a newer attachment holder', async () => {
-    const oldQueryQueue = createAsyncQueue<any>()
-    const newQueryQueue = createAsyncQueue<any>()
-    mocks.createClaudeQuery
-      .mockReturnValueOnce({ ...newQueryQueue.iterable, interrupt: vi.fn(), close: vi.fn() })
-      .mockReturnValueOnce({ ...oldQueryQueue.iterable, interrupt: vi.fn(), close: vi.fn() })
-
-    const request = {
-      connectionConfig: {
-        rebuildSignature: 'sig-1',
-        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
-      },
-      key: 'warm-key',
-      options: { model: 'sonnet' },
-      settings: {},
-      sdkModelId: 'sonnet-sdk',
-      initializeTimeoutMs: 100
-    }
-    let resolveOldBuild!: (value: typeof request) => void
-    mocks.buildRequest
-      .mockImplementationOnce(() => new Promise((resolve) => (resolveOldBuild = resolve)))
-      .mockResolvedValueOnce(request)
-    mocks.collectFileAttachments.mockReturnValue([
-      { fileEntryId: 'new-entry', handle: 'report.pdf', displayName: 'report.pdf' }
-    ])
-
-    const driver = new ClaudeCodeRuntimeDriver()
-    const oldConnect = driver.connect({
-      sessionId: 'session-1',
-      agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
-    })
-    const newConnection = await driver.connect({
-      sessionId: 'session-1',
-      agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
-    })
-    await newConnection.send({
-      message: {
-        ...userMessage(),
-        data: {
-          parts: [
-            {
-              type: 'file',
-              url: 'file:///tmp/report.pdf',
-              mediaType: 'application/pdf',
-              filename: 'report.pdf',
-              providerMetadata: { cherry: { fileEntryId: 'new-entry' } }
-            }
-          ]
-        }
-      }
-    })
-
-    resolveOldBuild(request)
-    const oldConnection = await oldConnect
-
-    expect(getAgentSessionAttachments('session-1')).toEqual([
-      { fileEntryId: 'new-entry', handle: createFileAttachmentHandle('new-entry'), displayName: 'report.pdf' }
-    ])
-
-    void oldConnection.close()
-    expect(getAgentSessionAttachments('session-1')).toEqual([
-      { fileEntryId: 'new-entry', handle: createFileAttachmentHandle('new-entry'), displayName: 'report.pdf' }
-    ])
-    void newConnection.close()
-  })
-
-  it('does not let an older failed connect dispose a newer attachment holder', async () => {
-    const queryQueue = createAsyncQueue<any>()
-    mocks.createClaudeQuery.mockReturnValue({ ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() })
-
-    const request = {
-      connectionConfig: {
-        rebuildSignature: 'sig-1',
-        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
-      },
-      key: 'warm-key',
-      options: { model: 'sonnet' },
-      settings: {},
-      sdkModelId: 'sonnet-sdk',
-      initializeTimeoutMs: 100
-    }
-    let rejectOldBuild!: (error: Error) => void
-    mocks.buildRequest
-      .mockImplementationOnce(() => new Promise((_resolve, reject) => (rejectOldBuild = reject)))
-      .mockResolvedValueOnce(request)
-    mocks.collectFileAttachments.mockReturnValue([
-      { fileEntryId: 'new-entry', handle: 'ignored-by-holder', displayName: 'report.pdf' }
-    ])
-
-    const driver = new ClaudeCodeRuntimeDriver()
-    const oldConnect = driver.connect({
-      sessionId: 'session-1',
-      agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
-    })
-    const newConnection = await driver.connect({
-      sessionId: 'session-1',
-      agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
-    })
-    await newConnection.send({
-      message: {
-        ...userMessage(),
-        data: {
-          parts: [
-            {
-              type: 'file',
-              url: 'file:///tmp/report.pdf',
-              mediaType: 'application/pdf',
-              filename: 'report.pdf',
-              providerMetadata: { cherry: { fileEntryId: 'new-entry' } }
-            }
-          ]
-        }
-      }
-    })
-
-    rejectOldBuild(new Error('stale build failed'))
-    await expect(oldConnect).rejects.toThrow('stale build failed')
-    expect(getAgentSessionAttachments('session-1')).toEqual([
-      { fileEntryId: 'new-entry', handle: createFileAttachmentHandle('new-entry'), displayName: 'report.pdf' }
-    ])
-
-    void newConnection.close()
   })
 
   it('routes first-party image attachments to OCR text when the model lacks vision support', async () => {
@@ -790,7 +607,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     mocks.createClaudeQuery.mockReturnValue(query)
     mocks.getModelByKey.mockReturnValue({ capabilities: [] })
     mocks.collectFileAttachments.mockReturnValueOnce([
-      { fileEntryId: 'entry-1', handle: 'pixel.png', displayName: 'pixel.png' }
+      { fileEntryId: 'entry-1', handle: createFileAttachmentHandle('entry-1'), displayName: 'pixel.png' }
     ])
     mocks.prepareChatMessages.mockImplementationOnce(async ([message]) => [
       {
@@ -801,6 +618,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
         ]
       }
     ])
+    enableAssistantFileTools()
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
