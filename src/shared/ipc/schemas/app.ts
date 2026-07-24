@@ -44,6 +44,15 @@ export const appRequestSchemas = {
     output: z.number()
   }),
   'app.set_spell_check_enabled': defineRoute({ input: z.boolean(), output: z.void() }),
+  // Data reset (#17131): shows a native main-process confirmation (the
+  // renderer's own dialogs don't count as arming authority for a
+  // whole-profile wipe), then durably writes the pending-marker file into
+  // userData and relaunches; runDataReset performs the wipe at preboot on
+  // the next boot. Resolving void is ambiguous (user cancelled at the native
+  // dialog, or the relaunch killed this process first) — callers must not
+  // rely on it. A *rejection* is meaningful: the marker could not be written
+  // and no relaunch was triggered.
+  'app.data_reset.request': defineRoute({ input: z.void(), output: z.void() }),
   'app.updater.check_for_update': defineRoute({ input: z.void(), output: z.void() }),
   'app.updater.quit_and_install': defineRoute({ input: z.void(), output: z.void() })
 }

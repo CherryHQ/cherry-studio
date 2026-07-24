@@ -3886,18 +3886,6 @@
     "regenerate": {
       "confirm": "Việc tái tạo sẽ thay thế tin nhắn hiện tại"
     },
-    "reset": {
-      "confirm": {
-        "content": "Bạn có chắc chắn muốn xóa toàn bộ dữ liệu?"
-      },
-      "double": {
-        "confirm": {
-          "content": "Tất cả dữ liệu sẽ bị mất, bạn có muốn tiếp tục không?",
-          "title": "DỮ LIỆU BỊ MẤT !!!"
-        }
-      },
-      "success": "Đặt lại dữ liệu thành công"
-    },
     "restore": {
       "failed": "Khôi phục thất bại",
       "success": "Đã khôi phục thành công"
@@ -5727,6 +5715,13 @@
       "data": {
         "title": "Thư mục dữ liệu"
       },
+      "data_reset": {
+        "button": "[to be translated]:Reset",
+        "confirm_content": "[to be translated]:This will delete all chats, assistants, knowledge bases, files, and settings — the app will restart as a fresh install. Your custom data directory location, downloaded tools, local models, and login credentials such as MCP and GitHub Copilot are kept.",
+        "confirm_title": "[to be translated]:Are you sure you want to clear all data?",
+        "error": "[to be translated]:Failed to start data reset",
+        "title": "[to be translated]:Data Reset"
+      },
       "divider": {
         "basic": "Cài đặt Dữ liệu Cơ bản",
         "cloud_storage": "Cài đặt Sao lưu Đám mây",
@@ -6459,10 +6454,6 @@
       "emoji_picker": "Bộ chọn biểu tượng cảm xúc",
       "image_upload": "Tải lên hình ảnh",
       "label": "Cài đặt chung",
-      "reset": {
-        "button": "Đặt lại",
-        "title": "Đặt lại dữ liệu"
-      },
       "restore": {
         "button": "Khôi phục"
       },

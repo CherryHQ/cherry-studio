@@ -3886,18 +3886,6 @@
     "regenerate": {
       "confirm": "Η επαναδημιουργία θα αφαιρέσει το τρέχον μήνυμα"
     },
-    "reset": {
-      "confirm": {
-        "content": "Θέλετε να επαναφέρετε όλα τα δεδομένα;"
-      },
-      "double": {
-        "confirm": {
-          "content": "Όλα τα δεδομένα σας θα χαθούν, εάν δεν έχετε κάνει αντιγραφή, δεν θα μπορείτε να ανακτήσετε τα δεδομένα, είστε σίγουροι ότι θέλετε να συνεχίσετε;",
-          "title": "Η απώλεια δεδομένων!!!"
-        }
-      },
-      "success": "Επιτυχής επαναφορά δεδομένων"
-    },
     "restore": {
       "failed": "Η αποκατάσταση απέτυχε",
       "success": "Η αποκατάσταση ήταν επιτυχής"
@@ -5727,6 +5715,13 @@
       "data": {
         "title": "Φάκελος δεδομένων"
       },
+      "data_reset": {
+        "button": "[to be translated]:Reset",
+        "confirm_content": "[to be translated]:This will delete all chats, assistants, knowledge bases, files, and settings — the app will restart as a fresh install. Your custom data directory location, downloaded tools, local models, and login credentials such as MCP and GitHub Copilot are kept.",
+        "confirm_title": "[to be translated]:Are you sure you want to clear all data?",
+        "error": "[to be translated]:Failed to start data reset",
+        "title": "[to be translated]:Data Reset"
+      },
       "divider": {
         "basic": "Ρυθμίσεις βασικών δεδομένων",
         "cloud_storage": "Ρυθμίσεις αποθήκευσης στο νέφος",
@@ -6459,10 +6454,6 @@
       "emoji_picker": "Επιλογή σμιλιών",
       "image_upload": "Φόρτωση εικόνων",
       "label": "Γενικές ρυθμίσεις",
-      "reset": {
-        "button": "Επαναφορά",
-        "title": "Επαναφορά δεδομένων"
-      },
       "restore": {
         "button": "Αποκατάσταση"
       },

@@ -3886,18 +3886,6 @@
     "regenerate": {
       "confirm": "再生成すると現在のメッセージが置き換えられます"
     },
-    "reset": {
-      "confirm": {
-        "content": "すべてのデータをリセットしてもよろしいですか？"
-      },
-      "double": {
-        "confirm": {
-          "content": "すべてのデータが失われます。続行しますか？",
-          "title": "データが失われます！！！"
-        }
-      },
-      "success": "データリセット成功"
-    },
     "restore": {
       "failed": "復元に失敗しました",
       "success": "復元に成功しました"
@@ -5727,6 +5715,13 @@
       "data": {
         "title": "データディレクトリ"
       },
+      "data_reset": {
+        "button": "[to be translated]:Reset",
+        "confirm_content": "[to be translated]:This will delete all chats, assistants, knowledge bases, files, and settings — the app will restart as a fresh install. Your custom data directory location, downloaded tools, local models, and login credentials such as MCP and GitHub Copilot are kept.",
+        "confirm_title": "[to be translated]:Are you sure you want to clear all data?",
+        "error": "[to be translated]:Failed to start data reset",
+        "title": "[to be translated]:Data Reset"
+      },
       "divider": {
         "basic": "基本データ設定",
         "cloud_storage": "クラウドバックアップ設定",
@@ -6459,10 +6454,6 @@
       "emoji_picker": "絵文字ピッカー",
       "image_upload": "画像アップロード",
       "label": "一般設定",
-      "reset": {
-        "button": "リセット",
-        "title": "データをリセット"
-      },
       "restore": {
         "button": "復元"
       },

@@ -76,79 +76,6 @@ class BackupManager {
   } | null = null
 
   /**
-   * Handle backup restoration on app startup
-   * Called after window is created but before renderer is loaded
-   */
-  static async handleStartupRestore(): Promise<void> {
-    const userDataPath = app.getPath('userData')
-
-    // BackupManager is v1 legacy and intentionally does NOT consume the v2
-    // path registry — every path it touches is hand-rolled from
-    // app.getPath('userData'). Two reasons:
-    //
-    //   1. handleStartupRestore (this method) runs from src/main/main.ts
-    //      BEFORE application.bootstrap() — it has to move restore markers
-    //      off disk before any service grabs file handles. Calling
-    //      application.getPath() pre-bootstrap throws.
-    //   2. The whole class is scheduled for v2 refactor (see the file
-    //      header). Until that lands, mixing v1 instantiation with v2 path
-    //      lookups just creates timing footguns. Stay self-contained.
-    //
-    // Application.ts:132-137 explicitly carves out this exception for
-    // "legacy backup restore" pipelines.
-
-    // Define restore paths
-    const indexedDBRestore = path.join(userDataPath, 'IndexedDB.restore')
-    const localStorageRestore = path.join(userDataPath, 'Local Storage.restore')
-    const dataRestore = path.join(userDataPath, 'Data') + '.restore'
-
-    // Define target paths
-    const indexedDBDest = path.join(userDataPath, 'IndexedDB')
-    const localStorageDest = path.join(userDataPath, 'Local Storage')
-    const dataDest = path.join(userDataPath, 'Data')
-
-    try {
-      // Check if any restore markers exist
-      const hasIndexedDBRestore = await fs.pathExists(indexedDBRestore)
-      const hasLocalStorageRestore = await fs.pathExists(localStorageRestore)
-      const hasDataRestore = await fs.pathExists(dataRestore)
-
-      if (!hasIndexedDBRestore && !hasLocalStorageRestore && !hasDataRestore) {
-        return
-      }
-
-      // Restore IndexedDB
-      if (hasIndexedDBRestore) {
-        logger.info('[handleStartupRestore] Found IndexedDB.restore directories, completing restoration...')
-        await fs.remove(indexedDBDest).catch(() => {})
-        await fs.rename(indexedDBRestore, indexedDBDest)
-      }
-
-      // Restore Local Storage
-      if (hasLocalStorageRestore) {
-        logger.info('[handleStartupRestore] Found Local Storage.restore directories, completing restoration...')
-        await fs.remove(localStorageDest).catch(() => {})
-        await fs.rename(localStorageRestore, localStorageDest)
-      }
-
-      // Restore Data
-      if (hasDataRestore) {
-        logger.info('[handleStartupRestore] Found Local Data.restore directories, completing restoration...')
-        await fs.remove(dataDest).catch(() => {})
-        await fs.rename(dataRestore, dataDest)
-      }
-
-      logger.info('[handleStartupRestore] Restoration completed successfully')
-    } catch (error) {
-      logger.error('[handleStartupRestore] Failed to complete restoration:', error as Error)
-      // Clean up restore markers to avoid endless retry loop
-      await fs.remove(indexedDBRestore).catch(() => {})
-      await fs.remove(localStorageRestore).catch(() => {})
-      await fs.remove(dataRestore).catch(() => {})
-    }
-  }
-
-  /**
    * Backup metadata for direct backup format (version 6+)
    */
   private createDirectBackupMetadata(): {
@@ -576,9 +503,11 @@ class BackupManager {
 
   /**
    * Restore from direct backup format (version 6+).
-   * Writes to `*.restore` directories; `handleStartupRestore` performs the atomic
-   * swap on next launch, before any DB connection or window opens. Avoids
-   * overwriting live IndexedDB / SQLite database files (issue #14774).
+   * Writes to `*.restore` directories that a startup swap was meant to promote
+   * before any DB connection or window opens (issue #14774). That consumer
+   * (`handleStartupRestore`) is gone — nothing promotes these directories
+   * anymore, so this v1 restore path is inert pending the LegacyBackupManager
+   * cleanup flagged in #17131.
    */
   private async restoreDirect(): Promise<void> {
     const onProgress = this.onProgress(IpcChannel.RestoreProgress, true)
@@ -913,21 +842,6 @@ class BackupManager {
     }
 
     return size
-  }
-
-  /**
-   * Stage an empty Data directory; handleStartupRestore swaps it in on next launch.
-   * Avoids races with the SQLite DB / MemoryService / KnowledgeService recreating files
-   * before relaunch.
-   */
-  public async resetData() {
-    // Hand-rolled {userData}/Data — BackupManager bypasses the v2 path
-    // registry entirely. See handleStartupRestore above for the rationale.
-    const dataPath = path.join(app.getPath('userData'), 'Data')
-
-    const dataRestorePath = dataPath + '.restore'
-    await fs.remove(dataRestorePath).catch(() => {})
-    await fs.ensureDir(dataRestorePath)
   }
 
   /**

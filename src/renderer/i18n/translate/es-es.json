@@ -3886,18 +3886,6 @@
     "regenerate": {
       "confirm": "Regenerar sobrescribirá el mensaje actual"
     },
-    "reset": {
-      "confirm": {
-        "content": "¿Está seguro de querer restablecer todos los datos?"
-      },
-      "double": {
-        "confirm": {
-          "content": "Todos sus datos se perderán, si no tiene una copia de seguridad, no podrán ser recuperados, ¿desea continuar?",
-          "title": "¡¡Pérdida de datos!!"
-        }
-      },
-      "success": "Restablecimiento de datos exitoso"
-    },
     "restore": {
       "failed": "Restauración fallida",
       "success": "Restauración exitosa"
@@ -5727,6 +5715,13 @@
       "data": {
         "title": "Directorio de datos"
       },
+      "data_reset": {
+        "button": "[to be translated]:Reset",
+        "confirm_content": "[to be translated]:This will delete all chats, assistants, knowledge bases, files, and settings — the app will restart as a fresh install. Your custom data directory location, downloaded tools, local models, and login credentials such as MCP and GitHub Copilot are kept.",
+        "confirm_title": "[to be translated]:Are you sure you want to clear all data?",
+        "error": "[to be translated]:Failed to start data reset",
+        "title": "[to be translated]:Data Reset"
+      },
       "divider": {
         "basic": "Configuración básica",
         "cloud_storage": "Configuración de almacenamiento en la nube",
@@ -6459,10 +6454,6 @@
       "emoji_picker": "Selector de emojis",
       "image_upload": "Carga de imágenes",
       "label": "Configuración general",
-      "reset": {
-        "button": "Restablecer",
-        "title": "Restablecer datos"
-      },
       "restore": {
         "button": "Restaurar"
       },

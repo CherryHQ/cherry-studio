@@ -3,6 +3,7 @@ import { arch } from 'node:os'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
+import { requestDataReset } from '@main/services/dataReset'
 import { inspectUserDataRelocationTarget, requestUserDataRelocation } from '@main/services/userDataRelocation'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -44,6 +45,10 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
   'app.set_spell_check_enabled': async (isEnable) => {
     webContents.getAllWebContents().forEach((w) => w.session.setSpellCheckerEnabled(isEnable))
   },
+  // Thin delegate: the whole request-to-restart contract (native
+  // confirmation, marker staging, Chromium clear, graceful relaunch) is
+  // owned by services/dataReset.
+  'app.data_reset.request': async () => requestDataReset(),
   'app.updater.check_for_update': async () => {
     await application.get('AppUpdaterService').checkForUpdates()
   },

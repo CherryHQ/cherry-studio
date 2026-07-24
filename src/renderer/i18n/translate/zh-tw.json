@@ -3905,18 +3905,6 @@
     "regenerate": {
       "confirm": "重新產生會覆寫目前訊息"
     },
-    "reset": {
-      "confirm": {
-        "content": "確定要清除所有資料嗎？"
-      },
-      "double": {
-        "confirm": {
-          "content": "所有資料將會被清除，您確定要繼續嗎？",
-          "title": "資料將會遺失！！！"
-        }
-      },
-      "success": "資料重設成功"
-    },
     "restore": {
       "failed": "還原失敗",
       "success": "還原成功"
@@ -5746,6 +5734,13 @@
       "data": {
         "title": "資料目錄"
       },
+      "data_reset": {
+        "button": "[to be translated]:Reset",
+        "confirm_content": "[to be translated]:This will delete all chats, assistants, knowledge bases, files, and settings — the app will restart as a fresh install. Your custom data directory location, downloaded tools, local models, and login credentials such as MCP and GitHub Copilot are kept.",
+        "confirm_title": "[to be translated]:Are you sure you want to clear all data?",
+        "error": "[to be translated]:Failed to start data reset",
+        "title": "[to be translated]:Data Reset"
+      },
       "divider": {
         "basic": "基本資料設定",
         "cloud_storage": "雲備份設定",
@@ -6478,10 +6473,6 @@
       "emoji_picker": "表情選擇器",
       "image_upload": "圖片上傳",
       "label": "一般設定",
-      "reset": {
-        "button": "重設",
-        "title": "資料重設"
-      },
       "restore": {
         "button": "復原"
       },

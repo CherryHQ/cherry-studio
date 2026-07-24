@@ -3904,18 +3904,6 @@
     "regenerate": {
       "confirm": "重新生成会覆盖当前消息"
     },
-    "reset": {
-      "confirm": {
-        "content": "确定要重置所有数据吗？"
-      },
-      "double": {
-        "confirm": {
-          "content": "你的全部数据都会丢失，如果没有备份数据，将无法恢复，确定要继续吗？",
-          "title": "数据丢失！！！"
-        }
-      },
-      "success": "数据重置成功"
-    },
     "restore": {
       "failed": "恢复失败",
       "success": "恢复成功"
@@ -5760,6 +5748,13 @@
       "data": {
         "title": "数据目录"
       },
+      "data_reset": {
+        "button": "重置",
+        "confirm_content": "将删除全部聊天记录、助手、知识库、文件和设置，应用会以全新安装状态重启。自定义数据目录位置、硬件加速等启动设置、已下载的工具、本地模型，以及 MCP、GitHub Copilot 等登录凭据会保留。",
+        "confirm_title": "确定要重置所有数据吗？",
+        "error": "重置数据启动失败",
+        "title": "重置数据"
+      },
       "divider": {
         "basic": "基础数据设置",
         "cloud_storage": "云备份设置",
@@ -6492,10 +6487,6 @@
       "emoji_picker": "表情选择器",
       "image_upload": "图片上传",
       "label": "常规设置",
-      "reset": {
-        "button": "重置",
-        "title": "重置数据"
-      },
       "restore": {
         "button": "恢复"
       },

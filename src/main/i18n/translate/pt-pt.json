@@ -56,6 +56,13 @@
   },
   "dialog": {
     "all_files": "Todos os Arquivos",
+    "data_reset": {
+      "cancel": "[to be translated]:Cancel",
+      "confirm": "[to be translated]:Erase Everything",
+      "detail": "[to be translated]:This cannot be undone. The app will relaunch immediately and erase all chats, assistants, knowledge bases, files, and settings on startup. MCP and GitHub Copilot credentials in ~/.cherrystudio are retained and must be removed manually.",
+      "message": "[to be translated]:All data will be lost, do you want to continue?",
+      "title": "[to be translated]:Data Reset"
+    },
     "html_files": "Arquivos HTML",
     "open_file": "Abrir Arquivo",
     "pdf_files": "Arquivos PDF",

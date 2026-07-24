@@ -229,6 +229,7 @@ async function executeRelocation(
 
   const { workPath, asidePath } = relocationArtifactPaths(pending.to, pending.taskId)
   const payloadPath = path.join(workPath, RELOCATION_PAYLOAD_DIRNAME)
+  const dataResetMarkerBasename = path.basename(application.getPath('feature.data_reset.marker_file'))
   let asideCreated = false
   let promoted = false
 
@@ -280,7 +281,16 @@ async function executeRelocation(
       filter: async (source, target) => {
         const isSourceRootEntry = normalizeForCompare(path.dirname(source)) === normalizeForCompare(pending.from)
         const name = path.basename(source)
-        if (isSourceRootEntry && (name.startsWith('Singleton') || name === RELOCATION_OWNER_MARKER)) return false
+        // Exclude the data-reset pending marker: a copy carried into the
+        // relocated profile could never be consumed there (its canonicalPath
+        // pins the ORIGINAL userData, so runDataReset would forever refuse the
+        // mismatch) and must not ride along.
+        if (
+          isSourceRootEntry &&
+          (name.startsWith('Singleton') || name === RELOCATION_OWNER_MARKER || name === dataResetMarkerBasename)
+        ) {
+          return false
+        }
 
         let stat: Awaited<ReturnType<typeof fsp.lstat>>
         try {

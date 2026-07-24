@@ -3886,18 +3886,6 @@
     "regenerate": {
       "confirm": "Перегенерация заменит текущее сообщение"
     },
-    "reset": {
-      "confirm": {
-        "content": "Вы уверены, что хотите очистить все данные?"
-      },
-      "double": {
-        "confirm": {
-          "content": "Все данные будут утеряны, хотите продолжить?",
-          "title": "ДАННЫЕ БУДУТ УТЕРЯНЫ !!!"
-        }
-      },
-      "success": "Данные успешно сброшены"
-    },
     "restore": {
       "failed": "Восстановление не удалось",
       "success": "Успешно восстановлено"
@@ -5727,6 +5715,13 @@
       "data": {
         "title": "Каталог данных"
       },
+      "data_reset": {
+        "button": "[to be translated]:Reset",
+        "confirm_content": "[to be translated]:This will delete all chats, assistants, knowledge bases, files, and settings — the app will restart as a fresh install. Your custom data directory location, downloaded tools, local models, and login credentials such as MCP and GitHub Copilot are kept.",
+        "confirm_title": "[to be translated]:Are you sure you want to clear all data?",
+        "error": "[to be translated]:Failed to start data reset",
+        "title": "[to be translated]:Data Reset"
+      },
       "divider": {
         "basic": "Основные настройки данных",
         "cloud_storage": "Настройки облачного резервирования",
@@ -6459,10 +6454,6 @@
       "emoji_picker": "Выбор эмодзи",
       "image_upload": "Загрузка изображений",
       "label": "Общие настройки",
-      "reset": {
-        "button": "Сброс",
-        "title": "Сброс данных"
-      },
       "restore": {
         "button": "Восстановление"
       },

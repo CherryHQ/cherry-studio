@@ -3886,18 +3886,6 @@
     "regenerate": {
       "confirm": "Regenerarea va înlocui mesajul curent"
     },
-    "reset": {
-      "confirm": {
-        "content": "Ești sigur că vrei să ștergi toate datele?"
-      },
-      "double": {
-        "confirm": {
-          "content": "Toate datele vor fi pierdute, vrei să continui?",
-          "title": "DATE PIERDUTE !!!"
-        }
-      },
-      "success": "Retelearea datelor a reușit"
-    },
     "restore": {
       "failed": "Restaurare eșuată",
       "success": "Restaurat cu succes"
@@ -5727,6 +5715,13 @@
       "data": {
         "title": "Director de date"
       },
+      "data_reset": {
+        "button": "[to be translated]:Reset",
+        "confirm_content": "[to be translated]:This will delete all chats, assistants, knowledge bases, files, and settings — the app will restart as a fresh install. Your custom data directory location, downloaded tools, local models, and login credentials such as MCP and GitHub Copilot are kept.",
+        "confirm_title": "[to be translated]:Are you sure you want to clear all data?",
+        "error": "[to be translated]:Failed to start data reset",
+        "title": "[to be translated]:Data Reset"
+      },
       "divider": {
         "basic": "Setări date de bază",
         "cloud_storage": "Setări backup în cloud",
@@ -6459,10 +6454,6 @@
       "emoji_picker": "Selector emoji",
       "image_upload": "Încărcare imagine",
       "label": "Setări generale",
-      "reset": {
-        "button": "Resetează",
-        "title": "Resetare date"
-      },
       "restore": {
         "button": "Restaurează"
       },

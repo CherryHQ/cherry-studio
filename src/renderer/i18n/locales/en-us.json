@@ -3904,18 +3904,6 @@
     "regenerate": {
       "confirm": "Regenerating will replace current message"
     },
-    "reset": {
-      "confirm": {
-        "content": "Are you sure you want to clear all data?"
-      },
-      "double": {
-        "confirm": {
-          "content": "All data will be lost, do you want to continue?",
-          "title": "DATA LOST !!!"
-        }
-      },
-      "success": "Data reset successful"
-    },
     "restore": {
       "failed": "Restore failed",
       "success": "Restored successfully"
@@ -5760,6 +5748,13 @@
       "data": {
         "title": "Data Directory"
       },
+      "data_reset": {
+        "button": "Reset",
+        "confirm_content": "This will delete all chats, assistants, knowledge bases, files, and settings — the app will restart as a fresh install. Your custom data directory location, startup settings such as hardware acceleration, downloaded tools, local models, and login credentials such as MCP and GitHub Copilot are kept.",
+        "confirm_title": "Are you sure you want to clear all data?",
+        "error": "Failed to start data reset",
+        "title": "Data Reset"
+      },
       "divider": {
         "basic": "Basic Data",
         "cloud_storage": "Cloud Backup",
@@ -6492,10 +6487,6 @@
       "emoji_picker": "Emoji Picker",
       "image_upload": "Image Upload",
       "label": "General Settings",
-      "reset": {
-        "button": "Reset",
-        "title": "Data Reset"
-      },
       "restore": {
         "button": "Restore"
       },
