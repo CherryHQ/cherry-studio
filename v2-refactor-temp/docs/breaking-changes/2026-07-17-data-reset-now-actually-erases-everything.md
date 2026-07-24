@@ -21,15 +21,17 @@ directory — user files, artifacts from other tools — is never touched.
 
 Deliberately kept:
 
-- the custom data directory **location** (if one was configured) — the reset
-  wipes the data at that location, not the choice of location;
+- the custom data directory **location** (if one was configured) and the
+  hardware-acceleration switch — both live in machine-level startup
+  configuration (`~/.cherrystudio/boot-config.json`), which is shared by
+  every data directory and is not part of the wiped profile;
 - downloaded machine artifacts: tool binaries (uv, bun, …), local model
   weights (embedding / OCR), and the OCR language data. This PR only preserves
   those files; it deliberately does not reconcile or repair local-model state
   after the database reset;
 - log files and crash dumps (diagnostics, not user content);
-- credentials and machine artifacts under `~/.cherrystudio` (see below).
-  `boot-config.json` remains there, but most of its values reset to defaults.
+- credentials and machine artifacts under `~/.cherrystudio` (see below),
+  including `boot-config.json`, which the reset does not touch at all.
 
 ## Why this matters to the user
 
@@ -41,10 +43,11 @@ Deliberately kept:
 - `~/.cherrystudio` is deliberately NOT touched (maintainer decision:
   safety over thoroughness). Its machine-level credentials and artifacts —
   including tool binaries, model runtimes, MCP OAuth state, and GitHub Copilot
-  credentials — remain. Its `boot-config.json` is updated: the custom data
-  directory location is retained, while every other BootConfig key resets to
-  its default. Users who want those credentials gone must remove
-  `~/.cherrystudio` manually after the reset.
+  credentials — remain, and its `boot-config.json` (the custom data directory
+  location, the hardware-acceleration choice) is left as-is: it is
+  machine-wide startup configuration shared by every data directory, not
+  data belonging to the wiped profile. Users who want those credentials gone
+  must remove `~/.cherrystudio` manually after the reset.
 
 ## What the user should do
 
