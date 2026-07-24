@@ -8,7 +8,7 @@ import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/a
 import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
-import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
+import { type JSONValue, stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
 
 import { collectFileAttachments } from '../../../messages/attachmentRouting'
 import type { FileAttachmentRef } from '../../../messages/attachmentTypes'
@@ -27,6 +27,7 @@ import type { AiBaseRequest, CallOverrides } from '../../../types'
 import { filterStandardParams } from '../../../utils/modelParameters'
 import {
   buildCapabilityProviderOptions,
+  buildResolvedReasoningProviderOptions,
   extractAiSdkStandardParams,
   mergeCustomProviderParameters
 } from '../../../utils/options'
@@ -308,7 +309,18 @@ function buildAgentOptions(scope: RequestScope, featureStopConditions: StopCondi
           endpointType,
           reasoning
         })
-      : {}
+      : // Assistant-less callers (translate, prompt streams) opt into reasoning by setting
+        // `request.reasoningEffort` explicitly; without it the invocation stays un-emitted so
+        // gateway/topic-naming requests are unchanged.
+        request.reasoningEffort !== undefined
+        ? (buildResolvedReasoningProviderOptions({
+            aiSdkProviderId: sdkConfig.providerId,
+            endpointType,
+            reasoning,
+            actualProviderId: provider.id,
+            modelId: model.apiModelId ?? model.id
+          }) as Record<string, Record<string, JSONValue>>)
+        : {}
   let standardParams: Partial<Record<string, unknown>> = {}
   if (assistant) {
     const customParams = getCustomParameters(assistant)

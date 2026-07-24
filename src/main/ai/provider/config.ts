@@ -170,7 +170,8 @@ export async function providerToAiSdkConfig(
     { match: (_, id) => id === 'google-vertex' || id === 'google-vertex-anthropic', build: buildVertexConfig },
     { match: (p) => matchesPreset(p, SystemProviderIds.cherryin), build: buildCherryinConfig },
     { match: (_, id) => id === 'newapi', build: buildNewApiConfig },
-    { match: (_, id) => id === 'aihubmix', build: buildAiHubMixConfig }
+    { match: (_, id) => id === 'aihubmix', build: buildAiHubMixConfig },
+    { match: (_, id) => id === 'dmxapi', build: buildDmxapiConfig }
   ]
 
   const builder = builders.find((b) => b.match(provider, aiSdkProviderId))
@@ -592,11 +593,38 @@ function buildGenericProviderConfig(ctx: BuilderContext): ProviderConfig {
 }
 
 function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
+  const { baseURL, endpoint } = routeToEndpoint(
+    formatBaseURL(
+      getBaseUrl(ctx.actualProvider, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS),
+      ctx.actualProvider,
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    )
+  )
   return {
     providerId: 'aihubmix',
-    endpoint: ctx.endpoint,
+    endpoint,
     providerSettings: {
       ...ctx.baseConfig,
+      baseURL,
+      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
+    }
+  }
+}
+
+function buildDmxapiConfig(ctx: BuilderContext): ProviderConfig<'dmxapi'> {
+  const { baseURL, endpoint } = routeToEndpoint(
+    formatBaseURL(
+      getBaseUrl(ctx.actualProvider, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS),
+      ctx.actualProvider,
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    )
+  )
+  return {
+    providerId: 'dmxapi',
+    endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      baseURL,
       headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
     }
   }

@@ -758,6 +758,35 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(config.providerId).toBe('dmxapi')
     })
 
+    it('routes a declared DMXAPI Gemini endpoint through the DMXAPI factory with a shared /v1 base', async () => {
+      const provider = makeProvider({
+        id: 'dmxapi',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://www.dmxapi.cn',
+            adapterFamily: 'dmxapi'
+          },
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
+            baseUrl: 'https://www.dmxapi.cn/v1beta/',
+            adapterFamily: 'dmxapi'
+          }
+        }
+      })
+      const model = makeModel({
+        id: 'dmxapi::gemini-2.5-pro',
+        providerId: 'dmxapi',
+        apiModelId: 'gemini-2.5-pro'
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(config.providerId).toBe('dmxapi')
+      // The factory derives /v1beta itself; its shared input remains the chat-compatible /v1 base.
+      expect(settings.baseURL).toBe('https://www.dmxapi.cn/v1')
+    })
+
     it('keeps DMXAPI native IMAGE models (gpt-image / dall-e / imagen) on openai-compatible (unchanged path)', async () => {
       const provider = makeProvider({
         id: 'dmxapi',

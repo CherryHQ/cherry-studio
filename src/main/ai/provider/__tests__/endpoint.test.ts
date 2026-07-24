@@ -303,6 +303,123 @@ describe('resolveEffectiveEndpoint', () => {
     expect(endpointType).toBeUndefined()
     expect(baseUrl).toBe('')
   })
+
+  describe('multi-backend gateway per-model routing (AiHubMix)', () => {
+    // AiHubMix models carry no `endpointTypes` (its /models list has no `supported_endpoint_types`),
+    // so the endpoint must be resolved from the model id — otherwise every route collapses onto the
+    // default openai-chat endpoint and the reasoning namespace/dialect is wrong for claude/gemini/gpt.
+    const aihubmix = makeProvider({
+      id: 'aihubmix',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://aihubmix.com/v1', adapterFamily: 'aihubmix' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://aihubmix.com', adapterFamily: 'aihubmix' },
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://aihubmix.com/v1', adapterFamily: 'aihubmix' },
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
+          baseUrl: 'https://aihubmix.com/gemini/v1beta',
+          adapterFamily: 'aihubmix'
+        }
+      }
+    })
+
+    it.each([
+      ['claude-opus-4-6', ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+      ['gemini-2.5-pro', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT],
+      ['gpt-4o', ENDPOINT_TYPE.OPENAI_RESPONSES],
+      ['glm-5', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    ] as const)('resolves %s → %s from the model id', (id, expected) => {
+      expect(resolveEffectiveEndpoint(aihubmix, { id } as never).endpointType).toBe(expected)
+    })
+
+    it('routes by apiModelId when present (renamed/user-added ids)', () => {
+      const model = { id: 'my-alias', apiModelId: 'claude-sonnet-4-5' } as never
+      expect(resolveEffectiveEndpoint(aihubmix, model).endpointType).toBe(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
+    })
+
+    it('lets an explicit model.endpointTypes hint win over the gateway route', () => {
+      const model = { id: 'claude-opus-4-6', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] } as never
+      expect(resolveEffectiveEndpoint(aihubmix, model).endpointType).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    })
+
+    it('does NOT route to an endpoint the provider row does not declare (stale insert-only seed)', () => {
+      // A row seeded before google/responses were added to the catalog only has the original two
+      // endpoints. Routing gemini/gpt to the undeclared endpoint would drop aiSdkProviderId off the
+      // `aihubmix` family and hand the model to the generic openai-compatible client. Fall through to
+      // the default instead — no regression until the row is reconciled.
+      const staleAihubmix = makeProvider({
+        id: 'aihubmix',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://aihubmix.com/v1', adapterFamily: 'aihubmix' },
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://aihubmix.com', adapterFamily: 'aihubmix' }
+        }
+      })
+      // gemini/gpt endpoints are undeclared → fall back to the default; claude is declared → still routes.
+      expect(resolveEffectiveEndpoint(staleAihubmix, { id: 'gemini-2.5-pro' } as never).endpointType).toBe(
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      )
+      expect(resolveEffectiveEndpoint(staleAihubmix, { id: 'gpt-4o' } as never).endpointType).toBe(
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      )
+      expect(resolveEffectiveEndpoint(staleAihubmix, { id: 'claude-opus-4-6' } as never).endpointType).toBe(
+        ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+      )
+    })
+  })
+
+  describe('multi-backend gateway per-model routing (DMXAPI)', () => {
+    const dmxapi = makeProvider({
+      id: 'dmxapi',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://www.dmxapi.cn',
+          adapterFamily: 'dmxapi'
+        },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+          baseUrl: 'https://www.dmxapi.cn',
+          adapterFamily: 'dmxapi'
+        },
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
+          baseUrl: 'https://www.dmxapi.cn/v1beta/',
+          adapterFamily: 'dmxapi'
+        }
+      }
+    })
+
+    it.each([
+      ['claude-opus-4-6', ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+      ['gemini-2.5-pro', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT],
+      ['gpt-5', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+      ['qwen3.5-plus', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    ] as const)('resolves %s → %s from the model id', (id, expected) => {
+      expect(resolveEffectiveEndpoint(dmxapi, { id } as never).endpointType).toBe(expected)
+    })
+
+    it('keeps a stale row without the Google endpoint on its existing chat route', () => {
+      const staleDmxapi = makeProvider({
+        id: 'dmxapi',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://www.dmxapi.cn',
+            adapterFamily: 'openai-compatible'
+          },
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+            baseUrl: 'https://www.dmxapi.cn',
+            adapterFamily: 'anthropic'
+          }
+        }
+      })
+
+      expect(resolveEffectiveEndpoint(staleDmxapi, { id: 'gemini-2.5-pro' } as never).endpointType).toBe(
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      )
+      expect(resolveEffectiveEndpoint(staleDmxapi, { id: 'claude-opus-4-6' } as never).endpointType).toBe(
+        ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+      )
+    })
+  })
 })
 
 describe('invariant: resolveAiSdkProviderId is deterministic for the registered preset matrix', () => {

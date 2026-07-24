@@ -30,6 +30,7 @@ import type { JSONValue } from 'ai'
 import { merge } from 'es-toolkit/compat'
 
 import { resolveProviderOptionsKey } from '../provider/endpoint'
+import { resolveGatewayProviderOptionsKey } from '../provider/gatewayRouting'
 import type { AppProviderId } from '../types'
 import type { ProviderCapabilities } from '../types'
 import { addAnthropicHeaders } from './anthropicHeaders'
@@ -125,17 +126,22 @@ export function buildCapabilityProviderOptions(
   }
 ): Record<string, Record<string, JSONValue>> {
   const rawProviderId = context.runtimeProviderId
+  const modelId = model.apiModelId ?? model.id
   const providerOptionsKey = resolveProviderOptionsKey(rawProviderId)
   const serviceTier = getServiceTier(model, actualProvider)
   const textVerbosity = getVerbosity(model, actualProvider)
   const resolvedReasoningOptions = capabilities.enableReasoning
-    ? encodeReasoningOptions(rawProviderId, context.endpointType, context.reasoning, actualProvider.id)
+    ? encodeReasoningOptions(rawProviderId, context.endpointType, context.reasoning, actualProvider.id, modelId)
     : {
         providerId: rawProviderId === 'openai-compatible' ? actualProvider.id : providerOptionsKey,
         options: {}
       }
   const reasoningOptions =
-    rawProviderId === 'openai-compatible' || rawProviderId === 'google-vertex-maas'
+    rawProviderId === 'openai-compatible' ||
+    rawProviderId === 'github-copilot-openai-compatible' ||
+    rawProviderId === 'google-vertex-maas' ||
+    ((rawProviderId === 'aihubmix' || rawProviderId === SystemProviderIds.dmxapi) &&
+      context.endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
       ? { ...resolvedReasoningOptions, options: normalizeOpenAICompatibleParams(resolvedReasoningOptions.options) }
       : resolvedReasoningOptions
 
@@ -183,6 +189,7 @@ export function buildCapabilityProviderOptions(
     case 'cherryin-chat':
     case 'newapi':
     case 'aihubmix':
+    case SystemProviderIds.dmxapi:
     case SystemProviderIds.gateway:
       providerSpecificOptions = buildAIGatewayOptions(
         model,
@@ -228,7 +235,8 @@ function encodeReasoningOptions(
   aiSdkProviderId: AppProviderId,
   endpointType: EndpointType | undefined,
   invocation: ResolvedReasoningInvocation,
-  actualProviderId?: string
+  actualProviderId?: string,
+  modelId?: string
 ): { providerId: string; options: Record<string, unknown> } {
   let providerId: string
   switch (aiSdkProviderId) {
@@ -267,8 +275,12 @@ function encodeReasoningOptions(
     case 'cherryin-chat':
     case 'newapi':
     case 'aihubmix':
+    case SystemProviderIds.dmxapi:
     case SystemProviderIds.gateway:
-      if (endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
+      const routedProviderOptionsKey = modelId ? resolveGatewayProviderOptionsKey(aiSdkProviderId, modelId) : undefined
+      if (routedProviderOptionsKey) {
+        providerId = routedProviderOptionsKey
+      } else if (endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
         providerId = 'anthropic'
       } else if (endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) {
         providerId = 'google'
@@ -278,6 +290,7 @@ function encodeReasoningOptions(
         providerId = aiSdkProviderId
       }
       break
+    case 'github-copilot-openai-compatible':
     case 'openai-compatible':
       // createOpenAICompatible() names the language model after the concrete
       // provider. Unknown compatible fields are forwarded only from that
@@ -296,15 +309,22 @@ export function buildResolvedReasoningProviderOptions(context: {
   endpointType: EndpointType | undefined
   reasoning: ResolvedReasoningInvocation
   actualProviderId?: string
+  modelId?: string
 }): Record<string, Record<string, unknown>> {
   const encoded = encodeReasoningOptions(
     context.aiSdkProviderId,
     context.endpointType,
     context.reasoning,
-    context.actualProviderId
+    context.actualProviderId,
+    context.modelId
   )
   const options =
-    context.aiSdkProviderId === 'openai-compatible' ? normalizeOpenAICompatibleParams(encoded.options) : encoded.options
+    context.aiSdkProviderId === 'openai-compatible' ||
+    context.aiSdkProviderId === 'github-copilot-openai-compatible' ||
+    ((context.aiSdkProviderId === 'aihubmix' || context.aiSdkProviderId === SystemProviderIds.dmxapi) &&
+      context.endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+      ? normalizeOpenAICompatibleParams(encoded.options)
+      : encoded.options
   return Object.keys(options).length > 0 ? { [encoded.providerId]: options } : {}
 }
 
