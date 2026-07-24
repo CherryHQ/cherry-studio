@@ -18,7 +18,7 @@ import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost, formatOllamaApiHost, isWithTrailingSharp } from '@shared/utils/api'
 import { isGenerateImageModel } from '@shared/utils/model'
-import { isAzureOpenAIProvider, isGeminiProvider, isOllamaProvider } from '@shared/utils/provider'
+import { isAzureOpenAIProvider, isGeminiProvider, isOllamaProvider, matchesPreset } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import { isEmpty } from 'es-toolkit/compat'
 
@@ -32,6 +32,7 @@ import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiProvider'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from './endpoint'
 import { buildGrokCliRequestHeaders, rewriteGrokCliResponsesBody } from './grokCli'
+import { isVertexMaasModelId, normalizeVertexCredentials } from './vertex'
 
 interface BaseConfig {
   baseURL: string
@@ -167,11 +168,7 @@ export async function providerToAiSdkConfig(
     // too — `buildVertexConfig` branches on `isAnthropic`. Otherwise it falls through to the
     // generic builder, dropping project/location/googleCredentials and the publisher baseURL.
     { match: (_, id) => id === 'google-vertex' || id === 'google-vertex-anthropic', build: buildVertexConfig },
-    // Match on the provider id, not the resolved aiSdkProviderId: the resolver upgrades the
-    // default chat endpoint to the `cherryin-chat` variant, so `id === 'cherryin'` is never true
-    // for the common path and the request would fall through to the generic builder, dropping the
-    // relay-resolved anthropic/gemini baseURLs and the `/v1` segment. (Mirrors `cherryai`/`copilot`.)
-    { match: (p) => p.id === SystemProviderIds.cherryin, build: buildCherryinConfig },
+    { match: (p) => matchesPreset(p, SystemProviderIds.cherryin), build: buildCherryinConfig },
     { match: (_, id) => id === 'newapi', build: buildNewApiConfig },
     { match: (_, id) => id === 'aihubmix', build: buildAiHubMixConfig }
   ]
@@ -407,27 +404,9 @@ function buildBedrockConfig(ctx: BuilderContext): ProviderConfig<'bedrock'> {
   return { ...base, providerSettings: { ...ctx.baseConfig, baseURL } }
 }
 
-/**
- * Vertex service-account credentials may arrive with either camelCase
- * (`privateKey`/`clientEmail`) or snake_case (`private_key`/`client_email`)
- * keys depending on how the JSON key file was stored. Normalize both shapes to
- * the camelCase form the Vertex SDK expects. Shared with the model-listing path
- * (`createVertexModelListRequest`).
- */
-export function normalizeVertexCredentials(credentials: Record<string, unknown> | undefined): {
-  privateKey?: string
-  clientEmail?: string
-} {
-  if (!credentials) return {}
-  const privateKey = (credentials.privateKey ?? credentials.private_key) as string | undefined
-  const clientEmail = (credentials.clientEmail ?? credentials.client_email) as string | undefined
-  return {
-    ...(privateKey !== undefined && { privateKey }),
-    ...(clientEmail !== undefined && { clientEmail })
-  }
-}
-
-function buildVertexConfig(ctx: BuilderContext): ProviderConfig<'google-vertex'> {
+function buildVertexConfig(
+  ctx: BuilderContext
+): ProviderConfig<'google-vertex'> | ProviderConfig<'google-vertex-maas'> {
   const authConfig = providerService.getAuthConfig(ctx.actualProvider.id)
 
   if (authConfig?.type !== 'iam-gcp') {
@@ -437,19 +416,43 @@ function buildVertexConfig(ctx: BuilderContext): ProviderConfig<'google-vertex'>
   const { project, location, credentials } = authConfig
   const googleCredentials = credentials as Record<string, string> | undefined
 
+  const { privateKey, clientEmail } = normalizeVertexCredentials(googleCredentials)
+  const creds = googleCredentials
+    ? { ...googleCredentials, clientEmail, privateKey: formatPrivateKey(privateKey ?? '') }
+    : undefined
+
   const modelId = ctx.model.apiModelId ?? ctx.model.id
   const isAnthropic = ctx.aiSdkProviderId === 'google-vertex-anthropic' || modelId.startsWith('claude')
+
+  // MaaS open/partner models (Llama, DeepSeek, Qwen, GLM, Kimi, gpt-oss) are served over
+  // Vertex's OpenAI-compatible Chat Completions endpoint, not the Gemini generateContent
+  // SDK that `google-vertex` uses. They carry a `{publisher}/{model}` id — the model listing
+  // bakes the publisher prefix in (§listModels/vertex), and that same id is the `model` the
+  // OpenAI-compatible endpoint expects. Route them to the dedicated MaaS adapter, which mints
+  // the GCP bearer token itself from the iam-gcp credentials.
+  // Manually-added MaaS models must use the same `publisher/model-maas` form as listed models.
+  if (!isAnthropic && isVertexMaasModelId(modelId)) {
+    return {
+      providerId: 'google-vertex-maas',
+      endpoint: ctx.endpoint,
+      providerSettings: {
+        project,
+        location,
+        // Standard providers leave baseURL empty so the adapter derives the aiplatform host
+        // from project+location; a custom host (proxy) passes through untouched.
+        ...(ctx.baseConfig.baseURL && { baseURL: ctx.baseConfig.baseURL }),
+        ...(creds && { googleCredentials: creds }),
+        headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
+      }
+    } as ProviderConfig<'google-vertex-maas'>
+  }
+
   // Standard Vertex providers leave baseURL empty. Appending the publisher suffix to `''`
   // yields a truthy host-less URL (`/publishers/google`), which the Vertex SDK's `?? ` default
   // does NOT override — so it must stay `undefined` to let the SDK derive the full aiplatform
   // host. Only append the suffix when a custom host is actually configured.
   const baseURL = ctx.baseConfig.baseURL
     ? ctx.baseConfig.baseURL + (isAnthropic ? '/publishers/anthropic/models' : '/publishers/google')
-    : undefined
-
-  const { privateKey, clientEmail } = normalizeVertexCredentials(googleCredentials)
-  const creds = googleCredentials
-    ? { ...googleCredentials, clientEmail, privateKey: formatPrivateKey(privateKey ?? '') }
     : undefined
 
   return {
@@ -486,15 +489,9 @@ function mapCherryinEndpointType(epType: string | undefined): CherryInProviderSe
 }
 
 function buildCherryinConfig(ctx: BuilderContext): ProviderConfig {
-  let anthropicBaseURL: string | undefined
-  let geminiBaseURL: string | undefined
-  try {
-    const cherryinProvider = providerService.getByProviderId(SystemProviderIds.cherryin)
-    anthropicBaseURL = formatApiHost(cherryinProvider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl)
-    geminiBaseURL = formatApiHost(getBaseUrl(cherryinProvider, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT), true, 'v1beta')
-  } catch {
-    // CherryIn provider may not exist
-  }
+  const provider = ctx.actualProvider
+  const anthropicBaseURL = formatApiHost(provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl)
+  const geminiBaseURL = formatApiHost(getBaseUrl(provider, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT), true, 'v1beta')
 
   const cherryinEndpointType = mapCherryinEndpointType(ctx.endpointType)
 

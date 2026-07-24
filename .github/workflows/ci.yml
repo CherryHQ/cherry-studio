@@ -136,6 +136,16 @@ jobs:
             exit 1
           fi
 
+      - name: System Provider IDs Check
+        run: |
+          # SystemProviderId is generated from packages/provider-registry — fail on drift.
+          pnpm gen:system-provider-ids
+          if [ -n "$(git status --porcelain src/shared/utils/systemProviderId.ts)" ]; then
+            echo "::error::systemProviderId.ts is out of sync with provider-registry. Run \`pnpm gen:system-provider-ids\` and commit the result."
+            git --no-pager diff -- src/shared/utils/systemProviderId.ts
+            exit 1
+          fi
+
       - name: i18n Check
         run: pnpm i18n:check
 

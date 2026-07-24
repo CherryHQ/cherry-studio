@@ -44,6 +44,7 @@ interface ErrorDetailContentProps {
   error?: SerializedError
   diagnosisContext?: DiagnosisContext
   blockId?: string
+  onDiagnosisComplete?: (partId: string, diagnosis: DiagnosisResult) => void | Promise<void>
   cachedDiagnosis?: DiagnosisResult
 }
 
@@ -495,6 +496,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
   error,
   diagnosisContext,
   blockId,
+  onDiagnosisComplete,
   cachedDiagnosis
 }) => {
   const { t } = useTranslation()
@@ -581,6 +583,7 @@ const ErrorDetailContent: React.FC<ErrorDetailContentProps> = ({
             onStatusChange={setDiagStatus}
             diagnosisContext={diagnosisContext}
             blockId={blockId}
+            onDiagnosisComplete={onDiagnosisComplete}
             cachedDiagnosis={cachedDiagnosis}
           />
         )}

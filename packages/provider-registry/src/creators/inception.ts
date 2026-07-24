@@ -5,5 +5,6 @@ export default defineCreator({
   name: 'Inception (Mercury)',
   modelsDevProviders: ['inception'],
   families: ['mercury'],
-  idPrefixes: ['mercury']
+  idPrefixes: ['mercury'],
+  reasoningFamilies: [{ pattern: '^mercury-2' }]
 })

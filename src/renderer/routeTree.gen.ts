@@ -14,6 +14,7 @@ import { Route as AppRouteImport } from './routes/app'
 import { Route as SettingsIndexRouteImport } from './routes/settings.index'
 import { Route as SettingsWebsearchRouteImport } from './routes/settings/websearch'
 import { Route as SettingsSystemRouteImport } from './routes/settings/system'
+import { Route as SettingsSkillsRouteImport } from './routes/settings/skills'
 import { Route as SettingsShortcutRouteImport } from './routes/settings/shortcut'
 import { Route as SettingsSelectionAssistantRouteImport } from './routes/settings/selection-assistant'
 import { Route as SettingsScheduledTasksRouteImport } from './routes/settings/scheduled-tasks'
@@ -77,6 +78,11 @@ const SettingsWebsearchRoute = SettingsWebsearchRouteImport.update({
 const SettingsSystemRoute = SettingsSystemRouteImport.update({
   id: '/system',
   path: '/system',
+  getParentRoute: () => SettingsRoute,
+} as any)
+const SettingsSkillsRoute = SettingsSkillsRouteImport.update({
+  id: '/skills',
+  path: '/skills',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsShortcutRoute = SettingsShortcutRouteImport.update({
@@ -307,6 +313,7 @@ export interface FileRoutesByFullPath {
   '/settings/scheduled-tasks': typeof SettingsScheduledTasksRoute
   '/settings/selection-assistant': typeof SettingsSelectionAssistantRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
+  '/settings/skills': typeof SettingsSkillsRoute
   '/settings/system': typeof SettingsSystemRoute
   '/settings/websearch': typeof SettingsWebsearchRoute
   '/settings/': typeof SettingsIndexRoute
@@ -351,6 +358,7 @@ export interface FileRoutesByTo {
   '/settings/scheduled-tasks': typeof SettingsScheduledTasksRoute
   '/settings/selection-assistant': typeof SettingsSelectionAssistantRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
+  '/settings/skills': typeof SettingsSkillsRoute
   '/settings/system': typeof SettingsSystemRoute
   '/settings/websearch': typeof SettingsWebsearchRoute
   '/settings': typeof SettingsIndexRoute
@@ -398,6 +406,7 @@ export interface FileRoutesById {
   '/settings/scheduled-tasks': typeof SettingsScheduledTasksRoute
   '/settings/selection-assistant': typeof SettingsSelectionAssistantRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
+  '/settings/skills': typeof SettingsSkillsRoute
   '/settings/system': typeof SettingsSystemRoute
   '/settings/websearch': typeof SettingsWebsearchRoute
   '/settings/': typeof SettingsIndexRoute
@@ -446,6 +455,7 @@ export interface FileRouteTypes {
     | '/settings/scheduled-tasks'
     | '/settings/selection-assistant'
     | '/settings/shortcut'
+    | '/settings/skills'
     | '/settings/system'
     | '/settings/websearch'
     | '/settings/'
@@ -490,6 +500,7 @@ export interface FileRouteTypes {
     | '/settings/scheduled-tasks'
     | '/settings/selection-assistant'
     | '/settings/shortcut'
+    | '/settings/skills'
     | '/settings/system'
     | '/settings/websearch'
     | '/settings'
@@ -536,6 +547,7 @@ export interface FileRouteTypes {
     | '/settings/scheduled-tasks'
     | '/settings/selection-assistant'
     | '/settings/shortcut'
+    | '/settings/skills'
     | '/settings/system'
     | '/settings/websearch'
     | '/settings/'
@@ -593,6 +605,13 @@ declare module '@tanstack/react-router' {
       path: '/system'
       fullPath: '/settings/system'
       preLoaderRoute: typeof SettingsSystemRouteImport
+      parentRoute: typeof SettingsRoute
+    }
+    '/settings/skills': {
+      id: '/settings/skills'
+      path: '/skills'
+      fullPath: '/settings/skills'
+      preLoaderRoute: typeof SettingsSkillsRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/shortcut': {
@@ -950,6 +969,7 @@ interface SettingsRouteChildren {
   SettingsScheduledTasksRoute: typeof SettingsScheduledTasksRoute
   SettingsSelectionAssistantRoute: typeof SettingsSelectionAssistantRoute
   SettingsShortcutRoute: typeof SettingsShortcutRoute
+  SettingsSkillsRoute: typeof SettingsSkillsRoute
   SettingsSystemRoute: typeof SettingsSystemRoute
   SettingsWebsearchRoute: typeof SettingsWebsearchRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
@@ -974,6 +994,7 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsScheduledTasksRoute: SettingsScheduledTasksRoute,
   SettingsSelectionAssistantRoute: SettingsSelectionAssistantRoute,
   SettingsShortcutRoute: SettingsShortcutRoute,
+  SettingsSkillsRoute: SettingsSkillsRoute,
   SettingsSystemRoute: SettingsSystemRoute,
   SettingsWebsearchRoute: SettingsWebsearchRoute,
   SettingsIndexRoute: SettingsIndexRoute,

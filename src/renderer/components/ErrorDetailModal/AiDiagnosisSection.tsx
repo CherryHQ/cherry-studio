@@ -1,47 +1,13 @@
-import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import type { SerializedError } from '@renderer/types/error'
 import type { DiagnosisContext, DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import { diagnoseError } from '@renderer/utils/errorDiagnosis'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { CheckCircle, Loader2 } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('AIDiagnosisSection')
 const AI_DIAGNOSIS_RESULT_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
-
-async function persistDiagnosis(partId: string, diagnosis: DiagnosisResult) {
-  const match = partId.match(/^(.+)-(?:part|block)-(\d+)$/)
-  if (!match) return
-  const [, messageId, indexStr] = match
-  const partIndex = parseInt(indexStr, 10)
-
-  try {
-    const res = (await dataApiService.get(`/messages/${messageId}`)) as { data?: { parts?: CherryMessagePart[] } }
-    const parts = res.data?.parts
-    if (!parts || partIndex < 0 || partIndex >= parts.length) return
-
-    const target = parts[partIndex]
-    const existing = ('providerMetadata' in target ? target.providerMetadata : undefined) as
-      | { cherry?: Record<string, unknown> }
-      | undefined
-    const updatedPart = {
-      ...target,
-      providerMetadata: {
-        ...existing,
-        // Cast: AI-SDK's providerMetadata index signature is `JSONValue`, but
-        // we treat `cherry.*` as opaque renderer metadata — DiagnosisResult is
-        // structurally JSON-safe (strings + nested arrays) even if TS can't see it.
-        cherry: { ...existing?.cherry, diagnosis: diagnosis as unknown as Record<string, unknown> }
-      }
-    } as CherryMessagePart
-    const updatedParts = parts.map((p, i) => (i === partIndex ? updatedPart : p))
-    await dataApiService.patch(`/messages/${messageId}`, { body: { data: { parts: updatedParts } } })
-  } catch (err) {
-    logger.warn(`Failed to persist diagnosis for ${partId}:`, { error: err })
-  }
-}
 
 const diagPanelStyle: React.CSSProperties = {
   border: '1px solid color-mix(in srgb, var(--primary) 15%, transparent)',
@@ -63,6 +29,7 @@ const AiDiagnosisSectionWithStatus = memo(
     onStatusChange,
     diagnosisContext,
     blockId,
+    onDiagnosisComplete,
     cachedDiagnosis,
     ref
   }: {
@@ -71,6 +38,7 @@ const AiDiagnosisSectionWithStatus = memo(
     onStatusChange: (status: 'idle' | 'loading' | 'done' | 'error') => void
     diagnosisContext?: DiagnosisContext
     blockId?: string
+    onDiagnosisComplete?: (partId: string, diagnosis: DiagnosisResult) => void | Promise<void>
     cachedDiagnosis?: DiagnosisResult
     ref?: React.Ref<AiDiagnosisSectionHandle>
   }) => {
@@ -104,15 +72,19 @@ const AiDiagnosisSectionWithStatus = memo(
         if (cancelledRef.current) return
         setResult(diagnosis)
         onStatusChange('done')
-        if (blockId) {
-          void persistDiagnosis(blockId, diagnosis)
+        if (blockId && onDiagnosisComplete) {
+          void Promise.resolve()
+            .then(() => onDiagnosisComplete(blockId, diagnosis))
+            .catch((error) => {
+              logger.warn(`Failed to persist diagnosis for ${blockId}:`, { error })
+            })
         }
       } catch (err: unknown) {
         if (cancelledRef.current) return
         setDiagError(err instanceof Error ? err.message : 'Diagnosis failed')
         onStatusChange('error')
       }
-    }, [error, i18n.language, onStatusChange, diagnosisContext, blockId])
+    }, [error, i18n.language, onStatusChange, diagnosisContext, blockId, onDiagnosisComplete])
 
     React.useImperativeHandle(ref, () => ({ runDiagnosis }), [runDiagnosis])
 

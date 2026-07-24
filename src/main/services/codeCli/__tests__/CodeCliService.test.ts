@@ -2,15 +2,16 @@ import type { CodeCliRunInput } from '@shared/ipc/schemas/codeCli'
 import { CodeCli, TerminalApp } from '@shared/types/codeCli'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const binaryManagerMock = vi.hoisted(() => ({
+  installByName: vi.fn(() => Promise.resolve()),
+  removeTool: vi.fn(() => Promise.resolve()),
+  getToolSnapshots: vi.fn()
+}))
+
 vi.mock('@application', () => ({
   application: {
     get: vi.fn().mockImplementation((name: string) => {
-      if (name === 'BinaryManager') {
-        return {
-          installTool: vi.fn(() => Promise.resolve({ version: 'latest' })),
-          removeTool: vi.fn(() => Promise.resolve())
-        }
-      }
+      if (name === 'BinaryManager') return binaryManagerMock
       return {}
     }),
     getPath: vi.fn().mockReturnValue('/mock/binary-data')
@@ -28,7 +29,13 @@ const platformMock = vi.hoisted(() => ({
   isWin: false
 }))
 const shellEnvMock = vi.hoisted(() => ({
-  getShellEnv: vi.fn()
+  getShellEnv: vi.fn(),
+  getRawShellEnv: vi.fn()
+}))
+// Default null = no bundled MinGit, matching a build/host without the Windows bundle.
+const bundledGitMock = vi.hoisted(() => ({
+  getBundledGitPath: vi.fn(),
+  getBundledGitDir: vi.fn()
 }))
 const childProcessMock = vi.hoisted(() => ({
   exec: vi.fn(),
@@ -57,17 +64,17 @@ vi.mock('@main/utils/processRunner', () => ({
 }))
 
 vi.mock('@main/utils/shellEnv', () => ({
-  getShellEnv: shellEnvMock.getShellEnv
+  getShellEnv: shellEnvMock.getShellEnv,
+  getRawShellEnv: shellEnvMock.getRawShellEnv
+}))
+
+vi.mock('@main/utils/bundledGit', () => ({
+  getBundledGitPath: bundledGitMock.getBundledGitPath,
+  getBundledGitDir: bundledGitMock.getBundledGitDir
 }))
 
 vi.mock('@main/services/RegionService', () => ({
   regionService: { isInChina: vi.fn().mockResolvedValue(false) }
-}))
-
-vi.mock('@main/utils/binaryResolver', () => ({
-  getBinaryName: vi.fn().mockReturnValue('bun'),
-  getBinaryPath: vi.fn().mockResolvedValue('/mock/bin/tool'),
-  isBinaryExists: vi.fn().mockResolvedValue(false)
 }))
 
 vi.mock('child_process', () => ({
@@ -124,6 +131,21 @@ describe('CodeCliService', () => {
     platformMock.isMac = true
     platformMock.isWin = false
     shellEnvMock.getShellEnv.mockResolvedValue({})
+    shellEnvMock.getRawShellEnv.mockResolvedValue({ PATH: '/usr/local/bin:/usr/bin' })
+    bundledGitMock.getBundledGitPath.mockReturnValue(null)
+    bundledGitMock.getBundledGitDir.mockReturnValue(null)
+    binaryManagerMock.getToolSnapshots.mockImplementation(async (names: string[]) =>
+      Object.fromEntries(
+        names.map((name) => [
+          name,
+          {
+            name,
+            availability: { source: 'mise', path: `/mock/bin/${name}`, version: '1.0.0' }
+          }
+        ])
+      )
+    )
+    binaryManagerMock.installByName.mockResolvedValue(undefined)
     childProcessMock.execAsync.mockResolvedValue({ stdout: '' })
     childProcessMock.execFileAsync.mockResolvedValue({ stdout: '' })
   })
@@ -264,8 +286,6 @@ describe('CodeCliService', () => {
       Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true })
       const fs = (await import('node:fs')).default
       vi.mocked(fs.existsSync).mockReturnValue(true)
-      const resolver = await import('@main/utils/binaryResolver')
-      vi.mocked(resolver.isBinaryExists).mockResolvedValue(true)
     })
 
     afterEach(() => {
@@ -296,6 +316,37 @@ describe('CodeCliService', () => {
         vi.useRealTimers()
       }
     })
+
+    it('preserves ambient mise settings for a system OpenCode while exporting its own env', async () => {
+      binaryManagerMock.getToolSnapshots.mockResolvedValue({
+        opencode: {
+          name: 'opencode',
+          availability: { source: 'system', path: '/home/me/.local/share/mise/shims/opencode' }
+        }
+      })
+      vi.useFakeTimers()
+      try {
+        const { spawn } = await import('child_process')
+        const { codeCliService } = await loadModules()
+
+        const result = await codeCliService.run({
+          mode: 'normal',
+          cliTool: CodeCli.OPEN_CODE,
+          model: 'deepseek:deepseek-chat',
+          providerId: 'cherry-gateway',
+          directory: '/tmp/project'
+        })
+
+        expect(result.success).toBe(true)
+        const call = vi.mocked(spawn).mock.calls.at(-1)
+        expect(call).toBeDefined()
+        const script = (call![1] as string[]).join(' ')
+        expect(script).toContain('OPENCODE_DISABLE_AUTOUPDATE=')
+        expect(script).not.toContain('_cherry_mise_key')
+      } finally {
+        vi.useRealTimers()
+      }
+    })
   })
 
   // gemini-cli's `resolveModel` rewrites a settings.model.name ending in "flash" to a default Gemini
@@ -309,8 +360,6 @@ describe('CodeCliService', () => {
       Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true })
       const fs = (await import('node:fs')).default
       vi.mocked(fs.existsSync).mockReturnValue(true)
-      const resolver = await import('@main/utils/binaryResolver')
-      vi.mocked(resolver.isBinaryExists).mockResolvedValue(true)
     })
 
     afterEach(() => {
@@ -365,6 +414,22 @@ describe('CodeCliService', () => {
       // GOOGLE_GENAI_API_VERSION for their own provider keeps it untouched.
       expect(script).not.toContain('GOOGLE_GENAI_API_VERSION')
     })
+
+    it('preserves ambient mise settings for a system Gemini CLI while exporting its own env', async () => {
+      binaryManagerMock.getToolSnapshots.mockResolvedValue({
+        gemini: { name: 'gemini', availability: { source: 'system', path: '/home/me/.local/share/mise/shims/gemini' } }
+      })
+      const script = await launchScript({
+        mode: 'normal',
+        cliTool: CodeCli.GEMINI_CLI,
+        model: 'gemini-2.5-pro',
+        providerId: 'gemini',
+        directory: '/tmp/project'
+      })
+
+      expect(script).toContain('GEMINI_CLI_TRUST_WORKSPACE=')
+      expect(script).not.toContain('_cherry_mise_key')
+    })
   })
 
   // Reviewer A4: the launch directory is interpolated into a shell string (macOS: wrapped again by
@@ -379,12 +444,121 @@ describe('CodeCliService', () => {
       Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true })
       const fs = (await import('node:fs')).default
       vi.mocked(fs.existsSync).mockReturnValue(true)
-      const resolver = await import('@main/utils/binaryResolver')
-      vi.mocked(resolver.isBinaryExists).mockResolvedValue(true)
     })
 
     afterEach(() => {
       Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+    })
+
+    it('launches a system PATH binary without installing a managed copy', async () => {
+      binaryManagerMock.getToolSnapshots.mockResolvedValue({
+        claude: { name: 'claude', availability: { source: 'system', path: '/usr/local/bin/claude' } }
+      })
+      const { spawn } = await import('child_process')
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'login-flow',
+        cliTool: CodeCli.CLAUDE_CODE,
+        directory: '/tmp/project'
+      })
+
+      expect(result.success).toBe(true)
+      expect(binaryManagerMock.installByName).not.toHaveBeenCalled()
+      expect(binaryManagerMock.getToolSnapshots).toHaveBeenCalledWith(['claude'])
+      const launchCall = vi.mocked(spawn).mock.calls.at(-1)
+      expect(launchCall).toBeDefined()
+      const launchArgs = (launchCall?.[1] ?? []).join(' ')
+      expect(launchArgs).toContain('/usr/local/bin/claude')
+      expect(launchArgs).not.toContain('MISE_DATA_DIR')
+    })
+
+    it('single-quotes a system executable path containing shell metacharacters', async () => {
+      binaryManagerMock.getToolSnapshots.mockResolvedValue({
+        claude: {
+          name: 'claude',
+          availability: { source: 'system', path: '/tmp/$(touch pwned)/`whoami`/claude' }
+        }
+      })
+      const { spawn } = await import('child_process')
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'login-flow',
+        cliTool: CodeCli.CLAUDE_CODE,
+        directory: '/tmp/project'
+      })
+
+      expect(result.success).toBe(true)
+      const launchArgs = (vi.mocked(spawn).mock.calls.at(-1)?.[1] ?? []).join(' ')
+      expect(launchArgs).toContain("'\\''/tmp/$(touch pwned)/`whoami`/claude'\\''")
+      expect(launchArgs).not.toContain('"/tmp/$(touch pwned)')
+    })
+
+    it('lazily recovers a missing CLI by name only, writing no Preference', async () => {
+      binaryManagerMock.getToolSnapshots
+        .mockResolvedValueOnce({
+          claude: { name: 'claude', availability: { source: 'none' } }
+        })
+        .mockResolvedValueOnce({
+          claude: {
+            name: 'claude',
+            availability: { source: 'mise', path: '/mock/binary-data/shims/claude', version: '1.0.0' }
+          }
+        })
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'login-flow',
+        cliTool: CodeCli.CLAUDE_CODE,
+        directory: '/tmp/project'
+      })
+
+      expect(result.success).toBe(true)
+      // Name-only lazy install: main resolves the Code CLI's fixed recipe and
+      // writes no Preference — the renderer/service never supplies a recipe.
+      expect(binaryManagerMock.installByName).toHaveBeenCalledWith({ name: 'claude' })
+    })
+
+    it('launches a managed npm CLI with Cherry shims first and no ambient MISE settings', async () => {
+      shellEnvMock.getRawShellEnv.mockResolvedValue({
+        PATH: '/usr/local/$(touch /tmp/pwn):`whoami`:$HOME:/usr/bin',
+        MISE_CONFIG_FILE: '/home/me/.config/mise/config.toml',
+        PRIVATE_TOKEN: 'must-not-be-exported'
+      })
+      binaryManagerMock.getToolSnapshots.mockResolvedValue({
+        claude: {
+          name: 'claude',
+          availability: { source: 'mise', path: '/mock/binary-data/shims/claude', version: '1.0.0' }
+        }
+      })
+      const { spawn } = await import('child_process')
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'login-flow',
+        cliTool: CodeCli.CLAUDE_CODE,
+        directory: '/tmp/project'
+      })
+
+      expect(result.success).toBe(true)
+      const launchCall = vi.mocked(spawn).mock.calls.at(-1)!
+      const launchArgs = (launchCall[1] ?? []).join(' ')
+      const launchEnv = launchCall[2]?.env as Record<string, string>
+      expect(launchArgs).toContain(
+        "PATH='\\''/mock/binary-data/shims:/usr/local/$(touch /tmp/pwn):`whoami`:$HOME:/usr/bin'\\''"
+      )
+      expect(launchArgs).toContain("MISE_DATA_DIR='\\''/mock/binary-data'\\''")
+      expect(launchArgs).toContain('for _cherry_mise_key in $(env | sed -n')
+      expect(launchArgs).toContain('do unset')
+      expect(launchArgs).toContain('$_cherry_mise_key')
+      expect(launchArgs.indexOf('unset')).toBeLessThan(launchArgs.indexOf('export MISE_DATA_DIR'))
+      expect(launchArgs).not.toContain('MISE_CONFIG_FILE')
+      expect(launchArgs).not.toContain('PRIVATE_TOKEN')
+      expect(launchArgs).not.toContain('must-not-be-exported')
+      expect(launchEnv.MISE_CONFIG_FILE).toBeUndefined()
+      expect(launchEnv.MISE_DATA_DIR).toBe('/mock/binary-data')
+      expect(launchEnv.PRIVATE_TOKEN).toBe('must-not-be-exported')
     })
 
     it('single-quotes a directory containing spaces and $() in the assembled command', async () => {
@@ -426,12 +600,30 @@ describe('CodeCliService', () => {
       platformMock.isWin = true
       const fs = (await import('node:fs')).default
       vi.mocked(fs.existsSync).mockReturnValue(true)
-      const resolver = await import('@main/utils/binaryResolver')
-      vi.mocked(resolver.isBinaryExists).mockResolvedValue(true)
     })
 
     afterEach(() => {
       Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true })
+    })
+
+    it('filters mixed-case ambient MISE variables from the Windows launch environment', async () => {
+      shellEnvMock.getRawShellEnv.mockResolvedValue({
+        Path: 'C:\\Windows\\System32',
+        Mise_Global_Config_File: 'C:\\Users\\me\\mise.toml'
+      })
+      const { spawn } = await import('child_process')
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'login-flow',
+        cliTool: CodeCli.CLAUDE_CODE,
+        directory: 'C:\\Users\\me\\project'
+      })
+
+      expect(result.success).toBe(true)
+      const launchEnv = vi.mocked(spawn).mock.calls.at(-1)?.[2]?.env as Record<string, string>
+      expect(launchEnv.Mise_Global_Config_File).toBeUndefined()
+      expect(launchEnv.MISE_DATA_DIR).toBe('/mock/binary-data')
     })
 
     it('writes a 0600 .bat with %-doubled paths and launches it via the default cmd /c', async () => {
@@ -442,6 +634,13 @@ describe('CodeCliService', () => {
         const fs = (await import('node:fs')).default
         const { spawn } = await import('child_process')
         const { codeCliService } = await loadModules()
+
+        binaryManagerMock.getToolSnapshots.mockResolvedValue({
+          claude: {
+            name: 'claude',
+            availability: { source: 'mise', path: 'C:\\Tools\\100% cli\\claude.exe', version: '1.0.0' }
+          }
+        })
 
         const result = await codeCliService.run({
           mode: 'login-flow',
@@ -458,6 +657,8 @@ describe('CodeCliService', () => {
         // CMD expands %…% even inside double quotes, so the bat writer must double them.
         expect(batContent).toContain('if not exist "C:\\Users\\me\\100%% proj" goto :dir_missing')
         expect(batContent).toContain('pushd "C:\\Users\\me\\100%% proj"')
+        // The executable path crosses the same boundary as the directory paths.
+        expect(batContent).toContain('"C:\\Tools\\100%% cli\\claude.exe"')
         // The temp script can embed injected credentials via the env prefix; keep it owner-only.
         expect(vi.mocked(fs.chmodSync)).toHaveBeenCalledWith(batPath, 0o600)
 
@@ -466,6 +667,72 @@ describe('CodeCliService', () => {
         expect(launch![0]).toBe('cmd')
         expect(launch![1]).toEqual(['/c', batPath])
         expect(launch![2]).toMatchObject({ shell: true, detached: true })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('appends the bundled MinGit dir to a managed launch PATH tail (#16402)', async () => {
+      // Regression (PR #16402 review): the launch env must carry the bundled
+      // git dir at the very tail so a terminal-launched CLI resolves a bare
+      // `git` on a machine without system git, while any real git ahead wins.
+      const gitDir = 'C:\\Cherry\\resources\\binaries\\win32-x64\\git\\cmd'
+      bundledGitMock.getBundledGitDir.mockReturnValue(gitDir)
+      shellEnvMock.getRawShellEnv.mockResolvedValue({ Path: 'C:\\Windows\\System32' })
+
+      vi.useFakeTimers()
+      try {
+        const fs = (await import('node:fs')).default
+        const { spawn } = await import('child_process')
+        const { codeCliService } = await loadModules()
+
+        const result = await codeCliService.run({
+          mode: 'login-flow',
+          cliTool: CodeCli.CLAUDE_CODE,
+          directory: 'C:\\Users\\me\\proj'
+        })
+
+        expect(result.success).toBe(true)
+        const spawnEnv = (vi.mocked(spawn).mock.calls.at(-1)![2] as { env: Record<string, string> }).env
+        expect(spawnEnv.Path.split(';').at(-1)).toBe(gitDir)
+        expect(spawnEnv.Path).toContain('C:\\Windows\\System32')
+        // The bat rewrites PATH inside the terminal, so the tail must be in the
+        // env prefix too, not only in the spawn env.
+        const batContent = vi.mocked(fs.writeFileSync).mock.calls.at(-1)![1] as string
+        expect(batContent).toContain(gitDir)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('gives a system CLI only the git tail — no Cherry MISE_* redirection', async () => {
+      const gitDir = 'C:\\Cherry\\resources\\binaries\\win32-x64\\git\\cmd'
+      bundledGitMock.getBundledGitDir.mockReturnValue(gitDir)
+      shellEnvMock.getRawShellEnv.mockResolvedValue({
+        Path: 'C:\\Windows\\System32',
+        MISE_DATA_DIR: 'C:\\Users\\me\\mise-data'
+      })
+      binaryManagerMock.getToolSnapshots.mockResolvedValue({
+        claude: { name: 'claude', availability: { source: 'system', path: 'C:\\Tools\\claude.exe' } }
+      })
+
+      vi.useFakeTimers()
+      try {
+        const { spawn } = await import('child_process')
+        const { codeCliService } = await loadModules()
+
+        const result = await codeCliService.run({
+          mode: 'login-flow',
+          cliTool: CodeCli.CLAUDE_CODE,
+          directory: 'C:\\Users\\me\\proj'
+        })
+
+        expect(result.success).toBe(true)
+        const spawnEnv = (vi.mocked(spawn).mock.calls.at(-1)![2] as { env: Record<string, string> }).env
+        expect(spawnEnv.Path.split(';').at(-1)).toBe(gitDir)
+        // The user's own mise settings pass through untouched; Cherry's isolated
+        // MISE_DATA_DIR must never redirect a system CLI's shims.
+        expect(spawnEnv.MISE_DATA_DIR).toBe('C:\\Users\\me\\mise-data')
       } finally {
         vi.useRealTimers()
       }
@@ -481,8 +748,6 @@ describe('CodeCliService', () => {
       platformMock.isWin = false
       const fs = (await import('node:fs')).default
       vi.mocked(fs.existsSync).mockReturnValue(true)
-      const resolver = await import('@main/utils/binaryResolver')
-      vi.mocked(resolver.isBinaryExists).mockResolvedValue(true)
     })
 
     afterEach(async () => {

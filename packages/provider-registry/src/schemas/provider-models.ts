@@ -8,6 +8,7 @@
 import * as z from 'zod'
 
 import { ModelIdSchema, ProviderIdSchema, VersionSchema } from './common'
+import { ENDPOINT_TYPE } from './enums'
 import {
   ImageGenerationSupportSchema,
   ModalitySchema,
@@ -17,12 +18,34 @@ import {
   ReasoningSupportSchema
 } from './model'
 import { EndpointTypeSchema } from './provider'
+import { ReasoningWireProfileSchema } from './reasoningWire'
 
 export const CapabilityOverrideSchema = z.object({
   add: z.array(ModelCapabilityTypeSchema).optional(), // Add capabilities
   remove: z.array(ModelCapabilityTypeSchema).optional(), // Remove capabilities
   force: z.array(ModelCapabilityTypeSchema).optional() // Force set capabilities (ignore base config)
 })
+
+const ReasoningEndpointTypeSchema = z.enum([
+  ENDPOINT_TYPE.OPENAI_RESPONSES,
+  ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+  ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+  ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+  ENDPOINT_TYPE.OLLAMA_CHAT,
+  ENDPOINT_TYPE.OLLAMA_GENERATE,
+  ENDPOINT_TYPE.OPENAI_TEXT_COMPLETIONS
+])
+
+export const ProviderModelReasoningContractSchema = z
+  .object({
+    /** Provider/endpoint-specific support. Declared controls replace intrinsic model controls. */
+    support: ReasoningSupportSchema.optional(),
+    /** Exact provider/endpoint wire behavior. */
+    wire: ReasoningWireProfileSchema.optional()
+  })
+  .refine((contract) => contract.support || contract.wire, {
+    message: 'provider-model reasoning contract must declare support or wire'
+  })
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Provider-Model Override Schema
@@ -57,7 +80,8 @@ export const ProviderModelOverrideSchema = z.object({
     })
     .optional(),
   pricing: ModelPricingSchema.partial().optional(),
-  reasoning: ReasoningSupportSchema.optional(),
+  /** Exact reasoning behavior keyed by the endpoint used for this provider-model pair. */
+  reasoningContracts: z.partialRecord(ReasoningEndpointTypeSchema, ProviderModelReasoningContractSchema).optional(),
   parameterSupport: ParameterSupportSchema.partial().optional(),
 
   // Endpoint type overrides (when model uses different endpoints than provider default)
@@ -98,5 +122,6 @@ export const ProviderModelListSchema = z.object({
 
 // Type exports
 export type CapabilityOverride = z.infer<typeof CapabilityOverrideSchema>
+export type ProviderModelReasoningContract = z.infer<typeof ProviderModelReasoningContractSchema>
 export type ProviderModelOverride = z.infer<typeof ProviderModelOverrideSchema>
 export type ProviderModelList = z.infer<typeof ProviderModelListSchema>

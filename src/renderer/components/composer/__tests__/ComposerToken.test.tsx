@@ -425,10 +425,26 @@ describe('ComposerToken', () => {
     expect(popoverContent).not.toHaveTextContent('2 KB')
     const imagePreview = screen.getByAltText('avatar-preview.png')
     expect(imagePreview).toHaveAttribute('src', 'file:///tmp/avatar-preview.png')
-    expect(imagePreview).toHaveClass('block', 'max-h-64', 'max-w-80', 'object-contain')
+    expect(imagePreview).toHaveClass('block', 'max-h-48', 'max-w-60', 'object-contain')
     expect(imagePreview).not.toHaveClass('h-full', 'w-full', 'object-cover')
-    expect(imagePreview.parentElement).toHaveClass('flex', 'max-h-64', 'max-w-80', 'overflow-hidden', 'bg-muted')
+    expect(imagePreview.parentElement).toHaveClass('flex', 'max-h-48', 'max-w-60', 'overflow-hidden', 'bg-muted')
     expect(imagePreview.parentElement).not.toHaveClass('inline-flex')
+
+    fireEvent.error(imagePreview)
+    expect(screen.queryByAltText('avatar-preview.png')).not.toBeInTheDocument()
+    expect(popoverContent).toHaveTextContent('chat.input.image_preview_failed')
+    expect(popoverContent).not.toHaveTextContent('avatar-preview.png')
+    expect(popoverContent).not.toHaveTextContent('PNG')
+    expect(popoverContent).not.toHaveTextContent('2 KB')
+    expect(popoverContent.querySelector('[data-file-token-image-preview-error]')).toHaveClass(
+      'bg-neutral-100',
+      'dark:bg-neutral-800',
+      'text-foreground-secondary',
+      'text-sm'
+    )
+    expect(popoverContent.querySelector('[data-file-token-image-preview-error]')).not.toHaveClass(
+      'text-muted-foreground'
+    )
   })
 
   it('renders input raster images as chips with a thumbnail in the icon slot', () => {
@@ -461,7 +477,8 @@ describe('ComposerToken', () => {
     expect(token).toHaveTextContent('avatar-preview.png')
 
     const iconSlot = token.querySelector('[data-file-token-icon="image"]')
-    expect(iconSlot).toHaveClass('size-4.5', 'overflow-hidden', 'rounded-[5px]')
+    expect(iconSlot).toHaveClass('size-4.5', 'overflow-hidden', 'rounded-[5px]', 'bg-accent', 'text-muted-foreground')
+    expect(iconSlot).not.toHaveClass('bg-cyan-100', 'text-cyan-700')
     const thumbnail = iconSlot?.querySelector('[data-file-token-icon-thumbnail]') as HTMLImageElement
     expect(thumbnail).toHaveAttribute('src', 'file:///tmp/avatar-preview.png')
     expect(thumbnail).toHaveAttribute('alt', '')
@@ -473,14 +490,18 @@ describe('ComposerToken', () => {
     expect(removeButton).toHaveClass(
       'size-full',
       'rounded-[5px]',
+      'bg-neutral-100',
+      'text-foreground',
+      'dark:bg-neutral-800',
       'opacity-0',
       'group-hover/composer-token:pointer-events-auto',
       'group-hover/composer-token:opacity-100'
     )
+    expect(removeButton).not.toHaveClass('bg-transparent', 'text-current', 'dark:text-black')
     expect(removeButton.querySelector('svg')).toHaveClass('size-3')
 
     openFileTokenPopover(container)
-    expect(screen.getByAltText('avatar-preview.png')).toHaveClass('max-h-64', 'max-w-80', 'object-contain')
+    expect(screen.getByAltText('avatar-preview.png')).toHaveClass('max-h-48', 'max-w-60', 'object-contain')
 
     fireEvent.click(removeButton)
     expect(onRemove).toHaveBeenCalledTimes(1)
@@ -507,7 +528,10 @@ describe('ComposerToken', () => {
 
     expect(getRenderedFileToken(container)).toHaveTextContent('icon.svg')
     expect(container.querySelector('[data-file-token-icon-thumbnail]')).toBeNull()
-    expect(container.querySelector('[data-file-token-icon="image"] svg')).toBeInTheDocument()
+    const iconSlot = container.querySelector('[data-file-token-icon="image"]')
+    expect(iconSlot).toHaveClass('bg-accent', 'text-muted-foreground')
+    expect(iconSlot).not.toHaveClass('bg-cyan-100', 'text-cyan-700')
+    expect(iconSlot?.querySelector('svg')).toBeInTheDocument()
   })
 
   it('falls back to the default image icon when the icon thumbnail fails to load', () => {
@@ -531,7 +555,10 @@ describe('ComposerToken', () => {
 
     fireEvent.error(container.querySelector('[data-file-token-icon-thumbnail]') as HTMLImageElement)
     expect(container.querySelector('[data-file-token-icon-thumbnail]')).toBeNull()
-    expect(container.querySelector('[data-file-token-icon="image"] svg')).toBeInTheDocument()
+    const iconSlot = container.querySelector('[data-file-token-icon="image"]')
+    expect(iconSlot).toHaveClass('bg-accent', 'text-muted-foreground')
+    expect(iconSlot).not.toHaveClass('bg-cyan-100', 'text-cyan-700')
+    expect(iconSlot?.querySelector('svg')).toBeInTheDocument()
     expect(getRenderedFileToken(container)).toHaveTextContent('avatar-preview.png')
   })
 
@@ -560,7 +587,21 @@ describe('ComposerToken', () => {
     expect(token).not.toHaveClass('align-baseline')
     expect(token).not.toHaveClass('border-destructive', 'bg-error-subtle')
     expect(token?.querySelector('[data-file-token-icon="pdf"]')).not.toHaveClass('border-destructive', 'bg-background')
-    expect(token?.querySelector('[data-composer-token-remove]')).toHaveClass('text-current', 'dark:text-black')
+    expect(token?.querySelector('[data-composer-token-remove]')).toHaveClass(
+      'bg-neutral-100',
+      'text-foreground',
+      'dark:bg-neutral-800'
+    )
+    expect(token?.querySelector('[data-composer-token-remove]')).not.toHaveClass(
+      'bg-transparent',
+      'text-current',
+      'dark:text-black'
+    )
+    expect(token?.querySelector('[data-composer-token-remove]')?.parentElement).toHaveClass(
+      'size-full',
+      'items-center',
+      'justify-center'
+    )
     expect(token?.querySelector('[data-composer-token-remove] svg')).toHaveClass('size-3', 'text-current')
     expectTokenPathTooltip(container, '/tmp/report-q2-final.pdf', '2 KB')
   })
@@ -695,10 +736,17 @@ describe('ComposerToken', () => {
     const removeButton = container.querySelector('[data-composer-token-remove]') as HTMLButtonElement
     expect(removeButton).toBeInTheDocument()
     expect(removeButton).toHaveAttribute('aria-label', '删除')
-    expect(removeButton).toHaveClass('size-full', 'rounded-[5px]')
-    expect(removeButton).toHaveClass('text-current')
+    expect(removeButton).toHaveClass(
+      'size-full',
+      'rounded-[5px]',
+      'bg-neutral-100',
+      'text-foreground',
+      'dark:bg-neutral-800'
+    )
     expect(removeButton).not.toHaveClass(
+      'bg-transparent',
       'dark:text-black',
+      'text-current',
       'text-muted-foreground',
       'hover:text-foreground',
       'hover:text-destructive'
