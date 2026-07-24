@@ -143,19 +143,22 @@ describe('HtmlArtifactView', () => {
     expect(screen.getByTestId('html-preview-frame')).toBeInTheDocument()
   })
 
-  it('requires explicit consent before mounting HTML with scripts', () => {
+  it('shows an artifact card before mounting HTML with scripts', () => {
     const html = '<script>window.parent.api.file.write("/tmp/example", "unsafe")</script>'
 
     render(<HtmlArtifactView html={html} title="Preview" />)
 
-    expect(screen.getByTestId('html-artifact-consent-overlay')).toBeInTheDocument()
+    expect(screen.getByTestId('html-artifact-consent-card')).toHaveClass('font-[var(--font-family-body)]')
+    expect(screen.getByText('Preview')).toBeInTheDocument()
+    expect(screen.getByText('html_artifacts.interactive_preview.description')).toHaveClass('sr-only')
+    expect(screen.queryByTestId('html-artifact-surface')).not.toBeInTheDocument()
     expect(screen.queryByTestId('html-preview-frame')).not.toBeInTheDocument()
     expect(screen.queryByTestId('interactive-html-webview')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'html_artifacts.interactive_preview.action' }))
 
     expect(screen.getByTestId('interactive-html-webview')).toHaveAttribute('partition', 'html-artifact-preview')
-    expect(screen.queryByTestId('html-artifact-consent-overlay')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('html-artifact-consent-card')).not.toBeInTheDocument()
   })
 
   it('renders static inline HTML immediately in the restricted iframe', () => {
@@ -181,7 +184,8 @@ describe('HtmlArtifactView', () => {
 
     rerender(<HtmlArtifactView html="<script>two()</script>" title="Preview" />)
 
-    expect(screen.getByTestId('html-artifact-consent-overlay')).toBeInTheDocument()
+    expect(screen.getByTestId('html-artifact-consent-card')).toBeInTheDocument()
+    expect(screen.queryByTestId('html-artifact-surface')).not.toBeInTheDocument()
     expect(screen.queryByTestId('interactive-html-webview')).not.toBeInTheDocument()
   })
 

@@ -1,4 +1,5 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
+import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
 import HtmlPreviewFrame, { HTML_PREVIEW_RESTRICTED_CSP } from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
 import CodeViewer from '@renderer/components/CodeViewer'
@@ -8,8 +9,8 @@ import { getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { htmlArtifactRequiresUserConsent } from '@renderer/utils/htmlArtifact'
 import { HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX, HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
 import type { ConsoleMessageEvent, WebviewTag } from 'electron'
-import { Code2, DownloadIcon, Eye, Globe2, LinkIcon, ZoomIn, ZoomOut } from 'lucide-react'
-import { memo, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Code2, DownloadIcon, Eye, LinkIcon, ShieldAlert, ZoomIn, ZoomOut } from 'lucide-react'
+import { memo, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('HtmlArtifactView')
@@ -356,27 +357,49 @@ const InteractiveHtmlPreview = memo(function InteractiveHtmlPreview({
   )
 })
 
-const HtmlArtifactConsentOverlay = memo(function HtmlArtifactConsentOverlay({
+const HtmlArtifactConsentCard = memo(function HtmlArtifactConsentCard({
+  title,
   description,
   actionLabel,
   onAccept
 }: {
+  title: string
   description: string
   actionLabel: string
   onAccept: () => void
 }) {
+  const descriptionId = useId()
+
   return (
     <div
-      data-testid="html-artifact-consent-overlay"
-      className="flex h-full w-full flex-col items-center justify-center gap-3 bg-background-subtle px-6 text-center">
-      <div className="flex size-10 items-center justify-center rounded-xl border border-border-subtle bg-background">
-        <Globe2 className="size-5 text-foreground-secondary" />
+      data-testid="html-artifact-consent-card"
+      className="flex w-full max-w-xl items-center overflow-hidden rounded-lg border-[0.5px] border-border bg-background-subtle font-[var(--font-family-body)]">
+      <div className="flex min-h-12 min-w-0 flex-1 items-center gap-2.5 px-2.5 py-2">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-background">
+          <Icon icon="material-icon-theme:html" className="text-[20px]" />
+        </span>
+        <span className="truncate font-medium text-[13px] text-foreground leading-5">{title}</span>
+        <span className="shrink-0 rounded-sm bg-background px-1.5 py-0.5 font-medium text-[10px] text-foreground-muted leading-4">
+          HTML
+        </span>
       </div>
-      <p className="max-w-md text-foreground-muted text-xs leading-5">{description}</p>
-      <Button type="button" size="sm" onClick={onAccept}>
-        <Eye className="size-3.5" />
-        {actionLabel}
-      </Button>
+      <div className="mr-2 flex shrink-0">
+        <Tooltip content={description} delay={300}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 min-h-7 shrink-0 px-2 text-foreground-muted opacity-70 hover:bg-background hover:text-foreground hover:opacity-100"
+            aria-describedby={descriptionId}
+            onClick={onAccept}>
+            <ShieldAlert className="size-3.5" />
+            {actionLabel}
+          </Button>
+        </Tooltip>
+        <span id={descriptionId} className="sr-only">
+          {description}
+        </span>
+      </div>
     </div>
   )
 })
@@ -392,11 +415,7 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({ html, title }: 
   const isInteractivePreviewApproved = requiresUserConsent && approvedInteractiveHtml === html
   const isPreviewBlocked = requiresUserConsent && !isInteractivePreviewApproved
   const showCode = viewMode === 'code'
-  const surfaceHeight = showCode
-    ? Math.max(INITIAL_PREVIEW_HEIGHT, previewHeight)
-    : isPreviewBlocked
-      ? INITIAL_PREVIEW_HEIGHT
-      : previewHeight
+  const surfaceHeight = showCode ? Math.max(INITIAL_PREVIEW_HEIGHT, previewHeight) : previewHeight
   const toggleLabel = t(showCode ? 'html_artifacts.preview' : 'html_artifacts.code')
   const handleToggle = () => {
     setViewMode((current) => (current === 'preview' ? 'code' : 'preview'))
@@ -437,6 +456,19 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({ html, title }: 
     }
   }
 
+  if (isPreviewBlocked) {
+    return (
+      <div data-testid="html-artifact-view" className="w-full">
+        <HtmlArtifactConsentCard
+          title={title}
+          description={t('html_artifacts.interactive_preview.description')}
+          actionLabel={t('html_artifacts.interactive_preview.action')}
+          onAccept={handleApproveInteractivePreview}
+        />
+      </div>
+    )
+  }
+
   return (
     <div data-testid="html-artifact-view" className="w-full">
       <div
@@ -447,12 +479,6 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({ html, title }: 
           <div className="h-full min-h-0">
             <CodeViewer value={html} language="html" height="100%" expanded={false} className="h-full" />
           </div>
-        ) : isPreviewBlocked ? (
-          <HtmlArtifactConsentOverlay
-            description={t('html_artifacts.interactive_preview.description')}
-            actionLabel={t('html_artifacts.interactive_preview.action')}
-            onAccept={handleApproveInteractivePreview}
-          />
         ) : requiresUserConsent ? (
           <InteractiveHtmlPreview html={html} title={title} zoom={zoom} onHeightChange={setPreviewHeight} />
         ) : (
@@ -462,7 +488,7 @@ export const HtmlArtifactView = memo(function HtmlArtifactView({ html, title }: 
         <div
           data-testid="html-artifact-controls"
           className="pointer-events-none absolute top-1.5 right-1.5 z-10 flex items-center gap-0.5 rounded-md border border-border-subtle bg-popover p-0.5 opacity-0 shadow-sm transition-opacity duration-150 group-hover:pointer-events-auto group-hover:opacity-100 group-has-[:focus-visible]:pointer-events-auto group-has-[:focus-visible]:opacity-100 motion-reduce:transition-none">
-          {!showCode && !isPreviewBlocked && (
+          {!showCode && (
             <>
               <Tooltip content={t('preview.zoom_out')} delay={500}>
                 <Button

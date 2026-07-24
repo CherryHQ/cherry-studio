@@ -51,5 +51,6 @@ describe('MessageHtmlArtifact', () => {
     const artifact = screen.getByTestId('message-html-artifact')
     expect(artifact).toHaveClass('w-full', 'min-w-0', 'max-w-full')
     expect(artifact).not.toHaveAttribute('style')
+    expect(screen.getByTestId('html-artifact-view')).toHaveAttribute('data-title', 'common.html_preview')
   })
 })
