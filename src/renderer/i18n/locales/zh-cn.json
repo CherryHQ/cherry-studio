@@ -702,6 +702,38 @@
       "run": "运行",
       "runTriggered": "任务已触发",
       "save": "保存",
+      "schedule": {
+        "custom": "自定义计划",
+        "daily": "每天",
+        "hour": "小时",
+        "hourly": "每小时",
+        "interval": "自定义间隔",
+        "intervalMinutes": "间隔时长",
+        "invalid": "请填写有效的执行频率。",
+        "minute": "分钟",
+        "once": "一次性",
+        "runAt": "执行时间",
+        "summary": {
+          "daily": "每天 {{time}}",
+          "hourly": "每小时整点",
+          "interval": "每 {{count}} 分钟",
+          "weekdays": "工作日 {{time}}",
+          "weekly": "每{{weekday}} {{time}}"
+        },
+        "time": "时间",
+        "weekday": "星期",
+        "weekdays": {
+          "friday": "周五",
+          "monday": "周一",
+          "saturday": "周六",
+          "sunday": "周日",
+          "thursday": "周四",
+          "tuesday": "周二",
+          "wednesday": "周三"
+        },
+        "weekdaysOnly": "工作日",
+        "weekly": "每周"
+      },
       "scheduleType": {
         "cron": "Cron",
         "interval": "间隔",
@@ -7574,12 +7606,26 @@
       "titlePlaceholder": "请输入短语标题"
     },
     "scheduledTasks": {
+      "agentCreate": "通过 Agent 创建",
+      "createDescription": "设置 Agent 要执行的内容和运行频率。",
+      "createTitle": "新建定时任务",
       "description": "管理所有 Agent 的定时任务。任务将按照配置的时间计划自动运行。",
+      "manualCreate": "手动创建",
+      "newTask": "新建",
       "noAgents": "暂无可用的 Agent。请先创建一个 Agent，再添加定时任务。",
       "noAgentsTip": "提示：你也可以直接在对话中让 Agent 创建定时任务。",
-      "noTasks": "暂无定时任务。点击「+ 添加」为某个 Agent 创建任务。",
+      "noAgentsTitle": "暂无 Agent",
+      "noTasks": "创建一个任务，让 Agent 按计划自动运行。",
+      "noTasksTitle": "暂无定时任务",
+      "notFoundDescription": "该任务可能已被删除，或链接无效。",
+      "notFoundTitle": "未找到任务",
       "selectTask": "选择一个任务以查看详情",
-      "title": "定时任务"
+      "title": "定时任务",
+      "validation": {
+        "agent": "请选择 Agent。",
+        "name": "请输入任务名称。",
+        "prompt": "请输入任务提示词。"
+      }
     },
     "shortcuts": {
       "action": "操作",

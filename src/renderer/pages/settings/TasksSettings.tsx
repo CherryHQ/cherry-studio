@@ -1,25 +1,48 @@
 import type { ColumnDef } from '@cherrystudio/ui'
 import {
+  Alert,
   Badge,
   Button,
+  Center,
   Combobox,
   ConfirmDialog,
   DataTable,
   DateTimePicker,
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   EmptyState,
-  Input as UIInput,
-  MenuItem,
-  MenuList,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-  SegmentedControl,
+  Field,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  Input,
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupText,
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemMedia,
+  ItemSeparator,
+  ItemTitle,
+  RowFlex,
+  Scrollbar,
+  SearchInput,
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -29,14 +52,13 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import ListItem from '@renderer/components/ListItem'
-import { WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
-import Scrollbar from '@renderer/components/Scrollbar'
+import PromptEditorField from '@renderer/components/PromptEditorField'
+import { PromptPolishActions } from '@renderer/components/resourceCatalog/dialogs/components/PromptPolishActions'
+import { AgentSelector, WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
 import {
+  SettingDescription,
   SettingDivider,
   SettingGroup,
-  SettingRow,
-  SettingRowTitle,
   SettingsContentColumn,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
@@ -46,7 +68,10 @@ import { useChannels } from '@renderer/hooks/agent/useChannels'
 import { useCreateTask, useDeleteTask, useRunTask, useTaskLogs, useUpdateTask } from '@renderer/hooks/agent/useTasks'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { openRoute } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
+import { RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
+import { AGENT_PROMPT } from '@shared/ai/prompts'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type {
@@ -56,46 +81,39 @@ import type {
   TaskRunLogEntity,
   UpdateTaskRequest
 } from '@shared/data/types/agent'
+import { Link, useNavigate, useParams } from '@tanstack/react-router'
+import type { TFunction } from 'i18next'
 import {
-  AlertTriangle,
-  CalendarClock,
+  ArrowLeft,
+  Bot,
   ChevronDown,
+  ChevronRight,
   CircleSlash,
-  Clock,
   ExternalLink,
   Folder,
-  History,
   Maximize2,
   MoreHorizontal,
+  PencilLine,
   Play,
   Plus,
-  Search,
-  Trash2,
-  X
+  Trash2
 } from 'lucide-react'
-import { type FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type FC, Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('TasksSettings')
 
-// --------------- Types ---------------
-
 type AgentInfo = { id: string; name: string }
 type ChannelInfo = { id: string; agentId?: string | null; name: string; isActive?: boolean; hasActiveChatIds?: boolean }
 
-const parseScheduleDate = (value: string) => {
-  if (!value) return undefined
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? undefined : date
-}
-
-/** UI form state ↔ wire Trigger conversions. */
-type ScheduleKind = 'cron' | 'interval' | 'once'
-type ScheduleFormState = {
+export type ScheduleKind = 'hourly' | 'daily' | 'weekdays' | 'weekly' | 'interval' | 'once' | 'cron'
+export type ScheduleFormState = {
   kind: ScheduleKind
   value: string
+  weekday: string
   timeoutMinutes: string
 }
+
 type ScheduleCommitPatch = {
   trigger?: Trigger
   timeoutMinutes?: number | null
@@ -114,6 +132,31 @@ type TaskUpdateResult = {
   task: ScheduledTaskEntity
 }
 
+const DEFAULT_SCHEDULE: ScheduleFormState = {
+  kind: 'daily',
+  value: '09:00',
+  weekday: '1',
+  timeoutMinutes: ''
+}
+
+const parseScheduleDate = (value: string) => {
+  if (!value) return undefined
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? undefined : date
+}
+
+const parseTime = (value: string) => {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim())
+  if (!match) return null
+  const hour = Number(match[1])
+  const minute = Number(match[2])
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null
+  return { hour, minute }
+}
+
+const formatTime = (hour: number, minute: number) =>
+  `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+
 function createTaskDraftVersions(): TaskDraftVersions {
   return {
     name: 0,
@@ -124,15 +167,90 @@ function createTaskDraftVersions(): TaskDraftVersions {
   }
 }
 
-function triggerToFormState(trigger: Trigger): { kind: ScheduleKind; value: string } {
-  switch (trigger.kind) {
-    case 'cron':
-      return { kind: 'cron', value: trigger.expr }
+export function triggerToFormState(trigger: Trigger): Omit<ScheduleFormState, 'timeoutMinutes'> {
+  if (trigger.kind === 'interval') {
+    return {
+      kind: 'interval',
+      value: String(Math.max(1, Math.round(trigger.ms / 60_000))),
+      weekday: '1'
+    }
+  }
+
+  if (trigger.kind === 'once') {
+    return {
+      kind: 'once',
+      value: new Date(trigger.at).toISOString(),
+      weekday: '1'
+    }
+  }
+
+  const parts = trigger.expr.trim().split(/\s+/)
+  if (parts.length !== 5) {
+    return { kind: 'cron', value: trigger.expr, weekday: '1' }
+  }
+
+  const [minutePart, hourPart, dayOfMonth, month, dayOfWeek] = parts
+  if (minutePart === '0' && hourPart === '*' && dayOfMonth === '*' && month === '*' && dayOfWeek === '*') {
+    return { kind: 'hourly', value: '', weekday: '1' }
+  }
+
+  const minute = Number(minutePart)
+  const hour = Number(hourPart)
+  const hasValidTime =
+    Number.isInteger(minute) && minute >= 0 && minute <= 59 && Number.isInteger(hour) && hour >= 0 && hour <= 23
+
+  if (!hasValidTime || dayOfMonth !== '*' || month !== '*') {
+    return { kind: 'cron', value: trigger.expr, weekday: '1' }
+  }
+
+  const value = formatTime(hour, minute)
+  if (dayOfWeek === '*') return { kind: 'daily', value, weekday: '1' }
+  if (dayOfWeek === '1-5') return { kind: 'weekdays', value, weekday: '1' }
+  if (/^[0-6]$/.test(dayOfWeek)) return { kind: 'weekly', value, weekday: dayOfWeek }
+  return { kind: 'cron', value: trigger.expr, weekday: '1' }
+}
+
+export function formStateToTrigger(schedule: ScheduleFormState): Trigger | null {
+  if (schedule.kind === 'hourly') return { kind: 'cron', expr: '0 * * * *' }
+
+  if (schedule.kind === 'interval') {
+    const minutes = Number(schedule.value.trim())
+    if (!Number.isInteger(minutes) || minutes <= 0) return null
+    return { kind: 'interval', ms: minutes * 60_000 }
+  }
+
+  if (schedule.kind === 'once') {
+    const at = Date.parse(schedule.value.trim())
+    return Number.isFinite(at) ? { kind: 'once', at } : null
+  }
+
+  if (schedule.kind === 'cron') {
+    const expr = schedule.value.trim()
+    return expr ? { kind: 'cron', expr } : null
+  }
+
+  const time = parseTime(schedule.value)
+  if (!time) return null
+  const prefix = `${time.minute} ${time.hour} * *`
+
+  if (schedule.kind === 'daily') return { kind: 'cron', expr: `${prefix} *` }
+  if (schedule.kind === 'weekdays') return { kind: 'cron', expr: `${prefix} 1-5` }
+  if (!/^[0-6]$/.test(schedule.weekday)) return null
+  return { kind: 'cron', expr: `${prefix} ${schedule.weekday}` }
+}
+
+function scheduleForKind(kind: ScheduleKind, current: ScheduleFormState): ScheduleFormState {
+  switch (kind) {
+    case 'hourly':
+      return { ...current, kind, value: '' }
+    case 'daily':
+    case 'weekdays':
+    case 'weekly':
+      return { ...current, kind, value: parseTime(current.value) ? current.value : '09:00' }
     case 'interval':
-      // Wire stores ms; UI shows minutes — round to keep "every 30m" stable on round-trip.
-      return { kind: 'interval', value: String(Math.max(1, Math.round(trigger.ms / 60_000))) }
     case 'once':
-      return { kind: 'once', value: new Date(trigger.at).toISOString() }
+    case 'cron':
+      return { ...current, kind, value: '' }
   }
 }
 
@@ -159,131 +277,228 @@ function draftFieldsForUpdate(updates: UpdateTaskRequest): TaskDraftField[] {
   return fields
 }
 
-function formStateToTrigger(kind: ScheduleKind, value: string): Trigger | null {
-  const trimmed = value.trim()
-  if (kind === 'cron') {
-    if (!trimmed) return null
-    return { kind: 'cron', expr: trimmed }
+function getWeekdayLabel(weekday: string, t: TFunction) {
+  const labels: Record<string, string> = {
+    '0': t('agent.tasks.schedule.weekdays.sunday'),
+    '1': t('agent.tasks.schedule.weekdays.monday'),
+    '2': t('agent.tasks.schedule.weekdays.tuesday'),
+    '3': t('agent.tasks.schedule.weekdays.wednesday'),
+    '4': t('agent.tasks.schedule.weekdays.thursday'),
+    '5': t('agent.tasks.schedule.weekdays.friday'),
+    '6': t('agent.tasks.schedule.weekdays.saturday')
   }
-  if (kind === 'interval') {
-    const minutes = parseInt(trimmed, 10)
-    if (!Number.isFinite(minutes) || minutes <= 0) return null
-    return { kind: 'interval', ms: minutes * 60_000 }
-  }
-  const at = Date.parse(trimmed)
-  if (!Number.isFinite(at)) return null
-  return { kind: 'once', at }
+  return labels[weekday] ?? weekday
 }
 
-// --------------- Shared schedule controls ---------------
+function getScheduleKindLabel(kind: ScheduleKind, t: TFunction) {
+  const labels: Record<ScheduleKind, string> = {
+    hourly: t('agent.tasks.schedule.hourly'),
+    daily: t('agent.tasks.schedule.daily'),
+    weekdays: t('agent.tasks.schedule.weekdaysOnly'),
+    weekly: t('agent.tasks.schedule.weekly'),
+    interval: t('agent.tasks.schedule.interval'),
+    once: t('agent.tasks.schedule.once'),
+    cron: t('agent.tasks.schedule.custom')
+  }
+  return labels[kind]
+}
+
+function getTaskStatusLabel(status: string, t: TFunction) {
+  const labels: Record<string, string> = {
+    active: t('agent.tasks.status.active'),
+    paused: t('agent.tasks.status.paused'),
+    completed: t('agent.tasks.status.completed')
+  }
+  return labels[status] ?? status
+}
+
+function getTriggerSummary(trigger: Trigger, t: TFunction) {
+  const schedule = triggerToFormState(trigger)
+  switch (schedule.kind) {
+    case 'hourly':
+      return t('agent.tasks.schedule.summary.hourly')
+    case 'daily':
+      return t('agent.tasks.schedule.summary.daily', { time: schedule.value })
+    case 'weekdays':
+      return t('agent.tasks.schedule.summary.weekdays', { time: schedule.value })
+    case 'weekly':
+      return t('agent.tasks.schedule.summary.weekly', {
+        weekday: getWeekdayLabel(schedule.weekday, t),
+        time: schedule.value
+      })
+    case 'interval':
+      return t('agent.tasks.schedule.summary.interval', { count: Number(schedule.value) })
+    case 'once':
+      return new Date(schedule.value).toLocaleString()
+    case 'cron':
+      return schedule.value
+  }
+}
 
 const TaskScheduleControls: FC<{
   value: ScheduleFormState
   disabled?: boolean
+  invalid?: boolean
   onChange: (value: ScheduleFormState) => void
   onCommit?: (patch: ScheduleCommitPatch) => void
-}> = ({ value, disabled, onChange, onCommit }) => {
+}> = ({ value, disabled, invalid, onChange, onCommit }) => {
   const { t } = useTranslation()
+  const id = useId()
 
-  const scheduleTypeOptions = [
-    { value: 'interval' as const, label: t('agent.tasks.scheduleType.interval') },
-    { value: 'once' as const, label: t('agent.tasks.scheduleType.once') },
-    { value: 'cron' as const, label: t('agent.tasks.scheduleType.cron') }
-  ]
+  const commitTrigger = (schedule = value) => {
+    const trigger = formStateToTrigger(schedule)
+    if (trigger) onCommit?.({ trigger })
+  }
 
-  const commitTrigger = (kind = value.kind, scheduleValue = value.value) => {
-    if (!onCommit) return
-    const trigger = formStateToTrigger(kind, scheduleValue)
-    if (!trigger) return
-    onCommit({ trigger })
+  const updateKind = (kind: ScheduleKind) => {
+    const next = scheduleForKind(kind, value)
+    onChange(next)
+    commitTrigger(next)
+  }
+
+  const updateValue = (nextValue: string, commit = false) => {
+    const next = { ...value, value: nextValue }
+    onChange(next)
+    if (commit) commitTrigger(next)
   }
 
   const commitTimeoutMinutes = () => {
     if (!onCommit) return
-    const nextTimeout = value.timeoutMinutes.trim() ? parseInt(value.timeoutMinutes, 10) : null
-    onCommit({ timeoutMinutes: nextTimeout })
+    if (!value.timeoutMinutes.trim()) {
+      onCommit({ timeoutMinutes: null })
+      return
+    }
+    const minutes = Number(value.timeoutMinutes)
+    if (Number.isInteger(minutes) && minutes > 0) onCommit({ timeoutMinutes: minutes })
   }
 
-  return (
-    <div className="space-y-5">
-      <div className="space-y-3">
-        <SettingRowTitle>{t('agent.tasks.frequency.label')}</SettingRowTitle>
-        <SegmentedControl
-          size="sm"
-          value={value.kind}
+  const frequencyControl =
+    value.kind === 'daily' || value.kind === 'weekdays' ? (
+      <Input
+        className="w-40"
+        type="time"
+        value={value.value}
+        disabled={disabled}
+        aria-label={t('agent.tasks.schedule.time')}
+        onChange={(event) => updateValue(event.target.value)}
+        onBlur={() => commitTrigger()}
+      />
+    ) : value.kind === 'weekly' ? (
+      <>
+        <Select
+          value={value.weekday}
           disabled={disabled}
-          onValueChange={(kind) => onChange({ ...value, kind, value: '' })}
-          options={scheduleTypeOptions}
-          className="max-w-full"
+          onValueChange={(weekday) => {
+            const next = { ...value, weekday }
+            onChange(next)
+            commitTrigger(next)
+          }}>
+          <SelectTrigger aria-label={t('agent.tasks.schedule.weekday')}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              {['1', '2', '3', '4', '5', '6', '0'].map((weekday) => (
+                <SelectItem key={weekday} value={weekday}>
+                  {getWeekdayLabel(weekday, t)}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+        <Input
+          className="w-40"
+          type="time"
+          value={value.value}
+          disabled={disabled}
+          aria-label={t('agent.tasks.schedule.time')}
+          onChange={(event) => updateValue(event.target.value)}
+          onBlur={() => commitTrigger()}
         />
+      </>
+    ) : value.kind === 'interval' ? (
+      <InputGroup className="w-40" data-disabled={disabled || undefined}>
+        <InputGroupInput
+          type="number"
+          min={1}
+          value={value.value}
+          placeholder={t('agent.tasks.intervalPlaceholder')}
+          disabled={disabled}
+          aria-label={t('agent.tasks.schedule.intervalMinutes')}
+          aria-invalid={invalid || undefined}
+          onChange={(event) => updateValue(event.target.value)}
+          onBlur={() => commitTrigger()}
+        />
+        <InputGroupAddon align="inline-end">
+          <InputGroupText>{t('agent.tasks.intervalUnit')}</InputGroupText>
+        </InputGroupAddon>
+      </InputGroup>
+    ) : value.kind === 'once' ? (
+      <DateTimePicker
+        value={parseScheduleDate(value.value)}
+        granularity="minute"
+        format="yyyy-MM-dd HH:mm"
+        placeholder={t('agent.tasks.oncePlaceholder')}
+        disabled={disabled}
+        labels={{
+          hour: t('agent.tasks.schedule.hour'),
+          minute: t('agent.tasks.schedule.minute')
+        }}
+        onChange={(date) => {
+          if (date) updateValue(date.toISOString(), true)
+        }}
+      />
+    ) : null
 
-        {value.kind === 'interval' && (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-foreground text-sm">{t('agent.tasks.frequency.everyPrefix')}</span>
-            <UIInput
-              type="number"
-              min={1}
-              value={value.value}
-              onChange={(e) => onChange({ ...value, value: e.target.value })}
-              onBlur={() => commitTrigger('interval', value.value)}
-              placeholder={t('agent.tasks.intervalPlaceholder')}
-              disabled={disabled}
-              className="w-24"
-            />
-            <span className="text-foreground text-sm">{t('agent.tasks.frequency.everySuffix')}</span>
-          </div>
-        )}
-
-        {value.kind === 'once' && (
-          <DateTimePicker
-            value={parseScheduleDate(value.value)}
-            granularity="second"
-            format="yyyy-MM-dd HH:mm:ss"
-            placeholder={t('agent.tasks.oncePlaceholder')}
-            triggerClassName="w-72 max-w-full"
-            onChange={(date) => {
-              if (!date) return
-              const nextValue = date.toISOString()
-              onChange({ ...value, value: nextValue })
-              commitTrigger('once', nextValue)
-            }}
+  return (
+    <FieldGroup>
+      <Field data-invalid={invalid || undefined}>
+        <FieldLabel htmlFor={`${id}-kind`}>{t('agent.tasks.frequency.label')}</FieldLabel>
+        <RowFlex className="flex-wrap items-center gap-3">
+          <Select
+            value={value.kind === 'cron' ? undefined : value.kind}
             disabled={disabled}
-          />
-        )}
+            onValueChange={(kind) => updateKind(kind as Exclude<ScheduleKind, 'cron'>)}>
+            <SelectTrigger id={`${id}-kind`} aria-invalid={invalid || undefined}>
+              <SelectValue placeholder={value.kind === 'cron' ? t('agent.tasks.schedule.custom') : undefined} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="hourly">{t('agent.tasks.schedule.hourly')}</SelectItem>
+                <SelectItem value="daily">{t('agent.tasks.schedule.daily')}</SelectItem>
+                <SelectItem value="weekdays">{t('agent.tasks.schedule.weekdaysOnly')}</SelectItem>
+                <SelectItem value="weekly">{t('agent.tasks.schedule.weekly')}</SelectItem>
+                <SelectItem value="interval">{t('agent.tasks.schedule.interval')}</SelectItem>
+                <SelectItem value="once">{t('agent.tasks.schedule.once')}</SelectItem>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          {frequencyControl}
+        </RowFlex>
+        <FieldError>{invalid ? t('agent.tasks.schedule.invalid') : undefined}</FieldError>
+      </Field>
 
-        {value.kind === 'cron' && (
-          <UIInput
-            value={value.value}
-            onChange={(e) => onChange({ ...value, value: e.target.value })}
-            onBlur={() => commitTrigger('cron', value.value)}
-            placeholder={t('agent.tasks.cronPlaceholder')}
-            disabled={disabled}
-            className="w-72 max-w-full"
-          />
-        )}
-      </div>
-
-      <div className="space-y-3">
-        <SettingRowTitle>{t('agent.tasks.timeout.label')}</SettingRowTitle>
-        <div className="flex items-center gap-2">
-          <UIInput
+      <Field>
+        <FieldLabel htmlFor={`${id}-timeout`}>{t('agent.tasks.timeout.label')}</FieldLabel>
+        <InputGroup data-disabled={disabled || undefined}>
+          <InputGroupInput
+            id={`${id}-timeout`}
             type="number"
             min={1}
             value={value.timeoutMinutes}
-            onChange={(e) => onChange({ ...value, timeoutMinutes: e.target.value })}
-            onBlur={commitTimeoutMinutes}
             placeholder={t('agent.tasks.timeout.placeholder')}
             disabled={disabled}
-            className="h-8 min-h-8 w-24"
+            onChange={(event) => onChange({ ...value, timeoutMinutes: event.target.value })}
+            onBlur={commitTimeoutMinutes}
           />
-          <span className="text-muted-foreground text-xs">{t('agent.tasks.intervalUnit')}</span>
-        </div>
-      </div>
-    </div>
+          <InputGroupAddon align="inline-end">
+            <InputGroupText>{t('agent.tasks.intervalUnit')}</InputGroupText>
+          </InputGroupAddon>
+        </InputGroup>
+      </Field>
+    </FieldGroup>
   )
 }
-
-// --------------- Shared channel selector with warnings ---------------
 
 const TaskChannelSelector: FC<{
   channels: ChannelInfo[]
@@ -295,78 +510,185 @@ const TaskChannelSelector: FC<{
 
   if (channels.length === 0) return null
 
-  const hasNoChatIds = channelIds.some((id) => !channels.find((c) => c.id === id)?.hasActiveChatIds)
+  const hasNoChatIds = channelIds.some((id) => !channels.find((channel) => channel.id === id)?.hasActiveChatIds)
 
   return (
-    <>
-      <SettingRow className="gap-2" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-        <SettingRowTitle>{t('agent.tasks.channels.label')}</SettingRowTitle>
-        <Combobox
-          multiple
-          size="default"
-          className="w-full"
-          width="100%"
-          value={channelIds}
-          disabled={disabled}
-          onChange={(value) => {
-            if (Array.isArray(value)) {
-              onChange(value)
-            }
-          }}
-          placeholder={t('agent.tasks.channels.placeholder')}
-          searchPlaceholder={t('agent.tasks.channels.placeholder')}
-          emptyText={t('common.no_results')}
-          options={channels.map((ch) => ({
-            value: ch.id,
-            label: ch.name,
-            isActive: ch.isActive
-          }))}
-          renderOption={(option) => (
-            <span className="flex min-w-0 items-center gap-2">
-              <span
-                className={`inline-block h-1.5 w-1.5 rounded-full ${option.isActive ? 'bg-green-500' : 'bg-gray-400'}`}
-              />
-              <span className="truncate">{option.label}</span>
-            </span>
-          )}
-        />
-        {hasNoChatIds && (
-          <div className="mt-2 inline-flex items-start gap-2 rounded-lg border border-warning/25 bg-warning/8 px-3 py-2 text-warning text-xs">
-            <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-            <span>{t('agent.tasks.channels.noActiveChatIds')}</span>
-          </div>
-        )}
-      </SettingRow>
-    </>
+    <Field>
+      <FieldLabel>{t('agent.tasks.channels.label')}</FieldLabel>
+      <Combobox
+        multiple
+        size="default"
+        width="100%"
+        value={channelIds}
+        disabled={disabled}
+        searchable={channels.length > 5}
+        onChange={(nextValue) => {
+          if (Array.isArray(nextValue)) onChange(nextValue)
+        }}
+        placeholder={t('agent.tasks.channels.placeholder')}
+        searchPlaceholder={t('agent.tasks.channels.placeholder')}
+        emptyText={t('common.no_results')}
+        options={channels.map((channel) => ({
+          value: channel.id,
+          label: channel.name,
+          isActive: channel.isActive
+        }))}
+      />
+      {hasNoChatIds && <Alert type="warning" showIcon description={t('agent.tasks.channels.noActiveChatIds')} />}
+    </Field>
   )
 }
 
-// --------------- Task Detail (right panel) ---------------
+const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agentId }) => {
+  const { t, i18n } = useTranslation()
+  const locale = i18n.language
+  const { openConversation } = useConversationNavigation('agents')
+  const { logs, isLoading, error: logsError } = useTaskLogs(agentId, taskId)
+  const [searchText, setSearchText] = useState('')
+
+  const filteredLogs = useMemo(() => {
+    if (!searchText.trim()) return logs
+    const query = searchText.toLowerCase()
+    return logs.filter(
+      (log) =>
+        log.result?.toLowerCase().includes(query) ||
+        log.error?.toLowerCase().includes(query) ||
+        log.status.toLowerCase().includes(query) ||
+        new Date(log.startedAt).toLocaleString(locale).toLowerCase().includes(query)
+    )
+  }, [locale, logs, searchText])
+
+  const columns = useMemo<ColumnDef<TaskRunLogEntity>[]>(
+    () => [
+      {
+        accessorKey: 'startedAt',
+        header: t('agent.tasks.logs.runAt'),
+        meta: { width: 160 },
+        cell: ({ getValue }) =>
+          new Date(getValue() as string).toLocaleString(undefined, {
+            month: 'numeric',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+          })
+      },
+      {
+        accessorKey: 'durationMs',
+        header: t('agent.tasks.logs.duration'),
+        meta: { width: 80 },
+        cell: ({ getValue, row }) => {
+          const value = getValue() as number
+          if (row.original.status === 'running') return '-'
+          if (value < 1000) return `${value}ms`
+          if (value < 60_000) return `${(value / 1000).toFixed(1)}s`
+          return `${(value / 60_000).toFixed(1)}m`
+        }
+      },
+      {
+        accessorKey: 'status',
+        header: t('agent.tasks.logs.status'),
+        meta: { width: 90 },
+        cell: ({ getValue }) => {
+          const value = getValue() as string
+          const labels: Record<string, string> = {
+            completed: t('agent.tasks.logs.completed'),
+            running: t('agent.tasks.logs.running'),
+            failed: t('agent.tasks.logs.failed'),
+            cancelled: t('agent.tasks.logs.cancelled')
+          }
+          return (
+            <Badge variant={value === 'failed' ? 'destructive' : value === 'running' ? 'secondary' : 'outline'}>
+              {labels[value] ?? value}
+            </Badge>
+          )
+        }
+      },
+      {
+        id: 'result',
+        header: t('agent.tasks.logs.result'),
+        meta: { width: 'calc(100% - 330px)', className: 'min-w-0' },
+        cell: ({ row }) => {
+          const record = row.original
+          const isErrorStatus = record.status === 'failed' || record.status === 'cancelled'
+          const text =
+            record.status === 'running'
+              ? t('agent.tasks.logs.running')
+              : isErrorStatus
+                ? record.error
+                : (record.result ?? '-')
+
+          return (
+            <RowFlex className="items-start gap-1">
+              {record.sessionId && (
+                <Tooltip title={t('agent.tasks.logs.viewSession')}>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t('agent.tasks.logs.viewSession')}
+                    onClick={() => openConversation(record.sessionId!)}>
+                    <ExternalLink size={12} />
+                  </Button>
+                </Tooltip>
+              )}
+              <span>{text}</span>
+            </RowFlex>
+          )
+        }
+      }
+    ],
+    [openConversation, t]
+  )
+
+  if (isLoading) {
+    return (
+      <Center className="py-4">
+        <Spinner text={t('common.loading')} />
+      </Center>
+    )
+  }
+
+  if (logsError) {
+    return <EmptyState compact preset="no-result" description={t('agent.tasks.logs.loadError')} />
+  }
+
+  if (logs.length === 0) {
+    return <EmptyState compact preset="no-result" description={t('agent.tasks.logs.empty')} />
+  }
+
+  return (
+    <FieldGroup>
+      <SearchInput
+        size="sm"
+        value={searchText}
+        placeholder={t('agent.tasks.logs.search')}
+        clearLabel={t('common.clear')}
+        onClear={() => setSearchText('')}
+        onChange={(event) => setSearchText(event.target.value)}
+      />
+      <div data-slot="task-logs-table-scroll" className="max-w-full overflow-x-auto">
+        <div data-slot="task-logs-table-width" className="min-w-[720px]">
+          <DataTable data={filteredLogs} columns={columns} rowKey="id" emptyText={t('agent.tasks.logs.empty')} />
+        </div>
+      </div>
+    </FieldGroup>
+  )
+}
 
 const TaskDetail: FC<{
   task: ScheduledTaskEntity
   agents: AgentInfo[]
   channels: ChannelInfo[]
+  onBack: () => void
   onUpdate: (taskId: string, updates: UpdateTaskRequest) => Promise<TaskUpdateResult | undefined>
   onDelete: (taskId: string) => Promise<void>
   onRun: (taskId: string) => Promise<void>
   onToggleStatus: (taskId: string, newStatus: string) => Promise<void>
-}> = ({ task, agents, channels, onUpdate, onDelete, onRun, onToggleStatus }) => {
+}> = ({ task, agents, channels, onBack, onUpdate, onDelete, onRun, onToggleStatus }) => {
   const { t } = useTranslation()
   const { theme } = useTheme()
-
   const isCompleted = task.status === 'completed'
-  const statusLabels: Record<string, string> = {
-    active: t('agent.tasks.status.active'),
-    paused: t('agent.tasks.status.paused'),
-    completed: t('agent.tasks.status.completed')
-  }
-  const scheduleTypeLabels: Record<string, string> = {
-    cron: t('agent.tasks.scheduleType.cron'),
-    interval: t('agent.tasks.scheduleType.interval'),
-    once: t('agent.tasks.scheduleType.once')
-  }
-  const agentName = agents.find((a) => a.id === task.agentId)?.name ?? task.agentId
+  const agentName = agents.find((agent) => agent.id === task.agentId)?.name ?? task.agentId
   const taskChannels = useMemo(
     () => channels.filter((channel) => channel.agentId === task.agentId),
     [channels, task.agentId]
@@ -377,28 +699,22 @@ const TaskDetail: FC<{
   const [prompt, setPrompt] = useState(initialDraft.prompt)
   const [promptModalOpen, setPromptModalOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
-  const [actionsMenuOpen, setActionsMenuOpen] = useState(false)
   const [schedule, setSchedule] = useState<ScheduleFormState>(initialDraft.schedule)
   const [channelIds, setChannelIds] = useState<string[]>(initialDraft.channelIds)
-  const selectedChannelIds = useMemo(() => {
-    const ownedChannelIds = new Set(taskChannels.map((channel) => channel.id))
-    return channelIds.filter((channelId) => ownedChannelIds.has(channelId))
-  }, [channelIds, taskChannels])
   const [workspaceId, setWorkspaceId] = useState<string | null>(initialDraft.workspaceId)
   const draftVersionsRef = useRef<TaskDraftVersions>(createTaskDraftVersions())
   const submittedDraftVersionsRef = useRef<TaskDraftVersions>(createTaskDraftVersions())
   const appliedDraftVersionsRef = useRef<TaskDraftVersions>(createTaskDraftVersions())
   const { data: workspaces } = useQuery('/agent-workspaces')
 
+  const selectedChannelIds = useMemo(() => {
+    const ownedChannelIds = new Set(taskChannels.map((channel) => channel.id))
+    return channelIds.filter((channelId) => ownedChannelIds.has(channelId))
+  }, [channelIds, taskChannels])
   const isSystemWorkspace = workspaceId === null
   const workspaceLabel = isSystemWorkspace
     ? t('agent.session.workspace_selector.no_project')
-    : (workspaces?.find((w) => w.id === workspaceId)?.name ?? workspaceId)
-
-  const toggleStatusLabel = task.status === 'active' ? t('agent.tasks.pause') : t('agent.tasks.resume')
-  const moreLabel = t('common.more')
-  const runLabel = t('agent.tasks.run')
-  const deleteLabel = t('agent.tasks.delete.label')
+    : (workspaces?.find((workspace) => workspace.id === workspaceId)?.name ?? workspaceId)
 
   const markDraftChanged = useCallback((field: TaskDraftField) => {
     draftVersionsRef.current[field] += 1
@@ -407,7 +723,6 @@ const TaskDetail: FC<{
   const applyPersistedTaskFields = useCallback((persistedTask: ScheduledTaskEntity, fields: TaskDraftField[]) => {
     const next = taskToDraftSnapshot(persistedTask)
     const selectedFields = new Set(fields)
-
     if (selectedFields.has('name')) setName(next.name)
     if (selectedFields.has('prompt')) setPrompt(next.prompt)
     if (selectedFields.has('schedule')) setSchedule(next.schedule)
@@ -456,32 +771,20 @@ const TaskDetail: FC<{
 
   const handlePromptModalOpenChange = useCallback(
     (open: boolean) => {
-      if (!open && prompt.trim()) {
-        saveField({ prompt: prompt.trim() })
-      }
+      if (!open && prompt.trim()) saveField({ prompt: prompt.trim() })
       setPromptModalOpen(open)
     },
     [prompt, saveField]
   )
 
-  const handleRunNow = useCallback(() => {
-    setActionsMenuOpen(false)
-    void onRun(task.id)
-  }, [onRun, task.id])
-
-  const handleDeleteAction = useCallback(() => {
-    setActionsMenuOpen(false)
-    setDeleteConfirmOpen(true)
-  }, [])
-
   const formatDateTime = (iso: string | null | undefined) => {
     if (!iso) return '-'
-    const d = new Date(iso)
-    const diff = Math.abs(Date.now() - d.getTime())
-    if (diff < 86400_000) {
-      return d.toLocaleString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false })
+    const date = new Date(iso)
+    const diff = Math.abs(Date.now() - date.getTime())
+    if (diff < 86_400_000) {
+      return date.toLocaleString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false })
     }
-    return d.toLocaleString(undefined, {
+    return date.toLocaleString(undefined, {
       month: 'numeric',
       day: 'numeric',
       hour: '2-digit',
@@ -490,141 +793,131 @@ const TaskDetail: FC<{
     })
   }
 
-  const formatScheduleValue = () => {
-    if (task.trigger.kind === 'cron') return task.trigger.expr
-    if (task.trigger.kind === 'interval') {
-      const minutes = Math.max(1, Math.round(task.trigger.ms / 60_000))
-      return `${minutes} ${t('agent.tasks.intervalUnit')}`
-    }
-    return formatDateTime(new Date(task.trigger.at).toISOString())
-  }
-
   return (
     <SettingsContentColumn theme={theme}>
-      {/* Header card */}
       <SettingGroup theme={theme}>
         <SettingTitle>
-          <div className="flex items-center gap-2">
-            <Badge className={badgeColorClass(task.status)}>{statusLabels[task.status] ?? task.status}</Badge>
-            <span className="text-foreground-muted text-xs">{agentName}</span>
-          </div>
-          <div className="flex items-center gap-1">
+          <RowFlex className="items-center gap-2">
+            <Button type="button" size="icon-lg" variant="ghost" aria-label={t('common.back')} onClick={onBack}>
+              <ArrowLeft size={18} />
+            </Button>
+            <span>{task.name}</span>
+          </RowFlex>
+          <RowFlex className="items-center gap-2">
+            <Badge variant="secondary">{getTaskStatusLabel(task.status, t)}</Badge>
             {!isCompleted && (
               <Switch
                 size="sm"
                 checked={task.status === 'active'}
                 onCheckedChange={(checked) => onToggleStatus(task.id, checked ? 'active' : 'paused')}
-                // Name the state the switch controls; aria-checked carries on/off. title keeps the action hint for sighted hover.
                 aria-label={t('agent.tasks.status.active')}
-                title={toggleStatusLabel}
+                title={task.status === 'active' ? t('agent.tasks.pause') : t('agent.tasks.resume')}
               />
             )}
-            <Popover open={actionsMenuOpen} onOpenChange={setActionsMenuOpen}>
-              <PopoverTrigger asChild>
-                <Button type="button" size="icon-sm" variant="ghost" aria-label={moreLabel}>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" size="icon-sm" variant="ghost" aria-label={t('common.more')}>
                   <MoreHorizontal size={14} />
                 </Button>
-              </PopoverTrigger>
-              <PopoverContent
-                align="end"
-                side="bottom"
-                sideOffset={6}
-                collisionPadding={8}
-                className="w-fit min-w-32 rounded-xl p-1.5"
-                onOpenAutoFocus={(event) => event.preventDefault()}
-                onCloseAutoFocus={(event) => event.preventDefault()}>
-                <MenuList>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuGroup>
                   {!isCompleted && (
-                    <MenuItem
-                      variant="ghost"
-                      icon={<Play className="size-3.5" />}
-                      label={runLabel}
-                      onClick={handleRunNow}
-                    />
+                    <DropdownMenuItem onSelect={() => void onRun(task.id)}>
+                      <Play />
+                      {t('agent.tasks.run')}
+                    </DropdownMenuItem>
                   )}
-                  <MenuItem
-                    variant="ghost"
-                    icon={<Trash2 className="size-3.5 text-destructive" />}
-                    label={deleteLabel}
-                    className="text-destructive hover:bg-destructive/10 hover:text-destructive focus-visible:ring-destructive/20"
-                    onClick={handleDeleteAction}
-                  />
-                </MenuList>
-              </PopoverContent>
-            </Popover>
-          </div>
+                  <DropdownMenuItem variant="destructive" onSelect={() => setDeleteConfirmOpen(true)}>
+                    <Trash2 />
+                    {t('agent.tasks.delete.label')}
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </RowFlex>
         </SettingTitle>
         <SettingDivider />
-        <div className="flex flex-wrap items-center gap-3 text-xs">
-          <Badge className={badgeColorClass(task.trigger.kind)}>
-            {scheduleTypeLabels[task.trigger.kind] ?? task.trigger.kind}
-          </Badge>
-          <span className="inline-flex items-center gap-1 text-foreground-muted">
-            <Clock size={12} />
-            {formatScheduleValue()}
-          </span>
-          {task.lastRun && (
-            <span className="inline-flex items-center gap-1 text-foreground-muted">
-              <History size={12} />
-              {t('agent.tasks.lastRun')}: {formatDateTime(task.lastRun)}
-            </span>
+        <ItemGroup>
+          <Item size="sm">
+            <ItemMedia>
+              <Bot size={16} />
+            </ItemMedia>
+            <ItemContent>
+              <ItemTitle>{agentName}</ItemTitle>
+              <ItemDescription>{getTriggerSummary(task.trigger, t)}</ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <Badge variant="outline">{getScheduleKindLabel(triggerToFormState(task.trigger).kind, t)}</Badge>
+            </ItemActions>
+          </Item>
+          {(task.lastRun || task.nextRun) && <ItemSeparator />}
+          {(task.lastRun || task.nextRun) && (
+            <Item size="sm">
+              <ItemContent>
+                {task.lastRun && (
+                  <ItemDescription>
+                    {t('agent.tasks.lastRun')}: {formatDateTime(task.lastRun)}
+                  </ItemDescription>
+                )}
+                {task.nextRun && (
+                  <ItemDescription>
+                    {t('agent.tasks.nextRun')}: {formatDateTime(task.nextRun)}
+                  </ItemDescription>
+                )}
+              </ItemContent>
+            </Item>
           )}
-          {task.nextRun && (
-            <span className="inline-flex items-center gap-1 text-foreground-muted">
-              <CalendarClock size={12} />
-              {t('agent.tasks.nextRun')}: {formatDateTime(task.nextRun)}
-            </span>
-          )}
-        </div>
+        </ItemGroup>
       </SettingGroup>
 
-      {/* Editable fields card */}
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.general.title')}</SettingTitle>
         <SettingDivider />
-        <div className="space-y-5">
-          <SettingRow className="gap-2" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-            <SettingRowTitle>{t('agent.tasks.name.label')}</SettingRowTitle>
-            <UIInput
+        <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor="scheduled-task-name">{t('agent.tasks.name.label')}</FieldLabel>
+            <Input
+              id="scheduled-task-name"
               value={name}
-              onChange={(e) => {
+              onChange={(event) => {
                 markDraftChanged('name')
-                setName(e.target.value)
+                setName(event.target.value)
               }}
               onBlur={() => name.trim() && saveField({ name: name.trim() })}
               disabled={isCompleted}
             />
-          </SettingRow>
-          {/* Agent reassignment was never supported by the IPC contract (strict
-              schema dropped the field). Owning-agent display lives in the
-              header card. */}
-          <SettingRow className="gap-2" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-            <div className="flex items-center justify-between">
-              <SettingRowTitle>{t('agent.tasks.prompt.label')}</SettingRowTitle>
+          </Field>
+
+          <Field>
+            <RowFlex className="items-center justify-between">
+              <FieldLabel htmlFor="scheduled-task-prompt">{t('agent.tasks.prompt.label')}</FieldLabel>
               {!isCompleted && (
                 <Tooltip title={t('agent.tasks.prompt.expand')}>
                   <Button
+                    type="button"
                     variant="ghost"
                     size="icon-sm"
-                    className="shadow-none"
+                    aria-label={t('agent.tasks.prompt.expand')}
                     onClick={() => setPromptModalOpen(true)}>
                     <Maximize2 size={13} />
                   </Button>
                 </Tooltip>
               )}
-            </div>
+            </RowFlex>
             <Textarea.Input
+              id="scheduled-task-prompt"
               value={prompt}
-              onChange={(e) => {
+              onChange={(event) => {
                 markDraftChanged('prompt')
-                setPrompt(e.target.value)
+                setPrompt(event.target.value)
               }}
               onBlur={() => prompt.trim() && saveField({ prompt: prompt.trim() })}
               disabled={isCompleted}
               rows={4}
-              className="min-h-22 resize-y px-3 py-2"
             />
-          </SettingRow>
+          </Field>
+
           <TaskScheduleControls
             value={schedule}
             disabled={isCompleted}
@@ -634,20 +927,20 @@ const TaskDetail: FC<{
             }}
             onCommit={saveField}
           />
+
           <TaskChannelSelector
             channels={taskChannels}
             channelIds={selectedChannelIds}
-            onChange={(value) => {
-              markDraftChanged('channelIds')
-              setChannelIds(value)
-              saveField({ channelIds: value })
-            }}
             disabled={isCompleted}
+            onChange={(nextChannelIds) => {
+              markDraftChanged('channelIds')
+              setChannelIds(nextChannelIds)
+              saveField({ channelIds: nextChannelIds })
+            }}
           />
 
-          {/* Workspace is a secondary detail — scheduled tasks default to "No work directory". */}
-          <div className="flex items-center gap-1.5 text-foreground-muted text-xs">
-            <span>{t('agent.session.display.workdir')}</span>
+          <Field orientation="horizontal">
+            <FieldLabel>{t('agent.session.display.workdir')}</FieldLabel>
             <WorkspaceSelector
               value={workspaceId}
               onChange={(nextWorkspaceId) => {
@@ -661,24 +954,19 @@ const TaskDetail: FC<{
                 })
               }}
               disabled={isCompleted}
-              align="start"
+              align="end"
               trigger={
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 gap-1 px-1.5 text-foreground-muted"
-                  disabled={isCompleted}>
-                  {isSystemWorkspace ? <CircleSlash className="size-3.5" /> : <Folder className="size-3.5" />}
-                  <span className="max-w-40 truncate">{workspaceLabel}</span>
-                  <ChevronDown className="size-3.5" />
+                <Button type="button" variant="outline" size="sm" disabled={isCompleted}>
+                  {isSystemWorkspace ? <CircleSlash size={14} /> : <Folder size={14} />}
+                  <span>{workspaceLabel}</span>
+                  <ChevronDown size={14} />
                 </Button>
               }
             />
-          </div>
-        </div>
+          </Field>
+        </FieldGroup>
       </SettingGroup>
 
-      {/* Logs card */}
       <SettingGroup theme={theme}>
         <SettingTitle>{t('agent.tasks.logs.label')}</SettingTitle>
         <SettingDivider />
@@ -686,20 +974,24 @@ const TaskDetail: FC<{
       </SettingGroup>
 
       <Dialog open={promptModalOpen} onOpenChange={handlePromptModalOpenChange}>
-        <DialogContent closeOnOverlayClick={false} className="sm:max-w-160">
+        <DialogContent size="xl" closeOnOverlayClick={false}>
           <DialogHeader>
             <DialogTitle>{t('agent.tasks.prompt.label')}</DialogTitle>
+            <DialogDescription>{task.name}</DialogDescription>
           </DialogHeader>
-          <Textarea.Input
-            value={prompt}
-            onChange={(e) => {
-              markDraftChanged('prompt')
-              setPrompt(e.target.value)
-            }}
-            disabled={isCompleted}
-            rows={14}
-            className="min-h-70 resize-y px-3 py-2"
-          />
+          <Field>
+            <FieldLabel htmlFor="scheduled-task-prompt-dialog">{t('agent.tasks.prompt.label')}</FieldLabel>
+            <Textarea.Input
+              id="scheduled-task-prompt-dialog"
+              value={prompt}
+              onChange={(event) => {
+                markDraftChanged('prompt')
+                setPrompt(event.target.value)
+              }}
+              disabled={isCompleted}
+              rows={14}
+            />
+          </Field>
         </DialogContent>
       </Dialog>
 
@@ -707,7 +999,7 @@ const TaskDetail: FC<{
         open={deleteConfirmOpen}
         onOpenChange={setDeleteConfirmOpen}
         title={t('agent.tasks.delete.confirm')}
-        confirmText={deleteLabel}
+        confirmText={t('agent.tasks.delete.label')}
         cancelText={t('agent.tasks.cancel')}
         destructive
         onConfirm={() => onDelete(task.id)}
@@ -716,222 +1008,40 @@ const TaskDetail: FC<{
   )
 }
 
-// --------------- Inline Logs ---------------
-
-const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agentId }) => {
-  const { t, i18n } = useTranslation()
-  const locale = i18n.language
-  const { openConversation } = useConversationNavigation('agents')
-  const { logs, isLoading, error: logsError } = useTaskLogs(agentId, taskId)
-  const [searchText, setSearchText] = useState('')
-
-  const filteredLogs = useMemo(() => {
-    if (!searchText.trim()) return logs
-    const query = searchText.toLowerCase()
-    return logs.filter(
-      (log) =>
-        log.result?.toLowerCase().includes(query) ||
-        log.error?.toLowerCase().includes(query) ||
-        log.status.toLowerCase().includes(query) ||
-        new Date(log.startedAt).toLocaleString(locale).toLowerCase().includes(query)
-    )
-  }, [locale, logs, searchText])
-
-  const navigateToSession = useCallback(
-    (sessionId: string) => {
-      openConversation(sessionId)
-    },
-    [openConversation]
-  )
-
-  const columns = useMemo<ColumnDef<TaskRunLogEntity>[]>(
-    () => [
-      {
-        accessorKey: 'startedAt',
-        header: t('agent.tasks.logs.runAt'),
-        meta: { width: 160 },
-        cell: ({ getValue }) =>
-          new Date(getValue() as string).toLocaleString(undefined, {
-            month: 'numeric',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false
-          })
-      },
-      {
-        accessorKey: 'durationMs',
-        header: t('agent.tasks.logs.duration'),
-        meta: { width: 80 },
-        cell: ({ getValue, row }) => {
-          const val = getValue() as number
-
-          if (row.original.status === 'running') return '-'
-          if (val < 1000) return `${val}ms`
-          if (val < 60_000) return `${(val / 1000).toFixed(1)}s`
-          return `${(val / 60_000).toFixed(1)}m`
-        }
-      },
-      {
-        accessorKey: 'status',
-        header: t('agent.tasks.logs.status'),
-        meta: { width: 80 },
-        cell: ({ getValue }) => {
-          const val = getValue() as string
-          const logStatusLabels: Record<string, string> = {
-            completed: t('agent.tasks.logs.completed'),
-            running: t('agent.tasks.logs.running'),
-            failed: t('agent.tasks.logs.failed'),
-            cancelled: t('agent.tasks.logs.cancelled')
-          }
-          return <Badge className={badgeColorClass(val)}>{logStatusLabels[val] ?? val}</Badge>
-        }
-      },
-      {
-        id: 'result',
-        header: t('agent.tasks.logs.result'),
-        meta: { width: 'calc(100% - 320px)', className: 'min-w-0' },
-        cell: ({ row }) => {
-          const record = row.original
-          const val = record.result
-          const isErrorStatus = record.status === 'failed' || record.status === 'cancelled'
-          const text =
-            record.status === 'running'
-              ? t('agent.tasks.logs.running', 'Running...')
-              : isErrorStatus
-                ? record.error
-                : (val ?? '-')
-          const sessionId = record.sessionId
-
-          return (
-            <div className="flex items-start gap-1">
-              {sessionId && (
-                <Tooltip title={t('agent.tasks.logs.viewSession', 'View session')}>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="shrink-0"
-                    onClick={() => navigateToSession(sessionId)}>
-                    <ExternalLink size={12} />
-                  </Button>
-                </Tooltip>
-              )}
-              {/* Clamp height (full text stays in the DOM and copyable); the table scrolls horizontally for width. */}
-              <span className={`line-clamp-4 ${isErrorStatus ? 'text-red-500' : ''}`}>{text}</span>
-            </div>
-          )
-        }
-      }
-    ],
-    [navigateToSession, t]
-  )
-
-  if (isLoading) {
-    return (
-      <div className="flex justify-center py-4">
-        <Spinner text={t('common.loading')} />
-      </div>
-    )
-  }
-
-  if (logsError) {
-    return <EmptyState compact preset="no-result" description={t('agent.tasks.logs.loadError')} />
-  }
-
-  if (logs.length === 0) {
-    return <EmptyState compact preset="no-result" description={t('agent.tasks.logs.empty')} />
-  }
-
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="relative">
-        <Search className="-translate-y-1/2 absolute top-1/2 left-2.5 size-3 text-muted-foreground" />
-        <UIInput
-          placeholder={t('agent.tasks.logs.search', 'Search logs...')}
-          value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
-          className="h-8 pr-8 pl-7 text-xs"
-        />
-        {searchText && (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="-translate-y-1/2 absolute top-1/2 right-1 size-6 text-muted-foreground shadow-none"
-            onClick={() => setSearchText('')}>
-            <X size={12} />
-          </Button>
-        )}
-      </div>
-      <div data-slot="task-logs-table-scroll" className="max-w-full overflow-x-auto">
-        <div data-slot="task-logs-table-width" className="min-w-[720px]">
-          <DataTable data={filteredLogs} columns={columns} rowKey="id" emptyText={t('agent.tasks.logs.empty')} />
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// --------------- Schedule type config ---------------
-
-const scheduleTypeColors: Record<string, string> = {
-  cron: 'purple',
-  interval: 'blue',
-  once: 'orange'
-}
-
-const badgeColorClass = (value: string) => {
-  const color = scheduleTypeColors[value] ?? value
-  switch (color) {
-    case 'active':
-    case 'success':
-    case 'green':
-      return 'border-success/30 bg-success/10 text-success'
-    case 'paused':
-    case 'running':
-    case 'orange':
-      return 'border-warning/30 bg-warning/10 text-warning'
-    case 'completed':
-      // Raw blue-500 to match the left-list status dot (statusDotColors.completed) exactly.
-      return 'border-blue-500/30 bg-blue-500/10 text-blue-500'
-    case 'blue':
-      return 'border-primary/30 bg-primary/10 text-primary'
-    case 'purple':
-      return 'border-purple-500/30 bg-purple-500/10 text-purple-600 dark:text-purple-400'
-    case 'error':
-    case 'red':
-      return 'border-destructive/30 bg-destructive/10 text-destructive'
-    default:
-      return 'border-border bg-background-subtle text-foreground'
-  }
-}
-
-const statusDotColors: Record<string, string> = {
-  active: 'bg-green-500',
-  paused: 'bg-yellow-500',
-  completed: 'bg-blue-500'
-}
-
-// --------------- Create Form (right panel) ---------------
-
-const CreateForm: FC<{
+const CreateTaskDialog: FC<{
+  open: boolean
   agents: AgentInfo[]
   channels: ChannelInfo[]
-  onCancel: () => void
-  onCreate: (agentId: string, req: CreateTaskRequest) => Promise<void>
-}> = ({ agents, channels, onCancel, onCreate }) => {
+  onOpenChange: (open: boolean) => void
+  onCreate: (agentId: string, request: CreateTaskRequest) => Promise<ScheduledTaskEntity | undefined>
+}> = ({ open, agents, channels, onOpenChange, onCreate }) => {
   const { t } = useTranslation()
-  const { theme } = useTheme()
-
-  const [agentId, setAgentId] = useState<string | null>(agents.length === 1 ? agents[0].id : null)
+  const [agentId, setAgentId] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [prompt, setPrompt] = useState('')
-  const [promptModalOpen, setPromptModalOpen] = useState(false)
-  const [schedule, setSchedule] = useState<ScheduleFormState>({ kind: 'interval', value: '', timeoutMinutes: '' })
+  const [schedule, setSchedule] = useState<ScheduleFormState>(DEFAULT_SCHEDULE)
   const [channelIds, setChannelIds] = useState<string[]>([])
-  // `null` = "No work directory" (system workspace); a string binds the task to that user workspace.
   const [workspaceId, setWorkspaceId] = useState<string | null>(null)
-  const { data: workspaces } = useQuery('/agent-workspaces')
   const [saving, setSaving] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
+  const [promptPreviewKey, setPromptPreviewKey] = useState(0)
+  const wasOpenRef = useRef(false)
+  const { data: workspaces } = useQuery('/agent-workspaces')
+
+  useEffect(() => {
+    if (open && !wasOpenRef.current) {
+      setAgentId(agents.length === 1 ? agents[0].id : null)
+      setName('')
+      setPrompt('')
+      setSchedule(DEFAULT_SCHEDULE)
+      setChannelIds([])
+      setWorkspaceId(null)
+      setSaving(false)
+      setSubmitted(false)
+      setPromptPreviewKey((key) => key + 1)
+    }
+    wasOpenRef.current = open
+  }, [agents, open])
 
   const availableChannels = useMemo(
     () => (agentId ? channels.filter((channel) => channel.agentId === agentId) : []),
@@ -945,20 +1055,20 @@ const CreateForm: FC<{
   }, [availableChannels])
 
   const isSystemWorkspace = workspaceId === null
+  const selectedAgent = agents.find((agent) => agent.id === agentId)
   const workspaceLabel = isSystemWorkspace
     ? t('agent.session.workspace_selector.no_project')
-    : (workspaces?.find((w) => w.id === workspaceId)?.name ?? workspaceId)
-
-  const isValid = agentId && name.trim() && prompt.trim() && schedule.value.trim()
+    : (workspaces?.find((workspace) => workspace.id === workspaceId)?.name ?? workspaceId)
+  const trigger = formStateToTrigger(schedule)
 
   const handleCreate = useCallback(async () => {
-    if (!agentId || !name.trim() || !prompt.trim() || !schedule.value.trim()) return
-    const trigger = formStateToTrigger(schedule.kind, schedule.value.trim())
-    if (!trigger) return
+    setSubmitted(true)
+    if (!agentId || !name.trim() || !prompt.trim() || !trigger) return
+
     setSaving(true)
     try {
-      const timeout = schedule.timeoutMinutes.trim() ? parseInt(schedule.timeoutMinutes, 10) : null
-      await onCreate(agentId, {
+      const timeout = Number(schedule.timeoutMinutes)
+      const created = await onCreate(agentId, {
         name: name.trim(),
         prompt: prompt.trim(),
         trigger,
@@ -966,120 +1076,143 @@ const CreateForm: FC<{
           workspaceId === null
             ? { type: AGENT_WORKSPACE_TYPE.SYSTEM }
             : { type: AGENT_WORKSPACE_TYPE.USER, workspaceId },
-        timeoutMinutes: timeout && timeout > 0 ? timeout : undefined,
+        timeoutMinutes: Number.isInteger(timeout) && timeout > 0 ? timeout : undefined,
         channelIds: channelIds.length > 0 ? channelIds : undefined
       })
+      if (created) onOpenChange(false)
     } finally {
       setSaving(false)
     }
-  }, [agentId, name, prompt, schedule, workspaceId, channelIds, onCreate])
+  }, [agentId, channelIds, name, onCreate, onOpenChange, prompt, schedule.timeoutMinutes, trigger, workspaceId])
 
   return (
-    <SettingsContentColumn theme={theme}>
-      <SettingGroup theme={theme}>
-        <SettingTitle>{t('agent.tasks.add')}</SettingTitle>
-        <SettingDivider />
-        <div className="space-y-5">
-          {agents.length > 1 && (
-            <>
-              <SettingRow className="gap-2" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-                <SettingRowTitle>{t('agent.channels.bindAgent')}</SettingRowTitle>
-                <Select value={agentId ?? undefined} onValueChange={setAgentId}>
-                  <SelectTrigger size="sm" className="w-full">
-                    <SelectValue placeholder={t('agent.channels.selectAgent')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {agents.map((a) => (
-                      <SelectItem key={a.id} value={a.id}>
-                        {a.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </SettingRow>
-            </>
-          )}
-
-          <SettingRow className="gap-2" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-            <SettingRowTitle>{t('agent.tasks.name.label')}</SettingRowTitle>
-            <UIInput
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={t('agent.tasks.name.placeholder')}
-            />
-          </SettingRow>
-
-          <SettingRow className="gap-2" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-            <div className="flex items-center justify-between">
-              <SettingRowTitle>{t('agent.tasks.prompt.label')}</SettingRowTitle>
-              <Tooltip title={t('agent.tasks.prompt.expand')}>
-                <Button variant="ghost" size="icon-sm" className="shadow-none" onClick={() => setPromptModalOpen(true)}>
-                  <Maximize2 size={13} />
-                </Button>
-              </Tooltip>
-            </div>
-            <Textarea.Input
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder={t('agent.tasks.prompt.placeholder')}
-              rows={4}
-              className="min-h-22 resize-y px-3 py-2"
-            />
-          </SettingRow>
-
-          <Dialog open={promptModalOpen} onOpenChange={setPromptModalOpen}>
-            <DialogContent closeOnOverlayClick={false} className="sm:max-w-160">
-              <DialogHeader>
-                <DialogTitle>{t('agent.tasks.prompt.label')}</DialogTitle>
-              </DialogHeader>
-              <Textarea.Input
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                placeholder={t('agent.tasks.prompt.placeholder')}
-                rows={14}
-                className="min-h-70 resize-y px-3 py-2"
+    <Dialog open={open} onOpenChange={(nextOpen) => !saving && onOpenChange(nextOpen)}>
+      <DialogContent size="xl" closeOnOverlayClick={!saving}>
+        <DialogHeader>
+          <DialogTitle>{t('settings.scheduledTasks.createTitle')}</DialogTitle>
+          <DialogDescription>{t('settings.scheduledTasks.createDescription')}</DialogDescription>
+        </DialogHeader>
+        <Scrollbar className="max-h-[60vh] pr-2">
+          <FieldGroup>
+            <Field data-invalid={(submitted && !name.trim()) || undefined}>
+              <FieldLabel required htmlFor="create-task-name">
+                {t('agent.tasks.name.label')}
+              </FieldLabel>
+              <Input
+                id="create-task-name"
+                value={name}
+                disabled={saving}
+                required
+                placeholder={t('agent.tasks.name.placeholder')}
+                aria-invalid={(submitted && !name.trim()) || undefined}
+                onChange={(event) => setName(event.target.value)}
               />
-            </DialogContent>
-          </Dialog>
+              <FieldError>
+                {submitted && !name.trim() ? t('settings.scheduledTasks.validation.name') : undefined}
+              </FieldError>
+            </Field>
 
-          <TaskScheduleControls value={schedule} onChange={setSchedule} />
-          <TaskChannelSelector channels={availableChannels} channelIds={channelIds} onChange={setChannelIds} />
+            <FieldGroup data-task-input-context>
+              <PromptEditorField
+                label={<FieldLabel required>{t('agent.tasks.prompt.label')}</FieldLabel>}
+                value={prompt}
+                onChange={setPrompt}
+                placeholder={t('agent.tasks.prompt.placeholder')}
+                error={submitted && !prompt.trim() ? t('settings.scheduledTasks.validation.prompt') : undefined}
+                resetPreviewKey={promptPreviewKey}
+                minHeight="160px"
+                actions={
+                  <PromptPolishActions
+                    value={prompt}
+                    fallbackSource={name}
+                    emptyValueSystemPrompt={AGENT_PROMPT}
+                    existingValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
+                    disabled={saving}
+                    onChange={(value) => {
+                      setPrompt(value)
+                      setPromptPreviewKey((key) => key + 1)
+                    }}
+                  />
+                }
+              />
+              <RowFlex className="flex-wrap items-center gap-2">
+                <AgentSelector
+                  value={agentId}
+                  onChange={setAgentId}
+                  align="start"
+                  mountStrategy="lazy-keep"
+                  trigger={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={saving}
+                      aria-label={t('agent.channels.bindAgent')}
+                      aria-invalid={(submitted && !agentId) || undefined}
+                      aria-busy={saving || undefined}>
+                      <Bot size={14} />
+                      <span>{selectedAgent?.name ?? t('agent.channels.selectAgent')}</span>
+                      <ChevronDown size={14} />
+                    </Button>
+                  }
+                />
+                <WorkspaceSelector
+                  value={workspaceId}
+                  onChange={setWorkspaceId}
+                  disabled={saving}
+                  align="start"
+                  trigger={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={saving}
+                      aria-label={t('agent.session.display.workdir')}>
+                      {isSystemWorkspace ? <CircleSlash size={14} /> : <Folder size={14} />}
+                      <span>{workspaceLabel}</span>
+                      <ChevronDown size={14} />
+                    </Button>
+                  }
+                />
+              </RowFlex>
+              <FieldError>
+                {submitted && !agentId ? t('settings.scheduledTasks.validation.agent') : undefined}
+              </FieldError>
+            </FieldGroup>
 
-          {/* Workspace is a secondary detail — scheduled tasks default to "No work directory". */}
-          <div className="flex items-center gap-1.5 text-foreground-muted text-xs">
-            <span>{t('agent.session.display.workdir')}</span>
-            <WorkspaceSelector
-              value={workspaceId}
-              onChange={setWorkspaceId}
-              align="start"
-              trigger={
-                <Button variant="ghost" size="sm" className="h-6 gap-1 px-1.5 text-foreground-muted">
-                  {isSystemWorkspace ? <CircleSlash className="size-3.5" /> : <Folder className="size-3.5" />}
-                  <span className="max-w-40 truncate">{workspaceLabel}</span>
-                  <ChevronDown className="size-3.5" />
-                </Button>
-              }
+            <TaskScheduleControls
+              value={schedule}
+              disabled={saving}
+              invalid={submitted && !trigger}
+              onChange={setSchedule}
             />
-          </div>
 
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={onCancel}>
-              {t('agent.tasks.cancel')}
-            </Button>
-            <Button size="sm" disabled={!isValid} loading={saving} onClick={handleCreate}>
-              {t('agent.tasks.save')}
-            </Button>
-          </div>
-        </div>
-      </SettingGroup>
-    </SettingsContentColumn>
+            <TaskChannelSelector
+              channels={availableChannels}
+              channelIds={channelIds}
+              disabled={saving}
+              onChange={setChannelIds}
+            />
+          </FieldGroup>
+        </Scrollbar>
+        <DialogFooter>
+          <Button type="button" variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>
+            {t('common.cancel')}
+          </Button>
+          <Button type="button" disabled={saving} loading={saving} aria-busy={saving} onClick={handleCreate}>
+            {t('agent.tasks.save')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
-// --------------- Main component ---------------
-
 const TasksSettings: FC = () => {
   const { t } = useTranslation()
+  const { theme } = useTheme()
+  const navigate = useNavigate()
+  const params = useParams({ strict: false })
+  const taskId = params.taskId
   const { channels: rawChannels = [] } = useChannels()
   const { createTask } = useCreateTask()
   const { updateTask } = useUpdateTask()
@@ -1089,45 +1222,21 @@ const TasksSettings: FC = () => {
   const [agents, setAgents] = useState<AgentInfo[]>([])
   const [tasks, setTasks] = useState<ScheduledTaskEntity[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
-  const [creating, setCreating] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
   const taskUpdateTailsRef = useRef<Map<string, Promise<boolean>> | null>(null)
   const persistedTasksRef = useRef(new Map<string, ScheduledTaskEntity>())
 
-  const getTaskUpdateTails = useCallback(() => {
-    taskUpdateTailsRef.current ??= new Map()
-    return taskUpdateTailsRef.current
-  }, [])
-
-  const enqueueTaskOperation = useCallback(
-    (taskId: string, operation: (previousSucceeded: boolean) => Promise<boolean>): Promise<boolean> => {
-      const tails = getTaskUpdateTails()
-      const previous = tails.get(taskId) ?? Promise.resolve(true)
-      const current = previous
-        .catch(() => false)
-        .then(operation)
-        .catch(() => false)
-
-      tails.set(taskId, current)
-      void current.then(() => {
-        if (tails.get(taskId) === current) tails.delete(taskId)
-      })
-      return current
-    },
-    [getTaskUpdateTails]
-  )
-
   const channels: ChannelInfo[] = useMemo(
     () =>
-      rawChannels.map((ch: any) => ({
-        id: ch.id,
-        agentId: ch.agent_id ?? ch.agentId ?? null,
-        name: ch.name || ch.type,
-        isActive: ch.is_active === true || ch.isActive === true,
+      rawChannels.map((channel: any) => ({
+        id: channel.id,
+        agentId: channel.agent_id ?? channel.agentId ?? null,
+        name: channel.name || channel.type,
+        isActive: channel.is_active === true || channel.isActive === true,
         hasActiveChatIds:
-          ((ch.config?.allowed_chat_ids as string[]) ?? []).length > 0 ||
-          ((ch.config?.allowed_channel_ids as string[]) ?? []).length > 0 ||
-          ((ch.active_chat_ids ?? ch.activeChatIds ?? []) as string[]).length > 0
+          ((channel.config?.allowed_chat_ids as string[]) ?? []).length > 0 ||
+          ((channel.config?.allowed_channel_ids as string[]) ?? []).length > 0 ||
+          ((channel.active_chat_ids ?? channel.activeChatIds ?? []) as string[]).length > 0
       })),
     [rawChannels]
   )
@@ -1137,8 +1246,8 @@ const TasksSettings: FC = () => {
       const agentsResult = await dataApiService.get('/agents', { query: { limit: 100 } })
       const agentList = (agentsResult as any).items ?? []
       const tasksPerAgent = await Promise.all(
-        agentList.map(async (a: AgentEntity) => {
-          const result = await dataApiService.get(`/agents/${a.id}/tasks` as never, {
+        agentList.map(async (agent: AgentEntity) => {
+          const result = await dataApiService.get(`/agents/${agent.id}/tasks` as never, {
             query: { limit: 200 }
           })
           return (result as any).items ?? []
@@ -1147,7 +1256,7 @@ const TasksSettings: FC = () => {
       const loadedTasks = tasksPerAgent.flat() as ScheduledTaskEntity[]
       persistedTasksRef.current = new Map(loadedTasks.map((task) => [task.id, task]))
       setTasks(loadedTasks)
-      setAgents(agentList.map((a: AgentEntity) => ({ id: a.id, name: a.name ?? a.id })))
+      setAgents(agentList.map((agent: AgentEntity) => ({ id: agent.id, name: agent.name ?? agent.id })))
     } catch (error) {
       logger.error('Failed to load tasks settings', error as Error)
       toast.error(t('agent.tasks.error.loadFailed'))
@@ -1157,14 +1266,14 @@ const TasksSettings: FC = () => {
   }, [t])
 
   const refreshTask = useCallback(
-    async (agentId: string, taskId: string) => {
+    async (agentId: string, selectedTaskId: string) => {
       try {
         const refreshed = (await dataApiService.get(
-          `/agents/${agentId}/tasks/${taskId}` as never
+          `/agents/${agentId}/tasks/${selectedTaskId}` as never
         )) as ScheduledTaskEntity
-        persistedTasksRef.current.set(taskId, refreshed)
+        persistedTasksRef.current.set(selectedTaskId, refreshed)
         setTasks((currentTasks) =>
-          currentTasks.map((currentTask) => (currentTask.id === taskId ? refreshed : currentTask))
+          currentTasks.map((currentTask) => (currentTask.id === selectedTaskId ? refreshed : currentTask))
         )
       } catch (error) {
         logger.error('Failed to refresh scheduled task', error as Error)
@@ -1178,37 +1287,38 @@ const TasksSettings: FC = () => {
     void loadData()
   }, [loadData])
 
-  // Auto-select the first task when data is loaded and nothing is selected
-  useEffect(() => {
-    if (!loading && !selectedTaskId && !creating && tasks.length > 0) {
-      setSelectedTaskId(tasks[0].id)
-    }
-  }, [loading, selectedTaskId, creating, tasks])
-
-  const selectedTask = useMemo(() => tasks.find((t) => t.id === selectedTaskId) ?? null, [tasks, selectedTaskId])
-
-  const getAgentName = useCallback((agentId: string) => agents.find((a) => a.id === agentId)?.name ?? agentId, [agents])
-  const scheduleTypeLabelsMap: Record<string, string> = {
-    cron: t('agent.tasks.scheduleType.cron'),
-    interval: t('agent.tasks.scheduleType.interval'),
-    once: t('agent.tasks.scheduleType.once')
-  }
-
-  const handleStartCreate = useCallback(() => {
-    setSelectedTaskId(null)
-    setCreating(true)
+  const getTaskUpdateTails = useCallback(() => {
+    taskUpdateTailsRef.current ??= new Map()
+    return taskUpdateTailsRef.current
   }, [])
 
-  const handleCreate = useCallback(
-    async (agentId: string, req: CreateTaskRequest) => {
-      const created = await createTask(agentId, req)
-      if (created) {
-        setCreating(false)
-        await loadData()
-        setSelectedTaskId(created.id)
-      }
+  const enqueueTaskOperation = useCallback(
+    (selectedTaskId: string, operation: (previousSucceeded: boolean) => Promise<boolean>): Promise<boolean> => {
+      const tails = getTaskUpdateTails()
+      const previous = tails.get(selectedTaskId) ?? Promise.resolve(true)
+      const current = previous
+        .catch(() => false)
+        .then(operation)
+        .catch(() => false)
+
+      tails.set(selectedTaskId, current)
+      void current.then(() => {
+        if (tails.get(selectedTaskId) === current) tails.delete(selectedTaskId)
+      })
+      return current
     },
-    [createTask, loadData]
+    [getTaskUpdateTails]
+  )
+
+  const handleCreate = useCallback(
+    async (agentId: string, request: CreateTaskRequest) => {
+      const created = await createTask(agentId, request)
+      if (!created) return undefined
+      await loadData()
+      await navigate({ to: '/settings/scheduled-tasks/$taskId', params: { taskId: created.id } })
+      return created
+    },
+    [createTask, loadData, navigate]
   )
 
   const persistTaskUpdate = useCallback(
@@ -1227,12 +1337,12 @@ const TasksSettings: FC = () => {
   )
 
   const handleUpdate = useCallback(
-    (taskId: string, updates: UpdateTaskRequest): Promise<TaskUpdateResult | undefined> => {
-      const task = tasks.find((currentTask) => currentTask.id === taskId)
+    (selectedTaskId: string, updates: UpdateTaskRequest): Promise<TaskUpdateResult | undefined> => {
+      const task = tasks.find((currentTask) => currentTask.id === selectedTaskId)
       if (!task) return Promise.resolve(undefined)
 
       let updateResult: TaskUpdateResult | undefined
-      return enqueueTaskOperation(taskId, async (previousSucceeded) => {
+      return enqueueTaskOperation(selectedTaskId, async (previousSucceeded) => {
         updateResult = await persistTaskUpdate(task, updates)
         return previousSucceeded && updateResult.succeeded
       }).then(() => updateResult)
@@ -1241,24 +1351,29 @@ const TasksSettings: FC = () => {
   )
 
   const handleDelete = useCallback(
-    async (taskId: string) => {
-      const task = tasks.find((t) => t.id === taskId)
+    async (selectedTaskId: string) => {
+      const task = tasks.find((currentTask) => currentTask.id === selectedTaskId)
       if (!task) return
-      await deleteTask(task.agentId, taskId)
-      if (selectedTaskId === taskId) setSelectedTaskId(null)
+      const deleted = await deleteTask(task.agentId, selectedTaskId)
+      if (!deleted) return
+
+      persistedTasksRef.current.delete(selectedTaskId)
+      setTasks((currentTasks) => currentTasks.filter((currentTask) => currentTask.id !== selectedTaskId))
+      await navigate({ to: '/settings/scheduled-tasks' })
       void loadData()
     },
-    [deleteTask, tasks, selectedTaskId, loadData]
+    [deleteTask, loadData, navigate, tasks]
   )
 
   const handleRun = useCallback(
-    async (taskId: string) => {
-      const task = tasks.find((currentTask) => currentTask.id === taskId)
+    async (selectedTaskId: string) => {
+      const task = tasks.find((currentTask) => currentTask.id === selectedTaskId)
       if (!task) return
-      await enqueueTaskOperation(taskId, async (previousSucceeded) => {
+      await enqueueTaskOperation(selectedTaskId, async (previousSucceeded) => {
         if (!previousSucceeded) return false
-        await runTask(taskId)
-        await refreshTask(task.agentId, taskId)
+        const ran = await runTask(selectedTaskId)
+        if (!ran) return false
+        await refreshTask(task.agentId, selectedTaskId)
         return true
       })
     },
@@ -1266,13 +1381,10 @@ const TasksSettings: FC = () => {
   )
 
   const handleToggleStatus = useCallback(
-    async (taskId: string, newStatus: string) => {
-      const task = tasks.find((currentTask) => currentTask.id === taskId)
+    async (selectedTaskId: string, newStatus: string) => {
+      const task = tasks.find((currentTask) => currentTask.id === selectedTaskId)
       if (!task) return
-      // newStatus is the renderer's existing 'active' | 'paused' contract — keep
-      // it so consumers don't need to think in terms of `enabled`, then translate
-      // at the IPC boundary.
-      await enqueueTaskOperation(taskId, async (previousSucceeded) => {
+      await enqueueTaskOperation(selectedTaskId, async (previousSucceeded) => {
         const enabled = newStatus === 'active'
         if (enabled && !previousSucceeded) return false
         const toggleResult = await persistTaskUpdate(task, { enabled })
@@ -1284,91 +1396,128 @@ const TasksSettings: FC = () => {
 
   if (loading) {
     return (
-      <div className="flex flex-1">
-        <div className="flex flex-1 items-center justify-center">
-          <Spinner text={t('common.loading')} />
-        </div>
-      </div>
+      <Center className="flex-1">
+        <Spinner text={t('common.loading')} />
+      </Center>
+    )
+  }
+
+  const selectedTask = taskId ? tasks.find((task) => task.id === taskId) : undefined
+
+  if (taskId) {
+    if (!selectedTask) {
+      return (
+        <SettingsContentColumn theme={theme}>
+          <EmptyState
+            preset="no-result"
+            title={t('settings.scheduledTasks.notFoundTitle')}
+            description={t('settings.scheduledTasks.notFoundDescription')}
+            actionLabel={t('common.back')}
+            onAction={() => void navigate({ to: '/settings/scheduled-tasks' })}
+          />
+        </SettingsContentColumn>
+      )
+    }
+
+    return (
+      <TaskDetail
+        key={selectedTask.id}
+        task={selectedTask}
+        agents={agents}
+        channels={channels}
+        onBack={() => void navigate({ to: '/settings/scheduled-tasks' })}
+        onUpdate={handleUpdate}
+        onDelete={handleDelete}
+        onRun={handleRun}
+        onToggleStatus={handleToggleStatus}
+      />
     )
   }
 
   return (
-    <div className="flex min-w-0 flex-1">
-      <div
-        className="flex w-full flex-1 flex-row overflow-hidden"
-        style={{ height: 'calc(100vh - var(--navbar-height) - 6px)' }}>
-        {/* Left panel: task list */}
-        <Scrollbar
-          className="flex flex-col gap-1.25 border-border border-r-[0.5px] p-3 pb-12"
-          style={{ width: 'var(--settings-width)', height: 'calc(100vh - var(--navbar-height))' }}>
-          <div className="flex items-center justify-between">
-            <SettingTitle>{t('settings.scheduledTasks.title')}</SettingTitle>
-            <Button variant="ghost" size="icon-sm" disabled={agents.length === 0} onClick={handleStartCreate}>
-              <Plus size={14} />
-            </Button>
-          </div>
-          <div className="flex flex-col gap-1">
-            {tasks.length === 0 && !creating ? (
-              <EmptyState
-                compact
-                preset="no-agent"
-                description={
-                  agents.length === 0 ? t('settings.scheduledTasks.noAgents') : t('settings.scheduledTasks.noTasks')
-                }
-                className="mt-5 py-8"
-              />
-            ) : (
-              tasks.map((task) => (
-                <ListItem
-                  key={task.id}
-                  active={selectedTaskId === task.id && !creating}
-                  title={task.name}
-                  subtitle={`${getAgentName(task.agentId)} · ${scheduleTypeLabelsMap[task.trigger.kind] ?? task.trigger.kind}`}
-                  icon={
-                    <span
-                      className={`inline-block h-2 w-2 rounded-full ${statusDotColors[task.status] ?? 'bg-gray-400'}`}
-                    />
-                  }
-                  onClick={() => {
-                    setCreating(false)
-                    setSelectedTaskId(task.id)
-                  }}
-                />
-              ))
-            )}
-          </div>
-        </Scrollbar>
+    <SettingsContentColumn theme={theme}>
+      <SettingGroup theme={theme}>
+        <SettingTitle>
+          <span>{t('settings.scheduledTasks.title')}</span>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button">
+                <Plus size={16} />
+                {t('settings.scheduledTasks.newTask')}
+                <ChevronDown size={14} />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuGroup>
+                <DropdownMenuItem disabled={agents.length === 0} onSelect={() => setCreateOpen(true)}>
+                  <PencilLine />
+                  {t('settings.scheduledTasks.manualCreate')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => openRoute('/app/agents')}>
+                  <Bot />
+                  {t('settings.scheduledTasks.agentCreate')}
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </SettingTitle>
+        <SettingDescription>{t('settings.scheduledTasks.description')}</SettingDescription>
+        <SettingDivider />
 
-        {/* Right panel */}
-        <div className="relative flex min-w-0 flex-1 overflow-hidden">
-          {creating ? (
-            <CreateForm
-              agents={agents}
-              channels={channels}
-              onCancel={() => setCreating(false)}
-              onCreate={handleCreate}
-            />
-          ) : selectedTask ? (
-            <TaskDetail
-              key={selectedTask.id}
-              task={selectedTask}
-              agents={agents}
-              channels={channels}
-              onUpdate={handleUpdate}
-              onDelete={handleDelete}
-              onRun={handleRun}
-              onToggleStatus={handleToggleStatus}
-            />
-          ) : (
-            <div className="flex flex-1 items-center justify-center text-foreground-muted text-sm">
-              {tasks.length > 0
-                ? t('settings.scheduledTasks.selectTask', 'Select a task to view details')
-                : t('settings.scheduledTasks.noTasks')}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+        {tasks.length === 0 ? (
+          <EmptyState
+            preset={agents.length === 0 ? 'no-agent' : 'no-result'}
+            title={
+              agents.length === 0
+                ? t('settings.scheduledTasks.noAgentsTitle')
+                : t('settings.scheduledTasks.noTasksTitle')
+            }
+            description={
+              agents.length === 0 ? t('settings.scheduledTasks.noAgents') : t('settings.scheduledTasks.noTasks')
+            }
+            actionLabel={
+              agents.length === 0 ? t('settings.scheduledTasks.agentCreate') : t('settings.scheduledTasks.manualCreate')
+            }
+            onAction={() => {
+              if (agents.length === 0) openRoute('/app/agents')
+              else setCreateOpen(true)
+            }}
+          />
+        ) : (
+          <ItemGroup>
+            {tasks.map((task, index) => (
+              <Fragment key={task.id}>
+                {index > 0 && <ItemSeparator />}
+                <Item asChild size="sm">
+                  <Link to="/settings/scheduled-tasks/$taskId" params={{ taskId: task.id }}>
+                    <ItemContent>
+                      <ItemTitle>{task.name}</ItemTitle>
+                      <ItemDescription>
+                        {agents.find((agent) => agent.id === task.agentId)?.name ?? task.agentId} ·{' '}
+                        {getTriggerSummary(task.trigger, t)}
+                      </ItemDescription>
+                    </ItemContent>
+                    <ItemActions>
+                      <Badge variant="outline">{getScheduleKindLabel(triggerToFormState(task.trigger).kind, t)}</Badge>
+                      <Badge variant="secondary">{getTaskStatusLabel(task.status, t)}</Badge>
+                      <ChevronRight size={16} />
+                    </ItemActions>
+                  </Link>
+                </Item>
+              </Fragment>
+            ))}
+          </ItemGroup>
+        )}
+      </SettingGroup>
+
+      <CreateTaskDialog
+        open={createOpen}
+        agents={agents}
+        channels={channels}
+        onOpenChange={setCreateOpen}
+        onCreate={handleCreate}
+      />
+    </SettingsContentColumn>
   )
 }
 

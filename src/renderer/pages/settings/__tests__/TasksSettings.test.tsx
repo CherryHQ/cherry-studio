@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import TasksSettings from '../TasksSettings'
+import TasksSettings, { formStateToTrigger, type ScheduleFormState, triggerToFormState } from '../TasksSettings'
 
 const dataApiMock = vi.hoisted(() => ({
   get: vi.fn()
@@ -12,7 +12,7 @@ const taskLogsMock = vi.hoisted(() => {
   const defaultTaskLog = {
     id: 'log-1',
     scheduleId: 'task-1',
-    sessionId: 'session-1',
+    sessionId: 'session-1' as string | null,
     startedAt: '2026-06-25T00:00:00.000Z',
     durationMs: 1200,
     status: 'completed' as const,
@@ -34,14 +34,14 @@ const taskDataMock = vi.hoisted(() => {
     agentId: 'agent-1',
     name: 'Daily task',
     prompt: 'Run daily summary',
-    trigger: { kind: 'interval', ms: 60000 },
+    trigger: { kind: 'interval' as const, ms: 60_000 },
     timeoutMinutes: 10,
-    workspace: { type: 'system' },
+    workspace: { type: 'system' as const },
     channelIds: [] as string[],
     nextRun: null,
     lastRun: null,
     enabled: true,
-    status: 'active',
+    status: 'active' as 'active' | 'paused' | 'completed',
     createdAt: '2026-06-25T00:00:00.000Z',
     updatedAt: '2026-06-25T00:00:00.000Z'
   }
@@ -52,6 +52,10 @@ const taskDataMock = vi.hoisted(() => {
   }
 })
 
+const agentDataMock = vi.hoisted(() => ({
+  agents: [{ id: 'agent-1', name: 'Agent One', configuration: {} }]
+}))
+
 const taskMutationMocks = vi.hoisted(() => ({
   createTask: vi.fn(),
   deleteTask: vi.fn(),
@@ -60,7 +64,10 @@ const taskMutationMocks = vi.hoisted(() => ({
 }))
 
 const navigationMocks = vi.hoisted(() => ({
-  openConversation: vi.fn()
+  navigate: vi.fn(),
+  openConversation: vi.fn(),
+  openRoute: vi.fn(),
+  taskId: 'task-1' as string | undefined
 }))
 
 const channelDataMock = vi.hoisted(() => ({
@@ -92,7 +99,47 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useQuery: () => ({ data: [] })
 }))
 
+vi.mock('@renderer/components/PromptEditorField', () => ({
+  default: ({
+    actions,
+    error,
+    label,
+    onChange,
+    placeholder,
+    value
+  }: {
+    actions?: React.ReactNode
+    error?: string
+    label: React.ReactNode
+    onChange: (value: string) => void
+    placeholder?: string
+    value: string
+  }) => (
+    <div data-slot="prompt-editor-field">
+      {label}
+      {actions}
+      <textarea
+        aria-label="agent.tasks.prompt.label"
+        aria-invalid={Boolean(error) || undefined}
+        placeholder={placeholder}
+        value={value}
+        onChange={(event) => onChange(event.currentTarget.value)}
+      />
+      {error ? <div role="alert">{error}</div> : null}
+    </div>
+  )
+}))
+
+vi.mock('@renderer/components/resourceCatalog/dialogs/components/PromptPolishActions', () => ({
+  PromptPolishActions: ({ disabled }: { disabled?: boolean }) => (
+    <button type="button" aria-label="library.config.prompt.generate" disabled={disabled}>
+      library.config.prompt.generate
+    </button>
+  )
+}))
+
 vi.mock('@renderer/components/resourceCatalog/selectors', () => ({
+  AgentSelector: ({ trigger }: { trigger: React.ReactNode }) => <>{trigger}</>,
   WorkspaceSelector: ({ trigger }: { trigger: React.ReactNode }) => <>{trigger}</>
 }))
 
@@ -114,30 +161,23 @@ vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({ theme: 'light' })
 }))
 
-vi.mock('@renderer/components/Scrollbar', () => ({
-  default: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
+  openRoute: navigationMocks.openRoute
 }))
 
-vi.mock('@renderer/components/ListItem', () => ({
-  default: ({
-    active,
-    icon,
-    subtitle,
-    title,
-    onClick
-  }: {
-    active?: boolean
-    icon?: React.ReactNode
-    subtitle?: React.ReactNode
-    title: React.ReactNode
-    onClick?: () => void
-  }) => (
-    <button type="button" data-active={active} onClick={onClick}>
-      {icon}
-      <span>{title}</span>
-      {subtitle && <span>{subtitle}</span>}
-    </button>
-  )
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({ children, params, to }: { children?: React.ReactNode; params: { taskId: string }; to: string }) => (
+    <a
+      href={to.replace('$taskId', params.taskId)}
+      onClick={(event) => {
+        event.preventDefault()
+        void navigationMocks.navigate({ to, params })
+      }}>
+      {children}
+    </a>
+  ),
+  useNavigate: () => navigationMocks.navigate,
+  useParams: () => ({ taskId: navigationMocks.taskId })
 }))
 
 vi.mock('react-i18next', () => ({
@@ -146,51 +186,98 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => {
-  const PopoverContext = React.createContext<{
+  const DropdownContext = React.createContext<{
     open: boolean
     setOpen: (open: boolean) => void
   } | null>(null)
+  const SelectContext = React.createContext<{
+    disabled?: boolean
+    onValueChange?: (value: string) => void
+    value?: string
+  } | null>(null)
 
   const passthrough =
-    (tag: keyof React.JSX.IntrinsicElements) =>
-    ({ children, closeOnOverlayClick, ...props }: { children?: React.ReactNode; closeOnOverlayClick?: boolean }) => {
-      void closeOnOverlayClick
-      return React.createElement(tag, props, children)
-    }
+    (tag: keyof React.JSX.IntrinsicElements, slot?: string) =>
+    ({ children, className, ...props }: React.HTMLAttributes<HTMLElement> & { children?: React.ReactNode }) =>
+      React.createElement(tag, { className, 'data-slot': slot, ...props }, children)
 
   return {
-    Badge: passthrough('span'),
+    Alert: ({
+      description,
+      message,
+      type = 'info'
+    }: {
+      description?: React.ReactNode
+      message?: React.ReactNode
+      type?: string
+    }) => (
+      <div role={type === 'error' ? 'alert' : 'status'} data-type={type}>
+        {message}
+        {description}
+      </div>
+    ),
+    Badge: ({
+      children,
+      variant
+    }: {
+      children?: React.ReactNode
+      variant?: 'default' | 'secondary' | 'destructive' | 'outline'
+    }) => <span data-variant={variant}>{children}</span>,
     Button: ({
       children,
       disabled,
       loading,
       onClick,
-      title,
+      size,
+      variant,
       ...props
-    }: React.ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean }) => (
-      <button type="button" disabled={disabled || Boolean(loading)} title={title} onClick={onClick} {...props}>
-        {children}
-      </button>
-    ),
+    }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+      loading?: boolean
+      size?: string
+      variant?: string
+    }) => {
+      void size
+      void variant
+      return (
+        <button
+          type="button"
+          data-size={size}
+          data-variant={variant}
+          disabled={disabled || Boolean(loading)}
+          onClick={onClick}
+          {...props}>
+          {children}
+        </button>
+      )
+    },
+    Center: passthrough('div'),
     Combobox: ({
+      disabled,
       multiple,
       onChange,
       options,
       placeholder,
+      searchable,
+      searchPlaceholder,
       value
     }: {
+      disabled?: boolean
       multiple?: boolean
       onChange?: (value: string | string[]) => void
       options?: Array<{ value: string; label: React.ReactNode }>
       placeholder?: React.ReactNode
+      searchable?: boolean
+      searchPlaceholder?: string
       value?: string | string[]
     }) => (
       <div>
         {placeholder && <span>{placeholder}</span>}
+        {searchable ? <input type="search" placeholder={searchPlaceholder} /> : null}
         {options?.map((option) => (
           <button
             key={option.value}
             type="button"
+            disabled={disabled}
             onClick={() => {
               if (!multiple) {
                 onChange?.(option.value)
@@ -222,7 +309,7 @@ vi.mock('@cherrystudio/ui', () => {
       title?: React.ReactNode
     }) =>
       open ? (
-        <div role="dialog">
+        <div role="alertdialog">
           {title && <span>{title}</span>}
           {cancelText && <button type="button">{cancelText}</button>}
           {confirmText && (
@@ -235,101 +322,101 @@ vi.mock('@cherrystudio/ui', () => {
     DataTable: ({
       columns,
       data,
-      maxHeight,
       rowKey
     }: {
       columns: Array<{
         accessorKey?: string
         id?: string
-        cell?: (ctx: { getValue: () => unknown; row: { original: Record<string, unknown> } }) => React.ReactNode
+        cell?: (context: { getValue: () => unknown; row: { original: Record<string, unknown> } }) => React.ReactNode
       }>
       data: Array<Record<string, unknown>>
-      maxHeight?: number | string
       rowKey: string
     }) => (
-      <div data-slot="data-table">
-        <div
-          data-slot="data-table-scroll"
-          className={maxHeight ? 'overflow-y-auto' : undefined}
-          style={{ maxHeight: typeof maxHeight === 'number' ? `${maxHeight}px` : maxHeight }}>
-          <table>
-            <tbody>
-              {data.map((row) => (
-                <tr key={String(row[rowKey])}>
-                  {columns.map((column) => (
-                    <td key={column.id ?? column.accessorKey}>
-                      {column.cell
-                        ? column.cell({
-                            getValue: () => (column.accessorKey ? row[column.accessorKey] : undefined),
-                            row: { original: row }
-                          })
-                        : column.accessorKey
-                          ? String(row[column.accessorKey] ?? '')
-                          : null}
-                    </td>
-                  ))}
-                </tr>
+      <table>
+        <tbody>
+          {data.map((row) => (
+            <tr key={String(row[rowKey])}>
+              {columns.map((column) => (
+                <td key={column.id ?? column.accessorKey}>
+                  {column.cell
+                    ? column.cell({
+                        getValue: () => (column.accessorKey ? row[column.accessorKey] : undefined),
+                        row: { original: row }
+                      })
+                    : column.accessorKey
+                      ? String(row[column.accessorKey] ?? '')
+                      : null}
+                </td>
               ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     ),
-    DateTimePicker: passthrough('div'),
-    Dialog: ({ children, open }: { children?: React.ReactNode; open?: boolean }) =>
-      open ? <div>{children}</div> : null,
-    DialogContent: passthrough('div'),
+    DateTimePicker: ({
+      disabled,
+      onChange,
+      placeholder,
+      value
+    }: {
+      disabled?: boolean
+      onChange?: (date: Date | undefined) => void
+      placeholder?: React.ReactNode
+      value?: Date
+    }) => (
+      <button type="button" disabled={disabled} onClick={() => onChange?.(new Date('2026-08-01T09:30:00.000Z'))}>
+        {value?.toISOString() ?? placeholder}
+      </button>
+    ),
+    Dialog: ({ children, open }: { children?: React.ReactNode; open?: boolean }) => (open ? <>{children}</> : null),
+    DialogContent: ({
+      children,
+      closeOnOverlayClick,
+      size
+    }: {
+      children?: React.ReactNode
+      closeOnOverlayClick?: boolean
+      size?: string
+    }) => {
+      void closeOnOverlayClick
+      return (
+        <div role="dialog" data-size={size}>
+          {children}
+        </div>
+      )
+    },
+    DialogDescription: passthrough('p'),
+    DialogFooter: passthrough('div'),
     DialogHeader: passthrough('div'),
     DialogTitle: passthrough('h2'),
     Divider: passthrough('hr'),
-    EmptyState: ({ description }: { description?: React.ReactNode }) => <div>{description}</div>,
-    Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
-    MenuItem: ({
-      description,
-      icon,
-      label,
-      onClick,
-      ...props
-    }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
-      description?: React.ReactNode
-      icon?: React.ReactNode
-      label: string
-    }) => (
-      <button type="button" onClick={onClick} {...props}>
-        {icon}
-        <span>{label}</span>
-        {description && <span>{description}</span>}
-      </button>
-    ),
-    MenuList: passthrough('div'),
-    Popover: ({
+    DropdownMenu: ({ children }: { children?: React.ReactNode }) => {
+      const [open, setOpen] = React.useState(false)
+      return <DropdownContext value={{ open, setOpen }}>{children}</DropdownContext>
+    },
+    DropdownMenuContent: ({ children }: { children?: React.ReactNode }) => {
+      const context = React.use(DropdownContext)
+      return context?.open ? <div role="menu">{children}</div> : null
+    },
+    DropdownMenuGroup: passthrough('div'),
+    DropdownMenuItem: ({
       children,
-      onOpenChange,
-      open
+      disabled,
+      onSelect
     }: {
       children?: React.ReactNode
-      onOpenChange?: (open: boolean) => void
-      open?: boolean
-    }) => {
-      const [internalOpen, setInternalOpen] = React.useState(Boolean(open))
-      const actualOpen = open ?? internalOpen
-      const setOpen = (nextOpen: boolean) => {
-        setInternalOpen(nextOpen)
-        onOpenChange?.(nextOpen)
-      }
-
-      return <PopoverContext value={{ open: actualOpen, setOpen }}>{children}</PopoverContext>
-    },
-    PopoverContent: ({ children }: { children?: React.ReactNode }) => {
-      const context = React.use(PopoverContext)
-
-      return context?.open ? <div>{children}</div> : null
-    },
-    PopoverTrigger: ({ children }: { asChild?: boolean; children?: React.ReactNode }) => {
-      const context = React.use(PopoverContext)
-
+      disabled?: boolean
+      onSelect?: () => void
+      variant?: string
+    }) => (
+      <button type="button" role="menuitem" disabled={disabled} onClick={onSelect}>
+        {children}
+      </button>
+    ),
+    DropdownMenuTrigger: ({ children }: { asChild?: boolean; children?: React.ReactNode }) => {
+      const context = React.use(DropdownContext)
       if (React.isValidElement<{ onClick?: React.MouseEventHandler }>(children)) {
-        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild slot behavior
+        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces Radix asChild trigger behavior
         return React.cloneElement(children, {
           onClick: (event: React.MouseEvent) => {
             children.props.onClick?.(event)
@@ -337,50 +424,151 @@ vi.mock('@cherrystudio/ui', () => {
           }
         })
       }
-
+      return <button type="button">{children}</button>
+    },
+    EmptyState: ({
+      actionLabel,
+      description,
+      onAction,
+      title
+    }: {
+      actionLabel?: React.ReactNode
+      description?: React.ReactNode
+      onAction?: () => void
+      title?: React.ReactNode
+    }) => (
+      <div>
+        {title && <h2>{title}</h2>}
+        {description && <p>{description}</p>}
+        {actionLabel && onAction && (
+          <button type="button" onClick={onAction}>
+            {actionLabel}
+          </button>
+        )}
+      </div>
+    ),
+    Field: ({
+      children,
+      orientation,
+      ...props
+    }: React.HTMLAttributes<HTMLDivElement> & { children?: React.ReactNode; orientation?: string }) => {
+      void orientation
       return (
-        <button type="button" onClick={() => context?.setOpen(!context.open)}>
+        <div role="group" {...props}>
+          {children}
+        </div>
+      )
+    },
+    FieldDescription: passthrough('p'),
+    FieldError: ({ children }: { children?: React.ReactNode }) =>
+      children ? <div role="alert">{children}</div> : null,
+    FieldGroup: passthrough('div'),
+    FieldLabel: ({
+      children,
+      required,
+      ...props
+    }: React.LabelHTMLAttributes<HTMLLabelElement> & { required?: boolean }) => (
+      <label {...props}>
+        {children}
+        {required ? <span aria-hidden="true">*</span> : null}
+      </label>
+    ),
+    Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+    InputGroup: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement> & { children?: React.ReactNode }) => (
+      <div data-slot="input-group" role="group" {...props}>
+        {children}
+      </div>
+    ),
+    InputGroupAddon: ({ align, children }: { align?: string; children?: React.ReactNode }) => {
+      void align
+      return <span>{children}</span>
+    },
+    InputGroupInput: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+    InputGroupText: passthrough('span'),
+    Item: ({ asChild, children }: { asChild?: boolean; children?: React.ReactNode; size?: string }) => {
+      if (asChild && React.isValidElement(children)) {
+        // eslint-disable-next-line @eslint-react/no-clone-element -- mock reproduces the public Item asChild contract
+        return React.cloneElement(children as React.ReactElement<Record<string, unknown>>, {
+          'data-slot': 'item'
+        })
+      }
+      return <div data-slot="item">{children}</div>
+    },
+    ItemActions: passthrough('div', 'item-actions'),
+    ItemContent: passthrough('div', 'item-content'),
+    ItemDescription: passthrough('p', 'item-description'),
+    ItemGroup: ({ children }: { children?: React.ReactNode }) => <div role="list">{children}</div>,
+    ItemMedia: passthrough('div', 'item-media'),
+    ItemSeparator: () => <hr />,
+    ItemTitle: passthrough('div', 'item-title'),
+    RowFlex: passthrough('div'),
+    Scrollbar: passthrough('div'),
+    SearchInput: ({
+      clearLabel,
+      onChange,
+      onClear,
+      placeholder,
+      value
+    }: {
+      clearLabel?: string
+      onChange?: React.ChangeEventHandler<HTMLInputElement>
+      onClear?: () => void
+      placeholder?: string
+      value?: string
+    }) => (
+      <div>
+        <input type="search" placeholder={placeholder} value={value} onChange={onChange} />
+        {value && onClear && (
+          <button type="button" aria-label={clearLabel} onClick={onClear}>
+            {clearLabel}
+          </button>
+        )}
+      </div>
+    ),
+    Select: ({
+      children,
+      disabled,
+      onValueChange,
+      value
+    }: {
+      children?: React.ReactNode
+      disabled?: boolean
+      onValueChange?: (value: string) => void
+      value?: string
+    }) => <SelectContext value={{ disabled, onValueChange, value }}>{children}</SelectContext>,
+    SelectContent: ({ children }: { children?: React.ReactNode }) => <div role="listbox">{children}</div>,
+    SelectGroup: passthrough('div'),
+    SelectItem: ({ children, disabled, value }: { children?: React.ReactNode; disabled?: boolean; value: string }) => {
+      const context = React.use(SelectContext)
+      return (
+        <button
+          type="button"
+          role="option"
+          aria-selected={context?.value === value}
+          disabled={disabled || context?.disabled}
+          onClick={() => context?.onValueChange?.(value)}>
           {children}
         </button>
       )
     },
-    SegmentedControl: <TValue extends string>({
-      disabled,
-      options,
-      value,
-      onValueChange,
+    SelectTrigger: ({
+      children,
       ...props
-    }: React.HTMLAttributes<HTMLDivElement> & {
-      disabled?: boolean
-      options: Array<{ value: TValue; label: React.ReactNode; disabled?: boolean }>
-      value?: TValue
-      onValueChange?: (value: TValue) => void
-    }) => (
-      <div role="radiogroup" {...props}>
-        {options.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            role="radio"
-            aria-checked={option.value === value}
-            disabled={disabled || option.disabled}
-            onClick={() => onValueChange?.(option.value)}>
-            {option.label}
-          </button>
-        ))}
-      </div>
-    ),
-    Select: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
-    SelectContent: passthrough('div'),
-    SelectItem: passthrough('div'),
-    SelectTrigger: passthrough('div'),
-    SelectValue: passthrough('div'),
+    }: React.ButtonHTMLAttributes<HTMLButtonElement> & { children?: React.ReactNode }) => {
+      const context = React.use(SelectContext)
+      return (
+        <button type="button" role="combobox" data-value={context?.value} disabled={context?.disabled} {...props}>
+          {children}
+          {context?.value}
+        </button>
+      )
+    },
+    SelectValue: ({ placeholder }: { placeholder?: React.ReactNode }) => <>{placeholder}</>,
     Spinner: ({ text }: { text?: React.ReactNode }) => <div>{text}</div>,
     Switch: ({
       checked,
       disabled,
       onCheckedChange,
-      title,
       ...props
     }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
       checked?: boolean
@@ -391,7 +579,6 @@ vi.mock('@cherrystudio/ui', () => {
         role="switch"
         aria-checked={checked}
         disabled={disabled}
-        title={title}
         onClick={() => onCheckedChange?.(!checked)}
         {...props}
       />
@@ -399,204 +586,360 @@ vi.mock('@cherrystudio/ui', () => {
     Textarea: {
       Input: (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => <textarea {...props} />
     },
-    Tooltip: ({ children, title }: { children?: React.ReactNode; title?: React.ReactNode }) => (
-      <div data-testid="tooltip">
-        {children}
-        {title && <span>{title}</span>}
-      </div>
-    )
+    Tooltip: ({ children }: { children?: React.ReactNode; title?: React.ReactNode }) => <>{children}</>
   }
 })
 
-describe('TasksSettings task logs', () => {
+describe('scheduled task frequency conversion', () => {
+  const timeoutMinutes = ''
+
+  it.each([
+    {
+      name: 'hourly',
+      form: { kind: 'hourly', value: '', weekday: '1', timeoutMinutes },
+      trigger: { kind: 'cron', expr: '0 * * * *' }
+    },
+    {
+      name: 'daily',
+      form: { kind: 'daily', value: '09:30', weekday: '1', timeoutMinutes },
+      trigger: { kind: 'cron', expr: '30 9 * * *' }
+    },
+    {
+      name: 'weekdays',
+      form: { kind: 'weekdays', value: '18:05', weekday: '1', timeoutMinutes },
+      trigger: { kind: 'cron', expr: '5 18 * * 1-5' }
+    },
+    {
+      name: 'weekly',
+      form: { kind: 'weekly', value: '07:45', weekday: '3', timeoutMinutes },
+      trigger: { kind: 'cron', expr: '45 7 * * 3' }
+    },
+    {
+      name: 'custom interval',
+      form: { kind: 'interval', value: '15', weekday: '1', timeoutMinutes },
+      trigger: { kind: 'interval', ms: 900_000 }
+    },
+    {
+      name: 'one time',
+      form: { kind: 'once', value: '2026-08-01T09:30:00.000Z', weekday: '1', timeoutMinutes },
+      trigger: { kind: 'once', at: 1_785_576_600_000 }
+    }
+  ] satisfies Array<{ name: string; form: ScheduleFormState; trigger: Record<string, unknown> }>)(
+    'converts the $name preset to the existing Trigger contract',
+    ({ form, trigger }) => {
+      expect(formStateToTrigger(form)).toEqual(trigger)
+    }
+  )
+
+  it.each([
+    [{ kind: 'cron' as const, expr: '0 * * * *' }, 'hourly'],
+    [{ kind: 'cron' as const, expr: '0 9 * * *' }, 'daily'],
+    [{ kind: 'cron' as const, expr: '30 10 * * 1-5' }, 'weekdays'],
+    [{ kind: 'cron' as const, expr: '15 8 * * 4' }, 'weekly'],
+    [{ kind: 'interval' as const, ms: 1_800_000 }, 'interval'],
+    [{ kind: 'once' as const, at: 1_785_576_600_000 }, 'once']
+  ])('recognizes a common Trigger as %s', (trigger, kind) => {
+    expect(triggerToFormState(trigger).kind).toBe(kind)
+  })
+
+  it('preserves an existing complex Cron without making it a selectable preset', () => {
+    const trigger = { kind: 'cron' as const, expr: '*/15 9-17 * * MON-FRI' }
+    const form = {
+      ...triggerToFormState(trigger),
+      timeoutMinutes
+    }
+
+    expect(form).toEqual({
+      kind: 'cron',
+      value: '*/15 9-17 * * MON-FRI',
+      weekday: '1',
+      timeoutMinutes
+    })
+    expect(formStateToTrigger(form)).toEqual(trigger)
+  })
+})
+
+describe('TasksSettings routing and creation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    taskLogsMock.logs = [taskLogsMock.defaultTaskLog]
+    navigationMocks.taskId = 'task-1'
+    navigationMocks.navigate.mockResolvedValue(undefined)
+    agentDataMock.agents = [{ id: 'agent-1', name: 'Agent One', configuration: {} }]
     taskDataMock.task = { ...taskDataMock.defaultTask }
+    taskLogsMock.logs = [taskLogsMock.defaultTaskLog]
+    taskLogsMock.isLoading = false
+    taskLogsMock.error = null
     channelDataMock.channels = []
+    taskMutationMocks.createTask.mockResolvedValue(undefined)
+    taskMutationMocks.deleteTask.mockResolvedValue(true)
     taskMutationMocks.runTask.mockResolvedValue(true)
     taskMutationMocks.updateTask.mockResolvedValue(taskDataMock.task)
     dataApiMock.get.mockImplementation((path: string) => {
-      if (path === '/agents') {
-        return Promise.resolve({
-          items: [{ id: 'agent-1', name: 'Agent One', configuration: {} }]
-        })
-      }
-
-      if (path === '/agents/agent-1/tasks') {
-        return Promise.resolve({
-          items: [taskDataMock.task]
-        })
-      }
-
-      if (path === '/agents/agent-1/tasks/task-1') {
-        return Promise.resolve(taskDataMock.task)
-      }
-
+      if (path === '/agents') return Promise.resolve({ items: agentDataMock.agents })
+      if (path.endsWith('/tasks')) return Promise.resolve({ items: [taskDataMock.task] })
+      if (path.endsWith('/tasks/task-1')) return Promise.resolve(taskDataMock.task)
       throw new Error(`unexpected path: ${path}`)
     })
   })
 
-  async function clickTaskLogSessionButton() {
-    const viewSessionTooltip = await screen.findByText('agent.tasks.logs.viewSession')
-    const button = within(viewSessionTooltip.closest('[data-testid="tooltip"]') as HTMLElement).getByRole('button')
-
-    fireEvent.click(button)
-  }
-
-  it('delegates task log session navigation to conversation navigation', async () => {
-    render(<TasksSettings />)
-
-    await clickTaskLogSessionButton()
-
-    expect(navigationMocks.openConversation).toHaveBeenCalledWith('session-1')
-    await waitFor(() => expect(dataApiMock.get).toHaveBeenCalledWith('/agents', { query: { limit: 100 } }))
-  })
-
-  it('keeps the full task log result in the DOM while clamping its height', async () => {
-    const longResult = 'x'.repeat(220)
-    taskLogsMock.logs = [{ ...taskLogsMock.defaultTaskLog, result: longResult }]
+  it('renders only the full-width task list on the base route', async () => {
+    navigationMocks.taskId = undefined
 
     render(<TasksSettings />)
 
-    // Full text stays in the DOM (copyable) ...
-    const resultText = await screen.findByText(longResult)
-    // ... but the cell height is bounded by a line clamp.
-    expect(resultText).toHaveClass('line-clamp-4')
+    const taskLink = await screen.findByRole('link', { name: /Daily task/ })
+    expect(taskLink).toHaveAttribute('href', '/settings/scheduled-tasks/task-1')
+    expect(screen.queryByDisplayValue('Run daily summary')).not.toBeInTheDocument()
+
+    fireEvent.click(taskLink)
+    expect(navigationMocks.navigate).toHaveBeenCalledWith({
+      to: '/settings/scheduled-tasks/$taskId',
+      params: { taskId: 'task-1' }
+    })
   })
 
-  it('lets task log table height follow content while scrolling horizontally', async () => {
+  it('opens a task detail route and returns to the list', async () => {
     render(<TasksSettings />)
 
-    const table = await screen.findByRole('table')
-    const horizontalScroll = table.closest('[data-slot="task-logs-table-scroll"]')
-    const tableWidth = table.closest('[data-slot="task-logs-table-width"]')
-    const dataTableScroll = table.closest('[data-slot="data-table-scroll"]')
+    await screen.findByDisplayValue('Daily task')
+    fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
 
-    expect(horizontalScroll).toHaveClass('overflow-x-auto')
-    expect(tableWidth).toHaveClass('min-w-[720px]')
-    expect(dataTableScroll).not.toHaveClass('overflow-y-auto')
-    expect(dataTableScroll).not.toHaveStyle({ maxHeight: '300px' })
+    expect(navigationMocks.navigate).toHaveBeenCalledWith({ to: '/settings/scheduled-tasks' })
   })
 
-  it('only offers channels owned by the selected task agent', async () => {
-    channelDataMock.channels = [
-      {
-        id: 'channel-agent-1',
-        agentId: 'agent-1',
-        name: 'Agent One Telegram',
-        isActive: true,
-        activeChatIds: ['chat-1']
-      },
-      {
-        id: 'channel-agent-2',
-        agentId: 'agent-2',
-        name: 'Agent Two Slack',
-        isActive: true,
-        activeChatIds: ['chat-2']
-      }
+  it('shows a recoverable empty state for an invalid task id', async () => {
+    navigationMocks.taskId = 'missing-task'
+
+    render(<TasksSettings />)
+
+    expect(await screen.findByText('settings.scheduledTasks.notFoundTitle')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
+    expect(navigationMocks.navigate).toHaveBeenCalledWith({ to: '/settings/scheduled-tasks' })
+  })
+
+  it('returns to the list after deleting a task', async () => {
+    render(<TasksSettings />)
+
+    await screen.findByDisplayValue('Daily task')
+    fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'agent.tasks.delete.label' }))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'agent.tasks.delete.label' }))
+
+    await waitFor(() => expect(taskMutationMocks.deleteTask).toHaveBeenCalledWith('agent-1', 'task-1'))
+    expect(navigationMocks.navigate).toHaveBeenCalledWith({ to: '/settings/scheduled-tasks' })
+  })
+
+  it('disables only manual creation when no Agent exists', async () => {
+    navigationMocks.taskId = undefined
+    agentDataMock.agents = []
+    dataApiMock.get.mockImplementation((path: string) => {
+      if (path === '/agents') return Promise.resolve({ items: [] })
+      throw new Error(`unexpected path: ${path}`)
+    })
+
+    render(<TasksSettings />)
+
+    await screen.findByText('settings.scheduledTasks.noAgentsTitle')
+    fireEvent.click(screen.getByRole('button', { name: 'settings.scheduledTasks.newTask' }))
+
+    expect(screen.getByRole('menuitem', { name: 'settings.scheduledTasks.manualCreate' })).toBeDisabled()
+    const agentCreate = screen.getByRole('menuitem', { name: 'settings.scheduledTasks.agentCreate' })
+    expect(agentCreate).toBeEnabled()
+    fireEvent.click(agentCreate)
+    expect(navigationMocks.openRoute).toHaveBeenCalledWith('/app/agents')
+  })
+
+  it('opens a public xl Dialog with a daily 09:00 default', async () => {
+    navigationMocks.taskId = undefined
+
+    render(<TasksSettings />)
+
+    await screen.findByRole('link', { name: /Daily task/ })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.scheduledTasks.newTask' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'settings.scheduledTasks.manualCreate' }))
+
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveAttribute('data-size', 'xl')
+    expect(within(dialog).getByText('settings.scheduledTasks.createTitle')).toBeInTheDocument()
+    expect(within(dialog).getByRole('combobox', { name: 'agent.tasks.frequency.label' })).toHaveAttribute(
+      'data-value',
+      'daily'
+    )
+    expect(within(dialog).getByLabelText('agent.tasks.schedule.time')).toHaveValue('09:00')
+    expect(within(dialog).queryByRole('option', { name: 'agent.tasks.schedule.advanced' })).not.toBeInTheDocument()
+    expect(within(dialog).queryByText('agent.tasks.schedule.description')).not.toBeInTheDocument()
+
+    expect(within(dialog).getByRole('textbox', { name: 'agent.tasks.name.label' })).toBeRequired()
+    const promptInput = within(dialog).getByLabelText('agent.tasks.prompt.label')
+    const promptEditor = promptInput.closest('[data-slot="prompt-editor-field"]')
+    expect(promptEditor).not.toBeNull()
+    expect(
+      within(promptEditor as HTMLElement).getByRole('button', { name: 'library.config.prompt.generate' })
+    ).toBeInTheDocument()
+    const taskInputGroup = promptInput.closest('[data-task-input-context]')
+    expect(taskInputGroup).not.toBeNull()
+    expect(
+      within(taskInputGroup as HTMLElement).getByRole('button', { name: 'agent.channels.bindAgent' })
+    ).toBeInTheDocument()
+    expect(
+      within(taskInputGroup as HTMLElement).getByRole('button', { name: 'agent.session.display.workdir' })
+    ).toBeInTheDocument()
+
+    expect(within(dialog).getByRole('button', { name: 'common.cancel' })).toHaveAttribute('data-variant', 'outline')
+    expect(within(dialog).getByRole('button', { name: 'common.cancel' })).not.toHaveAttribute('data-size')
+    expect(within(dialog).getByRole('button', { name: 'agent.tasks.save' })).not.toHaveAttribute('data-size')
+  })
+
+  it('marks required fields invalid after an attempted create', async () => {
+    navigationMocks.taskId = undefined
+    agentDataMock.agents = [
+      { id: 'agent-1', name: 'Agent One', configuration: {} },
+      { id: 'agent-2', name: 'Agent Two', configuration: {} }
     ]
+    dataApiMock.get.mockImplementation((path: string) => {
+      if (path === '/agents') return Promise.resolve({ items: agentDataMock.agents })
+      if (path === '/agents/agent-1/tasks') return Promise.resolve({ items: [taskDataMock.task] })
+      if (path === '/agents/agent-2/tasks') return Promise.resolve({ items: [] })
+      throw new Error(`unexpected path: ${path}`)
+    })
 
     render(<TasksSettings />)
 
-    await screen.findByText('agent.tasks.logs.viewSession')
+    await screen.findByRole('link', { name: /Daily task/ })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.scheduledTasks.newTask' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'settings.scheduledTasks.manualCreate' }))
+    fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.save' }))
 
-    expect(screen.getByText('Agent One Telegram')).toBeInTheDocument()
-    expect(screen.queryByText('Agent Two Slack')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'agent.channels.bindAgent' })).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByRole('textbox', { name: 'agent.tasks.name.label' })).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByLabelText('agent.tasks.prompt.label')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getAllByRole('alert')).toHaveLength(3)
   })
 
-  it('drops stale channel ids from the update payload when channel selection changes', async () => {
-    taskDataMock.task = {
-      ...taskDataMock.defaultTask,
-      channelIds: ['channel-agent-1', 'channel-agent-2']
-    }
-    channelDataMock.channels = [
-      {
-        id: 'channel-agent-1',
-        agentId: 'agent-1',
-        name: 'Agent One Telegram',
-        isActive: true,
-        activeChatIds: ['chat-1']
-      },
-      {
-        id: 'channel-agent-2',
-        agentId: 'agent-2',
-        name: 'Agent Two Slack',
-        isActive: true,
-        activeChatIds: ['chat-2']
-      }
-    ]
+  it('keeps the Dialog open when creation fails', async () => {
+    navigationMocks.taskId = undefined
 
     render(<TasksSettings />)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Agent One Telegram' }))
+    await screen.findByRole('link', { name: /Daily task/ })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.scheduledTasks.newTask' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'settings.scheduledTasks.manualCreate' }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'agent.channels.bindAgent' })).toHaveTextContent('Agent One')
+    )
+    fireEvent.change(screen.getByRole('textbox', { name: 'agent.tasks.name.label' }), {
+      target: { value: 'Review code' }
+    })
+    fireEvent.change(screen.getByLabelText('agent.tasks.prompt.label'), { target: { value: 'Review the repository' } })
+    fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.save' }))
+
+    await waitFor(() => expect(taskMutationMocks.createTask).toHaveBeenCalledTimes(1))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(navigationMocks.navigate).not.toHaveBeenCalled()
+  })
+
+  it('closes the Dialog and navigates to the new detail after a successful create', async () => {
+    navigationMocks.taskId = undefined
+    const created = { ...taskDataMock.defaultTask, id: 'task-new', name: 'Review code' }
+    taskMutationMocks.createTask.mockResolvedValue(created)
+
+    render(<TasksSettings />)
+
+    await screen.findByRole('link', { name: /Daily task/ })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.scheduledTasks.newTask' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'settings.scheduledTasks.manualCreate' }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'agent.channels.bindAgent' })).toHaveTextContent('Agent One')
+    )
+    fireEvent.change(screen.getByRole('textbox', { name: 'agent.tasks.name.label' }), {
+      target: { value: 'Review code' }
+    })
+    fireEvent.change(screen.getByLabelText('agent.tasks.prompt.label'), { target: { value: 'Review the repository' } })
+    fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.save' }))
 
     await waitFor(() =>
-      expect(taskMutationMocks.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', { channelIds: [] })
+      expect(taskMutationMocks.createTask).toHaveBeenCalledWith(
+        'agent-1',
+        expect.objectContaining({
+          name: 'Review code',
+          prompt: 'Review the repository',
+          trigger: { kind: 'cron', expr: '0 9 * * *' }
+        })
+      )
     )
-    await act(async () => {})
-    expect(dataApiMock.get).toHaveBeenCalledTimes(2)
+    await waitFor(() =>
+      expect(navigationMocks.navigate).toHaveBeenCalledWith({
+        to: '/settings/scheduled-tasks/$taskId',
+        params: { taskId: 'task-new' }
+      })
+    )
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
+})
 
-  it('renders the segmented schedule type selector for the selected task', async () => {
-    render(<TasksSettings />)
-
-    await screen.findByText('agent.tasks.logs.viewSession')
-
-    expect(screen.getByPlaceholderText('agent.tasks.intervalPlaceholder')).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: 'agent.tasks.scheduleType.interval' })).toHaveAttribute(
-      'aria-checked',
-      'true'
-    )
-    expect(screen.getByRole('radio', { name: 'agent.tasks.scheduleType.once' })).toHaveAttribute(
-      'aria-checked',
-      'false'
-    )
-    expect(screen.getByRole('radio', { name: 'agent.tasks.scheduleType.cron' })).toHaveAttribute(
-      'aria-checked',
-      'false'
-    )
-  })
-
-  it('swaps the schedule input when the segmented selector changes type', async () => {
-    render(<TasksSettings />)
-
-    await screen.findByPlaceholderText('agent.tasks.intervalPlaceholder')
-
-    // Drain any still-pending task-load/auto-select updates: `findBy` resolves as
-    // soon as the interval input mounts, but a late one could re-render (and briefly
-    // unmount) the detail panel right after the click, dropping the schedule input.
-    await act(async () => {})
-
-    // Interval is the task's initial type.
-    expect(screen.getByPlaceholderText('agent.tasks.intervalPlaceholder')).toBeInTheDocument()
-    expect(screen.queryByPlaceholderText('agent.tasks.cronPlaceholder')).not.toBeInTheDocument()
-
-    act(() => {
-      fireEvent.click(screen.getByRole('radio', { name: 'agent.tasks.scheduleType.cron' }))
-    })
-
-    await waitFor(() => {
-      expect(screen.getByPlaceholderText('agent.tasks.cronPlaceholder')).toBeInTheDocument()
-      expect(screen.queryByPlaceholderText('agent.tasks.intervalPlaceholder')).not.toBeInTheDocument()
+describe('TasksSettings detail behavior', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    navigationMocks.taskId = 'task-1'
+    navigationMocks.navigate.mockResolvedValue(undefined)
+    agentDataMock.agents = [{ id: 'agent-1', name: 'Agent One', configuration: {} }]
+    taskDataMock.task = { ...taskDataMock.defaultTask }
+    taskLogsMock.logs = [taskLogsMock.defaultTaskLog]
+    taskLogsMock.isLoading = false
+    taskLogsMock.error = null
+    channelDataMock.channels = []
+    taskMutationMocks.deleteTask.mockResolvedValue(true)
+    taskMutationMocks.runTask.mockResolvedValue(true)
+    taskMutationMocks.updateTask.mockResolvedValue(taskDataMock.task)
+    dataApiMock.get.mockImplementation((path: string) => {
+      if (path === '/agents') return Promise.resolve({ items: agentDataMock.agents })
+      if (path === '/agents/agent-1/tasks') return Promise.resolve({ items: [taskDataMock.task] })
+      if (path === '/agents/agent-1/tasks/task-1') return Promise.resolve(taskDataMock.task)
+      throw new Error(`unexpected path: ${path}`)
     })
   })
 
-  it('moves run and delete into the task detail more menu', async () => {
+  it('keeps task logs searchable and opens the related session', async () => {
+    taskLogsMock.logs = [
+      taskLogsMock.defaultTaskLog,
+      { ...taskLogsMock.defaultTaskLog, id: 'log-2', sessionId: null, result: 'other result' }
+    ]
+
     render(<TasksSettings />)
 
-    await screen.findByText('agent.tasks.logs.viewSession')
+    fireEvent.change(await screen.findByPlaceholderText('agent.tasks.logs.search'), { target: { value: 'done' } })
+    expect(screen.getByText('done')).toBeInTheDocument()
+    expect(screen.queryByText('other result')).not.toBeInTheDocument()
 
-    expect(screen.getByRole('switch', { name: 'agent.tasks.status.active' })).toHaveAttribute('aria-checked', 'true')
-    expect(screen.queryByTitle('agent.tasks.run')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'agent.tasks.pause' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.logs.viewSession' }))
+    expect(navigationMocks.openConversation).toHaveBeenCalledWith('session-1')
+  })
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
-    expect(screen.getByRole('button', { name: 'agent.tasks.delete.label' })).toBeInTheDocument()
+  it('filters channels to the owning Agent and uses Alert for delivery warnings', async () => {
+    taskDataMock.task = { ...taskDataMock.defaultTask, channelIds: ['channel-agent-1'] }
+    channelDataMock.channels = [
+      {
+        id: 'channel-agent-1',
+        agentId: 'agent-1',
+        name: 'Agent One Telegram',
+        isActive: true,
+        activeChatIds: []
+      },
+      {
+        id: 'channel-agent-2',
+        agentId: 'agent-2',
+        name: 'Agent Two Slack',
+        isActive: true,
+        activeChatIds: ['chat-2']
+      }
+    ]
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
+    render(<TasksSettings />)
 
-    await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('task-1'))
+    expect(await screen.findByText('Agent One Telegram')).toBeInTheDocument()
+    expect(screen.queryByText('Agent Two Slack')).not.toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('agent.tasks.channels.placeholder')).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('agent.tasks.channels.noActiveChatIds')
   })
 
   it('applies the updated task response without reloading all task data', async () => {
@@ -610,7 +953,6 @@ describe('TasksSettings task logs', () => {
     const nameInput = await screen.findByDisplayValue('Daily task')
     await act(async () => {})
     dataApiMock.get.mockClear()
-
     fireEvent.change(nameInput, { target: { value: 'Edited task name' } })
     fireEvent.blur(nameInput)
 
@@ -631,422 +973,91 @@ describe('TasksSettings task logs', () => {
     const nameInput = await screen.findByDisplayValue('Daily task')
     fireEvent.change(nameInput, { target: { value: 'First edit' } })
     fireEvent.blur(nameInput)
-    await waitFor(() =>
-      expect(taskMutationMocks.updateTask).toHaveBeenNthCalledWith(1, 'agent-1', 'task-1', {
-        name: 'First edit'
-      })
-    )
+    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
 
     fireEvent.change(nameInput, { target: { value: 'Daily task' } })
     fireEvent.blur(nameInput)
-
     expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1)
 
-    await act(async () => {
-      firstSave.resolve({ ...taskDataMock.task, name: 'First edit' })
-    })
-
+    await act(async () => firstSave.resolve({ ...taskDataMock.task, name: 'First edit' }))
     await waitFor(() =>
       expect(taskMutationMocks.updateTask).toHaveBeenNthCalledWith(2, 'agent-1', 'task-1', {
         name: 'Daily task'
       })
     )
-    expect(screen.getByDisplayValue('Daily task')).toBeInTheDocument()
 
-    await act(async () => {
-      secondSave.resolve(taskDataMock.task)
-    })
-
+    await act(async () => secondSave.resolve(taskDataMock.task))
     await waitFor(() => expect(screen.getByDisplayValue('Daily task')).toBeInTheDocument())
   })
 
-  it('persists a same-field schedule revert made while an earlier save is pending', async () => {
-    const firstSave = createDeferred<typeof taskDataMock.task>()
-    const secondSave = createDeferred<typeof taskDataMock.task>()
-    taskMutationMocks.updateTask.mockReturnValueOnce(firstSave.promise).mockReturnValueOnce(secondSave.promise)
-
+  it('persists the simplified interval editor through the existing Trigger contract', async () => {
     render(<TasksSettings />)
 
     const intervalInput = await screen.findByPlaceholderText('agent.tasks.intervalPlaceholder')
-    fireEvent.change(intervalInput, { target: { value: '2' } })
-    fireEvent.blur(intervalInput)
-    await waitFor(() =>
-      expect(taskMutationMocks.updateTask).toHaveBeenNthCalledWith(1, 'agent-1', 'task-1', {
-        trigger: { kind: 'interval', ms: 120000 }
-      })
+    expect(screen.getByRole('combobox', { name: 'agent.tasks.frequency.label' })).toHaveAttribute(
+      'data-value',
+      'interval'
     )
-
-    fireEvent.change(intervalInput, { target: { value: '1' } })
+    fireEvent.change(intervalInput, { target: { value: '15' } })
     fireEvent.blur(intervalInput)
 
-    expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1)
-
-    await act(async () => {
-      firstSave.resolve({
-        ...taskDataMock.task,
-        trigger: { kind: 'interval', ms: 120000 }
-      })
-    })
-
     await waitFor(() =>
-      expect(taskMutationMocks.updateTask).toHaveBeenNthCalledWith(2, 'agent-1', 'task-1', {
-        trigger: { kind: 'interval', ms: 60000 }
+      expect(taskMutationMocks.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', {
+        trigger: { kind: 'interval', ms: 900_000 }
       })
     )
-    expect(screen.getByPlaceholderText('agent.tasks.intervalPlaceholder')).toHaveValue(1)
-
-    await act(async () => {
-      secondSave.resolve(taskDataMock.task)
-    })
-
-    await waitFor(() => expect(screen.getByPlaceholderText('agent.tasks.intervalPlaceholder')).toHaveValue(1))
   })
 
-  it('waits for a pending channel save before running the task', async () => {
+  it('waits for a pending save before running the task', async () => {
     const save = createDeferred<typeof taskDataMock.task>()
-    channelDataMock.channels = [
-      {
-        id: 'channel-agent-1',
-        agentId: 'agent-1',
-        name: 'Agent One Telegram',
-        isActive: true,
-        activeChatIds: ['chat-1']
-      }
-    ]
     taskMutationMocks.updateTask.mockReturnValueOnce(save.promise)
 
     render(<TasksSettings />)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Agent One Telegram' }))
+    const nameInput = await screen.findByDisplayValue('Daily task')
+    fireEvent.change(nameInput, { target: { value: 'Pending name' } })
+    fireEvent.blur(nameInput)
     await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
 
     fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
-    fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
-
+    fireEvent.click(screen.getByRole('menuitem', { name: 'agent.tasks.run' }))
     expect(taskMutationMocks.runTask).not.toHaveBeenCalled()
 
-    await act(async () => save.resolve(taskDataMock.task))
-
+    await act(async () => save.resolve({ ...taskDataMock.task, name: 'Pending name' }))
     await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('task-1'))
   })
 
-  it('does not run the task when the pending save fails', async () => {
+  it('does not run when the preceding save fails', async () => {
     const save = createDeferred<typeof taskDataMock.task | undefined>()
-    channelDataMock.channels = [
-      {
-        id: 'channel-agent-1',
-        agentId: 'agent-1',
-        name: 'Agent One Telegram',
-        isActive: true,
-        activeChatIds: ['chat-1']
-      }
-    ]
     taskMutationMocks.updateTask.mockReturnValueOnce(save.promise)
 
     render(<TasksSettings />)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Agent One Telegram' }))
+    const nameInput = await screen.findByDisplayValue('Daily task')
+    fireEvent.change(nameInput, { target: { value: 'Pending name' } })
+    fireEvent.blur(nameInput)
     await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
 
     fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
-    fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
-
+    fireEvent.click(screen.getByRole('menuitem', { name: 'agent.tasks.run' }))
     await act(async () => save.resolve(undefined))
 
     expect(taskMutationMocks.runTask).not.toHaveBeenCalled()
   })
 
-  it('keeps an already-waiting run blocked when an earlier save fails before a later save succeeds', async () => {
-    const firstSave = createDeferred<typeof taskDataMock.task | undefined>()
-    const secondSave = createDeferred<typeof taskDataMock.task>()
-    channelDataMock.channels = [
-      {
-        id: 'channel-agent-1',
-        agentId: 'agent-1',
-        name: 'Agent One Telegram',
-        isActive: true,
-        activeChatIds: ['chat-1']
-      }
-    ]
-    taskMutationMocks.updateTask.mockReturnValueOnce(firstSave.promise).mockReturnValueOnce(secondSave.promise)
-
+  it('toggles task status from the semantic switch', async () => {
     render(<TasksSettings />)
 
-    const nameInput = await screen.findByDisplayValue('Daily task')
-    fireEvent.change(nameInput, { target: { value: 'Unsaved task name' } })
-    fireEvent.blur(nameInput)
-    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
-
-    fireEvent.click(screen.getByRole('button', { name: 'Agent One Telegram' }))
-    fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
-    fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
-
-    await act(async () => firstSave.resolve(undefined))
-    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(2))
-    await act(async () => secondSave.resolve({ ...taskDataMock.task, channelIds: ['channel-agent-1'] }))
-
-    expect(taskMutationMocks.runTask).not.toHaveBeenCalled()
-  })
-
-  it('reconciles a settled failed save before allowing a later run', async () => {
-    const save = createDeferred<typeof taskDataMock.task | undefined>()
-    taskMutationMocks.updateTask.mockReturnValueOnce(save.promise)
-
-    render(<TasksSettings />)
-
-    const nameInput = await screen.findByDisplayValue('Daily task')
-    fireEvent.change(nameInput, { target: { value: 'Unsaved task name' } })
-    fireEvent.blur(nameInput)
-    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
-    await act(async () => save.resolve(undefined))
-    await waitFor(() => expect(screen.getByDisplayValue('Daily task')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
-    fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
-
-    await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('task-1'))
-  })
-
-  it('preserves an unblurred prompt draft when another field save fails', async () => {
-    const nameSave = createDeferred<typeof taskDataMock.task | undefined>()
-    taskMutationMocks.updateTask.mockReturnValueOnce(nameSave.promise)
-
-    render(<TasksSettings />)
-
-    const nameInput = await screen.findByDisplayValue('Daily task')
-    fireEvent.change(nameInput, { target: { value: 'Unsaved task name' } })
-    fireEvent.blur(nameInput)
-    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
-
-    const promptInput = screen.getByDisplayValue('Run daily summary')
-    fireEvent.focus(promptInput)
-    fireEvent.change(promptInput, { target: { value: 'New uncommitted prompt' } })
-
-    await act(async () => nameSave.resolve(undefined))
-
-    expect(screen.getByDisplayValue('New uncommitted prompt')).toBeInTheDocument()
-    expect(taskMutationMocks.updateTask).not.toHaveBeenCalledWith('agent-1', 'task-1', {
-      prompt: 'New uncommitted prompt'
-    })
-  })
-
-  it('runs before saves appended after the run action', async () => {
-    const firstSave = createDeferred<typeof taskDataMock.task>()
-    const secondSave = createDeferred<typeof taskDataMock.task>()
-    const run = createDeferred<boolean>()
-    const staleTaskRefresh = createDeferred<typeof taskDataMock.task>()
-    channelDataMock.channels = [
-      {
-        id: 'channel-agent-1',
-        agentId: 'agent-1',
-        name: 'Agent One Telegram',
-        isActive: true,
-        activeChatIds: ['chat-1']
-      }
-    ]
-    taskMutationMocks.updateTask.mockReturnValueOnce(firstSave.promise).mockReturnValueOnce(secondSave.promise)
-    taskMutationMocks.runTask.mockReturnValueOnce(run.promise)
-
-    render(<TasksSettings />)
-
-    const channelButton = await screen.findByRole('button', { name: 'Agent One Telegram' })
-    dataApiMock.get.mockImplementation((path: string) => {
-      if (path === '/agents') {
-        return Promise.resolve({ items: [{ id: 'agent-1', name: 'Agent One', configuration: {} }] })
-      }
-      if (path === '/agents/agent-1/tasks/task-1') return staleTaskRefresh.promise
-      throw new Error(`unexpected path: ${path}`)
-    })
-
-    fireEvent.click(channelButton)
-    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
-
-    fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
-    fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
-    const nameInput = screen.getByDisplayValue('Daily task')
-    fireEvent.change(nameInput, { target: { value: 'Edited after run' } })
-    fireEvent.blur(nameInput)
-
-    await act(async () => firstSave.resolve(taskDataMock.task))
-    await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('task-1'))
-
-    expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1)
-
-    await act(async () => run.resolve(true))
-    await act(async () => {})
-    expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1)
-
-    await act(async () => {
-      staleTaskRefresh.resolve(taskDataMock.task)
-    })
-    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(2))
-    await act(async () => secondSave.resolve({ ...taskDataMock.task, name: 'Edited after run' }))
-    await waitFor(() => expect(screen.getByDisplayValue('Edited after run')).toBeInTheDocument())
-  })
-
-  it('refreshes the task only once after running', async () => {
-    render(<TasksSettings />)
-
-    await screen.findByText('agent.tasks.logs.viewSession')
-    await act(async () => {})
-    dataApiMock.get.mockClear()
-    vi.useFakeTimers()
-
-    try {
-      fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
-      fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
-
-      await act(async () => {})
-      expect(taskMutationMocks.runTask).toHaveBeenCalledWith('task-1')
-
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(1000)
-      })
-
-      const taskRefreshCalls = dataApiMock.get.mock.calls.filter(([path]) => path === '/agents/agent-1/tasks/task-1')
-      expect(taskRefreshCalls).toHaveLength(1)
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it.each([
-    { initialStatus: 'active' as const, initiallyEnabled: true, nextEnabled: false },
-    { initialStatus: 'paused' as const, initiallyEnabled: false, nextEnabled: true }
-  ])(
-    'waits for a pending channel save before toggling a $initialStatus task',
-    async ({ initialStatus, initiallyEnabled, nextEnabled }) => {
-      const save = createDeferred<typeof taskDataMock.task>()
-      taskDataMock.task = {
-        ...taskDataMock.defaultTask,
-        enabled: initiallyEnabled,
-        status: initialStatus
-      }
-      channelDataMock.channels = [
-        {
-          id: 'channel-agent-1',
-          agentId: 'agent-1',
-          name: 'Agent One Telegram',
-          isActive: true,
-          activeChatIds: ['chat-1']
-        }
-      ]
-      taskMutationMocks.updateTask.mockReturnValueOnce(save.promise)
-
-      render(<TasksSettings />)
-
-      fireEvent.click(await screen.findByRole('button', { name: 'Agent One Telegram' }))
-      await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
-
-      fireEvent.click(screen.getByRole('switch', { name: 'agent.tasks.status.active' }))
-
-      expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1)
-
-      await act(async () => save.resolve(taskDataMock.task))
-
-      await waitFor(() =>
-        expect(taskMutationMocks.updateTask).toHaveBeenNthCalledWith(2, 'agent-1', 'task-1', {
-          enabled: nextEnabled
-        })
-      )
-    }
-  )
-
-  it('does not resume when a preceding configuration save fails', async () => {
-    const save = createDeferred<typeof taskDataMock.task | undefined>()
-    taskDataMock.task = {
-      ...taskDataMock.defaultTask,
-      enabled: false,
-      status: 'paused'
-    }
-    taskMutationMocks.updateTask.mockReturnValueOnce(save.promise)
-
-    render(<TasksSettings />)
-
-    const nameInput = await screen.findByDisplayValue('Daily task')
-    fireEvent.change(nameInput, { target: { value: 'Unsaved task name' } })
-    fireEvent.blur(nameInput)
-    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
-
-    fireEvent.click(screen.getByRole('switch', { name: 'agent.tasks.status.active' }))
-    await act(async () => save.resolve(undefined))
-
-    await act(async () => {})
-    expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1)
-    expect(taskMutationMocks.updateTask).not.toHaveBeenCalledWith('agent-1', 'task-1', { enabled: true })
-  })
-
-  it('pauses when a preceding configuration save fails', async () => {
-    const save = createDeferred<typeof taskDataMock.task | undefined>()
-    taskMutationMocks.updateTask.mockReturnValueOnce(save.promise)
-
-    render(<TasksSettings />)
-
-    const nameInput = await screen.findByDisplayValue('Daily task')
-    fireEvent.change(nameInput, { target: { value: 'Unsaved task name' } })
-    fireEvent.blur(nameInput)
-    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
-
-    fireEvent.click(screen.getByRole('switch', { name: 'agent.tasks.status.active' }))
-    await act(async () => save.resolve(undefined))
-
-    await waitFor(() =>
-      expect(taskMutationMocks.updateTask).toHaveBeenNthCalledWith(2, 'agent-1', 'task-1', { enabled: false })
-    )
-  })
-
-  it('toggles the selected task status from the header switch', async () => {
-    render(<TasksSettings />)
-
-    await screen.findByText('agent.tasks.logs.viewSession')
-
-    fireEvent.click(screen.getByRole('switch', { name: 'agent.tasks.status.active' }))
+    const statusSwitch = await screen.findByRole('switch', { name: 'agent.tasks.status.active' })
+    expect(statusSwitch).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(statusSwitch)
 
     await waitFor(() =>
       expect(taskMutationMocks.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', { enabled: false })
     )
   })
 
-  it('waits for an in-flight status toggle before running the task', async () => {
-    const toggle = createDeferred<typeof taskDataMock.task>()
-    taskMutationMocks.updateTask.mockReturnValueOnce(toggle.promise)
-
-    render(<TasksSettings />)
-
-    await screen.findByText('agent.tasks.logs.viewSession')
-    fireEvent.click(screen.getByRole('switch', { name: 'agent.tasks.status.active' }))
-    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
-
-    fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
-    fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
-
-    await act(async () => {})
-    expect(taskMutationMocks.runTask).not.toHaveBeenCalled()
-
-    await act(async () => toggle.resolve({ ...taskDataMock.task, enabled: false, status: 'paused' }))
-
-    await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('task-1'))
-  })
-
-  it('does not run the task when an in-flight status toggle fails', async () => {
-    const toggle = createDeferred<typeof taskDataMock.task | undefined>()
-    taskMutationMocks.updateTask.mockReturnValueOnce(toggle.promise)
-
-    render(<TasksSettings />)
-
-    await screen.findByText('agent.tasks.logs.viewSession')
-    fireEvent.click(screen.getByRole('switch', { name: 'agent.tasks.status.active' }))
-    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
-
-    fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
-    fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
-
-    await act(async () => toggle.resolve(undefined))
-
-    expect(taskMutationMocks.runTask).not.toHaveBeenCalled()
-  })
-
-  it('renders completed task status badge with raw blue tokens matching the status dot', async () => {
+  it('uses a neutral Badge and hides run/status controls for completed tasks', async () => {
     taskDataMock.task = {
       ...taskDataMock.defaultTask,
       enabled: false,
@@ -1056,33 +1067,11 @@ describe('TasksSettings task logs', () => {
     render(<TasksSettings />)
 
     const completedBadge = await screen.findByText('agent.tasks.status.completed')
-
-    expect(completedBadge).toHaveClass('border-blue-500/30', 'bg-blue-500/10', 'text-blue-500')
-    expect(completedBadge).not.toHaveClass('border-info/30', 'bg-info/10', 'text-info')
-  })
-
-  it('keeps delete in the more menu for completed tasks without showing run or status controls', async () => {
-    taskDataMock.task = {
-      ...taskDataMock.defaultTask,
-      enabled: false,
-      status: 'completed'
-    }
-
-    render(<TasksSettings />)
-
-    await screen.findByText('agent.tasks.logs.viewSession')
-
+    expect(completedBadge).toHaveAttribute('data-variant', 'secondary')
     expect(screen.queryByRole('switch')).not.toBeInTheDocument()
 
-    act(() => {
-      fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
-    })
-
-    expect(screen.queryByRole('button', { name: 'agent.tasks.run' })).not.toBeInTheDocument()
-    act(() => {
-      fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.delete.label' }))
-    })
-
-    expect(screen.getByRole('dialog')).toHaveTextContent('agent.tasks.delete.confirm')
+    fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
+    expect(screen.queryByRole('menuitem', { name: 'agent.tasks.run' })).not.toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'agent.tasks.delete.label' })).toBeInTheDocument()
   })
 })
