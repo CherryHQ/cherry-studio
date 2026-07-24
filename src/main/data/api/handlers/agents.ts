@@ -37,6 +37,22 @@ function parseListQuery(query: unknown): ListQuery {
 }
 
 export const agentHandlers: HandlersFor<AgentSchemas> = {
+  '/agent-tasks': {
+    GET: async ({ query }) => {
+      const { page, limit, offset } = paginationFromQuery(parseListQuery(query))
+      const { tasks, total } = taskService.listAllTasks({ limit, offset })
+      return { items: tasks, total, page }
+    }
+  },
+
+  '/agent-tasks/:taskId': {
+    GET: async ({ params }) => {
+      const task = taskService.getTaskById(params.taskId)
+      if (!task) throw DataApiErrorFactory.notFound('Task', params.taskId)
+      return task
+    }
+  },
+
   '/agents': {
     GET: async ({ query }) => {
       const parsed = ListAgentsQuerySchema.safeParse(query ?? {})

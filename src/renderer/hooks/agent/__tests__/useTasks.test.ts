@@ -3,7 +3,7 @@ import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useCreateTask, useDeleteTask, useRunTask, useTasks, useUpdateTask } from '../useTasks'
+import { useAllTasks, useCreateTask, useDeleteTask, useRunTask, useTask, useTasks, useUpdateTask } from '../useTasks'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
@@ -47,6 +47,47 @@ describe('useTasks', () => {
 
     expect(result.current.tasks).toEqual(mockTasks)
     expect(result.current.total).toBe(2)
+  })
+})
+
+describe('useAllTasks', () => {
+  beforeEach(() => {
+    MockUseDataApiUtils.resetMocks()
+    vi.clearAllMocks()
+  })
+
+  it('exposes page navigation for the complete task collection', () => {
+    const tasks = [{ id: 't-51', name: 'Task 51' }]
+    MockUseDataApiUtils.mockPaginatedData('/agent-tasks', tasks, {
+      total: 51,
+      page: 2,
+      hasNext: false,
+      hasPrev: true
+    })
+
+    const { result } = renderHook(() => useAllTasks())
+
+    expect(result.current.tasks).toEqual(tasks)
+    expect(result.current.total).toBe(51)
+    expect(result.current.page).toBe(2)
+    expect(result.current.pageCount).toBe(2)
+    expect(result.current.hasPrev).toBe(true)
+  })
+})
+
+describe('useTask', () => {
+  beforeEach(() => {
+    MockUseDataApiUtils.resetMocks()
+    vi.clearAllMocks()
+  })
+
+  it('loads a task independently by id', () => {
+    const task = { id: 't-501', name: 'Task 501' }
+    MockUseDataApiUtils.mockQueryResult('/agent-tasks/:taskId', { data: task as any })
+
+    const { result } = renderHook(() => useTask('t-501'))
+
+    expect(result.current.task).toEqual(task)
   })
 })
 

@@ -183,6 +183,35 @@ describe('AgentTaskService (thin facade)', () => {
       expect(result).toMatchObject({ id: TASK_ID, agentId: AGENT_ID, name: validDto.name, enabled: true })
     })
 
+    it('stores an unlimited timeout as zero instead of applying the default', async () => {
+      setupApplicationMocks()
+      registerJobScheduleMock.mockReturnValueOnce({ id: TASK_ID })
+      vi.mocked(jobScheduleService.getById).mockReturnValueOnce(
+        makeSnapshot({
+          jobInputTemplate: {
+            agentId: AGENT_ID,
+            prompt: validDto.prompt,
+            timeoutMinutes: 0,
+            workspace: taskWorkspace
+          }
+        })
+      )
+
+      const result = await agentTaskService.createTask(AGENT_ID, { ...validDto, timeoutMinutes: null })
+
+      expect(registerJobScheduleMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          jobInputTemplate: {
+            agentId: AGENT_ID,
+            prompt: validDto.prompt,
+            timeoutMinutes: 0,
+            workspace: taskWorkspace
+          }
+        })
+      )
+      expect(result.timeoutMinutes).toBe(0)
+    })
+
     it('throws notFound when the agent does not exist', async () => {
       setupApplicationMocks({ configuration: null })
 
@@ -256,6 +285,15 @@ describe('AgentTaskService (thin facade)', () => {
   })
 
   describe('getTask', () => {
+    it('returns a task by id without requiring its owning Agent id', async () => {
+      setupApplicationMocks()
+      vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSnapshot())
+
+      const result = agentTaskService.getTaskById(TASK_ID)
+
+      expect(result).toMatchObject({ id: TASK_ID, agentId: AGENT_ID })
+    })
+
     it('returns the entity when agentId matches the snapshot template', async () => {
       setupApplicationMocks()
       vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSnapshot())
@@ -359,6 +397,40 @@ describe('AgentTaskService (thin facade)', () => {
     })
   })
 
+  describe('listAllTasks', () => {
+    it('returns tasks across every agent, still excluding heartbeat tasks', async () => {
+      setupApplicationMocks()
+      vi.mocked(jobScheduleService.listAll).mockReturnValueOnce([
+        makeSnapshot({ id: 's1', name: 'a' }),
+        makeSnapshot({
+          id: 's2',
+          name: 'b',
+          jobInputTemplate: { agentId: OTHER_AGENT_ID, prompt: 'x', timeoutMinutes: 2, workspace: taskWorkspace }
+        }),
+        makeSnapshot({ id: 's3', name: 'heartbeat' })
+      ])
+
+      const result = agentTaskService.listAllTasks()
+
+      expect(result.tasks.map((task) => task.id)).toEqual(['s1', 's2'])
+      expect(result.total).toBe(2)
+    })
+
+    it('applies limit/offset pagination while reporting the unpaged total', async () => {
+      setupApplicationMocks()
+      vi.mocked(jobScheduleService.listAll).mockReturnValueOnce([
+        makeSnapshot({ id: 's1', name: 'a', createdAt: '2026-05-22T00:00:00.000Z' }),
+        makeSnapshot({ id: 's2', name: 'b', createdAt: '2026-05-21T00:00:00.000Z' }),
+        makeSnapshot({ id: 's3', name: 'c', createdAt: '2026-05-20T00:00:00.000Z' })
+      ])
+
+      const result = agentTaskService.listAllTasks({ limit: 1, offset: 1 })
+
+      expect(result.tasks.map((task) => task.id)).toEqual(['s2'])
+      expect(result.total).toBe(3)
+    })
+  })
+
   describe('updateTask', () => {
     it('forwards trigger and enabled patches and rebuilds jobInputTemplate when prompt changed', async () => {
       setupApplicationMocks()
@@ -384,6 +456,22 @@ describe('AgentTaskService (thin facade)', () => {
       )
     })
 
+    it('drops an unchanged trigger from the patch so the schedule is not re-armed', async () => {
+      setupApplicationMocks()
+      vi.mocked(jobScheduleService.getById)
+        .mockReturnValueOnce(makeSnapshot())
+        .mockReturnValueOnce(makeSnapshot())
+        .mockReturnValueOnce(makeSnapshot({ name: 'new-name' }))
+      updateJobScheduleMock.mockReturnValueOnce(makeSnapshot({ name: 'new-name' }))
+
+      await agentTaskService.updateTask(AGENT_ID, TASK_ID, { name: 'new-name', trigger: { ...validTrigger } })
+
+      expect(updateJobScheduleMock).toHaveBeenCalledTimes(1)
+      const patch = updateJobScheduleMock.mock.calls[0][1]
+      expect(patch).not.toHaveProperty('trigger')
+      expect(patch).toMatchObject({ name: 'new-name' })
+    })
+
     it('does not touch jobInputTemplate when only enabled changed', async () => {
       setupApplicationMocks()
       vi.mocked(jobScheduleService.getById)
@@ -397,6 +485,112 @@ describe('AgentTaskService (thin facade)', () => {
       expect(updateJobScheduleMock).toHaveBeenCalledTimes(1)
       const patch = updateJobScheduleMock.mock.calls[0][1]
       expect(patch).not.toHaveProperty('jobInputTemplate')
+    })
+
+    it('updates a task to an unlimited timeout', async () => {
+      setupApplicationMocks()
+      const unlimitedSnapshot = makeSnapshot({
+        jobInputTemplate: {
+          agentId: AGENT_ID,
+          prompt: validDto.prompt,
+          timeoutMinutes: 0,
+          workspace: taskWorkspace
+        }
+      })
+      vi.mocked(jobScheduleService.getById)
+        .mockReturnValueOnce(makeSnapshot())
+        .mockReturnValueOnce(makeSnapshot())
+        .mockReturnValueOnce(unlimitedSnapshot)
+      updateJobScheduleMock.mockReturnValueOnce(unlimitedSnapshot)
+
+      const result = await agentTaskService.updateTask(AGENT_ID, TASK_ID, { timeoutMinutes: null })
+
+      expect(updateJobScheduleMock).toHaveBeenCalledWith(
+        TASK_ID,
+        expect.objectContaining({
+          jobInputTemplate: {
+            agentId: AGENT_ID,
+            prompt: validDto.prompt,
+            timeoutMinutes: 0,
+            workspace: taskWorkspace
+          }
+        })
+      )
+      expect(result?.timeoutMinutes).toBe(0)
+    })
+
+    it('reassigns a task to another Agent and clears subscriptions from the previous Agent', async () => {
+      setupApplicationMocks()
+      const reassignedSnapshot = makeSnapshot({
+        jobInputTemplate: {
+          agentId: OTHER_AGENT_ID,
+          prompt: validDto.prompt,
+          timeoutMinutes: 5,
+          workspace: taskWorkspace
+        }
+      })
+      vi.mocked(jobScheduleService.getById)
+        .mockReturnValueOnce(makeSnapshot())
+        .mockReturnValueOnce(makeSnapshot())
+        .mockReturnValueOnce(reassignedSnapshot)
+      updateJobScheduleMock.mockReturnValueOnce(reassignedSnapshot)
+
+      const result = await agentTaskService.updateTask(AGENT_ID, TASK_ID, { agentId: OTHER_AGENT_ID })
+
+      expect(updateJobScheduleMock).toHaveBeenCalledWith(
+        TASK_ID,
+        expect.objectContaining({
+          jobInputTemplate: {
+            agentId: OTHER_AGENT_ID,
+            prompt: validDto.prompt,
+            timeoutMinutes: 5,
+            workspace: taskWorkspace
+          }
+        })
+      )
+      expect(replaceTaskSubscriptionsMock).toHaveBeenCalledWith(TASK_ID, [])
+      expect(result?.agentId).toBe(OTHER_AGENT_ID)
+    })
+
+    it('validates replacement channels against the target Agent', async () => {
+      setupApplicationMocks()
+      vi.mocked(agentChannelService.getChannel).mockReturnValueOnce({
+        id: 'target-channel',
+        agentId: OTHER_AGENT_ID
+      } as never)
+      const reassignedSnapshot = makeSnapshot({
+        jobInputTemplate: {
+          agentId: OTHER_AGENT_ID,
+          prompt: validDto.prompt,
+          timeoutMinutes: 5,
+          workspace: taskWorkspace
+        }
+      })
+      vi.mocked(jobScheduleService.getById)
+        .mockReturnValueOnce(makeSnapshot())
+        .mockReturnValueOnce(makeSnapshot())
+        .mockReturnValueOnce(reassignedSnapshot)
+      updateJobScheduleMock.mockReturnValueOnce(reassignedSnapshot)
+
+      await agentTaskService.updateTask(AGENT_ID, TASK_ID, {
+        agentId: OTHER_AGENT_ID,
+        channelIds: ['target-channel']
+      })
+
+      expect(agentChannelService.getChannel).toHaveBeenCalledWith('target-channel')
+      expect(replaceTaskSubscriptionsMock).toHaveBeenCalledWith(TASK_ID, ['target-channel'])
+    })
+
+    it('rejects reassignment to an Agent that does not exist', async () => {
+      setupApplicationMocks({ configuration: null })
+      vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSnapshot()).mockReturnValueOnce(makeSnapshot())
+
+      await expect(agentTaskService.updateTask(AGENT_ID, TASK_ID, { agentId: OTHER_AGENT_ID })).rejects.toMatchObject({
+        message: expect.stringContaining('Agent')
+      })
+
+      expect(updateJobScheduleMock).not.toHaveBeenCalled()
+      expect(replaceTaskSubscriptionsMock).not.toHaveBeenCalled()
     })
 
     it('updates task subscriptions for channels owned by the agent', async () => {

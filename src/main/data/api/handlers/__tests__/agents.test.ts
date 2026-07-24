@@ -10,7 +10,9 @@ const {
   reorderMock,
   reorderBatchMock,
   listTasksMock,
+  listAllTasksMock,
   createTaskMock,
+  getTaskByIdMock,
   getTaskMock,
   updateTaskMock,
   deleteTaskMock,
@@ -25,7 +27,9 @@ const {
   reorderMock: vi.fn(),
   reorderBatchMock: vi.fn(),
   listTasksMock: vi.fn(),
+  listAllTasksMock: vi.fn(),
   createTaskMock: vi.fn(),
+  getTaskByIdMock: vi.fn(),
   getTaskMock: vi.fn(),
   updateTaskMock: vi.fn(),
   deleteTaskMock: vi.fn(),
@@ -48,7 +52,9 @@ vi.mock('@data/services/AgentService', () => ({
 vi.mock('@data/services/AgentTaskService', () => ({
   agentTaskService: {
     listTasks: listTasksMock,
+    listAllTasks: listAllTasksMock,
     createTask: createTaskMock,
+    getTaskById: getTaskByIdMock,
     getTask: getTaskMock,
     updateTask: updateTaskMock,
     deleteTask: deleteTaskMock
@@ -303,6 +309,38 @@ describe('agentHandlers', () => {
       )
 
       expect(reorderBatchMock).not.toHaveBeenCalled()
+    })
+  })
+
+  // ── /agent-tasks ──────────────────────────────────────────────────────────
+
+  describe('/agent-tasks', () => {
+    it('delegates GET to taskService.listAllTasks with pagination', async () => {
+      listAllTasksMock.mockReturnValueOnce({ tasks: [mockTask], total: 1 })
+
+      const result = await agentHandlers['/agent-tasks'].GET({ query: { page: 2, limit: 10 } } as never)
+
+      expect(listAllTasksMock).toHaveBeenCalledWith({ limit: 10, offset: 10 })
+      expect(result).toMatchObject({ items: [mockTask], total: 1, page: 2 })
+    })
+  })
+
+  describe('/agent-tasks/:taskId', () => {
+    it('returns a task without requiring its owning Agent id', async () => {
+      getTaskByIdMock.mockReturnValueOnce(mockTask)
+
+      const result = await agentHandlers['/agent-tasks/:taskId'].GET({ params: { taskId: TASK_ID } } as never)
+
+      expect(getTaskByIdMock).toHaveBeenCalledWith(TASK_ID)
+      expect(result).toBe(mockTask)
+    })
+
+    it('throws not found when the task does not exist', async () => {
+      getTaskByIdMock.mockReturnValueOnce(null)
+
+      await expect(
+        agentHandlers['/agent-tasks/:taskId'].GET({ params: { taskId: TASK_ID } } as never)
+      ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
     })
   })
 

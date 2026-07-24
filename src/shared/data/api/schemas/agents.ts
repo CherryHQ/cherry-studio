@@ -222,6 +222,8 @@ export const CreateTaskSchema = z.strictObject({
 export type CreateTaskDto = z.infer<typeof CreateTaskSchema>
 
 export const UpdateTaskSchema = CreateTaskSchema.partial().extend({
+  /** Reassigns the existing schedule without replacing its id or run history. */
+  agentId: z.string().min(1).optional(),
   /** Pause = false, resume = true. Replaces v1 status field. */
   enabled: z.boolean().optional()
 })
@@ -304,6 +306,22 @@ export type AgentSchemas = {
       params: { agentId: string }
       query?: DeleteAgentQueryParams
       response: DeleteAgentResult
+    }
+  }
+
+  /** List scheduled tasks across every agent (settings overview, paginated) */
+  '/agent-tasks': {
+    GET: {
+      query?: ListQuery
+      response: OffsetPaginationResponse<ScheduledTaskEntity>
+    }
+  }
+
+  /** Get a scheduled task without requiring its owning Agent in the route */
+  '/agent-tasks/:taskId': {
+    GET: {
+      params: { taskId: string }
+      response: ScheduledTaskEntity
     }
   }
 
