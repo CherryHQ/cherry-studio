@@ -8,7 +8,8 @@ const {
   getRegistry,
   jobManagerPause,
   drainInFlight,
-  relaunchMock
+  relaunchMock,
+  broadcastMock
 } = vi.hoisted(() => ({
   importBackup: vi.fn(),
   admitArchiveMock: vi.fn(),
@@ -17,7 +18,8 @@ const {
   getRegistry: vi.fn(() => ({ domains: [] })),
   jobManagerPause: vi.fn(() => ({ dispose: vi.fn() })),
   drainInFlight: vi.fn(async () => ({ stragglerIds: [] as string[], startupRecoveryPending: false })),
-  relaunchMock: vi.fn()
+  relaunchMock: vi.fn(),
+  broadcastMock: vi.fn()
 }))
 
 vi.mock('../ImportOrchestrator', () => ({
@@ -49,6 +51,9 @@ vi.mock('@application', async () => {
     if (name === 'JobManager') {
       return { pause: jobManagerPause, drainInFlight }
     }
+    if (name === 'IpcApiService') {
+      return { broadcast: broadcastMock }
+    }
     return innerGet(name)
   })
   ;(mocked.application as unknown as { relaunch: typeof relaunchMock }).relaunch = relaunchMock
@@ -56,7 +61,7 @@ vi.mock('@application', async () => {
 })
 
 import { BaseService } from '@main/core/lifecycle'
-import { isBackupInProgress } from '@main/data/db/backup/quiesceGate'
+import { isBackupInProgress, setBackupInProgress } from '@main/data/db/backup/quiesceGate'
 import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
@@ -231,14 +236,39 @@ describe('BackupService restore journal lifecycle (A7)', () => {
       expect(holdDispose).toHaveBeenCalledTimes(1)
     })
 
-    it('proceeds on clean verdict — import past quiesce + relaunch', async () => {
+    it('proceeds on clean verdict — seals, broadcasts the summary, and WAITS (no auto relaunch)', async () => {
       drainInFlight.mockResolvedValue({ stragglerIds: [], startupRecoveryPending: false })
+      const holdDispose = vi.fn()
+      jobManagerPause.mockReturnValue({ dispose: holdDispose })
       const service = new BackupService()
 
       await service.startRestore({ archivePath: '/x.cherrybackup' })
 
       expect(afterQuiesce).toHaveBeenCalledTimes(1)
-      expect(relaunchMock).toHaveBeenCalledTimes(1)
+      // backup.restore_summary integration contract: the renderer confirm dialog owns
+      // the restart via app.relaunch — the spine must broadcast and keep waiting.
+      expect(relaunchMock).not.toHaveBeenCalled()
+      expect(broadcastMock).toHaveBeenCalledWith('backup.restore_summary', { toRestore: [], toSkip: [] })
+      // Quiesce survives the resolved request: the write window stays closed from
+      // seal until the user-confirmed relaunch exits the process.
+      expect(isBackupInProgress()).toBe(true)
+      expect(holdDispose).not.toHaveBeenCalled()
+
+      setBackupInProgress(false) // module-singleton gate — reset for later tests
+    })
+
+    it('a broadcast failure does not fail the sealed restore (renderer falls back)', async () => {
+      drainInFlight.mockResolvedValue({ stragglerIds: [], startupRecoveryPending: false })
+      broadcastMock.mockImplementationOnce(() => {
+        throw new Error('no windows')
+      })
+      const service = new BackupService()
+
+      await expect(service.startRestore({ archivePath: '/x.cherrybackup' })).resolves.toMatchObject({
+        restoreId: expect.any(String)
+      })
+
+      setBackupInProgress(false)
     })
   })
 
@@ -284,7 +314,9 @@ describe('BackupService restore journal lifecycle (A7)', () => {
       await expect(service.startRestore({ archivePath: '/x.cherrybackup' })).resolves.toMatchObject({
         restoreId: expect.stringMatching(/^rst-/)
       })
-      expect(relaunchMock).toHaveBeenCalledTimes(1)
+      // Sealed success broadcasts the summary and waits for the renderer's app.relaunch.
+      expect(relaunchMock).not.toHaveBeenCalled()
+      expect(broadcastMock).toHaveBeenCalledWith('backup.restore_summary', { toRestore: [], toSkip: [] })
     })
   })
 

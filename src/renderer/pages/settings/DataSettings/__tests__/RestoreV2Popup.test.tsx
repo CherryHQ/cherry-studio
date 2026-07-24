@@ -185,6 +185,24 @@ describe('RestoreV2Popup', () => {
     expect(requestMock).toHaveBeenCalledWith('app.relaunch')
   })
 
+  it('falls back to an empty summary with restart button when the broadcast is missed', async () => {
+    selectMock.mockResolvedValueOnce([{ path: '/tmp/backup.cherrybackup' }])
+    confirmMock.mockResolvedValueOnce(true)
+    // Main seals + resolves but the backup.restore_summary event never arrives.
+    startRestoreMock.mockResolvedValueOnce({ restoreId: 'rst-1' })
+
+    await RestoreV2Popup.show()
+    fireEvent.click(screen.getByRole('button', { name: 'restore.confirm.button' }))
+    await waitFor(() => expect(screen.getByText('/tmp/backup.cherrybackup')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'common.confirm' }))
+
+    await waitFor(() => expect(screen.getByTestId('v2-restore-restart-button')).toBeInTheDocument())
+    expect(screen.getByText('settings.data.backup.v2.restore.summary.none')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('v2-restore-restart-button'))
+    expect(requestMock).toHaveBeenCalledWith('app.relaunch')
+  })
+
   it('shows the none copy and hides the skip section for an empty summary', async () => {
     selectMock.mockResolvedValueOnce([{ path: '/tmp/backup.cherrybackup' }])
     confirmMock.mockResolvedValueOnce(true)

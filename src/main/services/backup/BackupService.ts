@@ -50,7 +50,7 @@ import { getKnowledgeVectorStoreFilePathSync } from '@main/features/knowledge'
 import { isPathInside } from '@main/utils/file'
 import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
-import type { BackupProgressUpdate, BackupV2StartResult } from '@shared/types/backup'
+import type { BackupProgressUpdate, BackupV2StartResult, RestoreResultSummary } from '@shared/types/backup'
 import { and, eq, isNull, sum } from 'drizzle-orm'
 import { app } from 'electron'
 
@@ -156,9 +156,10 @@ export class BackupService extends BaseService {
   private activeOperation: ActiveOperation | null = null
   /**
    * JobManager pause hold for the active restore's partial-quiesce window. Acquired
-   * in startRestore's quiesceWriters callback and released on any outcome (the
-   * success path disposes before relaunch, because application.relaunch → app.exit
-   * skips the finally). `undefined` outside a restore.
+   * in startRestore's quiesceWriters callback; released on failure short of seal.
+   * After seal it stays held until the user-confirmed relaunch exits the process
+   * (the write window must not reopen between disclosure and the preboot gate).
+   * `undefined` outside a restore.
    */
   private restoreQuiesceHold?: Disposable
   /** Finalized contributor registry, available only in the current backup surface. */
@@ -319,7 +320,9 @@ export class BackupService extends BaseService {
   /**
    * Restore from a .cherrybackup archive (renderer-facing). Runs the ImportOrchestrator spine:
    * quiesce → snapshot → merge → migrate → seal → 2nd fingerprint → staged journal,
-   * then relaunches so the preboot promotion gate (#16884) swaps work.sqlite in.
+   * then broadcasts the disclosure summary and waits for the renderer-confirmed
+   * app.relaunch, whose next boot runs the preboot promotion gate (#16884) that swaps
+   * work.sqlite in. Quiesce stays held from seal to that exit.
    *
    * Partial quiesce + FIELD_MERGE (natural-key) / SKIP (uuid-entity) merge with dangling-ref
    * repair are wired (absent natural-key aggregates INSERT; conflicts column-merge keeping
@@ -339,6 +342,9 @@ export class BackupService extends BaseService {
     const abortController = new AbortController()
     const active: ActiveOperation = { kind: 'restore', id: restoreId, abortController }
     this.activeOperation = active
+    // Flips once the journal is sealed — from then on quiesce must survive this method
+    // (the write window stays closed until the user-confirmed relaunch exits the process).
+    let sealed = false
     try {
       // Never silently overwrite a prior restore's journal — #16884 has one fixed journal
       // file, and writeRestoreJournal overwrites. Any present journal (pending or terminal)
@@ -445,44 +451,53 @@ export class BackupService extends BaseService {
         signal: abortController.signal
         // onProgress wiring to the renderer lands with the restore progress UI.
       })
-      // Staged journal written → relaunch so the preboot gate promotes it. application.relaunch
-      // calls app.exit(0), which exits immediately and SKIPS the finally below + onStop — so
-      // clear activeOperation first (and, when quiesce/pause holds land, release them here too)
-      // so no in-flight state outlives the exit. The journal is already durable (committed
-      // above), so skipping onStop is intentional: the preboot gate owns the next state.
+      // Staged journal written → broadcast the disclosure summary and WAIT. The
+      // renderer's confirm dialog owns the restart via the app.relaunch route
+      // (backup.restore_summary integration contract): broadcasting and then
+      // relaunching unconditionally would leave no window to read or click.
+      // Quiesce + BACKUP_IN_PROGRESS stay HELD from seal to process exit so the
+      // write window never reopens between disclosure and the preboot gate —
+      // post-seal writes would raise whole-batch clean-expire risk. `sealed`
+      // routes the finally: only a failure short of seal releases the holds.
+      // A second restore in this session is blocked by the staged-journal guard
+      // above, not by activeOperation.
+      sealed = true
       this.activeOperation = null
-      // Do NOT release partial-quiesce holds here — application.relaunch → app.exit(0)
-      // (DEV shows a dialog then exits; prod re-execs + exits), so the flag + JobManager
-      // hold MUST stay live until process exit, keeping the write window closed across
-      // the relaunch gap. Process exit clears both (the module singleton dies; the
-      // refcounted pause hold releases via JobManager teardown). Releasing here would
-      // reopen IPC writes between release and exit (DEV dialog holds the process for
-      // seconds). Only the error path (finally below) releases, restoring writes when
-      // restore fails short of relaunch.
-      this.triggerRelaunch()
+      this.broadcastRestoreSummary()
       return { restoreId }
     } catch (e) {
       throw this.toIpcError(e)
     } finally {
-      this.releaseRestoreQuiesce()
+      if (!sealed) this.releaseRestoreQuiesce()
       if (this.activeOperation === active) this.activeOperation = null
     }
   }
 
   /**
-   * Relaunch the app so the preboot restore gate runs. Dev mode shows a dialog + exits
-   * (no auto-restart); packaged re-execs + exits. The staged journal is picked up on
-   * the next boot. (application.relaunch, not raw app.relaunch — the latter doesn't
-   * exit the current process, so the gate would never run.)
+   * Broadcast the pre-relaunch disclosure summary (backup.restore_summary) after the
+   * journal is sealed. The renderer renders it in the confirm-restart dialog and
+   * triggers the relaunch via the app.relaunch route — the spine never relaunches on
+   * its own. Failures are swallowed: the journal is already durable and the renderer
+   * falls back to an empty summary on the resolved request, so a broadcast hiccup
+   * must not surface as a restore error.
+   *
+   * DB-only spine: no ResourcePlan yet (stageFileResources returns []) — the summary
+   * is empty. A2 replaces this with plan.toRestore / plan.skips.
    */
-  private triggerRelaunch(): void {
-    application.relaunch()
+  private broadcastRestoreSummary(): void {
+    const summary: RestoreResultSummary = { toRestore: [], toSkip: [] }
+    try {
+      application.get('IpcApiService').broadcast('backup.restore_summary', summary)
+    } catch (e) {
+      logger.error('restore summary broadcast failed (renderer falls back to empty summary)', e as Error)
+    }
   }
 
   /**
    * Clear BACKUP_IN_PROGRESS and release the JobManager pause hold. No-op when no
-   * quiesce is held. Called on both the success path (before relaunch, which skips
-   * the finally via app.exit) and the finally (error path), so the gate never sticks.
+   * quiesce is held. Called only when restore fails short of seal — after seal the
+   * holds stay live until the user-confirmed relaunch exits the process, keeping the
+   * write window closed across the disclosure + relaunch gap.
    */
   private releaseRestoreQuiesce(): void {
     setBackupInProgress(false)

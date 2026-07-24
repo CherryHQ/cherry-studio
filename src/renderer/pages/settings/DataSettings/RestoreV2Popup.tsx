@@ -16,20 +16,19 @@ type Props = PopupInjectedProps<Record<string, never>>
 type RestorePhase = 'idle' | 'selecting-archive' | 'ready' | 'confirming' | 'relaunching' | 'ready-with-error'
 
 /**
- * V2 restore popup. No restore progress stream — after confirm we enter
- * `relaunching` BEFORE startRestore (main may exit via app.exit before the
- * IPC response returns). Success must not toast / finally-reset; only reject
- * returns to a usable error state.
+ * V2 restore popup. No restore progress stream. Success must not toast /
+ * finally-reset; only reject returns to a usable error state.
  *
  * idle → selecting-archive → ready → confirming → relaunching
  *                                      └────────→ ready (confirm cancel)
  * relaunching → ready-with-error
  *
- * In `relaunching`, a `backup.restore_summary` event (broadcast by main after
- * seal, before relaunch — full-restore-plan §10.5) switches the body to the
- * disclosure summary (future-tense: will restore / will skip) plus a restart
- * button (`app.relaunch`). Without the event the plain relaunching text shows,
- * which also covers the pre-wiring spine that relaunches unconditionally.
+ * In `relaunching`, the `backup.restore_summary` event (broadcast by main after
+ * seal — full-restore-plan §10.5) switches the body to the disclosure summary
+ * (future-tense: will restore / will skip) plus a restart button. Main never
+ * relaunches on its own: this dialog owns the restart via `app.relaunch`, and a
+ * resolved startRestore falls back to an empty summary so the button always
+ * appears once the journal is staged.
  */
 const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   const { t } = useTranslation()
@@ -102,14 +101,18 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
       return
     }
 
-    // Enter relaunching BEFORE the request — main may exit first.
+    // Enter relaunching before the request; the summary event lands during it.
     setPhase('relaunching')
     setErrorMessage(null)
     setErrorCode(null)
     setSummary(null)
     try {
       await startRestore(archivePath)
-      // Success path: process is relaunching. Do not toast, resolve, or reset.
+      // Journal staged; main now waits for our app.relaunch (it never relaunches on
+      // its own). Belt: if the backup.restore_summary broadcast was missed, fall back
+      // to an empty summary so the confirm-restart view always renders. Do not toast,
+      // resolve, or reset.
+      setSummary((current) => current ?? { toRestore: [], toSkip: [] })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       const code = error instanceof IpcError ? error.code : null
