@@ -29,9 +29,10 @@ function makeScope(overrides: {
   endpointType?: string
   aiSdkProviderId?: string
   reasoning?: RequestScope['reasoning']
+  request?: Partial<RequestScope['request']>
 }): RequestScope {
   return {
-    request: { mcpToolIds: [] } as never,
+    request: (overrides.request ?? { mcpToolIds: [] }) as never,
     signal: undefined,
     registry: {} as never,
     assistant: overrides.assistant as Assistant | undefined,
@@ -190,6 +191,23 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
         })
       )
     ).toBe('hello /think')
+  })
+
+  it('qwen-thinking applies to assistant-less requests with an explicit reasoning selection (translate)', async () => {
+    const base: Parameters<typeof makeScope>[0] = {
+      provider: { id: 'nvidia' },
+      model: {
+        id: 'nvidia::qwen3-32b',
+        providerId: 'nvidia',
+        reasoning: { selectableEfforts: ['none', 'auto'], thinkingTokenLimits: { min: 1024, max: 38_912 } }
+      },
+      request: { reasoningEffort: 'none' },
+      reasoning: { kind: 'off', selection: 'none', emissions: [{ target: 'enable_thinking', value: false }] }
+    }
+
+    expect(await qwenUserText(makeScope(base))).toBe('hello /no_think')
+    // Without the explicit request selection, assistant-less scopes stay inactive.
+    expect(activeNames(makeScope({ ...base, request: undefined }))).not.toContain('qwen-thinking')
   })
 
   it('model-params is the first active feature for a plain assistant scope', () => {

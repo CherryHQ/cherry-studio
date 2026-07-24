@@ -418,6 +418,8 @@ export class AiStreamManager extends BaseService {
     listener: StreamListener | StreamListener[]
     /** Per-request overrides (sampling/tools/providerOptions) for assistant-less callers (API gateway). */
     callOverrides?: CallOverrides
+    /** Explicit reasoning selection; 'none' disables thinking when the model's wire profile supports off. */
+    reasoningEffort?: ReasoningEffortOption
     /** Idle-chunk timeout (ms) for the upstream stream; resets per chunk. Defaults to `DEFAULT_TIMEOUT`. */
     idleTimeoutMs?: number
   }): SendResult {
@@ -432,6 +434,7 @@ export class AiStreamManager extends BaseService {
       uniqueModelId: input.uniqueModelId,
       messages,
       callOverrides: input.callOverrides,
+      reasoningEffort: input.reasoningEffort,
       ...(input.idleTimeoutMs !== undefined ? { requestOptions: { timeout: input.idleTimeoutMs } } : {})
     }
     return this.send({
