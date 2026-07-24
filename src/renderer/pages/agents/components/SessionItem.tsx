@@ -6,6 +6,8 @@ import type {
 } from '@renderer/components/chat/actions/sessionItemActions'
 import { useOptionalRightPanelActions, useOptionalRightPanelState } from '@renderer/components/chat/panes/Shell'
 import {
+  RESOURCE_LIST_TITLE_FADE_CLASS,
+  RESOURCE_LIST_TITLE_FADE_YIELD_CLASS,
   ResourceList,
   useResourceListActions,
   useResourceListRowState
@@ -16,9 +18,10 @@ import { useSessionMenuActions } from '@renderer/hooks/chat/useSessionMenuAction
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { buildAgentSessionTopicId, getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { cn } from '@renderer/utils/style'
+import { classifyTurn } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
-import { PinIcon, Trash2, XIcon } from 'lucide-react'
+import { Loader2, PinIcon, Trash2, XIcon } from 'lucide-react'
 import type { MouseEvent } from 'react'
 import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -83,27 +86,37 @@ const SessionItem = ({
   const topicId = useMemo(() => buildAgentSessionTopicId(session.id), [session.id])
   const [renamingTopics] = useCache('topic.renaming')
   const [newlyRenamedTopics] = useCache('topic.newly_renamed')
-  const { isFulfilled: isStreamFulfilled, isPending: isStreamPending, markSeen } = useTopicStreamStatus(topicId)
+  const {
+    status,
+    awaitingApprovalAnchors,
+    isFulfilled: isStreamFulfilled,
+    isPending: isStreamPending,
+    markSeen
+  } = useTopicStreamStatus(topicId)
   const channelIcon = getChannelTypeIcon(channelType)
   const isActive = rowState.selected
   const sessionName = !session.isNameManuallyEdited && !session.name.trim() ? t('agent.session.new') : session.name
   const isRenaming = renamingTopics?.includes(topicId) === true
   const isNewlyRenamed = newlyRenamedTopics?.includes(topicId) === true
   const nameAnimationClassName = isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''
-  const hasStreamIndicator = !isActive && (isStreamPending || isStreamFulfilled)
+  // A live stream can pause for tool approval without a status transition
+  // (anchors set mid-stream), while the MCP needsApproval path ends the stream
+  // with the terminal 'awaiting-approval' status — the badge must cover both.
+  // Unlike the completion dot, awaiting-approval is an ongoing state, so it
+  // stays on the selected row too (it only yields to hover actions).
+  const showAwaitingApprovalBadge = awaitingApprovalAnchors.length > 0 || classifyTurn(status).isAwaitingApproval
+  const isStreamErrored = status === 'error'
+  // The status overlay (spinner / red / green dot) sits at ONE fixed spot
+  // (right-1.5) on every row so the indicators line up. Running (spinner) and
+  // errored (red) are ongoing states that stay on the selected row too — only
+  // the completion dot (green) is a read-receipt that clears once the row is
+  // opened (`!isActive`). It yields to hover actions. While awaiting approval
+  // the pill alone is shown — no spinner: a paused turn is blocked, not
+  // running, so a spinner would send the opposite signal ("wait" vs "act").
+  const hasStreamIndicator =
+    (isStreamPending || isStreamErrored || (!isActive && isStreamFulfilled)) && !showAwaitingApprovalBadge
   const showPinAction = !rowState.renaming && !!onTogglePin
   const showLeadingSlot = reserveLeadingIconSlot || !!channelIcon
-  const showDeleteOrStreamAction = hasStreamIndicator || !pinned
-  // Reserve right-padding so the title truncates before hover actions and stream state.
-  const trailingActionCount = (showPinAction ? 1 : 0) + (showDeleteOrStreamAction ? 1 : 0)
-  const sessionTrailingActionPaddingClassName =
-    trailingActionCount >= 3
-      ? 'group-focus-within:pr-16 group-hover:pr-16 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-16'
-      : trailingActionCount === 2
-        ? 'group-focus-within:pr-12 group-hover:pr-12 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-12'
-        : trailingActionCount === 1
-          ? 'group-focus-within:pr-7 group-hover:pr-7 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-7'
-          : ''
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
   const [isConfirmingDeletion, setIsConfirmingDeletion] = useState(false)
   const deleteConfirmationTimeoutRef = useRef<number | null>(null)
@@ -279,7 +292,18 @@ const SessionItem = ({
       {!rowState.renaming && (
         <ResourceList.ItemTitle
           title={sessionName}
-          className={cn(nameAnimationClassName, 'transition-[padding]', sessionTrailingActionPaddingClassName)}
+          className={cn(
+            nameAnimationClassName,
+            RESOURCE_LIST_TITLE_FADE_CLASS,
+            RESOURCE_LIST_TITLE_FADE_YIELD_CLASS,
+            // The stream indicator is an absolute overlay (keeps no flex space),
+            // so the title needs a standing yield for its dot zone; on hover the
+            // overlay fades out and the actions (pin + delete) take over via
+            // RESOURCE_LIST_TITLE_FADE_YIELD_CLASS's larger hover margin. The
+            // awaiting-approval pill (mutually exclusive with the overlay) is an
+            // in-flow sibling the title simply fades against — no standing margin.
+            hasStreamIndicator && 'mr-7'
+          )}
           onDoubleClick={(event) => {
             event.stopPropagation()
             startInlineEdit()
@@ -288,7 +312,29 @@ const SessionItem = ({
         </ResourceList.ItemTitle>
       )}
 
-      <ResourceList.ItemActions active={hasStreamIndicator || isConfirmingDeletion}>
+      {!rowState.renaming && showAwaitingApprovalBadge && (
+        // Paused-state label, shown alone (no spinner): a turn paused on an
+        // approval is blocked, not running, and the pill already says "act". It
+        // is in-flow so the title fades against it, and collapses on hover /
+        // focus / delete-confirm so the pin + delete actions take over. Warning
+        // tint matches the composer's approval pill; max-w-28 fits the en label,
+        // longer locales truncate rather than eat the title.
+        <span
+          data-testid="agent-session-awaiting-approval-badge"
+          className="pointer-events-none max-w-28 shrink-0 truncate rounded-full bg-warning/10 px-1.5 font-medium text-[10px] text-warning leading-4 transition-[max-width,padding,opacity] duration-150 group-hover:max-w-0 group-hover:px-0 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:max-w-0 group-has-[[data-resource-list-item-actions][data-active=true]]:max-w-0 group-has-[[data-resource-list-item-actions]:focus-within]:px-0 group-has-[[data-resource-list-item-actions][data-active=true]]:px-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0">
+          {t('agent.toolPermission.pendingBadge')}
+        </span>
+      )}
+
+      {hasStreamIndicator && (
+        <SessionStreamIndicator
+          isErrored={isStreamErrored}
+          isFulfilled={isStreamFulfilled}
+          isPending={isStreamPending}
+        />
+      )}
+
+      <ResourceList.ItemActions active={isConfirmingDeletion}>
         {showPinAction && (
           <Tooltip title={pinned ? t('agent.session.unpin.title') : t('agent.session.pin.title')} delay={500}>
             <ResourceList.ItemAction
@@ -299,9 +345,7 @@ const SessionItem = ({
             </ResourceList.ItemAction>
           </Tooltip>
         )}
-        {hasStreamIndicator ? (
-          <SessionStreamIndicator isFulfilled={isStreamFulfilled} isPending={isStreamPending} />
-        ) : !pinned ? (
+        {!pinned && (
           <Tooltip title={t('common.delete')} delay={500}>
             <ResourceList.ItemAction
               aria-label={t('common.delete')}
@@ -314,7 +358,7 @@ const SessionItem = ({
               )}
             </ResourceList.ItemAction>
           </Tooltip>
-        ) : null}
+        )}
       </ResourceList.ItemActions>
     </ResourceList.Item>
   )
@@ -335,17 +379,32 @@ const SessionItem = ({
   )
 }
 
-const SessionStreamIndicator = ({ isFulfilled, isPending }: { isFulfilled: boolean; isPending: boolean }) => {
-  const dotClassName = cn('size-1.25 rounded-full', isPending ? 'animation-pulse bg-warning' : 'bg-success')
-
-  if (!isPending && !isFulfilled) return null
+const SessionStreamIndicator = ({
+  isErrored,
+  isFulfilled,
+  isPending
+}: {
+  isErrored: boolean
+  isFulfilled: boolean
+  isPending: boolean
+}) => {
+  if (!isPending && !isFulfilled && !isErrored) return null
 
   return (
+    // Absolute overlay at the actions' resting spot: it fades out on hover /
+    // focus / delete-confirm so the pin + delete buttons take its place (the
+    // dot/spinner and the actions are mutually exclusive, never side by side).
     <span
       aria-hidden="true"
-      className="flex size-5 shrink-0 items-center justify-center opacity-100 group-hover:opacity-100"
+      className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex size-5 shrink-0 items-center justify-center opacity-100 transition-opacity duration-150 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0"
       data-testid="agent-session-stream-indicator">
-      <span className={dotClassName} />
+      {isPending ? (
+        // A spinner reads as "running", where the old pulsing amber dot looked
+        // like a warning. Errored/done collapse to a red/green dot.
+        <Loader2 className="size-3 animate-spin text-foreground-muted" />
+      ) : (
+        <span className={cn('size-1.25 rounded-full', isErrored ? 'bg-error-base' : 'bg-success')} />
+      )}
     </span>
   )
 }

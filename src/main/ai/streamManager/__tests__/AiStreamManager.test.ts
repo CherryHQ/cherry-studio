@@ -891,6 +891,41 @@ describe('AiStreamManager', () => {
       userMessageId
     })
 
+    it('rebroadcasts awaiting-approval anchors when a live stream pauses and resumes for tool approval', () => {
+      // No status transition happens on a mid-stream permission pause, so the shared-cache entry must
+      // be refreshed by the approval bookkeeping itself for cross-window consumers (session list badge).
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('wc:1')]
+      })
+      // Promote first so the approval request lands mid-stream (no status edge left to broadcast).
+      mgr.onChunk('a', 'provider-a::model-a', chunk('x'))
+
+      mgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-approval-request',
+        toolCallId: 'tc-1'
+      } as unknown as UIMessageChunk)
+      const paused = sharedCacheStore.get('topic.stream.statuses.a') as any
+      expect(paused?.status).toBe('streaming')
+      expect(paused?.awaitingApprovalAnchors).toHaveLength(1)
+
+      expect(mgr.resolveToolApproval('a', 'tc-1')).toBe(true)
+      const approved = sharedCacheStore.get('topic.stream.statuses.a') as any
+      expect(approved?.status).toBe('streaming')
+      expect(approved?.awaitingApprovalAnchors).toHaveLength(0)
+      expect(mgr.resolveToolApproval('a', 'tc-1')).toBe(false)
+
+      mgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-output-available',
+        toolCallId: 'tc-1'
+      } as unknown as UIMessageChunk)
+      const resumed = sharedCacheStore.get('topic.stream.statuses.a') as any
+      expect(resumed?.status).toBe('streaming')
+      expect(resumed?.awaitingApprovalAnchors).toHaveLength(0)
+    })
+
     it('drains a steer that lands right after a clean `done` settle (inter-turn race)', async () => {
       // The turn completed cleanly before the steer's enqueue landed, so no terminal hook fired to
       // chain it — `enqueuePendingSteer` must drain it itself.
@@ -1834,9 +1869,10 @@ describe('AiStreamManager', () => {
       mgr.onChunk('t', 'p::m', { type: 'tool-output-available' } as UIMessageChunk)
 
       // resolveTerminalStatus no longer finds a paused exec, so the terminal status is `done`,
-      // NOT stuck on `awaiting-approval`.
+      // NOT stuck on `awaiting-approval`. The extra 'streaming' write is the approval-resolution
+      // rebroadcast that drops the awaiting-approval anchor for cross-window consumers.
       await mgr.onExecutionDone('t', 'p::m')
-      expect(statusSequence('t')).toEqual(['pending', 'streaming', 'done'])
+      expect(statusSequence('t')).toEqual(['pending', 'streaming', 'streaming', 'done'])
       expect(mgr.inspect('t')!.status).toBe('done')
       expect(mgr.inspect('t')!.status).not.toBe('awaiting-approval')
     })
@@ -1901,6 +1937,51 @@ describe('AiStreamManager', () => {
       await mgr.onExecutionError('t', 'p::m', error('boom'))
 
       expect(mgr.inspect('t')!.status).toBe('error')
+      expect(anchorsOf('t')).toEqual([])
+    })
+
+    it('drops the anchor from the shared cache when the paused execution has a live sibling (topic stays live)', async () => {
+      // Multi-model: the topic never reaches the terminal lifecycle while a sibling streams, so the
+      // cleared approval set must be rebroadcast by the cleanup path itself — otherwise the session
+      // list badge keeps showing a stale "awaiting approval".
+      mgr.send({
+        topicId: 't',
+        models: [
+          { modelId: 'p::m', request: req('t') },
+          { modelId: 'p::m2', request: req('t') }
+        ],
+        listeners: [new FakeListener('l:t')]
+      })
+      // Keep the sibling visibly live.
+      mgr.onChunk('t', 'p::m2', chunk('sibling'))
+
+      const exec = startAwaitingApproval('t', 'p::m')
+      expect(anchorsOf('t')).toHaveLength(1)
+
+      exec.status = 'aborted'
+      await mgr.onExecutionPaused('t', 'p::m')
+
+      expect(mgr.inspect('t')!.status).toBe('streaming')
+      expect(anchorsOf('t')).toEqual([])
+    })
+
+    it('drops the anchor from the shared cache when the errored execution has a live sibling (topic stays live)', async () => {
+      mgr.send({
+        topicId: 't',
+        models: [
+          { modelId: 'p::m', request: req('t') },
+          { modelId: 'p::m2', request: req('t') }
+        ],
+        listeners: [new FakeListener('l:t')]
+      })
+      mgr.onChunk('t', 'p::m2', chunk('sibling'))
+
+      startAwaitingApproval('t', 'p::m')
+      expect(anchorsOf('t')).toHaveLength(1)
+
+      await mgr.onExecutionError('t', 'p::m', error('boom'))
+
+      expect(mgr.inspect('t')!.status).toBe('streaming')
       expect(anchorsOf('t')).toEqual([])
     })
 

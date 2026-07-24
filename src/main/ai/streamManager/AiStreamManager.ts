@@ -561,6 +561,26 @@ export class AiStreamManager extends BaseService {
     stream?.listeners.delete(listenerId)
   }
 
+  /**
+   * Clear a live runtime tool approval as soon as the user responds, before the
+   * tool's eventual output chunk arrives. Returns whether a tracked approval changed.
+   */
+  resolveToolApproval(topicId: string, toolCallId: string): boolean {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream || !isLiveStatus(stream.status)) return false
+
+    let changed = false
+    let pendingApprovalFlipped = false
+    for (const exec of stream.executions.values()) {
+      const pendingApprovals = exec.pendingApprovalToolCallIds
+      if (!pendingApprovals?.delete(toolCallId)) continue
+      changed = true
+      if (pendingApprovals.size === 0) pendingApprovalFlipped = true
+    }
+    if (pendingApprovalFlipped) stream.lifecycle.onApprovalPendingChanged(stream)
+    return changed
+  }
+
   // ── Public: abort ─────────────────────────────────────────────────
 
   /** Abort all executions in a topic. */
@@ -599,6 +619,7 @@ export class AiStreamManager extends BaseService {
 
     // Authoritative approval-lifecycle capture, keyed by toolCallId so a sibling tool's output never
     // clears another tool's still-pending approval; `resolveTerminalStatus` reads the set's size.
+    const hadPendingApprovals = (exec.pendingApprovalToolCallIds?.size ?? 0) > 0
     if (chunk.type === 'tool-approval-request') {
       ;(exec.pendingApprovalToolCallIds ??= new Set()).add(chunk.toolCallId)
     } else if (
@@ -608,11 +629,20 @@ export class AiStreamManager extends BaseService {
     ) {
       exec.pendingApprovalToolCallIds?.delete(chunk.toolCallId)
     }
+    // Broadcast payloads and consumers only care about "any pending?", so only
+    // the empty↔non-empty flip warrants a rebroadcast — size changes within
+    // parallel approvals would produce byte-identical payloads.
+    const hasPendingApprovals = (exec.pendingApprovalToolCallIds?.size ?? 0) > 0
+    const pendingApprovalFlipped = hadPendingApprovals !== hasPendingApprovals
 
-    // First chunk promotes `pending` → `streaming`.
+    // First chunk promotes `pending` → `streaming`; that broadcast already
+    // carries the anchors captured above, so only a mid-stream flip needs its
+    // own rebroadcast.
     if (stream.status === 'pending') {
       stream.status = 'streaming'
       stream.lifecycle.onPromotedToStreaming(stream)
+    } else if (pendingApprovalFlipped) {
+      stream.lifecycle.onApprovalPendingChanged(stream)
     }
 
     const sourceModelId = modelId
@@ -707,11 +737,16 @@ export class AiStreamManager extends BaseService {
     // to `output-error` by `finalizeInterruptedParts` at every projection
     // (persistence already, re-attach below). Must run before
     // `resolveTerminalStatus`.
+    const hadPendingApprovals = (exec.pendingApprovalToolCallIds?.size ?? 0) > 0
     exec.pendingApprovalToolCallIds?.clear()
 
     endRootSpan(exec, 'aborted')
     stream.status = this.resolveTerminalStatus(stream)
     const isTopicDone = !isLiveStatus(stream.status)
+
+    // A live sibling keeps the topic out of the terminal broadcast below, so
+    // the dropped approval anchor must reach the shared cache on its own.
+    if (hadPendingApprovals && !isTopicDone) stream.lifecycle.onApprovalPendingChanged(stream)
 
     await this.broadcastExecutionPaused(stream, exec, isTopicDone)
 
@@ -737,10 +772,15 @@ export class AiStreamManager extends BaseService {
 
     // Mirror of onExecutionPaused: clear the set so the status anchor drops;
     // the in-flight tool part is terminalized by `finalizeInterruptedParts`.
+    const hadPendingApprovals = (exec.pendingApprovalToolCallIds?.size ?? 0) > 0
     exec.pendingApprovalToolCallIds?.clear()
 
     stream.status = this.computeTopicStatus(stream)
     const isTopicDone = !isLiveStatus(stream.status)
+
+    // A live sibling keeps the topic out of the terminal broadcast below, so
+    // the dropped approval anchor must reach the shared cache on its own.
+    if (hadPendingApprovals && !isTopicDone) stream.lifecycle.onApprovalPendingChanged(stream)
     const finalMessage = ensureTerminalFinalMessage(exec)
 
     const result: StreamErrorResult = {
