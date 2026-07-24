@@ -71,6 +71,7 @@ export class MainWindowService extends BaseService {
     )
 
     this.registerWindowShortcuts()
+    this.registerContextMenu()
     this.registerIpcHandlers()
     this.registerActivateHandler()
     this.registerSecondInstanceHandler()
@@ -82,6 +83,19 @@ export class MainWindowService extends BaseService {
     }
     app.on('browser-window-created', handler)
     this.registerDisposable(() => app.removeListener('browser-window-created', handler))
+  }
+
+  private registerContextMenu() {
+    // App-level so every webContents gets the menu — the main window's own
+    // (web-contents-created fires during BrowserWindow construction, before
+    // onWindowCreatedByType) and all webviews like miniapp. Must stay a single
+    // registration here: a per-window one would stack one app listener per
+    // singleton main-window rebuild and pop duplicate menus.
+    const handler = (_: Electron.Event, webContents: Electron.WebContents) => {
+      contextMenu.contextMenu(webContents)
+    }
+    app.on('web-contents-created', handler)
+    this.registerDisposable(() => app.removeListener('web-contents-created', handler))
   }
 
   protected async onReady() {
@@ -197,7 +211,6 @@ export class MainWindowService extends BaseService {
     const saved = application.get('WindowManager').peekWindowBounds(WindowType.Main)
     this.setupMaximize(mainWindow, saved?.isMaximized ?? false)
 
-    this.setupContextMenu(mainWindow)
     this.setupSpellCheck(mainWindow)
     this.setupWindowEvents(mainWindow)
     this.setupWebContentsHandlers(mainWindow)
@@ -247,21 +260,6 @@ export class MainWindowService extends BaseService {
     }
   }
 
-  private setupContextMenu(mainWindow: BrowserWindow) {
-    contextMenu.contextMenu(mainWindow.webContents)
-    // setup context menu for all webviews like miniapp
-    app.on('web-contents-created', (_, webContents) => {
-      contextMenu.contextMenu(webContents)
-    })
-
-    // Dangerous API
-    if (isDev) {
-      mainWindow.webContents.on('will-attach-webview', (_, webPreferences) => {
-        webPreferences.preload = join(__dirname, '../preload/preload.js')
-      })
-    }
-  }
-
   private setupWindowEvents(mainWindow: BrowserWindow) {
     mainWindow.once('ready-to-show', () => {
       const preferenceService = application.get('PreferenceService')
@@ -299,6 +297,13 @@ export class MainWindowService extends BaseService {
   }
 
   private setupWebContentsHandlers(mainWindow: BrowserWindow) {
+    // Dangerous API
+    if (isDev) {
+      mainWindow.webContents.on('will-attach-webview', (_, webPreferences) => {
+        webPreferences.preload = join(__dirname, '../preload/preload.js')
+      })
+    }
+
     // Fix for Electron bug where zoom resets during in-page navigation (route changes)
     // This complements the resize-based workaround by catching navigation events
     mainWindow.webContents.on('did-navigate-in-page', () => {
