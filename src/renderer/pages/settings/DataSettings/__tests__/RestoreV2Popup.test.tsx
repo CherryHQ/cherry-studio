@@ -187,6 +187,32 @@ describe('RestoreV2Popup', () => {
     expect(requestMock).toHaveBeenCalledWith('app.relaunch')
   })
 
+  it('surfaces a relaunch failure and keeps Restart retryable when app.relaunch throws', async () => {
+    selectMock.mockResolvedValueOnce([{ path: '/tmp/backup.cherrybackup' }])
+    confirmMock.mockResolvedValueOnce(true)
+    startRestoreMock.mockResolvedValueOnce({ restoreId: 'rst-1' })
+    // app.relaunch rejects — the user must not be stuck in `relaunching` (canClose=false)
+    // with no recourse. The failure is surfaced and the Restart button stays for retry.
+    requestMock.mockImplementation(async (route: string) => {
+      if (route === 'app.relaunch') throw new Error('relaunch IPC failed')
+      return undefined
+    })
+
+    await RestoreV2Popup.show()
+    fireEvent.click(screen.getByRole('button', { name: 'restore.confirm.button' }))
+    await waitFor(() => expect(screen.getByText('/tmp/backup.cherrybackup')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'common.confirm' }))
+
+    await waitFor(() => expect(screen.getByTestId('v2-restore-restart-button')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('v2-restore-restart-button'))
+
+    await waitFor(() =>
+      expect(screen.getByText('settings.data.backup.v2.restore.summary.relaunch_failed')).toBeInTheDocument()
+    )
+    // Restart button still present for retry (not silently stuck).
+    expect(screen.getByTestId('v2-restore-restart-button')).toBeInTheDocument()
+  })
+
   it('falls back to an empty summary with restart button when the broadcast is missed', async () => {
     selectMock.mockResolvedValueOnce([{ path: '/tmp/backup.cherrybackup' }])
     confirmMock.mockResolvedValueOnce(true)

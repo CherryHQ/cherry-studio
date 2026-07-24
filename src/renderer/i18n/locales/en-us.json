@@ -5739,6 +5739,7 @@
               },
               "none": "No resource files to restore",
               "pending_hint": "The restore is staged and will apply after restart. Summary of this restore:",
+              "relaunch_failed": "Restart failed. Click to try again.",
               "restart_button": "Restart now",
               "will_restore": "Will restore",
               "will_skip": "Will skip (keeping the local version)"

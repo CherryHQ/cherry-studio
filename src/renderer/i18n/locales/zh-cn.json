@@ -5739,6 +5739,7 @@
               },
               "none": "没有需要恢复的资源文件",
               "pending_hint": "恢复已暂存，将在重启后生效。本次恢复摘要：",
+              "relaunch_failed": "重启失败，点击重试。",
               "restart_button": "立即重启",
               "will_restore": "将恢复",
               "will_skip": "将跳过（保留本地版本）"

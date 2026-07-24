@@ -52,6 +52,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   const [errorCode, setErrorCode] = useState<string | null>(null)
   const [summary, setSummary] = useState<RestoreResultSummary | null>(null)
   const [outcome, setOutcome] = useState<RestoreStatus | null>(null)
+  const [relaunchError, setRelaunchError] = useState(false)
 
   const busy = phase === 'selecting-archive' || phase === 'confirming' || phase === 'relaunching'
   const canClose = phase !== 'relaunching'
@@ -68,6 +69,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
     setErrorCode(null)
     setSummary(null)
     setOutcome(null)
+    setRelaunchError(false)
     // Recover journal state across the relaunch boundary (and across windows).
     // Failure degrades to the plain idle view — the journal stays and reports again.
     void (async () => {
@@ -172,6 +174,19 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
     setPhase('idle')
   }
 
+  const onRestart = async () => {
+    setRelaunchError(false)
+    try {
+      await ipcApi.request('app.relaunch')
+    } catch (error) {
+      // app.relaunch should not throw in normal operation; if it does, surface the
+      // failure so the user is not stuck in `relaunching` (canClose=false) with no
+      // recourse — the Restart button stays available for retry.
+      logger.error('app.relaunch failed', error as Error)
+      setRelaunchError(true)
+    }
+  }
+
   const showPickError = (phase === 'idle' || phase === 'selecting-archive') && Boolean(errorMessage)
 
   return (
@@ -258,6 +273,11 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
                 </ul>
               </div>
             )}
+            {relaunchError && (
+              <div className="text-destructive">
+                {t('settings.data.backup.v2.restore.summary.relaunch_failed')}
+              </div>
+            )}
           </div>
         )}
 
@@ -290,7 +310,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
             </Button>
           )}
           {phase === 'relaunching' && summary && (
-            <Button data-testid="v2-restore-restart-button" onClick={() => void ipcApi.request('app.relaunch')}>
+            <Button data-testid="v2-restore-restart-button" onClick={() => void onRestart()}>
               {t('settings.data.backup.v2.restore.summary.restart_button')}
             </Button>
           )}
