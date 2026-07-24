@@ -21,11 +21,10 @@ const mocks = vi.hoisted(() => ({
   openTab: vi.fn(),
   updateAppStatus: vi.fn(() => Promise.resolve()),
   removeCustomMiniApp: vi.fn(() => Promise.resolve()),
-  setOpenedKeepAliveMiniApps: vi.fn(),
+  exitMiniApp: vi.fn(),
   setSidebarFavorites: vi.fn(() => Promise.resolve()),
   miniApps: [] as MiniAppType[],
   pinned: [] as MiniAppType[],
-  openedKeepAliveMiniApps: [] as MiniAppType[],
   sidebarFavorites: [{ type: 'app', id: 'assistants' }] as SidebarFavoriteItem[]
 }))
 
@@ -66,10 +65,6 @@ vi.mock('@renderer/components/icons/MiniAppIcon', () => ({
   default: ({ app }: { app: MiniAppType }) => <div data-testid={`mini-app-icon-${app.appId}`} />
 }))
 
-vi.mock('@renderer/components/IndicatorLight', () => ({
-  default: () => <div data-testid="indicator-light" />
-}))
-
 vi.mock('@renderer/components/MarqueeText', () => ({
   default: ({ children }: { children: ReactNode }) => <span>{children}</span>
 }))
@@ -78,10 +73,7 @@ vi.mock('@renderer/hooks/useMiniApps', () => ({
   useMiniApps: () => ({
     miniApps: mocks.miniApps,
     pinned: mocks.pinned,
-    openedKeepAliveMiniApps: mocks.openedKeepAliveMiniApps,
-    currentMiniAppId: '',
-    miniAppShow: false,
-    setOpenedKeepAliveMiniApps: mocks.setOpenedKeepAliveMiniApps,
+    exitMiniApp: mocks.exitMiniApp,
     updateAppStatus: mocks.updateAppStatus,
     removeCustomMiniApp: mocks.removeCustomMiniApp
   })
@@ -113,7 +105,6 @@ afterEach(() => {
   vi.clearAllMocks()
   mocks.miniApps = []
   mocks.pinned = []
-  mocks.openedKeepAliveMiniApps = []
   mocks.sidebarFavorites = [{ type: 'app', id: 'assistants' }]
 })
 
@@ -144,17 +135,28 @@ describe('MiniApp launchpad pin menu', () => {
     ])
   })
 
-  it('clips the launchpad icon without clipping the opened indicator', () => {
+  it('renders no running indicator on the launchpad icon (the green dot was removed)', () => {
     mocks.miniApps = [calculatorApp]
-    mocks.openedKeepAliveMiniApps = [calculatorApp]
 
     const { container } = render(<MiniApp app={calculatorApp} variant="launchpad" />)
     const frame = container.querySelector('.mini-app-icon-frame')
-    const iconClip = container.querySelector('.mini-app-icon-clip')
-    const indicator = screen.getByTestId('indicator-light')
 
-    expect(frame).toContainElement(indicator)
-    expect(iconClip).not.toContainElement(indicator)
+    // The icon frame hosts only the clipped icon — no indicator sibling.
+    expect(frame?.childElementCount).toBe(1)
+    expect(frame?.firstElementChild).toHaveClass('mini-app-icon-clip')
+  })
+
+  it('exits the mini app from the keep-alive pool when hiding it', async () => {
+    const enabledApp = { ...calculatorApp, status: 'enabled' as const }
+    mocks.miniApps = [enabledApp]
+
+    render(<MiniApp app={enabledApp} variant="launchpad" />)
+    fireEvent.click(screen.getByRole('button', { name: 'miniApp.sidebar.hide.title' }))
+
+    expect(mocks.updateAppStatus).toHaveBeenCalledWith('calculator', 'disabled')
+    // exit runs after the status mutation resolves
+    await Promise.resolve()
+    expect(mocks.exitMiniApp).toHaveBeenCalledWith('calculator')
   })
 
   it('removes a mini app from sidebar favorites', () => {

@@ -54,6 +54,15 @@ export interface TabsContextValue {
 
   // Attach (from detached window)
   attachTab: (tabData: Tab) => void
+
+  /**
+   * Subscribe to explicit tab closures (`closeTab` / `closeTabs`, including the
+   * close half of detach-to-window). The listener receives snapshots of the tabs
+   * being closed, synchronously within the close call. In-place URL rewrites
+   * (`updateTab`) do NOT fire. Optional so test fixtures built from object
+   * literals stay compilable. Returns an unsubscribe function.
+   */
+  subscribeTabsClosed?: (listener: (closedTabs: readonly Tab[]) => void) => () => void
 }
 
 export const TabsContext = createContext<TabsContextValue | null>(null)

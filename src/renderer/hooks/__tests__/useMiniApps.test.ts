@@ -234,25 +234,45 @@ describe('useMiniApps', () => {
       expect(result.current.currentMiniAppId).toBe('my-app')
     })
 
-    it('should expose miniAppShow from cache', () => {
-      MockUseCacheUtils.setCacheValue('mini_app.show', true)
-      const { result } = renderHook(() => useMiniApps())
-      expect(result.current.miniAppShow).toBe(true)
-    })
-
-    it('should expose openedOneOffMiniApp from cache', () => {
-      const oneOffApp = createMiniApp('one-off')
-      MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', oneOffApp)
-      const { result } = renderHook(() => useMiniApps())
-      expect(result.current.openedOneOffMiniApp).toEqual(oneOffApp)
-    })
-
     it('should expose setters for UI state', () => {
       const { result } = renderHook(() => useMiniApps())
       expect(typeof result.current.setOpenedKeepAliveMiniApps).toBe('function')
       expect(typeof result.current.setCurrentMiniAppId).toBe('function')
-      expect(typeof result.current.setMiniAppShow).toBe('function')
-      expect(typeof result.current.setOpenedOneOffMiniApp).toBe('function')
+      expect(typeof result.current.exitMiniApp).toBe('function')
+    })
+
+    it('exitMiniApp removes the app from keep-alive, clears webview state, and resets current only when it matches', async () => {
+      const target = createMiniApp('target-app')
+      const other = createMiniApp('other-app')
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [target, other])
+      MockUseCacheUtils.setCacheValue('mini_app.current_id', 'other-app')
+      const { result } = renderHook(() => useMiniApps())
+
+      await act(async () => {
+        result.current.exitMiniApp('target-app')
+      })
+
+      const stored = MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive') ?? []
+      expect(stored.map((a) => a.appId)).toEqual(['other-app'])
+      expect(mockClearWebviewState).toHaveBeenCalledWith('target-app')
+      // current pointed at a different app — exiting a background app must not blank it
+      expect(MockUseCacheUtils.getCacheValue('mini_app.current_id')).toBe('other-app')
+    })
+
+    it('exitMiniApp clears current when it points at the exiting app, and is idempotent', async () => {
+      const target = createMiniApp('target-app')
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [target])
+      MockUseCacheUtils.setCacheValue('mini_app.current_id', 'target-app')
+      const { result } = renderHook(() => useMiniApps())
+
+      await act(async () => {
+        result.current.exitMiniApp('target-app')
+        // Second call on an already-exited app must be a harmless no-op
+        result.current.exitMiniApp('target-app')
+      })
+
+      expect(MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive')).toEqual([])
+      expect(MockUseCacheUtils.getCacheValue('mini_app.current_id')).toBe('')
     })
 
     it('should update openedKeepAliveMiniApps when setter is called', async () => {
@@ -305,7 +325,6 @@ describe('useMiniApps', () => {
       const trigger = vi.fn().mockResolvedValue(updated)
       MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/mini-apps/:appId', trigger)
       MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [other, existing])
-      MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', existing)
       mockTabs.tabs = [
         { id: 'tab-1', url: '/app/mini-app/custom-app' },
         { id: 'tab-2', url: '/app/mini-app/custom-app-extra' }
@@ -330,7 +349,6 @@ describe('useMiniApps', () => {
         }
       })
       expect(MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive')).toEqual([other, updated])
-      expect(MockUseCacheUtils.getCacheValue('mini_app.opened_oneoff')).toEqual(updated)
       expect(mockSetWebviewLoaded).toHaveBeenCalledWith('custom-app', false)
       expect(mockTabs.updateTab).toHaveBeenCalledWith('tab-1', { title: 'New App', icon: 'new-logo' })
       expect(mockTabs.updateTab).not.toHaveBeenCalledWith('tab-2', expect.anything())
@@ -369,9 +387,7 @@ describe('useMiniApps', () => {
       const trigger = vi.fn().mockResolvedValue(undefined)
       MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/mini-apps/:appId', trigger)
       MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [existing, other])
-      MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', existing)
       MockUseCacheUtils.setCacheValue('mini_app.current_id', 'custom-app')
-      MockUseCacheUtils.setCacheValue('mini_app.show', true)
       mockTabs.tabs = [
         { id: 'tab-1', url: '/app/mini-app/custom-app' },
         { id: 'tab-2', url: '/app/mini-app/custom-app-extra' }
@@ -385,9 +401,7 @@ describe('useMiniApps', () => {
 
       expect(trigger).toHaveBeenCalledWith({ params: { appId: 'custom-app' } })
       expect(MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive')).toEqual([other])
-      expect(MockUseCacheUtils.getCacheValue('mini_app.opened_oneoff')).toBeNull()
       expect(MockUseCacheUtils.getCacheValue('mini_app.current_id')).toBe('')
-      expect(MockUseCacheUtils.getCacheValue('mini_app.show')).toBe(false)
       expect(mockClearWebviewState).toHaveBeenCalledWith('custom-app')
       expect(mockTabs.closeTab).toHaveBeenCalledWith('tab-1')
       expect(mockTabs.closeTab).not.toHaveBeenCalledWith('tab-2')
@@ -667,12 +681,13 @@ describe('useMiniApps', () => {
   // === setAppStatusBulk partial-failure ===
 
   describe('setAppStatusBulk partial-failure', () => {
-    it('throws when one of the PATCHes fails and invalidates the cache', async () => {
-      const apps = [createMiniApp('app1', { status: 'disabled' }), createMiniApp('app2', { status: 'disabled' })]
+    it('throws when one PATCH fails but exits each app that was successfully disabled', async () => {
+      const apps = [createMiniApp('app1', { status: 'enabled' }), createMiniApp('app2', { status: 'enabled' })]
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', apps)
 
       vi.mocked(dataApiService.patch).mockImplementation(async (path: string) => {
-        if (path === '/mini-apps/app1') return { success: true } as never
+        if (path === '/mini-apps/app1') return { ...apps[0], status: 'disabled' } as never
         if (path === '/mini-apps/app2') throw new Error('Server error')
         return undefined as never
       })
@@ -682,11 +697,17 @@ describe('useMiniApps', () => {
       await act(async () => {
         await expect(
           result.current.setAppStatusBulk([
-            { appId: 'app1', status: 'enabled' },
-            { appId: 'app2', status: 'enabled' }
+            { appId: 'app1', status: 'disabled' },
+            { appId: 'app2', status: 'disabled' }
           ])
         ).rejects.toThrow()
       })
+
+      expect(mockClearWebviewState).toHaveBeenCalledTimes(1)
+      expect(mockClearWebviewState).toHaveBeenCalledWith('app1')
+      expect((MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive') ?? []).map((app) => app.appId)).toEqual([
+        'app2'
+      ])
     })
   })
 })

@@ -80,6 +80,10 @@ vi.mock('../../MiniApp/MiniAppTabsPool', () => ({
   default: () => null
 }))
 
+vi.mock('../../MiniApp/MiniAppTabsCleanup', () => ({
+  default: () => null
+}))
+
 vi.mock('../AppShellTabBar', () => ({
   AppShellTabBar: (props: Record<string, unknown>) => {
     mocks.tabBarProps = props

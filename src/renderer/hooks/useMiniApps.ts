@@ -9,6 +9,7 @@ import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import i18n from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import { miniAppIdFromTabUrl } from '@renderer/utils/miniAppUrl'
 import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
@@ -106,14 +107,6 @@ const detectUserRegion = async (): Promise<MiniAppRegion> => {
  */
 // Module-level logger to avoid recreating on every render (rerender-defer-reads)
 const logger = loggerService.withContext('useMiniApps')
-const MINI_APP_ROUTE_PREFIX = '/app/mini-app/'
-
-/** Extract the appId from a `/app/mini-app/<id>` URL, or null otherwise. */
-function miniAppIdFromTabUrl(url: string): string | null {
-  if (!url.startsWith(MINI_APP_ROUTE_PREFIX)) return null
-  const id = url.slice(MINI_APP_ROUTE_PREFIX.length).split('/')[0]
-  return id ? id : null
-}
 
 /**
  * Process Promise.allSettled results: throw on partial failures so callers
@@ -218,10 +211,24 @@ export const useMiniApps = () => {
   const openedKeepAliveRef = useRef(openedKeepAliveMiniApps)
   openedKeepAliveRef.current = openedKeepAliveMiniApps
   const [currentMiniAppId, setCurrentMiniAppId] = useCache('mini_app.current_id')
-  const [miniAppShow, setMiniAppShow] = useCache('mini_app.show')
-  const [openedOneOffMiniApp, setOpenedOneOffMiniApp] = useCache('mini_app.opened_oneoff')
   const { removeMiniApp: removeSidebarFavoriteMiniApp } = useSidebarFavorites()
   const tabsContext = useOptionalTabsContext()
+
+  /**
+   * Exit a mini app: remove it from the keep-alive pool (unmounting its pooled
+   * webview) and clear its persisted webview state. Idempotent — exiting an
+   * app that is not in the pool is a no-op. `current_id` is reset only when it
+   * points at the exiting app, so exiting a background app never blanks the
+   * one still on screen.
+   */
+  const exitMiniApp = useCallback(
+    (appId: string) => {
+      setOpenedKeepAliveMiniApps((prev) => prev.filter((app) => app.appId !== appId))
+      setCurrentMiniAppId((prev) => (prev === appId ? '' : prev))
+      clearWebviewState(appId)
+    },
+    [setCurrentMiniAppId, setOpenedKeepAliveMiniApps]
+  )
 
   // === Mutations (DataApi) ===
   const invalidate = useInvalidateCache()
@@ -299,11 +306,15 @@ export const useMiniApps = () => {
   const setAppStatusBulk = useCallback(
     async (updates: ReadonlyArray<{ appId: string; status: MiniApp['status'] }>) => {
       if (updates.length === 0) return Promise.resolve([] as MiniApp[])
-      return Promise.allSettled(updates.map((u) => patchApp(u.appId, { status: u.status }))).then((results) =>
-        settleAndInvalidate(results, invalidate, 'setAppStatusBulk')
-      )
+      const results = await Promise.allSettled(updates.map((u) => patchApp(u.appId, { status: u.status })))
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled' && updates[index].status === 'disabled') {
+          exitMiniApp(updates[index].appId)
+        }
+      })
+      return settleAndInvalidate(results, invalidate, 'setAppStatusBulk')
     },
-    [patchApp, invalidate]
+    [patchApp, invalidate, exitMiniApp]
   )
 
   const createCustomMiniApp = useCallback(
@@ -324,21 +335,12 @@ export const useMiniApps = () => {
       // so an app opened concurrently during the edit's await is seen here and
       // picks up the new url instead of being missed.
       const openedKeepAliveApp = openedKeepAliveRef.current.find((app) => app.appId === updated.appId)
-      const openedOneOffApp = openedOneOffMiniApp?.appId === updated.appId ? openedOneOffMiniApp : null
-      const urlChanged =
-        (openedKeepAliveApp !== undefined && openedKeepAliveApp.url !== updated.url) ||
-        (openedOneOffApp !== null && openedOneOffApp.url !== updated.url)
 
       if (openedKeepAliveApp) {
         setOpenedKeepAliveMiniApps((prev) => prev.map((app) => (app.appId === updated.appId ? updated : app)))
-      }
-
-      if (openedOneOffApp) {
-        setOpenedOneOffMiniApp(updated)
-      }
-
-      if (urlChanged) {
-        setWebviewLoaded(updated.appId, false)
+        if (openedKeepAliveApp.url !== updated.url) {
+          setWebviewLoaded(updated.appId, false)
+        }
       }
 
       const title = updated.nameKey ? i18n.t(updated.nameKey) : updated.name
@@ -350,27 +352,15 @@ export const useMiniApps = () => {
         }
       }
     },
-    [openedOneOffMiniApp, setOpenedKeepAliveMiniApps, setOpenedOneOffMiniApp, tabsContext]
+    [setOpenedKeepAliveMiniApps, tabsContext]
   )
 
   const cleanupOpenedCustomMiniApp = useCallback(
     (appId: string) => {
-      // Functional update resolves against the latest list, so the prior
-      // `.some(...)` presence guard is redundant: filtering an absent id is a
-      // no-op the cache short-circuits via isEqual.
-      setOpenedKeepAliveMiniApps((prev) => prev.filter((app) => app.appId !== appId))
+      exitMiniApp(appId)
 
-      if (openedOneOffMiniApp?.appId === appId) {
-        setOpenedOneOffMiniApp(null)
-      }
-
-      if (currentMiniAppId === appId) {
-        setCurrentMiniAppId('')
-        setMiniAppShow(false)
-      }
-
-      clearWebviewState(appId)
-
+      // Closing the tabs re-triggers exit via the tabs-closed notification;
+      // exitMiniApp is idempotent so the double invocation is harmless.
       for (const tab of tabsContext?.tabs ?? []) {
         if (miniAppIdFromTabUrl(tab.url) === appId) {
           tabsContext?.closeTab(tab.id)
@@ -379,16 +369,7 @@ export const useMiniApps = () => {
 
       removeSidebarFavoriteMiniApp(appId)
     },
-    [
-      currentMiniAppId,
-      openedOneOffMiniApp,
-      setCurrentMiniAppId,
-      setMiniAppShow,
-      setOpenedKeepAliveMiniApps,
-      setOpenedOneOffMiniApp,
-      removeSidebarFavoriteMiniApp,
-      tabsContext
-    ]
+    [exitMiniApp, removeSidebarFavoriteMiniApp, tabsContext]
   )
 
   const updateCustomMiniApp = useCallback(
@@ -500,12 +481,9 @@ export const useMiniApps = () => {
     pinned: pinnedApps,
     openedKeepAliveMiniApps,
     currentMiniAppId,
-    miniAppShow,
-    openedOneOffMiniApp,
     setOpenedKeepAliveMiniApps,
     setCurrentMiniAppId,
-    setMiniAppShow,
-    setOpenedOneOffMiniApp,
+    exitMiniApp,
     isLoading,
     error,
     refetch,

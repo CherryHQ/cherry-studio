@@ -68,6 +68,9 @@ async function renderSubWindowAppShell({
   vi.doMock('@renderer/components/MiniApp/MiniAppTabsPool', () => ({
     default: () => <div data-testid="mini-app-pool" />
   }))
+  vi.doMock('@renderer/components/MiniApp/MiniAppTabsCleanup', () => ({
+    default: () => null
+  }))
 
   const { SubWindowAppShell } = await import('../SubWindowAppShell')
   render(<SubWindowAppShell />)

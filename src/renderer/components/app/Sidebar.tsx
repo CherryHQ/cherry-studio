@@ -7,6 +7,7 @@ import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { emitResourceListReveal, type ResourceListRevealSource } from '@renderer/services/resourceListRevealEvents'
+import { MINI_APP_ROUTE_PREFIX, miniAppIdFromTabUrl } from '@renderer/utils/miniAppUrl'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import {
@@ -33,7 +34,6 @@ import {
 import UserPopup from '../UserPopup'
 import { resolveSidebarEntry, type SidebarVariantContext } from './sidebarVariants'
 
-const MINI_APP_ROUTE_PREFIX = '/app/mini-app/'
 const REQUIRED_SIDEBAR_FAVORITE_SET = new Set<SidebarAppId>(REQUIRED_SIDEBAR_FAVORITES)
 
 function getResourceListRevealSource(menuItemId: SidebarAppId): ResourceListRevealSource | null {
@@ -42,9 +42,7 @@ function getResourceListRevealSource(menuItemId: SidebarAppId): ResourceListReve
 }
 
 function getMiniAppIdFromUrl(url: string | undefined): string | undefined {
-  if (!url?.startsWith(MINI_APP_ROUTE_PREFIX)) return undefined
-  const appId = url.slice(MINI_APP_ROUTE_PREFIX.length).split(/[/?#]/, 1)[0]
-  return appId || undefined
+  return url == null ? undefined : (miniAppIdFromTabUrl(url) ?? undefined)
 }
 
 export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
