@@ -202,7 +202,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
       <div className={cn(oauthCardClasses.shellLoggedIn, 'text-muted-foreground')}>
         <div className={oauthCardClasses.loggedInRow}>
           <div className={oauthCardClasses.profileMeta}>
-            <Cherryin.Avatar shape="circle" size={32} />
+            <Cherryin.Avatar shape="circle" size={40} />
             <div className={oauthCardClasses.nameBlock}>
               <div className={oauthCardClasses.nameRow}>
                 <div className={cn(oauthCardClasses.loggedInName, 'text-foreground')}>{profileName}</div>

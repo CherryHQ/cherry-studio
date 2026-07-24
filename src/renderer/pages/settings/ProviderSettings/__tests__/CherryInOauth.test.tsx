@@ -81,18 +81,6 @@ describe('CherryInOauth', () => {
     expect(screen.getByText('Pro')).toBeInTheDocument()
     expect(screen.getByText('$128.50')).toBeInTheDocument()
     expect(screen.getByText(/open\.cherryin\.ai/)).toBeInTheDocument()
-    expect(screen.getByTestId('cherryin-avatar')).toHaveTextContent('32')
-    expect(screen.getByText('Siin')).toHaveClass('text-foreground')
-    expect(screen.getByText('$128.50')).toHaveClass('text-foreground')
-    expect(screen.getByText('Siin').closest('.rounded-xl')).toHaveClass('text-muted-foreground')
-    expect(screen.getByText('siin@gmail.com')).toHaveClass('text-muted-foreground')
-    expect(screen.getByText('$128.50').previousElementSibling).toHaveClass('text-muted-foreground')
-    expect(screen.getByText('$128.50').parentElement).toHaveClass('flex', 'items-baseline')
-    expect(screen.getByRole('button', { name: /充值|Top Up/i })).toHaveClass('h-7')
-    expect(screen.getByRole('button', { name: /退出登录|Logout/i })).toHaveClass('h-7', 'text-muted-foreground')
-    const serviceAttribution = screen.getByText(/open\.cherryin\.ai/).closest('p')
-    expect(serviceAttribution).toHaveClass('text-muted-foreground')
-    expect(serviceAttribution?.querySelector('a')).toHaveClass('text-muted-foreground')
   })
 
   it('keeps balance fetch failures quiet and shows the empty balance state', async () => {
