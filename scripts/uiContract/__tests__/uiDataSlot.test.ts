@@ -64,8 +64,23 @@ describe('UiDataSlot prop merging (parity with Radix Slot)', () => {
     expect(leaf.hasAttribute('data-ui')).toBe(false)
   })
 
-  it('renders nothing for multiple children, like Radix SlotClone', () => {
-    const { container } = render(h(UiDataSlot, { 'data-ui': 'chat.view' }, h('span'), h('span')))
+  it('throws for multiple children, like Radix Slot', () => {
+    expect(() => render(h(UiDataSlot, { 'data-ui': 'chat.view' }, h('span'), h('span')))).toThrowError(
+      'UiDataSlot failed to slot onto its children. Expected a single React element child.'
+    )
+    expect(() => render(h(Slot as ComponentType<AnyProps>, null, h('span'), h('span')))).toThrowError(
+      /failed to slot onto its children/
+    )
+  })
+
+  it('throws for a lone non-element child, like Radix Slot', () => {
+    expect(() => render(h(UiDataSlot, { 'data-ui': 'chat.view' }, 'text'))).toThrowError(
+      'UiDataSlot failed to slot onto its children. Expected a single React element child.'
+    )
+  })
+
+  it('renders empty children as-is, like Radix Slot', () => {
+    const { container } = render(h(UiDataSlot, { 'data-ui': 'chat.view' }, null))
     expect(container.firstChild).toBeNull()
   })
 })
