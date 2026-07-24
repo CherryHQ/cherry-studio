@@ -5,7 +5,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { usePaintingComposerInputFiles } from '../usePaintingComposerInputFiles'
+import { type InputCapability, usePaintingComposerInputFiles } from '../usePaintingComposerInputFiles'
 
 const makeEntry = (id: string, ext = 'png'): FileEntry =>
   ({ id, name: `${id}.${ext}`, ext, size: 100, origin: 'internal' }) as unknown as FileEntry
@@ -36,7 +36,14 @@ describe('usePaintingComposerInputFiles', () => {
     const setFiles = vi.fn()
 
     renderHook(() =>
-      usePaintingComposerInputFiles({ paintingId: 'p1', inputFiles: [makeEntry('fe-1')], files: [], setFiles })
+      usePaintingComposerInputFiles({
+        paintingId: 'p1',
+        inputFiles: [makeEntry('fe-1')],
+        files: [],
+        setFiles,
+        inputCapability: 'accept',
+        providerId: 'openai'
+      })
     )
 
     await waitFor(() => expect(setFiles).toHaveBeenCalled())
@@ -48,7 +55,16 @@ describe('usePaintingComposerInputFiles', () => {
   it('clears attachments when the painting has no input files', () => {
     const setFiles = vi.fn()
 
-    renderHook(() => usePaintingComposerInputFiles({ paintingId: 'p2', inputFiles: [], files: [], setFiles }))
+    renderHook(() =>
+      usePaintingComposerInputFiles({
+        paintingId: 'p2',
+        inputFiles: [],
+        files: [],
+        setFiles,
+        inputCapability: 'accept',
+        providerId: 'openai'
+      })
+    )
 
     expect(setFiles).toHaveBeenCalledWith([])
   })
@@ -63,12 +79,21 @@ describe('usePaintingComposerInputFiles', () => {
           paintingId: 'p3',
           inputFiles: [] as FileEntry[],
           files: [] as ComposerAttachment[],
-          setFiles
+          setFiles,
+          inputCapability: 'accept' as const,
+          providerId: 'openai'
         }
       }
     )
 
-    rerender({ paintingId: 'p3', inputFiles: [], files: [makeAttachment('src-new', '/tmp/new.png')], setFiles })
+    rerender({
+      paintingId: 'p3',
+      inputFiles: [],
+      files: [makeAttachment('src-new', '/tmp/new.png')],
+      setFiles,
+      inputCapability: 'accept',
+      providerId: 'openai'
+    })
 
     // Materialization is deferred to this call (mirroring chat's send-time
     // buildFileParts); nothing is imported during the draft window.
@@ -91,7 +116,14 @@ describe('usePaintingComposerInputFiles', () => {
   const renderStatefulHarness = (paintingId: string, inputFiles: FileEntry[]) =>
     renderHook(() => {
       const [files, setFiles] = useState<ComposerAttachment[]>([])
-      const { materializeInputs } = usePaintingComposerInputFiles({ paintingId, inputFiles, files, setFiles })
+      const { materializeInputs } = usePaintingComposerInputFiles({
+        paintingId,
+        inputFiles,
+        files,
+        setFiles,
+        inputCapability: 'accept',
+        providerId: 'openai'
+      })
       return { files, materializeInputs }
     })
 
@@ -149,7 +181,9 @@ describe('usePaintingComposerInputFiles', () => {
           paintingId: 'p-wb-fail',
           inputFiles: [] as FileEntry[],
           files: [] as ComposerAttachment[],
-          setFiles
+          setFiles,
+          inputCapability: 'accept' as const,
+          providerId: 'openai'
         }
       }
     )
@@ -158,7 +192,9 @@ describe('usePaintingComposerInputFiles', () => {
       paintingId: 'p-wb-fail',
       inputFiles: [],
       files: [makeAttachment('src-ok', '/tmp/ok.png'), makeAttachment('src-bad', '/tmp/bad.png')],
-      setFiles
+      setFiles,
+      inputCapability: 'accept',
+      providerId: 'openai'
     })
 
     let out = { entries: [] as FileEntry[], complete: true }
@@ -180,5 +216,87 @@ describe('usePaintingComposerInputFiles', () => {
     expect(remover).toBeDefined()
     const remaining = remover?.([makeAttachment('src-ok', '/tmp/ok.png'), makeAttachment('src-bad', '/tmp/bad.png')])
     expect(remaining?.map((file) => file.fileTokenSourceId)).toEqual(['src-ok'])
+  })
+
+  // CLEAR — a same-painting model switch does not remount, so this effect reconciles
+  // switchModel's `inputFiles: []`. Stateful harness so a real setFiles drives `files`.
+  interface SwitchProps {
+    inputCapability: InputCapability
+    providerId: string
+  }
+  const renderSwitchHarness = (initial: SwitchProps) =>
+    renderHook(
+      (props: SwitchProps) => {
+        const [files, setFiles] = useState<ComposerAttachment[]>([])
+        const { materializeInputs } = usePaintingComposerInputFiles({
+          paintingId: 'p-switch',
+          inputFiles: [],
+          files,
+          setFiles,
+          inputCapability: props.inputCapability,
+          providerId: props.providerId
+        })
+        return { files, setFiles, materializeInputs }
+      },
+      { initialProps: initial }
+    )
+
+  const attachChip = async (result: { current: { setFiles: (f: ComposerAttachment[]) => void } }) => {
+    await act(async () => {
+      result.current.setFiles([makeAttachment('src-draft', '/tmp/draft.png')])
+    })
+  }
+
+  it('preserves the draft when switching between two edit models (accept → accept)', async () => {
+    const { result, rerender } = renderSwitchHarness({ inputCapability: 'accept', providerId: 'openai' })
+    await attachChip(result)
+    expect(result.current.files).toHaveLength(1)
+
+    // Same provider, still edit-capable: no clear.
+    rerender({ inputCapability: 'accept', providerId: 'openai' })
+    expect(result.current.files).toHaveLength(1)
+  })
+
+  it('clears the draft when switching to a model that cannot accept images (accept → reject)', async () => {
+    const { result, rerender } = renderSwitchHarness({ inputCapability: 'accept', providerId: 'openai' })
+    await attachChip(result)
+    expect(result.current.files).toHaveLength(1)
+
+    rerender({ inputCapability: 'reject', providerId: 'openai' })
+    expect(result.current.files).toEqual([])
+    // The cache is reset too, so a stale entry never leaks into the next generation.
+    let out = { entries: [makeEntry('leak')] as FileEntry[], complete: false }
+    await act(async () => {
+      out = await result.current.materializeInputs()
+    })
+    expect(out.entries).toEqual([])
+  })
+
+  it('clears the draft when switching provider', async () => {
+    const { result, rerender } = renderSwitchHarness({ inputCapability: 'accept', providerId: 'openai' })
+    await attachChip(result)
+    expect(result.current.files).toHaveLength(1)
+
+    rerender({ inputCapability: 'accept', providerId: 'gemini' })
+    expect(result.current.files).toEqual([])
+  })
+
+  it('does not clear on a load blip (accept → unknown → accept)', async () => {
+    const { result, rerender } = renderSwitchHarness({ inputCapability: 'accept', providerId: 'openai' })
+    await attachChip(result)
+
+    // Model briefly unresolved during a catalog refetch, then resolves back to edit.
+    rerender({ inputCapability: 'unknown', providerId: 'openai' })
+    rerender({ inputCapability: 'accept', providerId: 'openai' })
+    expect(result.current.files).toHaveLength(1)
+  })
+
+  it('still detects a support drop across an unknown blip (accept → unknown → reject)', async () => {
+    const { result, rerender } = renderSwitchHarness({ inputCapability: 'accept', providerId: 'openai' })
+    await attachChip(result)
+
+    rerender({ inputCapability: 'unknown', providerId: 'openai' })
+    rerender({ inputCapability: 'reject', providerId: 'openai' })
+    expect(result.current.files).toEqual([])
   })
 })

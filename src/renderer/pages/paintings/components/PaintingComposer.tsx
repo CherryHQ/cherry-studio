@@ -33,7 +33,7 @@ import { imageGenerationToFields } from '../form/imageGenerationToFields'
 import { SIZE_PREVIEW_KEYS, sizeOptionLabel } from '../form/paintingSize'
 import { resolveOptions } from '../form/resolveOptions'
 import { useImageGenerationSupport } from '../hooks/useImageGenerationSupport'
-import { usePaintingComposerInputFiles } from '../hooks/usePaintingComposerInputFiles'
+import { type InputCapability, usePaintingComposerInputFiles } from '../hooks/usePaintingComposerInputFiles'
 import type { PaintingData } from '../model/types/paintingData'
 import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
 import PaintingModelSelector from './PaintingModelSelector'
@@ -183,11 +183,18 @@ const PaintingComposerInner: FC<PaintingComposerInnerProps> = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const config = getComposerToolConfig(PAINTING_SCOPE)
 
+  // `unknown` while the model is still resolving from the async catalog; `accept`
+  // once it resolves to an edit-capable model, `reject` otherwise. Drives the
+  // draft-clear on a model switch (see usePaintingComposerInputFiles CLEAR).
+  const inputCapability: InputCapability = !model ? 'unknown' : couldAddImageFile ? 'accept' : 'reject'
+
   const { materializeInputs } = usePaintingComposerInputFiles({
     paintingId: painting.id,
     inputFiles: painting.inputFiles ?? [],
     files,
-    setFiles
+    setFiles,
+    inputCapability,
+    providerId: painting.providerId
   })
 
   const tokens = useMemo(() => files.map(fileToComposerToken), [files])
@@ -285,14 +292,14 @@ const PaintingComposer: FC<PaintingComposerProps> = (props) => {
   const couldAddImageFile = model ? isEditImageModel(model) : false
 
   return (
-    // Key the provider (which owns `files`) by painting AND model so a switch remounts
-    // it and re-seeds from the current `inputFiles`. Keying on the model too is what
-    // reconciles an external `inputFiles` clear: switchModel drops input images for a
-    // generate-only model on the same painting id, and without the model in the key the
-    // once-per-id seed would never re-run, leaving a stale chip that the writeback could
-    // resurrect and send to a model that can't accept it.
+    // Key the provider (which owns `files`) by painting id only: a different painting
+    // is a different editing session and must reset + re-seed the draft. A model
+    // switch must NOT remount — that would wipe an in-progress draft — so the
+    // `switchModel` `inputFiles: []` clear is reconciled reactively instead (see
+    // usePaintingComposerInputFiles CLEAR). Keying on the model here used to work only
+    // because the removed writeback kept `painting.inputFiles === files`.
     <ComposerToolRuntimeProvider
-      key={`${painting.id}:${painting.model ?? ''}`}
+      key={painting.id}
       initialState={{ files: [], couldAddImageFile, extensions: PAINTING_IMAGE_EXTS }}
       actions={{ addNewTopic: () => {}, onTextChange: () => {} }}>
       <PaintingComposerInner {...props} model={model} couldAddImageFile={couldAddImageFile} />

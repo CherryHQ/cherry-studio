@@ -10,11 +10,22 @@ import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('usePaintingComposerInputFiles')
 
+/**
+ * Whether the current model accepts image inputs. `'unknown'` while the model is
+ * still resolving from the async catalog — treated as "don't touch the draft" so a
+ * load blip never clears valid chips (see the CLEAR effect).
+ */
+export type InputCapability = 'unknown' | 'accept' | 'reject'
+
 interface Params {
   paintingId: string
   inputFiles: FileEntry[]
   files: ComposerAttachment[]
   setFiles: Dispatch<SetStateAction<ComposerAttachment[]>>
+  /** Resolved-model image-input capability; drives the model-switch draft clear. */
+  inputCapability: InputCapability
+  /** Provider of the current painting; a change means switchModel reset the context. */
+  providerId: string | undefined
 }
 
 const withDot = (ext: string | null | undefined): string => {
@@ -38,8 +49,22 @@ const withDot = (ext: string | null | undefined): string => {
  *   to the DB during the draft window, so the cleanup reaper has no unreferenced
  *   input row to reclaim. Contract: an incomplete set (`complete: false`, some
  *   attachment failed to promote) must never reach generation — the caller aborts.
+ * - CLEAR: a same-painting model switch does NOT remount the composer (the provider
+ *   is keyed on painting id only), so SEED never re-runs to reconcile `switchModel`
+ *   dropping `inputFiles`. This effect is that reconciliation: switching to a model
+ *   that can't accept images (`accept`→`reject`) or to a different provider clears
+ *   the draft, mirroring `switchModel`'s `inputFiles: []`. It does NOT rely on the
+ *   stale `painting.inputFiles === files` assumption the removed writeback used to
+ *   uphold.
  */
-export function usePaintingComposerInputFiles({ paintingId, inputFiles, files, setFiles }: Params) {
+export function usePaintingComposerInputFiles({
+  paintingId,
+  inputFiles,
+  files,
+  setFiles,
+  inputCapability,
+  providerId
+}: Params) {
   const { t } = useTranslation()
   const entryCacheRef = useRef(new Map<string, FileEntry>())
   // Input files that failed to resolve to a physical path during SEED: they get no
@@ -51,6 +76,10 @@ export function usePaintingComposerInputFiles({ paintingId, inputFiles, files, s
   inputFilesRef.current = inputFiles
   const filesRef = useRef(files)
   filesRef.current = files
+  // CLEAR bookkeeping: last *resolved* capability (ignores 'unknown' load blips) and
+  // the last provider, to detect the model-switch transitions that drop the draft.
+  const lastCapabilityRef = useRef<'accept' | 'reject' | null>(null)
+  const lastProviderIdRef = useRef<string | undefined>(providerId)
 
   // SEED — once per painting.
   useEffect(() => {
@@ -99,6 +128,25 @@ export function usePaintingComposerInputFiles({ paintingId, inputFiles, files, s
       cancelled = true
     }
   }, [paintingId, setFiles])
+
+  // CLEAR — reconcile a same-painting model switch (which does NOT remount, so SEED
+  // never re-runs). See the hook docs. A different painting id remounts this hook
+  // fresh, so the refs re-initialize and neither branch fires spuriously on mount.
+  useEffect(() => {
+    const providerChanged = lastProviderIdRef.current !== providerId
+    lastProviderIdRef.current = providerId
+
+    const droppedImageSupport = lastCapabilityRef.current === 'accept' && inputCapability === 'reject'
+    // 'unknown' (catalog still loading) carries the last resolved capability forward,
+    // so a load blip between two edit models never looks like a support drop.
+    if (inputCapability !== 'unknown') lastCapabilityRef.current = inputCapability
+
+    if (!providerChanged && !droppedImageSupport) return
+
+    entryCacheRef.current = new Map()
+    unseededEntriesRef.current = []
+    setFiles([])
+  }, [inputCapability, providerId, setFiles])
 
   // MATERIALIZE — at generate time. Promote the current composer attachments to
   // FileEntry[]; a cache hit (seeded, or promoted earlier this session) is reused,
