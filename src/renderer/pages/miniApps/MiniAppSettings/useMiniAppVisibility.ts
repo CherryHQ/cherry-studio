@@ -42,7 +42,7 @@ function reportFailure(t: (key: string) => string, fallbackKey: string) {
  */
 export function useMiniAppVisibility() {
   const { t } = useTranslation()
-  const { miniApps, disabled, updateAppStatus, setAppStatusBulk, reorderMiniAppsByStatus } = useMiniApps()
+  const { miniApps, disabled, updateAppStatus, setAppStatusBulk, reorderMiniAppsByStatus, exitMiniApp } = useMiniApps()
 
   const [visible, setVisible] = useState<MiniApp[]>(miniApps)
   const [hidden, setHidden] = useState<MiniApp[]>(disabled || [])
@@ -99,9 +99,11 @@ export function useMiniAppVisibility() {
     (app: MiniApp) => {
       setVisible((v) => v.filter((a) => a.appId !== app.appId))
       setHidden((h) => [...h, app])
-      updateAppStatus(app.appId, 'disabled').catch(reportFailure(t, 'miniApp.hide_failed'))
+      updateAppStatus(app.appId, 'disabled')
+        .then(() => exitMiniApp(app.appId))
+        .catch(reportFailure(t, 'miniApp.hide_failed'))
     },
-    [updateAppStatus, t]
+    [updateAppStatus, exitMiniApp, t]
   )
 
   const show = useCallback(
