@@ -158,6 +158,19 @@ export interface MergeContext {
    */
   readonly stagedFileEntryIds: ReadonlySet<string>
   /**
+   * knowledge_base baseIds whose dir was skipped at planning (conflict: local row
+   * OR disk exists). MergeEngine skips these roots so the DB row isn't inserted
+   * while its dir isn't moved — same-source as the file_entry skipped set (the
+   * conflict-symmetry fix; otherwise planning skip + merge INSERT → dangling).
+   * undefined = not yet wired (A2 lands the MergeEngine consumer); treated as empty.
+   */
+  readonly skippedKnowledgeBaseIds?: ReadonlySet<string>
+  /**
+   * skill folderNames whose dir was skipped at planning (conflict). Same role as
+   * skippedKnowledgeBaseIds for the skill root. undefined = not yet wired (A2).
+   */
+  readonly skippedSkillFolderNames?: ReadonlySet<string>
+  /**
    * From the admitted manifest (`includeFiles`). Lite archives stage zero Notes
    * bodies — when false, MergeEngine skips every `note` overlay row so restore
    * does not leave starred/expanded state pointing at missing files (§3.5).

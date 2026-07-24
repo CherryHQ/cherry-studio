@@ -61,15 +61,24 @@ export interface BackupV2StartResult {
 }
 
 /**
+ * Resource class for restore planning + disclosure. Shared (main + renderer) so the
+ * plan's `SkippedResource.kind` and the IPC `RestoreResultSummary.kind` agree, and
+ * knowledge vs skill (both `dir-add` in FileResource) stay distinguishable in the UI.
+ */
+export type ResourceClass = 'file' | 'knowledge' | 'skill' | 'note'
+
+/**
  * Restore result summary shown in the relaunch-confirm dialog BEFORE promotion
  * applies. Promotion hasn't run yet at this point (preboot may expire the whole
  * batch via assertNoAddConflicts), so UI copy MUST use future tense
  * ("will restore / will skip"), never "restored".
  *
  * Main→renderer event payload (TCB source → pure type, not zod-parsed).
- * `toSkip` mirrors plan.skips 1:1 (see @main/services/backup/resourcePlanning).
+ * `toRestore` is pre-computed by planning (not reverse-derived from resources,
+ * which can't separate knowledge vs skill — both are `dir-add`). `toSkip` mirrors
+ * plan.skips 1:1 (see @main/services/backup/resourcePlanning).
  */
 export interface RestoreResultSummary {
-  readonly toRestore: ReadonlyArray<{ readonly kind: string; readonly count: number }>
-  readonly toSkip: ReadonlyArray<{ readonly id: string; readonly kind: string; readonly reason: string }>
+  readonly toRestore: ReadonlyArray<{ readonly kind: ResourceClass; readonly count: number }>
+  readonly toSkip: ReadonlyArray<{ readonly id: string; readonly kind: ResourceClass; readonly reason: string }>
 }

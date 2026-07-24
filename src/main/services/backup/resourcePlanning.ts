@@ -1,50 +1,27 @@
 /**
- * Resource planning contracts — frozen up-front so the core (A1/A2) and the
- * peripheral (B1-B4) workstreams can proceed in parallel.
+ * Resource planning contracts — frozen up-front so A1/A2 (core) and B1-B4
+ * (peripheral) workstreams can proceed in parallel.
  *
- * `ResourcePlan` is one value with three consumers (see full-restore-plan §6):
- *   - merge input    : skippedFileEntryIds / stagedFileEntryIds (drives MergeEngine)
+ * `ResourcePlan` is one value with three consumers:
+ *   - merge input   : skippedFileEntryIds / skippedKnowledgeBaseIds /
+ *                     skippedSkillFolderNames + stagedFileEntryIds (drive
+ *                     MergeEngine skip + disclose — every class same-source)
  *   - journal source : resources (serialized into RestoreJournal.fileResources)
- *   - disclosure UI  : skips (mirrors into RestoreResultSummary.toSkip)
+ *   - disclosure UI  : skips + toRestore (mirror into RestoreResultSummary)
  *
- * Conflict policy (v2.1): every resource class skips on conflict (local DB row
- * OR disk exists), matching merge's uuid-entity SKIP. No overwrite in this PR.
+ * Conflict policy: every class skips on conflict (local DB row OR disk exists),
+ * matching merge — file_entry via skippedFileEntryIds, knowledge_base via
+ * skippedKnowledgeBaseIds, skills via skippedSkillFolderNames. No overwrite.
  * The work.sqlite input makes planning's DB-row conflict check same-source as
  * merge SKIP (avoids existsSync-only divergence → orphan blob / mixed entity).
  */
 
 import type { BackupManifest } from './manifest'
 import type { FileResource } from '@main/data/db/restore/restoreJournal'
+import type { ResourceClass } from '@shared/types/backup'
 
-/** Resource class for planning + skip disclosure. */
-export type ResourceClass = 'file' | 'knowledge' | 'skill' | 'note'
-
-/**
- * A resource the plan skipped (conflict / managed-only / etc). 1:1 source for
- * the relaunch-result disclosure UI (RestoreResultSummary.toSkip).
- */
-export interface SkippedResource {
-  readonly id: string
-  readonly kind: ResourceClass
-  readonly reason: string
-}
-
-/**
- * Output of resource planning (runs before merge, full-restore-plan §5 段1).
- *
- * Conflict: every class skips on conflict (local DB row OR disk exists),
- * matching merge's uuid-entity SKIP — no overwrite in this PR.
- */
-export interface ResourcePlan {
-  /** file_entry ids whose blob will be staged → merge discloses soft-refs correctly. */
-  readonly stagedFileEntryIds: Set<string>
-  /** file_entry ids skipped (conflict/external/pruned) → merge does NOT import the row (no dangling). */
-  readonly skippedFileEntryIds: Set<string>
-  /** File resources to apply at preboot promotion (all `*-add` kinds; no overwrite). */
-  readonly resources: FileResource[]
-  /** Skipped resources with reason → relaunch-result disclosure UI. */
-  readonly skips: SkippedResource[]
-}
+/** A file resource restricted to additive kinds (no overwrite/note-overwrite in this PR). */
+export type AddFileResource = Extract<FileResource, { kind: 'blob-add' | 'dir-add' | 'note-add' }>
 
 /**
  * Roots planning resolves livePaths against + containment-checks. notesRoot is a
@@ -55,6 +32,16 @@ export interface PlanRoots {
   readonly knowledge: string
   readonly skills: string
   readonly notes: () => string | undefined
+}
+
+/**
+ * A resource the plan skipped (conflict / unmanaged / etc). 1:1 source for the
+ * relaunch-result disclosure UI (RestoreResultSummary.toSkip).
+ */
+export interface SkippedResource {
+  readonly id: string
+  readonly kind: ResourceClass
+  readonly reason: string
 }
 
 /**
@@ -69,4 +56,27 @@ export interface PlanCtx {
   readonly workPath: string
   readonly userData: string
   readonly roots: PlanRoots
+}
+
+/**
+ * Output of resource planning (runs before merge, full-restore-plan §5 段1).
+ *
+ * Conflict: every class skips on conflict (local DB row OR disk exists),
+ * matching merge SKIP — no overwrite in this PR.
+ */
+export interface ResourcePlan {
+  /** file_entry ids whose blob will be staged → merge discloses soft-refs correctly. */
+  readonly stagedFileEntryIds: Set<string>
+  /** file_entry ids skipped due to CONFLICT (local row OR disk exists) → merge does NOT import the row (no dangling). External/missing/wrong-type are ARCHIVE_CORRUPT, not skip. */
+  readonly skippedFileEntryIds: Set<string>
+  /** knowledge_base baseIds skipped due to conflict → merge must skip the root so the DB row isn't inserted while its dir isn't moved (same-source as file_entry). */
+  readonly skippedKnowledgeBaseIds: Set<string>
+  /** skill folderNames skipped due to conflict → merge must skip the root (same-source as file_entry / knowledge). */
+  readonly skippedSkillFolderNames: Set<string>
+  /** Additive file resources (blob-add/dir-add/note-add only; no overwrite). Serialized into journal.fileResources. */
+  readonly resources: AddFileResource[]
+  /** Pre-computed restore counts by class (knowledge vs skill stay distinguishable; not reverse-derived from resources). */
+  readonly toRestore: ReadonlyArray<{ readonly kind: ResourceClass; readonly count: number }>
+  /** Skipped resources with reason → relaunch-result disclosure UI. */
+  readonly skips: SkippedResource[]
 }
