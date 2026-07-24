@@ -2965,6 +2965,14 @@
     },
     "dimensions_auto_set": "自动设置嵌入维度",
     "dimensions_size_placeholder": "留空表示不设置",
+    "drag": {
+      "cancelled": "已取消移动 {{name}}。",
+      "drop_requested": "已在 {{group}} 放下 {{name}}，正在请求移动。",
+      "instructions": "按空格或回车拿起知识库，使用方向键选择分组，再按空格或回车移动，按 Esc 取消。可用分组：{{groups}}。",
+      "over": "{{name}} 位于 {{group}} 分组上方。",
+      "picked_up": "已拿起 {{name}}，请选择目标分组。",
+      "unchanged": "{{name}} 仍在 {{group}}，未移动。"
+    },
     "embedding_model": "嵌入模型",
     "embedding_model_required": "知识库嵌入模型是必需的",
     "empty": "暂无知识库",

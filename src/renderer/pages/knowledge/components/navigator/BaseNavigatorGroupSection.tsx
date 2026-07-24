@@ -1,9 +1,11 @@
 import { AccordionContent, AccordionItem } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import { useDroppable } from '@dnd-kit/core'
 
 import BaseNavigatorSectionTrigger from './BaseNavigatorSectionTrigger'
 import KnowledgeBaseRow from './KnowledgeBaseRow'
 import KnowledgeGroupRow from './KnowledgeGroupRow'
-import type { BaseNavigatorGroupSectionProps } from './types'
+import type { BaseNavigatorGroupSectionProps, KnowledgeGroupDropData } from './types'
 import { UNGROUPED_SECTION_VALUE } from './types'
 
 const BaseNavigatorGroupSection = ({
@@ -22,9 +24,20 @@ const BaseNavigatorGroupSection = ({
   onDeleteBase
 }: BaseNavigatorGroupSectionProps) => {
   const groupValue = section.groupId ?? UNGROUPED_SECTION_VALUE
+  const { isOver, setNodeRef } = useDroppable({
+    id: section.groupId === null ? 'knowledge-group:ungrouped' : `knowledge-group:id:${section.groupId}`,
+    data: {
+      type: 'knowledge-group',
+      groupId: section.groupId
+    } satisfies KnowledgeGroupDropData,
+    disabled: section.groupId !== null && !group
+  })
 
   return (
-    <AccordionItem value={groupValue} className="border-none">
+    <AccordionItem
+      ref={setNodeRef}
+      value={groupValue}
+      className={cn('rounded-[10px] border-none transition-colors', isOver && 'bg-accent ring-1 ring-ring/50')}>
       {group ? (
         <KnowledgeGroupRow
           group={group}

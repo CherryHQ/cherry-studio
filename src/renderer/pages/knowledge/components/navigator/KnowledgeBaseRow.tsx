@@ -1,5 +1,7 @@
 import { Button, ConfirmDialog } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { useDraggable, useDroppable } from '@dnd-kit/core'
+import { useCombinedRefs } from '@dnd-kit/utilities'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import KnowledgeRowActionsMenu from '@renderer/pages/knowledge/components/KnowledgeRowActionsMenu'
 import { DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/pages/knowledge/utils/group'
@@ -7,7 +9,7 @@ import { ArrowRightLeft, FolderPlus, PencilLine, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { KnowledgeBaseRowProps } from './types'
+import type { KnowledgeBaseDragData, KnowledgeBaseRowProps, KnowledgeGroupDropData } from './types'
 
 const KnowledgeBaseRow = ({
   base,
@@ -23,6 +25,30 @@ const KnowledgeBaseRow = ({
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const availableGroups = useMemo(() => groups.filter((group) => group.id !== base.groupId), [base.groupId, groups])
   const canMoveToUngrouped = base.groupId !== null
+  const draggableId = `knowledge-base:${base.id}`
+  const {
+    attributes,
+    isDragging,
+    listeners,
+    setActivatorNodeRef,
+    setNodeRef: setDraggableNodeRef
+  } = useDraggable({
+    id: draggableId,
+    data: {
+      type: 'knowledge-base',
+      baseId: base.id,
+      baseName: base.name,
+      groupId: base.groupId
+    } satisfies KnowledgeBaseDragData
+  })
+  const { setNodeRef: setDroppableNodeRef } = useDroppable({
+    id: draggableId,
+    data: {
+      type: 'knowledge-group',
+      groupId: base.groupId
+    } satisfies KnowledgeGroupDropData
+  })
+  const setNodeRef = useCombinedRefs(setDraggableNodeRef, setDroppableNodeRef)
 
   const handleMoveBase = useCallback(
     async (groupId: string | null) => {
@@ -122,14 +148,19 @@ const KnowledgeBaseRow = ({
     <>
       <CommandContextMenu location="webcontents.context" extraItems={contextMenuItems}>
         <div
+          ref={setNodeRef}
           className={cn(
             'group/row flex w-full items-center gap-1 rounded-md px-2.5 py-1.5 transition-colors',
-            selected ? 'bg-secondary' : 'hover:bg-accent'
+            selected ? 'bg-secondary' : 'hover:bg-accent',
+            isDragging && 'opacity-50'
           )}>
           <Button
+            ref={setActivatorNodeRef}
             type="button"
             variant="ghost"
             onClick={() => onSelectBase(base.id)}
+            {...attributes}
+            {...listeners}
             className="flex min-h-0 min-w-0 flex-1 items-center justify-start rounded-md p-0 text-left shadow-none hover:bg-transparent">
             <div className="min-w-0 truncate font-medium text-foreground text-sm leading-5">{base.name}</div>
           </Button>

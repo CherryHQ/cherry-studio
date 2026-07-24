@@ -2965,6 +2965,14 @@
     },
     "dimensions_auto_set": "Auto-set embedding dimensions",
     "dimensions_size_placeholder": "Leave empty to not pass dimensions",
+    "drag": {
+      "cancelled": "Cancelled moving {{name}}.",
+      "drop_requested": "Dropped {{name}} on {{group}}. Move requested.",
+      "instructions": "To move this knowledge base, press Space or Enter, use the arrow keys to choose a group, then press Space or Enter to move it, or Escape to cancel. Available groups: {{groups}}.",
+      "over": "{{name}} moved over {{group}}.",
+      "picked_up": "Picked up {{name}}. Choose a destination group.",
+      "unchanged": "{{name}} remains in {{group}} and was not moved."
+    },
     "embedding_model": "Embedding Model",
     "embedding_model_required": "Knowledge base embedding model is required",
     "empty": "No knowledge bases",
