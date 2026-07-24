@@ -215,6 +215,10 @@ function AssistantEditDialogContent({
     [t]
   )
 
+  // Tracks the exact form snapshot that failed so the first close keeps the
+  // error visible, while a repeated close can explicitly discard that snapshot.
+  const failedSaveKeyRef = useRef<string | null>(null)
+
   const wasOpenRef = useRef(false)
   useEffect(() => {
     const justOpened = open && !wasOpenRef.current
@@ -226,14 +230,16 @@ function AssistantEditDialogContent({
     setActiveTab(initialTab ?? 'basic')
     setEmojiPickerOpen(false)
     setModelLabels(modelLabelsForAssistant(resource))
+    // A fresh open is a fresh editing session — a stale failure from a prior
+    // session (this instance can outlive one close, see the exit-animation
+    // hold in useResourceCatalogController) must not silently discard a new,
+    // coincidentally-identical edit as if it were a repeated close.
+    failedSaveKeyRef.current = null
   }, [defaultValues, form, initialTab, open, resource])
 
   const rootError = form.formState.errors.root?.message
   const canPersist = Boolean(saveIntent) && values.name.trim().length > 0
   const changeKey = canPersist ? JSON.stringify(values) : null
-  // Tracks the exact form snapshot that failed so the first close keeps the
-  // error visible, while a repeated close can explicitly discard that snapshot.
-  const failedSaveKeyRef = useRef<string | null>(null)
 
   const persist = async () => {
     const pending = saveIntent
