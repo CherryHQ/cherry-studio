@@ -23,11 +23,19 @@ Existing custom CSS keeps its full behavior, including `:root`, `body`, and top-
 consistently to all regular windows. Existing selectors that depend on `[data-slot]` continue to work, while `data-ui`
 provides a maintained semantic surface for new selectors.
 
+One previous safeguard is removed: the selection toolbar used to strip `background` declarations from custom CSS
+before injecting it, keeping the floating toolbar transparent. Custom CSS now reaches that window verbatim, so a broad
+rule such as `body { background: … }` also paints the selection toolbar, which used to stay transparent.
+
 ## What the user should do
 
 No migration is required. Prefer semantic selectors such as `[data-ui~='app.sidebar']`,
 `[data-ui~='chat.message']`, or `[data-ui~='settings.content']`, and structural selectors such as
 `[data-ui~='part:message-content']` or `[data-ui~='part:dialog-content']` for new themes.
+
+If the floating selection toolbar loses its transparency after updating, narrow broad `body`/`:root` background rules
+to the surfaces they actually target (for example `[data-ui~='app.content']` or another semantic container), so they
+stop repainting the toolbar window.
 
 ## Notes for release manager
 
