@@ -38,3 +38,8 @@ export function computeUnitId(
 export function computeSearchTextId(targetType: string, targetId: string, kind: string): string {
   return sha256Hex([targetType, targetId, kind].join(FIELD_SEPARATOR))
 }
+
+/** Stable id for one derived retrieval projection attached to an authoritative unit. */
+export function computeRetrievalProjectionId(unitId: string, text: string): string {
+  return sha256Hex([unitId, text].join(FIELD_SEPARATOR))
+}

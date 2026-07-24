@@ -64,8 +64,17 @@ describe('knowledge index schema', () => {
   }
 
   describe('schema creation', () => {
-    it('creates all 7 schema objects', () => {
-      const expected = ['meta', 'content', 'material', 'search_unit', 'search_text', 'embedding', 'search_text_fts']
+    it('creates all 8 schema objects', () => {
+      const expected = [
+        'meta',
+        'content',
+        'material',
+        'search_unit',
+        'search_text',
+        'embedding',
+        'retrieval_projection',
+        'search_text_fts'
+      ]
       const result = driver.execute(
         `SELECT name FROM sqlite_master WHERE name IN (${expected.map(() => '?').join(', ')})`,
         expected
@@ -146,6 +155,22 @@ describe('knowledge index schema', () => {
     it('rejects a search_unit referencing a missing material', () => {
       insertContent('h1', 'hello')
       expect(() => insertSearchUnit('u1', 'missing-material', 'h1')).toThrow()
+    })
+
+    it('cascades retrieval projections when their raw unit is deleted', () => {
+      insertContent('h1', 'hello')
+      insertMaterial('m1', 'a.md', 'h1')
+      insertSearchUnit('u1', 'm1', 'h1')
+      driver.execute(
+        `INSERT INTO retrieval_projection
+           (projection_id, unit_id, text, embedding_text_hash, created_at)
+         VALUES ('p1', 'u1', 'semantic projection', 'eh1', ?)`,
+        [TS]
+      )
+
+      driver.execute(`DELETE FROM search_unit WHERE unit_id = 'u1'`)
+
+      expect(driver.execute(`SELECT COUNT(*) AS n FROM retrieval_projection`).rows[0].n).toBe(0)
     })
   })
 

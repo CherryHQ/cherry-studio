@@ -1,4 +1,5 @@
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { describe, expect, it } from 'vitest'
 
 import { hashEmbeddingText } from '../../vectorstore/indexStore/hashing'
@@ -18,6 +19,7 @@ import {
   fakeEmbedVector,
   fetchKnowledgeWebPageMock,
   FILE_ITEM_ID,
+  generateRetrievalProjectionsMock,
   getJobMock,
   knowledgeBaseGetByIdMock,
   knowledgeItemGetByIdMock,
@@ -111,6 +113,36 @@ describe('index-documents job handler', () => {
     const writtenHashes = lastRebuildInput().embeddings.map((embedding) => embedding.embeddingTextHash)
     expect(writtenHashes).not.toContain(storedHash)
     expect(writtenHashes).toEqual(expect.arrayContaining([hashEmbeddingText('alpha'), hashEmbeddingText('charlie')]))
+  })
+
+  it('uses the existing quick model and embeds retained retrieval projections with raw chunks', async () => {
+    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
+    knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
+    knowledgeItemUpdateStatusMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.quick_assistant.model_id', 'provider::fast-model')
+    generateRetrievalProjectionsMock.mockResolvedValueOnce([
+      { unitIndex: 0, text: 'A semantically searchable proposition.' }
+    ])
+
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
+
+    expect(generateRetrievalProjectionsMock).toHaveBeenCalledWith(
+      [expect.objectContaining({ unitIndex: 0, text: 'hello world' })],
+      'provider::fast-model',
+      expect.any(AbortSignal)
+    )
+    expect(embedKnowledgeTextsMock.mock.calls[0][1]).toEqual(['hello world', 'A semantically searchable proposition.'])
+    expect(lastRebuildInput().projections).toEqual([{ unitIndex: 0, text: 'A semantically searchable proposition.' }])
+  })
+
+  it('skips retrieval projection generation when no quick model is configured', async () => {
+    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
+    knowledgeItemGetByIdMock.mockReturnValue(createNoteItem(NOTE_ITEM_ID))
+
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
+
+    expect(generateRetrievalProjectionsMock).not.toHaveBeenCalled()
+    expect(lastRebuildInput().projections).toBeUndefined()
   })
 
   it('does not run local token-limit refinement for non-local embedding models', async () => {

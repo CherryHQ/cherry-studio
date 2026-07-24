@@ -1,5 +1,11 @@
 import { extractFtsTokens, needsLikeFallback, toFtsLikePattern, toFtsMatchQuery } from './ftsQuery'
-import { computeSearchTextId, computeUnitId, hashContentText, hashEmbeddingText } from './hashing'
+import {
+  computeRetrievalProjectionId,
+  computeSearchTextId,
+  computeUnitId,
+  hashContentText,
+  hashEmbeddingText
+} from './hashing'
 import { hasAnyMaterial as indexHasAnyMaterial } from './indexMeta'
 import type {
   KnowledgeIndexSearchInput,
@@ -51,9 +57,9 @@ export class KnowledgeIndexStore {
     // `embeddings` holds unconditionally (only the step 6b coverage check is gated on
     // the flag), so a caller bug that sets both would silently write orphan vectors
     // into an index nothing ever queries or GCs. Fail loud instead.
-    if (!input.usesEmbeddings && input.embeddings.length > 0) {
+    if (!input.usesEmbeddings && (input.embeddings.length > 0 || (input.projections?.length ?? 0) > 0)) {
       throw new Error(
-        `Knowledge index rebuild for material ${materialId} set usesEmbeddings: false but supplied ${input.embeddings.length} embeddings`
+        `Knowledge index rebuild for material ${materialId} set usesEmbeddings: false but supplied vector-only data`
       )
     }
 
@@ -78,6 +84,25 @@ export class KnowledgeIndexStore {
         bodyText,
         embeddingTextHash: hashEmbeddingText(bodyText),
         unitId: computeUnitId(materialId, contentHash, unit.unitType, unit.unitIndex, unit.charStart, unit.charEnd)
+      }
+    })
+    const unitByIndex = new Map(units.map((unit) => [unit.unitIndex, unit]))
+    const projections = (input.projections ?? []).map((projection) => {
+      const unit = unitByIndex.get(projection.unitIndex)
+      if (!unit) {
+        throw new Error(
+          `Knowledge index projection for material ${materialId} references unknown unit index ${projection.unitIndex}`
+        )
+      }
+      const text = projection.text.trim()
+      if (!text) {
+        throw new Error(`Knowledge index projection for material ${materialId} has empty text`)
+      }
+      return {
+        projectionId: computeRetrievalProjectionId(unit.unitId, text),
+        unitId: unit.unitId,
+        text,
+        embeddingTextHash: hashEmbeddingText(text)
       }
     })
 
@@ -147,7 +172,18 @@ export class KnowledgeIndexStore {
         )
       }
 
-      // 6. Insert missing embeddings; existing hashes are reused (decision A4).
+      // 6. Insert retrieval-only projections. Their FK points at the raw unit so
+      //    deleting/rebuilding a material removes them automatically.
+      for (const projection of projections) {
+        tx.execute(
+          `INSERT OR IGNORE INTO retrieval_projection
+             (projection_id, unit_id, text, embedding_text_hash, created_at)
+           VALUES (?, ?, ?, ?, ?)`,
+          [projection.projectionId, projection.unitId, projection.text, projection.embeddingTextHash, now]
+        )
+      }
+
+      // 7. Insert missing embeddings; existing hashes are reused (decision A4).
       for (const embedding of input.embeddings) {
         tx.execute(`INSERT OR IGNORE INTO embedding (embedding_text_hash, vector_blob, created_at) VALUES (?, ?, ?)`, [
           embedding.embeddingTextHash,
@@ -156,7 +192,8 @@ export class KnowledgeIndexStore {
         ])
       }
 
-      // 6b. Coverage check (vector bases only): every unit's re-derived embedding
+      // 7b. Coverage check (vector bases only): every raw unit and projection's
+      //     re-derived embedding
       //     hash must resolve to a vector, or roll the rebuild back. This catches two
       //     failure modes:
       //     (a) the caller hashes its chunk text while this store hashes the re-sliced
@@ -169,10 +206,15 @@ export class KnowledgeIndexStore {
       //         re-reads (the hash is now absent), re-embeds it, and converges.
       //     A BM25-only base stores no vectors, so the check does not apply.
       if (input.usesEmbeddings) {
-        this.assertEmbeddingCoverage(tx, materialId, [...new Set(units.map((unit) => unit.embeddingTextHash))])
+        this.assertEmbeddingCoverage(tx, materialId, [
+          ...new Set([
+            ...units.map((unit) => unit.embeddingTextHash),
+            ...projections.map((projection) => projection.embeddingTextHash)
+          ])
+        ])
       }
 
-      // 7. Mark the material's current content (failure/lifecycle state is the
+      // 8. Mark the material's current content (failure/lifecycle state is the
       //    authority of knowledge_item, not this derived index).
       tx.execute(`UPDATE material SET current_content_hash = ?, updated_at = ? WHERE material_id = ?`, [
         contentHash,
@@ -180,7 +222,7 @@ export class KnowledgeIndexStore {
         materialId
       ])
 
-      // 8. Sweep rows this rebuild orphaned (old units' embeddings, old content the
+      // 9. Sweep rows this rebuild orphaned (old units' embeddings, old content the
       //    new revision no longer references) — but only when it actually could have
       //    orphaned something. A first-time create (no prior row) or a rebuild that
       //    replaced zero old units AND kept the same content hash touches nothing an
@@ -261,7 +303,7 @@ export class KnowledgeIndexStore {
    * transaction (so under the base mutation lock the callers already hold). Runs
    * after the material change, so the just-written rows are visible and never
    * collected:
-   *  - `embedding`: no `search_text` references its hash (no FK points at it).
+   *  - `embedding`: no raw body or retrieval projection references its hash.
    *  - `content`: no `material.current_content_hash` (FK NO ACTION) and no
    *    `search_unit.content_hash` (FK CASCADE) reference it — both referrers are
    *    excluded, so the delete never violates either constraint.
@@ -269,7 +311,11 @@ export class KnowledgeIndexStore {
   private collectIndexGarbage(tx: SqliteTransaction): void {
     tx.execute(
       `DELETE FROM embedding
-       WHERE NOT EXISTS (SELECT 1 FROM search_text st WHERE st.embedding_text_hash = embedding.embedding_text_hash)`
+       WHERE NOT EXISTS (SELECT 1 FROM search_text st WHERE st.embedding_text_hash = embedding.embedding_text_hash)
+         AND NOT EXISTS (
+           SELECT 1 FROM retrieval_projection rp
+           WHERE rp.embedding_text_hash = embedding.embedding_text_hash
+         )`
     )
     tx.execute(
       `DELETE FROM content
@@ -488,7 +534,11 @@ export class KnowledgeIndexStore {
     return input.queryEmbedding
   }
 
-  /** Brute-force cosine scan over the plain-BLOB embedding column (no ANN index). */
+  /**
+   * Brute-force cosine scan over raw bodies and retrieval projections. Multiple
+   * candidate texts may resolve to one raw unit; GROUP BY keeps its best distance
+   * and the selected body always comes from search_text.kind = 'body'.
+   */
   private vectorSearch(queryEmbedding: number[], topK: number): KnowledgeIndexSearchMatch[] {
     // Invariant, not a check: a base's embedding model and dimensions are immutable
     // (changing them means migrating to a new base), so `queryEmbedding` and every
@@ -497,12 +547,32 @@ export class KnowledgeIndexStore {
     // undefined for them, and SQLite coerces that NULL/NaN to NULL — which would otherwise
     // sort first under `ORDER BY dist` and score `1 - Number(null) = 1`, outranking real hits.
     const result = this.driver.execute(
-      `SELECT su.unit_id, su.material_id, su.unit_index, st.text AS body,
-              ${this.vectorIndex.buildDistanceExpression('e.vector_blob')} AS dist
-       FROM embedding e
-       JOIN search_text st
-         ON st.embedding_text_hash = e.embedding_text_hash AND st.target_type = 'search_unit' AND st.kind = 'body'
-       JOIN search_unit su ON su.unit_id = st.target_id
+      `WITH vector_candidates AS (
+         SELECT st.target_id AS unit_id, e.vector_blob
+         FROM search_text st
+         JOIN embedding e ON e.embedding_text_hash = st.embedding_text_hash
+         WHERE st.target_type = 'search_unit' AND st.kind = 'body'
+         UNION ALL
+         SELECT rp.unit_id, e.vector_blob
+         FROM retrieval_projection rp
+         JOIN embedding e ON e.embedding_text_hash = rp.embedding_text_hash
+       ),
+       distances AS (
+         SELECT vc.unit_id,
+                ${this.vectorIndex.buildDistanceExpression('vc.vector_blob')} AS dist
+         FROM vector_candidates vc
+       ),
+       best AS (
+         SELECT unit_id, MIN(dist) AS dist
+         FROM distances
+         WHERE dist IS NOT NULL
+         GROUP BY unit_id
+       )
+       SELECT su.unit_id, su.material_id, su.unit_index, body.text AS body, best.dist
+       FROM best
+       JOIN search_unit su ON su.unit_id = best.unit_id
+       JOIN search_text body
+         ON body.target_id = su.unit_id AND body.target_type = 'search_unit' AND body.kind = 'body'
        WHERE dist IS NOT NULL
        ORDER BY dist
        LIMIT ?`,

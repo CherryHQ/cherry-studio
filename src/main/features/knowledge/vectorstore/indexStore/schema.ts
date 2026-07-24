@@ -1,7 +1,7 @@
 import type { SqliteExecutor } from './types'
 
 /**
- * Per-base knowledge `index.sqlite` schema (7-table material model).
+ * Per-base knowledge `index.sqlite` schema (8-table material model).
  *
  * This is the schema for the per-knowledge-base index database located at
  * `KnowledgeBase/{baseId}/.cherry/index.sqlite` — a SEPARATE file per base,
@@ -171,6 +171,22 @@ export const KNOWLEDGE_INDEX_SCHEMA_STATEMENTS: readonly string[] = [
     created_at INTEGER NOT NULL
   )`,
 
+  // retrieval_projection — optional LLM-derived semantic text used only for
+  // vector ranking. Every row cites one authoritative raw search_unit; search
+  // returns that unit's body, never this generated text. Multiple projections
+  // may cite the same unit and the vector lane keeps the best cosine match.
+  `CREATE TABLE IF NOT EXISTS retrieval_projection (
+    projection_id TEXT PRIMARY KEY,
+    unit_id TEXT NOT NULL,
+    text TEXT NOT NULL,
+    embedding_text_hash TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    FOREIGN KEY (unit_id) REFERENCES search_unit(unit_id) ON DELETE CASCADE,
+    CHECK (length(trim(text)) > 0)
+  )`,
+  `CREATE INDEX IF NOT EXISTS retrieval_projection_unit_idx ON retrieval_projection(unit_id)`,
+  `CREATE INDEX IF NOT EXISTS retrieval_projection_embedding_hash_idx ON retrieval_projection(embedding_text_hash)`,
+
   // search_text_fts — external-content FTS5 over search_text.text, trigram tokenizer.
   // Keys on the stable `fts_rowid` column (content_rowid='fts_rowid'), NOT the implicit rowid, so
   // VACUUM and INSERT...SELECT rebuilds — both of which renumber the implicit rowid — keep the
@@ -234,6 +250,7 @@ export const KNOWLEDGE_INDEX_DROP_STATEMENTS: readonly string[] = [
   `DROP TRIGGER IF EXISTS search_text_au`,
   `DROP TABLE IF EXISTS search_text_fts`,
   `DROP TABLE IF EXISTS search_text`,
+  `DROP TABLE IF EXISTS retrieval_projection`,
   `DROP TABLE IF EXISTS embedding`,
   `DROP TABLE IF EXISTS search_unit`,
   `DROP TABLE IF EXISTS material`,

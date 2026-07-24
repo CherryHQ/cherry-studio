@@ -48,6 +48,102 @@ describe('KnowledgeIndexStore.search', () => {
     expect(matches[0].score).toBeGreaterThan(matches[1].score)
   })
 
+  it('uses the best retrieval projection per unit while returning only the raw body', async () => {
+    const rawText = 'The deployment policy is documented here.'
+    const projectionText = 'Which release requires two approvers?'
+    await store.rebuildMaterial('m1', {
+      material: { relativePath: 'policy.md' },
+      content: { text: rawText },
+      units: [{ unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: rawText.length }],
+      usesEmbeddings: true,
+      projections: [
+        { unitIndex: 0, text: projectionText },
+        { unitIndex: 0, text: 'Unrelated wording for the same raw unit' }
+      ],
+      embeddings: [
+        { embeddingTextHash: hashEmbeddingText(rawText), vector: [0, 1, 0] },
+        { embeddingTextHash: hashEmbeddingText(projectionText), vector: [1, 0, 0] },
+        { embeddingTextHash: hashEmbeddingText('Unrelated wording for the same raw unit'), vector: [0, 0, 1] }
+      ]
+    })
+
+    const matches = await store.search({ queryText: '', queryEmbedding: [1, 0, 0], mode: 'vector', topK: 10 })
+
+    expect(matches).toHaveLength(1)
+    expect(matches[0]).toMatchObject({ materialId: 'm1', text: rawText })
+    expect(matches[0].text).not.toBe(projectionText)
+  })
+
+  it('keeps retrieval projections out of the BM25 lane', async () => {
+    const rawText = 'The deployment policy is documented here.'
+    const projectionText = 'two approvers release'
+    await store.rebuildMaterial('m1', {
+      material: { relativePath: 'policy.md' },
+      content: { text: rawText },
+      units: [{ unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: rawText.length }],
+      usesEmbeddings: true,
+      projections: [{ unitIndex: 0, text: projectionText }],
+      embeddings: [
+        { embeddingTextHash: hashEmbeddingText(rawText), vector: [0, 1, 0] },
+        { embeddingTextHash: hashEmbeddingText(projectionText), vector: [1, 0, 0] }
+      ]
+    })
+
+    expect(await store.search({ queryText: 'approvers', mode: 'bm25', topK: 10 })).toEqual([])
+  })
+
+  it('fails closed when a projection embedding is missing', async () => {
+    const rawText = 'Raw evidence'
+    await expect(
+      store.rebuildMaterial('m1', {
+        material: { relativePath: 'policy.md' },
+        content: { text: rawText },
+        units: [{ unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: rawText.length }],
+        usesEmbeddings: true,
+        projections: [{ unitIndex: 0, text: 'Semantic projection' }],
+        embeddings: [{ embeddingTextHash: hashEmbeddingText(rawText), vector: [1, 0, 0] }]
+      })
+    ).rejects.toThrow(/embedding hash/)
+
+    expect(await store.listMaterialUnits('m1')).toEqual([])
+  })
+
+  it('cascades old projections on rebuild and garbage-collects their orphaned embeddings', async () => {
+    const rawText = 'Raw evidence'
+    const projectionText = 'Semantic projection'
+    await store.rebuildMaterial('m1', {
+      material: { relativePath: 'policy.md' },
+      content: { text: rawText },
+      units: [{ unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: rawText.length }],
+      usesEmbeddings: true,
+      projections: [{ unitIndex: 0, text: projectionText }],
+      embeddings: [
+        { embeddingTextHash: hashEmbeddingText(rawText), vector: [1, 0, 0] },
+        { embeddingTextHash: hashEmbeddingText(projectionText), vector: [0, 1, 0] }
+      ]
+    })
+
+    await store.rebuildMaterial('m1', {
+      material: { relativePath: 'policy.md' },
+      content: { text: rawText },
+      units: [{ unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: rawText.length }],
+      usesEmbeddings: true,
+      embeddings: []
+    })
+
+    expect(driver.execute(`SELECT COUNT(*) AS count FROM retrieval_projection`).rows[0].count).toBe(0)
+    expect(
+      driver.execute(`SELECT COUNT(*) AS count FROM embedding WHERE embedding_text_hash = ?`, [
+        hashEmbeddingText(projectionText)
+      ]).rows[0].count
+    ).toBe(0)
+    expect(
+      driver.execute(`SELECT COUNT(*) AS count FROM embedding WHERE embedding_text_hash = ?`, [
+        hashEmbeddingText(rawText)
+      ]).rows[0].count
+    ).toBe(1)
+  })
+
   it('vector mode drops a degenerate zero-norm embedding instead of ranking it first', async () => {
     await indexMaterial('m1', 'a.md', 'apple pie', [1, 0, 0])
     // A zero vector has undefined cosine distance (sqlite-vec returns NaN, coerced to

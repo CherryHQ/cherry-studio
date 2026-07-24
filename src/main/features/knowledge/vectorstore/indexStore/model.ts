@@ -27,6 +27,16 @@ export interface RebuildMaterialEmbeddingInput {
 }
 
 /**
+ * LLM-derived semantic text used only to retrieve one authoritative raw unit.
+ * The projection is never returned as evidence; vector search dereferences it
+ * to the cited unit body before crossing the store boundary.
+ */
+export interface RebuildMaterialProjectionInput {
+  unitIndex: number
+  text: string
+}
+
+/**
  * Input to {@link KnowledgeIndexStore.rebuildMaterial}. Embeddings are
  * pre-computed by the caller (the indexing job calls AiService before the
  * synchronous write transaction). The body text of each unit is derived from
@@ -50,6 +60,8 @@ export interface RebuildMaterialInput {
    */
   usesEmbeddings: boolean
   embeddings: RebuildMaterialEmbeddingInput[]
+  /** Optional semantic retrieval projections. BM25-only bases must leave this empty. */
+  projections?: RebuildMaterialProjectionInput[]
 }
 
 /**

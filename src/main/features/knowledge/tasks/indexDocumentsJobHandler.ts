@@ -17,6 +17,7 @@ import { type ChunkedKnowledgeContent, chunkKnowledgeDocuments } from '../utils/
 import { embedKnowledgeTexts } from '../utils/indexing/embed'
 import { refineLocalEmbeddingChunks } from '../utils/indexing/localEmbeddingTokenLimit'
 import { toMaterialRelativePath } from '../utils/indexing/materialFields'
+import { generateRetrievalProjections } from '../utils/indexing/retrievalProjection'
 import { isIndexableKnowledgeItem } from '../utils/items'
 import { captureNoteSnapshotFile } from '../utils/sources/noteSnapshot'
 import { fetchKnowledgeWebPage } from '../utils/sources/url'
@@ -277,12 +278,20 @@ async function buildRebuildMaterialInput(
   // chunks so reindexing does not re-spend the paid embedding API; existing hashes
   // resolve to their stored vector at query time and rebuildMaterial keeps them).
   const usesEmbeddings = isCompletedVectorKnowledgeBase(base)
+  const quickModelId = application.get('PreferenceService').get('feature.quick_assistant.model_id')
+  const projections =
+    usesEmbeddings && quickModelId ? await generateRetrievalProjections(chunked.chunks, quickModelId, ctx.signal) : []
+  const embeddingTextByHash = new Map(bodyByHash)
+  for (const projection of projections) {
+    embeddingTextByHash.set(hashEmbeddingText(projection.text), projection.text)
+  }
+
   let embeddings: RebuildMaterialEmbeddingInput[] = []
   if (usesEmbeddings) {
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
     const store = await vectorStoreService.getIndexStore(base)
-    const existingHashes = await store.listExistingEmbeddingHashes([...bodyByHash.keys()])
-    const missing = [...bodyByHash.entries()].filter(([hash]) => !existingHashes.has(hash))
+    const existingHashes = await store.listExistingEmbeddingHashes([...embeddingTextByHash.keys()])
+    const missing = [...embeddingTextByHash.entries()].filter(([hash]) => !existingHashes.has(hash))
     const vectors = await embedKnowledgeTexts(
       base,
       missing.map(([, body]) => body),
@@ -305,7 +314,8 @@ async function buildRebuildMaterialInput(
       charEnd: chunk.charEnd
     })),
     usesEmbeddings,
-    embeddings
+    embeddings,
+    ...(projections.length > 0 ? { projections } : {})
   }
 }
 

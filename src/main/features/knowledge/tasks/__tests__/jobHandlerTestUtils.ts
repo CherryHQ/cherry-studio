@@ -2,6 +2,7 @@ import type { JobContext } from '@main/core/job/types'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { KnowledgeBase, KnowledgeItemOf } from '@shared/data/types/knowledge'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
+import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, vi } from 'vitest'
 
 import type * as PathStorage from '../../utils/storage/pathStorage'
@@ -35,6 +36,7 @@ const mocks = vi.hoisted(() => ({
   reclaimSpaceMock: vi.fn(),
   listExistingEmbeddingHashesMock: vi.fn(),
   embedKnowledgeTextsMock: vi.fn(),
+  generateRetrievalProjectionsMock: vi.fn(),
   refineLocalEmbeddingChunksMock: vi.fn(),
   loggerWarnMock: vi.fn(),
   scheduleItemMock: vi.fn()
@@ -69,6 +71,7 @@ export const {
   reclaimSpaceMock,
   listExistingEmbeddingHashesMock,
   embedKnowledgeTextsMock,
+  generateRetrievalProjectionsMock,
   refineLocalEmbeddingChunksMock,
   loggerWarnMock,
   scheduleItemMock
@@ -175,6 +178,10 @@ vi.mock('../../utils/indexing/embed', () => ({
 
 vi.mock('../../utils/indexing/localEmbeddingTokenLimit', () => ({
   refineLocalEmbeddingChunks: refineLocalEmbeddingChunksMock
+}))
+
+vi.mock('../../utils/indexing/retrievalProjection', () => ({
+  generateRetrievalProjections: generateRetrievalProjectionsMock
 }))
 
 export const { createDeleteSubtreeJobHandler } = await import('../deleteSubtreeJobHandler')
@@ -351,6 +358,7 @@ export const workflowService = {
 beforeEach(() => {
   vi.clearAllMocks()
   MockMainCacheServiceUtils.resetMocks()
+  MockMainPreferenceServiceUtils.resetMocks()
   knowledgeLockManager.withBaseMutationLock.mockImplementation(
     async (_baseId: string, task: () => Promise<unknown>) => await task()
   )
@@ -390,6 +398,7 @@ beforeEach(() => {
   embedKnowledgeTextsMock.mockImplementation(async (_base: KnowledgeBase, values: string[]) =>
     values.map(fakeEmbedVector)
   )
+  generateRetrievalProjectionsMock.mockResolvedValue([])
   refineLocalEmbeddingChunksMock.mockImplementation(async (_base: KnowledgeBase, chunked) => chunked)
   listMock.mockResolvedValue([])
   getJobMock.mockResolvedValue(null)
