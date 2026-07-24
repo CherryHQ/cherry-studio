@@ -281,13 +281,7 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
 
   it('local-priority tags: local empty fills from backup; non-empty local wins', async () => {
     const now = Date.now()
-    const insertSkill = (
-      db: Database.Database,
-      id: string,
-      folder: string,
-      tags: string,
-      name: string
-    ): void => {
+    const insertSkill = (db: Database.Database, id: string, folder: string, tags: string, name: string): void => {
       db.prepare(
         `INSERT INTO agent_global_skill (id, name, folder_name, source, tags, content_hash, is_enabled, created_at, updated_at)
          VALUES (?, ?, ?, 'builtin', ?, ?, 0, ?, ?)`
@@ -350,9 +344,9 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
       skippedFileEntryIds: new Set<string>(),
       stagedFileEntryIds: new Set<string>()
     })
-    const fromBlank = dbh.sqlite
-      .prepare(`SELECT tags FROM agent_global_skill WHERE folder_name = 'f-blank'`)
-      .get() as { tags: string }
+    const fromBlank = dbh.sqlite.prepare(`SELECT tags FROM agent_global_skill WHERE folder_name = 'f-blank'`).get() as {
+      tags: string
+    }
     expect(JSON.parse(fromBlank.tags)).toEqual(['from-backup-blank'])
   })
 

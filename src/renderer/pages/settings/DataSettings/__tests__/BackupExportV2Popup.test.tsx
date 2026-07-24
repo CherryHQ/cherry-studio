@@ -1,4 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { backupErrorCodes } from '@shared/ipc/errors/backup'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { startBackupMock, cancelBackupMock, selectSaveMock, hookState } = vi.hoisted(() => ({
@@ -64,12 +66,25 @@ vi.mock('@renderer/services/popup', async () => {
   const React = await import('react')
   return {
     popup: { confirm: confirmMock },
-    createPopup: (Component: React.FC<{ open: boolean; resolve: (v: unknown) => void }>) => {
-      const resolve = vi.fn()
+    // Match createPopup(Component, opts?) — tests keep show() resolving immediately so
+    // await BackupExportV2Popup.show() can drive the dialog without waiting for dismiss.
+    createPopup: (
+      Component: React.FC<{ open: boolean; resolve: (v: unknown) => void }>,
+      _opts?: { dismissResult?: unknown }
+    ) => {
+      let inFlight: Promise<unknown> | null = null
       return {
         show: () => {
-          render(React.createElement(Component, { open: true, resolve }))
-          return Promise.resolve({})
+          if (inFlight) return inFlight
+          inFlight = new Promise((resolve) => {
+            render(React.createElement(Component, { open: true, resolve }))
+            // Immediate settle for unit tests (real PopupHost waits for resolve()).
+            queueMicrotask(() => {
+              inFlight = null
+              resolve({})
+            })
+          })
+          return inFlight
         },
         hide: vi.fn()
       }
@@ -81,12 +96,14 @@ import BackupExportV2Popup from '../BackupExportV2Popup'
 
 describe('BackupExportV2Popup', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    startBackupMock.mockReset()
+    cancelBackupMock.mockReset()
+    selectSaveMock.mockReset()
+    confirmMock.mockReset()
     document.body.innerHTML = ''
     hookState.backupId = null
     hookState.progress = null
     hookState.cancelled = false
-    confirmMock.mockReset()
   })
 
   it('starts backup with selected preset and save path', async () => {
@@ -114,7 +131,7 @@ describe('BackupExportV2Popup', () => {
   it('confirms overwrite and retries with overwrite=true when path exists', async () => {
     selectSaveMock.mockResolvedValueOnce('/tmp/out.cherrybackup')
     startBackupMock
-      .mockRejectedValueOnce(Object.assign(new Error('exists'), { code: 'BACKUP_OUTPUT_PATH_EXISTS' }))
+      .mockRejectedValueOnce(new IpcError(backupErrorCodes.OUTPUT_PATH_EXISTS, 'exists'))
       .mockResolvedValueOnce({ backupId: 'bk-1', archivePath: '/tmp/out.cherrybackup' })
     confirmMock.mockResolvedValueOnce(true)
 
@@ -131,7 +148,7 @@ describe('BackupExportV2Popup', () => {
 
   it('returns to idle when overwrite confirm is cancelled', async () => {
     selectSaveMock.mockResolvedValueOnce('/tmp/out.cherrybackup')
-    startBackupMock.mockRejectedValueOnce(Object.assign(new Error('exists'), { code: 'BACKUP_OUTPUT_PATH_EXISTS' }))
+    startBackupMock.mockRejectedValueOnce(new IpcError(backupErrorCodes.OUTPUT_PATH_EXISTS, 'exists'))
     confirmMock.mockResolvedValueOnce(false)
 
     await BackupExportV2Popup.show()
@@ -160,8 +177,7 @@ describe('BackupExportV2Popup', () => {
 
   it('shows cancelled when startBackup rejects with BACKUP_CANCELLED', async () => {
     selectSaveMock.mockResolvedValueOnce('/tmp/out.cherrybackup')
-    const err = Object.assign(new Error('cancelled'), { code: 'BACKUP_CANCELLED' })
-    startBackupMock.mockRejectedValueOnce(err)
+    startBackupMock.mockRejectedValueOnce(new IpcError(backupErrorCodes.CANCELLED, 'cancelled'))
     hookState.cancelled = true
 
     await BackupExportV2Popup.show()
@@ -174,7 +190,7 @@ describe('BackupExportV2Popup', () => {
 
   it('shows failure on non-cancel reject', async () => {
     selectSaveMock.mockResolvedValueOnce('/tmp/out.cherrybackup')
-    startBackupMock.mockRejectedValueOnce(Object.assign(new Error('disk full'), { code: 'BACKUP_DISK_FULL' }))
+    startBackupMock.mockRejectedValueOnce(new IpcError(backupErrorCodes.DISK_FULL, 'disk full'))
 
     await BackupExportV2Popup.show()
     fireEvent.click(screen.getByRole('button', { name: 'backup.confirm.button' }))
@@ -231,7 +247,7 @@ describe('BackupExportV2Popup', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
     await waitFor(() => expect(cancelBackupMock).toHaveBeenCalled())
 
-    rejectBackup(Object.assign(new Error('cancelled'), { code: 'BACKUP_CANCELLED' }))
+    rejectBackup(new IpcError(backupErrorCodes.CANCELLED, 'cancelled'))
     await waitFor(() => {
       expect(screen.getByText('settings.data.backup.v2.export.cancelled')).toBeInTheDocument()
     })

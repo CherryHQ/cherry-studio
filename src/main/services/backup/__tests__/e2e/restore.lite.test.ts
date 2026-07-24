@@ -104,9 +104,7 @@ describe('e2e-restore lite / SKIP DB only', () => {
     ).run(id, name, `order-${id}`, now, now)
   }
 
-  const buildLiteManifest = (
-    domains: BackupManifest['domains'] = [...resolvePreset('lite')]
-  ): BackupManifest => ({
+  const buildLiteManifest = (domains: BackupManifest['domains'] = [...resolvePreset('lite')]): BackupManifest => ({
     backupFormatVersion: BACKUP_FORMAT_VERSION,
     createdAt: new Date().toISOString(),
     preset: 'lite',
