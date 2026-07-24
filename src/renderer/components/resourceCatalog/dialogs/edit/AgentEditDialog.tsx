@@ -19,7 +19,6 @@ import { loggerService } from '@logger'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { SkillCatalogPicker } from '@renderer/components/resourceCatalog/dialogs/skill'
 import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
-import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
@@ -46,6 +45,7 @@ import { useTranslation } from 'react-i18next'
 
 import { type CatalogItem, CatalogToggleGrid } from '../components/CatalogPicker'
 import {
+  type AutoSaveOutcome,
   AvatarField,
   CompactModelField,
   EDIT_DIALOG_PROMPT_MAX_HEIGHT,
@@ -221,7 +221,10 @@ function AgentEditDialogContent({
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAgent(resource))
+  const [baselineAgent, setBaselineAgent] = useState(resource)
+  const baselineAgentRef = useRef(resource)
   const [baselineSkillIds, setBaselineSkillIds] = useState<string[]>([])
+  const baselineSkillIdsRef = useRef<string[]>([])
   const [baselineSkillAgentId, setBaselineSkillAgentId] = useState<string | null>(null)
   const defaultValues = useMemo(() => defaultValuesForAgent(resource), [resource])
   const form = useForm<AgentEditFormValues>({ defaultValues })
@@ -248,9 +251,9 @@ function AgentEditDialogContent({
     [skillIdsFromQueryKey]
   )
   const saveIntent = useMemo(() => {
-    const baseline = buildInitialAgentFormState(resource, baselineSkillIds)
-    return diffAgentSaveIntent(buildAgentFormState(baseline, values), baseline, resource)
-  }, [baselineSkillIds, resource, values])
+    const baseline = buildInitialAgentFormState(baselineAgent, baselineSkillIds)
+    return diffAgentSaveIntent(buildAgentFormState(baseline, values), baseline, baselineAgent)
+  }, [baselineAgent, baselineSkillIds, values])
   const tabs = useMemo<EditDialogTab[]>(
     () => [
       { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
@@ -281,6 +284,9 @@ function AgentEditDialogContent({
     setActiveTab(initialTab ?? 'basic')
     setEmojiPickerOpen(false)
     setModelLabels(modelLabelsForAgent(resource))
+    baselineAgentRef.current = resource
+    setBaselineAgent(resource)
+    baselineSkillIdsRef.current = []
     setBaselineSkillIds([])
     setBaselineSkillAgentId(null)
   }, [defaultValues, form, initialTab, open, resource])
@@ -289,6 +295,7 @@ function AgentEditDialogContent({
   // come from the authoritative projection so later toggles diff correctly.
   useEffect(() => {
     if (!open || skillsLoading || skillsRefreshing || baselineSkillAgentId === resource.id) return
+    baselineSkillIdsRef.current = skillIdsFromQuery
     setBaselineSkillIds(skillIdsFromQuery)
     form.setValue('skillIds', skillIdsFromQuery, { shouldDirty: false })
     setBaselineSkillAgentId(resource.id)
@@ -301,16 +308,21 @@ function AgentEditDialogContent({
 
   const rootError = form.formState.errors.root?.message
   const canPersist = Boolean(saveIntent) && values.name.trim().length > 0
-  // Tracks whether the most recent save attempt failed, so the close path can
-  // keep the dialog open (and the error visible) instead of closing over a loss.
-  const saveFailedRef = useRef(false)
 
-  const persist = async () => {
-    const pending = saveIntent
-    if (!pending) return
+  // Recomputes the pending diff from the form and baseline refs on the spot —
+  // never from rendered state, which lags a render cycle — and reports the
+  // outcome so the close path can decide from what actually happened.
+  const persist = async (): Promise<AutoSaveOutcome> => {
+    const currentValues = form.getValues()
+    if (!currentValues.name.trim()) return 'noop'
+
+    const currentBaselineAgent = baselineAgentRef.current
+    const baseline = buildInitialAgentFormState(currentBaselineAgent, baselineSkillIdsRef.current)
+    const pending = diffAgentSaveIntent(buildAgentFormState(baseline, currentValues), baseline, currentBaselineAgent)
+    if (!pending) return 'noop'
+    const savedSkillIds = [...currentValues.skillIds]
 
     form.clearErrors('root')
-    saveFailedRef.current = false
 
     let updated: Awaited<ReturnType<typeof updateAgent>>
     try {
@@ -318,43 +330,52 @@ function AgentEditDialogContent({
     } catch (error) {
       logger.error('Failed to auto-save agent edit dialog', error as Error, { agentId: resource.id })
       form.setError('root', { message: t('library.config.dialogs.edit.save_failed') })
-      saveFailedRef.current = true
-      return
+      return 'failed'
     }
 
+    baselineAgentRef.current = updated
+    setBaselineAgent(updated)
+    baselineSkillIdsRef.current = savedSkillIds
+    setBaselineSkillIds(savedSkillIds)
     try {
       await onSaved(updated)
     } catch (error) {
       logger.warn('Failed to run agent edit dialog post-save callback', { error, agentId: resource.id })
     }
+    return 'saved'
   }
 
-  // Key the debounce on the form values (user input), not on saveIntent: the
-  // update mutation refreshes /agents/* → resource refetches → saveIntent's
-  // baseline moves, but the values are unchanged, so this never re-fires from our
-  // own save (prevents a save→refetch→save loop).
-  const flush = useDebouncedAutoSave({
+  // Key the debounce on user input, not saveIntent. Advancing the local baseline
+  // after a save must not schedule another save when the form values did not move.
+  const { flushAll } = useDebouncedAutoSave({
     enabled: open,
     changeKey: canPersist ? JSON.stringify(values) : null,
     onSave: persist
   })
 
-  // On close with a pending edit, flush through the same serialized save queue and
-  // only close once it settles — so a failed final save stays visible instead of
-  // being silently dropped, and we never race a second concurrent save.
+  // On close, run the serialized save queue until a pass reports 'noop' — so a
+  // failed final save stays visible instead of being silently dropped, and an
+  // edit (or revert) made while the close waits is persisted rather than lost
+  // when unmount clears its debounce timer.
+  const attemptClose = async (): Promise<boolean> => {
+    if ((await flushAll()) === 'failed') return false
+    onOpenChange(false)
+    return true
+  }
   const handleOpenChange = (next: boolean) => {
-    if (next || !canPersist) {
-      onOpenChange(next)
+    if (next) {
+      onOpenChange(true)
       return
     }
-    void (async () => {
-      await flush()
-      if (saveFailedRef.current) return
-      onOpenChange(false)
-    })()
+    void attemptClose()
   }
-  // Route the settings-navigate close through handleOpenChange so it flushes too.
-  const closeBeforeAction = useCloseBeforeAction(handleOpenChange)
+  // Settings navigation must wait for the same awaitable close attempt: navigate on
+  // the next frame only if the flush succeeded and the dialog actually closed.
+  const handleSettingsNavigate = (action: () => void) => {
+    void attemptClose().then((closed) => {
+      if (closed) window.requestAnimationFrame(() => action())
+    })
+  }
 
   return (
     <EditDialogShell
@@ -379,7 +400,7 @@ function AgentEditDialogContent({
             patchAgentForm={patchAgentForm}
             emojiPickerOpen={emojiPickerOpen}
             setEmojiPickerOpen={setEmojiPickerOpen}
-            onSettingsNavigate={closeBeforeAction}
+            onSettingsNavigate={handleSettingsNavigate}
           />
         </TabsContent>
         <TabsContent

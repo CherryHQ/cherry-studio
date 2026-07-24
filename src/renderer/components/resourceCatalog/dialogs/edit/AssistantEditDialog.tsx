@@ -20,7 +20,6 @@ import {
 import { loggerService } from '@logger'
 import PromptEditorField from '@renderer/components/PromptEditorField'
 import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
-import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useGroups } from '@renderer/hooks/useGroups'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { MCP_MODE_OPTIONS, RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
@@ -37,6 +36,7 @@ import { useForm, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import {
+  type AutoSaveOutcome,
   AvatarField,
   CompactModelField,
   EDIT_DIALOG_PROMPT_MAX_HEIGHT,
@@ -189,15 +189,17 @@ function AssistantEditDialogContent({
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAssistant(resource))
+  const [baselineAssistant, setBaselineAssistant] = useState(resource)
+  const baselineAssistantRef = useRef(resource)
   const defaultValues = useMemo(() => defaultValuesForAssistant(resource), [resource])
   const form = useForm<AssistantEditFormValues>({ defaultValues })
   const values = form.watch()
   const { groups, isLoading: isGroupsLoading, error: groupsError } = useGroups('assistant')
   const { updateAssistant } = useAssistantMutationsById(resource.id)
   const saveIntent = useMemo(() => {
-    const baseline = initialAssistantFormState(resource)
-    return diffAssistantSaveIntent(buildAssistantFormState(baseline, values), baseline, resource)
-  }, [resource, values])
+    const baseline = initialAssistantFormState(baselineAssistant)
+    return diffAssistantSaveIntent(buildAssistantFormState(baseline, values), baseline, baselineAssistant)
+  }, [baselineAssistant, values])
   const tabs = useMemo<EditDialogTab[]>(
     () => [
       { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
@@ -226,20 +228,30 @@ function AssistantEditDialogContent({
     setActiveTab(initialTab ?? 'basic')
     setEmojiPickerOpen(false)
     setModelLabels(modelLabelsForAssistant(resource))
+    baselineAssistantRef.current = resource
+    setBaselineAssistant(resource)
   }, [defaultValues, form, initialTab, open, resource])
 
   const rootError = form.formState.errors.root?.message
   const canPersist = Boolean(saveIntent) && values.name.trim().length > 0
-  // Tracks whether the most recent save attempt failed, so the close path can
-  // keep the dialog open (and the error visible) instead of closing over a loss.
-  const saveFailedRef = useRef(false)
 
-  const persist = async () => {
-    const pending = saveIntent
-    if (!pending) return
+  // Recomputes the pending diff from the form and baseline refs on the spot —
+  // never from rendered state, which lags a render cycle — and reports the
+  // outcome so the close path can decide from what actually happened.
+  const persist = async (): Promise<AutoSaveOutcome> => {
+    const currentValues = form.getValues()
+    if (!currentValues.name.trim()) return 'noop'
+
+    const currentBaselineAssistant = baselineAssistantRef.current
+    const baseline = initialAssistantFormState(currentBaselineAssistant)
+    const pending = diffAssistantSaveIntent(
+      buildAssistantFormState(baseline, currentValues),
+      baseline,
+      currentBaselineAssistant
+    )
+    if (!pending) return 'noop'
 
     form.clearErrors('root')
-    saveFailedRef.current = false
 
     let updated: Awaited<ReturnType<typeof updateAssistant>>
     try {
@@ -247,43 +259,50 @@ function AssistantEditDialogContent({
     } catch (error) {
       logger.error('Failed to auto-save assistant edit dialog', error as Error, { assistantId: resource.id })
       form.setError('root', { message: t('library.config.dialogs.edit.save_failed') })
-      saveFailedRef.current = true
-      return
+      return 'failed'
     }
 
+    baselineAssistantRef.current = updated
+    setBaselineAssistant(updated)
     try {
       await onSaved(updated)
     } catch (error) {
       logger.warn('Failed to run assistant edit dialog post-save callback', { error, assistantId: resource.id })
     }
+    return 'saved'
   }
 
-  // Key the debounce on the form values (user input), not on saveIntent: the
-  // update mutation refreshes /assistants/* → resource refetches → saveIntent's
-  // baseline moves, but the values are unchanged, so this never re-fires from our
-  // own save (prevents a save→refetch→save loop).
-  const flush = useDebouncedAutoSave({
+  // Key the debounce on user input, not saveIntent. Advancing the local baseline
+  // after a save must not schedule another save when the form values did not move.
+  const { flushAll } = useDebouncedAutoSave({
     enabled: open,
     changeKey: canPersist ? JSON.stringify(values) : null,
     onSave: persist
   })
 
-  // On close with a pending edit, flush through the same serialized save queue and
-  // only close once it settles — so a failed final save stays visible instead of
-  // being silently dropped, and we never race a second concurrent save.
+  // On close, run the serialized save queue until a pass reports 'noop' — so a
+  // failed final save stays visible instead of being silently dropped, and an
+  // edit (or revert) made while the close waits is persisted rather than lost
+  // when unmount clears its debounce timer.
+  const attemptClose = async (): Promise<boolean> => {
+    if ((await flushAll()) === 'failed') return false
+    onOpenChange(false)
+    return true
+  }
   const handleOpenChange = (next: boolean) => {
-    if (next || !canPersist) {
-      onOpenChange(next)
+    if (next) {
+      onOpenChange(true)
       return
     }
-    void (async () => {
-      await flush()
-      if (saveFailedRef.current) return
-      onOpenChange(false)
-    })()
+    void attemptClose()
   }
-  // Route the settings-navigate close through handleOpenChange so it flushes too.
-  const closeBeforeAction = useCloseBeforeAction(handleOpenChange)
+  // Settings navigation must wait for the same awaitable close attempt: navigate on
+  // the next frame only if the flush succeeded and the dialog actually closed.
+  const handleSettingsNavigate = (action: () => void) => {
+    void attemptClose().then((closed) => {
+      if (closed) window.requestAnimationFrame(() => action())
+    })
+  }
 
   return (
     <EditDialogShell
@@ -310,7 +329,7 @@ function AssistantEditDialogContent({
             groupsError={groupsError}
             emojiPickerOpen={emojiPickerOpen}
             setEmojiPickerOpen={setEmojiPickerOpen}
-            onSettingsNavigate={closeBeforeAction}
+            onSettingsNavigate={handleSettingsNavigate}
           />
         </TabsContent>
         <TabsContent

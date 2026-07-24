@@ -233,9 +233,9 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     [autoSelectOnCreate, createAssistant, handleSelectorOpenChange, onDialogCloseAutoFocus, props, refetch, t]
   )
 
+  // The edit dialog owns its save baseline; the selector only refreshes its list
+  // after each successful auto-save.
   const handleEditSaved = useCallback(async () => {
-    setEditDialogOpen(false)
-    setEditingAssistant(null)
     try {
       await refetch()
     } catch (error) {

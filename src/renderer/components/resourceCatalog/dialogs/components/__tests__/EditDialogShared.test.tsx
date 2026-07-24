@@ -1,6 +1,6 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { Form } from '@cherrystudio/ui'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -73,7 +73,7 @@ vi.mock('@renderer/ipc', () => ({
 
 import { KnowledgeStep } from '../../create/steps/KnowledgeStep'
 import type { ResourceCreateWizardFormValues } from '../../create/types'
-import { PromptVariablesPopover } from '../EditDialogShared'
+import { type AutoSaveOutcome, PromptVariablesPopover, useDebouncedAutoSave } from '../EditDialogShared'
 
 beforeAll(() => {
   HTMLElement.prototype.scrollIntoView = () => {}
@@ -224,5 +224,114 @@ describe('EditDialogShared', () => {
 
     expect(screen.queryByText('Knowledge one')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add knowledge base' })).toBeDisabled()
+  })
+})
+
+describe('useDebouncedAutoSave', () => {
+  function deferredOnSave() {
+    const resolvers: Array<(outcome: AutoSaveOutcome) => void> = []
+    const onSave = vi.fn(
+      () =>
+        new Promise<AutoSaveOutcome>((resolve) => {
+          resolvers.push(resolve)
+        })
+    )
+    return { onSave, resolvers }
+  }
+
+  it('flushAll keeps saving until a verification pass reports noop', async () => {
+    const { onSave, resolvers } = deferredOnSave()
+    const { result } = renderHook(() => useDebouncedAutoSave({ enabled: true, changeKey: 'B', onSave, delay: 60_000 }))
+
+    let settled: string | null = null
+    act(() => {
+      void result.current.flushAll().then((outcome) => {
+        settled = outcome
+      })
+    })
+    expect(onSave).toHaveBeenCalledTimes(1)
+
+    // Each 'saved' pass triggers a verification pass; only 'noop' terminates,
+    // so a revert applied between passes is recomputed and written, never
+    // skipped off a stale rendered key.
+    resolvers[0]?.('saved')
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2))
+    expect(settled).toBeNull()
+
+    resolvers[1]?.('saved')
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(3))
+    expect(settled).toBeNull()
+
+    resolvers[2]?.('noop')
+    await waitFor(() => expect(settled).toBe('noop'))
+    expect(onSave).toHaveBeenCalledTimes(3)
+  })
+
+  it('flushAll joins an in-flight save and queues one trailing pass', async () => {
+    const { onSave, resolvers } = deferredOnSave()
+    const { result } = renderHook(() => useDebouncedAutoSave({ enabled: true, changeKey: 'B', onSave, delay: 0 }))
+
+    // The debounce timer starts the first save on its own.
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
+
+    let settled: string | null = null
+    act(() => {
+      void result.current.flushAll().then((outcome) => {
+        settled = outcome
+      })
+    })
+    // Joining an in-flight save queues a trailing pass unconditionally — the
+    // pass recomputes the diff from refs, so it must run even when the
+    // rendered key looks unchanged.
+    expect(onSave).toHaveBeenCalledTimes(1)
+
+    resolvers[0]?.('saved')
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2))
+    expect(settled).toBeNull()
+
+    resolvers[1]?.('noop')
+    await waitFor(() => expect(settled).toBe('noop'))
+    expect(onSave).toHaveBeenCalledTimes(2)
+  })
+
+  it('flushAll stops on a failed pass without retrying', async () => {
+    const { onSave, resolvers } = deferredOnSave()
+    const { result } = renderHook(() => useDebouncedAutoSave({ enabled: true, changeKey: 'B', onSave, delay: 60_000 }))
+
+    let settled: string | null = null
+    act(() => {
+      void result.current.flushAll().then((outcome) => {
+        settled = outcome
+      })
+    })
+    expect(onSave).toHaveBeenCalledTimes(1)
+
+    resolvers[0]?.('failed')
+    await waitFor(() => expect(settled).toBe('failed'))
+    expect(onSave).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not retry a failed save whose trailing pass was already queued', async () => {
+    const { onSave, resolvers } = deferredOnSave()
+    const { result } = renderHook(() => useDebouncedAutoSave({ enabled: true, changeKey: 'B', onSave, delay: 0 }))
+
+    // The debounce timer starts the first save on its own.
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
+
+    let settled: string | null = null
+    act(() => {
+      void result.current.flushAll().then((outcome) => {
+        settled = outcome
+      })
+    })
+    // Joining the in-flight save queues a trailing pass (pendingRef = true).
+    expect(onSave).toHaveBeenCalledTimes(1)
+
+    // The in-flight save fails. A failed pass is terminal: the queued trailing
+    // pass must NOT re-send the same failed edit, so onSave stays at one call
+    // and flushAll surfaces 'failed' to keep the dialog open.
+    resolvers[0]?.('failed')
+    await waitFor(() => expect(settled).toBe('failed'))
+    expect(onSave).toHaveBeenCalledTimes(1)
   })
 })

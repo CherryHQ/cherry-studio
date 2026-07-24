@@ -134,8 +134,15 @@ export function diffAssistantUpdate(
 ): AssistantDiffResult | null {
   const customParametersChanged = JSON.stringify(baseline.customParameters) !== JSON.stringify(form.customParameters)
 
+  // Compare against the same normalized name the payload ships (trimmed, falling
+  // back to the current name when blank). Comparing the raw form value while the
+  // payload trims lets a trailing-space edit save a trimmed name that the raw
+  // value keeps diffing against — so the close-time flushAll never reaches 'noop'
+  // and loops PATCHes while the dialog refuses to close.
+  const normalizedName = form.name.trim() || assistant.name
+
   const columnsChanged =
-    baseline.name !== form.name ||
+    baseline.name !== normalizedName ||
     baseline.emoji !== form.emoji ||
     baseline.description !== form.description ||
     baseline.modelId !== form.modelId ||
@@ -163,7 +170,7 @@ export function diffAssistantUpdate(
   const dto: UpdateAssistantDto = {
     ...(columnsChanged
       ? {
-          name: form.name.trim() || assistant.name,
+          name: normalizedName,
           emoji: form.emoji,
           description: form.description,
           modelId: form.modelId,

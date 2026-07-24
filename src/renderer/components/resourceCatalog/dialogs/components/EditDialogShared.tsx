@@ -114,18 +114,28 @@ export function setFormValues<TValues extends FieldValues>(form: UseFormReturn<T
   })
 }
 
+export type AutoSaveOutcome = 'saved' | 'noop' | 'failed'
+
 /**
  * Debounced auto-save for the edit dialogs. Re-arms whenever `changeKey` changes
- * (a serialized snapshot of the pending diff) and fires `onSave` after `delay`ms
- * of quiet. `changeKey === null` means nothing to save.
+ * (a serialized snapshot of the rendered form state) and fires `onSave` after
+ * `delay`ms of quiet. `changeKey === null` means the rendered state shows
+ * nothing to save; it is only a debounce signal, never a safety check —
+ * rendered keys lag the real form/baseline refs by a render cycle.
  *
- * Saves are serialized: only one runs at a time. If the state moves on while a
- * save is in flight, a single follow-up pass is queued and runs (with the latest
+ * `onSave` recomputes the pending diff from refs on the spot and reports what
+ * actually happened: `'saved'` (a write settled), `'noop'` (nothing to write),
+ * `'failed'` (write errored; caller surfaced it).
+ *
+ * Saves are serialized: only one runs at a time. If `flush` is called while a
+ * save is in flight, one trailing pass is queued and runs (with the latest
  * `onSave`) once the current save settles — so the last edit is never dropped.
+ * A `'failed'` pass is terminal: the queue stops instead of auto-retrying the
+ * same failed edit, and `flushAll` surfaces the failure to keep the dialog open.
  *
- * Returns a `flush()` that runs/awaits the serialized save immediately; callers
- * (e.g. the close path) await it to persist pending edits before proceeding,
- * reusing the same queue instead of racing a second concurrent save.
+ * `flushAll()` keeps flushing until a pass observes `'noop'` (queue genuinely
+ * quiescent — safe to close) or `'failed'` (stay open). After a `'saved'` pass
+ * it always runs one more verification pass in case the form moved meanwhile.
  */
 export function useDebouncedAutoSave({
   enabled,
@@ -135,28 +145,25 @@ export function useDebouncedAutoSave({
 }: {
   enabled: boolean
   changeKey: string | null
-  onSave: () => void | Promise<void>
+  onSave: () => Promise<AutoSaveOutcome>
   delay?: number
-}): () => Promise<void> {
+}): { flushAll: () => Promise<Exclude<AutoSaveOutcome, 'saved'>> } {
   const onSaveRef = useRef(onSave)
-  const changeKeyRef = useRef(changeKey)
   const savingRef = useRef(false)
-  // `changeKey` captured when the in-flight save started; a follow-up pass is
-  // only queued when the state has moved past it.
-  const savedKeyRef = useRef<string | null>(null)
   const pendingRef = useRef(false)
+  const lastOutcomeRef = useRef<AutoSaveOutcome>('noop')
   const inFlightRef = useRef<Promise<void>>(Promise.resolve())
 
   useEffect(() => {
     onSaveRef.current = onSave
-    changeKeyRef.current = changeKey
   })
 
   const flush = useCallback((): Promise<void> => {
     if (savingRef.current) {
-      // A save is already running; queue one more pass only if the latest state
-      // differs from what that save captured (otherwise it already covers it).
-      if (changeKeyRef.current !== savedKeyRef.current) pendingRef.current = true
+      // A save is already running; queue one trailing pass — it recomputes the
+      // diff from refs, so a redundant pass is a cheap noop. A failed pass is
+      // terminal though (see the loop condition), so this never auto-retries.
+      pendingRef.current = true
       return inFlightRef.current
     }
     savingRef.current = true
@@ -164,9 +171,12 @@ export function useDebouncedAutoSave({
       try {
         do {
           pendingRef.current = false
-          savedKeyRef.current = changeKeyRef.current
-          await onSaveRef.current()
-        } while (pendingRef.current)
+          lastOutcomeRef.current = await onSaveRef.current()
+          // A failed save is terminal: stop and let flushAll surface it instead
+          // of immediately re-sending the same failed edit. A late edit that
+          // arrived during the failure stays on the debounce timer (or the
+          // user's next close) — this transaction does not auto-retry it.
+        } while (pendingRef.current && lastOutcomeRef.current !== 'failed')
       } finally {
         savingRef.current = false
       }
@@ -174,13 +184,27 @@ export function useDebouncedAutoSave({
     return inFlightRef.current
   }, [])
 
+  const flushAll = useCallback(async (): Promise<Exclude<AutoSaveOutcome, 'saved'>> => {
+    // Quiescence is derived from persist outcomes, not rendered change keys —
+    // keys lag the refs by a render cycle, so a late revert can transiently
+    // look like "nothing to save" against a stale baseline. After a 'saved'
+    // pass, run another one: it recomputes the diff from refs and terminates
+    // with 'noop' once nothing is left to write.
+    for (;;) {
+      await flush()
+      if (savingRef.current) continue
+      const outcome = lastOutcomeRef.current
+      if (outcome !== 'saved') return outcome
+    }
+  }, [flush])
+
   useEffect(() => {
     if (!enabled || changeKey === null) return
     const handle = setTimeout(() => void flush(), delay)
     return () => clearTimeout(handle)
   }, [enabled, changeKey, delay, flush])
 
-  return flush
+  return { flushAll }
 }
 
 const HelpIconButton = ({
