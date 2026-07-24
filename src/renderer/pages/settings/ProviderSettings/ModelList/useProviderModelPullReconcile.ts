@@ -1,3 +1,4 @@
+import { dataApiService } from '@data/DataApiService'
 import { useMutation } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -20,6 +21,8 @@ import { chunkArray } from '../utils/chunkArray'
 import { getModelInUseAsDefaultUniqueModelId } from './errorMessage'
 
 const logger = loggerService.withContext('ProviderModelManageDrawer')
+
+export type AutoModelDetectionOutcome = 'detected' | 'existing' | 'empty' | 'failed' | 'stale'
 
 function uniqueById(models: Model[]): Model[] {
   const result = new Map<string, Model>()
@@ -68,9 +71,12 @@ export function useProviderModelPullReconcile(providerId: string) {
   const [catalogModels, setCatalogModels] = useState<Model[]>([])
   const [fetchedModels, setFetchedModels] = useState<Model[]>([])
   const [isLoadingModels, setIsLoadingModels] = useState(false)
+  const [isAutoDetectingModels, setIsAutoDetectingModels] = useState(false)
+  const [detectedModels, setDetectedModels] = useState<Model[]>([])
   const [hasLoadedCompleteRemoteModels, setHasLoadedCompleteRemoteModels] = useState(false)
   const [loadErrorMessage, setLoadErrorMessage] = useState<string | null>(null)
   const loadModelsSequenceRef = useRef(0)
+  const autoDetectionSequenceRef = useRef(0)
   const [defaultModelId] = usePreference('chat.default_model_id')
   const [quickAssistantModelId] = usePreference('feature.quick_assistant.model_id')
   const [translateModelId] = usePreference('feature.translate.model_id')
@@ -160,10 +166,95 @@ export function useProviderModelPullReconcile(providerId: string) {
     }
   }, [providerId, t])
 
+  const invalidateAutoDetection = useCallback(() => {
+    autoDetectionSequenceRef.current += 1
+    setIsAutoDetectingModels(false)
+    setDetectedModels([])
+    setFetchedModels([])
+    setHasLoadedCompleteRemoteModels(false)
+    setLoadErrorMessage(null)
+  }, [])
+
+  const detectModelsIfEmpty = useCallback(async (): Promise<AutoModelDetectionOutcome> => {
+    const sequence = ++autoDetectionSequenceRef.current
+    const isLatestDetection = () => sequence === autoDetectionSequenceRef.current
+
+    setDetectedModels([])
+    setFetchedModels([])
+    setHasLoadedCompleteRemoteModels(false)
+    setLoadErrorMessage(null)
+    setIsAutoDetectingModels(true)
+
+    try {
+      const localModelsBeforeFetch = await dataApiService.get('/models', { query: { providerId } })
+      if (!isLatestDetection()) {
+        return 'stale'
+      }
+      if (localModelsBeforeFetch.length > 0) {
+        return 'existing'
+      }
+
+      const resolvedModels = uniqueById(
+        (await fetchResolvedProviderModels(providerId)).filter((model) => model.name?.trim())
+      )
+      if (!isLatestDetection()) {
+        return 'stale'
+      }
+      if (resolvedModels.length === 0) {
+        return 'empty'
+      }
+
+      // A manual add can finish while the upstream request is in flight. Recheck
+      // the source of truth before publishing a now-stale onboarding prompt.
+      const localModelsAfterFetch = await dataApiService.get('/models', { query: { providerId } })
+      if (!isLatestDetection()) {
+        return 'stale'
+      }
+      if (localModelsAfterFetch.length > 0) {
+        return 'existing'
+      }
+
+      setCatalogModels([])
+      setFetchedModels(resolvedModels)
+      setHasLoadedCompleteRemoteModels(true)
+      setLoadErrorMessage(null)
+      setDetectedModels(resolvedModels)
+      logger.info('Detected provider models automatically', {
+        providerId,
+        detectedModelCount: resolvedModels.length
+      })
+      return 'detected'
+    } catch (error) {
+      if (!isLatestDetection()) {
+        return 'stale'
+      }
+
+      logger.error('Automatic provider model detection failed', { providerId, error })
+      return 'failed'
+    } finally {
+      if (isLatestDetection()) {
+        setIsAutoDetectingModels(false)
+      }
+    }
+  }, [providerId])
+
   const openPullReconcile = useCallback(() => {
+    invalidateAutoDetection()
     setPullReconcileDrawerOpen(true)
     void loadModels()
-  }, [loadModels])
+  }, [invalidateAutoDetection, loadModels])
+
+  const openDetectedModels = useCallback(() => {
+    if (detectedModels.length === 0) {
+      return
+    }
+
+    setPullReconcileDrawerOpen(true)
+  }, [detectedModels.length])
+
+  const dismissDetectedModels = useCallback(() => {
+    setDetectedModels([])
+  }, [])
 
   const closePullReconcile = useCallback(() => {
     setPullReconcileDrawerOpen(false)
@@ -171,10 +262,18 @@ export function useProviderModelPullReconcile(providerId: string) {
 
   const addModels = useCallback(
     async (nextModels: Model[]) => {
-      const currentIds = new Set(models.map((model) => model.id))
+      let currentModels = models
+      try {
+        currentModels = await dataApiService.get('/models', { query: { providerId } })
+      } catch (error) {
+        logger.warn('Failed to refresh local models before adding provider models', { providerId, error })
+      }
+
+      const currentIds = new Set(currentModels.map((model) => model.id))
       const toAdd = uniqueById(nextModels).filter((model) => !currentIds.has(model.id))
       if (toAdd.length === 0) {
-        return
+        setDetectedModels([])
+        return true
       }
 
       try {
@@ -188,14 +287,14 @@ export function useProviderModelPullReconcile(providerId: string) {
       } catch (error) {
         logger.error('Failed to add provider models from manage drawer', { providerId, count: toAdd.length, error })
         toast.error(t('settings.models.manage.operation_failed'))
-        return
+        return false
       }
 
       try {
         await enableProviderWhenModelsAvailable(
           provider,
           enableProvider,
-          models.length + toAdd.length,
+          currentModels.length + toAdd.length,
           'model_manage_add'
         )
       } catch (error) {
@@ -206,6 +305,9 @@ export function useProviderModelPullReconcile(providerId: string) {
         })
         toast.warning(t('settings.models.manage.add_success_enable_failed'))
       }
+
+      setDetectedModels([])
+      return true
     },
     [createModels, enableProvider, models, provider, providerId, t]
   )
@@ -268,6 +370,7 @@ export function useProviderModelPullReconcile(providerId: string) {
 
   return {
     allModels,
+    detectedModels,
     provider,
     localModels: models,
     removableModelIds,
@@ -275,15 +378,20 @@ export function useProviderModelPullReconcile(providerId: string) {
     staleModelCount: staleModels.length,
     staleModelIds: staleModels.map((model) => model.id),
     openPullReconcile,
+    openDetectedModels,
     closePullReconcile,
+    detectModelsIfEmpty,
+    dismissDetectedModels,
+    invalidateAutoDetection,
     reloadModels: loadModels,
     pullReconcileDrawerOpen,
     addModels,
     removeModels,
     cleanStaleModels,
     isLoadingModels,
+    isAutoDetectingModels,
     loadErrorMessage,
     isApplyingPullReconcile: isCreating || isDeleting || isBulkDeleting || isReconciling,
-    isBusy: isLoadingModels || isCreating || isDeleting || isBulkDeleting || isReconciling
+    isBusy: isLoadingModels || isAutoDetectingModels || isCreating || isDeleting || isBulkDeleting || isReconciling
   }
 }

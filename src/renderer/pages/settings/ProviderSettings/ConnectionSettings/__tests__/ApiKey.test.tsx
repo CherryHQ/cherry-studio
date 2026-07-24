@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ApiKey from '../ApiKey'
@@ -8,6 +8,7 @@ import ApiKey from '../ApiKey'
 const useProviderMock = vi.fn()
 const useProviderMetaMock = vi.fn()
 const useAuthenticationApiKeyMock = vi.fn()
+const keyListPropsSpy = vi.fn()
 
 vi.mock('@cherrystudio/ui', () => ({
   InputGroup: ({ children }: any) => <div>{children}</div>,
@@ -29,7 +30,14 @@ vi.mock('../../hooks/providerSetting/useAuthenticationApiKey', () => ({
 }))
 
 vi.mock('../ProviderApiKeyListDrawer', () => ({
-  default: () => null
+  default: (props: any) => {
+    keyListPropsSpy(props)
+    return props.open ? (
+      <button type="button" onClick={() => props.onApiKeyChange?.('detect')}>
+        emit-list-key-change
+      </button>
+    ) : null
+  }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -50,6 +58,7 @@ describe('ApiKey', () => {
       isDmxapi: false
     })
     useAuthenticationApiKeyMock.mockReturnValue({
+      serverApiKey: '',
       inputApiKey: '',
       setInputApiKey: vi.fn(),
       hasPendingSync: false,
@@ -85,5 +94,184 @@ describe('ApiKey', () => {
 
     fireEvent.click(checkButton)
     expect(onOpenConnectionCheck).toHaveBeenCalledTimes(1)
+  })
+
+  it('requests model detection after a changed primary API key is committed', async () => {
+    const commitInputApiKeyNow = vi.fn().mockResolvedValue(undefined)
+    const onConnectionModelDetection = vi.fn()
+    useAuthenticationApiKeyMock.mockReturnValue({
+      serverApiKey: '',
+      inputApiKey: '',
+      setInputApiKey: vi.fn(),
+      hasPendingSync: true,
+      commitInputApiKeyNow
+    })
+    const view = render(
+      <ApiKey
+        providerId="openai"
+        apiKeyConnectivity={{ checking: false } as any}
+        onOpenConnectionCheck={vi.fn()}
+        onConnectionModelDetection={onConnectionModelDetection}
+      />
+    )
+
+    const input = screen.getByPlaceholderText('settings.provider.api_key.placeholder')
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'sk-new' } })
+    expect(onConnectionModelDetection).toHaveBeenCalledWith({ intent: 'invalidate' })
+    useAuthenticationApiKeyMock.mockReturnValue({
+      serverApiKey: 'sk-new',
+      inputApiKey: 'sk-new',
+      setInputApiKey: vi.fn(),
+      hasPendingSync: false,
+      commitInputApiKeyNow
+    })
+    view.rerender(
+      <ApiKey
+        providerId="openai"
+        apiKeyConnectivity={{ checking: false } as any}
+        onOpenConnectionCheck={vi.fn()}
+        onConnectionModelDetection={onConnectionModelDetection}
+      />
+    )
+    fireEvent.blur(screen.getByPlaceholderText('settings.provider.api_key.placeholder'))
+
+    await waitFor(() => {
+      expect(onConnectionModelDetection).toHaveBeenCalledWith({
+        intent: 'detect',
+        shouldGuideExistingModels: true
+      })
+    })
+  })
+
+  it('invalidates a detected result when the primary API key is cleared', async () => {
+    const commitInputApiKeyNow = vi.fn().mockResolvedValue(undefined)
+    const onConnectionModelDetection = vi.fn()
+    useAuthenticationApiKeyMock.mockReturnValue({
+      serverApiKey: 'sk-old',
+      inputApiKey: 'sk-old',
+      setInputApiKey: vi.fn(),
+      hasPendingSync: true,
+      commitInputApiKeyNow
+    })
+    const view = render(
+      <ApiKey
+        providerId="openai"
+        apiKeyConnectivity={{ checking: false } as any}
+        onOpenConnectionCheck={vi.fn()}
+        onConnectionModelDetection={onConnectionModelDetection}
+      />
+    )
+
+    fireEvent.focus(screen.getByPlaceholderText('settings.provider.api_key.placeholder'))
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.api_key.placeholder'), { target: { value: '' } })
+    useAuthenticationApiKeyMock.mockReturnValue({
+      serverApiKey: '',
+      inputApiKey: '',
+      setInputApiKey: vi.fn(),
+      hasPendingSync: false,
+      commitInputApiKeyNow
+    })
+    view.rerender(
+      <ApiKey
+        providerId="openai"
+        apiKeyConnectivity={{ checking: false } as any}
+        onOpenConnectionCheck={vi.fn()}
+        onConnectionModelDetection={onConnectionModelDetection}
+      />
+    )
+    fireEvent.blur(screen.getByPlaceholderText('settings.provider.api_key.placeholder'))
+
+    await waitFor(() => {
+      expect(onConnectionModelDetection).toHaveBeenCalledWith({ intent: 'invalidate' })
+    })
+    expect(onConnectionModelDetection).toHaveBeenCalledTimes(1)
+  })
+
+  it('requests detection when an unchanged non-empty key loses focus', () => {
+    const unchangedCommit = vi.fn().mockResolvedValue(undefined)
+    const onConnectionModelDetection = vi.fn()
+    useAuthenticationApiKeyMock.mockReturnValue({
+      serverApiKey: 'sk-same',
+      inputApiKey: 'sk-same',
+      setInputApiKey: vi.fn(),
+      hasPendingSync: false,
+      commitInputApiKeyNow: unchangedCommit
+    })
+    render(
+      <ApiKey
+        providerId="openai"
+        apiKeyConnectivity={{ checking: false } as any}
+        onOpenConnectionCheck={vi.fn()}
+        onConnectionModelDetection={onConnectionModelDetection}
+      />
+    )
+
+    fireEvent.blur(screen.getByPlaceholderText('settings.provider.api_key.placeholder'))
+    expect(unchangedCommit).not.toHaveBeenCalled()
+    expect(onConnectionModelDetection).toHaveBeenCalledWith({ intent: 'detect' })
+  })
+
+  it('invalidates stale results but does not detect models when saving a changed key fails', async () => {
+    const failedCommit = vi.fn().mockRejectedValue(new Error('save failed'))
+    useAuthenticationApiKeyMock.mockReturnValue({
+      serverApiKey: 'sk-same',
+      inputApiKey: 'sk-same',
+      setInputApiKey: vi.fn(),
+      hasPendingSync: false,
+      commitInputApiKeyNow: failedCommit
+    })
+    const onConnectionModelDetection = vi.fn()
+    const view = render(
+      <ApiKey
+        providerId="openai"
+        apiKeyConnectivity={{ checking: false } as any}
+        onOpenConnectionCheck={vi.fn()}
+        onConnectionModelDetection={onConnectionModelDetection}
+      />
+    )
+    fireEvent.change(screen.getByPlaceholderText('settings.provider.api_key.placeholder'), {
+      target: { value: 'sk-new' }
+    })
+    expect(onConnectionModelDetection).toHaveBeenCalledWith({ intent: 'invalidate' })
+
+    useAuthenticationApiKeyMock.mockReturnValue({
+      serverApiKey: 'sk-same',
+      inputApiKey: 'sk-new',
+      setInputApiKey: vi.fn(),
+      hasPendingSync: true,
+      commitInputApiKeyNow: failedCommit
+    })
+    view.rerender(
+      <ApiKey
+        providerId="openai"
+        apiKeyConnectivity={{ checking: false } as any}
+        onOpenConnectionCheck={vi.fn()}
+        onConnectionModelDetection={onConnectionModelDetection}
+      />
+    )
+    fireEvent.blur(screen.getByPlaceholderText('settings.provider.api_key.placeholder'))
+
+    await waitFor(() => expect(failedCommit).toHaveBeenCalled())
+    expect(onConnectionModelDetection).toHaveBeenCalledTimes(1)
+    expect(onConnectionModelDetection).not.toHaveBeenCalledWith(expect.objectContaining({ intent: 'detect' }))
+  })
+
+  it('forwards API key list detection events', () => {
+    const onConnectionModelDetection = vi.fn()
+    render(
+      <ApiKey
+        providerId="openai"
+        apiKeyConnectivity={{ checking: false } as any}
+        onOpenConnectionCheck={vi.fn()}
+        onConnectionModelDetection={onConnectionModelDetection}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.provider.api.key.list.title' }))
+    fireEvent.click(screen.getByRole('button', { name: 'emit-list-key-change' }))
+
+    expect(onConnectionModelDetection).toHaveBeenCalledWith({ intent: 'detect' })
+    expect(keyListPropsSpy).toHaveBeenLastCalledWith(expect.objectContaining({ providerId: 'openai', open: true }))
   })
 })

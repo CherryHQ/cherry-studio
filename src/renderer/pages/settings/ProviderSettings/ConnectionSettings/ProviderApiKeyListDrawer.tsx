@@ -12,12 +12,14 @@ import { v4 as uuidv4 } from 'uuid'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { apiKeyListClasses } from '../primitives/ProviderSettingsPrimitives'
+import { classifyEnabledApiKeyChange, type ConnectionModelDetectionIntent } from './connectionModelDetection'
 import { copyApiKeyToClipboard } from './copyApiKeyToClipboard'
 
 interface ProviderApiKeyListDrawerProps {
   providerId: string
   open: boolean
   onClose: () => void
+  onApiKeyChange?: (intent: ConnectionModelDetectionIntent) => void
 }
 
 interface DraftState {
@@ -42,6 +44,22 @@ function normalizeApiKeyValue(value: string) {
   return value.trim()
 }
 
+function haveApiKeyCredentialsChanged(previousKeys: ApiKeyEntry[], nextKeys: ApiKeyEntry[]) {
+  if (previousKeys.length !== nextKeys.length) {
+    return true
+  }
+
+  const nextKeysById = new Map(nextKeys.map((entry) => [entry.id, entry]))
+  return previousKeys.some((entry) => {
+    const nextEntry = nextKeysById.get(entry.id)
+    return (
+      !nextEntry ||
+      normalizeApiKeyValue(entry.key) !== normalizeApiKeyValue(nextEntry.key) ||
+      entry.isEnabled !== nextEntry.isEnabled
+    )
+  })
+}
+
 function toDraft(entry: ApiKeyEntry): DraftState {
   return {
     id: entry.id,
@@ -61,7 +79,12 @@ function toEntry(draft: DraftState): ApiKeyEntry {
   }
 }
 
-export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: ProviderApiKeyListDrawerProps) {
+export default function ProviderApiKeyListDrawer({
+  providerId,
+  open,
+  onClose,
+  onApiKeyChange
+}: ProviderApiKeyListDrawerProps) {
   const { t } = useTranslation()
   const { data: apiKeysData } = useProviderApiKeys(providerId)
   const { updateApiKeys } = useProviderMutations(providerId)
@@ -90,6 +113,15 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
       setSaving(true)
       try {
         await updateApiKeys(nextKeys)
+        const intent = classifyEnabledApiKeyChange(
+          apiKeys.filter((item) => item.isEnabled).map((item) => item.key),
+          nextKeys.filter((item) => item.isEnabled).map((item) => item.key)
+        )
+        if (intent) {
+          onApiKeyChange?.(intent)
+        } else if (haveApiKeyCredentialsChanged(apiKeys, nextKeys)) {
+          onApiKeyChange?.('invalidate')
+        }
         return true
       } catch (error) {
         logger.error('Failed to persist provider API keys', { providerId, error })
@@ -100,7 +132,7 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
         setSaving(false)
       }
     },
-    [providerId, t, updateApiKeys]
+    [apiKeys, onApiKeyChange, providerId, t, updateApiKeys]
   )
 
   const validateDraft = useCallback(

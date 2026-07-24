@@ -6808,6 +6808,22 @@
         }
       },
       "api_key": "Khóa API",
+      "auto_detect": {
+        "add_all": "[to be translated]:Add all",
+        "description": "[to be translated]:Choose which models to add to Cherry Studio.",
+        "dismiss": "[to be translated]:Not now",
+        "leave_anyway": "[to be translated]:Leave anyway",
+        "leave_detected": "[to be translated]:Leaving now will discard this discovery result.",
+        "leave_detected_title_one": "[to be translated]:{{count}} model has not been added",
+        "leave_detected_title_other": "[to be translated]:{{count}} models have not been added",
+        "leave_detecting": "[to be translated]:Leaving now will stop model discovery.",
+        "leave_detecting_title": "[to be translated]:Model discovery is still running",
+        "message_one": "[to be translated]:Found {{count}} model",
+        "message_other": "[to be translated]:Found {{count}} models",
+        "select": "[to be translated]:Choose models",
+        "stay_detected": "[to be translated]:Continue adding",
+        "stay_detecting": "[to be translated]:Continue discovery"
+      },
       "base_url": "URL cơ sở",
       "bulk_disable": "Disable all",
       "bulk_enable": "Enable all",

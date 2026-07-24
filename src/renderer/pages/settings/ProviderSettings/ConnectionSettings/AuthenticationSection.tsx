@@ -2,17 +2,18 @@ import { ApiKeyProvider } from '../hooks/providerSetting/useAuthenticationApiKey
 import { useProviderApiKey } from '../hooks/providerSetting/useProviderApiKey'
 import AuthConnectionSlotsLayout from './AuthConnectionSlotsLayout'
 import { AuthenticationSectionContent } from './AuthenticationSectionContent'
+import type { ConnectionModelDetectionEvent } from './connectionModelDetection'
 
 interface AuthenticationSectionProps {
   providerId: string
   onOpenModelHealthCheck?: () => void
-  onRequestModelPullGuide?: () => void
+  onConnectionModelDetection?: (event: ConnectionModelDetectionEvent) => void
 }
 
 export default function AuthenticationSection({
   providerId,
   onOpenModelHealthCheck,
-  onRequestModelPullGuide
+  onConnectionModelDetection
 }: AuthenticationSectionProps) {
   const apiKey = useProviderApiKey(providerId)
 
@@ -22,7 +23,7 @@ export default function AuthenticationSection({
         <AuthenticationSectionContent
           providerId={providerId}
           onOpenModelHealthCheck={onOpenModelHealthCheck}
-          onRequestModelPullGuide={onRequestModelPullGuide}
+          onConnectionModelDetection={onConnectionModelDetection}
         />
       </AuthConnectionSlotsLayout>
     </ApiKeyProvider>

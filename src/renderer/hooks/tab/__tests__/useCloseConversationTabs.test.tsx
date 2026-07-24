@@ -21,6 +21,7 @@ function createTabsContext(tabs: Tab[], closeTabs = vi.fn(), activeTabId = tabs[
     closeTabs,
     setActiveTab: vi.fn(),
     updateTab: vi.fn(),
+    registerTabLeaveGuard: vi.fn(),
     openTab: vi.fn(),
     pinTab: vi.fn(),
     unpinTab: vi.fn(),

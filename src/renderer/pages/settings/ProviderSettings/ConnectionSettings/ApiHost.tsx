@@ -1,26 +1,27 @@
 import { useProvider, useProviderMutations } from '@renderer/hooks/useProvider'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { getProviderHostTopology } from '@shared/utils/providerTopology'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 import { useProviderEndpointActions } from '../hooks/providerSetting/useProviderEndpointActions'
 import { useProviderEndpoints } from '../hooks/providerSetting/useProviderEndpoints'
 import { useProviderHostPreview } from '../hooks/providerSetting/useProviderHostPreview'
 import { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
 import { AnthropicApiHostField, ApiHostField, ApiHostSection, AzureApiVersionField } from './ApiHostFields'
+import type { ConnectionModelDetectionEvent } from './connectionModelDetection'
 import ProviderCustomHeaderDrawer from './ProviderCustomHeaderDrawer'
 
 interface ApiHostProps {
   providerId: string
-  onRequestModelPullGuide?: () => void
+  onConnectionModelDetection?: (event: ConnectionModelDetectionEvent) => void
 }
 
-export default function ApiHost({ providerId, onRequestModelPullGuide }: ApiHostProps) {
+export default function ApiHost({ providerId, onConnectionModelDetection }: ApiHostProps) {
   const { provider } = useProvider(providerId)
   const { updateProvider } = useProviderMutations(providerId)
   const [customHeaderOpen, setCustomHeaderOpen] = useState(false)
-  const [apiHostEdited, setApiHostEdited] = useState(false)
-  const [anthropicApiHostEdited, setAnthropicApiHostEdited] = useState(false)
+  const apiHostEditedRef = useRef(false)
+  const anthropicApiHostEditedRef = useRef(false)
   const meta = useProviderMeta(providerId)
   const { primaryEndpoint, apiHost, setApiHost, anthropicApiHost, setAnthropicApiHost, apiVersion, setApiVersion } =
     useProviderEndpoints(provider)
@@ -43,25 +44,51 @@ export default function ApiHost({ providerId, onRequestModelPullGuide }: ApiHost
     patchProvider: updateProvider
   })
   const handleApiHostChange = (value: string) => {
-    setApiHostEdited(true)
+    if (!apiHostEditedRef.current) {
+      apiHostEditedRef.current = true
+      onConnectionModelDetection?.({ intent: 'invalidate' })
+    }
     setApiHost(value)
   }
   const handleApiHostCommit = async () => {
+    const wasChanged = apiHostEditedRef.current
     const committed = await endpointActions.commitApiHost()
-    if (committed && apiHostEdited) {
-      setApiHostEdited(false)
-      onRequestModelPullGuide?.()
+    if (committed) {
+      apiHostEditedRef.current = false
+      onConnectionModelDetection?.({
+        intent: 'detect',
+        ...(wasChanged ? { shouldGuideExistingModels: true } : {})
+      })
     }
   }
   const handleAnthropicApiHostChange = (value: string) => {
-    setAnthropicApiHostEdited(true)
+    if (!anthropicApiHostEditedRef.current) {
+      anthropicApiHostEditedRef.current = true
+      onConnectionModelDetection?.({ intent: 'invalidate' })
+    }
     setAnthropicApiHost(value)
   }
   const handleAnthropicApiHostCommit = async () => {
+    const wasChanged = anthropicApiHostEditedRef.current
     const committed = await endpointActions.commitAnthropicApiHost()
-    if (committed && anthropicApiHostEdited) {
-      setAnthropicApiHostEdited(false)
-      onRequestModelPullGuide?.()
+    if (committed) {
+      anthropicApiHostEditedRef.current = false
+      onConnectionModelDetection?.({
+        intent: 'detect',
+        ...(wasChanged ? { shouldGuideExistingModels: true } : {})
+      })
+    }
+  }
+  const handleResetApiHost = async () => {
+    apiHostEditedRef.current = true
+    onConnectionModelDetection?.({ intent: 'invalidate' })
+    const committed = await endpointActions.resetApiHost()
+    if (committed) {
+      apiHostEditedRef.current = false
+      onConnectionModelDetection?.({
+        intent: 'detect',
+        shouldGuideExistingModels: true
+      })
     }
   }
 
@@ -94,7 +121,7 @@ export default function ApiHost({ providerId, onRequestModelPullGuide }: ApiHost
             isApiHostResettable={hostPreview.isApiHostResettable}
             onApiHostChange={handleApiHostChange}
             onApiHostCommit={() => void handleApiHostCommit()}
-            onResetApiHost={endpointActions.resetApiHost}
+            onResetApiHost={() => void handleResetApiHost()}
             onOpenRequestConfig={() => setCustomHeaderOpen(true)}
           />
         ) : (

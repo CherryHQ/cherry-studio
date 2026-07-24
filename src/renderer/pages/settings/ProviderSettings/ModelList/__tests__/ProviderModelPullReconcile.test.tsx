@@ -64,7 +64,9 @@ describe('ProviderModelPullReconcile', () => {
   })
 
   it('shows the refresh icon when the pull action is idle', () => {
-    const { container } = render(<ProviderModelPullReconcile providerId="openai" disabled={false} />)
+    const { container } = render(
+      <ProviderModelPullReconcile disabled={false} pullReconcile={pullReconcileState.value as any} />
+    )
 
     expect(screen.getByRole('button', { name: 'settings.models.toolbar.pull_short' })).toHaveAttribute(
       'data-loading',
@@ -76,7 +78,9 @@ describe('ProviderModelPullReconcile', () => {
   it('hides the refresh icon while the button renders its loading indicator', () => {
     pullReconcileState.value.isBusy = true
 
-    const { container } = render(<ProviderModelPullReconcile providerId="openai" disabled={false} />)
+    const { container } = render(
+      <ProviderModelPullReconcile disabled={false} pullReconcile={pullReconcileState.value as any} />
+    )
 
     expect(screen.getByRole('button', { name: 'settings.models.toolbar.pull_short' })).toHaveAttribute(
       'data-loading',
@@ -87,10 +91,14 @@ describe('ProviderModelPullReconcile', () => {
 
   it('shows a temporary guide arrow instead of opening the drawer when requested', () => {
     vi.useFakeTimers()
-    const { rerender } = render(<ProviderModelPullReconcile providerId="openai" disabled={false} guideVersion={0} />)
+    const { rerender } = render(
+      <ProviderModelPullReconcile disabled={false} guideVersion={0} pullReconcile={pullReconcileState.value as any} />
+    )
 
     act(() => {
-      rerender(<ProviderModelPullReconcile providerId="openai" disabled={false} guideVersion={1} />)
+      rerender(
+        <ProviderModelPullReconcile disabled={false} guideVersion={1} pullReconcile={pullReconcileState.value as any} />
+      )
     })
 
     expect(pullReconcileState.value.openPullReconcile).not.toHaveBeenCalled()

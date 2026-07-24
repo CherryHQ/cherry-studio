@@ -12,6 +12,7 @@ const { reconcileTriggerMock } = vi.hoisted(() => ({
   reconcileTriggerMock: vi.fn()
 }))
 const createModelsMock = vi.fn()
+const dataApiGetMock = vi.fn()
 const deleteModelsMock = vi.fn()
 const enableProviderWhenModelsAvailableMock = vi.fn()
 const fetchProviderCatalogModelsMock = vi.fn()
@@ -27,6 +28,12 @@ const toCreateModelDtoMock = vi.fn((providerId, model, endpointTypes) => ({
 const enableProviderMock = vi.fn()
 const useModelsMock = vi.fn()
 const useProviderMock = vi.fn()
+
+vi.mock('@data/DataApiService', () => ({
+  dataApiService: {
+    get: (...args: any[]) => dataApiGetMock(...args)
+  }
+}))
 
 vi.mock('@renderer/hooks/useModel', () => ({
   useModelMutations: () => ({
@@ -102,6 +109,7 @@ describe('useProviderModelPullReconcile', () => {
     MockUsePreferenceUtils.resetMocks()
     MockUseDataApiUtils.mockMutationWithTrigger('POST', '/providers/:providerId/models:reconcile', reconcileTriggerMock)
     createModelsMock.mockResolvedValue([])
+    dataApiGetMock.mockResolvedValue([localModel])
     deleteModelsMock.mockResolvedValue(undefined)
     reconcileTriggerMock.mockResolvedValue([])
     enableProviderWhenModelsAvailableMock.mockResolvedValue(undefined)
@@ -130,6 +138,109 @@ describe('useProviderModelPullReconcile', () => {
     expect(result.current.staleModelIds).toEqual(['openai::local-model'])
     expect(fetchProviderCatalogModelsMock).toHaveBeenCalledWith('openai')
     expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith('openai')
+  })
+
+  it('skips automatic detection when the provider already has local models', async () => {
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    let outcome: string | undefined
+    await act(async () => {
+      outcome = await result.current.detectModelsIfEmpty()
+    })
+
+    expect(outcome).toBe('existing')
+    expect(fetchResolvedProviderModelsMock).not.toHaveBeenCalled()
+    expect(result.current.detectedModels).toEqual([])
+  })
+
+  it('detects, deduplicates, and preloads remote models when the local list is empty', async () => {
+    const duplicateFetchedModel = { ...fetchedModel, name: 'Duplicate name' }
+    const unnamedModel = { ...catalogModel, id: 'openai::unnamed', name: '  ' }
+    useModelsMock.mockReturnValue({ models: [] })
+    dataApiGetMock.mockResolvedValue([])
+    fetchResolvedProviderModelsMock.mockResolvedValueOnce([fetchedModel, duplicateFetchedModel, unnamedModel])
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    let outcome: string | undefined
+    await act(async () => {
+      outcome = await result.current.detectModelsIfEmpty()
+    })
+
+    expect(outcome).toBe('detected')
+    expect(result.current.detectedModels).toEqual([fetchedModel])
+    expect(result.current.allModels).toEqual([fetchedModel])
+    expect(fetchProviderCatalogModelsMock).not.toHaveBeenCalled()
+    expect(fetchResolvedProviderModelsMock).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      result.current.openDetectedModels()
+    })
+
+    expect(result.current.pullReconcileDrawerOpen).toBe(true)
+    expect(result.current.detectedModels).toEqual([fetchedModel])
+    expect(result.current.allModels).toEqual([fetchedModel])
+    expect(fetchResolvedProviderModelsMock).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      result.current.invalidateAutoDetection()
+    })
+
+    expect(result.current.allModels).toEqual([])
+  })
+
+  it('keeps empty and failed automatic detection silent', async () => {
+    useModelsMock.mockReturnValue({ models: [] })
+    dataApiGetMock.mockResolvedValue([])
+    fetchResolvedProviderModelsMock.mockResolvedValueOnce([])
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    await act(async () => {
+      expect(await result.current.detectModelsIfEmpty()).toBe('empty')
+    })
+    expect(result.current.detectedModels).toEqual([])
+    expect(toast.error).not.toHaveBeenCalled()
+
+    fetchResolvedProviderModelsMock.mockRejectedValueOnce(new Error('bad key'))
+    await act(async () => {
+      expect(await result.current.detectModelsIfEmpty()).toBe('failed')
+    })
+    expect(result.current.detectedModels).toEqual([])
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it('drops an automatic detection result invalidated by a newer key change', async () => {
+    const remoteLoad = deferred<any[]>()
+    useModelsMock.mockReturnValue({ models: [] })
+    dataApiGetMock.mockResolvedValue([])
+    fetchResolvedProviderModelsMock.mockReturnValueOnce(remoteLoad.promise)
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+    let detection!: Promise<string>
+
+    act(() => {
+      detection = result.current.detectModelsIfEmpty()
+    })
+    await waitFor(() => expect(fetchResolvedProviderModelsMock).toHaveBeenCalled())
+    act(() => {
+      result.current.invalidateAutoDetection()
+    })
+    remoteLoad.resolve([fetchedModel])
+
+    await act(async () => {
+      expect(await detection).toBe('stale')
+    })
+    expect(result.current.detectedModels).toEqual([])
+  })
+
+  it('drops a detection result when a local model appears during the upstream request', async () => {
+    useModelsMock.mockReturnValue({ models: [] })
+    dataApiGetMock.mockResolvedValueOnce([]).mockResolvedValueOnce([localModel])
+    const { result } = renderHook(() => useProviderModelPullReconcile('openai'))
+
+    await act(async () => {
+      expect(await result.current.detectModelsIfEmpty()).toBe('existing')
+    })
+
+    expect(result.current.detectedModels).toEqual([])
   })
 
   it('prefers fetched model data when catalog and upstream model ids overlap', async () => {
@@ -312,7 +423,7 @@ describe('useProviderModelPullReconcile', () => {
     expect(toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
   })
 
-  it('stops after a later create batch fails and does not enable the provider', async () => {
+  it('retries only batches that were not already created after a later batch fails', async () => {
     const remoteModels = Array.from({ length: 804 }, (_, index) => ({
       id: `openai::remote-model-${index}`,
       providerId: 'openai',
@@ -330,6 +441,21 @@ describe('useProviderModelPullReconcile', () => {
     expect(createModelsMock).toHaveBeenCalledTimes(2)
     expect(enableProviderWhenModelsAvailableMock).not.toHaveBeenCalled()
     expect(toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
+
+    dataApiGetMock.mockResolvedValueOnce([localModel, ...remoteModels.slice(0, 500)])
+    await act(async () => {
+      await result.current.addModels(remoteModels as any)
+    })
+
+    expect(createModelsMock).toHaveBeenCalledTimes(3)
+    expect(createModelsMock.mock.calls[2]?.[0]).toHaveLength(304)
+    expect(createModelsMock.mock.calls[2]?.[0][0]?.modelId).toBe('remote-model-500')
+    expect(enableProviderWhenModelsAvailableMock).toHaveBeenCalledWith(
+      { id: 'openai', isEnabled: false },
+      enableProviderMock,
+      805,
+      'model_manage_add'
+    )
   })
 
   it('warns that models were added when provider enablement fails', async () => {

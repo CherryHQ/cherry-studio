@@ -5,6 +5,10 @@ import { useCallback, useState } from 'react'
 
 import ProviderHeader from './components/ProviderHeader'
 import AuthenticationSection from './ConnectionSettings/AuthenticationSection'
+import type {
+  ConnectionModelDetectionEvent,
+  ConnectionModelDetectionSignal
+} from './ConnectionSettings/connectionModelDetection'
 import { useProviderOnboardingAutoEnable } from './hooks/providerSetting/useProviderOnboardingAutoEnable'
 import { ModelList, ModelListHealthProvider, useModelListHealth } from './ModelList'
 import { providerDetailColumnClasses, ProviderSettingsContainer } from './primitives/ProviderSettingsPrimitives'
@@ -16,9 +20,10 @@ interface ProviderSettingProps {
 
 function ProviderSettingSections({ providerId }: { providerId: string }) {
   const health = useModelListHealth()
-  const [modelPullGuideVersion, setModelPullGuideVersion] = useState(0)
-  const requestModelPullGuide = useCallback(() => {
-    setModelPullGuideVersion((version) => version + 1)
+  const [connectionModelDetectionSignal, setConnectionModelDetectionSignal] =
+    useState<ConnectionModelDetectionSignal | null>(null)
+  const handleConnectionModelDetection = useCallback((event: ConnectionModelDetectionEvent) => {
+    setConnectionModelDetectionSignal((current) => ({ ...event, version: (current?.version ?? 0) + 1 }))
   }, [])
 
   return (
@@ -27,9 +32,9 @@ function ProviderSettingSections({ providerId }: { providerId: string }) {
         <AuthenticationSection
           providerId={providerId}
           onOpenModelHealthCheck={health.openHealthCheck}
-          onRequestModelPullGuide={requestModelPullGuide}
+          onConnectionModelDetection={handleConnectionModelDetection}
         />
-        <ModelList providerId={providerId} modelPullGuideVersion={modelPullGuideVersion} />
+        <ModelList providerId={providerId} connectionModelDetectionSignal={connectionModelDetectionSignal} />
       </div>
     </Scrollbar>
   )

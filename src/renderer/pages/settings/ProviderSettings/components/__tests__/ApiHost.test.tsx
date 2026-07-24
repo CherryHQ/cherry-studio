@@ -158,9 +158,9 @@ describe('ApiHost', () => {
     expect(screen.queryByTestId('request-config-drawer')).not.toBeInTheDocument()
   })
 
-  it('requests the model pull guide after a changed API host is committed on blur', async () => {
+  it('invalidates on edit and requests model detection after a changed API host is committed on blur', async () => {
     const commitApiHost = vi.fn().mockResolvedValue(true)
-    const onRequestModelPullGuide = vi.fn()
+    const onConnectionModelDetection = vi.fn()
 
     useProviderMock.mockReturnValue({
       provider: {
@@ -182,15 +182,70 @@ describe('ApiHost', () => {
       resetApiHost: vi.fn()
     })
 
-    render(<ApiHost providerId="openai" onRequestModelPullGuide={onRequestModelPullGuide} />)
+    render(<ApiHost providerId="openai" onConnectionModelDetection={onConnectionModelDetection} />)
 
     const apiHostInput = screen.getByRole('textbox', { name: /^API 地址$|^API Host$/ })
     fireEvent.change(apiHostInput, { target: { value: 'https://api2.example.com' } })
+    expect(onConnectionModelDetection).toHaveBeenCalledWith({ intent: 'invalidate' })
     fireEvent.blur(apiHostInput)
 
     await waitFor(() => {
-      expect(onRequestModelPullGuide).toHaveBeenCalledTimes(1)
+      expect(onConnectionModelDetection).toHaveBeenCalledWith({
+        intent: 'detect',
+        shouldGuideExistingModels: true
+      })
     })
+  })
+
+  it('requests model detection when an unchanged API host loses focus', async () => {
+    const commitApiHost = vi.fn().mockResolvedValue(true)
+    const onConnectionModelDetection = vi.fn()
+    useProviderHostPreviewMock.mockReturnValue({
+      hostPreview: 'https://api.example.com/chat/completions',
+      anthropicHostPreview: 'https://api.example.com/messages',
+      isApiHostResettable: false
+    })
+    useProviderEndpointActionsMock.mockReturnValue({
+      commitApiHost,
+      commitAnthropicApiHost: vi.fn(),
+      commitApiVersion: vi.fn(),
+      resetApiHost: vi.fn()
+    })
+
+    render(<ApiHost providerId="openai" onConnectionModelDetection={onConnectionModelDetection} />)
+
+    fireEvent.blur(screen.getByRole('textbox', { name: /^API 地址$|^API Host$/ }))
+
+    await waitFor(() => {
+      expect(commitApiHost).toHaveBeenCalledTimes(1)
+      expect(onConnectionModelDetection).toHaveBeenCalledWith({ intent: 'detect' })
+    })
+  })
+
+  it('does not request model detection when an edited API host fails to commit', async () => {
+    const commitApiHost = vi.fn().mockResolvedValue(false)
+    const onConnectionModelDetection = vi.fn()
+    useProviderHostPreviewMock.mockReturnValue({
+      hostPreview: 'https://api.example.com/chat/completions',
+      anthropicHostPreview: 'https://api.example.com/messages',
+      isApiHostResettable: false
+    })
+    useProviderEndpointActionsMock.mockReturnValue({
+      commitApiHost,
+      commitAnthropicApiHost: vi.fn(),
+      commitApiVersion: vi.fn(),
+      resetApiHost: vi.fn()
+    })
+
+    render(<ApiHost providerId="openai" onConnectionModelDetection={onConnectionModelDetection} />)
+
+    const apiHostInput = screen.getByRole('textbox', { name: /^API 地址$|^API Host$/ })
+    fireEvent.change(apiHostInput, { target: { value: 'invalid-host' } })
+    fireEvent.blur(apiHostInput)
+
+    await waitFor(() => expect(commitApiHost).toHaveBeenCalledTimes(1))
+    expect(onConnectionModelDetection).toHaveBeenCalledTimes(1)
+    expect(onConnectionModelDetection).toHaveBeenCalledWith({ intent: 'invalidate' })
   })
 
   it('opens the request-configuration drawer from the add endpoint text button', () => {
@@ -213,8 +268,9 @@ describe('ApiHost', () => {
     expect(screen.getByTestId('request-config-drawer')).toHaveAttribute('data-provider', 'openai')
   })
 
-  it('opens the request-configuration drawer from the add endpoint text button when multiple endpoints exist', () => {
-    const resetApiHost = vi.fn()
+  it('detects after resetting the API host and still opens the endpoint drawer', async () => {
+    const resetApiHost = vi.fn().mockResolvedValue(true)
+    const onConnectionModelDetection = vi.fn()
 
     useProviderMock.mockReturnValue({
       provider: {
@@ -237,11 +293,18 @@ describe('ApiHost', () => {
       resetApiHost
     })
 
-    render(<ApiHost providerId="openai" />)
+    render(<ApiHost providerId="openai" onConnectionModelDetection={onConnectionModelDetection} />)
 
     /** `settings.provider.api.url.reset`: en-US "Reset", zh-CN "重置" */
     fireEvent.click(screen.getByRole('button', { name: /^重置$|^Reset$/ }))
     expect(resetApiHost).toHaveBeenCalled()
+    expect(onConnectionModelDetection).toHaveBeenCalledWith({ intent: 'invalidate' })
+    await waitFor(() => {
+      expect(onConnectionModelDetection).toHaveBeenLastCalledWith({
+        intent: 'detect',
+        shouldGuideExistingModels: true
+      })
+    })
 
     const addEndpointButton = screen.getByRole('button', { name: /^添加端点$|^Add Endpoint$/i })
     expect(addEndpointButton).toHaveTextContent(/^添加端点$|^Add Endpoint$/i)
@@ -250,8 +313,9 @@ describe('ApiHost', () => {
     expect(screen.getByTestId('request-config-drawer')).toHaveAttribute('data-provider', 'openai')
   })
 
-  it('edits the anthropic API host and opens the drawer from the add endpoint text button', () => {
-    const commitAnthropicApiHost = vi.fn()
+  it('detects after editing the anthropic API host and opens the endpoint drawer', async () => {
+    const commitAnthropicApiHost = vi.fn().mockResolvedValue(true)
+    const onConnectionModelDetection = vi.fn()
 
     useProviderMock.mockReturnValue({
       provider: {
@@ -279,13 +343,19 @@ describe('ApiHost', () => {
       primaryEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
     })
 
-    render(<ApiHost providerId="openai" />)
+    render(<ApiHost providerId="openai" onConnectionModelDetection={onConnectionModelDetection} />)
 
     const anthropicHostInput = screen.getByRole('textbox', { name: /^Anthropic API 地址$|^Anthropic API Host$/ })
     fireEvent.change(anthropicHostInput, { target: { value: 'https://anthropic2.example.com' } })
     fireEvent.blur(anthropicHostInput)
     expect(endpointState.setAnthropicApiHost).toHaveBeenCalledWith('https://anthropic2.example.com')
     expect(commitAnthropicApiHost).toHaveBeenCalledTimes(1)
+    await waitFor(() => {
+      expect(onConnectionModelDetection).toHaveBeenLastCalledWith({
+        intent: 'detect',
+        shouldGuideExistingModels: true
+      })
+    })
     expect(screen.queryByTestId('request-config-drawer')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /^添加端点$|^Add Endpoint$/i }))

@@ -8,6 +8,17 @@ import { ModelListHealthProvider, useModelListHealth } from '../modelListHealthC
 
 const providerModelListRenderSpy = vi.fn()
 const healthResultsRenderSpy = vi.fn()
+const pullReconcileState = vi.hoisted(() => ({
+  addModels: vi.fn().mockResolvedValue(true),
+  detectedModels: [],
+  detectModelsIfEmpty: vi.fn().mockResolvedValue('empty'),
+  dismissDetectedModels: vi.fn(),
+  invalidateAutoDetection: vi.fn(),
+  isApplyingPullReconcile: false,
+  isAutoDetectingModels: false,
+  localModels: [],
+  openDetectedModels: vi.fn()
+}))
 const runControls = {
   availableApiKeys: [],
   healthCheckOpen: false,
@@ -42,6 +53,9 @@ vi.mock('../ProviderModelPullReconcile', () => ({ default: () => null }))
 vi.mock('../ProviderModelAdd', () => ({ default: () => null }))
 vi.mock('../ProviderModelDownload', () => ({ default: () => null }))
 vi.mock('../ProviderModelHealthCheck', () => ({ default: () => null }))
+vi.mock('../useProviderModelPullReconcile', () => ({
+  useProviderModelPullReconcile: () => pullReconcileState
+}))
 
 function HealthResultsObserver() {
   const { modelStatuses } = useModelListHealth()

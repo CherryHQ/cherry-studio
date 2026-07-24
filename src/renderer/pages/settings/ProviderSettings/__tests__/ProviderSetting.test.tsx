@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ProviderSetting from '../ProviderSetting'
@@ -7,6 +7,7 @@ const useProviderMock = vi.fn()
 const useProviderOnboardingAutoEnableMock = vi.fn()
 const openHealthCheckMock = vi.fn()
 const authenticationSectionPropsSpy = vi.fn()
+const modelListPropsSpy = vi.fn()
 
 vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({
@@ -29,12 +30,24 @@ vi.mock('../components/ProviderHeader', () => ({
 vi.mock('../ConnectionSettings/AuthenticationSection', () => ({
   default: (props: any) => {
     authenticationSectionPropsSpy(props)
-    return <div>{`authentication-section-${props.providerId}`}</div>
+    return (
+      <div>
+        {`authentication-section-${props.providerId}`}
+        <button
+          type="button"
+          onClick={() => props.onConnectionModelDetection?.({ intent: 'detect', shouldGuideExistingModels: true })}>
+          emit-connection-change
+        </button>
+      </div>
+    )
   }
 }))
 
 vi.mock('../ModelList', () => ({
-  ModelList: ({ providerId }: any) => <div>{`model-list-${providerId}`}</div>,
+  ModelList: (props: any) => {
+    modelListPropsSpy(props)
+    return <div>{`model-list-${props.providerId}`}</div>
+  },
   ModelListHealthProvider: ({ children }: any) => <>{children}</>,
   useModelListHealth: () => ({
     openHealthCheck: openHealthCheckMock
@@ -69,6 +82,22 @@ describe('ProviderSetting', () => {
 
     expect(screen.getByTestId('provider-detail-shell')).not.toHaveClass('bg-background')
     expect(screen.getByTestId('provider-detail-shell')).not.toHaveClass('bg-card')
+  })
+
+  it('forwards connection-field events to the model list as versioned signals', () => {
+    render(<ProviderSetting providerId="openai" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'emit-connection-change' }))
+
+    expect(modelListPropsSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        connectionModelDetectionSignal: {
+          intent: 'detect',
+          shouldGuideExistingModels: true,
+          version: 1
+        }
+      })
+    )
   })
 
   it('renders the provider detail divider below the provider header, aligned to body content width', () => {

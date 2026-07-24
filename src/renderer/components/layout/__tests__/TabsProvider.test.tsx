@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest'
 
 import type * as RouteTitle from '@renderer/utils/routeTitle'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useEffect, useRef } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -190,6 +190,21 @@ function TabSnapshot() {
   )
 }
 
+function TabLeaveGuardControls({ guard }: { guard: () => Promise<boolean> }) {
+  const { activeTabId, registerTabLeaveGuard, setActiveTab } = useTabsContext()
+
+  useEffect(() => registerTabLeaveGuard('home', guard), [guard, registerTabLeaveGuard])
+
+  return (
+    <>
+      <button type="button" onClick={() => setActiveTab('files')}>
+        Activate Files
+      </button>
+      <div data-testid="active-tab-id">{activeTabId}</div>
+    </>
+  )
+}
+
 function CloseTabOnMount({ tabId }: { tabId: string }) {
   const { closeTab } = useTabsContext()
   const didCloseRef = useRef(false)
@@ -262,6 +277,52 @@ afterEach(() => {
 })
 
 describe('TabsProvider', () => {
+  it('keeps the current tab active when its leave guard declines navigation', async () => {
+    let resolveGuard!: (canLeave: boolean) => void
+    const guard = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveGuard = resolve
+        })
+    )
+
+    render(
+      <TabsProvider>
+        <TabLeaveGuardControls guard={guard} />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Activate Files' }))
+
+    await waitFor(() => expect(guard).toHaveBeenCalledTimes(1))
+    expect(screen.getByTestId('active-tab-id')).toHaveTextContent('home')
+
+    await act(async () => resolveGuard(false))
+    expect(screen.getByTestId('active-tab-id')).toHaveTextContent('home')
+  })
+
+  it('activates the requested tab after its leave guard confirms navigation', async () => {
+    let resolveGuard!: (canLeave: boolean) => void
+    const guard = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveGuard = resolve
+        })
+    )
+
+    render(
+      <TabsProvider>
+        <TabLeaveGuardControls guard={guard} />
+      </TabsProvider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Activate Files' }))
+    await waitFor(() => expect(guard).toHaveBeenCalledTimes(1))
+
+    await act(async () => resolveGuard(true))
+    await waitFor(() => expect(screen.getByTestId('active-tab-id')).toHaveTextContent('files'))
+  })
+
   it('preserves page-owned titles for the fixed home conversation tab', async () => {
     render(
       <TabsProvider

@@ -4,6 +4,7 @@ export { useMainWindowNavigation } from './useMainWindowNavigation'
 export { useTabs } from './useTabs'
 export {
   type OpenTabOptions,
+  type TabLeaveGuard,
   TabsContext,
   type TabsContextValue,
   useOptionalTabsContext,

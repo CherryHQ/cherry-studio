@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
-import { type OpenTabOptions, TabsContext, type TabsContextValue } from '@renderer/hooks/tab'
+import { type OpenTabOptions, type TabLeaveGuard, TabsContext, type TabsContextValue } from '@renderer/hooks/tab'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { TabLruManager } from '@renderer/services/TabLruManager'
 import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
@@ -152,6 +152,8 @@ export function TabsProvider({
 
   // Active tab ID - in-memory storage
   const [activeTabId, setActiveTabIdState] = useState<string>(() => initialDefaultTab?.id ?? '')
+  const tabLeaveGuardsRef = useRef(new Map<string, TabLeaveGuard>())
+  const tabActivationRequestRef = useRef(0)
 
   // LRU manager (singleton)
   const lruManagerRef = useRef<TabLruManager | null>(null)
@@ -196,7 +198,17 @@ export function TabsProvider({
     [tabs, setPinnedTabs, storesPinned]
   )
 
-  const setActiveTab = useCallback(
+  const registerTabLeaveGuard = useCallback((tabId: string, guard: TabLeaveGuard) => {
+    tabLeaveGuardsRef.current.set(tabId, guard)
+
+    return () => {
+      if (tabLeaveGuardsRef.current.get(tabId) === guard) {
+        tabLeaveGuardsRef.current.delete(tabId)
+      }
+    }
+  }, [])
+
+  const activateTab = useCallback(
     (id: string) => {
       if (id === activeTabId) return
 
@@ -223,6 +235,31 @@ export function TabsProvider({
       performLRUCheck(id)
     },
     [activeTabId, tabs, setPinnedTabs, performLRUCheck, storesPinned]
+  )
+
+  const setActiveTab = useCallback(
+    (id: string) => {
+      if (id === activeTabId || !tabs.some((tab) => tab.id === id)) return
+
+      const request = ++tabActivationRequestRef.current
+      const leaveGuard = tabLeaveGuardsRef.current.get(activeTabId)
+      if (!leaveGuard) {
+        activateTab(id)
+        return
+      }
+
+      void Promise.resolve()
+        .then(leaveGuard)
+        .then((canLeave) => {
+          if (canLeave && request === tabActivationRequestRef.current) {
+            activateTab(id)
+          }
+        })
+        .catch((error) => {
+          logger.error('Tab leave guard failed', { activeTabId, targetTabId: id, error })
+        })
+    },
+    [activateTab, activeTabId, tabs]
   )
 
   const addTab = useCallback(
@@ -482,6 +519,7 @@ export function TabsProvider({
     closeTabs,
     setActiveTab,
     updateTab,
+    registerTabLeaveGuard,
 
     // High-level Tab operations
     openTab,

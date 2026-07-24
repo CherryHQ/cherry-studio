@@ -6,21 +6,20 @@ import { useTranslation } from 'react-i18next'
 
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import ModelListSyncDrawer from './ModelListSyncDrawer'
-import { useProviderModelPullReconcile } from './useProviderModelPullReconcile'
+import type { useProviderModelPullReconcile } from './useProviderModelPullReconcile'
 
 interface ProviderModelPullReconcileProps {
-  providerId: string
   disabled: boolean
   guideVersion?: number
+  pullReconcile: ReturnType<typeof useProviderModelPullReconcile>
 }
 
 const ProviderModelPullReconcile: React.FC<ProviderModelPullReconcileProps> = ({
-  providerId,
   disabled,
-  guideVersion = 0
+  guideVersion = 0,
+  pullReconcile
 }) => {
   const { t } = useTranslation()
-  const pullReconcile = useProviderModelPullReconcile(providerId)
   const [showPullGuide, setShowPullGuide] = useState(false)
   const pullGuideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const showPullGuideBriefly = useCallback(() => {
@@ -87,7 +86,9 @@ const ProviderModelPullReconcile: React.FC<ProviderModelPullReconcileProps> = ({
         staleModelCount={pullReconcile.staleModelCount}
         staleModelIds={pullReconcile.staleModelIds}
         onRetryLoadModels={pullReconcile.reloadModels}
-        onAddModels={pullReconcile.addModels}
+        onAddModels={async (models) => {
+          await pullReconcile.addModels(models)
+        }}
         onRemoveModels={pullReconcile.removeModels}
         onCleanStaleModels={pullReconcile.cleanStaleModels}
         onClose={pullReconcile.closePullReconcile}

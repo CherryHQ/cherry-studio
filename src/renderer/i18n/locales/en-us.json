@@ -6820,6 +6820,22 @@
         }
       },
       "api_key": "API Key",
+      "auto_detect": {
+        "add_all": "Add all",
+        "description": "Choose which models to add to Cherry Studio.",
+        "dismiss": "Not now",
+        "leave_anyway": "Leave anyway",
+        "leave_detected": "Leaving now will discard this discovery result.",
+        "leave_detected_title_one": "{{count}} model has not been added",
+        "leave_detected_title_other": "{{count}} models have not been added",
+        "leave_detecting": "Leaving now will stop model discovery.",
+        "leave_detecting_title": "Model discovery is still running",
+        "message_one": "Found {{count}} model",
+        "message_other": "Found {{count}} models",
+        "select": "Choose models",
+        "stay_detected": "Continue adding",
+        "stay_detecting": "Continue discovery"
+      },
       "base_url": "Base URL",
       "bulk_disable": "Disable all",
       "bulk_enable": "Enable all",

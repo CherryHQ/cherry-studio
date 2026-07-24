@@ -6820,6 +6820,22 @@
         }
       },
       "api_key": "API 密钥",
+      "auto_detect": {
+        "add_all": "全部添加",
+        "description": "请选择要添加到 Cherry Studio 的模型。",
+        "dismiss": "暂不添加",
+        "leave_anyway": "仍要离开",
+        "leave_detected": "现在离开将丢弃本次发现结果。",
+        "leave_detected_title_one": "有 {{count}} 个模型尚未添加",
+        "leave_detected_title_other": "有 {{count}} 个模型尚未添加",
+        "leave_detecting": "现在离开将中止本次检测。",
+        "leave_detecting_title": "模型仍在检测中",
+        "message_one": "发现 {{count}} 个模型",
+        "message_other": "发现 {{count}} 个模型",
+        "select": "选择模型",
+        "stay_detected": "继续添加",
+        "stay_detecting": "继续检测"
+      },
       "base_url": "基础 URL",
       "bulk_disable": "全部禁用",
       "bulk_enable": "全部启用",

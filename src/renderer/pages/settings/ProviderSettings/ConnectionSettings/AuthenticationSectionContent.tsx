@@ -4,18 +4,19 @@ import { isLoginBasedProvider } from '@shared/utils/provider'
 import { useProviderConnectionCheck } from '../hooks/providerSetting/useProviderConnectionCheck'
 import ApiHost from './ApiHost'
 import ApiKey from './ApiKey'
+import type { ConnectionModelDetectionEvent } from './connectionModelDetection'
 import ProviderConnectionCheckDrawer from './ProviderConnectionCheckDrawer'
 
 export interface AuthenticationSectionContentProps {
   providerId: string
   onOpenModelHealthCheck?: () => void
-  onRequestModelPullGuide?: () => void
+  onConnectionModelDetection?: (event: ConnectionModelDetectionEvent) => void
 }
 
 export function AuthenticationSectionContent({
   providerId,
   onOpenModelHealthCheck,
-  onRequestModelPullGuide
+  onConnectionModelDetection
 }: AuthenticationSectionContentProps) {
   const connectionCheck = useProviderConnectionCheck(providerId)
   const { provider } = useProvider(providerId)
@@ -34,9 +35,9 @@ export function AuthenticationSectionContent({
         apiKeyConnectivity={connectionCheck.apiKeyConnectivity}
         onOpenConnectionCheck={connectionCheck.openConnectionCheck}
         requiresApiKey={connectionCheck.requiresApiKey}
-        onRequestModelPullGuide={onRequestModelPullGuide}
+        onConnectionModelDetection={onConnectionModelDetection}
       />
-      <ApiHost providerId={providerId} onRequestModelPullGuide={onRequestModelPullGuide} />
+      <ApiHost providerId={providerId} onConnectionModelDetection={onConnectionModelDetection} />
       <ProviderConnectionCheckDrawer
         open={connectionCheck.connectionCheckOpen}
         models={connectionCheck.checkableModels}

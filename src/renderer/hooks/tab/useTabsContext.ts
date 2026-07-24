@@ -24,6 +24,8 @@ export interface OpenTabOptions {
   isPinned?: boolean
 }
 
+export type TabLeaveGuard = () => boolean | Promise<boolean>
+
 export interface TabsContextValue {
   // State
   tabs: Tab[]
@@ -38,6 +40,7 @@ export interface TabsContextValue {
   closeTabs: (ids: readonly string[], activateId?: string) => void
   setActiveTab: (id: string) => void
   updateTab: (id: string, updates: Partial<Tab>) => void
+  registerTabLeaveGuard: (tabId: string, guard: TabLeaveGuard) => () => void
 
   // High-level Tab operations
   openTab: (url: string, options?: OpenTabOptions) => string
