@@ -657,7 +657,7 @@ describe('CherryBuiltinToolsServer autonomy tool registration', () => {
     agentId: 'agent_1',
     workspaceSource: { type: 'system' as const },
     workspacePath: '/tmp/workspace',
-    knowledgeBaseIds: KB_SCOPE
+    getKnowledgeBaseIds: () => KB_SCOPE
   }
 
   it('exposes the stateless tools plus cron/notify/config', async () => {
@@ -670,7 +670,7 @@ describe('CherryBuiltinToolsServer autonomy tool registration', () => {
   })
 
   it('hides the kb_* tools when the agent has no bound knowledge base', async () => {
-    const server = new CherryBuiltinToolsServer({ ...agentContext, knowledgeBaseIds: [] })
+    const server = new CherryBuiltinToolsServer({ ...agentContext, getKnowledgeBaseIds: () => [] })
     const handlers = (server.mcpServer.server as any)._requestHandlers
     const result = await handlers.get('tools/list')({ method: 'tools/list', params: {} }, {})
     const names = result.tools.map((t: any) => t.name)
@@ -680,5 +680,36 @@ describe('CherryBuiltinToolsServer autonomy tool registration', () => {
     expect(names).not.toContain('kb_read')
     expect(names).not.toContain('kb_list')
     expect(names).not.toContain('kb_manage')
+  })
+
+  it('rejects a previously bound base after the live scope narrows', async () => {
+    let knowledgeBaseIds = [...KB_SCOPE]
+    const server = new CherryBuiltinToolsServer({ ...agentContext, getKnowledgeBaseIds: () => knowledgeBaseIds })
+    const handlers = (server.mcpServer.server as any)._requestHandlers
+    const call = handlers.get('tools/call')
+    const request = {
+      method: 'tools/call',
+      params: { name: 'kb_read', arguments: { baseId: 'b2', conceptId: 'docs/intro.md' } }
+    }
+    kbReadConcept.mockResolvedValue({
+      conceptId: 'docs/intro.md',
+      title: 'intro.md',
+      itemType: 'file',
+      totalChars: 11,
+      charStart: 0,
+      charEnd: 11,
+      content: 'hello world',
+      truncated: false
+    })
+
+    await call(request, { signal })
+    expect(kbReadConcept).toHaveBeenCalledTimes(1)
+
+    knowledgeBaseIds = ['b1']
+    kbReadConcept.mockClear()
+    const result = await call(request, { signal })
+
+    expect(textOf(result)).toContain('not available')
+    expect(kbReadConcept).not.toHaveBeenCalled()
   })
 })

@@ -10,9 +10,11 @@
  * `…__generate_image`.
  *
  * KB scope comes from the agent's bound knowledge bases (`CherryAgentContext.
- * knowledgeBaseIds`), mirroring the assistant path: the kb_* tools are exposed
+ * getKnowledgeBaseIds()`), mirroring the assistant path: the kb_* tools are exposed
  * only when the agent has at least one bound base, and their lookups are scoped
- * to those bases. An agent with no bound bases sees no kb_* tools at all. The
+ * to those bases. The live binding is re-read for each tool listing and builtin
+ * tool call so narrowing the scope takes effect without waiting for a running
+ * session to rebuild. An agent with no bound bases sees no kb_* tools at all. The
  * destructive `kb_manage` tool relies on Claude Code's own per-call permission
  * prompt for approval (the AI-SDK path uses the tool's `needsApproval` instead).
  *
@@ -299,18 +301,16 @@ export class CherryBuiltinToolsServer {
 
   constructor(agentContext: CherryAgentContext) {
     const autonomy = new CherryAutonomyTools(agentContext)
-    // The agent's bound knowledge bases scope + gate the kb_* tools (empty = no kb tools).
-    const allowedIds = agentContext.knowledgeBaseIds
     this.mcpServer = new McpServer({ name: 'cherry-tools', version: '1.0.0' }, { capabilities: { tools: {} } })
     this.mcpServer.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [...listCherryBuiltinTools(allowedIds), ...autonomy.tools()]
+      tools: [...listCherryBuiltinTools(agentContext.getKnowledgeBaseIds()), ...autonomy.tools()]
     }))
     this.mcpServer.server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
       const { name } = request.params
       if (autonomy.handles(name)) {
         return autonomy.call(name, (request.params.arguments ?? {}) as Record<string, string | undefined>)
       }
-      return callCherryBuiltinTool(name, request.params.arguments, extra.signal, allowedIds)
+      return callCherryBuiltinTool(name, request.params.arguments, extra.signal, agentContext.getKnowledgeBaseIds())
     })
   }
 }

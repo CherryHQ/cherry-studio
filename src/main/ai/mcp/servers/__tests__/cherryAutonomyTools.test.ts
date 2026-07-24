@@ -86,8 +86,13 @@ const WORKSPACE_SOURCE = { type: 'system' as const }
 const WORKSPACE_PATH = '/tmp/cherry-test-workspace'
 
 function createServer(agentId = 'agent_test', workspacePath = WORKSPACE_PATH) {
-  // knowledgeBaseIds is required on CherryAgentContext but unused by the autonomy tools.
-  return new CherryAutonomyTools({ agentId, workspaceSource: WORKSPACE_SOURCE, workspacePath, knowledgeBaseIds: [] })
+  // getKnowledgeBaseIds is required on CherryAgentContext but unused by the autonomy tools.
+  return new CherryAutonomyTools({
+    agentId,
+    workspaceSource: WORKSPACE_SOURCE,
+    workspacePath,
+    getKnowledgeBaseIds: () => []
+  })
 }
 
 // Helper mirroring how CherryBuiltinToolsServer's CallTool handler routes autonomy calls

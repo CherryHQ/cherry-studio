@@ -10,7 +10,8 @@ import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetPathStatus, mockMkdir, mockRealpath, mockGetPath, mockPreferenceGet } = vi.hoisted(() => ({
+const { mockGetAgent, mockGetPathStatus, mockMkdir, mockRealpath, mockGetPath, mockPreferenceGet } = vi.hoisted(() => ({
+  mockGetAgent: vi.fn(),
   mockGetPathStatus: vi.fn(),
   mockMkdir: vi.fn(),
   mockRealpath: vi.fn(),
@@ -62,6 +63,10 @@ vi.mock('@main/i18n', () => ({
 
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: { listChannels: vi.fn().mockResolvedValue([]) }
+}))
+
+vi.mock('@data/services/AgentService', () => ({
+  agentService: { getAgent: mockGetAgent }
 }))
 
 const {
@@ -139,6 +144,10 @@ describe('adjustAllowedToolsForMcp', () => {
 })
 
 describe('buildMcpServers', () => {
+  beforeEach(() => {
+    mockGetAgent.mockReset()
+  })
+
   it('injects the agent-memory server for every agent (REGRESSION agents-jobs-3)', async () => {
     const result = buildMcpServers(session, agent, false)
     expect(Object.keys(result ?? {})).toEqual(expect.arrayContaining(['cherry-tools', 'agent-memory']))
@@ -170,6 +179,7 @@ describe('buildMcpServers', () => {
   }
 
   it('hides the kb_* tools from cherry-tools when the agent has no bound knowledge base', async () => {
+    mockGetAgent.mockReturnValue(agent)
     const names = await cherryToolNames(buildMcpServers(session, agent, false))
     expect(names).toContain('web_search')
     expect(names).not.toContain('kb_search')
@@ -178,8 +188,18 @@ describe('buildMcpServers', () => {
 
   it('exposes the kb_* tools from cherry-tools when the agent is bound to a knowledge base', async () => {
     const boundAgent = { id: 'agent-1', mcps: [], knowledgeBaseIds: ['kb_a'] } as unknown as AgentEntity
+    mockGetAgent.mockReturnValue(boundAgent)
     const names = await cherryToolNames(buildMcpServers(session, boundAgent, false))
     expect(names).toEqual(expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage']))
+  })
+
+  it('re-reads knowledge bindings for an already-created cherry-tools server', async () => {
+    const boundAgent = { id: 'agent-1', mcps: [], knowledgeBaseIds: ['kb_a'] } as unknown as AgentEntity
+    mockGetAgent.mockReturnValueOnce(boundAgent).mockReturnValueOnce({ ...boundAgent, knowledgeBaseIds: [] })
+    const servers = buildMcpServers(session, boundAgent, false)
+
+    expect(await cherryToolNames(servers)).toContain('kb_read')
+    expect(await cherryToolNames(servers)).not.toContain('kb_read')
   })
 })
 
