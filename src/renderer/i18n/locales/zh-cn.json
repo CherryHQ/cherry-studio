@@ -6362,11 +6362,8 @@
       },
       "custom": {
         "css": {
-          "export": "导出旧版 CSS",
-          "export_error": "旧版自定义 CSS 导出失败",
-          "export_success": "旧版自定义 CSS 已导出",
+          "cherrycss": "从 cherrycss.com 获取",
           "label": "自定义 CSS",
-          "legacy_warning": "旧版 CSS 已失效，请升级至 v2 样式方案。",
           "placeholder": "/* 这里写自定义 CSS */"
         }
       },
@@ -6941,6 +6938,23 @@
         "model_type": {
           "label": "模型类型"
         },
+        "purpose": {
+          "chat": {
+            "description": "使用 Provider 的文本 API",
+            "label": "对话"
+          },
+          "chat_protocol": "对话协议",
+          "description": "选择这个模型的用途",
+          "image_edit": {
+            "description": "接收输入图片并返回编辑后的图片",
+            "label": "图像编辑"
+          },
+          "image_generation": {
+            "description": "根据提示词生成图片",
+            "label": "图像生成"
+          },
+          "label": "模型用途"
+        },
         "supported_text_delta": {
           "label": "支持增量文本输出",
           "tooltip": "模型每次返回文本增量，而不是一次性返回所有文本，默认开启，如果模型不支持，请关闭"
@@ -7316,8 +7330,9 @@
       },
       "balance": "余额",
       "base_url": {
+        "invalid": "请输入有效的 HTTP 或 HTTPS 地址",
         "label": "Base URL",
-        "placeholder": "https://api.example.com",
+        "placeholder": "Base URL：https://example.com",
         "required": "请输入 Base URL"
       },
       "basic_auth": {
@@ -7409,6 +7424,23 @@
         "toggle_headers_editor_list": "切换为键值列表"
       },
       "create_custom": {
+        "endpoint_fields": {
+          "default_chat": "默认",
+          "label": "端点设置",
+          "more": "更多设置",
+          "more_configured": "已配置 {{count}} 项",
+          "set_default_chat": "设为默认",
+          "text_endpoint_required": "请至少配置一个文本端点",
+          "url_help": "填写 API 根地址后会显示实际请求路径"
+        },
+        "preset_instance": {
+          "description": "适用于 Coding Plan 接入、多个账号管理或项目隔离；Base URL 和 API Key 可独立配置",
+          "empty": "没有匹配的 Provider 预设",
+          "placeholder": "从 Provider 预设创建…",
+          "search_placeholder": "搜索 Provider 预设",
+          "title": "从预设创建（可选）"
+        },
+        "request_preview": "请求路径：{{path}}",
         "title": "添加自定义提供商"
       },
       "delete": {
@@ -7448,13 +7480,23 @@
         "sign_in_success": "已登录 Grok CLI",
         "signing_in": "等待浏览器…"
       },
+      "image_endpoints": {
+        "image_edit_base_url": {
+          "help": "用于 /images/edits；留空时使用默认对话端点的 Base URL",
+          "label": "图像编辑 Base URL"
+        },
+        "image_generation_base_url": {
+          "help": "用于 /images/generations；留空时使用默认对话端点的 Base URL",
+          "label": "图像生成 Base URL"
+        }
+      },
       "logo_upload_failed": "无法处理所选图片",
       "misc": "其他",
       "more_endpoints": {
         "add": "添加端点",
-        "anthropic": "Anthropic Messages",
-        "gemini": "Google Gemini",
-        "openai_chat": "OpenAI Chat Completions",
+        "anthropic": "Anthropic",
+        "gemini": "Gemini",
+        "openai_chat": "OpenAI",
         "openai_responses": "OpenAI Responses",
         "toggle": "更多端点"
       },

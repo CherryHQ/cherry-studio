@@ -144,6 +144,19 @@ describe('DynamicVirtualList', () => {
       // Should handle dynamic item count changes
       rerender(<DynamicVirtualList {...defaultProps} list={createTestItems(10)} />)
       expect(document.querySelector('.dynamic-virtual-list')).toBeInTheDocument()
+      expect(mocks.virtualizer.measure).not.toHaveBeenCalled()
+    })
+
+    it('should remeasure when an initially empty list receives items', () => {
+      mocks.virtualizer.getVirtualItems.mockReturnValueOnce([])
+      const { rerender } = render(<DynamicVirtualList {...defaultProps} list={[]} size={0} />)
+
+      expect(mocks.virtualizer.measure).not.toHaveBeenCalled()
+
+      rerender(<DynamicVirtualList {...defaultProps} list={createTestItems(3)} size={150} />)
+
+      expect(mocks.virtualizer.measure).toHaveBeenCalledOnce()
+      expect(screen.getByTestId('item-0')).toBeInTheDocument()
     })
 
     it('should work with custom estimateSize function', () => {

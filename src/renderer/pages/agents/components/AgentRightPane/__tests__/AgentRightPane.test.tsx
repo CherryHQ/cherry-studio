@@ -2,7 +2,7 @@ import { useRightPanelState } from '@renderer/components/chat/panes/Shell'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { TreeDir, TreeDirRoot, TreeFile } from '@shared/utils/file'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type {
   ButtonHTMLAttributes,
   ComponentProps,
@@ -319,6 +319,39 @@ function OpenArtifactButton() {
 function UserOpenSeqProbe() {
   const { userOpenSeq } = useRightPanelState()
   return <output data-testid="user-open-seq">{userOpenSeq}</output>
+}
+
+type StatusTaskFixture = {
+  id: string
+  status: 'pending' | 'in_progress' | 'completed' | 'error'
+  title: string
+}
+
+function renderStatusTasks(tasks: StatusTaskFixture[], { openPanel = true }: { openPanel?: boolean } = {}) {
+  const parts = tasks.map(
+    (task) =>
+      ({
+        type: 'data-agent-task-event',
+        data: {
+          event: 'notification',
+          taskId: task.id,
+          status: task.status,
+          title: task.title
+        }
+      }) as unknown as CherryMessagePart
+  )
+  const messages = [{ id: 'm1', role: 'assistant', parts, metadata: {} }] as CherryUIMessage[]
+
+  render(
+    <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: parts }}>
+      <AgentRightPane.Shortcuts />
+      <AgentRightPane.Viewport />
+    </TestAgentRightPane>
+  )
+
+  if (openPanel) {
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+  }
 }
 
 describe('AgentRightPane', () => {
@@ -656,6 +689,65 @@ describe('AgentRightPane', () => {
 
     expect(buildAgentToolFlowProjectionMock).toHaveBeenCalledTimes(callsWhileActive)
     expect(screen.getByTestId('message-list')).toBeInTheDocument()
+  })
+
+  it.each([
+    { status: 'pending', iconClassNames: ['text-muted-foreground'] },
+    { status: 'in_progress', iconClassNames: ['animate-spin', 'text-info'] },
+    { status: 'completed', iconClassNames: ['text-success'] },
+    { status: 'error', iconClassNames: ['text-destructive'] }
+  ] as const)('centers the $status task icon within the first text line', ({ status, iconClassNames }) => {
+    const title = `${status} task`
+    renderStatusTasks([{ id: status, status, title }])
+
+    const taskText = screen.getByText(title)
+    const iconContainer = taskText.parentElement?.previousElementSibling
+
+    expect(taskText).toHaveClass('leading-5')
+    expect(iconContainer).toHaveClass('flex', 'size-5', 'shrink-0', 'items-center', 'justify-center')
+    expect(iconContainer?.querySelector('svg')).toHaveClass(...iconClassNames)
+  })
+
+  it('keeps a wrapping task icon aligned with the first text line', () => {
+    const title =
+      'Review every renderer task state and verify the status icon remains aligned when this label wraps across lines'
+    renderStatusTasks([{ id: 'wrapping-task', status: 'pending', title }])
+
+    const taskText = screen.getByText(title)
+    const textContainer = taskText.parentElement
+    const row = textContainer?.parentElement
+    const iconContainer = textContainer?.previousElementSibling
+
+    expect(row).toHaveClass('items-start')
+    expect(taskText).toHaveClass('wrap-break-word', 'leading-5')
+    expect(iconContainer).toHaveClass('flex', 'size-5', 'shrink-0', 'items-center', 'justify-center')
+  })
+
+  it('keeps shortcut preview task icons aligned while the status panel stays closed', () => {
+    const shortTitle = 'Review task state'
+    const wrappingTitle =
+      'Review every task state shown in the shortcut preview and verify this longer label keeps wrapping below its first line'
+    renderStatusTasks(
+      [
+        { id: 'short-task', status: 'pending', title: shortTitle },
+        { id: 'wrapping-task', status: 'in_progress', title: wrappingTitle }
+      ],
+      { openPanel: false }
+    )
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
+    const preview = screen.getByTestId('status-shortcut-preview')
+
+    for (const title of [shortTitle, wrappingTitle]) {
+      const taskText = within(preview).getByText(title)
+      const row = taskText.closest('li')
+      const iconContainer = taskText.previousElementSibling
+
+      expect(row).toHaveClass('flex', 'min-w-0', 'items-start')
+      expect(taskText.parentElement).toBe(row)
+      expect(taskText).toHaveClass('wrap-break-word', 'min-w-0', 'flex-1', 'leading-5')
+      expect(iconContainer).toHaveClass('flex', 'size-5', 'shrink-0', 'items-center', 'justify-center')
+    }
   })
 
   it('renders artifact status filenames with neutral text', () => {
