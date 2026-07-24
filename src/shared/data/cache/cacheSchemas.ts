@@ -121,9 +121,6 @@ export type UseCacheSchema = {
   'chat.multi_select_mode': boolean
   'chat.selected_message_ids': string[]
   'chat.web_search.searching': boolean
-  // Message-list scroll position memory, keyed per topic / agent session.
-  // `null` = follow the latest message (at bottom or never scrolled).
-  'chat.scroll_anchor.${topicId}': CacheValueTypes.ChatScrollAnchor | null
 
   // Knowledge recall test query history (session-only)
   'knowledge.recall.search_queries': Record<string, string[]>
@@ -198,7 +195,6 @@ export const DefaultUseCache: UseCacheSchema = {
   'chat.multi_select_mode': false,
   'chat.selected_message_ids': [],
   'chat.web_search.searching': false,
-  'chat.scroll_anchor.${topicId}': null,
   'knowledge.recall.search_queries': {},
   'notes.active_file_path': undefined,
 

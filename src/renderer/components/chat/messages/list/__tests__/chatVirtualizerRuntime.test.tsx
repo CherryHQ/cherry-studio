@@ -315,6 +315,28 @@ describe('useChatVirtualizerRuntime', () => {
     expect(runtime?.scrollerProps.onScroll).toBe(onScroll)
   })
 
+  it('positions a newly populated list at the latest message exactly once', () => {
+    let runtime: ChatVirtualizerRuntime<string> | undefined
+    const virtualizerHandle = createHandle()
+    const view = render(<RuntimeProbe items={[]} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+
+    runtime!.vlistHandleRef.current = virtualizerHandle
+    view.rerender(
+      <RuntimeProbe items={['message-a', 'message-b']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />
+    )
+
+    expect(virtualizerHandle.scrollToIndex).toHaveBeenCalledWith(1, { align: 'end', offset: 12 })
+
+    view.rerender(
+      <RuntimeProbe
+        items={['message-a', 'message-b', 'message-c']}
+        onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+      />
+    )
+
+    expect(virtualizerHandle.scrollToIndex).toHaveBeenCalledTimes(1)
+  })
+
   it('does not recreate resize observers on unrelated parent rerenders', () => {
     const originalResizeObserver = globalThis.ResizeObserver
     const observers: Array<{ disconnect: ReturnType<typeof vi.fn>; observe: ReturnType<typeof vi.fn> }> = []
@@ -2715,10 +2737,6 @@ describe('useChatVirtualizerRuntime', () => {
       Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
       runtime!.vlistHandleRef.current = createHandle()
 
-      // Drain the mount's scroll-to-newest rAF first so its programmatic stick
-      // can't fire during the final tick and masquerade as a re-latch.
-      raf.tick(60)
-
       scrollHeight = 1200
       act(() => callbacks[0]?.([], {} as ResizeObserver))
 
@@ -2857,9 +2875,6 @@ describe('useChatVirtualizerRuntime', () => {
       })
       Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
       runtime!.vlistHandleRef.current = createHandle({ getItemOffset: vi.fn(() => 300) })
-      // Drain the mount's scroll-to-newest restore (it releases any anchor) so
-      // it cannot fire after the pin below and silently unpin it.
-      raf.tick(60)
 
       // Send: pin the fresh user message to the top.
       view.rerender(
@@ -2929,9 +2944,6 @@ describe('useChatVirtualizerRuntime', () => {
       })
       Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
       runtime!.vlistHandleRef.current = createHandle({ getItemOffset: vi.fn(() => 300) })
-      // Drain the mount's scroll-to-newest restore (it releases any anchor) so
-      // it cannot fire after the pin below and silently unpin it.
-      raf.tick(60)
 
       // A takeover latched while idle (the user clicked something in the list).
       act(() => runtime!.takeUserControl())
