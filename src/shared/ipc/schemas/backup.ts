@@ -10,11 +10,12 @@
 //   - backup.cancel: abort the active export whose id matches backupId (no-op if no
 //     match or idle). The orchestrator checks the AbortSignal at the next step boundary.
 //   - backup.progress (event): per-step progress ticks during the export.
+//   - backup.restore_summary (event): pre-relaunch restore disclosure (will restore / will skip).
 //
 // The `note` overlay rows + DB copy travel in both presets; Notes markdown bodies +
 // file blobs are full-preset file resources (orchestrator-enforced, not a route concern).
 
-import type { BackupProgressUpdate } from '@shared/types/backup'
+import type { BackupProgressUpdate, RestoreResultSummary } from '@shared/types/backup'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
@@ -44,4 +45,9 @@ export type BackupEventSchemas = {
   // Per-step export progress tick (phase: collect/snapshot/archive, current/total, msg).
   // Emitted via IpcApiService.broadcast to all windows; backupId is the cancel key.
   'backup.progress': BackupProgressUpdate
+  // Restore disclosure summary (full-restore-plan §10.5), broadcast from startRestore
+  // after seal and BEFORE relaunch: what the staged journal will restore / will skip
+  // and why. Promotion has not applied yet (preboot may expire the whole batch), so
+  // consumers must render future-tense copy.
+  'backup.restore_summary': RestoreResultSummary
 }

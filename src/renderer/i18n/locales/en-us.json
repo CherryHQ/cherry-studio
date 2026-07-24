@@ -5723,7 +5723,20 @@
             "pick_prompt": "Select a .cherrybackup backup archive to restore.",
             "relaunching": "Restore staged. The app is relaunching…",
             "selected": "Selected archive:",
-            "skip_only": "Only the skip (SKIP) merge strategy is supported. Overwrite and rename are not available yet."
+            "skip_only": "Only the skip (SKIP) merge strategy is supported. Overwrite and rename are not available yet.",
+            "summary": {
+              "kind": {
+                "file": "Files",
+                "knowledge": "Knowledge bases",
+                "note": "Notes",
+                "skill": "Skills"
+              },
+              "none": "No resource files to restore",
+              "pending_hint": "The restore is staged and will apply after restart. Summary of this restore:",
+              "restart_button": "Restart now",
+              "will_restore": "Will restore",
+              "will_skip": "Will skip (keeping the local version)"
+            }
           }
         },
         "v2_unavailable": "Backup & restore V2 is not available yet. Coming soon."

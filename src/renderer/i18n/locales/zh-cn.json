@@ -5723,7 +5723,20 @@
             "pick_prompt": "请选择要恢复的 .cherrybackup 备份文件。",
             "relaunching": "恢复已暂存，应用正在重启…",
             "selected": "已选择的备份：",
-            "skip_only": "当前仅支持跳过（SKIP）合并策略，覆盖与重命名尚未支持。"
+            "skip_only": "当前仅支持跳过（SKIP）合并策略，覆盖与重命名尚未支持。",
+            "summary": {
+              "kind": {
+                "file": "文件",
+                "knowledge": "知识库",
+                "note": "笔记",
+                "skill": "技能"
+              },
+              "none": "没有需要恢复的资源文件",
+              "pending_hint": "恢复已暂存，将在重启后生效。本次恢复摘要：",
+              "restart_button": "立即重启",
+              "will_restore": "将恢复",
+              "will_skip": "将跳过（保留本地版本）"
+            }
           }
         },
         "v2_unavailable": "V2 备份恢复尚未上线，敬请期待"

@@ -1,9 +1,11 @@
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useBackupV2 } from '@renderer/hooks/useBackupV2'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { createPopup, popup, type PopupInjectedProps } from '@renderer/services/popup'
 import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
+import type { RestoreResultSummary } from '@shared/types/backup'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -22,6 +24,12 @@ type RestorePhase = 'idle' | 'selecting-archive' | 'ready' | 'confirming' | 'rel
  * idle → selecting-archive → ready → confirming → relaunching
  *                                      └────────→ ready (confirm cancel)
  * relaunching → ready-with-error
+ *
+ * In `relaunching`, a `backup.restore_summary` event (broadcast by main after
+ * seal, before relaunch — full-restore-plan §10.5) switches the body to the
+ * disclosure summary (future-tense: will restore / will skip) plus a restart
+ * button (`app.relaunch`). Without the event the plain relaunching text shows,
+ * which also covers the pre-wiring spine that relaunches unconditionally.
  */
 const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   const { t } = useTranslation()
@@ -30,9 +38,14 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   const [archivePath, setArchivePath] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [errorCode, setErrorCode] = useState<string | null>(null)
+  const [summary, setSummary] = useState<RestoreResultSummary | null>(null)
 
   const busy = phase === 'selecting-archive' || phase === 'confirming' || phase === 'relaunching'
   const canClose = phase !== 'relaunching'
+
+  // Disclosure summary (full-restore-plan §10.5): main broadcasts it from startRestore
+  // after seal, before any relaunch — so it lands while we sit in `relaunching`.
+  useIpcOn('backup.restore_summary', setSummary)
 
   useEffect(() => {
     if (!open) return
@@ -40,6 +53,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
     setArchivePath(null)
     setErrorMessage(null)
     setErrorCode(null)
+    setSummary(null)
   }, [open])
 
   const onClose = () => {
@@ -92,6 +106,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
     setPhase('relaunching')
     setErrorMessage(null)
     setErrorCode(null)
+    setSummary(null)
     try {
       await startRestore(archivePath)
       // Success path: process is relaunching. Do not toast, resolve, or reset.
@@ -156,8 +171,49 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
           </div>
         )}
 
-        {phase === 'relaunching' && (
+        {phase === 'relaunching' && !summary && (
           <div className="py-4 text-center text-sm">{t('settings.data.backup.v2.restore.relaunching')}</div>
+        )}
+
+        {phase === 'relaunching' && summary && (
+          <div className="flex flex-col gap-3 text-sm" data-testid="v2-restore-summary">
+            {/* Future tense is mandatory: promotion runs at next boot and preboot may
+                still expire the whole batch (RestoreResultSummary contract). */}
+            <div>{t('settings.data.backup.v2.restore.summary.pending_hint')}</div>
+            <div>
+              <div className="font-medium">{t('settings.data.backup.v2.restore.summary.will_restore')}</div>
+              {summary.toRestore.length === 0 ? (
+                <div className="mt-1 text-foreground-secondary">
+                  {t('settings.data.backup.v2.restore.summary.none')}
+                </div>
+              ) : (
+                <ul className="mt-1 flex flex-col gap-0.5">
+                  {summary.toRestore.map((item) => (
+                    <li key={item.kind} className="flex justify-between">
+                      <span>{t(`settings.data.backup.v2.restore.summary.kind.${item.kind}`)}</span>
+                      <span>{item.count}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            {summary.toSkip.length > 0 && (
+              <div>
+                <div className="font-medium">{t('settings.data.backup.v2.restore.summary.will_skip')}</div>
+                <ul className="mt-1 flex max-h-40 flex-col gap-1 overflow-y-auto">
+                  {summary.toSkip.map((item) => (
+                    <li key={`${item.kind}:${item.id}`} className="break-all">
+                      <span className="text-foreground-secondary">
+                        [{t(`settings.data.backup.v2.restore.summary.kind.${item.kind}`)}]
+                      </span>{' '}
+                      {item.id}
+                      <div className="text-foreground-secondary text-xs">{item.reason}</div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
         )}
 
         {phase === 'ready-with-error' && (
@@ -175,6 +231,11 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
           {(phase === 'ready' || phase === 'ready-with-error' || phase === 'confirming') && (
             <Button disabled={busy || !archivePath} onClick={() => void onConfirmRestore()}>
               {t('common.confirm')}
+            </Button>
+          )}
+          {phase === 'relaunching' && summary && (
+            <Button data-testid="v2-restore-restart-button" onClick={() => void ipcApi.request('app.relaunch')}>
+              {t('settings.data.backup.v2.restore.summary.restart_button')}
             </Button>
           )}
         </DialogFooter>
