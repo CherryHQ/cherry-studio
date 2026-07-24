@@ -252,7 +252,7 @@ describe('WordPreviewPanel', () => {
     const oversizedDocxBytes = mocks.createZipBytes([
       {
         name: 'word/document.xml',
-        uncompressedSize: 32 * 1024 * 1024 + 1
+        uncompressedSize: 64 * 1024 * 1024 + 1
       }
     ])
     mocks.fsRead.mockResolvedValueOnce(oversizedDocxBytes)

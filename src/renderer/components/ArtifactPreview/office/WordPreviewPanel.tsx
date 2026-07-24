@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next'
 
 import DocumentPreviewToolbar from '../DocumentPreviewToolbar'
 import { toUint8Array } from '../toUint8Array'
-import { assertDocxZipLimits } from './docxZipPreflight'
+import { assertZipLimits } from './zipPreflight'
 
 const logger = loggerService.withContext('WordPreviewPanel')
 
@@ -144,7 +144,7 @@ const WordPreviewPanel = ({ filePath, fileName, refreshKey, sourceSize, actions 
         assertSourceSize(docxData.byteLength)
         if (!isCurrent()) return
 
-        assertDocxZipLimits(docxData)
+        assertZipLimits(docxData, 'DOCX')
         if (!isCurrent()) return
 
         await renderAsync(docxData, stagingBody, stagingStyle, {

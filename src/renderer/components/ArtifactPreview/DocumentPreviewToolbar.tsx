@@ -26,6 +26,79 @@ interface DocumentPreviewToolbarProps {
   onResetZoom: () => void
 }
 
+interface ZoomControlsProps {
+  zoomLabel: string
+  zoomIndicatorTestId?: string
+  canZoomOut?: boolean
+  canZoomIn?: boolean
+  canResetZoom?: boolean
+  onZoomOut: () => void
+  onZoomIn: () => void
+  onResetZoom?: () => void
+}
+
+/** Shared zoom cluster for document previews. The caller owns toolbar placement and page-specific controls. */
+export const ZoomControls = ({
+  zoomLabel,
+  zoomIndicatorTestId,
+  canZoomOut = true,
+  canZoomIn = true,
+  canResetZoom = true,
+  onZoomOut,
+  onZoomIn,
+  onResetZoom
+}: ZoomControlsProps) => {
+  const { t } = useTranslation()
+
+  return (
+    <>
+      <Tooltip content={t('preview.zoom_out')} delay={800}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="text-muted-foreground hover:text-foreground"
+          aria-label={t('preview.zoom_out')}
+          disabled={!canZoomOut}
+          onClick={onZoomOut}>
+          <ZoomOut size={14} />
+        </Button>
+      </Tooltip>
+      <span
+        className="min-w-10 px-1 text-center text-muted-foreground text-xs tabular-nums"
+        data-testid={zoomIndicatorTestId}>
+        {zoomLabel}
+      </span>
+      <Tooltip content={t('preview.zoom_in')} delay={800}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="text-muted-foreground hover:text-foreground"
+          aria-label={t('preview.zoom_in')}
+          disabled={!canZoomIn}
+          onClick={onZoomIn}>
+          <ZoomIn size={14} />
+        </Button>
+      </Tooltip>
+      {onResetZoom && (
+        <Tooltip content={t('preview.reset')} delay={800}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="text-muted-foreground hover:text-foreground"
+            aria-label={t('preview.reset')}
+            disabled={!canResetZoom}
+            onClick={onResetZoom}>
+            <RotateCcw size={14} />
+          </Button>
+        </Tooltip>
+      )}
+    </>
+  )
+}
+
 const DocumentPreviewToolbar = ({
   currentPage,
   pageCount,
@@ -84,47 +157,16 @@ const DocumentPreviewToolbar = ({
         </Button>
       </Tooltip>
       <span className="mx-1 h-4 w-px bg-border-subtle" />
-      <Tooltip content={t('preview.zoom_out')} delay={800}>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="text-muted-foreground hover:text-foreground"
-          aria-label={t('preview.zoom_out')}
-          disabled={!canZoomOut}
-          onClick={onZoomOut}>
-          <ZoomOut size={14} />
-        </Button>
-      </Tooltip>
-      <span
-        className="min-w-10 px-1 text-center text-muted-foreground text-xs tabular-nums"
-        data-testid={zoomIndicatorTestId}>
-        {zoomLabel}
-      </span>
-      <Tooltip content={t('preview.zoom_in')} delay={800}>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="text-muted-foreground hover:text-foreground"
-          aria-label={t('preview.zoom_in')}
-          disabled={!canZoomIn}
-          onClick={onZoomIn}>
-          <ZoomIn size={14} />
-        </Button>
-      </Tooltip>
-      <Tooltip content={t('preview.reset')} delay={800}>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="text-muted-foreground hover:text-foreground"
-          aria-label={t('preview.reset')}
-          disabled={!canResetZoom}
-          onClick={onResetZoom}>
-          <RotateCcw size={14} />
-        </Button>
-      </Tooltip>
+      <ZoomControls
+        zoomLabel={zoomLabel}
+        zoomIndicatorTestId={zoomIndicatorTestId}
+        canZoomOut={canZoomOut}
+        canZoomIn={canZoomIn}
+        canResetZoom={canResetZoom}
+        onZoomOut={onZoomOut}
+        onZoomIn={onZoomIn}
+        onResetZoom={onResetZoom}
+      />
     </div>
   )
 }

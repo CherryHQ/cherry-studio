@@ -20,8 +20,16 @@ const mocks = vi.hoisted(() => ({
     sourceSize?: number
     actions?: React.ReactNode
   }>,
+  xlsxPreviewPanelProps: [] as Array<{
+    fileName: string
+    filePath: string
+    refreshKey: number
+    sourceSize?: number
+    actions?: React.ReactNode
+  }>,
   wordPreviewPanelModuleLoadCount: 0,
-  pptxPreviewPanelModuleLoadCount: 0
+  pptxPreviewPanelModuleLoadCount: 0,
+  xlsxPreviewPanelModuleLoadCount: 0
 }))
 
 vi.mock('../WordPreviewPanel', () => {
@@ -53,6 +61,23 @@ vi.mock('../PptxPreviewPanel', () => {
     }) => {
       mocks.pptxPreviewPanelProps.push(props)
       return <div data-testid="pptx-preview-panel" data-file-name={props.fileName} data-file-path={props.filePath} />
+    },
+    __esModule: true
+  }
+})
+
+vi.mock('../XlsxPreviewPanel', () => {
+  mocks.xlsxPreviewPanelModuleLoadCount += 1
+  return {
+    XlsxPreviewPanel: (props: {
+      fileName: string
+      filePath: string
+      refreshKey: number
+      sourceSize?: number
+      actions?: React.ReactNode
+    }) => {
+      mocks.xlsxPreviewPanelProps.push(props)
+      return <div data-testid="xlsx-preview-panel" data-file-name={props.fileName} data-file-path={props.filePath} />
     },
     __esModule: true
   }
@@ -101,6 +126,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   mocks.wordPreviewPanelProps.length = 0
   mocks.pptxPreviewPanelProps.length = 0
+  mocks.xlsxPreviewPanelProps.length = 0
 })
 
 afterEach(() => {
@@ -178,6 +204,32 @@ describe('OfficePreviewPanel', () => {
       actions: undefined
     })
     expect(mocks.wordPreviewPanelProps).toEqual([])
+  })
+
+  it('renders xlsx files with the dedicated XLSX preview panel', async () => {
+    render(
+      <OfficePreviewPanel
+        filePath="report.xlsx"
+        fileName="report.xlsx"
+        sourceFilePath="/tmp/workspace/report.xlsx"
+        refreshKey={5}
+        sourceSize={8192}
+      />
+    )
+
+    expect(await screen.findByTestId('xlsx-preview-panel')).toHaveAttribute(
+      'data-file-path',
+      '/tmp/workspace/report.xlsx'
+    )
+    expect(mocks.xlsxPreviewPanelProps[0]).toEqual({
+      fileName: 'report.xlsx',
+      filePath: '/tmp/workspace/report.xlsx',
+      refreshKey: 5,
+      sourceSize: 8192,
+      actions: undefined
+    })
+    expect(mocks.wordPreviewPanelProps).toEqual([])
+    expect(mocks.pptxPreviewPanelProps).toEqual([])
   })
 
   it('shows an error when a supported relative file is missing an absolute source path', () => {

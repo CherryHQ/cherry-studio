@@ -1,19 +1,17 @@
-import { describe, expect, it } from 'vitest'
+/** Test helper for handcrafted ZIP bytes. It can fake central-directory fields such as uncompressedSize for preflight limits. */
 
-import { assertDocxZipLimits, DOCX_ZIP_LIMITS } from '../docxZipPreflight'
-
-interface TestZipEntry {
+export interface TestZipEntry {
   name: string
   content?: Uint8Array
   compressedSize?: number
   uncompressedSize?: number
 }
 
-function asciiBytes(value: string): Uint8Array {
+export function asciiBytes(value: string): Uint8Array {
   return Uint8Array.from(value, (char) => char.charCodeAt(0))
 }
 
-function concatBytes(chunks: Uint8Array[]): Uint8Array {
+function concatBytes(chunks: Uint8Array[]): Uint8Array<ArrayBuffer> {
   const bytes = new Uint8Array(chunks.reduce((size, chunk) => size + chunk.byteLength, 0))
   let offset = 0
 
@@ -25,7 +23,7 @@ function concatBytes(chunks: Uint8Array[]): Uint8Array {
   return bytes
 }
 
-function createZipBytes(entries: TestZipEntry[]): Uint8Array {
+export function createZipBytes(entries: TestZipEntry[]): Uint8Array<ArrayBuffer> {
   const localRecords: Uint8Array[] = []
   const centralRecords: Uint8Array[] = []
   let localOffset = 0
@@ -74,43 +72,3 @@ function createZipBytes(entries: TestZipEntry[]): Uint8Array {
 
   return concatBytes([...localRecords, ...centralRecords, eocd])
 }
-
-describe('assertDocxZipLimits', () => {
-  it('accepts a bounded ZIP archive', () => {
-    const bytes = createZipBytes([{ name: 'word/document.xml', content: asciiBytes('<w:document />') }])
-
-    expect(() => assertDocxZipLimits(bytes)).not.toThrow()
-  })
-
-  it('rejects archives with too many entries', () => {
-    const bytes = createZipBytes(
-      Array.from({ length: DOCX_ZIP_LIMITS.maxEntries + 1 }, (_, index) => ({
-        name: `word/file-${index}.xml`
-      }))
-    )
-
-    expect(() => assertDocxZipLimits(bytes)).toThrow('up to 4000 entries')
-  })
-
-  it('rejects oversized uncompressed entries', () => {
-    const bytes = createZipBytes([
-      {
-        name: 'word/document.xml',
-        uncompressedSize: DOCX_ZIP_LIMITS.maxEntryUncompressedBytes + 1
-      }
-    ])
-
-    expect(() => assertDocxZipLimits(bytes)).toThrow('ZIP entries up to')
-  })
-
-  it('rejects oversized total uncompressed payloads', () => {
-    const bytes = createZipBytes(
-      Array.from({ length: 9 }, (_, index) => ({
-        name: `word/file-${index}.xml`,
-        uncompressedSize: DOCX_ZIP_LIMITS.maxEntryUncompressedBytes
-      }))
-    )
-
-    expect(() => assertDocxZipLimits(bytes)).toThrow('total uncompressed bytes')
-  })
-})
