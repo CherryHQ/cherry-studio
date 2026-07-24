@@ -3872,7 +3872,11 @@
       },
       "user_content": {
         "collapse": "Свернуть",
-        "expand": "Расширить"
+        "expand": "Расширить",
+        "more_files_few": "ещё {{count}} файла",
+        "more_files_many": "ещё {{count}} файлов",
+        "more_files_one": "ещё {{count}} файл",
+        "more_files_other": "ещё {{count}} файла"
       },
       "video": {
         "error": {

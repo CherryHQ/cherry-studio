@@ -1,4 +1,4 @@
-import { Flex, type MarkdownSource } from '@cherrystudio/ui'
+import { Badge, Flex, type MarkdownSource } from '@cherrystudio/ui'
 import type { ChatInputTokenKind } from '@renderer/components/composer/chatTokenView'
 import { ComposerToken, type ReadOnlyComposerFileTokenPreview } from '@renderer/components/composer/tokenView'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
@@ -55,6 +55,12 @@ const COMPOSER_TOKEN_BACKED_KINDS = new Set<ComposerMessageToken['kind']>([
 const COMPOSER_TOKEN_MARKDOWN_ATTR = 'data-composer-token-index'
 const COMPOSER_TOKEN_MARKDOWN_BLOCK_ATTR = 'data-composer-token-block'
 const USER_MESSAGE_PREVIEW_EFFECTIVE_LINE_COUNT = 5
+const USER_MESSAGE_PREVIEW_FILE_TOKEN_COUNT = 5
+
+interface CollapsedComposerFileTokenPreview {
+  hiddenTokenIndexes: ReadonlySet<number>
+  hiddenCount: number
+}
 
 function isComposerTokenBackedMessageToken(token: ComposerMessageToken): token is ComposerTokenBackedMessageToken {
   return COMPOSER_TOKEN_BACKED_KINDS.has(token.kind)
@@ -93,14 +99,29 @@ function ComposerMessageTokenChip({
   return <LegacyComposerMessageTokenChip token={token} />
 }
 
+function ComposerFileTokenOverflow({ count }: { count: number }) {
+  const { t } = useTranslation()
+
+  return (
+    <Badge
+      variant="secondary"
+      data-composer-file-token-overflow
+      className="mx-0.5 my-0.5 h-6 rounded-md px-2 py-0 font-normal text-foreground-secondary leading-[inherit]">
+      {t('message.message.user_content.more_files', { count })}
+    </Badge>
+  )
+}
+
 function renderComposerMessageContent(
   content: string,
   composer: ComposerMessageSnapshot,
-  readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>
+  readOnlyFilePreviews?: ReadonlyMap<string, ReadOnlyComposerFileTokenPreview>,
+  collapsedFileTokenPreview?: CollapsedComposerFileTokenPreview
 ) {
   const tokens = getDisplayComposerTokens(composer)
   const nodes: React.ReactNode[] = []
   let cursor = 0
+  let didRenderFileTokenOverflow = false
 
   tokens.forEach((token) => {
     const offset = Math.max(0, Math.min(content.length, token.textOffset))
@@ -113,13 +134,22 @@ function renderComposerMessageContent(
       cursor = offset
     }
 
-    nodes.push(
-      <ComposerMessageTokenChip
-        key={`${token.id}:${token.index}`}
-        token={token}
-        readOnlyFilePreviews={readOnlyFilePreviews}
-      />
-    )
+    if (collapsedFileTokenPreview?.hiddenTokenIndexes.has(token.index)) {
+      if (!didRenderFileTokenOverflow) {
+        nodes.push(
+          <ComposerFileTokenOverflow key="composer-file-token-overflow" count={collapsedFileTokenPreview.hiddenCount} />
+        )
+        didRenderFileTokenOverflow = true
+      }
+    } else {
+      nodes.push(
+        <ComposerMessageTokenChip
+          key={`${token.id}:${token.index}`}
+          token={token}
+          readOnlyFilePreviews={readOnlyFilePreviews}
+        />
+      )
+    }
 
     if (promptTextMatches) {
       cursor = Math.max(cursor, offset + promptText.length)
@@ -128,6 +158,11 @@ function renderComposerMessageContent(
 
   if (cursor < content.length) {
     nodes.push(content.slice(cursor))
+  }
+  if (collapsedFileTokenPreview && !didRenderFileTokenOverflow) {
+    nodes.push(
+      <ComposerFileTokenOverflow key="composer-file-token-overflow" count={collapsedFileTokenPreview.hiddenCount} />
+    )
   }
 
   return nodes
@@ -141,10 +176,23 @@ function getComposerMarkdownTokenPlaceholder(index: number, blockId: string) {
   return `<span ${COMPOSER_TOKEN_MARKDOWN_ATTR}="${index}" ${COMPOSER_TOKEN_MARKDOWN_BLOCK_ATTR}="${escapeHtmlAttribute(blockId)}"></span>`
 }
 
-function buildComposerMessageMarkdownContent(content: string, composer: ComposerMessageSnapshot, blockId: string) {
+function buildComposerMessageMarkdownContent(
+  content: string,
+  composer: ComposerMessageSnapshot,
+  blockId: string,
+  collapsedFileTokenPreview?: CollapsedComposerFileTokenPreview
+) {
   const tokens = getDisplayComposerTokens(composer)
   let markdown = ''
   let cursor = 0
+  let didRenderFileTokenOverflow = false
+  const fileTokenOverflowIndex = tokens.length
+
+  const renderFileTokenOverflow = () => {
+    if (!collapsedFileTokenPreview || didRenderFileTokenOverflow) return
+    markdown += getComposerMarkdownTokenPlaceholder(fileTokenOverflowIndex, blockId)
+    didRenderFileTokenOverflow = true
+  }
 
   tokens.forEach((token, index) => {
     const offset = Math.max(0, Math.min(content.length, token.textOffset))
@@ -157,7 +205,11 @@ function buildComposerMessageMarkdownContent(content: string, composer: Composer
       cursor = offset
     }
 
-    markdown += getComposerMarkdownTokenPlaceholder(index, blockId)
+    if (collapsedFileTokenPreview?.hiddenTokenIndexes.has(token.index)) {
+      renderFileTokenOverflow()
+    } else {
+      markdown += getComposerMarkdownTokenPlaceholder(index, blockId)
+    }
 
     if (promptTextMatches) {
       cursor = Math.max(cursor, offset + promptText.length)
@@ -167,12 +219,27 @@ function buildComposerMessageMarkdownContent(content: string, composer: Composer
   if (cursor < content.length) {
     markdown += content.slice(cursor)
   }
+  renderFileTokenOverflow()
 
-  return { markdown, tokens }
+  return {
+    markdown,
+    tokens,
+    fileTokenOverflowIndex: didRenderFileTokenOverflow ? fileTokenOverflowIndex : undefined,
+    hiddenFileTokenCount: collapsedFileTokenPreview?.hiddenCount ?? 0
+  }
 }
 
-export function buildUserMessagePreview(content: string) {
+function isComposerTokenVisibleInContent(content: string, token: ComposerMessageToken) {
+  if (!token.promptText) return true
+
+  const offset = Math.max(0, Math.min(content.length, token.textOffset))
+  return content.slice(offset, offset + token.promptText.length) === token.promptText
+}
+
+export function buildUserMessagePreview(content: string, composer?: ComposerMessageSnapshot) {
   let effectiveLineCount = 0
+  let previewContent = content
+  let isTextTruncated = false
   const lineRegex = /([^\r\n]*)(\r\n|\r|\n|$)/g
 
   for (const match of content.matchAll(lineRegex)) {
@@ -189,16 +256,24 @@ export function buildUserMessagePreview(content: string) {
         .split(/\r\n|\r|\n/)
         .some((remainingLine) => remainingLine.trim().length > 0)
 
-      return {
-        content: hasMoreEffectiveLines ? content.slice(0, match.index + line.length) : content,
-        isTruncated: hasMoreEffectiveLines
-      }
+      previewContent = hasMoreEffectiveLines ? content.slice(0, match.index + line.length) : content
+      isTextTruncated = hasMoreEffectiveLines
+      break
     }
   }
 
+  const hiddenComposerFileTokens = composer
+    ? getDisplayComposerTokens(composer)
+        .filter((token) => token.kind === 'file' && isComposerTokenVisibleInContent(content, token))
+        .slice(USER_MESSAGE_PREVIEW_FILE_TOKEN_COUNT)
+    : []
+  const hiddenComposerFileTokenIndexes = new Set(hiddenComposerFileTokens.map((token) => token.index))
+
   return {
-    content,
-    isTruncated: false
+    content: previewContent,
+    isTruncated: isTextTruncated || hiddenComposerFileTokens.length > 0,
+    hiddenComposerFileTokenIndexes,
+    hiddenComposerFileTokenCount: hiddenComposerFileTokens.length
   }
 }
 
@@ -264,7 +339,7 @@ const MainTextBlock: React.FC<Props> = ({
 }) => {
   const { renderInputMessageAsMarkdown } = useMessageRenderConfig()
   const shouldRenderComposerTokens = role === 'user' && !!composer?.tokens.length
-  const userMessagePreview = useMemo(() => buildUserMessagePreview(content), [content])
+  const userMessagePreview = useMemo(() => buildUserMessagePreview(content, composer), [composer, content])
   const isUserContentCollapsible = role === 'user' && userMessagePreview.isTruncated
   const [internalUserContentExpanded, setInternalUserContentExpanded] = useState(false)
   const isUserContentExpanded = userContentExpanded ?? internalUserContentExpanded
@@ -286,6 +361,21 @@ const MainTextBlock: React.FC<Props> = ({
   }, [isUserContentCollapsible, setUserContentExpanded])
 
   const userDisplayContent = isUserContentCollapsible && !isUserContentExpanded ? userMessagePreview.content : content
+  const collapsedFileTokenPreview = useMemo<CollapsedComposerFileTokenPreview | undefined>(
+    () =>
+      isUserContentCollapsible && !isUserContentExpanded && userMessagePreview.hiddenComposerFileTokenCount > 0
+        ? {
+            hiddenTokenIndexes: userMessagePreview.hiddenComposerFileTokenIndexes,
+            hiddenCount: userMessagePreview.hiddenComposerFileTokenCount
+          }
+        : undefined,
+    [
+      isUserContentCollapsible,
+      isUserContentExpanded,
+      userMessagePreview.hiddenComposerFileTokenCount,
+      userMessagePreview.hiddenComposerFileTokenIndexes
+    ]
+  )
 
   const [smoothedContent, setSmoothedContent] = useState(content)
   const { update: updateSmoothStream } = useSmoothStream({
@@ -313,8 +403,15 @@ const MainTextBlock: React.FC<Props> = ({
   )
   const composerMarkdownContent = useMemo(() => {
     if (!shouldRenderComposerTokens || !renderInputMessageAsMarkdown || !composer) return undefined
-    return buildComposerMessageMarkdownContent(userDisplayContent, composer, id)
-  }, [composer, id, renderInputMessageAsMarkdown, shouldRenderComposerTokens, userDisplayContent])
+    return buildComposerMessageMarkdownContent(userDisplayContent, composer, id, collapsedFileTokenPreview)
+  }, [
+    collapsedFileTokenPreview,
+    composer,
+    id,
+    renderInputMessageAsMarkdown,
+    shouldRenderComposerTokens,
+    userDisplayContent
+  ])
   const composerMarkdownComponents = useMemo<Partial<Components>>(
     () => ({
       span: ({ children, ...props }) => {
@@ -325,11 +422,24 @@ const MainTextBlock: React.FC<Props> = ({
         const token =
           rawBlock === id && Number.isFinite(tokenIndex) ? composerMarkdownContent?.tokens[tokenIndex] : undefined
         if (token) return <ComposerMessageTokenChip token={token} readOnlyFilePreviews={readOnlyFilePreviews} />
+        if (
+          rawBlock === id &&
+          tokenIndex === composerMarkdownContent?.fileTokenOverflowIndex &&
+          composerMarkdownContent.hiddenFileTokenCount > 0
+        ) {
+          return <ComposerFileTokenOverflow count={composerMarkdownContent.hiddenFileTokenCount} />
+        }
 
         return <span {...props}>{children}</span>
       }
     }),
-    [composerMarkdownContent?.tokens, id, readOnlyFilePreviews]
+    [
+      composerMarkdownContent?.fileTokenOverflowIndex,
+      composerMarkdownContent?.hiddenFileTokenCount,
+      composerMarkdownContent?.tokens,
+      id,
+      readOnlyFilePreviews
+    ]
   )
 
   return (
@@ -358,7 +468,12 @@ const MainTextBlock: React.FC<Props> = ({
           ) : shouldRenderComposerTokens || !renderInputMessageAsMarkdown ? (
             <p className="markdown" style={{ whiteSpace: 'pre-wrap' }}>
               {shouldRenderComposerTokens
-                ? renderComposerMessageContent(userDisplayContent, composer, readOnlyFilePreviews)
+                ? renderComposerMessageContent(
+                    userDisplayContent,
+                    composer,
+                    readOnlyFilePreviews,
+                    collapsedFileTokenPreview
+                  )
                 : userDisplayContent}
             </p>
           ) : (

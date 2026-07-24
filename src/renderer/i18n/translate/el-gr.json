@@ -3872,7 +3872,11 @@
       },
       "user_content": {
         "collapse": "Κατάρρευση",
-        "expand": "Επέκταση"
+        "expand": "Επέκταση",
+        "more_files_few": "{{count}} ακόμη αρχεία",
+        "more_files_many": "{{count}} ακόμη αρχεία",
+        "more_files_one": "{{count}} ακόμη αρχείο",
+        "more_files_other": "{{count}} ακόμη αρχεία"
       },
       "video": {
         "error": {

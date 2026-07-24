@@ -3872,7 +3872,11 @@
       },
       "user_content": {
         "collapse": "收起",
-        "expand": "展开"
+        "expand": "展开",
+        "more_files_few": "另有 {{count}} 个文件",
+        "more_files_many": "另有 {{count}} 个文件",
+        "more_files_one": "另有 {{count}} 个文件",
+        "more_files_other": "另有 {{count}} 个文件"
       },
       "video": {
         "error": {

@@ -3872,7 +3872,11 @@
       },
       "user_content": {
         "collapse": "Zusammenklappen",
-        "expand": "Erweitern"
+        "expand": "Erweitern",
+        "more_files_few": "{{count}} weitere Dateien",
+        "more_files_many": "{{count}} weitere Dateien",
+        "more_files_one": "{{count}} weitere Datei",
+        "more_files_other": "{{count}} weitere Dateien"
       },
       "video": {
         "error": {

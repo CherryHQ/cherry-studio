@@ -3872,7 +3872,11 @@
       },
       "user_content": {
         "collapse": "Colapso",
-        "expand": "Expandir"
+        "expand": "Expandir",
+        "more_files_few": "{{count}} ficheiros adicionais",
+        "more_files_many": "{{count}} ficheiros adicionais",
+        "more_files_one": "{{count}} ficheiro adicional",
+        "more_files_other": "{{count}} ficheiros adicionais"
       },
       "video": {
         "error": {

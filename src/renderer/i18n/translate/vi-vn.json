@@ -3872,7 +3872,11 @@
       },
       "user_content": {
         "collapse": "Thu gọn",
-        "expand": "Mở rộng"
+        "expand": "Mở rộng",
+        "more_files_few": "Còn {{count}} tệp khác",
+        "more_files_many": "Còn {{count}} tệp khác",
+        "more_files_one": "Còn {{count}} tệp khác",
+        "more_files_other": "Còn {{count}} tệp khác"
       },
       "video": {
         "error": {

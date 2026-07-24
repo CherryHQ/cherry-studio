@@ -3872,7 +3872,11 @@
       },
       "user_content": {
         "collapse": "折りたたむ",
-        "expand": "拡大"
+        "expand": "拡大",
+        "more_files_few": "他に {{count}} 件のファイル",
+        "more_files_many": "他に {{count}} 件のファイル",
+        "more_files_one": "他に {{count}} 件のファイル",
+        "more_files_other": "他に {{count}} 件のファイル"
       },
       "video": {
         "error": {

@@ -3,11 +3,24 @@ import type { ReadOnlyComposerFileTokenPreview } from '@renderer/components/comp
 import type { Citation } from '@renderer/types/message'
 import type { Model } from '@renderer/types/model'
 import { WEB_SEARCH_SOURCE } from '@renderer/types/webSearchProvider'
-import type { ComposerMessageSnapshot } from '@shared/data/types/uiParts'
+import type { ComposerMessageSnapshot, ComposerMessageTokenKind } from '@shared/data/types/uiParts'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { createInstance } from 'i18next'
 import { Fragment, type HTMLAttributes, type ReactNode, type Ref } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import enUS from '../../../../../i18n/locales/en-us.json'
+import zhCN from '../../../../../i18n/locales/zh-cn.json'
+import deDE from '../../../../../i18n/translate/de-de.json'
+import elGR from '../../../../../i18n/translate/el-gr.json'
+import esES from '../../../../../i18n/translate/es-es.json'
+import frFR from '../../../../../i18n/translate/fr-fr.json'
+import jaJP from '../../../../../i18n/translate/ja-jp.json'
+import ptPT from '../../../../../i18n/translate/pt-pt.json'
+import roRO from '../../../../../i18n/translate/ro-ro.json'
+import ruRU from '../../../../../i18n/translate/ru-ru.json'
+import viVN from '../../../../../i18n/translate/vi-vn.json'
+import zhTW from '../../../../../i18n/translate/zh-tw.json'
 import MainTextBlock from '../MainTextBlock'
 
 // Mock dependencies
@@ -17,7 +30,11 @@ const mockRenderConfig = vi.hoisted(() => ({
 
 const mockTranslations = vi.hoisted(() => ({
   'message.message.user_content.expand': 'Expand',
-  'message.message.user_content.collapse': 'Collapse'
+  'message.message.user_content.collapse': 'Collapse',
+  'message.message.user_content.more_files_few': '{{count}} more files',
+  'message.message.user_content.more_files_many': '{{count}} more files',
+  'message.message.user_content.more_files_one': '{{count}} more file',
+  'message.message.user_content.more_files_other': '{{count}} more files'
 }))
 
 vi.mock('../../MessageListProvider', () => ({
@@ -195,7 +212,12 @@ vi.mock('react-i18next', () => ({
     init: vi.fn()
   },
   useTranslation: () => ({
-    t: (key: string) => mockTranslations[key as keyof typeof mockTranslations] ?? key
+    t: (key: string, options?: { count?: number }) => {
+      const pluralKey =
+        options?.count === undefined ? key : `${key}_${new Intl.PluralRules('en-US').select(options.count)}`
+      const translation = mockTranslations[pluralKey as keyof typeof mockTranslations] ?? key
+      return options?.count === undefined ? translation : translation.replace('{{count}}', String(options.count))
+    }
   })
 }))
 
@@ -294,6 +316,53 @@ describe('MainTextBlock', () => {
 
   const getRenderedMarkdown = () => screen.queryByTestId('mock-markdown')
   const getRenderedPlainText = () => screen.queryByRole('paragraph')
+  const createComposerSnapshot = (
+    fileCount: number,
+    otherKinds: ComposerMessageTokenKind[] = []
+  ): ComposerMessageSnapshot => ({
+    version: 1,
+    tokens: [
+      ...Array.from({ length: fileCount }, (_, index) => ({
+        id: `file-${index + 1}`,
+        kind: 'file' as const,
+        label: `file-${index + 1}.txt`,
+        index,
+        textOffset: 0
+      })),
+      ...otherKinds.map((kind, otherIndex) => ({
+        id: `${kind}-${otherIndex + 1}`,
+        kind,
+        label: `${kind}-${otherIndex + 1}`,
+        index: fileCount + otherIndex,
+        textOffset: 0
+      }))
+    ]
+  })
+  const createPromptTextFileComposerSnapshot = (fileCount: number) => {
+    let content = 'Review '
+    const tokens = Array.from({ length: fileCount }, (_, index) => {
+      const fileNumber = index + 1
+      const promptText = `/tmp/file-${fileNumber}.txt`
+      const token = {
+        id: `file-${fileNumber}`,
+        kind: 'file' as const,
+        label: `file-${fileNumber}.txt`,
+        index,
+        textOffset: content.length,
+        promptText
+      }
+      content += `${promptText}${fileNumber === fileCount ? ' now' : ', '}`
+      return token
+    })
+
+    return {
+      content,
+      composer: {
+        version: 1 as const,
+        tokens
+      }
+    }
+  }
 
   describe('basic rendering', () => {
     it('should render in markdown mode for assistant messages', () => {
@@ -557,6 +626,106 @@ describe('MainTextBlock', () => {
       expect(screen.getByRole('button', { name: 'Expand' })).toHaveAttribute('aria-expanded', 'false')
       expect(document.body).toHaveTextContent('Line 5')
       expect(document.body).not.toHaveTextContent('Line 6')
+    })
+
+    it.each([
+      { fileCount: 1, visibleCount: 1, hiddenCount: 0 },
+      { fileCount: 5, visibleCount: 5, hiddenCount: 0 },
+      { fileCount: 6, visibleCount: 5, hiddenCount: 1 },
+      { fileCount: 50, visibleCount: 5, hiddenCount: 45 }
+    ])(
+      'should preview $visibleCount of $fileCount file composer tokens and summarize $hiddenCount hidden files',
+      ({ fileCount, visibleCount, hiddenCount }) => {
+        renderMainTextBlock({
+          content: 'Attached files',
+          role: 'user',
+          composer: createComposerSnapshot(fileCount)
+        })
+
+        expect(document.querySelectorAll('[data-composer-token-kind="file"]')).toHaveLength(visibleCount)
+        const overflow = document.querySelector('[data-composer-file-token-overflow]')
+
+        if (hiddenCount === 0) {
+          expect(overflow).not.toBeInTheDocument()
+          expect(screen.queryByRole('button', { name: 'Expand' })).not.toBeInTheDocument()
+        } else {
+          expect(overflow).toHaveTextContent(
+            hiddenCount === 1 ? `${hiddenCount} more file` : `${hiddenCount} more files`
+          )
+          expect(overflow).toHaveClass(
+            'h-6',
+            'rounded-md',
+            'bg-secondary',
+            'text-foreground-secondary',
+            'leading-[inherit]'
+          )
+          expect(screen.getByRole('button', { name: 'Expand' })).toHaveAttribute('aria-expanded', 'false')
+        }
+      }
+    )
+
+    it.each([false, true])(
+      'should hide excess file prompt text and restore the projected content when markdown mode is %s',
+      (renderAsMarkdown) => {
+        mockRenderConfig.renderInputMessageAsMarkdown = renderAsMarkdown
+        const { content, composer } = createPromptTextFileComposerSnapshot(6)
+        renderMainTextBlock({
+          content,
+          role: 'user',
+          composer
+        })
+
+        expect(document.querySelectorAll('[data-composer-token-kind="file"]')).toHaveLength(5)
+        expect(document.querySelector('[data-composer-file-token-overflow]')).toHaveTextContent('1 more file')
+        expect(document.body).not.toHaveTextContent('/tmp/file-6.txt')
+        expect(renderAsMarkdown ? getRenderedMarkdown() : getRenderedPlainText()).toHaveTextContent(
+          'Review file-1.txt, file-2.txt, file-3.txt, file-4.txt, file-5.txt, 1 more file now'
+        )
+
+        fireEvent.click(screen.getByRole('button', { name: 'Expand' }))
+
+        expect(document.querySelectorAll('[data-composer-token-kind="file"]')).toHaveLength(6)
+        expect(document.querySelector('[data-composer-file-token-overflow]')).not.toBeInTheDocument()
+        expect(document.body).not.toHaveTextContent('/tmp/file-6.txt')
+        expect(renderAsMarkdown ? getRenderedMarkdown() : getRenderedPlainText()).toHaveTextContent(
+          'Review file-1.txt, file-2.txt, file-3.txt, file-4.txt, file-5.txt, file-6.txt now'
+        )
+        expect(screen.getByRole('button', { name: 'Collapse' })).toHaveAttribute('aria-expanded', 'true')
+
+        fireEvent.click(screen.getByRole('button', { name: 'Collapse' }))
+
+        expect(document.querySelectorAll('[data-composer-token-kind="file"]')).toHaveLength(5)
+        expect(document.querySelector('[data-composer-file-token-overflow]')).toHaveTextContent('1 more file')
+      }
+    )
+
+    it('should not count folder, knowledge, or quote composer tokens toward the file preview limit', () => {
+      const nonFileKinds: ComposerMessageTokenKind[] = ['folder', 'knowledge', 'quote', 'folder', 'knowledge', 'quote']
+      renderMainTextBlock({
+        content: 'Referenced resources',
+        role: 'user',
+        composer: createComposerSnapshot(0, nonFileKinds)
+      })
+
+      expect(document.querySelectorAll('[data-composer-token-kind="folder"]')).toHaveLength(2)
+      expect(document.querySelectorAll('[data-composer-token-kind="knowledge"]')).toHaveLength(2)
+      expect(document.querySelectorAll('[data-composer-token-kind="quote"]')).toHaveLength(2)
+      expect(document.querySelector('[data-composer-file-token-overflow]')).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Expand' })).not.toBeInTheDocument()
+    })
+
+    it('should keep non-file composer tokens visible while collapsing excess file tokens', () => {
+      renderMainTextBlock({
+        content: 'Attached resources',
+        role: 'user',
+        composer: createComposerSnapshot(6, ['folder', 'knowledge', 'quote'])
+      })
+
+      expect(document.querySelectorAll('[data-composer-token-kind="file"]')).toHaveLength(5)
+      expect(document.querySelectorAll('[data-composer-token-kind="folder"]')).toHaveLength(1)
+      expect(document.querySelectorAll('[data-composer-token-kind="knowledge"]')).toHaveLength(1)
+      expect(document.querySelectorAll('[data-composer-token-kind="quote"]')).toHaveLength(1)
+      expect(document.querySelector('[data-composer-file-token-overflow]')).toHaveTextContent('1 more file')
     })
 
     it('should not collapse assistant messages', () => {
@@ -1255,4 +1424,78 @@ describe('MainTextBlock', () => {
       expect(getRenderedMarkdown()).toBeInTheDocument()
     })
   })
+})
+
+describe('MainTextBlock file overflow locale resources', () => {
+  const localeResources = [
+    { locale: 'en-US', resource: enUS },
+    { locale: 'zh-CN', resource: zhCN },
+    { locale: 'de-DE', resource: deDE },
+    { locale: 'el-GR', resource: elGR },
+    { locale: 'es-ES', resource: esES },
+    { locale: 'fr-FR', resource: frFR },
+    { locale: 'ja-JP', resource: jaJP },
+    { locale: 'pt-PT', resource: ptPT },
+    { locale: 'ro-RO', resource: roRO },
+    { locale: 'ru-RU', resource: ruRU },
+    { locale: 'vi-VN', resource: viVN },
+    { locale: 'zh-TW', resource: zhTW }
+  ] as const
+
+  const getOverflowTranslation = (resource: unknown, category: Intl.LDMLPluralRule) => {
+    const userContent = (
+      resource as {
+        message?: { message?: { user_content?: Record<string, unknown> } }
+      }
+    ).message?.message?.user_content
+    return userContent?.[`more_files_${category}`]
+  }
+
+  it.each(localeResources)('defines every CLDR plural category required by $locale', ({ locale, resource }) => {
+    const categories = new Intl.PluralRules(locale).resolvedOptions().pluralCategories
+
+    for (const category of categories) {
+      const translation = getOverflowTranslation(resource, category)
+      expect(translation).toEqual(expect.any(String))
+      expect(translation).toContain('{{count}}')
+      expect(translation).not.toMatch(/^\[to be translated]/)
+    }
+  })
+
+  it.each([
+    { locale: 'es-ES', count: 1_000_000, category: 'many', expected: '{{count}} archivos más' },
+    { locale: 'fr-FR', count: 1_000_000, category: 'many', expected: '{{count}} fichiers supplémentaires' },
+    { locale: 'pt-PT', count: 1_000_000, category: 'many', expected: '{{count}} ficheiros adicionais' },
+    { locale: 'ro-RO', count: 1, category: 'one', expected: 'încă {{count}} fișier' },
+    { locale: 'ro-RO', count: 2, category: 'few', expected: 'încă {{count}} fișiere' },
+    { locale: 'ro-RO', count: 20, category: 'other', expected: 'încă {{count}} de fișiere' },
+    { locale: 'ru-RU', count: 1, category: 'one', expected: 'ещё {{count}} файл' },
+    { locale: 'ru-RU', count: 2, category: 'few', expected: 'ещё {{count}} файла' },
+    { locale: 'ru-RU', count: 5, category: 'many', expected: 'ещё {{count}} файлов' },
+    { locale: 'ru-RU', count: 1.5, category: 'other', expected: 'ещё {{count}} файла' }
+  ] as const)(
+    'selects the real $category key for $locale count $count',
+    async ({ locale, count, category, expected }) => {
+      const entry = localeResources.find((candidate) => candidate.locale === locale)
+      const selectedCategory = new Intl.PluralRules(locale).select(count)
+      const i18n = createInstance()
+      await i18n.init({
+        lng: locale,
+        fallbackLng: false,
+        initImmediate: false,
+        interpolation: { escapeValue: false },
+        resources: {
+          [locale]: {
+            translation: entry?.resource
+          }
+        }
+      })
+
+      expect(selectedCategory).toBe(category)
+      expect(getOverflowTranslation(entry?.resource, selectedCategory)).toBe(expected)
+      expect(i18n.t('message.message.user_content.more_files', { count })).toBe(
+        expected.replace('{{count}}', String(count))
+      )
+    }
+  )
 })
