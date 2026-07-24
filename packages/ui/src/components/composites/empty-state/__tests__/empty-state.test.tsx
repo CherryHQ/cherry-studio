@@ -47,17 +47,11 @@ describe('EmptyState', () => {
     expect(container.querySelectorAll('button')).toHaveLength(0)
   })
 
-  it('renders with preset icon', () => {
+  it('renders the unified illustration for presets', () => {
     const { container } = render(<EmptyState preset="no-code-tool" title="No tools" />)
-    // Should render an SVG icon from the preset
-    expect(container.querySelector('svg')).toBeInTheDocument()
+
+    expect(container.querySelector('svg[viewBox="0 0 64 41"]')).toBeInTheDocument()
     expect(screen.getByText('No tools')).toBeInTheDocument()
-  })
-
-  it('uses the box icon for the no-model preset', () => {
-    const { container } = render(<EmptyState preset="no-model" title="No models" />)
-
-    expect(container.querySelector('svg')).toHaveClass('lucide-box')
   })
 
   it('applies compact styling', () => {
