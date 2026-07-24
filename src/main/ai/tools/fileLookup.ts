@@ -6,8 +6,8 @@
  * **text** — the truncated tail of a capped inline excerpt, or further pages of
  * a long file. Natively-consumable files (image on a vision model, PDF on a
  * native provider, …) are sent inline as the real file and never routed here, so
- * `read_file` is text-only: documents/text are extracted, images are OCR'd,
- * audio/video/binary have no text form.
+ * `read_file` is text-only: documents/text are extracted, images and images in
+ * ZIP archives are OCR'd, while audio/video/other binary files have no text form.
  *
  * Never throws on a read failure (returns `{ error }`, sanitized) so the agentic
  * loop keeps running; a cancellation rethrows so it propagates as the
@@ -17,7 +17,11 @@
 import { isAbortError, type ToolResultOutput } from '@ai-sdk/provider-utils'
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { extractDocumentText, noExtractableTextNote } from '@main/ai/messages/attachmentTextExtraction'
+import {
+  extractDocumentText,
+  extractZipImageText,
+  noExtractableTextNote
+} from '@main/ai/messages/attachmentTextExtraction'
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
 import {
@@ -92,7 +96,7 @@ export async function readFile(
     if (fileType === FILE_TYPE.AUDIO || fileType === FILE_TYPE.VIDEO) {
       return textResult(`Cannot read ${fileType} file "${entry.handle}" as text.`)
     }
-    if (fileType === FILE_TYPE.OTHER && bareExt) {
+    if (fileType === FILE_TYPE.OTHER && bareExt && bareExt !== 'zip') {
       // Binary / unsupported — don't auto-decode it into mojibake.
       return textResult(`Cannot read the attached file "${entry.handle}" as text (unsupported file type).`)
     }
@@ -100,7 +104,9 @@ export async function readFile(
     const text =
       fileType === FILE_TYPE.IMAGE
         ? await application.get('FileProcessingService').ocrImage({ kind: 'entry', entryId }, signal)
-        : await extractDocumentText(entryId, { signal })
+        : bareExt === 'zip'
+          ? await extractZipImageText(entryId, { signal })
+          : await extractDocumentText(entryId, { signal })
 
     if (text === null) {
       return textResult(`Cannot read the attached file "${entry.handle}" as text (unsupported file type).`)

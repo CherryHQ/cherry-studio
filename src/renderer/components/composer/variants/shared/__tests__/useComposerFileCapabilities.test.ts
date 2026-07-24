@@ -17,6 +17,7 @@ vi.mock('@renderer/utils/model', () => mocks)
 const model = (id: string) => ({ id }) as unknown as Model
 const containsAll = (haystack: string[], needles: readonly string[]) => needles.every((n) => haystack.includes(n))
 const ALL_EXTS = [...imageExts, ...audioExts, ...videoExts, ...documentExts, ...textExts]
+const NON_ZIP_ARCHIVE_EXTS = archiveExts.filter((ext) => ext !== '.zip')
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -68,7 +69,8 @@ describe('useComposerFileCapabilities', () => {
 
       expect(containsAll(result.current.supportedExts, audioExts)).toBe(false)
       expect(containsAll(result.current.supportedExts, videoExts)).toBe(false)
-      expect(containsAll(result.current.supportedExts, archiveExts)).toBe(false)
+      expect(result.current.supportedExts).toContain('.zip')
+      expect(NON_ZIP_ARCHIVE_EXTS.every((ext) => !result.current.supportedExts.includes(ext))).toBe(true)
     })
 
     it('adds audio exts only when every mentioned model supports audio input', () => {

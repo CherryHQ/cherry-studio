@@ -1,3 +1,5 @@
+import fs from 'node:fs/promises'
+
 import iconv from 'iconv-lite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -5,25 +7,50 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
 }))
 
-const { getVersionMock, getByIdMock, readMock, cacheGet, cacheSet } = vi.hoisted(() => ({
+const { getVersionMock, getByIdMock, getPhysicalPathMock, readMock, cacheGet, cacheSet, ocrMock } = vi.hoisted(() => ({
   getVersionMock: vi.fn<() => Promise<{ mtime: number; size: number }>>(),
   getByIdMock: vi.fn<() => Promise<{ ext: string | null }>>(),
+  getPhysicalPathMock: vi.fn<() => string>(),
   readMock: vi.fn<() => Promise<{ content: Uint8Array }>>(),
   cacheGet: vi.fn(),
-  cacheSet: vi.fn()
+  cacheSet: vi.fn(),
+  ocrMock: vi.fn<() => Promise<string>>()
 }))
 
-vi.mock('@application', () => ({
-  application: {
-    get: (name: string) =>
-      name === 'CacheService'
-        ? { get: cacheGet, set: cacheSet }
-        : { getVersion: getVersionMock, getById: getByIdMock, read: readMock },
-    getPath: () => '/tmp'
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const mocked = mockApplicationFactory({
+    CacheService: { get: cacheGet, set: cacheSet },
+    FileManager: {
+      getVersion: getVersionMock,
+      getById: getByIdMock,
+      getPhysicalPath: getPhysicalPathMock,
+      read: readMock
+    }
+  })
+  const baseGet = mocked.application.get
+  mocked.application.get = vi.fn((name: string) =>
+    name === 'FileProcessingService' ? { ocrImage: ocrMock } : baseGet(name)
+  )
+  mocked.application.getPath = vi.fn((_key: string, filename?: string) => (filename ? `/tmp/${filename}` : '/tmp'))
+  return mocked
+})
+
+const { zipFactoryMock, zipEntriesMock, zipEntryDataMock, zipCloseMock } = vi.hoisted(() => ({
+  zipFactoryMock: vi.fn(),
+  zipEntriesMock: vi.fn(),
+  zipEntryDataMock: vi.fn(),
+  zipCloseMock: vi.fn()
+}))
+vi.mock('node-stream-zip', () => ({
+  default: {
+    async: zipFactoryMock
   }
 }))
 
-const { parseOfficeAsyncMock } = vi.hoisted(() => ({ parseOfficeAsyncMock: vi.fn<() => Promise<string>>() }))
+const { parseOfficeAsyncMock } = vi.hoisted(() => ({
+  parseOfficeAsyncMock: vi.fn<(_buffer: Buffer, _options: { tempFilesLocation: string }) => Promise<string>>()
+}))
 vi.mock('officeparser', () => ({ default: { parseOfficeAsync: parseOfficeAsyncMock } }))
 
 const { wordExtractMock } = vi.hoisted(() => ({ wordExtractMock: vi.fn() }))
@@ -39,11 +66,23 @@ vi.mock('@main/utils/pdf', () => ({ extractPdfText: extractPdfTextMock }))
 const { decodeTextMock } = vi.hoisted(() => ({ decodeTextMock: vi.fn<() => string>() }))
 vi.mock('@main/utils/legacyFile', () => ({ decodeTextWithAutoEncoding: decodeTextMock }))
 
-import { extractDocumentText, noExtractableTextNote } from '../attachmentTextExtraction'
+import { extractDocumentText, extractZipImageText, noExtractableTextNote } from '../attachmentTextExtraction'
 
 const BYTES = new Uint8Array([1, 2, 3])
 
-afterEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  zipFactoryMock.mockImplementation(() => ({
+    entries: zipEntriesMock,
+    entryData: zipEntryDataMock,
+    close: zipCloseMock
+  }))
+  zipCloseMock.mockResolvedValue(undefined)
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.clearAllMocks()
+})
 
 describe('extractDocumentText — dispatch on entry ext, bytes via FileManager.read', () => {
   beforeEach(() => {
@@ -77,7 +116,9 @@ describe('extractDocumentText — dispatch on entry ext, bytes via FileManager.r
     getByIdMock.mockResolvedValueOnce({ ext: 'docx' })
     parseOfficeAsyncMock.mockResolvedValueOnce(' office body ')
     expect(await extractDocumentText('e1')).toBe('office body')
-    expect(parseOfficeAsyncMock).toHaveBeenCalledWith(expect.any(Buffer), { tempFilesLocation: '/tmp' })
+    const [buffer, options] = parseOfficeAsyncMock.mock.calls[0]
+    expect(Buffer.isBuffer(buffer)).toBe(true)
+    expect(options).toEqual({ tempFilesLocation: '/tmp' })
   })
 
   it('decodes text/code files with auto encoding', async () => {
@@ -136,5 +177,118 @@ describe('noExtractableTextNote', () => {
   it('names the file and hints at a scanned/image-only doc', () => {
     expect(noExtractableTextNote('scan.pdf')).toContain('scan.pdf')
     expect(noExtractableTextNote('scan.pdf')).toContain('scanned')
+  })
+})
+
+describe('extractZipImageText', () => {
+  beforeEach(() => {
+    getVersionMock.mockResolvedValue({ mtime: 1, size: 2 })
+    getPhysicalPathMock.mockReturnValue('/tmp/archive.zip')
+    cacheGet.mockReturnValue(undefined)
+    zipEntryDataMock.mockResolvedValue(Buffer.from([1, 2, 3]))
+    vi.spyOn(fs, 'mkdtemp').mockResolvedValue('/tmp/chat-archive-test')
+    vi.spyOn(fs, 'writeFile').mockResolvedValue()
+    vi.spyOn(fs, 'rm').mockResolvedValue()
+  })
+
+  it('OCRs supported images and reports ignored non-image files', async () => {
+    const image = { name: 'pages/PAGE.PNG', isDirectory: false, encrypted: false, size: 3 }
+    zipEntriesMock.mockResolvedValue({
+      [image.name]: image,
+      'notes.txt': { name: 'notes.txt', isDirectory: false, encrypted: false, size: 4 }
+    })
+    ocrMock.mockResolvedValueOnce('  page body  ')
+
+    await expect(extractZipImageText('e1')).resolves.toBe(
+      'Image "pages/PAGE.PNG":\npage body\n\n[Ignored 1 non-image file(s) in the ZIP archive.]'
+    )
+    expect(zipFactoryMock).toHaveBeenCalledWith({ file: '/tmp/archive.zip' })
+    expect(zipEntryDataMock).toHaveBeenCalledWith(image)
+    expect(fs.writeFile).toHaveBeenCalledWith('/tmp/chat-archive-test/0.png', expect.any(Buffer))
+    expect(ocrMock).toHaveBeenCalledWith({ kind: 'path', path: '/tmp/chat-archive-test/0.png' }, undefined)
+    expect(cacheSet).toHaveBeenCalledWith(
+      'zip-image-ocr:e1:1:2',
+      expect.stringContaining('page body'),
+      expect.any(Number)
+    )
+    expect(zipCloseMock).toHaveBeenCalled()
+    expect(fs.rm).toHaveBeenCalledWith('/tmp/chat-archive-test', { recursive: true, force: true })
+  })
+
+  it('returns a visible note when the ZIP contains no supported images', async () => {
+    zipEntriesMock.mockResolvedValue({
+      'notes.txt': { name: 'notes.txt', isDirectory: false, encrypted: false, size: 4 }
+    })
+
+    await expect(extractZipImageText('e1')).resolves.toBe('No supported image files found in this ZIP archive.')
+    expect(fs.mkdtemp).not.toHaveBeenCalled()
+    expect(ocrMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects ZIPs with too many entries before reading entry data', async () => {
+    zipEntriesMock.mockResolvedValue(
+      Object.fromEntries(
+        Array.from({ length: 1001 }, (_, index) => [
+          `${index}.png`,
+          { name: `${index}.png`, isDirectory: false, encrypted: false, size: 1 }
+        ])
+      )
+    )
+
+    await expect(extractZipImageText('e1')).rejects.toThrow('ZIP has too many entries')
+    expect(zipEntryDataMock).not.toHaveBeenCalled()
+    expect(ocrMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects ZIPs whose declared uncompressed size exceeds the limit', async () => {
+    zipEntriesMock.mockResolvedValue({
+      'large.png': {
+        name: 'large.png',
+        isDirectory: false,
+        encrypted: false,
+        size: 100 * 1024 * 1024 + 1
+      }
+    })
+
+    await expect(extractZipImageText('e1')).rejects.toThrow('ZIP uncompressed size exceeds')
+    expect(zipEntryDataMock).not.toHaveBeenCalled()
+  })
+
+  it('limits OCR work and reports additional images', async () => {
+    zipEntriesMock.mockResolvedValue(
+      Object.fromEntries(
+        Array.from({ length: 21 }, (_, index) => [
+          `${index}.png`,
+          { name: `${index}.png`, isDirectory: false, encrypted: false, size: 1 }
+        ])
+      )
+    )
+    ocrMock.mockResolvedValue('text')
+
+    const text = await extractZipImageText('e1')
+    expect(ocrMock).toHaveBeenCalledTimes(20)
+    expect(text).toContain('[Skipped 1 image(s) beyond the 20-image limit.]')
+  })
+
+  it('skips an oversized image before decompressing it', async () => {
+    zipEntriesMock.mockResolvedValue({
+      'large.png': {
+        name: 'large.png',
+        isDirectory: false,
+        encrypted: false,
+        size: 10 * 1024 * 1024 + 1
+      }
+    })
+
+    await expect(extractZipImageText('e1')).resolves.toContain('[image exceeds the 10485760-byte limit].')
+    expect(zipEntryDataMock).not.toHaveBeenCalled()
+    expect(ocrMock).not.toHaveBeenCalled()
+  })
+
+  it('uses the versioned cache without reopening the ZIP', async () => {
+    cacheGet.mockReturnValueOnce('cached ZIP OCR')
+    await expect(extractZipImageText('e1')).resolves.toBe('cached ZIP OCR')
+    expect(getPhysicalPathMock).not.toHaveBeenCalled()
+    expect(zipFactoryMock).not.toHaveBeenCalled()
   })
 })
