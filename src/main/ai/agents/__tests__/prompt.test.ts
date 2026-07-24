@@ -163,6 +163,23 @@ describe('PromptBuilder', () => {
     expect(result).toContain('exclusive scope')
   })
 
+  it('builds the memories section without the base agent prompt', async () => {
+    setupFiles({
+      '/workspace/SOUL.md': 'Be concise.',
+      '/workspace/USER.md': 'Name: V',
+      '/workspace/memory/FACT.md': 'Project: Cherry Studio'
+    })
+
+    const result = await builder.buildMemoriesSection('/workspace')
+
+    expect(result).toContain('## Memories')
+    expect(result).toContain('Be concise.')
+    expect(result).toContain('Name: V')
+    expect(result).toContain('Project: Cherry Studio')
+    expect(result).not.toContain('You are a personal assistant running inside Cherry Studio')
+    expect(result).not.toContain('## Autonomy Tools')
+  })
+
   it('combines system.md override with memories', async () => {
     setupFiles({
       '/workspace/system.md': 'You are CustomBot.',

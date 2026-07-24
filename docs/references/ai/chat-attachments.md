@@ -65,14 +65,20 @@ Default cap ≈ 8k chars/file (tunable).
 `src/main/ai/tools/fileLookup.ts` + `tools/adapters/aiSdk/builtin/ReadFileTool.ts`.
 
 - Input `{ filename, offset?, limit? }`. The `filename` is the model-facing
-  **handle** (unique, normalized — see `collectFileAttachments`), resolved to an
-  entry id against a per-request allow-list. The model never sees or guesses
-  entry ids, and can only read files attached to the current conversation.
+  opaque **handle** (stable for one FileEntry — see `collectFileAttachments`),
+  resolved to an entry id against an attachment allow-list. The model never
+  sees or guesses entry ids, and can only read files attached to the current
+  conversation.
 - Returns **text only** (extracted / OCR), paginated. Errors are sanitized to
   filename-level messages; details are logged, not returned.
 - Exposed to tool-capable models whenever the request carries first-party file
   attachments (`applies: scope.hasFileAttachments`). It pages over-cap text; when
   everything inlines within the cap the model simply never needs to call it.
+- Claude Code exposes the same tool through the Cherry Assistant-only
+  `assistant-files` MCP server. That server rebuilds its allow-list from the
+  session's current messages when the tool is called, so deleting a message
+  revokes its attachment immediately. Ordinary Claude Code Agents do not get
+  this server or its attachment manifest.
 - Because native media is kept inline (never routed through the tool),
   `read_file` carries no media result — no `toModelOutput` base64 re-read, no
   resend re-materialization.

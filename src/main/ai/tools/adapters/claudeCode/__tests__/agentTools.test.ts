@@ -7,6 +7,8 @@
  */
 
 import {
+  ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES,
+  ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES,
   CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
   CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES,
   CHERRY_BUILTIN_MCP_SERVER,
@@ -254,6 +256,14 @@ describe('createClaudeAgentToolPolicySnapshot — production approval-gate wirin
     expect(CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.some((name) => autoApproved.has(name))).toBe(false)
     // The derived prefix matches the fully-qualified runtime name, pinning the two helpers in sync.
     expect(toCherryBuiltinRuntimeName(KB_MANAGE_TOOL_NAME)).toBe(`${PREFIX}${KB_MANAGE_TOOL_NAME}`)
+  })
+
+  it('keeps assistant file reads and writes in disjoint policy sets', () => {
+    expect(ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES).toEqual(['mcp__assistant-files__read_file'])
+    expect(ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES).toEqual([
+      'mcp__assistant-files__export_office',
+      'mcp__assistant-files__save_attachment'
+    ])
   })
 
   it('prompts for every approval-required tool and auto-approves every allowlisted tool under the real wiring', async () => {

@@ -495,7 +495,7 @@ export const readFileInputSchema = z.object({
     .trim()
     .min(1)
     .describe(
-      'Name of the attached file to read, exactly as it appears in the attachment manifest in the conversation.'
+      'Opaque handle of the attached file to read, exactly as it appears in the attachment manifest in the conversation.'
     ),
   // `.nullable()` not `.optional()`: ReadFileTool runs with `strict: true`, and a strict
   // OpenAI-compatible provider rejects a schema whose `required` omits a property (`z.toJSONSchema`

@@ -9,10 +9,10 @@
  * One attachment the `read_file` tool may read this request, and an entry in the
  * per-request allow-list.
  *
- * - `handle` is the **model-facing** name: normalized + made unique across the
- *   request (duplicates get ` (2)`, ` (3)`, …). It's what the model echoes back
- *   to `read_file` and the only name that resolves — so it must be stable and
- *   unambiguous.
+ * - `handle` is the **model-facing** opaque name, deterministically derived from
+ *   `fileEntryId`. It's what the model echoes back to attachment tools and the
+ *   only name that resolves, so deleting another message or renaming the file
+ *   cannot rebind an older handle.
  * - `displayName` is the original filename, kept for logs/observability.
  *
  * The internal `fileEntryId` never reaches the model.

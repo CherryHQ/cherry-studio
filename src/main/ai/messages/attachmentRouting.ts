@@ -16,9 +16,9 @@
  * failing the request. Legacy / gateway parts (no `fileEntryId`) keep the eager
  * materialization path.
  *
- * `collectFileAttachments` builds the per-request allow-list `read_file` resolves
- * handles against (unique handles; the internal `fileEntryId` never reaches the
- * model).
+ * `collectFileAttachments` builds the per-request allow-list attachment tools
+ * resolve opaque handles against; the internal `fileEntryId` never reaches the
+ * model.
  */
 
 import { isAbortError } from '@ai-sdk/provider-utils'
@@ -34,35 +34,26 @@ import { FILE_TYPE, type FileType } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
 import type { UIMessage } from 'ai'
 
+import { createFileAttachmentHandle } from './attachmentHandle'
 import { extractDocumentText, noExtractableTextNote } from './attachmentTextExtraction'
 import { materializeNativeFilePart } from './fileProcessor'
 
 const logger = loggerService.withContext('ai:attachmentRouting')
 
-/** Generate a unique model-facing handle, suffixing ` (2)`, ` (3)`, … until the
- *  *final* alias is free — so a generated suffix can't collide with a real name. */
-function uniqueHandle(base: string, used: Set<string>): string {
-  let candidate = base
-  for (let n = 2; used.has(candidate); n++) candidate = `${base} (${n})`
-  used.add(candidate)
-  return candidate
-}
-
 /**
  * Flat allow-list of fileEntry-backed attachments across all messages. Each gets
- * a **unique** model-facing `handle` (normalized + deduped) plus the original
- * `displayName`, so `read_file` can resolve a handle unambiguously.
+ * a stable opaque model-facing `handle` plus the original `displayName`, so
+ * attachment tools can resolve one entry without exposing its internal id.
  */
 export function collectFileAttachments(messages: UIMessage[] | undefined): FileAttachmentRef[] {
   const refs: FileAttachmentRef[] = []
-  const used = new Set<string>()
   for (const message of messages ?? []) {
     for (const part of message.parts ?? []) {
       if (part.type !== 'file') continue
       const fileEntryId = readCherryMeta(part)?.fileEntryId
       if (!fileEntryId) continue
       const displayName = part.filename ?? 'file'
-      const handle = uniqueHandle(displayName.trim() || 'file', used)
+      const handle = createFileAttachmentHandle(fileEntryId)
       refs.push({ fileEntryId, handle, displayName })
     }
   }
@@ -70,7 +61,7 @@ export function collectFileAttachments(messages: UIMessage[] | undefined): FileA
 }
 
 export interface PrepareChatContext {
-  /** Allow-list with unique handles (from `collectFileAttachments`) — source of the model-facing name. */
+  /** Allow-list with opaque handles (from `collectFileAttachments`). */
   attachments: ReadonlyArray<FileAttachmentRef>
   /** What the provider/model accepts as native file input. */
   nativeSupport: NativeFileSupport
@@ -89,32 +80,31 @@ function isNative(ext: string, fileType: FileType, ns: NativeFileSupport): boole
   return false
 }
 
-/** Extract a non-native attachment's model-visible text by file type. `handle`
- *  is the model-facing name used in any note. */
+/** Extract a non-native attachment's model-visible text by file type. */
 async function extractNonNativeText(
   entryId: string,
   ext: string,
   fileType: FileType,
-  handle: string,
+  displayName: string,
   signal?: AbortSignal
 ): Promise<string> {
   if (fileType === FILE_TYPE.IMAGE) {
     const text = (await application.get('FileProcessingService').ocrImage({ kind: 'entry', entryId }, signal)).trim()
-    return text || noExtractableTextNote(handle)
+    return text || noExtractableTextNote(displayName)
   }
   if (fileType === FILE_TYPE.AUDIO || fileType === FILE_TYPE.VIDEO) {
-    return `This model can't process the attached ${fileType} file "${handle}".`
+    return `This model can't process the attached ${fileType} file "${displayName}".`
   }
   if (fileType === FILE_TYPE.DOCUMENT || fileType === FILE_TYPE.TEXT || !ext) {
     const extracted = await extractDocumentText(entryId, { signal })
     if (extracted === null) {
-      return `Cannot read the attached file "${handle}" as text (unsupported file type).`
+      return `Cannot read the attached file "${displayName}" as text (unsupported file type).`
     }
     const text = extracted.trim()
-    return text || noExtractableTextNote(handle)
+    return text || noExtractableTextNote(displayName)
   }
   // OTHER — binary / unsupported. Don't auto-decode it into mojibake.
-  return `Cannot read the attached file "${handle}" as text (unsupported file type).`
+  return `Cannot read the attached file "${displayName}" as text (unsupported file type).`
 }
 
 function capInlineText(handle: string, text: string, isToolCapable: boolean, cap: number): string {
@@ -126,8 +116,12 @@ function capInlineText(handle: string, text: string, isToolCapable: boolean, cap
   return head + more
 }
 
-function noteOf(handle: string): { type: 'text'; text: string } {
-  return { type: 'text', text: `Attached file "${handle}": [could not read this file].` }
+function attachmentLabel(displayName: string, handle?: string): string {
+  return handle ? `"${displayName}" (handle: ${handle})` : `"${displayName}"`
+}
+
+function noteOf(displayName: string, handle?: string): { type: 'text'; text: string } {
+  return { type: 'text', text: `Attached file ${attachmentLabel(displayName, handle)}: [could not read this file].` }
 }
 
 async function prepareChatMessage<T extends UIMessage>(message: T, ctx: PrepareChatContext): Promise<T> {
@@ -164,8 +158,8 @@ async function prepareChatMessage<T extends UIMessage>(message: T, ctx: PrepareC
     // the whole request before the model is even called (mirrors `read_file`'s
     // graceful failure). Abort rethrows.
     const ref = ctx.attachments.find((a) => a.fileEntryId === fileEntryId)
-    const handle = ref?.handle ?? part.filename ?? 'file'
-    const displayName = ref?.displayName ?? handle
+    const handle = ref?.handle ?? createFileAttachmentHandle(fileEntryId)
+    const displayName = ref?.displayName ?? part.filename ?? 'file'
     try {
       const bareExt = ((await application.get('FileManager').getById(fileEntryId)).ext ?? '').toLowerCase()
       const fileType = getFileTypeByExt(bareExt)
@@ -173,19 +167,19 @@ async function prepareChatMessage<T extends UIMessage>(message: T, ctx: PrepareC
       if (isNative(bareExt, fileType, ctx.nativeSupport)) {
         if (!(await inlineNative(part))) {
           logger.warn('Native file materialization failed; degrading to note', { messageId: message.id, displayName })
-          kept.push(noteOf(handle) as UIMessage['parts'][number])
+          kept.push(noteOf(displayName, handle) as UIMessage['parts'][number])
         }
         continue
       }
 
       // Non-native first-party attachment → inline its (capped) text.
-      const body = await extractNonNativeText(fileEntryId, bareExt, fileType, handle, ctx.signal)
-      const text = `Attached file "${handle}":\n${capInlineText(handle, body, ctx.isToolCapable, ctx.cap)}`
+      const body = await extractNonNativeText(fileEntryId, bareExt, fileType, displayName, ctx.signal)
+      const text = `Attached file ${attachmentLabel(displayName, handle)}:\n${capInlineText(handle, body, ctx.isToolCapable, ctx.cap)}`
       kept.push({ type: 'text', text } as UIMessage['parts'][number])
     } catch (error) {
       if (ctx.signal?.aborted || isAbortError(error)) throw error
       logger.error('Failed to prepare attached file', error as Error, { messageId: message.id, displayName })
-      kept.push(noteOf(handle) as UIMessage['parts'][number])
+      kept.push(noteOf(displayName, handle) as UIMessage['parts'][number])
     }
   }
 

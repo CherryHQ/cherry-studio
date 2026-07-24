@@ -254,14 +254,16 @@ async function bestEffortUnlinkTmp(tmp: string, target: string): Promise<void> {
 export async function atomicWriteFile(
   target: FilePath,
   data: string | Uint8Array,
-  options?: { mode?: number }
+  options?: { mode?: number; signal?: AbortSignal }
 ): Promise<void> {
+  options?.signal?.throwIfAborted()
   const tmp = tmpNameFor(target)
-  const tmpHandle = await fsOpen(tmp, 'w', options?.mode)
+  const tmpHandle = await fsOpen(tmp, 'wx', options?.mode)
   try {
     try {
-      await tmpHandle.writeFile(data)
+      await tmpHandle.writeFile(data, options?.signal ? { signal: options.signal } : undefined)
       await tmpHandle.sync()
+      options?.signal?.throwIfAborted()
     } catch (err) {
       await tmpHandle.close().catch(() => undefined)
       await bestEffortUnlinkTmp(tmp, target)
@@ -275,6 +277,7 @@ export async function atomicWriteFile(
     throw err
   }
   try {
+    options?.signal?.throwIfAborted()
     await rename(tmp, target)
   } catch (err) {
     await bestEffortUnlinkTmp(tmp, target)

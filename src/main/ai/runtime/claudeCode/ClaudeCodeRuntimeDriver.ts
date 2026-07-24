@@ -157,6 +157,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private resumeToken?: string
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
   private steerHolder?: SteerHolder
+  private assistantFileToolsEnabled = false
   private sessionTornDown = false
   /** Staleness identity captured by the materialized request; live facts advance during reconcile. */
   private connectionConfig?: ConnectionConfig
@@ -185,6 +186,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
     }
     this.connectionConfig = request.connectionConfig
+    this.assistantFileToolsEnabled = Boolean(request.settings.mcpServers?.['assistant-files'])
 
     const traceEnv = await this.prepareTraceEnv()
     const options: Options = {
@@ -246,6 +248,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
     this.sdkInputQueue.push(
       await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
+        supportsAttachmentReads: this.assistantFileToolsEnabled,
         supportsImages: resolveModelImageSupport(this.input.modelId)
       })
     )
@@ -591,9 +594,12 @@ async function toSdkUserMessage(
   message: AgentSessionMessageEntity,
   resumeToken?: string,
   systemReminder = false,
-  { supportsImages = true }: { supportsImages?: boolean } = {}
+  {
+    supportsAttachmentReads = false,
+    supportsImages = true
+  }: { supportsAttachmentReads?: boolean; supportsImages?: boolean } = {}
 ): Promise<SDKUserMessage> {
-  let content = await materializeUserContent(message, supportsImages)
+  let content = await materializeUserContent(message, supportsImages, supportsAttachmentReads)
   if (systemReminder) {
     content = applySteerReminder(content)
   }
@@ -635,7 +641,8 @@ function applySteerReminder(content: SDKUserMessage['message']['content']): SDKU
  */
 async function materializeUserContent(
   message: AgentSessionMessageEntity,
-  supportsImages: boolean
+  supportsImages: boolean,
+  supportsAttachmentReads: boolean
 ): Promise<SDKUserMessage['message']['content']> {
   const parts = message.data?.parts ?? []
   const firstPartyParts = parts.filter(
@@ -652,12 +659,14 @@ async function materializeUserContent(
   )
 
   let routedParts = firstPartyParts
+  let turnAttachments: ReturnType<typeof collectFileAttachments> = []
   if (firstPartyParts.some((part) => part.type === 'file')) {
     const userMessage = { id: message.id, role: 'user', parts: firstPartyParts } as CherryUIMessage
+    turnAttachments = collectFileAttachments([userMessage])
     const [prepared] = await prepareChatMessages([userMessage], {
-      attachments: collectFileAttachments([userMessage]),
+      attachments: turnAttachments,
       nativeSupport: { image: supportsImages, pdf: false, audio: false, video: false },
-      isToolCapable: false
+      isToolCapable: supportsAttachmentReads
     })
     routedParts = prepared.parts
   }
@@ -716,6 +725,7 @@ async function materializeUserContent(
 
   const paths = extractAttachmentPaths(fallbackParts)
   let textContent = appendAttachmentPaths(text, paths)
+  if (supportsAttachmentReads) textContent = appendAttachmentManifest(textContent, turnAttachments)
   if (unavailableParts.length > 0) {
     const names = unavailableParts.map((part) => part.filename || 'attachment')
     logger.warn('Claude Code attachments could not be sent', { attachments: names })
@@ -724,6 +734,19 @@ async function materializeUserContent(
   }
   if (images.length === 0) return textContent
   return textContent.trim() ? [{ type: 'text', text: textContent }, ...images] : images
+}
+
+function appendAttachmentManifest(
+  text: string,
+  attachments: ReadonlyArray<{ displayName: string; handle: string }>
+): string {
+  if (attachments.length === 0) return text
+
+  const list = attachments
+    .map(({ displayName, handle }) => `- ${JSON.stringify(displayName)} (handle: ${handle})`)
+    .join('\n')
+  const section = `Attachment manifest:\n${list}`
+  return text.trim() ? `${text}\n\n${section}` : section
 }
 
 function appendAttachmentPaths(text: string, paths: string[]): string {

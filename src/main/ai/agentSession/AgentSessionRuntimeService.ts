@@ -222,10 +222,8 @@ export class AgentSessionRuntimeService extends BaseService {
         })
       })
     )
-
-    // Session deletion and message edits are plain DB writes with no side-effect hooks — the
-    // external session stores (transcripts etc.) are reconciled against the DB by a periodic
-    // sweep instead: boot catches residue from prior runs, the interval catches this run's.
+    // External session stores (transcripts etc.) are reconciled against the DB by a periodic
+    // sweep: boot catches residue from prior runs, the interval catches this run's mutations.
     this.registerInterval(() => void this.sweepExternalSessionFiles(), SESSION_FILE_SWEEP_INTERVAL_MS)
     void this.sweepExternalSessionFiles()
   }

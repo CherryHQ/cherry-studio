@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "lastUpdated": 1774918800000,
+  "lastUpdated": 1784791029000,
   "plugins": [
     {
       "filename": "cherry-assistant-guide",
@@ -9,11 +9,95 @@
         "sourcePath": "skills/cherry-assistant-guide",
         "filename": "cherry-assistant-guide",
         "name": "cherry-assistant-guide",
-        "description": "Cherry Studio 产品知识库、源码路径索引、故障排查和页面导航。当用户询问 Cherry Studio 的功能、配置、报错、使用方法时触发。也适用于用户提到 provider、模型、知识库、Agent、MCP、OpenClaw、PDF、快捷短语等关键词的场景。",
+        "description": "从当前安装包查询 Cherry Studio 产品信息。当用户询问功能、路由、快捷键、Provider、语言、Agent、频道、定时任务、Code CLI 或当前版本时触发。",
         "category": "skills",
         "type": "skill",
-        "size": 7318,
-        "contentHash": "994922bc4cc0280b1fa6d316e5cb8ebe5a292572c131fcc68b9d7ca80d70d2db"
+        "size": 6042,
+        "contentHash": "7bf9474f893243bedb2baac14fb85da2e52ba799b792afa17378c5a44c299d9e"
+      }
+    },
+    {
+      "filename": "cherry-skill-marketplace",
+      "type": "skill",
+      "metadata": {
+        "sourcePath": "skills/cherry-skill-marketplace",
+        "filename": "cherry-skill-marketplace",
+        "name": "cherry-skill-marketplace",
+        "description": "当用户明确要求搜索、安装、卸载或创建 Skill，或内置 Skill / 工具出现能力缺口、无法完成当前任务时触发。通过 `mcp__skills__skills` 搜索和管理 Skill；没有合适结果时调用内置 `skill-creator` 创建并验证自定义 Skill，再继续原任务。普通任务仍先尝试内置能力。",
+        "category": "skills",
+        "type": "skill",
+        "size": 3921,
+        "contentHash": "71b115d60f7b5311df962e8b16d09762203f821ce2177b151617efd303a61623"
+      }
+    },
+    {
+      "filename": "cherry-doc-writer",
+      "type": "skill",
+      "metadata": {
+        "sourcePath": "skills/cherry-doc-writer",
+        "filename": "cherry-doc-writer",
+        "name": "cherry-doc-writer",
+        "description": "创建、改写、总结、翻译、比较或转换办公文档，处理 Markdown、TXT、HTML、DOCX 和可提取文本的 PDF。用户说“写周报/纪要/方案”“润色/总结文档”“比较版本”“转成 Word/PDF/Markdown”“PDF 转 Word”或“Word 转 PDF”时触发。Office/PDF 转换基于可提取文本重建内容，不保留原版式。不要处理 PPT 或数据表分析。",
+        "category": "skills",
+        "type": "skill",
+        "size": 3035,
+        "contentHash": "3010eb4fcaf60682a061ec0cfb70d8bf1b96de511bfcc0585d5ec6e205125a69"
+      }
+    },
+    {
+      "filename": "cherry-web-ppt",
+      "type": "skill",
+      "metadata": {
+        "sourcePath": "skills/cherry-web-ppt",
+        "filename": "cherry-web-ppt",
+        "name": "cherry-web-ppt",
+        "description": "从主题、提纲、文档或 HTML 制作普通演示文稿，默认输出真实 PPTX；用户指定 Cherry-PPT 或 Cherry Studio 品牌模板时转交 `cherry-ppt`。HTML → PPTX 采用内容重建，用户明确选择网页演示时才输出单文件 HTML。“修改 PPT”只能根据附件提取文本重做，不保留原版式。",
+        "category": "skills",
+        "type": "skill",
+        "size": 3973,
+        "contentHash": "bacbe18a48d7bbb2057b80719ade58df3f60790d94841f0c814118a8fea8019a"
+      }
+    },
+    {
+      "filename": "cherry-ppt",
+      "type": "skill",
+      "metadata": {
+        "sourcePath": "skills/cherry-ppt",
+        "filename": "cherry-ppt",
+        "name": "cherry-ppt",
+        "description": "使用 Cherry Studio 内置 Cherry-PPT 品牌模板生成真实、可编辑并保留 Master/Layout 的 PPTX。用户要求使用 Cherry-PPT、Cherry Studio PPT 模板，或正式红白、企业蓝、Young、CY2K 风格制作演示文稿时触发。不要用于网页演示、普通无模板 PPT 或修改任意外部 PPTX。",
+        "category": "skills",
+        "type": "skill",
+        "size": 7898746,
+        "contentHash": "3a1be916246ffab9f36e4df6198f771da1925cca70a5950ea0eea1b5806a6101"
+      }
+    },
+    {
+      "filename": "cherry-data-analyst",
+      "type": "skill",
+      "metadata": {
+        "sourcePath": "skills/cherry-data-analyst",
+        "filename": "cherry-data-analyst",
+        "name": "cherry-data-analyst",
+        "description": "读取、清洗、合并和汇总 CSV、TSV、JSON；聊天附件经用户批准保存到 workspace 后由本地脚本处理，避免全量数据进入模型上下文。Excel 附件仅做提取文本概览，逐单元格处理需先导出 CSV。支持去重、同比环比、轻量报表和 CSV 转 XLSX。不要处理普通文档或 PPT。",
+        "category": "skills",
+        "type": "skill",
+        "size": 3770,
+        "contentHash": "34214ca46e026c29da48466cfef9c1b5e61089f9eb9e1f7a2f017a036cb48e44"
+      }
+    },
+    {
+      "filename": "claude-automation-recommender",
+      "type": "skill",
+      "metadata": {
+        "sourcePath": "skills/claude-automation-recommender",
+        "filename": "claude-automation-recommender",
+        "name": "claude-automation-recommender",
+        "description": "Analyze a codebase and recommend Claude Code automations (hooks, subagents, skills, plugins, MCP servers). Use when user asks for automation recommendations, wants to optimize their Claude Code setup, mentions improving Claude Code workflows, asks how to first set up Claude Code for a project, or wants to know what Claude Code features they should use.",
+        "category": "skills",
+        "type": "skill",
+        "size": 57231,
+        "contentHash": "cf9f1eaea34c0bfd22506b88df30883cc35f9d620c5dd512eb0dd20e90195fe1"
       }
     },
     {
@@ -37,11 +121,11 @@
         "sourcePath": "skills/issue-reporter",
         "filename": "issue-reporter",
         "name": "issue-reporter",
-        "description": "帮助用户提交 Bug Report 或 Feature Request。支持 GitHub Issue（有账户）和本地存档（无账户）两种模式。当诊断发现是代码 Bug 时主动提议，或当用户说\"帮我提 issue\"、\"这是个 bug\"、\"我想要这个功能\"、\"submit a bug\"、\"feature request\"时触发。",
+        "description": "帮助用户提交 Bug Report 或 Feature Request。三种路径：GitHub Issue（已登录 gh）、飞书反馈表单（GitHub 不通或不愿登录 gh）、本地存档（先放着稍后提交）。当诊断发现是代码 Bug 时主动提议，或当用户说\"帮我提 issue\"、\"这是个 bug\"、\"我想要这个功能\"、\"提交反馈\"、\"submit a bug\"、\"feature request\"时触发。",
         "category": "skills",
         "type": "skill",
-        "size": 1656,
-        "contentHash": "95725d616981ecf7276210d875b046c55883b570ff1eb712d910442014159125"
+        "size": 4717,
+        "contentHash": "48888179115d3bd388d6c203f378afde5c8b74aafd1e1ac0fc198f116b53cb30"
       }
     },
     {
@@ -51,11 +135,11 @@
         "sourcePath": "skills/skills-manager",
         "filename": "skills-manager",
         "name": "skills-manager",
-        "description": "搜索、安装和创建 Claude Code Agent Skills。当用户想要搜索技能、安装工具、创建自定义 Skill，或者说\"find a skill\"、\"搜索技能\"、\"帮我做个 skill\"、\"create a skill\"时触发。也适用于用户说\"有没有做 X 的工具\"、\"我想扩展 Agent 能力\"的场景。",
+        "description": "当 Cherry Studio 的 mcp__skills__skills 不可用，或用户明确要求使用 npx 时，通过 npx CLI 搜索、安装或创建 Claude Code Agent Skills。正常情况下优先使用 cherry-skill-marketplace。",
         "category": "skills",
         "type": "skill",
-        "size": 1632,
-        "contentHash": "7aa285f334acf318b23ef0f1d3126cd5d55c2a47ad0daa360ddd7321dfc6e5c6"
+        "size": 2042,
+        "contentHash": "40d3eb584891f3e4a0b724967789741ef5f7464750481c94bbfeefe25e729ed1"
       }
     }
   ]

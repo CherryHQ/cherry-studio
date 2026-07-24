@@ -195,9 +195,8 @@ function resolveHandlers(): Record<string, ToolHandler> {
 }
 
 function resolveHandler(name: string): ToolHandler | undefined {
-  return name === GENERATE_IMAGE_TOOL_NAME
-    ? createGenerateImageHandler(resolveConfiguredPaintingModel())
-    : HANDLERS[name]
+  if (name === GENERATE_IMAGE_TOOL_NAME) return createGenerateImageHandler(resolveConfiguredPaintingModel())
+  return HANDLERS[name]
 }
 
 /**

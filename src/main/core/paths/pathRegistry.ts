@@ -132,6 +132,22 @@ export function buildPathRegistry() {
     'feature.agents.channels': path.join(appUserDataData, 'Channels'),
     'feature.agents.workspaces': path.join(appUserDataData, 'Agents'), // per-agent workspace parent
     'feature.agents.builtin': path.join(appRootResources, 'builtin-agents'), // bundled agent templates (read-only)
+    'feature.agents.assistant.manifest.file': path.join(
+      appRootResources,
+      'builtin-agents',
+      'cherry-assistant',
+      'product-manifest.json'
+    ),
+    'feature.agents.assistant.cherry_ppt.templates': path.join(
+      appRootResources,
+      'builtin-agents',
+      'cherry-assistant',
+      '.claude',
+      'skills',
+      'cherry-ppt',
+      'assets',
+      'templates'
+    ),
 
     // Files / Notes / Knowledgebase
     'feature.files.data': path.join(appUserDataData, 'Files'),
@@ -221,6 +237,8 @@ const NO_ENSURE = [
   'app.database.migrations',
   'feature.provider_registry.data',
   'feature.agents.builtin',
+  'feature.agents.assistant.manifest.file',
+  'feature.agents.assistant.cherry_ppt.templates',
   'feature.agents.skills.builtin'
 ] as const satisfies readonly NoEnsureEntry[]
 

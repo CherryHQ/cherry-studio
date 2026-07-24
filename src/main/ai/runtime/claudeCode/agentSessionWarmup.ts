@@ -192,7 +192,8 @@ async function deriveConnectionConfigFromSnapshot(
       pinSubModelsToPrimary ? undefined : agent.smallModel
     )
   }
-  const skills = materialized?.skills ?? (await buildSkillWhitelist(agent.id, cwd))
+  const builtinRole = agent.configuration?.builtin_role as string | undefined
+  const skills = materialized?.skills ?? (await buildSkillWhitelist(agent.id, cwd, builtinRole))
   const linkedChannelId = materialized
     ? materialized.linkedChannelId
     : (agentChannelService.findBySessionId(session.id)?.id ?? null)

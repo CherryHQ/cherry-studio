@@ -21,7 +21,7 @@ import { buildPathRegistry, shouldAutoEnsure } from '../pathRegistry'
 // We do NOT mock buildPathRegistry. The shouldAutoEnsure rule is pure; the
 // local Electron mock also lets the path-layout test exercise the real registry.
 
-describe('buildPathRegistry', () => {
+describe('pathRegistry.buildPathRegistry', () => {
   it('keeps the isolated mise tree under the userData toolchain', () => {
     const registry = buildPathRegistry()
     const miseRoot = path.join('/mock/userData', 'Toolchain', 'mise')
@@ -29,6 +29,22 @@ describe('buildPathRegistry', () => {
     expect(registry['feature.binary.data']).toBe(miseRoot)
     expect(registry['feature.binary.data.isolated.localappdata']).toBe(path.join(miseRoot, 'localappdata'))
     expect(registry['feature.binary.data.isolated.appdata']).toBe(path.join(miseRoot, 'appdata'))
+  })
+
+  it('registers the Cherry Assistant product manifest inside bundled resources', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['feature.agents.assistant.manifest.file']).toBe(
+      '/mock/app/resources/builtin-agents/cherry-assistant/product-manifest.json'
+    )
+  })
+
+  it('registers Cherry-PPT templates inside bundled resources', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['feature.agents.assistant.cherry_ppt.templates']).toBe(
+      '/mock/app/resources/builtin-agents/cherry-assistant/.claude/skills/cherry-ppt/assets/templates'
+    )
   })
 })
 
@@ -182,6 +198,14 @@ describe('pathRegistry.shouldAutoEnsure', () => {
 
     it('returns false for app.database.migrations (packaged read-only path)', () => {
       expect(shouldAutoEnsure('app.database.migrations')).toBe(false)
+    })
+
+    it('returns false for the bundled Cherry Assistant product manifest', () => {
+      expect(shouldAutoEnsure('feature.agents.assistant.manifest.file')).toBe(false)
+    })
+
+    it('returns false for the bundled Cherry-PPT templates', () => {
+      expect(shouldAutoEnsure('feature.agents.assistant.cherry_ppt.templates')).toBe(false)
     })
   })
 
