@@ -1,5 +1,5 @@
 import { usePreference } from '@data/hooks/usePreference'
-import { hasV1CustomCssMarker } from '@shared/data/preference/customCss'
+import { hasV1CustomCssMarker } from '@shared/utils/customCssMigration'
 import { useEffect } from 'react'
 
 const CUSTOM_CSS_ELEMENT_ID = 'user-defined-custom-css'

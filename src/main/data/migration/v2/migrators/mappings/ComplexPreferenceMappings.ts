@@ -19,8 +19,8 @@
  */
 
 import { loggerService } from '@logger'
-import { markV1CustomCss } from '@shared/data/preference/customCss'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
+import { markV1CustomCss } from '@shared/utils/customCssMigration'
 
 import { type LegacyModelRef, legacyModelToUniqueId } from '../transformers/ModelTransformers'
 import {

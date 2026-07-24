@@ -1,4 +1,4 @@
-import { removeV1CustomCssMarker, V1_CUSTOM_CSS_MARKER } from '@shared/data/preference/customCss'
+import { removeV1CustomCssMarker, V1_CUSTOM_CSS_MARKER } from '@shared/utils/customCssMigration'
 import { renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 

@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { fileEntryTable } from '@data/db/schemas/file'
 import { preferenceTable } from '@data/db/schemas/preference'
-import { V1_CUSTOM_CSS_MARKER } from '@shared/data/preference/customCss'
+import { V1_CUSTOM_CSS_MARKER } from '@shared/utils/customCssMigration'
 import { setupTestDatabase } from '@test-helpers/db'
 import { and, eq, sql } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
