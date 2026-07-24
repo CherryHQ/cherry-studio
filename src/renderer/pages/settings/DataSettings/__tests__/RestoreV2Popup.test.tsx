@@ -1,4 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { backupErrorCodes } from '@shared/ipc/errors/backup'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { startRestoreMock, selectMock, confirmMock } = vi.hoisted(() => ({
@@ -33,12 +35,21 @@ vi.mock('@renderer/services/popup', async () => {
   const React = await import('react')
   return {
     popup: { confirm: confirmMock },
+    // Match createPopup(Component, opts?) — extra args ignored; keep show() settling
+    // immediately so await RestoreV2Popup.show() can drive the dialog without dismiss.
     createPopup: (Component: React.FC<{ open: boolean; resolve: (v: unknown) => void }>) => {
-      const resolve = vi.fn()
+      let inFlight: Promise<unknown> | null = null
       return {
         show: () => {
-          render(React.createElement(Component, { open: true, resolve }))
-          return Promise.resolve({})
+          if (inFlight) return inFlight
+          inFlight = new Promise((resolve) => {
+            render(React.createElement(Component, { open: true, resolve }))
+            queueMicrotask(() => {
+              inFlight = null
+              resolve({})
+            })
+          })
+          return inFlight
         },
         hide: vi.fn()
       }
@@ -55,7 +66,9 @@ import RestoreV2Popup from '../RestoreV2Popup'
 
 describe('RestoreV2Popup', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    startRestoreMock.mockReset()
+    selectMock.mockReset()
+    confirmMock.mockReset()
     document.body.innerHTML = ''
   })
 
@@ -89,10 +102,9 @@ describe('RestoreV2Popup', () => {
   it('returns to ready-with-error on reject and shows the code', async () => {
     selectMock.mockResolvedValueOnce([{ path: '/tmp/backup.cherrybackup' }])
     confirmMock.mockResolvedValueOnce(true)
-    const err = Object.assign(new Error('packaged restore unavailable'), {
-      code: 'BACKUP_RESTORE_QUIESCE_UNAVAILABLE'
-    })
-    startRestoreMock.mockRejectedValueOnce(err)
+    startRestoreMock.mockRejectedValueOnce(
+      new IpcError('BACKUP_RESTORE_QUIESCE_UNAVAILABLE', 'packaged restore unavailable')
+    )
 
     await RestoreV2Popup.show()
     fireEvent.click(screen.getByRole('button', { name: 'restore.confirm.button' }))
@@ -108,10 +120,9 @@ describe('RestoreV2Popup', () => {
   it('maps BACKUP_MERGE_STRATEGY_UNSUPPORTED to the SKIP-only copy', async () => {
     selectMock.mockResolvedValueOnce([{ path: '/tmp/backup.cherrybackup' }])
     confirmMock.mockResolvedValueOnce(true)
-    const err = Object.assign(new Error('userStrategy OVERWRITE'), {
-      code: 'BACKUP_MERGE_STRATEGY_UNSUPPORTED'
-    })
-    startRestoreMock.mockRejectedValueOnce(err)
+    startRestoreMock.mockRejectedValueOnce(
+      new IpcError(backupErrorCodes.MERGE_STRATEGY_UNSUPPORTED, 'mergeStrategy OVERWRITE')
+    )
 
     await RestoreV2Popup.show()
     fireEvent.click(screen.getByRole('button', { name: 'restore.confirm.button' }))

@@ -66,12 +66,9 @@ vi.mock('@renderer/services/popup', async () => {
   const React = await import('react')
   return {
     popup: { confirm: confirmMock },
-    // Match createPopup(Component, opts?) — tests keep show() resolving immediately so
-    // await BackupExportV2Popup.show() can drive the dialog without waiting for dismiss.
-    createPopup: (
-      Component: React.FC<{ open: boolean; resolve: (v: unknown) => void }>,
-      _opts?: { dismissResult?: unknown }
-    ) => {
+    // Match createPopup(Component, opts?) — extra args ignored; keep show() settling
+    // immediately so await BackupExportV2Popup.show() can drive the dialog without dismiss.
+    createPopup: (Component: React.FC<{ open: boolean; resolve: (v: unknown) => void }>) => {
       let inFlight: Promise<unknown> | null = null
       return {
         show: () => {
