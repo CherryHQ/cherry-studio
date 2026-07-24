@@ -9,7 +9,7 @@ vi.mock('@cherrystudio/ui', () => ({
       {children}
     </button>
   ),
-  Tooltip: ({ children }: any) => <>{children}</>
+  Tooltip: ({ children, content }: any) => <span data-tooltip-content={content}>{children}</span>
 }))
 
 vi.mock('@renderer/components/icons/CopyIcon', () => ({
@@ -76,6 +76,18 @@ describe('MultiSelectionPopup', () => {
       expect(buttonFor('save-icon')).toBeDisabled()
       expect(buttonFor('copy-icon')).toBeDisabled()
       expect(buttonFor('delete-icon')).toBeDisabled()
+    })
+
+    it.each([
+      ['first-turn', 'message.delete.first_turn_not_supported'],
+      ['root-unavailable', 'message.delete.root_unavailable']
+    ] as const)('disables only deletion for %s', (deleteDisabledReason, tooltip) => {
+      render(<MultiSelectActionPopup {...controlledProps()} deleteDisabledReason={deleteDisabledReason} />)
+
+      expect(buttonFor('save-icon')).toBeEnabled()
+      expect(buttonFor('copy-icon')).toBeEnabled()
+      expect(buttonFor('delete-icon')).toBeDisabled()
+      expect(buttonFor('delete-icon').parentElement).toHaveAttribute('data-tooltip-content', tooltip)
     })
 
     it('omits a button when its handler is not provided', () => {

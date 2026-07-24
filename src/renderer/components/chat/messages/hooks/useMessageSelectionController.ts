@@ -185,13 +185,14 @@ export function useMessageSelectionController({
 
       try {
         for (const messageId of ids) {
-          await deleteMessage(messageId)
+          await deleteMessage(messageId, { cascade: false, selectedMessageIds: ids })
         }
         toast.success(t('message.delete.success'))
-        toggleMultiSelectMode(false)
       } catch (error) {
         logger.error('Failed to delete selected messages:', error as Error)
         toast.error(t('message.delete.failed'))
+      } finally {
+        toggleMultiSelectMode(false)
       }
     },
     [deleteMessage, ensureSelection, t, toggleMultiSelectMode]

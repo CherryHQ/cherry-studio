@@ -81,9 +81,8 @@ export function useChatWriteActions(params: Params): Result {
     clearTopicMessagesTrigger
   } = cache
 
-  // A message is a "first turn" iff its parent IS the topic's virtual root — compared against
-  // the authoritative rootId (pagination-independent; the "parent not loaded" proxy
-  // misclassified the topmost-paged message). Unknown rootId ⇒ nothing is a first turn.
+  // A message is a "first turn" iff its parent IS the topic's virtual root. The authoritative
+  // rootId keeps this pagination-independent; deletion stays unavailable until that id is known.
   const isFirstTurnId = useCallback((parentId?: string | null) => rootId != null && parentId === rootId, [rootId])
 
   const handleClearTopicMessages = useCallback(async () => {
@@ -97,16 +96,35 @@ export function useChatWriteActions(params: Params): Result {
     }
   }, [clearBranchCache, clearTopicMessagesTrigger, rollbackBranch, topic.id])
 
+  const getMessageDeleteAvailability = useCallback<ChatWriteActions['getMessageDeleteAvailability']>(
+    (id: string) => {
+      if (rootId === null) return { enabled: false, reason: 'root-unavailable' }
+      const message = uiMessages.find((item) => item.id === id)
+      return message?.role === 'user' && isFirstTurnId(message.metadata?.parentId)
+        ? { enabled: false, reason: 'first-turn' }
+        : { enabled: true }
+    },
+    [isFirstTurnId, rootId, uiMessages]
+  )
+
   const handleDeleteMessage = useCallback<ChatWriteActions['deleteMessage']>(
-    async (id) => {
-      // Deleting a first-turn message cascades (remove the turn): a non-cascade splice would
-      // reparent its replies onto the virtual root, stranding them as parent-less assistants.
-      const target = uiMessages.find((m) => m.id === id)
+    async (id, options) => {
+      const shouldCascade = options?.cascade ?? false
+
+      // A first-turn user message anchors the conversation branch. Reject both direct deletion
+      // and any multi-select plan containing it before the first optimistic or persistent write.
+      const selectionContainsUnavailableMessage = options?.selectedMessageIds?.some((messageId) => {
+        return !getMessageDeleteAvailability(messageId).enabled
+      })
+      if (!getMessageDeleteAvailability(id).enabled || selectionContainsUnavailableMessage) {
+        throw new Error('Message deletion is unavailable')
+      }
+
       const optimisticIds = new Set([id])
       await seedOptimisticBranch((prev) => branchWithoutIds(prev, optimisticIds))
 
       try {
-        if (target && isFirstTurnId(target.metadata?.parentId)) {
+        if (shouldCascade) {
           const result = await deleteMessageTrigger({ params: { id }, query: { cascade: true } })
           await seedOptimisticBranch((prev) => branchWithoutIds(prev, new Set(result.deletedIds)))
         } else {
@@ -118,7 +136,7 @@ export function useChatWriteActions(params: Params): Result {
       }
       logger.info('Deleted message', { id })
     },
-    [branchWithoutIds, deleteMessageTrigger, isFirstTurnId, uiMessages, rollbackBranch, seedOptimisticBranch]
+    [branchWithoutIds, deleteMessageTrigger, getMessageDeleteAvailability, rollbackBranch, seedOptimisticBranch]
   )
 
   const handleDeleteMessageGroup = useCallback<ChatWriteActions['deleteMessageGroup']>(
@@ -128,6 +146,9 @@ export function useChatWriteActions(params: Params): Result {
       if (isFirstTurnId(id)) {
         await handleClearTopicMessages()
         return
+      }
+      if (!getMessageDeleteAvailability(id).enabled) {
+        throw new Error('Message group deletion is unavailable')
       }
       await seedOptimisticBranch((prev) => branchWithoutIds(prev, new Set([id])))
       try {
@@ -143,6 +164,7 @@ export function useChatWriteActions(params: Params): Result {
     [
       branchWithoutIds,
       deleteMessageTrigger,
+      getMessageDeleteAvailability,
       handleClearTopicMessages,
       isFirstTurnId,
       rollbackBranch,
@@ -354,6 +376,7 @@ export function useChatWriteActions(params: Params): Result {
     () => ({
       regenerate: async (messageId, options) => regenerateWithCapabilities(messageId, options),
       resend: handleResend,
+      getMessageDeleteAvailability,
       deleteMessage: handleDeleteMessage,
       deleteMessageGroup: handleDeleteMessageGroup,
       pause: stop,
@@ -367,6 +390,7 @@ export function useChatWriteActions(params: Params): Result {
     [
       regenerateWithCapabilities,
       handleResend,
+      getMessageDeleteAvailability,
       handleDeleteMessage,
       handleDeleteMessageGroup,
       stop,

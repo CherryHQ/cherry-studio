@@ -3743,6 +3743,8 @@
         "title": "删除确认"
       },
       "failed": "删除失败",
+      "first_turn_not_supported": "不能删除第一条用户消息。",
+      "root_unavailable": "消息仍在加载，暂时无法删除。",
       "success": "删除成功"
     },
     "dialog": {

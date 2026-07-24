@@ -3743,6 +3743,8 @@
         "title": "Delete Confirmation"
       },
       "failed": "Delete Failed",
+      "first_turn_not_supported": "The first user message cannot be deleted.",
+      "root_unavailable": "Messages are still loading and cannot be deleted yet.",
       "success": "Delete Successful"
     },
     "dialog": {
