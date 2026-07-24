@@ -6362,11 +6362,8 @@
       },
       "custom": {
         "css": {
-          "export": "导出旧版 CSS",
-          "export_error": "旧版自定义 CSS 导出失败",
-          "export_success": "旧版自定义 CSS 已导出",
+          "cherrycss": "从 cherrycss.com 获取",
           "label": "自定义 CSS",
-          "legacy_warning": "旧版 CSS 已失效，请升级至 v2 样式方案。",
           "placeholder": "/* 这里写自定义 CSS */"
         }
       },
