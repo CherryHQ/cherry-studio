@@ -59,6 +59,10 @@ No dedicated service — the owning module reads/writes `appStateTable` directly
 - Keys are disposable: an owner may drop a key or switch to a new one at will. Orphaned rows in old installs are harmless — no reader means dead data.
 - **Exception:** a key recording an irreversible "done" event (e.g. a completed migration) must not be silently renamed once shipped. Existing installs would lose the "done" fact and re-run the flow. Keep the key, or read the old key as a fallback during the rename.
 
+### Destructive SQLite-Container Exception
+
+`app_state` is unsuitable when an operation deletes the SQLite container that holds it and its marker must survive the destructive work. In that narrow case, a profile-local sidecar registered in the path registry is allowed. It has exactly one owner and remains durable through the destructive pass. The owner removes it last after success, or durably abandons it before normal writable startup. Data Reset's pending marker is the concrete example; this is not a general replacement for `app_state`.
+
 ## Key Registry
 
 Every key currently in `app_state`. Add a row when introducing a key.
