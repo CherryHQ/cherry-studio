@@ -640,11 +640,6 @@
       }
     },
     "sidebar_title": "エージェント",
-    "skill": {
-      "manage": {
-        "title": "スキルを管理する"
-      }
-    },
     "tasks": {
       "add": "タスクを追加",
       "cancel": "キャンセル",
@@ -1059,12 +1054,18 @@
     "edit": {
       "title": "アシスタントを編集"
     },
+    "groups": {
+      "delete": "[to be translated]:Delete Group",
+      "deleteConfirm": "[to be translated]:Are you sure you want to delete this group?",
+      "group_by": "[to be translated]:Show in groups",
+      "ungroup": "[to be translated]:Stop grouping",
+      "ungrouped": "[to be translated]:Ungrouped"
+    },
     "icon": {
       "type": "アシスタントアイコン"
     },
     "list": {
-      "showByList": "リスト表示",
-      "showByTags": "タグ表示"
+      "showByList": "リスト表示"
     },
     "pin": {
       "title": "ピンアシスタント"
@@ -1222,6 +1223,8 @@
         "label": "思考連鎖の長さ",
         "low": "少しの思考",
         "low_description": "低レベル推論",
+        "max": "[to be translated]:Max",
+        "max_description": "[to be translated]:Maximum reasoning effort",
         "medium": "普通の思考",
         "medium_description": "中レベル推論",
         "minimal": "最小限の思考",
@@ -1248,20 +1251,6 @@
         "label": "工具調用方式",
         "prompt": "提示詞"
       }
-    },
-    "tags": {
-      "add": "タグ追加",
-      "delete": "タグ削除",
-      "deleteConfirm": "このタグを削除してもよろしいですか？",
-      "group_by": "タグでグループ化",
-      "manage": "タグ管理",
-      "modify": "タグ修正",
-      "none": "タグなし",
-      "settings": {
-        "title": "タグ設定"
-      },
-      "ungroup": "タグのグループ化をオフにする",
-      "untagged": "未分類"
     },
     "title": "アシスタント",
     "unpin": {
@@ -1402,6 +1391,7 @@
       },
       "generate_image": "画像を生成する",
       "generate_image_no_model": "設定 › デフォルトモデルでペインティングモデルを設定してください",
+      "image_preview_failed": "[to be translated]:Image preview failed",
       "knowledge_base": "ナレッジベース",
       "knowledge_base_disabled_by_files": "ナレッジベースを使用するには、添付ファイルを削除してください。",
       "knowledge_base_unavailable": "ツール対応モデルを選択するか、プロンプトでのツール使用を有効にしてください",
@@ -1573,6 +1563,23 @@
       "regenerate": {
         "model": "モデルを切り替え"
       },
+      "token_details": {
+        "cache_read": "[to be translated]:Cache read",
+        "cache_write": "[to be translated]:Cache write",
+        "input": "[to be translated]:Input",
+        "input_breakdown": "[to be translated]:Input breakdown",
+        "output": "[to be translated]:Output",
+        "reasoning": "[to be translated]:Reasoning",
+        "reasoning_time": "[to be translated]:Reasoning",
+        "request_duration": "[to be translated]:Generation timing",
+        "text_generation": "[to be translated]:Text generation",
+        "text_output": "[to be translated]:Text output",
+        "tokens": "[to be translated]:{{value}} Tokens",
+        "tokens_per_second_value": "[to be translated]:{{value}} Tokens/s",
+        "uncached": "[to be translated]:Uncached",
+        "usage": "[to be translated]:Token usage",
+        "waiting_first_token": "[to be translated]:Waiting"
+      },
       "useful": {
         "label": "上下文として設定する",
         "tip": "このメッセージは、このメッセージセットの中でコンテキストに含まれるために選択されます"
@@ -1598,8 +1605,7 @@
     "resource_view": {
       "menu": {
         "agent": "エージェント",
-        "assistant": "アシスタント",
-        "skill": "スキル"
+        "assistant": "アシスタント"
       }
     },
     "save": {
@@ -1983,6 +1989,7 @@
         "default": "デフォルト",
         "high": "高",
         "low": "低",
+        "max": "[to be translated]:Max",
         "medium": "ミディアム",
         "minimal": "最小限",
         "xhigh": "エクストラハイ"
@@ -2177,6 +2184,7 @@
     "copy_failed": "コピーに失敗しました",
     "create_success": "正常に作成されました",
     "current": "現在",
+    "decline": "[to be translated]:Decline",
     "default": "デフォルト",
     "delete": "削除",
     "delete_confirm": "削除してもよろしいですか？",
@@ -2279,6 +2287,7 @@
     "swap": "交換",
     "topics": "トピック",
     "translate_text": "翻訳",
+    "undo": "[to be translated]:Undo",
     "unknown": "Unknown",
     "unnamed": "無題",
     "unsubscribe": "配信停止",
@@ -2317,6 +2326,7 @@
     "image-generation": "画像生成 (OpenAI)",
     "jina-rerank": "Jina Rerank",
     "openai": "OpenAI",
+    "openai-embeddings": "[to be translated]:Embeddings (OpenAI)",
     "openai-response": "OpenAI-Response"
   },
   "error": {
@@ -2433,13 +2443,19 @@
     "text": "テキスト",
     "toolInput": "ツール入力",
     "toolName": "ツール名",
+    "tool_call_limit_reached": "[to be translated]:The assistant reached the tool-call limit before producing a final answer. Try again or reduce the task scope.",
     "truncated": "データが切り捨てられました、元のサイズ",
     "truncatedBadge": "切り捨て",
     "unknown": "不明なエラー",
     "usage": "用量",
     "user_message_not_found": "元のユーザーメッセージを見つけることができませんでした",
     "value": "値",
-    "values": "値"
+    "values": "値",
+    "web_lookup_network_error": "[to be translated]:Web access failed. Check your network connection and try again.",
+    "web_search_api_host_invalid": "[to be translated]:Web search is unavailable because the configured provider's API host is invalid. Enter a valid HTTP(S) URL in Settings → Web Search, then try again.",
+    "web_search_api_host_missing": "[to be translated]:Web search is unavailable because the configured provider is missing an API host. Add one in Settings → Web Search, then try again.",
+    "web_search_api_key_missing": "[to be translated]:Web search is unavailable because the configured provider is missing an API key. Add one in Settings → Web Search, then try again.",
+    "web_search_provider_unavailable": "[to be translated]:Web search is unavailable because no compatible provider is configured. Configure one in Settings → Web Search, then try again."
   },
   "export": {
     "assistant": "アシスタント",
@@ -3118,7 +3134,7 @@
       "duplicate": "重複",
       "edit": "編集",
       "enable": "有効にする",
-      "manage_tags": "タグを管理",
+      "manage_groups": "[to be translated]:Manage groups",
       "uninstall": "アンインストール"
     },
     "assistant_catalog": {
@@ -3317,6 +3333,9 @@
             "hint": "有効にすると、トークンサンプリングの範囲を制限します"
           }
         },
+        "group": "[to be translated]:Group",
+        "group_empty": "[to be translated]:No groups available",
+        "group_placeholder": "[to be translated]:Select group",
         "json_invalid": "無効なJSON形式",
         "max_tokens": "最大トークン",
         "max_tool_calls": "最大ツール呼び出し",
@@ -3415,6 +3434,11 @@
         "insert_variable": "変数を挿入",
         "label": "システムプロンプト",
         "placeholder": "回答スタイル、役割設定、背景情報など、アシスタントへの指示を入力してください",
+        "polish": "[to be translated]:Polish prompt",
+        "polish_failed_description": "[to be translated]:Check or change the default model, then try again.",
+        "polish_failed_title": "[to be translated]:Failed to polish prompt",
+        "polish_variables_changed_description": "[to be translated]:The polished result changed or removed prompt variables. Try again.",
+        "polish_variables_changed_title": "[to be translated]:Could not apply polished prompt",
         "title": "プロンプト",
         "tokens_label": "トークン:",
         "variables_description": "これらのシステム変数をシステムプロンプトに挿入してください。アシスタントの各返答の前に、現在の情報で変数が埋められます。",
@@ -3517,6 +3541,10 @@
       "title": "リソースなし"
     },
     "export_assistant_failed": "アシスタントのエクスポートに失敗しました",
+    "group_picker": {
+      "no_groups": "[to be translated]:No groups yet"
+    },
+    "group_sync_failed": "[to be translated]:Failed to sync groups",
     "import_dialog": {
       "clipboard": {
         "button": "解析してインポート",
@@ -3564,7 +3592,6 @@
     },
     "sidebar": {
       "all_resources": "すべてのリソース",
-      "all_tags": "すべてのタグ",
       "no_tags": "まだタグはありません",
       "subtitle": "AIリソースを管理する",
       "tags": "タグ",
@@ -3629,11 +3656,11 @@
     },
     "title": "図書館",
     "toolbar": {
-      "add_tag_placeholder": "タグ名...",
-      "all_tags": "すべてのタグ",
+      "add_group_placeholder": "[to be translated]:Group name...",
+      "all_groups": "[to be translated]:All groups",
+      "group_button": "[to be translated]:Group",
       "new_resource": "新しいリソース",
-      "search_placeholder": "リソースを検索...",
-      "tag_button": "タグ"
+      "search_placeholder": "リソースを検索..."
     },
     "type": {
       "agent": "エージェント",
@@ -4205,6 +4232,9 @@
       "selected": "選択済みのタグ"
     },
     "function_calling": "関数呼び出し",
+    "group": {
+      "ungrouped": "[to be translated]:Ungrouped"
+    },
     "invalid_model": "無効なモデル",
     "json_parse_error": "無効なJSON形式",
     "multi_select": {
@@ -4249,10 +4279,13 @@
       "embedding": "埋め込み",
       "free": "無料",
       "function_calling": "ツール",
+      "image": "[to be translated]:Image",
       "reasoning": "推論",
       "rerank": "再順序付け",
       "select": "モデルタイプ",
+      "speech": "[to be translated]:Speech",
       "text": "テキスト",
+      "transcription": "[to be translated]:Transcription",
       "video": "ビデオ",
       "vision": "画像",
       "websearch": "ウェブ検索"
@@ -4440,6 +4473,13 @@
       "policy": "プライバシーポリシー",
       "update_failed": "プライバシーポリシーへの同意を保存できませんでした。もう一度お試しください。"
     },
+    "provider_setup": {
+      "missing_model": "[to be translated]:Enable at least one model from the enabled provider",
+      "missing_provider": "[to be translated]:Enable a provider to continue",
+      "next": "[to be translated]:Next",
+      "subtitle": "[to be translated]:Add an API key or sign in with CherryIN, then enable a provider.",
+      "title": "[to be translated]:Choose a Provider"
+    },
     "select_model": {
       "change_later": "いつでも設定で変更できます",
       "start": "始めましょう",
@@ -4448,6 +4488,7 @@
     },
     "skip": "スキップ",
     "toast": {
+      "complete_failed": "[to be translated]:Unable to complete setup. Please try again.",
       "connected": "CherryINに正常に接続されました"
     },
     "welcome": {
@@ -4721,6 +4762,7 @@
     "inference_steps": "推論ステップ数",
     "inference_steps_tip": "実行する推論ステップ数。ステップ数が多いほど品質が向上しますが、時間がかかります",
     "input_image": "入力画像",
+    "input_image_limit_exceeded": "[to be translated]:Too many reference images for the selected model. Remove some images and try again.",
     "input_parameters": "パラメータ入力",
     "invalid_image_url": "無効な画像URLの形式",
     "learn_more": "詳しくはこちら",
@@ -4745,6 +4787,7 @@
     "number_images": "生成数",
     "number_images_tip": "生成する画像の数（1-4）",
     "operation_failed": "操作に失敗しました。後でもう一度お試しください。",
+    "output_compression": "[to be translated]:Output Compression",
     "paint_course": "チュートリアル",
     "per_image": "1枚あたり",
     "per_images": "複数枚あたり",
@@ -4893,6 +4936,7 @@
     "install": "インストール",
     "install_plugins_from_browser": "利用可能なプラグインを閲覧して、使用を開始してください",
     "installing": "インストール中...",
+    "manage_skills": "[to be translated]:Manage skills",
     "name": "名称",
     "no_description": "説明なし",
     "no_installed_plugins": "まだプラグインがインストールされていません",
@@ -4945,6 +4989,16 @@
     "source": "ソースコードを表示",
     "zoom_in": "拡大",
     "zoom_out": "縮小"
+  },
+  "privacy_policy": {
+    "load_failed": "[to be translated]:Unable to load the privacy policy.",
+    "title": "[to be translated]:Privacy Policy"
+  },
+  "privacy_policy_update": {
+    "acknowledge_failed": "[to be translated]:Unable to save your acknowledgement. Please try again.",
+    "description_before_link": "[to be translated]:We have updated the privacy policy. Please review the latest ",
+    "policy": "[to be translated]:Privacy Policy",
+    "title": "[to be translated]:Privacy Policy Updated"
   },
   "prompts": {
     "explanation": "この概念を説明してください",
@@ -5516,6 +5570,7 @@
       "create_new": "新しいアシスタント",
       "empty_text": "まだアシスタントはいません",
       "filter": "フィルターアシスタント",
+      "group_filter": "[to be translated]:Filter by group",
       "multi_hint": "（マルチモデルとは相互に排他的）",
       "multi_label": "マルチアシスタント並列",
       "search_placeholder": "検索アシスタント…"
@@ -5637,14 +5692,15 @@
         "select": "ディレクトリを変更",
         "select_error": "データディレクトリの変更に失敗しました",
         "select_error_in_app_path": "新しいパスはアプリのインストールパスと同じです。別のパスを選択してください",
+        "select_error_protected_path": "[to be translated]:The selected path is protected by the operating system or Cherry Studio. Please choose another folder.",
         "select_error_root_path": "新しいパスはルートパスにできません",
         "select_error_same_path": "新しいパスは元のパスと同じです。別のパスを選択してください",
         "select_error_write_permission": "新しいパスに書き込み権限がありません",
         "select_not_empty_dir": "新しいパスは空ではありません",
-        "select_not_empty_dir_content": "新しいパスは空ではありません。新しいパスのデータが上書きされます。データが失われるリスクがあります。続行しますか？",
         "select_success": "データディレクトリが変更されました。変更を適用するためにアプリが再起動します",
         "select_title": "アプリデータディレクトリの変更",
-        "stop_quit_app_reason": "アプリは現在データを移行しているため、終了できません"
+        "stop_quit_app_reason": "アプリは現在データを移行しているため、終了できません",
+        "switch_existing_notice": "[to be translated]:This non-empty directory will be used as-is. Its existing files will not be overwritten."
       },
       "app_logs": {
         "button": "ログを開く",
@@ -6250,6 +6306,9 @@
       "removeConfirmTitle": "Remove Tool",
       "removeDefinitionOnlyConfirmMessage": "[to be translated]:Cherry could not safely clean up \"{{name}}\". Removing only its definition will hide the card but leave its backend files installed. Continue?",
       "removeDefinitionOnlyConfirmTitle": "[to be translated]:Remove Definition Only?",
+      "removeDefinitionOnlyDependents": "[to be translated]:Installed tools depend on it: {{dependents}}.",
+      "removeError": "[to be translated]:Failed to remove tool",
+      "removeErrorHint": "[to be translated]:The cleanup command failed. Copy the log below to troubleshoot or share it for help.",
       "removeRuntimeConfirmMessage": "[to be translated]:Are you sure you want to remove \"{{name}}\"? Uninstalling this runtime may break npm or pip tools that depend on it.",
       "runtimeDependency": "[to be translated]:Runtime",
       "runtimeDependencyHint": "[to be translated]:Runtime for npm/pip tools",
@@ -6826,6 +6885,9 @@
       "add": {
         "add_model": "モデルを追加",
         "batch_add_models": "モデルを一括追加",
+        "capabilities": {
+          "label": "[to be translated]:Model Capabilities"
+        },
         "context_window": {
           "label": "コンテキストウィンドウ",
           "placeholder": "例: 128000"
@@ -6841,6 +6903,9 @@
           "label": "グループ名",
           "placeholder": "例：ChatGPT",
           "tooltip": "例：ChatGPT"
+        },
+        "input_modalities": {
+          "label": "[to be translated]:Input Modalities"
         },
         "max_input_tokens": {
           "label": "最大入力トークン",
@@ -6863,6 +6928,9 @@
           "label": "モデル名",
           "placeholder": "例：GPT-5.5",
           "tooltip": "例：GPT-4"
+        },
+        "model_type": {
+          "label": "[to be translated]:Model Type"
         },
         "supported_text_delta": {
           "label": "インクリメンタルテキスト出力のサポート",
@@ -6922,6 +6990,7 @@
       "default_assistant_model_description": "アシスタントにモデルがない場合に使用されます",
       "docs": "モデルドキュメント",
       "empty": "モデルを選択",
+      "empty_hint": "[to be translated]:Click the Get model list button above to add models.",
       "enabled_models": "有効",
       "expand_all": "すべて展開",
       "filter": {
@@ -7419,9 +7488,6 @@
         "usage_title": "使用",
         "usage_unit": "tokens"
       },
-      "openai": {
-        "alert": "OpenAIプロバイダーは旧式の呼び出し方法をサポートしなくなりました。サードパーティのAPIを使用している場合は、新しいサービスプロバイダーを作成してください。"
-      },
       "remove_duplicate_keys": "重複キーを削除",
       "remove_invalid_keys": "無効なキーを削除",
       "reorder_failed": "プロバイダーの並び替えに失敗しました",
@@ -7497,6 +7563,7 @@
         "autoEmpty": "有効化された MCP サーバーはありません",
         "description": "現在のMCPサーバーのステータスを表示",
         "disabled": "このアシスタントではMCPは無効になっています",
+        "open_config": "[to be translated]:Configure MCP servers",
         "unknownServer": "不明な MCP サーバー"
       },
       "multiple": "複数選択",

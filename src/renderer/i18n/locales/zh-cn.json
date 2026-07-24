@@ -2326,6 +2326,7 @@
     "image-generation": "图像生成 (OpenAI)",
     "jina-rerank": "Jina 重排序",
     "openai": "OpenAI",
+    "openai-embeddings": "嵌入 (OpenAI)",
     "openai-response": "OpenAI-Response"
   },
   "error": {
@@ -4278,10 +4279,13 @@
       "embedding": "嵌入",
       "free": "免费",
       "function_calling": "工具",
+      "image": "图片",
       "reasoning": "推理",
       "rerank": "重排",
       "select": "模型类型",
+      "speech": "语音",
       "text": "文本",
+      "transcription": "转录",
       "video": "视频",
       "vision": "视觉",
       "websearch": "联网"
@@ -6352,8 +6356,11 @@
       },
       "custom": {
         "css": {
-          "cherrycss": "从 cherrycss.com 获取",
+          "export": "导出旧版 CSS",
+          "export_error": "旧版自定义 CSS 导出失败",
+          "export_success": "旧版自定义 CSS 已导出",
           "label": "自定义 CSS",
+          "legacy_warning": "旧版 CSS 已失效，请升级至 v2 样式方案。",
           "placeholder": "/* 这里写自定义 CSS */"
         }
       },
@@ -6881,6 +6888,9 @@
       "add": {
         "add_model": "添加模型",
         "batch_add_models": "批量添加模型",
+        "capabilities": {
+          "label": "模型能力"
+        },
         "context_window": {
           "label": "上下文窗口",
           "placeholder": "例如 128000"
@@ -6896,6 +6906,9 @@
           "label": "分组名称",
           "placeholder": "例如 ChatGPT",
           "tooltip": "例如 ChatGPT"
+        },
+        "input_modalities": {
+          "label": "输入模态"
         },
         "max_input_tokens": {
           "label": "最大输入 Token",
@@ -6918,6 +6931,9 @@
           "label": "模型名称",
           "placeholder": "例如 GPT-5.5",
           "tooltip": "例如 GPT-4"
+        },
+        "model_type": {
+          "label": "模型类型"
         },
         "supported_text_delta": {
           "label": "支持增量文本输出",
