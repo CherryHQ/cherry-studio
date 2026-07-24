@@ -2,6 +2,7 @@ import type { UIMessageChunk } from 'ai'
 
 import type { CherryMessagePart, CherryUIMessage } from '../../data/types/message'
 import type { UniqueModelId } from '../../data/types/model'
+import type { ReasoningEffortOption } from '../../types/aiSdk'
 import type { SerializedError } from '../../types/error'
 
 export interface AiChatRequestBody {
@@ -15,6 +16,8 @@ export interface AiChatRequestBody {
   userMessageParts?: CherryMessagePart[]
   /** Uploaded file metadata. */
   files?: Array<{ id: string; name: string; type: string; size: number; url: string }>
+  /** Canonical reasoning selection captured for this submit. */
+  reasoningEffort?: ReasoningEffortOption
 }
 
 // ── Push payloads (Main → Renderer) ─────────────────────────────────
@@ -69,6 +72,8 @@ export interface ComposerQueuedMessagePayload {
   /** Models selected by the composer model selector for this queued draft. */
   mentionedModels?: UniqueModelId[]
   knowledgeBaseIds?: string[]
+  /** Canonical reasoning selection captured with this queued draft. */
+  reasoningEffort?: ReasoningEffortOption
 }
 
 /**
@@ -153,6 +158,8 @@ export type AiStreamOpenRequest = {
       parentAnchorId?: string
       /** Content of the new user msg. */
       userMessageParts: CherryMessagePart[]
+      /** Canonical reasoning selection captured when the composer submitted. */
+      reasoningEffort?: ReasoningEffortOption
     }
   | {
       /** Re-run the assistant under an existing user msg. */
@@ -160,6 +167,7 @@ export type AiStreamOpenRequest = {
       /** Id of the existing user msg whose assistant child(ren) we're regenerating. */
       parentAnchorId: string
       userMessageParts?: never
+      reasoningEffort?: never
     }
 )
 
