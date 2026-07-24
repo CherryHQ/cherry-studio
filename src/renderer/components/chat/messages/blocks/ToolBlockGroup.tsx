@@ -57,6 +57,7 @@ function getItemEffectiveStatus(
 // ============ Sub-Components ============
 
 const LIVE_HEADER_MIN_DURATION_MS = 1200
+const TOOL_GROUP_PROGRESS_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
 
 type ToolHeaderCandidate =
   | { key: string; kind: 'summary'; label: React.ReactNode }
@@ -459,7 +460,7 @@ const DynamicToolBlockGroupHeaderContent = React.memo(
           </span>
           {isLiveProgress && (
             <span aria-hidden="true" className="flex shrink-0 items-center">
-              <BeatLoader color="var(--color-foreground-muted)" size={4} speedMultiplier={0.8} />
+              <BeatLoader color={TOOL_GROUP_PROGRESS_COLOR} size={4} speedMultiplier={0.8} />
             </span>
           )}
         </div>,

@@ -609,8 +609,8 @@ describe('MainTextBlock', () => {
       expect(token?.querySelector('[data-file-token-icon="code"]')).toHaveClass(
         'size-4.5',
         'rounded-[5px]',
-        'bg-[var(--color-indigo-100)]',
-        'text-[var(--color-indigo-700)]'
+        'bg-indigo-100',
+        'text-indigo-700'
       )
     })
 
@@ -792,10 +792,7 @@ describe('MainTextBlock', () => {
 
       const token = getRenderedPlainText()!.querySelector('[data-composer-token-kind="file"]')
       expect(token).toHaveAttribute('data-file-token-variant', 'pdf')
-      expect(token?.querySelector('[data-file-token-icon="pdf"]')).toHaveClass(
-        'bg-[var(--color-red-100)]',
-        'text-[var(--color-red-700)]'
-      )
+      expect(token?.querySelector('[data-file-token-icon="pdf"]')).toHaveClass('bg-red-100', 'text-red-700')
     })
 
     it.each([false, true])(

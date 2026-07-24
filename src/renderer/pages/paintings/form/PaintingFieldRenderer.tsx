@@ -162,7 +162,7 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
               htmlFor={`${fieldKey}-${option.value}`}
               className={`flex cursor-pointer flex-col items-center justify-center gap-1 rounded-[10px] px-2 py-1.5 text-[11px] transition-all ${
                 value === String(option.value)
-                  ? 'bg-secondary-active text-foreground ring-1 ring-[var(--color-border-active)]'
+                  ? 'bg-secondary-active text-foreground ring-1 ring-[color:color-mix(in_oklch,var(--foreground)_33.3333%,transparent)]'
                   : 'bg-muted text-muted-foreground/60 hover:bg-secondary-hover hover:text-foreground'
               }`}>
               <RadioGroupItem value={String(option.value)} id={`${fieldKey}-${option.value}`} className="sr-only" />

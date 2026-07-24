@@ -660,6 +660,23 @@ const anthropicFetcher: ModelFetcher = {
   }
 }
 
+const jinaFetcher: ModelFetcher = {
+  match: (p) => matchesPreset(p, SystemProviderIds.jina),
+  fetch: async (provider, signal) => {
+    const baseUrl = formatApiHost(getBaseUrl(provider))
+    const response = await getFromApi({
+      url: `${baseUrl}/models`,
+      headers: defaultHeaders(provider),
+      responseSchema: OpenAIModelsResponseSchema,
+      abortSignal: signal
+    })
+    return dedup(response.data, (m) => m.id).map((m) => {
+      const apiModelId = m.id.replace(/^jina-ai\//, '')
+      return toModel(apiModelId, provider, { name: m.name || apiModelId, ownedBy: m.owned_by })
+    })
+  }
+}
+
 const openAIFetcher: ModelFetcher = {
   match: (p) => matchesPreset(p, SystemProviderIds.openai),
   fetch: async (provider, signal) => {
@@ -706,6 +723,7 @@ const fetchers: ModelFetcher[] = [
   ppioFetcher,
   gatewayFetcher,
   anthropicFetcher,
+  jinaFetcher,
   openAIFetcher,
   openAICompatibleFetcher // always-match fallback, must be last
 ]

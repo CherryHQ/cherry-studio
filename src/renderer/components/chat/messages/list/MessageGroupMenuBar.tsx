@@ -132,7 +132,7 @@ const MessageGroupMenuBar: FC<Props> = ({
         )}
         {actions.deleteMessageGroupWithConfirm && (
           <Button variant="ghost" size="sm" onClick={handleDeleteGroup} className="size-7 min-w-7 p-0">
-            <Trash2 size={14} color="var(--color-error-base)" />
+            <Trash2 size={14} className="text-error" />
           </Button>
         )}
       </ActionContainer>

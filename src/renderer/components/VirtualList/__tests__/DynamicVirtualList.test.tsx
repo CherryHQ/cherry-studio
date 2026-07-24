@@ -409,7 +409,7 @@ describe('DynamicVirtualList', () => {
 
       // After scrolling starts, scrollbar should be visible
       expect(scrollContainer).not.toHaveAttribute('aria-hidden')
-      expect(scrollContainer).toHaveStyle('scrollbar-color: var(--color-scrollbar-thumb) transparent')
+      expect(scrollContainer).toHaveStyle('scrollbar-color: var(--scrollbar-thumb) transparent')
 
       // Simulate scroll end
       act(() => {

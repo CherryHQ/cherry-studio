@@ -2,9 +2,9 @@
  * File module — public surface.
  *
  * The file module uses a **facade + private internals** pattern. This barrel is
- * the module's single public door: everything outside `@main/services/file`
- * imports from here, never from an internal path (`./internal/*`, `./tree/*`,
- * `./utils/*`, `./watcher`, …).
+ * the module's single public door: FileManager consumers and File IPC adapters
+ * import from here. Nothing outside the module imports implementation files
+ * under `./internal/*` or `./utils/*` directly.
  *
  * - `FileManager` and `DirectoryTreeManager` are lifecycle services
  *   (`@Injectable`, `@ServicePhase(Phase.WhenReady)`). Their **classes** are
@@ -14,10 +14,8 @@
  *   `application.get('FileManager')` / `application.get('DirectoryTreeManager')`;
  *   do not `new` them or call methods off these exports directly.
  * - Implementation lives under `./internal/*` (entry / content / system ops),
- *   `./tree/*`, `./utils/*`, and `./watcher.ts` as private modules. They are
- *   reached only through this barrel — the narrow public helpers below
- *   (`dispatchHandle`, `getMetadataByPath`, `listDirectory`, …) re-export the
- *   specific operations outside callers legitimately need.
+ *   `./tree/*`, `./utils/*`, and `./watcher.ts` as private modules. Narrow
+ *   documented helpers are re-exported below for legitimate outside callers.
  * - Pure FS / path / metadata primitives live under `@main/utils/file` (sole FS
  *   owner, open to the entire Main process). Modules that need raw
  *   `atomicWriteFile` / `stat` etc. import that barrel directly.
@@ -82,6 +80,9 @@ export { safeOpen, showInFolder } from './system'
 // Handle dispatch — resolves a `FileHandle` to its operation. The public
 // entry point for the File IPC handlers (kept out of `internal/` deep imports).
 export { dispatchHandle } from './internal/dispatch'
+
+// Path-level content helpers for FileHandle routes and the path-only conditional write.
+export { readByPath, writeIfUnchangedByPath } from './utils/content'
 
 // Live on-disk metadata by path (`fs.stat` projection). Consumed by the File
 // IPC batch-metadata handler.

@@ -16,6 +16,10 @@ export const TOPIC_MESSAGE_FLOW_NODE_SIZE = {
   height: 112
 } as const
 
+// This reviewed visualization color belongs to the message-flow graph rather
+// than the shared readable-content hierarchy.
+export const TOPIC_MESSAGE_FLOW_INACTIVE_EDGE_COLOR = 'oklch(0.71 0.02 261)'
+
 const GRAPH_SPACING = {
   nodesep: 56,
   ranksep: 96,
@@ -25,10 +29,10 @@ const GRAPH_SPACING = {
 } as const
 
 const EDGE_COLORS: Record<TopicMessageFlowEdgeState, string> = {
-  active: 'var(--color-success)',
-  default: 'var(--color-border)',
-  inactive: 'var(--color-gray-400)',
-  sibling: 'var(--color-border)'
+  active: 'var(--success)',
+  default: 'var(--border)',
+  inactive: TOPIC_MESSAGE_FLOW_INACTIVE_EDGE_COLOR,
+  sibling: 'var(--border)'
 }
 
 export function layoutTopicMessageFlowGraph(graph: TopicMessageFlowGraph): TopicMessageFlowLayout {

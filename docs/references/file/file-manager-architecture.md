@@ -212,8 +212,8 @@ Only **versionCache** and **lifecycle artifacts** are truly bound to the FileMan
 
 ```
 src/main/services/file/
-├── index.ts              ← barrel: exports only FileManager + public types
-├── FileManager.ts        ← facade class; lifecycle + IPC + versionCache + inline getMetadata
+├── index.ts              ← barrel: exports FileManager + public entry-facing types/helpers
+├── FileManager.ts        ← facade class; lifecycle + legacy IPC + versionCache + inline getMetadata
 ├── internal/             ← private implementation (not re-exported by index.ts; external imports forbidden)
 │     ├── deps.ts              — FileManagerDeps type
 │     ├── dispatch.ts          — FileHandle.kind dispatch helper (entry vs path adapter)
@@ -223,13 +223,17 @@ src/main/services/file/
 │     │    ├── rename.ts
 │     │    └── copy.ts
 │     ├── content/
-│     │    ├── read.ts         — read / createReadStream (including `readByPath` variants)
+│     │    ├── read.ts         — entry-aware read / createReadStream
 │     │    ├── write.ts        — write / writeIfUnchanged / createWriteStream
 │     │    └── hash.ts         — getContentHash / getVersion
 │     ├── system/
 │     │    ├── shell.ts        — open / showInFolder
 │     │    └── tempCopy.ts     — withTempCopy
 │     └── orphanSweep.ts       — temp-session ref prune + FS-level orphan sweep
+├── utils/
+│     ├── content.ts           — consistent path read + path conditional write
+│     ├── metadata.ts          — path-arm metadata projection
+│     └── pathResolver.ts      — FileEntry path resolution + external canonicalization
 └── versionCache.ts       ← LRU type definition
 ```
 
@@ -313,79 +317,63 @@ export class FileManager extends BaseService implements IFileManager {
 - FileManager's public API remains entry-native (accepts only `FileEntryId`); main-side business service calls are intuitive without needing a `createFileEntryHandle(id)` wrapper
 - The `FilePathHandle` branch **only needs the IPC handler**; main-side business services hold FileEntries—they have no arbitrary-path scenario
 
-**Internal module convention**: each action file exposes consistently named variants by kind:
+**Implementation convention**: entry-aware actions stay under `internal/*` and
+receive `FileManagerDeps`; renderer-facing path-arm actions have no entry state
+to coordinate, live under `utils/*`, and are re-exported by the module barrel:
 
 ```typescript
 // internal/content/read.ts
-export async function read(deps, entryId, opts): Promise<ReadResult<T>>           // serves FileManager public API (entry-flavoured)
-export async function readByPath(deps, path, opts): Promise<ReadResult<T>>        // serves the path-handle branch of the IPC handler
-// future: export async function readVirtual(deps, handle, opts)
+export async function read(deps, entryId, opts): Promise<ReadResult<T>>
+
+// utils/content.ts
+export async function readByPath(path, opts): Promise<ReadResult<T>>
+export async function writeIfUnchangedByPath(path, data, version): Promise<FileVersion>
 ```
 
 **Naming convention** (per the shipped exports): entry-flavoured variants
 use the **bare verb** (`read`, `createInternal`, `ensureExternal`, `trash`,
 `copy`, `rename`, …); path-flavoured siblings carry the `*ByPath` suffix.
-The bare entry variant is what `FileManager`'s public method delegates to;
-`*ByPath` (and future `*Virtual`) **do not** flow through FileManager's
-public methods — they serve the path-handle branch of the IPC handler
-only. The previous draft of this section used a `*ByEntry` suffix on the
-entry variants, but no shipped export follows that pattern; the docs are
-updated to match the code, not the other way around.
+The bare entry variant is what `FileManager`'s public method delegates to.
+Renderer-facing `*ByPath` variants **do not** flow through FileManager's public
+methods — they serve the path-handle branch of the IPC handler and live in
+`utils/*` so `internal/*` remains private.
 
-**Unified style for dispatch helper**: to prevent "every IPC method writing its own if-else" noise, FileManager provides a small internal helper:
+**Unified style for dispatch helper**: generic `FileHandle` routes use the file
+module's `dispatchHandle` helper at the renderer transport boundary. Operations
+whose contract is intentionally path-only call their path helper directly:
 
 ```typescript
-// FileManager.ts (private)
-private dispatchHandle<T>(
-  handle: FileHandle,
-  byEntry: (entryId: FileEntryId) => Promise<T>,
-  byPath: (path: FilePath) => Promise<T>
-): Promise<T> {
-  switch (handle.kind) {
-    case 'entry': return byEntry(handle.entryId)
-    case 'path':  return byPath(handle.path)
-  }
-}
-
-private registerIpcHandlers() {
-  this.ipcHandle('file.read', (handle, opts) =>
-    this.dispatchHandle(handle,
-      id   => this.read(id, opts),
-      path => contentRead.readByPath(this.deps, path, opts)
-    )
-  )
-  this.ipcHandle('file.write', (handle, data) =>
-    this.dispatchHandle(handle,
-      id   => this.write(id, data),
-      path => contentWrite.writeByPath(this.deps, path, data)
-    )
-  )
-  // ... other IPC methods that accept FileHandle
-
-  // IPC methods that accept only FileEntryId pass through directly
-  this.ipcHandle('file.trash', ({ id }) => this.trash(id))
-  this.ipcHandle('file.createInternalEntry', params => this.createInternalEntry(params))
-  this.ipcHandle('file.ensureExternalEntry', params => this.ensureExternalEntry(params))
+// src/main/ipc/handlers/file.ts
+export const fileHandlers = {
+  'file.read': async ({ handle, options }) =>
+    dispatchHandle(handle, id => fileManager.read(id, options), path => readByPath(path, options)),
+  'file.write_if_unchanged': async ({ path, data, expectedVersion }) =>
+    writeIfUnchangedByPath(path, data, expectedVersion)
 }
 ```
 
 **Impact of adding a new handle kind** (e.g., `virtual` pointing into archive members, `remote` pointing to an S3 URI):
 
-1. `src/shared/file/types/handle.ts` — add variant to handle union
-2. Relevant `internal/*/*.ts` — add corresponding `*Virtual` / `*Remote` pure functions
-3. `FileManager.ts` — add a callback parameter to the `dispatchHandle` signature; each IPC handler explicitly handles that kind (or throws "unsupported")
+1. `src/shared/data/types/file.ts` — add variant to handle union
+2. Relevant `internal/*/*.ts` or `utils/*.ts` — add the entry-aware or path-like operation
+3. `src/main/ipc/handlers/file.ts` — extend `dispatchHandle`; each IPC handler explicitly handles that kind (or throws "unsupported")
 
-**The extension surface is concentrated in a single file, FileManager.ts**—it's immediately obvious which kinds each IPC method supports, which aids auditing. This is lighter than introducing a separate `FileAccessor` class while achieving the same "extension convergence".
+**The renderer extension surface is concentrated in the File IPC adapter**—it is
+immediately obvious which kinds each IPC method supports, which aids auditing.
 
 #### 1.6.6 External Access Constraints
 
 | Location | May import | Forbidden to import |
 |---|---|---|
-| Main-side business service (KnowledgeService, MessageService, etc.) | `@main/services/file` (gets FileManager) / `@main/utils/file/{fs,path,metadata,search,shell}` / `@main/services/file/watcher` | `@main/services/file/internal/**` |
+| Main-side business service (KnowledgeService, MessageService, etc.) | `@main/services/file` (FileManager + selected path helpers) / `@main/utils/file/{fs,path,metadata,search,shell}` / `@main/services/file/watcher` | Deep imports into `@main/services/file/internal/**` or `@main/services/file/utils/**` |
 | Inside the file module itself (`internal/*`, `watcher/*`) | May reference each other as needed; may also import `@main/utils/file/*` primitives | Except FileManager, must not import `internal/*` |
 | External Node/renderer | N/A (file-module is main-side) | — |
 
-**Boundary enforcement**: the `src/main/services/file/index.ts` barrel re-exports only public types + the `FileManager` class; `internal/` symbols cannot be reached via `@main/services/file`. If violations surface, add an ESLint `no-restricted-imports` rule.
+**Boundary enforcement**: the `src/main/services/file/index.ts` barrel does not
+re-export general `internal/` implementation. `dispatchHandle` is the temporary
+documented exception while legacy handlers remain; path-arm operations are
+implemented in `utils/*` and re-exported through the barrel. ESLint's
+`barrel/closed` rule rejects deep imports.
 
 #### 1.6.7 Design Trade-offs
 
@@ -393,7 +381,7 @@ private registerIpcHandlers() {
 |---|---|---|
 | Split business methods into 5 lifecycle services | ❌ | Overkill—lifecycle registration, dependency ordering, and test mocking costs all 5×, in exchange only for "methods split across files" |
 | FileManager as facade + `internal/*` pure functions | ✅ | Only 1 lifecycle node; pure functions can be unit-tested with stub deps directly; external API surface remains stable |
-| FileAccessor as a standalone class handling `FileHandle` dispatch | ❌ | Dispatch itself is a proper responsibility of the IPC adapter layer; converging into the `dispatchHandle` helper inside FileManager suffices; splitting off another layer adds pure complexity |
+| FileAccessor as a standalone class handling `FileHandle` dispatch | ❌ | Dispatch belongs to the IPC adapter layer; the adapter reuses `dispatchHandle` from `internal/dispatch.ts` via the file-module barrel, so another class would add pure complexity |
 | FileManager public API switched to handle-native | ❌ | IPC and Main-side call contracts need not share shape; main-side business services using entry-native directly is more intuitive, without needing a `createFileEntryHandle` wrapper |
 | Extract versionCache as a module singleton | ❌ | As a FileManager private field, it naturally supports test isolation (new instance = fresh cache) |
 
@@ -415,7 +403,6 @@ class FileManager extends BaseService {
 
   protected override onInit(): void {
     this.registerIpcHandlers()
-    this.initVersionCache()
     danglingCache.initFromDb()
 
     // Wire internal events → renderer broadcast. Each disposable auto-cleans on stop.
@@ -425,8 +412,6 @@ class FileManager extends BaseService {
       this.windowManager.broadcast('file-manager-event', { type: 'entry-content', ...e })))
     this.registerDisposable(this.onDanglingStateChanged((e) =>
       this.windowManager.broadcast('file-manager-event', { type: 'dangling-state', ...e })))
-
-    void this.runOrphanSweep().catch((err) => logger.error('Orphan sweep failed', err))
   }
 }
 ```

@@ -314,11 +314,11 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
       {...scrollerProps}
       ref={setScrollerRef}
       className={cn(
-        'dynamic-virtual-list [&::-webkit-scrollbar-thumb:hover]:bg-[var(--color-scrollbar-thumb-hover)] [&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-300 [&::-webkit-scrollbar-thumb]:ease-in-out [&::-webkit-scrollbar-thumb]:will-change-[background]',
+        'dynamic-virtual-list [&::-webkit-scrollbar-thumb:hover]:bg-[var(--scrollbar-thumb-hover)] [&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-300 [&::-webkit-scrollbar-thumb]:ease-in-out [&::-webkit-scrollbar-thumb]:will-change-[background]',
         isSticky && 'isolate',
         autoHideScrollbar && !showScrollbar
           ? '[&::-webkit-scrollbar-thumb]:bg-transparent'
-          : '[&::-webkit-scrollbar-thumb]:bg-[var(--color-scrollbar-thumb)]',
+          : '[&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb)]',
         className
       )}
       role={role}
@@ -326,7 +326,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
       style={{
         overflow: 'auto',
         scrollbarColor:
-          autoHideScrollbar && !showScrollbar ? 'transparent transparent' : 'var(--color-scrollbar-thumb) transparent',
+          autoHideScrollbar && !showScrollbar ? 'transparent transparent' : 'var(--scrollbar-thumb) transparent',
         ...(horizontal ? { width: size ?? '100%' } : { height: size ?? '100%' }),
         ...scrollerStyle
       }}>
@@ -380,7 +380,7 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
             zIndex: isItemActiveSticky ? activeStickyZIndex : isItemSticky ? STICKY_ITEM_Z_INDEX : 0,
             pointerEvents: isCoveredBySticky ? 'none' : 'auto',
             ...(isItemActiveSticky && {
-              backgroundColor: 'var(--color-background)'
+              backgroundColor: 'var(--background)'
             }),
             ...(horizontal
               ? {

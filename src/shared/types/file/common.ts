@@ -89,6 +89,16 @@ export type FileUrlString = `file://${string}`
 
 export type FileContent = FilePath | Base64String | UrlString | Uint8Array
 
+// ─── File Version ───
+
+/** Lightweight filesystem version used for optimistic concurrency control. */
+export const FileVersionSchema = z.strictObject({
+  mtime: z.number(),
+  size: z.int().nonnegative()
+})
+
+export type FileVersion = z.infer<typeof FileVersionSchema>
+
 // ─── Physical File Metadata ───
 
 const physicalMetadataBaseSchema = {

@@ -39,6 +39,9 @@ interface ProviderConnectionCheckDrawerProps {
 type ModelOption = ComboboxOption<{ model: Model }>
 type ApiKeyOption = ComboboxOption
 
+const CONNECTION_ERROR_DESCRIPTION_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
+const CONNECTION_ERROR_DETAIL_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
+
 function ModelOptionIcon({ model, size = 20 }: { model: Model; size?: number }) {
   const Icon = useIcon(getModelLogoRef(model))
 
@@ -193,13 +196,13 @@ export default function ProviderConnectionCheckDrawer({
             </div>
             <div
               className="wrap-break-word ml-5.75 line-clamp-3 text-xs leading-normal"
-              style={{ color: 'var(--color-foreground-secondary)' }}>
+              style={{ color: CONNECTION_ERROR_DESCRIPTION_COLOR }}>
               {connectionErrorText}
             </div>
             <div className="mt-2.5 ml-5.75 flex items-center">
               <div
                 className="ml-auto inline-flex items-center gap-0.5 text-xs transition-colors duration-150 group-hover:text-foreground"
-                style={{ color: 'var(--color-foreground-muted)' }}>
+                style={{ color: CONNECTION_ERROR_DETAIL_COLOR }}>
                 {t('common.detail')}
                 <ChevronRight size={14} />
               </div>
