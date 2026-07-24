@@ -566,7 +566,7 @@
       },
       "prompt": "Setări prompt",
       "skills": {
-        "addMore": "Adaugă mai multe abilități",
+        "addMore": "Gestionează abilitățile",
         "builtin": "Încorporat",
         "noFilterResults": "Nicio abilitate potrivită",
         "noSkills": "Nicio abilitate instalată. Instalează abilități din Setări > Abilități.",
@@ -4432,6 +4432,14 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "privacy": {
+      "accept_and_continue": "Acceptă și continuă",
+      "accept_policy": "Acceptă Politica de confidențialitate",
+      "notice": "Am citit și sunt de acord cu",
+      "period": ".",
+      "policy": "Politica de confidențialitate",
+      "update_failed": "Nu am putut salva acceptarea politicii de confidențialitate. Încercați din nou."
+    },
     "select_model": {
       "change_later": "Poți schimba oricând asta din setări.",
       "start": "Începe",
@@ -4448,7 +4456,7 @@
       "other_provider": "Alegeți alți furnizori",
       "select_other_provider": "Selectați alt furnizor",
       "setup_hint": "Vă rugăm să configurați cel puțin un furnizor pentru cea mai bună experiență",
-      "subtitle": "Bucurați-vă de servicii AI de top cu CherryIN",
+      "subtitle": "Conectați un furnizor pentru a vă activa stația de lucru AI all-in-one",
       "title": "Bun venit la Cherry Studio"
     }
   },
@@ -6160,14 +6168,55 @@
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
       "checkUpdates": "Verifică actualizări",
       "coreDepsMissing": "Core dependencies not installed",
-      "customTools": "Custom Tools",
-      "customToolsEmpty": "Nu există încă instrumente personalizate. Adaugă unul pentru a începe.",
       "description": "Gestionați instrumentele binare și dependențele de runtime necesare aplicației.",
       "duplicateName": "A tool with the same name already exists",
       "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "Instalează",
       "installError": "Failed to install tool",
+      "installErrorHint": "[to be translated]:The install command failed. Copy the log below to troubleshoot or share it for help.",
+      "installSettings": {
+        "description": "[to be translated]:Fine-tune how bundled CLI tools are installed. All fields are optional — leave them empty to keep the defaults.",
+        "githubMirror": {
+          "help": "[to be translated]:Proxy prefix for GitHub downloads and the GitHub API (e.g. https://ghfast.top). Leave empty for direct access.",
+          "label": "[to be translated]:GitHub mirror",
+          "placeholder": "[to be translated]:https://ghfast.top (direct if empty)"
+        },
+        "githubToken": {
+          "help": "[to be translated]:Raises the GitHub API rate limit for tool lookups. Stored locally in plain text. Leave empty to use the CHERRY_GITHUB_TOKEN environment variable.",
+          "hide": "[to be translated]:Hide token",
+          "label": "[to be translated]:GitHub token",
+          "placeholder": "[to be translated]:ghp_…",
+          "show": "[to be translated]:Show token"
+        },
+        "invalidUrl": "[to be translated]:Enter a valid URL including https://",
+        "npmRegistry": {
+          "help": "[to be translated]:Registry for npm: tools. Leave empty to auto-select a mirror in mainland China.",
+          "label": "[to be translated]:npm registry",
+          "placeholder": "[to be translated]:Auto (China mirror) if empty"
+        },
+        "pipIndexUrl": {
+          "help": "[to be translated]:Index URL for pipx: tools. Leave empty to auto-select a mirror in mainland China.",
+          "label": "[to be translated]:pip index URL",
+          "placeholder": "[to be translated]:Auto (China mirror) if empty"
+        },
+        "presetLabels": {
+          "aliyun": "[to be translated]:Aliyun (China)",
+          "default": "[to be translated]:Default (no mirror)",
+          "ghfast": "[to be translated]:ghfast.top",
+          "ghproxy": "[to be translated]:ghproxy.net",
+          "npmOfficial": "[to be translated]:npmjs (official)",
+          "npmmirror": "[to be translated]:npmmirror (China)",
+          "pypiOfficial": "[to be translated]:PyPI (official)",
+          "tsinghua": "[to be translated]:Tsinghua (China)"
+        },
+        "presets": "[to be translated]:Presets",
+        "title": "[to be translated]:Advanced install settings",
+        "verifySignatures": {
+          "help": "[to be translated]:Verifies Sigstore/SLSA signatures for aqua-backed tools. Disable only if verification fails on your network — it skips supply-chain checks.",
+          "label": "[to be translated]:Verify tool signatures"
+        }
+      },
       "installing": "Se instalează...",
+      "installingHint": "[to be translated]:The first install may download a runtime and take a few minutes",
       "invalidTool": "Nume de instrument sau cheie invalid",
       "localModels": {
         "cancel": "Anulare",
@@ -6199,10 +6248,16 @@
       "remove": "Remove tool",
       "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
       "removeConfirmTitle": "Remove Tool",
+      "removeDefinitionOnlyConfirmMessage": "[to be translated]:Cherry could not safely clean up \"{{name}}\". Removing only its definition will hide the card but leave its backend files installed. Continue?",
+      "removeDefinitionOnlyConfirmTitle": "[to be translated]:Remove Definition Only?",
+      "removeRuntimeConfirmMessage": "[to be translated]:Are you sure you want to remove \"{{name}}\"? Uninstalling this runtime may break npm or pip tools that depend on it.",
+      "runtimeDependency": "[to be translated]:Runtime",
+      "runtimeDependencyHint": "[to be translated]:Runtime for npm/pip tools",
       "searchFailed": "Search failed, check logs",
       "searchRegistry": "Search mise registry...",
       "source": {
-        "bundled": "bundled"
+        "bundled": "bundled",
+        "system": "[to be translated]:System"
       },
       "title": "Dependențe de mediu",
       "tools": {
@@ -6221,8 +6276,15 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
+      "uninstall": "[to be translated]:Uninstall",
+      "uninstallConfirmMessage": "[to be translated]:Are you sure you want to uninstall \"{{name}}\"? Cherry Studio's backend copy will be deleted.",
+      "uninstallConfirmTitle": "[to be translated]:Uninstall Tool",
+      "uninstallFailed": "[to be translated]:Failed to uninstall tool",
+      "uninstallSuccess": "[to be translated]:Tool uninstalled",
       "update": "Update to latest version",
-      "updateCheckFailed": "Nu s-a putut verifica dacă există actualizări"
+      "updateCheckFailed": "Nu s-a putut verifica dacă există actualizări",
+      "updateCheckSuccess": "[to be translated]:Version check complete",
+      "viewErrorDetails": "[to be translated]:View details"
     },
     "developer": {
       "enable_developer_mode": "Activează modul dezvoltator",
@@ -6859,7 +6921,7 @@
       "default_assistant_model": "Model asistent implicit",
       "default_assistant_model_description": "Folosit când un asistent nu are model.",
       "docs": "Documentația modelului",
-      "empty": "Nu s-au găsit modele",
+      "empty": "Selectați un model",
       "enabled_models": "Activate",
       "expand_all": "Extinde tot",
       "filter": {
