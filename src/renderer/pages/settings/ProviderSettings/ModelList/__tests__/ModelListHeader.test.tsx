@@ -1,7 +1,13 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { MODEL_LIST_CAPABILITY_FILTERS, type ModelListCapabilityCounts } from '../modelListDerivedState'
 import ModelListHeader from '../ModelListHeader'
+
+const emptyTypeCounts = MODEL_LIST_CAPABILITY_FILTERS.reduce<ModelListCapabilityCounts>((acc, key) => {
+  acc[key] = 0
+  return acc
+}, {} as ModelListCapabilityCounts)
 
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<object>()
@@ -28,6 +34,9 @@ const baseProps = {
   hasNoModels: false,
   searchText: '',
   setSearchText: vi.fn(),
+  selectedTypeFilter: 'all' as const,
+  setSelectedTypeFilter: vi.fn(),
+  typeCounts: emptyTypeCounts,
   groupsExpanded: true,
   onToggleGroupsExpanded: vi.fn()
 }
@@ -107,10 +116,23 @@ describe('ModelListHeader', () => {
     expect(screen.getByPlaceholderText('models.search.placeholder')).toBeInTheDocument()
   })
 
-  it('does not render the capability filter button', () => {
-    render(<ModelListHeader {...baseProps} />)
+  it('toggles the model-type filter row from the filter button', () => {
+    render(<ModelListHeader {...baseProps} typeCounts={{ ...emptyTypeCounts, all: 3, text: 2 }} />)
 
-    expect(screen.queryByRole('button', { name: 'settings.models.filter.label' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'settings.models.filter.clear' })).not.toBeInTheDocument()
+    const filterButton = screen.getByRole('button', { name: 'settings.models.filter.label' })
+    expect(filterButton).toBeInTheDocument()
+    // The type-filter row is hidden until the button is toggled.
+    expect(screen.queryByRole('tab', { name: 'models.type.text' })).not.toBeInTheDocument()
+
+    fireEvent.click(filterButton)
+
+    expect(screen.getByRole('tab', { name: 'models.all' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'models.type.text' })).toBeInTheDocument()
+  })
+
+  it('marks the filter button active when a non-default type filter is selected', () => {
+    render(<ModelListHeader {...baseProps} selectedTypeFilter="embedding" />)
+
+    expect(screen.getByRole('button', { name: 'settings.models.filter.label' })).toHaveClass('text-foreground')
   })
 })

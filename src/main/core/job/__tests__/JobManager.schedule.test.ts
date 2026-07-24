@@ -344,22 +344,50 @@ describe('JobManager schedule control APIs', () => {
       expect(getScheduleDisposables().has(snap.id)).toBe(false)
     })
 
-    it('(e) neither trigger nor enabled in patch: no re-arm', async () => {
+    it('(e) jobInputTemplate update does not re-arm and the existing cron uses the latest template', async () => {
       const snap = jobManager.registerJobSchedule({
         type: DUMMY_TYPE,
         name: 'case-e',
-        trigger: baseTrigger,
-        jobInputTemplate: { initial: true },
+        trigger: { kind: 'cron', expr: '0 0 1 1 *' },
+        jobInputTemplate: { prompt: 'old prompt', workspace: 'old workspace' },
         catchUpPolicy: { kind: 'skip-missed' }
       })
       const originalDisp = getScheduleDisposables().get(snap.id)
       const armSpy = vi.spyOn(jobManager as unknown as { armSchedule: (s: unknown) => void }, 'armSchedule')
 
-      const updated = jobManager.updateJobSchedule(snap.id, { jobInputTemplate: { updated: true } })
+      const latestTemplate = { prompt: 'new prompt', workspace: 'new workspace' }
+      const updated = jobManager.updateJobSchedule(snap.id, { jobInputTemplate: latestTemplate })
 
-      expect(updated?.jobInputTemplate).toEqual({ updated: true })
+      expect(updated?.jobInputTemplate).toEqual(latestTemplate)
       expect(armSpy).not.toHaveBeenCalled()
       expect(getScheduleDisposables().get(snap.id)).toBe(originalDisp)
+
+      expect(await jobManager.triggerJobScheduleNowById(snap.id)).toBe(true)
+      expect(jobService.list({ scheduleId: snap.id })).toEqual([expect.objectContaining({ input: latestTemplate })])
+    })
+
+    it('keeps an interval timer armed while its next automatic fire reads the latest template', async () => {
+      const snap = jobManager.registerJobSchedule({
+        type: DUMMY_TYPE,
+        name: 'interval-latest-template',
+        trigger: baseTrigger,
+        jobInputTemplate: { prompt: 'old prompt' },
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+      const intervalHandles = (
+        scheduler as unknown as {
+          intervalHandles: Map<string, { callback: () => void | Promise<void> }>
+        }
+      ).intervalHandles
+      const scheduleKey = `schedule:${snap.id}`
+      const originalEntry = intervalHandles.get(scheduleKey)
+
+      const latestTemplate = { prompt: 'new prompt' }
+      jobManager.updateJobSchedule(snap.id, { jobInputTemplate: latestTemplate })
+
+      expect(intervalHandles.get(scheduleKey)).toBe(originalEntry)
+      await originalEntry?.callback()
+      expect(jobService.list({ scheduleId: snap.id })).toEqual([expect.objectContaining({ input: latestTemplate })])
     })
 
     it('(f) trigger update onto a spent once: disposes the stale registration and does not re-arm', async () => {
