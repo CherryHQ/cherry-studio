@@ -275,6 +275,51 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('passes first-party archive attachments to Claude Code as tool-readable paths', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'inspect this archive' },
+            {
+              type: 'file',
+              url: 'file:///tmp/BUNDLE.ZIP',
+              mediaType: 'application/zip',
+              filename: 'BUNDLE.ZIP',
+              providerMetadata: { cherry: { fileEntryId: 'entry-archive' } }
+            }
+          ]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        message: {
+          role: 'user',
+          content:
+            'inspect this archive\n\nAttached files (read them with your tools using these absolute paths):\n- /tmp/BUNDLE.ZIP'
+        }
+      },
+      done: false
+    })
+    expect(mocks.prepareChatMessages).not.toHaveBeenCalled()
+    expect(mocks.materializeNativeFilePart).not.toHaveBeenCalled()
+    void connection.close()
+  })
+
   it('reuses first-party image data URLs prepared by shared attachment routing', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }

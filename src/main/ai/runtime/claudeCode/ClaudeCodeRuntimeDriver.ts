@@ -40,6 +40,7 @@ import type { CherryUIMessage, FileUIPart } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { parseDataUrl } from '@shared/utils/dataUrl'
+import { archiveExts } from '@shared/utils/file'
 import { isVisionModel } from '@shared/utils/model'
 
 import type {
@@ -628,8 +629,9 @@ function applySteerReminder(content: SDKUserMessage['message']['content']): SDKU
  * Build SDK user content from a message entity. When the model supports vision,
  * supported image attachments (png, jpeg, gif, webp) are materialized into native
  * Anthropic image blocks; otherwise first-party images are OCR'd to text by the
- * shared routing, like first-party non-image files. External files and images that
- * cannot be materialized fall back to local paths when available.
+ * shared routing, like first-party non-image files. First-party archives bypass text
+ * extraction so they, external files, and unmaterialized images can fall back to local
+ * paths when available.
  *
  * **Side effect**: performs file I/O via {@link materializeNativeFilePart}.
  */
@@ -638,8 +640,14 @@ async function materializeUserContent(
   supportsImages: boolean
 ): Promise<SDKUserMessage['message']['content']> {
   const parts = message.data?.parts ?? []
+  const firstPartyArchiveParts = parts.filter(
+    (part): part is FileUIPart =>
+      part.type === 'file' && Boolean(readCherryMeta(part)?.fileEntryId) && isArchiveFilePart(part)
+  )
   const firstPartyParts = parts.filter(
-    (part) => part.type === 'text' || (part.type === 'file' && Boolean(readCherryMeta(part)?.fileEntryId))
+    (part) =>
+      part.type === 'text' ||
+      (part.type === 'file' && Boolean(readCherryMeta(part)?.fileEntryId) && !isArchiveFilePart(part))
   )
   const externalFileParts = parts.filter(
     (part): part is FileUIPart => part.type === 'file' && !readCherryMeta(part)?.fileEntryId
@@ -672,11 +680,12 @@ async function materializeUserContent(
 
   for (const part of [
     ...routedParts.filter((part): part is FileUIPart => part.type === 'file'),
+    ...firstPartyArchiveParts,
     ...externalFileParts
   ]) {
     const fileEntryId = readCherryMeta(part)?.fileEntryId
     const originalPart = (fileEntryId && originalFirstPartyFiles.get(fileEntryId)) || part
-    if (!supportsImages || !canBeClaudeImage(part)) {
+    if (isArchiveFilePart(part) || !supportsImages || !canBeClaudeImage(part)) {
       const target = originalPart.url?.startsWith('file://') ? fallbackParts : unavailableParts
       target.push(originalPart)
       continue
@@ -742,6 +751,11 @@ function extractAttachmentPaths(parts: Array<{ type: string; url?: string }>): s
     paths.push(fileURLToPath(part.url))
   }
   return paths
+}
+
+function isArchiveFilePart(part: FileUIPart): boolean {
+  const filename = part.filename?.toLowerCase()
+  return filename ? archiveExts.some((extension) => filename.endsWith(extension)) : false
 }
 
 function canBeClaudeImage(part: FileUIPart): boolean {
