@@ -78,16 +78,16 @@ describe('MultiSelectionPopup', () => {
       expect(buttonFor('delete-icon')).toBeDisabled()
     })
 
-    it('disables only deletion when the selection contains a protected message', () => {
-      render(<MultiSelectActionPopup {...controlledProps()} deleteDisabled />)
+    it.each([
+      ['first-turn', 'message.delete.first_turn_not_supported'],
+      ['root-unavailable', 'message.delete.root_unavailable']
+    ] as const)('disables only deletion for %s', (deleteDisabledReason, tooltip) => {
+      render(<MultiSelectActionPopup {...controlledProps()} deleteDisabledReason={deleteDisabledReason} />)
 
       expect(buttonFor('save-icon')).toBeEnabled()
       expect(buttonFor('copy-icon')).toBeEnabled()
       expect(buttonFor('delete-icon')).toBeDisabled()
-      expect(buttonFor('delete-icon').parentElement).toHaveAttribute(
-        'data-tooltip-content',
-        'message.delete.first_turn_not_supported'
-      )
+      expect(buttonFor('delete-icon').parentElement).toHaveAttribute('data-tooltip-content', tooltip)
     })
 
     it('omits a button when its handler is not provided', () => {

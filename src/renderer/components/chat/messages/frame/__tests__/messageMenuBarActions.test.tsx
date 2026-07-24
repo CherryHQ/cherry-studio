@@ -213,7 +213,7 @@ describe('messageMenuBarActions', () => {
     const toolbarActions = resolveMessageMenuBarToolbarActions(
       createActionContext({
         actions: {
-          canDeleteMessage: vi.fn(() => false),
+          getMessageDeleteAvailability: vi.fn(() => ({ enabled: false, reason: 'first-turn' })),
           deleteMessage: vi.fn()
         } as MessageListActions
       })

@@ -81,9 +81,8 @@ export function useChatWriteActions(params: Params): Result {
     clearTopicMessagesTrigger
   } = cache
 
-  // A message is a "first turn" iff its parent IS the topic's virtual root — compared against
-  // the authoritative rootId (pagination-independent; the "parent not loaded" proxy
-  // misclassified the topmost-paged message). Unknown rootId ⇒ nothing is a first turn.
+  // A message is a "first turn" iff its parent IS the topic's virtual root. The authoritative
+  // rootId keeps this pagination-independent; deletion stays unavailable until that id is known.
   const isFirstTurnId = useCallback((parentId?: string | null) => rootId != null && parentId === rootId, [rootId])
 
   const handleClearTopicMessages = useCallback(async () => {
@@ -97,12 +96,15 @@ export function useChatWriteActions(params: Params): Result {
     }
   }, [clearBranchCache, clearTopicMessagesTrigger, rollbackBranch, topic.id])
 
-  const canDeleteMessage = useCallback(
+  const getMessageDeleteAvailability = useCallback<ChatWriteActions['getMessageDeleteAvailability']>(
     (id: string) => {
+      if (rootId === null) return { enabled: false, reason: 'root-unavailable' }
       const message = uiMessages.find((item) => item.id === id)
-      return !(message?.role === 'user' && isFirstTurnId(message.metadata?.parentId))
+      return message?.role === 'user' && isFirstTurnId(message.metadata?.parentId)
+        ? { enabled: false, reason: 'first-turn' }
+        : { enabled: true }
     },
-    [isFirstTurnId, uiMessages]
+    [isFirstTurnId, rootId, uiMessages]
   )
 
   const handleDeleteMessage = useCallback<ChatWriteActions['deleteMessage']>(
@@ -111,11 +113,11 @@ export function useChatWriteActions(params: Params): Result {
 
       // A first-turn user message anchors the conversation branch. Reject both direct deletion
       // and any multi-select plan containing it before the first optimistic or persistent write.
-      const selectionContainsFirstTurn = options?.selectedMessageIds?.some((messageId) => {
-        return !canDeleteMessage(messageId)
+      const selectionContainsUnavailableMessage = options?.selectedMessageIds?.some((messageId) => {
+        return !getMessageDeleteAvailability(messageId).enabled
       })
-      if (!canDeleteMessage(id) || selectionContainsFirstTurn) {
-        throw new Error('Cannot delete a first-turn user message')
+      if (!getMessageDeleteAvailability(id).enabled || selectionContainsUnavailableMessage) {
+        throw new Error('Message deletion is unavailable')
       }
 
       const optimisticIds = new Set([id])
@@ -134,7 +136,7 @@ export function useChatWriteActions(params: Params): Result {
       }
       logger.info('Deleted message', { id })
     },
-    [branchWithoutIds, canDeleteMessage, deleteMessageTrigger, rollbackBranch, seedOptimisticBranch, uiMessages]
+    [branchWithoutIds, deleteMessageTrigger, getMessageDeleteAvailability, rollbackBranch, seedOptimisticBranch]
   )
 
   const handleDeleteMessageGroup = useCallback<ChatWriteActions['deleteMessageGroup']>(
@@ -370,7 +372,7 @@ export function useChatWriteActions(params: Params): Result {
     () => ({
       regenerate: async (messageId, options) => regenerateWithCapabilities(messageId, options),
       resend: handleResend,
-      canDeleteMessage,
+      getMessageDeleteAvailability,
       deleteMessage: handleDeleteMessage,
       deleteMessageGroup: handleDeleteMessageGroup,
       pause: stop,
@@ -384,7 +386,7 @@ export function useChatWriteActions(params: Params): Result {
     [
       regenerateWithCapabilities,
       handleResend,
-      canDeleteMessage,
+      getMessageDeleteAvailability,
       handleDeleteMessage,
       handleDeleteMessageGroup,
       stop,

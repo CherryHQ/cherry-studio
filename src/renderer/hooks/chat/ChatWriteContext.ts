@@ -20,6 +20,10 @@ export interface DeleteMessageOptions {
   selectedMessageIds?: readonly string[]
 }
 
+export type MessageDeleteAvailability =
+  | { enabled: true }
+  | { enabled: false; reason: 'first-turn' | 'root-unavailable' }
+
 /** Chat write actions injected via React Context. Operations delegate to DataApi + useChat. */
 /** Options carried alongside a regenerate request. */
 export interface RegenerateOptions {
@@ -35,7 +39,7 @@ export interface RegenerateOptions {
 export interface ChatWriteActions {
   regenerate: (messageId?: string, options?: RegenerateOptions) => Promise<void>
   resend: (messageId?: string) => Promise<void>
-  canDeleteMessage: (id: string) => boolean
+  getMessageDeleteAvailability: (id: string) => MessageDeleteAvailability
   deleteMessage: (id: string, options?: DeleteMessageOptions) => Promise<void>
   deleteMessageGroup: (id: string) => Promise<void>
   pause: () => void
