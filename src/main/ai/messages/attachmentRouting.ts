@@ -5,7 +5,8 @@
  *     provider, audio/video→capable) → left in place and materialized as the
  *     real file via `materializeNativeFilePart`; or
  *   - **non-native** → replaced with its extracted text (office/pdf/text via
- *     `extractDocumentText`, image via OCR, audio/video/binary → a note),
+ *     `extractDocumentText`, image and ZIP-contained images via OCR,
+ *     audio/video/other binary → a note),
  *     inlined and capped. Over the cap, the head is inlined + a `read_file`
  *     pointer.
  *
@@ -34,7 +35,7 @@ import { FILE_TYPE, type FileType } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
 import type { UIMessage } from 'ai'
 
-import { extractDocumentText, noExtractableTextNote } from './attachmentTextExtraction'
+import { extractDocumentText, extractZipImageText, noExtractableTextNote } from './attachmentTextExtraction'
 import { materializeNativeFilePart } from './fileProcessor'
 
 const logger = loggerService.withContext('ai:attachmentRouting')
@@ -105,6 +106,7 @@ async function extractNonNativeText(
   if (fileType === FILE_TYPE.AUDIO || fileType === FILE_TYPE.VIDEO) {
     return `This model can't process the attached ${fileType} file "${handle}".`
   }
+  if (ext === 'zip') return extractZipImageText(entryId, { signal })
   if (fileType === FILE_TYPE.DOCUMENT || fileType === FILE_TYPE.TEXT || !ext) {
     const extracted = await extractDocumentText(entryId, { signal })
     if (extracted === null) {

@@ -11,18 +11,26 @@ const { getByIdMock, ocrMock } = vi.hoisted(() => ({
   getByIdMock: vi.fn<(id: string) => Promise<{ ext: string | null }>>(),
   ocrMock: vi.fn<() => Promise<string>>()
 }))
-vi.mock('@application', () => ({
-  application: {
-    get: (name: string) => (name === 'FileProcessingService' ? { ocrImage: ocrMock } : { getById: getByIdMock })
-  }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  const mocked = mockApplicationFactory({ FileManager: { getById: getByIdMock } })
+  const baseGet = mocked.application.get
+  mocked.application.get = vi.fn((name: string) =>
+    name === 'FileProcessingService' ? { ocrImage: ocrMock } : baseGet(name)
+  )
+  return mocked
+})
 
 const { resolveMock } = vi.hoisted(() => ({ resolveMock: vi.fn() }))
 vi.mock('../fileProcessor', () => ({ materializeNativeFilePart: resolveMock }))
 
-const { extractMock } = vi.hoisted(() => ({ extractMock: vi.fn<() => Promise<string | null>>() }))
+const { extractMock, extractZipMock } = vi.hoisted(() => ({
+  extractMock: vi.fn<() => Promise<string | null>>(),
+  extractZipMock: vi.fn<() => Promise<string>>()
+}))
 vi.mock('../attachmentTextExtraction', () => ({
   extractDocumentText: extractMock,
+  extractZipImageText: extractZipMock,
   noExtractableTextNote: (name: string) => `No text in ${name}`
 }))
 
@@ -122,12 +130,22 @@ describe('prepareChatMessages — routing', () => {
     expect(textOf(out.parts)[0]).toContain("can't process the attached audio file")
   })
 
-  it('notes a binary/unsupported file instead of garbage-decoding it', async () => {
+  it('OCRs images in a ZIP archive into inline text', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'zip' })
+    extractZipMock.mockResolvedValueOnce('Image "page.png":\nocr body')
     const [out] = await run([fileWithEntry('e1', 'a.zip', 'application/zip')], NONE)
+    expect(textOf(out.parts)[0]).toBe('Attached file "a.zip":\nImage "page.png":\nocr body')
+    expect(extractZipMock).toHaveBeenCalledWith('e1', { signal: undefined })
+    expect(extractMock).not.toHaveBeenCalled()
+  })
+
+  it('notes other binary archives as unsupported instead of garbage-decoding them', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'rar' })
+    const [out] = await run([fileWithEntry('e1', 'a.rar', 'application/vnd.rar')], NONE)
     expect(textOf(out.parts)[0]).toBe(
-      'Attached file "a.zip":\nCannot read the attached file "a.zip" as text (unsupported file type).'
+      'Attached file "a.rar":\nCannot read the attached file "a.rar" as text (unsupported file type).'
     )
+    expect(extractZipMock).not.toHaveBeenCalled()
     expect(extractMock).not.toHaveBeenCalled()
   })
 

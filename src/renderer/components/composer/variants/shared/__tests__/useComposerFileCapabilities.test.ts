@@ -62,6 +62,8 @@ describe('useComposerFileCapabilities', () => {
 
       expect(containsAll(result.current.supportedExts, audioExts)).toBe(false)
       expect(containsAll(result.current.supportedExts, videoExts)).toBe(false)
+      expect(result.current.supportedExts).toContain('.zip')
+      expect(result.current.supportedExts).not.toContain('.rar')
     })
 
     it('adds audio exts only when every mentioned model supports audio input', () => {
