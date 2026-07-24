@@ -6363,6 +6363,7 @@
       "custom": {
         "css": {
           "label": "自訂 CSS",
+          "migration_notice": "此樣式表由 v1 遷移而來，目前處於停用狀態。請先將其調整為適用於 v2，然後刪除第一行以啟用。",
           "placeholder": "/* 這裡寫自訂 CSS */"
         }
       },

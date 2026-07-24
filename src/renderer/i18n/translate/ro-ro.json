@@ -6363,6 +6363,7 @@
       "custom": {
         "css": {
           "label": "CSS personalizat",
+          "migration_notice": "Această foaie de stil a fost migrată din v1 și este momentan dezactivată. Adaptați-o pentru v2, apoi eliminați primul rând pentru a o activa.",
           "placeholder": "/* Pune CSS personalizat aici */"
         }
       },

@@ -17,6 +17,7 @@ import ChatPreferenceSections from '@renderer/components/chat/settings/ChatPrefe
 import ResetIcon from '@renderer/components/icons/ResetIcon'
 import Selector from '@renderer/components/Selector'
 import {
+  SettingDescription,
   SettingDivider,
   SettingGroup,
   SettingRow,
@@ -38,6 +39,7 @@ import { isLinux, isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import type { LanguageVarious, MenuPresentationMode } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
+import { hasV1CustomCssMarker } from '@shared/utils/customCssMigration'
 import { defaultLanguage } from '@shared/utils/languages'
 import { Minus, Monitor, Moon, Plus, Sun } from 'lucide-react'
 import type React from 'react'
@@ -537,6 +539,9 @@ const AppearanceSettings: FC = () => {
 
       <SettingGroup theme={theme} className={appearanceSectionClassName}>
         <SettingTitle>{t('settings.display.custom.css.label')}</SettingTitle>
+        {hasV1CustomCssMarker(customCss) && (
+          <SettingDescription>{t('settings.display.custom.css.migration_notice')}</SettingDescription>
+        )}
         <div className="mt-4 overflow-hidden rounded-lg border border-border/60">
           <CodeEditor
             theme={activeCmTheme}

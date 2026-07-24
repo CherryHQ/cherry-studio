@@ -6363,6 +6363,7 @@
       "custom": {
         "css": {
           "label": "CSS personalizado",
+          "migration_notice": "Esta hoja de estilos se migró desde v1 y está deshabilitada. Adáptala para v2 y, después, elimina la primera línea para habilitarla.",
           "placeholder": "/* Escribe tu CSS personalizado aquí */"
         }
       },

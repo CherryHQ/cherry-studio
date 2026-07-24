@@ -1,6 +1,7 @@
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { MenuPresentationMode } from '@shared/data/preference/preferenceTypes'
+import { V1_CUSTOM_CSS_MARKER } from '@shared/utils/customCssMigration'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -170,6 +171,7 @@ vi.mock('@renderer/components/SettingsPrimitives', async () => {
       React.createElement(tag, props, children)
 
   return {
+    SettingDescription: passthrough('p'),
     SettingDivider: passthrough('hr'),
     SettingGroup: passthrough('section'),
     SettingRow: passthrough('div'),
@@ -324,5 +326,21 @@ describe('AppearanceSettings selectors', () => {
       expect.stringContaining('w-(--radix-popover-trigger-width)'),
       expect.stringContaining('w-(--radix-popover-trigger-width)')
     ])
+  })
+
+  it('shows migration guidance for marked v1 custom CSS', () => {
+    MockUsePreferenceUtils.setPreferenceValue('ui.custom_css', `${V1_CUSTOM_CSS_MARKER}\nbody { color: red; }`)
+
+    render(<AppearanceSettings />)
+
+    expect(screen.getByText('settings.display.custom.css.migration_notice')).toBeInTheDocument()
+  })
+
+  it('does not show migration guidance for unmarked custom CSS', () => {
+    MockUsePreferenceUtils.setPreferenceValue('ui.custom_css', 'body { color: red; }')
+
+    render(<AppearanceSettings />)
+
+    expect(screen.queryByText('settings.display.custom.css.migration_notice')).not.toBeInTheDocument()
   })
 })
