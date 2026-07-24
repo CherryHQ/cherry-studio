@@ -120,7 +120,14 @@ export async function runRestorePromotion(): Promise<void> {
     case 'completed':
     case 'failed':
     case 'expired':
-      // Reporting + deletion of terminal journals is owned by BackupService.
+      // Reporting + deletion of terminal journals is owned by BackupService. The
+      // staging tree is NOT: finalize() deletes it, but a crash between the terminal
+      // journal write and the rmSync — or an rmSync failure (AV/file lock) — strands
+      // a tree whose backup.sqlite holds plaintext secrets. A completed journal can
+      // outlive every boot (BackupService's staging GC runs only when NO journal
+      // exists, and completed is cleared only by the next startRestore), so re-run
+      // the idempotent delete here on every boot that sees a terminal journal.
+      removeStagingTree(journal.restoreId)
       return
     case 'staged':
       return promoteStaged(journal)
@@ -660,8 +667,23 @@ function inverseEntry(ctx: PromotionContext, entry: FileResource): void {
  */
 function finalize(ctx: PromotionContext, state: 'completed' | 'failed' | 'expired', step?: PromotionStep): void {
   writeRestoreJournal({ ...ctx.journal, state, step } as RestoreJournal)
+  removeStagingTree(ctx.journal.restoreId)
+}
+
+/**
+ * Idempotently delete one restore's staging subtree. The journal's restoreId is
+ * schema-checked only as a non-empty string and this runs preboot with full fs
+ * privileges, so refuse any id whose joined path leaves the staging root.
+ */
+function removeStagingTree(restoreId: string): void {
   const stagingRoot = application.getPath('feature.backup.restore.staging')
-  fs.rmSync(path.join(stagingRoot, ctx.journal.restoreId), { recursive: true, force: true })
+  const target = path.resolve(stagingRoot, restoreId)
+  const rel = path.relative(stagingRoot, target)
+  if (rel === '' || rel.split(path.sep).includes('..') || path.isAbsolute(rel)) {
+    logger.error('Refusing to delete staging outside the staging root', { restoreId })
+    return
+  }
+  fs.rmSync(target, { recursive: true, force: true })
 }
 
 function quarantineCorruptJournal(error: string): void {

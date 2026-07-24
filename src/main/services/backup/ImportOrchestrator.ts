@@ -150,7 +150,8 @@ export class ImportOrchestrator {
       const archiveContext = await this.deps.admitArchive(options.archivePath, workDir, this.deps.migrationsFolder)
       this.assertNotCancelled(options)
       // Prepare the staging subtree: work.sqlite must NOT exist (snapshotTo asserts this).
-      fs.mkdirSync(workDir, { recursive: true })
+      // 0700 like admission's mkdir — the tree holds secrets until promotion deletes it.
+      fs.mkdirSync(workDir, { recursive: true, mode: 0o700 })
       if (fs.existsSync(workPath)) {
         throw new Error(`importBackup: work.sqlite already exists (interrupted prior restore?): ${workPath}`)
       }
