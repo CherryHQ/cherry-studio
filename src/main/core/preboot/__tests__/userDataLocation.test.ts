@@ -196,17 +196,17 @@ describe('getNormalizedExecutablePath', () => {
 
   it('Windows non-portable: returns app.getPath("exe") verbatim', async () => {
     stubConstants({ isLinux: false, isWin: true, isPortable: false })
-    stubElectron({ exePath: 'C:\\Program Files\\Cherry Studio\\CherryStudio.exe' })
+    stubElectron({ exePath: 'C:\\Program Files\\Cherry Studio\\Cherry Studio.exe' })
     stubBootConfig()
     stubFs()
     const { getNormalizedExecutablePath } = await loadModule()
-    expect(getNormalizedExecutablePath()).toBe('C:\\Program Files\\Cherry Studio\\CherryStudio.exe')
+    expect(getNormalizedExecutablePath()).toBe('C:\\Program Files\\Cherry Studio\\Cherry Studio.exe')
   })
 
   it('Windows portable: returns PORTABLE_EXECUTABLE_DIR/cherry-studio-portable.exe', async () => {
     vi.stubEnv('PORTABLE_EXECUTABLE_DIR', 'D:\\PortableApps\\CherryStudio')
     stubConstants({ isLinux: false, isWin: true, isPortable: true })
-    stubElectron({ exePath: 'D:\\PortableApps\\CherryStudio\\CherryStudio.exe' })
+    stubElectron({ exePath: 'D:\\PortableApps\\CherryStudio\\Cherry Studio.exe' })
     stubBootConfig()
     stubFs()
     const { getNormalizedExecutablePath } = await loadModule()
@@ -379,7 +379,7 @@ describe('resolveUserDataLocation', () => {
     it('BootConfig empty + isPortable=true: setPath called with portableDir/data', async () => {
       vi.stubEnv('PORTABLE_EXECUTABLE_DIR', 'D:\\PortableApps\\CherryStudio')
       stubConstants({ isLinux: false, isWin: true, isPortable: true })
-      stubElectron({ exePath: 'D:\\PortableApps\\CherryStudio\\CherryStudio.exe' })
+      stubElectron({ exePath: 'D:\\PortableApps\\CherryStudio\\Cherry Studio.exe' })
       stubBootConfig({ 'app.user_data_path': {} })
       stubFs()
       const { resolveUserDataLocation } = await loadModule()
@@ -417,7 +417,7 @@ describe('resolveUserDataLocation', () => {
     it('Windows portable normalized key matches in BootConfig: setPath called', async () => {
       vi.stubEnv('PORTABLE_EXECUTABLE_DIR', 'D:\\PortableApps\\CherryStudio')
       stubConstants({ isLinux: false, isWin: true, isPortable: true })
-      stubElectron({ exePath: 'D:\\PortableApps\\CherryStudio\\CherryStudio.exe' })
+      stubElectron({ exePath: 'D:\\PortableApps\\CherryStudio\\Cherry Studio.exe' })
       stubBootConfig({
         'app.user_data_path': {
           'D:\\PortableApps\\CherryStudio/cherry-studio-portable.exe': 'D:\\Data\\Cherry'

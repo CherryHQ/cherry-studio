@@ -63,6 +63,17 @@ describe('initialAssistantFormState', () => {
     const assistant = createAssistant({ groupId })
     expect(initialAssistantFormState(assistant).groupId).toBe(groupId)
   })
+
+  it.each([true, 'legacy-mode'])('normalizes an invalid runtime MCP mode (%s) to the default', (mcpMode) => {
+    const assistant = createAssistant({
+      settings: {
+        ...DEFAULT_ASSISTANT_SETTINGS,
+        mcpMode
+      } as unknown as AssistantSettings
+    })
+
+    expect(initialAssistantFormState(assistant).mcpMode).toBe(DEFAULT_ASSISTANT_SETTINGS.mcpMode)
+  })
 })
 
 describe('diffAssistantUpdate', () => {
@@ -91,6 +102,21 @@ describe('diffAssistantUpdate', () => {
       })
     })
     expect(result!.dto.groupId).toBeUndefined()
+  })
+
+  it('emits a valid MCP mode when editing an unrelated field on a legacy assistant', () => {
+    const assistant = createAssistant({
+      settings: {
+        ...DEFAULT_ASSISTANT_SETTINGS,
+        mcpMode: true
+      } as unknown as AssistantSettings
+    })
+    const baseline = initialAssistantFormState(assistant)
+    const form = { ...baseline, description: 'edited' }
+
+    const result = diffAssistantUpdate(form, baseline, assistant)
+
+    expect(result?.dto.settings?.mcpMode).toBe(DEFAULT_ASSISTANT_SETTINGS.mcpMode)
   })
 
   it('falls back to the server name when the form name is blank', () => {
