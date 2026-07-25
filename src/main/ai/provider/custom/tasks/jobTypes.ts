@@ -28,7 +28,8 @@ export interface ImageGenerationJobPayload {
   inputFileIds?: string[]
   maskFileId?: string
   /** Per-model transport routing, derived in main from the registry — persisted
-   *  here so a restart-resume reaches the right endpoint / response family. */
+   *  here so the handler reaches the right endpoint / response family without
+   *  re-resolving the registry. */
   modelDescriptor?: ImageTransportDescriptor
   providerParams: Record<string, unknown>
   /** Stamped on the persisted output FileEntries — decided by the requesting business feature. */

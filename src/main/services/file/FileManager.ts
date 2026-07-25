@@ -364,7 +364,7 @@ export class StaleVersionError extends Error {
  *   - Metadata / version / hash / URL / physical path resolution
  *   - DanglingCache surface (`getDanglingState` /
  *     `batchGetDanglingStates` / `subscribeDangling`)
- *   - On-demand orphan sweep (`runSweep`)
+ *   - Orphan sweep — scheduled FS half (`fileSweepTick`) + on-demand report (`runSweep`)
  *   - 3rd-party escape hatch (`withTempCopy`), `open` / `showInFolder`
  *
  * **Out** — kept on the class but **not** in the interface:
@@ -588,7 +588,7 @@ export interface IFileManager {
    */
   subscribeDangling(params: { id: FileEntryId }, listener: (state: 'present' | 'missing') => void): () => void
 
-  // ─── Orphan sweep (cleanup UI) ───
+  // ─── Orphan sweep ───
 
   /**
    * Run the scan-based entry cleanup pass, then the FS-level orphan sweep
@@ -599,9 +599,11 @@ export interface IFileManager {
    * failed run as a healthy zero; the cleanup pass's own outcome rides in
    * `entryCleanup` without affecting the umbrella `outcome`.
    *
-   * Caller-initiated maintenance via IPC (`File_RunSweep`); no startup auto-run
-   * and no user-facing UI calls it (the cleanup it wraps is silent). See
-   * architecture §10 for the sweep mechanics.
+   * Caller-initiated maintenance via IPC (`File_RunSweep`), which no renderer
+   * code calls today. Reclamation does not depend on it: the entry pass and the
+   * FS sweep both run unattended from the idle tick (`entryCleanupTick` /
+   * `fileSweepTick`). This method stays the on-demand "report everything"
+   * entry point. See architecture §10 for the sweep mechanics.
    */
   runSweep(): Promise<OrphanReport>
 
@@ -809,7 +811,7 @@ export class FileManager extends BaseService implements IFileManager {
    *   to `'partial'` with empty `errorsByType` and a populated
    *   `fsSweepIssue`. Without this degrade, an EACCES or safety-threshold
    *   abort on the FS side would silently surface as `'completed'` to
-   *   the cleanup UI, which is the inverse of what the discriminator
+   *   whatever reads the report, which is the inverse of what the discriminator
    *   exists to prevent.
    * - Both clean → `outcome: 'completed'`.
    */

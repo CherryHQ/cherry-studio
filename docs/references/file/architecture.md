@@ -124,7 +124,7 @@ Data Module dependencies (src/main/data/)
 
 The file module has **two top-level primitives** — `FileManager` and `DirectoryTreeBuilder` — sitting alongside the shared infrastructure (File IPC adapters, file-module utils, DanglingCache, DirectoryWatcher, FS primitives). Neither subsumes the other; they manage **orthogonal resource concerns**:
 
-- **FileManager** is the **sole public entry point for the FileEntry management system** — responsible for the full lifecycle and content operations of `FileEntry` (DB row + content bytes). Its public API only accepts entry-scoped inputs such as `FileEntryId` plus create/upsert params. It exposes `runSweep()` for the cleanup UI / explicit callers, but **does not auto-run orphan sweep at startup**. "Sole public entry" here is scoped to **FileEntry management**, not the file module as a whole — see File IPC and DirectoryTreeBuilder below.
+- **FileManager** is the **sole public entry point for the FileEntry management system** — responsible for the full lifecycle and content operations of `FileEntry` (DB row + content bytes). Its public API only accepts entry-scoped inputs such as `FileEntryId` plus create/upsert params. It exposes `runSweep()` as an on-demand "report everything" entry point; the FS half of that sweep **also runs unattended** from the idle cleanup tick (`fileSweepTick`, weekly floor), so orphan-blob reclamation does not depend on a caller. "Sole public entry" here is scoped to **FileEntry management**, not the file module as a whole — see File IPC and DirectoryTreeBuilder below.
 - **FileManager is a facade, not a God class** — business methods are delegated to private pure-function modules. The class itself owns only lifecycle, entry orchestration, and instance-scoped caches. It does **not** own renderer transport or `FileHandle.kind` dispatch; those belong to the File IPC adapter layer. Implementation mechanics (deps passing, module layout, extension rules) live in [FileManager Architecture §1.6](./file-manager-architecture.md) — this document stays at the positioning layer.
 - **File IPC adapters** (`src/main/ipc/handlers/file.ts`) own renderer-facing File IPC routes. They validate request schemas, dispatch `FileHandle` routes, and delegate entry branches to FileManager and path branches to `src/main/services/file/utils/*`. They must not import `node:fs` directly.
 - **DirectoryTreeBuilder** is the **second top-level primitive**, parallel to FileManager. It manages in-memory tree mirrors + chokidar watchers for arbitrary directories (Notes workspace, future ArtifactPane, …). It is **not** DB-backed — every tree is rebuilt from disk on `File_TreeCreate`. Its IPC surface (`File_TreeCreate` / `File_TreeDispose` / `File_TreeMutation`) is owned by the `DirectoryTreeManager` lifecycle service. SoT: [directory-tree.md](./directory-tree.md). The two primitives observe the same paths independently — a directory can be watched (tree) without its contents being entered (entries), and vice versa.
@@ -657,8 +657,8 @@ The File IPC adapter is a transport/dispatch layer. It may depend on FileManager
 |                                                                         |
 | Role: explicit cleanup of internal UUID files + *.tmp-<uuid> residues   |
 |       plus orphan-entry reporting                                       |
-| Trigger: cleanup UI / caller invokes FileManager.runSweep() via IPC     |
-| Startup: no auto-run                                                    |
+| Trigger: FS half runs unattended (fileSweepTick, weekly floor);         |
+|          runSweep() via IPC is the on-demand full report                |
 +-------------------------------------------------------------------------+
 | services/file/utils/*  (file-module path/API helpers)                   |
 |                                                                         |
@@ -757,8 +757,9 @@ The File IPC adapter is a transport/dispatch layer. It may depend on FileManager
 |  |                                                           |    |
 |  |  in-memory: LRU version cache                             |    |
 |  |                                                           |    |
-|  |  -- On-demand Orphan Sweep --                             |    |
-|  |  runSweep() when cleanup UI / caller requests cleanup     |    |
+|  |  -- Orphan Sweep --                                       |    |
+|  |  FS half: fileSweepTick (idle, weekly floor)              |    |
+|  |  Full report: runSweep() on demand via IPC                |    |
 |  +-----------------------------------------------------------+    |
 |                                                                   |
 |  +-----------------------------------------------------------+    |
@@ -936,15 +937,23 @@ WhenReady (after app.whenReady(), Electron API available)
                 (`runEntryCleanup`) plus an idle-gated interval (see
                 file-entry-cleanup.md §5.5). Legacy File_* compatibility handlers
                 may still be registered here during migration, but new File IPC
-                responsibility belongs to the IpcApi adapter layer. The on-demand
-                orphan `runSweep` is separate — it never auto-triggers; an
-                explicit cleanup UI/caller invokes it via IPC.
+                responsibility belongs to the IpcApi adapter layer. The
+                `runSweep` umbrella is separate — it never auto-triggers; an
+                explicit caller invokes it via IPC. Its FS half is *also*
+                scheduled on its own (see below), so reclamation does not
+                depend on that caller existing.
 
-On-Demand (user-triggered via File_RunSweep IPC)
+On-Demand umbrella (File_RunSweep IPC — no renderer caller today)
 +-- FileManager.runSweep -- runs two concurrent passes and returns one
                             OrphanReport when both settle:
                             • runFileSweep:       cleans orphan UUID files +
-                                                  *.tmp-<uuid> residues
+                                                  *.tmp-<uuid> residues.
+                                                  ALSO runs unattended from
+                                                  FileManager.fileSweepTick —
+                                                  the idle cleanup tick, behind
+                                                  a 7-day floor. That is what
+                                                  actually reclaims orphan
+                                                  blobs in production.
                             • runDbSweep (internal helper — NOT a separate
                               lifecycle service, NOT scheduled):
                               orphan-entry report
@@ -993,7 +1002,8 @@ Data Services (not lifecycle, managed by DataApiService):
                           ▼
                       onAllReady()
                           │
-                          ▼ (on-demand, when cleanup UI calls File_RunSweep)
+                          ▼ (on demand via File_RunSweep; the FS half also
+                          ▼  runs unattended from fileSweepTick)
                  FileManager.runSweep — runs concurrently:
                    • FS-level: UUID files not in DB → unlink,
                      *.tmp-<uuid> → unlink
@@ -1002,7 +1012,7 @@ Data Services (not lifecycle, managed by DataApiService):
                   orphan sweep regex is version-agnostic)
 ```
 
-**Key**: `onInit` is non-blocking — only the DanglingCache reverse-index init is awaited (a synchronous DB query, fast for typical <10k external-entry counts). The entry-cleanup reaper (`delete_when_unreferenced` reclamation, file-entry-cleanup.md) *does* fire at startup — a non-awaited `runEntryCleanup` pass plus an idle-gated interval — but it is distinct from the on-demand orphan `runSweep` (FS orphan unlink + `manual` orphan report), which never runs automatically: the cleanup UI/caller is its sole trigger via the `File_RunSweep` IPC channel.
+**Key**: `onInit` is non-blocking — only the DanglingCache reverse-index init is awaited (a synchronous DB query, fast for typical <10k external-entry counts). The entry-cleanup reaper (`delete_when_unreferenced` reclamation, file-entry-cleanup.md) *does* fire at startup — a non-awaited `runEntryCleanup` pass plus an idle-gated interval — but it is distinct from the `runSweep` umbrella (FS orphan unlink + `manual` orphan report). That umbrella runs only on demand via `File_RunSweep`, which has no renderer caller today — its FS half, however, is scheduled independently on the same idle tick (`fileSweepTick`, weekly floor), which is what actually reclaims orphan blobs.
 
 ### 6.3 Dependency Declarations for Business Services
 
@@ -1040,7 +1050,8 @@ src/main/ipc/handlers/
                                         FileHandle dispatch, no direct node:fs
 
 src/main/services/file/               -- file module
-  FileManager.ts                      -- FileEntry lifecycle/runtime service + on-demand runSweep()
+  FileManager.ts                      -- FileEntry lifecycle/runtime service; scheduled
+                                         entry cleanup + FS sweep ticks, on-demand runSweep()
   internal/orphanSweep.ts             -- internal helper: UUID file + *.tmp residue cleanup
   danglingCache.ts                    -- singleton: external entry presence state
                                          exports: check / onFsEvent / addEntry / removeEntry

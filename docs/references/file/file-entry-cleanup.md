@@ -195,7 +195,7 @@ A failed candidate is logged and simply retried on the next pass — no attempt 
 | New persistent ref races the delete | Serialized writes decide order. Ref insert commits first → step 3 sees it. Delete commits first → ref insert fails FK validation (same failure mode the business flow already has against explicit `permanentDelete`). |
 | Send pipeline: entry created, refs not yet written | Protected by the 1h `created_at` grace window; a crashed send's orphan is collected after the window. |
 | Policy upgraded to `manual` (ensureExternal reuse) between query and tx | Step 2 re-check skips; counted as `gonePinned`. |
-| Crash after row delete, before unlink | Blob becomes an FS orphan; `runFileSweep` reclaims it on the daily floor in `FileManager.fileSweepTick` (the `File_RunSweep` IPC has no renderer caller). |
+| Crash after row delete, before unlink | Blob becomes an FS orphan; `runFileSweep` reclaims it on the weekly floor in `FileManager.fileSweepTick` (the `File_RunSweep` IPC has no renderer caller). |
 | Unlink fails outright (EACCES / EBUSY / EIO) | Row is still deleted and `unlinkFailures` incremented — the row is the source of truth, and keeping it would retry the same failing unlink forever. Same FS-orphan fate as the row above. |
 | Staged restore pending when the pass fires | Gate closed (§5.5): outcome `'skipped'`, nothing examined. A restore's blobs are on disk but not yet referenced by the live DB — exactly what the pass would reclaim. |
 | Crash mid-pass | No state to recover; the next pass re-derives candidates. |

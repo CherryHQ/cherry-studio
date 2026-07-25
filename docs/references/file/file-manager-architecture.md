@@ -301,8 +301,9 @@ export class FileManager extends BaseService implements IFileManager {
     await this.deps.danglingCache.initFromDb()
     this.registerIpcHandlers()
     // Auto-policy reaper: a non-awaited startup pass + an idle-gated interval
-    // (file-entry-cleanup.md §5.5). The on-demand orphan `runSweep` is separate —
-    // it never auto-triggers; an explicit cleanup UI/caller invokes it via IPC.
+    // (file-entry-cleanup.md §5.5). The tick also fires the FS orphan sweep
+    // concurrently, behind its own weekly floor (`fileSweepTick`). The `runSweep`
+    // umbrella is separate — on demand via IPC only.
     void this.runEntryCleanup()
     this.registerInterval(() => this.entryCleanupTick(), CLEANUP_INTERVAL_MS)
   }
@@ -925,11 +926,11 @@ interface IFileUploadService {
 
 ---
 
-## 10. On-Demand Orphan Sweep (User-Triggered)
+## 10. Orphan Sweep (scheduled FS pass + on-demand report)
 
 ### 10.1 Positioning
 
-Orphan sweep is **explicitly triggered via the `File_RunSweep` IPC channel** — there is no startup auto-run for the FS-level pass (§10) or the DB-level report pass (§7 Layer 3). FileManager exposes a single `runSweep()` maintenance method: it first runs the entry-cleanup pass (auto-run separately on init/interval — see [file-entry-cleanup.md §5](./file-entry-cleanup.md#5-cleanup-pass-reaper)), then runs the FS-level pass and the DB-level report pass concurrently, folding the cleanup pass's own summary into `counts.entryCleanup`, and returns a single `OrphanReport` once all three settle. The FS and DB passes each begin with a `hasPendingRestore()` guard (`src/main/data/db/restore/restoreJournal.ts`): while a staged backup restore awaits promotion, the sweep stands aside with `outcome: 'aborted', abortReason: 'pending-restore'` — a staged restore's blobs are on disk but not yet referenced by the live DB, which is exactly what the sweep would otherwise reclaim. (No user-facing UI calls `runSweep` — the entry cleanup it wraps is silent, and the cleanup mechanism has no user surface; see file-entry-cleanup.md's Decision note.)
+The **FS-level pass** (§10) runs unattended from `FileManager.fileSweepTick` — the same idle-gated tick as the entry cleanup, concurrently with it, behind a 7-day floor. That is what reclaims orphan blobs in production. The **DB-level report pass** (§7 Layer 3) has no scheduled trigger and runs only inside the `runSweep` umbrella, which is reachable solely via the `File_RunSweep` IPC channel — a channel with no renderer caller today. FileManager exposes a single `runSweep()` maintenance method: it first runs the entry-cleanup pass (auto-run separately on init/interval — see [file-entry-cleanup.md §5](./file-entry-cleanup.md#5-cleanup-pass-reaper)), then runs the FS-level pass and the DB-level report pass concurrently, folding the cleanup pass's own summary into `counts.entryCleanup`, and returns a single `OrphanReport` once all three settle. The FS and DB passes each begin with a `hasPendingRestore()` guard (`src/main/data/db/restore/restoreJournal.ts`): while a staged backup restore awaits promotion, the sweep stands aside with `outcome: 'aborted', abortReason: 'pending-restore'` — a staged restore's blobs are on disk but not yet referenced by the live DB, which is exactly what the sweep would otherwise reclaim. (No user-facing UI calls `runSweep` — the entry cleanup it wraps is silent, and the cleanup mechanism has no user surface; see file-entry-cleanup.md's Decision note.)
 
 ```typescript
 protected override async onInit(): Promise<void> {
@@ -966,9 +967,9 @@ async runSweep(): Promise<OrphanReport> {
 }
 ```
 
-**Rationale for user-triggered (vs. startup auto-run)**:
-- Cleanup is a user-domain concern. The user opening the cleanup UI is the trigger; running it implicitly at boot consumes resources for an action the user did not request.
-- The earlier startup variant existed in part to suppress noise during the v1→v2 transition window (when consumer migrators Batches A-E had not yet wired their file association rows). That noise was scaffolding for a one-time event — once Batch A-E land the noise self-resolves, and outside the transition window the sweep's findings are exactly the signal the cleanup UI wants to surface.
+**Rationale for the split (scheduled FS pass, on-demand report)**:
+- The FS pass performs *reclamation*, and the entry-cleanup pass manufactures its input on every run (`unlinkFailures`, plus crash residue between row-delete and unlink). Reclamation cannot wait on a caller that does not exist, so it rides the idle tick — but behind a coarse floor, because an orphan blob costs disk, never correctness.
+- The DB pass only *reports*. A report with no consumer has nothing to do, so it stays on demand; when a cleanup UI appears it invokes `runSweep` and gets both halves plus the entry-cleanup summary in one `OrphanReport`.
 - No persistent state machine. Each invocation runs end-to-end and returns its own report; FileManager no longer holds `lastDbSweepReport` / `lastDbSweepRanAt`. UIs that want "last scan" timing should hold the previously-returned `OrphanReport.lastRunAt` themselves.
 
 **A note on `initVersionCache`**: an earlier draft of this section bundled a synchronous `initVersionCache()` call into `onInit`. It didn't survive implementation — version cache is per-FileManager-instance and constructs at field-init time (no boot step), so there is no separate init call to make. `registerIpcHandlers()` *did* survive and is the convention used across lifecycle services for the same reason it surfaces in [lifecycle-migration-guide.md](../lifecycle/lifecycle-migration-guide.md): keeps `onInit` a narrow init→register sequence and gives a single spot for Phase 2 channels to land.
@@ -1001,7 +1002,7 @@ The `mtime > 5min` filter is an **engineering heuristic**, not a formal guarante
 
 | Scenario | Consequence |
 |---|---|
-| Very slow write (huge file + slow disk/fsync) exceeds 5min between FS write and DB insert | Newly-written internal file may be unlinked on the next user-triggered sweep |
+| Very slow write (huge file + slow disk/fsync) exceeds 5min between FS write and DB insert | Newly-written internal file may be unlinked on the next sweep |
 | Process frozen / suspended > 5min mid-write; then a subsequent sweep runs | Same as above |
 | System clock jumps forward > 5min after file creation | Recent residue gets mis-aged; usually harmless — those files were orphans anyway |
 | System clock jumps backward | Filter becomes permissive (`now < mtime` disqualifies the file); cleanup delayed to the next sweep run (safe) |
@@ -1106,7 +1107,7 @@ The old version batch-stat'd all external entries at startup to build the dangli
 | createInternalEntry creates a new internal file during sweep | The `mtime > 5min` filter (§10.3) prevents the new file from being mistakenly deleted; the snapshot strategy (§10.2) makes this reliance explicit |
 | FileManager.read/write on existing entries during sweep | No mutual exclusion; read/write follow different code paths and are unaffected |
 | Upstream bug causes bulk deletion plan | Safety threshold (§10.4) aborts the sweep without unlinking |
-| app exits during sweep | No persistent side effect; user can rerun via the cleanup UI on next launch |
+| app exits during sweep | No persistent side effect; the next scheduled `fileSweepTick` re-derives everything |
 
 ### 10.9 Crash Consistency
 

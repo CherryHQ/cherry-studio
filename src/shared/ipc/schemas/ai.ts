@@ -69,8 +69,10 @@ const aiImagePayloadSchema = z.strictObject({
   /** Attached images / mask are encoded file bytes (data URLs), not form params. */
   inputImages: z.array(z.string()).optional(),
   mask: z.string().optional(),
-  // Required: the calling business feature decides the cleanup intent for every
-  // FileEntry the request persists (file-entry-cleanup.md §4.1) — main never defaults it.
+  // Required: the calling business feature decides the cleanup intent for the
+  // generated OUTPUT entries (file-entry-cleanup.md §4.1) — main never defaults it.
+  // It does not reach the job path's input / mask copies: those are transport
+  // scratch owned by the job, pinned to `delete_when_unreferenced`.
   cleanupPolicy: CleanupPolicySchema
 })
 

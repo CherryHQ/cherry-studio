@@ -8,9 +8,8 @@
  * - MUST NOT consult FS-state caches (`danglingCache.check`, `versionCache`)
  * - MUST return a **fixed shape per endpoint** — no opt-in flags that toggle extra fields
  *
- * SQL aggregation (JOIN / GROUP BY / COUNT) stays in the DB layer. Temp-session refs are
- * the narrow exception: they are main-memory CacheService state by design and are included
- * by the ref endpoints so a temp attachment is not reported as orphan during the session.
+ * SQL aggregation (JOIN / GROUP BY / COUNT) stays in the DB layer, over the persistent
+ * association tables registered in `persistentFileRefTablesBySourceType`.
  * Anything that requires FS IO or main-side path computation lives in **File IPC** (see
  * `src/shared/types/file/ipc.ts`).
  *

@@ -5,7 +5,7 @@
  * - **FileEntry** — the managed-file entity (this section).
  * - **FileHandle** — a call-site reference to a file, by entry-id or raw path.
  * - **FileRef** — the association linking a business entity (chat message,
- *   painting, temp session) to a `FileEntry`.
+ *   painting, job, provider logo, mini-app logo) to a `FileEntry`.
  *
  * The legacy v1 `FileMetadata` shape lives separately in `./legacyFile.ts`.
  *

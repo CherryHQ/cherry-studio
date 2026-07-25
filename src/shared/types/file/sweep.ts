@@ -18,8 +18,8 @@ export interface OrphanReportCounts {
 }
 
 /**
- * Public shape returned by `FileManager.runSweep()` and consumed by the
- * cleanup UI through the `File_RunSweep` IPC channel. Keeps the wire surface
+ * Public shape returned by `FileManager.runSweep()` and carried over the
+ * `File_RunSweep` IPC channel. Keeps the wire surface
  * narrower than the full internal `DbSweepReport` (e.g. omits
  * `scanDurationMs`) while preserving the `outcome` discriminator so a
  * `partial` / `failed` run is distinguishable from a clean `completed` run

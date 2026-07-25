@@ -74,8 +74,8 @@ function stripExt(base: string): string {
  *
  * Degradation chain: raw → sanitized (last segment, trimmed) → row id.
  * Never asks the caller to skip the row: a skipped internal row strands
- * its physical file, which the user-triggered FS orphan sweep
- * (`File_RunSweep`; no startup auto-run) then reclaims — real data loss.
+ * its physical file, which the scheduled FS orphan sweep then reclaims
+ * (`FileManager.fileSweepTick`, weekly floor) — real data loss.
  * `name` does not participate in physical paths (`{id}.{ext}`), so
  * degrading it is always safe.
  */
@@ -173,7 +173,7 @@ function toFileEntry(
   // indistinguishably as an empty file in the v2 UI. Skipping outright is
   // worse: every row reaching this point is internal, so a physically
   // present file would be stranded and become eligible for the
-  // user-triggered FS orphan sweep (`File_RunSweep`) — real data loss for
+  // scheduled FS orphan sweep (`FileManager.fileSweepTick`) — real data loss for
   // recoverable content. Recover the true size from disk instead; skip only
   // when the disk holds nothing recoverable.
   let size: number
@@ -366,7 +366,7 @@ export class FileMigrator extends BaseMigrator {
       // a real condition on v1 installs — users delete `~/.../Data/Files/*`
       // outside Cherry, leaving dangling metadata. Surfacing it as a fatal
       // validation error aborts the whole migration over data that the
-      // user-triggered FS orphan sweep (`File_RunSweep`) can clean up later.
+      // scheduled FS orphan sweep (`FileManager.fileSweepTick`) cleans up later.
       // Record as a non-fatal warning so the migration log carries the
       // diagnostic trail but the engine still proceeds to downstream
       // migrators.

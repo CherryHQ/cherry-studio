@@ -217,8 +217,8 @@ export interface FileEntryService {
   countCleanupCandidates(graceMs: number): number
 
   /**
-   * All entry ids regardless of trashed state — backs the on-demand orphan
-   * sweep, which needs to know which on-disk UUID files have a DB row
+   * All entry ids regardless of trashed state — backs the FS orphan sweep,
+   * which needs to know which on-disk UUID files have a DB row
    * (active or trashed; both are out of scope for unlink).
    */
   listAllIds(): Set<FileEntryId>

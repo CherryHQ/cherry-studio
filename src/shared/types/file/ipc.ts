@@ -652,8 +652,9 @@ export interface FileIpcApi {
 
   // ─── K. Orphan Sweep ───
   //
-  // User-triggered cleanup pass. There is no startup auto-run; the cleanup UI
-  // is the only consumer.
+  // On-demand "report everything" pass. Reclamation itself is unattended —
+  // the entry cleanup and the FS orphan sweep both run from FileManager's idle
+  // tick; this channel exists for a cleanup UI that has no caller yet.
 
   /**
    * Run the scan-based entry cleanup pass, then both the FS-level orphan
