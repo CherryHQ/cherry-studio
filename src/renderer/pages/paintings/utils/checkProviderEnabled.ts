@@ -1,5 +1,6 @@
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { popup } from '@renderer/services/popup'
+import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
 import i18next from 'i18next'
 
 import type { PaintingProviderRuntime } from '../model/types/paintingProviderRuntime'
@@ -20,7 +21,11 @@ export async function checkProviderEnabled(provider: PaintingProviderRuntime): P
     ) {
       navigateToProviderSettings(provider.id)
     }
-    throw 'Provider disabled'
+    // A typed error, not a bare string: `runPainting`'s `error instanceof Error` guard
+    // let the string through unnormalized, so the generation was then reported a SECOND
+    // time as a generic "generate failed" modal on top of the dialog above. `'silent'`
+    // because that dialog — with its go-to-settings action — is the presentation.
+    throw createPaintingGenerateError('PROVIDER_DISABLED', { presentation: 'silent' })
   }
 
   // Keyless-permissive: return whatever key exists (possibly empty) and let the

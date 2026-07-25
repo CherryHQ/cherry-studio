@@ -28,15 +28,23 @@ export type PaintingGenerateErrorCode =
   | 'CUSTOM_SIZE_PIXELS'
   | 'REMOTE_ERROR'
 
+/**
+ * How the error should reach the user. `'silent'` is for errors whose thrower has
+ * ALREADY shown something (e.g. the provider-disabled dialog with its
+ * "go to settings" action) — it still travels as a typed error so callers can
+ * branch on the code, but presenting it again would stack a second dialog on top.
+ */
+export type PaintingGenerateErrorPresentation = 'modal' | 'toast' | 'silent'
+
 export interface PaintingGenerateErrorOptions {
   message?: string
-  presentation?: 'modal' | 'toast'
+  presentation?: PaintingGenerateErrorPresentation
   severity?: 'error' | 'warning'
 }
 
 export class PaintingGenerateError extends Error {
   code: PaintingGenerateErrorCode
-  presentation: 'modal' | 'toast'
+  presentation: PaintingGenerateErrorPresentation
   severity: 'error' | 'warning'
 
   constructor(code: PaintingGenerateErrorCode, options: PaintingGenerateErrorOptions = {}) {

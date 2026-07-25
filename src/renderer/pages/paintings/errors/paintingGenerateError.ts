@@ -53,6 +53,12 @@ export function translatePaintingGenerateError(error: Error): string {
 
 export function presentPaintingGenerateError(error: unknown) {
   const normalized = normalizePaintingGenerateError(error)
+
+  // Already surfaced by whoever threw it — presenting again stacks a second dialog.
+  if (normalized instanceof PaintingGenerateError && normalized.presentation === 'silent') {
+    return
+  }
+
   const message = translatePaintingGenerateError(normalized)
 
   if (normalized instanceof PaintingGenerateError && normalized.presentation === 'toast') {
