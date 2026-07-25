@@ -26,10 +26,20 @@ export function useRawAgentSessionsSource({ enabled }: { enabled?: boolean } = {
 type RawAssistantTopicsSource = ReturnType<typeof useRawAssistantTopicsSource>
 type RawAgentSessionsSource = ReturnType<typeof useRawAgentSessionsSource>
 
+/**
+ * A background refresh that failed while a committed snapshot is still on
+ * screen. It is deliberately separate from `error`: the snapshot stays served
+ * (blowing a good list away into an error panel is worse), but the failure must
+ * not be silent — nothing retries on its own, so the list would otherwise stay
+ * stale for the window's lifetime with no visible cause.
+ */
+type RefreshError = { refreshError: RawAssistantTopicsSource['error'] }
+
 export type AssistantTopicsSource = Pick<
   RawAssistantTopicsSource,
-  'topics' | 'isLoadingAll' | 'isFullyLoaded' | 'isRefreshing' | 'error'
->
+  'topics' | 'isLoadingAll' | 'isFullyLoaded' | 'isRefreshing' | 'error' | 'refetch'
+> &
+  RefreshError
 
 export type AgentSessionsSource = Pick<
   RawAgentSessionsSource,
@@ -48,7 +58,8 @@ export type AgentSessionsSource = Pick<
   | 'isFullyLoaded'
   | 'isLoadingAll'
   | 'isPinsLoading'
->
+> &
+  RefreshError
 
 export const AssistantTopicsSourceContext = createContext<AssistantTopicsSource | null>(null)
 export const AgentSessionsSourceContext = createContext<AgentSessionsSource | null>(null)

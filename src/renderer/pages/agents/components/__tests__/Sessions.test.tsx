@@ -3180,4 +3180,16 @@ describe('Sessions', () => {
 
     expect(await screen.findByRole('menuitem', { name: 'Unpin Agent' })).toHaveAttribute('data-disabled')
   })
+
+  it('offers a retry entry point when a background refresh fails behind a served list', () => {
+    setupSessions({ refreshError: new Error('refresh failed') })
+
+    render(<SessionsForTest />)
+
+    // The stale list stays on screen; the failure gets its own non-destructive strip.
+    expect(screen.getByText('Alpha session')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    expect(sessionDataMocks.reload).toHaveBeenCalled()
+  })
 })

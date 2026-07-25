@@ -27,6 +27,7 @@ import {
   useResourceListPinnedState,
   useResourceListRowState
 } from '@renderer/components/chat/resourceList/base'
+import { ResourceRefreshErrorBanner } from '@renderer/components/chat/resourceList/ResourceRefreshErrorBanner'
 import { TopicResourceList } from '@renderer/components/chat/resourceList/TopicResourceList'
 import { CommandPopupMenu } from '@renderer/components/command'
 import EditNameDialog from '@renderer/components/EditNameDialog'
@@ -305,7 +306,15 @@ export function Topics({
   } = usePins('assistant')
   const assistantPinnedIdSet = useMemo(() => new Set(assistantPinnedIds), [assistantPinnedIds])
   const isAssistantPinActionDisabled = isAssistantPinsLoading || isAssistantPinsRefreshing || isAssistantPinsMutating
-  const { topics: apiTopics, isLoadingAll, isFullyLoaded, isRefreshing, error } = assistantTopicsSource
+  const {
+    topics: apiTopics,
+    isLoadingAll,
+    isFullyLoaded,
+    isRefreshing,
+    error,
+    refreshError,
+    refetch: refetchTopics
+  } = assistantTopicsSource
   const {
     assistants,
     isLoading: isAssistantsLoading,
@@ -923,8 +932,6 @@ export function Topics({
 
       if (!assistantGroupId) return null
 
-      const payload: AddNewTopicPayload = { assistantId: assistantGroupId }
-
       return (
         <>
           {assistantGroupId && (
@@ -950,19 +957,17 @@ export function Topics({
               />
             </Tooltip>
           )}
-          {payload && (
-            <Tooltip title={t('chat.conversation.new')} delay={500}>
-              <ResourceList.GroupHeaderActionButton
-                type="button"
-                aria-label={t('chat.conversation.new')}
-                onClick={(event) => {
-                  event.stopPropagation()
-                  void onNewTopic?.(payload)
-                }}>
-                <SquarePen className="block" />
-              </ResourceList.GroupHeaderActionButton>
-            </Tooltip>
-          )}
+          <Tooltip title={t('chat.conversation.new')} delay={500}>
+            <ResourceList.GroupHeaderActionButton
+              type="button"
+              aria-label={t('chat.conversation.new')}
+              onClick={(event) => {
+                event.stopPropagation()
+                void onNewTopic?.({ assistantId: assistantGroupId })
+              }}>
+              <SquarePen className="block" />
+            </ResourceList.GroupHeaderActionButton>
+          </Tooltip>
         </>
       )
     },
@@ -1337,6 +1342,8 @@ export function Topics({
             />
           )}
         </ResourceList.Header>
+
+        {refreshError && <ResourceRefreshErrorBanner onRetry={refetchTopics} retrying={isRefreshing} />}
 
         <TopicListBody
           activeTopic={activeTopic}

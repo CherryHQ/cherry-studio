@@ -93,18 +93,20 @@ function createAgentSource(
   {
     complete,
     refreshing = false,
-    error
+    error,
+    pinnedIds = []
   }: {
     complete: boolean
     refreshing?: boolean
     error?: Error
+    pinnedIds?: string[]
   }
 ): AgentSessionsSource {
   const sessions = ids.map((id) => ({ id }))
 
   return {
     sessions,
-    pinIdBySessionId: new Map(),
+    pinIdBySessionId: new Map(pinnedIds.map((id) => [id, `pin-${id}`])),
     total: sessions.length,
     hasMore: !complete,
     error,
@@ -135,9 +137,13 @@ function SourceProbe() {
       <span data-testid="topic-ids">{topicsSource.topics.map((topic) => topic.id).join(',')}</span>
       <span data-testid="topics-loading">{String(topicsSource.isLoadingAll)}</span>
       <span data-testid="topics-refreshing">{String(topicsSource.isRefreshing)}</span>
+      <span data-testid="topics-error">{String(Boolean(topicsSource.error))}</span>
+      <span data-testid="topics-refresh-error">{String(Boolean(topicsSource.refreshError))}</span>
       <span data-testid="session-ids">{sessionsSource.sessions.map((session) => session.id).join(',')}</span>
       <span data-testid="sessions-loading">{String(sessionsSource.isLoadingAll)}</span>
       <span data-testid="sessions-refreshing">{String(sessionsSource.isValidating)}</span>
+      <span data-testid="sessions-refresh-error">{String(Boolean(sessionsSource.refreshError))}</span>
+      <span data-testid="session-pins">{[...sessionsSource.pinIdBySessionId.keys()].join(',')}</span>
     </>
   )
 }
@@ -259,6 +265,54 @@ describe('ResourceViewSourceProvider', () => {
 
     await waitFor(() => expect(screen.getByTestId('topics-refreshing')).toHaveTextContent('false'))
     expect(sourceProbeRenders).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports a failed background refresh without tearing down the stale snapshot', async () => {
+    sourceMocks.tabs = [createTab('chat', '/app/chat')]
+    sourceMocks.activeTabId = 'chat'
+    sourceMocks.assistantSource = createAssistantSource(['topic-1'], { complete: true })
+
+    const { rerender } = render(createProviderTree())
+
+    await waitFor(() => expect(screen.getByTestId('topic-ids')).toHaveTextContent('topic-1'))
+    expect(screen.getByTestId('topics-refresh-error')).toHaveTextContent('false')
+
+    sourceMocks.assistantSource = createAssistantSource(['replacement-partial'], {
+      complete: false,
+      error: new Error('refresh failed')
+    })
+    rerender(createProviderTree())
+
+    // `error` stays clear so the list is not replaced by an error panel, but
+    // the failure has to reach consumers somehow — nothing retries on its own.
+    expect(screen.getByTestId('topic-ids')).toHaveTextContent('topic-1')
+    expect(screen.getByTestId('topics-error')).toHaveTextContent('false')
+    expect(screen.getByTestId('topics-refresh-error')).toHaveTextContent('true')
+  })
+
+  it('keeps the published pin state in step with the map togglePin acts on', async () => {
+    sourceMocks.tabs = [createTab('agent', '/app/agents')]
+    sourceMocks.activeTabId = 'agent'
+    sourceMocks.agentSource = createAgentSource(['session-1', 'session-2'], { complete: true })
+
+    const { rerender } = render(createProviderTree())
+
+    await waitFor(() => expect(screen.getByTestId('session-ids')).toHaveTextContent('session-1,session-2'))
+    expect(screen.getByTestId('session-pins')).toHaveTextContent('')
+
+    // The pin lands, then the session refresh fails and freezes the snapshot.
+    // `togglePin` reads the raw map, so a published snapshot pin state would
+    // make the row's button do the opposite of its label on the next click.
+    sourceMocks.agentSource = createAgentSource(['session-1', 'session-2'], {
+      complete: false,
+      error: new Error('refresh failed'),
+      pinnedIds: ['session-1']
+    })
+    rerender(createProviderTree())
+
+    expect(screen.getByTestId('session-ids')).toHaveTextContent('session-1,session-2')
+    expect(screen.getByTestId('sessions-refresh-error')).toHaveTextContent('true')
+    expect(screen.getByTestId('session-pins')).toHaveTextContent('session-1')
   })
 
   it('loads only the source owned by the active non-dormant, non-message-only route tab', () => {

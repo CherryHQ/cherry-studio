@@ -869,6 +869,7 @@
       "expired": "Hết hạn",
       "inputPreview": "Xem trước đầu vào công cụ",
       "pending": "Đang chờ phê duyệt",
+      "pendingBadge": "[to be translated]:Pending",
       "permissionExpired": "Yêu cầu quyền đã hết hạn. Đang chờ hướng dẫn mới...",
       "requiresElevatedPermissions": "Công cụ này yêu cầu quyền truy cập nâng cao.",
       "suggestion": {
@@ -2274,6 +2275,7 @@
     "provider": "Nhà cung cấp",
     "reasoning_content": "Reasoning profundo",
     "refresh": "Làm mới",
+    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
     "regenerate": "Tái tạo",
     "remove_image": "Xóa hình ảnh",
     "rename": "Đổi tên",
@@ -2588,7 +2590,8 @@
     "edit": "Chỉnh sửa",
     "empty": {
       "no_match_description": "Không có tệp nào khớp với bộ lọc hiện tại",
-      "no_match_title": "Không tìm thấy tệp phù hợp"
+      "no_match_title": "Không tìm thấy tệp phù hợp",
+      "title": "[to be translated]:No files yet"
     },
     "empty_trash": "Xóa thùng rác",
     "error": {
@@ -2986,7 +2989,6 @@
     "embedding_model": "Mô hình Nhúng",
     "embedding_model_required": "Mô hình nhúng cơ sở tri thức là bắt buộc",
     "empty": "Không có cơ sở kiến thức",
-    "empty_action": "Tạo Cơ sở Kiến thức",
     "empty_description": "Bạn chưa có cơ sở kiến thức nào. Hãy tạo một cơ sở kiến thức để bắt đầu tổ chức và tìm kiếm tài liệu của bạn.",
     "error": {
       "directory_not_migrated": "Di chuyển thư mục không thành công. Vui lòng xóa và tải lên lại.",

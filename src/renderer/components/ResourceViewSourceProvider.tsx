@@ -17,6 +17,8 @@ import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 
+const EMPTY_PIN_IDS = new Map<string, string>()
+
 type AssistantTopicsSnapshot = Pick<ReturnType<typeof useRawAssistantTopicsSource>, 'pages' | 'topics'>
 type AgentSessionsSnapshot = Pick<ReturnType<typeof useRawAgentSessionsSource>, 'pinIdBySessionId' | 'sessions'>
 
@@ -74,13 +76,16 @@ function useCommittedAssistantTopicsSource(enabled: boolean): AssistantTopicsSou
       isLoadingAll: isColdLoading && rawSource.isLoadingAll,
       isFullyLoaded: snapshot !== null,
       isRefreshing: isBackgroundRefreshing,
-      error: snapshot ? undefined : rawSource.error
+      error: snapshot ? undefined : rawSource.error,
+      refreshError: snapshot ? rawSource.error : undefined,
+      refetch: rawSource.refetch
     }),
     [
       isBackgroundRefreshing,
       isColdLoading,
       rawSource.error,
       rawSource.isLoadingAll,
+      rawSource.refetch,
       rawSource.topics,
       enabled,
       snapshot
@@ -129,9 +134,14 @@ function useCommittedAgentSessionsSource(enabled: boolean): AgentSessionsSource 
   return useMemo(
     () => ({
       sessions: snapshot?.sessions ?? (enabled ? rawSource.sessions : []),
-      pinIdBySessionId: snapshot?.pinIdBySessionId ?? (enabled ? rawSource.pinIdBySessionId : new Map()),
+      // `togglePin` decides pin vs unpin from the raw map, so the rendered pin
+      // state has to come from that same map. A snapshot frozen by a failed
+      // refresh would otherwise make the button do the opposite of its label.
+      // `/pins` is a plain cached key, so reading it directly costs no flicker.
+      pinIdBySessionId: enabled ? rawSource.pinIdBySessionId : (snapshot?.pinIdBySessionId ?? EMPTY_PIN_IDS),
       hasMore: snapshot || !enabled ? false : rawSource.hasMore,
       error: snapshot ? undefined : rawSource.error,
+      refreshError: snapshot ? rawSource.error : undefined,
       isLoading: isColdLoading && rawSource.isLoading,
       isLoadingMore: snapshot || !enabled ? false : rawSource.isLoadingMore,
       isValidating: isBackgroundRefreshing || (isColdLoading && rawSource.isValidating),
