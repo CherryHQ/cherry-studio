@@ -111,6 +111,20 @@ function InspectableMetricBar({
   )
 }
 
+/**
+ * Below this floor a real cost would render as an exact zero, which is
+ * indistinguishable from an unpriced request — show it as a "less than" instead.
+ */
+const COST_DISPLAY_FLOOR = 0.0001
+
+function formatCost(cost: number, currencyFormatter: Intl.NumberFormat): string {
+  if (cost > 0 && cost < COST_DISPLAY_FLOOR) {
+    return `<${currencyFormatter.format(COST_DISPLAY_FLOOR)}`
+  }
+
+  return currencyFormatter.format(cost)
+}
+
 function formatDuration(durationMs: number, numberFormatter: Intl.NumberFormat): string {
   if (durationMs < 1000) {
     return `${numberFormatter.format(Math.round(durationMs))}ms`
@@ -138,7 +152,17 @@ const MessageTokenDetailsCard = ({
   const model = getMessageListItemModel(message)
   const providerName = useProviderDisplayName(model?.provider)
   const locale = i18n.resolvedLanguage
+  const costCurrency = stats?.costCurrency
   const numberFormatter = useMemo(() => new Intl.NumberFormat(locale), [locale])
+  // Cost is always persisted together with its currency, so an absent currency
+  // means an absent cost — never fall back to USD and mislabel a CNY figure.
+  const currencyFormatter = useMemo(
+    () =>
+      costCurrency
+        ? new Intl.NumberFormat(locale, { style: 'currency', currency: costCurrency, maximumFractionDigits: 4 })
+        : undefined,
+    [locale, costCurrency]
+  )
   const percentageFormatter = useMemo(
     () => new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 1 }),
     [locale]
@@ -208,6 +232,13 @@ const MessageTokenDetailsCard = ({
     t('chat.message.token_details.tokens', { value: numberFormatter.format(value) })
   const formatPercent = (value: number) => percentageFormatter.format(value)
   const formatMilliseconds = (value: number) => formatDuration(value, decimalFormatter)
+  const costLabel = currencyFormatter && stats.cost != null ? formatCost(stats.cost, currencyFormatter) : undefined
+  const costSourceLabel =
+    stats.costSource === 'provider'
+      ? t('chat.message.token_details.cost_billed')
+      : stats.costSource === 'computed'
+        ? t('chat.message.token_details.cost_estimated')
+        : undefined
 
   return (
     <div className="text-popover-foreground">
@@ -240,6 +271,20 @@ const MessageTokenDetailsCard = ({
       </header>
 
       <div className="space-y-2 border-border-muted border-t p-3">
+        {costLabel ? (
+          <div
+            data-testid="message-cost"
+            className="flex h-5 min-w-0 items-center justify-between gap-3 text-xs leading-5">
+            <span className="truncate text-foreground-secondary">{t('chat.message.token_details.cost')}</span>
+            <span className="flex shrink-0 items-baseline gap-1.5">
+              {costSourceLabel ? (
+                <span className="text-[11px] text-foreground-muted leading-4">{costSourceLabel}</span>
+              ) : null}
+              <span className="text-foreground tabular-nums">{costLabel}</span>
+            </span>
+          </div>
+        ) : null}
+
         <InspectableMetricBar
           id="token-usage"
           title={t('chat.message.token_details.usage')}

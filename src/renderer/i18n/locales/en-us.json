@@ -1654,6 +1654,9 @@
       "token_details": {
         "cache_read": "Cache read",
         "cache_write": "Cache write",
+        "cost": "Cost",
+        "cost_billed": "Billed by provider",
+        "cost_estimated": "Estimated",
         "input": "Input",
         "input_breakdown": "Input breakdown",
         "output": "Output",
