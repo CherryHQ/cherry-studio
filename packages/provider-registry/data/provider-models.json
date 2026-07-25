@@ -6678,7 +6678,7 @@
       "capabilities": {
         "add": ["web-search"]
       },
-      "endpointTypes": ["openai-responses"],
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-6-flash",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -6913,7 +6913,7 @@
       "capabilities": {
         "add": ["web-search"]
       },
-      "endpointTypes": ["openai-responses"],
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-6-plus",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -7031,7 +7031,7 @@
       "capabilities": {
         "add": ["web-search"]
       },
-      "endpointTypes": ["openai-responses"],
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-7-max",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -7268,7 +7268,7 @@
       "capabilities": {
         "add": ["web-search"]
       },
-      "endpointTypes": ["openai-responses"],
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-8-max-preview",
       "name": "Qwen3.8 Max Preview",
       "providerId": "dashscope",
@@ -29675,6 +29675,10 @@
           "edit": {
             "maxInputImages": 1,
             "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "auto"],
+                "type": "enum"
+              },
               "numImages": {
                 "max": 6,
                 "min": 1,
@@ -29685,6 +29689,10 @@
           },
           "generate": {
             "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "auto"],
+                "type": "enum"
+              },
               "numImages": {
                 "max": 6,
                 "min": 1,
@@ -29711,6 +29719,10 @@
           "edit": {
             "maxInputImages": 1,
             "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "auto"],
+                "type": "enum"
+              },
               "numImages": {
                 "max": 6,
                 "min": 1,
@@ -29721,6 +29733,10 @@
           },
           "generate": {
             "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "auto"],
+                "type": "enum"
+              },
               "numImages": {
                 "max": 6,
                 "min": 1,
@@ -29747,6 +29763,10 @@
           "edit": {
             "maxInputImages": 1,
             "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "auto"],
+                "type": "enum"
+              },
               "numImages": {
                 "max": 6,
                 "min": 1,
@@ -29757,6 +29777,10 @@
           },
           "generate": {
             "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "auto"],
+                "type": "enum"
+              },
               "numImages": {
                 "max": 6,
                 "min": 1,
@@ -29783,6 +29807,10 @@
           "edit": {
             "maxInputImages": 1,
             "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "auto"],
+                "type": "enum"
+              },
               "numImages": {
                 "max": 6,
                 "min": 1,
@@ -29793,6 +29821,10 @@
           },
           "generate": {
             "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "auto"],
+                "type": "enum"
+              },
               "numImages": {
                 "max": 6,
                 "min": 1,
@@ -29819,6 +29851,10 @@
           "edit": {
             "maxInputImages": 1,
             "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "auto"],
+                "type": "enum"
+              },
               "numImages": {
                 "max": 6,
                 "min": 1,
@@ -29829,6 +29865,10 @@
           },
           "generate": {
             "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "auto"],
+                "type": "enum"
+              },
               "numImages": {
                 "max": 6,
                 "min": 1,
@@ -29855,6 +29895,10 @@
           "edit": {
             "maxInputImages": 1,
             "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "auto"],
+                "type": "enum"
+              },
               "numImages": {
                 "max": 6,
                 "min": 1,
@@ -29865,6 +29909,10 @@
           },
           "generate": {
             "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "auto"],
+                "type": "enum"
+              },
               "numImages": {
                 "max": 6,
                 "min": 1,
@@ -29891,6 +29939,10 @@
           "edit": {
             "maxInputImages": 1,
             "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "auto"],
+                "type": "enum"
+              },
               "numImages": {
                 "max": 6,
                 "min": 1,
@@ -29901,6 +29953,10 @@
           },
           "generate": {
             "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "auto"],
+                "type": "enum"
+              },
               "numImages": {
                 "max": 6,
                 "min": 1,
@@ -29927,6 +29983,10 @@
           "edit": {
             "maxInputImages": 1,
             "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "auto"],
+                "type": "enum"
+              },
               "numImages": {
                 "max": 6,
                 "min": 1,
@@ -29937,6 +29997,10 @@
           },
           "generate": {
             "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "auto"],
+                "type": "enum"
+              },
               "numImages": {
                 "max": 6,
                 "min": 1,
@@ -29963,6 +30027,10 @@
           "edit": {
             "maxInputImages": 1,
             "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "auto"],
+                "type": "enum"
+              },
               "numImages": {
                 "max": 6,
                 "min": 1,
@@ -29973,6 +30041,10 @@
           },
           "generate": {
             "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "auto"],
+                "type": "enum"
+              },
               "numImages": {
                 "max": 6,
                 "min": 1,
@@ -29999,6 +30071,10 @@
           "edit": {
             "maxInputImages": 1,
             "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "auto"],
+                "type": "enum"
+              },
               "numImages": {
                 "max": 6,
                 "min": 1,
@@ -30009,6 +30085,10 @@
           },
           "generate": {
             "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "auto"],
+                "type": "enum"
+              },
               "numImages": {
                 "max": 6,
                 "min": 1,
@@ -30035,6 +30115,10 @@
           "edit": {
             "maxInputImages": 1,
             "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "auto"],
+                "type": "enum"
+              },
               "numImages": {
                 "max": 6,
                 "min": 1,
@@ -30045,6 +30129,10 @@
           },
           "generate": {
             "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "16:9", "9:16", "auto"],
+                "type": "enum"
+              },
               "numImages": {
                 "max": 6,
                 "min": 1,
@@ -30197,6 +30285,10 @@
           "edit": {
             "maxInputImages": 4,
             "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "3:2", "2:3", "16:9", "9:16", "21:9", "auto"],
+                "type": "enum"
+              },
               "background": {
                 "options": ["auto", "opaque"],
                 "type": "enum"
@@ -30219,6 +30311,10 @@
           },
           "generate": {
             "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "3:2", "2:3", "16:9", "9:16", "21:9", "auto"],
+                "type": "enum"
+              },
               "background": {
                 "options": ["auto", "opaque"],
                 "type": "enum"
@@ -30257,6 +30353,10 @@
           "edit": {
             "maxInputImages": 10,
             "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "3:2", "2:3", "16:9", "9:16", "21:9", "auto"],
+                "type": "enum"
+              },
               "background": {
                 "options": ["auto", "transparent", "opaque"],
                 "type": "enum"
@@ -30279,6 +30379,10 @@
           },
           "generate": {
             "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "3:2", "2:3", "16:9", "9:16", "21:9", "auto"],
+                "type": "enum"
+              },
               "background": {
                 "options": ["auto", "transparent", "opaque"],
                 "type": "enum"
@@ -30317,6 +30421,10 @@
           "edit": {
             "maxInputImages": 4,
             "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "3:2", "2:3", "16:9", "9:16", "21:9", "auto"],
+                "type": "enum"
+              },
               "numImages": {
                 "max": 1,
                 "min": 1,
@@ -30331,6 +30439,10 @@
           },
           "generate": {
             "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "3:2", "2:3", "16:9", "9:16", "21:9", "auto"],
+                "type": "enum"
+              },
               "numImages": {
                 "max": 1,
                 "min": 1,
@@ -30361,6 +30473,10 @@
           "edit": {
             "maxInputImages": 10,
             "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "3:2", "2:3", "16:9", "9:16", "21:9", "auto"],
+                "type": "enum"
+              },
               "numImages": {
                 "max": 1,
                 "min": 1,
@@ -30375,6 +30491,10 @@
           },
           "generate": {
             "supports": {
+              "aspectRatio": {
+                "options": ["1:1", "4:3", "3:4", "3:2", "2:3", "16:9", "9:16", "21:9", "auto"],
+                "type": "enum"
+              },
               "numImages": {
                 "max": 1,
                 "min": 1,
@@ -36377,5 +36497,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "815226d1509f9487"
+  "version": "c6c8debf5ac7df8f"
 }
