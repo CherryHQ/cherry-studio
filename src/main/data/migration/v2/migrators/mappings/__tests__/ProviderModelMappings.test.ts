@@ -1,7 +1,7 @@
 import { ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
 import { describe, expect, it } from 'vitest'
 
-import { transformProvider } from '../ProviderModelMappings'
+import { transformModel, transformProvider } from '../ProviderModelMappings'
 
 describe('ProviderModelMappings', () => {
   describe('transformProvider', () => {
@@ -383,6 +383,52 @@ describe('ProviderModelMappings', () => {
       expect(result.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]).toMatchObject({
         baseUrl: 'https://api.openai.com/v1',
         adapterFamily: 'openai-compatible'
+      })
+    })
+  })
+
+  describe('transformModel pricing', () => {
+    it('maps the legacy CNY symbol to the CNY currency code', () => {
+      const result = transformModel(
+        {
+          id: 'glm-4',
+          name: 'GLM-4',
+          pricing: { input_per_million_tokens: 8, output_per_million_tokens: 16, currencySymbol: '¥' }
+        } as never,
+        'zhipu'
+      )
+
+      expect(result.pricing).toEqual({
+        input: { perMillionTokens: 8, currency: 'CNY' },
+        output: { perMillionTokens: 16, currency: 'CNY' }
+      })
+    })
+
+    it('maps the legacy USD symbol and an absent symbol to the USD currency code', () => {
+      const withSymbol = transformModel(
+        {
+          id: 'gpt-4o',
+          name: 'GPT-4o',
+          pricing: { input_per_million_tokens: 3, output_per_million_tokens: 15, currencySymbol: '$' }
+        } as never,
+        'openai'
+      )
+      const withoutSymbol = transformModel(
+        {
+          id: 'gpt-4o-mini',
+          name: 'GPT-4o mini',
+          pricing: { input_per_million_tokens: 0.15, output_per_million_tokens: 0.6 }
+        } as never,
+        'openai'
+      )
+
+      expect(withSymbol.pricing).toEqual({
+        input: { perMillionTokens: 3, currency: 'USD' },
+        output: { perMillionTokens: 15, currency: 'USD' }
+      })
+      expect(withoutSymbol.pricing).toEqual({
+        input: { perMillionTokens: 0.15, currency: 'USD' },
+        output: { perMillionTokens: 0.6, currency: 'USD' }
       })
     })
   })

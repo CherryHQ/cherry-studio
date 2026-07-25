@@ -3,6 +3,8 @@
  */
 
 import {
+  CURRENCY,
+  type Currency,
   ENDPOINT_TYPE,
   endpointImpliedCapability,
   type EndpointType,
@@ -530,13 +532,23 @@ function mapEndpointTypes(
   return mapped.length > 0 ? Array.from(new Set(mapped)) : null
 }
 
+/**
+ * v1 stored the pricing currency as a display symbol (`$ ¥ € £`); v2 stores an ISO code.
+ * `CURRENCY` only models USD and CNY, so `€`/`£` are unmappable and fall back to USD
+ * alongside `$` and an absent symbol.
+ */
+function mapPricingCurrency(currencySymbol?: string): Currency {
+  return currencySymbol?.trim() === '¥' ? CURRENCY.CNY : CURRENCY.USD
+}
+
 function mapPricing(pricing?: LegacyModel['pricing']): RuntimeModelPricing | null {
   if (!pricing) {
     return null
   }
 
+  const currency = mapPricingCurrency(pricing.currencySymbol)
   return {
-    input: { perMillionTokens: pricing.input_per_million_tokens },
-    output: { perMillionTokens: pricing.output_per_million_tokens }
+    input: { perMillionTokens: pricing.input_per_million_tokens, currency },
+    output: { perMillionTokens: pricing.output_per_million_tokens, currency }
   }
 }
