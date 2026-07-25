@@ -1,4 +1,6 @@
+import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelTaskTable } from '@data/db/schemas/agentChannel'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { jobScheduleTable } from '@data/db/schemas/job'
@@ -6,8 +8,15 @@ import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
-import type { MessageData, MessageRole, MessageStats, MessageStatus, ModelSnapshot } from '@shared/data/types/message'
-import { sql } from 'drizzle-orm'
+import type {
+  MessageData,
+  MessageRole,
+  MessageSnapshot,
+  MessageStats,
+  MessageStatus,
+  ModelSnapshot
+} from '@shared/data/types/message'
+import { eq, sql } from 'drizzle-orm'
 import path from 'path'
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 import * as z from 'zod'
@@ -888,6 +897,36 @@ async function normalizeLegacySessionMessage(
   }
 }
 
+/** The producing author of a session message — the owning agent, model excluded. */
+type SessionAuthor = Omit<MessageSnapshot, 'model'>
+
+/**
+ * Author identity per migrated session, so each imported message can freeze the same
+ * {@link MessageSnapshot} the runtime writer persists (author with the model nested).
+ * Sessions whose agent is missing get no author, hence no snapshot.
+ */
+async function readSessionAuthors(db: DbType): Promise<Map<string, SessionAuthor>> {
+  const rows = await db
+    .select({
+      sessionId: agentSessionTable.id,
+      agentId: agentTable.id,
+      name: agentTable.name,
+      configuration: agentTable.configuration
+    })
+    .from(agentSessionTable)
+    .innerJoin(agentTable, eq(agentSessionTable.agentId, agentTable.id))
+
+  return new Map(
+    rows.map((row): [string, SessionAuthor] => {
+      const avatar = row.configuration?.avatar
+      return [
+        row.sessionId,
+        { id: row.agentId, name: row.name, emoji: typeof avatar === 'string' && avatar ? avatar : undefined }
+      ]
+    })
+  )
+}
+
 function resolveUserModelId(db: DbType, cache: Map<string, string | null>, rawModelId: string | null): string | null {
   if (!rawModelId) return null
   if (cache.has(rawModelId)) return cache.get(rawModelId) ?? null
@@ -932,6 +971,7 @@ export async function importLegacySessionMessages(
     )
   )
   const modelCache = new Map<string, string | null>()
+  const sessionAuthors = await readSessionAuthors(db)
   let imported = 0
 
   for (const row of rows) {
@@ -958,6 +998,11 @@ export async function importLegacySessionMessages(
     const now = Date.now()
     const createdAt = legacyTimestampToMs(row.createdAt, now)
     const updatedAt = row.updatedAt == null ? createdAt : legacyTimestampToMs(row.updatedAt, createdAt)
+    // Author snapshot (model nested) for historical display, mirroring the chat path.
+    // The author owns the model it ran — no model, no snapshot.
+    const author = sessionAuthors.get(row.sessionId)
+    const messageSnapshot =
+      author && normalized.modelSnapshot ? { ...author, model: normalized.modelSnapshot } : undefined
     await db.insert(agentSessionMessageTable).values({
       id: uuidv7(),
       sessionId: row.sessionId,
@@ -965,6 +1010,7 @@ export async function importLegacySessionMessages(
       data: normalized.data,
       status: normalized.status,
       modelId: resolveUserModelId(db, modelCache, normalized.modelId),
+      messageSnapshot,
       stats: normalized.stats ?? undefined,
       runtimeResumeToken: row.agentSessionId,
       createdAt,
