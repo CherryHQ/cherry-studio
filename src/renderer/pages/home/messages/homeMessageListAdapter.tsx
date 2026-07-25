@@ -620,6 +620,11 @@ export function useHomeMessageListProviderValue({
     [requireChatWrite]
   )
 
+  const getMessageDeleteAvailability = useCallback<NonNullable<MessageListActions['getMessageDeleteAvailability']>>(
+    (messageId) => requireChatWrite('getMessageDeleteAvailability').getMessageDeleteAvailability(messageId),
+    [requireChatWrite]
+  )
+
   const startMessageBranch = useCallback<NonNullable<MessageListActions['startMessageBranch']>>(
     (messageId) => {
       if (onStartBranchDraft) {
@@ -802,6 +807,7 @@ export function useHomeMessageListProviderValue({
       updateRenderConfig,
       editMessage,
       startEditing,
+      getMessageDeleteAvailability,
       deleteMessage,
       startMessageBranch,
       setActiveBranch,
@@ -819,6 +825,7 @@ export function useHomeMessageListProviderValue({
       bindMessageGroupRuntime,
       bindMessageRuntime,
       bindRuntime,
+      getMessageDeleteAvailability,
       deleteMessage,
       deleteMessageGroup,
       deleteMessageGroupWithConfirm,
