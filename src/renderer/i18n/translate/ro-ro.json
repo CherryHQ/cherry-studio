@@ -3904,18 +3904,6 @@
     "regenerate": {
       "confirm": "Regenerarea va înlocui mesajul curent"
     },
-    "reset": {
-      "confirm": {
-        "content": "Ești sigur că vrei să ștergi toate datele?"
-      },
-      "double": {
-        "confirm": {
-          "content": "Toate datele vor fi pierdute, vrei să continui?",
-          "title": "DATE PIERDUTE !!!"
-        }
-      },
-      "success": "Retelearea datelor a reușit"
-    },
     "restore": {
       "failed": "Restaurare eșuată",
       "success": "Restaurat cu succes"
@@ -5760,6 +5748,13 @@
       "data": {
         "title": "Director de date"
       },
+      "data_reset": {
+        "button": "Resetează",
+        "confirm_content": "Ești sigur că vrei să ștergi toate datele?",
+        "confirm_title": "Avertisment",
+        "error": "Pornirea resetării datelor a eșuat",
+        "title": "Resetare date"
+      },
       "divider": {
         "basic": "Setări date de bază",
         "cloud_storage": "Setări backup în cloud",
@@ -6492,10 +6487,6 @@
       "emoji_picker": "Selector emoji",
       "image_upload": "Încărcare imagine",
       "label": "Setări generale",
-      "reset": {
-        "button": "Resetează",
-        "title": "Resetare date"
-      },
       "restore": {
         "button": "Restaurează"
       },

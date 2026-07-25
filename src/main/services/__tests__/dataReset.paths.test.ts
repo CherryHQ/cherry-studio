@@ -62,7 +62,6 @@ describe('dataReset ↔ pathRegistry conformance', () => {
 
   it('USER_DATA_WIPE names the registry-owned userData user state', () => {
     expect(USER_DATA_WIPE).toContain(firstSegment(registry['app.userdata.data'], userData))
-    expect(USER_DATA_WIPE).toContain(path.basename(registry['feature.version_log.file']))
     expect(USER_DATA_WIPE).toContain(path.basename(registry['feature.backup.restore.file']))
     expect(USER_DATA_WIPE).toContain(path.basename(registry['feature.backup.restore.staging']))
     expect(USER_DATA_WIPE).toContain(firstSegment(registry['feature.agents.claude.root'], userData))

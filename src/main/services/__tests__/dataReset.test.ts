@@ -74,7 +74,7 @@ let fsCtl: FsControl
 
 /** A realistic userData listing: wiped ∪ kept ∪ unknown-provenance debris. */
 const DEFAULT_LISTING = [
-  // wiped — Cherry user state
+  // Cherry user state (version.log is retained)
   'cherrystudio.sqlite',
   'cherrystudio.sqlite-wal',
   'cherrystudio.sqlite-shm',
@@ -121,7 +121,6 @@ const EXPECTED_WIPED = [
   'IndexedDB.restore',
   'Local Storage.restore',
   'cache.json',
-  'version.log',
   'restore-journal.json',
   '.claude',
   '.copilot_token',
@@ -136,6 +135,7 @@ const EXPECTED_WIPED = [
 const EXPECTED_KEPT = [
   'logs',
   'Crashpad',
+  'version.log',
   'Runtime',
   'Toolchain',
   'tesseract',

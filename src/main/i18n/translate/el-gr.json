@@ -57,10 +57,10 @@
   "dialog": {
     "all_files": "Όλα τα Αρχεία",
     "data_reset": {
-      "cancel": "[to be translated]:Cancel",
-      "confirm": "[to be translated]:Erase Everything",
-      "message": "[to be translated]:All data will be lost, do you want to continue?",
-      "title": "[to be translated]:DATA LOST !!!"
+      "cancel": "Άκυρο",
+      "confirm": "Διαγραφή όλων των δεδομένων",
+      "message": "Όλα τα δεδομένα σας θα χαθούν, εάν δεν έχετε κάνει αντιγραφή, δεν θα μπορείτε να ανακτήσετε τα δεδομένα, είστε σίγουροι ότι θέλετε να συνεχίσετε;",
+      "title": "Η απώλεια δεδομένων!!!"
     },
     "html_files": "Αρχεία HTML",
     "open_file": "Άνοιγμα Αρχείου",

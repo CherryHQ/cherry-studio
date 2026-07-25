@@ -3904,18 +3904,6 @@
     "regenerate": {
       "confirm": "La régénération va remplacer le message actuel"
     },
-    "reset": {
-      "confirm": {
-        "content": "Êtes-vous sûr de vouloir réinitialiser toutes les données?"
-      },
-      "double": {
-        "confirm": {
-          "content": "Toutes vos données seront perdues, si aucune sauvegarde n'a été effectuée, elles ne pourront pas être récupérées. Êtes-vous sûr de vouloir continuer?",
-          "title": "Perte de données!!!"
-        }
-      },
-      "success": "Réinitialisation des données réussie"
-    },
     "restore": {
       "failed": "La restauration a échoué",
       "success": "La restauration a réussi"
@@ -5760,6 +5748,13 @@
       "data": {
         "title": "Répertoire des données"
       },
+      "data_reset": {
+        "button": "Réinitialiser",
+        "confirm_content": "Êtes-vous sûr de vouloir réinitialiser toutes les données ?",
+        "confirm_title": "Avertissement",
+        "error": "Impossible de démarrer la réinitialisation des données",
+        "title": "Réinitialiser les données"
+      },
       "divider": {
         "basic": "Paramètres de base",
         "cloud_storage": "Paramètres de sauvegarde cloud",
@@ -6492,10 +6487,6 @@
       "emoji_picker": "Sélectionneur d'émoticônes",
       "image_upload": "Téléchargement d'images",
       "label": "Paramètres généraux",
-      "reset": {
-        "button": "Réinitialiser",
-        "title": "Réinitialiser les données"
-      },
       "restore": {
         "button": "Restaurer"
       },

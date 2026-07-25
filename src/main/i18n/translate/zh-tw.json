@@ -57,10 +57,10 @@
   "dialog": {
     "all_files": "所有檔案",
     "data_reset": {
-      "cancel": "[to be translated]:Cancel",
-      "confirm": "[to be translated]:Erase Everything",
-      "message": "[to be translated]:All data will be lost, do you want to continue?",
-      "title": "[to be translated]:DATA LOST !!!"
+      "cancel": "取消",
+      "confirm": "清除所有資料",
+      "message": "所有資料將會被清除，您確定要繼續嗎？",
+      "title": "資料將會遺失！！！"
     },
     "html_files": "HTML 檔案",
     "open_file": "開啟檔案",

@@ -3904,18 +3904,6 @@
     "regenerate": {
       "confirm": "再生成すると現在のメッセージが置き換えられます"
     },
-    "reset": {
-      "confirm": {
-        "content": "すべてのデータをリセットしてもよろしいですか？"
-      },
-      "double": {
-        "confirm": {
-          "content": "すべてのデータが失われます。続行しますか？",
-          "title": "データが失われます！！！"
-        }
-      },
-      "success": "データリセット成功"
-    },
     "restore": {
       "failed": "復元に失敗しました",
       "success": "復元に成功しました"
@@ -5760,6 +5748,13 @@
       "data": {
         "title": "データディレクトリ"
       },
+      "data_reset": {
+        "button": "リセット",
+        "confirm_content": "すべてのデータをリセットしてもよろしいですか？",
+        "confirm_title": "警告",
+        "error": "データのリセットを開始できませんでした",
+        "title": "データをリセット"
+      },
       "divider": {
         "basic": "基本データ設定",
         "cloud_storage": "クラウドバックアップ設定",
@@ -6492,10 +6487,6 @@
       "emoji_picker": "絵文字ピッカー",
       "image_upload": "画像アップロード",
       "label": "一般設定",
-      "reset": {
-        "button": "リセット",
-        "title": "データをリセット"
-      },
       "restore": {
         "button": "復元"
       },

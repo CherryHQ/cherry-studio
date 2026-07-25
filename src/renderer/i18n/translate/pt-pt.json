@@ -3904,18 +3904,6 @@
     "regenerate": {
       "confirm": "A regeneração substituirá a mensagem atual"
     },
-    "reset": {
-      "confirm": {
-        "content": "Tem certeza de que deseja resetar todos os dados?"
-      },
-      "double": {
-        "confirm": {
-          "content": "Todos os seus dados serão perdidos, se não houver backup, eles não poderão ser recuperados, tem certeza de que deseja continuar?",
-          "title": "Perda de dados!!!"
-        }
-      },
-      "success": "Redefinição de dados bem-sucedida"
-    },
     "restore": {
       "failed": "Restauração falhou",
       "success": "Restauração bem-sucedida"
@@ -5760,6 +5748,13 @@
       "data": {
         "title": "Diretório de dados"
       },
+      "data_reset": {
+        "button": "Redefinir",
+        "confirm_content": "Tem certeza de que deseja redefinir todos os dados?",
+        "confirm_title": "Aviso",
+        "error": "Falha ao iniciar a redefinição dos dados",
+        "title": "Redefinir dados"
+      },
       "divider": {
         "basic": "Configurações Básicas",
         "cloud_storage": "Configurações de Armazenamento em Nuvem",
@@ -6492,10 +6487,6 @@
       "emoji_picker": "Seletor de emojis",
       "image_upload": "Carregar imagem",
       "label": "Configurações gerais",
-      "reset": {
-        "button": "Redefinir",
-        "title": "Redefinir dados"
-      },
       "restore": {
         "button": "Restaurar"
       },

@@ -74,15 +74,11 @@ const MAX_WIPE_ATTEMPTS = 2
  *   (inert since its startup consumer was removed; historical installs
  *   may still carry them, holding full copies of user data).
  * - `cache.json` — main-process persist cache.
- * - `version.log` — LIVE v2 state (VersionService writes it every boot), and
- *   the first criterion of MigrationPaths.hasV1Data(): leaving it behind
- *   after the sqlite wipe would make the next boot re-detect "v1 data" and
- *   run a spurious migration even with zero v1 residue.
  * - `restore-journal.json` / `restore-staging` — backup-restore gate state.
  * - `.claude` — agents' Claude Code config (credentials/sessions).
  * - `.copilot_token` — legacy Copilot credential at the userData root.
  *
- * v1 residue (feeds hasV1Data — see version.log above):
+ * v1 residue:
  * - `config.json` — v1 electron-store.
  * - `window-state.json` — v1 electron-window-state.
  *
@@ -102,7 +98,6 @@ export const USER_DATA_WIPE = [
   'IndexedDB.restore',
   'Local Storage.restore',
   'cache.json',
-  'version.log',
   'restore-journal.json',
   'restore-staging',
   '.claude',
@@ -130,6 +125,7 @@ export const USER_DATA_WIPE = [
  * paths test) rather than consulted at runtime — a whitelist wipe keeps
  * everything it does not name:
  * - `logs`, `Crashpad` — process-held diagnostics, not user data.
+ * - `version.log` — version history used for migration and diagnostics.
  * - `Runtime`, `Toolchain`, `tesseract` — re-downloadable machine artifacts
  *   (model weights, onnxruntime, OCR traineddata); they survive a reset the
  *   way an OS survives a phone reset (#17131, #16838).
@@ -143,7 +139,7 @@ export const USER_DATA_WIPE = [
  *   if the process dies mid-write (the failure path unlinks it otherwise);
  *   inert, never read back.
  */
-export const USER_DATA_KEPT = ['logs', 'Crashpad', 'Runtime', 'Toolchain', 'tesseract']
+export const USER_DATA_KEPT = ['logs', 'Crashpad', 'version.log', 'Runtime', 'Toolchain', 'tesseract']
 
 /**
  * On Windows, Node retries EBUSY/EPERM/ENOTEMPTY deletions when maxRetries is

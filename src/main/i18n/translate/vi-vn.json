@@ -57,10 +57,10 @@
   "dialog": {
     "all_files": "Tất cả các tệp",
     "data_reset": {
-      "cancel": "[to be translated]:Cancel",
-      "confirm": "[to be translated]:Erase Everything",
-      "message": "[to be translated]:All data will be lost, do you want to continue?",
-      "title": "[to be translated]:DATA LOST !!!"
+      "cancel": "Hủy",
+      "confirm": "Xóa toàn bộ dữ liệu",
+      "message": "Tất cả dữ liệu sẽ bị mất, bạn có muốn tiếp tục không?",
+      "title": "DỮ LIỆU BỊ MẤT !!!"
     },
     "html_files": "Tập tin HTML",
     "open_file": "Mở Tệp",
