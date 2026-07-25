@@ -72,6 +72,7 @@ export const DB_TABLES = [
   'agent_channel',
   'agent_channel_task',
   'agent_global_skill',
+  'agent_knowledge_base',
   'agent_mcp_server',
   'agent_session',
   'agent_session_message',
@@ -158,6 +159,12 @@ export const DB_COLUMNS_BY_TABLE = {
     { name: 'tags', dbName: 'tags', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'contentHash', dbName: 'contentHash', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'isEnabled', dbName: 'isEnabled', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
+    { name: 'createdAt', dbName: 'createdAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
+    { name: 'updatedAt', dbName: 'updatedAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' }
+  ],
+  agent_knowledge_base: [
+    { name: 'agentId', dbName: 'agentId', isPrimaryKey: true, isNullable: false, sqlType: 'text' },
+    { name: 'knowledgeBaseId', dbName: 'knowledgeBaseId', isPrimaryKey: true, isNullable: false, sqlType: 'text' },
     { name: 'createdAt', dbName: 'createdAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
     { name: 'updatedAt', dbName: 'updatedAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' }
   ],
@@ -613,6 +620,12 @@ export const DB_PRIMARY_KEYS = {
     ambiguous: false
   },
   agent_global_skill: { table: 'agent_global_skill', columns: ['id'], kind: 'uuid-v4', ambiguous: false },
+  agent_knowledge_base: {
+    table: 'agent_knowledge_base',
+    columns: ['agentId', 'knowledgeBaseId'],
+    kind: 'composite',
+    ambiguous: false
+  },
   agent_mcp_server: {
     table: 'agent_mcp_server',
     columns: ['agentId', 'mcpServerId'],
@@ -688,6 +701,10 @@ export const DB_FOREIGN_KEYS = {
     { columns: ['taskId'], targetTable: 'job_schedule', targetColumns: ['id'], onDelete: 'cascade' }
   ],
   agent_global_skill: [],
+  agent_knowledge_base: [
+    { columns: ['agentId'], targetTable: 'agent', targetColumns: ['id'], onDelete: 'cascade' },
+    { columns: ['knowledgeBaseId'], targetTable: 'knowledge_base', targetColumns: ['id'], onDelete: 'cascade' }
+  ],
   agent_mcp_server: [
     { columns: ['agentId'], targetTable: 'agent', targetColumns: ['id'], onDelete: 'cascade' },
     { columns: ['mcpServerId'], targetTable: 'mcp_server', targetColumns: ['id'], onDelete: 'cascade' }
@@ -806,6 +823,7 @@ export const DB_UNIQUE_KEYS = {
   agent_channel: [],
   agent_channel_task: [],
   agent_global_skill: [{ columns: ['folderName'] }],
+  agent_knowledge_base: [],
   agent_mcp_server: [],
   agent_session: [],
   agent_session_message: [{ columns: ['ftsRowid'] }],
@@ -852,6 +870,7 @@ export const DB_JSON_COLUMNS = {
   agent_channel: ['workspace', 'config', 'activeChatIds'],
   agent_channel_task: [],
   agent_global_skill: ['tags'],
+  agent_knowledge_base: [],
   agent_mcp_server: [],
   agent_session: [],
   agent_session_message: ['data', 'messageSnapshot', 'stats'],
@@ -907,5 +926,5 @@ export const DB_FTS_VIRTUAL_TABLES = {
 
 // 5. Generation metadata for diagnostics. Excluded from byte-for-byte CHECK.
 export const BACKUP_REFS_META = {
-  generatedAt: '2026-07-21T19:33:53.452Z'
+  generatedAt: '2026-07-25T15:40:44.442Z'
 } as const
