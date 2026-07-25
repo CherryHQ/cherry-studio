@@ -530,16 +530,26 @@ export const AppShellTabBar = ({
 
   // ─── Drag logic (extracted to useTabDrag) ──────────────────────────────────
 
-  const { tabBarRef, tabRefs, noTransition, getTranslateX, handlePointerDown, handleTabClick, isDragging, isGhost } =
-    useTabDrag({
-      pinnedTabs,
-      normalTabs,
-      normalReorderStartIndex,
-      canDetach: !!detachTab,
-      reorderTabs,
-      closeTab,
-      setActiveTab
-    })
+  const {
+    tabBarRef,
+    tabListRef,
+    rightInsetRef,
+    tabRefs,
+    noTransition,
+    getTranslateX,
+    handlePointerDown,
+    handleTabClick,
+    isDragging,
+    isGhost
+  } = useTabDrag({
+    pinnedTabs,
+    normalTabs,
+    normalReorderStartIndex,
+    canDetach: !!detachTab,
+    reorderTabs,
+    closeTab,
+    setActiveTab
+  })
 
   const handleSelectTab = useCallback(
     (tab: Tab) => {
@@ -573,6 +583,7 @@ export const AppShellTabBar = ({
         )}>
         {/* Tab buttons are no-drag; empty tabbar space remains available for moving the window. */}
         <div
+          ref={tabListRef}
           data-testid="app-shell-tab-strip"
           style={isMac && !isFullscreen ? { paddingLeft: MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE } : undefined}
           className="flex flex-1 items-center gap-1 overflow-x-auto pr-1 [&::-webkit-scrollbar]:hidden">
@@ -665,6 +676,7 @@ export const AppShellTabBar = ({
           {/* Launchpad button — sticky so it hugs the last tab but never scrolls away */}
           <Tooltip placement="bottom" content={t('title.launchpad')} delay={800}>
             <button
+              ref={rightInsetRef}
               type="button"
               aria-label={t('title.launchpad')}
               onClick={handleOpenLaunchpad}
