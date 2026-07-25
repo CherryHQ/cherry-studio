@@ -40,14 +40,16 @@ const mocks = vi.hoisted(() => ({
     </div>
   )),
   MessageErrorBoundary: vi.fn(({ children }: { children: ReactNode }) => <>{children}</>),
-  MessageHeader: vi.fn(({ contentSlot, footerSlot }: { contentSlot?: ReactNode; footerSlot?: ReactNode }) => (
-    <div className="message-header">
-      <div className="message-body-column">
-        {contentSlot && <div className="message-body-content">{contentSlot}</div>}
-        {footerSlot && <div className="message-footer-slot">{footerSlot}</div>}
+  MessageHeader: vi.fn(
+    ({ contentSlot, footerSlot }: { contentSlot?: ReactNode; footerSlot?: ReactNode; showModelIdentity?: boolean }) => (
+      <div className="message-header">
+        <div className="message-body-column">
+          {contentSlot && <div className="message-body-content">{contentSlot}</div>}
+          {footerSlot && <div className="message-footer-slot">{footerSlot}</div>}
+        </div>
       </div>
-    </div>
-  )),
+    )
+  ),
   MessageMenuBar: vi.fn(() => <div className="message-menubar">menubar</div>),
   MessageOutline: vi.fn(() => null),
   messageListActions: vi.fn(),
@@ -250,6 +252,11 @@ const setElementSize = (
   }
 }
 
+const expectEveryMessageHeaderToShowModelIdentity = (expected: boolean) => {
+  expect(mocks.MessageHeader.mock.calls.length).toBeGreaterThan(0)
+  expect(mocks.MessageHeader.mock.calls.every(([props]) => props.showModelIdentity === expected)).toBe(true)
+}
+
 describe('MessageGroup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -318,6 +325,55 @@ describe('MessageGroup', () => {
     const gridCard = document.getElementById('message-msg-1')
 
     expect(gridCard).toHaveClass('grid', 'p-2.5', '[&.grid_.message]:pt-0')
+  })
+
+  it.each(['horizontal', 'vertical', 'grid'] as const)(
+    'always shows each model identity in %s multi-model layout',
+    (multiModelMessageStyle) => {
+      mocks.settings.mockReturnValue({
+        multiModelMessageStyle,
+        gridColumns: 2,
+        gridPopoverTrigger: 'click',
+        messageFont: 'system',
+        fontSize: 14,
+        messageStyle: 'plain',
+        showMessageOutline: false
+      })
+      const messages = [
+        createMessage('msg-1', 0, multiModelMessageStyle),
+        createMessage('msg-2', 1, multiModelMessageStyle)
+      ]
+
+      render(<MessageGroup messages={messages} topic={{ id: 'topic-1' } as Topic} />)
+
+      expectEveryMessageHeaderToShowModelIdentity(true)
+    }
+  )
+
+  it('keeps model identity in the existing selector for fold layout', () => {
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'fold',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'plain',
+      showMessageOutline: false
+    })
+    const messages = [createMessage('msg-1', 0, 'fold'), createMessage('msg-2', 1, 'fold')]
+
+    render(<MessageGroup messages={messages} topic={{ id: 'topic-1' } as Topic} />)
+
+    expectEveryMessageHeaderToShowModelIdentity(false)
+  })
+
+  it('keeps model identity visible while selecting messages in a multi-model layout', () => {
+    mocks.messageListSelection.mockReturnValue({ isMultiSelectMode: true, selectedMessageIds: [] })
+    const messages = [createMessage('msg-1', 0, 'vertical'), createMessage('msg-2', 1, 'vertical')]
+
+    render(<MessageGroup messages={messages} topic={{ id: 'topic-1' } as Topic} />)
+
+    expectEveryMessageHeaderToShowModelIdentity(true)
   })
 
   it('adds fixed-height flex constraints for horizontal and grid message cards', () => {

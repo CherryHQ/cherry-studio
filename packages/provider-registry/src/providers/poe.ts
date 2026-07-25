@@ -1,18 +1,12 @@
 import type { ReasoningWireProfile } from '../schemas/reasoningWire'
 import { openaiCompatible } from './types'
+import { EFFORT, modeWire } from './wires'
 
-const effortWire: ReasoningWireProfile = {
-  off: {
-    operations: [{ target: 'extra_body.reasoning_effort', value: { source: 'literal', value: 'none' } }]
-  },
-  auto: {
-    operations: [{ target: 'extra_body.reasoning_effort', value: { source: 'effort' } }],
-    effortMap: { auto: 'medium' }
-  },
-  effort: {
-    operations: [{ target: 'extra_body.reasoning_effort', value: { source: 'effort' } }]
-  }
-}
+const effortWire = modeWire(
+  'extra_body.reasoning_effort',
+  { off: 'none', auto: EFFORT, effort: EFFORT },
+  { autoEffort: 'medium' }
+)
 
 const thinkingBudgetWire: ReasoningWireProfile = {
   auto: {

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import type { PropsWithChildren } from 'react'
@@ -68,7 +68,7 @@ vi.mock('react-i18next', () => ({
 
 import WordFilePreview from '../WordFilePreview'
 
-const filePath = '/tmp/documents/report.docx' as FilePath
+const filePath = '/tmp/documents/report.docx' as AbsoluteFilePath
 
 beforeEach(() => {
   vi.clearAllMocks()

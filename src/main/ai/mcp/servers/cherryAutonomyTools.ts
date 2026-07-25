@@ -32,6 +32,11 @@ export interface CherryAgentContext {
   workspaceSource: AgentSessionWorkspaceSource
   workspacePath: string
   sourceChannelId?: string
+  /**
+   * Read the knowledge bases this agent is currently bound to. An empty list means
+   * the agent has no knowledge access. The autonomy tools ignore this field.
+   */
+  getKnowledgeBaseIds: () => string[]
 }
 
 /**
