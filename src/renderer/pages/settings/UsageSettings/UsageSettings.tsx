@@ -49,7 +49,7 @@ import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { DAY_MS, DEFAULT_COST_CURRENCY, formatCost, parseDateKey, startOfLocalDay, toDateKey } from './usageDisplay'
+import { DEFAULT_COST_CURRENCY, formatCost, parseDateKey, startOfLocalDay, toDateKey } from './usageDisplay'
 import UsageHeatmap, { type UsageHeatmapMetric } from './UsageHeatmap'
 
 const ENTRY_PAGE_SIZE = 25
@@ -452,13 +452,20 @@ function getLongestStreak(dateKeys: string[]): number {
   const sorted = [...dateKeys].sort()
   let longest = 0
   let current = 0
-  let previousTime: number | undefined
+  let previousDate: Date | undefined
 
   for (const key of sorted) {
-    const time = startOfLocalDay(parseDateKey(key)).getTime()
-    current = previousTime !== undefined && time - previousTime === DAY_MS ? current + 1 : 1
+    // Compare by calendar day: DST transitions make adjacent local midnights 23h or 25h apart.
+    let isConsecutive = false
+    if (previousDate !== undefined) {
+      const next = new Date(previousDate)
+      next.setDate(next.getDate() + 1)
+      isConsecutive = toDateKey(next) === key
+    }
+
+    current = isConsecutive ? current + 1 : 1
     longest = Math.max(longest, current)
-    previousTime = time
+    previousDate = startOfLocalDay(parseDateKey(key))
   }
 
   return longest
