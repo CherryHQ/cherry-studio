@@ -6362,8 +6362,8 @@
       },
       "custom": {
         "css": {
-          "cherrycss": "Lấy từ cherrycss.com",
           "label": "CSS Tùy chỉnh",
+          "migration_notice": "Bảng định kiểu này đã được di chuyển từ v1 và hiện đang bị tắt. Hãy điều chỉnh cho v2, sau đó xóa dòng đầu tiên để bật.",
           "placeholder": "/* Đặt CSS tùy chỉnh tại đây */"
         }
       },
