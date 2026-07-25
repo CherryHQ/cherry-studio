@@ -46,16 +46,23 @@ function buildHeatmapDays(
 
   const firstWeekDay = startOfLocalWeek(firstDay)
   const lastWeekDay = endOfLocalWeek(lastDay)
-  const dayCount = Math.floor((lastWeekDay.getTime() - firstWeekDay.getTime()) / DAY_MS) + 1
 
-  return Array.from({ length: dayCount }, (_, index) => {
-    const date = new Date(firstWeekDay.getTime() + index * DAY_MS)
-    return {
+  // Step by calendar date, not by DAY_MS: DST days are 23h/25h long, so millisecond
+  // arithmetic would duplicate or skip a local date around a transition.
+  const days: { date: Date; key: string; isFuture: boolean }[] = []
+  const cursor = new Date(firstWeekDay)
+
+  while (cursor.getTime() <= lastWeekDay.getTime()) {
+    const date = new Date(cursor)
+    days.push({
       date,
       key: toDateKey(date),
       isFuture: date.getTime() > today.getTime()
-    }
-  })
+    })
+    cursor.setDate(cursor.getDate() + 1)
+  }
+
+  return days
 }
 
 function getBucketValue(bucket: UsageLedgerTimelineBucket | undefined, metric: UsageHeatmapMetric): number {
