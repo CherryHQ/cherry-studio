@@ -869,6 +869,7 @@
       "expired": "Hết hạn",
       "inputPreview": "Xem trước đầu vào công cụ",
       "pending": "Đang chờ phê duyệt",
+      "pendingBadge": "[to be translated]:Pending",
       "permissionExpired": "Yêu cầu quyền đã hết hạn. Đang chờ hướng dẫn mới...",
       "requiresElevatedPermissions": "Công cụ này yêu cầu quyền truy cập nâng cao.",
       "suggestion": {
@@ -2292,6 +2293,7 @@
     "provider": "Nhà cung cấp",
     "reasoning_content": "Reasoning profundo",
     "refresh": "Làm mới",
+    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
     "regenerate": "Tái tạo",
     "remove_image": "Xóa hình ảnh",
     "rename": "Đổi tên",

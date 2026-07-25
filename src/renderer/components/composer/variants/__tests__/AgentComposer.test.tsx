@@ -24,7 +24,8 @@ const mocks = vi.hoisted(() => ({
   draftText: 'hello',
   draftTokens: undefined as ComposerSerializedToken[] | undefined,
   files: [] as FileMetadata[],
-  modelLookupId: undefined as UniqueModelId | undefined,
+  agentLookupId: undefined as string | null | undefined,
+  modelLookupId: undefined as UniqueModelId | null | undefined,
   sendMessage: vi.fn(),
   stop: vi.fn(),
   isDirectory: vi.fn(),
@@ -327,17 +328,20 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
 }))
 
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
-  useAgent: () => ({
-    agent: {
-      id: 'agent-1',
-      name: 'Agent',
-      type: 'claude-code',
-      model: 'anthropic::claude-sonnet-4-5',
-      modelName: 'Claude Sonnet 4.5',
-      instructions: 'Follow instructions',
-      configuration: {}
+  useAgent: (agentId?: string | null) => {
+    mocks.agentLookupId = agentId
+    return {
+      agent: {
+        id: 'agent-1',
+        name: 'Agent',
+        type: 'claude-code',
+        model: 'anthropic::claude-sonnet-4-5',
+        modelName: 'Claude Sonnet 4.5',
+        instructions: 'Follow instructions',
+        configuration: {}
+      }
     }
-  }),
+  },
   useUpdateAgent: () => ({ updateModel: mocks.updateModel })
 }))
 
@@ -395,7 +399,7 @@ vi.mock('@renderer/hooks/agent/useSession', () => ({
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
-  useModelById: (id: UniqueModelId) => {
+  useModelById: (id: UniqueModelId | null) => {
     mocks.modelLookupId = id
     return { model }
   }
@@ -642,6 +646,7 @@ describe('AgentComposer', () => {
     mocks.draftText = 'hello'
     mocks.draftTokens = undefined
     mocks.files = []
+    mocks.agentLookupId = undefined
     mocks.modelLookupId = undefined
     mocks.sendMessage.mockReset()
     mocks.sendMessage.mockResolvedValue(undefined)
@@ -762,6 +767,39 @@ describe('AgentComposer', () => {
     expect(mocks.runtimeHostProps?.model).toBe(model)
     expect(mocks.runtimeHostProps?.session?.agentId).toBe('agent-1')
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
+    expect(mocks.surfaceProps?.deferDynamicControls).toBe(true)
+  })
+
+  it('uses page-resolved context without subscribing to agent and model data again', () => {
+    const resolvedAgent = {
+      id: 'agent-1',
+      name: 'Agent',
+      type: 'claude-code',
+      model: model.id,
+      configuration: {}
+    } as any
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sessionOverride={{
+          workspaceId: 'workspace-1',
+          workspace: { id: 'workspace-1', type: 'user', name: 'Workspace 1', path: '/workspace' }
+        }}
+        resolvedAgent={resolvedAgent}
+        resolvedModel={model}
+        resolvedWorkspaceWarning={null}
+        externalContextControls
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(mocks.agentLookupId).toBeNull()
+    expect(mocks.modelLookupId).toBeNull()
+    expect(mocks.runtimeHostProps?.model).toBe(model)
   })
 
   it('uses the same 20px size for the model and workspace icons', () => {
@@ -790,6 +828,7 @@ describe('AgentComposer', () => {
 
     await notifyComposerBottomToolbarWidth(420)
 
+    expect(mocks.surfaceProps?.deferDynamicControls).toBe(true)
     expect(document.querySelector('.lucide-bot')).toHaveAttribute('width', '20')
     expect(document.querySelector('.lucide-sparkles')).toHaveAttribute('width', '20')
     expect(document.querySelector('.lucide-folder')).toHaveAttribute('width', '20')

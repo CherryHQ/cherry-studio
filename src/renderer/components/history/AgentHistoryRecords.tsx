@@ -4,8 +4,9 @@ import EmojiIcon from '@renderer/components/EmojiIcon'
 import { AgentSelector } from '@renderer/components/resourceCatalog/selectors'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useAgentSessionStreamStatuses } from '@renderer/hooks/agent/useAgentSessionStreamStatuses'
-import { useSessions, useUpdateSession } from '@renderer/hooks/agent/useSession'
+import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { createSessionActionContext, useSessionMenuPreset } from '@renderer/hooks/chat/useSessionMenuActions'
+import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { toast } from '@renderer/services/toast'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
@@ -43,11 +44,11 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
   const {
     sessions,
     pinIdBySessionId,
-    isLoading: isSessionsLoading,
+    isLoadingAll: isSessionsLoading,
     deleteSession,
     deleteSessions,
     togglePin
-  } = useSessions(undefined, { loadAll: true, pageSize: 50 })
+  } = useAgentSessionsSource()
   const { agents } = useAgents()
   const { updateSession } = useUpdateSession()
 

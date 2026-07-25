@@ -869,6 +869,7 @@
       "expired": "Ληγμένο",
       "inputPreview": "Προεπισκόπηση εισόδου εργαλείου",
       "pending": "Εκκρεμεί ({{seconds}}δ)",
+      "pendingBadge": "[to be translated]:Pending",
       "permissionExpired": "Το αίτημα άδειας έληξε. Αναμονή για νέες οδηγίες...",
       "requiresElevatedPermissions": "Αυτό το εργαλείο απαιτεί αυξημένα δικαιώματα.",
       "suggestion": {
@@ -2292,6 +2293,7 @@
     "provider": "Παρέχων",
     "reasoning_content": "Έχει σκεφτεί πολύ καλά",
     "refresh": "Ανανέωση",
+    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
     "regenerate": "Ξαναπαραγωγή",
     "remove_image": "Αφαίρεση εικόνας",
     "rename": "Μετονομασία",

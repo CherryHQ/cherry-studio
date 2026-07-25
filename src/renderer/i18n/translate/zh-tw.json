@@ -2293,6 +2293,7 @@
     "provider": "供應商",
     "reasoning_content": "已深度思考",
     "refresh": "重新整理",
+    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
     "regenerate": "重新產生",
     "remove_image": "移除圖片",
     "rename": "重新命名",

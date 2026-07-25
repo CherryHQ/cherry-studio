@@ -34,6 +34,18 @@ describe('ConversationTopBarPortal', () => {
     )
   })
 
+  it('renders page-owned controls directly in the measured host', () => {
+    render(
+      <ConversationTopBarPortalProvider>
+        <ConversationTopBarPortalHost>
+          <span>page-owned controls</span>
+        </ConversationTopBarPortalHost>
+      </ConversationTopBarPortalProvider>
+    )
+
+    expect(screen.getByText('page-owned controls')).toBeInTheDocument()
+  })
+
   it('switches portaled controls to icon-only mode when the host overflows', async () => {
     globalThis.ResizeObserver = undefined as unknown as typeof ResizeObserver
     vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function clientWidth(this: HTMLElement) {
