@@ -182,7 +182,7 @@ export const useSessions = (
     data: pinList,
     isLoading: isPinsLoading,
     isRefreshing: isPinsRefreshing
-  } = useQuery('/pins', { query: { entityType: 'session' } })
+  } = useQuery('/pins', { query: { entityType: 'session' }, enabled })
   const pinIdBySessionId = useMemo(
     () => new Map(Array.isArray(pinList) ? pinList.map((p) => [p.entityId, p.id] as const) : []),
     [pinList]
