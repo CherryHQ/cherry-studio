@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   Terminal,
   ToolCase,
+  Workflow as WorkflowIcon,
   Wrench
 } from 'lucide-react'
 import type { ComponentPropsWithoutRef, FC, ReactNode } from 'react'
@@ -81,6 +82,7 @@ export const TOOL_HEADER_UI: Record<string, { icon: ReactNode; labelKey?: string
   [AgentToolsType.TeamDelete]: { icon: <Bot size={14} /> },
   [AgentToolsType.EnterWorktree]: { icon: <DoorOpen size={14} /> },
   [AgentToolsType.ExitWorktree]: { icon: <DoorOpen size={14} /> },
+  [AgentToolsType.Workflow]: { icon: <WorkflowIcon size={14} /> },
   [AgentToolsType.Skill]: { icon: <ToolCase size={14} />, labelKey: 'message.tools.labels.skill' }
 }
 
