@@ -30,11 +30,11 @@ import {
   type QuickPanelListItem,
   useOptionalQuickPanel
 } from '@renderer/components/QuickPanel'
+import type { ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
 import {
   openResourceEditDialog,
-  ResourceEditDialogEventHost,
-  type ResourceEditDialogTarget
-} from '@renderer/components/resourceCatalog/dialogs/edit'
+  ResourceEditDialogEventHost
+} from '@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost'
 import { AgentSelector, WorkspaceSelector } from '@renderer/components/resourceCatalog/selectors'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgent, useUpdateAgent } from '@renderer/hooks/agent/useAgent'

@@ -51,7 +51,7 @@ vi.mock('@renderer/services/toast', () => ({
 }))
 
 const editDialogMocks = vi.hoisted(() => ({ openResourceEditDialog: vi.fn() }))
-vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
+vi.mock('@renderer/components/resourceCatalog/dialogs/ResourceEditDialogEventHost', () => ({
   openResourceEditDialog: editDialogMocks.openResourceEditDialog
 }))
 
