@@ -94,7 +94,17 @@ export function useAgentResourceMentionSource({
       allowedPrefixes: [' ', '\n'],
       items: async ({ query, editor }) => {
         const { accessiblePaths, files, setFiles, getAdditionalItems, t } = resourceMentionStateRef.current
-        const additionalItemsPromise = getAdditionalItems?.({ query, editor })
+        // Settled here, not at the await below: a rejection there would reject the whole source
+        // and the suggestion wrapper would replace the loaded file results with a single error row.
+        const additionalItemsPromise = getAdditionalItems?.({ query, editor }).catch((): ComposerSuggestionItem[] => [
+          {
+            id: 'agent-resource:sessions-error',
+            label: t('common.error'),
+            description: t('chat.input.reference_panel.load_failed'),
+            disabled: true,
+            command: () => undefined
+          }
+        ])
 
         const fileItems: ComposerSuggestionItem[] = []
         if (accessiblePaths.length > 0) {

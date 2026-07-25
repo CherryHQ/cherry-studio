@@ -1427,6 +1427,7 @@
       "placeholder_without_triggers": "ここにメッセージを入力し、{{key}} を押して送信...",
       "reference_panel": {
         "load_failed": "[to be translated]:Failed to load the referenced conversation",
+        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
         "session": {
           "no_results": {
             "description": "[to be translated]:No sessions match your search",

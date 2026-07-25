@@ -13,6 +13,10 @@ export type EntityReferenceTarget =
 
 export const REFERENCE_CONTEXT_MAX_TOTAL_CHARS = 8000
 export const REFERENCE_CONTEXT_MAX_MESSAGE_CHARS = 2000
+// Only the newest messages survive the char budget below, so stop paging the transcript at one
+// page instead of loading a whole history to throw most of it away. A page of very short messages
+// can hold less than the char budget allows — raise this if references start looking truncated.
+const REFERENCE_CONTEXT_MAX_MESSAGES = 200
 
 /**
  * Pure formatter: chronological transcript entries in → capped, delimited context block out.
@@ -51,16 +55,32 @@ export function buildEntityReferencePromptText(options: {
   return `${openTag}${note}${body}\n</referenced-conversation>`
 }
 
-/** Fetches the referenced conversation's messages and formats them into token prompt text. */
-export async function fetchEntityReferencePromptText(target: EntityReferenceTarget): Promise<string> {
+/**
+ * Fetches the referenced conversation's newest messages and formats them into token prompt text.
+ * `maxTotalChars` lets the caller shrink the block to the composer's remaining input budget.
+ */
+export async function fetchEntityReferencePromptText(
+  target: EntityReferenceTarget,
+  options: { maxTotalChars?: number } = {}
+): Promise<string> {
   const messages =
     target.entityType === 'topic'
-      ? await getTopicMessages(target.id)
-      : await getAgentSessionMessagesForExport({ id: target.id, agentId: target.agentId, name: target.name })
+      ? await getTopicMessages(target.id, { maxMessages: REFERENCE_CONTEXT_MAX_MESSAGES })
+      : await getAgentSessionMessagesForExport(
+          { id: target.id, agentId: target.agentId, name: target.name },
+          { maxMessages: REFERENCE_CONTEXT_MAX_MESSAGES }
+        )
 
+  const maxTotalChars = Math.min(
+    options.maxTotalChars ?? REFERENCE_CONTEXT_MAX_TOTAL_CHARS,
+    REFERENCE_CONTEXT_MAX_TOTAL_CHARS
+  )
   return buildEntityReferencePromptText({
     name: target.name,
     entityType: target.entityType,
-    entries: messages.map((message) => ({ role: message.role, text: getNamingTextContent(message) }))
+    entries: messages.map((message) => ({ role: message.role, text: getNamingTextContent(message) })),
+    maxTotalChars,
+    // A single message is never allowed to blow past the caller's budget either.
+    maxMessageChars: Math.min(maxTotalChars, REFERENCE_CONTEXT_MAX_MESSAGE_CHARS)
   })
 }

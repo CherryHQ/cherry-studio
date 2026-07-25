@@ -15,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { installSyncRafMock } from '../../../../../../tests/__mocks__/requestAnimationFrame'
 import type * as ComposerDraftModule from '../../composerDraft'
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
+import { COMPOSER_TOKEN_NODE_NAME } from '../../ComposerTokenNode'
 import type { ComposerSerializedToken } from '../../tokens'
 import type { ComposerToolLauncher } from '../../toolLauncher'
 import AgentComposer, { AgentHomeComposer, MissingAgentHomeComposer } from '../AgentComposer'
@@ -559,14 +560,33 @@ vi.mock('@renderer/components/QuickPanel/useQuickPanel', () => ({
   useQuickPanel: () => mocks.optionalQuickPanel
 }))
 
+// Mirrors just enough of the editor for token commands: the chain records inserted tokens as
+// document nodes so the async reference settle path can find (or miss) them afterwards.
 function buildComposerEditorMock() {
+  const nodes: Array<{ type: { name: string }; attrs: Record<string, unknown>; nodeSize: number }> = []
   const chain = {
     focus: vi.fn(() => chain),
-    insertComposerToken: vi.fn(() => chain),
+    insertComposerToken: vi.fn((token: Record<string, unknown>) => {
+      nodes.push({ type: { name: COMPOSER_TOKEN_NODE_NAME }, attrs: { ...token }, nodeSize: 1 })
+      return chain
+    }),
     insertContent: vi.fn(() => chain),
     run: vi.fn()
   }
-  return { editor: { chain: () => chain } as any, chain }
+  const transaction = { setNodeMarkup: vi.fn(), delete: vi.fn() }
+  const editor = {
+    isDestroyed: false,
+    chain: () => chain,
+    state: {
+      doc: {
+        descendants: (visit: (node: unknown, position: number) => void) =>
+          nodes.forEach((node, index) => visit(node, index))
+      },
+      tr: transaction
+    },
+    view: { dispatch: vi.fn() }
+  } as any
+  return { editor, chain, transaction, nodes }
 }
 
 // Skills live in the registered `agent-skills` launcher submenu; invoke its action with a capturing
@@ -1728,6 +1748,138 @@ describe('AgentComposer', () => {
     expect(ids?.indexOf('agent-resource:sessions-header')).toBeGreaterThan(
       Number(ids?.indexOf('agent-resource:files-header'))
     )
+  })
+
+  it('inserts the reference chip at once, blocks sending, then fills it when the transcript lands', async () => {
+    mocks.listDirectoryEntries.mockResolvedValue([])
+    let resolveMessages: ((value: unknown) => void) | undefined
+    vi.mocked(dataApiService.get).mockImplementation((async (path: string) => {
+      if (path === '/agent-sessions') {
+        return {
+          items: [{ id: 's1', agentId: 'agent-1', name: 'Session One', updatedAt: '2026-01-01T00:00:00.000Z' }]
+        }
+      }
+      if (path === '/agent-sessions/s1/messages') {
+        return new Promise((resolve) => {
+          resolveMessages = resolve
+        })
+      }
+      if (path === '/search/entities') return { query: '', groups: [] }
+      return undefined
+    }) as never)
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const source = mocks.surfaceProps?.suggestionSources?.[0]
+    const items = await source?.items({ query: '', editor: {} as any })
+    const item = items?.find((entry) => entry.id === 'reference:session:s1')
+    if (!item) throw new Error('Expected a session reference item')
+    const { editor, chain, transaction } = buildComposerEditorMock()
+
+    await act(async () => {
+      item.command?.({ editor, range: { from: 0, to: 0 }, item, query: '' } as any)
+    })
+
+    // The chip is bound to this draft synchronously, still empty of context...
+    expect(chain.insertComposerToken).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'reference:session:s1', kind: 'reference', promptText: '' })
+    )
+    // ...so sending stays blocked until the transcript arrives.
+    expect(mocks.surfaceProps?.sendBlockedReason).toBe('common.loading')
+
+    await act(async () => {
+      resolveMessages?.({
+        items: [
+          {
+            id: 'm1',
+            sessionId: 's1',
+            role: 'user',
+            status: 'success',
+            data: { parts: [{ type: 'text', text: 'session context' }] }
+          }
+        ],
+        nextCursor: undefined
+      })
+    })
+
+    expect(transaction.setNodeMarkup).toHaveBeenCalledWith(
+      0,
+      undefined,
+      expect.objectContaining({ promptText: expect.stringContaining('session context') })
+    )
+    expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
+  })
+
+  it('drops the reference chip when its transcript fails to load', async () => {
+    mocks.listDirectoryEntries.mockResolvedValue([])
+    vi.mocked(dataApiService.get).mockImplementation((async (path: string) => {
+      if (path === '/agent-sessions') {
+        return {
+          items: [{ id: 's1', agentId: 'agent-1', name: 'Session One', updatedAt: '2026-01-01T00:00:00.000Z' }]
+        }
+      }
+      if (path === '/agent-sessions/s1/messages') throw new Error('offline')
+      if (path === '/search/entities') return { query: '', groups: [] }
+      return undefined
+    }) as never)
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const source = mocks.surfaceProps?.suggestionSources?.[0]
+    const items = await source?.items({ query: '', editor: {} as any })
+    const item = items?.find((entry) => entry.id === 'reference:session:s1')
+    if (!item) throw new Error('Expected a session reference item')
+    const { editor, transaction } = buildComposerEditorMock()
+
+    await act(async () => {
+      item.command?.({ editor, range: { from: 0, to: 0 }, item, query: '' } as any)
+    })
+
+    expect(transaction.delete).toHaveBeenCalledWith(0, 1)
+    expect(toast.error).toHaveBeenCalledWith('chat.input.reference_panel.load_failed')
+    expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
+  })
+
+  it('keeps workspace files in the @ panel when the session query fails', async () => {
+    mocks.listDirectoryEntries.mockResolvedValue([{ path: '/workspace/docs/notes.md', isDirectory: false }])
+    vi.mocked(dataApiService.get).mockImplementation((async (path: string) => {
+      if (path === '/agent-sessions') throw new Error('offline')
+      if (path === '/search/entities') throw new Error('offline')
+      return undefined
+    }) as never)
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const source = mocks.surfaceProps?.suggestionSources?.[0]
+    const items = await source?.items({ query: 'notes', editor: {} as any })
+    const ids = items?.map((entry) => entry.id)
+
+    expect(ids).toContain('agent-resource:sessions-error')
+    expect(items?.some((entry) => entry.label === 'docs/notes.md')).toBe(true)
   })
 
   it('keeps ComposerSurface suggestion sources stable across streaming rerenders', () => {

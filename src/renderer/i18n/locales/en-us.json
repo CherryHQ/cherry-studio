@@ -1427,6 +1427,7 @@
       "placeholder_without_triggers": "Type your message here, press {{key}} to send",
       "reference_panel": {
         "load_failed": "Failed to load the referenced conversation",
+        "no_room": "Not enough room left in the message to add this conversation",
         "session": {
           "no_results": {
             "description": "No sessions match your search",

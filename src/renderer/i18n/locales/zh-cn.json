@@ -1427,6 +1427,7 @@
       "placeholder_without_triggers": "在这里输入消息，按 {{key}} 发送",
       "reference_panel": {
         "load_failed": "加载引用内容失败",
+        "no_room": "输入框剩余长度不足，无法插入该会话",
         "session": {
           "no_results": {
             "description": "没有名称匹配的会话",

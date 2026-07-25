@@ -1409,7 +1409,10 @@ const AgentComposerInner = ({
     ]
   )
 
-  const getEntityReferenceItems = useEntityReferenceMentionItems({ entityType: 'session', excludeId: sessionId })
+  const { getItems: getEntityReferenceItems, hasPendingReference } = useEntityReferenceMentionItems({
+    entityType: 'session',
+    excludeId: sessionId
+  })
   const resourceMentionSources = useAgentResourceMentionSource({
     accessiblePaths,
     files,
@@ -1540,8 +1543,12 @@ const AgentComposerInner = ({
           onTokensChange={handleTokensChange}
           resolveSkillMarker={resolveSkillMarker}
           placeholder={placeholderText}
-          sendDisabled={sendDisabled || (text.trim().length === 0 && files.length === 0 && selectedSkills.length === 0)}
-          sendBlockedReason={sendDisabled ? t('common.loading') : undefined}
+          sendDisabled={
+            sendDisabled ||
+            hasPendingReference ||
+            (text.trim().length === 0 && files.length === 0 && selectedSkills.length === 0)
+          }
+          sendBlockedReason={sendDisabled || hasPendingReference ? t('common.loading') : undefined}
           isLoading={isStreaming}
           onSendDraft={handleSendDraft}
           onPause={abortAgentSession}

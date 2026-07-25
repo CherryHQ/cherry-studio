@@ -932,7 +932,10 @@ const ChatComposerInner = ({
   // knowledgeBaseTool prunes+re-adds knowledge bases (against the injected selectableKnowledgeBases).
   const handleTokensChange = useComposerTokenReconcile({ scope, assistant: displayAssistant, model: runtimeModel })
 
-  const entityReferenceSources = useEntityReferenceMentionSource({ entityType: 'topic', excludeId: topicId })
+  const { sources: entityReferenceSources, hasPendingReference } = useEntityReferenceMentionSource({
+    entityType: 'topic',
+    excludeId: topicId
+  })
 
   const onPause = useCallback(() => {
     chatWrite?.pause()
@@ -1396,12 +1399,13 @@ const ChatComposerInner = ({
             sendDisabled ||
             searching ||
             runtimeModelPending ||
+            hasPendingReference ||
             !!missingAssistantMessage ||
             !!missingModelMessage ||
             !!missingSelectedModelMessage
           }
           sendBlockedReason={
-            isSavingEdit || sendDisabled
+            isSavingEdit || sendDisabled || hasPendingReference
               ? t('common.loading')
               : (missingAssistantMessage ?? missingModelMessage ?? missingSelectedModelMessage)
           }
