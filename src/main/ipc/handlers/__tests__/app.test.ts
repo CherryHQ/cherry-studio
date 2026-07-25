@@ -25,9 +25,11 @@ vi.mock('@main/services/userDataRelocation', () => ({
   inspectUserDataRelocationTarget: inspectTargetMock,
   requestUserDataRelocation: requestRelocationMock
 }))
-vi.mock('@main/services/cacheCleanup', () => ({
-  inspectCacheCleanup: inspectCacheCleanupMock,
-  runCacheCleanup: runCacheCleanupMock
+vi.mock('@main/services/CacheCleanupService', () => ({
+  cacheCleanupService: {
+    inspect: inspectCacheCleanupMock,
+    run: runCacheCleanupMock
+  }
 }))
 vi.mock('electron', () => ({
   app: { getVersion: () => '1.0.0', isPackaged: true },

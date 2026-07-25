@@ -17,6 +17,7 @@ import type {
   CacheCleanupSizeAccuracy,
   CacheCleanupSizeSnapshot
 } from '@shared/types/cacheCleanup'
+import { Mutex } from 'async-mutex'
 import Database from 'better-sqlite3'
 import { type Session, session } from 'electron'
 
@@ -703,7 +704,7 @@ async function inspectGroup(group: CacheCleanupGroup): Promise<CacheCleanupGroup
   }
 }
 
-export async function inspectCacheCleanup(groups: CacheCleanupGroup[]): Promise<CacheCleanupInspection> {
+async function inspectCacheCleanup(groups: CacheCleanupGroup[]): Promise<CacheCleanupInspection> {
   return {
     results: await Promise.all(groups.map(inspectGroup))
   }
@@ -859,14 +860,17 @@ async function runCacheCleanupNow(groups: CacheCleanupGroup[]): Promise<CacheCle
   return { results }
 }
 
-let cleanupQueue: Promise<void> = Promise.resolve()
+class CacheCleanupService {
+  private readonly cleanupMutex = new Mutex()
 
-export function runCacheCleanup(groups: CacheCleanupGroup[]): Promise<CacheCleanupRunResult> {
-  const requestedGroups = [...groups]
-  const cleanup = cleanupQueue.then(() => runCacheCleanupNow(requestedGroups))
-  cleanupQueue = cleanup.then(
-    () => undefined,
-    () => undefined
-  )
-  return cleanup
+  public inspect(groups: CacheCleanupGroup[]): Promise<CacheCleanupInspection> {
+    return inspectCacheCleanup(groups)
+  }
+
+  public run(groups: CacheCleanupGroup[]): Promise<CacheCleanupRunResult> {
+    const requestedGroups = [...groups]
+    return this.cleanupMutex.runExclusive(() => runCacheCleanupNow(requestedGroups))
+  }
 }
+
+export const cacheCleanupService = new CacheCleanupService()

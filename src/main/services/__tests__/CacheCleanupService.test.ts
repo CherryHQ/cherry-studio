@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { application } from '@application'
-import { inspectCacheCleanup, runCacheCleanup } from '@main/services/cacheCleanup'
+import { cacheCleanupService } from '@main/services/CacheCleanupService'
 import Database from 'better-sqlite3'
 import { app, session } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -46,7 +46,7 @@ const KNOWLEDGE_SCHEMA =
   'CREATE TABLE vectors (id TEXT, pageContent TEXT, uniqueLoaderId TEXT, source TEXT, vector BLOB)'
 const MEMORY_SCHEMA = 'CREATE TABLE memories (id TEXT PRIMARY KEY, memory TEXT NOT NULL)'
 
-describe('cacheCleanup', () => {
+describe('CacheCleanupService', () => {
   let root: string
   let tracePath: string
 
@@ -126,7 +126,7 @@ describe('cacheCleanup', () => {
       await writeTestFile(filePath, Buffer.alloc(size))
     }
 
-    const result = await inspectCacheCleanup(['normal_cache'])
+    const result = await cacheCleanupService.inspect(['normal_cache'])
 
     expect(result.results[0]).toMatchObject({
       group: 'normal_cache',
@@ -147,7 +147,7 @@ describe('cacheCleanup', () => {
       cleanLocalData: () => fs.rm(tracePath, { recursive: true, force: true })
     } as never)
 
-    const cleanup = await runCacheCleanup(['normal_cache'])
+    const cleanup = await cacheCleanupService.run(['normal_cache'])
 
     expect(cleanup.results[0]?.status).toBe('cleared')
     await expectMissing(tracePath, legacyTracePath)
@@ -157,7 +157,7 @@ describe('cacheCleanup', () => {
     tracePath = rootPath('Temp')
     await writeTestFile(path.join(tracePath, 'shared.bin'), Buffer.alloc(17))
 
-    const result = await inspectCacheCleanup(['normal_cache'])
+    const result = await cacheCleanupService.inspect(['normal_cache'])
 
     expect(result.results[0]?.size.bytes).toBe(17)
   })
@@ -167,7 +167,7 @@ describe('cacheCleanup', () => {
     await writeTestFile(path.join(external, 'secret.bin'), Buffer.alloc(23))
     await fs.symlink(external, rootPath('Temp'))
 
-    const result = await inspectCacheCleanup(['normal_cache'])
+    const result = await cacheCleanupService.inspect(['normal_cache'])
 
     expect(result.results[0]?.size).toMatchObject({
       bytes: null,
@@ -206,8 +206,8 @@ describe('cacheCleanup', () => {
     await fs.symlink(externalPath, path.join(restoreDirectories[0], 'custom', 'external-link'))
 
     const groups = ['legacy_v1', 'restore_staging'] as const
-    const inspection = await inspectCacheCleanup([...groups])
-    const cleanup = await runCacheCleanup([...groups])
+    const inspection = await cacheCleanupService.inspect([...groups])
+    const cleanup = await cacheCleanupService.run([...groups])
 
     expect(inspection.results.every(({ size }) => size.bytes !== null && size.completeness === 'complete')).toBe(true)
     expect(cleanup.results.every(({ status }) => status === 'cleared')).toBe(true)
@@ -231,8 +231,8 @@ describe('cacheCleanup', () => {
     createSqlite(legacyMemory, MEMORY_SCHEMA)
     createSqlite(unrelatedMemory, MEMORY_SCHEMA)
 
-    const inspection = await inspectCacheCleanup(['legacy_v1'])
-    const cleanup = await runCacheCleanup(['legacy_v1'])
+    const inspection = await cacheCleanupService.inspect(['legacy_v1'])
+    const cleanup = await cacheCleanupService.run(['legacy_v1'])
 
     expect(inspection.results[0]?.size.bytes).toBeGreaterThan(0)
     expect(cleanup.results[0]?.status).toBe('cleared')
@@ -247,7 +247,7 @@ describe('cacheCleanup', () => {
     createSqlite(externalMemory, MEMORY_SCHEMA)
     await fs.symlink(externalMemoryDirectory, rootPath('Data', 'Memory'))
 
-    const cleanup = await runCacheCleanup(['legacy_v1'])
+    const cleanup = await cacheCleanupService.run(['legacy_v1'])
 
     expect(cleanup.results[0]?.status).toBe('skipped')
     await expectExisting(externalMemory)
@@ -262,7 +262,7 @@ describe('cacheCleanup', () => {
     await fs.writeFile(`${dataAgents}-wal`, 'data-sidecar')
     await fs.writeFile(`${rootAgents}-wal`, 'root-sidecar')
 
-    const cleanup = await runCacheCleanup(['legacy_v1'])
+    const cleanup = await cacheCleanupService.run(['legacy_v1'])
 
     expect(cleanup.results[0]?.status).toBe('partial')
     await expectMissing(dataAgents, `${dataAgents}-wal`)
@@ -285,7 +285,7 @@ describe('cacheCleanup', () => {
       })
     )
 
-    const cleanup = await runCacheCleanup(['legacy_v1'])
+    const cleanup = await cacheCleanupService.run(['legacy_v1'])
     const updated = JSON.parse(await fs.readFile(homeConfigPath, 'utf8'))
 
     expect(cleanup.results[0]?.status).toBe('cleared')
@@ -303,10 +303,10 @@ describe('cacheCleanup', () => {
     })
     defaultSession.clearData.mockImplementation(() => firstCleanup)
 
-    const first = runCacheCleanup(['site_data'])
+    const first = cacheCleanupService.run(['site_data'])
     await vi.waitFor(() => expect(defaultSession.clearData).toHaveBeenCalledTimes(1))
 
-    const second = runCacheCleanup(['site_data'])
+    const second = cacheCleanupService.run(['site_data'])
     await Promise.resolve()
     expect(defaultSession.clearData).toHaveBeenCalledTimes(1)
 
