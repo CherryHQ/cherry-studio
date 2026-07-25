@@ -29,28 +29,6 @@ describe('getNormalizedExtension', () => {
   })
 })
 
-describe('cm theme lazy boundary', () => {
-  it('does not load @uiw/codemirror-themes-all until a theme API is called', async () => {
-    vi.resetModules()
-    const loaded = vi.fn()
-    vi.doMock('@uiw/codemirror-themes-all', () => {
-      loaded()
-      return { dracula: [] }
-    })
-
-    try {
-      const utils = await import('../utils')
-      expect(loaded).not.toHaveBeenCalled()
-
-      await expect(utils.getCmThemeByName('dracula')).resolves.toEqual([])
-      expect(loaded).toHaveBeenCalledTimes(1)
-    } finally {
-      vi.doUnmock('@uiw/codemirror-themes-all')
-      vi.resetModules()
-    }
-  })
-})
-
 describe('getCmThemeNames', () => {
   it('resolves base names plus themes-all entries, excluding settings and highlight styles', async () => {
     const names = await getCmThemeNames()

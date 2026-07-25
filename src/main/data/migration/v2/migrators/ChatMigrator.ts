@@ -76,9 +76,10 @@ import { eq, inArray, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
-import { assignOrderKeysByScope, assignOrderKeysInSequence } from '../utils/orderKey'
+import { assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 import {
+  buildAssistantSnapshot,
   buildMessageTree,
   type ChatMappingDeps,
   findActiveNodeId,
@@ -144,7 +145,7 @@ function buildVirtualRoot(id: string, topicId: string, createdAt: number): NewMe
     status: 'success',
     siblingsGroupId: 0,
     modelId: null,
-    modelSnapshot: null,
+    messageSnapshot: null,
     stats: null,
     createdAt,
     updatedAt: createdAt
@@ -204,7 +205,7 @@ export class ChatMigrator extends BaseMigrator {
   // Count of messages promoted to root because no migrated ancestor was found
   private promotedToRootCount = 0
   // Buffered transformed topics across all streamed batches. Inserted in a
-  // post-stream pass once orderKey can be assigned globally per groupId.
+  // post-stream pass once orderKey can be assigned globally.
   private stagedTopics: PreparedTopicData[] = []
   // chat_message_file_ref backfill state
   private migratedFileEntryIds: Set<string> = new Set()
@@ -423,8 +424,8 @@ export class ChatMigrator extends BaseMigrator {
       // migration runs in preboot, before any `WhenReady` service is up.
       const mappingDeps: ChatMappingDeps = { db: ctx.db, filesDataDir: ctx.paths.filesDataDir }
 
-      // Buffer all topics first; orderKey is stamped post-stream because per-batch
-      // keys would collide across batches sharing a `groupId` partition.
+      // Buffer all topics first; orderKey is stamped post-stream because
+      // independent per-batch sequences would collide in the global order.
       await topicReader.readInBatches<OldTopic>(TOPIC_BATCH_SIZE, async (topics, batchIndex) => {
         logger.debug(`Processing topic batch ${batchIndex + 1}`, { count: topics.length })
 
@@ -918,6 +919,13 @@ export class ChatMigrator extends BaseMigrator {
     // converts falsy to NULL, so empty string here yields the desired NULL FK.
     oldTopic.assistantId = resolvedAssistantId ?? ''
 
+    // v1 couples a topic to one assistant → snapshot it onto assistant-role messages so the
+    // header shows it after deletion. Built once per topic; transformMessage gates it by role.
+    const assistantSnapshot =
+      resolvedAssistantId && this.assistantLookup.has(resolvedAssistantId)
+        ? buildAssistantSnapshot(resolvedAssistantId, this.assistantLookup.get(resolvedAssistantId)!)
+        : undefined
+
     // Get messages array (may be empty or undefined)
     const oldMessages = oldTopic.messages || []
 
@@ -1001,7 +1009,8 @@ export class ChatMigrator extends BaseMigrator {
           treeInfo.siblingsGroupId,
           blocks,
           oldTopic.id,
-          deps
+          deps,
+          assistantSnapshot
         )
 
         newMessages.push(newMsg)
@@ -1085,7 +1094,7 @@ export class ChatMigrator extends BaseMigrator {
     const sortedTopics = [...this.stagedTopics]
       .sort((a, b) => b.topic.updatedAt - a.topic.updatedAt)
       .map((d) => d.topic)
-    const stampedTopics = assignOrderKeysByScope(sortedTopics, (t) => t.groupId)
+    const stampedTopics = assignOrderKeysInSequence(sortedTopics)
     const orderKeyById = new Map(stampedTopics.map((t) => [t.id, t.orderKey]))
     for (const data of this.stagedTopics) {
       const orderKey = orderKeyById.get(data.topic.id)
@@ -1106,7 +1115,6 @@ export class ChatMigrator extends BaseMigrator {
       // Dedupe message ids within the batch and against prior batches; remap
       // children's parentIds to keep the tree intact after the rename.
       const batchMessages: NewMessage[] = []
-      const idRemap = new Map<string, string>()
       const batchIds = new Set<string>()
       for (const data of batch) {
         // Bring migrated topics into the virtual-root model: every topic gets one
@@ -1116,7 +1124,13 @@ export class ChatMigrator extends BaseMigrator {
         // migrated data exactly as for freshly created topics. Mirrors
         // MessageService.createRootMessageTx.
         const rootId = uuidv4()
+        const topicStart = batchMessages.length
         batchMessages.push(buildVirtualRoot(rootId, data.topic.id, data.topic.createdAt))
+        // Dedup is keyed by old id, but the same old id can recur across topics. parentId and
+        // activeNodeId are intra-topic references, so the remap MUST stay scoped to this topic:
+        // a batch-global map would cross-wire a topic that kept its original id to another
+        // topic's renamed message (and a 3rd collision would overwrite it to the last remap).
+        const topicRemap = new Map<string, string>()
         for (const msg of data.messages) {
           if (msg.parentId === null) {
             msg.parentId = rootId
@@ -1124,17 +1138,26 @@ export class ChatMigrator extends BaseMigrator {
           if (seenMessageIds.has(msg.id) || batchIds.has(msg.id)) {
             const newId = uuidv4()
             logger.warn(`Duplicate message ID found: ${msg.id}, assigning new ID: ${newId}`)
-            idRemap.set(msg.id, newId)
+            topicRemap.set(msg.id, newId)
             msg.id = newId
           }
           batchIds.add(msg.id)
           batchMessages.push(msg)
         }
-      }
-      if (idRemap.size > 0) {
-        for (const msg of batchMessages) {
-          if (msg.parentId && idRemap.has(msg.parentId)) {
-            msg.parentId = idRemap.get(msg.parentId)!
+        // Re-point this topic's own references — children's parentId and the topic's
+        // activeNodeId — to any renamed ids, using only THIS topic's remap. activeNodeId is
+        // not an FK, so a dangling one passes foreign_key_check and the topic would silently
+        // open to "message not found".
+        if (topicRemap.size > 0) {
+          for (let i = topicStart; i < batchMessages.length; i++) {
+            const msg = batchMessages[i]
+            if (msg.parentId && topicRemap.has(msg.parentId)) {
+              msg.parentId = topicRemap.get(msg.parentId)!
+            }
+          }
+          const active = data.topic.activeNodeId
+          if (active && topicRemap.has(active)) {
+            data.topic.activeNodeId = topicRemap.get(active)!
           }
         }
       }

@@ -1,5 +1,5 @@
 import { dataApiService } from '@data/DataApiService'
-import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@data/DataApiService', () => ({
@@ -45,7 +45,7 @@ function createSessionMessage(
     runtimeResumeToken: null,
     status: 'success',
     modelId: null,
-    modelSnapshot: null,
+    messageSnapshot: null,
     stats: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
@@ -58,18 +58,19 @@ describe('agentSessionExport', () => {
     vi.mocked(dataApiService.get).mockReset()
   })
 
-  it('uses the agent model fallback for assistant messages with a null model snapshot', async () => {
+  it('resolves the export model from snapshot → row modelId → live agent fallback, in that order', async () => {
     vi.mocked(dataApiService.get).mockResolvedValueOnce({
       items: [
         createSessionMessage({ id: 'assistant-without-snapshot', role: 'assistant' }),
+        createSessionMessage({ id: 'assistant-with-modelId', role: 'assistant', modelId: 'openai::gpt-5' }),
         createSessionMessage({ id: 'user-without-snapshot', role: 'user' }),
         createSessionMessage({
           id: 'assistant-with-snapshot',
           role: 'assistant',
-          modelSnapshot: {
-            id: 'stored-model',
-            name: 'Stored Model',
-            provider: 'stored-provider'
+          messageSnapshot: {
+            id: 'agent-a',
+            name: 'Agent A',
+            model: { id: 'stored-model', name: 'Stored Model', provider: 'stored-provider' }
           }
         })
       ],
@@ -88,10 +89,18 @@ describe('agentSessionExport', () => {
     )
 
     const modelByMessageId = new Map(messages.map((message) => [message.id, message.model]))
+    // No snapshot and no modelId → live agent fallback.
     expect(modelByMessageId.get('assistant-without-snapshot')).toEqual({
       id: 'fallback-model',
       name: 'Fallback Model',
       provider: 'fallback-provider',
+      group: ''
+    })
+    // No snapshot but a stored modelId → the row's own frozen model, not the live fallback.
+    expect(modelByMessageId.get('assistant-with-modelId')).toEqual({
+      id: 'gpt-5',
+      name: 'gpt-5',
+      provider: 'openai',
       group: ''
     })
     expect(modelByMessageId.get('user-without-snapshot')).toBeUndefined()
@@ -101,5 +110,25 @@ describe('agentSessionExport', () => {
       provider: 'stored-provider',
       group: ''
     })
+  })
+
+  it('stops paging at maxMessages instead of walking the whole session', async () => {
+    vi.mocked(dataApiService.get)
+      .mockResolvedValueOnce({
+        items: [createSessionMessage({ id: 'newest', role: 'user' })],
+        nextCursor: 'older'
+      })
+      .mockResolvedValueOnce({
+        items: [createSessionMessage({ id: 'older', role: 'user' })],
+        nextCursor: undefined
+      })
+
+    const messages = await getAgentSessionMessagesForExport(
+      { id: 'session-a', agentId: 'agent-a', name: 'Session A' },
+      { maxMessages: 1 }
+    )
+
+    expect(dataApiService.get).toHaveBeenCalledTimes(1)
+    expect(messages.map((message) => message.id)).toEqual(['newest'])
   })
 })

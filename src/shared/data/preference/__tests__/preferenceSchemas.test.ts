@@ -4,6 +4,10 @@ import type { PreferenceSchemas } from '../preferenceSchemas'
 import { DefaultPreferences } from '../preferenceSchemas'
 
 describe('DefaultPreferences', () => {
+  it('leaves the client ID empty until runtime generates a UUID', () => {
+    expect(DefaultPreferences.default['app.user.id']).toBe('')
+  })
+
   it('uses flat file processing default keys', () => {
     const markdownConversionDefault: PreferenceSchemas['default']['feature.file_processing.default_document_to_markdown'] =
       null
@@ -28,12 +32,30 @@ describe('DefaultPreferences', () => {
     expect(DefaultPreferences.default['chat.web_search.default_search_keywords_provider']).toBe(searchKeywordsDefault)
   })
 
-  it('groups conversations and agent sessions by the traditional view defaults for new users', () => {
-    const topicDisplayDefault: PreferenceSchemas['default']['topic.tab.display_mode'] = 'time'
-    const agentSessionDisplayDefault: PreferenceSchemas['default']['agent.session.display_mode'] = 'workdir'
+  it('groups conversations and agent sessions by the assistant and agent defaults for new users', () => {
+    const topicDisplayDefault: PreferenceSchemas['default']['topic.tab.display_mode'] = 'assistant'
+    const agentSessionDisplayDefault: PreferenceSchemas['default']['agent.session.display_mode'] = 'agent'
 
     expect(DefaultPreferences.default['topic.tab.display_mode']).toBe(topicDisplayDefault)
     expect(DefaultPreferences.default['agent.session.display_mode']).toBe(agentSessionDisplayDefault)
+  })
+
+  it('defaults sidebar favorites to the canonical five app tabs for new users', () => {
+    const sidebarFavoritesDefault: PreferenceSchemas['default']['ui.sidebar.favorites'] = [
+      { id: 'assistants', type: 'app' },
+      { id: 'agents', type: 'app' },
+      { id: 'translate', type: 'app' },
+      { id: 'paintings', type: 'app' },
+      { id: 'knowledge', type: 'app' }
+    ]
+
+    expect(DefaultPreferences.default['ui.sidebar.favorites']).toEqual(sidebarFavoritesDefault)
+  })
+
+  it('defaults transparent windows on for new users', () => {
+    const windowStyleDefault: PreferenceSchemas['default']['ui.window_style'] = 'transparent'
+
+    expect(DefaultPreferences.default['ui.window_style']).toBe(windowStyleDefault)
   })
 
   it('does not keep legacy classic/modern layout preferences', () => {

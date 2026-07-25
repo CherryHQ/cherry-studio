@@ -1,5 +1,10 @@
 {
   "agent": {
+    "builtin": {
+      "cherry_assistant": {
+        "description": "Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+      }
+    },
     "session": {
       "workspace_status": {
         "inaccessible": "Arbeitsbereichspfad ist nicht zugänglich: {{path}}",
@@ -51,6 +56,12 @@
   },
   "dialog": {
     "all_files": "Alle Dateien",
+    "data_reset": {
+      "cancel": "Abbrechen",
+      "confirm": "Zurücksetzen und neu starten",
+      "message": "Chats, Assistenten, Wissensdatenbanken, Dateien und Einstellungen werden gelöscht. Anschließend wird die App neu gestartet. Diese Aktion kann nicht rückgängig gemacht werden. Möchten Sie fortfahren?",
+      "title": "App-Daten zurücksetzen"
+    },
     "html_files": "HTML-Dateien",
     "open_file": "Datei öffnen",
     "pdf_files": "PDF-Dateien",

@@ -14,7 +14,7 @@
       }
     },
     "enabled": true,
-    "includes": ["**/*.json", "!**/package.json", "!coverage/**", "!config/app-upgrade-segments.json"]
+    "includes": ["**/*.json", "!**/package.json", "!coverage/**"]
   },
   "css": {
     "formatter": {
@@ -30,6 +30,7 @@
       "!**/.conductor/**",
       "!v2-refactor-temp/**",
       "!resources/**",
+      "!**/storybook-static/**",
       "!**/dist/**"
     ],
     "maxSize": 2097152

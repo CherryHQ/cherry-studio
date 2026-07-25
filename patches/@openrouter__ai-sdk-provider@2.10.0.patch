@@ -23,7 +23,7 @@ index 0055af0c73ad638a59df92fa5d46edc7995da151..f9b8eff0f1ceca6e1077d60117690f93
  type OpenRouterSharedSettings = OpenRouterProviderOptions & {
      /**
 diff --git a/dist/index.js b/dist/index.js
-index 3c6c1b100611983d32172288e9e40a1e6736320d..5dd9fcc359de1f6009d8fbeebb2343dc5fa5a515 100644
+index 3c6c1b100611983d32172288e9e40a1e6736320d..71bcbc62847eb4db626941ffd99761d82a3b1f2d 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -2585,7 +2585,8 @@ var OpenRouterProviderOptionsSchema = import_v43.z.object({
@@ -92,8 +92,29 @@ index 3c6c1b100611983d32172288e9e40a1e6736320d..5dd9fcc359de1f6009d8fbeebb2343dc
      const args = __spreadValues(__spreadValues({}, this.getArgs(options)), openrouterOptions);
      const { value: response, responseHeaders } = await postJsonToApi({
        url: this.config.url({
+@@ -4895,7 +4898,8 @@ var OpenRouterImageResponseSchema = import_v49.z.object({
+   created: import_v49.z.number().optional(),
+   data: import_v49.z.array(
+     import_v49.z.object({
+-      b64_json: import_v49.z.string()
++      b64_json: import_v49.z.string(),
++      media_type: import_v49.z.string().optional()
+     }).passthrough()
+   ),
+   usage: import_v49.z.object({
+@@ -4964,7 +4968,9 @@ var OpenRouterImageModel = class {
+         message: "No images in response"
+       });
+     }
+-    const images = responseValue.data.map((item) => item.b64_json);
++    const images = responseValue.data.map(
++      (item) => item.media_type ? `data:${item.media_type};base64,${item.b64_json}` : item.b64_json
++    );
+     const usage = responseValue.usage ? {
+       inputTokens: responseValue.usage.prompt_tokens,
+       outputTokens: responseValue.usage.completion_tokens,
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 6320306870c5f3ce5439f068b32b2848f6cb0c7e..01862a6c5693445f87397f0639eb6f034ca5909f 100644
+index 6320306870c5f3ce5439f068b32b2848f6cb0c7e..d5ae7dcead87ecbc07e3f672ed1145864ce2dcde 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -2552,7 +2552,8 @@ var OpenRouterProviderOptionsSchema = z3.object({
@@ -162,3 +183,24 @@ index 6320306870c5f3ce5439f068b32b2848f6cb0c7e..01862a6c5693445f87397f0639eb6f03
      const args = __spreadValues(__spreadValues({}, this.getArgs(options)), openrouterOptions);
      const { value: response, responseHeaders } = await postJsonToApi({
        url: this.config.url({
+@@ -4862,7 +4865,8 @@ var OpenRouterImageResponseSchema = z10.object({
+   created: z10.number().optional(),
+   data: z10.array(
+     z10.object({
+-      b64_json: z10.string()
++      b64_json: z10.string(),
++      media_type: z10.string().optional()
+     }).passthrough()
+   ),
+   usage: z10.object({
+@@ -4931,7 +4935,9 @@ var OpenRouterImageModel = class {
+         message: "No images in response"
+       });
+     }
+-    const images = responseValue.data.map((item) => item.b64_json);
++    const images = responseValue.data.map(
++      (item) => item.media_type ? `data:${item.media_type};base64,${item.b64_json}` : item.b64_json
++    );
+     const usage = responseValue.usage ? {
+       inputTokens: responseValue.usage.prompt_tokens,
+       outputTokens: responseValue.usage.completion_tokens,

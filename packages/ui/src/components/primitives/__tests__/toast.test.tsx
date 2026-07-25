@@ -32,6 +32,16 @@ describe('Toast', () => {
     expect(screen.getByRole('status')).toHaveAttribute('aria-live', 'polite')
   })
 
+  it('marks toast items as no-drag so they stay clickable over titlebar drag regions', () => {
+    render(<ToastViewport />)
+
+    act(() => {
+      toast.success('Saved')
+    })
+
+    expect(screen.getByRole('status')).toHaveClass('[-webkit-app-region:no-drag]')
+  })
+
   it('auto-dismisses non-sticky toasts after their timeout', () => {
     vi.useFakeTimers()
     render(<ToastViewport />)

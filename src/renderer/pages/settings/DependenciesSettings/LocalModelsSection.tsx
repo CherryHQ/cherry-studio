@@ -196,9 +196,8 @@ const ModelCard: FC<ModelCardProps> = ({
 }
 
 /**
- * Local model download cards in the Environment Dependencies settings — embedding
- * (transformers.js) and OCR (PaddleOCR), each wired to its inference/download
- * backend over IpcApi.
+ * Local model download cards — embedding (transformers.js) and OCR
+ * (PaddleOCR), each wired to its inference/download backend over IpcApi.
  */
 const LocalModelsSection: FC = () => {
   const { t } = useTranslation()
@@ -207,9 +206,8 @@ const LocalModelsSection: FC = () => {
   const ocr = useLocalModelCard('ocr')
 
   // Both models share the same inference runtime, so they're unsupported together
-  // (e.g. Intel Mac — onnxruntime-node ships no darwin-x64 binding). Hide the
-  // whole section rather than offering a download that would fail.
-  if (embedding.status === 'unsupported' && ocr.status === 'unsupported') return null
+  // (e.g. Intel Mac — onnxruntime-node ships no darwin-x64 binding).
+  const unsupported = embedding.status === 'unsupported' && ocr.status === 'unsupported'
 
   return (
     <div className="min-w-0">
@@ -219,30 +217,38 @@ const LocalModelsSection: FC = () => {
       <p className="mt-1 mb-3 text-muted-foreground text-xs leading-5">
         {t('settings.dependencies.localModels.description')}
       </p>
-      <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <ModelCard
-          icon={<Boxes className="size-5" />}
-          name={t('settings.dependencies.localModels.embedding.name')}
-          subtitle={t('settings.dependencies.localModels.embedding.subtitle')}
-          status={embedding.status}
-          percent={embedding.percent}
-          notice={embedding.notice}
-          onDownload={embedding.download}
-          onCancel={embedding.cancel}
-          onRemove={embedding.remove}
-        />
-        <ModelCard
-          icon={<ScanText className="size-5" />}
-          name={t('settings.dependencies.localModels.ocr.name')}
-          subtitle={t('settings.dependencies.localModels.ocr.subtitle')}
-          status={ocr.status}
-          percent={ocr.percent}
-          notice={ocr.notice}
-          onDownload={ocr.download}
-          onCancel={ocr.cancel}
-          onRemove={ocr.remove}
-        />
-      </div>
+      {unsupported ? (
+        <div
+          role="status"
+          className="rounded-xl border border-border border-dashed bg-card/50 px-4 py-6 text-center text-muted-foreground text-xs leading-5">
+          {t('settings.dependencies.localModels.unsupported')}
+        </div>
+      ) : (
+        <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <ModelCard
+            icon={<Boxes className="size-5" />}
+            name={t('settings.dependencies.localModels.embedding.name')}
+            subtitle={t('settings.dependencies.localModels.embedding.subtitle')}
+            status={embedding.status}
+            percent={embedding.percent}
+            notice={embedding.notice}
+            onDownload={embedding.download}
+            onCancel={embedding.cancel}
+            onRemove={embedding.remove}
+          />
+          <ModelCard
+            icon={<ScanText className="size-5" />}
+            name={t('settings.dependencies.localModels.ocr.name')}
+            subtitle={t('settings.dependencies.localModels.ocr.subtitle')}
+            status={ocr.status}
+            percent={ocr.percent}
+            notice={ocr.notice}
+            onDownload={ocr.download}
+            onCancel={ocr.cancel}
+            onRemove={ocr.remove}
+          />
+        </div>
+      )}
     </div>
   )
 }

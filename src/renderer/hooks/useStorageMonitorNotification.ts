@@ -13,9 +13,10 @@ const logger = loggerService.withContext('useStorageMonitorNotification')
  * StorageMonitorService; this hook is a thin subscriber that maps health
  * transitions onto a persistent toast, mirroring useAppUpdateHandler.
  *
- * REFACTOR(window-runtime-init): like useAppUpdateHandler, this is a main-only
- * event->toast subscriber that need not be a React hook — it belongs in a
- * notification/service layer, not the window render tree.
+ * Intentionally a React hook, not a service (mirroring useAppUpdateHandler):
+ * service-ification was considered and rejected — it depends on React-visible toast
+ * state and manages its own effect cleanup, and the renderer has no service lifecycle
+ * container, so a service would only add manual start/stop wiring for no gain.
  */
 export function useStorageMonitorNotification(): void {
   useEffect(() => {

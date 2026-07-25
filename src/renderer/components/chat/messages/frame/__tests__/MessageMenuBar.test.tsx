@@ -39,6 +39,7 @@ vi.mock('@renderer/utils/image', () => ({
 }))
 
 vi.mock('@renderer/utils/message/partsHelpers', () => ({
+  canEditAssistantMessageParts: () => true,
   getTranslationFromParts: () => undefined,
   getTextFromParts: () => 'hello',
   hasTextParts: () => true,
@@ -51,7 +52,9 @@ vi.mock('react-i18next', () => ({
     init: vi.fn()
   },
   useTranslation: () => ({
-    t: (key: string) => key
+    t: (key: string, options?: { value?: string }) =>
+      key === 'chat.message.token_details.tokens' ? `${options?.value} Tokens` : key,
+    i18n: { resolvedLanguage: 'en-US' }
   })
 }))
 
@@ -154,6 +157,6 @@ describe('MessageMenuBar', () => {
       { showEstimatedTokens: true }
     )
 
-    expect(container.querySelector('.message-tokens')?.textContent).toContain('Tokens:0.0K')
+    expect(container.querySelector('.message-tokens')).toHaveTextContent('42 Tokens')
   })
 })

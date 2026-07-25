@@ -90,9 +90,10 @@ describe('clearCliConfig', () => {
     expect(JSON.parse(writes['/resolved~/.codex/auth.json'])).toEqual({ user: 'keep' })
   })
 
-  it('opencode: strips only cherry-* providers', async () => {
+  it('opencode: strips only cherry-* providers and the cherry-addressed top-level model', async () => {
     existing['/resolved~/.config/opencode/opencode.json'] = JSON.stringify({
       $schema: 'https://opencode.ai/config.json',
+      model: 'cherry-deepseek/deepseek-chat',
       provider: { 'cherry-deepseek': { npm: 'x' }, userprov: { npm: 'y' } },
       autoCompact: true,
       maxTurns: 30,
@@ -106,6 +107,24 @@ describe('clearCliConfig', () => {
       $schema: 'https://opencode.ai/config.json',
       provider: { userprov: { npm: 'y' } },
       userTop: 'keep'
+    })
+  })
+
+  // The top-level model is only Cherry's when it addresses a cherry-* provider; a user's own
+  // selector pointing at their own provider must survive the clear.
+  it('opencode: keeps a user-owned top-level model', async () => {
+    existing['/resolved~/.config/opencode/opencode.json'] = JSON.stringify({
+      $schema: 'https://opencode.ai/config.json',
+      model: 'userprov/gpt-4o',
+      provider: { 'cherry-deepseek': { npm: 'x' }, userprov: { npm: 'y' } }
+    })
+
+    await clearCliConfig({ cliTool: CodeCli.OPEN_CODE })
+
+    expect(JSON.parse(writes['/resolved~/.config/opencode/opencode.json'])).toEqual({
+      $schema: 'https://opencode.ai/config.json',
+      model: 'userprov/gpt-4o',
+      provider: { userprov: { npm: 'y' } }
     })
   })
 

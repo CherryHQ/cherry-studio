@@ -12,7 +12,7 @@ import * as z from 'zod'
 import type { OffsetPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
 import { AgentSessionWorkspaceSourceSchema } from './agentWorkspaces'
-import { JobScheduleNameAtomSchema, TriggerSchema } from './jobs'
+import { TriggerSchema } from './jobs'
 
 // ============================================================================
 // Field atoms (shared validators reused across entity and DTO schemas)
@@ -23,6 +23,7 @@ export const ModelIdAtomSchema = z.string().min(1)
 export const TimeoutMinutesAtomSchema = z.number().min(1).nullable().optional()
 export const AgentToolNameSetSchema = z.array(z.string()).transform((items) => Array.from(new Set(items)))
 export const AgentSkillIdSetSchema = z.array(z.string().min(1)).transform((items) => Array.from(new Set(items)))
+export const AgentKnowledgeBaseIdSetSchema = z.array(z.string().min(1)).transform((items) => Array.from(new Set(items)))
 export const AgentSkillUpdateSchema = z.strictObject({
   skillId: z.string().min(1),
   isEnabled: z.boolean()
@@ -109,6 +110,8 @@ export const AgentBaseSchema = z.strictObject({
   planModel: UniqueModelIdSchema.optional(),
   smallModel: UniqueModelIdSchema.optional(),
   mcps: z.array(z.string()).optional(),
+  /** Knowledge base IDs linked through agent_knowledge_base. Empty = kb_* tools are not exposed to the agent. */
+  knowledgeBaseIds: AgentKnowledgeBaseIdSetSchema.optional(),
   /** Opt-out list of disabled tool names (empty = all enabled). Drives SDK disallowedTools and PreToolUse denial. */
   disabledTools: AgentToolNameSetSchema.optional(),
   configuration: AgentConfigurationSchema.optional()
@@ -124,6 +127,7 @@ export const AGENT_MUTABLE_FIELDS = {
   planModel: true,
   smallModel: true,
   mcps: true,
+  knowledgeBaseIds: true,
   disabledTools: true,
   configuration: true
 } as const
@@ -189,10 +193,9 @@ export const CreateAgentSchema = AgentEntitySchema.pick({ type: true, ...AGENT_M
    * Writes `agent_skill` join rows in the same create transaction. Builtin
    * skills need no id here — they read as enabled by default for every agent
    * (see `AgentGlobalSkillService.list()`) until a row explicitly disables one.
-   * Editing an existing agent's skills goes through the skill toggle IPC (which
-   * also manages workspace symlinks), NOT PATCH /agents — so this is
-   * intentionally absent from AGENT_MUTABLE_FIELDS / UpdateAgentSchema to avoid
-   * a dual-write path.
+   * Editing an existing agent's skills goes through PATCH /agents with
+   * `skillUpdates`. This remains intentionally absent from AGENT_MUTABLE_FIELDS
+   * because join-table updates are applied separately from agent-row fields.
    */
   skillIds: AgentSkillIdSetSchema.optional()
 })
@@ -208,25 +211,10 @@ export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS).pa
 })
 export type UpdateAgentDto = z.infer<typeof UpdateAgentSchema>
 
-// ============================================================================
-// Task DTOs
-// ============================================================================
-
-export const CreateTaskSchema = z.strictObject({
-  name: JobScheduleNameAtomSchema,
-  prompt: z.string().min(1),
-  trigger: TriggerSchema,
-  workspace: AgentSessionWorkspaceSourceSchema,
-  timeoutMinutes: TimeoutMinutesAtomSchema,
-  channelIds: z.array(z.string()).optional()
-})
-export type CreateTaskDto = z.infer<typeof CreateTaskSchema>
-
-export const UpdateTaskSchema = CreateTaskSchema.partial().extend({
-  /** Pause = false, resume = true. Replaces v1 status field. */
-  enabled: z.boolean().optional()
-})
-export type UpdateTaskDto = z.infer<typeof UpdateTaskSchema>
+// Task command DTOs live on IpcApi (`ai.agent.task.*` in
+// `@shared/ipc/schemas/ai`) — schedule mutations are mixed-effect and the Job
+// DataApi surface is GET-only (api-design-guidelines.md). Only the read-side
+// entity schemas above stay here.
 
 // ============================================================================
 // Common query types
@@ -245,10 +233,11 @@ export const AGENTS_MAX_LIMIT = 500
 /**
  * Query parameters for `GET /agents`.
  * - `search` LIKEs against `name` OR `description` (case-insensitive,
- *   wildcards in the raw input are escaped server-side).
+ *   wildcards in the raw input are escaped server-side), including the localized
+ *   builtin Cherry Assistant fallback when its stored description is blank.
  */
 export const ListAgentsQuerySchema = z.strictObject({
-  /** Free-text match against name OR description (case-insensitive LIKE). */
+  /** Free-text match against name OR description, including builtin fallback text (case-insensitive LIKE). */
   search: z.string().trim().min(1).optional(),
   /** Positive integer, defaults to {@link AGENTS_DEFAULT_PAGE}. */
   page: z.int().positive().default(AGENTS_DEFAULT_PAGE),
@@ -307,34 +296,20 @@ export type AgentSchemas = {
     }
   }
 
-  /** List tasks for an agent, create a new task */
+  /** List tasks for an agent (mutations live on IpcApi `ai.agent.task.*`) */
   '/agents/:agentId/tasks': {
     GET: {
       params: { agentId: string }
       query?: ListQuery
       response: OffsetPaginationResponse<ScheduledTaskEntity>
     }
-    POST: {
-      params: { agentId: string }
-      body: CreateTaskDto
-      response: ScheduledTaskEntity
-    }
   }
 
-  /** Get, update, or delete a specific task */
+  /** Get a specific task */
   '/agents/:agentId/tasks/:taskId': {
     GET: {
       params: { agentId: string; taskId: string }
       response: ScheduledTaskEntity
-    }
-    PATCH: {
-      params: { agentId: string; taskId: string }
-      body: UpdateTaskDto
-      response: ScheduledTaskEntity
-    }
-    DELETE: {
-      params: { agentId: string; taskId: string }
-      response: void
     }
   }
 

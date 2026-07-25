@@ -1,4 +1,10 @@
-import type { CherryMessagePart, CherryUIMessage, MessageStats, MessageStatus } from '@shared/data/types/message'
+import type {
+  CherryMessagePart,
+  CherryUIMessage,
+  MessageSnapshot,
+  MessageStats,
+  MessageStatus
+} from '@shared/data/types/message'
 
 import type { Model } from './model'
 import type { Message } from './newMessage'
@@ -13,6 +19,8 @@ export interface MessageExportView {
   status: MessageStatus
   modelId?: string
   model?: Model
+  /** Frozen producing author (assistant/agent, model nested) — drives export headers after rename/delete. */
+  messageSnapshot?: MessageSnapshot
   parentId?: string | null
   siblingsGroupId?: number
   stats?: MessageStats

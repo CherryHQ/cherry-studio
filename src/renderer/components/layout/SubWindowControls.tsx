@@ -4,6 +4,7 @@ import { BackToMainWindowIcon } from '@renderer/components/icons/WindowIcons'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { useTabs } from '@renderer/hooks/tab'
 import { ipcApi } from '@renderer/ipc'
+import { resolveSidebarAppTabEntryUrl } from '@renderer/utils/sidebar'
 import { cn } from '@renderer/utils/style'
 import { Pin } from 'lucide-react'
 import { useState } from 'react'
@@ -12,10 +13,9 @@ import { useTranslation } from 'react-i18next'
 const logger = loggerService.withContext('SubWindowControls')
 
 /**
- * Detached-window navbar controls: pin (always-on-top) + back-to-main. Rendered by
- * ConversationShell only when the page lives in a sub-window, immediately left of the
- * page's right-side tool. Self-contained — the back action re-attaches the window's
- * single tab via Tab_Attach (SubWindowService closes this window after broadcasting).
+ * Detached-window title-bar controls: pin (always-on-top) + back-to-main. Self-contained —
+ * the back action re-attaches the window's single tab via the tab IPC API (SubWindowService
+ * closes this window after broadcasting).
  */
 export const SubWindowControls = () => {
   const { t } = useTranslation()
@@ -31,7 +31,8 @@ export const SubWindowControls = () => {
   const handleBackToMain = () => {
     const tab = tabs.find((tabItem) => tabItem.id === activeTabId) ?? tabs[0]
     if (!tab) return
-    ipcApi.request('tab.attach', tab).catch((err) => {
+    const payload = { ...tab, url: resolveSidebarAppTabEntryUrl(tab) }
+    ipcApi.request('tab.attach', payload).catch((err) => {
       logger.error('Back to main window failed', err as Error)
     })
   }

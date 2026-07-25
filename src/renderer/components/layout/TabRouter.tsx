@@ -1,4 +1,4 @@
-import { PortalContainerProvider } from '@cherrystudio/ui'
+import { DialogPortalContainerProvider, PortalContainerProvider } from '@cherrystudio/ui'
 import { RouteErrorFallback } from '@renderer/components/layout/RouteErrorFallback'
 import { TabIdProvider } from '@renderer/components/layout/TabIdProvider'
 import { routeTree } from '@renderer/routeTree.gen'
@@ -63,7 +63,9 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
             background tab's still-open surface stays hidden with its owning tab. */}
         <div ref={captureTabPortalContainer} className="relative flex h-full min-h-0 w-full flex-1 flex-col">
           <PortalContainerProvider container={tabPortalContainer}>
-            <RouterProvider router={router} />
+            <DialogPortalContainerProvider container={tabPortalContainer}>
+              <RouterProvider router={router} />
+            </DialogPortalContainerProvider>
           </PortalContainerProvider>
         </div>
       </TabIdProvider>

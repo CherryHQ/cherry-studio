@@ -3,19 +3,25 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   nodeProxyConfigureMock,
+  nodeProxyControllerConstructorMock,
   sessionSetProxyMock,
   webviewSetProxyMock,
   appSetProxyMock,
   getSystemProxyMock,
   intervalRegistrations
-} = vi.hoisted(() => ({
-  nodeProxyConfigureMock: vi.fn(),
-  sessionSetProxyMock: vi.fn().mockResolvedValue(undefined),
-  webviewSetProxyMock: vi.fn().mockResolvedValue(undefined),
-  appSetProxyMock: vi.fn().mockResolvedValue(undefined),
-  getSystemProxyMock: vi.fn(),
-  intervalRegistrations: [] as Array<{ handler: () => void; dispose: ReturnType<typeof vi.fn> }>
-}))
+} = vi.hoisted(() => {
+  const nodeProxyConfigureMock = vi.fn()
+
+  return {
+    nodeProxyConfigureMock,
+    nodeProxyControllerConstructorMock: vi.fn(() => ({ configure: nodeProxyConfigureMock })),
+    sessionSetProxyMock: vi.fn().mockResolvedValue(undefined),
+    webviewSetProxyMock: vi.fn().mockResolvedValue(undefined),
+    appSetProxyMock: vi.fn().mockResolvedValue(undefined),
+    getSystemProxyMock: vi.fn(),
+    intervalRegistrations: [] as Array<{ handler: () => void; dispose: ReturnType<typeof vi.fn> }>
+  }
+})
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -52,7 +58,7 @@ vi.mock('@application', async () => {
 })
 
 vi.mock('../NodeProxyController', () => ({
-  NodeProxyController: vi.fn(() => ({ configure: nodeProxyConfigureMock }))
+  NodeProxyController: nodeProxyControllerConstructorMock
 }))
 
 vi.mock('os-proxy-config', () => ({ getSystemProxy: getSystemProxyMock }))
@@ -108,6 +114,16 @@ describe('ProxyService — preference wiring', () => {
     MockMainPreferenceServiceUtils.resetMocks()
     intervalRegistrations.length = 0
     getSystemProxyMock.mockResolvedValue({ proxyUrl: 'http://system:1080', noProxy: ['localhost'] })
+  })
+
+  it('defers Node proxy controller construction until proxy apply', async () => {
+    const manager = new ProxyService()
+    expect(nodeProxyControllerConstructorMock).not.toHaveBeenCalled()
+
+    await (manager as any).onReady()
+    await reconcilerOf(manager).flush()
+
+    expect(nodeProxyControllerConstructorMock).toHaveBeenCalledTimes(1)
   })
 
   it('applies the custom proxy from preferences on ready (Node stack + Electron sessions)', async () => {

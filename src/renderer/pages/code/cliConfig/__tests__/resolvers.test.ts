@@ -1,4 +1,5 @@
 import type { Provider } from '@shared/data/types/provider'
+import { CLI_API_GATEWAY_PROVIDER_ID } from '@shared/types/codeCli'
 import { describe, expect, it } from 'vitest'
 
 import { resolveGeminiBaseUrl } from '../resolvers'
@@ -76,5 +77,23 @@ describe('resolveGeminiBaseUrl', () => {
 
   it('returns empty for a provider with no resolvable endpoint', () => {
     expect(resolveGeminiBaseUrl(provider({ id: 'noendpoint' }))).toBe('')
+  })
+
+  // The synthetic gateway provider declares no google endpoint (adding one would flip
+  // OpenCode+gateway to the google dialect), so gemini reads its shared bare host —
+  // @google/genai appends /v1beta itself.
+  it('returns the bare gateway host for the synthetic API-gateway provider', () => {
+    expect(
+      resolveGeminiBaseUrl(
+        provider({
+          id: CLI_API_GATEWAY_PROVIDER_ID,
+          endpointConfigs: {
+            'anthropic-messages': { baseUrl: 'http://127.0.0.1:23333' },
+            'openai-chat-completions': { baseUrl: 'http://127.0.0.1:23333' },
+            'openai-responses': { baseUrl: 'http://127.0.0.1:23333' }
+          }
+        })
+      )
+    ).toBe('http://127.0.0.1:23333')
   })
 })

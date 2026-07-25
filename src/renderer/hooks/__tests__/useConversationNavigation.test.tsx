@@ -181,6 +181,17 @@ describe('useConversationNavigation', () => {
     })
   })
 
+  it('openConversationTab does not create a hidden tab in a detached window', () => {
+    const ctx = makeCtx([])
+    tabsMock.ctx = ctx
+    tabsMock.windowFrameMode = 'window'
+    const { result } = renderHook(() => useConversationNavigation('agents'))
+
+    expect(result.current.openConversationTab('s1', 'Session 1')).toBeUndefined()
+    expect(ctx.openTab).not.toHaveBeenCalled()
+    expect(tabsMock.emitResourceListReveal).not.toHaveBeenCalled()
+  })
+
   it('openConversation routes to a detached window without a tabs provider', () => {
     tabsMock.ctx = null
     const { result } = renderHook(() => useConversationNavigation('agents'))

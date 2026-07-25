@@ -1,5 +1,10 @@
 {
   "agent": {
+    "builtin": {
+      "cherry_assistant": {
+        "description": "Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+      }
+    },
     "session": {
       "workspace_status": {
         "inaccessible": "ワークスペースパスにアクセスできません: {{path}}",
@@ -51,6 +56,12 @@
   },
   "dialog": {
     "all_files": "すべてのファイル",
+    "data_reset": {
+      "cancel": "キャンセル",
+      "confirm": "リセットして再起動",
+      "message": "チャット、アシスタント、ナレッジベース、ファイル、設定を消去して、アプリを再起動します。この操作は元に戻せません。続行しますか？",
+      "title": "アプリデータをリセット"
+    },
     "html_files": "HTMLファイル",
     "open_file": "ファイルを開く",
     "pdf_files": "PDFファイル",

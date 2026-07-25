@@ -65,7 +65,7 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
 })
 
 describe('DetailHeader', () => {
-  it('renders the base name and completed status', () => {
+  it('renders the base name without a status badge when completed', () => {
     render(
       <DetailHeader
         base={createKnowledgeBase()}
@@ -75,9 +75,8 @@ describe('DetailHeader', () => {
       />
     )
 
-    expect(screen.getByText('就绪')).toBeInTheDocument()
-    expect(screen.getByText('就绪')).toHaveClass('bg-success/10', 'text-success')
-    expect(screen.getByText('就绪')).toHaveAttribute('aria-label', '就绪')
+    expect(screen.getByText('Base 1')).toBeInTheDocument()
+    expect(screen.queryByText('就绪')).not.toBeInTheDocument()
   })
 
   it('renders the failed status as a clickable rebuild trigger', () => {
@@ -121,7 +120,7 @@ describe('DetailHeader', () => {
       />
     )
 
-    expect(screen.getByText('就绪')).toHaveAttribute('aria-label', '就绪')
+    expect(screen.queryByText('就绪')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /重建知识库/ })).not.toBeInTheDocument()
   })
 

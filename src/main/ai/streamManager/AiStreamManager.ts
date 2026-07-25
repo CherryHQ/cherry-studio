@@ -16,6 +16,7 @@ import type {
   AiStreamOpenResponse
 } from '@shared/ai/transport'
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
 import { type UIMessageChunk } from 'ai'
 
@@ -196,7 +197,10 @@ export class AiStreamManager extends BaseService {
   private nextStreamTurnSequence = 0
   /** Per-topic FIFO of steer user-message ids persisted while a turn was live. Chat's analogue of
    *  the agent runtime's `pendingTurns`; drained one continuation turn at a time. */
-  private readonly pendingSteers = new Map<string, string[]>()
+  private readonly pendingSteers = new Map<
+    string,
+    Array<{ userMessageId: string; reasoningEffort?: ReasoningEffortOption }>
+  >()
   /** Topics whose steer continuation is mid-launch — dedups `scheduleNextChatTurn`, mirroring the
    *  agent runtime's `startingNextTurn`. */
   private readonly startingNextChatTopicIds = new Set<string>()
@@ -502,7 +506,7 @@ export class AiStreamManager extends BaseService {
 
   /** Enqueue a steer user message (already persisted by the provider). If the topic settled before
    *  this landed, start the continuation immediately. Mirrors `AgentSessionRuntimeService.enqueueUserMessage`. */
-  enqueuePendingSteer(topicId: string, userMessageId: string): void {
+  enqueuePendingSteer(topicId: string, userMessageId: string, reasoningEffort?: ReasoningEffortOption): void {
     // The turn may have settled between `prepareDispatch` and here (the loop's terminal hooks don't
     // hold the dispatch lock), so no hook would fire to chain this steer. Decide from the single
     // authority — the resolved `status` on the still-in-grace stream — not a separate shadow flag:
@@ -514,7 +518,7 @@ export class AiStreamManager extends BaseService {
     //   • aborted / error   → drop; the persisted user row stays for the user to resend.
     const status = this.activeStreams.get(topicId)?.status
     if (status && isLiveStatus(status)) {
-      this.appendPendingSteer(topicId, userMessageId)
+      this.appendPendingSteer(topicId, userMessageId, reasoningEffort)
       return
     }
     if (status === 'aborted' || status === 'error') {
@@ -525,14 +529,15 @@ export class AiStreamManager extends BaseService {
       })
       return
     }
-    this.appendPendingSteer(topicId, userMessageId)
+    this.appendPendingSteer(topicId, userMessageId, reasoningEffort)
     if (status !== 'awaiting-approval') this.scheduleNextChatTurn(topicId)
   }
 
-  private appendPendingSteer(topicId: string, userMessageId: string): void {
+  private appendPendingSteer(topicId: string, userMessageId: string, reasoningEffort?: ReasoningEffortOption): void {
     const queue = this.pendingSteers.get(topicId)
-    if (queue) queue.push(userMessageId)
-    else this.pendingSteers.set(topicId, [userMessageId])
+    const item = { userMessageId, reasoningEffort }
+    if (queue) queue.push(item)
+    else this.pendingSteers.set(topicId, [item])
   }
 
   // ── Public: listener management ───────────────────────────────────
@@ -554,6 +559,26 @@ export class AiStreamManager extends BaseService {
   removeListener(topicId: string, listenerId: string): void {
     const stream = this.activeStreams.get(topicId)
     stream?.listeners.delete(listenerId)
+  }
+
+  /**
+   * Clear a live runtime tool approval as soon as the user responds, before the
+   * tool's eventual output chunk arrives. Returns whether a tracked approval changed.
+   */
+  resolveToolApproval(topicId: string, toolCallId: string): boolean {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream || !isLiveStatus(stream.status)) return false
+
+    let changed = false
+    let pendingApprovalFlipped = false
+    for (const exec of stream.executions.values()) {
+      const pendingApprovals = exec.pendingApprovalToolCallIds
+      if (!pendingApprovals?.delete(toolCallId)) continue
+      changed = true
+      if (pendingApprovals.size === 0) pendingApprovalFlipped = true
+    }
+    if (pendingApprovalFlipped) stream.lifecycle.onApprovalPendingChanged(stream)
+    return changed
   }
 
   // ── Public: abort ─────────────────────────────────────────────────
@@ -594,6 +619,7 @@ export class AiStreamManager extends BaseService {
 
     // Authoritative approval-lifecycle capture, keyed by toolCallId so a sibling tool's output never
     // clears another tool's still-pending approval; `resolveTerminalStatus` reads the set's size.
+    const hadPendingApprovals = (exec.pendingApprovalToolCallIds?.size ?? 0) > 0
     if (chunk.type === 'tool-approval-request') {
       ;(exec.pendingApprovalToolCallIds ??= new Set()).add(chunk.toolCallId)
     } else if (
@@ -603,11 +629,20 @@ export class AiStreamManager extends BaseService {
     ) {
       exec.pendingApprovalToolCallIds?.delete(chunk.toolCallId)
     }
+    // Broadcast payloads and consumers only care about "any pending?", so only
+    // the empty↔non-empty flip warrants a rebroadcast — size changes within
+    // parallel approvals would produce byte-identical payloads.
+    const hasPendingApprovals = (exec.pendingApprovalToolCallIds?.size ?? 0) > 0
+    const pendingApprovalFlipped = hadPendingApprovals !== hasPendingApprovals
 
-    // First chunk promotes `pending` → `streaming`.
+    // First chunk promotes `pending` → `streaming`; that broadcast already
+    // carries the anchors captured above, so only a mid-stream flip needs its
+    // own rebroadcast.
     if (stream.status === 'pending') {
       stream.status = 'streaming'
       stream.lifecycle.onPromotedToStreaming(stream)
+    } else if (pendingApprovalFlipped) {
+      stream.lifecycle.onApprovalPendingChanged(stream)
     }
 
     const sourceModelId = modelId
@@ -702,11 +737,16 @@ export class AiStreamManager extends BaseService {
     // to `output-error` by `finalizeInterruptedParts` at every projection
     // (persistence already, re-attach below). Must run before
     // `resolveTerminalStatus`.
+    const hadPendingApprovals = (exec.pendingApprovalToolCallIds?.size ?? 0) > 0
     exec.pendingApprovalToolCallIds?.clear()
 
     endRootSpan(exec, 'aborted')
     stream.status = this.resolveTerminalStatus(stream)
     const isTopicDone = !isLiveStatus(stream.status)
+
+    // A live sibling keeps the topic out of the terminal broadcast below, so
+    // the dropped approval anchor must reach the shared cache on its own.
+    if (hadPendingApprovals && !isTopicDone) stream.lifecycle.onApprovalPendingChanged(stream)
 
     await this.broadcastExecutionPaused(stream, exec, isTopicDone)
 
@@ -732,10 +772,15 @@ export class AiStreamManager extends BaseService {
 
     // Mirror of onExecutionPaused: clear the set so the status anchor drops;
     // the in-flight tool part is terminalized by `finalizeInterruptedParts`.
+    const hadPendingApprovals = (exec.pendingApprovalToolCallIds?.size ?? 0) > 0
     exec.pendingApprovalToolCallIds?.clear()
 
     stream.status = this.computeTopicStatus(stream)
     const isTopicDone = !isLiveStatus(stream.status)
+
+    // A live sibling keeps the topic out of the terminal broadcast below, so
+    // the dropped approval anchor must reach the shared cache on its own.
+    if (hadPendingApprovals && !isTopicDone) stream.lifecycle.onApprovalPendingChanged(stream)
     const finalMessage = ensureTerminalFinalMessage(exec)
 
     const result: StreamErrorResult = {
@@ -762,8 +807,13 @@ export class AiStreamManager extends BaseService {
    *  rows in the renderer is the renderer slice's responsibility, not handled here. */
   private dropPendingSteers(topicId: string, reason: 'aborted' | 'error'): void {
     const dropped = this.pendingSteers.get(topicId)
-    if (dropped?.length)
-      logger.warn('Dropping queued steers without answering', { topicId, reason, droppedIds: dropped })
+    if (dropped?.length) {
+      logger.warn('Dropping queued steers without answering', {
+        topicId,
+        reason,
+        droppedIds: dropped.map((item) => item.userMessageId)
+      })
+    }
     this.pendingSteers.delete(topicId)
   }
 
@@ -842,8 +892,8 @@ export class AiStreamManager extends BaseService {
    */
   private async startNextChatTurn(topicId: string): Promise<void> {
     const queue = this.pendingSteers.get(topicId)
-    const userMessageId = queue?.[0]
-    if (!userMessageId) {
+    const pending = queue?.[0]
+    if (!pending) {
       this.pendingSteers.delete(topicId)
       return
     }
@@ -861,7 +911,8 @@ export class AiStreamManager extends BaseService {
     const carried = previous ? [...previous.listeners.values()].filter(isRendererListener) : []
     if (previous) this.evictStream(topicId)
 
-    const req: MainDispatchRequest = { trigger: 'steer-continuation', topicId, userMessageId }
+    const { userMessageId, reasoningEffort } = pending
+    const req: MainDispatchRequest = { trigger: 'steer-continuation', topicId, userMessageId, reasoningEffort }
     try {
       await this.dispatch(carried[0] ?? nullStreamListener, req)
     } catch (error) {
@@ -1107,12 +1158,12 @@ export class AiStreamManager extends BaseService {
       if (signal.aborted) {
         logger.debug('Execution aborted', { topicId, modelId, reason: signal.reason })
       } else {
-        logger.error('Execution loop error', { topicId, modelId, err: result.threw })
+        logger.error('Execution loop error', { topicId, modelId, err: result.threw.error })
       }
       const serialized =
         result.streamErrorText !== undefined && !signal.aborted
           ? errorFromStreamChunk(result.streamErrorText)
-          : serializeError(result.threw)
+          : serializeError(result.threw.error)
       await this.onExecutionError(topicId, modelId, serialized)
       return
     }

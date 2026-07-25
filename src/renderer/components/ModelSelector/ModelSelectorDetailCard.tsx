@@ -1,6 +1,6 @@
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
 import { getModelDisplayTags, ModelTag } from '@renderer/components/tags/Model'
-import { getModelSupportedReasoningEffortOptions } from '@renderer/utils/model'
+import { deriveThinkingOptions } from '@shared/ai/reasoning'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { TFunction } from 'i18next'
@@ -13,18 +13,21 @@ import { getProviderDisplayName } from './utils'
 
 type HoverCardPortalContainer = ComponentPropsWithoutRef<typeof HoverCardContent>['portalContainer']
 type HoverCardSide = NonNullable<ComponentPropsWithoutRef<typeof HoverCardContent>['side']>
+type HorizontalHoverCardSide = Extract<HoverCardSide, 'left' | 'right'>
 type HoverCardAlign = NonNullable<ComponentPropsWithoutRef<typeof HoverCardContent>['align']>
 
 const NUMBER_FORMATTER = new Intl.NumberFormat(undefined)
 const DETAIL_CARD_TARGET_WIDTH = 336
 const DETAIL_CARD_SIDE_OFFSET = 8
 const DETAIL_CARD_COLLISION_PADDING = 12
+const DETAIL_CARD_OPEN_DELAY = 1500
 
 const REASONING_EFFORT_LABEL_KEYS: Record<string, string> = {
   auto: 'assistants.settings.reasoning_effort.auto',
   default: 'assistants.settings.reasoning_effort.default',
   high: 'assistants.settings.reasoning_effort.high',
   low: 'assistants.settings.reasoning_effort.low',
+  max: 'assistants.settings.reasoning_effort.max',
   medium: 'assistants.settings.reasoning_effort.medium',
   minimal: 'assistants.settings.reasoning_effort.minimal',
   none: 'assistants.settings.reasoning_effort.off',
@@ -56,7 +59,7 @@ function getViewportSize() {
 
 function getAvailableSpaceForSide(
   triggerRect: DOMRect,
-  side: HoverCardSide,
+  side: HorizontalHoverCardSide,
   viewport: { width: number; height: number }
 ) {
   switch (side) {
@@ -64,14 +67,10 @@ function getAvailableSpaceForSide(
       return viewport.width - triggerRect.right - DETAIL_CARD_SIDE_OFFSET - DETAIL_CARD_COLLISION_PADDING
     case 'left':
       return triggerRect.left - DETAIL_CARD_SIDE_OFFSET - DETAIL_CARD_COLLISION_PADDING
-    case 'bottom':
-      return viewport.height - triggerRect.bottom - DETAIL_CARD_SIDE_OFFSET - DETAIL_CARD_COLLISION_PADDING
-    case 'top':
-      return triggerRect.top - DETAIL_CARD_SIDE_OFFSET - DETAIL_CARD_COLLISION_PADDING
   }
 }
 
-function getDetailCardSide(trigger: HTMLElement): HoverCardSide {
+function getDetailCardSide(trigger: HTMLElement): HorizontalHoverCardSide {
   const triggerRect = trigger.getBoundingClientRect()
   const viewport = getViewportSize()
   const rightSpace = getAvailableSpaceForSide(triggerRect, 'right', viewport)
@@ -85,14 +84,11 @@ function getDetailCardSide(trigger: HTMLElement): HoverCardSide {
     return 'left'
   }
 
-  return getAvailableSpaceForSide(triggerRect, 'bottom', viewport) >=
-    getAvailableSpaceForSide(triggerRect, 'top', viewport)
-    ? 'bottom'
-    : 'top'
+  return rightSpace >= leftSpace ? 'right' : 'left'
 }
 
-function getDetailCardAlign(side: HoverCardSide): HoverCardAlign {
-  return side === 'left' || side === 'right' ? 'start' : 'center'
+function getDetailCardAlign(): HoverCardAlign {
+  return 'start'
 }
 
 function compactList(values: readonly string[] | undefined, limit = 3): string | undefined {
@@ -131,7 +127,10 @@ function ModelSelectorDetailCardBody({ item, providerName }: { item: ModelSelect
   const { t } = useTranslation()
   const { model, modelIdentifier } = item
   const tags = useMemo(() => getModelDisplayTags(model), [model])
-  const reasoningEfforts = formatReasoningEfforts(getModelSupportedReasoningEffortOptions(model), t)
+  const reasoningEfforts = formatReasoningEfforts(
+    deriveThinkingOptions(model)?.filter((option) => option !== 'default'),
+    t
+  )
   const imageModes = formatImageGenerationModes(model, t)
   const hasTokenDetails = model.contextWindow != null || model.maxInputTokens != null || model.maxOutputTokens != null
   const hasCapabilityDetails = Boolean(reasoningEfforts || imageModes)
@@ -195,8 +194,8 @@ export const ModelSelectorDetailCard = memo(function ModelSelectorDetailCard({
 }) {
   const providerName = getProviderDisplayName(provider)
   const triggerRef = useRef<HTMLElement | null>(null)
-  const [side, setSide] = useState<HoverCardSide>('right')
-  const align = getDetailCardAlign(side)
+  const [side, setSide] = useState<HorizontalHoverCardSide>('right')
+  const align = getDetailCardAlign()
   const setTriggerElement = useCallback((element: HTMLAnchorElement | null) => {
     triggerRef.current = element
   }, [])
@@ -210,7 +209,7 @@ export const ModelSelectorDetailCard = memo(function ModelSelectorDetailCard({
   }, [])
 
   return (
-    <HoverCard openDelay={450} closeDelay={100} onOpenChange={(open) => open && updateSide()}>
+    <HoverCard openDelay={DETAIL_CARD_OPEN_DELAY} closeDelay={100} onOpenChange={(open) => open && updateSide()}>
       <HoverCardTrigger asChild ref={setTriggerElement}>
         {children}
       </HoverCardTrigger>

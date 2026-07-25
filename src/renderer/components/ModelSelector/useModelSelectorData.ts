@@ -21,8 +21,6 @@ import type {
 import { getProviderDisplayName } from './utils'
 
 const EMPTY_TAGS: ModelSelectorTag[] = []
-const SELECTOR_LIST_SWR_OPTIONS = { revalidateOnFocus: true } as const
-const CHERRYAI_SETTINGS_PROVIDER_ID = 'cherryin'
 
 function getModelSearchScore(keywords: string, model: Model, provider: Provider, providerDisplayName: string) {
   return getSearchMatchScore(keywords, [
@@ -70,10 +68,6 @@ function sortProvidersByPriority(providers: Provider[], prioritizedProviderIds: 
   return [...prioritized, ...remaining]
 }
 
-function getProviderSettingsProviderId(provider: Provider): string {
-  return provider.id === CHERRYAI_PROVIDER_ID ? CHERRYAI_SETTINGS_PROVIDER_ID : provider.id
-}
-
 export function useModelSelectorData({
   selectedModelIds = [],
   maxSelectedCount,
@@ -83,16 +77,8 @@ export function useModelSelectorData({
   showPinnedModels = true,
   prioritizedProviderIds = []
 }: UseModelSelectorDataOptions): UseModelSelectorDataResult {
-  const {
-    providers,
-    isLoading: isProvidersLoading,
-    refetch: refetchProviders
-  } = useProviders({ enabled: true }, { swrOptions: SELECTOR_LIST_SWR_OPTIONS })
-  const {
-    models,
-    isLoading: isModelsLoading,
-    refetch: refetchModels
-  } = useModels({ enabled: true }, { swrOptions: SELECTOR_LIST_SWR_OPTIONS })
+  const { providers, isLoading: isProvidersLoading, refetch: refetchProviders } = useProviders({ enabled: true })
+  const { models, isLoading: isModelsLoading, refetch: refetchModels } = useModels({ enabled: true })
   const {
     isLoading: isPinsLoading,
     isRefreshing: isPinsRefreshing,
@@ -289,8 +275,7 @@ export function useModelSelectorData({
         title: getProviderDisplayName(provider),
         groupKind: 'provider',
         provider,
-        canNavigateToSettings: true,
-        settingsProviderId: getProviderSettingsProviderId(provider)
+        canNavigateToSettings: provider.id !== CHERRYAI_PROVIDER_ID
       })
 
       items.push(

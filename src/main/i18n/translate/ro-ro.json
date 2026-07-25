@@ -1,5 +1,10 @@
 {
   "agent": {
+    "builtin": {
+      "cherry_assistant": {
+        "description": "Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+      }
+    },
     "session": {
       "workspace_status": {
         "inaccessible": "Calea către spațiul de lucru nu este accesibilă: {{path}}",
@@ -51,6 +56,12 @@
   },
   "dialog": {
     "all_files": "Toate fișierele",
+    "data_reset": {
+      "cancel": "Anulează",
+      "confirm": "Resetează și repornește",
+      "message": "Această acțiune va șterge conversațiile, asistenții, bazele de cunoștințe, fișierele și setările, apoi va reporni aplicația. Acțiunea nu poate fi anulată. Continui?",
+      "title": "Resetarea datelor aplicației"
+    },
     "html_files": "Fișiere HTML",
     "open_file": "Deschide fișier",
     "pdf_files": "Fișiere PDF",

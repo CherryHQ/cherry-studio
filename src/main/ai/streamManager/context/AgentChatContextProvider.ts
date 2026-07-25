@@ -9,7 +9,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { topicNamingService } from '@main/services/TopicNamingService'
-import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { UIMessage } from 'ai'
@@ -31,7 +31,7 @@ function toReservedAgentUIMessage(row: AgentSessionMessageEntity): CherryUIMessa
       status: row.status,
       createdAt: row.createdAt,
       modelId: row.modelId ?? undefined,
-      modelSnapshot: row.modelSnapshot ?? undefined,
+      messageSnapshot: row.messageSnapshot ?? undefined,
       stats: row.stats ?? undefined,
       ...(row.stats?.totalTokens ? { totalTokens: row.stats.totalTokens } : {})
     }
@@ -70,7 +70,16 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
     const uniqueModelId = agent.model
     const { providerId, modelId: rawModelId } = parseUniqueModelId(uniqueModelId)
-    const modelSnapshot = { id: rawModelId, name: agent.modelName ?? rawModelId, provider: providerId }
+    // The agent owns the model it ran — snapshot the agent (with the model nested) so the
+    // header shows the agent first, even after the agent is deleted.
+    const messageSnapshot = {
+      id: agent.id,
+      name: agent.name,
+      // Normalized effective avatar (mirrors renderer `getAgentAvatar`): blank/whitespace → the default,
+      // so we never freeze a truthy-but-broken source. `🤖` is `DEFAULT_AGENT_AVATAR`.
+      emoji: agent.configuration?.avatar?.trim() || '🤖',
+      model: { id: rawModelId, name: agent.modelName ?? rawModelId, provider: providerId }
+    }
 
     const userMessageId = uuidv7()
     const userMessageParts = req.userMessageParts ?? []
@@ -84,7 +93,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       status: 'success',
       searchableText: '',
       modelId: null,
-      modelSnapshot: null,
+      messageSnapshot: null,
       stats: null,
       runtimeResumeToken: null,
       createdAt,
@@ -111,9 +120,11 @@ export class AgentChatContextProvider implements ChatContextProvider {
       // Fire-and-forget is safe: the naming service isolates errors and rechecks state before writing.
       topicNamingService.maybeRenameAgentSessionFromFirstUserMessage(sessionId, savedUserMessage.data)
 
-      application
-        .get('AgentSessionRuntimeService')
-        .enqueueUserMessage(sessionId, userMessage, { headless: req.headless === true })
+      application.get('AgentSessionRuntimeService').enqueueUserMessage(sessionId, userMessage, {
+        headless: req.headless === true,
+        messageSnapshot,
+        reasoningEffort: req.reasoningEffort
+      })
 
       return {
         topicId: req.topicId,
@@ -162,7 +173,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
           status: 'pending',
           data: { parts: [] },
           modelId: uniqueModelId,
-          modelSnapshot
+          messageSnapshot
         }
       ]
     })
@@ -184,10 +195,12 @@ export class AgentChatContextProvider implements ChatContextProvider {
       agentId,
       agentType: agent.type,
       modelId: uniqueModelId,
+      reasoningEffort: req.reasoningEffort,
       assistantMessageId,
       userMessage,
       headless: req.headless === true,
-      traceId
+      traceId,
+      messageSnapshot
     })
 
     return {
@@ -205,6 +218,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
               { id: assistantMessageId, role: 'assistant', parts: [] }
             ],
             messageId: assistantMessageId,
+            reasoningEffort: req.reasoningEffort,
             runtime: { kind: 'agent-session', sessionId, turnId: runtime.turnId }
           },
           rootSpan: turnTrace.rootSpan,

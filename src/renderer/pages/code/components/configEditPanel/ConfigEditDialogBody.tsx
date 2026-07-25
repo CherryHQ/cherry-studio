@@ -7,11 +7,13 @@ import {
   DialogTitle,
   SegmentedControl
 } from '@cherrystudio/ui'
+import { GatewayIcon } from '@renderer/components/icons/GatewayIcon'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import { SettingContainer, SettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { Provider } from '@shared/data/types/provider'
+import { isApiGatewayProviderId } from '@shared/types/codeCli'
 import { ExternalLink } from 'lucide-react'
 import type { ComponentProps, FC, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -26,6 +28,8 @@ export interface ConfigEditDialogBodyProps {
   provider: Provider
   providerName: string
   providerIcon: ComponentProps<typeof ProviderAvatarPrimitive>['logo']
+  /** Settings route opened from the header link (real provider page, or the gateway settings page). */
+  providerSettingsPath: `/settings/${string}`
   theme: ComponentProps<typeof SettingContainer>['theme']
   isClaudeTool: boolean
   claudeModelMode: ClaudeModelMode
@@ -50,6 +54,7 @@ export const ConfigEditDialogBody: FC<ConfigEditDialogBodyProps> = ({
   provider,
   providerName,
   providerIcon,
+  providerSettingsPath,
   theme,
   isClaudeTool,
   claudeModelMode,
@@ -78,13 +83,20 @@ export const ConfigEditDialogBody: FC<ConfigEditDialogBodyProps> = ({
         className="flex max-h-[85vh] flex-col">
         <DialogHeader>
           <DialogTitle className="flex min-w-0 items-center gap-2">
-            <ProviderAvatarPrimitive
-              providerId={provider.id}
-              providerName={providerName}
-              logo={providerIcon}
-              size={22}
-              className="shrink-0 rounded-md border border-border/30 **:data-[slot=avatar-fallback]:rounded-[inherit] **:data-[slot=avatar-image]:rounded-[inherit]"
-            />
+            {isApiGatewayProviderId(provider.id) ? (
+              // Match the gateway list card: a broadcast-tower glyph (relay/hub metaphor).
+              <span className="flex size-[22px] shrink-0 items-center justify-center rounded-md border border-border/30 bg-background text-foreground">
+                <GatewayIcon width={14} height={14} />
+              </span>
+            ) : (
+              <ProviderAvatarPrimitive
+                providerId={provider.id}
+                providerName={providerName}
+                logo={providerIcon}
+                size={22}
+                className="shrink-0 rounded-md border border-border/30 **:data-[slot=avatar-fallback]:rounded-[inherit] **:data-[slot=avatar-image]:rounded-[inherit]"
+              />
+            )}
             <span className="min-w-0 truncate">{providerName}</span>
             <Button
               type="button"
@@ -95,7 +107,7 @@ export const ConfigEditDialogBody: FC<ConfigEditDialogBodyProps> = ({
               title={t('code.open_provider_settings')}
               onClick={() => {
                 onClose()
-                openSettingsTab(`/settings/provider?id=${provider.id}`)
+                openSettingsTab(providerSettingsPath)
               }}>
               <ExternalLink className="size-3.5" />
             </Button>

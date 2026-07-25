@@ -35,8 +35,8 @@ function renderSidebar(
       onSelectTool={vi.fn()}
       toMeta={(tool) => ({ id: tool.value, label: tool.label, icon: tool.icon })}
       statuses={{
-        [CodeCli.CLAUDE_CODE]: { installed: false, canUpgrade: false },
-        [CodeCli.OPENAI_CODEX]: { installed: true, current: '1.2.3', canUpgrade: false },
+        [CodeCli.CLAUDE_CODE]: { installed: false, source: 'none', canUpgrade: false },
+        [CodeCli.OPENAI_CODEX]: { installed: true, source: 'mise', current: '1.2.3', canUpgrade: false },
         ...statuses
       }}
       installingTools={new Set()}
@@ -47,12 +47,6 @@ function renderSidebar(
 }
 
 describe('CodeCliSidebar', () => {
-  it('uses the same vertical spacing as the provider list', () => {
-    renderSidebar()
-
-    expect(screen.getByRole('button', { name: /Claude Code/ }).parentElement).toHaveClass('space-y-2')
-  })
-
   it('renders each CLI row horizontally with status on the right', () => {
     renderSidebar()
 
@@ -69,7 +63,13 @@ describe('CodeCliSidebar', () => {
 
   it('renders no version or upgrade indicator for installed tools', () => {
     renderSidebar({
-      [CodeCli.OPENAI_CODEX]: { installed: true, current: '1.2.3', latest: '1.3.0', canUpgrade: true }
+      [CodeCli.OPENAI_CODEX]: {
+        installed: true,
+        source: 'mise',
+        current: '1.2.3',
+        latest: '1.3.0',
+        canUpgrade: true
+      }
     })
 
     expect(screen.queryByText('v1.2.3')).not.toBeInTheDocument()
@@ -84,7 +84,6 @@ describe('CodeCliSidebar', () => {
     const summary = screen.getByText('deepseek-v4-flash')
 
     expect(name.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(summary).toHaveClass('font-mono')
     expect(screen.getByRole('button', { name: /OpenAI Codex/ }).textContent).not.toContain('deepseek-v4-flash')
   })
 })

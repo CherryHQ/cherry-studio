@@ -2,10 +2,8 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import SelectionToolbarView from '@renderer/components/selection/SelectionToolbarView'
 import { useTimer } from '@renderer/hooks/useTimer'
-import i18n from '@renderer/i18n/resolver'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
-import { defaultLanguage } from '@shared/utils/languages'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -45,8 +43,6 @@ const updateWindowSize = (contentElement?: HTMLElement | null) => {
 }
 
 const SelectionToolbar: FC = () => {
-  const [language] = usePreference('app.language')
-  const [customCss] = usePreference('ui.custom_css')
   const [isCompact] = usePreference('feature.selection.compact')
   const [actionItems] = usePreference('feature.selection.action_items')
   const [copyIconStatus, setCopyIconStatus] = useState<'normal' | 'success' | 'fail'>('normal')
@@ -85,26 +81,6 @@ const SelectionToolbar: FC = () => {
   useEffect(() => {
     updateWindowSize(toolbarRef.current)
   }, [isCompact, actionItems])
-
-  useEffect(() => {
-    void i18n.changeLanguage(language || navigator.language || defaultLanguage)
-  }, [language])
-
-  useEffect(() => {
-    let customCssElement = document.getElementById('user-defined-custom-css') as HTMLStyleElement
-    if (customCssElement) {
-      customCssElement.remove()
-    }
-
-    if (customCss) {
-      const newCustomCss = customCss.replace(/(^|\s)background(-image|-color)?\s*:[^;]+;/gi, '')
-
-      customCssElement = document.createElement('style')
-      customCssElement.id = 'user-defined-custom-css'
-      customCssElement.textContent = newCustomCss
-      document.head.appendChild(customCssElement)
-    }
-  }, [customCss])
 
   /**
    * Check if text is a valid URI or file path

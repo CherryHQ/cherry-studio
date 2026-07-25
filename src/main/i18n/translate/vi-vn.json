@@ -1,5 +1,10 @@
 {
   "agent": {
+    "builtin": {
+      "cherry_assistant": {
+        "description": "Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+      }
+    },
     "session": {
       "workspace_status": {
         "inaccessible": "Đường dẫn không gian làm việc không thể truy cập: {{path}}",
@@ -51,6 +56,12 @@
   },
   "dialog": {
     "all_files": "Tất cả các tệp",
+    "data_reset": {
+      "cancel": "Hủy",
+      "confirm": "Đặt lại và khởi động lại",
+      "message": "Thao tác này sẽ xóa các cuộc trò chuyện, trợ lý, cơ sở kiến thức, tệp và cài đặt, sau đó khởi động lại ứng dụng. Không thể hoàn tác. Tiếp tục?",
+      "title": "Đặt lại dữ liệu ứng dụng"
+    },
     "html_files": "Tập tin HTML",
     "open_file": "Mở Tệp",
     "pdf_files": "Tệp PDF",

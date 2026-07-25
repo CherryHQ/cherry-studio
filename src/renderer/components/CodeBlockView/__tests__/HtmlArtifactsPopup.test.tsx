@@ -53,10 +53,14 @@ vi.mock('@cherrystudio/ui', () => ({
   ResizableHandle: () => <div data-testid="resize-handle" />,
   ResizablePanel: ({ children }: any) => <div>{children}</div>,
   ResizablePanelGroup: ({ children }: any) => <div>{children}</div>,
-  SegmentedControl: ({ options }: any) => (
+  SegmentedControl: ({ onValueChange, options, value }: any) => (
     <div data-testid="segmented-control">
       {options.map((option: any) => (
-        <button key={option.value} type="button">
+        <button
+          key={option.value}
+          type="button"
+          aria-checked={option.value === value}
+          onClick={() => onValueChange?.(option.value)}>
           {option.label}
         </button>
       ))}
@@ -106,8 +110,28 @@ describe('HtmlArtifactsPopup', () => {
       />
     )
 
+    fireEvent.click(screen.getByRole('button', { name: '代码' }))
+
     expect(screen.queryByTestId('code-editor')).not.toBeInTheDocument()
     expect(screen.getByTestId('code-viewer')).toHaveTextContent('<h1>Hello</h1>')
+  })
+
+  it('defaults to preview mode', () => {
+    const { container } = render(
+      <HtmlArtifactsPopup
+        open
+        editable={false}
+        title="HTML Artifacts"
+        html="<h1>Hello</h1>"
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: '预览' })).toHaveAttribute('aria-checked', 'true')
+    expect(container.querySelector('iframe')).not.toBeNull()
+    expect(screen.queryByTestId('code-editor')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('code-viewer')).not.toBeInTheDocument()
   })
 
   it('renders the editor when editable is true', () => {
@@ -121,6 +145,8 @@ describe('HtmlArtifactsPopup', () => {
         onSave={vi.fn()}
       />
     )
+
+    fireEvent.click(screen.getByRole('button', { name: '代码' }))
 
     expect(screen.getByTestId('code-editor')).toHaveTextContent('<h1>Hello</h1>')
     expect(screen.queryByTestId('code-viewer')).not.toBeInTheDocument()

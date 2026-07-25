@@ -15,15 +15,17 @@ import {
 } from '@cherrystudio/ui'
 import { useInfiniteFlatItems, useInfiniteQuery, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { FilePreview } from '@renderer/components/FilePreview'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import { safeOpen } from '@renderer/utils/file/safeOpen'
+import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { isMac } from '@renderer/utils/platform'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { OutputFor } from '@shared/ipc/types'
-import type { FilePath, FileType } from '@shared/types/file'
+import type { AbsoluteFilePath, FileType } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFileEntryHandle, getFileTypeByExt, toSafeFileUrl } from '@shared/utils/file'
-import { MoreHorizontal, Upload } from 'lucide-react'
+import { ArrowLeft, MoreHorizontal, Upload } from 'lucide-react'
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -47,6 +49,12 @@ type BatchCreateInternalEntriesResult = OutputFor<'file.batch_create_internal_en
 type FileBatchMutationResult = OutputFor<'file.batch_trash'>
 type FileBatchRoute = 'file.batch_get_metadata' | 'file.batch_get_physical_paths' | 'file.batch_get_dangling_states'
 type FileBatchMutationRoute = 'file.batch_trash' | 'file.batch_restore' | 'file.batch_permanent_delete'
+
+interface EmbeddedFilePreview {
+  fileName: string
+  filePath: AbsoluteFilePath
+  refreshKey: number
+}
 
 // Renderer-side chunk size for splitting large id lists into multiple IPC calls.
 // This is a batching knob, not the schema cap itself; it only needs to stay at
@@ -114,8 +122,10 @@ async function requestBatchedFileMutation(
   }
 }
 
-async function requestBatchedInternalEntryCreates(paths: readonly string[]): Promise<BatchCreateInternalEntriesResult> {
-  const chunks: string[][] = []
+async function requestBatchedInternalEntryCreates(
+  paths: readonly AbsoluteFilePath[]
+): Promise<BatchCreateInternalEntriesResult> {
+  const chunks: AbsoluteFilePath[][] = []
   for (let i = 0; i < paths.length; i += FILE_IPC_CREATE_BATCH_SIZE) {
     chunks.push(paths.slice(i, i + FILE_IPC_CREATE_BATCH_SIZE))
   }
@@ -163,7 +173,7 @@ function toFileItem(
   metadataById: FileMetadataById,
   physicalPathById: PhysicalPathById,
   danglingStateById: DanglingStateById
-): FileItem | null {
+): FileItem {
   const metadata = metadataById[entry.id]
   const format = entry.ext ?? ''
   const type = getFileTypeByExt(format)
@@ -189,13 +199,11 @@ function toFileItem(
   const originFields = entry.origin === 'external' ? { origin: 'external' as const } : { origin: 'internal' as const }
 
   if (type === 'image') {
-    if (!physicalPath && !isMissing) return null
-
     return {
       ...base,
       ...originFields,
       type,
-      previewUrl: physicalPath ? toSafeFileUrl(physicalPath as FilePath, entry.ext) : undefined
+      previewUrl: physicalPath ? toSafeFileUrl(physicalPath, entry.ext) : undefined
     }
   }
 
@@ -354,6 +362,11 @@ const FileToolbar = memo(function FileToolbar({
 
 function FilesPage() {
   const { t } = useTranslation()
+  const [embeddedPreview, setEmbeddedPreview] = useState<EmbeddedFilePreview | null>(null)
+  // Guards the async open flow: each open bumps the token, and stale physical-path
+  // resolutions (success or failure) are ignored so a slower earlier click can never
+  // overwrite — or error over — the file the user most recently opened.
+  const openRequestTokenRef = useRef(0)
   const [metadataById, setMetadataById] = useState<FileMetadataById>({})
   const [physicalPathById, setPhysicalPathById] = useState<PhysicalPathById>({})
   const [danglingStateById, setDanglingStateById] = useState<DanglingStateById>({})
@@ -485,8 +498,7 @@ function FilesPage() {
   }, [displayEntries, isFilesLoading, isFilesRefreshing])
 
   const files = useMemo(() => {
-    const items = displayEntries.map((entry) => toFileItem(entry, metadataById, physicalPathById, danglingStateById))
-    return items.filter((item): item is FileItem => item !== null)
+    return displayEntries.map((entry) => toFileItem(entry, metadataById, physicalPathById, danglingStateById))
   }, [displayEntries, danglingStateById, metadataById, physicalPathById])
 
   const refetchFiles = useCallback(async () => {
@@ -567,9 +579,25 @@ function FilesPage() {
 
   const handleOpen = useCallback(
     (file: FileItem) => {
-      void safeOpen(createFileEntryHandle(file.id)).catch(() => {
-        toast.error(t('files.preview.error'))
-      })
+      const requestToken = ++openRequestTokenRef.current
+      void requestBatchedFileRecords('file.batch_get_physical_paths', [file.id])
+        .then((physicalPaths) => {
+          if (openRequestTokenRef.current !== requestToken) return
+          const filePath = physicalPaths[file.id]
+          if (!filePath) throw new Error(`Physical path is unavailable for file ${file.id}`)
+          const normalizedPath = normalizeFilePreviewPath(filePath)
+          setEmbeddedPreview((current) => ({
+            fileName: file.name,
+            filePath: normalizedPath,
+            refreshKey: current?.filePath === normalizedPath ? current.refreshKey + 1 : 0
+          }))
+        })
+        .catch((error: unknown) => {
+          if (openRequestTokenRef.current !== requestToken) return
+          const normalized = error instanceof Error ? error : new Error(String(error))
+          logger.error('Failed to open file preview', normalized)
+          toast.error(t('files.preview.error'))
+        })
     },
     [t]
   )
@@ -581,7 +609,7 @@ function FilesPage() {
   }, [])
 
   const handleImportPaths = useCallback(
-    async (paths: string[]) => {
+    async (paths: AbsoluteFilePath[]) => {
       if (paths.length === 0) return
 
       try {
@@ -604,7 +632,9 @@ function FilesPage() {
       })
       if (!selected || selected.length === 0) return
 
-      const paths = selected.map((file) => file.path).filter((path): path is string => Boolean(path))
+      const paths = selected
+        .map((file) => AbsoluteFilePathSchema.safeParse(file.path).data)
+        .filter((path): path is AbsoluteFilePath => Boolean(path))
       await handleImportPaths(paths)
     } catch (error) {
       logger.error('Failed to select files for import', error as Error)
@@ -847,7 +877,7 @@ function FilesPage() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (renamingId || shouldIgnoreFileShortcut(e)) return
+      if (embeddedPreview || renamingId || shouldIgnoreFileShortcut(e)) return
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 0) {
         e.preventDefault()
         handleDelete()
@@ -863,7 +893,34 @@ function FilesPage() {
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [files, selectedIds, handleDelete, renamingId, startInlineRename])
+  }, [embeddedPreview, files, selectedIds, handleDelete, renamingId, startInlineRename])
+
+  if (embeddedPreview) {
+    return (
+      <section
+        aria-label={embeddedPreview.fileName}
+        className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
+        <FilePreview
+          filePath={embeddedPreview.filePath}
+          refreshKey={embeddedPreview.refreshKey}
+          header={
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t('common.back')}
+                className="size-6 min-h-6 min-w-6 rounded p-0 text-foreground-muted shadow-none hover:bg-accent hover:text-foreground"
+                onClick={() => setEmbeddedPreview(null)}>
+                <ArrowLeft className="size-3.5" />
+              </Button>
+              <span className="min-w-0 flex-1 truncate text-foreground text-sm">{embeddedPreview.fileName}</span>
+            </>
+          }
+        />
+      </section>
+    )
+  }
 
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden">
@@ -917,8 +974,8 @@ function FilesPage() {
           setDragOver(false)
           if (isTrash) return
           const paths = Array.from(e.dataTransfer.files)
-            .map((file) => window.api.file.getPathForFile(file))
-            .filter((path): path is string => Boolean(path))
+            .map((file) => AbsoluteFilePathSchema.safeParse(window.api.file.getPathForFile(file)).data)
+            .filter((path): path is AbsoluteFilePath => Boolean(path))
           void handleImportPaths(paths)
         }}>
         {!isImageGrid && (
@@ -960,24 +1017,33 @@ function FilesPage() {
             }
           }}>
           {filteredFiles.length === 0 ? (
-            <div className="flex flex-1 flex-col items-center justify-center px-6 py-16">
-              {!isFilesLoading && files.filter((f) => !f.trashed).length === 0 ? (
-                <EmptyState preset="no-file" />
-              ) : (
-                <EmptyState
-                  preset="no-result"
-                  title={t('files.empty.no_match_title')}
-                  description={t('files.empty.no_match_description')}
-                />
-              )}
-            </div>
+            // While the first load is in flight, show loading feedback instead of
+            // an empty state — otherwise the no-result state flashes before the
+            // list arrives.
+            isFilesLoading ? (
+              <div className="flex h-full flex-1 items-center justify-center text-muted-foreground text-sm">
+                {t('common.loading')}
+              </div>
+            ) : (
+              <div className="flex h-full flex-1 flex-col items-center justify-center px-6">
+                {files.filter((f) => !f.trashed).length === 0 ? (
+                  <EmptyState title={t('files.empty.title')} />
+                ) : (
+                  <EmptyState
+                    preset="no-result"
+                    title={t('files.empty.no_match_title')}
+                    description={t('files.empty.no_match_description')}
+                  />
+                )}
+              </div>
+            )
           ) : (
             <>
               {isImageGrid ? (
                 <FileGrid
                   files={filteredFiles}
-                  selectedIds={new Set()}
-                  onSelect={() => {}}
+                  scrollRef={contentScrollRef}
+                  onLayoutChange={maybeFillClientFilteredViewport}
                   onOpen={handleOpen}
                   onDelete={(id) => handleDelete(new Set([id]))}
                   isTrash={isTrash}
@@ -989,6 +1055,7 @@ function FilesPage() {
               ) : (
                 <FileList
                   files={filteredFiles}
+                  scrollRef={contentScrollRef}
                   selectedIds={selectedIds}
                   onSelect={handleSelect}
                   onOpen={handleOpen}

@@ -36,6 +36,7 @@ describe('MessageActionButton', () => {
     expect(button).toHaveAccessibleName('Copy')
     expect(button).toHaveAttribute('data-active', 'true')
     expect(button).toHaveClass('message-action-button')
+    expect(button).toHaveClass('size-6.5', 'p-1', '[&_svg]:!size-[15px]')
     expect(button).toHaveTextContent('Copy icon')
   })
 })

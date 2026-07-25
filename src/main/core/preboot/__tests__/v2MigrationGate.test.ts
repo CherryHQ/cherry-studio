@@ -553,6 +553,48 @@ describe('runV2MigrationGate', () => {
       expect(appQuitMock).not.toHaveBeenCalled()
       expect(result).toBe('skipped')
     })
+
+    it('quits with a fatal error when pinning the default dir fails on Use Default (response 1)', async () => {
+      stubInaccessible()
+      showMessageBoxMock.mockResolvedValue({ response: 1 })
+      // Strict pin persistence fails — must not silently proceed into migration
+      // on an unpersisted pin (that would relaunch into the old dir and loop).
+      pinUserDataPathMock.mockImplementation(() => {
+        throw new Error('ENOSPC: no space left on device')
+      })
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      const result = await runV2MigrationGate()
+
+      expect(result).toBe('handled')
+      expect(showErrorBoxMock).toHaveBeenCalledTimes(1)
+      expect(appQuitMock).toHaveBeenCalledTimes(1)
+      expect(initializeMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('userData pin persistence failure', () => {
+    it('quits with a fatal error when resolveMigrationPaths cannot persist the pin', async () => {
+      // The only throwing operation in resolveMigrationPaths() is the strict
+      // pinUserDataPath() persist on the redirect branch.
+      resolveMigrationPathsMock.mockImplementation(() => {
+        throw new Error('ENOSPC: no space left on device')
+      })
+      stubMigrationV2()
+      stubElectron()
+      stubApplication()
+
+      const { runV2MigrationGate } = await loadModule()
+      const result = await runV2MigrationGate()
+
+      expect(result).toBe('handled')
+      expect(showErrorBoxMock).toHaveBeenCalledTimes(1)
+      expect(appQuitMock).toHaveBeenCalledTimes(1)
+      expect(initializeMock).not.toHaveBeenCalled()
+    })
   })
 
   describe('data-location notice', () => {

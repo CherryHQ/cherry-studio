@@ -128,7 +128,7 @@ function rowToMessage(row: MessageRow): Message {
     status: row.status as Message['status'],
     siblingsGroupId: row.siblingsGroupId,
     modelId: (row.modelId ?? null) as UniqueModelId | null,
-    modelSnapshot: parseJson(row.modelSnapshot),
+    messageSnapshot: parseJson(row.messageSnapshot),
     stats: parseJson(row.stats),
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
@@ -1014,7 +1014,7 @@ export class MessageService {
           status: dto.status ?? 'pending',
           siblingsGroupId: dto.siblingsGroupId,
           modelId: dto.modelId ?? null,
-          modelSnapshot: dto.modelSnapshot,
+          messageSnapshot: dto.messageSnapshot,
           stats: dto.stats
         })
         .returning()
@@ -1095,7 +1095,7 @@ export class MessageService {
             status: dto.status ?? 'pending',
             ...(dto.siblingsGroupId !== undefined ? { siblingsGroupId: dto.siblingsGroupId } : {}),
             modelId: dto.modelId,
-            modelSnapshot: dto.modelSnapshot,
+            messageSnapshot: dto.messageSnapshot,
             stats: dto.stats
           })
           .returning()
@@ -1138,7 +1138,7 @@ export class MessageService {
             status: p.status ?? 'pending',
             ...(input.siblingsGroupId !== undefined ? { siblingsGroupId: input.siblingsGroupId } : {}),
             modelId: p.modelId,
-            modelSnapshot: p.modelSnapshot,
+            messageSnapshot: p.messageSnapshot,
             stats: p.stats
           })
           .returning()
@@ -1627,7 +1627,7 @@ export class MessageService {
           status: sourceMessage.status === 'pending' ? 'error' : sourceMessage.status,
           siblingsGroupId: 0,
           modelId: sourceMessage.modelId,
-          modelSnapshot: sourceMessage.modelSnapshot,
+          messageSnapshot: sourceMessage.messageSnapshot,
           stats: sourceMessage.stats
         })
         .returning()

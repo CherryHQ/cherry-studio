@@ -4,9 +4,9 @@ import { getClaudeContextModelId, hasClaudeDetailedModels } from '@renderer/page
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import { isUniqueModelId, type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { CodeCli } from '@shared/types/codeCli'
-import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@shared/utils/model'
-import { isCherryAIProvider, isLoginBasedProvider } from '@shared/utils/provider'
+import { CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
+import { isEmbeddingModel, isGatewayRoutableModel, isRerankModel, isTextToImageModel } from '@shared/utils/model'
+import { isCherryAIProvider, isExternalCliProvider, isLoginBasedProvider } from '@shared/utils/provider'
 import { useCallback, useMemo } from 'react'
 
 import { CLI_TOOL_PROVIDER_MAP } from '../constants/cliTools'
@@ -17,9 +17,23 @@ import { modelSupportsCliTool } from '../utils/modelSupport'
  * provider list, the model filter handed to the edit panel's `ModelSelector`,
  * and a display-name resolver for the provider list.
  */
-export function useConfigMetadata(selectedCliTool: CodeCli) {
+export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[]) {
   const { models: allModels } = useModels({ enabled: true })
   const modelById = useMemo(() => new Map(allModels.map((m) => [m.id, m])), [allModels])
+  const gatewayProviderIds = useMemo(
+    () =>
+      new Set(providers.filter((provider) => provider.isEnabled && !isExternalCliProvider(provider)).map((p) => p.id)),
+    [providers]
+  )
+  const gatewayModelsById = useMemo(
+    () =>
+      new Map(
+        allModels
+          .filter((model) => gatewayProviderIds.has(model.providerId) && isGatewayRoutableModel(model))
+          .map((model) => [model.id, model])
+      ),
+    [allModels, gatewayProviderIds]
+  )
 
   const filterProviders = useCallback(
     (providers: Provider[]): Provider[] => {
@@ -39,6 +53,12 @@ export function useConfigMetadata(selectedCliTool: CodeCli) {
     (providerId: string) =>
       (model: Model): boolean => {
         if (isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) return false
+        // The gateway does dialect conversion, so any chat model of any enabled provider is usable
+        // regardless of the CLI tool — drop the per-tool endpoint gate and the single-provider scope,
+        // keeping only what the gateway can route (same predicate as its /v1/models listing).
+        if (isApiGatewayProviderId(providerId)) {
+          return isGatewayRoutableModel(model)
+        }
         if (!modelSupportsCliTool(selectedCliTool, model)) return false
         return model.providerId === providerId
       },
@@ -74,5 +94,11 @@ export function useConfigMetadata(selectedCliTool: CodeCli) {
     [resolveProviderMetaForTool, selectedCliTool]
   )
 
-  return { filterProviders, makeModelFilter, resolveProviderMeta, resolveProviderMetaForTool }
+  return {
+    filterProviders,
+    makeModelFilter,
+    resolveProviderMeta,
+    resolveProviderMetaForTool,
+    gatewayModelsById
+  }
 }

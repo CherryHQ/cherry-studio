@@ -1,5 +1,10 @@
 {
   "agent": {
+    "builtin": {
+      "cherry_assistant": {
+        "description": "Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+      }
+    },
     "session": {
       "workspace_status": {
         "inaccessible": "O caminho do workspace não está acessível: {{path}}",
@@ -51,6 +56,12 @@
   },
   "dialog": {
     "all_files": "Todos os Arquivos",
+    "data_reset": {
+      "cancel": "Cancelar",
+      "confirm": "Repor e reiniciar",
+      "message": "Esta ação irá apagar conversas, assistentes, bases de conhecimento, ficheiros e definições e, em seguida, reiniciar a aplicação. Esta ação não pode ser anulada. Pretende continuar?",
+      "title": "Repor os dados da aplicação"
+    },
     "html_files": "Arquivos HTML",
     "open_file": "Abrir Arquivo",
     "pdf_files": "Arquivos PDF",

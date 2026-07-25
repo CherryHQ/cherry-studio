@@ -1,25 +1,18 @@
 /**
- * Read content from a managed FileEntry or a raw FilePath.
+ * Read content from a managed FileEntry.
  *
- * Pure functions taking FileManagerDeps as the first argument — call sites
- * are FileManager methods + IPC dispatchers. ENOENT on an external entry
- * triggers a `'missing'` ingestion into DanglingCache before re-throwing,
- * via the shared `observeExternalAccess` wrapper.
+ * ENOENT on an external entry triggers a `'missing'` ingestion into
+ * DanglingCache before re-throwing, via the shared `observeExternalAccess`
+ * wrapper.
  */
 
-import { read as fsRead, stat as fsStat } from '@main/utils/file'
 import type { FileEntryId } from '@shared/data/types/file'
-import type { FilePath } from '@shared/types/file'
-import mime from 'mime'
 
-import type { FileVersion, ReadResult } from '../../FileManager'
+import type { ReadResult } from '../../FileManager'
+import { type Base64ReadOptions, type BinaryReadOptions, readByPath, type TextReadOptions } from '../../utils/content'
 import { resolvePhysicalPath } from '../../utils/pathResolver'
 import type { FileManagerDeps } from '../deps'
 import { observeExternalAccess } from '../observe'
-
-type TextReadOptions = { encoding?: 'text'; detectEncoding?: boolean }
-type Base64ReadOptions = { encoding: 'base64' }
-type BinaryReadOptions = { encoding: 'binary' }
 
 export async function read(
   deps: FileManagerDeps,
@@ -43,33 +36,5 @@ export async function read(
 ): Promise<ReadResult<string | Uint8Array>> {
   const entry = deps.fileEntryService.getById(id)
   const physicalPath = resolvePhysicalPath(entry)
-  return observeExternalAccess(deps, entry, physicalPath, () => readResolved(physicalPath, options))
-}
-
-export async function readByPath(
-  _deps: FileManagerDeps,
-  target: FilePath,
-  options?: TextReadOptions | Base64ReadOptions | BinaryReadOptions
-): Promise<ReadResult<string | Uint8Array>> {
-  return readResolved(target, options)
-}
-
-async function readResolved(
-  physicalPath: FilePath,
-  options?: TextReadOptions | Base64ReadOptions | BinaryReadOptions
-): Promise<ReadResult<string | Uint8Array>> {
-  const s = await fsStat(physicalPath)
-  const version: FileVersion = { mtime: s.modifiedAt, size: s.size }
-  const encoding = options?.encoding ?? 'text'
-  if (encoding === 'text') {
-    const content = await fsRead(physicalPath, { encoding: 'text' })
-    const inferredMime = mime.getType(physicalPath) ?? 'text/plain'
-    return { content, mime: inferredMime, version }
-  }
-  if (encoding === 'base64') {
-    const out = await fsRead(physicalPath, { encoding: 'base64' })
-    return { content: out.data, mime: out.mime, version }
-  }
-  const out = await fsRead(physicalPath, { encoding: 'binary' })
-  return { content: out.data, mime: out.mime, version }
+  return observeExternalAccess(deps, entry, physicalPath, () => readByPath(physicalPath, options))
 }

@@ -1,4 +1,5 @@
 import { Button, ButtonGroup, IndicatorLight, Input, Tooltip } from '@cherrystudio/ui'
+import { GatewayIcon } from '@renderer/components/icons/GatewayIcon'
 import {
   SettingDivider,
   SettingGroup,
@@ -11,7 +12,7 @@ import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
-import { Copy, ExternalLink, Play, RotateCcw, Server, Square, TriangleAlert } from 'lucide-react'
+import { Copy, ExternalLink, Play, RotateCcw, Square, TriangleAlert } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -99,7 +100,7 @@ const ApiGatewaySettings: FC = () => {
         <HeaderRow>
           <div className="min-w-0">
             <SettingTitle className="justify-start gap-2">
-              <Server size={16} />
+              <GatewayIcon width={16} height={16} />
               {t('apiGateway.title')}
             </SettingTitle>
             <PageDescription>{t('apiGateway.description')}</PageDescription>

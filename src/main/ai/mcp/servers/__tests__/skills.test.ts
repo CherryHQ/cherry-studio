@@ -7,6 +7,7 @@ const mockSkillList = vi.fn()
 const mockSkillToggle = vi.fn()
 const mockSkillInstallFromDirectory = vi.fn()
 const mockSkillGetSkillDirectory = vi.fn()
+const mockSkillGetInstalledSkillDirectory = vi.fn()
 const mockSkillGetByFolderName = vi.fn()
 const mockNetFetch = vi.fn()
 const mockMkdir = vi.fn()
@@ -25,6 +26,7 @@ vi.mock('@main/ai/skills/SkillService', () => ({
     toggle: mockSkillToggle,
     installFromDirectory: mockSkillInstallFromDirectory,
     getSkillDirectory: mockSkillGetSkillDirectory,
+    getInstalledSkillDirectory: mockSkillGetInstalledSkillDirectory,
     getByFolderName: mockSkillGetByFolderName
   }
 }))
@@ -198,7 +200,9 @@ describe('SkillsServer', () => {
         { id: '1', name: 'gh-create-pr', description: 'Create PRs', folderName: 'gh-create-pr', isEnabled: true },
         { id: '2', name: 'code-review', description: 'Review code', folderName: 'code-review', isEnabled: true }
       ])
-      mockSkillGetSkillDirectory.mockImplementation((folder: string) => `/global-skills/${folder}`)
+      mockSkillGetInstalledSkillDirectory.mockImplementation(
+        (skill: { folderName: string }) => `/global-skills/${skill.folderName}`
+      )
 
       const server = createServer('agent_1')
       const result = await callTool(server, { action: 'list' })
@@ -222,8 +226,32 @@ describe('SkillsServer', () => {
         path: '/global-skills/code-review',
         enabled: true
       })
-      expect(mockSkillGetSkillDirectory).toHaveBeenCalledWith('gh-create-pr')
-      expect(mockSkillGetSkillDirectory).toHaveBeenCalledWith('code-review')
+      expect(mockSkillGetInstalledSkillDirectory).toHaveBeenCalledWith(
+        expect.objectContaining({ folderName: 'gh-create-pr' })
+      )
+      expect(mockSkillGetInstalledSkillDirectory).toHaveBeenCalledWith(
+        expect.objectContaining({ folderName: 'code-review' })
+      )
+    })
+
+    it('should list a system skill with its external source path', async () => {
+      const systemSkill = {
+        id: 'system-1',
+        name: 'system-skill',
+        description: 'External skill',
+        folderName: 'system-skill',
+        source: 'system',
+        sourceUrl: 'file:///home/test/.codex/skills/system-skill',
+        isEnabled: true
+      }
+      mockSkillList.mockResolvedValue([systemSkill])
+      mockSkillGetInstalledSkillDirectory.mockReturnValue('/home/test/.codex/skills/system-skill')
+
+      const result = await callTool(createServer('agent_1'), { action: 'list' })
+      const parsed = JSON.parse(result.content[0].text)
+
+      expect(parsed[0].path).toBe('/home/test/.codex/skills/system-skill')
+      expect(mockSkillGetInstalledSkillDirectory).toHaveBeenCalledWith(systemSkill)
     })
 
     it('should handle empty list', async () => {

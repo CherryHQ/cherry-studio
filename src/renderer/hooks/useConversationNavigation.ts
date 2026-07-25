@@ -9,7 +9,8 @@ import { v4 as uuid } from 'uuid'
 
 export interface ConversationNavigation {
   /**
-   * Open a new base-route tab with instance metadata.
+   * Open a new base-route tab with instance metadata. Detached windows return
+   * `undefined` instead of creating a hidden internal tab.
    */
   openConversationTab: (key: string, title?: string, options?: { forceNew?: boolean }) => string | undefined
   /**
@@ -74,7 +75,8 @@ export function useConversationNavigation(appId: SidebarAppId): ConversationNavi
 
   return useMemo<ConversationNavigation>(
     () => ({
-      openConversationTab: (key, title) => openConversationTabImpl(tabs, appId, key, title),
+      openConversationTab: (key, title) =>
+        isDetachedWindowFrame ? undefined : openConversationTabImpl(tabs, appId, key, title),
       openConversation: (key, title) => {
         if (tabs && !isDetachedWindowFrame) return openConversationTabImpl(tabs, appId, key, title)
         openConversationWindowImpl(appId, key, title)

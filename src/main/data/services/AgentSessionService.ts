@@ -114,7 +114,11 @@ export class AgentSessionService {
     return this.getById(id)
   }
 
-  private createTx(tx: DbOrTx, id: string, dto: CreateAgentSessionDto): void {
+  /**
+   * Transactional create for seed-time composition. DbService is not marked ready
+   * while seeders run, so create() would fail through DbService.withWriteTx().
+   */
+  createTx(tx: DbOrTx, id: string, dto: CreateAgentSessionDto): void {
     this.assertAgentExistsTx(tx, dto.agentId)
 
     let workspaceId: string
@@ -150,6 +154,15 @@ export class AgentSessionService {
       description: dto.description,
       workspaceId
     })
+  }
+
+  /**
+   * Bump the session's `updatedAt` from a foreign service's transaction —
+   * message writes call this so the session surfaces in recency-ordered lists.
+   * Lives here because this service owns the session table's invariants.
+   */
+  touchUpdatedAtTx(tx: DbOrTx, sessionId: string, timestampMs: number): void {
+    tx.update(sessionsTable).set({ updatedAt: timestampMs }).where(eq(sessionsTable.id, sessionId)).run()
   }
 
   private assertAgentExistsTx(tx: DbOrTx, agentId: string): void {

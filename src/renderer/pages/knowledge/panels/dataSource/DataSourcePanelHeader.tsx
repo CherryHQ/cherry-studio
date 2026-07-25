@@ -17,6 +17,9 @@ interface DataSourcePanelHeaderProps {
   onBulkReindex: () => void
   onBulkDelete: () => void
   onAdd: (source: KnowledgeItemType) => void
+  /** Adding is only meaningful at the base root; a drilled-in directory mirrors a read-only
+   *  filesystem folder, so the entry is hidden there to avoid "add" silently landing at the root. */
+  canAddSource?: boolean
 }
 
 const DataSourcePanelHeader = ({
@@ -26,7 +29,8 @@ const DataSourcePanelHeader = ({
   updatedAt,
   onBulkReindex,
   onBulkDelete,
-  onAdd
+  onAdd,
+  canAddSource = true
 }: DataSourcePanelHeaderProps) => {
   const { t, i18n } = useTranslation()
   const [isSourceMenuOpen, setIsSourceMenuOpen] = useState(false)
@@ -74,41 +78,43 @@ const DataSourcePanelHeader = ({
         {t('knowledge.meta.updated_at', { time: formatRelativeTime(updatedAt, i18n.language) })}
       </span>
       <div className="flex shrink-0 items-center gap-2">
-        <Popover open={isSourceMenuOpen} onOpenChange={setIsSourceMenuOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              aria-haspopup="menu"
-              aria-expanded={isSourceMenuOpen}
-              className="min-h-0 rounded-lg px-3 py-1.5 font-medium text-foreground-secondary text-sm leading-5 shadow-none hover:bg-accent hover:text-foreground">
-              <Plus className="size-3.5" />
-              {t('knowledge.data_source.toolbar.add')}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent
-            align="end"
-            side="top"
-            sideOffset={8}
-            collisionPadding={8}
-            className="w-[var(--radix-popover-trigger-width)] rounded-xl p-1.5"
-            onOpenAutoFocus={(event) => event.preventDefault()}
-            onCloseAutoFocus={(event) => event.preventDefault()}>
-            <MenuList role="menu" className="gap-1">
-              {KNOWLEDGE_DATA_SOURCE_TYPES.map((source) => (
-                <MenuItem
-                  key={source.value}
-                  role="menuitem"
-                  variant="ghost"
-                  label={t(source.labelKey)}
-                  className="h-8 rounded-lg px-2.5 text-sm"
-                  onClick={() => handleSourceSelect(source.value)}
-                />
-              ))}
-            </MenuList>
-          </PopoverContent>
-        </Popover>
+        {canAddSource && (
+          <Popover open={isSourceMenuOpen} onOpenChange={setIsSourceMenuOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-haspopup="menu"
+                aria-expanded={isSourceMenuOpen}
+                className="min-h-0 rounded-lg px-3 py-1.5 font-medium text-foreground-secondary text-sm leading-5 shadow-none hover:bg-accent hover:text-foreground">
+                <Plus className="size-3.5" />
+                {t('knowledge.data_source.toolbar.add')}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="end"
+              side="top"
+              sideOffset={8}
+              collisionPadding={8}
+              className="w-[var(--radix-popover-trigger-width)] rounded-xl p-1.5"
+              onOpenAutoFocus={(event) => event.preventDefault()}
+              onCloseAutoFocus={(event) => event.preventDefault()}>
+              <MenuList role="menu" className="gap-1">
+                {KNOWLEDGE_DATA_SOURCE_TYPES.map((source) => (
+                  <MenuItem
+                    key={source.value}
+                    role="menuitem"
+                    variant="ghost"
+                    label={t(source.labelKey)}
+                    className="h-8 rounded-lg px-2.5 text-sm"
+                    onClick={() => handleSourceSelect(source.value)}
+                  />
+                ))}
+              </MenuList>
+            </PopoverContent>
+          </Popover>
+        )}
       </div>
     </div>
   )

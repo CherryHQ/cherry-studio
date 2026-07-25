@@ -21,6 +21,7 @@ vi.mock('@cherrystudio/ui', async () => {
       open ? <div role="dialog">{title}</div> : null,
     Tooltip: ({
       children,
+      content,
       isOpen,
       onOpenChange
     }: {
@@ -32,7 +33,7 @@ vi.mock('@cherrystudio/ui', async () => {
     }) => {
       tooltipOpenValues.push(isOpen)
       return (
-        <div data-testid="mock-tooltip">
+        <div data-testid="mock-tooltip" data-content={typeof content === 'string' ? content : undefined}>
           {children}
           {onOpenChange && (
             <button
@@ -128,6 +129,7 @@ import {
   resolveMessageMenuBarTranslationItems
 } from '../messageMenuBarActions'
 import {
+  renderDeleteToolbarAction,
   renderModelPickerToolbarAction,
   renderMoreMenuToolbarAction,
   renderTranslateToolbarAction
@@ -207,6 +209,42 @@ describe('messageMenuBarActions', () => {
     expect(toolbarActions.map((action) => action.id)).toEqual(['copy'])
   })
 
+  it('disables deletion when the message is protected', () => {
+    const toolbarActions = resolveMessageMenuBarToolbarActions(
+      createActionContext({
+        actions: {
+          getMessageDeleteAvailability: vi.fn(() => ({ enabled: false, reason: 'first-turn' })),
+          deleteMessage: vi.fn()
+        } as MessageListActions
+      })
+    )
+
+    const deleteAction = toolbarActions.find((action) => action.id === 'delete')
+    expect(deleteAction?.availability).toEqual({
+      visible: true,
+      enabled: false,
+      reason: 'message.delete.first_turn_not_supported'
+    })
+
+    render(
+      renderDeleteToolbarAction({
+        action: deleteAction!,
+        actionContext: createActionContext(),
+        executeAction: vi.fn(),
+        menuActions: [],
+        softHoverBg: false,
+        translationItems: []
+      })
+    )
+
+    const deleteButton = screen.getByRole('button')
+    expect(deleteButton).toBeDisabled()
+    expect(deleteButton.closest('[data-testid="mock-tooltip"]')).toHaveAttribute(
+      'data-content',
+      'message.delete.first_turn_not_supported'
+    )
+  })
+
   it('keeps user edit toolbar action for root messages', () => {
     const toolbarActions = resolveMessageMenuBarToolbarActions(
       createActionContext({
@@ -226,7 +264,7 @@ describe('messageMenuBarActions', () => {
       })
     )
 
-    expect(toolbarActions.map((action) => action.id)).toEqual(['user-edit', 'copy'])
+    expect(toolbarActions.map((action) => action.id)).toEqual(['copy', 'user-edit'])
   })
 
   it('keeps user edit toolbar action for non-root messages', () => {
@@ -248,7 +286,7 @@ describe('messageMenuBarActions', () => {
       })
     )
 
-    expect(toolbarActions.map((action) => action.id)).toEqual(['user-edit', 'copy'])
+    expect(toolbarActions.map((action) => action.id)).toEqual(['copy', 'user-edit'])
   })
 
   it('keeps edit menu action for root messages', () => {
@@ -271,6 +309,29 @@ describe('messageMenuBarActions', () => {
     )
 
     expect(menuActions.map((action) => action.id)).toContain('edit')
+  })
+
+  it('keeps assistant reply editing in the menu without a redundant toolbar action', () => {
+    const context = createActionContext({
+      actions: {
+        editMessage: vi.fn()
+      } as MessageListActions
+    })
+
+    expect(resolveMessageMenuBarToolbarActions(context).map((action) => action.id)).not.toContain('user-edit')
+    expect(resolveMessageMenuBarMenuActions(context).map((action) => action.id)).toContain('edit')
+  })
+
+  it('hides edit actions while an assistant reply is being translated', () => {
+    const context = createActionContext({
+      actions: {
+        editMessage: vi.fn()
+      } as MessageListActions,
+      isTranslating: true
+    })
+
+    expect(resolveMessageMenuBarToolbarActions(context).map((action) => action.id)).not.toContain('user-edit')
+    expect(resolveMessageMenuBarMenuActions(context).map((action) => action.id)).not.toContain('edit')
   })
 
   it('resolves assistant toolbar actions from capabilities', () => {

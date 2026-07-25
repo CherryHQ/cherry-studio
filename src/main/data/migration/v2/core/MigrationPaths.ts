@@ -306,8 +306,16 @@ export function selectLegacyUserData(input: {
       : { kind: 'redirect', target: exactEntry.dataPath, notice: false }
   }
 
-  // B — fuzzy fallback over all candidate dirs (default ∪ entry dataPaths).
-  const dirs = dedupeLocations([currentUserData, ...entries.map((e) => e.dataPath)])
+  // B — fuzzy fallback over compatible candidate dirs. v1 treats each
+  // Windows portable location as an isolated installation: without an exact
+  // executable mapping it uses that portable directory's own `data` folder.
+  // Preserve that contract here; setup builds may recover from other setup
+  // entries, but neither side may fuzzy-recover portable data.
+  const currentIsPortable = isWindowsPortableExecutable(currentExe)
+  const compatibleEntries = currentIsPortable
+    ? []
+    : entries.filter((entry) => !isWindowsPortableExecutable(entry.executablePath))
+  const dirs = dedupeLocations([currentUserData, ...compatibleEntries.map((e) => e.dataPath)])
   const candidates = dirs.filter((d) => probe.isUsableDir(d) && probe.hasV1Data(d))
 
   // B1 — eligible dirs (also version-ok): pick the most recently used.
@@ -326,7 +334,7 @@ export function selectLegacyUserData(input: {
 
   // B3 — no candidate, but a recorded dir is unreachable (unmounted / removed
   // / not read-writable). Prompt rather than silently start fresh on default.
-  const unreachable = entries
+  const unreachable = compatibleEntries
     .map((e) => e.dataPath)
     .find((d) => !sameLocation(d, currentUserData) && !probe.isUsableDir(d))
   if (unreachable) {
@@ -342,12 +350,17 @@ export function selectLegacyUserData(input: {
  * `resolveUserDataLocation()` resolves it directly on the next launch (no
  * legacy-config fallback, no re-prompt). Shared by the redirect path and the
  * gate's "continue on the default directory" recovery choice.
+ *
+ * Persists **strictly** (`persist()` THROWS on write failure) rather than
+ * best-effort: the next launch depends on this write, so a silent failure would
+ * relaunch into the OLD directory and loop (or make migrated data appear lost).
+ * Callers in `runV2MigrationGate()` route the throw to a fatal error dialog.
  */
 export function pinUserDataPath(userData: string): void {
   const exe = getNormalizedExecutablePath()
   const current = bootConfigService.get('app.user_data_path') ?? {}
   bootConfigService.set('app.user_data_path', { ...current, [exe]: userData })
-  bootConfigService.flush()
+  bootConfigService.persist()
 }
 
 // ── Private helpers ─────────────────────────────────────────────────────
@@ -406,6 +419,11 @@ export function readLegacyEntries(configFile: string, currentExe: string): Legac
   }
 
   return []
+}
+
+function isWindowsPortableExecutable(executablePath: string): boolean {
+  const normalized = executablePath.replaceAll('\\', '/')
+  return normalized.slice(normalized.lastIndexOf('/') + 1).toLowerCase() === 'cherry-studio-portable.exe'
 }
 
 /**

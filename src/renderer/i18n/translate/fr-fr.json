@@ -31,6 +31,11 @@
       "submit": "Soumettre",
       "title": "Questions de l'agent"
     },
+    "builtin": {
+      "cherry_assistant": {
+        "description": "Assistant intégré Cherry Studio. Diagnostiquer les problèmes, guider les opérations, collecter les FAQ, soumettre des bugs/demandes de fonctionnalités, et rechercher/créer des Compétences"
+      }
+    },
     "channels": {
       "add": "Ajouter",
       "bindAgent": "Agent Lier",
@@ -212,6 +217,24 @@
       "code": "Code",
       "code_unavailable": "Vue source non disponible pour les fichiers binaires",
       "default_app": "Application par défaut",
+      "edit": {
+        "conflict": {
+          "description": "Ce fichier a été modifié sur le disque après le début de l'édition. Le rechargement supprimera le brouillon actuel et chargera le fichier le plus récent.",
+          "keep_draft": "Conserver le brouillon",
+          "reload": "Recharger le fichier",
+          "title": "Fichier modifié sur le disque"
+        },
+        "discard": "Abandonner les modifications",
+        "leave": {
+          "description": "Si vous continuez, vos modifications non enregistrées de ce fichier seront perdues.",
+          "discard_and_continue": "Jeter et continuer",
+          "title": "Supprimer les modifications non enregistrées ?"
+        },
+        "refresh_failed": "Impossible de recharger le contenu du fichier le plus récent.",
+        "save_failed": "Impossible d'enregistrer ce fichier. L'enregistrement automatique est suspendu jusqu'à ce que vous réessayiez ou abandonniez les modifications.",
+        "unsaved": "Non enregistré",
+        "unsupported": "Ce fichier peut être prévisualisé mais pas modifié en toute sécurité ici. L'édition prend en charge les fichiers texte UTF-8 avec des fins de ligne LF ou CRLF cohérentes."
+      },
       "empty": {
         "description": "Commencez à discuter avec l'agent ; le code généré et les d'aperçu en direct apparaîtront ici.",
         "title": "Prêt"
@@ -561,7 +584,7 @@
       },
       "prompt": "Paramètres de l'invite",
       "skills": {
-        "addMore": "Ajouter plus de compétences",
+        "addMore": "Gérer les compétences",
         "builtin": "Intégré",
         "noFilterResults": "Aucune compétence correspondante",
         "noSkills": "Aucune compétence installée. Installez des compétences depuis Paramètres > Compétences.",
@@ -635,11 +658,6 @@
       }
     },
     "sidebar_title": "Agents",
-    "skill": {
-      "manage": {
-        "title": "Gérer les compétences"
-      }
-    },
     "tasks": {
       "add": "Ajouter une tâche",
       "cancel": "Annuler",
@@ -851,6 +869,7 @@
       "expired": "Expiré",
       "inputPreview": "Aperçu de l'entrée de l'outil",
       "pending": "En attente ({{seconds}}s)",
+      "pendingBadge": "[to be translated]:Pending",
       "permissionExpired": "Demande de permission expirée. En attente de nouvelles instructions...",
       "requiresElevatedPermissions": "Cet outil nécessite des autorisations élevées.",
       "suggestion": {
@@ -881,6 +900,10 @@
         "CherryCron": {
           "description": "Gère le planificateur intégré à l'application",
           "label": "Planificateur"
+        },
+        "CherryGenerateImage": {
+          "description": "Génère une image à partir d'un texte de description en utilisant votre modèle de peinture configuré",
+          "label": "Générer une image"
         },
         "CherryKbManage": {
           "description": "Ajoute, supprime ou actualise des documents dans vos bases de connaissances",
@@ -1050,12 +1073,18 @@
     "edit": {
       "title": "Modifier l'Aide"
     },
+    "groups": {
+      "delete": "Supprimer le groupe",
+      "deleteConfirm": "Êtes-vous sûr de vouloir supprimer ce groupe ?",
+      "group_by": "Afficher par groupes",
+      "ungroup": "Arrêter le regroupement",
+      "ungrouped": "Non groupé"
+    },
     "icon": {
       "type": "Icône de l'assistant"
     },
     "list": {
-      "showByList": "Affichage sous forme de liste",
-      "showByTags": "Affichage par balises"
+      "showByList": "Affichage sous forme de liste"
     },
     "pin": {
       "title": "Assistant Épingle"
@@ -1213,6 +1242,8 @@
         "label": "Longueur de la chaîne de raisonnement",
         "low": "Court",
         "low_description": "Raisonnement de bas niveau",
+        "max": "Max",
+        "max_description": "Effort de raisonnement maximal",
         "medium": "Moyen",
         "medium_description": "Raisonnement de niveau moyen",
         "minimal": "minimal",
@@ -1239,20 +1270,6 @@
         "label": "Mode d'appel des outils",
         "prompt": "Mot-clé d'invite"
       }
-    },
-    "tags": {
-      "add": "Ajouter un tag",
-      "delete": "Supprimer le tag",
-      "deleteConfirm": "Voulez-vous vraiment supprimer ce tag ?",
-      "group_by": "Regrouper par étiquette",
-      "manage": "Gestion des tags",
-      "modify": "Modifier le tag",
-      "none": "Aucun tag pour le moment",
-      "settings": {
-        "title": "Paramètres des balises"
-      },
-      "ungroup": "Désactiver le regroupement par étiquettes",
-      "untagged": "Non groupé"
     },
     "title": "Agent",
     "unpin": {
@@ -1392,7 +1409,8 @@
         "title": "Mis en file d’attente ({{count}})"
       },
       "generate_image": "Générer une image",
-      "generate_image_not_supported": "Le modèle ne supporte pas la génération d'images",
+      "generate_image_no_model": "Configurez un modèle de peinture dans Paramètres › Modèle par défaut",
+      "image_preview_failed": "L'aperçu de l'image a échoué",
       "knowledge_base": "Base de connaissances",
       "knowledge_base_disabled_by_files": "Supprimez les fichiers joints pour utiliser la base de connaissances",
       "knowledge_base_unavailable": "Sélectionnez un modèle compatible avec les outils ou activez l'utilisation d'outils dans l'invite",
@@ -1408,6 +1426,24 @@
       "pause": "Pause",
       "placeholder": "Entrez votre message ici...",
       "placeholder_without_triggers": "Tapez votre message ici, appuyez sur {{key}} pour envoyer",
+      "reference_panel": {
+        "load_failed": "[to be translated]:Failed to load the referenced conversation",
+        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "session": {
+          "no_results": {
+            "description": "[to be translated]:No sessions match your search",
+            "label": "[to be translated]:No Sessions Found"
+          },
+          "title": "[to be translated]:Sessions"
+        },
+        "topic": {
+          "no_results": {
+            "description": "[to be translated]:No topics match your search",
+            "label": "[to be translated]:No Topics Found"
+          },
+          "title": "[to be translated]:Topics"
+        }
+      },
       "resize_height": "Redimensionner la hauteur d'entrée",
       "resource_panel": {
         "categories": {
@@ -1460,12 +1496,29 @@
         },
         "unsupported_model": "Le modèle actuel ne prend pas en charge le raisonnement ajustable"
       },
+      "toolbar": {
+        "customize": "Personnaliser la barre d'outils",
+        "drag": {
+          "cancelled": "Réorganisation annulée pour {{name}}.",
+          "dropped": "{{name}} a été abandonné.",
+          "instructions": "Pour réorganiser, appuyez sur Espace ou Entrée pour prendre un outil, utilisez les touches fléchées pour le déplacer, puis Espace ou Entrée pour le déposer, ou Échap pour annuler.",
+          "over": "{{name}} a déplacé plus de {{over}}.",
+          "picked_up": "Ramassé {{name}}."
+        },
+        "drag_handle": "Glisser pour réorganiser {{name}}",
+        "restore_default": "Restaurer les paramètres par défaut"
+      },
       "tools": {
         "collapse": "Réduire",
         "collapse_in": "Ajouter à la réduction",
         "collapse_out": "Retirer de la réduction",
         "expand": "Développer",
         "file_not_found": "Fichier introuvable : {{path}}",
+        "generate_image": {
+          "failed": "La génération d'image a échoué",
+          "generating": "Génération de l'image…",
+          "title": "Image générée"
+        },
         "open_file": "Ouvrir le fichier",
         "open_file_error": "Échec de l'ouverture du fichier : {{path}}",
         "reveal_in_finder": "Afficher dans le Finder"
@@ -1547,6 +1600,23 @@
       "regenerate": {
         "model": "Changer de modèle"
       },
+      "token_details": {
+        "cache_read": "Lecture du cache",
+        "cache_write": "Écriture dans le cache",
+        "input": "Entrée",
+        "input_breakdown": "Décomposition de l'entrée",
+        "output": "Sortie",
+        "reasoning": "Raisonnement",
+        "reasoning_time": "Raisonnement",
+        "request_duration": "Timing de génération",
+        "text_generation": "Génération de texte",
+        "text_output": "Sortie de texte",
+        "tokens": "{{value}} Jetons",
+        "tokens_per_second_value": "{{value}} jetons/s",
+        "uncached": "Non mis en cache",
+        "usage": "Utilisation des jetons",
+        "waiting_first_token": "En attente"
+      },
       "useful": {
         "label": "Définir comme contexte",
         "tip": "Dans ce groupe de messages, ce message sera sélectionné pour être inclus dans le contexte"
@@ -1572,8 +1642,7 @@
     "resource_view": {
       "menu": {
         "agent": "Agents",
-        "assistant": "Assistants",
-        "skill": "Compétences"
+        "assistant": "Assistants"
       }
     },
     "save": {
@@ -1729,6 +1798,7 @@
     "thinking_tokens": "~{{tokens}} jetons",
     "topics": {
       "auto_rename": "Générer un nom de sujet",
+      "auto_rename_failed": "Échec de la génération automatique du nom de la conversation",
       "clear": {
         "title": "Effacer le message"
       },
@@ -1902,7 +1972,8 @@
         "permissions_deny": "Refuser (séparé par des virgules)",
         "permissions_hint": "Pré-approuver ou refuser les modèles d'outils. Prend en charge les caractères génériques comme Read(secrets-*/config.json).",
         "role_column": "Rôle",
-        "sonnet_model": "Sonnet"
+        "sonnet_model": "Sonnet",
+        "subagent_model": "Sous-agent"
       },
       "codex": {
         "disable_response_storage": "Désactiver le stockage des réponses",
@@ -1955,11 +2026,17 @@
         "default": "Par défaut",
         "high": "Élevé",
         "low": "Faible",
+        "max": "Max",
         "medium": "Moyen",
         "minimal": "Minimal",
         "xhigh": "Extra Haut"
       },
       "select_placeholder": "Sélectionner…"
+    },
+    "api_gateway": {
+      "description": "Toute CLI, tous les modèles",
+      "requires_running": "Gardez Cherry Studio en cours d'exécution après l'activation — l'interface CLI externe se connecte à la passerelle qu'il héberge.",
+      "title": "Passerelle unifiée"
     },
     "apply_failed": "Échec de l'écriture de la configuration CLI dans le fichier système",
     "auto_update_to_latest": "Vérifier les mises à jour et installer la dernière version",
@@ -2040,6 +2117,7 @@
     "model_required": "Veuillez sélectionner le modèle",
     "model_selection": "Sélection de modèle",
     "more": "Plus",
+    "move_provider_to_top": "Déplacer le fournisseur en haut",
     "no_matching_providers": "Aucun fournisseur correspondant",
     "no_model_for_provider": "Aucun modèle disponible pour ce fournisseur",
     "no_providers_description": "Activez un fournisseur pris en charge dans Paramètres → Service de modèle",
@@ -2143,6 +2221,7 @@
     "copy_failed": "Échec de la copie",
     "create_success": "Créé avec succès",
     "current": "Actuel",
+    "decline": "Décliner",
     "default": "Défaut",
     "delete": "Supprimer",
     "delete_confirm": "Êtes-vous sûr de vouloir supprimer ?",
@@ -2214,6 +2293,7 @@
     "provider": "Fournisseur",
     "reasoning_content": "Réflexion approfondie",
     "refresh": "Actualiser",
+    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
     "regenerate": "Regénérer",
     "remove_image": "Supprimer l'image",
     "rename": "Renommer",
@@ -2245,6 +2325,7 @@
     "swap": "Échanger",
     "topics": "Sujets",
     "translate_text": "Traduire le texte",
+    "undo": "Annuler",
     "unknown": "Inconnu",
     "unnamed": "Sans nom",
     "unsubscribe": "Se désabonner",
@@ -2283,6 +2364,7 @@
     "image-generation": "Génération d'images (OpenAI)",
     "jina-rerank": "Reclassement Jina",
     "openai": "OpenAI",
+    "openai-embeddings": "Embeddings (OpenAI)",
     "openai-response": "Réponse OpenAI"
   },
   "error": {
@@ -2337,6 +2419,8 @@
       "payload": "Contenu de la requête trop volumineux, veuillez réduire la taille du fichier ou du texte",
       "proxy": "Erreur de proxy ou de certificat SSL, vérifiez les paramètres proxy et réseau",
       "quota": "Quota du compte épuisé, veuillez recharger ou changer de fournisseur",
+      "rate_limit": "Trop de requêtes en peu de temps. Patientez un instant et réessayez, ou passez à un modèle avec une limite de débit plus élevée",
+      "region": "Service indisponible dans votre région. Configurez un proxy ou passez à un fournisseur disponible dans votre zone",
       "server": "Erreur serveur, veuillez réessayer plus tard",
       "stream": "Réponse interrompue, vérifiez la stabilité du réseau ou réessayez",
       "unknown": "Une erreur est survenue",
@@ -2348,6 +2432,7 @@
     "http": {
       "400": "Erreur de requête, veuillez vérifier si les paramètres de la requête sont corrects. Si vous avez modifié les paramètres du modèle, réinitialisez-les aux paramètres par défaut.",
       "401": "Échec de l'authentification, veuillez vérifier que votre clé API est correcte.",
+      "402": "Paiement requis. Le solde ou le quota de votre compte est épuisé - rechargez sur le site du fournisseur ou changez de fournisseur.",
       "403": "Accès interdit, veuillez traduire le message d'erreur spécifique pour connaître la raison ou contacter le fournisseur de services pour demander la raison de l'interdiction.",
       "404": "Le modèle n'existe pas ou la requête de chemin est incorrecte.",
       "429": "Le taux de requêtes dépasse la limite, veuillez réessayer plus tard.",
@@ -2399,13 +2484,19 @@
     "text": "texte",
     "toolInput": "entrée de l'outil",
     "toolName": "Nom de l'outil",
+    "tool_call_limit_reached": "L'assistant a atteint la limite d'appels d'outils avant de produire une réponse finale. Réessayez ou réduisez la portée de la tâche.",
     "truncated": "Données tronquées, taille d'origine",
     "truncatedBadge": "Tronqué",
     "unknown": "Неизвестная ошибка",
     "usage": "Quantité",
     "user_message_not_found": "Impossible de trouver le message d'utilisateur original",
     "value": "valeur",
-    "values": "valeur"
+    "values": "valeur",
+    "web_lookup_network_error": "L'accès au Web a échoué. Vérifiez votre connexion réseau et réessayez.",
+    "web_search_api_host_invalid": "La recherche web est indisponible car l'hôte de l'API du fournisseur configuré est invalide. Saisissez une URL HTTP(S) valide dans Paramètres → Recherche web, puis réessayez.",
+    "web_search_api_host_missing": "La recherche web est indisponible car le fournisseur configuré ne dispose pas d'un hôte API. Ajoutez-en un dans Paramètres → Recherche web, puis réessayez.",
+    "web_search_api_key_missing": "La recherche web est indisponible car le fournisseur configuré n'a pas de clé API. Ajoutez-en une dans Paramètres → Recherche web, puis réessayez.",
+    "web_search_provider_unavailable": "La recherche Web n'est pas disponible car aucun fournisseur compatible n'est configuré. Configurez-en un dans Paramètres → Recherche Web, puis réessayez."
   },
   "export": {
     "assistant": "Assistant",
@@ -2419,6 +2510,80 @@
       "reasoning_truncated": "La chaîne de pensée ne peut pas être fractionnée, elle a été tronquée."
     },
     "user": "Utilisateur"
+  },
+  "file_preview": {
+    "html": {
+      "empty": {
+        "description": "Ce fichier HTML n'a pas de contenu.",
+        "title": "Fichier vide"
+      },
+      "mode": {
+        "label": "Mode d'affichage HTML",
+        "preview": "Aperçu",
+        "source": "Source"
+      },
+      "read_error": {
+        "title": "Impossible de lire ce fichier"
+      },
+      "too_large": {
+        "description": "Les fichiers HTML de plus de {{limit}} Mo ne peuvent pas être prévisualisés.",
+        "title": "Le fichier est trop volumineux"
+      }
+    },
+    "invalid_path": {
+      "description": "L'aperçu du fichier nécessite un chemin local absolu valide.",
+      "title": "Impossible de prévisualiser ce fichier"
+    },
+    "load_error": {
+      "description": "Le contenu de l'aperçu n'a pas pu être chargé.",
+      "title": "L'aperçu a échoué"
+    },
+    "loading": "Chargement de l'aperçu...",
+    "markdown": {
+      "empty": {
+        "description": "Ce fichier Markdown n'a pas de contenu.",
+        "title": "Fichier vide"
+      },
+      "mode": {
+        "label": "Mode d'affichage Markdown",
+        "preview": "Aperçu",
+        "source": "Source"
+      },
+      "read_error": {
+        "title": "Impossible de lire ce fichier"
+      },
+      "too_large": {
+        "description": "Les fichiers Markdown de plus de {{limit}} Mo ne peuvent pas être prévisualisés.",
+        "title": "Le fichier est trop volumineux"
+      }
+    },
+    "pdf": {
+      "too_large": {
+        "action": "Ouvrir avec l'application par défaut",
+        "description": "Les fichiers PDF de plus de {{limit}} Mo ne peuvent pas être prévisualisés.",
+        "open_error": "Impossible d'ouvrir ce fichier",
+        "title": "Le fichier est trop grand"
+      }
+    },
+    "text": {
+      "empty": {
+        "description": "Ce fichier texte ne contient aucun contenu.",
+        "title": "Fichier vide"
+      },
+      "read_error": {
+        "title": "Impossible de lire ce fichier"
+      },
+      "too_large": {
+        "description": "Les fichiers texte de plus de {{limit}} Mo ne peuvent pas être prévisualisés.",
+        "title": "Le fichier est trop volumineux"
+      }
+    },
+    "unsupported": {
+      "action": "Ouvrir avec l'application par défaut",
+      "description": "Ce type de fichier ne peut pas encore être prévisualisé.",
+      "open_error": "Impossible d'ouvrir ce fichier",
+      "title": "Aperçu indisponible"
+    }
   },
   "files": {
     "actions": "Actions",
@@ -2443,7 +2608,8 @@
     "edit": "Éditer",
     "empty": {
       "no_match_description": "Aucun fichier ne correspond aux filtres actuels",
-      "no_match_title": "Aucun fichier correspondant trouvé"
+      "no_match_title": "Aucun fichier correspondant trouvé",
+      "title": "[to be translated]:No files yet"
     },
     "empty_trash": "Vider la corbeille",
     "error": {
@@ -2767,6 +2933,7 @@
           "title": "Importer une seule page web"
         }
       },
+      "back_to_parent": "Retour",
       "bulk": {
         "delete": "Supprimer",
         "delete_confirm_description": "Supprimer {{count}} sources de données sélectionnées ? Cette action est irréversible.",
@@ -2794,6 +2961,7 @@
         "title": "Téléchargez votre première source de données"
       },
       "empty_description": "Aucune source de données pour l'instant",
+      "empty_folder": "Ce dossier est vide",
       "filters": {
         "all": "Tout",
         "directory": "Dossiers",
@@ -2826,9 +2994,9 @@
           "type": "Type",
           "updated_at": "Mis à jour"
         },
+        "open_row": "Ouvrir {{title}}",
         "select_all": "Tout sélectionner",
-        "select_row": "Sélectionner la ligne",
-        "view_chunks_row": "Afficher les fragments pour {{title}}"
+        "select_row": "Sélectionner la ligne"
       },
       "toolbar": {
         "add": "Ajouter une source de données"
@@ -2839,6 +3007,7 @@
     "embedding_model": "Modèle d'embedding",
     "embedding_model_required": "Un modèle d'embedding de base de connaissances est requis",
     "empty": "Aucune base de connaissances",
+    "empty_description": "Vous n'avez pas encore de bases de connaissances. Créez-en une pour commencer à organiser et rechercher vos documents.",
     "error": {
       "directory_not_migrated": "Échec de la migration du dossier. Veuillez le supprimer et le télécharger à nouveau.",
       "failed_base_unknown": "Cette base de connaissances a échoué lors de la migration. Reconstruisez-la et choisissez un nouveau modèle d'embedding.",
@@ -3006,7 +3175,7 @@
       "duplicate": "Dupliquer",
       "edit": "Modifier",
       "enable": "Activer",
-      "manage_tags": "Gérer les étiquettes",
+      "manage_groups": "Gérer les groupes",
       "uninstall": "Désinstaller"
     },
     "assistant_catalog": {
@@ -3145,6 +3314,7 @@
             "no_skills_enabled": "Aucune compétence activée",
             "search_placeholder": "Outils ou serveurs de recherche...",
             "skills_coming_soon": "Associations de compétences à venir",
+            "skills_enable_all": "Tout activer",
             "skills_require_save": "Enregistrer avant d'activer les compétences",
             "tab": {
               "mcp": "Serveur MCP",
@@ -3204,6 +3374,9 @@
             "hint": "Limite la plage d'échantillonnage des jetons lorsqu'elle est activée"
           }
         },
+        "group": "Groupe",
+        "group_empty": "Aucun groupe disponible",
+        "group_placeholder": "Sélectionner le groupe",
         "json_invalid": "Format JSON invalide",
         "max_tokens": "Jetons max",
         "max_tool_calls": "Appels d'outil max",
@@ -3267,6 +3440,7 @@
       },
       "knowledge": {
         "add": "Ajouter une base de connaissances",
+        "create_first": "Ouvrir la connaissance pour en créer une",
         "desc": "Liez une ou plusieurs bases de connaissances ; des extraits pertinents seront récupérés pendant la conversation",
         "doc_count": "{{count}} docs",
         "empty_desc": "Une fois lié, l'assistant peut répondre en se basant sur le contenu du document",
@@ -3280,6 +3454,7 @@
         "title": "Bases de connaissances"
       },
       "prompt": {
+        "copy_variable": "Copier {{variable}}",
         "create_title": "Nouvelle invite",
         "dblclick_hint": "Double-cliquez sur l'aperçu pour revenir à l'édition",
         "desc": "Le prompt système est envoyé comme contexte d'ouverture de l'assistant",
@@ -3300,6 +3475,11 @@
         "insert_variable": "Insérer une variable",
         "label": "Invite système",
         "placeholder": "Saisissez les consignes pour l'assistant, comme le style de réponse, le rôle ou le contexte",
+        "polish": "Invite polonais",
+        "polish_failed_description": "Vérifiez ou modifiez le modèle par défaut, puis réessayez.",
+        "polish_failed_title": "Échec du polissage de l'invite",
+        "polish_variables_changed_description": "Le résultat poli a changé ou supprimé des variables d'invite. Réessayez.",
+        "polish_variables_changed_title": "Impossible d'appliquer l'invite polie",
         "title": "Invite",
         "tokens_label": "Jetons :",
         "variables_description": "Insérez ces variables système dans le prompt système ; avant chaque réponse de l'assistant, elles sont remplies avec les informations actuelles.",
@@ -3402,6 +3582,10 @@
       "title": "Aucune ressource"
     },
     "export_assistant_failed": "Échec de l'exportation de l'assistant",
+    "group_picker": {
+      "no_groups": "Pas encore de groupes"
+    },
+    "group_sync_failed": "Échec de la synchronisation des groupes",
     "import_dialog": {
       "clipboard": {
         "button": "Analyser et importer",
@@ -3449,15 +3633,16 @@
     },
     "sidebar": {
       "all_resources": "Toutes les ressources",
-      "all_tags": "Toutes les étiquettes",
       "no_tags": "Aucune étiquette pour l'instant",
       "subtitle": "Gvalue",
       "tags": "Étiquettes",
       "title": "Bibliothèque"
     },
     "skill_add": {
+      "add": "Ajouter une compétence",
       "local_import": "Importation locale",
-      "online_search": "Recherche en ligne"
+      "online_search": "Recherche en ligne",
+      "system_search": "Recherche système"
     },
     "skill_detail": {
       "created_at": "Créé",
@@ -3485,6 +3670,19 @@
       "updated": "Trier par date de mise à jour"
     },
     "subtitle": "Gérez vos assistants, agents et compétences",
+    "system_skill": {
+      "conflict": "Conflit de noms",
+      "description": "Importer les compétences déjà installées sur ce système.",
+      "empty_description": "Aucune compétence importable n'a été trouvée dans d'autres outils de codage sur cet appareil.",
+      "empty_title": "Aucune compétence disponible à importer",
+      "enable_success": "Activé {{name}}",
+      "enabled": "Activé",
+      "import": "Importer",
+      "import_success": "{{name}} importé",
+      "imported": "Importé",
+      "search_placeholder": "Compétences du système de recherche...",
+      "title": "Compétences système"
+    },
     "tag_picker": {
       "no_tags": "Pas encore d'étiquettes",
       "placeholder": "Nouveau nom d'étiquette..."
@@ -3499,11 +3697,11 @@
     },
     "title": "Bibliothèque",
     "toolbar": {
-      "add_tag_placeholder": "Nom de l'étiquette...",
-      "all_tags": "Toutes les étiquettes",
+      "add_group_placeholder": "Nom du groupe...",
+      "all_groups": "Tous les groupes",
+      "group_button": "Groupe",
       "new_resource": "Nouvelle ressource",
-      "search_placeholder": "Rechercher des ressources...",
-      "tag_button": "Étiquette"
+      "search_placeholder": "Rechercher des ressources..."
     },
     "type": {
       "agent": "Agent",
@@ -3594,7 +3792,7 @@
     },
     "empty_url": "Impossible de télécharger l'image, il est possible que le prompt contienne du contenu sensible ou des mots interdits",
     "error": {
-      "avatar_image_too_large": "[to be translated]:Image is too large (max {{limit}})",
+      "avatar_image_too_large": "L'image est trop grande (max {{limit}})",
       "chunk_overlap_too_large": "Le chevauchement de segment ne peut pas dépasser la taille du segment",
       "copy": "Échec de la copie",
       "dimension_too_large": "Les dimensions du contenu sont trop grandes",
@@ -3616,7 +3814,7 @@
         "text_extraction_failed": "Impossible d'extraire le texte de {{name}}"
       },
       "get_embedding_dimensions": "Impossible d'obtenir les dimensions d'encodage",
-      "image_process_failed": "[to be translated]:Failed to process the image, please try again",
+      "image_process_failed": "Échec du traitement de l'image, veuillez réessayer",
       "invalid": {
         "api": {
           "host": "Adresse API invalide",
@@ -3726,18 +3924,6 @@
     "regenerate": {
       "confirm": "La régénération va remplacer le message actuel"
     },
-    "reset": {
-      "confirm": {
-        "content": "Êtes-vous sûr de vouloir réinitialiser toutes les données?"
-      },
-      "double": {
-        "confirm": {
-          "content": "Toutes vos données seront perdues, si aucune sauvegarde n'a été effectuée, elles ne pourront pas être récupérées. Êtes-vous sûr de vouloir continuer?",
-          "title": "Perte de données!!!"
-        }
-      },
-      "success": "Réinitialisation des données réussie"
-    },
     "restore": {
       "failed": "La restauration a échoué",
       "success": "La restauration a réussi"
@@ -3781,6 +3967,8 @@
       "abort_failed": "Échec de l'interruption de l'appel de l'outil",
       "aborted": "Appel de l'outil interrompu",
       "activity": {
+        "analyze": "Analyser",
+        "analyzing": "Analysant",
         "archive": "archive",
         "assistantTask": "tâche",
         "availableFeatures": "fonctionnalités disponibles",
@@ -3788,24 +3976,28 @@
         "branch": "branche de code",
         "build": "Construire",
         "building": "Construction",
+        "calendar": "calendrier",
         "check": "Vérifier",
         "checking": "Vérification",
         "codeFiles": "fichiers de code",
         "codeHostInfo": "informations d'hébergement de code",
-        "commandName": "commande {{name}}",
         "configFiles": "documents du projet et fichiers de configuration",
         "copy": "Copier",
         "copying": "Copie",
         "create": "Créer",
         "creating": "Création",
         "currentFolder": "dossier actuel",
+        "data": "données",
         "delete": "Supprimer",
         "deleting": "Suppression",
         "documentFiles": "fichiers de document",
         "download": "Télécharger",
         "downloading": "Téléchargement",
+        "email": "email",
+        "environmentInfo": "informations sur l'environnement",
         "executeCommand": "Exécuter la commande",
         "executingCommand": "Exécution de la commande",
+        "extensionFailed": "L'extension a échoué",
         "extract": "Extraire",
         "extracting": "Extraction",
         "file": "fichier",
@@ -3834,6 +4026,10 @@
         "repository": "dépôt de code",
         "search": "Trouver",
         "searching": "Trouver",
+        "send": "Envoyer",
+        "sending": "Envoi",
+        "start": "Démarrer",
+        "starting": "Démarrage",
         "switch": "Commutateur",
         "switching": "Commutation",
         "sync": "Synchroniser",
@@ -3843,6 +4039,8 @@
         "translationFiles": "fichiers de traduction",
         "upload": "Téléverser",
         "uploading": "Téléchargement",
+        "usedExtension": "A utilisé une extension",
+        "usingExtension": "En utilisant une extension",
         "view": "Vue",
         "viewing": "Visualisation",
         "webPage": "page web",
@@ -4036,6 +4234,7 @@
   },
   "models": {
     "action": {
+      "configure_custom": "Configurer des modèles personnalisés",
       "pin": "Épingler ce modèle",
       "unpin": "Détacher le modèle"
     },
@@ -4062,6 +4261,9 @@
       "selected": "Étiquette sélectionnée"
     },
     "function_calling": "Appel de fonction",
+    "group": {
+      "ungrouped": "Non groupé"
+    },
     "invalid_model": "Modèle invalide",
     "json_parse_error": "Format JSON invalide",
     "multi_select": {
@@ -4106,10 +4308,13 @@
       "embedding": "Incorporation",
       "free": "Gratuit",
       "function_calling": "Appel de fonction",
+      "image": "Image",
       "reasoning": "Raisonnement",
       "rerank": "Reclasser",
       "select": "Types de modèle",
+      "speech": "Discours",
       "text": "Texte",
+      "transcription": "Transcription",
       "video": "Vidéo",
       "vision": "Image",
       "websearch": "Recherche web"
@@ -4138,6 +4343,12 @@
     },
     "characters": "caractère",
     "collapse": "réduire",
+    "conflict": {
+      "description": "Cette note a été modifiée en dehors de l'éditeur. Rechargez pour charger la dernière version (vos modifications non enregistrées seront supprimées) ou continuez à éditer.",
+      "keep_draft": "Continuez l'édition",
+      "reload": "Recharger",
+      "title": "Note modifiée sur le disque"
+    },
     "content_placeholder": "Veuillez saisir le contenu de la note...",
     "copyContent": "contenu copié",
     "create_folder_failed": "Échec de la création du dossier",
@@ -4159,7 +4370,13 @@
     "export_to_pdf_failed": "Échec de l'exportation au format PDF",
     "export_to_pdf_success": "Exporté au format PDF",
     "export_to_word_failed": "Échec de l'exportation vers Word",
+    "file_removed_draft": "Cette note a été supprimée du disque. Votre brouillon non enregistré est toujours disponible dans l'éditeur.",
     "folder": "dossier",
+    "leave": {
+      "description": "Laisser cette note supprimera vos modifications non enregistrées. Voulez-vous continuer ?",
+      "discard_and_continue": "Abandonner et continuer",
+      "title": "Supprimer les modifications non enregistrées de la note ?"
+    },
     "load_failed": "Échec du chargement de la note",
     "load_failed_description": "Le fichier n’a pas pu être lu. L’édition est désactivée pour protéger le contenu de la note.",
     "metadata_sync_failed": "Fichier mis à jour, mais notez que la synchronisation d'état a échoué. Veuillez réessayer l'opération.",
@@ -4182,6 +4399,9 @@
     "save": "sauvegarder dans les notes",
     "save_blocked_load_failed": "Enregistrement bloqué car la note n’a pas pu se charger",
     "save_failed": "Échec de l'enregistrement de la note",
+    "save_failure": {
+      "description": "Cette note n'a pas pu être enregistrée. Vos modifications restent dans l'éditeur et l'enregistrement automatique est suspendu."
+    },
     "search": {
       "both": "Nom + Contenu",
       "content": "contenu",
@@ -4289,6 +4509,21 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "privacy": {
+      "accept_and_continue": "Accepter et continuer",
+      "accept_policy": "Accepter la Politique de confidentialité",
+      "notice": "J'ai lu et j'accepte la",
+      "period": ".",
+      "policy": "Politique de confidentialité",
+      "update_failed": "Impossible d'enregistrer votre acceptation de la politique de confidentialité. Veuillez réessayer."
+    },
+    "provider_setup": {
+      "missing_model": "Activez au moins un modèle du fournisseur activé",
+      "missing_provider": "Activer un fournisseur pour continuer",
+      "next": "Suivant",
+      "subtitle": "Ajoutez une clé API ou connectez-vous avec CherryIN, puis activez un fournisseur.",
+      "title": "Choisissez un fournisseur"
+    },
     "select_model": {
       "change_later": "Vous pouvez modifier cela à tout moment dans les paramètres",
       "start": "Commencer",
@@ -4297,6 +4532,7 @@
     },
     "skip": "Passer",
     "toast": {
+      "complete_failed": "Impossible de terminer la configuration. Veuillez réessayer.",
       "connected": "Connecté avec succès à CherryIN"
     },
     "welcome": {
@@ -4305,7 +4541,7 @@
       "other_provider": "Choisir d'autres fournisseurs",
       "select_other_provider": "Sélectionner un autre fournisseur",
       "setup_hint": "Veuillez configurer au moins un fournisseur pour une meilleure expérience",
-      "subtitle": "Profitez de services d'IA de premier ordre avec CherryIN",
+      "subtitle": "Connectez un fournisseur pour activer votre station de travail IA tout-en-un",
       "title": "Bienvenue à Cherry Studio"
     }
   },
@@ -4470,6 +4706,7 @@
     "title": "Intel OVMS"
   },
   "paintings": {
+    "add_image": "Add image",
     "aspect_ratio": "Format d'image",
     "aspect_ratios": {
       "landscape": "Image en format paysage",
@@ -4570,6 +4807,7 @@
     "inference_steps": "Étapes d'inférence",
     "inference_steps_tip": "Nombre d'étapes d'inférence à effectuer. Plus il y a d'étapes, meilleure est la qualité mais plus c'est long",
     "input_image": "Image d'entrée",
+    "input_image_limit_exceeded": "Trop d'images de référence pour le modèle sélectionné. Supprimez quelques images et réessayez.",
     "input_parameters": "Paramètres d'entrée",
     "invalid_image_url": "Format d'URL d'image invalide",
     "learn_more": "En savoir plus",
@@ -4594,6 +4832,7 @@
     "number_images": "Nombre d'images générées",
     "number_images_tip": "Le nombre d'images générées en une seule fois (1-4)",
     "operation_failed": "L'opération a échoué, veuillez réessayer plus tard",
+    "output_compression": "Compression de sortie",
     "paint_course": "Tutoriel",
     "per_image": "Par image",
     "per_images": "Par image",
@@ -4620,6 +4859,8 @@
     "prompt_placeholder": "Décrivez l'image que vous souhaitez créer, par exemple : un lac paisible, le soleil couchant, avec des montagnes à l'horizon",
     "prompt_placeholder_edit": "Entrez votre description d'image, utilisez des guillemets « \"\" » pour le texte à dessiner",
     "prompt_placeholder_en": "Saisissez une description d'image en « anglais », actuellement Imagen ne prend en charge que les invites en anglais",
+    "prompt_placeholder_upload": "Describe the image you want, or upload one to edit",
+    "prompt_placeholder_upload_required": "Upload an image to edit, then describe the changes",
     "prompt_required": "Veuillez saisir une invite",
     "proxy_required": "Actuellement, un proxy doit être activé pour afficher les images générées. Le support pour une connexion directe depuis la Chine sera ajouté ultérieurement.",
     "quality": "Qualité",
@@ -4645,6 +4886,7 @@
     "req_error_text": "Le serveur est occupé ou le prompt contient des mots « protégés par droit d'auteur » ou des mots « sensibles », veuillez réessayer.",
     "req_error_token": "Veuillez vérifier la validité du jeton",
     "required_field": "Champ obligatoire",
+    "revealing": "Révélation de l'image générée",
     "safety_tolerance": "Tolérance de sécurité",
     "safety_tolerance_tip": "Plus élevé = filtre plus permissif ; 0 est le plus strict, 6 est le plus permissif",
     "seed": "Graine aléatoire",
@@ -4741,6 +4983,7 @@
     "install": "Installation",
     "install_plugins_from_browser": "Parcourir les plugins disponibles pour commencer",
     "installing": "Installation en cours...",
+    "manage_skills": "Gérer les compétences",
     "name": "Nom",
     "no_description": "Sans description",
     "no_installed_plugins": "Aucun plugin n’est encore installé",
@@ -4793,6 +5036,16 @@
     "source": "Voir le code source",
     "zoom_in": "agrandir",
     "zoom_out": "réduire"
+  },
+  "privacy_policy": {
+    "load_failed": "Impossible de charger la politique de confidentialité.",
+    "title": "Politique de Confidentialité"
+  },
+  "privacy_policy_update": {
+    "acknowledge_failed": "Impossible d'enregistrer votre accusé de réception. Veuillez réessayer.",
+    "description_before_link": "Nous avons mis à jour la politique de confidentialité. Veuillez consulter la dernière version.",
+    "policy": "Politique de confidentialité",
+    "title": "Politique de confidentialité mise à jour"
   },
   "prompts": {
     "explanation": "Aidez-moi à expliquer ce concept",
@@ -5302,7 +5555,7 @@
         "icon": {
           "error": "Nom d'icône invalide, veuillez vérifier la saisie",
           "label": "Icône",
-          "placeholder": "Saisir le nom de l'icône Lucide",
+          "placeholder": "Nom de l'icône",
           "random": "Icône aléatoire",
           "tooltip": "Le nom de l'icône Lucide est en minuscules, par exemple arrow-right",
           "view_all": "Voir toutes les icônes"
@@ -5364,6 +5617,7 @@
       "create_new": "Nouvel Assistant",
       "empty_text": "Pas encore d'assistants",
       "filter": "Filtrer les assistants",
+      "group_filter": "Filtrer par groupe",
       "multi_hint": "(mutuellement exclusif avec multi-modèle)",
       "multi_label": "Multi-assistant parallèle",
       "search_placeholder": "Assistant de recherche…"
@@ -5485,14 +5739,15 @@
         "select": "Modifier le répertoire",
         "select_error": "Échec de la modification du répertoire des données",
         "select_error_in_app_path": "Le nouveau chemin est identique au chemin d'installation de l'application, veuillez choisir un autre chemin",
+        "select_error_protected_path": "Le chemin sélectionné est protégé par le système d'exploitation ou Cherry Studio. Veuillez choisir un autre dossier.",
         "select_error_root_path": "Le nouveau chemin ne peut pas être le chemin racine",
         "select_error_same_path": "Le nouveau chemin est identique à l'ancien, veuillez choisir un autre chemin",
         "select_error_write_permission": "Le nouveau chemin n'a pas de permissions d'écriture",
         "select_not_empty_dir": "Le nouveau répertoire n'est pas vide",
-        "select_not_empty_dir_content": "Le nouveau répertoire n'est pas vide, les données existantes seront écrasées, ce qui comporte un risque de perte de données ou d'échec de copie. Continuer ?",
         "select_success": "Le répertoire des données a été modifié, l'application va redémarrer pour appliquer les modifications",
         "select_title": "Modifier le répertoire des données de l'application",
-        "stop_quit_app_reason": "L'application est actuellement en train de migrer les données et ne peut pas être fermée"
+        "stop_quit_app_reason": "L'application est actuellement en train de migrer les données et ne peut pas être fermée",
+        "switch_existing_notice": "Ce répertoire non vide sera utilisé tel quel. Ses fichiers existants ne seront pas écrasés."
       },
       "app_logs": {
         "button": "Ouvrir les journaux",
@@ -5512,6 +5767,13 @@
       },
       "data": {
         "title": "Répertoire des données"
+      },
+      "data_reset": {
+        "button": "Réinitialiser",
+        "confirm_content": "Les discussions, assistants, bases de connaissances, fichiers et paramètres seront effacés, puis l’application redémarrera. Cette action est irréversible. Continuer ?",
+        "confirm_title": "Réinitialiser les données de l’application",
+        "error": "Impossible de démarrer la réinitialisation des données",
+        "title": "Réinitialiser les données"
       },
       "divider": {
         "basic": "Paramètres de base",
@@ -5534,75 +5796,6 @@
         "siyuan": "Exporter vers Siyuan Notes",
         "title": "Exporter les paramètres du menu",
         "yuque": "Exporter vers Yuque"
-      },
-      "export_to_phone": {
-        "confirm": {
-          "button": "Sélectionner le fichier de sauvegarde"
-        },
-        "content": "Exporter une partie des données, incluant les historiques de discussion et les paramètres. Veuillez noter que le processus de sauvegarde peut prendre un certain temps ; merci pour votre patience.",
-        "file": {
-          "button": "Exporter vers un fichier",
-          "content": "Exporter les données sous forme de fichier de sauvegarde qui peut être importé sur mobile via un fichier.",
-          "export_failed": "L'exportation a échoué",
-          "export_success": "Exportation réussie",
-          "title": "Exporter en tant que fichier"
-        },
-        "lan": {
-          "button": "Démarrer le transfert",
-          "connected": "Connecté",
-          "connection_failed": "Échec de la connexion",
-          "content": "Assurez-vous que l'ordinateur et le téléphone sont connectés au même réseau pour utiliser le transfert en réseau local. Ouvrez l'application Cherry Studio et scannez ce code QR.",
-          "device_list_title": "Périphériques réseau locaux",
-          "discovered_devices": "Appareils découverts",
-          "error": {
-            "file_too_large": "Fichier trop volumineux, taille maximale supportée : 500 Mo",
-            "init_failed": "Échec de l'initialisation",
-            "invalid_file_type": "Seuls les fichiers ZIP sont pris en charge",
-            "no_file": "Aucun fichier sélectionné",
-            "no_ip": "Impossible d'obtenir l'adresse IP",
-            "not_connected": "Veuillez d'abord terminer la poignée de main",
-            "send_failed": "Échec de l'envoi du fichier"
-          },
-          "file_transfer": {
-            "cancelled": "Transfert annulé",
-            "failed": "Le transfert de fichier a échoué : {{message}}",
-            "progress": "Envoi en cours... {{progress}}%",
-            "success": "Fichier envoyé avec succès"
-          },
-          "handshake": {
-            "button": "Poignée de main",
-            "failed": "Échec de la poignée de main : {{message}}",
-            "in_progress": "Établissement de la connexion...",
-            "success": "Poignée de main terminée avec {{device}}",
-            "test_message_received": "Pong reçu de {{device}}",
-            "test_message_sent": "Envoyé la charge utile de test hello world"
-          },
-          "idle_hint": "Analyse en pause. Lancez l’analyse pour détecter les pairs Cherry Studio sur votre réseau local.",
-          "ip_addresses": "Adresses IP",
-          "last_seen": "Vu pour la dernière fois à {{time}}",
-          "metadata": "Métadonnées",
-          "no_connection_warning": "Veuillez ouvrir le transfert LAN sur l'application mobile Cherry Studio.",
-          "no_devices": "Aucun pair LAN trouvé pour l'instant",
-          "scan_devices": "Analyser les appareils",
-          "scanning_hint": "Analyse de votre réseau local à la recherche d’homologues Cherry Studio…",
-          "send_file": "Envoyer le fichier",
-          "status": {
-            "completed": "Transfert terminé",
-            "connected": "Connecté",
-            "connecting": "Connexion...",
-            "disconnected": "Déconnecté",
-            "error": "Erreur de connexion",
-            "initializing": "Initialisation de la connexion...",
-            "preparing": "Préparation du transfert...",
-            "sending": "Transfert {{progress}} %"
-          },
-          "status_badge_idle": "Inactif",
-          "status_badge_scanning": "Numérisation",
-          "stop_scan": "Arrêter le scan",
-          "title": "Transmission en réseau local",
-          "transfer_progress": "Progression du transfert"
-        },
-        "title": "Exporter vers le téléphone"
       },
       "hour_interval_one": "{{count}} heure",
       "hour_interval_other": "{{count}} heures",
@@ -6085,14 +6278,55 @@
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
       "checkUpdates": "Vérifier les mises à jour",
       "coreDepsMissing": "Core dependencies not installed",
-      "customTools": "Custom Tools",
-      "customToolsEmpty": "Aucun outil personnalisé pour l'instant. Ajoutez-en un pour commencer.",
       "description": "Gérez les outils binaires et les dépendances d'exécution requises par l'application.",
       "duplicateName": "A tool with the same name already exists",
       "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "Installer",
       "installError": "Failed to install tool",
+      "installErrorHint": "La commande d'installation a échoué. Copiez le journal ci-dessous pour résoudre le problème ou partagez-le pour obtenir de l'aide.",
+      "installSettings": {
+        "description": "Affinez la façon dont les outils CLI groupés sont installés. Tous les champs sont facultatifs — laissez-les vides pour conserver les valeurs par défaut.",
+        "githubMirror": {
+          "help": "Préfixe de proxy pour les téléchargements GitHub et l'API GitHub (par exemple https://ghfast.top). Laissez vide pour un accès direct.",
+          "label": "Miroir GitHub",
+          "placeholder": "https://ghfast.top (direct si vide)"
+        },
+        "githubToken": {
+          "help": "Augmente la limite de taux de l'API GitHub pour les recherches d'outils. Stocké localement en texte brut. Laissez vide pour utiliser la variable d'environnement CHERRY_GITHUB_TOKEN.",
+          "hide": "Masquer le jeton",
+          "label": "Jeton GitHub",
+          "placeholder": "ghp_…",
+          "show": "Afficher le jeton"
+        },
+        "invalidUrl": "Entrez une URL valide incluant https://",
+        "npmRegistry": {
+          "help": "Registre pour npm : outils. Laissez vide pour sélectionner automatiquement un miroir en Chine continentale.",
+          "label": "registre npm",
+          "placeholder": "Auto (miroir Chine) si vide"
+        },
+        "pipIndexUrl": {
+          "help": "URL d'index pour pipx : outils. Laissez vide pour sélectionner automatiquement un miroir en Chine continentale.",
+          "label": "URL de l'index pip",
+          "placeholder": "Auto (miroir Chine) si vide"
+        },
+        "presetLabels": {
+          "aliyun": "Aliyun (Chine)",
+          "default": "Par défaut (pas de miroir)",
+          "ghfast": "ghfast.top",
+          "ghproxy": "ghproxy.net",
+          "npmOfficial": "npmjs (officiel)",
+          "npmmirror": "npmmirror (Chine)",
+          "pypiOfficial": "PyPI (officiel)",
+          "tsinghua": "Tsinghua (Chine)"
+        },
+        "presets": "Préréglages",
+        "title": "Paramètres d'installation avancés",
+        "verifySignatures": {
+          "help": "Vérifie les signatures Sigstore/SLSA pour les outils pris en charge par aqua. Désactivez uniquement si la vérification échoue sur votre réseau — cela ignore les contrôles de la chaîne d'approvisionnement.",
+          "label": "Vérifier les signatures des outils"
+        }
+      },
       "installing": "Installation en cours...",
+      "installingHint": "La première installation peut télécharger un runtime et prendre quelques minutes",
       "invalidTool": "Nom d'outil ou clé invalide",
       "localModels": {
         "cancel": "Annuler",
@@ -6116,17 +6350,27 @@
           "downloading": "Téléchargement…",
           "ready": "Prêt"
         },
-        "title": "Modèles locaux"
+        "title": "Modèles locaux",
+        "unsupported": "Les modèles locaux ne sont pas pris en charge sur cette plateforme."
       },
       "notInstalled": "Non installé",
       "openBinariesDir": "Open binaries directory",
       "remove": "Remove tool",
       "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
       "removeConfirmTitle": "Remove Tool",
+      "removeDefinitionOnlyConfirmMessage": "Cherry n'a pas pu nettoyer en toute sécurité \"{{name}}\". Supprimer uniquement sa définition masquera la carte mais laissera ses fichiers backend installés. Continuer ?",
+      "removeDefinitionOnlyConfirmTitle": "Supprimer la définition uniquement ?",
+      "removeDefinitionOnlyDependents": "Les outils installés en dépendent : {{dependents}}.",
+      "removeError": "Échec de la suppression de l'outil",
+      "removeErrorHint": "La commande de nettoyage a échoué. Copiez le journal ci-dessous pour résoudre le problème ou partagez-le pour obtenir de l'aide.",
+      "removeRuntimeConfirmMessage": "Êtes-vous sûr de vouloir supprimer \"{{name}}\" ? La désinstallation de cet environnement d'exécution peut endommager les outils npm ou pip qui en dépendent.",
+      "runtimeDependency": "Runtime",
+      "runtimeDependencyHint": "Runtime pour les outils npm/pip",
       "searchFailed": "Search failed, check logs",
       "searchRegistry": "Search mise registry...",
       "source": {
-        "bundled": "bundled"
+        "bundled": "bundled",
+        "system": "Système"
       },
       "title": "Dépendances de l'environnement",
       "tools": {
@@ -6145,8 +6389,15 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
+      "uninstall": "Désinstaller",
+      "uninstallConfirmMessage": "Êtes-vous sûr de vouloir désinstaller \"{{name}}\" ? La copie backend de Cherry Studio sera supprimée.",
+      "uninstallConfirmTitle": "Outil de désinstallation",
+      "uninstallFailed": "Échec de la désinstallation de l'outil",
+      "uninstallSuccess": "Outil désinstallé",
       "update": "Update to latest version",
-      "updateCheckFailed": "Échec de la vérification des mises à jour"
+      "updateCheckFailed": "Échec de la vérification des mises à jour",
+      "updateCheckSuccess": "Vérification de la version terminée",
+      "viewErrorDetails": "Voir les détails"
     },
     "developer": {
       "enable_developer_mode": "Activer le mode développeur",
@@ -6159,8 +6410,8 @@
       },
       "custom": {
         "css": {
-          "cherrycss": "Obtenir depuis cherrycss.com",
           "label": "CSS personnalisé",
+          "migration_notice": "Cette feuille de style a été migrée depuis la v1 et est actuellement désactivée. Adaptez-la à la v2, puis supprimez la première ligne pour l’activer.",
           "placeholder": "/* Écrire votre CSS personnalisé ici */"
         }
       },
@@ -6256,10 +6507,6 @@
       "emoji_picker": "Sélectionneur d'émoticônes",
       "image_upload": "Téléchargement d'images",
       "label": "Paramètres généraux",
-      "reset": {
-        "button": "Réinitialiser",
-        "title": "Réinitialiser les données"
-      },
       "restore": {
         "button": "Restaurer"
       },
@@ -6590,10 +6837,10 @@
       "user": "Пользователь"
     },
     "menuGroups": {
-      "automation": "Automatisation",
-      "capabilities": "Capacités et Outils",
+      "automation": "Efficacité",
+      "capabilities": "Outils",
       "models": "Modèles",
-      "personal": "Personnel",
+      "personal": "Préférences",
       "quickAccess": "Accès rapide",
       "system": "Système"
     },
@@ -6688,6 +6935,9 @@
       "add": {
         "add_model": "Ajouter un modèle",
         "batch_add_models": "Ajouter plusieurs modèles",
+        "capabilities": {
+          "label": "Capacités du modèle"
+        },
         "context_window": {
           "label": "Fenêtre de contexte",
           "placeholder": "p. ex. 128 000"
@@ -6703,6 +6953,9 @@
           "label": "Nom du groupe",
           "placeholder": "Par exemple, ChatGPT",
           "tooltip": "Par exemple, ChatGPT"
+        },
+        "input_modalities": {
+          "label": "Modalités d'entrée"
         },
         "max_input_tokens": {
           "label": "Jetons d'entrée max",
@@ -6725,6 +6978,26 @@
           "label": "Nom du modèle",
           "placeholder": "Par exemple, GPT-5.5",
           "tooltip": "Par exemple GPT-4"
+        },
+        "model_type": {
+          "label": "Type de modèle"
+        },
+        "purpose": {
+          "chat": {
+            "description": "Utilisez l'API texte du fournisseur",
+            "label": "Chat"
+          },
+          "chat_protocol": "Protocole de chat",
+          "description": "Choisissez comment ce modèle est utilisé",
+          "image_edit": {
+            "description": "Accepter une image d'entrée et retourner une image modifiée",
+            "label": "Édition d'image"
+          },
+          "image_generation": {
+            "description": "Générer des images à partir d'une invite",
+            "label": "Génération d'images"
+          },
+          "label": "Objectif du modèle"
         },
         "supported_text_delta": {
           "label": "sortie de texte incrémentielle",
@@ -6783,7 +7056,8 @@
       "default_assistant_model": "Modèle d'assistant par défaut",
       "default_assistant_model_description": "Utilisé lorsqu'un assistant n'a pas de modèle.",
       "docs": "Documentation du modèle",
-      "empty": "Aucun modèle",
+      "empty": "Sélectionnez un modèle",
+      "empty_hint": "Cliquez sur le bouton Obtenir la liste des modèles ci-dessus pour ajouter des modèles.",
       "enabled_models": "Activés",
       "expand_all": "Tout développer",
       "filter": {
@@ -6799,6 +7073,7 @@
           "confirm": "Êtes-vous sûr de vouloir ajouter tous les modèles à la liste ?",
           "label": "Ajouter tous les modèles"
         },
+        "add_success_enable_failed": "Des modèles ont été ajoutés, mais le fournisseur n'a pas pu être activé.",
         "add_whole_group": "Ajouter tout le groupe",
         "clean_stale_models": "Nettoyer les modèles obsolètes",
         "clean_stale_success": "{{count}} modèle(s) obsolète(s) nettoyé(s)",
@@ -6867,6 +7142,8 @@
       },
       "more_actions": "Plus d'actions pour la liste des modèles",
       "not_enabled_models": "Désactivés",
+      "painting_model": "Modèle de peinture",
+      "painting_model_description": "Modèle utilisé pour la génération d'images",
       "provider_id": "Identifiant du fournisseur",
       "provider_key_add_confirm": "Voulez-vous ajouter une clé API pour {{provider}} ?",
       "provider_key_add_failed_by_empty_data": "Échec de l'ajout de la clé API du fournisseur, les données sont vides",
@@ -7097,6 +7374,7 @@
       },
       "balance": "Équilibre",
       "base_url": {
+        "invalid": "Entrez une URL HTTP ou HTTPS valide",
         "label": "URL de base",
         "placeholder": "https://api.example.com",
         "required": "Veuillez saisir l'URL de base"
@@ -7190,6 +7468,23 @@
         "toggle_headers_editor_list": "Passer à la liste d'en-têtes"
       },
       "create_custom": {
+        "endpoint_fields": {
+          "default_chat": "Par défaut",
+          "label": "Paramètres du point de terminaison",
+          "more": "Plus d'options",
+          "more_configured": "{{count}} configuré",
+          "set_default_chat": "Définir par défaut",
+          "text_endpoint_required": "Configurez au moins un point de terminaison texte",
+          "url_help": "Entrez l'URL racine de l'API pour prévisualiser le chemin de requête final"
+        },
+        "preset_instance": {
+          "description": "Pour les services Coding Plan, les comptes multiples ou l'isolation de projet ; configurez chaque URL de base et clé API indépendamment",
+          "empty": "Aucun préréglage de fournisseur correspondant",
+          "placeholder": "Créer à partir d'un préréglage de fournisseur…",
+          "search_placeholder": "Préréglages du fournisseur de recherche",
+          "title": "Partir d'un préréglage (optionnel)"
+        },
+        "request_preview": "Chemin de la requête : {{path}}",
         "title": "Ajouter un fournisseur personnalisé"
       },
       "delete": {
@@ -7210,6 +7505,7 @@
         "fill_after_create": "Les champs d'authentification peuvent être remplis après la création",
         "menu_label": "Ajouter une instance"
       },
+      "enable_failed_after_connection": "Connexion réussie, mais le fournisseur n'a pas pu être activé.",
       "filter": {
         "agent": "Prise en charge par un agent",
         "all": "Tous les fournisseurs",
@@ -7227,6 +7523,16 @@
         "sign_in_failed": "La connexion a échoué. Veuillez réessayer.",
         "sign_in_success": "Connecté à Grok CLI",
         "signing_in": "En attente du navigateur…"
+      },
+      "image_endpoints": {
+        "image_edit_base_url": {
+          "help": "Utilisé pour /images/edits ; laissez vide pour utiliser l'URL de base du point de terminaison de chat par défaut",
+          "label": "URL de base de l'édition d'image"
+        },
+        "image_generation_base_url": {
+          "help": "Utilisé pour /images/generations ; laissez vide pour utiliser l'URL de base du point de terminaison de chat par défaut",
+          "label": "URL de base de la génération d'images"
+        }
       },
       "logo_upload_failed": "Échec du traitement de l'image sélectionnée",
       "misc": "autre",
@@ -7276,9 +7582,6 @@
         "topup": "Recharger",
         "usage_title": "Utilisation",
         "usage_unit": "jetons"
-      },
-      "openai": {
-        "alert": "Le fournisseur OpenAI ne prend plus en charge l'ancienne méthode d'appel. Veuillez créer un nouveau fournisseur si vous utilisez une API tierce"
       },
       "remove_duplicate_keys": "Supprimer les clés en double",
       "remove_invalid_keys": "Supprimer les clés invalides",
@@ -7355,6 +7658,7 @@
         "autoEmpty": "Aucun serveur MCP activé",
         "description": "Afficher l'état actuel du serveur MCP",
         "disabled": "MCP est désactivé pour cet assistant",
+        "open_config": "Configurer les serveurs MCP",
         "unknownServer": "Serveur MCP inconnu"
       },
       "multiple": "Множественный выбор",
@@ -7746,6 +8050,8 @@
   },
   "tab": {
     "close": "Fermer l'onglet",
+    "close_others": "Fermer les autres onglets",
+    "close_to_right": "Fermer les onglets à droite",
     "move_to_first": "Déplacer vers le premier",
     "new": "Nouvel onglet",
     "open_in_new_window": "Ouvrir dans une nouvelle fenêtre",

@@ -1,4 +1,3 @@
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -62,7 +61,6 @@ vi.mock('react-i18next', () => ({
 
 import { useAgentChatRuntimeState } from '../useAgentChatRuntimeState'
 
-const session = { id: 'session-1' } as AgentSessionEntity
 const assistantMessage = {
   id: 'assistant-1',
   role: 'assistant',
@@ -168,8 +166,7 @@ describe('useAgentChatRuntimeState', () => {
   it('does not wire per-overlay finish refresh for agent sessions', () => {
     renderHook(() =>
       useAgentChatRuntimeState({
-        session,
-        activeAgent: undefined,
+        sessionId: 'session-1',
         sessionMessagesEnabled: true,
         reservedMessages: []
       })
@@ -183,8 +180,7 @@ describe('useAgentChatRuntimeState', () => {
   it('wires a refresh-then-reset overlay handoff to the terminal status edge', async () => {
     renderHook(() =>
       useAgentChatRuntimeState({
-        session,
-        activeAgent: undefined,
+        sessionId: 'session-1',
         sessionMessagesEnabled: true,
         reservedMessages: []
       })
@@ -222,8 +218,7 @@ describe('useAgentChatRuntimeState', () => {
 
     const { result } = renderHook(() =>
       useAgentChatRuntimeState({
-        session,
-        activeAgent: undefined,
+        sessionId: 'session-1',
         sessionMessagesEnabled: true,
         reservedMessages: []
       })
@@ -232,12 +227,41 @@ describe('useAgentChatRuntimeState', () => {
     expect(result.current.uiMessages[0]?.metadata?.thoughtsTokens).toBe(256)
   })
 
+  it('keeps the history contract and composer callback stable across stream snapshots', () => {
+    mocks.useExecutionOverlay.mockReturnValue({
+      overlay: { 'assistant-1': [{ type: 'text', text: 'a' }] },
+      liveAssistants: [{ ...assistantMessage, parts: [{ type: 'text', text: 'a' }] } as CherryUIMessage],
+      disposeOverlay: mocks.disposeOverlay,
+      reset: mocks.resetOverlay
+    })
+    const { result, rerender } = renderHook(() =>
+      useAgentChatRuntimeState({
+        sessionId: 'session-1',
+        sessionMessagesEnabled: true,
+        reservedMessages: []
+      })
+    )
+    const streamingLayers = result.current.streamingLayers
+    const sendMessage = result.current.sendMessage
+
+    mocks.useExecutionOverlay.mockReturnValue({
+      overlay: { 'assistant-1': [{ type: 'text', text: 'ab' }] },
+      liveAssistants: [{ ...assistantMessage, parts: [{ type: 'text', text: 'ab' }] } as CherryUIMessage],
+      disposeOverlay: mocks.disposeOverlay,
+      reset: mocks.resetOverlay
+    })
+    rerender()
+
+    expect(result.current.streamingLayers).toBe(streamingLayers)
+    expect(result.current.streamingLayers.liveMessageIds).toEqual(['assistant-1'])
+    expect(result.current.sendMessage).toBe(sendMessage)
+  })
+
   it('stores AskUserQuestion submitted input as a temporary tool input', async () => {
     const part = makeAskUserQuestionPart()
     const { result } = renderHook(() =>
       useAgentChatRuntimeState({
-        session,
-        activeAgent: undefined,
+        sessionId: 'session-1',
         sessionMessagesEnabled: true,
         reservedMessages: []
       })
@@ -257,8 +281,7 @@ describe('useAgentChatRuntimeState', () => {
     const part = makeAskUserQuestionPart()
     const { result } = renderHook(() =>
       useAgentChatRuntimeState({
-        session,
-        activeAgent: undefined,
+        sessionId: 'session-1',
         sessionMessagesEnabled: true,
         reservedMessages: []
       })

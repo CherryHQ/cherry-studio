@@ -326,7 +326,9 @@ const ToastItem = ({ labels, store, toast }: { labels: ToastLabels; store: Toast
     <div
       {...a11yProps}
       className={cn(
-        'pointer-events-auto flex min-w-72 max-w-[min(420px,calc(100vw-2rem))] items-start gap-3',
+        // no-drag punches the popup's area out of any titlebar drag region it overlaps,
+        // so hover/click reach the items instead of the window-drag hit test (Electron).
+        'pointer-events-auto flex min-w-72 max-w-[min(420px,calc(100vw-2rem))] items-start gap-3 [-webkit-app-region:no-drag]',
         'rounded-md border border-border bg-popover px-4 py-3 text-popover-foreground shadow-lg',
         toast.className
       )}

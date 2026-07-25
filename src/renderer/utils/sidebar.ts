@@ -54,7 +54,7 @@ function getNormalConversationSearchParamFromUrl(url: string, name: string): str
   }
 }
 
-function isMessageOnlyConversationUrl(url: string): boolean {
+export function isMessageOnlyConversationUrl(url: string): boolean {
   try {
     return new URL(url, 'app://x').searchParams.get('view') === 'message'
   } catch {
@@ -157,11 +157,17 @@ export function resolveSidebarAppTabEntryUrl(tab: Pick<Tab, 'metadata' | 'url'>)
 
   const appId = getTabInstanceAppId(tab)
   const app = appId ? getSidebarApp(appId) : undefined
-  const key = app?.instanceKey ? getSidebarAppTabInstanceKey(app, tab) : undefined
+  if (!app?.instanceKey || !tabBelongsToApp(app, tab.url)) return tab.url
 
-  if (app?.instanceKey && key && tabBelongsToApp(app, tab.url)) {
+  const key = getSidebarAppTabInstanceKey(app, tab)
+  if (key) {
     return app.instanceKey.urlForKey(key)
   }
+
+  // Instance-aware pages intentionally remove the key while showing a draft.
+  // The base route is the canonical entry for that state; retaining an older
+  // query-param URL would resurrect the previous conversation after reattach.
+  if (hasTabInstanceMetadataForApp(tab, app.id)) return app.routePrefix
 
   return tab.url
 }

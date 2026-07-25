@@ -88,6 +88,7 @@ export function AgentResourceList({
     isLoadingAll,
     isFullyLoaded,
     isPinsLoading,
+    isValidating,
     error: sessionsError,
     reload
   } = agentSessionsSource
@@ -107,7 +108,6 @@ export function AgentResourceList({
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
   const manageAgentsMenuItem = resourceMenuItems?.find((item) => item.id === 'agent-resource-view')
-  const manageSkillsMenuItem = resourceMenuItems?.find((item) => item.id === 'skill-resource-view')
   const agentPinnedIdSet = useMemo(() => new Set(agentPinnedIds), [agentPinnedIds])
   const isAgentPinActionDisabled = isAgentPinsLoading || isAgentPinsRefreshing || isAgentPinsMutating
   const sessionItems = useMemo<SessionListItem[]>(
@@ -316,18 +316,16 @@ export function AgentResourceList({
           <SessionListOptionsMenu
             historyRecordsActive={historyRecordsActive}
             manageAgentsActive={manageAgentsMenuItem?.active}
-            manageSkillsActive={manageSkillsMenuItem?.active}
-            manageSkillsIcon={manageSkillsMenuItem?.icon}
             mode={sessionDisplayMode}
             onChange={(nextMode) => void setSessionDisplayMode(nextMode)}
             onManageAgents={manageAgentsMenuItem?.onSelect}
-            onManageSkills={manageSkillsMenuItem?.onSelect}
             onOpenHistoryRecords={onOpenHistoryRecords}
           />
         }
         onSelect={handleSelect}
         onSelectedClick={() => void onSelectedAgentClick?.()}
         onReorder={handleReorder}
+        reorderEnabled={isFullyLoaded && !isLoadingAll && !isValidating}
         getContextMenuActions={getContextMenuActions}
         onContextMenuAction={handleContextMenuAction}
       />

@@ -1,10 +1,15 @@
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { useProviders } from '@renderer/hooks/useProvider'
-import { CLI_TOOL_PRESET_MAP } from '@renderer/pages/code/constants/codeCliTools'
 import { loggerService } from '@renderer/services/LoggerService'
 import { toast } from '@renderer/services/toast'
 import type { CodeCliId } from '@shared/data/preference/preferenceTypes'
-import { CLI_OWN_LOGIN_PROVIDER_ID, CodeCli, LOGIN_CAPABLE_CLI_TOOLS } from '@shared/types/codeCli'
+import {
+  CLI_OWN_LOGIN_PROVIDER_ID,
+  CodeCli,
+  GATEWAY_CAPABLE_CLI_TOOLS,
+  isApiGatewayProviderId,
+  LOGIN_CAPABLE_CLI_TOOLS
+} from '@shared/types/codeCli'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -13,8 +18,8 @@ import type { CodeCliPageViewProps } from '../components/CodeCliPageView'
 import { CLI_TOOLS, PROVIDERLESS_CLI_TOOLS } from '../constants/cliTools'
 import { OWN_LOGIN_PROVIDER } from '../constants/ownLoginProvider'
 import type { CodeToolMeta, VersionStatus } from '../types'
+import { useApiGatewayProvider } from './useApiGatewayProvider'
 import { useBinaryActions } from './useBinaryActions'
-import { useBunInstallationCache } from './useBunInstallationCache'
 import { useCliVersionStatuses } from './useCliVersionStatuses'
 import { useConfigMetadata } from './useConfigMetadata'
 import { useConfigPanelController } from './useConfigPanelController'
@@ -40,7 +45,6 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     }),
     [t]
   )
-  useBunInstallationCache()
   const {
     configs,
     selectedCliTool,
@@ -50,6 +54,7 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     providerConfigs,
     directory,
     upsertProviderConfig,
+    deleteProviderConfig,
     setCurrentProvider,
     reorderProviders,
     selectTool,
@@ -60,8 +65,9 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
 
   const { install, upgrade, remove, installingTools, upgradingTools } = useBinaryActions()
   const { providers } = useProviders()
-  const { filterProviders, makeModelFilter, resolveProviderMeta, resolveProviderMetaForTool } =
-    useConfigMetadata(selectedCliTool)
+  const apiGatewayBundle = useApiGatewayProvider()
+  const { filterProviders, makeModelFilter, resolveProviderMeta, resolveProviderMetaForTool, gatewayModelsById } =
+    useConfigMetadata(selectedCliTool, providers)
 
   // Per-tool enabled-model summary for the sidebar's second line. Falls back to the
   // provider display name when no model applies (own login, Claude detailed models).
@@ -75,13 +81,17 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
         summaries[tool.value] = t('code.own_login.title', { toolName: t(tool.label) })
         continue
       }
-      const provider = providers.find((p) => p.id === currentId)
+      // The gateway is synthetic (absent from the real provider list); resolve its summary
+      // from the bundle's provider so the sidebar still shows the selected model.
+      const provider = isApiGatewayProviderId(currentId)
+        ? apiGatewayBundle?.provider
+        : providers.find((p) => p.id === currentId)
       if (!provider) continue
       const meta = resolveProviderMetaForTool(tool.value, provider, state.providers[currentId])
       summaries[tool.value] = meta.modelName || meta.providerName
     }
     return summaries
-  }, [configs, providers, resolveProviderMetaForTool, t])
+  }, [configs, providers, apiGatewayBundle, resolveProviderMetaForTool, t])
 
   const handleReorderError = useCallback(
     (error: unknown) => {
@@ -91,6 +101,14 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     [t]
   )
   const showOwnLoginCard = LOGIN_CAPABLE_CLI_TOOLS.has(selectedCliTool)
+  const showGatewayCard = GATEWAY_CAPABLE_CLI_TOOLS.has(selectedCliTool) && !!apiGatewayBundle
+  const prependedProviders = useMemo(
+    () =>
+      [showGatewayCard ? apiGatewayBundle?.provider : null, showOwnLoginCard ? OWN_LOGIN_PROVIDER : null].filter(
+        (p): p is NonNullable<typeof p> => p !== null
+      ),
+    [showGatewayCard, apiGatewayBundle, showOwnLoginCard]
+  )
   const { supportedProviders, onReorder: handleReorder } = useSortedSupportedProviders({
     providers,
     currentToolState,
@@ -98,35 +116,16 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     filterProviders,
     reorderProviders,
     onReorderError: handleReorderError,
-    ownLoginProvider: showOwnLoginCard ? OWN_LOGIN_PROVIDER : null
+    prependedProviders
   })
 
   const enabledProvider = currentProviderId ? supportedProviders.find((p) => p.id === currentProviderId) : undefined
   const [currentCliConfigConnection, setCurrentCliConfigConnection] = useCurrentCliConfigConnection({
     enabledProvider,
     selectedCliTool,
-    currentProviderConfig
+    currentProviderConfig,
+    apiGatewayProvider: apiGatewayBundle
   })
-
-  // Float a provider to the top of the list (persisted via the same reorder path as drag-sort).
-  const moveProviderToFront = useCallback(
-    async (providerId: string) => {
-      const target = supportedProviders.find((p) => p.id === providerId)
-      if (!target || supportedProviders[0]?.id === providerId) return
-      await handleReorder([target, ...supportedProviders.filter((p) => p.id !== providerId)])
-    },
-    [supportedProviders, handleReorder]
-  )
-
-  // Enabling a provider auto-sorts it to the first position. Only the config-panel controller's setter
-  // is wrapped; launch dialog / OpenClaw gateway / tool removal keep the raw setCurrentProvider.
-  const setCurrentProviderForConfigPanel = useCallback(
-    async (providerId: string | null) => {
-      await setCurrentProvider(providerId)
-      if (providerId) await moveProviderToFront(providerId)
-    },
-    [setCurrentProvider, moveProviderToFront]
-  )
 
   const activeTool = useMemo<CliToolOption | undefined>(
     () => CLI_TOOLS.find((ti) => ti.value === selectedCliTool),
@@ -139,13 +138,34 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
   const activeMeta = activeTool ? toMeta(activeTool) : null
   const toolName = activeMeta?.label ?? ''
   const statuses = useCliVersionStatuses(CLI_TOOL_IDS)
-  const versionStatus: VersionStatus = statuses[selectedCliTool] ?? { installed: false, canUpgrade: false }
-  const cliPreset = CLI_TOOL_PRESET_MAP[selectedCliTool]
+  // Local busy Sets give instant feedback; snapshot operations cover mutations
+  // initiated in another window or before this page mounted.
+  const mergedInstallingTools = useMemo(() => {
+    const merged = new Set<string>(installingTools)
+    for (const tool of CLI_TOOLS) {
+      const status = statuses[tool.value]
+      if (status?.operation?.status === 'installing') merged.add(tool.value)
+    }
+    return merged
+  }, [installingTools, statuses])
+  const versionStatus: VersionStatus = statuses[selectedCliTool] ?? {
+    installed: false,
+    source: 'none',
+    canUpgrade: false
+  }
+  // Only surface install failures here — the dialog is labeled "install error"
+  // and offers a retry-install action. Remove failures are reported by their own
+  // toast in useBinaryActions, so gating on the action avoids mislabeling a
+  // failed uninstall as an install error.
+  const installError =
+    versionStatus.operation?.status === 'failed' && versionStatus.operation.action === 'install'
+      ? versionStatus.operation.error
+      : undefined
   // The synthetic own-login entry is always available, so nudge to "select a provider" only when a
   // real provider exists to select — otherwise own-login is the sole option and no nag is warranted.
   const hasRealSupportedProvider = supportedProviders.some((p) => p.id !== CLI_OWN_LOGIN_PROVIDER_ID)
   const showProviderSelectionHint =
-    !!cliPreset && versionStatus.installed && !isProviderlessTool && hasRealSupportedProvider && !currentProviderId
+    versionStatus.installed && !isProviderlessTool && hasRealSupportedProvider && !currentProviderId
 
   const configPanel = useConfigPanelController({
     selectedCliTool,
@@ -154,9 +174,11 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     currentProviderId,
     providerConfigs,
     upsertProviderConfig,
-    setCurrentProvider: setCurrentProviderForConfigPanel,
+    deleteProviderConfig,
+    setCurrentProvider,
     setCurrentCliConfigConnection,
-    makeModelFilter
+    makeModelFilter,
+    apiGatewayProvider: apiGatewayBundle
   })
   const launchDialog = useLaunchDialogController({
     selectedCliTool,
@@ -166,6 +188,8 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
     isOwnLoginSelected,
     currentProviderConfig,
     selectedTerminal,
+    apiGatewayProvider: apiGatewayBundle,
+    gatewayModelsById,
     upsertProviderConfig,
     setCurrentProvider,
     setTerminal,
@@ -203,7 +227,7 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
       onSelectTool: selectTool,
       toMeta,
       statuses,
-      installingTools,
+      installingTools: mergedInstallingTools,
       upgradingTools,
       providerSummaries
     },
@@ -213,14 +237,15 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
           activeMeta,
           versionStatus,
           versionCard: {
-            visible: !!cliPreset,
+            visible: true,
             canLaunch,
             launching: launchDialog.launching || openClawGateway.launching || openClawGateway.starting,
             running: openClawGateway.running,
             stopping: openClawGateway.stopping
           },
-          installingTools,
+          installingTools: mergedInstallingTools,
           upgradingTools,
+          installError,
           providerState: {
             providerless: isProviderlessTool,
             showSelectionHint: showProviderSelectionHint
@@ -230,9 +255,21 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
           currentProviderId,
           currentProviderModelName: currentCliConfigConnection ? t('code.cli_config.unknown_provider') : undefined,
           resolveProviderMeta,
-          onInstall: () => void install(selectedCliTool),
+          // A failed update carries its target so Retry repeats the same targeted
+          // install; a name-only retry would hit the applied no-op and clear the
+          // failure without ever re-attempting the update.
+          onInstall: () =>
+            void install(
+              selectedCliTool,
+              versionStatus.operation?.status === 'failed' ? versionStatus.operation.targetVersion : undefined
+            ),
           onUpgrade: () => void upgrade(selectedCliTool, versionStatus.latest),
-          onRemove: () => removeDialog.requestRemove(selectedCliTool),
+          // Uninstall authority is the live application fact: offer removal only
+          // when the fixed CLI's exact recipe is applied or broken.
+          onRemove:
+            versionStatus.applicationStatus === 'applied' || versionStatus.applicationStatus === 'broken'
+              ? () => removeDialog.requestRemove(selectedCliTool)
+              : undefined,
           onLaunch: () => (isOpenClawTool ? void openClawGateway.onLaunch() : launchDialog.openLaunchDialog()),
           onStop: () => void openClawGateway.onStop(),
           onOpenDashboard: () => void openClawGateway.onOpenDashboard(),

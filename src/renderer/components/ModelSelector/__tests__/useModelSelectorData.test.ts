@@ -115,7 +115,7 @@ describe('useModelSelectorData', () => {
     expect(result.current.refetchPinnedModels).toBe(refetchPinnedModels)
   })
 
-  it('enables local focus revalidation for model and provider list queries', () => {
+  it('does not override focus revalidation for model and provider list queries', () => {
     wireDeps({
       providers: [makeProvider('openai')],
       models: [makeModel('gpt-4', 'openai')]
@@ -123,8 +123,11 @@ describe('useModelSelectorData', () => {
 
     renderHook(() => useModelSelectorData({ searchText: '' }))
 
-    expect(mockUseProvidersFn).toHaveBeenCalledWith({ enabled: true }, { swrOptions: { revalidateOnFocus: true } })
-    expect(mockUseModelsFn).toHaveBeenCalledWith({ enabled: true }, { swrOptions: { revalidateOnFocus: true } })
+    // Freshness on open is handled by ModelSelector's explicit refetch-on-open effect,
+    // so these list queries inherit the DataApi default (revalidateOnFocus: false) and
+    // must not refetch on every window focus while the selector stays mounted.
+    expect(mockUseProvidersFn).toHaveBeenCalledWith({ enabled: true })
+    expect(mockUseModelsFn).toHaveBeenCalledWith({ enabled: true })
   })
 
   it('groups models by their enabled provider', () => {
@@ -140,7 +143,7 @@ describe('useModelSelectorData', () => {
     expect(result.current.modelItems).toHaveLength(3)
   })
 
-  it('routes the CherryAI provider group settings action to CherryIN settings', () => {
+  it('hides the provider group settings action for CherryAI', () => {
     wireDeps({
       providers: [makeProvider('cherryai')],
       models: [makeModel('qwen', 'cherryai')]
@@ -150,8 +153,7 @@ describe('useModelSelectorData', () => {
 
     expect(result.current.listItems.find((item) => item.type === 'group')).toMatchObject({
       key: 'provider-cherryai',
-      canNavigateToSettings: true,
-      settingsProviderId: 'cherryin'
+      canNavigateToSettings: false
     })
   })
 

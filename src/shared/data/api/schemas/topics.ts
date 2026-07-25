@@ -20,8 +20,7 @@ import type { OrderEndpoints } from './_endpointHelpers'
  */
 export const CreateTopicSchema = TopicSchema.pick({
   name: true,
-  assistantId: true,
-  groupId: true
+  assistantId: true
 }).partial()
 export type CreateTopicDto = z.infer<typeof CreateTopicSchema>
 
@@ -34,8 +33,7 @@ export type CreateTopicDto = z.infer<typeof CreateTopicSchema>
  */
 export const UpdateTopicSchema = TopicSchema.pick({
   name: true,
-  isNameManuallyEdited: true,
-  groupId: true
+  isNameManuallyEdited: true
 })
   .partial()
   .extend({
@@ -135,8 +133,8 @@ export type DeleteTopicsQuery = z.input<typeof DeleteTopicsQuerySchema>
  * Topic API Schema definitions.
  *
  * Reorder endpoints (`/topics/:id/order`, `/topics/order:batch`) are injected
- * via `& OrderEndpoints<'/topics'>`. The reorder is scoped by `groupId`
- * server-side; callers do not include the scope in the request body.
+ * via `& OrderEndpoints<'/topics'>`. Topic order is global across assistants;
+ * callers only provide the relative anchor.
  */
 export type TopicSchemas = {
   /**

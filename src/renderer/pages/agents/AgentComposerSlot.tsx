@@ -1,12 +1,22 @@
+import { useOptionalRightPanelState } from '@renderer/components/chat/panes/Shell'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
+import ConversationComposerLoading from '@renderer/components/composer/ConversationComposerLoading'
 import ConversationComposerSlot from '@renderer/components/composer/ConversationComposerSlot'
-import AgentComposer from '@renderer/components/composer/variants/AgentComposer'
+import type { GetAgentResponse } from '@renderer/types/agent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { Model } from '@shared/data/types/model'
+import { lazy, memo } from 'react'
 
 import type { AgentChatRuntimeState } from './useAgentChatRuntimeState'
 
+const AgentComposer = lazy(() => import('@renderer/components/composer/variants/AgentComposer'))
+
 interface AgentComposerSlotProps {
   agentId?: string
+  agentLoading: boolean
+  activeAgent?: GetAgentResponse
+  activeModel?: Model
+  workspaceWarning?: string
   isMultiSelectMode: boolean
   session: AgentSessionEntity
   sessionId: string
@@ -15,16 +25,15 @@ interface AgentComposerSlotProps {
   isStreaming: boolean
   sendDisabled: boolean
   onCreateEmptySession?: () => void | Promise<unknown>
-  workspaceId?: string | null
-  onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
-  workspaceChanging?: boolean
-  showWorkspaceSelector?: boolean
-  canChangeModel?: boolean
   composerContext: ComposerContextValue
 }
 
-export default function AgentComposerSlot({
+function AgentComposerSlot({
   agentId,
+  agentLoading,
+  activeAgent,
+  activeModel,
+  workspaceWarning,
   isMultiSelectMode,
   session,
   sessionId,
@@ -33,31 +42,34 @@ export default function AgentComposerSlot({
   isStreaming,
   sendDisabled,
   onCreateEmptySession,
-  workspaceId,
-  onWorkspaceChange,
-  workspaceChanging,
-  showWorkspaceSelector,
-  canChangeModel,
   composerContext
 }: AgentComposerSlotProps) {
+  const rightPanelState = useOptionalRightPanelState()
+  const compactWhenSingleLine = Boolean(
+    rightPanelState?.presentationMaximized && rightPanelState.activePanelId === 'files'
+  )
   const fallback =
     agentId && !isMultiSelectMode ? (
       <AgentComposer
         agentId={agentId}
         sessionId={sessionId}
         sessionOverride={session}
+        resolvedAgent={activeAgent}
+        resolvedModel={activeModel}
+        resolvedWorkspaceWarning={workspaceWarning ?? null}
+        externalContextControls
         sendMessage={sendMessage}
         stop={stop}
         isStreaming={isStreaming}
         sendDisabled={sendDisabled}
         onCreateEmptySession={onCreateEmptySession}
-        workspaceId={workspaceId}
-        onWorkspaceChange={onWorkspaceChange}
-        workspaceChanging={workspaceChanging}
-        showWorkspaceSelector={showWorkspaceSelector}
-        canChangeModel={canChangeModel}
+        compactWhenSingleLine={compactWhenSingleLine}
       />
+    ) : agentLoading && !isMultiSelectMode ? (
+      <ConversationComposerLoading compact={compactWhenSingleLine} />
     ) : undefined
 
-  return <ConversationComposerSlot composerContext={composerContext} fallback={fallback} />
+  return <ConversationComposerSlot scopeKey={sessionId} composerContext={composerContext} fallback={fallback} />
 }
+
+export default memo(AgentComposerSlot)

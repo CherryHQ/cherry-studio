@@ -74,22 +74,70 @@ describe('useScrollAnchor', () => {
 
     // Content stable (a measurement settle): tighten down to needed = 280 so the
     // scrollbar rests at the bottom.
-    act(() => result.current.onContentSizeChange())
+    act(() => {
+      result.current.onContentSizeChange()
+    })
     expect(result.current.spacerHeight).toBe(280)
 
     // Reply streams in but still fits below the pin (needed = 300 + 400 - 500 =
     // 200 > 0): hold the spacer, do not shrink per chunk.
     contentHeight = 500
-    act(() => result.current.onContentSizeChange())
+    act(() => {
+      result.current.onContentSizeChange()
+    })
     expect(result.current.spacerHeight).toBe(280)
     expect(result.current.isPinned()).toBe(true)
 
     // Reply outgrows the space below the pin (needed = 300 + 400 - 900 = 0):
     // release so the turn can hand off to bottom-follow, even mid-stream.
     contentHeight = 900
-    act(() => result.current.onContentSizeChange())
+    act(() => {
+      result.current.onContentSizeChange()
+    })
     expect(result.current.spacerHeight).toBe(0)
     expect(result.current.isPinned()).toBe(false)
+  })
+
+  it('clears the spacer when release is explicitly asked to remove the blank range', () => {
+    const scroller = document.createElement('div')
+    let contentHeight = 420
+    setElementMetric(scroller, 'clientHeight', () => 400)
+    setElementMetric(scroller, 'scrollHeight', () => contentHeight + result.current.spacerHeight)
+
+    const handle = {
+      getItemOffset: vi.fn(() => 300),
+      scrollSize: 700,
+      scrollToIndex: vi.fn()
+    } as unknown as VListHandle
+    const smoothScroll: SmoothScrollController = {
+      cancel: vi.fn(),
+      followTo: vi.fn(),
+      isAnimating: vi.fn(() => false),
+      scrollTo: vi.fn()
+    }
+
+    const { result } = renderHook(() =>
+      useScrollAnchor({
+        scrollerRef: { current: scroller } as RefObject<HTMLElement | null>,
+        vlistHandleRef: { current: handle } as RefObject<VListHandle | null>,
+        smoothScroll
+      })
+    )
+
+    act(() => result.current.pinTo(2))
+    flushRaf()
+    act(() => {
+      result.current.onContentSizeChange()
+    })
+    expect(result.current.spacerHeight).toBe(280)
+
+    // A default release keeps the spacer (content grows into it); the explicit
+    // scroll-to-bottom path clears it because the caller clamps to the bottom.
+    contentHeight = 500
+    act(() => result.current.release({ clearSpacer: true }))
+
+    expect(result.current.isPinned()).toBe(false)
+    expect(result.current.spacerHeight).toBe(0)
   })
 
   it('tightens the full-viewport bootstrap spacer after the first tall-viewport measurement', () => {
@@ -129,18 +177,24 @@ describe('useScrollAnchor', () => {
     // First measurement grows the natural size; tighten the bootstrap spacer once
     // anyway (needed = 300 + 900 - 900 = 300).
     contentHeight = 900
-    act(() => result.current.onContentSizeChange())
+    act(() => {
+      result.current.onContentSizeChange()
+    })
     expect(result.current.spacerHeight).toBe(300)
 
     // Still fits below the pin (needed = 300 + 900 - 1000 = 200 > 0): hold.
     contentHeight = 1000
-    act(() => result.current.onContentSizeChange())
+    act(() => {
+      result.current.onContentSizeChange()
+    })
     expect(result.current.spacerHeight).toBe(300)
     expect(result.current.isPinned()).toBe(true)
 
     // Overflows (needed = 300 + 900 - 1200 = 0): release for bottom-follow.
     contentHeight = 1200
-    act(() => result.current.onContentSizeChange())
+    act(() => {
+      result.current.onContentSizeChange()
+    })
     expect(result.current.spacerHeight).toBe(0)
     expect(result.current.isPinned()).toBe(false)
   })
@@ -230,7 +284,9 @@ describe('useScrollAnchor', () => {
     // needed = (50 + 300) + 400 - 420 = 330. Omitting startMargin would tighten to
     // 280, leaving scrollSize 50px short of the pinned scrollTop — the browser would
     // clamp it and the message (with the history above) drifts down by the padding.
-    act(() => result.current.onContentSizeChange())
+    act(() => {
+      result.current.onContentSizeChange()
+    })
     expect(result.current.spacerHeight).toBe(330)
   })
 
@@ -268,19 +324,25 @@ describe('useScrollAnchor', () => {
     // A programmatic scroll (virtua remeasure / scrollIntoView) drifts scrollTop
     // forward off the anchor (300) by more than REASSERT_TOLERANCE_PX → snapped back.
     scroller.scrollTop = 380
-    act(() => result.current.onContentSizeChange())
+    act(() => {
+      result.current.onContentSizeChange()
+    })
     expect(scroller.scrollTop).toBe(300)
     expect(result.current.isPinned()).toBe(true)
 
     // Within tolerance (≤ 2px) → left untouched, no churn.
     scroller.scrollTop = 301
-    act(() => result.current.onContentSizeChange())
+    act(() => {
+      result.current.onContentSizeChange()
+    })
     expect(scroller.scrollTop).toBe(301)
 
     // While a smooth scroll is animating → never fight it, do not re-assert.
     scroller.scrollTop = 380
     animating = true
-    act(() => result.current.onContentSizeChange())
+    act(() => {
+      result.current.onContentSizeChange()
+    })
     expect(scroller.scrollTop).toBe(380)
   })
 
@@ -317,7 +379,9 @@ describe('useScrollAnchor', () => {
     act(() => result.current.pinTo(0))
     flushRaf()
 
-    act(() => result.current.onContentSizeChange())
+    act(() => {
+      result.current.onContentSizeChange()
+    })
     expect(result.current.spacerHeight).toBe(0)
     expect(result.current.isPinned()).toBe(false)
   })

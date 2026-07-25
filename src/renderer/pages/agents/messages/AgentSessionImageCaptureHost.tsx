@@ -67,7 +67,6 @@ const AgentSessionImageCaptureHost = ({ activeAgent, modelFallback, session }: A
         }
       : undefined,
     assistantId: session.agentId ?? undefined,
-    modelFallback,
     isLoading: false,
     imageActionConsumer: 'capture',
     messageNavigation: 'anchor',

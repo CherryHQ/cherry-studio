@@ -59,6 +59,10 @@ export interface ToolContext {
   // v2 provider checks without a v1 Redux lookup. Undefined while loading
   // or when the provider is unknown.
   provider?: Provider
+  reasoning?: {
+    effort: ThinkingOption
+    onEffortChange: (option: ThinkingOption) => void
+  }
   // Session data for Agent Session scope (only available when scope is TopicType.Session).
   // Note: config fields (model/instructions/...) live on the parent agent — fetch via
   // useAgent(session.agentId). agentType drives the builtin slash command fallback; slashCommands
@@ -70,8 +74,6 @@ export interface ToolContext {
     tools?: Array<{ id: string; name: string; type: string; description?: string }>
     accessiblePaths?: string[]
     slashCommands?: SlashCommand[]
-    reasoningEffort?: ThinkingOption
-    onReasoningEffortChange?: (option: ThinkingOption) => void
   }
 }
 

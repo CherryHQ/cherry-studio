@@ -1,5 +1,6 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import type * as ModelSelectorModule from '@renderer/components/ModelSelector'
+import type * as UseModelModule from '@renderer/hooks/useModel'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type * as ReactI18next from 'react-i18next'
@@ -77,6 +78,15 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
 
 vi.mock('@renderer/hooks/usePins', () => ({
   usePins: usePinsMock
+}))
+
+vi.mock('@renderer/hooks/useModel', async (importOriginal) => ({
+  ...(await importOriginal<typeof UseModelModule>()),
+  useDefaultModel: () => ({ defaultModel: undefined })
+}))
+
+vi.mock('@renderer/hooks/useCodeStyle', () => ({
+  useCodeStyle: () => ({ activeCmTheme: 'light' })
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
@@ -472,6 +482,7 @@ describe('AgentSelector', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() =>
@@ -484,6 +495,7 @@ describe('AgentSelector', () => {
           smallModel: MODEL.id,
           description: 'Created from selector',
           instructions: '',
+          knowledgeBaseIds: [],
           skillIds: [],
           configuration: {
             avatar: '🤖',
@@ -513,6 +525,7 @@ describe('AgentSelector', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
@@ -526,6 +539,7 @@ describe('AgentSelector', () => {
 
     fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Created Agent' } })
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
@@ -545,7 +559,6 @@ describe('AgentSelector', () => {
     expect(await screen.findByRole('heading', { name: 'Edit Agent' }, { timeout: 5000 })).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Renamed Agent' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
     await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
@@ -566,7 +579,7 @@ describe('AgentSelector', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Edit agent' })[0])
     expect(await screen.findByRole('heading', { name: 'Edit Agent' }, { timeout: 5000 })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
     expect(onDialogCloseAutoFocus).toHaveBeenCalledTimes(1)
   })
@@ -585,7 +598,7 @@ describe('AgentSelector', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Edit agent' })[0])
     expect(await screen.findByRole('heading', { name: 'Edit Agent' }, { timeout: 5000 })).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Saved Agent' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
     await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))

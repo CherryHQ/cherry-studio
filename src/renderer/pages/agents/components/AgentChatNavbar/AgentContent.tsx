@@ -1,17 +1,14 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
-import { CommandTooltip } from '@renderer/components/command'
-import NavbarIcon from '@renderer/components/NavbarIcon'
-import { useResolvedCommand } from '@renderer/hooks/command'
+import { ConversationTopBarPortalHost } from '@renderer/components/chat/shell/ConversationTopBarPortal'
 import type { AgentEntity } from '@shared/data/types/agent'
-import { SquarePen } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useTranslation } from 'react-i18next'
 
 import Tools from './Tools'
 
 type AgentContentProps = {
   activeAgent: AgentEntity | null
+  conversationControls?: ReactNode
   tools?: ReactNode
   showSidebarControls?: boolean
   sidebarOpen?: boolean
@@ -20,52 +17,28 @@ type AgentContentProps = {
 
 const AgentContent = ({
   activeAgent,
+  conversationControls,
   tools,
   showSidebarControls = true,
   sidebarOpen,
   onSidebarToggle
 }: AgentContentProps) => {
-  const { t } = useTranslation()
   const [preferredShowSidebar] = usePreference('topic.tab.show')
   const showSidebar = sidebarOpen ?? preferredShowSidebar
-  const newSession = useResolvedCommand('topic.create')
 
   return (
     <div className="flex w-full justify-between">
-      <div data-navbar-left-occupant className="flex min-w-0 shrink items-center">
+      <div data-navbar-left-occupant className="flex min-w-0 flex-1 items-center overflow-hidden">
         {showSidebarControls && (
-          <>
-            {showSidebar && (
-              <ConversationSidebarToggleButton sidebarOpen={showSidebar} onSidebarToggle={onSidebarToggle} />
-            )}
-            {!showSidebar && (
-              <>
-                <ConversationSidebarToggleButton
-                  sidebarOpen={showSidebar}
-                  onSidebarToggle={onSidebarToggle}
-                  tooltipPlacement="right"
-                  style={{ marginRight: 2 }}
-                />
-                <CommandTooltip
-                  command="topic.create"
-                  label={t('agent.session.add.title')}
-                  delay={800}
-                  placement="bottom">
-                  <NavbarIcon
-                    tone="conversation"
-                    aria-label={t('agent.session.add.title')}
-                    className="[&_svg]:!size-4"
-                    disabled={!newSession.enabled}
-                    onClick={newSession.execute}>
-                    <SquarePen />
-                  </NavbarIcon>
-                </CommandTooltip>
-              </>
-            )}
-          </>
+          <ConversationSidebarToggleButton
+            sidebarOpen={showSidebar}
+            onSidebarToggle={onSidebarToggle}
+            tooltipPlacement={showSidebar ? undefined : 'right'}
+          />
         )}
+        <ConversationTopBarPortalHost>{conversationControls}</ConversationTopBarPortalHost>
       </div>
-      <div data-navbar-right-occupant className="flex items-center">
+      <div data-navbar-right-occupant className="flex shrink-0 items-center">
         {activeAgent && <Tools>{tools}</Tools>}
       </div>
     </div>

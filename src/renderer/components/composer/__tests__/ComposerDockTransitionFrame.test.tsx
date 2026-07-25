@@ -1,8 +1,4 @@
-import {
-  ChatMaximizedOverlayInsetProvider,
-  useChatBottomOverlayInset,
-  useChatMaximizedOverlayBottomInset
-} from '@renderer/components/chat/layout/ChatViewportInsetContext'
+import { useChatBottomOverlayInset } from '@renderer/components/chat/layout/ChatViewportInsetContext'
 import { render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -30,11 +26,6 @@ function InsetProbe() {
       <div data-testid="scroller-bottom-margin">{String(insets?.scrollerBottomMargin)}</div>
     </>
   )
-}
-
-function MaximizedOverlayInsetProbe() {
-  const bottomInset = useChatMaximizedOverlayBottomInset()
-  return <div data-testid="maximized-overlay-bottom-inset">{String(bottomInset)}</div>
 }
 
 describe('ComposerDockTransitionFrame', () => {
@@ -73,6 +64,53 @@ describe('ComposerDockTransitionFrame', () => {
         placement="docked"
         main={<InsetProbe />}
         composer={<div data-composer-inputbar="" />}
+        mainVisible
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('content-bottom-padding')).toHaveTextContent('236')
+      expect(screen.getByTestId('scroller-bottom-margin')).toHaveTextContent('80')
+    })
+  })
+
+  it('keeps the last good insets while the composer measures as a zero rect', async () => {
+    const { rerender } = render(
+      <ComposerDockTransitionFrame
+        placement="docked"
+        main={<InsetProbe />}
+        composer={<div data-composer-inputbar="" />}
+        mainVisible
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('scroller-bottom-margin')).toHaveTextContent('80')
+    })
+
+    // A mid-swap composer (lazy chunk still loading behind Suspense) is hidden
+    // and measures as a zero rect. Insets must hold instead of collapsing the
+    // message list with a full-height bottom margin.
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function getBoundingClientRect(
+      this: HTMLElement
+    ) {
+      if (this.hasAttribute('data-composer-inputbar')) {
+        return rect(0, 0, 0, 0)
+      }
+      if (this.hasAttribute('data-composer-dock-surface')) {
+        return rect(600, 820)
+      }
+      return rect(0, 900)
+    })
+    rerender(
+      <ComposerDockTransitionFrame
+        placement="docked"
+        main={<InsetProbe />}
+        composer={
+          <div>
+            <div data-composer-inputbar="" />
+          </div>
+        }
         mainVisible
       />
     )
@@ -164,24 +202,6 @@ describe('ComposerDockTransitionFrame', () => {
     })
   })
 
-  it('exposes a bottom inset for maximized overlays above the docked composer', async () => {
-    render(
-      <ChatMaximizedOverlayInsetProvider>
-        <ComposerDockTransitionFrame
-          placement="docked"
-          main={<InsetProbe />}
-          composer={<div data-composer-inputbar="" />}
-          mainVisible
-          overlay={<MaximizedOverlayInsetProbe />}
-        />
-      </ChatMaximizedOverlayInsetProvider>
-    )
-
-    await waitFor(() => {
-      expect(screen.getByTestId('maximized-overlay-bottom-inset')).toHaveTextContent('316')
-    })
-  })
-
   it('lifts the composer dock layer above a full-area overlay only when elevated', () => {
     const baseProps = {
       placement: 'docked' as const,
@@ -211,20 +231,5 @@ describe('ComposerDockTransitionFrame', () => {
     const surface = container.querySelector('[data-composer-dock-surface]')
     expect(surface).toHaveAttribute('data-composer-dock-motion', 'home-to-docked')
     expect(surface).toHaveClass('animation-chat-composer-dock-down')
-  })
-
-  it('renders the home header outside the animated composer surface', () => {
-    const { container } = render(
-      <ComposerDockTransitionFrame
-        placement="home"
-        main={<InsetProbe />}
-        composer={<div data-composer-inputbar="">composer</div>}
-        homeHeader={<div data-testid="home-header">welcome</div>}
-      />
-    )
-
-    const surface = container.querySelector('[data-composer-dock-surface]')
-    expect(screen.getByTestId('home-header')).toBeInTheDocument()
-    expect(surface).not.toContainElement(screen.getByTestId('home-header'))
   })
 })

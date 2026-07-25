@@ -15,7 +15,7 @@ export function sharedMessageToUIMessage(shared: SharedMessage): CherryUIMessage
       parentId: shared.parentId,
       siblingsGroupId: shared.siblingsGroupId || undefined,
       modelId: shared.modelId ?? undefined,
-      modelSnapshot: shared.modelSnapshot ?? undefined,
+      messageSnapshot: shared.messageSnapshot ?? undefined,
       status: shared.status,
       createdAt: shared.createdAt,
       stats: shared.stats ?? undefined,

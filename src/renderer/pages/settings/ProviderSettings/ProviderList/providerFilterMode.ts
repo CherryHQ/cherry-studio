@@ -5,7 +5,7 @@
  * - `enabled`: only `isEnabled === true`
  * - `disabled`: only `isEnabled === false`
  * - `all` (default): every provider
- * - `agent`: only providers supported by the agent runtime (orthogonal to the
- *   enabled/disabled axis)
+ * - `agent`: agent-entry hint; currently shares the `all` provider set because
+ *   non-Anthropic chat models route through the local API gateway
  */
 export type ProviderFilterMode = 'enabled' | 'disabled' | 'all' | 'agent'

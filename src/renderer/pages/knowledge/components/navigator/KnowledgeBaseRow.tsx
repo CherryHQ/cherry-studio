@@ -1,6 +1,7 @@
 import { Button, ConfirmDialog } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import KnowledgeRowActionsMenu from '@renderer/pages/knowledge/components/KnowledgeRowActionsMenu'
 import { DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/pages/knowledge/utils/group'
 import { ArrowRightLeft, FolderPlus, PencilLine, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
@@ -122,16 +123,17 @@ const KnowledgeBaseRow = ({
       <CommandContextMenu location="webcontents.context" extraItems={contextMenuItems}>
         <div
           className={cn(
-            'w-full rounded-md px-2.5 py-1.5 transition-colors',
+            'group/row flex w-full items-center gap-1 rounded-md px-2.5 py-1.5 transition-colors',
             selected ? 'bg-secondary' : 'hover:bg-accent'
           )}>
           <Button
             type="button"
             variant="ghost"
             onClick={() => onSelectBase(base.id)}
-            className="flex min-h-0 w-full min-w-0 items-center justify-start rounded-md p-0 text-left shadow-none hover:bg-transparent">
+            className="flex min-h-0 min-w-0 flex-1 items-center justify-start rounded-md p-0 text-left shadow-none hover:bg-transparent">
             <div className="min-w-0 truncate font-medium text-foreground text-sm leading-5">{base.name}</div>
           </Button>
+          <KnowledgeRowActionsMenu items={contextMenuItems} />
         </div>
       </CommandContextMenu>
 

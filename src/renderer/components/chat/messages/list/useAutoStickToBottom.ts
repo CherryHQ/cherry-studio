@@ -49,7 +49,7 @@ export function useAutoStickToBottom({
   isLocked,
   markStuck
 }: AutoStickInputs): AutoStickToBottom {
-  const lastScrollSizeRef = useRef(0)
+  const lastRealBottomRef = useRef(0)
 
   const targetBottom = useCallback(() => {
     const el = scrollerRef.current
@@ -60,10 +60,10 @@ export function useAutoStickToBottom({
   const onContentSizeChange = useCallback(() => {
     const el = scrollerRef.current
     if (!el) return
-    const prev = lastScrollSizeRef.current
-    const curr = el.scrollHeight
+    const prev = lastRealBottomRef.current
+    const curr = getRealBottom(el, getBottomInset?.() ?? 0)
     if (curr === prev) return
-    lastScrollSizeRef.current = curr
+    lastRealBottomRef.current = curr
     if (isLocked()) return
     if (!isAtBottom()) return
     if (curr <= prev) return

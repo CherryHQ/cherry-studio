@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const fetchMock = vi.hoisted(() => vi.fn())
 const loggerWarnMock = vi.hoisted(() => vi.fn())
 const customReaderSpies = vi.hoisted(() => ({
+  doc: vi.fn(async (filePath: string) => [{ metadata: { reader: 'doc', filePath } }]),
   drafts: vi.fn(async (filePath: string) => [{ metadata: { reader: 'drafts', filePath } }]),
   epub: vi.fn(async (filePath: string) => [{ metadata: { reader: 'epub', filePath } }])
 }))
@@ -79,6 +80,12 @@ vi.mock('@vectorstores/readers/pdf', () => ({
 vi.mock('@vectorstores/readers/text', () => ({
   TextFileReader: class {
     loadData = readerSpies.text
+  }
+}))
+
+vi.mock('../files/DocReader', () => ({
+  DocReader: class {
+    loadData = customReaderSpies.doc
   }
 }))
 
@@ -230,6 +237,19 @@ describe('loadKnowledgeItemDocuments', () => {
     expect(docs[0]).toMatchObject({
       metadata: {
         source: '/tmp/source.pdf'
+      }
+    })
+  })
+
+  it('uses the doc reader for legacy binary .doc files', async () => {
+    const item = createFileItem('.doc')
+
+    const docs = await loadKnowledgeItemDocuments(item)
+
+    expect(customReaderSpies.doc).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/base-1/raw/sample.doc')
+    expect(docs[0]).toMatchObject({
+      metadata: {
+        source: '/tmp/sample.doc'
       }
     })
   })

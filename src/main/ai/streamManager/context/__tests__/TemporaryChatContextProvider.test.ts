@@ -141,6 +141,7 @@ describe('TemporaryChatContextProvider', () => {
 
   it('honours a single mentionedModelId — pins that model instead of the default preference', async () => {
     getTopicMock.mockReturnValueOnce({ id: '1', assistantId: undefined })
+    MockMainPreferenceServiceUtils.setPreferenceValue('chat.default_model_id', null)
     getByKeyMock.mockReset()
     getByKeyMock.mockImplementation((providerId: string, modelId: string) => ({
       id: `${providerId}::${modelId}`,

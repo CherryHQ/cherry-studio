@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
-import { render, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,7 +10,8 @@ const state = vi.hoisted(() => ({
   sendMessage: vi.fn(),
   stopChat: vi.fn(),
   temporaryTopicOptions: [] as Array<{ enabled?: boolean; assistantId?: string }>,
-  useChatIds: [] as string[]
+  useChatIds: [] as string[],
+  onError: undefined as ((error: Error) => void) | undefined
 }))
 
 import ActionGeneral from '../ActionGeneral'
@@ -23,8 +24,9 @@ vi.mock('../ActionResultContent', () => {
 })
 
 vi.mock('@ai-sdk/react', () => ({
-  useChat: ({ id }: { id: string }) => {
+  useChat: ({ id, onError }: { id: string; onError?: (error: Error) => void }) => {
     state.useChatIds.push(id)
+    state.onError = onError
     return {
       sendMessage: state.sendMessage,
       stop: state.stopChat
@@ -111,6 +113,7 @@ describe('ActionGeneral', () => {
     state.stopChat.mockClear()
     state.temporaryTopicOptions = []
     state.useChatIds = []
+    state.onError = undefined
   })
 
   // MUST run first in this file: if a future test ever renders a result, the
@@ -146,5 +149,13 @@ describe('ActionGeneral', () => {
 
     await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
     expect(state.temporaryTopicOptions.at(-1)).toEqual({ enabled: true, assistantId: 'assistant-1' })
+  })
+
+  it('localizes a known error and leaves space above it', () => {
+    render(<ActionGeneral action={createAction({ assistantId: '' })} />)
+
+    act(() => state.onError?.(new Error("Model with id 'provider/model' not found")))
+
+    expect(screen.getByText('error.diagnosis.model:')).toHaveClass('mt-3')
   })
 })

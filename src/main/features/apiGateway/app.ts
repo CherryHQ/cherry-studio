@@ -11,6 +11,7 @@ import * as z from 'zod'
 import { gatewayErrorHandler } from './errors'
 import { authorizeApiRequest } from './middleware/auth'
 import { chatRoutes } from './routes/chat'
+import { geminiRoutes } from './routes/gemini'
 import { knowledgeRoutes } from './routes/knowledge'
 import { messagesRoutes } from './routes/messages'
 import { modelsRoutes } from './routes/models'
@@ -124,12 +125,20 @@ export function buildApp() {
           docs_json: `GET ${OPENAPI_PATH}/json`,
           chat_completions: 'POST /v1/chat/completions',
           messages: 'POST /v1/messages',
+          generate_content: 'POST /v1beta/models/{model}:generateContent',
           knowledge_bases: 'GET /v1/knowledge-bases',
           knowledge_search: 'POST /v1/knowledge-bases/search'
         }
       }),
       { detail: { tags: ['General'], summary: 'API information' } }
     )
+    // Gemini routes carry their own self-contained (`local`) auth guard and are
+    // mounted BEFORE `v1Routes` on purpose: `v1Routes`' `scoped` guard exports to
+    // the app scope and would otherwise intercept `/v1beta` requests (its guard
+    // reads only `x-api-key`/Bearer, so it would 401 the Gemini `x-goog-api-key` /
+    // `?key=` credentials). Registering `/v1beta` first keeps it out of that guard's
+    // reach; the `local` gemini guard does not leak back onto `/v1`.
+    .use(geminiRoutes)
     .use(v1Routes)
 
   return app

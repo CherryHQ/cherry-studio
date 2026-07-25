@@ -1,6 +1,8 @@
+import { assistantTable } from '@data/db/schemas/assistant'
 import { groupTable } from '@data/db/schemas/group'
 import { GroupService, groupService } from '@data/services/GroupService'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
@@ -83,6 +85,40 @@ describe('GroupService', () => {
       }
       expect(err).toBeInstanceOf(DataApiError)
       expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
+    })
+  })
+
+  describe('findByIdTx', () => {
+    it('should return a group through a caller transaction', async () => {
+      const created = groupService.create({ entityType: 'knowledge', name: 'Knowledge Group' })
+
+      const result = dbh.db.transaction((tx) => groupService.findByIdTx(tx, created.id))
+
+      expect(result).toEqual(created)
+    })
+
+    it('should return null when the group does not exist', () => {
+      expect(groupService.findByIdTx(dbh.db, GROUP_ID_MISSING)).toBeNull()
+    })
+  })
+
+  describe('findOrCreateByNameTx', () => {
+    it('creates a missing group inside the caller transaction', () => {
+      const result = dbh.db.transaction((tx) => groupService.findOrCreateByNameTx(tx, 'assistant', 'work'))
+
+      expect(result).toMatchObject({ entityType: 'assistant', name: 'work' })
+      expect(groupService.listByEntityType('assistant')).toEqual([result])
+    })
+
+    it('reuses the first exact-name group in display order when duplicates already exist', () => {
+      const first = groupService.create({ entityType: 'assistant', name: 'work' })
+      groupService.create({ entityType: 'assistant', name: 'work' })
+      groupService.create({ entityType: 'topic', name: 'work' })
+
+      const result = dbh.db.transaction((tx) => groupService.findOrCreateByNameTx(tx, 'assistant', 'work'))
+
+      expect(result.id).toBe(first.id)
+      expect(groupService.listByEntityType('assistant')).toHaveLength(2)
     })
   })
 
@@ -219,6 +255,26 @@ describe('GroupService', () => {
   })
 
   describe('delete', () => {
+    it('should clear the groupId of referenced assistants', async () => {
+      const group = groupService.create({ entityType: 'assistant', name: 'Assistant Group' })
+      await dbh.db.insert(assistantTable).values({
+        id: 'assistant-1',
+        name: 'Assistant',
+        emoji: '🌟',
+        groupId: group.id,
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a0'
+      })
+
+      groupService.delete(group.id)
+
+      const [assistant] = await dbh.db
+        .select({ groupId: assistantTable.groupId })
+        .from(assistantTable)
+        .where(eq(assistantTable.id, 'assistant-1'))
+      expect(assistant.groupId).toBeNull()
+    })
+
     it('should not change orderKeys of sibling groups after a deletion', async () => {
       const a = groupService.create({ entityType: 'topic', name: 'A' })
       const b = groupService.create({ entityType: 'topic', name: 'B' })

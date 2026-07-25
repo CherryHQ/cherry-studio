@@ -9,20 +9,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ReduxStateReader } from '../../utils/ReduxStateReader'
 
-// Mock bootConfigService — the migrator writes via .set() and .flush(), then
-// validates via .get(). We spy on the mutations and stub the reads.
+// Mock bootConfigService — the migrator writes via .set() and .persist() (the
+// strict, throwing flush variant), then validates via .get(). We spy on the
+// mutations and stub the reads.
 const bootConfigStore: Record<string, unknown> = {}
 const mockBootConfigSet = vi.fn((key: string, value: unknown) => {
   bootConfigStore[key] = value
 })
 const mockBootConfigGet = vi.fn((key: string) => bootConfigStore[key])
-const mockBootConfigFlush = vi.fn()
+const mockBootConfigPersist = vi.fn()
 
 vi.mock('@main/data/bootConfig', () => ({
   bootConfigService: {
     set: mockBootConfigSet,
     get: mockBootConfigGet,
-    flush: mockBootConfigFlush
+    persist: mockBootConfigPersist
   }
 }))
 
@@ -106,7 +107,25 @@ describe('BootConfigMigrator', () => {
       expect(mockBootConfigSet).toHaveBeenCalledWith('app.user_data_path', {
         '/Applications/Cherry Studio.app/exe': '/Volumes/Ext/Data'
       })
-      expect(mockBootConfigFlush).toHaveBeenCalled()
+      expect(mockBootConfigPersist).toHaveBeenCalled()
+    })
+
+    it('returns { success: false } when persisting boot config fails', async () => {
+      const migrator = await createMigrator()
+      const ctx = createMockContext({
+        legacyHomeConfig: { '/Applications/Cherry Studio.app/exe': '/Volumes/Ext/Data' }
+      })
+
+      await migrator.prepare(ctx)
+
+      mockBootConfigPersist.mockImplementationOnce(() => {
+        throw new Error('ENOSPC: no space left on device')
+      })
+
+      const executed = await migrator.execute()
+
+      expect(executed.success).toBe(false)
+      expect(executed.error).toContain('ENOSPC')
     })
 
     it('skips the configfile source when reader returns null (no v1 config file)', async () => {
@@ -210,6 +229,46 @@ describe('BootConfigMigrator', () => {
       await migrator.execute()
 
       expect(mockBootConfigSet).toHaveBeenCalledWith('app.disable_hardware_acceleration', true)
+    })
+  })
+
+  describe('schema validation in prepare', () => {
+    it('skips a corrupt v1 value with a warning and still migrates valid items', async () => {
+      const migrator = await createMigrator()
+      const ctx = createMockContext({
+        // Wrong type: v1 stored a string where the schema requires a boolean.
+        redux: { settings: { disableHardwareAcceleration: 'yes' } },
+        legacyHomeConfig: { '/exe': '/data' }
+      })
+
+      const prepared = await migrator.prepare(ctx)
+      expect(prepared.success).toBe(true)
+      expect(prepared.warnings?.some((w) => w.includes('schema validation'))).toBe(true)
+
+      const executed = await migrator.execute()
+      expect(executed.success).toBe(true)
+
+      // The corrupt boolean must not be written; the valid record still is.
+      const hwCalls = mockBootConfigSet.mock.calls.filter(([key]) => key === 'app.disable_hardware_acceleration')
+      expect(hwCalls).toHaveLength(0)
+      expect(mockBootConfigSet).toHaveBeenCalledWith('app.user_data_path', { '/exe': '/data' })
+    })
+
+    it('skips a corrupt legacy user_data_path record', async () => {
+      const migrator = await createMigrator()
+      const ctx = createMockContext({
+        // v1 config.json is untrusted: a non-string value sneaks past the reader's type.
+        legacyHomeConfig: { '/exe': 123 } as unknown as Record<string, string>
+      })
+
+      const prepared = await migrator.prepare(ctx)
+      expect(prepared.success).toBe(true)
+      expect(prepared.warnings?.some((w) => w.includes('schema validation'))).toBe(true)
+
+      await migrator.execute()
+
+      const configFileCalls = mockBootConfigSet.mock.calls.filter(([key]) => key === 'app.user_data_path')
+      expect(configFileCalls).toHaveLength(0)
     })
   })
 

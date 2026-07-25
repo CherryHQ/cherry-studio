@@ -5,6 +5,7 @@ import {
   type TranslationOverlayEntry,
   type TranslationOverlaySetter
 } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
+import type { MessageStreamingLayers } from '@renderer/components/chat/messages/types'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
@@ -13,17 +14,20 @@ import {
   useConversationTurnController
 } from '@renderer/hooks/useConversationTurnController'
 import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
+import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
 import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import { useTopicOverlayHandoffOnTerminal } from '@renderer/hooks/useTopicStreamStatus'
+import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useChatWriteActions } from './hooks/useChatWriteActions'
-import { useStablePartsByMessageId } from './hooks/useStablePartsByMessageId'
+import { useStableMessagePartsLayers } from './hooks/useStablePartsByMessageId'
 import { useTopicMessagesCache, type UseTopicMessagesCacheParams } from './hooks/useTopicMessagesCache'
 
 const logger = loggerService.withContext('useChatRuntimeState')
@@ -34,6 +38,7 @@ export interface ChatTurnInput {
     mentionedModels?: UniqueModelId[]
     knowledgeBaseIds?: string[]
     userMessageParts?: CherryMessagePart[]
+    reasoningEffort?: ReasoningEffortOption
   }
 }
 
@@ -47,6 +52,7 @@ interface UseChatRuntimeStateParams {
   /** Topic's virtual-root id — authoritative first-turn signal (parentId === rootId). */
   rootId: string | null
   messagesCacheMutate: UseTopicMessagesCacheParams['mutate']
+  assistant?: Assistant
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
   clearBranchDraft?: () => void
   getBranchDraftAnchorId?: () => string | null
@@ -97,6 +103,7 @@ export function useChatRuntimeState({
   activeNodeId,
   rootId,
   messagesCacheMutate,
+  assistant,
   onBranchLiveStateChange,
   clearBranchDraft,
   getBranchDraftAnchorId
@@ -172,8 +179,29 @@ export function useChatRuntimeState({
     }
   })
 
-  const partsByMessageId = useStablePartsByMessageId(messages, overlay, translationOverlay)
+  const { historyPartsByMessageId, partsByMessageId } = useStableMessagePartsLayers(
+    messages,
+    overlay,
+    translationOverlay
+  )
   const displayMessages = useMemo(() => mergeMessagesById(messages, liveAssistants), [messages, liveAssistants])
+  const liveMessageIdCandidates = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...branchActiveExecutions.flatMap((execution) =>
+            execution.anchorMessageId ? [execution.anchorMessageId] : []
+          ),
+          ...liveAssistants.map((message) => message.id)
+        ])
+      ),
+    [branchActiveExecutions, liveAssistants]
+  )
+  const liveMessageIds = useStableStringArray(liveMessageIdCandidates)
+  const streamingLayers = useMemo<MessageStreamingLayers>(
+    () => ({ historyPartsByMessageId, liveMessageIds }),
+    [historyPartsByMessageId, liveMessageIds]
+  )
 
   // Tool-approval card surface. Awaiting-approval tools render `null` inline
   // (see MessageMcpTool / AgentExecutionTimeline), so the composer override is
@@ -182,6 +210,7 @@ export function useChatRuntimeState({
   const respondToolApproval = useToolApprovalBridge(topic.id)
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
     partsByMessageId,
+    streamingLayers,
     onRespond: respondToolApproval
   })
   const composerContext = useMemo<ComposerContextValue>(
@@ -231,21 +260,13 @@ export function useChatRuntimeState({
       parentAnchorId: conversation.parentAnchorId ?? undefined,
       userMessageParts: options?.userMessageParts ?? [{ type: 'text', text }],
       mentionedModelIds: options?.mentionedModels,
-      knowledgeBaseIds: options?.knowledgeBaseIds
+      knowledgeBaseIds: options?.knowledgeBaseIds,
+      reasoningEffort: options?.reasoningEffort
     }),
     refreshMetadata: ({ topicId }) => invalidateCache(['/topics', `/topics/${topicId}`])
   })
 
-  const activeStreamingMessageIds = useMemo(
-    () =>
-      new Set([
-        ...branchActiveExecutions.flatMap((execution) =>
-          execution.anchorMessageId ? [execution.anchorMessageId] : []
-        ),
-        ...liveAssistants.map((message) => message.id)
-      ]),
-    [branchActiveExecutions, liveAssistants]
-  )
+  const activeStreamingMessageIds = useMemo(() => new Set(liveMessageIds), [liveMessageIds])
   const activeAnchorMessages = useMemo(
     () => messages.filter((message) => activeStreamingMessageIds.has(message.id)),
     [activeStreamingMessageIds, messages]
@@ -344,7 +365,8 @@ export function useChatRuntimeState({
     stop,
     refresh,
     cache,
-    seedReservedMessages
+    seedReservedMessages,
+    assistant
   })
 
   const sendMessage = useCallback(
@@ -365,6 +387,7 @@ export function useChatRuntimeState({
   return {
     messages: displayMessages,
     partsByMessageId,
+    streamingLayers,
     shouldRenderHomeComposer,
     chatWriteActions,
     sendMessage,

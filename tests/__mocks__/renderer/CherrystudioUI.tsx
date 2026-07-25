@@ -125,6 +125,7 @@ export const MockCherrystudioUI = {
   Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
   Label: ({ children, ...props }: { children?: ReactNode }) => <label {...props}>{children}</label>,
   RowFlex: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
+  Scrollbar: ({ children, ...props }: { children?: ReactNode }) => <div {...props}>{children}</div>,
   Select: ({ children, onValueChange, value, ...props }: any) => (
     <SelectContext.Provider value={{ onValueChange, value }}>
       <div data-testid="select" data-value={value} {...props}>

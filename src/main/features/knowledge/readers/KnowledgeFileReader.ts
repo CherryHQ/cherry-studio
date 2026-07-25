@@ -1,6 +1,6 @@
 import { getFileExt } from '@main/utils/legacyFile'
 import type { KnowledgeItemOf, KnowledgeSourceMetadata } from '@shared/data/types/knowledge'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { Document, type FileReader as VectorStoreFileReader } from '@vectorstores/core'
 import { CSVReader } from '@vectorstores/readers/csv'
 import { DocxReader } from '@vectorstores/readers/docx'
@@ -11,10 +11,11 @@ import { PDFReader } from '@vectorstores/readers/pdf'
 import { TextFileReader } from '@vectorstores/readers/text'
 
 import { getKnowledgeBaseFilePath } from '../utils/storage/pathStorage'
+import { DocReader } from './files/DocReader'
 import { DraftsExportReader } from './files/DraftsExportReader'
 import { EpubReader } from './files/EpubReader'
 
-export function createSupportedFileReader(filePath: FilePath): VectorStoreFileReader<Document> {
+export function createSupportedFileReader(filePath: AbsoluteFilePath): VectorStoreFileReader<Document> {
   const extension = getFileExt(filePath).toLowerCase()
 
   switch (extension) {
@@ -22,6 +23,8 @@ export function createSupportedFileReader(filePath: FilePath): VectorStoreFileRe
       return new PDFReader()
     case '.csv':
       return new CSVReader()
+    case '.doc':
+      return new DocReader()
     case '.docx':
       return new DocxReader()
     case '.epub':

@@ -61,10 +61,10 @@ export const providerListClasses = {
   searchInlineAddButton:
     'flex size-[22px] shrink-0 items-center justify-center rounded-md transition-colors hover:bg-accent/40 disabled:pointer-events-none disabled:opacity-30',
   searchRow: 'flex items-center gap-1.5 px-2.5 pt-2.5',
-  searchWrap: 'flex h-9 items-center gap-1 rounded-[10px] border border-border-muted bg-background py-1 pl-2.5 pr-1',
-  searchIcon: 'size-4 shrink-0 text-muted-foreground/60',
+  searchWrap: 'flex h-8 items-center gap-1 rounded-[10px] border border-border-muted bg-background py-1 pl-2.5 pr-1',
+  searchIcon: 'mr-0.5 size-3.5 shrink-0 text-muted-foreground/60',
   searchInput:
-    'min-w-0 flex-1 bg-transparent text-sm leading-none text-foreground/80 outline-none placeholder:text-muted-foreground/60',
+    'min-w-0 flex-1 bg-transparent text-xs leading-none text-foreground/80 outline-none placeholder:text-muted-foreground/60',
   searchClearButton:
     'flex size-[22px] shrink-0 items-center justify-center rounded-md text-muted-foreground/55 transition-colors hover:bg-accent/40 hover:text-foreground/75 disabled:pointer-events-none disabled:opacity-30',
   scroller: 'min-h-0 flex-1 px-2.5 pt-2 pb-2',
@@ -89,7 +89,7 @@ export const providerListClasses = {
   itemDragHandle:
     'flex w-2.5 shrink-0 items-center justify-center text-muted-foreground/40 opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 group-focus-within/row:opacity-100 data-[dragging=true]:opacity-100',
   itemAvatar:
-    'shrink-0 rounded-md border border-border/30 [&_[data-slot=avatar-fallback]]:rounded-[inherit] [&_[data-slot=avatar-image]]:rounded-[inherit]',
+    'shrink-0 rounded-md border border-border-muted [&_[data-slot=avatar-fallback]]:rounded-[inherit] [&_[data-slot=avatar-image]]:rounded-[inherit]',
   itemLabel: 'min-w-0 truncate text-sm leading-[1.35] text-foreground font-[weight:500]',
   itemTrailingSlot: 'relative -mr-1 ml-1 flex shrink-0 items-center justify-center',
   itemTrailingSlotAction: 'size-5',
@@ -225,21 +225,21 @@ export const modelListClasses = {
   searchCompactWrap:
     'flex h-8 w-[min(38vw,220px)] min-w-36 items-center gap-1 rounded-[10px] border border-border-muted bg-background px-2.5 py-1',
   searchIconButton:
-    'inline-flex size-6 shrink-0 items-center justify-center rounded-[length:var(--cs-radius-md)] bg-transparent text-muted-foreground/70 shadow-none transition-colors hover:bg-accent/40 hover:text-foreground disabled:opacity-40',
+    'inline-flex size-6 shrink-0 items-center justify-center rounded-md bg-transparent text-muted-foreground/70 shadow-none transition-colors hover:bg-accent/40 hover:text-foreground disabled:opacity-40',
   groupToggleIconButton:
-    'inline-flex size-6 shrink-0 items-center justify-center rounded-[length:var(--cs-radius-md)] bg-transparent text-muted-foreground/70 shadow-none transition-colors hover:text-foreground disabled:opacity-40',
+    'inline-flex size-6 shrink-0 items-center justify-center rounded-md bg-transparent text-muted-foreground/70 shadow-none transition-colors hover:text-foreground disabled:opacity-40',
   searchIcon: 'size-3 shrink-0 text-muted-foreground/65',
   searchInput:
     'min-w-0 flex-1 border-none bg-transparent text-sm leading-5 text-foreground/80 outline-none placeholder:text-muted-foreground/75 disabled:cursor-not-allowed disabled:opacity-60',
   searchClear:
     'flex h-[18px] w-[18px] items-center justify-center rounded-full text-foreground/45 transition-colors hover:bg-accent/40 hover:text-foreground/65',
   fetchActionButton:
-    'h-8 min-h-0 gap-1.5 rounded-[length:var(--cs-radius-md)] border-border-muted border-r-border bg-background px-2.5 py-0 text-sm leading-5 text-foreground shadow-none hover:bg-accent/40 hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
+    'h-8 min-h-0 gap-1.5 rounded-md border-border-muted border-r-border bg-background px-2.5 py-0 text-sm leading-5 text-foreground shadow-none hover:bg-accent/40 hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
   fetchGuideWrap: 'relative flex shrink-0',
   fetchGuideArrow:
-    'animation-provider-model-pull-guide pointer-events-none absolute top-1/2 right-full z-10 mr-2 flex h-4 w-7 items-center justify-end text-icon motion-reduce:animate-none',
+    'animation-provider-model-pull-guide pointer-events-none absolute top-1/2 right-full z-10 mr-2 flex h-4 w-7 items-center justify-end text-muted-foreground motion-reduce:animate-none',
   addModelIconButton:
-    'size-8 min-h-0 rounded-[length:var(--cs-radius-md)] border-border-muted bg-background p-0 text-foreground shadow-none hover:bg-accent/40 hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
+    'size-8 min-h-0 rounded-md border-border-muted bg-background p-0 text-foreground shadow-none hover:bg-accent/40 hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
   addIconButton:
     'size-8 rounded-lg border-border-muted bg-transparent text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground',
   emptyState:
@@ -281,7 +281,7 @@ export const modelListClasses = {
   groupCardOpen: 'rounded-b-none border-b-0',
   groupHeader:
     'group/groupRow flex min-h-9 w-full items-center justify-between gap-2 bg-muted/30 px-4 text-left outline-none focus-visible:outline-none',
-  groupHeaderOpen: '[border-bottom:0.5px_solid_var(--color-border-subtle)]',
+  groupHeaderOpen: '[border-bottom:0.5px_solid_var(--border-subtle)]',
   groupToggleButton:
     'flex min-w-0 max-w-full items-center gap-2 bg-transparent text-left outline-none focus-visible:outline-none',
   groupHeaderActions: 'flex h-6 shrink-0 items-center gap-1',
@@ -299,7 +299,7 @@ export const modelListClasses = {
   row: 'group flex min-h-[42px] items-center gap-2.5 px-4 py-1 text-foreground leading-none',
   rowMain: 'min-w-0 flex-1 items-center gap-2.5 self-center',
   rowAvatar:
-    'inline-flex h-[30px] w-[30px] shrink-0 items-center justify-center overflow-hidden rounded-lg [&_*]:overflow-hidden [&_*]:rounded-[inherit] [&_img]:rounded-[inherit] [&_svg]:rounded-[inherit]',
+    'inline-flex size-6.5 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border [&_*]:overflow-hidden [&_*]:rounded-[inherit] [&_img]:rounded-[inherit] [&_svg]:rounded-[inherit]',
   rowBody: 'flex min-w-0 max-w-full flex-1 items-center overflow-hidden',
   /** Model name opens the edit drawer; the settings icon is the explicit secondary action. */
   rowNameCopyable: 'cursor-pointer',
@@ -375,7 +375,7 @@ export const modelSyncClasses = {
     'inline-flex !h-auto !min-h-0 items-center justify-center rounded-lg px-2 py-[3px] !text-xs !leading-none text-foreground-muted shadow-none hover:bg-destructive/10 hover:text-destructive',
   fetchList: 'space-y-1',
   fetchWarning:
-    'my-2 gap-2 rounded-lg border-[color:color-mix(in_srgb,var(--color-warning-base)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--color-warning-bg)_52%,transparent)] px-2.5 py-2 text-xs leading-tight shadow-none [&_[data-slot=alert-icon]]:mt-0 [&_[data-slot=alert-icon]_svg]:size-3.5 [&_[data-slot=alert-message]]:font-normal',
+    'my-2 gap-2 rounded-lg [--model-sync-warning-accent:oklch(0.83_0.164_84)] border-[color:color-mix(in_srgb,var(--model-sync-warning-accent)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--warning-subtle)_52%,transparent)] px-2.5 py-2 text-xs leading-tight shadow-none [&_[data-slot=alert-icon]]:mt-0 [&_[data-slot=alert-icon]_svg]:size-3.5 [&_[data-slot=alert-message]]:font-normal',
   fetchRowNew:
     'flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2.5 py-2 transition-colors hover:border-border/60 hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/30 data-[checked=true]:border-border/40 data-[checked=true]:bg-background',
   fetchRowRemoved:
@@ -404,8 +404,12 @@ export const modelSyncClasses = {
     'absolute right-2 top-1/2 flex h-[18px] w-[18px] -translate-y-1/2 items-center justify-center rounded-full text-foreground/45 transition-colors hover:bg-accent/40 hover:text-foreground/65',
   manageIconButton: 'size-8 rounded-lg text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground',
   manageTabs: 'w-full gap-0',
-  manageTabsList: 'h-auto w-full max-w-full justify-stretch gap-1 rounded-lg bg-muted/40 p-1',
-  manageTabsTrigger: 'h-7 min-w-0 flex-1 rounded-md px-2 text-center text-xs',
+  manageTabsList:
+    'h-auto w-full max-w-full justify-start gap-1 overflow-x-auto overflow-y-hidden rounded-lg bg-muted/40 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+  manageTabsTrigger: 'h-7 shrink-0 cursor-pointer gap-1.5 rounded-md px-2 text-xs',
+  manageTabsTriggerDestructive:
+    'text-error-text hover:text-error-text data-[state=active]:border-error-border data-[state=active]:bg-error-bg data-[state=active]:text-error-text dark:text-error-text dark:data-[state=active]:border-error-border dark:data-[state=active]:bg-error-bg dark:data-[state=active]:text-error-text',
+  manageTabCount: 'text-[11px] text-muted-foreground/70 tabular-nums',
   manageScrollArea: 'min-h-0 flex-1 pr-1 [scrollbar-gutter:stable]',
   manageLoading: 'flex min-h-52 items-center justify-center text-muted-foreground',
   manageList: 'pb-1',
@@ -426,7 +430,7 @@ export const modelSyncClasses = {
   manageRowTitleLine: 'flex min-w-0 items-center gap-1.5',
   manageRowTitle: 'truncate text-sm leading-5 text-foreground select-text',
   manageRowDescriptionHelp:
-    'inline-flex size-4 shrink-0 items-center justify-center rounded text-icon outline-none transition-colors hover:bg-accent/40 hover:text-foreground focus-visible:ring-[1px] focus-visible:ring-ring/35',
+    'inline-flex size-4 shrink-0 items-center justify-center rounded text-muted-foreground outline-none transition-colors hover:bg-accent/40 hover:text-foreground focus-visible:ring-[1px] focus-visible:ring-ring/35',
   manageStaleBadge:
     'h-4 shrink-0 rounded-md bg-destructive/10 px-1.5 py-0 text-[10px] leading-4 text-destructive tabular-nums',
   manageRowAction: 'size-8 rounded-lg text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground'
@@ -480,7 +484,7 @@ export const oauthCardClasses = {
   loggedInName: 'truncate text-xs font-medium leading-tight text-foreground',
   loggedInEmail: 'mt-0.5 truncate text-xs leading-[1.35] text-muted-foreground/40',
   badge:
-    'inline-flex items-center rounded bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-1 py-[0.5px] text-[10px] font-medium leading-tight text-[color:var(--warning)]',
+    'inline-flex items-center rounded bg-warning/10 px-1 py-[0.5px] text-[10px] font-medium leading-tight text-warning',
   loggedInActions: 'flex shrink-0 flex-wrap items-center justify-end gap-2',
   inlineBalanceBlock: 'text-right',
   inlineBalanceLabel: 'text-xs text-muted-foreground/40',

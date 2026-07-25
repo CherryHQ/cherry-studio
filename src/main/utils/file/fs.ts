@@ -40,9 +40,10 @@ import {
 } from 'node:fs/promises'
 import path from 'node:path'
 import { Writable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 
 import { loggerService } from '@logger'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import mime from 'mime'
 import xxhashLoader from 'xxhash-wasm'
 
@@ -53,11 +54,20 @@ const notImplemented = (op: string): never => {
 }
 
 /** Read file content as text with optional encoding detection. */
-export async function read(path: FilePath, options?: { encoding?: 'text'; detectEncoding?: boolean }): Promise<string>
-export async function read(path: FilePath, options: { encoding: 'base64' }): Promise<{ data: string; mime: string }>
-export async function read(path: FilePath, options: { encoding: 'binary' }): Promise<{ data: Uint8Array; mime: string }>
 export async function read(
-  path: FilePath,
+  path: AbsoluteFilePath,
+  options?: { encoding?: 'text'; detectEncoding?: boolean }
+): Promise<string>
+export async function read(
+  path: AbsoluteFilePath,
+  options: { encoding: 'base64' }
+): Promise<{ data: string; mime: string }>
+export async function read(
+  path: AbsoluteFilePath,
+  options: { encoding: 'binary' }
+): Promise<{ data: Uint8Array; mime: string }>
+export async function read(
+  path: AbsoluteFilePath,
   options?: { encoding?: 'text' | 'base64' | 'binary'; detectEncoding?: boolean }
 ): Promise<unknown> {
   const encoding = options?.encoding ?? 'text'
@@ -73,7 +83,7 @@ export async function read(
 }
 
 /** Returns true iff the path exists and is readable by the current process. */
-export async function exists(path: FilePath): Promise<boolean> {
+export async function exists(path: AbsoluteFilePath): Promise<boolean> {
   try {
     await access(path, constants.R_OK)
     return true
@@ -91,7 +101,7 @@ export type PathReadability = 'readable' | 'missing' | 'unverifiable'
  * `unverifiable`). Callers that drive a destructive remediation off "absent" — e.g. telling the
  * user to delete and re-add a source — need this so a transient failure is not reported as deletion.
  */
-export async function probeReadable(path: FilePath): Promise<PathReadability> {
+export async function probeReadable(path: AbsoluteFilePath): Promise<PathReadability> {
   try {
     await access(path, constants.R_OK)
     return 'readable'
@@ -117,7 +127,7 @@ export async function probeReadable(path: FilePath): Promise<PathReadability> {
  * a message that would otherwise mask the underlying permission /
  * symlink-loop / fd-exhaustion error invisibly.
  */
-export async function isSameFile(a: FilePath, b: FilePath): Promise<boolean> {
+export async function isSameFile(a: AbsoluteFilePath, b: AbsoluteFilePath): Promise<boolean> {
   try {
     const [sa, sb] = await Promise.all([fsStat(a), fsStat(b)])
     return sa.dev === sb.dev && sa.ino === sb.ino
@@ -131,7 +141,7 @@ export async function isSameFile(a: FilePath, b: FilePath): Promise<boolean> {
 }
 
 /** Write content to a file path. Atomic — never produces partially-written targets. */
-export async function write(target: FilePath, data: string | Uint8Array): Promise<void> {
+export async function write(target: AbsoluteFilePath, data: string | Uint8Array): Promise<void> {
   return atomicWriteFile(target, data)
 }
 
@@ -187,12 +197,12 @@ export interface PathVersion {
 /**
  * Path-level version-mismatch error. Thrown by `atomicWriteIfUnchanged`.
  *
- * `internal/content/write.writeIfUnchanged` catches this and re-wraps it in
- * the entry-aware `StaleVersionError` exported by `FileManager.ts`.
+ * Entry-aware writes catch this and re-wrap it in `StaleVersionError`; path-arm
+ * writes propagate it to the File IPC adapter for domain-error mapping.
  */
 export class PathStaleVersionError extends Error {
   constructor(
-    public readonly target: FilePath,
+    public readonly target: AbsoluteFilePath,
     public readonly expected: PathVersion,
     public readonly current: PathVersion
   ) {
@@ -251,7 +261,7 @@ async function bestEffortUnlinkTmp(tmp: string, target: string): Promise<void> {
  * target, replacing whatever mode a pre-existing target had.
  */
 export async function atomicWriteFile(
-  target: FilePath,
+  target: AbsoluteFilePath,
   data: string | Uint8Array,
   options?: { mode?: number }
 ): Promise<void> {
@@ -373,7 +383,7 @@ class AtomicWriteStreamImpl extends Writable implements AtomicWriteStream {
  * commits onto `target` on `.end()`. See `AtomicWriteStream` JSDoc for the
  * full lifecycle contract.
  */
-export function createAtomicWriteStream(target: FilePath): AtomicWriteStream {
+export function createAtomicWriteStream(target: AbsoluteFilePath): AtomicWriteStream {
   return new AtomicWriteStreamImpl(target)
 }
 
@@ -392,7 +402,7 @@ export function createAtomicWriteStream(target: FilePath): AtomicWriteStream {
  * Returns the new on-disk version on success.
  */
 export async function atomicWriteIfUnchanged(
-  target: FilePath,
+  target: AbsoluteFilePath,
   data: string | Uint8Array,
   expected: PathVersion,
   expectedContentHash?: string
@@ -432,7 +442,7 @@ export async function atomicWriteIfUnchanged(
 
 /** Get file/directory stats. */
 export async function stat(
-  path: FilePath
+  path: AbsoluteFilePath
 ): Promise<{ size: number; createdAt: number; modifiedAt: number; isDirectory: boolean }> {
   const s = await fsStat(path)
   return {
@@ -443,19 +453,23 @@ export async function stat(
   }
 }
 
-/** Copy a file from source to destination atomically (tmp + rename on dest). */
-export async function copy(src: FilePath, dest: FilePath): Promise<void> {
-  const reader = createReadStream(src)
-  const writer = createAtomicWriteStream(dest)
-  await new Promise<void>((resolve, reject) => {
-    reader.on('error', (err) => {
-      writer.destroy(err)
-      reject(err)
-    })
-    writer.on('error', reject)
-    writer.on('finish', resolve)
-    reader.pipe(writer)
-  })
+/**
+ * Copy a file from source to destination atomically (tmp + rename on dest).
+ *
+ * When `signal` is provided, an abort interrupts the in-flight byte copy: `pipeline`
+ * destroys the `AtomicWriteStream`, whose `_destroy` best-effort unlinks the tmp file
+ * (leaving `dest` untouched) before the returned promise rejects with an `AbortError`.
+ * Without it, a single hung read (cloud placeholder, disconnected volume) could block
+ * forever — see the knowledge directory-import freeze this guards against.
+ */
+export async function copy(src: AbsoluteFilePath, dest: AbsoluteFilePath, signal?: AbortSignal): Promise<void> {
+  // `pipeline` treats an explicit trailing `undefined` as a stream (and throws on
+  // validation), so branch instead of forwarding `undefined` as its options arg.
+  if (signal) {
+    await pipeline(createReadStream(src), createAtomicWriteStream(dest), { signal })
+  } else {
+    await pipeline(createReadStream(src), createAtomicWriteStream(dest))
+  }
 }
 
 /**
@@ -470,7 +484,7 @@ export async function copy(src: FilePath, dest: FilePath): Promise<void> {
  * succeeded (dest is fully written), and forcing callers to handle an "almost
  * moved" exception would conflate "copy failed" with "cleanup failed".
  */
-export async function move(src: FilePath, dest: FilePath): Promise<void> {
+export async function move(src: AbsoluteFilePath, dest: AbsoluteFilePath): Promise<void> {
   try {
     await rename(src, dest)
   } catch (err) {
@@ -493,7 +507,7 @@ export async function move(src: FilePath, dest: FilePath): Promise<void> {
 }
 
 /** Remove a file. Idempotent on `ENOENT`. */
-export async function remove(target: FilePath): Promise<void> {
+export async function remove(target: AbsoluteFilePath): Promise<void> {
   try {
     await unlink(target)
   } catch (err) {
@@ -502,22 +516,22 @@ export async function remove(target: FilePath): Promise<void> {
 }
 
 /** Remove a directory recursively. Idempotent on missing path. */
-export async function removeDir(target: FilePath): Promise<void> {
+export async function removeDir(target: AbsoluteFilePath): Promise<void> {
   await fsRm(target, { recursive: true, force: true })
 }
 
 /** Create a single directory. Throws if it already exists. */
-export async function mkdir(target: FilePath): Promise<void> {
+export async function mkdir(target: AbsoluteFilePath): Promise<void> {
   await fsMkdirPromise(target)
 }
 
 /** Ensure a directory exists, creating any missing ancestors. Idempotent. */
-export async function ensureDir(target: FilePath): Promise<void> {
+export async function ensureDir(target: AbsoluteFilePath): Promise<void> {
   await fsMkdirPromise(target, { recursive: true })
 }
 
 /** Compress an image (sharp). Returns the output path. */
-export async function compressImage(_input: FilePath | Uint8Array, _output: FilePath): Promise<void> {
+export async function compressImage(_input: AbsoluteFilePath | Uint8Array, _output: AbsoluteFilePath): Promise<void> {
   return notImplemented('compressImage')
 }
 
@@ -526,7 +540,7 @@ export async function compressImage(_input: FilePath | Uint8Array, _output: File
  * (tmp + rename), so an interrupted download leaves no partially-written
  * dest file. Throws on non-2xx responses.
  */
-export async function download(url: string, dest: FilePath): Promise<void> {
+export async function download(url: string, dest: AbsoluteFilePath): Promise<void> {
   const response = await fetch(url)
   if (!response.ok) {
     throw new Error(`download(${url}): HTTP ${response.status} ${response.statusText}`)
@@ -582,7 +596,7 @@ async function getXxhash() {
   return xxhashApi
 }
 
-export async function hash(path: FilePath): Promise<string> {
+export async function hash(path: AbsoluteFilePath): Promise<string> {
   const api = await getXxhash()
   const hasher = api.create64()
   const stream = createReadStream(path)

@@ -31,6 +31,11 @@
       "submit": "Submit",
       "title": "Questions from Agent"
     },
+    "builtin": {
+      "cherry_assistant": {
+        "description": "Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+      }
+    },
     "channels": {
       "add": "Add",
       "bindAgent": "Bind Agent",
@@ -188,13 +193,13 @@
       "tooltip": "Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
     },
     "home": {
-      "welcome_title": "What shall we talk about today?"
+      "welcome_title": "What should we work on today?"
     },
     "icon": {
       "type": "Agent Icon"
     },
     "input": {
-      "placeholder": "Type a message. Press {{key}} to send. Type / to search paths or commands."
+      "placeholder": "Type a message. Press {{key}} to send. Type / to search paths or commands, @ for files and sessions."
     },
     "list": {
       "error": {
@@ -212,6 +217,24 @@
       "code": "Code",
       "code_unavailable": "Source view not available for binary files",
       "default_app": "Default app",
+      "edit": {
+        "conflict": {
+          "description": "This file changed on disk after editing started. Reloading will discard the current draft and load the latest file.",
+          "keep_draft": "Keep draft",
+          "reload": "Reload file",
+          "title": "File changed on disk"
+        },
+        "discard": "Discard changes",
+        "leave": {
+          "description": "If you continue, your unsaved changes to this file will be lost.",
+          "discard_and_continue": "Discard and continue",
+          "title": "Discard unsaved changes?"
+        },
+        "refresh_failed": "Unable to reload the latest file content.",
+        "save_failed": "Unable to save this file. Automatic saving is paused until you retry or discard the changes.",
+        "unsaved": "Unsaved",
+        "unsupported": "This file can be previewed but not safely edited here. Editing supports UTF-8 text files with consistent LF or CRLF line endings."
+      },
       "empty": {
         "description": "Start chatting with the agent; generated code and live previews will appear here.",
         "title": "Ready"
@@ -355,6 +378,11 @@
         "label": "Pre-approved tools",
         "placeholder": "Select pre-approved tools"
       },
+      "api_retry": {
+        "reason": "Request failed ({{error}}, HTTP {{status}}) — retrying",
+        "retrying": "Retrying {{attempt}}/{{max}}…",
+        "retrying_in": "Retrying {{attempt}}/{{max}} in {{seconds}}s"
+      },
       "auto_rename": "Generate task name",
       "create": {
         "error": {
@@ -380,7 +408,7 @@
       },
       "empty": {
         "description": "Tasks will appear here after you start one.",
-        "title": "No tasks yet"
+        "title": "No tasks"
       },
       "file_manager": {
         "file_explorer": "File Explorer",
@@ -561,7 +589,7 @@
       },
       "prompt": "Prompt Settings",
       "skills": {
-        "addMore": "Add More Skills",
+        "addMore": "Manage Skills",
         "builtin": "Built-in",
         "noFilterResults": "No matching skills",
         "noSkills": "No skills installed. Install skills from Settings > Skills.",
@@ -635,11 +663,6 @@
       }
     },
     "sidebar_title": "Agents",
-    "skill": {
-      "manage": {
-        "title": "Manage skills"
-      }
-    },
     "tasks": {
       "add": "Add Task",
       "cancel": "Cancel",
@@ -660,6 +683,7 @@
         "deleteFailed": "Failed to delete task",
         "loadFailed": "Failed to load tasks",
         "runFailed": "Failed to run task",
+        "triggerInvalid": "Invalid schedule: check the expression, time zone, or interval range",
         "updateFailed": "Failed to update task"
       },
       "frequency": {
@@ -850,7 +874,8 @@
       "executing": "Executing...",
       "expired": "Expired",
       "inputPreview": "Tool input preview",
-      "pending": "Waiting for approval",
+      "pending": "Waiting for confirmation",
+      "pendingBadge": "Pending",
       "permissionExpired": "Permission request expired. Waiting for new instructions...",
       "requiresElevatedPermissions": "This tool requires elevated permissions.",
       "suggestion": {
@@ -881,6 +906,10 @@
         "CherryCron": {
           "description": "Manages the in-app scheduler",
           "label": "Scheduler"
+        },
+        "CherryGenerateImage": {
+          "description": "Generates an image from a text prompt using your configured painting model",
+          "label": "Generate Image"
         },
         "CherryKbManage": {
           "description": "Adds, deletes, or refreshes documents in your knowledge bases",
@@ -1050,12 +1079,18 @@
     "edit": {
       "title": "Edit Assistant"
     },
+    "groups": {
+      "delete": "Delete Group",
+      "deleteConfirm": "Are you sure you want to delete this group?",
+      "group_by": "Show in groups",
+      "ungroup": "Stop grouping",
+      "ungrouped": "Ungrouped"
+    },
     "icon": {
       "type": "Assistant Icon"
     },
     "list": {
-      "showByList": "List View",
-      "showByTags": "Tag View"
+      "showByList": "List View"
     },
     "pin": {
       "title": "Pin Assistant"
@@ -1213,6 +1248,8 @@
         "label": "Reasoning effort",
         "low": "Low",
         "low_description": "Low level reasoning",
+        "max": "Max",
+        "max_description": "Maximum reasoning effort",
         "medium": "Medium",
         "medium_description": "Medium level reasoning",
         "minimal": "Minimal",
@@ -1239,20 +1276,6 @@
         "label": "Tool Use Mode",
         "prompt": "Prompt"
       }
-    },
-    "tags": {
-      "add": "Add Tag",
-      "delete": "Delete Tag",
-      "deleteConfirm": "Are you sure to delete this tag?",
-      "group_by": "Group by tag",
-      "manage": "Tag Management",
-      "modify": "Modify Tag",
-      "none": "No tags",
-      "settings": {
-        "title": "Tag Settings"
-      },
-      "ungroup": "Turn off tag grouping",
-      "untagged": "Untagged"
     },
     "title": "Assistants",
     "unpin": {
@@ -1343,8 +1366,8 @@
     },
     "deeply_thought": "Deeply thought ({{seconds}} seconds)",
     "default": {
-      "description": "Hello, I'm Default Assistant. You can start chatting with me right away",
-      "name": "Default Assistant",
+      "description": "Hello, I'm Cherry Assistant. You can start chatting with me right away",
+      "name": "Cherry Assistant",
       "topic": {
         "name": "Default Conversation"
       }
@@ -1360,7 +1383,7 @@
       "view_full_content": "View Full Content"
     },
     "home": {
-      "welcome_title": "What shall we talk about today?"
+      "welcome_title": "What should we talk about today?"
     },
     "input": {
       "auto_resize": "Auto resize height",
@@ -1392,7 +1415,8 @@
         "title": "Queued ({{count}})"
       },
       "generate_image": "Generate image",
-      "generate_image_not_supported": "The model does not support generating images.",
+      "generate_image_no_model": "Configure a painting model in Settings › Default Model",
+      "image_preview_failed": "Image preview failed",
       "knowledge_base": "Knowledge Base",
       "knowledge_base_disabled_by_files": "Remove attached files to use Knowledge Base",
       "knowledge_base_unavailable": "Select a tool-capable model or enable prompt tool use",
@@ -1406,8 +1430,26 @@
       "paste_text_file": "Paste into input",
       "pasted_text_file_name": "Pasted text.txt",
       "pause": "Pause",
-      "placeholder": "Type a message. Press {{key}} to send. Type / for tools and actions.",
+      "placeholder": "Type a message. Press {{key}} to send. Type / for tools and actions, @ to reference topics.",
       "placeholder_without_triggers": "Type your message here, press {{key}} to send",
+      "reference_panel": {
+        "load_failed": "Failed to load the referenced conversation",
+        "no_room": "Not enough room left in the message to add this conversation",
+        "session": {
+          "no_results": {
+            "description": "No sessions match your search",
+            "label": "No Sessions Found"
+          },
+          "title": "Sessions"
+        },
+        "topic": {
+          "no_results": {
+            "description": "No topics match your search",
+            "label": "No Topics Found"
+          },
+          "title": "Topics"
+        }
+      },
       "resize_height": "Resize input height",
       "resource_panel": {
         "categories": {
@@ -1425,7 +1467,7 @@
           "description": "No files, agents, or skills available",
           "label": "No Items Found"
         },
-        "title": "Resources"
+        "title": "Files & Sessions"
       },
       "restore": "Restore",
       "send": "Send",
@@ -1460,12 +1502,29 @@
         },
         "unsupported_model": "Current model does not support adjustable reasoning"
       },
+      "toolbar": {
+        "customize": "Customize toolbar",
+        "drag": {
+          "cancelled": "Reordering cancelled for {{name}}.",
+          "dropped": "{{name}} dropped.",
+          "instructions": "To reorder, press Space or Enter to pick up a tool, use the arrow keys to move it, then Space or Enter to drop it, or Escape to cancel.",
+          "over": "{{name}} moved over {{over}}.",
+          "picked_up": "Picked up {{name}}."
+        },
+        "drag_handle": "Drag to reorder {{name}}",
+        "restore_default": "Restore default"
+      },
       "tools": {
         "collapse": "Collapse",
         "collapse_in": "Collapse",
         "collapse_out": "Remove from collapse",
         "expand": "Expand",
         "file_not_found": "File not found: {{path}}",
+        "generate_image": {
+          "failed": "Image generation failed",
+          "generating": "Generating image…",
+          "title": "Generated image"
+        },
         "open_file": "Open File",
         "open_file_error": "Failed to open file: {{path}}",
         "reveal_in_finder": "Reveal in Finder"
@@ -1547,6 +1606,23 @@
       "regenerate": {
         "model": "Switch Model"
       },
+      "token_details": {
+        "cache_read": "Cache read",
+        "cache_write": "Cache write",
+        "input": "Input",
+        "input_breakdown": "Input breakdown",
+        "output": "Output",
+        "reasoning": "Reasoning",
+        "reasoning_time": "Reasoning",
+        "request_duration": "Generation timing",
+        "text_generation": "Text generation",
+        "text_output": "Text output",
+        "tokens": "{{value}} Tokens",
+        "tokens_per_second_value": "{{value}} Tokens/s",
+        "uncached": "Uncached",
+        "usage": "Token usage",
+        "waiting_first_token": "Waiting"
+      },
       "useful": {
         "label": "Set as context",
         "tip": "In this group of messages, this message will be selected to join the context"
@@ -1572,8 +1648,7 @@
     "resource_view": {
       "menu": {
         "agent": "Agents",
-        "assistant": "Assistants",
-        "skill": "Skills"
+        "assistant": "Assistants"
       }
     },
     "save": {
@@ -1729,6 +1804,7 @@
     "thinking_tokens": "~{{tokens}} tokens",
     "topics": {
       "auto_rename": "Generate conversation name",
+      "auto_rename_failed": "Failed to auto-generate conversation name",
       "clear": {
         "title": "Clear Messages"
       },
@@ -1754,7 +1830,7 @@
       },
       "empty": {
         "description": "Create a chat and it will stay here so you can continue with its context later.",
-        "title": "No chats yet"
+        "title": "No conversations"
       },
       "export": {
         "failed": "Export failed",
@@ -1902,7 +1978,8 @@
         "permissions_deny": "Deny (comma-separated)",
         "permissions_hint": "Pre-approve or deny tool patterns. Supports wildcards like Read(secrets-*/config.json).",
         "role_column": "Role",
-        "sonnet_model": "Sonnet"
+        "sonnet_model": "Sonnet",
+        "subagent_model": "Subagent"
       },
       "codex": {
         "disable_response_storage": "Disable Response Storage",
@@ -1955,11 +2032,17 @@
         "default": "Default",
         "high": "High",
         "low": "Low",
+        "max": "Max",
         "medium": "Medium",
         "minimal": "Minimal",
         "xhigh": "Extra High"
       },
       "select_placeholder": "Select…"
+    },
+    "api_gateway": {
+      "description": "Any CLI, every model",
+      "requires_running": "Keep Cherry Studio running after enabling — the external CLI connects to the gateway it hosts.",
+      "title": "Unified Gateway"
     },
     "apply_failed": "Failed to write CLI config to the system file",
     "auto_update_to_latest": "Automatically update to latest version",
@@ -2040,6 +2123,7 @@
     "model_required": "Please select a model",
     "model_selection": "Model Selection",
     "more": "More",
+    "move_provider_to_top": "Move provider to top",
     "no_matching_providers": "No matching providers",
     "no_model_for_provider": "No model available for this provider",
     "no_providers_description": "Enable a supported provider in Settings → Model Service",
@@ -2143,6 +2227,7 @@
     "copy_failed": "Copy failed",
     "create_success": "Created successfully",
     "current": "Current",
+    "decline": "Decline",
     "default": "Default",
     "delete": "Delete",
     "delete_confirm": "Are you sure you want to delete?",
@@ -2214,6 +2299,7 @@
     "provider": "Provider",
     "reasoning_content": "Deep reasoning",
     "refresh": "Refresh",
+    "refresh_failed": "Couldn't refresh the list. Showing the last loaded version.",
     "regenerate": "Regenerate",
     "remove_image": "Remove image",
     "rename": "Rename",
@@ -2245,6 +2331,7 @@
     "swap": "Swap",
     "topics": "Conversations",
     "translate_text": "Translate text",
+    "undo": "Undo",
     "unknown": "Unknown",
     "unnamed": "Unnamed",
     "unsubscribe": "Unsubscribe",
@@ -2283,6 +2370,7 @@
     "image-generation": "Image Generation (OpenAI)",
     "jina-rerank": "Jina Rerank",
     "openai": "OpenAI",
+    "openai-embeddings": "Embeddings (OpenAI)",
     "openai-response": "OpenAI-Response"
   },
   "error": {
@@ -2337,6 +2425,8 @@
       "payload": "Request content too large, please reduce file or text size",
       "proxy": "Proxy or SSL certificate error, check proxy and network settings",
       "quota": "Account quota exhausted, please recharge or switch provider",
+      "rate_limit": "Too many requests in a short time. Wait a moment and retry, or switch to a model with a higher rate limit",
+      "region": "Service unavailable in your region. Configure a proxy or switch to a provider available in your area",
       "server": "Server error, please retry later",
       "stream": "Response interrupted, check network stability or retry",
       "unknown": "An error occurred",
@@ -2348,6 +2438,7 @@
     "http": {
       "400": "Request failed. Please check if the request parameters are correct. If you have changed the model settings, please reset them to the default settings",
       "401": "Authentication failed. Please check if your API key is correct",
+      "402": "Payment required. Your account balance or quota is exhausted - top up on the provider's website or switch to another provider",
       "403": "Access denied. Please check if your account is verified, or contact the service provider for more information",
       "404": "Model not found or request path is incorrect",
       "429": "Too many requests. Please try again later",
@@ -2399,13 +2490,19 @@
     "text": "Text",
     "toolInput": "Tool Input",
     "toolName": "Tool Name",
+    "tool_call_limit_reached": "The assistant reached the tool-call limit before producing a final answer. Try again or reduce the task scope.",
     "truncated": "Data truncated, original size",
     "truncatedBadge": "Truncated",
     "unknown": "Unknown error",
     "usage": "Usage",
     "user_message_not_found": "Cannot find original user message to resend",
     "value": "Value",
-    "values": "Values"
+    "values": "Values",
+    "web_lookup_network_error": "Web access failed. Check your network connection and try again.",
+    "web_search_api_host_invalid": "Web search is unavailable because the configured provider's API host is invalid. Enter a valid HTTP(S) URL in Settings → Web Search, then try again.",
+    "web_search_api_host_missing": "Web search is unavailable because the configured provider is missing an API host. Add one in Settings → Web Search, then try again.",
+    "web_search_api_key_missing": "Web search is unavailable because the configured provider is missing an API key. Add one in Settings → Web Search, then try again.",
+    "web_search_provider_unavailable": "Web search is unavailable because no compatible provider is configured. Configure one in Settings → Web Search, then try again."
   },
   "export": {
     "assistant": "Assistant",
@@ -2419,6 +2516,80 @@
       "reasoning_truncated": "Chain of thought cannot be chunked and has been truncated."
     },
     "user": "User"
+  },
+  "file_preview": {
+    "html": {
+      "empty": {
+        "description": "This HTML file has no content.",
+        "title": "Empty file"
+      },
+      "mode": {
+        "label": "HTML view mode",
+        "preview": "Preview",
+        "source": "Source"
+      },
+      "read_error": {
+        "title": "Couldn't read this file"
+      },
+      "too_large": {
+        "description": "HTML files larger than {{limit}} MiB cannot be previewed.",
+        "title": "File is too large"
+      }
+    },
+    "invalid_path": {
+      "description": "File preview requires a valid absolute local path.",
+      "title": "Can't preview this file"
+    },
+    "load_error": {
+      "description": "The preview content could not be loaded.",
+      "title": "Preview failed"
+    },
+    "loading": "Loading preview...",
+    "markdown": {
+      "empty": {
+        "description": "This Markdown file has no content.",
+        "title": "Empty file"
+      },
+      "mode": {
+        "label": "Markdown view mode",
+        "preview": "Preview",
+        "source": "Source"
+      },
+      "read_error": {
+        "title": "Couldn't read this file"
+      },
+      "too_large": {
+        "description": "Markdown files larger than {{limit}} MiB cannot be previewed.",
+        "title": "File is too large"
+      }
+    },
+    "pdf": {
+      "too_large": {
+        "action": "Open with default app",
+        "description": "PDF files larger than {{limit}} MiB cannot be previewed.",
+        "open_error": "Couldn't open this file",
+        "title": "File is too large"
+      }
+    },
+    "text": {
+      "empty": {
+        "description": "This text file has no content.",
+        "title": "Empty file"
+      },
+      "read_error": {
+        "title": "Couldn't read this file"
+      },
+      "too_large": {
+        "description": "Text files larger than {{limit}} MiB cannot be previewed.",
+        "title": "File is too large"
+      }
+    },
+    "unsupported": {
+      "action": "Open with default app",
+      "description": "This file type cannot be previewed yet.",
+      "open_error": "Couldn't open this file",
+      "title": "Preview unavailable"
+    }
   },
   "files": {
     "actions": "Actions",
@@ -2443,7 +2614,8 @@
     "edit": "Edit",
     "empty": {
       "no_match_description": "No files match the current filters",
-      "no_match_title": "No matching files found"
+      "no_match_title": "No matching files found",
+      "title": "No files yet"
     },
     "empty_trash": "Empty trash",
     "error": {
@@ -2767,6 +2939,7 @@
           "title": "Import a single webpage"
         }
       },
+      "back_to_parent": "Back",
       "bulk": {
         "delete": "Delete",
         "delete_confirm_description": "Delete {{count}} selected data sources? This cannot be undone.",
@@ -2794,6 +2967,7 @@
         "title": "Upload Your First Data Source"
       },
       "empty_description": "No data sources yet",
+      "empty_folder": "This folder is empty",
       "filters": {
         "all": "All",
         "directory": "Folders",
@@ -2826,9 +3000,9 @@
           "type": "Type",
           "updated_at": "Updated"
         },
+        "open_row": "Open {{title}}",
         "select_all": "Select all",
-        "select_row": "Select row",
-        "view_chunks_row": "View chunks for {{title}}"
+        "select_row": "Select row"
       },
       "toolbar": {
         "add": "Add Data Source"
@@ -2838,7 +3012,8 @@
     "dimensions_size_placeholder": "Leave empty to not pass dimensions",
     "embedding_model": "Embedding Model",
     "embedding_model_required": "Knowledge base embedding model is required",
-    "empty": "No knowledge bases",
+    "empty": "No knowledge bases yet",
+    "empty_description": "Build up your knowledge with AI",
     "error": {
       "directory_not_migrated": "Folder migration failed. Please delete it and re-upload.",
       "failed_base_unknown": "This knowledge base failed during migration. Rebuild it and choose a new embedding model.",
@@ -3006,7 +3181,7 @@
       "duplicate": "Duplicate",
       "edit": "Edit",
       "enable": "Enable",
-      "manage_tags": "Manage tags",
+      "manage_groups": "Manage groups",
       "uninstall": "Uninstall"
     },
     "assistant_catalog": {
@@ -3145,6 +3320,7 @@
             "no_skills_enabled": "No skills enabled",
             "search_placeholder": "Search tools or servers...",
             "skills_coming_soon": "Skill bindings coming soon",
+            "skills_enable_all": "Enable all",
             "skills_require_save": "Save before enabling skills",
             "tab": {
               "mcp": "MCP",
@@ -3204,6 +3380,9 @@
             "hint": "Limits token sampling range when enabled"
           }
         },
+        "group": "Group",
+        "group_empty": "No groups available",
+        "group_placeholder": "Select group",
         "json_invalid": "Invalid JSON format",
         "max_tokens": "Max tokens",
         "max_tool_calls": "Max tool calls",
@@ -3267,6 +3446,7 @@
       },
       "knowledge": {
         "add": "Add knowledge base",
+        "create_first": "Open Knowledge to create one",
         "desc": "Link one or more knowledge bases; relevant snippets will be retrieved during chat",
         "doc_count": "{{count}} docs",
         "empty_desc": "Once linked, the assistant can answer based on document content",
@@ -3280,6 +3460,7 @@
         "title": "Knowledge bases"
       },
       "prompt": {
+        "copy_variable": "Copy {{variable}}",
         "create_title": "New Prompt",
         "dblclick_hint": "Double-click the preview to switch back to edit",
         "desc": "The system prompt is sent as the opening context of the assistant",
@@ -3300,6 +3481,11 @@
         "insert_variable": "Insert variable",
         "label": "System prompt",
         "placeholder": "Enter instructions for the assistant, such as response style, role, or background context",
+        "polish": "Polish prompt",
+        "polish_failed_description": "Check or change the default model, then try again.",
+        "polish_failed_title": "Failed to polish prompt",
+        "polish_variables_changed_description": "The polished result changed or removed prompt variables. Try again.",
+        "polish_variables_changed_title": "Could not apply polished prompt",
         "title": "Prompt",
         "tokens_label": "Tokens: ",
         "variables_description": "Insert these system variables into the system prompt; before each assistant reply, they are filled with the current information.",
@@ -3402,6 +3588,10 @@
       "title": "No resources"
     },
     "export_assistant_failed": "Failed to export assistant",
+    "group_picker": {
+      "no_groups": "No groups yet"
+    },
+    "group_sync_failed": "Failed to sync groups",
     "import_dialog": {
       "clipboard": {
         "button": "Parse and import",
@@ -3449,15 +3639,16 @@
     },
     "sidebar": {
       "all_resources": "All resources",
-      "all_tags": "All tags",
       "no_tags": "No tags yet",
       "subtitle": "Manage your AI resources",
       "tags": "Tags",
       "title": "Library"
     },
     "skill_add": {
+      "add": "Add Skill",
       "local_import": "Local import",
-      "online_search": "Online search"
+      "online_search": "Online search",
+      "system_search": "System search"
     },
     "skill_detail": {
       "created_at": "Created",
@@ -3485,6 +3676,19 @@
       "updated": "Sort by updated"
     },
     "subtitle": "Manage your assistants, agents and skills",
+    "system_skill": {
+      "conflict": "Name conflict",
+      "description": "Import skills already installed on this system.",
+      "empty_description": "No importable skills were found in other coding tools on this device.",
+      "empty_title": "No skills available to import",
+      "enable_success": "Enabled {{name}}",
+      "enabled": "Enabled",
+      "import": "Import",
+      "import_success": "Imported {{name}}",
+      "imported": "Imported",
+      "search_placeholder": "Search system skills...",
+      "title": "System skills"
+    },
     "tag_picker": {
       "no_tags": "No tags yet",
       "placeholder": "New tag name..."
@@ -3499,11 +3703,11 @@
     },
     "title": "Library",
     "toolbar": {
-      "add_tag_placeholder": "Tag name...",
-      "all_tags": "All tags",
+      "add_group_placeholder": "Group name...",
+      "all_groups": "All groups",
+      "group_button": "Group",
       "new_resource": "New resource",
-      "search_placeholder": "Search by name or description...",
-      "tag_button": "Tag"
+      "search_placeholder": "Search by name or description..."
     },
     "type": {
       "agent": "Agent",
@@ -3583,6 +3787,8 @@
         "title": "Delete Confirmation"
       },
       "failed": "Delete Failed",
+      "first_turn_not_supported": "The first user message cannot be deleted.",
+      "root_unavailable": "Messages are still loading and cannot be deleted yet.",
       "success": "Delete Successful"
     },
     "dialog": {
@@ -3726,18 +3932,6 @@
     "regenerate": {
       "confirm": "Regenerating will replace current message"
     },
-    "reset": {
-      "confirm": {
-        "content": "Are you sure you want to clear all data?"
-      },
-      "double": {
-        "confirm": {
-          "content": "All data will be lost, do you want to continue?",
-          "title": "DATA LOST !!!"
-        }
-      },
-      "success": "Data reset successful"
-    },
     "restore": {
       "failed": "Restore failed",
       "success": "Restored successfully"
@@ -3781,48 +3975,54 @@
       "abort_failed": "Tool call abort failed",
       "aborted": "Tool call aborted",
       "activity": {
+        "analyze": "Analyze",
+        "analyzing": "Taking a closer look",
         "archive": "archive",
-        "assistantTask": "task",
+        "assistantTask": "assistant task",
         "availableFeatures": "available features",
         "availableResources": "available resources",
-        "branch": "code branch",
+        "branch": "project version",
         "build": "Build",
-        "building": "Building",
+        "building": "Putting it together",
+        "calendar": "calendar",
         "check": "Check",
-        "checking": "Checking",
+        "checking": "Going through each one",
         "codeFiles": "code files",
-        "codeHostInfo": "code hosting information",
-        "commandName": "{{name}} command",
-        "configFiles": "project docs and config files",
+        "codeHostInfo": "remote repo info",
+        "configFiles": "project docs and config",
         "copy": "Copy",
         "copying": "Copying",
         "create": "Create",
         "creating": "Creating",
         "currentFolder": "current folder",
+        "data": "data",
         "delete": "Delete",
-        "deleting": "Deleting",
+        "deleting": "Carefully clearing out",
         "documentFiles": "document files",
         "download": "Download",
         "downloading": "Downloading",
-        "executeCommand": "Run command",
-        "executingCommand": "Running command",
+        "email": "email",
+        "environmentInfo": "environment information",
+        "executeCommand": "Run",
+        "executingCommand": "Running it",
+        "extensionFailed": "Extension failed",
         "extract": "Extract",
-        "extracting": "Extracting",
+        "extracting": "Unpacking",
         "file": "file",
         "fileList": "file list",
         "folder": "folder",
         "handle": "Handle",
-        "handling": "Handling",
+        "handling": "Working on it",
         "imageFiles": "image files",
         "install": "Install",
         "installing": "Installing",
         "matchingFiles": "matching files",
         "modify": "Modify",
-        "modifying": "Modifying",
+        "modifying": "Fine-tuning",
         "move": "Move",
-        "moving": "Moving",
+        "moving": "Moving it over",
         "open": "Open",
-        "opening": "Opening",
+        "opening": "Opening it up",
         "plan": "execution plan",
         "projectChanges": "project changes",
         "projectChecks": "project checks",
@@ -3831,36 +4031,42 @@
         "projectRootFiles": "project root files",
         "projectTask": "project task",
         "relatedContent": "related content",
-        "repository": "code repository",
+        "repository": "project content",
         "search": "Find",
-        "searching": "Finding",
+        "searching": "Searching around",
+        "send": "Send",
+        "sending": "Sending",
+        "start": "Start",
+        "starting": "Starting up",
         "switch": "Switch",
-        "switching": "Switching",
+        "switching": "Switching over",
         "sync": "Sync",
-        "syncing": "Syncing",
+        "syncing": "Syncing up",
         "taskId": "Task {{id}}",
         "taskList": "task list",
-        "translationFiles": "translation files",
+        "translationFiles": "language files",
         "upload": "Upload",
         "uploading": "Uploading",
+        "usedExtension": "Used an extension",
+        "usingExtension": "Bringing in an extension",
         "view": "View",
-        "viewing": "Viewing",
+        "viewing": "Looking it over",
         "webPage": "web page",
         "webSearch": "web content",
-        "workspace": "workspace",
-        "write": "Save",
-        "writing": "Saving"
+        "workspace": "work area",
+        "write": "Write",
+        "writing": "Writing it out"
       },
       "approvalRequired": "Tool \"{{tool}}\" requires approval",
       "autoApproveEnabled": "Auto-approve enabled for this tool",
       "cancelled": "Cancelled",
       "collapse": "Collapse",
-      "completed": "Completed",
+      "completed": "All wrapped up",
       "error": "Error occurred",
       "groupHeader": "{{count}} tool calls",
-      "invoking": "Invoking",
+      "invoking": "Getting started",
       "labels": {
-        "bash": "Bash",
+        "bash": "Run task",
         "edit": "Edit",
         "exitPlanMode": "ExitPlanMode",
         "glob": "Glob",
@@ -3893,10 +4099,10 @@
           "minutes": "{{minutes}}m {{seconds}}s",
           "seconds": "{{seconds}}s"
         },
-        "generating": "Writing response",
+        "generating": "Writing up a reply",
         "preparing": "Preparing response",
-        "thinking": "Thinking",
-        "usingTools": "Working on the task"
+        "thinking": "Let me think this through",
+        "usingTools": "Making progress"
       },
       "preview": "Preview",
       "processed": "Processed",
@@ -3924,7 +4130,7 @@
         "success": "Success"
       },
       "streaming": "Streaming",
-      "thinkingHeader": "Thinking",
+      "thinkingHeader": "Thinking it through",
       "truncated": "Output truncated (original: {{size}})",
       "units": {
         "done_one": "{{count}} Done",
@@ -4036,6 +4242,7 @@
   },
   "models": {
     "action": {
+      "configure_custom": "Configure custom models",
       "pin": "Pin this model",
       "unpin": "Unpin model"
     },
@@ -4062,6 +4269,9 @@
       "selected": "Selected tags"
     },
     "function_calling": "Function Calling",
+    "group": {
+      "ungrouped": "Ungrouped"
+    },
     "invalid_model": "Invalid Model",
     "json_parse_error": "Invalid JSON format",
     "multi_select": {
@@ -4106,10 +4316,13 @@
       "embedding": "Embedding",
       "free": "Free",
       "function_calling": "Tool",
+      "image": "Image",
       "reasoning": "Reasoning",
       "rerank": "Reranker",
       "select": "Model Types",
+      "speech": "Speech",
       "text": "Text",
+      "transcription": "Transcription",
       "video": "Video",
       "vision": "Vision",
       "websearch": "WebSearch"
@@ -4138,6 +4351,12 @@
     },
     "characters": "Characters",
     "collapse": "Collapse",
+    "conflict": {
+      "description": "This note was changed outside the editor. Reload to load the latest version (your unsaved edits will be discarded), or keep editing.",
+      "keep_draft": "Keep editing",
+      "reload": "Reload",
+      "title": "Note changed on disk"
+    },
     "content_placeholder": "Please enter the note content...",
     "copyContent": "Copy Content",
     "create_folder_failed": "Failed to create folder",
@@ -4159,7 +4378,13 @@
     "export_to_pdf_failed": "Failed to export to PDF",
     "export_to_pdf_success": "Exported to PDF",
     "export_to_word_failed": "Failed to export to Word",
+    "file_removed_draft": "This note was removed from disk. Your unsaved draft is still available in the editor.",
     "folder": "folder",
+    "leave": {
+      "description": "Leaving this note will discard your unsaved edits. Do you want to continue?",
+      "discard_and_continue": "Discard and continue",
+      "title": "Discard unsaved note edits?"
+    },
     "load_failed": "Failed to load note",
     "load_failed_description": "The file could not be read. Editing is disabled to protect the note content.",
     "metadata_sync_failed": "File updated, but note state sync failed. Please retry the operation.",
@@ -4182,6 +4407,9 @@
     "save": "Save to Notes",
     "save_blocked_load_failed": "Save blocked because the note failed to load",
     "save_failed": "Failed to save note",
+    "save_failure": {
+      "description": "This note could not be saved. Your edits remain in the editor and automatic saving is paused."
+    },
     "search": {
       "both": "Name+Content",
       "content": "Content",
@@ -4289,23 +4517,39 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "privacy": {
+      "accept_and_continue": "Accept and Continue",
+      "accept_policy": "Agree to the Privacy Policy",
+      "notice": "I have read and agree to the",
+      "period": ".",
+      "policy": "Privacy Policy",
+      "update_failed": "Unable to save your privacy agreement. Please try again."
+    },
+    "provider_setup": {
+      "missing_model": "Enable at least one model from the enabled provider",
+      "missing_provider": "Enable a provider to continue",
+      "next": "Next",
+      "subtitle": "Add an API key or sign in with CherryIN, then enable a provider.",
+      "title": "Choose a Provider"
+    },
     "select_model": {
       "change_later": "You can change this anytime in settings",
       "start": "Get Started",
       "subtitle": "Select default model for each scenario",
-      "title": "Choose Your Default Models"
+      "title": "Choose Default Model"
     },
-    "skip": "Skip",
+    "skip": "Set up later",
     "toast": {
+      "complete_failed": "Unable to complete setup. Please try again.",
       "connected": "Successfully connected to CherryIN"
     },
     "welcome": {
-      "login_cherryin": "Login with CherryIN",
-      "or_continue_with": "OR CONTINUE WITH",
-      "other_provider": "Choose Other Providers",
+      "login_cherryin": "Connect CherryIN",
+      "or_continue_with": "or",
+      "other_provider": "Set up another provider",
       "select_other_provider": "Select Other Provider",
-      "setup_hint": "Please configure at least one provider for the best experience",
-      "subtitle": "Enjoy top-tier AI services with CherryIN",
+      "setup_hint": "You can change providers anytime in Settings",
+      "subtitle": "Connect a provider to unlock your All-in-One AI Workstation",
       "title": "Welcome to Cherry Studio"
     }
   },
@@ -4470,6 +4714,7 @@
     "title": "Intel OVMS"
   },
   "paintings": {
+    "add_image": "Add image",
     "aspect_ratio": "Aspect Ratio",
     "aspect_ratios": {
       "landscape": "Landscape",
@@ -4570,6 +4815,7 @@
     "inference_steps": "Inference Steps",
     "inference_steps_tip": "The number of inference steps to perform ({{min}}-{{max}}). More steps produce higher quality but take longer",
     "input_image": "Input Image",
+    "input_image_limit_exceeded": "Too many reference images for the selected model. Remove some images and try again.",
     "input_parameters": "Input Parameters",
     "invalid_image_url": "Invalid image URL format",
     "learn_more": "Learn More",
@@ -4594,6 +4840,7 @@
     "number_images": "Number Images",
     "number_images_tip": "Number of images to generate ({{min}}-{{max}})",
     "operation_failed": "Operation failed, please try again later",
+    "output_compression": "Output Compression",
     "paint_course": "tutorial",
     "per_image": "per image",
     "per_images": "per images",
@@ -4620,6 +4867,8 @@
     "prompt_placeholder": "Describe the image you want to create, e.g. A serene lake at sunset with mountains in the background",
     "prompt_placeholder_edit": "Enter your image description, text drawing uses \"double quotes\" to wrap",
     "prompt_placeholder_en": "Enter your image description, currently only supports English prompts",
+    "prompt_placeholder_upload": "Describe the image you want, or upload one to edit",
+    "prompt_placeholder_upload_required": "Upload an image to edit, then describe the changes",
     "prompt_required": "Please enter a prompt",
     "proxy_required": "Open the proxy and enable \"TUN mode\" to view generated images or copy them to the browser for opening. In the future, domestic direct connection will be supported",
     "quality": "Quality",
@@ -4645,6 +4894,7 @@
     "req_error_text": "The server is busy or the prompt contains \"copyrighted\" or \"sensitive\" terms. Please try again.",
     "req_error_token": "Please check the validity of the token",
     "required_field": "Required field",
+    "revealing": "Revealing generated image",
     "safety_tolerance": "Safety Tolerance",
     "safety_tolerance_tip": "Higher = more permissive filter; 0 is strictest, 6 is most permissive",
     "seed": "Seed",
@@ -4741,6 +4991,7 @@
     "install": "Install",
     "install_plugins_from_browser": "Browse available skills to get started",
     "installing": "Installing...",
+    "manage_skills": "Manage skills",
     "name": "Name",
     "no_description": "No description available",
     "no_installed_plugins": "No skills installed yet",
@@ -4793,6 +5044,16 @@
     "source": "View Source Code",
     "zoom_in": "Zoom In",
     "zoom_out": "Zoom Out"
+  },
+  "privacy_policy": {
+    "load_failed": "Unable to load the privacy policy.",
+    "title": "Privacy Policy"
+  },
+  "privacy_policy_update": {
+    "acknowledge_failed": "Unable to save your acknowledgement. Please try again.",
+    "description_before_link": "We have updated the privacy policy. Please review the latest ",
+    "policy": "Privacy Policy",
+    "title": "Privacy Policy Updated"
   },
   "prompts": {
     "explanation": "Explain this concept to me",
@@ -5302,7 +5563,7 @@
         "icon": {
           "error": "Invalid icon name, please check your input",
           "label": "Icon",
-          "placeholder": "Enter Lucide icon name",
+          "placeholder": "Icon name",
           "random": "Random Icon",
           "tooltip": "Lucide icon names are lowercase, e.g. arrow-right",
           "view_all": "View All Icons"
@@ -5364,6 +5625,7 @@
       "create_new": "New Assistant",
       "empty_text": "No assistants yet",
       "filter": "Filter assistants",
+      "group_filter": "Filter by group",
       "multi_hint": "(mutually exclusive with multi-model)",
       "multi_label": "Multi-assistant simultaneous responses",
       "search_placeholder": "Search assistants…"
@@ -5483,16 +5745,17 @@
         "path_changed_without_copy": "Path changed successfully",
         "restart_notice": "The app may need to restart multiple times to apply the changes",
         "select": "Modify Directory",
-        "select_error": "Failed to change data directory",
+        "select_error": "The selected directory may be used by another Cherry Studio instance. Close other instances and try again. If none are running, remove stale SingletonLock and SingletonSocket files from that directory.",
         "select_error_in_app_path": "New path is the same as the application installation path, please select another path",
+        "select_error_protected_path": "The selected path is protected by the operating system or Cherry Studio. Please choose another folder.",
         "select_error_root_path": "New path cannot be the root path",
         "select_error_same_path": "New path is the same as the old path, please select another path",
         "select_error_write_permission": "New path does not have write permission",
         "select_not_empty_dir": "New path is not empty",
-        "select_not_empty_dir_content": "New path is not empty, it will overwrite the data in the new path, there is a risk of data loss and copy failure, continue?",
         "select_success": "Data directory changed, the app will restart to apply changes",
         "select_title": "Change App Data Directory",
-        "stop_quit_app_reason": "The app is currently migrating data and cannot be exited"
+        "stop_quit_app_reason": "The app is currently migrating data and cannot be exited",
+        "switch_existing_notice": "This non-empty directory will be used as-is. Its existing files will not be overwritten."
       },
       "app_logs": {
         "button": "Open Logs",
@@ -5512,6 +5775,13 @@
       },
       "data": {
         "title": "Data Directory"
+      },
+      "data_reset": {
+        "button": "Reset",
+        "confirm_content": "This will erase chats, assistants, knowledge bases, files, and settings, then restart the app. This action cannot be undone. Continue?",
+        "confirm_title": "Reset App Data",
+        "error": "Failed to start data reset",
+        "title": "Data Reset"
       },
       "divider": {
         "basic": "Basic Data",
@@ -5534,75 +5804,6 @@
         "siyuan": "Export to SiYuan Note",
         "title": "Export Menu",
         "yuque": "Export to Yuque"
-      },
-      "export_to_phone": {
-        "confirm": {
-          "button": "Select backup file"
-        },
-        "content": "Export some data, including chat logs and settings. Please note that the backup process may take some time. Thank you for your patience.",
-        "file": {
-          "button": "Export to file",
-          "content": "Export data as a backup file that can be imported on mobile via file.",
-          "export_failed": "Export failed",
-          "export_success": "Export successful",
-          "title": "Export as file"
-        },
-        "lan": {
-          "button": "Start Transfer",
-          "connected": "Connected",
-          "connection_failed": "Connection failed",
-          "content": "Please ensure your computer and phone are on the same network for LAN transfer.",
-          "device_list_title": "Local network devices",
-          "discovered_devices": "Discovered devices",
-          "error": {
-            "file_too_large": "File too large, maximum 500MB supported",
-            "init_failed": "Initialization failed",
-            "invalid_file_type": "Only ZIP files are supported",
-            "no_file": "No file selected",
-            "no_ip": "Unable to get IP address",
-            "not_connected": "Please complete handshake first",
-            "send_failed": "Failed to send file"
-          },
-          "file_transfer": {
-            "cancelled": "Transfer cancelled",
-            "failed": "File transfer failed: {{message}}",
-            "progress": "Sending... {{progress}}%",
-            "success": "File sent successfully"
-          },
-          "handshake": {
-            "button": "Handshake",
-            "failed": "Handshake failed: {{message}}",
-            "in_progress": "Handshaking...",
-            "success": "Handshake completed with {{device}}",
-            "test_message_received": "Received pong from {{device}}",
-            "test_message_sent": "Sent hello world test payload"
-          },
-          "idle_hint": "Scan paused. Start scanning to find Cherry Studio peers on your LAN.",
-          "ip_addresses": "IP addresses",
-          "last_seen": "Last seen at {{time}}",
-          "metadata": "Metadata",
-          "no_connection_warning": "Please open LAN Transfer on Cherry Studio mobile",
-          "no_devices": "No LAN peers found yet",
-          "scan_devices": "Scan devices",
-          "scanning_hint": "Scanning your local network for Cherry Studio peers...",
-          "send_file": "Send File",
-          "status": {
-            "completed": "Transfer completed",
-            "connected": "Connected",
-            "connecting": "Connecting...",
-            "disconnected": "Disconnected",
-            "error": "Connection error",
-            "initializing": "Initializing connection...",
-            "preparing": "Preparing transfer...",
-            "sending": "Transferring {{progress}}%"
-          },
-          "status_badge_idle": "Idle",
-          "status_badge_scanning": "Scanning",
-          "stop_scan": "Stop scan",
-          "title": "LAN transmission",
-          "transfer_progress": "Transfer progress"
-        },
-        "title": "Export to phone"
       },
       "hour_interval_one": "{{count}} hour",
       "hour_interval_other": "{{count}} hours",
@@ -6085,14 +6286,55 @@
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
       "checkUpdates": "Check for updates",
       "coreDepsMissing": "Core dependencies not installed",
-      "customTools": "Custom Tools",
-      "customToolsEmpty": "No custom tools yet. Add one to get started.",
       "description": "Manage binary tools and runtime dependencies required by the app.",
       "duplicateName": "A tool with the same name already exists",
       "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "Install",
       "installError": "Failed to install tool",
+      "installErrorHint": "The install command failed. Copy the log below to troubleshoot or share it for help.",
+      "installSettings": {
+        "description": "Fine-tune how bundled CLI tools are installed. All fields are optional — leave them empty to keep the defaults.",
+        "githubMirror": {
+          "help": "Proxy prefix for GitHub release downloads (e.g. https://ghfast.top). GitHub API requests remain direct; use a token if rate-limited.",
+          "label": "GitHub mirror",
+          "placeholder": "https://ghfast.top (direct if empty)"
+        },
+        "githubToken": {
+          "help": "Raises the GitHub API rate limit for tool lookups. Stored locally in plain text. Leave empty to use the CHERRY_GITHUB_TOKEN environment variable.",
+          "hide": "Hide token",
+          "label": "GitHub token",
+          "placeholder": "ghp_…",
+          "show": "Show token"
+        },
+        "invalidUrl": "Enter a valid URL including https://",
+        "npmRegistry": {
+          "help": "Registry for npm: tools. Leave empty to auto-select a mirror in mainland China.",
+          "label": "npm registry",
+          "placeholder": "Auto (China mirror) if empty"
+        },
+        "pipIndexUrl": {
+          "help": "Index URL for pipx: tools. Leave empty to auto-select a mirror in mainland China.",
+          "label": "pip index URL",
+          "placeholder": "Auto (China mirror) if empty"
+        },
+        "presetLabels": {
+          "aliyun": "Aliyun (China)",
+          "default": "Default (no mirror)",
+          "ghfast": "ghfast.top",
+          "ghproxy": "ghproxy.net",
+          "npmOfficial": "npmjs (official)",
+          "npmmirror": "npmmirror (China)",
+          "pypiOfficial": "PyPI (official)",
+          "tsinghua": "Tsinghua (China)"
+        },
+        "presets": "Presets",
+        "title": "Advanced install settings",
+        "verifySignatures": {
+          "help": "Verifies Sigstore/SLSA signatures for aqua-backed tools. Disable only if verification fails on your network — it skips supply-chain checks.",
+          "label": "Verify tool signatures"
+        }
+      },
       "installing": "Installing...",
+      "installingHint": "The first install may download a runtime and take a few minutes",
       "invalidTool": "Invalid tool name or key",
       "localModels": {
         "cancel": "Cancel",
@@ -6116,17 +6358,27 @@
           "downloading": "Downloading…",
           "ready": "Ready"
         },
-        "title": "Local Models"
+        "title": "Local Models",
+        "unsupported": "Local models are not supported on this platform."
       },
       "notInstalled": "Not installed",
       "openBinariesDir": "Open binaries directory",
       "remove": "Remove tool",
-      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
+      "removeConfirmMessage": "Remove \"{{name}}\" from Cherry Studio? Its portable definition will be deleted. Cherry will also clean up an exact mise-managed copy when present. System and bundled executables are never changed.",
       "removeConfirmTitle": "Remove Tool",
+      "removeDefinitionOnlyConfirmMessage": "Cherry could not safely clean up \"{{name}}\": {{details}} Removing only its definition will hide the card but leave its backend files installed. Continue?",
+      "removeDefinitionOnlyConfirmTitle": "Remove Definition Only?",
+      "removeDefinitionOnlyDependents": "Installed tools depend on it: {{dependents}}.",
+      "removeError": "Failed to remove tool",
+      "removeErrorHint": "The cleanup command failed. Copy the log below to troubleshoot or share it for help.",
+      "removeRuntimeConfirmMessage": "Remove \"{{name}}\" from Cherry Studio? Cherry will clean up only an exact mise-managed copy. System and bundled runtimes are never changed. Installed npm or pip tools may block removal if they depend on this runtime.",
+      "runtimeDependency": "Runtime",
+      "runtimeDependencyHint": "Runtime for npm/pip tools",
       "searchFailed": "Search failed, check logs",
       "searchRegistry": "Search mise registry...",
       "source": {
-        "bundled": "bundled"
+        "bundled": "bundled",
+        "system": "System"
       },
       "title": "Dependencies",
       "tools": {
@@ -6145,8 +6397,15 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
+      "uninstall": "Uninstall",
+      "uninstallConfirmMessage": "Are you sure you want to uninstall \"{{name}}\"? Cherry Studio's backend copy will be deleted.",
+      "uninstallConfirmTitle": "Uninstall Tool",
+      "uninstallFailed": "Failed to uninstall tool",
+      "uninstallSuccess": "Tool uninstalled",
       "update": "Update to latest version",
-      "updateCheckFailed": "Failed to check for updates"
+      "updateCheckFailed": "Failed to check for updates",
+      "updateCheckSuccess": "Version check complete",
+      "viewErrorDetails": "View details"
     },
     "developer": {
       "enable_developer_mode": "Enable Developer Mode",
@@ -6159,8 +6418,8 @@
       },
       "custom": {
         "css": {
-          "cherrycss": "Get from cherrycss.com",
           "label": "Custom CSS",
+          "migration_notice": "This stylesheet was migrated from v1 and is currently disabled. Adapt it for v2, then remove the first line to enable it.",
           "placeholder": "/* Put custom CSS here */"
         }
       },
@@ -6256,10 +6515,6 @@
       "emoji_picker": "Emoji Picker",
       "image_upload": "Image Upload",
       "label": "General Settings",
-      "reset": {
-        "button": "Reset",
-        "title": "Data Reset"
-      },
       "restore": {
         "button": "Restore"
       },
@@ -6590,10 +6845,10 @@
       "user": "User"
     },
     "menuGroups": {
-      "automation": "Automation",
-      "capabilities": "Capabilities & Tools",
+      "automation": "Efficiency",
+      "capabilities": "Tools",
       "models": "Models",
-      "personal": "Personal",
+      "personal": "Preferences",
       "quickAccess": "Quick Access",
       "system": "System"
     },
@@ -6688,6 +6943,9 @@
       "add": {
         "add_model": "Add Model",
         "batch_add_models": "Batch Add Models",
+        "capabilities": {
+          "label": "Model Capabilities"
+        },
         "context_window": {
           "label": "Context window",
           "placeholder": "e.g. 128000"
@@ -6703,6 +6961,9 @@
           "label": "Group Name",
           "placeholder": "e.g. ChatGPT",
           "tooltip": "Optional e.g. ChatGPT"
+        },
+        "input_modalities": {
+          "label": "Input Modalities"
         },
         "max_input_tokens": {
           "label": "Max input tokens",
@@ -6725,6 +6986,26 @@
           "label": "Model Name",
           "placeholder": "e.g. GPT-5.5",
           "tooltip": "Optional e.g. GPT-4"
+        },
+        "model_type": {
+          "label": "Model Type"
+        },
+        "purpose": {
+          "chat": {
+            "description": "Use the provider's text API",
+            "label": "Chat"
+          },
+          "chat_protocol": "Chat protocol",
+          "description": "Choose how this model is used",
+          "image_edit": {
+            "description": "Accept an input image and return an edited image",
+            "label": "Image editing"
+          },
+          "image_generation": {
+            "description": "Generate images from a prompt",
+            "label": "Image generation"
+          },
+          "label": "Model purpose"
         },
         "supported_text_delta": {
           "label": "Support incremental text output",
@@ -6783,7 +7064,8 @@
       "default_assistant_model": "Default Assistant Model",
       "default_assistant_model_description": "Used when an assistant has no model.",
       "docs": "Model docs",
-      "empty": "No models found",
+      "empty": "Select a model",
+      "empty_hint": "Click the Get model list button above to add models.",
       "enabled_models": "Enabled",
       "expand_all": "Expand all",
       "filter": {
@@ -6868,6 +7150,8 @@
       },
       "more_actions": "More model list actions",
       "not_enabled_models": "Disabled",
+      "painting_model": "Painting Model",
+      "painting_model_description": "Model used for image generation",
       "provider_id": "Provider ID",
       "provider_key_add_confirm": "Do you want to add the API key for {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Failed to add provider API key, data is empty",
@@ -7098,8 +7382,9 @@
       },
       "balance": "Balance",
       "base_url": {
+        "invalid": "Enter a valid HTTP or HTTPS URL",
         "label": "Base URL",
-        "placeholder": "https://api.example.com",
+        "placeholder": "Base URL: https://example.com",
         "required": "Please enter the Base URL"
       },
       "basic_auth": {
@@ -7191,6 +7476,23 @@
         "toggle_headers_editor_list": "Switch to header list"
       },
       "create_custom": {
+        "endpoint_fields": {
+          "default_chat": "Default",
+          "label": "Endpoint settings",
+          "more": "More options",
+          "more_configured": "{{count}} configured",
+          "set_default_chat": "Set as default",
+          "text_endpoint_required": "Configure at least one text endpoint",
+          "url_help": "Enter the API root URL to preview the final request path"
+        },
+        "preset_instance": {
+          "description": "For Coding Plan services, multiple accounts, or project isolation; configure each Base URL and API key independently",
+          "empty": "No matching Provider presets",
+          "placeholder": "Create from a Provider preset…",
+          "search_placeholder": "Search Provider presets",
+          "title": "Start from a preset (optional)"
+        },
+        "request_preview": "Request path: {{path}}",
         "title": "Add Custom Provider"
       },
       "delete": {
@@ -7230,13 +7532,23 @@
         "sign_in_success": "Signed in to Grok CLI",
         "signing_in": "Waiting for browser…"
       },
+      "image_endpoints": {
+        "image_edit_base_url": {
+          "help": "Used for /images/edits; leave blank to use the default chat endpoint Base URL",
+          "label": "Image Edit Base URL"
+        },
+        "image_generation_base_url": {
+          "help": "Used for /images/generations; leave blank to use the default chat endpoint Base URL",
+          "label": "Image Generation Base URL"
+        }
+      },
       "logo_upload_failed": "Failed to process the selected image",
       "misc": "Other",
       "more_endpoints": {
         "add": "Add Endpoint",
-        "anthropic": "Anthropic Messages",
-        "gemini": "Google Gemini",
-        "openai_chat": "OpenAI Chat Completions",
+        "anthropic": "Anthropic",
+        "gemini": "Gemini",
+        "openai_chat": "OpenAI",
         "openai_responses": "OpenAI Responses",
         "toggle": "More Endpoints"
       },
@@ -7278,9 +7590,6 @@
         "topup": "Top Up",
         "usage_title": "Usage",
         "usage_unit": "tokens"
-      },
-      "openai": {
-        "alert": "OpenAI Provider no longer support the old calling methods. If using a third-party API, please create a new service provider."
       },
       "remove_duplicate_keys": "Remove Duplicate Keys",
       "remove_invalid_keys": "Remove Invalid Keys",
@@ -7357,6 +7666,7 @@
         "autoEmpty": "No enabled MCP servers",
         "description": "View current MCP server status",
         "disabled": "MCP is disabled for this assistant",
+        "open_config": "Configure MCP servers",
         "unknownServer": "Unknown MCP server"
       },
       "multiple": "Multiple Select",
@@ -7748,6 +8058,8 @@
   },
   "tab": {
     "close": "Close Tab",
+    "close_others": "Close Other Tabs",
+    "close_to_right": "Close Tabs to the Right",
     "move_to_first": "Move to First",
     "new": "New Tab",
     "open_in_new_window": "Open in New Window",

@@ -4,12 +4,13 @@ import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import {
+  isProviderPresetInstanceSource,
   isProviderSettingsListVisibleProvider,
   matchKeywordsInProvider
 } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
 import { toast } from '@renderer/services/toast'
 import type { Provider } from '@shared/data/types/provider'
-import { canManageProvider, isAgentSupportedProvider } from '@shared/utils/provider'
+import { canManageProvider } from '@shared/utils/provider'
 import { Plus } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -113,9 +114,6 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
       if (filterMode === 'disabled' && provider.isEnabled) {
         return false
       }
-      if (filterMode === 'agent' && !isAgentSupportedProvider(provider)) {
-        return false
-      }
       const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
       return matchKeywordsInProvider(keywords, provider, providerModelsIndex?.get(provider.id))
     })
@@ -131,6 +129,13 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
   )
 
   const groupedPresetIds = useMemo(() => getGroupedPresetIds(filteredProviders), [filteredProviders])
+  const presetSources = useMemo(
+    () =>
+      providers.filter(
+        (provider) => isProviderPresetInstanceSource(provider) && isProviderSettingsListVisibleProvider(provider)
+      ),
+    [providers]
+  )
 
   const setProviderItemRef = useCallback((providerId: string, element: HTMLDivElement | null) => {
     if (element) {
@@ -285,7 +290,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
             filterMode={filterMode}
             disabled={dragging}
             triggerClassName={providerListClasses.searchInlineAddButton}
-            triggerIconSize={13}
+            triggerIconSize={12}
             onFilterChange={setFilterMode}
           />
         }
@@ -309,7 +314,9 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
         open={editorOpen}
         mode={editorMode}
         initialLogo={initialLogo}
+        presetSources={presetSources}
         onClose={cancelEditor}
+        onSelectPreset={startAddFrom}
         onSubmit={handleSubmitEditor}
       />
     </aside>

@@ -24,6 +24,10 @@ describe('hasClaudeDetailedModels', () => {
     expect(hasClaudeDetailedModels({ env: { ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-haiku' } })).toBe(true)
   })
 
+  it('does not treat the independent Subagent override as detailed-model mode', () => {
+    expect(hasClaudeDetailedModels({ env: { CLAUDE_CODE_SUBAGENT_MODEL: 'claude-sonnet' } })).toBe(false)
+  })
+
   it('ignores empty, whitespace-only, and marker-only values', () => {
     expect(hasClaudeDetailedModels({})).toBe(false)
     expect(hasClaudeDetailedModels({ env: { ANTHROPIC_DEFAULT_FABLE_MODEL: '  ' } })).toBe(false)
@@ -37,13 +41,14 @@ describe('stripClaudeDetailedModels', () => {
       env: {
         ANTHROPIC_DEFAULT_FABLE_MODEL: 'claude-fable-5',
         ANTHROPIC_DEFAULT_FABLE_MODEL_NAME: 'Fable',
+        CLAUDE_CODE_SUBAGENT_MODEL: 'claude-sonnet',
         USER_ENV: 'keep'
       },
       permissions: { defaultMode: 'plan' }
     }
 
     expect(stripClaudeDetailedModels(config)).toEqual({
-      env: { USER_ENV: 'keep' },
+      env: { CLAUDE_CODE_SUBAGENT_MODEL: 'claude-sonnet', USER_ENV: 'keep' },
       permissions: { defaultMode: 'plan' }
     })
   })
@@ -75,6 +80,12 @@ describe('getClaudeContextModelId', () => {
 
   it('returns undefined when no role is populated', () => {
     expect(getClaudeContextModelId('anthropic', {})).toBeUndefined()
+  })
+
+  it('ignores the independent Subagent override when selecting a detailed context model', () => {
+    expect(
+      getClaudeContextModelId('anthropic', { env: { CLAUDE_CODE_SUBAGENT_MODEL: 'claude-sonnet' } })
+    ).toBeUndefined()
   })
 
   it('returns undefined for a user-typed value createUniqueModelId rejects instead of throwing', () => {

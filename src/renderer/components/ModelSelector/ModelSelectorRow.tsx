@@ -3,7 +3,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import type { ComponentPropsWithoutRef, KeyboardEvent, MouseEvent, ReactNode, Ref } from 'react'
 
 export const MODEL_SELECTOR_ROW_CLASS =
-  'group relative flex w-full items-center gap-1 rounded-[10px] px-2 py-1.5 text-left text-xs transition-colors'
+  'group relative flex h-8 w-full items-center gap-1 rounded-[10px] px-2 py-1 text-left text-xs transition-colors'
 
 export const MODEL_SELECTOR_ROW_ACTION_BUTTON_CLASS =
   'flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 shadow-none transition hover:bg-accent hover:text-accent-foreground hover:opacity-100! group-hover:opacity-60 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent'
@@ -71,7 +71,7 @@ export function ModelSelectorRow({
       {showSelectedIndicator ? (
         <span
           aria-hidden="true"
-          className="-translate-y-1/2 absolute top-1/2 left-0 block h-[60%] w-0.75 rounded-full bg-muted-foreground/60"
+          className="-translate-y-1/2 absolute top-1/2 left-0 block h-[60%] w-0.75 rounded-full bg-primary"
         />
       ) : null}
       <div

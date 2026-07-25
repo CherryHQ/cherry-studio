@@ -1,6 +1,7 @@
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { MenuPresentationMode } from '@shared/data/preference/preferenceTypes'
+import { V1_CUSTOM_CSS_MARKER } from '@shared/utils/customCssMigration'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -41,16 +42,15 @@ vi.mock('@cherrystudio/ui', async () => {
     Button,
     CodeEditor: ({ value, ...props }: any) =>
       React.createElement('textarea', { ...props, value: value ?? '', readOnly: true }),
-    Combobox: ({ options = [], renderOption, value, ...props }: any) => {
+    Combobox: ({ options = [], popoverClassName, renderOption, value, ...props }: any) => {
       const cleanProps = { ...props }
       delete cleanProps.emptyText
-      delete cleanProps.popoverClassName
       delete cleanProps.searchPlacement
       delete cleanProps.triggerStyle
 
       return React.createElement(
         'div',
-        null,
+        { 'data-popover-class-name': popoverClassName },
         React.createElement(
           'select',
           { ...cleanProps, value: value ?? '', readOnly: true },
@@ -271,7 +271,7 @@ describe('AppearanceSettings menu presentation mode', () => {
   })
 })
 
-describe('AppearanceSettings language selector', () => {
+describe('AppearanceSettings selectors', () => {
   beforeEach(() => {
     MockUsePreferenceUtils.resetMocks()
     i18nMock.language = 'zh-CN'
@@ -308,5 +308,39 @@ describe('AppearanceSettings language selector', () => {
 
     expect(screen.queryByText('settings.messages.layout.conversation')).not.toBeInTheDocument()
     expect(screen.queryByText('settings.messages.layout.work')).not.toBeInTheDocument()
+  })
+
+  it('matches both font popover widths to their triggers', async () => {
+    const { container } = render(<AppearanceSettings />)
+
+    await waitFor(() => {
+      expect(mocks.request).toHaveBeenCalledWith('system.get_fonts')
+    })
+
+    const fontPopoverClassNames = Array.from(container.querySelectorAll('[data-popover-class-name]')).map((element) =>
+      element.getAttribute('data-popover-class-name')
+    )
+
+    expect(fontPopoverClassNames).toHaveLength(2)
+    expect(fontPopoverClassNames).toEqual([
+      expect.stringContaining('w-(--radix-popover-trigger-width)'),
+      expect.stringContaining('w-(--radix-popover-trigger-width)')
+    ])
+  })
+
+  it('shows migration guidance for marked v1 custom CSS', () => {
+    MockUsePreferenceUtils.setPreferenceValue('ui.custom_css', `${V1_CUSTOM_CSS_MARKER}\nbody { color: red; }`)
+
+    render(<AppearanceSettings />)
+
+    expect(screen.getByText('settings.display.custom.css.migration_notice')).toBeInTheDocument()
+  })
+
+  it('does not show migration guidance for unmarked custom CSS', () => {
+    MockUsePreferenceUtils.setPreferenceValue('ui.custom_css', 'body { color: red; }')
+
+    render(<AppearanceSettings />)
+
+    expect(screen.queryByText('settings.display.custom.css.migration_notice')).not.toBeInTheDocument()
   })
 })

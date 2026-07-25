@@ -24,7 +24,7 @@ export function toAgentSessionUIMessage(row: AgentSessionMessageEntity): CherryU
   if (row.updatedAt) metadata.updatedAt = row.updatedAt
   metadata.status = row.status
   if (row.modelId) metadata.modelId = row.modelId
-  if (row.modelSnapshot) metadata.modelSnapshot = row.modelSnapshot
+  if (row.messageSnapshot) metadata.messageSnapshot = row.messageSnapshot
   if (row.stats) metadata.stats = row.stats
 
   return {
@@ -50,7 +50,7 @@ function reservedUIMessageToAgentSessionMessage(
     status:
       metadata.status ?? (message.role === 'assistant' && (message.parts?.length ?? 0) === 0 ? 'pending' : 'success'),
     modelId: metadata.modelId ?? null,
-    modelSnapshot: metadata.modelSnapshot ?? null,
+    messageSnapshot: metadata.messageSnapshot ?? null,
     stats: metadata.stats ?? null,
     runtimeResumeToken: null,
     createdAt,
@@ -67,6 +67,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     limit: PAGE_SIZE,
     enabled,
     swrOptions: {
+      keepPreviousData: false,
       ...(!fetchOnMount && {
         revalidateIfStale: false,
         revalidateOnMount: false

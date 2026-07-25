@@ -1,12 +1,14 @@
 import type { CliConfigConnection, CliConfigFileDraft } from '@renderer/pages/code/cliConfig'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
-import { CodeCli } from '@shared/types/codeCli'
+import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   extractConnectionFromCliConfigDraft: vi.fn(),
   readCliConfigFiles: vi.fn(),
+  readCliConfigDraft: vi.fn(),
   toastError: vi.fn()
 }))
 
@@ -29,7 +31,7 @@ vi.mock('@renderer/pages/code/cliConfig', async (importOriginal) => {
     ...actual,
     extractConnectionFromCliConfigDraft: mocks.extractConnectionFromCliConfigDraft,
     readCliConfigFiles: mocks.readCliConfigFiles,
-    readCliConfigDraft: vi.fn().mockResolvedValue([]),
+    readCliConfigDraft: mocks.readCliConfigDraft,
     updateCliConfigDraftConfig: vi.fn(),
     validateCliConfigDraftForWrite: vi.fn()
   }
@@ -130,6 +132,132 @@ describe('useConfigDraftController (initial load vs. apiKeys race)', () => {
     })
 
     expect(mocks.readCliConfigFiles).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('useConfigDraftController (cherry gateway)', () => {
+  const GATEWAY_BASE_URL = 'http://127.0.0.1:23333'
+  const gatewayProvider = {
+    id: CLI_API_GATEWAY_PROVIDER_ID,
+    name: '统一网关',
+    endpointConfigs: {
+      'anthropic-messages': { baseUrl: GATEWAY_BASE_URL },
+      'openai-chat-completions': { baseUrl: GATEWAY_BASE_URL },
+      'openai-responses': { baseUrl: GATEWAY_BASE_URL }
+    },
+    defaultChatEndpoint: 'anthropic-messages'
+  } as unknown as Provider
+  const gateway = { provider: gatewayProvider, apiKey: 'cs-sk-gateway' }
+  const gatewayModels = new Map<UniqueModelId, Model>([
+    ['deepseek::deepseek-chat', { apiModelId: 'deepseek-chat' } as Model]
+  ])
+  // What a gateway-written config parses back to: gateway URL + gateway key +
+  // gateway-addressed model ("providerId:apiModelId", single colon).
+  const gatewayConnection: CliConfigConnection = {
+    baseUrl: GATEWAY_BASE_URL,
+    apiKey: 'cs-sk-gateway',
+    model: 'deepseek:deepseek-chat'
+  }
+  const gatewayRawFiles: CliConfigFileDraft[] = [
+    {
+      target: 'claude-settings',
+      label: 'Claude settings.json',
+      path: '/home/.claude/settings.json',
+      language: 'json',
+      content: '{}'
+    }
+  ]
+
+  function renderGatewayController(
+    providerConfig: { modelId: UniqueModelId | null } = { modelId: 'deepseek::deepseek-chat' }
+  ) {
+    return renderHook(() =>
+      useConfigDraftController({
+        cliTool: CodeCli.CLAUDE_CODE,
+        provider: gatewayProvider,
+        providerConfig,
+        isCurrentProvider: true,
+        apiKeys: [{ id: 'gateway', key: 'cs-sk-gateway', isEnabled: true }],
+        gateway,
+        models: gatewayModels,
+        onSubmit: vi.fn(),
+        onClose: vi.fn()
+      })
+    )
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.readCliConfigFiles.mockResolvedValue(gatewayRawFiles)
+    mocks.readCliConfigDraft.mockResolvedValue(gatewayRawFiles)
+    mocks.extractConnectionFromCliConfigDraft.mockReturnValue(gatewayConnection)
+  })
+
+  it('threads the gateway context into the initial managed preview rebuild', async () => {
+    renderGatewayController()
+
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(mocks.readCliConfigDraft).toHaveBeenCalledTimes(1)
+    expect(mocks.readCliConfigDraft).toHaveBeenCalledWith(expect.objectContaining({ gateway }))
+  })
+
+  it('keeps the real modelId when a matching gateway raw-file edit round-trips', async () => {
+    const { result } = renderGatewayController()
+
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(result.current.draft.modelId).toBe('deepseek::deepseek-chat')
+
+    act(() => result.current.onCliConfigFilesChange(gatewayRawFiles))
+
+    // The gateway-addressed connection.model must not be recombined with the
+    // synthetic provider id into a corrupt "cherry:api-gateway::…" UniqueModelId.
+    expect(result.current.draft.mode).toBe('managed')
+    expect(result.current.draft.modelId).toBe('deepseek::deepseek-chat')
+  })
+
+  // Reviewer A1: with no model selected yet, a raw edit whose gateway address resolves to an
+  // enabled model must become a managed draft carrying that real UniqueModelId — otherwise the
+  // submit path drops the edit (no cliConfigModelId → parent returns while the dialog closes).
+  it('reverse-resolves a model-less gateway raw edit to the real modelId', async () => {
+    const { result } = renderGatewayController({ modelId: null })
+
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    act(() => result.current.onCliConfigFilesChange(gatewayRawFiles))
+
+    expect(result.current.draft.mode).toBe('managed')
+    expect(result.current.draft.modelId).toBe('deepseek::deepseek-chat')
+  })
+
+  // When the raw address can't be resolved to an enabled model, the edit must still be preserved:
+  // persist it verbatim as a foreign draft (cliConfigOnly) instead of silently discarding it.
+  it('keeps a model-less gateway raw edit as foreign when the model cannot be resolved', async () => {
+    mocks.extractConnectionFromCliConfigDraft.mockReturnValue({
+      baseUrl: GATEWAY_BASE_URL,
+      apiKey: 'cs-sk-gateway',
+      model: 'deepseek:ghost-model'
+    })
+    const { result } = renderGatewayController({ modelId: null })
+
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    act(() => result.current.onCliConfigFilesChange(gatewayRawFiles))
+
+    expect(result.current.draft.mode).toBe('foreign')
+    expect(result.current.draft.files).toEqual(gatewayRawFiles)
   })
 })
 

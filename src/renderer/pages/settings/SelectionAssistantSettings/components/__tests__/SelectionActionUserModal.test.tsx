@@ -69,7 +69,7 @@ afterEach(() => {
 })
 
 describe('SelectionActionUserModal', () => {
-  it('lets assistant names use the available select row width', () => {
+  it('left-aligns assistant names while using the available select row width', () => {
     render(
       <SelectionActionUserModal
         isModalOpen={true}
@@ -86,7 +86,7 @@ describe('SelectionActionUserModal', () => {
     )
 
     const assistantName = screen.getByText(testData.longAssistantName)
-    expect(assistantName).toHaveClass('min-w-0', 'flex-1', 'truncate')
+    expect(assistantName).toHaveClass('min-w-0', 'flex-1', 'truncate', 'text-left')
     expect(assistantName).toHaveAttribute('title', testData.longAssistantName)
     expect(assistantName).not.toHaveClass('max-w-[calc(100%-60px)]')
     expect(assistantName.parentElement).toHaveClass('min-w-0', 'w-full')

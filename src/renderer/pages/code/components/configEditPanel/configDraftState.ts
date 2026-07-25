@@ -1,4 +1,4 @@
-import type { CliConfigConnection, CliConfigFileDraft } from '@renderer/pages/code/cliConfig'
+import type { CliConfigConnection, CliConfigFileDraft, CliConfigGatewayContext } from '@renderer/pages/code/cliConfig'
 import {
   extractConfigFromCliConfigDraft,
   extractConnectionFromCliConfigDraft,
@@ -109,13 +109,15 @@ export async function createManagedConfigDraft({
   modelId,
   config,
   files,
-  options = {}
+  options = {},
+  gateway
 }: {
   cliTool: CodeCli
   modelId: UniqueModelId | undefined
   config: Record<string, unknown>
   files?: CliConfigFileDraft[]
   options?: ManagedDraftOptions
+  gateway?: CliConfigGatewayContext
 }): Promise<ConfigDraft> {
   const cliConfigModelId = options.cliConfigModelId ?? modelId
   if (!cliConfigModelId) {
@@ -134,7 +136,8 @@ export async function createManagedConfigDraft({
       modelId: cliConfigModelId,
       configBlob: config,
       files,
-      writePrimaryModel: options.writePrimaryModel
+      writePrimaryModel: options.writePrimaryModel,
+      gateway
     })
     return {
       modelId,
@@ -164,7 +167,8 @@ export async function loadInitialConfigDraft({
   initialConfig,
   initialClaudeModelMode,
   initialDraftSeed,
-  connectionMatchesProvider
+  connectionMatchesProvider,
+  gateway
 }: {
   cliTool: CodeCli
   providerId: string
@@ -174,6 +178,7 @@ export async function loadInitialConfigDraft({
   initialClaudeModelMode: ClaudeModelMode
   initialDraftSeed: ConfigDraft
   connectionMatchesProvider: (connection: CliConfigConnection | null, expectedModelId?: UniqueModelId) => boolean
+  gateway?: CliConfigGatewayContext
 }): Promise<ConfigDraft> {
   const initialDraftOptions = resolveManagedDraftOptions(
     cliTool,
@@ -217,7 +222,8 @@ export async function loadInitialConfigDraft({
       modelId: initialModelId,
       config: initialConfig,
       files: rawFiles,
-      options: initialDraftOptions
+      options: initialDraftOptions,
+      gateway
     })
   } catch (error) {
     return {

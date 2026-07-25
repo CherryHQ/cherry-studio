@@ -10,19 +10,11 @@ import {
   MdiLightbulbOn90,
   MdiLightbulbQuestion
 } from '@renderer/components/icons/SvgIcon'
-import { cacheService } from '@renderer/data/CacheService'
-import { useAssistant } from '@renderer/hooks/useAssistant'
 import { toast } from '@renderer/services/toast'
+import type { Assistant } from '@renderer/types/assistant'
 import type { ThinkingOption } from '@renderer/types/reasoning'
-import {
-  getThinkModelType,
-  isDoubaoThinkingAutoModel,
-  isFixedReasoningModel,
-  isGPT5SeriesReasoningModel,
-  isOpenAIWebSearchModel,
-  isReasoningModel,
-  MODEL_SUPPORTED_OPTIONS
-} from '@renderer/utils/model'
+import { isGPT5SeriesReasoningModel, isOpenAIWebSearchModel, isReasoningModel } from '@renderer/utils/model'
+import { deriveThinkingOptions } from '@shared/ai/reasoning'
 import type { Model } from '@shared/data/types/model'
 import type { FC, SVGProps } from 'react'
 import { useCallback, useEffect, useMemo } from 'react'
@@ -31,7 +23,7 @@ import { useTranslation } from 'react-i18next'
 interface Props {
   launcher: ToolLauncherApi
   model: Model
-  assistantId?: string
+  assistant?: Assistant
   reasoningEffort?: ThinkingOption
   onReasoningEffortChange?: (option: ThinkingOption) => void
 }
@@ -39,53 +31,28 @@ interface Props {
 const useThinkingToolController = ({
   launcher,
   model,
-  assistantId,
+  assistant,
   reasoningEffort: controlledEffort,
   onReasoningEffortChange
 }: Props) => {
   const { t } = useTranslation()
-  const isControlled = controlledEffort !== undefined
-  const { assistant, updateAssistantSettings } = useAssistant(assistantId)
-
   const currentReasoningEffort = useMemo<ThinkingOption>(() => {
-    if (isControlled) return controlledEffort
-    const stored = assistant?.settings.reasoning_effort
-    return (stored ?? 'none') as ThinkingOption
-  }, [isControlled, controlledEffort, assistant?.settings.reasoning_effort])
-
-  // 确定当前模型支持的选项类型
-  const modelType = useMemo(() => getThinkModelType(model), [model])
+    return controlledEffort ?? ((assistant?.settings.reasoning_effort ?? 'default') as ThinkingOption)
+  }, [controlledEffort, assistant?.settings.reasoning_effort])
 
   const supportsReasoning = isReasoningModel(model)
-  const isFixedReasoning = isFixedReasoningModel(model)
 
-  // 获取当前模型支持的选项
-  const supportedOptions: ThinkingOption[] = useMemo(() => {
-    if (modelType === 'doubao') {
-      if (isDoubaoThinkingAutoModel(model)) {
-        return ['none', 'auto', 'high']
-      }
-      return ['none', 'high']
-    }
-    return MODEL_SUPPORTED_OPTIONS[modelType]
-  }, [model, modelType])
+  // Descriptor-driven vocabulary (#16598): the registry controls declaration
+  // decides the options — the same derivation the injector's contract test
+  // validates, so the UI can never offer an unserializable option.
+  const supportedOptions: ThinkingOption[] = useMemo(() => deriveThinkingOptions(model) ?? [], [model])
+
+  // Reasons but exposes no knob (fixed reasoning / a provider that ignores
+  // reasoning params).
+  const isFixedReasoning = supportsReasoning && supportedOptions.length === 0
 
   const onThinkingChange = useCallback(
     (option: ThinkingOption) => {
-      const isEnabled = option !== 'none'
-
-      if (isControlled) {
-        onReasoningEffortChange?.(option)
-        return
-      }
-
-      if (!isEnabled) {
-        cacheService.set(`assistant.reasoning_effort_cache.${assistantId}`, option)
-        updateAssistantSettings({
-          reasoning_effort: option
-        })
-        return
-      }
       if (
         isOpenAIWebSearchModel(model) &&
         isGPT5SeriesReasoningModel(model) &&
@@ -95,20 +62,9 @@ const useThinkingToolController = ({
         toast.warning(t('chat.web_search.warning.openai'))
         return
       }
-      cacheService.set(`assistant.reasoning_effort_cache.${assistantId}`, option)
-      updateAssistantSettings({
-        reasoning_effort: option
-      })
+      onReasoningEffortChange?.(option)
     },
-    [
-      isControlled,
-      onReasoningEffortChange,
-      updateAssistantSettings,
-      assistantId,
-      assistant?.settings.enableWebSearch,
-      model,
-      t
-    ]
+    [onReasoningEffortChange, assistant?.settings.enableWebSearch, model, t]
   )
 
   const reasoningEffortOptionLabelMap = useMemo(
@@ -121,7 +77,8 @@ const useThinkingToolController = ({
         low: t('assistants.settings.reasoning_effort.low'),
         medium: t('assistants.settings.reasoning_effort.medium'),
         auto: t('assistants.settings.reasoning_effort.auto'),
-        xhigh: t('assistants.settings.reasoning_effort.xhigh')
+        xhigh: t('assistants.settings.reasoning_effort.xhigh'),
+        max: t('assistants.settings.reasoning_effort.max')
       }) as const satisfies Record<ThinkingOption, string>,
     [t]
   )
@@ -161,7 +118,7 @@ const useThinkingToolController = ({
   const reasoningSubmenu = useMemo(
     () =>
       isReasoningConfigurable
-        ? cycleOptions.map((option, index) => ({
+        ? supportedOptions.map((option, index) => ({
             id: `thinking-${option}`,
             kind: 'command' as const,
             sources: ['popover'] as const,
@@ -173,7 +130,14 @@ const useThinkingToolController = ({
             action: () => onThinkingChange(option)
           }))
         : [],
-    [currentReasoningEffort, cycleOptions, isReasoningConfigurable, onThinkingChange, reasoningEffortOptionLabelMap, t]
+    [
+      currentReasoningEffort,
+      isReasoningConfigurable,
+      onThinkingChange,
+      reasoningEffortOptionLabelMap,
+      supportedOptions,
+      t
+    ]
   )
 
   useEffect(() => {
@@ -192,7 +156,6 @@ const useThinkingToolController = ({
         disabledReason,
         icon: ThinkingIcon({ option: currentReasoningEffort }),
         active: isReasoningConfigurable && isThinkingEnabled,
-        showInActiveControls: false,
         disabled: !isReasoningConfigurable,
         suffix: currentReasoningEffortLabel,
         submenu: reasoningSubmenu,
@@ -241,6 +204,7 @@ const ThinkingIcon = (props: { option?: ThinkingOption; isFixedReasoning?: boole
         IconComponent = MdiLightbulbOn90
         break
       case 'xhigh':
+      case 'max':
         IconComponent = MdiLightbulbOn
         break
       case 'auto':

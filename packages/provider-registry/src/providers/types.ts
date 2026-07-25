@@ -8,7 +8,7 @@
  * as `"{name} - AI model provider"`). The GENERATION-only fields below (`modelsDevProvider` / `fetchModels`
  * / `overrides`) drive `provider-models.json` and are NOT emitted to `providers.json`.
  */
-import type { ApiFeatures, ProviderConfig } from '../schemas/provider'
+import type { ApiFeatures, ProviderConfig, ProviderReasoningFormat } from '../schemas/provider'
 import type { ProviderModelOverride } from '../schemas/provider-models'
 
 /**
@@ -18,12 +18,14 @@ import type { ProviderModelOverride } from '../schemas/provider-models'
  */
 type ProviderConnection = Omit<
   ProviderConfig,
-  'description' | 'endpointConfigs' | 'defaultChatEndpoint' | 'apiFeatures' | 'modelListSource'
+  'description' | 'endpointConfigs' | 'defaultChatEndpoint' | 'apiFeatures' | 'modelListSource' | 'authOptional'
 > & {
   endpointConfigs: Partial<ProviderConfig['endpointConfigs']>
   defaultChatEndpoint?: ProviderConfig['defaultChatEndpoint']
   /** Defaults to `api`; only registry-backed providers need to declare it. */
   modelListSource?: ProviderConfig['modelListSource']
+  /** Defaults to `false`; only credential-free local providers declare it. */
+  authOptional?: ProviderConfig['authOptional']
   /** Only the non-default flags are declared; the schema fills the rest at load time. */
   apiFeatures?: Partial<ApiFeatures>
 }
@@ -39,7 +41,7 @@ export interface Provider extends ProviderConnection {
   modelsDevProvider?: string
   /** …or fetch the served list from the provider's own `/models` API (see `../creators/_api.ts`). */
   fetchModels?: () => Promise<{ id: string }[]>
-  /** Manual overrides — for what the runtime can't derive (bedrock arns, `disabled`, `imageGeneration`). */
+  /** Manual overrides — for exact model ids, pricing, transports, reasoning contracts, and status. */
   overrides?: Partial<ProviderModelOverride>[]
 }
 
@@ -64,10 +66,20 @@ export function openaiCompatible(
     website: ProviderWebsite
     apiFeatures?: Partial<ApiFeatures>
     presetProviderId?: string
+    /**
+     * The chat endpoint's base protocol plus any endpoint-wide wire override.
+     * Exact provider-model exceptions belong in endpoint-keyed `reasoningContracts`.
+     */
+    reasoningFormat?: ProviderReasoningFormat
+    authOptional?: ProviderConfig['authOptional']
   } & GenFields
 ): Provider {
   const endpointConfigs: ProviderConnection['endpointConfigs'] = {
-    'openai-chat-completions': { adapterFamily: 'openai-compatible', baseUrl: p.baseUrl }
+    'openai-chat-completions': {
+      adapterFamily: 'openai-compatible',
+      baseUrl: p.baseUrl,
+      ...(p.reasoningFormat ? { reasoningFormat: p.reasoningFormat } : {})
+    }
   }
   if (p.anthropic) endpointConfigs['anthropic-messages'] = { adapterFamily: 'anthropic', baseUrl: p.anthropic }
   return defineProvider({
@@ -77,6 +89,7 @@ export function openaiCompatible(
     endpointConfigs,
     metadata: { website: p.website },
     ...(p.apiFeatures ? { apiFeatures: p.apiFeatures } : {}),
+    ...(p.authOptional ? { authOptional: p.authOptional } : {}),
     ...(p.presetProviderId ? { presetProviderId: p.presetProviderId } : {}),
     ...(p.modelsDevProvider ? { modelsDevProvider: p.modelsDevProvider } : {}),
     ...(p.fetchModels ? { fetchModels: p.fetchModels } : {}),

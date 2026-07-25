@@ -55,4 +55,16 @@ describe('useTopicStreamSubscription', () => {
     expect(subscriptionMocks.instances[1]?.topicId).toBe('topic-1')
     expect(subscriptionMocks.instances[1]?.listen).toHaveBeenCalledTimes(1)
   })
+
+  it('does not listen until the stable owner has a topic', async () => {
+    const view = render(<SubscriptionConsumer topicId="" />)
+
+    await waitFor(() => expect(subscriptionMocks.instances).toHaveLength(1))
+    expect(subscriptionMocks.instances[0]?.listen).not.toHaveBeenCalled()
+
+    view.rerender(<SubscriptionConsumer topicId="topic-1" />)
+
+    await waitFor(() => expect(subscriptionMocks.instances).toHaveLength(2))
+    expect(subscriptionMocks.instances[1]?.listen).toHaveBeenCalledTimes(1)
+  })
 })

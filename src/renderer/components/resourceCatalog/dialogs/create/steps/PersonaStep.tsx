@@ -6,7 +6,11 @@ import {
   FieldLabelWithHelp,
   PromptVariablesPopover
 } from '@renderer/components/resourceCatalog/dialogs/components/EditDialogShared'
-import type { UseFormReturn } from 'react-hook-form'
+import { PromptPolishActions } from '@renderer/components/resourceCatalog/dialogs/components/PromptPolishActions'
+import { RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
+import { AGENT_PROMPT } from '@shared/ai/prompts'
+import { useState } from 'react'
+import { type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import type { ResourceCreateWizardFormValues } from '../types'
@@ -22,14 +26,28 @@ type PersonaStepProps = {
  */
 export function PersonaStep({ form, portalContainer }: PersonaStepProps) {
   const { t } = useTranslation()
+  const [resetPreviewKey, setResetPreviewKey] = useState(0)
+  const name = useWatch({ control: form.control, name: 'name' })
 
   return (
     <FormField
       control={form.control}
       name="prompt"
       render={({ field }) => (
-        <FormItem>
+        <FormItem className="flex h-full min-h-0 flex-col">
           <PromptEditorField
+            actions={
+              <PromptPolishActions
+                value={field.value}
+                fallbackSource={name}
+                emptyValueSystemPrompt={AGENT_PROMPT}
+                existingValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
+                onChange={(value) => {
+                  field.onChange(value)
+                  setResetPreviewKey((key) => key + 1)
+                }}
+              />
+            }
             label={
               <FieldLabelWithHelp
                 label={t('library.config.prompt.label')}
@@ -39,9 +57,12 @@ export function PersonaStep({ form, portalContainer }: PersonaStepProps) {
             }
             value={field.value}
             onChange={field.onChange}
+            resetPreviewKey={resetPreviewKey}
             placeholder={t('library.config.prompt.placeholder')}
             minHeight={EDIT_DIALOG_PROMPT_MIN_HEIGHT}
             maxHeight={EDIT_DIALOG_PROMPT_MAX_HEIGHT}
+            autoFocus
+            fill
           />
         </FormItem>
       )}

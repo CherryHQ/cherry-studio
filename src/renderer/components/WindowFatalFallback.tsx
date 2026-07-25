@@ -14,9 +14,9 @@ import type { FallbackProps } from 'react-error-boundary'
  * light palette because ThemeProvider never got to apply the `dark` class.
  */
 export const WindowFatalFallback = ({ error }: FallbackProps) => {
-  // The main window's boot spinner is normally removed by useAppInit, a leaf inside
-  // the provider stack; when a provider throws it never runs, and the leftover fixed
-  // full-viewport overlay would block clicks on this fallback.
+  // The main window's boot spinner is normally removed by the main-only ready effect
+  // in MainWindowRuntime, a leaf inside the provider stack; when a provider throws it
+  // never runs, and the leftover fixed full-viewport overlay would block clicks here.
   useEffect(() => {
     document.getElementById('spinner')?.remove()
   }, [])

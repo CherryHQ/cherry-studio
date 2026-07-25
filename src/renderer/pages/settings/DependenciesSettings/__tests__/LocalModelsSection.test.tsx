@@ -103,7 +103,7 @@ describe('LocalModelsSection', () => {
     )
   })
 
-  it('hides the whole section once both cards report unsupported (e.g. Intel Mac)', async () => {
+  it('shows an explicit unsupported state once both cards report unsupported (e.g. Intel Mac)', async () => {
     mockRequest.mockImplementation((route: string) => {
       if (route === 'local_model.get_status') return Promise.resolve({ status: 'unsupported' })
       return Promise.resolve()
@@ -111,7 +111,8 @@ describe('LocalModelsSection', () => {
 
     render(<LocalModelsSection />)
 
-    // Offering a download that can only fail is worse than a brief blank section.
     await waitFor(() => expect(screen.queryAllByRole('listitem')).toHaveLength(0))
+    expect(screen.getByText('settings.dependencies.localModels.title')).toBeInTheDocument()
+    expect(screen.getByText('settings.dependencies.localModels.unsupported')).toBeInTheDocument()
   })
 })

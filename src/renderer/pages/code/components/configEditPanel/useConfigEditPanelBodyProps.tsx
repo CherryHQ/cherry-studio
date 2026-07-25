@@ -1,10 +1,13 @@
 import { resolveProviderIconRef, useIcon } from '@cherrystudio/ui/icons'
 import { ModelSelector } from '@renderer/components/ModelSelector'
+import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
+import { useModels } from '@renderer/hooks/useModel'
 import { getProviderDisplayName, useProviderApiKeys } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
-import { CodeCli } from '@shared/types/codeCli'
+import type { ApiKeyEntry } from '@shared/data/types/provider'
+import { CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
 import type { ReactNode } from 'react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ConfigEditDialogBodyProps } from './ConfigEditDialogBody'
@@ -20,14 +23,27 @@ export function useConfigEditPanelBodyProps({
   providerConfig,
   isCurrentProvider,
   modelFilter,
+  gateway,
   onSubmit
 }: ConfigEditPanelProps): ConfigEditDialogBodyProps {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const { data: apiKeysData } = useProviderApiKeys(provider.id)
+  const { models } = useModels({ enabled: true })
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const providerName = getProviderDisplayName(provider)
   const providerIcon = useIcon(resolveProviderIconRef(provider.id))
+  const onSettingsNavigate = useCloseBeforeAction(onClose)
+  const isGateway = isApiGatewayProviderId(provider.id)
+
+  // The gateway id has no DataApi api-keys record (the query 404s); feed the gateway secret directly
+  // so the managed/foreign match resolves against the real key and the initial-load gate isn't stalled.
+  const apiKeys: ApiKeyEntry[] | undefined = isGateway
+    ? gateway?.apiKey
+      ? [{ id: 'gateway', key: gateway.apiKey, isEnabled: true }]
+      : []
+    : apiKeysData?.keys
+  const modelsById = useMemo(() => (isGateway ? new Map(models.map((m) => [m.id, m])) : undefined), [isGateway, models])
 
   const {
     draft,
@@ -46,7 +62,9 @@ export function useConfigEditPanelBodyProps({
     provider,
     providerConfig,
     isCurrentProvider,
-    apiKeys: apiKeysData?.keys,
+    apiKeys,
+    gateway,
+    models: modelsById,
     onSubmit
   })
 
@@ -71,19 +89,23 @@ export function useConfigEditPanelBodyProps({
         onSelect={onModelSelect}
         filter={modelFilter}
         showTagFilter
+        onSettingsNavigate={onSettingsNavigate}
         trigger={<ModelSelectorTrigger value={draft.modelId} placeholder={t('settings.models.empty')} />}
       />
     </>
   )
 
-  const isClaudeTool = cliTool === CodeCli.CLAUDE_CODE
+  // The gateway is single-model only in v1 — Claude detailed (per-role) models aren't gateway-addressed,
+  // so treat it as a non-Claude tool here to hide the mode toggle and force the common model slot.
+  const isClaudeTool = cliTool === CodeCli.CLAUDE_CODE && !isGateway
   const claudeDetailedModelSlot = isClaudeTool
     ? renderClaudeDetailedModelSlot({
         hint: unknownCliConfigModelHint,
         config: draft.config,
         onChange: onConfigChange,
         providerId: provider.id,
-        modelFilter
+        modelFilter,
+        onSettingsNavigate
       })
     : null
   const modelSectionSlot = isClaudeTool && claudeModelMode === 'detailed' ? claudeDetailedModelSlot : modelSlot
@@ -126,6 +148,7 @@ export function useConfigEditPanelBodyProps({
     provider,
     providerName,
     providerIcon,
+    providerSettingsPath: isGateway ? '/settings/api-gateway' : `/settings/provider?id=${provider.id}`,
     theme,
     isClaudeTool,
     claudeModelMode,

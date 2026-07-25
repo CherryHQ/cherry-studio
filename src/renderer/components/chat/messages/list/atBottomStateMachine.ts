@@ -21,6 +21,12 @@ export type AtBottomInput =
       readonly scrollSize: number
       readonly viewportSize: number
       readonly direction: 'up' | 'down' | 'none'
+      /**
+       * Whether a real user input (wheel / touch / pointer) immediately preceded
+       * this scroll event. Programmatic scrolls (virtua remeasure compensation,
+       * a child `scrollIntoView`) fire the same events without one.
+       */
+      readonly userInitiated: boolean
     }
   | {
       readonly type: 'size-change'
@@ -29,6 +35,13 @@ export type AtBottomInput =
       readonly viewportSize: number
     }
   | { readonly type: 'programmatic-stick' }
+  /**
+   * The user explicitly took reading control without scrolling — e.g. expanded a
+   * collapsible block to read it. Latches `user-scrolled-up` so neither size
+   * changes nor programmatic scrolls within tolerance re-engage auto-stick;
+   * only a real return to the bottom (user-scroll) or a programmatic stick does.
+   */
+  | { readonly type: 'user-took-control' }
   | { readonly type: 'reset' }
 
 export const INITIAL_AT_BOTTOM_STATE: AtBottomState = { atBottom: false, reason: 'initial' }
@@ -62,6 +75,11 @@ export function reduceAtBottom(
     case 'reset':
       return INITIAL_AT_BOTTOM_STATE
 
+    case 'user-took-control':
+      return state.atBottom || state.reason !== 'user-scrolled-up'
+        ? { atBottom: false, reason: 'user-scrolled-up' }
+        : state
+
     case 'programmatic-stick':
       return { atBottom: true, reason: 'stuck-on-grow' }
 
@@ -74,23 +92,37 @@ export function reduceAtBottom(
     }
 
     case 'user-scroll': {
+      // Geometry-only scroll events are not intent. virtua remeasure
+      // compensation, browser clamping and child scrollIntoView calls can move
+      // scrollTop in either direction; none of them may enter or leave the
+      // user-scrolled-up latch. Explicit runtime navigation updates this state
+      // through programmatic-stick/reset instead.
+      if (!input.userInitiated) {
+        if (!state.atBottom && state.reason === 'user-scrolled-up') return state
+        return isCloseToBottom(input.offset, input.scrollSize, input.viewportSize, tolerance)
+          ? state.atBottom
+            ? state
+            : { atBottom: true, reason: 'size-stayed-at-bottom' }
+          : state
+      }
+      // An upward USER gesture is intent to read — it must never (re-)latch
+      // at-bottom, even within tolerance. Right after a top-pin releases, the
+      // pinned viewport still measures within (even past) the effective bottom,
+      // so without this a small upward wheel would hand the turn straight to
+      // bottom-follow.
+      if (input.direction === 'up') {
+        return { atBottom: false, reason: 'user-scrolled-up' }
+      }
       const close = isCloseToBottom(input.offset, input.scrollSize, input.viewportSize, tolerance)
       if (close) {
-        // Reaching the bottom always resumes auto-stick, regardless of prior
-        // user-scrolled-up latch.
+        // Reaching the bottom (other than by a user upward gesture) always
+        // resumes auto-stick, regardless of prior user-scrolled-up latch.
         return state.atBottom && state.reason === 'scrolled-to-bottom'
           ? state
           : { atBottom: true, reason: 'scrolled-to-bottom' }
       }
-      // Only an upward scroll counts as "user wants out of auto-follow".
-      // Downward scrolls that don't reach the bottom can be the end-of-animation
-      // event firing after newer chunks arrived (programmatic, not user intent);
-      // latching user-scrolled-up here would kill subsequent auto-stick.
-      if (input.direction === 'up') {
-        return { atBottom: false, reason: 'user-scrolled-up' }
-      }
-      // direction 'none' (programmatic) — keep prior reason if we already had
-      // a user-intent latch; otherwise note the position only.
+      // A real downward/neutral user scroll that does not reach the bottom keeps
+      // a prior user-intent latch; otherwise it only records the geometry.
       if (!state.atBottom && state.reason === 'user-scrolled-up') return state
       return { atBottom: false, reason: 'scrolled-not-bottom' }
     }
@@ -98,6 +130,11 @@ export function reduceAtBottom(
     case 'size-change': {
       const close = isCloseToBottom(input.offset, input.scrollSize, input.viewportSize, tolerance)
       if (close) {
+        // A user-intent latch survives geometry: sitting within tolerance after
+        // a size change (a short expanded block near the live edge) is not the
+        // user returning to the bottom. Only a real scroll back down or a
+        // programmatic stick re-engages auto-stick.
+        if (!state.atBottom && state.reason === 'user-scrolled-up') return state
         return state.atBottom ? state : { atBottom: true, reason: 'size-stayed-at-bottom' }
       }
       // Size grew (or shrank) and we're no longer at the bottom. If the

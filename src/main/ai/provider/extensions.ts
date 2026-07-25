@@ -5,10 +5,16 @@ import {
   type AmazonBedrockProviderSettings,
   createAmazonBedrock
 } from '@ai-sdk/amazon-bedrock'
+import { type ByteDanceProviderSettings, createByteDance } from '@ai-sdk/bytedance'
 import { type CerebrasProviderSettings, createCerebras } from '@ai-sdk/cerebras'
 import type { GatewayProviderSettings } from '@ai-sdk/gateway'
 import { createVertexAnthropic, type GoogleVertexAnthropicProvider } from '@ai-sdk/google-vertex/anthropic/edge'
 import { createVertex, type GoogleVertexProvider, type GoogleVertexProviderSettings } from '@ai-sdk/google-vertex/edge'
+import {
+  createVertexMaas,
+  type GoogleVertexMaasProvider,
+  type GoogleVertexMaasProviderSettings
+} from '@ai-sdk/google-vertex/maas/edge'
 import { createGroq, type GroqProviderSettings } from '@ai-sdk/groq'
 import { createHuggingFace, type HuggingFaceProviderSettings } from '@ai-sdk/huggingface'
 import { createMistral, type MistralProviderSettings } from '@ai-sdk/mistral'
@@ -23,7 +29,6 @@ import {
 import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import type { OllamaProviderSettings } from 'ollama-ai-provider-v2'
-import { createOllama } from 'ollama-ai-provider-v2'
 import { createVoyage, type VoyageProviderSettings } from 'voyage-ai-provider'
 
 import { type AihubmixProviderSettings, createAihubmix } from './custom/aihubmix/aihubmixProvider'
@@ -36,6 +41,7 @@ import {
 } from './custom/localEmbedding/localEmbeddingProvider'
 import { createModelscopeProvider, type ModelscopeProviderSettings } from './custom/modelscope/modelscopeProvider'
 import { createNewApi, type NewApiProviderSettings } from './custom/newapiProvider'
+import { createOllamaWithImageModel } from './custom/ollama/ollamaProvider'
 import { createOvmsProvider, type OvmsProviderSettings } from './custom/ovms/ovmsProvider'
 import { createPpioProvider, type PpioProviderSettings } from './custom/ppio/ppioProvider'
 import { createSiliconProvider, type SiliconProviderSettings } from './custom/silicon/siliconProvider'
@@ -76,6 +82,24 @@ export const GoogleVertexAnthropicExtension = ProviderExtension.create({
   GoogleVertexProviderSettings,
   GoogleVertexAnthropicProvider,
   'google-vertex-anthropic'
+>)
+
+/**
+ * Vertex MaaS — open/partner models (Llama, DeepSeek, Qwen, GLM, Kimi, gpt-oss)
+ * served over Vertex's OpenAI-compatible Chat Completions endpoint. Distinct from
+ * `google-vertex` (Gemini generateContent) and `google-vertex-anthropic` (Claude
+ * messages); the adapter mints the GCP bearer token itself from the same iam-gcp
+ * service-account credentials.
+ */
+export const GoogleVertexMaaSExtension = ProviderExtension.create({
+  name: 'google-vertex-maas',
+  aliases: ['vertexai-maas'] as const,
+  supportsImageGeneration: false,
+  create: createVertexMaas
+} as const satisfies ProviderExtensionConfig<
+  GoogleVertexMaasProviderSettings,
+  GoogleVertexMaasProvider,
+  'google-vertex-maas'
 >)
 
 export const GitHubCopilotExtension = ProviderExtension.create({
@@ -152,8 +176,8 @@ export const GroqExtension = ProviderExtension.create({
 
 export const OllamaExtension = ProviderExtension.create({
   name: 'ollama',
-  supportsImageGeneration: false,
-  create: (options?: OllamaProviderSettings) => createOllama(options)
+  supportsImageGeneration: true,
+  create: (options?: OllamaProviderSettings) => createOllamaWithImageModel(options)
 } as const satisfies ProviderExtensionConfig<OllamaProviderSettings, ProviderV3, 'ollama'>)
 
 /** AiHubMix — multi-backend gateway (claude→anthropic, gemini→google, gpt→openai-responses). */
@@ -215,6 +239,27 @@ export const ZhipuExtension = ProviderExtension.create({
 } as const satisfies ProviderExtensionConfig<ZhipuProviderSettings, ProviderV3, 'zhipu'>)
 
 /**
+ * Doubao (Volcengine Ark) Extension — the official `@ai-sdk/bytedance` provider, for
+ * Ark's own image protocol: one `POST /images/generations` for both text-to-image and
+ * reference-image edits (the generic OpenAI-compatible model would switch to a multipart
+ * `/images/edits`, which Ark does not serve) plus the nested
+ * `sequential_image_generation_options.max_images` group-image shape.
+ *
+ * Only IMAGE models are routed here by `providerToAiSdkConfig` — chat/embedding stay on
+ * the generic openai-compatible provider, and this provider throws `NoSuchModelError`
+ * for them by design. Params ride under `providerOptions.bytedance`, which is why the
+ * wire registration re-keys the body (see `WIRE_REGISTRY.doubao`).
+ *
+ * Pinned to 1.x: 2.x moves to the `ProviderV4` / `ImageModelV4` specs, which the rest of
+ * the app is not on yet. It also ships Seedance video models we don't wire up yet.
+ */
+export const DoubaoExtension = ProviderExtension.create({
+  name: 'doubao',
+  supportsImageGeneration: true,
+  create: createByteDance
+} as const satisfies ProviderExtensionConfig<ByteDanceProviderSettings, ProviderV3, 'doubao'>)
+
+/**
  * OVMS Extension - unified chat + embedding + image (local OpenVINO Model Server, no auth)
  */
 export const OvmsExtension = ProviderExtension.create({
@@ -274,6 +319,7 @@ export const LocalEmbeddingExtension = ProviderExtension.create({
 export const extensions = [
   GoogleVertexExtension,
   GoogleVertexAnthropicExtension,
+  GoogleVertexMaaSExtension,
   GitHubCopilotExtension,
   BedrockExtension,
   PerplexityExtension,
@@ -288,6 +334,7 @@ export const extensions = [
   DmxapiExtension,
   SiliconExtension,
   ZhipuExtension,
+  DoubaoExtension,
   OvmsExtension,
   ModelscopeExtension,
   DashScopeExtension,

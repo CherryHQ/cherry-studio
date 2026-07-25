@@ -72,6 +72,25 @@ describe('useKnowledgeItems', () => {
     expect(result.current.refresh).toBe(refresh)
   })
 
+  it("lists a directory's children by passing its id as the query groupId (drill-down)", () => {
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [{ items: [makeItem()], total: 1, nextCursor: null }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn()
+    })
+
+    renderHook(() => useKnowledgeItems('base-1', 'directory-1'))
+
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
+      '/knowledge-bases/:id/items',
+      expect.objectContaining({ query: { groupId: 'directory-1' } })
+    )
+  })
+
   it('does not flag isLoadingMore during background polling', () => {
     // Regression guard: isLoadingMore used to be `isRefreshing && pages.length > 0`, so a poll in
     // flight blocked a scroll-to-bottom. It must now reflect ONLY a real in-flight load-more.

@@ -6,8 +6,7 @@ import type * as ReactModule from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  backup: vi.fn(),
-  backupToLanTransfer: vi.fn()
+  backup: vi.fn()
 }))
 
 // This suite exercises the real popup store + host, so opt out of the global mock.
@@ -31,8 +30,7 @@ vi.mock('@renderer/i18n/label', () => ({
 }))
 
 vi.mock('@renderer/services/BackupService', () => ({
-  backup: mocks.backup,
-  backupToLanTransfer: mocks.backupToLanTransfer
+  backup: mocks.backup
 }))
 
 vi.mock('react-i18next', () => ({

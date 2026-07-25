@@ -240,6 +240,18 @@ describe('WINDOW_TYPE_REGISTRY Main window — frame contract', () => {
   })
 })
 
+describe('WINDOW_TYPE_REGISTRY SelectionAction window — macOS traffic lights', () => {
+  beforeEach(() => {
+    resetPlatform()
+    platform.isMac = true
+  })
+
+  it('positions only the selection action traffic lights slightly lower', () => {
+    expect(mergeWindowOptions(WindowType.SelectionAction).trafficLightPosition).toEqual({ x: 12, y: 11 })
+    expect(mergeWindowOptions(WindowType.Main).trafficLightPosition).toEqual({ x: 13, y: 16 })
+  })
+})
+
 describe('WINDOW_TYPE_REGISTRY Print window — domain-loaded print surface', () => {
   it('leaves content loading and visibility to PrintService', () => {
     const metadata = WINDOW_TYPE_REGISTRY[WindowType.Print]

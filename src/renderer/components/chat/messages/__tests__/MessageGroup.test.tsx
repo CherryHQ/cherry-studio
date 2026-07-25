@@ -1,11 +1,11 @@
 import type { Topic } from '@renderer/types/topic'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { act, createEvent, fireEvent, render, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { MessageEnterMotionProvider } from '../../motion/messageEnterMotion'
 import type { MessageListItem } from '../types'
 
 const mocks = vi.hoisted(() => ({
@@ -30,21 +30,32 @@ const mocks = vi.hoisted(() => ({
   },
   MessageGroupMenuBar: vi.fn(() => <div className="group-menu-bar">menu</div>),
   HorizontalScrollContainer: vi.fn(({ children }: { children: ReactNode }) => <div>{children}</div>),
-  MessageContent: vi.fn(() => <div style={{ minHeight: 600 }}>Long message content</div>),
-  MessageErrorBoundary: vi.fn(({ children }: { children: ReactNode }) => <>{children}</>),
-  MessageHeader: vi.fn(({ contentSlot, footerSlot }: { contentSlot?: ReactNode; footerSlot?: ReactNode }) => (
-    <div className="message-header">
-      <div className="message-body-column">
-        {contentSlot && <div className="message-body-content">{contentSlot}</div>}
-        {footerSlot && <div className="message-footer-slot">{footerSlot}</div>}
-      </div>
+  MessageContent: vi.fn(({ messageId, parts }: { messageId: string; parts: CherryMessagePart[] }) => (
+    <div
+      data-testid="message-parts-content"
+      data-message-id={messageId}
+      data-part-text={parts[0]?.type === 'text' ? parts[0].text : ''}
+      style={{ minHeight: 600 }}>
+      Long message content
     </div>
   )),
+  MessageErrorBoundary: vi.fn(({ children }: { children: ReactNode }) => <>{children}</>),
+  MessageHeader: vi.fn(
+    ({ contentSlot, footerSlot }: { contentSlot?: ReactNode; footerSlot?: ReactNode; showModelIdentity?: boolean }) => (
+      <div className="message-header">
+        <div className="message-body-column">
+          {contentSlot && <div className="message-body-content">{contentSlot}</div>}
+          {footerSlot && <div className="message-footer-slot">{footerSlot}</div>}
+        </div>
+      </div>
+    )
+  ),
   MessageMenuBar: vi.fn(() => <div className="message-menubar">menubar</div>),
   MessageOutline: vi.fn(() => null),
   messageListActions: vi.fn(),
   messageListSelection: vi.fn(),
-  messageListEditingId: vi.fn()
+  messageListEditingId: vi.fn(),
+  messageListUiSelectors: vi.fn()
 }))
 
 vi.mock('@logger', () => ({
@@ -144,9 +155,18 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('../frame/MessageContent', () => ({
-  default: mocks.MessageContent
-}))
+vi.mock('../frame/MessageContent', async () => {
+  const { useMessageParts } = await import('../blocks/MessagePartsContext')
+
+  function MessageContentMock({ message }: { message: MessageListItem }) {
+    const parts = useMessageParts(message.id)
+    return mocks.MessageContent({ messageId: message.id, parts })
+  }
+
+  return {
+    default: MessageContentMock
+  }
+})
 
 vi.mock('../frame/MessageErrorBoundary', () => ({
   default: mocks.MessageErrorBoundary
@@ -183,7 +203,7 @@ vi.mock('../MessageListProvider', () => ({
     userProfile: { avatar: '' }
   }),
   useMessageListUi: () => ({}),
-  useMessageListUiSelectors: () => ({}),
+  useMessageListUiSelectors: () => mocks.messageListUiSelectors(),
   useMessageListUiStatic: () => ({})
 }))
 
@@ -232,6 +252,11 @@ const setElementSize = (
   }
 }
 
+const expectEveryMessageHeaderToShowModelIdentity = (expected: boolean) => {
+  expect(mocks.MessageHeader.mock.calls.length).toBeGreaterThan(0)
+  expect(mocks.MessageHeader.mock.calls.every(([props]) => props.showModelIdentity === expected)).toBe(true)
+}
+
 describe('MessageGroup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -252,6 +277,7 @@ describe('MessageGroup', () => {
     })
     mocks.messageListSelection.mockReturnValue(undefined)
     mocks.messageListEditingId.mockReturnValue(null)
+    mocks.messageListUiSelectors.mockReturnValue({})
   })
 
   it('does not apply horizontal padding on the message element itself', () => {
@@ -262,6 +288,23 @@ describe('MessageGroup', () => {
     const messageElement = container.querySelector('#message-msg-1 .message')
 
     expect(messageElement).not.toHaveClass('px-4')
+  })
+
+  it('passes updated parts when only the parts map changes', () => {
+    const messages = [createMessage('msg-1', 0, 'vertical')]
+    const topic = { id: 'topic-1' } as Topic
+    const initialParts = [{ type: 'text', text: 'initial' }] as CherryMessagePart[]
+    const updatedParts = [{ type: 'text', text: 'updated' }] as CherryMessagePart[]
+
+    const { getByTestId, rerender } = render(
+      <MessageGroup messages={messages} partsByMessageId={{ 'msg-1': initialParts }} topic={topic} />
+    )
+
+    expect(getByTestId('message-parts-content')).toHaveAttribute('data-part-text', 'initial')
+
+    rerender(<MessageGroup messages={messages} partsByMessageId={{ 'msg-1': updatedParts }} topic={topic} />)
+
+    expect(getByTestId('message-parts-content')).toHaveAttribute('data-part-text', 'updated')
   })
 
   it('adds padding to grouped grid message cards', () => {
@@ -282,6 +325,55 @@ describe('MessageGroup', () => {
     const gridCard = document.getElementById('message-msg-1')
 
     expect(gridCard).toHaveClass('grid', 'p-2.5', '[&.grid_.message]:pt-0')
+  })
+
+  it.each(['horizontal', 'vertical', 'grid'] as const)(
+    'always shows each model identity in %s multi-model layout',
+    (multiModelMessageStyle) => {
+      mocks.settings.mockReturnValue({
+        multiModelMessageStyle,
+        gridColumns: 2,
+        gridPopoverTrigger: 'click',
+        messageFont: 'system',
+        fontSize: 14,
+        messageStyle: 'plain',
+        showMessageOutline: false
+      })
+      const messages = [
+        createMessage('msg-1', 0, multiModelMessageStyle),
+        createMessage('msg-2', 1, multiModelMessageStyle)
+      ]
+
+      render(<MessageGroup messages={messages} topic={{ id: 'topic-1' } as Topic} />)
+
+      expectEveryMessageHeaderToShowModelIdentity(true)
+    }
+  )
+
+  it('keeps model identity in the existing selector for fold layout', () => {
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'fold',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'plain',
+      showMessageOutline: false
+    })
+    const messages = [createMessage('msg-1', 0, 'fold'), createMessage('msg-2', 1, 'fold')]
+
+    render(<MessageGroup messages={messages} topic={{ id: 'topic-1' } as Topic} />)
+
+    expectEveryMessageHeaderToShowModelIdentity(false)
+  })
+
+  it('keeps model identity visible while selecting messages in a multi-model layout', () => {
+    mocks.messageListSelection.mockReturnValue({ isMultiSelectMode: true, selectedMessageIds: [] })
+    const messages = [createMessage('msg-1', 0, 'vertical'), createMessage('msg-2', 1, 'vertical')]
+
+    render(<MessageGroup messages={messages} topic={{ id: 'topic-1' } as Topic} />)
+
+    expectEveryMessageHeaderToShowModelIdentity(true)
   })
 
   it('adds fixed-height flex constraints for horizontal and grid message cards', () => {
@@ -544,7 +636,7 @@ describe('MessageGroup', () => {
     expect(messageElement).toHaveAttribute('aria-disabled', 'true')
     expect(messageElement).toHaveClass(
       'opacity-70',
-      '[outline:1px_solid_var(--color-border)]',
+      '[outline:1px_solid_var(--border)]',
       'outline-offset-[-1px]',
       'bg-muted'
     )
@@ -622,6 +714,38 @@ describe('MessageGroup', () => {
     expect(startEditing.mock.calls[0][2].lockedMentionedModels).toHaveLength(2)
   })
 
+  it('does not start editing an assistant reply while its translation is active', async () => {
+    const startEditing = vi.fn()
+    let runtime: { startEditing: () => void } | undefined
+    mocks.messageListActions.mockReturnValue({
+      editMessage: vi.fn(),
+      startEditing,
+      bindMessageRuntime: vi.fn((_id, nextRuntime) => {
+        runtime = nextRuntime as { startEditing: () => void }
+        return vi.fn()
+      })
+    })
+    mocks.messageListUiSelectors.mockReturnValue({
+      isMessageTranslating: (messageId: string) => messageId === 'assistant-1'
+    })
+    const assistantMessage = createMessage('assistant-1', 0, 'vertical')
+
+    render(
+      <MessageGroup
+        messages={[assistantMessage]}
+        partsByMessageId={{ 'assistant-1': [{ type: 'text', text: 'answer' }] as CherryMessagePart[] }}
+        topic={{ id: 'topic-1' } as Topic}
+      />
+    )
+    await waitFor(() => expect(runtime).toBeDefined())
+
+    act(() => {
+      runtime?.startEditing()
+    })
+
+    expect(startEditing).not.toHaveBeenCalled()
+  })
+
   it('wraps the edited bubble user message region with an editing outline', () => {
     mocks.settings.mockReturnValue({
       multiModelMessageStyle: 'vertical',
@@ -644,7 +768,7 @@ describe('MessageGroup', () => {
     expect(messageElement).toHaveAttribute('aria-disabled', 'true')
     expect(messageElement).toHaveClass(
       'opacity-70',
-      '[outline:1px_solid_var(--color-border)]',
+      '[outline:1px_solid_var(--border)]',
       'outline-offset-[-1px]',
       'bg-muted'
     )
@@ -671,15 +795,55 @@ describe('MessageGroup', () => {
     const topic = { id: 'topic-1' } as Topic
 
     const { container } = render(
-      <MessageEnterMotionProvider enteringMessageIds={new Set(['user-inline-1'])}>
-        <MessageGroup messages={[message]} topic={topic} />
-      </MessageEnterMotionProvider>
+      <MessageGroup messages={[message]} topic={topic} enteringMessageIds={new Set(['user-inline-1'])} />
     )
 
     const messageElement = container.querySelector('#message-user-inline-1 .message')
 
     expect(messageElement).toHaveAttribute('data-message-enter-motion', 'user-inline')
     expect(messageElement).toHaveClass('animation-chat-message-enter-inline')
+  })
+
+  it('keeps sibling frames stable when enter motion changes within the group', () => {
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'vertical',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'plain',
+      showMessageOutline: false
+    })
+
+    const messages = ['user-inline-a', 'user-inline-b'].map(
+      (id, index) =>
+        ({
+          ...createMessage(id, index, 'vertical'),
+          role: 'user'
+        }) as MessageListItem & { index: number; multiModelMessageStyle: MultiModelMessageStyle }
+    )
+    const topic = { id: 'topic-1' } as Topic
+    const view = render(<MessageGroup messages={messages} topic={topic} enteringMessageIds={new Set()} />)
+    const getRenderCount = (messageId: string) =>
+      mocks.MessageContent.mock.calls.filter(([props]) => props.messageId === messageId).length
+
+    expect(getRenderCount('user-inline-a')).toBe(1)
+    expect(getRenderCount('user-inline-b')).toBe(1)
+
+    view.rerender(<MessageGroup messages={messages} topic={topic} enteringMessageIds={new Set(['user-inline-a'])} />)
+    expect(getRenderCount('user-inline-a')).toBe(2)
+    expect(getRenderCount('user-inline-b')).toBe(1)
+    expect(view.container.querySelector('#message-user-inline-a .message')).toHaveAttribute(
+      'data-message-enter-motion',
+      'user-inline'
+    )
+
+    view.rerender(<MessageGroup messages={messages} topic={topic} enteringMessageIds={new Set()} />)
+    expect(getRenderCount('user-inline-a')).toBe(3)
+    expect(getRenderCount('user-inline-b')).toBe(1)
+    expect(view.container.querySelector('#message-user-inline-a .message')).not.toHaveAttribute(
+      'data-message-enter-motion'
+    )
   })
 
   it('keeps user bubble content and footer out of the assistant title-column offset', () => {
@@ -733,9 +897,7 @@ describe('MessageGroup', () => {
     const topic = { id: 'topic-1' } as Topic
 
     const { container } = render(
-      <MessageEnterMotionProvider enteringMessageIds={new Set(['user-bubble-1'])}>
-        <MessageGroup messages={[message]} topic={topic} />
-      </MessageEnterMotionProvider>
+      <MessageGroup messages={[message]} topic={topic} enteringMessageIds={new Set(['user-bubble-1'])} />
     )
 
     const messageElement = container.querySelector('#message-user-bubble-1 .message')

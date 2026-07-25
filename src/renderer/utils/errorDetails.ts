@@ -7,10 +7,6 @@
  * agent schemas) — that lives in `./error`. Guarded by import-graph probes in
  * `__tests__/errorDetails.test.ts`.
  */
-import { loggerService } from '@logger'
-
-const logger = loggerService.withContext('Utils:errorDetails')
-
 export function getErrorDetails(err: any, seen = new WeakSet()): any {
   // Handle circular references
   if (err === null || typeof err !== 'object' || seen.has(err)) {
@@ -44,14 +40,15 @@ export function formatErrorDetails(error: unknown): string {
   delete detailedError?.stack
   delete detailedError?.request_id
 
-  if (detailedError) {
-    const formattedJson = JSON.stringify(detailedError, null, 2)
-      .split('\n')
-      .map((line) => `  ${line}`)
-      .join('\n')
-    return detailedError.message ? detailedError.message : `Error Details:\n${formattedJson}`
-  } else {
-    logger.warn('Get detailed error failed.')
+  // A falsy/empty error (nullish, empty string, `throw undefined`, empty rejection)
+  // has no detail to show — the caller's Alert still renders its generic message.
+  if (!detailedError) {
     return ''
   }
+
+  const formattedJson = JSON.stringify(detailedError, null, 2)
+    .split('\n')
+    .map((line) => `  ${line}`)
+    .join('\n')
+  return detailedError.message ? detailedError.message : `Error Details:\n${formattedJson}`
 }

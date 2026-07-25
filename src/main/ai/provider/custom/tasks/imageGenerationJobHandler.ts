@@ -9,7 +9,11 @@ import type { FileEntry } from '@shared/data/types/file'
 import { parseUniqueModelId } from '@shared/data/types/model'
 
 import { providerToAiSdkConfig } from '../../config'
-import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
+import type {
+  ImageGenerationSubmitInput,
+  ImageGenerationTransport,
+  ImageTransportDescriptor
+} from '../imageGenerationModel'
 import { resolveImageTransport } from '../imageTransportRegistry'
 import { createAbortError } from '../transportUtils'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './jobTypes'
@@ -98,6 +102,17 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
   }
 }
 
+/**
+ * Jobs enqueued before `modelDescriptor` became a typed payload field carried
+ * it inside the vendor bag instead (`providerParams.modelDescriptor`). A job
+ * still queued (or mid-poll) across that upgrade resumes with the new field
+ * absent — fall back to the legacy bag location so PPIO/DashScope submit/poll
+ * still route correctly.
+ */
+function resolveModelDescriptor(input: ImageGenerationJobPayload): ImageTransportDescriptor | undefined {
+  return input.modelDescriptor ?? (input.providerParams?.modelDescriptor as ImageTransportDescriptor | undefined)
+}
+
 async function buildSubmitInput(
   input: ImageGenerationJobPayload,
   modelId: string,
@@ -113,6 +128,7 @@ async function buildSubmitInput(
     seed: input.seed,
     files,
     mask,
+    modelDescriptor: resolveModelDescriptor(input),
     providerParams: input.providerParams,
     signal
   }
@@ -147,9 +163,9 @@ async function pollUntilDone(
     return await transport.poll(taskId, {
       signal: ctx.signal,
       onProgress: (progress) => ctx.reportProgress(progress, { stage: 'polling' }),
-      // Carry the submit-time vendor bag so a restart-resumed poll can rebuild
-      // per-task state (e.g. DashScope's response-family descriptor).
-      providerParams: ctx.input.providerParams
+      // Carry the persisted descriptor so a restart-resumed poll on a fresh
+      // transport instance rebuilds per-task state (DashScope's response family).
+      modelDescriptor: resolveModelDescriptor(ctx.input)
     })
   } finally {
     if (cancelRemote) ctx.signal.removeEventListener('abort', cancelRemote)

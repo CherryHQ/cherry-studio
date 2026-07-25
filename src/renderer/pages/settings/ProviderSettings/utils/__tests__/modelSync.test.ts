@@ -1,7 +1,12 @@
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { fetchResolvedProviderModels, resolveCreateModelEndpointTypes, toCreateModelDto } from '../modelSync'
+import {
+  fetchProviderCatalogModels,
+  fetchResolvedProviderModels,
+  resolveCreateModelEndpointTypes,
+  toCreateModelDto
+} from '../modelSync'
 
 const { dataApiGetMock } = vi.hoisted(() => ({ dataApiGetMock: vi.fn() }))
 
@@ -61,6 +66,18 @@ describe('fetchResolvedProviderModels', () => {
     expect(models[0]).toMatchObject({
       name: 'DeepSeek V3.2',
       endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    })
+  })
+})
+
+describe('fetchProviderCatalogModels', () => {
+  it('reads models from the canonical provider preset projection', async () => {
+    const models = [{ id: 'openai::gpt-4o', providerId: 'openai', name: 'GPT-4o' }]
+    dataApiGetMock.mockResolvedValueOnce({ models })
+
+    await expect(fetchProviderCatalogModels('openai')).resolves.toBe(models)
+    expect(dataApiGetMock).toHaveBeenCalledWith('/providers/openai/preset', {
+      query: { fields: 'models' }
     })
   })
 })
@@ -134,6 +151,28 @@ describe('toCreateModelDto', () => {
     ).toMatchObject({
       providerId: 'new-api',
       modelId: 'gpt-4o',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    })
+  })
+
+  it('does not forward model capabilities in the create DTO (resolved server-side from the registry)', () => {
+    const dto = toCreateModelDto('ppio', {
+      id: 'ppio::bge-reranker-v2-m3' as UniqueModelId,
+      providerId: 'ppio',
+      apiModelId: 'bge-reranker-v2-m3',
+      name: 'BGE Reranker',
+      group: 'rerankers',
+      capabilities: [MODEL_CAPABILITY.RERANK, MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.IMAGE_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    } as Model)
+
+    expect(dto.capabilities).toBeUndefined()
+    expect(dto).toMatchObject({
+      providerId: 'ppio',
+      modelId: 'bge-reranker-v2-m3',
       endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
     })
   })

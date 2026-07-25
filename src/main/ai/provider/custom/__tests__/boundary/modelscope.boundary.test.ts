@@ -46,7 +46,8 @@ describe('ModelScope request boundary', () => {
       modelId: 'MusePublic/489_ckpt_FLUX_1',
       prompt: 'a fox',
       size: '1024x1024',
-      providerParams: { numInferenceSteps: 30, guidanceScale: 4, negativePrompt: 'blur', seed: 7 }
+      seed: 7,
+      providerParams: { numInferenceSteps: 30, guidanceScale: 4, negativePrompt: 'blur' }
     } as ImageGenerationSubmitInput)
 
     expect(req.url).toBe(url)

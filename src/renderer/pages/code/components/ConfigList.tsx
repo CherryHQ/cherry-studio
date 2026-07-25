@@ -2,7 +2,7 @@ import { EmptyState, ReorderableList } from '@cherrystudio/ui'
 import { isOwnLoginConfigurable } from '@renderer/pages/code/cliConfig'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
-import { CLI_OWN_LOGIN_PROVIDER_ID, type CodeCli } from '@shared/types/codeCli'
+import { CLI_OWN_LOGIN_PROVIDER_ID, type CodeCli, isApiGatewayProviderId } from '@shared/types/codeCli'
 import { type FC, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -53,6 +53,12 @@ export const ConfigList: FC<ConfigListProps> = ({
     })
   }, [providers, normalizedSearch, t, toolName, resolveMeta, providerConfigs])
 
+  const handleMoveToTop = (provider: Provider) => {
+    if (providers[0]?.id === provider.id) return
+    const nextProviders = [provider, ...providers.filter((candidate) => candidate.id !== provider.id)]
+    void Promise.resolve(onReorder(nextProviders)).catch(() => undefined)
+  }
+
   if (providers.length === 0) {
     return (
       <EmptyState
@@ -76,6 +82,7 @@ export const ConfigList: FC<ConfigListProps> = ({
       gap="0.5rem"
       itemStyle={{ cursor: 'default' }}
       renderItem={(provider, _index, { dragging }) => {
+        const onMoveToTop = providers[0]?.id === provider.id ? undefined : handleMoveToTop
         if (provider.id === CLI_OWN_LOGIN_PROVIDER_ID) {
           return (
             <OwnLoginCard
@@ -84,6 +91,7 @@ export const ConfigList: FC<ConfigListProps> = ({
               selected={currentProviderId === provider.id}
               configurable={isOwnLoginConfigurable(selectedCliTool)}
               dragging={dragging}
+              onMoveToTop={onMoveToTop ? () => onMoveToTop(provider) : undefined}
               onToggle={() => onToggleCurrent(provider)}
               onConfigure={() => onConfigure(provider)}
             />
@@ -98,8 +106,10 @@ export const ConfigList: FC<ConfigListProps> = ({
             provider={provider}
             providerName={meta.providerName}
             modelName={modelName}
+            description={isApiGatewayProviderId(provider.id) ? t('code.api_gateway.description') : undefined}
             isCurrent={currentProviderId === provider.id}
             dragging={dragging}
+            onMoveToTop={onMoveToTop}
             onConfigure={onConfigure}
             onToggleCurrent={onToggleCurrent}
           />

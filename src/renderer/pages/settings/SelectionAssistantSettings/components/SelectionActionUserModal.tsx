@@ -171,7 +171,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                       (iconNames.includes(formData.icon as any) ? (
                         <DynamicIcon name={formData.icon as any} size={18} />
                       ) : (
-                        <OctagonX size={18} color="var(--color-error-base)" />
+                        <OctagonX size={18} color="var(--error)" />
                       ))}
                   </IconPreview>
                 </div>
@@ -305,7 +305,7 @@ const Spacer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) 
 const IconPreview = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'flex h-8 w-8 items-center justify-center rounded border border-border bg-background-subtle',
+      'flex size-9 shrink-0 items-center justify-center rounded-md border border-border bg-background-subtle',
       className
     )}
     {...props}
@@ -320,7 +320,7 @@ const AssistantItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'
 )
 
 const AssistantName = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('min-w-0 flex-1 truncate', className)} {...props} />
+  <span className={cn('min-w-0 flex-1 truncate text-left', className)} {...props} />
 )
 
 const CurrentTag = ({

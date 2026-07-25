@@ -6,5 +6,6 @@ export {
   KnowledgeComposerToken,
   PromptVariableComposerToken,
   QuoteComposerToken,
+  type ReadOnlyComposerFileTokenPreview,
   SkillComposerToken
 } from './ComposerToken'

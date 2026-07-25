@@ -347,6 +347,21 @@ describe('app Sidebar', () => {
     ).toBe('/app/agents?sessionId=current-session')
   })
 
+  it('uses the conversation base route when instance metadata represents a draft', () => {
+    expect(
+      resolveSidebarAppTabEntryUrl({
+        url: '/app/chat?topicId=previous-topic',
+        metadata: { instanceAppId: 'assistants' }
+      })
+    ).toBe('/app/chat')
+    expect(
+      resolveSidebarAppTabEntryUrl({
+        url: '/app/agents?sessionId=previous-session',
+        metadata: { instanceAppId: 'agents' }
+      })
+    ).toBe('/app/agents')
+  })
+
   it('keeps a message-only detach URL when there is no normal instance key', () => {
     expect(
       resolveSidebarAppTabEntryUrl({

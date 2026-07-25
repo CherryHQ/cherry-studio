@@ -33,6 +33,7 @@ export function buildPathRegistry() {
   const appUserDataData = path.join(appUserData, 'Data')
   const appUserDataRuntime = path.join(appUserData, 'Runtime')
   const appUserDataToolchain = path.join(appUserData, 'Toolchain')
+  const appUserDataToolchainMise = path.join(appUserDataToolchain, 'mise')
   const appSession = app.getPath('sessionData')
   const sysTemp = app.getPath('temp')
   const appTemp = path.join(sysTemp, 'CherryStudio')
@@ -96,8 +97,12 @@ export function buildPathRegistry() {
     'feature.onnxruntime.binary': path.join(appUserDataToolchain, 'onnxruntime'),
 
     // BinaryManager (tool manager)
-    'feature.binary.data': path.join(CHERRY_HOME, 'binary-manager'),
-    'feature.binary.state_file': path.join(CHERRY_HOME, 'binary-manager', 'state.json'),
+    'feature.binary.data': appUserDataToolchainMise,
+    // Windows-only: %LOCALAPPDATA%/%APPDATA% relocated into the isolated install
+    // home so mise's aqua signature verification resolves its cache/config dirs
+    // without reading the user's real values (see getBinaryIsolatedHomeEnv).
+    'feature.binary.data.isolated.localappdata': path.join(appUserDataToolchainMise, 'localappdata'),
+    'feature.binary.data.isolated.appdata': path.join(appUserDataToolchainMise, 'appdata'),
 
     // MCP
     'feature.mcp': path.join(CHERRY_HOME, 'mcp'),
@@ -150,6 +155,9 @@ export function buildPathRegistry() {
     // durable (see restoreJournal.ts). Never relocate the two independently.
     'feature.backup.restore.file': path.join(appUserData, 'restore-journal.json'),
     'feature.backup.restore.staging': path.join(appUserData, 'restore-staging'),
+
+    // Stored in the profile it authorizes for reset.
+    'feature.data_reset.marker_file': path.join(appUserData, 'data-reset.pending.json'),
 
     // Protocol deep-link (Linux .desktop entry for cherrystudio:// scheme)
     'feature.protocol.desktop_entries': path.join(os.homedir(), '.local', 'share', 'applications'),

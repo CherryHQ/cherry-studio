@@ -3,6 +3,7 @@ import type {
   ResourceListRevealRequest
 } from '@renderer/components/chat/resourceList/base'
 import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
+import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import type { Topic } from '@renderer/types/topic'
 import { cn } from '@renderer/utils/style'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
@@ -44,8 +45,10 @@ const HomeTabs: FC<Props> = ({
   resourceMenuItems,
   style
 }) => {
+  const isWindowFrame = useWindowFrame().mode === 'window'
+
   return (
-    <Container style={style} className="home-tabs">
+    <Container isWindowFrame={isWindowFrame} style={style} className="home-tabs">
       <TabContent className="home-tabs-content">
         <Topics
           activeTopic={activeTopic}
@@ -67,11 +70,16 @@ const HomeTabs: FC<Props> = ({
   )
 }
 
-function Container({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+function Container({
+  className,
+  isWindowFrame,
+  ...props
+}: HTMLAttributes<HTMLDivElement> & { isWindowFrame: boolean }) {
   return (
     <div
       className={cn(
-        'relative flex h-[calc(100vh_-_var(--navbar-height))] w-[var(--assistants-width)] flex-col overflow-hidden transition-[width] duration-300 [&_.collapsed]:w-0 [&_.collapsed]:border-l-0',
+        'relative flex w-[var(--assistants-width)] flex-col overflow-hidden transition-[width] duration-300 [&_.collapsed]:w-0 [&_.collapsed]:border-l-0',
+        isWindowFrame ? 'h-full' : 'h-[calc(100vh_-_var(--navbar-height))]',
         className
       )}
       {...props}

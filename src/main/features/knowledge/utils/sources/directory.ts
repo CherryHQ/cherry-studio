@@ -98,7 +98,13 @@ async function expandDirectoryNode(
     // basename across subdirectories don't collide and the hierarchy survives.
     // The whole tree resolves under the base material root (raw/) via the helper.
     const subtreePath = node.treePath.replace(/^\/+/, '')
-    const relativePath = await copyFileIntoKnowledgeBaseAt(baseId, node.externalPath, `${pathPrefix}/${subtreePath}`)
+    // Thread the abort signal so a hung single-file copy can be interrupted, and allow
+    // overwrite so a retry after a mid-scan abort re-copies over its own leftover files
+    // instead of failing on the pre-existing dest (see prepareRoot retry idempotency).
+    const relativePath = await copyFileIntoKnowledgeBaseAt(baseId, node.externalPath, `${pathPrefix}/${subtreePath}`, {
+      signal,
+      overwrite: true
+    })
     signal.throwIfAborted()
 
     return {

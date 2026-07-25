@@ -1,7 +1,9 @@
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import type { StreamChunkPayload } from '@shared/ai/transport'
+import type { CherryUIMessageChunk } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 
 const logger = loggerService.withContext('TopicStreamSubscription')
@@ -160,6 +162,21 @@ export class TopicStreamSubscription {
     if (!branch.closed) branch.controller?.enqueue(payload.chunk)
   }
 
+  /** Mirror PersistenceListener's stored error part into the live branch before it closes. */
+  #enqueueError(error: SerializedError, executionId?: UniqueModelId, anchorMessageId?: string): void {
+    const chunk: CherryUIMessageChunk = { type: 'data-error', data: { ...error } }
+
+    if (executionId) {
+      const branch = this.#getOrCreateBranch(executionId, anchorMessageId)
+      if (!branch.closed) branch.controller?.enqueue(chunk)
+      return
+    }
+
+    for (const branch of this.#branches.values()) {
+      if (!branch.closed) branch.controller?.enqueue(chunk)
+    }
+  }
+
   #emitTerminal(executionId: UniqueModelId, terminal: ExecutionTerminal, anchorMessageId?: string): void {
     const keys =
       anchorMessageId !== undefined
@@ -203,6 +220,7 @@ export class TopicStreamSubscription {
       }),
       ipcApi.on('ai.stream_error', (data) => {
         if (data.topicId !== this.#topicId) return
+        this.#enqueueError(data.error, data.executionId, data.anchorMessageId)
         const terminal: ExecutionTerminal = { isAbort: false, isError: true }
         if (data.executionId) this.#emitTerminal(data.executionId, terminal, data.anchorMessageId)
         if (data.isTopicDone || !data.executionId) this.#terminateAll(terminal)
@@ -232,6 +250,7 @@ export class TopicStreamSubscription {
             this.#terminateAll({ isAbort: true, isError: false })
             break
           case 'error':
+            if (res.error) this.#enqueueError(res.error)
             this.#terminateAll({ isAbort: false, isError: true })
             break
         }

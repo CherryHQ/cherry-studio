@@ -26,6 +26,10 @@ vi.mock('@renderer/components/chat/messages/MessageImageCaptureHost', () => ({
     ready ? <div data-testid={testId}>capture host</div> : null
 }))
 
+vi.mock('@renderer/hooks/useAssistant', () => ({
+  useAssistant: () => ({ assistant: { id: 'assistant-a' } })
+}))
+
 vi.mock('../homeMessageListAdapter', async () => {
   const { useMessageEditing } = (await vi.importActual('@renderer/components/chat/editing/MessageEditingContext')) as {
     useMessageEditing: () => unknown

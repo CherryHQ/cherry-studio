@@ -86,6 +86,7 @@ describe('AgentChatContextProvider', () => {
     mocks.ensureTraceId.mockReturnValue('a'.repeat(32))
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
+      name: 'My Agent',
       type: 'claude-code',
       model: 'anthropic::claude-sonnet',
       modelName: 'Claude Sonnet'
@@ -98,7 +99,7 @@ describe('AgentChatContextProvider', () => {
       searchableText: '',
       status: message.status ?? 'success',
       modelId: message.modelId ?? null,
-      modelSnapshot: message.modelSnapshot ?? null,
+      messageSnapshot: message.messageSnapshot ?? null,
       stats: message.stats ?? null,
       runtimeResumeToken: null,
       createdAt: '2026-01-01T00:00:00.000Z',
@@ -113,7 +114,7 @@ describe('AgentChatContextProvider', () => {
         searchableText: '',
         status: message.status ?? 'success',
         modelId: message.modelId ?? null,
-        modelSnapshot: message.modelSnapshot ?? null,
+        messageSnapshot: message.messageSnapshot ?? null,
         stats: message.stats ?? null,
         runtimeResumeToken: null,
         createdAt: '2026-01-01T00:00:00.000Z',
@@ -173,7 +174,12 @@ describe('AgentChatContextProvider', () => {
         metadata: expect.objectContaining({
           status: 'pending',
           modelId: 'anthropic::claude-sonnet',
-          modelSnapshot: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
+          messageSnapshot: {
+            id: 'agent-1',
+            name: 'My Agent',
+            emoji: '🤖',
+            model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
+          }
         })
       })
     ])
@@ -186,7 +192,13 @@ describe('AgentChatContextProvider', () => {
       assistantMessageId: prepared.models[0].request.messageId,
       userMessage: expect.objectContaining({ id: prepared.userMessageId, role: 'user', sessionId: 'session-1' }),
       headless: false,
-      traceId: 'a'.repeat(32)
+      traceId: 'a'.repeat(32),
+      messageSnapshot: {
+        id: 'agent-1',
+        name: 'My Agent',
+        emoji: '🤖',
+        model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
+      }
     })
     expect(prepared.listeners).toEqual([
       subscriber,
@@ -207,7 +219,15 @@ describe('AgentChatContextProvider', () => {
     expect(mocks.runtimeEnqueueUserMessage).toHaveBeenCalledWith(
       'session-1',
       expect.objectContaining({ role: 'user', sessionId: 'session-1' }),
-      { headless: false }
+      {
+        headless: false,
+        messageSnapshot: {
+          id: 'agent-1',
+          name: 'My Agent',
+          emoji: '🤖',
+          model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
+        }
+      }
     )
     expect(prepared.models).toEqual([])
     expect(prepared.userMessageId).toEqual(expect.any(String))
@@ -230,7 +250,15 @@ describe('AgentChatContextProvider', () => {
     expect(mocks.runtimeEnqueueUserMessage).toHaveBeenCalledWith(
       'session-1',
       expect.objectContaining({ role: 'user', sessionId: 'session-1' }),
-      { headless: true }
+      {
+        headless: true,
+        messageSnapshot: {
+          id: 'agent-1',
+          name: 'My Agent',
+          emoji: '🤖',
+          model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
+        }
+      }
     )
   })
 

@@ -9,6 +9,7 @@
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { CherryUIMessage } from '@shared/data/types/message'
+import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { ToolSet, UIMessageChunk } from 'ai'
 
@@ -29,12 +30,12 @@ export interface GatewayUsageMetadata {
 /**
  * Supported output formats for stream adapters
  */
-export type OutputFormat = 'anthropic' | 'openai' | 'openai-responses'
+export type OutputFormat = 'anthropic' | 'openai' | 'openai-responses' | 'gemini'
 
 /**
  * Supported input formats for message converters
  */
-export type InputFormat = 'anthropic' | 'openai' | 'openai-responses'
+export type InputFormat = 'anthropic' | 'openai' | 'openai-responses' | 'gemini'
 
 /**
  * Stream text options extracted from input params
@@ -139,7 +140,12 @@ export interface IMessageConverter<TInputParams = unknown> {
    * Extract provider-specific options from input params
    * Handles thinking/reasoning configuration based on provider type
    */
-  extractProviderOptions(provider: Provider, params: TInputParams): ProviderOptions | undefined
+  extractProviderOptions(
+    provider: Provider,
+    model: Model,
+    params: TInputParams,
+    maxOutputTokens?: number
+  ): ProviderOptions | undefined
 }
 
 /**

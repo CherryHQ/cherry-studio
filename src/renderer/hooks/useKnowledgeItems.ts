@@ -9,9 +9,8 @@ import type {
   KnowledgeItem,
   KnowledgeItemStatus
 } from '@shared/data/types/knowledge'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-const KNOWLEDGE_V2_ITEMS_QUERY = { groupId: null } as const
 export const KNOWLEDGE_ITEMS_PAGE_SIZE = 50
 
 const KNOWLEDGE_ITEMS_POLLING_INTERVAL = 2000
@@ -48,7 +47,7 @@ const refreshKnowledgeItemsCaches = async (
   }
 }
 
-export const useKnowledgeItems = (baseId: string) => {
+export const useKnowledgeItems = (baseId: string, groupId: string | null = null) => {
   // Without this, polling revalidates only page 0 (SWR's `revalidateFirstPage` default), and a
   // pure status flip never changes the keyset cursors, so later pages keep their key — a
   // non-terminal row on page ≥2 would stay stale forever AND keep `hasNonTerminalItem` true,
@@ -58,9 +57,13 @@ export const useKnowledgeItems = (baseId: string) => {
   // the value feeds the config that produces those pages.
   const [revalidateAllPages, setRevalidateAllPages] = useState(false)
 
+  // `null` lists the base's top-level items; a directory item's id lists that directory's
+  // direct children (drill-down). Memoized so a stable object re-keys the query only on change.
+  const query = useMemo(() => ({ groupId }), [groupId])
+
   const { pages, isLoading, error, hasNext, loadNext, refresh } = useInfiniteQuery('/knowledge-bases/:id/items', {
     params: { id: baseId },
-    query: KNOWLEDGE_V2_ITEMS_QUERY,
+    query,
     limit: KNOWLEDGE_ITEMS_PAGE_SIZE,
     enabled: Boolean(baseId),
     swrOptions: {
@@ -104,15 +107,16 @@ export const useKnowledgeItems = (baseId: string) => {
     }
   }, [isLoadingMore, pages.length, hasNext, error])
 
-  // The hook instance is reused across knowledge-base switches (the detail section doesn't
-  // remount), so an in-flight load-more from the previous base would otherwise leak into the
-  // next one and wedge `loadMore` — the clear effect above can't fire when the new base loaded
-  // fewer pages than `loadStartPagesRef` and has more pages with no error. Reset the in-flight
-  // bookkeeping whenever the base changes so each base starts clean.
+  // The hook instance is reused across knowledge-base switches and directory drill-downs (the
+  // detail section doesn't remount), so an in-flight load-more from the previous base/directory
+  // would otherwise leak into the next one and wedge `loadMore` — the clear effect above can't
+  // fire when the next view loaded fewer pages than `loadStartPagesRef` and has more pages with
+  // no error. Reset the in-flight bookkeeping whenever the base or directory changes so each
+  // view starts clean.
   useEffect(() => {
     setIsLoadingMore(false)
     loadStartPagesRef.current = 0
-  }, [baseId])
+  }, [baseId, groupId])
 
   return {
     items,

@@ -51,7 +51,7 @@ function reservedUIMessageToBranchMessage(topicId: string, message: CherryUIMess
         metadata.status ?? (message.role === 'assistant' && (message.parts?.length ?? 0) === 0 ? 'pending' : 'success'),
       siblingsGroupId: metadata.siblingsGroupId ?? 0,
       modelId: metadata.modelId ?? null,
-      modelSnapshot: metadata.modelSnapshot ?? null,
+      messageSnapshot: metadata.messageSnapshot ?? null,
       stats: metadata.stats ?? null,
       createdAt,
       updatedAt: createdAt

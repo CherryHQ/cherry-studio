@@ -7,10 +7,8 @@ import {
 import { loggerService } from '@logger'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
 import { toast } from '@renderer/services/toast'
-import { convertImageToPng } from '@renderer/utils/image'
-import { parseDataUrl } from '@shared/utils/dataUrl'
+import { convertImageToPng, getImageBlobFromSource } from '@renderer/utils/image'
 import { sanitizeFilename } from '@shared/utils/file'
-import { Base64 } from 'js-base64'
 import { CopyIcon, DownloadIcon } from 'lucide-react'
 import mime from 'mime'
 import React from 'react'
@@ -34,52 +32,6 @@ export interface ImageViewerPreviewConfig {
 export interface ImageViewerProps extends Omit<React.ImgHTMLAttributes<HTMLImageElement>, 'src'> {
   preview?: boolean | ImageViewerPreviewConfig
   src: string
-}
-
-function decodeDataUrlBytes(data: string): Uint8Array {
-  const encoder = new TextEncoder()
-  const bytes: number[] = []
-
-  for (let index = 0; index < data.length; ) {
-    const hexByte = data[index] === '%' ? data.slice(index + 1, index + 3) : ''
-    if (/^[\da-fA-F]{2}$/.test(hexByte)) {
-      bytes.push(Number.parseInt(hexByte, 16))
-      index += 3
-      continue
-    }
-
-    const codePoint = data.codePointAt(index)
-    if (codePoint == null) {
-      break
-    }
-    const char = String.fromCodePoint(codePoint)
-    bytes.push(...encoder.encode(char))
-    index += char.length
-  }
-
-  return new Uint8Array(bytes)
-}
-
-export async function getImageBlobFromSource(src: string): Promise<Blob> {
-  if (src.startsWith('data:')) {
-    const parseResult = parseDataUrl(src)
-    if (!parseResult || !parseResult.mediaType) {
-      throw new Error('Invalid image data URL')
-    }
-    const byteArray = parseResult.isBase64
-      ? Base64.toUint8Array(parseResult.data)
-      : decodeDataUrlBytes(parseResult.data)
-    return new Blob([byteArray.slice() as unknown as BlobPart], { type: parseResult.mediaType })
-  }
-
-  if (src.startsWith('file://')) {
-    const bytes = await window.api.fs.read(src)
-    const mimeType = mime.getType(src) || 'application/octet-stream'
-    return new Blob([bytes], { type: mimeType })
-  }
-
-  const response = await fetch(src)
-  return response.blob()
 }
 
 export async function copyImageToClipboard(src: string): Promise<void> {

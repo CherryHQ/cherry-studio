@@ -257,9 +257,14 @@ export async function getCmThemeNames(): Promise<string[]> {
  * @returns theme object
  */
 export async function getCmThemeByName(name: string): Promise<CodeMirrorTheme> {
+  // 1. Basic string theme
+  if (name === 'light' || name === 'dark' || name === 'none') {
+    return name
+  }
+
   const cmThemes = await loadCmThemes()
 
-  // 1. Search for the extension of the corresponding theme in @uiw/codemirror-themes-all
+  // 2. Search for the extension of the corresponding theme in @uiw/codemirror-themes-all
   const candidate = (cmThemes as Record<string, unknown>)[name]
   if (
     Object.prototype.hasOwnProperty.call(cmThemes, name) &&
@@ -268,11 +273,6 @@ export async function getCmThemeByName(name: string): Promise<CodeMirrorTheme> {
     !/(Style)$/.test(name)
   ) {
     return candidate as Extension
-  }
-
-  // 2. Basic string theme
-  if (name === 'light' || name === 'dark' || name === 'none') {
-    return name
   }
 
   // 3. If not found, fallback to light

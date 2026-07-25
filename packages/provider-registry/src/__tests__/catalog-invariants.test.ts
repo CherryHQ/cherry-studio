@@ -15,17 +15,20 @@ import { describe, expect, it } from 'vitest'
 import { canonOf } from '../../scripts/canonicalize'
 import { ModelListSchema } from '../schemas/model'
 import { ProviderModelListSchema } from '../schemas/provider-models'
+import { ReasoningWireProfileSchema } from '../schemas/reasoningWire'
 
 const dataDir = join(fileURLToPath(import.meta.url), '..', '..', '..', 'data')
 const modelsRaw = JSON.parse(readFileSync(join(dataDir, 'models.json'), 'utf8'))
 const providerModelsRaw = JSON.parse(readFileSync(join(dataDir, 'provider-models.json'), 'utf8'))
 const models = modelsRaw.models as Array<{
   id: string
+  name: string
   contextWindow?: number
   maxOutputTokens?: number
   capabilities?: string[]
   inputModalities?: string[]
   outputModalities?: string[]
+  ownedBy?: string
 }>
 const overrides = providerModelsRaw.overrides as Array<{
   providerId: string
@@ -43,8 +46,26 @@ describe('catalog invariants (data/*.json)', () => {
   const ids = models.map((m) => m.id)
   const baseIds = new Set(ids)
 
+  it.each([
+    ['mai-image-2-5', 'microsoft', 'Microsoft: MAI-Image-2.5'],
+    ['recraft-v4-1-vector', 'recraft', 'Recraft: Recraft V4.1 Vector'],
+    ['riverflow-v2-5-fast', 'sourceful', 'Sourceful: Riverflow V2.5 Fast'],
+    ['seedream-4-5', 'bytedance', 'Seedream 4.5']
+  ])('catalogs OpenRouter image model %s under its creator with its display name', (modelId, ownedBy, name) => {
+    expect(models.find((model) => model.id === modelId)).toMatchObject({
+      capabilities: expect.arrayContaining(['image-generation']),
+      name,
+      ownedBy
+    })
+  })
+
   it('base model ids are unique', () => {
     expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([])
+  })
+
+  it('base models are sorted by creator and id', () => {
+    const keys = models.map((model) => `${model.ownedBy ?? ''}\0${model.id}`)
+    expect(keys).toEqual([...keys].sort())
   })
 
   it('every base id is a normalized creator id (lowercase, single-hyphen separated)', () => {
@@ -110,6 +131,28 @@ describe('catalog invariants (data/*.json)', () => {
     expect(orderDependent).toEqual([])
   })
 
+  // sequentialImageGeneration is a string enum in the central catalog
+  // (imageParamCatalog.ts) and the Doubao API only accepts 'auto'/'disabled' — a
+  // `switch` support spec here renders a boolean UI control that gets coerced
+  // away before the request, silently no-opping the feature (aihubmix's
+  // doubao-seedream-4-0/4-5 had this; dmxapi's doubao model already declares it
+  // correctly as the reference shape).
+  it('sequentialImageGeneration is never declared as a switch (must be the string enum)', () => {
+    type Row = { id?: string; modelId?: string; providerId?: string; imageGeneration?: unknown }
+    const allRows: Row[] = [...(modelsRaw.models as Row[]), ...(providerModelsRaw.overrides as Row[])]
+    const offenders: string[] = []
+    for (const row of allRows) {
+      const modes = (row.imageGeneration as { modes?: Record<string, unknown> } | undefined)?.modes ?? {}
+      for (const [modeName, def] of Object.entries(modes)) {
+        const spec = (def as { supports?: Record<string, { type?: string }> }).supports?.sequentialImageGeneration
+        if (spec?.type === 'switch') {
+          offenders.push(`${row.providerId ?? 'base'}/${row.modelId ?? row.id}:${modeName}`)
+        }
+      }
+    }
+    expect(offenders).toEqual([])
+  })
+
   it('maxOutputTokens never exceeds contextWindow', () => {
     const bad = models.filter((m) => m.contextWindow && m.maxOutputTokens && m.maxOutputTokens > m.contextWindow)
     expect(bad.map((m) => m.id)).toEqual([])
@@ -123,6 +166,15 @@ describe('catalog invariants (data/*.json)', () => {
   it('provider-models.json conforms to ProviderModelListSchema', () => {
     const r = ProviderModelListSchema.safeParse(providerModelsRaw)
     expect(r.success ? [] : r.error.issues.slice(0, 5)).toEqual([])
+  })
+
+  it('budget wire operations require an explicit budget policy', () => {
+    const result = ReasoningWireProfileSchema.safeParse({
+      effort: {
+        operations: [{ target: 'thinking_budget', value: { source: 'budget' } }]
+      }
+    })
+    expect(result.success).toBe(false)
   })
 
   it('the validators actually reject known-bad shapes', () => {

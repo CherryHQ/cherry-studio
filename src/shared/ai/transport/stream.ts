@@ -2,6 +2,7 @@ import type { UIMessageChunk } from 'ai'
 
 import type { CherryMessagePart, CherryUIMessage } from '../../data/types/message'
 import type { UniqueModelId } from '../../data/types/model'
+import type { ReasoningEffortOption } from '../../types/aiSdk'
 import type { SerializedError } from '../../types/error'
 
 export interface AiChatRequestBody {
@@ -9,12 +10,14 @@ export interface AiChatRequestBody {
   topicId: string
   /** Explicit parent node — message id at the current branch tip, or null for first message. */
   parentAnchorId?: string
-  /** Models selected by the composer model selector (multi-model fan-out). */
+  /** Composer-selected request models; one id overrides the fallback, while supported flows may fan out several. */
   mentionedModels?: UniqueModelId[]
   /** User message parts to persist/display for submit-message turns. */
   userMessageParts?: CherryMessagePart[]
   /** Uploaded file metadata. */
   files?: Array<{ id: string; name: string; type: string; size: number; url: string }>
+  /** Canonical reasoning selection captured for this submit. */
+  reasoningEffort?: ReasoningEffortOption
 }
 
 // ── Push payloads (Main → Renderer) ─────────────────────────────────
@@ -69,6 +72,8 @@ export interface ComposerQueuedMessagePayload {
   /** Models selected by the composer model selector for this queued draft. */
   mentionedModels?: UniqueModelId[]
   knowledgeBaseIds?: string[]
+  /** Canonical reasoning selection captured with this queued draft. */
+  reasoningEffort?: ReasoningEffortOption
 }
 
 /**
@@ -132,7 +137,7 @@ export interface StreamErrorPayload {
  */
 export type AiStreamOpenRequest = {
   topicId: string
-  /** UniqueModelIds selected by the composer model selector — Main dispatches one execution per model. */
+  /** Composer-selected request models; one id overrides the fallback, while persistent non-live sends may fan out. */
   mentionedModelIds?: UniqueModelId[]
   /**
    * Knowledge bases selected via the composer `/` picker for this turn. Scope is resolved by
@@ -153,6 +158,8 @@ export type AiStreamOpenRequest = {
       parentAnchorId?: string
       /** Content of the new user msg. */
       userMessageParts: CherryMessagePart[]
+      /** Canonical reasoning selection captured when the composer submitted. */
+      reasoningEffort?: ReasoningEffortOption
     }
   | {
       /** Re-run the assistant under an existing user msg. */
@@ -160,6 +167,7 @@ export type AiStreamOpenRequest = {
       /** Id of the existing user msg whose assistant child(ren) we're regenerating. */
       parentAnchorId: string
       userMessageParts?: never
+      reasoningEffort?: never
     }
 )
 

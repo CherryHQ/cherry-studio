@@ -645,12 +645,17 @@ export class WindowManager extends BaseService {
 
   /**
    * Broadcast an IPC message to all managed windows.
-   * Skips destroyed windows automatically.
+   * Skips destroyed windows automatically. Send failures are isolated per
+   * window — one window's `send()` throwing must not abort delivery to the
+   * remaining windows.
    */
   public broadcast(channel: string, ...args: unknown[]): void {
-    for (const managed of this.windows.values()) {
-      if (!managed.window.isDestroyed()) {
+    for (const [id, managed] of this.windows) {
+      if (managed.window.isDestroyed()) continue
+      try {
         managed.window.webContents.send(channel, ...args)
+      } catch (error) {
+        logger.warn(`broadcast to window '${id}' failed on channel '${channel}'`, error as Error)
       }
     }
   }
@@ -1570,8 +1575,8 @@ export class WindowManager extends BaseService {
     //   treat FullscreenChanged as the source of truth (the green button defaults
     //   to native fullscreen, which fires reliably).
     // - HTML5 element.requestFullscreen() and macOS setSimpleFullScreen() are
-    //   intentionally NOT bridged here: useFullscreen / useFullScreenNotice
-    //   semantics is OS-level native fullscreen only.
+    //   intentionally NOT bridged here: the renderer's fullscreen handling
+    //   (useWindowRuntime) is OS-level native fullscreen only.
     window.on('maximize', () => {
       application.get('IpcApiService').send(windowId, 'window.maximized_changed', true)
     })

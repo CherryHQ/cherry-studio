@@ -1,6 +1,6 @@
 import type { MessageListProviderValue, MessageListRuntime } from '@renderer/components/chat/messages/types'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { render, waitFor } from '@testing-library/react'
+import { act, render, waitFor } from '@testing-library/react'
 import { type ReactNode, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -24,6 +24,10 @@ const chatWriteMock = vi.hoisted(() => ({
 }))
 
 const commandHandlerMock = vi.hoisted(() => vi.fn())
+const modelSelectorMock = vi.hoisted(() => ({
+  props: [] as any[]
+}))
+const useMessageErrorActionsMock = vi.hoisted(() => vi.fn<(options?: unknown) => Record<string, never>>(() => ({})))
 
 vi.mock('@data/DataApiService', () => ({
   dataApiService: {
@@ -57,12 +61,14 @@ vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', () => (
 
 vi.mock('@renderer/components/chat/messages/utils/messageListItem', () => ({
   getMessageListItemModel: vi.fn(() => undefined),
-  modelToSnapshot: vi.fn(() => undefined),
   toMessageListItem: vi.fn((message) => message)
 }))
 
 vi.mock('@renderer/components/ModelSelector', () => ({
-  ModelSelector: ({ trigger }: { trigger: ReactNode }) => <>{trigger}</>
+  ModelSelector: (props: { trigger: ReactNode }) => {
+    modelSelectorMock.props.push(props)
+    return <>{props.trigger}</>
+  }
 }))
 
 vi.mock('@renderer/utils/model', () => ({
@@ -88,19 +94,12 @@ vi.mock('@renderer/hooks/translate', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useAssistant', () => ({
-  useAssistant: () => ({
-    assistant: { id: 'assistant-1', name: 'Assistant' },
-    model: undefined
-  })
-}))
-
 vi.mock('@renderer/components/chat/messages/hooks/useMessageActivityState', () => ({
   useMessageActivityState: () => vi.fn(() => undefined)
 }))
 
 vi.mock('@renderer/components/chat/messages/hooks/useMessageErrorActions', () => ({
-  useMessageErrorActions: () => ({})
+  useMessageErrorActions: useMessageErrorActionsMock
 }))
 
 vi.mock('@renderer/components/chat/messages/hooks/useMessageExportActions', () => ({
@@ -195,7 +194,10 @@ vi.mock('@renderer/utils/message/composerTokens', () => ({
 }))
 
 vi.mock('@shared/utils/model', () => ({
-  isNonChatModel: vi.fn(() => false),
+  isNonChatModel: vi.fn(
+    (model: { capabilities?: readonly unknown[] }) =>
+      model.capabilities?.some((capability) => capability === 'embedding' || capability === 'rerank') ?? false
+  ),
   isVisionModel: vi.fn(() => false)
 }))
 
@@ -211,9 +213,11 @@ vi.mock('react-i18next', () => ({
 
 import { dataApiService } from '@data/DataApiService'
 import { resolvePartFromParts } from '@renderer/components/chat/messages/blocks/MessagePartsContext'
+import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { updateCodeBlock } from '@renderer/utils/markdown'
+import { translateText } from '@renderer/utils/translate'
 
 import { useHomeMessageListProviderValue } from '../homeMessageListAdapter'
 import {
@@ -234,6 +238,7 @@ const createTopic = (id: string): Topic =>
 
 function MessageListAdapterHarness({
   imageActionConsumer,
+  streamingLayers,
   messages = [],
   onStartBranchDraft,
   onValue,
@@ -241,6 +246,7 @@ function MessageListAdapterHarness({
   topic
 }: {
   imageActionConsumer?: 'capture'
+  streamingLayers?: MessageListProviderValue['state']['streamingLayers']
   messages?: CherryUIMessage[]
   onStartBranchDraft?: MessageListProviderValue['actions']['startMessageBranch']
   onValue?: (value: MessageListProviderValue) => void
@@ -249,8 +255,10 @@ function MessageListAdapterHarness({
 }) {
   const value = useHomeMessageListProviderValue({
     topic,
+    assistant: { id: 'assistant-1', name: 'Assistant' } as any,
     messages,
     partsByMessageId,
+    streamingLayers,
     imageActionConsumer,
     onStartBranchDraft
   })
@@ -265,6 +273,7 @@ function MessageListAdapterHarness({
 describe('useHomeMessageListProviderValue topic image actions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    modelSelectorMock.props = []
     clearPendingTopicImageActionsForTest()
     Object.defineProperty(window, 'api', {
       configurable: true,
@@ -277,6 +286,34 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
         },
         mcp: {
           abortTool: vi.fn()
+        }
+      }
+    })
+  })
+
+  it('injects Home-message diagnosis persistence into the shared error UI', async () => {
+    vi.mocked(dataApiService.get).mockResolvedValue({
+      data: { parts: [{ type: 'data-error', data: { name: 'ProviderError', message: 'failed' } }] }
+    } as Awaited<ReturnType<typeof dataApiService.get<'/messages/:id'>>>)
+
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} />)
+
+    const options = useMessageErrorActionsMock.mock.calls.at(-1)?.[0] as {
+      persistDiagnosis: (partId: string, diagnosis: { summary: string }) => Promise<void>
+    }
+    await options.persistDiagnosis('message-1-part-0', { summary: 'Provider failed' })
+
+    expect(dataApiService.get).toHaveBeenCalledWith('/messages/message-1')
+    expect(dataApiService.patch).toHaveBeenCalledWith('/messages/message-1', {
+      body: {
+        data: {
+          parts: [
+            expect.objectContaining({
+              providerMetadata: expect.objectContaining({
+                cherry: expect.objectContaining({ diagnosis: expect.objectContaining({ summary: 'Provider failed' }) })
+              })
+            })
+          ]
         }
       }
     })
@@ -315,6 +352,81 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     expect(eventMocks.on).not.toHaveBeenCalledWith('SEND_MESSAGE', runtime.scrollToBottom)
     expect(eventMocks.on).toHaveBeenCalledWith('COPY_TOPIC_IMAGE', expect.any(Function))
     expect(eventMocks.on).toHaveBeenCalledWith('EXPORT_TOPIC_IMAGE', expect.any(Function))
+  })
+
+  it('passes layered streaming state and reuses unchanged history message projections', () => {
+    const historyMessage = {
+      id: 'history-message',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'sealed history' }]
+    } as CherryUIMessage
+    const liveMessage = {
+      id: 'live-message',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'a' }]
+    } as CherryUIMessage
+    const historyPartsByMessageId = {
+      'history-message': historyMessage.parts as CherryMessagePart[]
+    }
+    const streamingLayers = {
+      historyPartsByMessageId,
+      liveMessageIds: ['live-message']
+    } as NonNullable<MessageListProviderValue['state']['streamingLayers']>
+    let value: MessageListProviderValue | undefined
+
+    const view = render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        messages={[historyMessage, liveMessage]}
+        partsByMessageId={{ ...historyPartsByMessageId, 'live-message': liveMessage.parts as CherryMessagePart[] }}
+        streamingLayers={streamingLayers}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    const firstHistoryItem = value?.state.messages[0]
+    expect(value?.state.streamingLayers).toBe(streamingLayers)
+
+    const nextLiveMessage = {
+      ...liveMessage,
+      parts: [...(liveMessage.parts ?? []), { type: 'text', text: 'b' } as CherryMessagePart]
+    }
+    view.rerender(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        messages={[historyMessage, nextLiveMessage]}
+        partsByMessageId={{
+          ...historyPartsByMessageId,
+          'live-message': nextLiveMessage.parts as CherryMessagePart[]
+        }}
+        streamingLayers={streamingLayers}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    expect(value?.state.messages[0]).toBe(firstHistoryItem)
+    expect(vi.mocked(toMessageListItem).mock.calls.filter(([message]) => message === historyMessage)).toHaveLength(1)
+    expect(vi.mocked(toMessageListItem).mock.calls.filter(([message]) => message.id === liveMessage.id)).toHaveLength(2)
+  })
+
+  it.each(['embedding', 'rerank'])('filters %s models from the regenerate model picker', (capability) => {
+    let value: MessageListProviderValue | undefined
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
+
+    render(
+      <>
+        {value?.actions.renderRegenerateModelPicker?.({
+          message: { id: 'message-a' } as any,
+          messageParts: [],
+          trigger: <button type="button">pick model</button>,
+          onOpenChange: vi.fn()
+        })}
+      </>
+    )
+
+    const filter = modelSelectorMock.props.at(-1)?.filter
+    expect(filter?.({ capabilities: [capability] })).toBe(false)
+    expect(filter?.({ capabilities: [] })).toBe(true)
   })
 
   it('capture consumer consumes pending topic image requests without binding visible image events', async () => {
@@ -438,6 +550,49 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
 
     expect(onStartBranchDraft).toHaveBeenCalledWith('assistant-old')
     expect(chatWriteMock.setActiveNode).not.toHaveBeenCalled()
+  })
+
+  it('keeps a message translation active until its final update is persisted', async () => {
+    let finishPersistingTranslation: (() => void) | undefined
+    let value: MessageListProviderValue | undefined
+    const persistTranslationPromise = new Promise<void>((resolve) => {
+      finishPersistingTranslation = resolve
+    })
+    chatWriteMock.editMessage.mockResolvedValueOnce(undefined).mockReturnValueOnce(persistTranslationPromise)
+    vi.mocked(translateText).mockImplementationOnce(async (_text, _language, onResponse) => {
+      onResponse?.('translated reply', true)
+      return 'translated reply'
+    })
+
+    render(
+      <MessageListAdapterHarness
+        topic={createTopic('topic-a')}
+        partsByMessageId={{ 'message-1': [{ type: 'text', text: 'reply' }] as CherryMessagePart[] }}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+
+    await waitFor(() => expect(value).toBeDefined())
+
+    let translateAction: Promise<void> | undefined
+    act(() => {
+      translateAction = value?.actions.translateMessage?.(
+        'message-1',
+        { langCode: 'en-us' } as any,
+        'reply'
+      ) as Promise<void>
+    })
+
+    await waitFor(() => expect(value?.state.isMessageTranslating?.('message-1')).toBe(true))
+    await waitFor(() => expect(chatWriteMock.editMessage).toHaveBeenCalledTimes(2))
+    expect(value?.state.isMessageTranslating?.('message-1')).toBe(true)
+
+    await act(async () => {
+      finishPersistingTranslation?.()
+      await translateAction
+    })
+
+    await waitFor(() => expect(value?.state.isMessageTranslating?.('message-1')).toBe(false))
   })
 
   it('shows an error when saving code block edits through chat write fails', async () => {

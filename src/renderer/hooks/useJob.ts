@@ -1,5 +1,5 @@
 import { useQuery } from '@data/hooks/useDataApi'
-import { useSharedCache } from '@renderer/data/hooks/useCache'
+import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
 
 /**
@@ -10,8 +10,10 @@ import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
  * failed / cancelled) and on progress reports; cross-window sync is provided
  * by CacheService.
  *
- * Fallback: DataApi GET `/jobs/:id`. Activates when the cache is empty (cold
- * load on mount, or after the 60s cache TTL elapses post-terminal). Once the
+ * Fallback: DataApi GET `/jobs/:id`. Activates when the cache mirror is
+ * physically empty (cold load on mount, or after Main's deletion tombstone
+ * evicts the expired entry post-terminal — on Main's next read of the key or
+ * its GC sweep, so up to TTL + 10 min, not at the TTL instant). Once the
  * cache populates, useQuery's `enabled` flips off and the cache takes over as
  * the realtime source again.
  *
@@ -19,7 +21,7 @@ import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
  *   - First render with cold cache: `data` undefined until DataApi resolves,
  *     `isLoading` true.
  *   - During execution: `data` updates on each cache push from main.
- *   - Post-terminal + cache evicted (>60s): DataApi refetches from DB so the
+ *   - Post-terminal + mirror tombstoned: DataApi refetches from DB so the
  *     terminal snapshot stays observable until GC deletes the row.
  *   - Post-GC: 404 from DataApi → `error` set, `data` null.
  */
@@ -33,7 +35,10 @@ export interface UseJobResult {
 const TERMINAL_STATUSES: ReadonlySet<JobSnapshot['status']> = new Set(['completed', 'failed', 'cancelled'])
 
 export function useJob(jobId: string): UseJobResult {
-  const [cacheSnapshot] = useSharedCache(`jobs.state.${jobId}` as const)
+  // Read-only observer: main owns this key. A cache miss stays undefined
+  // (no schema-default write-back), which is exactly what enables the
+  // DataApi fallback below.
+  const cacheSnapshot = useSharedCacheValue(`jobs.state.${jobId}` as const)
   const path = `/jobs/${jobId}` as const
   const {
     data: apiSnapshot,
@@ -55,8 +60,9 @@ export function useJob(jobId: string): UseJobResult {
  * fresh JobProgress on every `ctx.reportProgress(...)` call from a handler
  * (TTL 60s). Cross-window sync is provided by CacheService.
  *
- * Cold-start: returns the schema default `{ progress: 0 }` on cache miss
- * (see cacheSchemas) so callers can render directly without null-guarding.
+ * Cold-start: falls back to the local `EMPTY_JOB_PROGRESS` on cache miss so
+ * callers can render directly without null-guarding. The fallback stays local
+ * to this observer — it is never written back into the cache.
  *
  * Pair with `useJob(jobId)` for full state + progress observation:
  *   const { data, isTerminal } = useJob(jobId)
@@ -67,7 +73,8 @@ export function useJob(jobId: string): UseJobResult {
  * cache eviction the value resets to `{ progress: 0 }`. For terminal-state
  * progress observability use the snapshot's status / output instead.
  */
+const EMPTY_JOB_PROGRESS: JobProgress = { progress: 0 }
+
 export function useJobProgress(jobId: string): JobProgress {
-  const [progress] = useSharedCache(`jobs.progress.${jobId}` as const)
-  return progress
+  return useSharedCacheValue(`jobs.progress.${jobId}` as const) ?? EMPTY_JOB_PROGRESS
 }

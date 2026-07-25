@@ -1,5 +1,10 @@
 {
   "agent": {
+    "builtin": {
+      "cherry_assistant": {
+        "description": "Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+      }
+    },
     "session": {
       "workspace_status": {
         "inaccessible": "Η διαδρομή του χώρου εργασίας δεν είναι προσβάσιμη: {{path}}",
@@ -51,6 +56,12 @@
   },
   "dialog": {
     "all_files": "Όλα τα Αρχεία",
+    "data_reset": {
+      "cancel": "Άκυρο",
+      "confirm": "Επαναφορά και επανεκκίνηση",
+      "message": "Θα διαγραφούν οι συνομιλίες, οι βοηθοί, οι βάσεις γνώσεων, τα αρχεία και οι ρυθμίσεις και, στη συνέχεια, η εφαρμογή θα επανεκκινηθεί. Αυτή η ενέργεια δεν μπορεί να αναιρεθεί. Θέλετε να συνεχίσετε;",
+      "title": "Επαναφορά δεδομένων εφαρμογής"
+    },
     "html_files": "Αρχεία HTML",
     "open_file": "Άνοιγμα Αρχείου",
     "pdf_files": "Αρχεία PDF",

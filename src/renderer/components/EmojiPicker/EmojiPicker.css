@@ -1,0 +1,38 @@
+/* emoji-picker-react forces its native emoji font stack with !important. */
+body[os='windows'] .cherry-emoji-picker-react .epr-emoji-native {
+  font-family:
+    'Twemoji Country Flags', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Segoe UI', 'Apple Color Emoji', 'Twemoji Mozilla',
+    'Noto Color Emoji', 'EmojiOne Color', 'Android Emoji' !important;
+}
+
+/* The opaque label background makes the vendor blur redundant; overscan the sticky paint edge by 1px. */
+.cherry-emoji-picker-react .epr-emoji-category-label {
+  backdrop-filter: none;
+  box-shadow: 0 -1px 0 var(--epr-category-label-bg-color);
+  font-size: var(--font-size-body-sm);
+  font-weight: var(--font-weight-regular);
+}
+
+.cherry-emoji-picker-react .epr-category-nav {
+  padding-top: 6px;
+}
+
+.cherry-emoji-picker-react .epr-emoji-list {
+  padding-bottom: var(--epr-horizontal-padding);
+}
+
+.cherry-emoji-picker-react .epr-cat-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cherry-emoji-picker-react .epr-cat-btn:focus::before {
+  top: 50%;
+  right: auto;
+  bottom: auto;
+  left: 50%;
+  width: var(--epr-category-navigation-button-size);
+  height: var(--epr-category-navigation-button-size);
+  transform: translate(-50%, -50%);
+}

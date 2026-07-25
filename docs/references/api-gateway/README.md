@@ -131,17 +131,21 @@ All three streaming endpoints are thin route wrappers that call
    immediately at terminal.
    - **Streaming**: an `SseListener` with a push-API `formatChunk` /
      `formatDone` / `formatPaused` / `formatError` pipes the adapter's events
-     through the formatter into a `text/event-stream` `ReadableStream`.
+     through the formatter into a `text/event-stream` `ReadableStream`. The
+     response is withheld behind a startup-commit barrier until the first
+     provider-semantic chunk or clean completion; protocol scaffolding such as
+     `start` is buffered but does not commit HTTP 200.
    - **Non-streaming**: a plain `StreamListener` feeds every chunk into the
      adapter to accumulate state, then `adapter.buildNonStreamingResponse()` is
      returned as a JSON `Response`.
 6. **Abort & timeout.** The route's `request.signal` (client disconnect) calls
    `aiStreamManager.abort(streamId, …)`. An idle (no-chunk) timeout —
    **20 minutes** (`GATEWAY_STREAM_IDLE_TIMEOUT_MS`) — and any mid-stream abort
-   surface as a **failure**, not a truncated success: streaming emits a
-   per-dialect error frame (`buildStreamErrorFrame`), non-streaming returns a
-   **504**. The server's per-request timeout is **5 minutes** (`server.ts`), with
-   `setTimeout(0)` so live SSE connections are not socket-timed-out.
+   surface as a **failure**, not a truncated success. Before streaming response
+   commitment, an upstream pause rejects with **504**; after commitment it emits
+   a per-dialect error frame (`buildStreamErrorFrame`). Non-streaming requests
+   return **504**. The server's per-request timeout is **5 minutes** (`server.ts`),
+   with `setTimeout(0)` so live SSE connections are not socket-timed-out.
 
 ```
 client  ──HTTP──▶  route  ──▶  processMessage
@@ -154,6 +158,26 @@ client  ──HTTP──▶  route  ──▶  processMessage
                                   ▼
                           SSE ReadableStream  /  JSON Response   ──▶  client
 ```
+
+### Streaming response commitment
+
+A streaming request has two error regimes:
+
+- **Before commitment:** `processMessage` has not returned its `Response` yet.
+  Adapter-generated startup frames remain buffered. A provider error rejects
+  with the original serialized error, so the route returns its real HTTP status
+  and dialect envelope (for example, HTTP 400 or 503). An idle-timeout pause
+  rejects as HTTP 504. AI SDK `start`, step, metadata, partial tool-input, and
+  tool-output chunks do not commit the response.
+- **After commitment:** once text/reasoning output, an available tool call, a
+  finish chunk, or clean completion commits HTTP 200, headers can no longer
+  change. A later error or pause therefore emits the dialect's terminal SSE
+  error frame and closes the stream.
+
+Client disconnect before commitment abandons the pending response, clears its
+startup buffer, aborts the manager execution, and does not surface a gateway
+error. The gateway never transparently retries after commitment because doing
+so could duplicate model output or tool side effects.
 
 ## Adapter system
 

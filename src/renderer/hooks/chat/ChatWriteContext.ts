@@ -7,16 +7,22 @@
  * `useChatWrite()`.
  */
 
-import type { CherryMessagePart, ModelSnapshot } from '@shared/data/types/message'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { createContext, use } from 'react'
 
-/** Chat write actions injected via React Context. Operations delegate to DataApi + useChat. */
-/** Optional hints passed alongside `deleteMessage`. */
-export interface DeleteMessageTraceOptions {
+/** Optional arguments passed alongside `deleteMessage`. */
+export interface DeleteMessageOptions {
   modelName?: string
+  /** Complete multi-select plan, used to reject unsafe batches before their first write. */
+  selectedMessageIds?: readonly string[]
 }
 
+export type MessageDeleteAvailability =
+  | { enabled: true }
+  | { enabled: false; reason: 'first-turn' | 'root-unavailable' | 'message-unavailable' }
+
+/** Chat write actions injected via React Context. Operations delegate to DataApi + useChat. */
 /** Options carried alongside a regenerate request. */
 export interface RegenerateOptions {
   /**
@@ -26,20 +32,13 @@ export interface RegenerateOptions {
    * group becomes a side-by-side comparison of different models.
    */
   modelId?: UniqueModelId
-  /**
-   * Snapshot of the overriding model (`{id, name, provider, group?}`).
-   * Lets the optimistic assistant placeholder render with the right avatar
-   * and model name immediately, without waiting for Main's persisted row
-   * to land. Expected to agree with `modelId` — caller usually has the
-   * full `Model` object on hand and can spread the relevant fields.
-   */
-  modelSnapshot?: ModelSnapshot
 }
 
 export interface ChatWriteActions {
   regenerate: (messageId?: string, options?: RegenerateOptions) => Promise<void>
   resend: (messageId?: string) => Promise<void>
-  deleteMessage: (id: string, traceOptions?: DeleteMessageTraceOptions) => Promise<void>
+  getMessageDeleteAvailability: (id: string) => MessageDeleteAvailability
+  deleteMessage: (id: string, options?: DeleteMessageOptions) => Promise<void>
   deleteMessageGroup: (id: string) => Promise<void>
   pause: () => void
   clearTopicMessages: () => Promise<void>

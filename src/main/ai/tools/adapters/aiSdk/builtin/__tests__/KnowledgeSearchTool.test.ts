@@ -62,7 +62,7 @@ describe('kb_search', () => {
   it('builds an entry with the agreed namespace + defer policy and is auto-approved (read-only)', () => {
     expect(entry.name).toBe(KB_SEARCH_TOOL_NAME)
     expect(entry.namespace).toBe('kb')
-    expect(entry.defer).toBe('always')
+    expect(entry.defer).toBe('never')
     // kb_search only reads — no per-call approval prompt (the auto-approve half of the carve-out).
     expect(entry.tool.needsApproval).toBeFalsy()
   })

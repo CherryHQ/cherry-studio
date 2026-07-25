@@ -90,7 +90,9 @@ export const processCitations = (content: string, mode: 'remove' | 'normalize' =
 }
 
 const formatMessageAsPlainText = (message: ExportableMessage): string => {
-  const roleText = message.role === 'user' ? 'User:' : 'Assistant:'
+  // Assistant/agent rows lead with the frozen producing author (survives rename/delete), like the header.
+  const author = 'messageSnapshot' in message ? message.messageSnapshot : undefined
+  const roleText = message.role === 'user' ? 'User:' : `${author?.name ?? 'Assistant'}:`
   // Copy path: use the gated text (drops error/translation) so copying an
   // errored or translated message yields the clean answer, not an error dump.
   // Full-fidelity export keeps `getMainTextContent`.

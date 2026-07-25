@@ -1,6 +1,6 @@
 import { PortalContainerProvider } from '@cherrystudio/ui'
 import { render, screen, waitFor } from '@testing-library/react'
-import type { InputHTMLAttributes, ReactNode, RefObject } from 'react'
+import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, RefObject } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const { openAutoFocusEvents, popoverContentProps, portalContainerMock } = vi.hoisted(() => ({
@@ -20,6 +20,17 @@ const { openAutoFocusEvents, popoverContentProps, portalContainerMock } = vi.hoi
 const originalResizeObserver = globalThis.ResizeObserver
 
 vi.mock('@cherrystudio/ui', () => ({
+  Button: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) => {
+    const { variant, size, type = 'button', ...buttonProps } = props
+    void variant
+    void size
+
+    return (
+      <button type={type} {...buttonProps}>
+        {children}
+      </button>
+    )
+  },
   Input: ({ ref, ...props }: InputHTMLAttributes<HTMLInputElement> & { ref?: RefObject<HTMLInputElement | null> }) => (
     <input ref={ref} {...props} />
   ),
@@ -65,11 +76,18 @@ vi.mock('@cherrystudio/ui', () => ({
   },
   PopoverTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
   Switch: () => <button type="button" role="switch" />,
+  Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
   usePortalContainer: () => portalContainerMock.current
 }))
 
 vi.mock('@cherrystudio/ui/lib/utils', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
+}))
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => (key === 'common.clear' ? 'Clear' : key)
+  })
 }))
 
 import { DEFAULT_SELECTOR_CONTENT_HEIGHT, SelectorShell } from '../SelectorShell'
@@ -129,6 +147,18 @@ describe('SelectorShell', () => {
     const content = document.querySelector<HTMLElement>('[data-selector-shell-content]')
     expect(content).toHaveStyle({ height: `${DEFAULT_SELECTOR_CONTENT_HEIGHT}px` })
     expect(content?.style.maxHeight).toBe('')
+  })
+
+  it('caps an ideal popover width to the Radix available width', () => {
+    render(
+      <SelectorShell trigger={<button type="button">Open</button>} open onOpenChange={vi.fn()} width={450}>
+        <div />
+      </SelectorShell>
+    )
+
+    const content = document.querySelector<HTMLElement>('[data-selector-shell-content]')
+    expect(content).toHaveStyle({ width: '450px' })
+    expect(content?.style.maxWidth).toBe('var(--radix-popover-content-available-width)')
   })
 
   it('does not set a fixed popover target height by default', () => {
@@ -314,6 +344,61 @@ describe('SelectorShell', () => {
     )
 
     await waitFor(() => expect(screen.getByTestId('available-height')).toHaveTextContent('112'))
+  })
+
+  it('can render multi-select as a search badge', () => {
+    const onCheckedChange = vi.fn()
+
+    render(
+      <SelectorShell
+        trigger={<button type="button">Open</button>}
+        open
+        onOpenChange={vi.fn()}
+        search={{ value: '', onChange: vi.fn(), placeholder: 'Search' }}
+        multiSelect={{
+          label: 'Multi',
+          ariaLabel: 'Multi model',
+          checked: false,
+          placement: 'search-badge',
+          dataTestId: 'multi-badge',
+          rowTestId: 'multi-row',
+          onCheckedChange
+        }}>
+        <div />
+      </SelectorShell>
+    )
+
+    expect(screen.queryByTestId('multi-row')).not.toBeInTheDocument()
+    expect(screen.getByTestId('multi-badge')).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByTestId('multi-badge')).toHaveAttribute('aria-label', 'Multi model')
+    expect(screen.getByTestId('multi-badge')).not.toHaveTextContent('Multi')
+    expect(screen.getByTestId('multi-badge').querySelector('svg')).not.toBeNull()
+
+    screen.getByTestId('multi-badge').click()
+
+    expect(onCheckedChange).toHaveBeenCalledWith(true)
+  })
+
+  it('shows a clear button when search has text', () => {
+    const onChange = vi.fn()
+
+    render(
+      <SelectorShell
+        trigger={<button type="button">Open</button>}
+        open
+        onOpenChange={vi.fn()}
+        search={{ value: 'qwen', onChange, placeholder: 'Search' }}>
+        <div />
+      </SelectorShell>
+    )
+
+    const clearButton = screen.getByRole('button', { name: 'Clear' })
+    expect(clearButton.querySelector('svg')).not.toBeNull()
+
+    clearButton.click()
+
+    expect(onChange).toHaveBeenCalledWith('')
+    expect(screen.getByRole('textbox')).toHaveFocus()
   })
 
   it('uses maxContentHeight as the popover cap before measuring list height', async () => {

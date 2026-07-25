@@ -1,5 +1,6 @@
 import type { StreamChunkPayload } from '@shared/ai/transport'
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -20,6 +21,8 @@ vi.mock('@renderer/ipc', () => ({
   }
 }))
 
+const STREAM_ERROR: SerializedError = { name: 'Error', message: 'boom', stack: null }
+
 // Reuse the established AI-stream mock shape (see IpcChatTransport.test.ts).
 function createMockAiApi() {
   const listeners = {
@@ -39,7 +42,7 @@ function createMockAiApi() {
         executionId?: UniqueModelId
         anchorMessageId?: string
         isTopicDone?: boolean
-        error: unknown
+        error: SerializedError
       }) => void
     >
   }
@@ -110,7 +113,7 @@ function createMockAiApi() {
       anchorMessageId?: string
     ) => {
       for (const cb of [...listeners.error]) {
-        cb({ topicId, executionId, isTopicDone, anchorMessageId, error: new Error('boom') })
+        cb({ topicId, executionId, isTopicDone, anchorMessageId, error: STREAM_ERROR })
       }
     }
   }
@@ -216,15 +219,16 @@ describe('TopicStreamSubscription', () => {
     sub.dispose()
   })
 
-  it('replays terminal status that arrives before an execution branch registers', async () => {
+  it('replays the error part and terminal status when failure arrives before the branch registers', async () => {
     const sub = new TopicStreamSubscription(TOPIC)
     const terminals: Array<{ id: string; isAbort: boolean; isError: boolean }> = []
     sub.listen()
 
     mock.emitError(TOPIC, A)
-    sub.register(A)
+    const stream = sub.register(A)
     sub.onExecutionTerminal((id, terminal) => terminals.push({ id, ...terminal }))
 
+    expect(await readAll(stream)).toEqual([{ type: 'data-error', data: STREAM_ERROR }])
     expect(terminals).toEqual([{ id: A, isAbort: false, isError: true }])
     sub.dispose()
   })

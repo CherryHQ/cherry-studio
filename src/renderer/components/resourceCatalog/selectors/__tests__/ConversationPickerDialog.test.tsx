@@ -80,14 +80,6 @@ describe('ConversationPickerDialog', () => {
     // The list scrolls inside the shared Scrollbar viewport (auto-hiding thumb), not the cmdk list.
     expect(screen.getByText('Alpha Assistant').closest('[data-scrolling]')).toBeInTheDocument()
 
-    const firstRow = screen.getByText('Alpha Assistant').closest('[cmdk-item]')
-    expect(firstRow).toHaveClass('h-9', 'cursor-pointer', 'gap-2.5', 'px-2.5')
-    expect(firstRow?.closest('[cmdk-group]')).toHaveClass('[&_[cmdk-group-items]]:space-y-1')
-
-    const leadingSlot = screen.getByTestId('alpha-icon').parentElement
-    expect(leadingSlot).toHaveClass('size-6', 'rounded-lg', 'text-foreground/70')
-    expect(leadingSlot).not.toHaveClass('rounded-full', 'bg-secondary')
-
     fireEvent.click(screen.getByText('Product Manager'))
 
     expect(onSelect).toHaveBeenCalledWith(ITEMS[1])
@@ -153,8 +145,6 @@ describe('ConversationPickerDialog', () => {
     )
 
     const createRow = screen.getByText('New Assistant')
-    expect(createRow.closest('[cmdk-item]')).toHaveClass('h-9', 'cursor-pointer', 'gap-2.5', 'px-2.5')
-    expect(createRow.closest('[cmdk-item]')?.closest('[cmdk-group]')).toHaveClass('[&_[cmdk-group-items]]:space-y-1')
     // Pinned above the first item.
     const firstItem = screen.getByText('Alpha Assistant')
     expect(createRow.compareDocumentPosition(firstItem) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()

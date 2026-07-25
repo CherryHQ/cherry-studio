@@ -16,6 +16,7 @@ import {
   type Resource as SdkResource,
   type Tool as SdkTool
 } from '@modelcontextprotocol/sdk/types.js'
+import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpTool } from '@shared/types/mcp'
 
 const logger = loggerService.withContext('SdkMcpBridge')
@@ -77,8 +78,8 @@ function toSdkResourceContents(content: McpResource): ReadResourceResult['conten
  *   round-trip heals a session that started on a cold cache — including servers whose
  *   connect outlives the session-build warm — with zero blocking anywhere.
  */
-export function createSdkMcpServerInstance(mcpId: string): McpServer {
-  const serverConfig = mcpServerService.findByIdOrName(mcpId)
+export function createSdkMcpServerInstance(mcpId: string, serverSnapshot?: McpServerEntity): McpServer {
+  const serverConfig = serverSnapshot ?? mcpServerService.findByIdOrName(mcpId)
   if (!serverConfig) {
     throw new Error(`MCP server not found: ${mcpId}`)
   }

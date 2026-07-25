@@ -32,6 +32,35 @@ const restEnvelope = (code: string, message: string, details?: Record<string, un
   error: { code, message, ...(details ? { details } : {}) }
 })
 
+/** Google (Gemini) dialect envelope: `{ error: { code, message, status } }`. */
+export const googleEnvelope = (httpStatus: number, message: string) => ({
+  error: { code: httpStatus, message, status: googleStatusName(httpStatus) }
+})
+
+/** Map an HTTP status to the Google canonical `status` string. */
+function googleStatusName(status: number): string {
+  switch (status) {
+    case 400:
+      return 'INVALID_ARGUMENT'
+    case 401:
+      return 'UNAUTHENTICATED'
+    case 403:
+      return 'PERMISSION_DENIED'
+    case 404:
+      return 'NOT_FOUND'
+    case 429:
+      return 'RESOURCE_EXHAUSTED'
+    case 500:
+      return 'INTERNAL'
+    case 503:
+      return 'UNAVAILABLE'
+    case 504:
+      return 'DEADLINE_EXCEEDED'
+    default:
+      return status >= 500 ? 'INTERNAL' : 'INVALID_ARGUMENT'
+  }
+}
+
 /**
  * Best-effort `{ status, message, type }` from any thrown value — a real `Error`,
  * an OpenAI / AI-SDK error, or a `SerializedError` plain object (carrying
@@ -129,6 +158,21 @@ function transformOpenAiError(error: unknown): {
 }
 
 /**
+ * Shape an unknown provider/runtime error into the Google (Gemini) error envelope
+ * (used by `/v1beta`). Status-driven, mirroring the other transformers, so it maps
+ * the `SerializedError` plain objects `processMessage` throws (which carry
+ * `statusCode`, not `status`) correctly instead of flattening everything to 500.
+ */
+function transformGoogleError(error: unknown): {
+  statusCode: number
+  errorResponse: { error: { code: number; message: string; status: string } }
+} {
+  const { status, message } = extractError(error)
+  const statusCode = status ?? 500
+  return { statusCode, errorResponse: googleEnvelope(statusCode, safeMessage(status, message)) }
+}
+
+/**
  * Build a per-dialect SSE error frame for a terminal stream error or idle-timeout.
  * Reuses the same envelopes the HTTP handlers emit (message/type only — never the
  * AI-SDK error extras), so the streaming and non-streaming error shapes match and
@@ -138,6 +182,12 @@ export function buildStreamErrorFrame(outputFormat: OutputFormat, error: unknown
   if (outputFormat === 'anthropic') {
     const { errorResponse } = transformAnthropicError(error)
     return `event: error\ndata: ${JSON.stringify(errorResponse)}\n\n`
+  }
+  if (outputFormat === 'gemini') {
+    // Gemini SSE delivers a mid-stream error as a plain `data:` frame carrying the
+    // standard error envelope (no named event).
+    const { errorResponse } = transformGoogleError(error)
+    return `data: ${JSON.stringify(errorResponse)}\n\n`
   }
   const { errorResponse } = transformOpenAiError(error)
   if (outputFormat === 'openai-responses') {
@@ -201,6 +251,30 @@ export function openaiErrorHandler({ code, error, status }: GatewayErrorContext)
 }
 
 /**
+ * Google-dialect error handler (`/v1beta`). Shapes built-in failures and
+ * `DataApiError`s into the Google envelope; delegates provider/runtime errors to
+ * `transformGoogleError`.
+ */
+export function googleErrorHandler({ code, error, status }: GatewayErrorContext) {
+  if (code === 'VALIDATION') {
+    return status(400, googleEnvelope(400, messageOf(error, 'Invalid request parameters')))
+  }
+  if (code === 'NOT_FOUND') {
+    return status(404, googleEnvelope(404, 'Not found'))
+  }
+  if (code === 'PARSE') {
+    return status(400, googleEnvelope(400, 'Malformed request body'))
+  }
+  if (error instanceof DataApiError) {
+    return status(error.status, googleEnvelope(error.status, error.message))
+  }
+
+  logger.error('API gateway request error', { code, error })
+  const { statusCode, errorResponse } = transformGoogleError(error)
+  return status(statusCode, errorResponse)
+}
+
+/**
  * Cherry REST error handler — for Cherry's own endpoints (`knowledge-bases`,
  * `models`) and the app-level fallback (`/health`, `/`, unmatched routes). Speaks
  * the same `{ error: { code, message, details? } }` vocabulary as the v2 data
@@ -229,7 +303,7 @@ export function restErrorHandler({ code, error, status }: GatewayErrorContext) {
 }
 
 /** Select the response dialect from the request path. */
-function dialectForPath(request: Request): 'anthropic' | 'openai' | 'rest' {
+function dialectForPath(request: Request): 'anthropic' | 'openai' | 'google' | 'rest' {
   let pathname = ''
   try {
     pathname = new URL(request.url).pathname
@@ -238,6 +312,7 @@ function dialectForPath(request: Request): 'anthropic' | 'openai' | 'rest' {
   }
   if (pathname.startsWith('/v1/messages')) return 'anthropic'
   if (pathname.startsWith('/v1/chat') || pathname.startsWith('/v1/responses')) return 'openai'
+  if (pathname.startsWith('/v1beta')) return 'google'
   return 'rest'
 }
 
@@ -253,6 +328,8 @@ export function gatewayErrorHandler(ctx: GatewayErrorContext) {
       return anthropicErrorHandler(ctx)
     case 'openai':
       return openaiErrorHandler(ctx)
+    case 'google':
+      return googleErrorHandler(ctx)
     default:
       return restErrorHandler(ctx)
   }

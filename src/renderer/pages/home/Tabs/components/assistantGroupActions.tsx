@@ -16,12 +16,12 @@ export interface AssistantGroupActionContext {
   deleteAssistantDisabled?: boolean
   deleteTopicsDisabled?: boolean
   disabled?: boolean
-  isTagGrouping: boolean
+  isGroupGrouping: boolean
   onDeleteAssistant: (assistantId: string) => void | Promise<void>
   onDeleteAllTopics: (assistantId: string) => void | Promise<void>
   onEdit: (assistantId: string) => void
   onSetAssistantIconType: (iconType: AssistantIconType) => void | Promise<void>
-  onToggleTagGrouping: () => void | Promise<void>
+  onToggleGrouping: () => void | Promise<void>
   onTogglePin: (assistantId: string) => void | Promise<void>
   pinned: boolean
   t: TFunction
@@ -34,7 +34,7 @@ const assistantGroupActionRegistry = createActionRegistry<AssistantGroupActionCo
 assistantGroupActionRegistry.registerCommand({
   id: 'assistant-group.edit',
   run: ({ assistantId, onEdit }) => {
-    window.requestAnimationFrame(() => onEdit(assistantId))
+    onEdit(assistantId)
   }
 })
 
@@ -58,8 +58,8 @@ for (const type of RESOURCE_ICON_TYPE_OPTIONS) {
 }
 
 assistantGroupActionRegistry.registerCommand({
-  id: 'assistant-group.toggle-tag-grouping',
-  run: ({ onToggleTagGrouping }) => onToggleTagGrouping()
+  id: 'assistant-group.toggle-grouping',
+  run: ({ onToggleGrouping }) => onToggleGrouping()
 })
 
 assistantGroupActionRegistry.registerCommand({
@@ -110,9 +110,10 @@ assistantGroupActionRegistry.registerAction(
 
 assistantGroupActionRegistry.registerAction(
   buildResourceEntityMenuActionDescriptor({
-    id: 'assistant-group.toggle-tag-grouping',
-    commandId: 'assistant-group.toggle-tag-grouping',
-    label: ({ isTagGrouping, t }) => (isTagGrouping ? t('assistants.tags.ungroup') : t('assistants.tags.group_by')),
+    id: 'assistant-group.toggle-grouping',
+    commandId: 'assistant-group.toggle-grouping',
+    label: ({ isGroupGrouping, t }) =>
+      isGroupGrouping ? t('assistants.groups.ungroup') : t('assistants.groups.group_by'),
     icon: () => <Tags size={14} />,
     order: 35
   })

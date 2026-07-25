@@ -215,10 +215,16 @@ describe('Tooltip', () => {
   })
 
   describe('arrow rendering', () => {
-    it('renders an arrow by default for TooltipContent', () => {
+    it('renders a positioned Radix arrow by default for TooltipContent', () => {
       renderOpenTooltipContent('compound tip')
 
-      expect(getTooltipContentElement('compound tip').querySelector('svg')).toBeInTheDocument()
+      const content = getTooltipContentElement('compound tip')
+      const arrow = content.querySelector('svg')
+      expect(arrow).toBeInTheDocument()
+      expect(arrow).toHaveClass('fill-neutral-900', 'stroke-neutral-900', 'stroke-2')
+      expect(arrow).toHaveAttribute('width', '12')
+      expect(arrow).toHaveAttribute('height', '6')
+      expect(arrow).toHaveClass('-translate-y-px')
     })
 
     it('passes showArrow through NormalTooltip', () => {
@@ -228,13 +234,23 @@ describe('Tooltip', () => {
         </NormalTooltip>
       )
 
-      expect(getTooltipContentElement('normal tip').querySelector('svg')).not.toBeInTheDocument()
+      const content = getTooltipContentElement('normal tip')
+      expect(content.querySelector('svg')).not.toBeInTheDocument()
     })
 
     it('omits the arrow when TooltipContent disables it', () => {
       renderOpenTooltipContent('compound tip', { showArrow: false })
 
-      expect(getTooltipContentElement('compound tip').querySelector('svg')).not.toBeInTheDocument()
+      const content = getTooltipContentElement('compound tip')
+      expect(content.querySelector('svg')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('Electron drag-region opt-out', () => {
+    it('marks tooltip content as no-drag so it stays interactive over titlebar drag regions', () => {
+      renderOpenTooltipContent('drag-safe tip')
+
+      expect(getTooltipContentElement('drag-safe tip')).toHaveClass('[-webkit-app-region:no-drag]')
     })
   })
 
