@@ -5750,8 +5750,8 @@
       },
       "data_reset": {
         "button": "Reset",
-        "confirm_content": "This will delete all chats, assistants, knowledge bases, files, and settings — the app will restart as a fresh install. Your custom data directory location, startup settings such as hardware acceleration, downloaded tools, local models, and login credentials such as MCP and GitHub Copilot are kept.",
-        "confirm_title": "Are you sure you want to clear all data?",
+        "confirm_content": "Are you sure you want to clear all data?",
+        "confirm_title": "Warning",
         "error": "Failed to start data reset",
         "title": "Data Reset"
       },

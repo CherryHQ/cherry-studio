@@ -350,7 +350,6 @@ export async function requestDataReset(): Promise<void> {
     type: 'warning',
     title: t('dialog.data_reset.title'),
     message: t('dialog.data_reset.message'),
-    detail: t('dialog.data_reset.detail'),
     buttons: [t('dialog.data_reset.cancel'), t('dialog.data_reset.confirm')],
     defaultId: 0,
     cancelId: 0
