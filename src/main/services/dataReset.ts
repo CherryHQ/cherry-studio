@@ -33,6 +33,7 @@ export const USER_DATA_WIPE = [
   'IndexedDB.restore',
   'Local Storage.restore',
   'cache.json',
+  'version.log',
   'restore-journal.json',
   'restore-staging',
   '.claude',
@@ -55,8 +56,8 @@ export const USER_DATA_WIPE = [
   'DIPS'
 ]
 
-/** Retained diagnostics, version history, and downloaded runtimes. */
-export const USER_DATA_KEPT = ['logs', 'Crashpad', 'version.log', 'Runtime', 'Toolchain', 'tesseract']
+/** Retained diagnostics and downloaded runtimes. */
+export const USER_DATA_KEPT = ['logs', 'Crashpad', 'Runtime', 'Toolchain', 'tesseract']
 
 // Absorb transient Windows file locks before consuming a reset attempt.
 const RM_OPTIONS = { recursive: true, force: true, maxRetries: 3, retryDelay: 100 } as const

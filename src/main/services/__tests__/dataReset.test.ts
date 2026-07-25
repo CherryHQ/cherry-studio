@@ -96,6 +96,7 @@ const EXPECTED_WIPED = [
   'IndexedDB.restore',
   'Local Storage.restore',
   'cache.json',
+  'version.log',
   'restore-journal.json',
   '.claude',
   '.copilot_token',
@@ -110,7 +111,6 @@ const EXPECTED_WIPED = [
 const EXPECTED_KEPT = [
   'logs',
   'Crashpad',
-  'version.log',
   'Runtime',
   'Toolchain',
   'tesseract',
