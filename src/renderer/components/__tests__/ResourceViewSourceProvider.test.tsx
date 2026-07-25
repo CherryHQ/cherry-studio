@@ -217,6 +217,29 @@ describe('ResourceViewSourceProvider', () => {
     expect(screen.getByTestId('sessions-refreshing')).toHaveTextContent('true')
   })
 
+  it('stops reporting refreshing when a failed background refresh goes idle', async () => {
+    sourceMocks.tabs = [createTab('chat', '/app/chat'), createTab('agent', '/app/agents')]
+    sourceMocks.activeTabId = 'chat'
+    sourceMocks.assistantSource = createAssistantSource(['topic-1'], { complete: true })
+
+    const { rerender } = render(createProviderTree())
+
+    await waitFor(() => expect(screen.getByTestId('topic-ids')).toHaveTextContent('topic-1'))
+
+    // A mid-chain load-all failure leaves the source incomplete and idle. The
+    // stale snapshot stays published, but the refreshing flag must clear so
+    // consumers (e.g. reorder gating) do not hang on it indefinitely.
+    sourceMocks.assistantSource = createAssistantSource(['replacement-partial'], {
+      complete: false,
+      refreshing: false,
+      error: new Error('refresh failed')
+    })
+    rerender(createProviderTree())
+
+    expect(screen.getByTestId('topic-ids')).toHaveTextContent('topic-1')
+    expect(screen.getByTestId('topics-refreshing')).toHaveTextContent('false')
+  })
+
   it('does not publish another snapshot when a refresh resolves to the same references', async () => {
     sourceMocks.tabs = [createTab('chat', '/app/chat')]
     sourceMocks.activeTabId = 'chat'

@@ -57,10 +57,16 @@ function useCommittedAssistantTopicsSource(enabled: boolean): AssistantTopicsSou
 
   const isColdLoading = enabled && snapshot === null
   const snapshotIsCurrent = snapshot?.pages === rawSource.pages && snapshot?.topics === rawSource.topics
+  // A failed background refresh keeps serving the stale snapshot (stale-while-
+  // error). While a retry fetch is actually in flight `isRefreshing` stays
+  // honest, but once the source is idle with an error, `!isFullyLoaded` alone
+  // must not pin consumers in a perpetual refreshing state (e.g. reorder
+  // disabled) with no visible cause.
   const isBackgroundRefreshing =
     enabled &&
     snapshot !== null &&
-    (!rawSource.isFullyLoaded || rawSource.isRefreshing || (rawSourceReady && !snapshotIsCurrent))
+    (rawSource.isRefreshing ||
+      (!rawSource.error && (!rawSource.isFullyLoaded || (rawSourceReady && !snapshotIsCurrent))))
 
   return useMemo(
     () => ({
@@ -122,13 +128,15 @@ function useCommittedAgentSessionsSource(enabled: boolean): AgentSessionsSource 
   const isColdLoading = enabled && snapshot === null
   const snapshotIsCurrent =
     snapshot?.pinIdBySessionId === rawSource.pinIdBySessionId && snapshot?.sessions === rawSource.sessions
+  // See useCommittedAssistantTopicsSource: a failed background refresh serves
+  // the stale snapshot and reports refreshing only while a fetch is in flight,
+  // never as a perpetual error-idle state.
   const isBackgroundRefreshing =
     enabled &&
     snapshot !== null &&
-    (!rawSource.isFullyLoaded ||
-      rawSource.isValidating ||
+    (rawSource.isValidating ||
       rawSource.isPinsRefreshing ||
-      (rawSourceReady && !snapshotIsCurrent))
+      (!rawSource.error && (!rawSource.isFullyLoaded || (rawSourceReady && !snapshotIsCurrent))))
 
   return useMemo(
     () => ({
