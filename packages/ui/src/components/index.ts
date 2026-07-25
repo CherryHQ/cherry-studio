@@ -44,7 +44,12 @@ export {
 } from './composites/date-time-picker'
 export { default as Ellipsis } from './composites/ellipsis'
 export { default as EmojiAvatar } from './composites/emoji-avatar'
-export { EmptyState, type EmptyStatePreset, type EmptyStateProps } from './composites/empty-state'
+export {
+  EmptyState,
+  type EmptyStateIllustration,
+  type EmptyStatePreset,
+  type EmptyStateProps
+} from './composites/empty-state'
 export {
   type EntityItemBase,
   EntitySelector,
