@@ -141,8 +141,8 @@ type SourceSnapshot = {
   icon: string | null
 }
 
-type UsageLedgerListServiceQuery = Omit<UsageLedgerListQuery, 'sortBy' | 'sortDirection'> &
-  Partial<Pick<UsageLedgerListQuery, 'sortBy' | 'sortDirection'>>
+type UsageLedgerListServiceQuery = Omit<UsageLedgerListQuery, 'sortBy' | 'sortOrder'> &
+  Partial<Pick<UsageLedgerListQuery, 'sortBy' | 'sortOrder'>>
 
 async function resolveTopicSource(topicId: string | null | undefined): Promise<SourceSnapshot | null> {
   if (!topicId) return null
@@ -466,14 +466,19 @@ export class UsageLedgerService {
             : query.sortBy === 'tokensPerSecond'
               ? tokensPerSecond
               : usageLedgerTable.createdAt
-    const sortOrder = query.sortDirection === 'asc' ? asc(sortExpression) : desc(sortExpression)
+    const orderExpression = query.sortOrder === 'asc' ? asc(sortExpression) : desc(sortExpression)
 
     const [rows, [{ count }]] = await Promise.all([
       db
         .select()
         .from(usageLedgerTable)
         .where(where)
-        .orderBy(sql`${sortExpression} IS NULL`, sortOrder, desc(usageLedgerTable.createdAt), asc(usageLedgerTable.id))
+        .orderBy(
+          sql`${sortExpression} IS NULL`,
+          orderExpression,
+          desc(usageLedgerTable.createdAt),
+          asc(usageLedgerTable.id)
+        )
         .limit(limit)
         .offset(offset),
       db.select({ count: sql<number>`count(*)` }).from(usageLedgerTable).where(where)

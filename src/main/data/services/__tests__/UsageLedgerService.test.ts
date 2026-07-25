@@ -557,7 +557,7 @@ describe('UsageLedgerService', () => {
         items: [{ messageId: 'expensive' }, { messageId: 'slow' }, { messageId: 'fast' }]
       })
       await expect(
-        usageLedgerService.list({ page: 1, limit: 3, sortBy: 'timeFirstTokenMs', sortDirection: 'asc' })
+        usageLedgerService.list({ page: 1, limit: 3, sortBy: 'timeFirstTokenMs', sortOrder: 'asc' })
       ).resolves.toMatchObject({
         items: [{ messageId: 'fast' }, { messageId: 'expensive' }, { messageId: 'slow' }]
       })

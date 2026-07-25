@@ -30,7 +30,7 @@ import { formatCompactNumber } from '@renderer/utils/number'
 import { cn } from '@renderer/utils/style'
 import type {
   UsageLedgerListSortBy,
-  UsageLedgerSortDirection,
+  UsageLedgerSortOrder,
   UsageLedgerStatsBucket,
   UsageLedgerTimelineBucket
 } from '@shared/data/api/schemas/usageLedger'
@@ -676,7 +676,7 @@ function UsageSettings() {
   const [selectedDate, setSelectedDate] = useState<string | undefined>()
   const [heatmapMetric, setHeatmapMetric] = useState<UsageHeatmapMetric>('tokens')
   const [entrySortBy, setEntrySortBy] = useState<UsageLedgerListSortBy>('createdAt')
-  const [entrySortDirection, setEntrySortDirection] = useState<UsageLedgerSortDirection>('desc')
+  const [entrySortOrder, setEntrySortOrder] = useState<UsageLedgerSortOrder>('desc')
 
   const windowRange = useMemo(() => getWindowRange(windowKey), [windowKey])
   const previousWindowRange = useMemo(() => getPreviousWindowRange(windowKey), [windowKey])
@@ -702,10 +702,10 @@ function UsageSettings() {
   const entriesQuery = useMemo(
     () => ({
       sortBy: entrySortBy,
-      sortDirection: entrySortDirection,
+      sortOrder: entrySortOrder,
       ...toQueryRange(activeRange)
     }),
-    [activeRange, entrySortBy, entrySortDirection]
+    [activeRange, entrySortBy, entrySortOrder]
   )
 
   const { providers } = useProviders()
@@ -962,16 +962,14 @@ function UsageSettings() {
 
   const getModalityLabel = (modality: UsageLedgerModality) => t(MODALITY_LABEL_KEYS[modality])
   const handleEntrySort = (sortBy: UsageLedgerListSortBy) => {
-    setEntrySortDirection((currentDirection) =>
-      entrySortBy === sortBy && currentDirection === 'desc' ? 'asc' : 'desc'
-    )
+    setEntrySortOrder((currentOrder) => (entrySortBy === sortBy && currentOrder === 'desc' ? 'asc' : 'desc'))
     setEntrySortBy(sortBy)
   }
   const getEntryAriaSort = (sortBy: UsageLedgerListSortBy) =>
-    entrySortBy === sortBy ? (entrySortDirection === 'asc' ? 'ascending' : 'descending') : 'none'
+    entrySortBy === sortBy ? (entrySortOrder === 'asc' ? 'ascending' : 'descending') : 'none'
   const renderEntrySortHeader = (sortBy: UsageLedgerListSortBy, label: string, align: 'left' | 'right' = 'left') => {
     const isActive = entrySortBy === sortBy
-    const Icon = isActive ? (entrySortDirection === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown
+    const Icon = isActive ? (entrySortOrder === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown
 
     return (
       <Button

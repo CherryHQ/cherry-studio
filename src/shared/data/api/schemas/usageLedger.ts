@@ -31,8 +31,8 @@ export const UsageLedgerListSortBySchema = z.enum([
   'tokensPerSecond'
 ])
 export type UsageLedgerListSortBy = z.infer<typeof UsageLedgerListSortBySchema>
-export const UsageLedgerSortDirectionSchema = z.enum(['asc', 'desc'])
-export type UsageLedgerSortDirection = z.infer<typeof UsageLedgerSortDirectionSchema>
+export const UsageLedgerSortOrderSchema = z.enum(['asc', 'desc'])
+export type UsageLedgerSortOrder = z.infer<typeof UsageLedgerSortOrderSchema>
 
 const TimeRangeFields = {
   /** Inclusive lower bound on createdAt (epoch milliseconds) */
@@ -48,7 +48,7 @@ export const UsageLedgerListQuerySchema = z
     /** Positive integer, max {@link USAGE_LEDGER_MAX_LIMIT}, defaults to {@link USAGE_LEDGER_DEFAULT_LIMIT} */
     limit: z.int().positive().max(USAGE_LEDGER_MAX_LIMIT).default(USAGE_LEDGER_DEFAULT_LIMIT),
     sortBy: UsageLedgerListSortBySchema.default('createdAt'),
-    sortDirection: UsageLedgerSortDirectionSchema.default('desc'),
+    sortOrder: UsageLedgerSortOrderSchema.default('desc'),
     ...TimeRangeFields
   })
   .strict()
