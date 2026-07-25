@@ -583,6 +583,26 @@ export class AiService extends BaseService {
       imageParams
     )
 
+    // The SDK's only channel for "I dropped part of your request": each image model
+    // pushes a `SharedV3Warning` for a param it cannot carry (@ai-sdk/openai-compatible
+    // for `aspectRatio`/`seed`, SiliconImageModel for `aspectRatio`/`mask`, the gateway
+    // gemini adapter for `n`/`size`). Nothing read it, so a registry-declared control
+    // that the model silently refuses looked identical to one that worked — the #17394
+    // class of defect, reported by the SDK and thrown away one line before use.
+    if (result.warnings && result.warnings.length > 0) {
+      logger.warn('Image model reported unsupported request features', {
+        uniqueModelId: request.uniqueModelId,
+        providerId: sdkConfig.providerId,
+        optionsKey: sdkConfig.optionsKey,
+        modelId: sdkConfig.modelId,
+        warnings: result.warnings.map((warning) =>
+          warning.type === 'unsupported'
+            ? { type: warning.type, feature: warning.feature, ...(warning.details && { details: warning.details }) }
+            : { type: warning.type }
+        )
+      })
+    }
+
     const dataUrls: Base64String[] = []
     let filteredCount = 0
     for (const image of result.images ?? []) {

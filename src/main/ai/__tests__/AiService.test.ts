@@ -1,5 +1,6 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockGenerateImage = vi.fn()
@@ -327,6 +328,72 @@ describe('AiService', () => {
 
     expect(createInternalEntry).toHaveBeenCalledWith({ source: 'base64', data: 'data:image/png;base64,abc123' })
     expect(result).toEqual({ files: [fileEntry] })
+  })
+
+  it('surfaces the image model’s "unsupported feature" warnings instead of discarding them', async () => {
+    const service = createService()
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: {
+        providerId: 'openai-compatible',
+        providerSettings: {},
+        modelId: 'gemini-3-pro-image',
+        concreteProviderId: '302ai',
+        optionsKey: '302ai'
+      }
+    } as never)
+
+    // What @ai-sdk/openai-compatible actually returns for a declared `aspectRatio` it
+    // cannot put on the wire — the one signal that distinguishes "control worked" from
+    // "control silently refused", and it used to be dropped one line before use.
+    mockGenerateImage.mockResolvedValue({
+      images: [],
+      warnings: [{ type: 'unsupported', feature: 'aspectRatio', details: 'not supported by this model' }]
+    })
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
+    )
+    mockMainLoggerService.warn.mockClear()
+
+    await service.generateImage({
+      uniqueModelId: '302ai::gemini-3-pro-image',
+      prompt: 'draw a cat',
+      paramValues: { aspectRatio: '16:9' }
+    })
+
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      expect.stringContaining('unsupported'),
+      expect.objectContaining({
+        optionsKey: '302ai',
+        warnings: [{ type: 'unsupported', feature: 'aspectRatio', details: 'not supported by this model' }]
+      })
+    )
+  })
+
+  it('stays quiet when the model reports no warnings', async () => {
+    const service = createService()
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: {
+        providerId: 'test-provider',
+        providerSettings: {},
+        modelId: 'test-model',
+        concreteProviderId: 'test-provider',
+        optionsKey: 'test-provider'
+      }
+    } as never)
+
+    mockGenerateImage.mockResolvedValue({ images: [], warnings: [] })
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
+    )
+    mockMainLoggerService.warn.mockClear()
+
+    await service.generateImage({
+      uniqueModelId: 'test-provider::test-model',
+      prompt: 'draw a cat',
+      paramValues: {}
+    })
+
+    expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
   })
 
   it("omits the SDK size for the 'auto' sentinel AND when no size is given (no 1024x1024 default)", async () => {

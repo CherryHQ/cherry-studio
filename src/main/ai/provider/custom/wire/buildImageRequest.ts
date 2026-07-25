@@ -1,8 +1,11 @@
 import { IMAGE_PARAM_CATALOG_KEYS, wireName } from '@cherrystudio/provider-registry'
+import { loggerService } from '@logger'
 import type { CanonicalParamKey } from '@shared/data/types/model'
 import type { JSONValue } from 'ai'
 
 import type { WireProfile, WireRegistration } from './wireProfile'
+
+const logger = loggerService.withContext('imageWireEngine')
 
 function skipValue(value: unknown): boolean {
   return value === undefined || value === '' || value === null || value === 'auto'
@@ -138,6 +141,19 @@ export function buildVendorProviderOptions(
   const extras = passthroughExtras(vendorBag, registration.profile)
   const forwarded = registration.passthrough === 'wire' ? wireNameBag(jsonBag(extras)) : jsonBag(extras)
   const body = registration.passthrough ? { ...forwarded, ...mapped } : mapped
+  // Without passthrough the whole leftover bag is discarded — the single largest drop
+  // point in the image path, and previously a silent one. A key here is a control the
+  // registry declared, the form rendered, and the user set, that never reaches the
+  // vendor: either the profile needs a rule for it or the registry shouldn't declare it.
+  if (!registration.passthrough) {
+    const dropped = Object.keys(extras)
+    if (dropped.length > 0) {
+      logger.warn('Vendor image params dropped: profile maps none of them and passthrough is off', {
+        providerOptionsKey: providerId,
+        dropped
+      })
+    }
+  }
   const result: Record<string, Record<string, JSONValue>> = {}
   // `providerId` is `sdkConfig.optionsKey` — the namespace the SDK image model reads
   // (`resolveProviderOptionsKey`), which already re-keys the ids whose SDK package

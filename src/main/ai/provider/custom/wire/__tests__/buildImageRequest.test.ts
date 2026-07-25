@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import type { AppProviderId } from '../../../../types'
 import { splitParamValues } from '../../../../utils/imageOptions'
@@ -302,5 +303,38 @@ describe('buildVendorProviderOptions — openai-compatible fallback (wire-named 
     expect(compatEngine('tokenhub', paramValues)).toEqual({
       tokenhub: { size: '2K', someVendorField: 1 }
     })
+  })
+})
+
+describe('buildVendorProviderOptions — a dropped vendor bag is observable', () => {
+  beforeEach(() => {
+    mockMainLoggerService.warn.mockClear()
+  })
+
+  it('warns with the dropped keys when the profile maps none and passthrough is off', () => {
+    // google's profile has no rule for `negativePrompt` and the registration has no
+    // passthrough, so the key vanishes. Before this warning that was indistinguishable
+    // from a param that reached the vendor — the #17394 failure mode.
+    expect(engine('google', { negativePrompt: 'no blur', personGeneration: 'ALLOW_ALL' })).toEqual({
+      google: { personGeneration: 'allow_all' }
+    })
+
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      expect.stringContaining('dropped'),
+      expect.objectContaining({ providerOptionsKey: 'google', dropped: ['negativePrompt'] })
+    )
+  })
+
+  it('stays quiet when the profile maps every bag key', () => {
+    engine('google', { personGeneration: 'ALLOW_ALL' })
+    expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
+  })
+
+  it('stays quiet for a passthrough registration, which forwards the leftovers', () => {
+    expect(engine('aihubmix', { seed: 9, imageResolution: '2K' })).toEqual({
+      openai: { seed: 9 },
+      aihubmix: { seed: 9, imageResolution: '2K' }
+    })
+    expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
   })
 })
