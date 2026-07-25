@@ -237,6 +237,7 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
           {showOpacitySlider && (
             <div className="absolute top-full left-10 z-[80] mt-2 flex h-[120px] items-center justify-center rounded bg-popover px-2 pt-4 pb-3 opacity-100! shadow-md">
               <Slider
+                className="data-[orientation=vertical]:min-h-0"
                 orientation="vertical"
                 min={20}
                 max={100}

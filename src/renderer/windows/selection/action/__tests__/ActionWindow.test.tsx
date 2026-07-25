@@ -1,3 +1,4 @@
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { PropsWithChildren } from 'react'
@@ -21,15 +22,19 @@ vi.mock('@renderer/components/selection/SelectionActionIcon', () => ({
   default: ({ size }: { size: number }) => <span data-testid="action-icon" data-size={size} />
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, ...props }: PropsWithChildren<React.ButtonHTMLAttributes<HTMLButtonElement>>) => (
-    <button type="button" {...props}>
-      {children}
-    </button>
-  ),
-  Slider: () => null,
-  Tooltip: ({ children }: PropsWithChildren) => children
-}))
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<Pick<typeof CherryStudioUi, 'Slider'>>()
+
+  return {
+    Button: ({ children, ...props }: PropsWithChildren<React.ButtonHTMLAttributes<HTMLButtonElement>>) => (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    ),
+    Slider: actual.Slider,
+    Tooltip: ({ children }: PropsWithChildren) => children
+  }
+})
 
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
@@ -109,5 +114,9 @@ describe('ActionWindow surface', () => {
 
     expect(opacityButton).toHaveClass('bg-accent', 'text-foreground', 'hover:bg-accent')
     expect(opacityButton).not.toHaveClass('bg-primary/10', 'text-primary')
+    const opacitySlider = container.querySelector('[data-slot="slider"]')
+
+    expect(opacitySlider).toHaveClass('data-[orientation=vertical]:min-h-0')
+    expect(opacitySlider).not.toHaveClass('data-[orientation=vertical]:min-h-44')
   })
 })
