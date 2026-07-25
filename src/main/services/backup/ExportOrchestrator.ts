@@ -356,9 +356,8 @@ export class ExportOrchestrator {
         }
         notesDir = join(stagingRoot, 'notes')
         const r = await fileStager.stageNotes(notesRoot, notesRelPaths, notesDir)
-        // notes are NOT DB-gated (overlays stay in backup.sqlite even when a body is
-        // absent) — so a missing collected body would yield a "successful" archive
-        // with orphan overlays. Fail closed: every collected relPath must stage.
+        // A missing collected body would make manifest and snapshot diverge before
+        // the overlay-pruning step below. Fail closed: every collected relPath must stage.
         if (r.missing.length > 0) {
           throw new Error(
             `ExportOrchestrator: notes body missing after collect (${r.missing.length}): ${r.missing.slice(0, 5).join(', ')}`
@@ -378,7 +377,14 @@ export class ExportOrchestrator {
         snapshotDb.close()
         snapshotDb = undefined
       }
-      await this.pruneMissingRows(backupDbPath, filesMissing, knowledgeMissing)
+      await this.pruneMissingRows(
+        backupDbPath,
+        filesMissing,
+        knowledgeMissing,
+        options.preset === 'full' && domains.includes('PREFERENCES') && notesRoot !== undefined
+          ? { rootPath: notesRoot, paths: notesPaths }
+          : undefined
+      )
 
       // 4.6 final VACUUM — after ALL export-time DELETEs (stripper step 2.5 + rowScopes
       // 2.6 + pruneMissingRows 4.5), rewrite backup.sqlite so deleted rows (excluded
@@ -452,20 +458,18 @@ export class ExportOrchestrator {
   }
 
   /**
-   * Delete file_entry / knowledge_base rows whose blob/dir was missing at stage
-   * time, so backup.sqlite rows ↔ staged files are 1:1 (no incomplete restore: a row
-   * pointing at a file the archive never held). Opens a write connection to the
-   * snapshot DB; file_ref (chat_message_file_ref / painting_file_ref) and
-   * knowledge_item cascade via FK (PRAGMA foreign_keys = ON). No-op when nothing
-   * was missing. Table names are the stable resource-root tables owned by
-   * FILE_STORAGE / KNOWLEDGE; FK CASCADE removes their members.
+   * Align backup.sqlite resource roots with the bodies that actually staged. Missing
+   * file/knowledge roots are removed; full backups retain note overlays only for the
+   * resolved source Notes root and staged markdown paths. This makes each manifest
+   * note path identify at most one source overlay before restore remaps it to the target root.
    */
   private async pruneMissingRows(
     backupDbPath: string,
     filesMissing: readonly string[],
-    knowledgeMissing: readonly string[]
+    knowledgeMissing: readonly string[],
+    notes?: { readonly rootPath: string; readonly paths: readonly string[] }
   ): Promise<void> {
-    if (filesMissing.length === 0 && knowledgeMissing.length === 0) return
+    if (filesMissing.length === 0 && knowledgeMissing.length === 0 && notes === undefined) return
     const db = new Database(backupDbPath)
     try {
       db.pragma('foreign_keys = ON')
@@ -499,8 +503,23 @@ export class ExportOrchestrator {
           db.prepare(`DELETE FROM knowledge_base WHERE id IN (${placeholders})`).run(...batch)
         }
       }
+      const deleteUnstagedNotes = (scope: NonNullable<typeof notes>): void => {
+        const stagedPaths = new Set(scope.paths)
+        const rows = db.prepare(`SELECT id, root_path, path FROM note`).all() as {
+          id: string
+          root_path: string
+          path: string
+        }[]
+        const deleteById = db.prepare(`DELETE FROM note WHERE id = ?`)
+        for (const row of rows) {
+          if (row.root_path !== scope.rootPath || !stagedPaths.has(row.path)) {
+            deleteById.run(row.id)
+          }
+        }
+      }
       if (filesMissing.length > 0) deleteFileEntries(filesMissing)
       if (knowledgeMissing.length > 0) deleteKnowledgeBases(knowledgeMissing)
+      if (notes !== undefined) deleteUnstagedNotes(notes)
     } finally {
       db.close()
     }

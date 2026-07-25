@@ -530,6 +530,7 @@ describe('planResources', () => {
       }
     ])
     expect(plan.skips).toEqual([{ id: 'b.md', kind: 'note', reason: 'exists — skip' }])
+    expect(plan.noteAdditions).toEqual(new Map([['a.md', notesRoot]]))
     expect(plan.toRestore).toEqual([{ kind: 'note', count: 1 }])
   })
 
@@ -544,6 +545,7 @@ describe('planResources', () => {
       )
     )
     expect(plan.resources).toEqual([])
+    expect(plan.noteAdditions).toEqual(new Map())
     expect(plan.skips).toEqual([{ id: 'a.md', kind: 'note', reason: 'no managed notesRoot' }])
   })
 
@@ -560,6 +562,7 @@ describe('planResources', () => {
         )
       )
       expect(plan.resources).toEqual([])
+      expect(plan.noteAdditions).toEqual(new Map())
       expect(plan.skips[0]).toMatchObject({ id: 'a.md', kind: 'note', reason: 'outside userData' })
     } finally {
       rmSync(outsideNotes, { recursive: true, force: true })

@@ -374,6 +374,26 @@ export class MergeEngine {
           agg.root === 'pin' ? this.registry.getSchema('TAGS_GROUPS').polymorphicEntityMap : undefined
         for (const backupRow of backupRoots) {
           const backupPrimaryKey = pkColumns.map((c) => backupRow[physicalColumn(c)] as string | number)
+          // Full restores import an overlay only when planning staged its markdown body.
+          // The plan also supplies this host's Notes root, so both conflict lookup and
+          // the later insert use the target path rather than the backup machine's root.
+          const noteRootPath =
+            agg.root === 'note'
+              ? ctx.resourcePlan?.noteAdditions.get(String(backupRow[physicalColumn('path')]))
+              : undefined
+          if (agg.root === 'note' && noteRootPath === undefined) {
+            decisions.push({
+              aggregate: agg,
+              identity: backupPrimaryKey,
+              backupPrimaryKey,
+              localCanonicalPrimaryKey: undefined,
+              action: 'skip'
+            })
+            continue
+          }
+          if (noteRootPath !== undefined) {
+            backupRow[physicalColumn('rootPath')] = noteRootPath
+          }
           if (pinEntityMap) {
             const entityType = String(backupRow[physicalColumn('entityType')] ?? '') as EntityType
             const target = pinEntityMap[entityType]
@@ -454,7 +474,8 @@ export class MergeEngine {
             identity: backupPrimaryKey,
             backupPrimaryKey,
             localCanonicalPrimaryKey,
-            action
+            action,
+            noteRootPath
           })
         }
       }
@@ -653,6 +674,9 @@ export class MergeEngine {
       .prepare(`SELECT * FROM ${quoteIdent(agg.root)} WHERE ${whereBackup}`)
       .get(...backupPrimaryKey) as Record<string, unknown> | undefined
     if (!backupRoot) return
+    if (decision.noteRootPath !== undefined) {
+      backupRoot[physicalColumn('rootPath')] = decision.noteRootPath
+    }
 
     const domain = this.registry.getTableOwner(agg.root)
     const policies =
@@ -705,6 +729,9 @@ export class MergeEngine {
       | Record<string, unknown>
       | undefined
     if (!rootRow) return // root vanished from backup mid-merge — skip defensively
+    if (decision.noteRootPath !== undefined) {
+      rootRow[physicalColumn('rootPath')] = decision.noteRootPath
+    }
     this.insertRow(workSqlite, agg.root, rootRow)
     // Record source eligibility (inserted) + target availability (inserted) for this root,
     // scoped per endpoint table (R8 + endpoint-disjoint — see IdentityMap).

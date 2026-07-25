@@ -15,6 +15,7 @@ import { fileEntryTable } from '@main/data/db/schemas/file'
 import { chatMessageFileRefTable } from '@main/data/db/schemas/fileRelations'
 import { knowledgeBaseTable } from '@main/data/db/schemas/knowledge'
 import { messageTable } from '@main/data/db/schemas/message'
+import { noteTable } from '@main/data/db/schemas/note'
 import { topicTable } from '@main/data/db/schemas/topic'
 import type { AssistantSettings } from '@shared/data/types/assistant'
 import type { BackupProgressUpdate } from '@shared/types/backup'
@@ -69,7 +70,7 @@ const newOrch = (dir: string, fixture: string) =>
     tempDir: dir,
     knowledgeRoot: join(dir, 'kb-root'),
     skillsRoot: join(dir, 'skills-root'),
-    notesRoot: () => join(dir, 'notes-root'),
+    notesRoot: () => undefined,
     // The STUB_REGISTRY describe never runs lite (lite e2e is below), so stripping
     // is irrelevant to these isolated pipeline tests.
     stripper: { strip: async () => [] }
@@ -313,6 +314,12 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
       await mkdir(join(notesRoot, 'sub'), { recursive: true })
       await writeFile(join(notesRoot, 'sub', 'note2.md'), '# note 2')
       await writeFile(join(notesRoot, 'note3.MD'), '# note 3')
+      await dbh.db.insert(noteTable).values([
+        { id: 'note-active-root', rootPath: notesRoot, path: 'note1.md', isStarred: true },
+        { id: 'note-active-nested', rootPath: notesRoot, path: 'sub/note2.md', isExpanded: true },
+        { id: 'note-deleted-body', rootPath: notesRoot, path: 'deleted.md', isStarred: true },
+        { id: 'note-stale-root', rootPath: join(dir, 'old-notes-root'), path: 'note1.md', isStarred: true }
+      ])
 
       // Snapshot the live test DB (holds the seeded file_entry + knowledge_base) via
       // DbService.createSnapshot; the orchestrator then opens its own read-only handle on
@@ -376,6 +383,10 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
           expect(count('job'), 'job stripped on full (ALWAYS_STRIP)').toBe(0)
           expect(count('file_entry'), 'file_entry preserved on full').toBe(1)
           expect(count('knowledge_base'), 'knowledge_base preserved on full').toBe(1)
+          expect(d.prepare(`SELECT id, root_path, path FROM note ORDER BY id`).all()).toEqual([
+            { id: 'note-active-nested', root_path: notesRoot, path: 'sub/note2.md' },
+            { id: 'note-active-root', root_path: notesRoot, path: 'note1.md' }
+          ])
         } finally {
           d.close()
         }
@@ -745,7 +756,7 @@ describe('ExportOrchestrator rowScopes filter (AGENTS job_schedule partition)', 
         tempDir: dir,
         knowledgeRoot: join(dir, 'kb-root'),
         skillsRoot: join(dir, 'skills-root'),
-        notesRoot: () => join(dir, 'notes-root'),
+        notesRoot: () => undefined,
         // Full preset has no lite exclusions; a no-op isolates the rowScopes filter.
         stripper: { strip: async () => [] }
       })

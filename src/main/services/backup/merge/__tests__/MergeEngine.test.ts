@@ -882,6 +882,39 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     expect(rows).toEqual([{ id: 'note-local', is_starred: 1 }]) // local wins, no UNIQUE abort
   })
 
+  it('imports only planned note-add overlays and remaps their rootPath to this host', async () => {
+    const now = Date.now()
+    const sourceNotesRoot = '/Users/source/Notes'
+    const targetNotesRoot = '/Users/target/Library/Application Support/CherryStudio/Data/Notes'
+    seedBackup((db) => {
+      for (const [id, notePath] of [
+        ['note-planned', 'planned.md'],
+        // Its body conflicted during planning, so it is deliberately absent from noteAdditions.
+        ['note-conflict', 'conflict.md'],
+        // Its body was not staged by the archive at all.
+        ['note-missing-body', 'missing.md']
+      ]) {
+        db.prepare(
+          `INSERT INTO note (id, root_path, path, is_starred, is_expanded, created_at, updated_at)
+           VALUES (?, ?, ?, 1, 0, ?, ?)`
+        ).run(id, sourceNotesRoot, notePath, now, now)
+      }
+    })
+
+    await runMerge({
+      backupDbPath: backupPath,
+      domains: ['PREFERENCES'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>(),
+      resourcePlan: { noteAdditions: new Map([['planned.md', targetNotesRoot]]) },
+      includeFiles: true
+    })
+
+    expect(dbh.sqlite.prepare(`SELECT id, root_path, path FROM note ORDER BY id`).all()).toEqual([
+      { id: 'note-planned', root_path: targetNotesRoot, path: 'planned.md' }
+    ])
+  })
+
   it('excludes platformSpecificKeys preference rows on fresh-target backfill (§6.1)', async () => {
     seedBackup((db) => {
       const now = Date.now()

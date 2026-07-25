@@ -4,8 +4,8 @@
  *
  * `ResourcePlan` is one value with three consumers:
  *   - merge input   : skippedFileEntryIds / skippedKnowledgeBaseIds /
- *                     skippedSkillFolderNames + stagedFileEntryIds (drive
- *                     MergeEngine skip + disclose — every class same-source)
+ *                     skippedSkillFolderNames + stagedFileEntryIds + noteAdditions
+ *                     (drive MergeEngine skip + disclose — every class same-source)
  *   - journal source : resources (serialized into RestoreJournal.fileResources)
  *   - disclosure UI  : skips + toRestore (mirror into RestoreResultSummary)
  *
@@ -89,6 +89,8 @@ export interface ResourcePlan {
   readonly skippedSkillFolderNames: Set<string>
   /** Additive file resources (blob-add/dir-add/note-add only; no overwrite). Serialized into journal.fileResources. */
   readonly resources: AddFileResource[]
+  /** Planned note body path → resolved target Notes root. Merge imports an overlay only for these note-add entries. */
+  readonly noteAdditions: ReadonlyMap<string, string>
   /** Pre-computed restore counts by class (knowledge vs skill stay distinguishable; not reverse-derived from resources). */
   readonly toRestore: ReadonlyArray<{ readonly kind: ResourceClass; readonly count: number }>
   /** Skipped resources with reason → relaunch-result disclosure UI. */
@@ -101,6 +103,7 @@ const EMPTY_PLAN: ResourcePlan = {
   skippedKnowledgeBaseIds: new Set(),
   skippedSkillFolderNames: new Set(),
   resources: [],
+  noteAdditions: new Map(),
   toRestore: [],
   skips: []
 }
@@ -293,6 +296,7 @@ export function planResources(ctx: PlanCtx): ResourcePlan {
   const skippedKnowledgeBaseIds = new Set<string>()
   const skippedSkillFolderNames = new Set<string>()
   const resources: AddFileResource[] = []
+  const noteAdditions = new Map<string, string>()
   const skips: SkippedResource[] = []
   const counts: Record<ResourceClass, number> = { file: 0, knowledge: 0, skill: 0, note: 0 }
 
@@ -440,6 +444,7 @@ export function planResources(ctx: PlanCtx): ResourcePlan {
           stagingPath: toRel(stagingAbs),
           livePath: toRel(liveAbs)
         })
+        noteAdditions.set(relPath, notesRoot)
         counts.note += 1
       }
     }
@@ -454,6 +459,7 @@ export function planResources(ctx: PlanCtx): ResourcePlan {
     skippedKnowledgeBaseIds,
     skippedSkillFolderNames,
     resources,
+    noteAdditions,
     toRestore: buildToRestore(counts),
     skips
   }

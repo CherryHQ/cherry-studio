@@ -224,6 +224,7 @@ export class ImportOrchestrator {
         stagedFileEntryIds: plan.stagedFileEntryIds,
         skippedKnowledgeBaseIds: plan.skippedKnowledgeBaseIds,
         skippedSkillFolderNames: plan.skippedSkillFolderNames,
+        resourcePlan: plan,
         includeFiles: presetIncludesFiles(archiveContext.manifest.preset)
       }
       const result = await this.deps.mergeBackupIntoWork(workSqlite, workDb, ctx)

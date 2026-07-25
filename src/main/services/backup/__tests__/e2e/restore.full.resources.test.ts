@@ -344,6 +344,10 @@ describe('e2e-restore full resource fixtures (B3)', () => {
         `INSERT INTO agent_global_skill (id, name, folder_name, source, tags, content_hash, is_enabled, created_at, updated_at)
          VALUES (?, ?, ?, 'local', '[]', 'hash', 1, ?, ?)`
       ).run('skill-1', 'my-skill', 'my-skill', now, now)
+      db.prepare(
+        `INSERT INTO note (id, root_path, path, is_starred, is_expanded, created_at, updated_at)
+         VALUES (?, ?, ?, 1, 0, ?, ?)`
+      ).run('note-skipped-no-root', '/source/Notes', 'folder/note.md', now, now)
     })
     await buildFullArchive({
       stageRoot: tmpDir,
@@ -390,6 +394,12 @@ describe('e2e-restore full resource fixtures (B3)', () => {
       { kind: 'skill', count: 1 }
     ])
     expect(result.plan.skips).toEqual([{ id: 'folder/note.md', kind: 'note', reason: 'no managed notesRoot' }])
+    const stagedDb = new Database(join(stagingRoot, restoreId, 'work.sqlite'), { readonly: true })
+    try {
+      expect((stagedDb.prepare(`SELECT COUNT(*) AS count FROM note`).get() as { count: number }).count).toBe(0)
+    } finally {
+      stagedDb.close()
+    }
 
     const journal = readRestoreJournal()
     expect(journal.kind).toBe('ok')

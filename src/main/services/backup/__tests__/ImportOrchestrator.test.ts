@@ -30,7 +30,7 @@ import {
 } from '../errors'
 import { ImportOrchestrator, type ImportOrchestratorDeps } from '../ImportOrchestrator'
 import type { BackupManifest } from '../manifest'
-import { planResources, type PlanRoots } from '../resourcePlanning'
+import { planResources, type PlanRoots, type ResourcePlan } from '../resourcePlanning'
 
 // Resolve the production drizzle migrations folder the same way the test DB harness
 // does (relative to this file, not process.cwd()) so applyMigrations finds _journal.json.
@@ -139,6 +139,34 @@ describe('ImportOrchestrator spine', () => {
     expect(existsSync(join(stagingRoot, 'rst-001', 'work.sqlite'))).toBe(true)
     expect(existsSync(join(stagingRoot, 'rst-001', 'work.sqlite-wal'))).toBe(false)
     expect(existsSync(join(stagingRoot, 'rst-001', 'work.sqlite-shm'))).toBe(false)
+  })
+
+  it('passes the exact resource plan to MergeEngine', async () => {
+    const plan: ResourcePlan = {
+      stagedFileEntryIds: new Set(),
+      skippedFileEntryIds: new Set(),
+      skippedKnowledgeBaseIds: new Set(),
+      skippedSkillFolderNames: new Set(),
+      resources: [],
+      noteAdditions: new Map([['note.md', join(tmpDir, 'Data', 'Notes')]]),
+      toRestore: [],
+      skips: []
+    }
+    const mergeBackupIntoWork = vi.fn(async () => ({ degradedToSkips: [] }))
+    const orch = new ImportOrchestrator(
+      makeDeps({
+        planResources: () => plan,
+        mergeBackupIntoWork
+      })
+    )
+
+    await orch.importBackup({ archivePath: '/tmp/fake.cherrybackup', restoreId: 'rst-plan' })
+
+    expect(mergeBackupIntoWork).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ resourcePlan: plan })
+    )
   })
 
   it('aborts without a journal when a writer touches live during staging (2nd fingerprint mismatch)', async () => {

@@ -13,6 +13,8 @@ import type { BackupDomain, ConflictStrategy } from '@main/data/db/backup/domain
 import type { DbType } from '@main/data/db/types'
 import type Database from 'better-sqlite3'
 
+import type { ResourcePlan } from '../resourcePlanning'
+
 /** Effective action for an aggregate during merge — exhaustive switch in importRows (B3). */
 export type MergeAction = 'insert' | 'skip' | 'overwrite' | 'rename' | 'field-merge'
 
@@ -31,6 +33,8 @@ export interface AggregateDecision {
   readonly action: MergeAction
   /** New root uuid for RENAME (renamable uuid-entity, single-column PK only). */
   readonly newRootKey?: string
+  /** Resolved target Notes root for a planned note-add overlay. */
+  readonly noteRootPath?: string
 }
 
 /** Endpoint of a junction reference (root or member table + the FK column into it). */
@@ -171,6 +175,12 @@ export interface MergeContext {
    * undefined = treat as empty.
    */
   readonly skippedSkillFolderNames?: ReadonlySet<string>
+  /**
+   * The resource plan built from this restore's snapshot. noteAdditions is the
+   * single source for which body-backed note overlays may be imported and where
+   * their root_path must point on this host. Missing plans fail closed for Notes.
+   */
+  readonly resourcePlan?: Pick<ResourcePlan, 'noteAdditions'>
   /**
    * Whether Notes overlays are in scope. ImportOrchestrator sets this via
    * `presetIncludesFiles(manifest.preset)` (P0-3) — not raw manifest.includeFiles
