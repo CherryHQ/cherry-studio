@@ -2,7 +2,7 @@
 title: Cherry Assistant becomes a general-purpose built-in Agent
 category: changed
 severity: notice
-introduced_in_pr: #TBD
+introduced_in_pr: "#17398"
 date: 2026-07-24
 ---
 
