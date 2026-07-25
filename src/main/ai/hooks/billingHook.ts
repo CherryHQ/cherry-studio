@@ -22,6 +22,7 @@ const logger = loggerService.withContext('AiBillingHook')
  */
 export function createBillingHook(model: Model, requestMessageId?: string): Partial<AgentLoopHooks> {
   let total: LanguageModelUsage = ZERO_USAGE
+  let providerCostUsd: number | undefined
   let flushed = false
   const id = requestMessageId ?? crypto.randomUUID()
 
@@ -41,7 +42,7 @@ export function createBillingHook(model: Model, requestMessageId?: string): Part
         id,
         modelId: model.id,
         stats: usageToStats(total),
-        providerCostUsd: extractProviderCost(total.raw)
+        providerCostUsd
       })
       .catch((err) => {
         logger.warn('usage ledger record failed', { id, modelId: model.id, err })
@@ -50,7 +51,13 @@ export function createBillingHook(model: Model, requestMessageId?: string): Part
 
   return {
     onStepFinish: (step) => {
-      if (step.usage) total = mergeUsage(total, step.usage)
+      if (!step.usage) return
+      total = mergeUsage(total, step.usage)
+      // Each step is its own upstream generation and provider-reported cost
+      // covers one request, so sum it per step — the merged `raw` keeps only
+      // the last step's blob.
+      const stepCostUsd = extractProviderCost(step.usage.raw)
+      if (stepCostUsd !== undefined) providerCostUsd = (providerCostUsd ?? 0) + stepCostUsd
     },
     onFinish: flush,
     onAbort: flush,

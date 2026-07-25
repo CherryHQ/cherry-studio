@@ -9,7 +9,7 @@
  *   inputTokens / outputTokens / totalTokens               → same
  *   inputTokenDetails{noCache,cacheRead,cacheWrite}Tokens   → same
  *   outputTokenDetails{text,reasoning}Tokens                → same
- *   raw.cost (provider-reported)                            → metadata.providerCostUsd
+ *   raw.cost per step, summed (provider-reported)           → metadata.providerCostUsd
  *
  * A FULL cumulative snapshot is emitted every step: the AI SDK deep-merges
  * `message-metadata` into the accumulating message (`updateMessageMetadata`
@@ -56,9 +56,10 @@ export function mergeUsage(a: LanguageModelUsage, b: LanguageModelUsage): Langua
             reasoningTokens: addOpt(a.outputTokenDetails?.reasoningTokens, b.outputTokenDetails?.reasoningTokens)
           }
         : (undefined as unknown as LanguageModelUsage['outputTokenDetails']),
-    // `raw` is per-step (one upstream request), so only the latest is retained
-    // here. Inert today because usage accounting is never enabled; if it ever
-    // is, multi-step provider-reported cost would be under-counted.
+    // `raw` is per-step (one upstream request) and opaque, so it cannot be
+    // merged — only the latest is retained. Never derive a cumulative
+    // provider-reported cost from it: accumulate `extractProviderCost` per
+    // step instead (see `attachUsageObserver` and `createBillingHook`).
     raw: b.raw ?? a.raw
   }
 }
@@ -96,15 +97,21 @@ export function usageToStats(total: LanguageModelUsage): MessageStats {
 
 export function attachUsageObserver(agent: Agent): void {
   let total: LanguageModelUsage = ZERO_USAGE
+  let providerCostUsd: number | undefined
 
   agent.on('onStart', () => {
     total = ZERO_USAGE
+    providerCostUsd = undefined
   })
 
   agent.on('onStepFinish', (step) => {
     if (!step.usage) return
     total = mergeUsage(total, step.usage)
-    const providerCostUsd = extractProviderCost(total.raw)
+    // Every tool-loop step is a separate generation, and provider-reported
+    // cost covers one request — so sum it per step rather than reading the
+    // merged (last-step-only) `raw`.
+    const stepCostUsd = extractProviderCost(step.usage.raw)
+    if (stepCostUsd !== undefined) providerCostUsd = (providerCostUsd ?? 0) + stepCostUsd
     agent.write({
       type: 'message-metadata',
       messageMetadata: {

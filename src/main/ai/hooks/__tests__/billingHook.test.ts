@@ -25,10 +25,11 @@ const model = { id: 'test-provider::test-model' } as unknown as Model
 const fakeStep = (usage: Partial<LanguageModelUsage>) =>
   ({ usage }) as unknown as Parameters<NonNullable<AgentLoopHooks['onStepFinish']>>[0]
 
-// A run ends through exactly one terminal hook, but only `onFinish` means
-// "clean end" — usage accrued before an abort or a throwing step must still
-// reach the ledger, and exactly once.
-describe('createBillingHook flush', () => {
+// What the ledger row must contain, and when it is written. A run ends through
+// exactly one terminal hook, but only `onFinish` means "clean end" — usage
+// accrued before an abort or a throwing step must still reach the ledger, and
+// exactly once. Wiring details (id threading, zero-guard) live in AiService.test.
+describe('createBillingHook', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -65,6 +66,18 @@ describe('createBillingHook flush', () => {
         stats: expect.objectContaining({ inputTokens: 10, outputTokens: 5, totalTokens: 15 })
       })
     )
+  })
+
+  // An OpenRouter-style `usage.cost` prices a single generation, and every
+  // step is one — the ledger must carry the sum, not the last step's cost.
+  it('records the provider-reported cost summed over every step', () => {
+    const hook = createBillingHook(model, 'assistant-cost')
+
+    void hook.onStepFinish?.(fakeStep({ inputTokens: 6, outputTokens: 3, totalTokens: 9, raw: { cost: 0.25 } }))
+    void hook.onStepFinish?.(fakeStep({ inputTokens: 4, outputTokens: 2, totalTokens: 6, raw: { cost: 0.5 } }))
+    void hook.onFinish?.()
+
+    expect(mockRecordRequest).toHaveBeenCalledWith(expect.objectContaining({ providerCostUsd: 0.75 }))
   })
 
   it('records once when a finished run also reports abort or error', () => {
