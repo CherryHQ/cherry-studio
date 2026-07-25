@@ -130,7 +130,9 @@ export function QueuedFollowupsDock({
   if (items.length === 0) return null
 
   return (
-    <div className="mx-2 mb-1.5 rounded-[16px] border-[0.5px] border-border bg-background/90 p-1.5 backdrop-blur">
+    <div
+      className="mx-2 mb-1.5 rounded-[16px] border-[0.5px] border-border p-1.5 backdrop-blur"
+      style={{ backgroundColor: 'color-mix(in srgb, var(--background) 88%, transparent)' }}>
       <div className="flex items-center justify-between px-1.5 pb-1">
         <span className="text-muted-foreground text-xs">
           {t('chat.input.followup_queue.title', { count: items.length })}

@@ -82,7 +82,8 @@ const MessageGroup = ({
     [actions]
   )
 
-  const isGrouped = isMultiSelectMode ? false : isAssistantMultiModelGroup(messages)
+  const isMultiModelGroup = isAssistantMultiModelGroup(messages)
+  const isGrouped = isMultiSelectMode ? false : isMultiModelGroup
 
   // States — initialize from Cache, then tracked in React state
   const [_multiModelMessageStyle, setMultiModelMessageStyle] = useState<MultiModelMessageStyle>(() =>
@@ -312,6 +313,7 @@ const MessageGroup = ({
         isGrouped,
         isHorizontalMultiModelLayout: multiModelMessageStyle === 'horizontal',
         isLatestAssistantMessage: isLatestAssistantGroup && message.role === 'assistant',
+        showModelIdentity: isMultiModelGroup && multiModelMessageStyle !== 'fold',
         lockedMentionedModels: directAssistantModelsByUserId?.get(message.id),
         message,
         messageParts: partsByMessageId ? (partsByMessageId[message.id] ?? EMPTY_MESSAGE_PARTS) : undefined,
@@ -364,6 +366,7 @@ const MessageGroup = ({
     [
       isGrid,
       isGrouped,
+      isMultiModelGroup,
       topic,
       isLatestAssistantGroup,
       multiModelMessageStyle,

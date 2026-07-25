@@ -38,6 +38,7 @@ import NutstorePathPopup from './NutstorePathPopup'
 
 /** Nutstore-owned seed flag — never tied to local v2 action readiness. */
 const NUTSTORE_V1_PATH_SEED_ENABLED = false
+const SYNC_STATUS_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
 
 const NutstoreSettings: FC = () => {
   const { theme } = useTheme()
@@ -184,7 +185,7 @@ const NutstoreSettings: FC = () => {
     if (!nutstoreToken) return null
 
     if (!nutstoreSyncState.lastSyncTime && !nutstoreSyncState.syncing && !nutstoreSyncState.lastSyncError) {
-      return <span style={{ color: 'var(--color-foreground-secondary)' }}>{t('settings.data.webdav.noSync')}</span>
+      return <span style={{ color: SYNC_STATUS_COLOR }}>{t('settings.data.webdav.noSync')}</span>
     }
 
     return (
@@ -197,7 +198,7 @@ const NutstoreSettings: FC = () => {
           />
         )}
         {nutstoreSyncState.lastSyncTime && (
-          <span style={{ color: 'var(--color-foreground-secondary)' }}>
+          <span style={{ color: SYNC_STATUS_COLOR }}>
             {t('settings.data.webdav.lastSync')}: {dayjs(nutstoreSyncState.lastSyncTime).format('HH:mm:ss')}
           </span>
         )}

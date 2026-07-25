@@ -16,7 +16,7 @@ vi.mock('react-i18next', async (importOriginal) => ({
         'agent.toolPermission.error.sendFailed': 'Failed to send your decision. Please try again.',
         'agent.toolPermission.confirmation': 'Allow tool call?',
         'agent.toolPermission.inputPreview': 'Tool input preview',
-        'agent.toolPermission.pending': 'Waiting for approval',
+        'agent.toolPermission.pending': 'Waiting for confirmation',
         'agent.toolPermission.button.allow': 'Allow',
         'agent.toolPermission.button.deny': 'Deny',
         'agent.toolPermission.button.run': 'Run',

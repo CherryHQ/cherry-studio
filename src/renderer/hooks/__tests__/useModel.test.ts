@@ -637,4 +637,17 @@ describe('useDefaultModel', () => {
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.model_id')).toBe('openai::gpt-4o')
     expect(MockUsePreferenceUtils.getPreferenceValue('feature.paintings.default_model_id')).toBeNull()
   })
+
+  it('force-cascades setDefaultModel over existing quick and translate models', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.quick_assistant.model_id', 'cherryai::quick')
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', 'cherryai::translate')
+    const { result } = renderHook(() => useDefaultModel())
+
+    await act(async () => {
+      await result.current.setDefaultModel({ id: 'openai::gpt-4o' }, { forceCascade: true })
+    })
+
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.quick_assistant.model_id')).toBe('openai::gpt-4o')
+    expect(MockUsePreferenceUtils.getPreferenceValue('feature.translate.model_id')).toBe('openai::gpt-4o')
+  })
 })
