@@ -8403,7 +8403,8 @@
         "topModels": "Top models",
         "topProviders": "Top providers",
         "topSources": "Top assistants / agents",
-        "totalEntries": "{{count}} entries"
+        "totalEntries_one": "{{count}} entry",
+        "totalEntries_other": "{{count}} entries"
       },
       "groupBy": {
         "apiKey": "API key",
@@ -8453,7 +8454,8 @@
       "tooltip": {
         "cost": "Cost {{value}}",
         "metric": "{{value}}",
-        "requests": "{{count}} requests",
+        "requests_one": "{{count}} request",
+        "requests_other": "{{count}} requests",
         "tokens": "{{value}} tokens"
       },
       "window": {

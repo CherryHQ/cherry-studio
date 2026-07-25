@@ -8403,7 +8403,8 @@
         "topModels": "模型最高",
         "topProviders": "提供商最高",
         "topSources": "助手 / Agent 最高",
-        "totalEntries": "{{count}} 条记录"
+        "totalEntries_one": "{{count}} 条记录",
+        "totalEntries_other": "{{count}} 条记录"
       },
       "groupBy": {
         "apiKey": "API 密钥",
@@ -8453,7 +8454,8 @@
       "tooltip": {
         "cost": "成本 {{value}}",
         "metric": "{{value}}",
-        "requests": "{{count}} 个请求",
+        "requests_one": "{{count}} 个请求",
+        "requests_other": "{{count}} 个请求",
         "tokens": "{{value}} 个令牌"
       },
       "window": {
