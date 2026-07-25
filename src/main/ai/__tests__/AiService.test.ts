@@ -1045,7 +1045,8 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     const service = createService()
     stubResolution(service)
 
-    const createInternalEntry = vi.fn().mockResolvedValue({ id: 'in-1' })
+    // Distinct ids per create so the input and mask rows are told apart below.
+    const createInternalEntry = vi.fn().mockResolvedValueOnce({ id: 'in-1' }).mockResolvedValueOnce({ id: 'mask-1' })
     const outputFiles = [{ id: 'out-1', origin: 'internal', ext: 'png', name: 'img', size: 3, createdAt: 0 }]
     const enqueue = vi.fn().mockReturnValue({
       id: 'job-1',
@@ -1067,13 +1068,19 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
       prompt: 'a cat',
       paramValues: {},
       inputImages: ['data:image/png;base64,AAAA'],
+      mask: 'data:image/png;base64,BBBB',
       cleanupPolicy: 'delete_when_unreferenced',
       requestOptions: { signal: new AbortController().signal }
     })
 
     expect(enqueue).toHaveBeenCalledWith(
       'image-generation.generate',
-      expect.objectContaining({ uniqueModelId: 'ppio::qwen-image', prompt: 'a cat', inputFileIds: ['in-1'] })
+      expect.objectContaining({
+        uniqueModelId: 'ppio::qwen-image',
+        prompt: 'a cat',
+        inputFileIds: ['in-1'],
+        maskFileId: 'mask-1'
+      })
     )
     expect(result).toEqual({ files: outputFiles })
     // No FileManager ref holds the temp input copy — it must be classified
@@ -1082,10 +1089,13 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     expect(createInternalEntry).toHaveBeenCalledWith(
       expect.objectContaining({ cleanupPolicy: 'delete_when_unreferenced' })
     )
-    // A job_file_ref must hold the input for the job's lifetime so a startup
-    // cleanup pass can't reclaim it before recovery resumes the job.
+    // A job_file_ref must hold every input for the job's lifetime so a cleanup
+    // pass can't reclaim it while the job is still queued or running. The mask
+    // rides the same guarantee under its own role — dropping that row would make
+    // the mask entry reclaimable mid-job with the input row still covering.
     expect(refInsertValues).toHaveBeenCalledWith([
-      expect.objectContaining({ fileEntryId: 'in-1', sourceId: 'job-1', role: 'input' })
+      expect.objectContaining({ fileEntryId: 'in-1', sourceId: 'job-1', role: 'input' }),
+      expect.objectContaining({ fileEntryId: 'mask-1', sourceId: 'job-1', role: 'mask' })
     ])
   })
 
