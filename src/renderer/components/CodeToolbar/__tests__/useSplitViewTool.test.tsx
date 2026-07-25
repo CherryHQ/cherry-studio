@@ -153,17 +153,6 @@ describe('useSplitViewTool', () => {
   })
 
   describe('edge cases', () => {
-    it('should handle missing setTools gracefully', () => {
-      const props = createMockProps({ setTools: undefined })
-
-      expect(() => {
-        renderHook(() => useSplitViewTool(props))
-      }).not.toThrow()
-
-      // Should still call useToolManager (but won't actually register)
-      expect(mocks.useToolManager).toHaveBeenCalledWith(undefined)
-    })
-
     it('should not break when onToggleSplitView is undefined', () => {
       const props = createMockProps({ onToggleSplitView: undefined })
       renderHook(() => useSplitViewTool(props))

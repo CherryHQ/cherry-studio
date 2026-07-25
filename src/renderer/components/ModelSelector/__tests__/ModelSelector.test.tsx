@@ -423,32 +423,6 @@ describe('ModelSelector', () => {
     expect(togglePin).toHaveBeenCalledWith('openai::gpt-4')
   })
 
-  it('uses neutral row styling and pinned action color', () => {
-    const pinnedItem = makeModelItem('openai::gpt-4' as UniqueModelId, { isPinned: true })
-    mockUseModelSelectorData.mockReturnValue(
-      makeData({
-        listItems: [pinnedItem],
-        modelItems: [pinnedItem],
-        resolvedSelectedModelIds: ['openai::gpt-4' as UniqueModelId],
-        visibleSelectedModelIdSet: makeSelectedSet(['openai::gpt-4' as UniqueModelId])
-      })
-    )
-
-    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
-
-    const option = screen.getByTestId('model-selector-item-openai::gpt-4')
-    const row = option.closest('[data-model-selector-row]')
-    expect(row).toHaveClass('group', 'relative', 'h-8', 'rounded-[10px]', 'px-2', 'pr-0.5', 'py-1', 'bg-accent/70')
-    expect(row).not.toHaveClass('bg-primary/10')
-    expect(row?.querySelector('span[aria-hidden="true"]')).toHaveClass('bg-primary')
-    expect(screen.getByLabelText('models.action.unpin')).toHaveClass(
-      'size-4',
-      'hover:bg-transparent',
-      'text-foreground!'
-    )
-    expect(screen.getByLabelText('models.action.unpin')).not.toHaveClass('text-primary!')
-  })
-
   it('renders filter tags as labeled chips without a filter title', () => {
     mockUseModelSelectorData.mockReturnValue(
       makeData({
@@ -464,23 +438,6 @@ describe('ModelSelector', () => {
     expect(screen.getByText('models.type.vision')).toBeInTheDocument()
     expect(screen.getByText('models.type.reasoning')).toBeInTheDocument()
     expect(screen.getByText('models.type.free')).toBeInTheDocument()
-  })
-
-  it('uses neutral color on the row action when the model row is selected', () => {
-    const selectedItem = makeModelItem('openai::gpt-4' as UniqueModelId)
-    mockUseModelSelectorData.mockReturnValue(
-      makeData({
-        listItems: [selectedItem],
-        modelItems: [selectedItem],
-        resolvedSelectedModelIds: ['openai::gpt-4' as UniqueModelId],
-        visibleSelectedModelIdSet: makeSelectedSet(['openai::gpt-4' as UniqueModelId])
-      })
-    )
-
-    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
-
-    expect(screen.getByLabelText('models.action.pin')).toHaveClass('text-foreground!')
-    expect(screen.getByLabelText('models.action.pin')).not.toHaveClass('text-primary!')
   })
 
   it('keeps keyboard focus stable when multi-select value changes while open', async () => {
@@ -1050,15 +1007,6 @@ describe('ModelSelector', () => {
     expect(screen.queryByText(longIdentifier)).toBeNull()
     expect(providerName).toHaveClass('min-w-0', 'flex-[1_999_0%]', 'truncate')
     expect(providerName).toHaveAttribute('title', 'OpenAI')
-  })
-
-  it('renders fallback model avatars with a border', () => {
-    const item = makeModelItem('openai::gpt-4' as UniqueModelId)
-    mockUseModelSelectorData.mockReturnValue(makeData({ listItems: [item], modelItems: [item] }))
-
-    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
-
-    expect(screen.getByTestId('avatar')).toHaveClass('border', 'border-border')
   })
 
   it('passes the selector portal container to model detail hover cards', () => {

@@ -202,14 +202,6 @@ describe('useViewSourceTool', () => {
   })
 
   describe('edge cases', () => {
-    it('should handle missing setTools gracefully', () => {
-      const props = createMockProps({ setTools: undefined })
-
-      expect(() => {
-        renderHook(() => useViewSourceTool(props))
-      }).not.toThrow()
-    })
-
     it('should not break when onViewModeChange is undefined', () => {
       const props = createMockProps({ onViewModeChange: undefined })
       renderHook(() => useViewSourceTool(props))

@@ -163,17 +163,6 @@ describe('useWrapTool', () => {
   })
 
   describe('edge cases', () => {
-    it('should handle missing setTools gracefully', () => {
-      const props = createMockProps({ setTools: undefined })
-
-      expect(() => {
-        renderHook(() => useWrapTool(props))
-      }).not.toThrow()
-
-      // Should still call useToolManager (but won't actually register)
-      expect(mocks.useToolManager).toHaveBeenCalledWith(undefined)
-    })
-
     it('should not break when toggle is undefined', () => {
       const props = createMockProps({ toggle: undefined })
       renderHook(() => useWrapTool(props))

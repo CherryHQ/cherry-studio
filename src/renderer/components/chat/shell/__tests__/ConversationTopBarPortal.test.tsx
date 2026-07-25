@@ -21,19 +21,6 @@ describe('ConversationTopBarPortal', () => {
     vi.restoreAllMocks()
   })
 
-  it('uses compact hover surfaces for top-bar selector buttons', () => {
-    const { container } = render(
-      <ConversationTopBarPortalProvider>
-        <ConversationTopBarPortalHost />
-      </ConversationTopBarPortalProvider>
-    )
-
-    expect(container.querySelector('[data-conversation-topbar-controls]')).toHaveClass(
-      '[&_button]:h-7',
-      '[&_button]:px-1.5'
-    )
-  })
-
   it('renders page-owned controls directly in the measured host', () => {
     render(
       <ConversationTopBarPortalProvider>

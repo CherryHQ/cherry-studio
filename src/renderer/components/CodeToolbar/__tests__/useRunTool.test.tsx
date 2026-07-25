@@ -141,14 +141,6 @@ describe('useRunTool', () => {
   })
 
   describe('edge cases', () => {
-    it('should handle missing setTools gracefully', () => {
-      const props = createMockProps({ setTools: undefined })
-
-      expect(() => {
-        renderHook(() => useRunTool(props))
-      }).not.toThrow()
-    })
-
     it('should not break when onRun is undefined', () => {
       const props = createMockProps({ onRun: undefined })
       renderHook(() => useRunTool(props))

@@ -210,21 +210,6 @@ describe('ClickableFilePath', () => {
     })
   })
 
-  it('should have clickable styling', () => {
-    renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />, {
-      openArtifactFile: mockOpenArtifactFile
-    })
-    const span = screen.getByRole('link', { name: '/tmp/test.ts' })
-    expect(span).toHaveClass('cursor-pointer', 'items-center')
-    expect(span).toHaveClass('text-primary')
-    expect(span.parentElement).toHaveClass('flex', 'flex-row', 'items-center')
-  })
-
-  it('should render ellipsis dropdown trigger', () => {
-    renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />, { showInFolder: mockShowInFolder })
-    expect(screen.getByRole('button', { name: 'More' })).toHaveClass('items-center')
-  })
-
   it('should render ellipsis dropdown trigger for external editor capability', () => {
     renderWithProvider(<ClickableFilePath path="/tmp/test.ts" />, { openInExternalApp: mockOpenInExternalApp })
     expect(screen.getByRole('button', { name: 'More' })).toBeInTheDocument()

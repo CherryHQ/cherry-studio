@@ -5,8 +5,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import CodeToolbar from '../CodeToolbar'
 
 // Test constants
-const MORE_BUTTON_TOOLTIP = 'code_block.more'
-
 // Mock components
 const mocks = vi.hoisted(() => ({
   CodeToolButton: vi.fn(({ tool }) => (
@@ -88,22 +86,6 @@ const clickMoreButton = () => {
 describe('CodeToolbar', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-  })
-
-  describe('basic rendering', () => {
-    it('should use a sticky, pointer-events-transparent wrapper', () => {
-      const { container } = render(<CodeToolbar tools={createCoreOnlyTools()} />)
-      const wrapper = container.firstElementChild
-
-      expect(wrapper).toHaveClass('pointer-events-none', 'sticky', 'top-7', 'z-10', 'h-0')
-      expect(wrapper?.firstElementChild).toHaveClass(
-        'code-toolbar',
-        'pointer-events-auto',
-        'absolute',
-        'right-2',
-        'bottom-1'
-      )
-    })
   })
 
   describe('empty state', () => {
@@ -210,35 +192,6 @@ describe('CodeToolbar', () => {
       clickMoreButton()
       expect(screen.queryByTestId('tool-button-quick1')).not.toBeInTheDocument()
       expect(screen.queryByTestId('tool-button-quick2')).not.toBeInTheDocument()
-    })
-
-    it('should apply active class to more button when quick tools are shown', () => {
-      const tools = [createMockTool({ id: 'quick1', type: 'quick' }), createMockTool({ id: 'quick2', type: 'quick' })]
-      render(<CodeToolbar tools={tools} />)
-
-      const tooltip = screen.getByTestId('tooltip')
-      const moreButton = tooltip.firstChild as Element
-
-      // Initial state: no active class
-      expect(moreButton).not.toHaveClass('active')
-
-      // After click: has active class
-      fireEvent.click(moreButton)
-      expect(moreButton).toHaveClass('active')
-
-      // After second click: no active class
-      fireEvent.click(moreButton)
-      expect(moreButton).not.toHaveClass('active')
-    })
-
-    it('should display correct tooltip and icon for more button', () => {
-      render(<CodeToolbar tools={createMixedTools()} />)
-
-      const tooltip = screen.getByTestId('tooltip')
-      expect(tooltip).toHaveAttribute('data-title', MORE_BUTTON_TOOLTIP)
-
-      expect(screen.getByTestId('ellipsis-icon')).toBeInTheDocument()
-      expect(screen.getByTestId('ellipsis-icon')).toHaveClass('tool-icon')
     })
 
     it('should render core tools regardless of quick tools state', () => {

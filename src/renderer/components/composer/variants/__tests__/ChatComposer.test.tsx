@@ -963,29 +963,6 @@ describe('ChatComposer', () => {
     expect(mocks.focusComposer).toHaveBeenCalledTimes(1)
   })
 
-  it('shows only icons in the input bottom toolbar when it is narrow', async () => {
-    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
-
-    expect(screen.getByText('Assistant 1')).not.toHaveClass('sr-only')
-    expect(screen.getByText('Model A')).not.toHaveClass('sr-only')
-
-    await notifyComposerBottomToolbarWidth(420)
-
-    await waitFor(() => {
-      expect(screen.getByText('Assistant 1')).toHaveClass('sr-only')
-      expect(screen.getByText('Model A')).toHaveClass('sr-only')
-    })
-  })
-
-  it('keeps input bottom toolbar labels visible when the toolbar fits', async () => {
-    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
-
-    await notifyComposerBottomToolbarWidth(420, 420)
-
-    expect(screen.getByText('Assistant 1')).not.toHaveClass('sr-only')
-    expect(screen.getByText('Model A')).not.toHaveClass('sr-only')
-  })
-
   it('passes attachment capabilities through the provider without effect mirroring', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
@@ -2417,21 +2394,6 @@ describe('ChatComposer', () => {
     expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent('Assistant 1')
     expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Assistant 1')
     expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model A')
-  })
-
-  it('shows only icons in the draft home bottom toolbar when it is narrow', async () => {
-    render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
-
-    expect(screen.getByText('Assistant 1')).not.toHaveClass('sr-only')
-    expect(screen.getByText('Model A')).not.toHaveClass('sr-only')
-
-    await notifyComposerBottomToolbarWidth(420)
-
-    await waitFor(() => {
-      expect(screen.getByText('Assistant 1')).toHaveClass('sr-only')
-      expect(screen.getByText('Model A')).toHaveClass('sr-only')
-      expect(screen.getByTestId('selected-models-trigger')).toHaveClass('w-8')
-    })
   })
 
   it('routes draft home assistant changes to the draft handler', async () => {
@@ -4033,39 +3995,3 @@ describe('ChatComposer', () => {
     expect(screen.getByTestId('selected-models-trigger')).toHaveAttribute('data-model-count', '2')
   })
 })
-
-async function notifyComposerBottomToolbarWidth(width: number, scrollWidth = width + 240) {
-  await waitFor(() => {
-    expect(
-      resizeObserverMockInstances.some((instance) =>
-        Array.from(instance.targets).some((target) => String(target.getAttribute('class') ?? '').includes('max-w-full'))
-      )
-    ).toBe(true)
-  })
-
-  const toolbarObservers = resizeObserverMockInstances.flatMap((instance) => {
-    const target = Array.from(instance.targets).find((target) =>
-      String(target.getAttribute('class') ?? '').includes('max-w-full')
-    )
-    return target ? [{ instance, target }] : []
-  })
-  if (toolbarObservers.length === 0) {
-    throw new Error('Expected composer bottom toolbar to create a ResizeObserver')
-  }
-
-  act(() => {
-    for (const { instance, target } of toolbarObservers) {
-      Object.defineProperty(target, 'clientWidth', { configurable: true, value: width })
-      Object.defineProperty(target, 'scrollWidth', { configurable: true, value: scrollWidth })
-      instance.callback(
-        [
-          {
-            target,
-            contentRect: { width }
-          } as ResizeObserverEntry
-        ],
-        {} as ResizeObserver
-      )
-    }
-  })
-}

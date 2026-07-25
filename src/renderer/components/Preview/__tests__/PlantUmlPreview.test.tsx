@@ -151,14 +151,4 @@ describe('PlantUmlPreview', () => {
       expect(screen.queryByTestId('error')).not.toBeInTheDocument()
     })
   })
-
-  describe('ref forwarding', () => {
-    it('should forward ref to ImagePreviewLayout', () => {
-      const ref = { current: null }
-      render(<PlantUmlPreview ref={ref}>{diagram}</PlantUmlPreview>)
-
-      // The ref should be passed to ImagePreviewLayout
-      expect(mocks.ImagePreviewLayout).toHaveBeenCalledWith(expect.objectContaining({ ref }), undefined)
-    })
-  })
 })

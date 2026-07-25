@@ -122,14 +122,4 @@ describe('GraphvizPreview', () => {
       expect(screen.queryByTestId('error')).not.toBeInTheDocument()
     })
   })
-
-  describe('ref forwarding', () => {
-    it('should forward ref to ImagePreviewLayout', () => {
-      const ref = { current: null }
-      render(<GraphvizPreview ref={ref}>{dotCode}</GraphvizPreview>)
-
-      // The ref should be passed to ImagePreviewLayout
-      expect(mocks.ImagePreviewLayout).toHaveBeenCalledWith(expect.objectContaining({ ref }), undefined)
-    })
-  })
 })

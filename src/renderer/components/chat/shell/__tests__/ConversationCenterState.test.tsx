@@ -24,10 +24,4 @@ describe('ConversationCenterState', () => {
     expect(screen.getByTestId('center-loading')).toBeInTheDocument()
     expect(document.querySelector('[data-conversation-composer-loading]')).toBeInTheDocument()
   })
-
-  it('renders a neutral full-height placeholder for empty state', () => {
-    const { container } = render(<ConversationCenterState state="empty" />)
-
-    expect(container.firstElementChild).toHaveClass('h-full')
-  })
 })

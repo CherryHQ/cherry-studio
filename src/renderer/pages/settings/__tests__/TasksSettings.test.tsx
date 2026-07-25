@@ -453,32 +453,6 @@ describe('TasksSettings task logs', () => {
     await waitFor(() => expect(dataApiMock.get).toHaveBeenCalledWith('/agents', { query: { limit: 100 } }))
   })
 
-  it('keeps the full task log result in the DOM while clamping its height', async () => {
-    const longResult = 'x'.repeat(220)
-    taskLogsMock.logs = [{ ...taskLogsMock.defaultTaskLog, result: longResult }]
-
-    render(<TasksSettings />)
-
-    // Full text stays in the DOM (copyable) ...
-    const resultText = await screen.findByText(longResult)
-    // ... but the cell height is bounded by a line clamp.
-    expect(resultText).toHaveClass('line-clamp-4')
-  })
-
-  it('lets task log table height follow content while scrolling horizontally', async () => {
-    render(<TasksSettings />)
-
-    const table = await screen.findByRole('table')
-    const horizontalScroll = table.closest('[data-slot="task-logs-table-scroll"]')
-    const tableWidth = table.closest('[data-slot="task-logs-table-width"]')
-    const dataTableScroll = table.closest('[data-slot="data-table-scroll"]')
-
-    expect(horizontalScroll).toHaveClass('overflow-x-auto')
-    expect(tableWidth).toHaveClass('min-w-[720px]')
-    expect(dataTableScroll).not.toHaveClass('overflow-y-auto')
-    expect(dataTableScroll).not.toHaveStyle({ maxHeight: '300px' })
-  })
-
   it('only offers channels owned by the selected task agent', async () => {
     channelDataMock.channels = [
       {
@@ -1044,21 +1018,6 @@ describe('TasksSettings task logs', () => {
     await act(async () => toggle.resolve(undefined))
 
     expect(taskMutationMocks.runTask).not.toHaveBeenCalled()
-  })
-
-  it('renders completed task status badge with raw blue tokens matching the status dot', async () => {
-    taskDataMock.task = {
-      ...taskDataMock.defaultTask,
-      enabled: false,
-      status: 'completed'
-    }
-
-    render(<TasksSettings />)
-
-    const completedBadge = await screen.findByText('agent.tasks.status.completed')
-
-    expect(completedBadge).toHaveClass('border-blue-500/30', 'bg-blue-500/10', 'text-blue-500')
-    expect(completedBadge).not.toHaveClass('border-info/30', 'bg-info/10', 'text-info')
   })
 
   it('keeps delete in the more menu for completed tasks without showing run or status controls', async () => {

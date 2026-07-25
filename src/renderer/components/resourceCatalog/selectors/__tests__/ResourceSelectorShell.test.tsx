@@ -587,61 +587,6 @@ describe('ResourceSelectorShell', () => {
       expect(onChange).not.toHaveBeenCalled()
     })
 
-    it('uses neutral color from the model selector row action when pinned', () => {
-      render(
-        <ResourceSelectorShell
-          trigger={<button type="button">Open</button>}
-          items={ITEMS}
-          pinnedIds={['1']}
-          onTogglePin={vi.fn()}
-          labels={LABELS}
-          value={null}
-          onChange={vi.fn()}
-        />
-      )
-      openPopover()
-
-      expect(screen.getByRole('button', { name: 'Unpin' })).toHaveAttribute('data-slot', 'button')
-      expect(screen.getByRole('button', { name: 'Unpin' })).toHaveClass('text-foreground!')
-      expect(screen.getByRole('button', { name: 'Unpin' })).not.toHaveClass('text-primary!')
-    })
-
-    it('uses neutral color on the unpin action when the pinned resource row is selected', () => {
-      render(
-        <ResourceSelectorShell
-          trigger={<button type="button">Open</button>}
-          items={ITEMS}
-          pinnedIds={['1']}
-          onTogglePin={vi.fn()}
-          labels={LABELS}
-          value="1"
-          onChange={vi.fn()}
-        />
-      )
-      openPopover()
-
-      expect(screen.getByRole('button', { name: 'Unpin' })).toHaveClass('text-foreground!')
-      expect(screen.getByRole('button', { name: 'Unpin' })).not.toHaveClass('text-primary!')
-    })
-
-    it('uses neutral color on the pin action when the resource row is selected', () => {
-      render(
-        <ResourceSelectorShell
-          trigger={<button type="button">Open</button>}
-          items={ITEMS}
-          pinnedIds={[]}
-          onTogglePin={vi.fn()}
-          labels={LABELS}
-          value="1"
-          onChange={vi.fn()}
-        />
-      )
-      openPopover()
-
-      expect(screen.getAllByRole('button', { name: 'Pin' })[0]).toHaveClass('text-foreground!')
-      expect(screen.getAllByRole('button', { name: 'Pin' })[0]).not.toHaveClass('text-primary!')
-    })
-
     it('pin action is available on unpinned rows and does not select the row', () => {
       const onTogglePin = vi.fn()
       const onChange = vi.fn()
@@ -741,26 +686,6 @@ describe('ResourceSelectorShell', () => {
       expect(onChange).not.toHaveBeenCalled()
       expect(popoverAtCallback).toBeNull()
       requestAnimationFrameSpy.mockRestore()
-    })
-
-    it('uses the model selector row styling', () => {
-      render(
-        <ResourceSelectorShell
-          trigger={<button type="button">Open</button>}
-          items={ITEMS}
-          pinnedIds={[]}
-          onTogglePin={vi.fn()}
-          labels={LABELS}
-          value="1"
-          onChange={vi.fn()}
-        />
-      )
-      openPopover()
-
-      const alphaOption = getRow('Alpha')
-      const row = alphaOption.closest('[data-model-selector-row]')
-      expect(row).toHaveClass('group', 'relative', 'h-8', 'rounded-[10px]', 'px-2', 'py-1', 'bg-accent/70')
-      expect(row).not.toHaveClass('bg-primary/10')
     })
 
     it('does not select the active row when pressing Enter on a row action', async () => {

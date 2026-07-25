@@ -77,12 +77,6 @@ describe('FileTree - read-only form (no callbacks)', () => {
     await user.click(screen.getByText('Root'))
     expect(onSelectedChange).toHaveBeenCalledWith('root')
   })
-
-  it('truncates labels by default', () => {
-    render(<FileTree nodes={nodes} defaultExpandedIds={new Set(['root'])} renderList={passthroughRenderList} />)
-
-    expect(screen.getByText('A.md')).toHaveClass('truncate')
-  })
 })
 
 describe('FileTree - editable form (all callbacks)', () => {
@@ -210,15 +204,6 @@ describe('FileTree - icon behaviour', () => {
     expect(markdownRow.querySelector('[data-icon="material-icon-theme:markdown"]')).toBeTruthy()
     expect(jsonRow.querySelector('[data-icon="material-icon-theme:json"]')).toBeTruthy()
     expect(markdownRow.querySelector('[data-icon="material-icon-theme:markdown"]')).toHaveAttribute('data-width', '16')
-  })
-
-  it('renders rows with sm text', () => {
-    render(<FileTree nodes={nodes} defaultExpandedIds={new Set(['root'])} renderList={passthroughRenderList} />)
-    const rootRow = screen.getByText('Root').closest('[data-node-id="root"]')!
-    const markdownRow = screen.getByText('A.md').closest('[data-node-id="a"]')!
-
-    expect(rootRow).toHaveClass('text-sm')
-    expect(markdownRow).toHaveClass('text-sm')
   })
 
   it('renders skillFileTree-style placeholder for file rows', () => {

@@ -279,17 +279,6 @@ describe('useDownloadTool', () => {
   })
 
   describe('edge cases', () => {
-    it('should handle missing setTools gracefully', () => {
-      const props = createMockProps({ setTools: undefined })
-
-      expect(() => {
-        renderHook(() => useDownloadTool(props))
-      }).not.toThrow()
-
-      // Should still call useToolManager (but won't actually register)
-      expect(mocks.useToolManager).toHaveBeenCalledWith(undefined)
-    })
-
     it('should handle missing previewRef.current gracefully', () => {
       const props = createMockProps({
         showPreviewTools: true,

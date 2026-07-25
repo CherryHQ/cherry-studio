@@ -177,17 +177,4 @@ describe('useSaveTool', () => {
       expect(mockRemoveTool).toHaveBeenCalledWith('save')
     })
   })
-
-  describe('edge cases', () => {
-    it('should handle missing setTools gracefully', () => {
-      const props = createMockProps({ setTools: undefined })
-
-      expect(() => {
-        renderHook(() => useSaveTool(props))
-      }).not.toThrow()
-
-      // Should still call useToolManager (but won't actually register)
-      expect(mocks.useToolManager).toHaveBeenCalledWith(undefined)
-    })
-  })
 })

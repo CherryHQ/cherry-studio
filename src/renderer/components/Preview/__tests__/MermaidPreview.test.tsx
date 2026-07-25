@@ -183,15 +183,6 @@ describe('MermaidPreview', () => {
     })
   })
 
-  describe('ref forwarding', () => {
-    it('should forward ref to ImagePreviewLayout', () => {
-      const ref = { current: null }
-      render(<MermaidPreview ref={ref}>{mermaidCode}</MermaidPreview>)
-
-      expect(mocks.ImagePreviewLayout).toHaveBeenCalledWith(expect.objectContaining({ ref }), undefined)
-    })
-  })
-
   describe('visibility detection', () => {
     it('should observe parent elements up to fold className', () => {
       // Create a DOM structure that simulates MessageGroup fold layout

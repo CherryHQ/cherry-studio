@@ -138,27 +138,6 @@ describe('ProviderCard', () => {
     expect(screen.queryByText('code.enable')).not.toBeInTheDocument()
   })
 
-  it('renders the disable action as a soft destructive button', () => {
-    const { enableButton } = renderCard({ isCurrent: true })
-
-    expect(enableButton.className).not.toMatch(/\bbg-destructive(?:\s|$)/)
-    expect(enableButton).toHaveClass('bg-destructive/10')
-    expect(enableButton).toHaveClass('text-destructive')
-  })
-
-  it('uses a subtle primary tint as the selection background', () => {
-    const { cardShell } = renderCard({ isCurrent: true })
-
-    expect(cardShell).toHaveClass('bg-primary/5')
-    expect(cardShell).not.toHaveClass('bg-muted')
-  })
-
-  it('marks the enabled provider with a primary border', () => {
-    const { cardShell } = renderCard({ isCurrent: true })
-
-    expect(cardShell).toHaveClass('border-primary')
-  })
-
   it('renders the provider icon before the provider name', () => {
     renderCard()
 

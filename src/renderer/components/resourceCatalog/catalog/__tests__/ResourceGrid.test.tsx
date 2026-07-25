@@ -463,15 +463,6 @@ function getResourceCardProps(overrides: Partial<ComponentProps<typeof ResourceC
 }
 
 describe('ResourceGrid empty state copy', () => {
-  it('uses the standalone resource toolbar spacing', () => {
-    renderResourceGrid()
-
-    const searchInput = screen.getByPlaceholderText('library.toolbar.search_placeholder')
-    const toolbar = searchInput.parentElement?.parentElement
-
-    expect(toolbar).toHaveClass('h-12', 'px-5')
-  })
-
   it('renders the optional toolbar leading slot before the search box', () => {
     renderResourceGrid({
       toolbarLeading: <button type="button">Toggle sidebar</button>

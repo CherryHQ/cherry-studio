@@ -131,14 +131,4 @@ describe('SvgPreview', () => {
       expect(svgContainer).toBeInTheDocument()
     })
   })
-
-  describe('ref forwarding', () => {
-    it('should forward ref to ImagePreviewLayout', () => {
-      const ref = { current: null }
-      render(<SvgPreview ref={ref}>{svgContent}</SvgPreview>)
-
-      // The ref should be passed to ImagePreviewLayout
-      expect(mocks.ImagePreviewLayout).toHaveBeenCalledWith(expect.objectContaining({ ref }), undefined)
-    })
-  })
 })

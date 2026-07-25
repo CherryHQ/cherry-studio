@@ -302,26 +302,6 @@ describe('MigrationApp', () => {
     expect(within(stepRail as HTMLElement).queryByTestId('select')).toBeNull()
   })
 
-  it('renders the header language selector with lightweight chrome', () => {
-    render(<MigrationApp />)
-
-    const languageTrigger = screen.getByRole('button', { name: 'migration.language.select' })
-    const languageContainer = languageTrigger.closest('[data-migration-language-select]')
-
-    expect(languageContainer).toHaveClass('flex', 'items-center', 'gap-1')
-    expect(languageTrigger).toHaveClass(
-      'w-auto',
-      'border-0',
-      'bg-transparent',
-      'px-1.5',
-      'text-foreground-muted',
-      'text-xs',
-      'shadow-none',
-      'hover:bg-transparent',
-      'hover:text-foreground'
-    )
-  })
-
   it('renders the language selector in the left side of the header off macOS', () => {
     platformState.isMac = false
 

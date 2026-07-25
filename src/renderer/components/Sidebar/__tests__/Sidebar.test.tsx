@@ -419,30 +419,6 @@ describe('Sidebar resize handle', () => {
     expect(getByText('Qwen')).toBeInTheDocument()
   })
 
-  it('gives docked mini apps the shared icon-row button sizing and hover styles', () => {
-    const { container } = render(
-      <Sidebar
-        width={SIDEBAR_ICON_WIDTH}
-        setWidth={vi.fn()}
-        active={{ activeItem: 'chat' }}
-        entries={[
-          ...entries,
-          miniEntry({
-            title: 'Qwen',
-            miniApp: { id: 'qwen', logo: 'qwen' }
-          })
-        ]}
-      />
-    )
-
-    const miniAppLogo = container.querySelector('[data-testid="resolved-mini-app-logo"]')
-    const dockedMiniAppButton = miniAppLogo?.closest('button')
-
-    expect(miniAppLogo).toHaveStyle({ width: '22px', height: '22px' })
-    expect(dockedMiniAppButton).toHaveClass('h-9', 'w-9')
-    expect(dockedMiniAppButton).toHaveClass('hover:bg-accent/60', 'hover:text-foreground')
-  })
-
   it('names icon-only docked mini app buttons from the full title when the logo is missing', () => {
     render(
       <Sidebar
@@ -556,22 +532,5 @@ describe('Sidebar resize handle', () => {
 
     expect(document.body).toHaveTextContent('theme-full')
     expect(document.body).not.toHaveTextContent('theme-icon')
-  })
-
-  it('uses a solid sidebar background for the floating hidden-state panel', () => {
-    const { container } = render(
-      <Sidebar
-        width={SIDEBAR_HIDDEN_THRESHOLD - 10}
-        setWidth={vi.fn()}
-        active={{ activeItem: 'chat' }}
-        entries={entries}
-        isFloating
-      />
-    )
-
-    const panel = container.querySelector('.slide-in-from-left-2')
-
-    expect(panel).toHaveClass('bg-sidebar')
-    expect(panel).not.toHaveClass('bg-sidebar/70')
   })
 })

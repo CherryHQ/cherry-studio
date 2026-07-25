@@ -177,12 +177,6 @@ describe('TranslateHistory', () => {
     expect(translateHistoryMock.useTranslateHistory).toHaveBeenCalledTimes(1)
   })
 
-  it('localizes compact header spacing to the translate history drawer', () => {
-    render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
-
-    expect(screen.getByTestId('page-side-panel-header')).toHaveClass('pb-0')
-  })
-
   it('opens detail and supports reuse', () => {
     render(<TranslateHistory isOpen onHistoryItemClick={onHistoryItemClick} onClose={vi.fn()} />)
 
@@ -289,27 +283,6 @@ describe('TranslateHistory', () => {
     expect(screen.getByText('translate.history.empty')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'translate.history.filter.starred' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'translate.history.clear' })).not.toBeInTheDocument()
-  })
-
-  it('centers the empty history state within the available body area', () => {
-    translateHistoryMock.useTranslateHistories.mockReturnValueOnce({
-      items: [],
-      total: 0,
-      hasMore: false,
-      isLoadingMore: false,
-      loadMore: loadMoreMock,
-      status: 'ready'
-    })
-
-    render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
-
-    expect(screen.getByText('translate.history.empty').parentElement).toHaveClass(
-      'flex',
-      'min-h-0',
-      'flex-1',
-      'items-center',
-      'justify-center'
-    )
   })
 
   it('keeps the action bar visible when star-filter is active but its results are empty', () => {

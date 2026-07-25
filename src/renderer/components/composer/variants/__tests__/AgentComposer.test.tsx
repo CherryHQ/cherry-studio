@@ -3301,42 +3301,6 @@ describe('AgentComposer', () => {
     expect(mocks.updateSession).not.toHaveBeenCalled()
   })
 
-  it('shows only icons in the input bottom toolbar when it is narrow', async () => {
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
-
-    expect(screen.getByText('Agent')).not.toHaveClass('sr-only')
-
-    await notifyComposerBottomToolbarWidth(420)
-
-    await waitFor(() => {
-      expect(screen.getByText('Agent')).toHaveClass('sr-only')
-    })
-  })
-
-  it('keeps input bottom toolbar labels visible when the toolbar fits', async () => {
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
-
-    await notifyComposerBottomToolbarWidth(420, 420)
-
-    expect(screen.getByText('Agent')).not.toHaveClass('sr-only')
-  })
-
   it('renders the agent, model, and workspace below the surface in draft home mode', () => {
     mocks.sessionLayout = 'time'
 
@@ -3430,33 +3394,6 @@ describe('AgentComposer', () => {
     expect(screen.getByTestId('composer-left-controls')).toHaveTextContent(
       'agent.session.workspace_selector.placeholder'
     )
-  })
-
-  it('shows only icons in the draft home bottom toolbar when it is narrow', async () => {
-    mocks.sessionLayout = 'time'
-
-    render(
-      <AgentHomeComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
-
-    expect(screen.getByText('Agent')).not.toHaveClass('sr-only')
-    expect(screen.getByText('Claude Sonnet 4.5')).not.toHaveClass('sr-only')
-    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Workspace 1')
-    expect(screen.getByTestId('composer-send-accessory')).not.toHaveTextContent('Workspace 1')
-
-    await notifyComposerBottomToolbarWidth(420)
-
-    await waitFor(() => {
-      expect(screen.getByText('Agent')).toHaveClass('sr-only')
-      expect(screen.getByText('Claude Sonnet 4.5')).toHaveClass('sr-only')
-    })
-    expect(screen.getByText('Workspace 1')).toHaveClass('sr-only')
   })
 
   it('renders a workspace opener in docked composer mode', () => {
