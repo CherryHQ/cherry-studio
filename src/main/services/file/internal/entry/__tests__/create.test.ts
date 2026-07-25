@@ -300,6 +300,41 @@ describe('internal/entry/create.createInternal', () => {
       }
     )
 
+    it.skipIf(process.platform === 'linux')(
+      'inserts instead of failing when a concurrent cleanup reclaims the peer during realpath',
+      async () => {
+        // The peer lookup is synchronous, but `resolveCaseCollisionPeer` awaits
+        // fs.realpath — that yield lets the cleanup pass reclaim the peer, whose
+        // shape (auto policy, zero refs, past grace) is precisely its target.
+        // `ensureExternal` is contracted to *ensure an entry exists*, so losing
+        // that race must fall through to the insert, not reject an add-to-library.
+        const upper = path.join(tmp, 'RACE.txt')
+        const lower = path.join(tmp, 'race.txt')
+        await writeFile(upper, 'x')
+        const first = await ensureExternal(deps, {
+          externalPath: upper as FilePath,
+          cleanupPolicy: 'delete_when_unreferenced'
+        })
+
+        // Delete the row as the peers are handed back: by the time the awaited
+        // realpath resolves and the peer is re-read, it is genuinely gone — the
+        // same state a real interleaved cleanup pass would leave behind.
+        const findPeers = fileEntryService.findCaseInsensitivePeers.bind(fileEntryService)
+        vi.spyOn(fileEntryService, 'findCaseInsensitivePeers').mockImplementationOnce((canonical) => {
+          const peers = findPeers(canonical)
+          fileEntryService.delete(first.id)
+          return peers
+        })
+
+        const second = await ensureExternal(deps, {
+          externalPath: lower as FilePath,
+          cleanupPolicy: 'delete_when_unreferenced'
+        })
+        expect(second.id).not.toBe(first.id)
+        expect(fileEntryService.findById(second.id)).not.toBeNull()
+      }
+    )
+
     it.runIf(process.platform === 'linux')(
       'throws when two case-different paths refer to genuinely distinct files (linux ext4 case-sensitive)',
       async () => {

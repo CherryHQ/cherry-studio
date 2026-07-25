@@ -229,26 +229,47 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
   if (peers.length > 0) {
     const reusable = await resolveCaseCollisionPeer(canonical as FilePath, peers)
     if (reusable) {
-      logger.info('ensureExternal: reusing case-collision peer (fs.realpath confirmed same FS entry)', {
+      // Re-read before trusting the peer: the `await` above (fs.realpath) yielded
+      // the event loop, and a concurrent cleanup pass can reclaim exactly this
+      // shape of row in the meantime — auto policy, zero refs, past grace is its
+      // target, not an edge case. Both failure halves are real: `update` would
+      // reject an upsert contracted to "ensure an entry exists", and the
+      // no-upgrade-needed path would hand back a FileEntry whose row is gone.
+      // Re-read and upgrade are both synchronous, so nothing interleaves between
+      // them (the cleanup pass shares this event loop). Losing the race is not an
+      // error — fall through and insert, which is what the caller asked for.
+      const stillPresent = deps.fileEntryService.findById(reusable.id)
+      if (stillPresent) {
+        logger.info('ensureExternal: reusing case-collision peer (fs.realpath confirmed same FS entry)', {
+          newPath: canonical,
+          peerId: stillPresent.id,
+          peerPath: (stillPresent as { externalPath: string }).externalPath
+        })
+        return upgradeCleanupPolicyIfNeeded(deps, stillPresent, params.cleanupPolicy)
+      }
+      // Reclaimed mid-flight. `fe_external_path_lower_unique_idx` is UNIQUE on
+      // `lower(externalPath)`, so `peers` holds at most this one row — its
+      // removal also released the constraint that forced this branch, and the
+      // insert below can proceed.
+      logger.info('ensureExternal: case-collision peer was reclaimed during realpath — inserting instead', {
         newPath: canonical,
-        peerId: reusable.id,
-        peerPath: (reusable as { externalPath: string }).externalPath
+        peerId: reusable.id
       })
-      return upgradeCleanupPolicyIfNeeded(deps, reusable, params.cleanupPolicy)
+    } else {
+      // No peer is the same FS entity. On a case-sensitive filesystem these
+      // are legitimately distinct files, but the DB unique constraint forbids
+      // the insert. Throw with full peer detail so the caller can act
+      // (rename one of the colliding paths, or surface the conflict to the
+      // user). This is a deliberate departure from the previous "warn-only"
+      // contract — the application-layer hard guarantee on lowered-path
+      // uniqueness is what option (c) brings.
+      throw new Error(
+        `ensureExternal: case-collision with existing entries — fs.realpath confirms different FS entities. ` +
+          `New: ${canonical}; conflicting peers: ${peers
+            .map((p) => `${p.id}=${(p as { externalPath: string }).externalPath}`)
+            .join(', ')}`
+      )
     }
-    // No peer is the same FS entity. On a case-sensitive filesystem these
-    // are legitimately distinct files, but the DB unique constraint forbids
-    // the insert. Throw with full peer detail so the caller can act
-    // (rename one of the colliding paths, or surface the conflict to the
-    // user). This is a deliberate departure from the previous "warn-only"
-    // contract — the application-layer hard guarantee on lowered-path
-    // uniqueness is what option (c) brings.
-    throw new Error(
-      `ensureExternal: case-collision with existing entries — fs.realpath confirms different FS entities. ` +
-        `New: ${canonical}; conflicting peers: ${peers
-          .map((p) => `${p.id}=${(p as { externalPath: string }).externalPath}`)
-          .join(', ')}`
-    )
   }
   // `name` and `ext` are pure projections of `canonical` — derived here,
   // not accepted from callers. Doc-stated invariant: "external `name` is a
