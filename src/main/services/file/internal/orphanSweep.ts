@@ -91,8 +91,6 @@ export interface RunDbSweepDeps {
 }
 
 interface DbSweepStats {
-  readonly orphanRefsByType: Partial<Record<FileRefSourceType, number>>
-  readonly orphanRefsTotal: number
   readonly orphanEntriesByOrigin: Partial<Record<FileEntryOrigin, number>>
   readonly orphanEntriesTotal: number
   readonly scanDurationMs: number
@@ -127,8 +125,6 @@ export function runDbSweep(deps: RunDbSweepDeps): DbSweepReport {
   // mid-restore would reclaim rows/files the promotion is about to reference.
   if (hasPendingRestore()) {
     const report: DbSweepReport = {
-      orphanRefsByType: {},
-      orphanRefsTotal: 0,
       orphanEntriesByOrigin: {},
       orphanEntriesTotal: 0,
       scanDurationMs: Date.now() - startedAt,
@@ -144,8 +140,6 @@ export function runDbSweep(deps: RunDbSweepDeps): DbSweepReport {
       fileRefService: deps.fileRefService
     })
     const stats: DbSweepStats = {
-      orphanRefsByType: {},
-      orphanRefsTotal: 0,
       orphanEntriesByOrigin: entries.byOrigin,
       orphanEntriesTotal: entries.total,
       scanDurationMs: Date.now() - startedAt
@@ -155,8 +149,6 @@ export function runDbSweep(deps: RunDbSweepDeps): DbSweepReport {
     return report
   } catch (err) {
     const failed: DbSweepReport = {
-      orphanRefsByType: {},
-      orphanRefsTotal: 0,
       orphanEntriesByOrigin: {},
       orphanEntriesTotal: 0,
       scanDurationMs: Date.now() - startedAt,

@@ -265,7 +265,7 @@ describe('entryCleanup', () => {
     const report = await runEntryCleanup(makeDeps())
     expect(report.outcome).toBe('completed')
     expect(report.deleted).toBe(25)
-    expect(fileEntryService.countAll()).toBe(0)
+    expect(dbh.db.select().from(fileEntryTable).all()).toHaveLength(0)
   })
 
   it('counts gonePinned when the tx re-read finds the row gone (or pinned) mid-flight', async () => {

@@ -46,7 +46,6 @@ describe('pending-restore guard', () => {
     if (report.outcome === 'aborted') {
       expect(report.abortReason).toBe('pending-restore')
     }
-    expect(report.orphanRefsTotal).toBe(0)
     expect(fileEntryService.findManualUnreferenced).not.toHaveBeenCalled()
   })
 
@@ -189,8 +188,6 @@ describe('runDbSweep (umbrella + observability)', () => {
 
     expect(report.outcome).toBe('completed')
     // The DB sweep no longer prunes temp refs — the ref pass is always empty.
-    expect(report.orphanRefsByType).toEqual({})
-    expect(report.orphanRefsTotal).toBe(0)
     expect(report.orphanEntriesByOrigin.internal ?? 0).toBe(0)
     expect(typeof report.scanDurationMs).toBe('number')
 

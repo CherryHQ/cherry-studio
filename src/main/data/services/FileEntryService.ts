@@ -218,9 +218,6 @@ export interface FileEntryService {
   /** Count of `findCleanupCandidates` matches, ignoring `limit`. */
   countCleanupCandidates(graceMs: number): number
 
-  /** Total row count across all entries, regardless of trashed state. */
-  countAll(): number
-
   /**
    * All entry ids regardless of trashed state — backs the on-demand orphan
    * sweep, which needs to know which on-disk UUID files have a DB row
@@ -593,11 +590,6 @@ class FileEntryServiceImpl implements FileEntryService {
       .from(fileEntryTable)
       .where(and(...this.cleanupCandidateConditions(graceMs)))
       .all()
-    return rows[0]?.c ?? 0
-  }
-
-  countAll(): number {
-    const rows = this.getDb().select({ c: count() }).from(fileEntryTable).all()
     return rows[0]?.c ?? 0
   }
 

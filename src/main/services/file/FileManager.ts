@@ -245,8 +245,6 @@ export const GetPhysicalPathIpcSchema = z.strictObject({ id: FileEntryIdSchema }
 
 export const PermanentDeleteIpcSchema = FileHandleSchema
 
-export const RunSweepIpcSchema = z.void()
-
 // ─── Version types ───
 
 /**
@@ -807,8 +805,6 @@ export class FileManager extends BaseService implements IFileManager {
       dbReport = {
         outcome: 'failed',
         errorMessage: err instanceof Error ? err.message : String(err),
-        orphanRefsByType: {},
-        orphanRefsTotal: 0,
         orphanEntriesByOrigin: {},
         orphanEntriesTotal: 0,
         scanDurationMs: 0
@@ -818,8 +814,6 @@ export class FileManager extends BaseService implements IFileManager {
     const fsReport = await fsSweepPromise
     const lastRunAt = startedAt
     const counts = {
-      orphanRefsByType: dbReport.orphanRefsByType,
-      orphanRefsTotal: dbReport.orphanRefsTotal,
       orphanEntriesByOrigin: dbReport.orphanEntriesByOrigin,
       orphanEntriesTotal: dbReport.orphanEntriesTotal,
       entryCleanup: summariseEntryCleanup(cleanupReport)

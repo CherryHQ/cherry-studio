@@ -11,8 +11,6 @@ import type { FileEntryOrigin, FileRefSourceType } from '@shared/data/types/file
 
 /** Counts shared across every `OrphanReport` variant — the "what was seen" portion. */
 export interface OrphanReportCounts {
-  readonly orphanRefsByType: Partial<Record<FileRefSourceType, number>>
-  readonly orphanRefsTotal: number
   readonly orphanEntriesByOrigin: Partial<Record<FileEntryOrigin, number>>
   readonly orphanEntriesTotal: number
   readonly entryCleanup: EntryCleanupSummary
@@ -49,7 +47,7 @@ export interface OrphanReportCounts {
  *   `'failed'`, because DB counts may still be authoritative.)
  *
  * Without the `outcome` discriminator, a `failed` run reaches the renderer
- * as `{ orphanRefsTotal: 0, …, lastRunAt }` — indistinguishable from a
+ * as `{ orphanEntriesTotal: 0, …, lastRunAt }` — indistinguishable from a
  * happy zero, and the cleanup dashboard would render "all clear" while
  * sweep branches were silently crashing. The discriminator forces
  * the caller to acknowledge the state.
