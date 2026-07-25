@@ -23,7 +23,7 @@ const CollapsibleSearchBar = ({
   onSearch,
   placeholder = i18n.t('common.search'),
   tooltip = i18n.t('common.search'),
-  icon = <Search size={14} color="var(--color-foreground-secondary)" />,
+  icon = <Search size={14} color="var(--muted-foreground)" />,
   maxWidth = '100%',
   collapsedSize = 32,
   animated = true,

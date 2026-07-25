@@ -50,6 +50,7 @@ interface ResolvedTreeOptions {
   readonly includeHidden: boolean
   readonly withStats: boolean
   readonly maxDepth: number
+  readonly watchMissingRoot: boolean
 }
 
 function resolveOptions(options: DirectoryTreeOptions | undefined): ResolvedTreeOptions {
@@ -59,7 +60,8 @@ function resolveOptions(options: DirectoryTreeOptions | undefined): ResolvedTree
     respectGitignore: options?.respectGitignore ?? true,
     includeHidden: options?.includeHidden ?? false,
     withStats: options?.withStats ?? false,
-    maxDepth: options?.maxDepth ?? Number.MAX_SAFE_INTEGER
+    maxDepth: options?.maxDepth ?? Number.MAX_SAFE_INTEGER,
+    watchMissingRoot: options?.watchMissingRoot ?? false
   }
 }
 
@@ -165,6 +167,20 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     this.map.set(this.rootPath, this.root)
   }
 
+  private shouldIgnorePath(absPath: string): boolean {
+    const normalized = normalizePath(absPath)
+    const relativePath = path.posix.relative(this.rootPath, normalized)
+    const isDescendant = relativePath !== '..' && !relativePath.startsWith('../')
+    if (
+      !this.options.includeHidden &&
+      isDescendant &&
+      relativePath.split('/').some((segment) => segment.startsWith('.'))
+    ) {
+      return true
+    }
+    return this.ignorePredicate?.(normalized) ?? false
+  }
+
   async init(): Promise<void> {
     // Load `.gitignore` off the event loop before the scan starts — slow
     // FS reads (network shares, fuse) must not block other main-process
@@ -185,18 +201,33 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
   }
 
   private async runInitialScan(): Promise<void> {
+    if (this.options.watchMissingRoot) {
+      try {
+        await nodeStat(this.rootPath)
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+        throw error
+      }
+    }
+
     // Let scan failures propagate. Swallowing them resolves File_TreeCreate
     // with an empty tree — indistinguishable from "the directory is genuinely
     // empty" to the renderer, which produces a silent regression (the user
     // sees zero notes when ripgrep is missing or the root is unreadable).
-    const paths = await searchListDirectory(this.rootPath as FilePath, {
-      recursive: true,
-      maxDepth: this.options.maxDepth,
-      includeHidden: this.options.includeHidden,
-      includeFiles: true,
-      includeDirectories: true,
-      maxEntries: Number.MAX_SAFE_INTEGER
-    })
+    let paths: string[]
+    try {
+      paths = await searchListDirectory(this.rootPath as FilePath, {
+        recursive: true,
+        maxDepth: this.options.maxDepth,
+        includeHidden: this.options.includeHidden,
+        includeFiles: true,
+        includeDirectories: true,
+        maxEntries: Number.MAX_SAFE_INTEGER
+      })
+    } catch (error) {
+      if (this.options.watchMissingRoot && (error as NodeJS.ErrnoException).code === 'ENOENT') return
+      throw error
+    }
 
     // Sort by depth ascending so parents always exist before children are
     // attached. Within a depth, sort alphabetically for stable display.
@@ -207,7 +238,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     const normalized = paths
       .map(normalizePath)
       .filter((p) => p !== this.rootPath)
-      .filter((p) => !(this.ignorePredicate && this.ignorePredicate(p)))
+      .filter((p) => !this.shouldIgnorePath(p))
     normalized.sort((a, b) => {
       const da = a.split('/').length
       const db = b.split('/').length
@@ -252,10 +283,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     // is a real code repo with a `node_modules` blob. The predicate
     // fires before chokidar recurses into the dir, so the cost stays
     // at "one Ignore.ignores() call per entry".
-    const predicate = this.ignorePredicate
-    const watcherIgnore = predicate
-      ? (((p: FilePath) => predicate(normalizePath(p))) as (path: FilePath) => boolean)
-      : undefined
+    const watcherIgnore = ((p: FilePath) => this.shouldIgnorePath(p)) as (path: FilePath) => boolean
     const watcherMaxDepth =
       this.options.maxDepth === Number.MAX_SAFE_INTEGER ? undefined : Math.max(0, this.options.maxDepth)
 
@@ -310,7 +338,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     // Belt-and-suspenders: chokidar's ignore predicate runs before
     // recursion, but in case of races (a `node_modules` event arrives
     // before chokidar processes the ignore for it), drop it here too.
-    if (this.ignorePredicate && this.ignorePredicate(evPath)) return
+    if (this.shouldIgnorePath(evPath)) return
 
     // Suppress the chokidar `unlink(oldPath)` + `add(newPath)` pair that
     // follows an explicit `rename()`. Without this the renderer would see
@@ -462,6 +490,12 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
       // double-apply over what the renderer is about to receive.
       this.markRenamed(oldNorm, newNorm)
       return false
+    }
+
+    if (this.shouldIgnorePath(newNorm)) {
+      this.markRenamed(oldNorm, newNorm)
+      this.removeNode(oldNorm, /* emit */ true)
+      return true
     }
 
     // Capture descendant paths before mutation so we can re-key the map.

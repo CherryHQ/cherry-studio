@@ -1,0 +1,66 @@
+/**
+ * Cherry Studio product semantics.
+ *
+ * Product semantics share the unprefixed public namespace with the official
+ * Shadcn contract. Internal Cherry Studio value providers remain under
+ * `--cs-*`, while feature-local and historical migration values stay outside
+ * this public runtime contract.
+ */
+
+:root {
+  /* Shared product semantics */
+  --background-subtle: var(--cs-background-subtle);
+  --border-subtle: var(--cs-border-subtle);
+  --border-strong: var(--cs-border-strong);
+
+  /* Feedback */
+  --success: var(--cs-success);
+  --success-subtle: var(--cs-success-subtle);
+  --success-subtle-foreground: var(--cs-success-subtle-foreground);
+  --success-border: var(--cs-success-border);
+  --warning: var(--cs-warning);
+  --warning-subtle: var(--cs-warning-subtle);
+  --warning-subtle-foreground: var(--cs-warning-subtle-foreground);
+  --warning-border: var(--cs-warning-border);
+  --info: var(--cs-info);
+  --info-subtle: var(--cs-info-subtle);
+  --info-subtle-foreground: var(--cs-info-subtle-foreground);
+  --info-border: var(--cs-info-border);
+  --error: var(--cs-error);
+  --error-subtle: var(--cs-error-subtle);
+  --error-subtle-foreground: var(--cs-error-subtle-foreground);
+  --error-border: var(--cs-error-border);
+
+  /* Stable product domain: rich text and code */
+  --code-block: #e3e3e3;
+  --inline-code: rgba(0, 0, 0, 0.06);
+  --inline-code-foreground: rgb(218, 97, 92);
+
+  /* Stable product domain: references and search highlights */
+  --reference: #cfe1ff;
+  --reference-foreground: #000;
+  --reference-subtle: #f1f7ff;
+  --highlight-foreground: var(--foreground);
+  --highlight: var(--cs-amber-50);
+  --highlight-accent: var(--cs-amber-100);
+
+  /* Stable product domain: user-message surface */
+  --chat-user: rgba(0, 0, 0, 0.045);
+}
+
+.dark {
+  /* Stable product domain: rich text and code */
+  --code-block: #323232;
+  --inline-code: #323232;
+
+  /* Stable product domain: references and search highlights */
+  --reference: #404040;
+  --reference-foreground: #fff;
+  --reference-subtle: #0b0e12;
+  --highlight-foreground: var(--foreground);
+  --highlight: var(--cs-amber-900);
+  --highlight-accent: var(--cs-amber-800);
+
+  /* Stable product domain: user-message surface */
+  --chat-user: rgba(255, 255, 255, 0.08);
+}

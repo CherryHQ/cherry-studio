@@ -154,7 +154,7 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
 
       const captureOptions = {
         filter: filterHiddenElements,
-        backgroundColor: getComputedStyle(el).getPropertyValue('--color-background'),
+        backgroundColor: getComputedStyle(el).getPropertyValue('--background'),
         cacheBust: true,
         pixelRatio: window.devicePixelRatio,
         skipAutoScale: true,
