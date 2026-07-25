@@ -21,6 +21,13 @@ export function toDateKey(date: Date): string {
 export function formatCost(value: number, currency: string | null | undefined): string {
   const normalizedCurrency = currency?.toUpperCase() ?? DEFAULT_COST_CURRENCY
   const symbol = normalizedCurrency === 'CNY' ? '¥' : '$'
+
+  // Below the 4-digit display floor a real cost would render as an exact zero,
+  // which is indistinguishable from an unpriced request.
+  if (value > 0 && value < 0.0001) {
+    return `<${symbol}0.0001`
+  }
+
   const fractionDigits = value > 0 && value < 1 ? 4 : 2
 
   return `${symbol}${value.toFixed(fractionDigits)}`
