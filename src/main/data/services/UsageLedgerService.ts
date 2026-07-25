@@ -485,18 +485,21 @@ export class UsageLedgerService {
               ? tokensPerSecond
               : usageLedgerTable.createdAt
     const orderExpression = query.sortOrder === 'asc' ? asc(sortExpression) : desc(sortExpression)
+    // Sorting on a nullable metric needs an explicit NULLs-last prelude and a
+    // createdAt tiebreak. The default `createdAt` sort needs neither — it is
+    // NOT NULL and already its own tiebreak — and emitting them anyway defeats
+    // `usage_ledger_created_at_idx` (full SCAN + temp b-tree on every page turn).
+    const sortsByCreatedAt = query.sortBy === undefined || query.sortBy === 'createdAt'
+    const orderTerms: SQL[] = sortsByCreatedAt
+      ? [orderExpression, asc(usageLedgerTable.id)]
+      : [sql`${sortExpression} IS NULL`, orderExpression, desc(usageLedgerTable.createdAt), asc(usageLedgerTable.id)]
 
     const [rows, [{ count }]] = await Promise.all([
       db
         .select()
         .from(usageLedgerTable)
         .where(where)
-        .orderBy(
-          sql`${sortExpression} IS NULL`,
-          orderExpression,
-          desc(usageLedgerTable.createdAt),
-          asc(usageLedgerTable.id)
-        )
+        .orderBy(...orderTerms)
         .limit(limit)
         .offset(offset),
       db.select({ count: sql<number>`count(*)` }).from(usageLedgerTable).where(where)
