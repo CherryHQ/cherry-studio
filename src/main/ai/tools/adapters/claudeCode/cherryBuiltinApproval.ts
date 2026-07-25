@@ -67,11 +67,23 @@ export const CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES: readonly string[] = [
 ]
 
 /**
- * Assistant MCP tools safe to auto-approve for local Cherry Assistant sessions: `navigate` only,
- * which emits a clickable link the user must click themselves. `diagnose` reads local machine data
- * (logs, source files, config, host info) and MUST go through per-call approval — the Assistant
- * also reads untrusted web/KB content, and auto-approved web_fetch would complete a prompt-injection
- * exfiltration chain (untrusted page → diagnose → web_fetch). Never widen this to a
- * `mcp__assistant__` prefix or wildcard; a future assistant tool must opt in here explicitly.
+ * Assistant MCP tools safe to auto-approve for local Cherry Assistant sessions: `navigate`, which
+ * emits a clickable link the user must click themselves, and `product_info`, which only reads the
+ * bundled public product manifest. Never widen this to a `mcp__assistant__` prefix or wildcard; a
+ * future assistant tool must opt in here explicitly.
  */
-export const ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES: readonly string[] = ['mcp__assistant__navigate']
+export const ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES: readonly string[] = [
+  'mcp__assistant__navigate',
+  'mcp__assistant__product_info'
+]
+
+/**
+ * Assistant MCP tools that must retain per-call approval even when the Agent uses acceptEdits or
+ * bypassPermissions. `diagnose` reads local device state; the other tools mutate app settings or
+ * create persistent business data.
+ */
+export const ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES: readonly string[] = [
+  'mcp__assistant__diagnose',
+  'mcp__assistant__apply_setting',
+  'mcp__assistant__create_agent'
+]

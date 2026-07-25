@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "lastUpdated": 1774918800000,
+  "lastUpdated": 1784791029000,
   "plugins": [
     {
       "filename": "cherry-assistant-guide",
@@ -9,11 +9,11 @@
         "sourcePath": "skills/cherry-assistant-guide",
         "filename": "cherry-assistant-guide",
         "name": "cherry-assistant-guide",
-        "description": "Cherry Studio 产品知识库、源码路径索引、故障排查和页面导航。当用户询问 Cherry Studio 的功能、配置、报错、使用方法时触发。也适用于用户提到 provider、模型、知识库、Agent、MCP、OpenClaw、PDF、快捷短语等关键词的场景。",
+        "description": "从当前安装包查询 Cherry Studio 产品信息。当用户询问功能、路由、快捷键、Provider、语言、Agent、频道、定时任务、Code CLI 或当前版本时触发。",
         "category": "skills",
         "type": "skill",
-        "size": 7318,
-        "contentHash": "994922bc4cc0280b1fa6d316e5cb8ebe5a292572c131fcc68b9d7ca80d70d2db"
+        "size": 6042,
+        "contentHash": "7bf9474f893243bedb2baac14fb85da2e52ba799b792afa17378c5a44c299d9e"
       }
     },
     {
@@ -51,11 +51,11 @@
         "sourcePath": "skills/skills-manager",
         "filename": "skills-manager",
         "name": "skills-manager",
-        "description": "搜索、安装和创建 Claude Code Agent Skills。当用户想要搜索技能、安装工具、创建自定义 Skill，或者说\"find a skill\"、\"搜索技能\"、\"帮我做个 skill\"、\"create a skill\"时触发。也适用于用户说\"有没有做 X 的工具\"、\"我想扩展 Agent 能力\"的场景。",
+        "description": "搜索、安装和协调创建 Claude Code Agent Skills。当用户想要搜索技能、安装工具、创建自定义 Skill，或者说\"find a skill\"、\"搜索技能\"、\"帮我做个 skill\"、\"create a skill\"时触发。也适用于用户说\"有没有做 X 的工具\"、\"我想扩展 Agent 能力\"，或当前能力不足需要先查找可复用方案的场景。",
         "category": "skills",
         "type": "skill",
-        "size": 1632,
-        "contentHash": "7aa285f334acf318b23ef0f1d3126cd5d55c2a47ad0daa360ddd7321dfc6e5c6"
+        "size": 1899,
+        "contentHash": "459d2105729134dc1da12ff1bbc4d03983328a1252abf2a078cfe695ee28908c"
       }
     }
   ]
