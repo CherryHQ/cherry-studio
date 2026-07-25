@@ -145,11 +145,15 @@ export function MessageVirtualList<T>({
   const [scrollerElement, setScrollerElement] = useState<HTMLDivElement | null>(null)
   const { scrollToBottom, markUserInput, takeUserControl } = runtime
   const { onWheel } = runtime.scrollerProps
+  // Latch the captured node like TabRouter does: a background tab detaches the
+  // ref (element === null) while its DOM node lives on, and clearing this state
+  // would unmount the virtualizer below — discarding virtua's measurements and
+  // every message's own state on a plain tab switch.
   const setScrollerRef = useCallback(
     (element: HTMLDivElement | null) => {
       runtime.scrollerRef.current = element
-      setScrollerElement(element)
       if (element) {
+        setScrollerElement(element)
         onScrollContainerReady?.(element)
       }
     },

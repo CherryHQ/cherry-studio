@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { Activity } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MessageVirtualList } from '../MessageVirtualList'
@@ -119,6 +120,29 @@ describe('MessageVirtualList', () => {
     expect(screen.getByTestId('virtualizer')).toBeInTheDocument()
     expect(virtuaMockState.scrollRefReadyAtMount).not.toContain(false)
     expect(virtuaMockState.scrollRefReadyAtMount.length).toBeGreaterThan(0)
+  })
+
+  it('keeps virtua mounted when a hidden tab detaches the scroller ref', () => {
+    const TabbedList = ({ visible }: { visible: boolean }) => (
+      <Activity mode={visible ? 'visible' : 'hidden'}>
+        <MessageVirtualList
+          items={['message-1']}
+          getItemKey={(item) => item}
+          renderItem={(item) => <span>{item}</span>}
+        />
+      </Activity>
+    )
+
+    const { rerender } = render(<TabbedList visible />)
+    const virtualizerAtMount = screen.getByTestId('virtualizer')
+
+    rerender(<TabbedList visible={false} />)
+    rerender(<TabbedList visible />)
+
+    // A remount would rebuild virtua from estimated sizes and drop every
+    // message's own state, so the node identity must survive the round trip.
+    expect(screen.getByTestId('virtualizer')).toBe(virtualizerAtMount)
+    expect(runtimeMockState.scrollerRef.current).not.toBeNull()
   })
 
   it('renders the top padding as real scroll content before the virtualizer', () => {
