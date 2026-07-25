@@ -21,10 +21,6 @@ vi.mock('@renderer/components/layout/AppShell', () => ({
   AppShell: () => <div data-testid="app-shell">app-shell</div>
 }))
 
-vi.mock('@renderer/components/ResourceViewSourceProvider', () => ({
-  ResourceViewSourceProvider: ({ children }: { children: ReactNode }) => <>{children}</>
-}))
-
 vi.mock('@renderer/hooks/useWindowRuntime', () => ({ useWindowRuntime: () => {} }))
 vi.mock('@renderer/hooks/useStorageMonitorNotification', () => ({ useStorageMonitorNotification: () => {} }))
 vi.mock('../hooks/useTopicNamingErrorNotification', () => ({ useTopicNamingErrorNotification: () => {} }))
