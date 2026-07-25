@@ -188,8 +188,9 @@ describe('UsageLedgerMigrator', () => {
     })
 
     // Rerunning the migrator is safe: the unique messageId key and conflict
-    // target converge on the existing records instead of duplicating usage.
-    expect(await migrator.execute(ctxOf())).toMatchObject({ success: true, processedCount: 2 })
+    // target converge on the existing records instead of duplicating usage —
+    // and the rerun reports 0 processed because nothing new was written.
+    expect(await migrator.execute(ctxOf())).toMatchObject({ success: true, processedCount: 0 })
     const rowsAfterRerun = await dbh.db.select().from(usageLedgerTable)
     expect(rowsAfterRerun).toHaveLength(2)
     expect(rowsAfterRerun.map((row) => row.messageId).sort()).toEqual(['agent-message-ledger', 'chat-message-ledger'])
@@ -435,6 +436,62 @@ describe('UsageLedgerMigrator', () => {
       costCurrency: null,
       costSource: null
     })
+  })
+
+  it('keeps backfilling after a failed batch insert and reports the lost rows as skipped', async () => {
+    await dbh.db.insert(messageTable).values(
+      withRoot('topic-ledger', [
+        {
+          id: 'chat-message-batch-good',
+          topicId: 'topic-ledger',
+          parentId: null,
+          role: 'assistant',
+          data: { parts: [] },
+          status: 'success',
+          modelId: 'openai::gpt-4o',
+          stats: { totalTokens: 9 },
+          createdAt: 1000,
+          updatedAt: 1000
+        },
+        {
+          id: 'chat-message-batch-malformed',
+          topicId: 'topic-ledger',
+          parentId: null,
+          role: 'assistant',
+          data: { parts: [] },
+          status: 'success',
+          modelId: 'openai::gpt-4o',
+          // An object where an integer column is expected: the driver rejects the
+          // bind, rolling the chat batch back without aborting the migration.
+          stats: { inputTokens: { broken: true } } as never,
+          createdAt: 2000,
+          updatedAt: 2000
+        }
+      ])
+    )
+    await dbh.db.insert(agentSessionMessageTable).values({
+      id: 'agent-message-batch-good',
+      sessionId: 'agent-session-ledger',
+      role: 'assistant',
+      data: { parts: [] },
+      status: 'success',
+      modelId: 'openai::gpt-4o',
+      stats: { totalTokens: 4 },
+      createdAt: 3000,
+      updatedAt: 3000
+    })
+
+    const migrator = new UsageLedgerMigrator()
+    const result = await migrator.execute(ctxOf())
+    expect(result).toMatchObject({ success: true, processedCount: 1 })
+    expect(result.warnings).toHaveLength(1)
+    expect(await migrator.validate(ctxOf())).toMatchObject({
+      success: true,
+      stats: { sourceCount: 3, targetCount: 1, skippedCount: 2 }
+    })
+
+    const rows = await dbh.db.select().from(usageLedgerTable)
+    expect(rows.map((row) => row.messageId)).toEqual(['agent-message-batch-good'])
   })
 
   it('uses agent message model snapshots when modelId cannot be resolved to user_model', async () => {

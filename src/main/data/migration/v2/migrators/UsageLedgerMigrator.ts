@@ -9,6 +9,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import type { DbType } from '@data/db/types'
 import { computeStatsCostSnapshot } from '@data/services/utils/costEnrichment'
+import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import type { MessageStats, ModelSnapshot } from '@shared/data/types/message'
 import { parseUniqueModelId, type RuntimeModelPricing, type UniqueModelId } from '@shared/data/types/model'
@@ -21,6 +22,8 @@ import * as z from 'zod'
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
 import { legacyModelToUniqueId } from './transformers/ModelTransformers'
+
+const logger = loggerService.withContext('UsageLedgerMigrator')
 
 type UsageLedgerSourceRow = {
   id: string
@@ -358,6 +361,7 @@ export class UsageLedgerMigrator extends BaseMigrator {
     this.sourceCount = 0
     this.skippedCount = 0
     this.insertedCount = 0
+    const warnings: string[] = []
 
     const CANDIDATE_BATCH_SIZE = 500
     const INSERT_CHUNK_SIZE = 100
@@ -381,15 +385,30 @@ export class UsageLedgerMigrator extends BaseMigrator {
         }
 
         if (rows.length > 0) {
-          ctx.db.transaction((tx) => {
-            for (let i = 0; i < rows.length; i += INSERT_CHUNK_SIZE) {
-              tx.insert(usageLedgerTable)
-                .values(rows.slice(i, i + INSERT_CHUNK_SIZE))
-                .onConflictDoNothing({ target: usageLedgerTable.messageId })
-                .run()
-            }
-          })
-          this.insertedCount += rows.length
+          try {
+            let inserted = 0
+            ctx.db.transaction((tx) => {
+              for (let i = 0; i < rows.length; i += INSERT_CHUNK_SIZE) {
+                const result = tx
+                  .insert(usageLedgerTable)
+                  .values(rows.slice(i, i + INSERT_CHUNK_SIZE))
+                  .onConflictDoNothing({ target: usageLedgerTable.messageId })
+                  .run()
+                // Count what SQLite actually wrote: a conflict-skipped re-run
+                // inserts nothing, and reporting it as inserted would hide that.
+                inserted += result.changes
+              }
+            })
+            this.insertedCount += inserted
+          } catch (error) {
+            // The ledger is derived, reconstructible data and every runtime write
+            // path treats it as best-effort. A malformed row must not abort the
+            // whole v1 -> v2 migration and strand the user in the error stage, so
+            // the rolled-back batch is counted as skipped and the backfill goes on.
+            logger.warn('Failed to insert usage ledger batch, skipping it', { batchSize: rows.length, error })
+            this.skippedCount += rows.length
+            warnings.push(`Skipped ${rows.length} usage ledger row(s) after a failed batch insert`)
+          }
         }
 
         offset += candidates.length
@@ -397,7 +416,7 @@ export class UsageLedgerMigrator extends BaseMigrator {
       }
     }
 
-    return { success: true, processedCount: this.insertedCount }
+    return { success: true, processedCount: this.insertedCount, ...(warnings.length > 0 ? { warnings } : {}) }
   }
 
   async validate(ctx: MigrationContext): Promise<ValidateResult> {
