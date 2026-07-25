@@ -73,6 +73,19 @@ describe('AiSdkToGeminiSse (streaming)', () => {
   })
 
   it('projects usage onto the terminal frame', () => {
+    const frames = run([
+      textDelta('x'),
+      finish('stop', { stats: { inputTokens: 10, outputTokens: 20, outputTokenDetails: { reasoningTokens: 5 } } })
+    ])
+    expect(frames[frames.length - 1].usageMetadata).toEqual({
+      promptTokenCount: 10,
+      candidatesTokenCount: 20,
+      totalTokenCount: 30,
+      thoughtsTokenCount: 5
+    })
+  })
+
+  it('omits thoughtsTokenCount when the stats snapshot carries no reasoning tokens', () => {
     const frames = run([textDelta('x'), finish('stop', { stats: { inputTokens: 10, outputTokens: 20 } })])
     expect(frames[frames.length - 1].usageMetadata).toEqual({
       promptTokenCount: 10,
@@ -107,6 +120,25 @@ describe('AiSdkToGeminiSse.buildNonStreamingResponse', () => {
     ])
     expect(response.candidates[0].finishReason).toBe('STOP')
     expect(response.usageMetadata).toMatchObject({ promptTokenCount: 3, candidatesTokenCount: 4, totalTokenCount: 7 })
+  })
+
+  it('carries thoughtsTokenCount from the stats reasoning breakdown', () => {
+    const adapter = new AiSdkToGeminiSse({ model: 'deepseek:deepseek-chat' })
+    for (const chunk of [
+      reasoningDelta('thinking...'),
+      textDelta('Hello'),
+      finish('stop', { stats: { inputTokens: 3, outputTokens: 4, outputTokenDetails: { reasoningTokens: 2 } } })
+    ]) {
+      adapter.transformChunk(chunk)
+    }
+    adapter.finalizeEvents()
+
+    expect(adapter.buildNonStreamingResponse().usageMetadata).toEqual({
+      promptTokenCount: 3,
+      candidatesTokenCount: 4,
+      totalTokenCount: 7,
+      thoughtsTokenCount: 2
+    })
   })
 })
 

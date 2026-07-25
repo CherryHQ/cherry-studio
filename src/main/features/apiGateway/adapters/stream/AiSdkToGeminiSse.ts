@@ -72,6 +72,7 @@ function toGeminiFinishReason(reason: FinishReason | undefined): string {
 export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentResponse> {
   /** Accumulated parts, in emission order, for the non-streaming response. */
   private accumulatedParts: GeminiResponsePart[] = []
+  private thoughtsTokens = 0
   private finishReason = 'STOP'
 
   constructor(options: StreamAdapterOptions) {
@@ -156,6 +157,8 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
     if (!metadata) return
     if (metadata.stats?.inputTokens !== undefined) this.state.inputTokens = metadata.stats.inputTokens
     if (metadata.stats?.outputTokens !== undefined) this.state.outputTokens = metadata.stats.outputTokens
+    const reasoningTokens = metadata.stats?.outputTokenDetails?.reasoningTokens
+    if (reasoningTokens !== undefined) this.thoughtsTokens = reasoningTokens
   }
 
   private buildUsageMetadata(): GeminiUsageMetadata {
@@ -164,6 +167,7 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
       candidatesTokenCount: this.state.outputTokens,
       totalTokenCount: this.state.inputTokens + this.state.outputTokens
     }
+    if (this.thoughtsTokens > 0) usage.thoughtsTokenCount = this.thoughtsTokens
     return usage
   }
 
