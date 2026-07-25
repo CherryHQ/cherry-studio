@@ -85,8 +85,11 @@ const legacyChatModels = [
 ]
 
 const overrides: Partial<ProviderModelOverride>[] = [
+  // The effort SKUs are the 250615+ line Ark serves over /responses, where the built-in web_search tool
+  // and encrypted-CoT replay live — list Responses first so it's preferred, keeping chat selectable.
   ...effortModels.map((modelId) => ({
     modelId,
+    endpointTypes: ['openai-responses' as const, 'openai-chat-completions' as const],
     ...(webSearchModels.has(modelId) ? { capabilities: { add: ['web-search' as const] } } : {}),
     reasoningContracts: highEffortDefaults.has(modelId)
       ? {
@@ -116,7 +119,10 @@ const overrides: Partial<ProviderModelOverride>[] = [
 export default defineProvider({
   id: 'doubao',
   name: 'doubao',
-  defaultChatEndpoint: 'openai-responses',
+  // Chat Completions stays the provider default: endpoint selection falls back to it for any model
+  // without `endpointTypes` (user-added custom models, `/models` discoveries that miss an override), and
+  // Ark only serves /responses for 250615+ SKUs. Responses is opted into per model below.
+  defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'openai-chat-completions': {
       adapterFamily: 'openai-compatible',

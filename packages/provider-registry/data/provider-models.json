@@ -19,6 +19,7 @@
     {
       "apiModelId": "claude-3-5-haiku-20241022",
       "modelId": "claude-3-5-haiku",
+      "name": "claude-3-5-haiku-20241022",
       "pricing": {
         "input": {
           "currency": "USD",
@@ -4001,6 +4002,29 @@
       "providerId": "copilot"
     },
     {
+      "apiModelId": "claude-opus-5",
+      "modelId": "claude-opus-5",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 6.25
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 25
+        }
+      },
+      "providerId": "copilot"
+    },
+    {
       "apiModelId": "claude-sonnet-4",
       "modelId": "claude-sonnet-4",
       "pricing": {
@@ -4451,7 +4475,6 @@
       "capabilities": {
         "add": ["web-search"]
       },
-      "endpointTypes": ["openai-chat-completions"],
       "modelId": "deepseek-r1",
       "providerId": "dashscope"
     },
@@ -4459,23 +4482,22 @@
       "capabilities": {
         "add": ["web-search"]
       },
-      "endpointTypes": ["openai-chat-completions"],
       "modelId": "deepseek-v3",
       "providerId": "dashscope"
     },
     {
+      "apiModelId": "deepseek-v3.1",
       "capabilities": {
         "add": ["web-search"]
       },
-      "endpointTypes": ["openai-chat-completions"],
       "modelId": "deepseek-v3-1",
       "providerId": "dashscope"
     },
     {
+      "apiModelId": "deepseek-v3.2",
       "capabilities": {
         "add": ["web-search"]
       },
-      "endpointTypes": ["openai-chat-completions"],
       "modelId": "deepseek-v3-2",
       "providerId": "dashscope"
     },
@@ -4483,7 +4505,6 @@
       "capabilities": {
         "add": ["web-search"]
       },
-      "endpointTypes": ["openai-chat-completions"],
       "modelId": "deepseek-v4-flash",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -4529,7 +4550,6 @@
       "capabilities": {
         "add": ["web-search"]
       },
-      "endpointTypes": ["openai-chat-completions"],
       "modelId": "deepseek-v4-pro",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -4572,7 +4592,6 @@
       }
     },
     {
-      "endpointTypes": ["openai-chat-completions"],
       "modelId": "glm-5",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -4615,7 +4634,6 @@
       }
     },
     {
-      "endpointTypes": ["openai-chat-completions"],
       "modelId": "glm-5-1",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -4658,7 +4676,6 @@
       }
     },
     {
-      "endpointTypes": ["openai-chat-completions"],
       "modelId": "glm-5-2",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -4701,16 +4718,15 @@
       }
     },
     {
+      "apiModelId": "Moonshot-Kimi-K2-Instruct",
       "capabilities": {
         "add": ["web-search"]
       },
-      "endpointTypes": ["openai-chat-completions"],
       "modelId": "kimi-k2",
       "providerId": "dashscope"
     },
     {
       "apiModelId": "kimi/kimi-k3",
-      "endpointTypes": ["openai-chat-completions"],
       "modelId": "kimi-k3",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -4753,15 +4769,14 @@
       }
     },
     {
+      "apiModelId": "MiniMax-M2.1",
       "capabilities": {
         "add": ["web-search"]
       },
-      "endpointTypes": ["openai-chat-completions"],
       "modelId": "minimax-m2-1",
       "providerId": "dashscope"
     },
     {
-      "endpointTypes": ["openai-chat-completions"],
       "modelId": "minimax-m3",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -4816,6 +4831,7 @@
       "capabilities": {
         "add": ["web-search"]
       },
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen-flash",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -4882,18 +4898,18 @@
           "support": {
             "controls": [
               {
-                "default": "medium",
+                "default": "xhigh",
                 "kind": "effort",
-                "values": ["none", "minimal", "low", "medium", "high"]
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["none", "minimal", "low", "medium", "high"]
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "medium"
+                "auto": "xhigh"
               },
               "operations": [
                 {
@@ -5038,6 +5054,7 @@
       "capabilities": {
         "add": ["web-search"]
       },
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen-plus",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -5104,18 +5121,18 @@
           "support": {
             "controls": [
               {
-                "default": "medium",
+                "default": "xhigh",
                 "kind": "effort",
-                "values": ["none", "minimal", "low", "medium", "high"]
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["none", "minimal", "low", "medium", "high"]
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "medium"
+                "auto": "xhigh"
               },
               "operations": [
                 {
@@ -5155,6 +5172,7 @@
       "capabilities": {
         "add": ["web-search"]
       },
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen-plus-character",
       "providerId": "dashscope"
     },
@@ -5162,7 +5180,6 @@
       "capabilities": {
         "add": ["web-search"]
       },
-      "endpointTypes": ["openai-chat-completions"],
       "modelId": "qwen-turbo",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -5229,18 +5246,18 @@
           "support": {
             "controls": [
               {
-                "default": "medium",
+                "default": "xhigh",
                 "kind": "effort",
-                "values": ["none", "minimal", "low", "medium", "high"]
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["none", "minimal", "low", "medium", "high"]
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "medium"
+                "auto": "xhigh"
               },
               "operations": [
                 {
@@ -5277,10 +5294,6 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
-      "endpointTypes": ["openai-chat-completions"],
       "modelId": "qwen3-14b",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -5347,18 +5360,18 @@
           "support": {
             "controls": [
               {
-                "default": "medium",
+                "default": "xhigh",
                 "kind": "effort",
-                "values": ["none", "minimal", "low", "medium", "high"]
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["none", "minimal", "low", "medium", "high"]
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "medium"
+                "auto": "xhigh"
               },
               "operations": [
                 {
@@ -5395,10 +5408,6 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
-      "endpointTypes": ["openai-chat-completions"],
       "modelId": "qwen3-235b-a22b",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -5465,18 +5474,18 @@
           "support": {
             "controls": [
               {
-                "default": "medium",
+                "default": "xhigh",
                 "kind": "effort",
-                "values": ["none", "minimal", "low", "medium", "high"]
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["none", "minimal", "low", "medium", "high"]
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "medium"
+                "auto": "xhigh"
               },
               "operations": [
                 {
@@ -5513,10 +5522,6 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
-      "endpointTypes": ["openai-chat-completions"],
       "modelId": "qwen3-32b",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -5583,18 +5588,18 @@
           "support": {
             "controls": [
               {
-                "default": "medium",
+                "default": "xhigh",
                 "kind": "effort",
-                "values": ["none", "minimal", "low", "medium", "high"]
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["none", "minimal", "low", "medium", "high"]
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "medium"
+                "auto": "xhigh"
               },
               "operations": [
                 {
@@ -5631,9 +5636,7 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-5-122b-a10b",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -5700,18 +5703,18 @@
           "support": {
             "controls": [
               {
-                "default": "medium",
+                "default": "xhigh",
                 "kind": "effort",
-                "values": ["none", "minimal", "low", "medium", "high"]
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["none", "minimal", "low", "medium", "high"]
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "medium"
+                "auto": "xhigh"
               },
               "operations": [
                 {
@@ -5748,9 +5751,7 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-5-27b",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -5817,18 +5818,18 @@
           "support": {
             "controls": [
               {
-                "default": "medium",
+                "default": "xhigh",
                 "kind": "effort",
-                "values": ["none", "minimal", "low", "medium", "high"]
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["none", "minimal", "low", "medium", "high"]
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "medium"
+                "auto": "xhigh"
               },
               "operations": [
                 {
@@ -5865,9 +5866,7 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-5-35b-a3b",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -5934,18 +5933,18 @@
           "support": {
             "controls": [
               {
-                "default": "medium",
+                "default": "xhigh",
                 "kind": "effort",
-                "values": ["none", "minimal", "low", "medium", "high"]
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["none", "minimal", "low", "medium", "high"]
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "medium"
+                "auto": "xhigh"
               },
               "operations": [
                 {
@@ -5982,9 +5981,7 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-5-397b-a17b",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -6051,18 +6048,18 @@
           "support": {
             "controls": [
               {
-                "default": "medium",
+                "default": "xhigh",
                 "kind": "effort",
-                "values": ["none", "minimal", "low", "medium", "high"]
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["none", "minimal", "low", "medium", "high"]
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "medium"
+                "auto": "xhigh"
               },
               "operations": [
                 {
@@ -6099,10 +6096,6 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
-      "endpointTypes": ["openai-chat-completions"],
       "modelId": "qwen3-5-9b",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -6169,18 +6162,18 @@
           "support": {
             "controls": [
               {
-                "default": "medium",
+                "default": "xhigh",
                 "kind": "effort",
-                "values": ["none", "minimal", "low", "medium", "high"]
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["none", "minimal", "low", "medium", "high"]
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "medium"
+                "auto": "xhigh"
               },
               "operations": [
                 {
@@ -6220,6 +6213,7 @@
       "capabilities": {
         "add": ["web-search"]
       },
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-5-flash",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -6286,18 +6280,18 @@
           "support": {
             "controls": [
               {
-                "default": "medium",
+                "default": "xhigh",
                 "kind": "effort",
-                "values": ["none", "minimal", "low", "medium", "high"]
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["none", "minimal", "low", "medium", "high"]
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "medium"
+                "auto": "xhigh"
               },
               "operations": [
                 {
@@ -6337,6 +6331,7 @@
       "capabilities": {
         "add": ["web-search"]
       },
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-5-plus",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -6403,18 +6398,18 @@
           "support": {
             "controls": [
               {
-                "default": "medium",
+                "default": "xhigh",
                 "kind": "effort",
-                "values": ["none", "minimal", "low", "medium", "high"]
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["none", "minimal", "low", "medium", "high"]
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "medium"
+                "auto": "xhigh"
               },
               "operations": [
                 {
@@ -6451,10 +6446,6 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
-      "endpointTypes": ["openai-chat-completions"],
       "modelId": "qwen3-6-27b",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -6521,18 +6512,18 @@
           "support": {
             "controls": [
               {
-                "default": "medium",
+                "default": "xhigh",
                 "kind": "effort",
-                "values": ["none", "minimal", "low", "medium", "high"]
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["none", "minimal", "low", "medium", "high"]
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "medium"
+                "auto": "xhigh"
               },
               "operations": [
                 {
@@ -6569,9 +6560,7 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-6-35b-a3b",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -6638,18 +6627,18 @@
           "support": {
             "controls": [
               {
-                "default": "medium",
+                "default": "xhigh",
                 "kind": "effort",
-                "values": ["none", "minimal", "low", "medium", "high"]
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["none", "minimal", "low", "medium", "high"]
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "medium"
+                "auto": "xhigh"
               },
               "operations": [
                 {
@@ -6756,18 +6745,18 @@
           "support": {
             "controls": [
               {
-                "default": "medium",
+                "default": "xhigh",
                 "kind": "effort",
-                "values": ["none", "minimal", "low", "medium", "high"]
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["none", "minimal", "low", "medium", "high"]
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "medium"
+                "auto": "xhigh"
               },
               "operations": [
                 {
@@ -6807,7 +6796,6 @@
       "capabilities": {
         "add": ["web-search"]
       },
-      "endpointTypes": ["openai-chat-completions"],
       "modelId": "qwen3-6-max-preview",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -6874,18 +6862,18 @@
           "support": {
             "controls": [
               {
-                "default": "medium",
+                "default": "xhigh",
                 "kind": "effort",
-                "values": ["none", "minimal", "low", "medium", "high"]
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["none", "minimal", "low", "medium", "high"]
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "medium"
+                "auto": "xhigh"
               },
               "operations": [
                 {
@@ -6992,18 +6980,18 @@
           "support": {
             "controls": [
               {
-                "default": "medium",
+                "default": "xhigh",
                 "kind": "effort",
-                "values": ["none", "minimal", "low", "medium", "high"]
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["none", "minimal", "low", "medium", "high"]
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "medium"
+                "auto": "xhigh"
               },
               "operations": [
                 {
@@ -7110,18 +7098,18 @@
           "support": {
             "controls": [
               {
-                "default": "medium",
+                "default": "xhigh",
                 "kind": "effort",
-                "values": ["none", "minimal", "low", "medium", "high"]
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["none", "minimal", "low", "medium", "high"]
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "medium"
+                "auto": "xhigh"
               },
               "operations": [
                 {
@@ -7161,6 +7149,7 @@
       "capabilities": {
         "add": ["web-search"]
       },
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-7-plus",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -7227,18 +7216,18 @@
           "support": {
             "controls": [
               {
-                "default": "medium",
+                "default": "xhigh",
                 "kind": "effort",
-                "values": ["none", "minimal", "low", "medium", "high"]
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["none", "minimal", "low", "medium", "high"]
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "medium"
+                "auto": "xhigh"
               },
               "operations": [
                 {
@@ -7343,7 +7332,7 @@
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "medium"
+                "auto": "xhigh"
               },
               "operations": [
                 {
@@ -7383,6 +7372,7 @@
       "capabilities": {
         "add": ["web-search"]
       },
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "qwen3-max",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -7449,18 +7439,18 @@
           "support": {
             "controls": [
               {
-                "default": "medium",
+                "default": "xhigh",
                 "kind": "effort",
-                "values": ["none", "minimal", "low", "medium", "high"]
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["none", "minimal", "low", "medium", "high"]
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "medium"
+                "auto": "xhigh"
               },
               "operations": [
                 {
@@ -7497,10 +7487,6 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
-      "endpointTypes": ["openai-chat-completions"],
       "modelId": "qwen3-omni-flash",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -7567,18 +7553,18 @@
           "support": {
             "controls": [
               {
-                "default": "medium",
+                "default": "xhigh",
                 "kind": "effort",
-                "values": ["none", "minimal", "low", "medium", "high"]
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["none", "minimal", "low", "medium", "high"]
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "medium"
+                "auto": "xhigh"
               },
               "operations": [
                 {
@@ -7615,10 +7601,6 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
-      "endpointTypes": ["openai-chat-completions"],
       "modelId": "qwen3-vl",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -7685,18 +7667,18 @@
           "support": {
             "controls": [
               {
-                "default": "medium",
+                "default": "xhigh",
                 "kind": "effort",
-                "values": ["none", "minimal", "low", "medium", "high"]
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["none", "minimal", "low", "medium", "high"]
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "medium"
+                "auto": "xhigh"
               },
               "operations": [
                 {
@@ -7733,10 +7715,6 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
-      "endpointTypes": ["openai-chat-completions"],
       "modelId": "qwen3-vl-235b-a22b",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -7803,18 +7781,18 @@
           "support": {
             "controls": [
               {
-                "default": "medium",
+                "default": "xhigh",
                 "kind": "effort",
-                "values": ["none", "minimal", "low", "medium", "high"]
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["none", "minimal", "low", "medium", "high"]
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "medium"
+                "auto": "xhigh"
               },
               "operations": [
                 {
@@ -7851,10 +7829,6 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
-      "endpointTypes": ["openai-chat-completions"],
       "modelId": "qwen3-vl-30b-a3b",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -7921,18 +7895,18 @@
           "support": {
             "controls": [
               {
-                "default": "medium",
+                "default": "xhigh",
                 "kind": "effort",
-                "values": ["none", "minimal", "low", "medium", "high"]
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["none", "minimal", "low", "medium", "high"]
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "medium"
+                "auto": "xhigh"
               },
               "operations": [
                 {
@@ -7969,10 +7943,6 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
-      "endpointTypes": ["openai-chat-completions"],
       "modelId": "qwen3-vl-8b",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -8039,18 +8009,18 @@
           "support": {
             "controls": [
               {
-                "default": "medium",
+                "default": "xhigh",
                 "kind": "effort",
-                "values": ["none", "minimal", "low", "medium", "high"]
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["none", "minimal", "low", "medium", "high"]
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "medium"
+                "auto": "xhigh"
               },
               "operations": [
                 {
@@ -8087,10 +8057,6 @@
       }
     },
     {
-      "capabilities": {
-        "add": ["web-search"]
-      },
-      "endpointTypes": ["openai-chat-completions"],
       "modelId": "qwen3-vl-plus",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -8157,18 +8123,18 @@
           "support": {
             "controls": [
               {
-                "default": "medium",
+                "default": "xhigh",
                 "kind": "effort",
-                "values": ["none", "minimal", "low", "medium", "high"]
+                "values": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
               }
             ],
-            "defaultEffort": "medium",
-            "supportedEfforts": ["none", "minimal", "low", "medium", "high"]
+            "defaultEffort": "xhigh",
+            "supportedEfforts": ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
           },
           "wire": {
             "auto": {
               "effortMap": {
-                "auto": "medium"
+                "auto": "xhigh"
               },
               "operations": [
                 {
@@ -8208,7 +8174,6 @@
       "capabilities": {
         "add": ["web-search"]
       },
-      "endpointTypes": ["openai-chat-completions"],
       "modelId": "qwq-plus",
       "providerId": "dashscope"
     },
@@ -9596,6 +9561,7 @@
       "capabilities": {
         "add": ["web-search"]
       },
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "doubao-seed-1-6",
       "providerId": "doubao",
       "reasoningContracts": {
@@ -9691,6 +9657,7 @@
       "capabilities": {
         "add": ["web-search"]
       },
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "doubao-seed-2-0-code",
       "providerId": "doubao",
       "reasoningContracts": {
@@ -9776,6 +9743,7 @@
       "capabilities": {
         "add": ["web-search"]
       },
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "doubao-seed-2-0-lite",
       "providerId": "doubao",
       "reasoningContracts": {
@@ -9861,6 +9829,7 @@
       "capabilities": {
         "add": ["web-search"]
       },
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "doubao-seed-2-0-mini",
       "providerId": "doubao",
       "reasoningContracts": {
@@ -9946,6 +9915,7 @@
       "capabilities": {
         "add": ["web-search"]
       },
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "doubao-seed-2-0-pro",
       "providerId": "doubao",
       "reasoningContracts": {
@@ -10031,6 +10001,7 @@
       "capabilities": {
         "add": ["web-search"]
       },
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "doubao-seed-2-1-pro",
       "providerId": "doubao",
       "reasoningContracts": {
@@ -10122,6 +10093,7 @@
       "capabilities": {
         "add": ["web-search"]
       },
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "doubao-seed-2-1-turbo",
       "providerId": "doubao",
       "reasoningContracts": {
@@ -10213,6 +10185,7 @@
       "capabilities": {
         "add": ["web-search"]
       },
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "doubao-seed-character",
       "providerId": "doubao",
       "reasoningContracts": {
@@ -10303,6 +10276,7 @@
       "capabilities": {
         "add": ["web-search"]
       },
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "doubao-seed-evolving",
       "providerId": "doubao",
       "reasoningContracts": {
@@ -10396,6 +10370,7 @@
       "providerId": "doubao"
     },
     {
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "glm-5-2",
       "providerId": "doubao",
       "reasoningContracts": {
@@ -10486,6 +10461,7 @@
       "capabilities": {
         "add": ["web-search"]
       },
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "seed-1-8",
       "providerId": "doubao",
       "reasoningContracts": {
@@ -22436,15 +22412,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0196
+          "perMillionTokens": 0.01876
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.098
+          "perMillionTokens": 0.0938
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.196
+          "perMillionTokens": 0.1876
         }
       },
       "providerId": "openrouter",
@@ -24269,15 +24245,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.1469
+          "perMillionTokens": 0.14794
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.791
+          "perMillionTokens": 0.7966
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 2.486
+          "perMillionTokens": 2.5036
         }
       },
       "providerId": "openrouter",
@@ -26038,13 +26014,17 @@
       "apiModelId": "openai/gpt-oss-20b",
       "modelId": "gpt-oss-20b",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.03
+        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.029
+          "perMillionTokens": 0.03
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.14
+          "perMillionTokens": 0.13
         }
       },
       "providerId": "openrouter",
@@ -26798,11 +26778,11 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.82
+          "perMillionTokens": 0.78
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.75
+          "perMillionTokens": 3.5
         }
       },
       "providerId": "openrouter",
@@ -28219,11 +28199,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.08
+          "perMillionTokens": 0.085
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.45
+          "perMillionTokens": 0.4
         }
       },
       "providerId": "openrouter",
@@ -29149,7 +29129,7 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.288
+          "perMillionTokens": 0.289
         },
         "output": {
           "currency": "USD",
@@ -35350,29 +35330,6 @@
       "providerId": "tokenhub"
     },
     {
-      "apiModelId": "claude-3-5-haiku@20241022",
-      "modelId": "claude-3-5-haiku",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.08
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 1
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.8
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 4
-        }
-      },
-      "providerId": "vertexai"
-    },
-    {
       "apiModelId": "claude-haiku-4-5@20251001",
       "modelId": "claude-haiku-4-5",
       "pricing": {
@@ -36420,5 +36377,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "2261ecb7f6239109"
+  "version": "eb7704d74d320101"
 }

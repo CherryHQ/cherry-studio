@@ -941,7 +941,7 @@
       "name": "BAICHUAN AI"
     },
     {
-      "defaultChatEndpoint": "openai-responses",
+      "defaultChatEndpoint": "openai-chat-completions",
       "description": "Bailian - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
@@ -999,7 +999,7 @@
       "name": "StepFun"
     },
     {
-      "defaultChatEndpoint": "openai-responses",
+      "defaultChatEndpoint": "openai-chat-completions",
       "description": "doubao - AI model provider",
       "endpointConfigs": {
         "openai-chat-completions": {
@@ -1849,5 +1849,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "feaa5f3456cb4dd5"
+  "version": "9ef047b89c8ba9e8"
 }

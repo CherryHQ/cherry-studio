@@ -3336,36 +3336,6 @@
       "ownedBy": "amazon"
     },
     {
-      "capabilities": ["function-call", "image-recognition", "file-input", "web-search"],
-      "contextWindow": 200000,
-      "family": "claude-haiku",
-      "id": "claude-3-5-haiku",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 8192,
-      "metadata": {},
-      "name": "Claude Haiku 3.5",
-      "outputModalities": ["text"],
-      "ownedBy": "anthropic",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.08
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 1
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.8
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 4
-        }
-      }
-    },
-    {
       "capabilities": ["function-call", "image-recognition", "file-input"],
       "contextWindow": 200000,
       "family": "claude-haiku",
@@ -20434,7 +20404,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call", "reasoning", "structured-output"],
       "contextWindow": 1000000,
       "family": "glm",
       "id": "glm-5-2-fast",
@@ -20648,5 +20618,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "9e2eeab1484ee6cb"
+  "version": "f04f29ae2b31fda7"
 }
