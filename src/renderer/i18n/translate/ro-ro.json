@@ -5778,7 +5778,8 @@
         "success": "Memoria cache a fost golită",
         "title": "Golește memoria cache",
         "total_partial": "Dimensiune calculată: {{size}}; unele dimensiuni sunt necunoscute",
-        "unavailable": "Nu se poate calcula"
+        "unavailable": "Nu se poate calcula",
+        "waiting_for_legacy_database": "Se așteaptă eliberarea bazei de date vechi. Închideți celelalte ferestre Cherry Studio; curățarea va continua după închiderea conexiunilor acestora."
       },
       "data": {
         "title": "Director de date"

@@ -20,8 +20,7 @@ describe('ClearCachePopup', () => {
     inspectBrowserMock.mockResolvedValue({
       bytes: 50,
       accuracy: 'estimated',
-      completeness: 'complete',
-      issues: []
+      completeness: 'complete'
     })
     inspectMock.mockImplementation(
       (
@@ -42,8 +41,7 @@ describe('ClearCachePopup', () => {
               size: {
                 bytes,
                 accuracy: group === 'restore_staging' ? 'exact' : 'estimated',
-                completeness: 'complete',
-                issues: []
+                completeness: 'complete'
               }
             }
           ]
@@ -101,8 +99,7 @@ describe('ClearCachePopup', () => {
               size: {
                 bytes: group === 'normal_cache' ? 1024 : 0,
                 accuracy: 'estimated',
-                completeness: group === 'normal_cache' ? 'partial' : 'complete',
-                issues: group === 'normal_cache' ? [{ item: 'trace', code: 'inspection_failed' }] : []
+                completeness: group === 'normal_cache' ? 'partial' : 'complete'
               }
             }
           ]

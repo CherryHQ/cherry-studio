@@ -5779,7 +5779,8 @@
         "success": "Cache cleared",
         "title": "Clear Cache",
         "total_partial": "{{size}} counted; some sizes are unknown",
-        "unavailable": "Unable to calculate"
+        "unavailable": "Unable to calculate",
+        "waiting_for_legacy_database": "Waiting for the old database to be released. Close other Cherry Studio windows; cleanup will continue after their connections close."
       },
       "data": {
         "title": "Data Directory"

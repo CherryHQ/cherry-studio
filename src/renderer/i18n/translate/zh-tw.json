@@ -5779,7 +5779,8 @@
         "success": "快取清除成功",
         "title": "清除快取",
         "total_partial": "已統計 {{size}}，部分大小未知",
-        "unavailable": "無法統計"
+        "unavailable": "無法統計",
+        "waiting_for_legacy_database": "正在等待舊版資料庫釋放。請關閉其他 Cherry Studio 視窗，連線關閉後將繼續清理。"
       },
       "data": {
         "title": "資料目錄"

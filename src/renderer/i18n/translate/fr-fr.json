@@ -5778,7 +5778,8 @@
         "success": "Le cache a été effacé avec succès",
         "title": "Effacer le cache",
         "total_partial": "Taille comptabilisée : {{size}} ; certaines tailles sont inconnues",
-        "unavailable": "Calcul impossible"
+        "unavailable": "Calcul impossible",
+        "waiting_for_legacy_database": "En attente de la libération de l’ancienne base de données. Fermez les autres fenêtres de Cherry Studio ; le nettoyage reprendra une fois leurs connexions fermées."
       },
       "data": {
         "title": "Répertoire des données"

@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import type { CacheCleanupGroupResult, CacheCleanupIssue, CacheCleanupSizeSnapshot } from '@shared/types/cacheCleanup'
+import type { CacheCleanupGroupResult, CacheCleanupSizeSnapshot } from '@shared/types/cacheCleanup'
 import { Dexie, type IndexableType } from 'dexie'
 
 const logger = loggerService.withContext('LegacyV1BrowserData')
@@ -26,7 +26,7 @@ const LEGACY_LOCAL_STORAGE_PREFIX = 'failed_favicon_'
 
 interface BrowserDataMeasurement {
   bytes: number
-  issues: CacheCleanupIssue[]
+  hasFailures: boolean
 }
 
 function byteLength(value: string): number {
@@ -50,11 +50,11 @@ function collectLegacyLocalStorageKeys(): { keys: Set<string>; error?: unknown }
 
 function inspectLegacyLocalStorage(): BrowserDataMeasurement {
   let bytes = 0
-  const issues: CacheCleanupIssue[] = []
+  let hasFailures = false
   const { keys, error: enumerationError } = collectLegacyLocalStorageKeys()
   if (enumerationError) {
     logger.warn('Failed to enumerate legacy localStorage keys', enumerationError as Error)
-    issues.push({ item: 'local_storage:failed_favicon_*', code: 'inspection_failed' })
+    hasFailures = true
   }
 
   for (const key of keys) {
@@ -65,29 +65,26 @@ function inspectLegacyLocalStorage(): BrowserDataMeasurement {
       }
     } catch (error) {
       logger.warn('Failed to inspect legacy localStorage key', { key, error })
-      issues.push({ item: `local_storage:${key}`, code: 'inspection_failed' })
+      hasFailures = true
     }
   }
 
-  return { bytes, issues }
+  return { bytes, hasFailures }
 }
 
 async function inspectLegacyIndexedDb(): Promise<BrowserDataMeasurement> {
   try {
     if (!(await Dexie.exists(LEGACY_DATABASE_NAME))) {
-      return { bytes: 0, issues: [] }
+      return { bytes: 0, hasFailures: false }
     }
   } catch (error) {
     logger.warn('Failed to check legacy IndexedDB existence', error as Error)
-    return {
-      bytes: 0,
-      issues: [{ item: 'indexeddb:CherryStudio', code: 'inspection_failed' }]
-    }
+    return { bytes: 0, hasFailures: true }
   }
 
   const db = new Dexie(LEGACY_DATABASE_NAME)
   let bytes = 0
-  const issues: CacheCleanupIssue[] = []
+  let hasFailures = false
 
   try {
     await db.open()
@@ -118,42 +115,46 @@ async function inspectLegacyIndexedDb(): Promise<BrowserDataMeasurement> {
         }
       } catch (error) {
         logger.warn('Failed to inspect legacy IndexedDB table', { table: table.name, error })
-        issues.push({ item: `indexeddb:CherryStudio:${table.name}`, code: 'inspection_failed' })
+        hasFailures = true
       }
     }
   } catch (error) {
     logger.warn('Failed to open legacy IndexedDB', error as Error)
-    issues.push({ item: 'indexeddb:CherryStudio', code: 'inspection_failed' })
+    hasFailures = true
   } finally {
     db.close()
   }
 
-  return { bytes, issues }
+  return { bytes, hasFailures }
 }
 
 export async function inspectLegacyV1BrowserData(): Promise<CacheCleanupSizeSnapshot> {
   const localStorageMeasurement = inspectLegacyLocalStorage()
   const indexedDbMeasurement = await inspectLegacyIndexedDb()
   const bytes = localStorageMeasurement.bytes + indexedDbMeasurement.bytes
-  const issues = [...localStorageMeasurement.issues, ...indexedDbMeasurement.issues]
-  const partial = issues.length > 0
+  const partial = localStorageMeasurement.hasFailures || indexedDbMeasurement.hasFailures
 
   return {
     bytes: partial && bytes === 0 ? null : bytes,
     accuracy: partial && bytes === 0 ? 'unavailable' : 'estimated',
-    completeness: partial ? 'partial' : 'complete',
-    issues
+    completeness: partial ? 'partial' : 'complete'
   }
 }
 
-async function deleteLegacyIndexedDb(): Promise<'cleared' | 'not_found' | 'blocked' | 'failed'> {
+async function deleteLegacyIndexedDb(onBlocked?: () => void): Promise<'cleared' | 'not_found' | 'failed'> {
   try {
     if (!(await Dexie.exists(LEGACY_DATABASE_NAME))) return 'not_found'
-    return await new Promise<'cleared' | 'blocked' | 'failed'>((resolve) => {
+    return await new Promise<'cleared' | 'failed'>((resolve) => {
       const request = indexedDB.deleteDatabase(LEGACY_DATABASE_NAME)
       request.onsuccess = () => resolve('cleared')
-      request.onerror = () => resolve('failed')
-      request.onblocked = () => resolve('blocked')
+      request.onerror = () => {
+        logger.error('Failed to delete legacy IndexedDB', request.error ?? new Error('IndexedDB deletion failed'))
+        resolve('failed')
+      }
+      request.onblocked = () => {
+        logger.warn('Waiting for legacy IndexedDB connections to close')
+        onBlocked?.()
+      }
     })
   } catch (error) {
     logger.error('Failed to delete legacy IndexedDB', error as Error)
@@ -161,13 +162,13 @@ async function deleteLegacyIndexedDb(): Promise<'cleared' | 'not_found' | 'block
   }
 }
 
-export async function clearLegacyV1BrowserData(): Promise<CacheCleanupGroupResult> {
+export async function clearLegacyV1BrowserData(onIndexedDbBlocked?: () => void): Promise<CacheCleanupGroupResult> {
   let clearedItems = 0
-  const issues: CacheCleanupIssue[] = []
+  let failedItems = 0
   const { keys, error: enumerationError } = collectLegacyLocalStorageKeys()
   if (enumerationError) {
     logger.error('Failed to enumerate legacy localStorage keys', enumerationError as Error)
-    issues.push({ item: 'local_storage:failed_favicon_*', code: 'operation_failed' })
+    failedItems++
   }
 
   for (const key of keys) {
@@ -178,24 +179,22 @@ export async function clearLegacyV1BrowserData(): Promise<CacheCleanupGroupResul
       }
     } catch (error) {
       logger.error('Failed to remove legacy localStorage key', { key, error })
-      issues.push({ item: `local_storage:${key}`, code: 'operation_failed' })
+      failedItems++
     }
   }
 
-  const indexedDbResult = await deleteLegacyIndexedDb()
+  const indexedDbResult = await deleteLegacyIndexedDb(onIndexedDbBlocked)
   if (indexedDbResult === 'cleared') {
     clearedItems++
-  } else if (indexedDbResult === 'blocked') {
-    issues.push({ item: 'indexeddb:CherryStudio', code: 'indexeddb_blocked' })
   } else if (indexedDbResult === 'failed') {
-    issues.push({ item: 'indexeddb:CherryStudio', code: 'operation_failed' })
+    failedItems++
   }
 
   const hasSuccessfulStep = clearedItems > 0 || indexedDbResult === 'not_found'
   const status: CacheCleanupGroupResult['status'] =
-    issues.length > 0 ? (hasSuccessfulStep ? 'partial' : 'failed') : clearedItems > 0 ? 'cleared' : 'not_found'
+    failedItems > 0 ? (hasSuccessfulStep ? 'partial' : 'failed') : clearedItems > 0 ? 'cleared' : 'not_found'
 
-  return { group: 'legacy_v1', status, issues }
+  return { group: 'legacy_v1', status }
 }
 
 export function mergeLegacyV1CleanupResults(
@@ -220,7 +219,6 @@ export function mergeLegacyV1CleanupResults(
 
   return {
     group: 'legacy_v1',
-    status,
-    issues: [...mainResult.issues, ...browserResult.issues]
+    status
   }
 }

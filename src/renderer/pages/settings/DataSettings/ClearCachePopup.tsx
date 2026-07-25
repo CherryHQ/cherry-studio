@@ -76,8 +76,7 @@ function mergeLegacySizes(
     size: {
       bytes,
       accuracy: bytes === null ? 'unavailable' : 'estimated',
-      completeness,
-      issues: [...mainInspection.size.issues, ...browserSize.issues]
+      completeness
     }
   }
 }
@@ -105,8 +104,7 @@ async function inspectCleanupGroup(group: CacheCleanupGroup): Promise<CacheClean
       size: {
         bytes: null,
         accuracy: 'unavailable',
-        completeness: 'partial',
-        issues: [{ item: group, code: 'inspection_failed' }]
+        completeness: 'partial'
       }
     }
   }

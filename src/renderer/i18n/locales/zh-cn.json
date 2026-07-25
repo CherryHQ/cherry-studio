@@ -5779,7 +5779,8 @@
         "success": "缓存清除成功",
         "title": "清除缓存",
         "total_partial": "已统计 {{size}}，部分大小未知",
-        "unavailable": "无法统计"
+        "unavailable": "无法统计",
+        "waiting_for_legacy_database": "正在等待旧版数据库释放。请关闭其他 Cherry Studio 窗口，连接关闭后将继续清理。"
       },
       "data": {
         "title": "数据目录"

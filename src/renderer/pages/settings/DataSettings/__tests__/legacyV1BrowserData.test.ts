@@ -58,26 +58,24 @@ function createTableMock(inputRows: LegacyRecord[]) {
   }
 }
 
-function installDeleteDatabase(result: 'success' | 'blocked' | 'error') {
-  const deleteDatabase = vi.fn(() => {
-    const request: {
-      onsuccess: (() => void) | null
-      onblocked: (() => void) | null
-      onerror: (() => void) | null
-    } = {
-      onsuccess: null,
-      onblocked: null,
-      onerror: null
-    }
-    queueMicrotask(() => {
-      if (result === 'success') request.onsuccess?.()
-      else if (result === 'blocked') request.onblocked?.()
-      else request.onerror?.()
-    })
-    return request
-  })
+function installDeleteDatabase() {
+  const request = {
+    error: null as DOMException | null,
+    onsuccess: null as (() => void) | null,
+    onblocked: null as (() => void) | null,
+    onerror: null as (() => void) | null
+  }
+  const deleteDatabase = vi.fn(() => request)
   vi.stubGlobal('indexedDB', { deleteDatabase })
-  return deleteDatabase
+  return {
+    block: () => request.onblocked?.(),
+    deleteDatabase,
+    fail: () => {
+      request.error = new DOMException('delete failed')
+      request.onerror?.()
+    },
+    succeed: () => request.onsuccess?.()
+  }
 }
 
 describe('legacyV1BrowserData', () => {
@@ -125,10 +123,6 @@ describe('legacyV1BrowserData', () => {
 
     expect(result.bytes).toBeGreaterThan(0)
     expect(result.completeness).toBe('partial')
-    expect(result.issues).toContainEqual({
-      item: 'indexeddb:CherryStudio:message_blocks',
-      code: 'inspection_failed'
-    })
   })
 
   it('deletes only the v1 keys, failed favicon entries, and the CherryStudio database', async () => {
@@ -142,11 +136,14 @@ describe('legacyV1BrowserData', () => {
     localStorage.setItem('cs_cache_persist', 'keep-cache')
     localStorage.setItem('modelscope_token', 'keep-token')
     localStorage.setItem('failed-favicon-unrelated', 'keep-unrelated')
-    const deleteDatabase = installDeleteDatabase('success')
+    const deleteRequest = installDeleteDatabase()
 
-    const result = await clearLegacyV1BrowserData()
+    const cleanup = clearLegacyV1BrowserData()
+    await vi.waitFor(() => expect(deleteRequest.deleteDatabase).toHaveBeenCalledWith('CherryStudio'))
+    deleteRequest.succeed()
+    const result = await cleanup
 
-    expect(result).toEqual({ group: 'legacy_v1', status: 'cleared', issues: [] })
+    expect(result).toEqual({ group: 'legacy_v1', status: 'cleared' })
     for (const key of LEGACY_LOCAL_STORAGE_KEYS) {
       expect(localStorage.getItem(key)).toBeNull()
     }
@@ -156,53 +153,57 @@ describe('legacyV1BrowserData', () => {
     expect(localStorage.getItem('cs_cache_persist')).toBe('keep-cache')
     expect(localStorage.getItem('modelscope_token')).toBe('keep-token')
     expect(localStorage.getItem('failed-favicon-unrelated')).toBe('keep-unrelated')
-    expect(deleteDatabase).toHaveBeenCalledWith('CherryStudio')
   })
 
-  it('returns a partial result when IndexedDB deletion is blocked', async () => {
+  it('treats blocked as an intermediate event and waits for IndexedDB deletion success', async () => {
     localStorage.setItem('language', 'zh-cn')
-    installDeleteDatabase('blocked')
+    const deleteRequest = installDeleteDatabase()
+    const onBlocked = vi.fn()
+    let settled = false
 
-    const result = await clearLegacyV1BrowserData()
-
-    expect(result.status).toBe('partial')
-    expect(result.issues).toContainEqual({
-      item: 'indexeddb:CherryStudio',
-      code: 'indexeddb_blocked'
+    const cleanup = clearLegacyV1BrowserData(onBlocked).finally(() => {
+      settled = true
     })
+    await vi.waitFor(() => expect(deleteRequest.deleteDatabase).toHaveBeenCalledOnce())
+    deleteRequest.block()
+    await Promise.resolve()
+
+    expect(onBlocked).toHaveBeenCalledOnce()
+    expect(settled).toBe(false)
     expect(localStorage.getItem('language')).toBeNull()
+
+    deleteRequest.succeed()
+    await expect(cleanup).resolves.toEqual({ group: 'legacy_v1', status: 'cleared' })
   })
 
-  it('returns a failed result when the only existing browser target cannot be deleted', async () => {
-    installDeleteDatabase('error')
+  it('waits through blocked and returns failed only after IndexedDB deletion errors', async () => {
+    const deleteRequest = installDeleteDatabase()
+    const onBlocked = vi.fn()
 
-    const result = await clearLegacyV1BrowserData()
+    const cleanup = clearLegacyV1BrowserData(onBlocked)
+    await vi.waitFor(() => expect(deleteRequest.deleteDatabase).toHaveBeenCalledOnce())
+    deleteRequest.block()
+    deleteRequest.fail()
 
-    expect(result).toEqual({
-      group: 'legacy_v1',
-      status: 'failed',
-      issues: [{ item: 'indexeddb:CherryStudio', code: 'operation_failed' }]
-    })
+    expect(onBlocked).toHaveBeenCalledOnce()
+    await expect(cleanup).resolves.toEqual({ group: 'legacy_v1', status: 'failed' })
   })
 
   it('merges browser and main-process v1 cleanup into one partial result', () => {
     const result = mergeLegacyV1CleanupResults(
       {
         group: 'legacy_v1',
-        status: 'cleared',
-        issues: []
+        status: 'cleared'
       },
       {
         group: 'legacy_v1',
-        status: 'partial',
-        issues: [{ item: 'indexeddb:CherryStudio', code: 'indexeddb_blocked' }]
+        status: 'partial'
       }
     )
 
     expect(result).toEqual({
       group: 'legacy_v1',
-      status: 'partial',
-      issues: [{ item: 'indexeddb:CherryStudio', code: 'indexeddb_blocked' }]
+      status: 'partial'
     })
   })
 })

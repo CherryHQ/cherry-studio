@@ -5778,7 +5778,8 @@
         "success": "Cache erfolgreich geleert",
         "title": "Cache löschen",
         "total_partial": "{{size}} erfasst; einige Größen sind unbekannt",
-        "unavailable": "Berechnung nicht möglich"
+        "unavailable": "Berechnung nicht möglich",
+        "waiting_for_legacy_database": "Warten auf die Freigabe der alten Datenbank. Schließen Sie andere Cherry-Studio-Fenster; die Bereinigung wird fortgesetzt, sobald deren Verbindungen geschlossen sind."
       },
       "data": {
         "title": "Datenverzeichnis"

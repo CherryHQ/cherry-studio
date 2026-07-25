@@ -5778,7 +5778,8 @@
         "success": "Cache limpo com sucesso",
         "title": "Limpar cache",
         "total_partial": "Tamanho contabilizado: {{size}}; alguns tamanhos são desconhecidos",
-        "unavailable": "Não foi possível calcular"
+        "unavailable": "Não foi possível calcular",
+        "waiting_for_legacy_database": "A aguardar que a base de dados antiga seja libertada. Feche as outras janelas do Cherry Studio; a limpeza continuará quando as respetivas ligações forem fechadas."
       },
       "data": {
         "title": "Diretório de dados"

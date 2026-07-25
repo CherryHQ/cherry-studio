@@ -150,6 +150,7 @@ describe('CacheCleanupService', () => {
     const cleanup = await cacheCleanupService.run(['normal_cache'])
 
     expect(cleanup.results[0]?.status).toBe('cleared')
+    expect(cleanup.results[0]).not.toHaveProperty('issues')
     await expectMissing(tracePath, legacyTracePath)
   })
 
@@ -173,10 +174,7 @@ describe('CacheCleanupService', () => {
       bytes: null,
       completeness: 'partial'
     })
-    expect(result.results[0]?.size.issues).toContainEqual({
-      item: 'app_temp',
-      code: 'unsafe_target'
-    })
+    expect(result.results[0]?.size).not.toHaveProperty('issues')
   })
 
   it('removes exact owned files and directory trees without inspecting their contents', async () => {

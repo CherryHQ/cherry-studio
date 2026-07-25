@@ -199,7 +199,12 @@ const BasicDataSettings: React.FC = () => {
             const legacyIndex = results.findIndex(({ group }) => group === 'legacy_v1')
             const mainLegacyResult = results[legacyIndex]
             if (!mainLegacyResult) throw new Error('Missing main-process v1 cleanup result')
-            results[legacyIndex] = mergeLegacyV1CleanupResults(mainLegacyResult, await clearLegacyV1BrowserData())
+            results[legacyIndex] = mergeLegacyV1CleanupResults(
+              mainLegacyResult,
+              await clearLegacyV1BrowserData(() =>
+                toast.warning(t('settings.data.clear_cache.waiting_for_legacy_database'))
+              )
+            )
           }
 
           const hasFailures = results.some(({ status }) => ['partial', 'skipped', 'failed'].includes(status))

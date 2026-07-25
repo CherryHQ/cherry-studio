@@ -5778,7 +5778,8 @@
         "success": "キャッシュがクリアされました",
         "title": "キャッシュをクリア",
         "total_partial": "{{size}} を集計済み（一部のサイズは不明）",
-        "unavailable": "計算できません"
+        "unavailable": "計算できません",
+        "waiting_for_legacy_database": "古いデータベースが解放されるのを待っています。他の Cherry Studio ウィンドウを閉じてください。接続が閉じられるとクリーンアップが続行されます。"
       },
       "data": {
         "title": "データディレクトリ"

@@ -12,7 +12,6 @@ import type {
   CacheCleanupGroupInspection,
   CacheCleanupGroupResult,
   CacheCleanupInspection,
-  CacheCleanupIssue,
   CacheCleanupRunResult,
   CacheCleanupSizeAccuracy,
   CacheCleanupSizeSnapshot
@@ -55,6 +54,13 @@ const COOKIE_RELATIVE_PATHS = [
   path.join('Network', 'Cookies-journal')
 ] as const
 
+type CacheCleanupIssueCode = 'inspection_failed' | 'unsafe_target' | 'invalid_data'
+
+interface CacheCleanupIssue {
+  item: string
+  code: CacheCleanupIssueCode
+}
+
 interface SizeMeasurement {
   bytes: number
   issues: CacheCleanupIssue[]
@@ -82,10 +88,9 @@ interface LegacyCleanupPlan {
 
 interface CleanupStepResult {
   state: 'cleared' | 'not_found' | 'skipped' | 'failed'
-  issue?: CacheCleanupIssue
 }
 
-function issue(item: string, code: CacheCleanupIssue['code']): CacheCleanupIssue {
+function issue(item: string, code: CacheCleanupIssueCode): CacheCleanupIssue {
   return { item, code }
 }
 
@@ -171,8 +176,7 @@ function toSizeSnapshot(measurement: SizeMeasurement, accuracy: CacheCleanupSize
   return {
     bytes: allUnavailable ? null : measurement.bytes,
     accuracy: allUnavailable ? 'unavailable' : accuracy,
-    completeness: partial ? 'partial' : 'complete',
-    issues: measurement.issues
+    completeness: partial ? 'partial' : 'complete'
   }
 }
 
@@ -716,7 +720,7 @@ async function captureStep(item: string, operation: () => Promise<void>): Promis
     return { state: 'cleared' }
   } catch (error) {
     logger.error('Cache cleanup operation failed', { item, error })
-    return { state: 'failed', issue: issue(item, 'operation_failed') }
+    return { state: 'failed' }
   }
 }
 
@@ -742,13 +746,12 @@ async function resetTempDirectory(targetPath: string): Promise<void> {
 }
 
 function resultFromSteps(group: CacheCleanupGroup, steps: CleanupStepResult[]): CacheCleanupGroupResult {
-  const issues = steps.flatMap(({ issue: stepIssue }) => (stepIssue ? [stepIssue] : []))
   const succeeded = steps.some(({ state }) => state === 'cleared' || state === 'not_found')
   const hasState = (state: CleanupStepResult['state']) => steps.some((step) => step.state === state)
 
-  if (hasState('failed')) return { group, status: succeeded || hasState('skipped') ? 'partial' : 'failed', issues }
-  if (hasState('skipped')) return { group, status: succeeded ? 'partial' : 'skipped', issues }
-  return { group, status: hasState('cleared') ? 'cleared' : 'not_found', issues }
+  if (hasState('failed')) return { group, status: succeeded || hasState('skipped') ? 'partial' : 'failed' }
+  if (hasState('skipped')) return { group, status: succeeded ? 'partial' : 'skipped' }
+  return { group, status: hasState('cleared') ? 'cleared' : 'not_found' }
 }
 
 async function clearNormalCache(): Promise<CacheCleanupGroupResult> {
@@ -784,7 +787,7 @@ async function clearSiteData(): Promise<CacheCleanupGroupResult> {
 async function removeCleanupTarget(target: CleanupTarget): Promise<CleanupStepResult> {
   const status = await inspectTarget(target.path, target.item, target.kind)
   if (status === 'missing') return { state: 'not_found' }
-  if (status === 'invalid') return { state: 'skipped', issue: issue(target.item, 'unsafe_target') }
+  if (status === 'invalid') return { state: 'skipped' }
 
   try {
     await fs.rm(target.path, { recursive: target.kind === 'directory', force: false })
@@ -792,7 +795,7 @@ async function removeCleanupTarget(target: CleanupTarget): Promise<CleanupStepRe
     return { state: 'cleared' }
   } catch (error) {
     logger.error('Failed to remove cleanup target', { item: target.item, path: target.path, error })
-    return { state: 'failed', issue: issue(target.item, 'operation_failed') }
+    return { state: 'failed' }
   }
 }
 
@@ -800,14 +803,14 @@ async function applyJsonMutation(mutation: JsonMutation): Promise<CleanupStepRes
   const fileStatus = await inspectTarget(mutation.path, mutation.item, 'file')
   if (fileStatus === 'missing') return { state: 'not_found' }
   if (fileStatus === 'invalid') {
-    return { state: 'skipped', issue: issue(mutation.item, 'unsafe_target') }
+    return { state: 'skipped' }
   }
 
   const tempPath = `${mutation.path}.cleanup.tmp`
   try {
     const currentRaw = await fs.readFile(mutation.path, 'utf8')
     if (currentRaw !== mutation.expectedRaw) {
-      return { state: 'skipped', issue: issue(mutation.item, 'unsafe_target') }
+      return { state: 'skipped' }
     }
     if (mutation.nextValue === null) {
       return removeCleanupTarget({ item: mutation.item, path: mutation.path, kind: 'file' })
@@ -822,21 +825,21 @@ async function applyJsonMutation(mutation: JsonMutation): Promise<CleanupStepRes
   } catch (error) {
     await fs.rm(tempPath, { force: true }).catch(() => {})
     logger.error('Failed to update legacy shared config', { item: mutation.item, path: mutation.path, error })
-    return { state: 'failed', issue: issue(mutation.item, 'operation_failed') }
+    return { state: 'failed' }
   }
 }
 
 async function clearLegacyV1(): Promise<CacheCleanupGroupResult> {
   const plan = await collectLegacyCleanupPlan()
   const steps = await Promise.all([...plan.targets.map(removeCleanupTarget), ...plan.mutations.map(applyJsonMutation)])
-  steps.push(...plan.issues.map((targetIssue) => ({ state: 'skipped' as const, issue: targetIssue })))
+  steps.push(...plan.issues.map(() => ({ state: 'skipped' as const })))
   return resultFromSteps('legacy_v1', steps)
 }
 
 async function clearRestoreStaging(): Promise<CacheCleanupGroupResult> {
   const { targets, issues } = await collectRestoreTargets()
   const steps = await Promise.all(targets.map(removeCleanupTarget))
-  steps.push(...issues.map((targetIssue) => ({ state: 'skipped' as const, issue: targetIssue })))
+  steps.push(...issues.map(() => ({ state: 'skipped' as const })))
   return resultFromSteps('restore_staging', steps)
 }
 
@@ -848,7 +851,7 @@ async function runGroup(group: CacheCleanupGroup): Promise<CacheCleanupGroupResu
     return await clearRestoreStaging()
   } catch (error) {
     logger.error('Unexpected cache cleanup group failure', { group, error })
-    return resultFromSteps(group, [{ state: 'failed', issue: issue(group, 'operation_failed') }])
+    return resultFromSteps(group, [{ state: 'failed' }])
   }
 }
 

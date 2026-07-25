@@ -5778,7 +5778,8 @@
         "success": "Bộ nhớ đệm đã được xóa",
         "title": "Xóa bộ nhớ đệm",
         "total_partial": "Đã tính {{size}}; chưa xác định được một số kích thước",
-        "unavailable": "Không thể tính"
+        "unavailable": "Không thể tính",
+        "waiting_for_legacy_database": "Đang chờ cơ sở dữ liệu cũ được giải phóng. Hãy đóng các cửa sổ Cherry Studio khác; quá trình dọn dẹp sẽ tiếp tục sau khi các kết nối của chúng đóng."
       },
       "data": {
         "title": "Thư mục dữ liệu"

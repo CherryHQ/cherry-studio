@@ -3,7 +3,6 @@ import * as z from 'zod'
 
 import {
   CACHE_CLEANUP_GROUPS,
-  CACHE_CLEANUP_ISSUE_CODES,
   CACHE_CLEANUP_RESULT_STATUSES,
   CACHE_CLEANUP_SIZE_ACCURACIES,
   CACHE_CLEANUP_SIZE_COMPLETENESS
@@ -17,15 +16,10 @@ const relocationInspectionSchema = z.discriminatedUnion('valid', [
 ])
 
 const cacheCleanupGroupSchema = z.enum(CACHE_CLEANUP_GROUPS)
-const cacheCleanupIssueSchema = z.object({
-  item: z.string(),
-  code: z.enum(CACHE_CLEANUP_ISSUE_CODES)
-})
 const cacheCleanupSizeSchema = z.object({
   bytes: z.number().int().nonnegative().nullable(),
   accuracy: z.enum(CACHE_CLEANUP_SIZE_ACCURACIES),
-  completeness: z.enum(CACHE_CLEANUP_SIZE_COMPLETENESS),
-  issues: z.array(cacheCleanupIssueSchema)
+  completeness: z.enum(CACHE_CLEANUP_SIZE_COMPLETENESS)
 })
 const cacheCleanupGroupsInputSchema = z
   .object({
@@ -82,8 +76,7 @@ export const appRequestSchemas = {
       results: z.array(
         z.object({
           group: cacheCleanupGroupSchema,
-          status: z.enum(CACHE_CLEANUP_RESULT_STATUSES),
-          issues: z.array(cacheCleanupIssueSchema)
+          status: z.enum(CACHE_CLEANUP_RESULT_STATUSES)
         })
       )
     })
