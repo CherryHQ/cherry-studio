@@ -203,7 +203,10 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
           ...(nextCacheReadPrice > 0
             ? { cacheRead: { perMillionTokens: nextCacheReadPrice, currency: finalCurrency } }
             : {}),
-          ...(model.pricing?.cacheWrite ? { cacheWrite: model.pricing.cacheWrite } : {})
+          // Cache-write has no field in this drawer, but it must follow the selected currency:
+          // `computeLanguageCost` sums every tier and labels the total with the input currency,
+          // so a tier left behind in the old currency would be added across currencies.
+          ...(model.pricing?.cacheWrite ? { cacheWrite: { ...model.pricing.cacheWrite, currency: finalCurrency } } : {})
         }
       }
     },
