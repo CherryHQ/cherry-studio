@@ -3,6 +3,7 @@ import { CommandContextKeyProvider, CommandProvider } from '@renderer/components
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
 import { PopupHost } from '@renderer/components/PopupHost'
+import { ResourceViewSourceProvider } from '@renderer/components/ResourceViewSourceProvider'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import ToastHost from '@renderer/components/ToastHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
@@ -29,7 +30,9 @@ function SubWindowApp(): React.ReactElement {
           <CommandContextKeyProvider>
             <CommandProvider>
               <TabsProvider initialDefaultTab={null} includePinnedTabs={false}>
-                <SubWindowAppShell />
+                <ResourceViewSourceProvider>
+                  <SubWindowAppShell />
+                </ResourceViewSourceProvider>
                 <SubWindowRuntime />
                 <PopupHost />
                 <ToastHost />

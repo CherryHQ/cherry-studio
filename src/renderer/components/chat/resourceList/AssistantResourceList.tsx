@@ -101,6 +101,7 @@ export function AssistantResourceList({
     topics: apiTopics,
     isLoadingAll: isTopicsLoadingAll,
     isFullyLoaded: isTopicsFullyLoaded,
+    isRefreshing: isTopicsRefreshing,
     error: topicsError
   } = assistantTopicsSource
   const { isLoading: isTopicPinsLoading, pinnedIds: topicPinnedIds } = usePins('topic')
@@ -523,7 +524,7 @@ export function AssistantResourceList({
         onSelectedClick={() => void onSelectedAssistantClick?.()}
         // Reorder persists the global assistant `orderKey`; grouped sections use Group.orderKey.
         // Disable assistant reorder while grouped because it cannot change group ordering.
-        onReorder={isGroupGrouping ? undefined : handleReorder}
+        onReorder={isGroupGrouping || isTopicsRefreshing ? undefined : handleReorder}
         getContextMenuActions={getContextMenuActions}
         onContextMenuAction={handleContextMenuAction}
       />

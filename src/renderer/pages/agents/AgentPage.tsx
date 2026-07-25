@@ -176,7 +176,7 @@ const AgentPage = () => {
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeSessionId
   // Shared full-list source for the session UI and the composer reuse path. Reuse must read this
   // upper-layer data instead of issuing a second ad-hoc full pagination request.
-  const agentSessionsSource = useAgentSessionsSource({ enabled: !isMessageOnlyView })
+  const agentSessionsSource = useAgentSessionsSource()
   const { sessions: agentSessions } = agentSessionsSource
   // First-entry selection resumes the most-recently-updated session. A dedicated `updatedAt DESC LIMIT 1`
   // query proves the global latest, so it neither waits for the full session history to paginate in nor

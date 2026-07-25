@@ -88,6 +88,7 @@ export function AgentResourceList({
     isLoadingAll,
     isFullyLoaded,
     isPinsLoading,
+    isValidating,
     error: sessionsError,
     reload
   } = agentSessionsSource
@@ -323,7 +324,7 @@ export function AgentResourceList({
         }
         onSelect={handleSelect}
         onSelectedClick={() => void onSelectedAgentClick?.()}
-        onReorder={handleReorder}
+        onReorder={isValidating ? undefined : handleReorder}
         getContextMenuActions={getContextMenuActions}
         onContextMenuAction={handleContextMenuAction}
       />

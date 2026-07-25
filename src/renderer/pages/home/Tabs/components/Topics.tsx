@@ -335,7 +335,7 @@ export function Topics({
   } = usePins('assistant')
   const assistantPinnedIdSet = useMemo(() => new Set(assistantPinnedIds), [assistantPinnedIds])
   const isAssistantPinActionDisabled = isAssistantPinsLoading || isAssistantPinsRefreshing || isAssistantPinsMutating
-  const { topics: apiTopics, isLoadingAll, isFullyLoaded, error } = assistantTopicsSource
+  const { topics: apiTopics, isLoadingAll, isFullyLoaded, isRefreshing, error } = assistantTopicsSource
   const {
     assistants,
     isLoading: isAssistantsLoading,
@@ -807,6 +807,7 @@ export function Topics({
       (isAssistantsLoading || (isGroupGrouping && isAssistantGroupsLoading) || isAssistantPinsLoading))
   const visibleFilteredTopics = useMemo(() => (listLoading ? [] : filteredTopics), [filteredTopics, listLoading])
   const listStatus = listError ? 'error' : listLoading ? 'loading' : filteredTopics.length === 0 ? 'empty' : 'idle'
+  const dragReady = isAssistantDisplayMode && isFullyLoaded && !isLoadingAll && !isRefreshing
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
   const hasActiveCenterSurface = hasActiveResourceMenuItem || historyRecordsActive
   const manageAssistantsMenuItem = resourceMenuItems?.find((item) => item.id === 'assistant-resource-view')
@@ -1291,10 +1292,10 @@ export function Topics({
         getGroupHeaderIcon={getGroupHeaderIcon}
         groupHeaderClickBehavior={getGroupHeaderClickBehavior}
         dragCapabilities={{
-          groups: isAssistantDisplayMode,
-          items: isAssistantDisplayMode,
-          itemSameGroup: isAssistantDisplayMode,
-          itemCrossGroup: isAssistantDisplayMode
+          groups: dragReady,
+          items: dragReady,
+          itemSameGroup: dragReady,
+          itemCrossGroup: dragReady
         }}
         canDragGroup={canDragTopicGroup}
         canDropGroup={canDropTopicGroup}

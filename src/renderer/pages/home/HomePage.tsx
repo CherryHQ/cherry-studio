@@ -167,7 +167,7 @@ const HomePage: FC = () => {
   })
   // Shared full-topics source for classic history selection and persisted empty-topic reuse.
   // Modern layout also creates real empty topics now, so it needs the same candidates.
-  const assistantTopicsSource = useAssistantTopicsSource({ enabled: !isMessageOnlyView })
+  const assistantTopicsSource = useAssistantTopicsSource()
   const { topics: allTopics } = assistantTopicsSource
   // First-entry selection resumes the most-recently-updated topic. A dedicated `updatedAt DESC LIMIT 1`
   // query proves the global latest, so it neither waits for the full topic history to paginate in nor

@@ -6,6 +6,7 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { AppShell } from '@renderer/components/layout/AppShell'
 import { TabsProvider } from '@renderer/components/layout/TabsProvider'
 import { PopupHost } from '@renderer/components/PopupHost'
+import { ResourceViewSourceProvider } from '@renderer/components/ResourceViewSourceProvider'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
 import ToastHost from '@renderer/components/ToastHost'
 import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
@@ -70,7 +71,9 @@ export function MainWindowContent(): React.ReactElement {
 
   return (
     <TabsProvider>
-      <AppShell />
+      <ResourceViewSourceProvider>
+        <AppShell />
+      </ResourceViewSourceProvider>
       <MainWindowRuntime />
       <PopupHost />
       <ToastHost />
