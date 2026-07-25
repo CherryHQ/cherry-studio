@@ -229,6 +229,7 @@ async function executeRelocation(
 
   const { workPath, asidePath } = relocationArtifactPaths(pending.to, pending.taskId)
   const payloadPath = path.join(workPath, RELOCATION_PAYLOAD_DIRNAME)
+  const dataResetMarkerBasename = path.basename(application.getPath('feature.data_reset.marker_file'))
   let asideCreated = false
   let promoted = false
 
@@ -280,7 +281,13 @@ async function executeRelocation(
       filter: async (source, target) => {
         const isSourceRootEntry = normalizeForCompare(path.dirname(source)) === normalizeForCompare(pending.from)
         const name = path.basename(source)
-        if (isSourceRootEntry && (name.startsWith('Singleton') || name === RELOCATION_OWNER_MARKER)) return false
+        // The reset marker is bound to the source profile.
+        if (
+          isSourceRootEntry &&
+          (name.startsWith('Singleton') || name === RELOCATION_OWNER_MARKER || name === dataResetMarkerBasename)
+        ) {
+          return false
+        }
 
         let stat: Awaited<ReturnType<typeof fsp.lstat>>
         try {

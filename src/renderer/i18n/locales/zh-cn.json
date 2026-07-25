@@ -3929,18 +3929,6 @@
     "regenerate": {
       "confirm": "重新生成会覆盖当前消息"
     },
-    "reset": {
-      "confirm": {
-        "content": "确定要重置所有数据吗？"
-      },
-      "double": {
-        "confirm": {
-          "content": "你的全部数据都会丢失，如果没有备份数据，将无法恢复，确定要继续吗？",
-          "title": "数据丢失！！！"
-        }
-      },
-      "success": "数据重置成功"
-    },
     "restore": {
       "failed": "恢复失败",
       "success": "恢复成功"
@@ -5785,6 +5773,13 @@
       "data": {
         "title": "数据目录"
       },
+      "data_reset": {
+        "button": "重置",
+        "confirm_content": "将清除聊天、助手、知识库、文件和设置并重启应用。此操作无法撤销，是否继续？",
+        "confirm_title": "重置应用数据",
+        "error": "重置数据启动失败",
+        "title": "重置数据"
+      },
       "divider": {
         "basic": "基础数据设置",
         "cloud_storage": "云备份设置",
@@ -6517,10 +6512,6 @@
       "emoji_picker": "表情选择器",
       "image_upload": "图片上传",
       "label": "常规设置",
-      "reset": {
-        "button": "重置",
-        "title": "重置数据"
-      },
       "restore": {
         "button": "恢复"
       },
