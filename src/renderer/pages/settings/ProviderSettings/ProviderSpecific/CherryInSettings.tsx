@@ -5,16 +5,13 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { fieldClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
-import {
-  CHERRYIN_HOSTS,
-  type CherryInEndpointSelection,
-  type CherryInHostMode,
-  resolveCherryInHost
-} from '@shared/utils/cherryin'
+import { type CherryInEndpointSelection, type CherryInHostMode } from '@shared/utils/cherryin'
 import { Check, ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import ProviderField from '../primitives/ProviderField'
 
 const logger = loggerService.withContext('CherryInSettings')
 
@@ -47,11 +44,6 @@ const CherryInSettings: FC<CherryInSettingsProps> = ({ providerId }) => {
   const [selection, setSelection] = useState<CherryInEndpointSelection | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  const fallbackHost = useMemo(() => {
-    const baseUrl = Object.values(provider?.endpointConfigs ?? {}).find((config) => config.baseUrl)?.baseUrl
-    return resolveCherryInHost(baseUrl, CHERRYIN_HOSTS.china)
-  }, [provider?.endpointConfigs])
-
   useEffect(() => {
     let active = true
     void ipcApi
@@ -81,50 +73,56 @@ const CherryInSettings: FC<CherryInSettingsProps> = ({ providerId }) => {
     [t]
   )
 
-  const currentHost = selection?.host ?? fallbackHost
-  const currentMode = selection?.mode ?? 'auto'
+  const currentMode = selection?.mode ?? provider?.settings?.cherryInHostMode ?? 'auto'
+  const currentOption = HOST_MODE_OPTIONS.find((option) => option.value === currentMode) ?? HOST_MODE_OPTIONS[0]
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        className={cn(fieldClasses.inputGroupBlock, 'group cursor-pointer justify-between text-left outline-none')}>
-        <span
-          className={cn(
-            fieldClasses.input,
-            'block min-h-[1.25em] min-w-0 flex-1 truncate bg-transparent py-0 font-mono tabular-nums'
-          )}>
-          {new URL(currentHost).hostname}
-        </span>
-        <ChevronDown
-          size={12}
-          className="ml-2 shrink-0 text-muted-foreground/55 transition-transform group-data-[state=open]:rotate-180"
-          aria-hidden
-        />
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        sideOffset={4}
-        className="w-(--radix-popover-trigger-width) rounded-lg border-[0.5px] border-border bg-popover p-1.5 text-popover-foreground shadow-lg">
-        <MenuList>
-          {HOST_MODE_OPTIONS.map((option) => {
-            const isSelected = option.value === currentMode
-            return (
-              <MenuItem
-                key={option.value}
-                label={t(option.labelKey)}
-                description={option.description}
-                active={isSelected}
-                suffix={isSelected ? <Check size={14} className="text-foreground/70" aria-hidden /> : null}
-                className="rounded-lg px-2.5 text-sm"
-                descriptionClassName="font-mono text-muted-foreground/70 text-xs tabular-nums"
-                disabled={isLoading}
-                onClick={() => void handleHostChange(option.value)}
+    <ProviderField title={t('settings.provider.cherryin.route.title')} titleClassName="text-foreground">
+      <div className={cn(fieldClasses.inputRow, 'group')}>
+        <div className="flex min-w-0 flex-1">
+          <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger
+              className={cn(
+                fieldClasses.inputGroupBlock,
+                'group cursor-pointer justify-between text-left outline-none'
+              )}>
+              <span
+                className={cn(fieldClasses.input, 'block min-h-[1.25em] min-w-0 flex-1 truncate bg-transparent py-0')}>
+                {t(currentOption.labelKey)}
+              </span>
+              <ChevronDown
+                size={12}
+                className="ml-2 shrink-0 text-muted-foreground/55 transition-transform group-data-[state=open]:rotate-180"
+                aria-hidden
               />
-            )
-          })}
-        </MenuList>
-      </PopoverContent>
-    </Popover>
+            </PopoverTrigger>
+            <PopoverContent
+              align="start"
+              sideOffset={4}
+              className="w-(--radix-popover-trigger-width) rounded-lg border-[0.5px] border-border bg-popover p-1.5 text-popover-foreground shadow-lg">
+              <MenuList>
+                {HOST_MODE_OPTIONS.map((option) => {
+                  const isSelected = option.value === currentMode
+                  return (
+                    <MenuItem
+                      key={option.value}
+                      label={t(option.labelKey)}
+                      description={option.description}
+                      active={isSelected}
+                      suffix={isSelected ? <Check size={14} className="text-foreground/70" aria-hidden /> : null}
+                      className="rounded-lg px-2.5 text-sm"
+                      descriptionClassName="font-mono text-muted-foreground/70 text-xs tabular-nums"
+                      disabled={isLoading}
+                      onClick={() => void handleHostChange(option.value)}
+                    />
+                  )
+                })}
+              </MenuList>
+            </PopoverContent>
+          </Popover>
+        </div>
+      </div>
+    </ProviderField>
   )
 }
 

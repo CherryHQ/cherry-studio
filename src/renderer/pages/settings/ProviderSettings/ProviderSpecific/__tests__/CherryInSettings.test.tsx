@@ -1,5 +1,5 @@
 import { CHERRYIN_HOSTS, type CherryInEndpointSelection } from '@shared/utils/cherryin'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -18,7 +18,7 @@ vi.mock('@cherrystudio/ui', () => ({
   MenuList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   Popover: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   PopoverContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  PopoverTrigger: ({ children }: { children: ReactNode }) => <div>{children}</div>
+  PopoverTrigger: ({ children }: { children: ReactNode }) => <div data-testid="route-trigger">{children}</div>
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
@@ -50,11 +50,12 @@ describe('CherryInSettings', () => {
     } satisfies CherryInEndpointSelection)
   })
 
-  it('updates its local selection when another window selects an endpoint', async () => {
+  it('shows the selected route mode and updates it across windows', async () => {
     render(<CherryInSettings providerId="cherryin" />)
 
-    await waitFor(() => expect(screen.getByText('open.cherryin.net')).toBeInTheDocument())
-    expect(screen.queryByText('Auto')).not.toBeInTheDocument()
+    const trigger = screen.getByTestId('route-trigger')
+    await waitFor(() => expect(within(trigger).getByText('加速线路')).toBeInTheDocument())
+    expect(within(trigger).queryByText('open.cherryin.net')).not.toBeInTheDocument()
 
     act(() => {
       ipcMocks.endpointSelectedHandler?.({
@@ -63,6 +64,19 @@ describe('CherryInSettings', () => {
       })
     })
 
-    expect(screen.getByText('open.cherryin.ai')).toBeInTheDocument()
+    expect(within(trigger).getByText('国际线路')).toBeInTheDocument()
+  })
+
+  it('shows the automatic mode instead of its resolved endpoint', async () => {
+    ipcMocks.request.mockResolvedValue({
+      host: CHERRYIN_HOSTS.global,
+      mode: 'auto'
+    } satisfies CherryInEndpointSelection)
+
+    render(<CherryInSettings providerId="cherryin" />)
+
+    const trigger = screen.getByTestId('route-trigger')
+    await waitFor(() => expect(within(trigger).getByText('自动优选')).toBeInTheDocument())
+    expect(within(trigger).queryByText('open.cherryin.ai')).not.toBeInTheDocument()
   })
 })

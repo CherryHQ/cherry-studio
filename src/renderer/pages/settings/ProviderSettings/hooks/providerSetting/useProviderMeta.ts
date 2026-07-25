@@ -27,7 +27,7 @@ export function useProviderMeta(providerId: string) {
       isChineseUser: i18n.language.startsWith('zh'),
       showApiOptionsButton: provider ? hasVisibleProviderApiOptions(provider) : false,
       isApiKeyFieldVisible: !hideApiInput && !hideApiKeyInput,
-      isConnectionFieldVisible: !hideApiInput && !isDmxapi
+      isConnectionFieldVisible: !hideApiInput && !isDmxapi && provider?.id !== 'cherryin'
     }
   }, [i18n.language, provider])
 }
