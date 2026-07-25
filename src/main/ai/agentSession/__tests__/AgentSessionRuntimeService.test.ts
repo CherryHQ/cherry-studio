@@ -217,6 +217,45 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
+  // Gates the out-of-turn approval denial in `canUseTool`: a detached background agent can call a
+  // tool after its turn's result, and the approval chunk would be dropped by the `chunk` event branch.
+  describe('hasLiveTurnStream — out-of-turn approval gate', () => {
+    it('is false with no entry, true while a turn streams, false once it settles', () => {
+      const service = new AgentSessionRuntimeService()
+      expect(service.hasLiveTurnStream('session-1')).toBe(false)
+
+      // The controller only exists once the consumer opens the stream — and `openTurnStream` assigns
+      // it before `admitTurn` sends the message, so no tool call can fire ahead of it.
+      const turn = service.beginTurn(baseTurnInput)
+      expect(service.hasLiveTurnStream('session-1')).toBe(false)
+
+      service.openTurnStream({
+        sessionId: 'session-1',
+        turnId: turn.turnId,
+        signal: new AbortController().signal
+      })
+      expect(service.hasLiveTurnStream('session-1')).toBe(true)
+
+      service.markTurnTerminal('session-1', 'success')
+      expect(service.hasLiveTurnStream('session-1')).toBe(false)
+    })
+
+    it('stays true mid-roll, when chunks are buffered for the continuation turn', () => {
+      const service = new AgentSessionRuntimeService()
+      const turn = service.beginTurn(baseTurnInput)
+      service.openTurnStream({
+        sessionId: 'session-1',
+        turnId: turn.turnId,
+        signal: new AbortController().signal
+      })
+      service.markTurnTerminal('session-1', 'success')
+      expect(service.hasLiveTurnStream('session-1')).toBe(false)
+
+      getEntry(service).rolling = true
+      expect(service.hasLiveTurnStream('session-1')).toBe(true)
+    })
+  })
+
   describe('per-turn headless state', () => {
     it('opens a queued busy follow-up as headless when enqueueUserMessage is marked headless', async () => {
       const service = new AgentSessionRuntimeService()

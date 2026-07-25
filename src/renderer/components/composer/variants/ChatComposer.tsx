@@ -591,7 +591,6 @@ const ChatComposerInner = ({
           selectedKnowledgeBases: selectedKnowledgeBasesRef.current
         }
         setFiles([])
-        setMentionedModels([])
         setSelectedKnowledgeBases([])
         return
       }
