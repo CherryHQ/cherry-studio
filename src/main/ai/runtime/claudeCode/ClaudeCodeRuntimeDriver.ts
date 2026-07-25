@@ -381,6 +381,15 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
             logger.warn('Received a result message with no active turn; dropping turn-complete', {
               sessionId: this.input.sessionId
             })
+          } else {
+            // Background agents and tasks can keep emitting after their turn's result (e.g.
+            // `task_notification`). No turn stream is open to carry them, so they are dropped —
+            // logged rather than vanishing silently, since there is no background-task surface yet.
+            logger.debug('Dropping message received with no active turn', {
+              sessionId: this.input.sessionId,
+              type: message.type,
+              subtype: 'subtype' in message ? message.subtype : undefined
+            })
           }
           continue
         }
