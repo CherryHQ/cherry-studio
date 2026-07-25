@@ -849,7 +849,7 @@ describe('AiService tool approval', () => {
 
 describe('imageInputEntryParams', () => {
   it('maps a base64 data URL to a base64 entry', () => {
-    expect(imageInputEntryParams('data:image/png;base64,AAAA', 'delete_when_unreferenced')).toEqual({
+    expect(imageInputEntryParams('data:image/png;base64,AAAA')).toEqual({
       source: 'base64',
       data: 'data:image/png;base64,AAAA',
       cleanupPolicy: 'delete_when_unreferenced'
@@ -857,7 +857,7 @@ describe('imageInputEntryParams', () => {
   })
 
   it('maps an http(s) URL to a url entry (preserves the inputImages URL contract)', () => {
-    expect(imageInputEntryParams('https://cdn.example.com/in.png', 'delete_when_unreferenced')).toEqual({
+    expect(imageInputEntryParams('https://cdn.example.com/in.png')).toEqual({
       source: 'url',
       url: 'https://cdn.example.com/in.png',
       cleanupPolicy: 'delete_when_unreferenced'
@@ -1087,6 +1087,50 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     expect(refInsertValues).toHaveBeenCalledWith([
       expect.objectContaining({ fileEntryId: 'in-1', sourceId: 'job-1', role: 'input' })
     ])
+  })
+
+  it('never stamps the caller output policy on the temp input / mask copies', async () => {
+    // Regression: the builtin chat tool sends cleanupPolicy 'manual' for its *outputs*
+    // (they carry no ref yet — #17169). That must not reach the job's input/mask scratch
+    // copies: a zero-ref 'manual' entry is skipped by findCleanupCandidates and only
+    // reported (never deleted) by the orphan sweep, so pruning the job row would strand
+    // one copy per generation forever.
+    const service = createService()
+    stubResolution(service)
+
+    const createInternalEntry = vi.fn().mockResolvedValue({ id: 'in-1' })
+    const enqueue = vi.fn().mockReturnValue({
+      id: 'job-1',
+      snapshot: {},
+      finished: Promise.resolve({ status: 'completed', output: { files: [] }, error: null })
+    })
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'FileManager') return { createInternalEntry }
+      if (name === 'JobManager') return { enqueue, enqueueTx: (...a: any[]) => enqueue(...a.slice(1)), cancel: vi.fn() }
+      if (name === 'DbService')
+        return { withWriteTx: (fn: any) => fn({ insert: () => ({ values: () => ({ run: vi.fn() }) }) }) }
+      return undefined
+    })
+
+    await service.generateImage({
+      uniqueModelId: 'ppio::qwen-image',
+      prompt: 'edit',
+      paramValues: {},
+      inputImages: ['data:image/png;base64,AAAA'],
+      mask: 'data:image/png;base64,BBBB',
+      cleanupPolicy: 'manual'
+    })
+
+    // Both scratch copies (input + mask) stay reclaimable once the job row is pruned.
+    expect(createInternalEntry).toHaveBeenCalledTimes(2)
+    for (const [params] of createInternalEntry.mock.calls) {
+      expect(params).toMatchObject({ cleanupPolicy: 'delete_when_unreferenced' })
+    }
+    // The caller's policy still governs the outputs the handler persists.
+    expect(enqueue).toHaveBeenCalledWith(
+      'image-generation.generate',
+      expect.objectContaining({ cleanupPolicy: 'manual' })
+    )
   })
 
   it('cleans up already-created temp input entries when setup fails before enqueue', async () => {

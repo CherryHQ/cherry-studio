@@ -133,9 +133,11 @@ export interface AiImageRequest extends AiBaseRequest {
    */
   paramValues: ParamValues
   /**
-   * Cleanup policy stamped on every FileEntry this request persists (input
-   * images, mask, generated outputs). AiService is infrastructure — the
-   * calling business feature decides the policy (file-entry-cleanup.md §4.1).
+   * Cleanup policy stamped on the generated **output** FileEntries. AiService is
+   * infrastructure — the calling business feature decides the policy
+   * (file-entry-cleanup.md §4.1). It deliberately does NOT reach the job path's
+   * input / mask copies: those are transport scratch owned by the job, not a
+   * caller-visible artifact (see `imageInputEntryParams`).
    */
   cleanupPolicy: CleanupPolicy
 }
@@ -150,11 +152,19 @@ export interface AiImageResult {
  * the `AiImageRequest.inputImages` contract ("base64 data URLs or URLs") when routing
  * image edits through the job: `data:` strings become base64 entries, `http(s)` URLs
  * become downloaded url entries. Either way the handler later reads the bytes by id.
+ *
+ * The policy is fixed here, NOT taken from the request: these copies are job-transport
+ * scratch (they exist only to keep bytes out of the size-capped payload and to survive a
+ * restart), never a caller-visible artifact. Their lifetime is already modelled by
+ * `job_file_ref` — pruning the job row cascades the ref and releases them. Letting the
+ * caller's output policy through would leak one copy per job forever whenever it is
+ * `'manual'`: nothing else deletes them (`findCleanupCandidates` skips manual entries and
+ * the orphan sweep only reports them).
  */
-export function imageInputEntryParams(value: string, cleanupPolicy: CleanupPolicy): CreateInternalEntryIpcParams {
+export function imageInputEntryParams(value: string): CreateInternalEntryIpcParams {
   return value.startsWith('data:')
-    ? { source: 'base64', data: value as Base64String, cleanupPolicy }
-    : { source: 'url', url: value as UrlString, cleanupPolicy }
+    ? { source: 'base64', data: value as Base64String, cleanupPolicy: 'delete_when_unreferenced' }
+    : { source: 'url', url: value as UrlString, cleanupPolicy: 'delete_when_unreferenced' }
 }
 
 /**
@@ -613,7 +623,7 @@ export class AiService extends BaseService {
 
     const createdEntryIds: string[] = []
     const persistInputImage = async (value: string): Promise<string> => {
-      const entry = await fileManager.createInternalEntry(imageInputEntryParams(value, request.cleanupPolicy))
+      const entry = await fileManager.createInternalEntry(imageInputEntryParams(value))
       createdEntryIds.push(entry.id)
       return entry.id
     }
