@@ -1,3 +1,4 @@
+import { DIALOG_CLOSE_DURATION_MS } from '@cherrystudio/ui/utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // This suite exercises the real popup store, so opt out of the global services/popup mock.
@@ -82,7 +83,10 @@ describe('popupService / createPopup', () => {
     expect(popupService.getSnapshot()[0].open).toBe(false)
     await expect(result).resolves.toBe('answer')
 
-    vi.advanceTimersByTime(POPUP_EXIT_MS)
+    vi.advanceTimersByTime(DIALOG_CLOSE_DURATION_MS)
+    expect(popupService.getSnapshot()).toHaveLength(1)
+
+    vi.advanceTimersByTime(POPUP_EXIT_MS - DIALOG_CLOSE_DURATION_MS)
     expect(popupService.getSnapshot()).toHaveLength(0)
   })
 

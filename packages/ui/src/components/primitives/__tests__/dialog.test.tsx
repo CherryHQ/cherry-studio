@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { useState } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
+import { DIALOG_UNMOUNT_DELAY_MS } from '../../../utils'
 import { Dialog, DIALOG_CLOSE_DURATION_MS, DialogContent, DialogTitle } from '../dialog'
 import { DialogPortalContainerProvider } from '../portal-container'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../select'
@@ -23,6 +24,7 @@ beforeAll(() => {
 })
 afterEach(() => {
   cleanup()
+  vi.restoreAllMocks()
 })
 function DialogWithSelect({ onOpenChange }: { onOpenChange: (open: boolean) => void }) {
   const [selectOpen, setSelectOpen] = useState(false)
@@ -76,10 +78,9 @@ describe('Dialog primitive', () => {
     pagePortalContainer.remove()
   })
 
-  it('renders the close animation at DIALOG_CLOSE_DURATION_MS so imperative hosts unmount in sync', () => {
-    // Guards the desync the constant exists to prevent: the `duration-*` class and
-    // DIALOG_CLOSE_DURATION_MS must agree, or popups (renderer POPUP_EXIT_MS, derived from
-    // this constant) unmount before the close animation finishes.
+  it('keeps the close duration synchronized and reserves a final-frame paint buffer', () => {
+    // The CSS class and duration constant must agree, while imperative hosts must
+    // outlive both so the compositor gets a final transparent frame to present.
     render(
       <Dialog open>
         <DialogContent aria-describedby={undefined}>
@@ -90,7 +91,101 @@ describe('Dialog primitive', () => {
 
     const content = document.querySelector('[data-slot="dialog-content"]')
     expect(content).not.toBeNull()
-    expect(content?.className).toContain(`duration-${DIALOG_CLOSE_DURATION_MS}`)
+    expect(content?.className).toContain(`data-[state=closed]:animation-duration-[${DIALOG_CLOSE_DURATION_MS}ms]`)
+    expect(DIALOG_UNMOUNT_DELAY_MS).toBeGreaterThan(DIALOG_CLOSE_DURATION_MS)
+  })
+
+  it('uses asymmetric directional motion and disables it when reduced motion is requested', () => {
+    render(
+      <Dialog open>
+        <DialogContent aria-describedby={undefined}>
+          <DialogTitle>Rename item</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    )
+
+    const overlay = document.querySelector('[data-slot="dialog-overlay"]')
+    const content = document.querySelector('[data-slot="dialog-content"]')
+
+    expect(overlay).toHaveClass(
+      'data-[state=open]:animation-duration-[220ms]',
+      'data-[state=open]:ease-[cubic-bezier(0.16,1,0.3,1)]',
+      'data-[state=closed]:animation-duration-[220ms]',
+      'data-[state=closed]:ease-[cubic-bezier(0.4,0,1,1)]',
+      'motion-reduce:animate-none'
+    )
+    expect(content).toHaveClass(
+      'data-[state=open]:animation-duration-[260ms]',
+      'data-[state=open]:ease-[cubic-bezier(0.16,1,0.3,1)]',
+      'data-[state=open]:zoom-in-99',
+      'data-[state=open]:slide-in-from-bottom-4',
+      'data-[state=closed]:animation-duration-[220ms]',
+      'data-[state=closed]:ease-[cubic-bezier(0.4,0,1,1)]',
+      'data-[state=closed]:zoom-out-99',
+      'data-[state=closed]:slide-out-to-bottom-4',
+      'motion-reduce:animate-none'
+    )
+  })
+
+  it('supports fade-scale motion without directional translation for alerts and confirmations', () => {
+    render(
+      <Dialog open>
+        <DialogContent motion="fade-scale" aria-describedby={undefined}>
+          <DialogTitle>Confirm action</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    )
+
+    const content = document.querySelector('[data-slot="dialog-content"]')
+
+    expect(content).toHaveClass(
+      'data-[state=open]:fade-in-0',
+      'data-[state=open]:zoom-in-99',
+      'data-[state=closed]:fade-out-0',
+      'data-[state=closed]:zoom-out-99'
+    )
+    expect(content).not.toHaveClass(
+      'data-[state=open]:slide-in-from-bottom-4',
+      'data-[state=closed]:slide-out-to-bottom-4'
+    )
+  })
+
+  it('keeps content mounted while its close animation is active', () => {
+    const originalGetComputedStyle = window.getComputedStyle
+    vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => {
+      const styles = originalGetComputedStyle(element)
+      return new Proxy(styles, {
+        get(target, property, receiver) {
+          if (property === 'animationName') {
+            return element.getAttribute('data-state') === 'closed' ? 'exit' : 'enter'
+          }
+          if (property === 'display') return 'grid'
+          return Reflect.get(target, property, receiver)
+        }
+      })
+    })
+
+    const { rerender } = render(
+      <Dialog open>
+        <DialogContent aria-describedby={undefined}>
+          <DialogTitle>Animated dialog</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    )
+
+    const content = screen.getByText('Animated dialog').closest('[data-slot="dialog-content"]')
+    expect(content).toBeInTheDocument()
+
+    rerender(
+      <Dialog open={false}>
+        <DialogContent aria-describedby={undefined}>
+          <DialogTitle>Animated dialog</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    )
+
+    expect(content).toBeInTheDocument()
+    expect(content).toHaveAttribute('data-state', 'closed')
   })
 
   it('stops pointerdown events inside content from reaching React ancestors', () => {

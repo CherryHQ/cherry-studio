@@ -1,6 +1,7 @@
-import { render, screen } from '@testing-library/react'
+import { DIALOG_CLOSE_DURATION_MS, DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ResourceEditDialogHost } from '../ResourceEditDialogHost'
 
@@ -42,16 +43,18 @@ vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
 
 vi.mock('../AssistantEditDialog', () => ({
   AssistantEditDialog: ({
+    open,
     onOpenChange,
     onSaved,
     resource
   }: {
+    open: boolean
     onOpenChange: (open: boolean) => void
     onSaved: () => Promise<void>
     resource: { id: string } | null
   }) =>
     resource ? (
-      <div data-testid="assistant-edit-dialog">
+      <div data-testid="assistant-edit-dialog" data-open={open}>
         <button type="button" onClick={() => void onSaved()}>
           save
         </button>
@@ -64,16 +67,18 @@ vi.mock('../AssistantEditDialog', () => ({
 
 vi.mock('../AgentEditDialog', () => ({
   AgentEditDialog: ({
+    open,
     onOpenChange,
     onSaved,
     resource
   }: {
+    open: boolean
     onOpenChange: (open: boolean) => void
     onSaved: () => Promise<void>
     resource: { id: string } | null
   }) =>
     resource ? (
-      <div data-testid="agent-edit-dialog">
+      <div data-testid="agent-edit-dialog" data-open={open}>
         <button type="button" onClick={() => void onSaved()}>
           save
         </button>
@@ -85,6 +90,10 @@ vi.mock('../AgentEditDialog', () => ({
 }))
 
 describe('ResourceEditDialogHost', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   beforeEach(() => {
     mocks.assistantRefetch.mockReset()
     mocks.assistantRefetch.mockResolvedValue(undefined)
@@ -177,6 +186,23 @@ describe('ResourceEditDialogHost', () => {
 
     expect(mocks.agentRevalidate).toHaveBeenCalledTimes(1)
     expect(mocks.onSaved).not.toHaveBeenCalled()
+  })
+
+  it('keeps the target mounted until the shared close animation finishes', async () => {
+    vi.useFakeTimers()
+
+    render(<ResourceEditDialogHost target={{ kind: 'agent', id: 'agent-1' }} onOpenChange={mocks.onOpenChange} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'close' }))
+
+    expect(screen.getByTestId('agent-edit-dialog')).toHaveAttribute('data-open', 'false')
+    expect(mocks.onOpenChange).not.toHaveBeenCalled()
+
+    await act(() => vi.advanceTimersByTime(DIALOG_CLOSE_DURATION_MS))
+    expect(mocks.onOpenChange).not.toHaveBeenCalled()
+
+    await act(() => vi.advanceTimersByTime(DIALOG_UNMOUNT_DELAY_MS - DIALOG_CLOSE_DURATION_MS))
+    expect(mocks.onOpenChange).toHaveBeenCalledWith(false)
   })
 
   it('renders nothing without a target', () => {

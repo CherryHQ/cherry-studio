@@ -1,4 +1,4 @@
-import { DIALOG_CLOSE_DURATION_MS } from '@cherrystudio/ui/utils'
+import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import { loggerService } from '@logger'
 
 import type { ComponentPopupEntry, ConfirmPopupProps, ConfirmPopupType, PopupComponent, PopupEntry } from './types'
@@ -6,10 +6,10 @@ import type { ComponentPopupEntry, ConfirmPopupProps, ConfirmPopupType, PopupCom
 const logger = loggerService.withContext('PopupService')
 
 /**
- * Exit-phase duration: the host keeps a closing popup mounted this long so the Dialog close
- * animation can finish. The shared constant mirrors DialogContent's `duration-200` class.
+ * Exit-phase duration: keep a closing popup mounted beyond the CSS animation so the
+ * compositor can paint its final transparent frame before removal.
  */
-export const POPUP_EXIT_MS = DIALOG_CLOSE_DURATION_MS
+export const POPUP_EXIT_MS = DIALOG_UNMOUNT_DELAY_MS
 
 /**
  * Module-level store behind services/popup. Holds data-only entries (component
