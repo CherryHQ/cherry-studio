@@ -546,23 +546,35 @@ export function useChatVirtualizerRuntime<T>({
   // A newly mounted list always opens at the live edge. Normal tab switches
   // keep this component mounted through React Activity, so their DOM scroll
   // position is preserved naturally and this one-shot initializer does not run.
+  //
+  // The scroll runs one frame after the first non-empty render — virtua's
+  // `scrollToIndex` then measures and converges on the true bottom — and the
+  // bottom-follow claim checks suppression at fire time so a send/pin landing
+  // in the same window wins over it.
   const didInitialScrollToLatestRef = useRef(false)
-  useLayoutEffect(() => {
-    if (didInitialScrollToLatestRef.current || items.length === 0) return
-
-    const handle = vlistHandleRef.current
-    const scroller = scrollerRef.current
-    if (!handle && !scroller) return
-
+  const initialScrollFrameRef = useRef(0)
+  const hasItems = items.length > 0
+  useEffect(() => {
+    if (didInitialScrollToLatestRef.current || !hasItems) return
     didInitialScrollToLatestRef.current = true
-    anchor.release()
-    if (handle) {
-      handle.scrollToIndex(items.length - 1, { align: 'end', offset: bottomPadding })
-    } else if (scroller) {
-      scroller.scrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight)
-    }
-    if (!isBottomFollowSuppressed()) atBottom.notifyProgrammaticStick()
-  }, [anchor, atBottom, bottomPadding, isBottomFollowSuppressed, items.length])
+
+    initialScrollFrameRef.current = requestAnimationFrame(() => {
+      const handle = vlistHandleRef.current
+      const scroller = scrollerRef.current
+      if (!handle && !scroller) return
+
+      anchor.release()
+      if (handle) {
+        handle.scrollToIndex(itemsRef.current.length - 1, { align: 'end', offset: bottomPadding })
+      } else if (scroller) {
+        scroller.scrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight)
+      }
+      if (!isBottomFollowSuppressed()) atBottom.notifyProgrammaticStick()
+    })
+  }, [anchor, atBottom, bottomPadding, hasItems, isBottomFollowSuppressed])
+  useEffect(() => {
+    return () => cancelAnimationFrame(initialScrollFrameRef.current)
+  }, [])
 
   // ---- ResizeObserver: dispatch to anchor + auto-stick ----------------
 

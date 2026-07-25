@@ -316,25 +316,33 @@ describe('useChatVirtualizerRuntime', () => {
   })
 
   it('positions a newly populated list at the latest message exactly once', () => {
-    let runtime: ChatVirtualizerRuntime<string> | undefined
-    const virtualizerHandle = createHandle()
-    const view = render(<RuntimeProbe items={[]} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
+    const raf = installQueuedAnimationFrame()
 
-    runtime!.vlistHandleRef.current = virtualizerHandle
-    view.rerender(
-      <RuntimeProbe items={['message-a', 'message-b']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />
-    )
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      const virtualizerHandle = createHandle()
+      const view = render(<RuntimeProbe items={[]} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />)
 
-    expect(virtualizerHandle.scrollToIndex).toHaveBeenCalledWith(1, { align: 'end', offset: 12 })
+      runtime!.vlistHandleRef.current = virtualizerHandle
+      view.rerender(
+        <RuntimeProbe items={['message-a', 'message-b']} onRuntime={(nextRuntime) => (runtime = nextRuntime)} />
+      )
+      raf.tick()
 
-    view.rerender(
-      <RuntimeProbe
-        items={['message-a', 'message-b', 'message-c']}
-        onRuntime={(nextRuntime) => (runtime = nextRuntime)}
-      />
-    )
+      expect(virtualizerHandle.scrollToIndex).toHaveBeenCalledWith(1, { align: 'end', offset: 12 })
 
-    expect(virtualizerHandle.scrollToIndex).toHaveBeenCalledTimes(1)
+      view.rerender(
+        <RuntimeProbe
+          items={['message-a', 'message-b', 'message-c']}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      raf.tick(10)
+
+      expect(virtualizerHandle.scrollToIndex).toHaveBeenCalledTimes(1)
+    } finally {
+      raf.restore()
+    }
   })
 
   it('does not recreate resize observers on unrelated parent rerenders', () => {
@@ -2737,6 +2745,10 @@ describe('useChatVirtualizerRuntime', () => {
       Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
       runtime!.vlistHandleRef.current = createHandle()
 
+      // Drain the mount's deferred bottom-follow claim first so it can't fire
+      // during a later tick and masquerade as a re-latch.
+      raf.tick(60)
+
       scrollHeight = 1200
       act(() => callbacks[0]?.([], {} as ResizeObserver))
 
@@ -2876,6 +2888,10 @@ describe('useChatVirtualizerRuntime', () => {
       Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
       runtime!.vlistHandleRef.current = createHandle({ getItemOffset: vi.fn(() => 300) })
 
+      // Drain the mount's deferred bottom-follow claim so it cannot fire after
+      // the pin below and silently re-engage bottom-follow.
+      raf.tick(60)
+
       // Send: pin the fresh user message to the top.
       view.rerender(
         <RuntimeDomProbe
@@ -2944,6 +2960,10 @@ describe('useChatVirtualizerRuntime', () => {
       })
       Object.defineProperty(scroller, 'clientHeight', { configurable: true, get: () => 400 })
       runtime!.vlistHandleRef.current = createHandle({ getItemOffset: vi.fn(() => 300) })
+
+      // Drain the mount's deferred bottom-follow claim so it cannot fire after
+      // the takeover below and silently re-engage bottom-follow.
+      raf.tick(60)
 
       // A takeover latched while idle (the user clicked something in the list).
       act(() => runtime!.takeUserControl())
