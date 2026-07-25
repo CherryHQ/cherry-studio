@@ -182,6 +182,21 @@ export interface WireRegistration {
 }
 
 /**
+ * Registration for concrete providers riding the generic `openai-compatible`
+ * SDK path (zhipu / tokenhub / …). Same diffusion profile, but the passthrough
+ * applies the catalog's `wireName` renames: this body IS the HTTP request body
+ * (`OpenAICompatibleImageModel` spreads `providerOptions[name]` into it
+ * verbatim), so the vendor spelling — `watermark`, `size` — must be used, not
+ * the canonical camelCase. A provider on this path needing a bespoke body shape
+ * gets routed to its own provider id instead (config.ts builders — doubao is the
+ * precedent), which gives it its own {@link WIRE_REGISTRY} row.
+ */
+export const OPENAI_COMPAT_FALLBACK_REGISTRATION: WireRegistration = {
+  profile: DIFFUSION_WIRE_PROFILE,
+  passthrough: 'wire'
+}
+
+/**
  * AI SDK provider id → its engine registration, declaring the provider's bespoke
  * delivery (dual-keying / passthrough / sibling keys). Providers absent from this
  * map fall back to {@link DEFAULT_DIFFUSION_REGISTRATION}. Grows one row per
@@ -222,7 +237,12 @@ export const WIRE_REGISTRY: Record<string, WireRegistration> = {
   // image model resolves `openai-compatible`. Its profile and `also: google` block were
   // unreachable from both sides. Reconnecting the gateway's native image adapters is a
   // routing change in `config.ts`, not a row here. See `wireRegistryReachability`.
-  ollama: { profile: OLLAMA_WIRE_PROFILE }
+  ollama: { profile: OLLAMA_WIRE_PROFILE },
+  // The generic adapter every provider without an `adapterFamily` collapses onto.
+  // Its body IS the HTTP body (`OpenAICompatibleImageModel` spreads
+  // `providerOptions[name]` verbatim), so its passthrough is wire-named — see
+  // OPENAI_COMPAT_FALLBACK_REGISTRATION below.
+  'openai-compatible': OPENAI_COMPAT_FALLBACK_REGISTRATION
 }
 
 /**
@@ -236,31 +256,10 @@ export const DEFAULT_DIFFUSION_REGISTRATION: WireRegistration = {
 }
 
 /**
- * Registration for concrete providers riding the generic `openai-compatible`
- * SDK path (zhipu / tokenhub / …). Same diffusion profile, but the passthrough
- * applies the catalog's `wireName` renames: this body IS the HTTP request body
- * (`OpenAICompatibleImageModel` spreads `providerOptions[name]` into it
- * verbatim), so the vendor spelling — `watermark`, `size` — must be used, not
- * the canonical camelCase. Safe by construction: before the delivery-key fix
- * these providers' bags were dropped entirely, so no previously-working wire
- * shape can regress. A provider on this path needing a bespoke body shape gets
- * routed to its own provider id instead (config.ts builders — doubao is the
- * precedent), which puts it back on {@link WIRE_REGISTRY}.
- */
-export const OPENAI_COMPAT_FALLBACK_REGISTRATION: WireRegistration = {
-  profile: DIFFUSION_WIRE_PROFILE,
-  passthrough: 'wire'
-}
-
-/**
- * The registration for a resolved SDK provider id. The generic
- * `openai-compatible` id gets the wire-naming fallback (its body goes on the
- * HTTP wire as-is); every other id resolves via {@link WIRE_REGISTRY}, falling
- * back to the raw diffusion catch-all. Pure — unit-tested directly.
+ * The registration for a resolved SDK provider id — a plain table lookup, falling
+ * back to the raw diffusion catch-all. `openai-compatible` is a row like any other
+ * ({@link OPENAI_COMPAT_FALLBACK_REGISTRATION}); it needs no branch here.
  */
 export function resolveWireRegistration(sdkProviderId: string): WireRegistration {
-  if (sdkProviderId === 'openai-compatible') {
-    return OPENAI_COMPAT_FALLBACK_REGISTRATION
-  }
   return WIRE_REGISTRY[sdkProviderId] ?? DEFAULT_DIFFUSION_REGISTRATION
 }

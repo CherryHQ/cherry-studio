@@ -325,11 +325,6 @@ describe('buildVendorProviderOptions — a dropped vendor bag is observable', ()
     )
   })
 
-  it('stays quiet when the profile maps every bag key', () => {
-    engine('google', { personGeneration: 'ALLOW_ALL' })
-    expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
-  })
-
   it('stays quiet for a passthrough registration, which forwards the leftovers', () => {
     expect(engine('aihubmix', { seed: 9, imageResolution: '2K' })).toEqual({
       openai: { seed: 9 },

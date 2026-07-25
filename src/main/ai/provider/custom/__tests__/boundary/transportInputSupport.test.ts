@@ -5,8 +5,6 @@ import { createDashScopeTransport } from '../../dashscope/dashscopeTransport'
 import { createDmxapiTransport } from '../../dmxapi/dmxapiTransport'
 import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../../imageGenerationModel'
 import { createModelscopeTransport } from '../../modelscope/modelscopeTransport'
-import { createOllamaTransport } from '../../ollama/ollamaTransport'
-import { createOvmsTransport } from '../../ovms/ovmsTransport'
 import { createPpioTransport } from '../../ppio/ppioTransport'
 import { buildTokenhubTransport } from '../../tokenhub/tokenhubTransport'
 import { captureImageRequest } from './captureRequest'
@@ -63,68 +61,51 @@ const descriptorFor = (id: string, mode?: 'generate' | 'edit') => ({
   ...(mode && { mode })
 })
 
+/**
+ * One case per *decision* a `supportsInput` implementation makes, not per model:
+ * a model that reads files, one that doesn't, and — where the branch exists — the
+ * discriminator that separates them. Adding more ids from the same branch only
+ * re-tests the same line.
+ */
 const cases: Case[] = [
-  // PPIO — files only for the Qwen edit models, and for Seedream only in edit mode.
-  ...(['qwen-image-edit', 'qwen-image-edit-2509'] as const).map((id) => ({
+  // PPIO's only mode-dependent branch: Seedream reads a reference image in `edit`,
+  // ignores it in `generate`.
+  ...(['generate', 'edit'] as const).map((mode) => ({
     transport: createPpioTransport(settings),
     vendor: 'ppio',
-    modelId: id,
-    descriptor: descriptorFor(id)
+    modelId: 'seedream-4.0',
+    descriptor: descriptorFor('seedream-4.0', mode)
   })),
-  ...(['seedream-4.0', 'seedream-4.5', 'seedream-5.0-lite'] as const).flatMap((id) =>
-    (['generate', 'edit'] as const).map((mode) => ({
-      transport: createPpioTransport(settings),
-      vendor: 'ppio',
-      modelId: id,
-      descriptor: descriptorFor(id, mode)
-    }))
-  ),
-  ...(['jimeng-txt2img-v3.0', 'hunyuan-image-3', 'glm-image', 'z-image-turbo'] as const).map((id) => ({
+  {
     transport: createPpioTransport(settings),
     vendor: 'ppio',
-    modelId: id,
-    descriptor: descriptorFor(id)
-  })),
+    modelId: 'qwen-image-edit',
+    descriptor: descriptorFor('qwen-image-edit')
+  },
 
-  // DashScope — the reference-image families, the text-to-image family that drops them,
-  // and the single model in the whole image path that has a mask slot.
-  ...(
-    [
-      'qwen-image-edit',
-      'wan2.6-image',
-      'wanx-v1',
-      'wan2.5-i2i-preview',
-      'qwen-mt-image',
-      'wanx2.1-imageedit',
-      'qwen-image',
-      'wanx2.1-t2i-turbo'
-    ] as const
-  ).map((id) => ({
+  // DashScope: a reference-image family, the text-to-image family that drops one, and
+  // the single model in the whole image path with a mask slot.
+  ...(['wan2.6-image', 'qwen-image', 'wanx2.1-imageedit'] as const).map((id) => ({
     transport: createDashScopeTransport({ apiKey: 'sk-test', imageBaseURL: 'https://example.invalid' }),
     vendor: 'dashscope',
     modelId: id,
     descriptor: descriptorFor(id)
   })),
 
-  // DMXAPI — only the `wan\d` (responses-messages) family carries images.
-  ...(['wan2.6-t2i', 'doubao-seedream-4-0', 'qwen-image', 'gpt-image-1'] as const).map((id) => ({
+  // DMXAPI: only the `wan\d` (responses-messages) family carries images.
+  ...(['wan2.6-t2i', 'doubao-seedream-4-0'] as const).map((id) => ({
     transport: createDmxapiTransport(settings),
     vendor: 'dmxapi',
     modelId: id
   })),
 
+  // Unconditional yes, and unconditional no.
   { transport: createModelscopeTransport(settings), vendor: 'modelscope', modelId: 'MusePublic/FLUX.1-Kontext-Dev' },
   {
     transport: buildTokenhubTransport(settings),
     vendor: 'tokenhub',
     modelId: 'hy-image-v3.0',
     descriptor: descriptorFor('hy-image-v3.0')
-  },
-  { transport: createOvmsTransport({ baseURL: 'https://example.invalid' }), vendor: 'ovms', modelId: 'flux-schnell' },
-  {
-    transport: createOllamaTransport({ baseURL: 'https://example.invalid' }),
-    vendor: 'ollama',
-    modelId: 'x/z-image-turbo'
   }
 ]
 

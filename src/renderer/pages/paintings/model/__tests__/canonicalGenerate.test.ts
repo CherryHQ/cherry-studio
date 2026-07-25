@@ -15,10 +15,6 @@ vi.mock('../generatePainting', () => ({
   generatePainting: (opts: unknown) => generatePaintingMock(opts)
 }))
 
-vi.mock('../../utils/checkProviderEnabled', () => ({
-  checkProviderEnabled: vi.fn(async () => 'api-key')
-}))
-
 interface CapturedGenerate {
   paramValues: Record<string, unknown>
   inputImages?: string[]

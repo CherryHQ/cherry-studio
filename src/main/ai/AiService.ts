@@ -116,8 +116,19 @@ export interface AiGenerateResult {
 
 /** Image generation request. */
 export interface AiImageRequest extends AiBaseRequest {
-  /** Required on this route (see the `ai.generate_image` payload schema): the image
-   *  path routes the delivery adapter on model identity. */
+  /**
+   * Narrowed to REQUIRED here — `AiBaseRequest` leaves it optional because chat can
+   * fall back to the assistant's model, but image generation has no such fallback and
+   * two things break without it:
+   *
+   * 1. `resolveImageTransport` decides SDK-vs-transport delivery from the model, so no
+   *    id means silently taking the SDK adapter — wrong for every transport provider.
+   * 2. The job payload persists it; a restart-resumed job re-resolves the provider
+   *    settings and rebuilds the transport from it, and cannot without.
+   *
+   * Both callers (the paintings page and the `generate_image` tool) always pass it, so
+   * "optional" only ever described a branch nothing took and nothing handled.
+   */
   uniqueModelId: UniqueModelId
   prompt: string
   /** Input images for editing (base64 data URLs or URLs). If provided, uses edit mode. */

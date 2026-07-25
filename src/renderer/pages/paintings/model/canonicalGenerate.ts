@@ -4,7 +4,6 @@ import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
 import type { ImageGenerationMode, ImageGenerationSupport } from '@shared/data/types/model'
 import { getFileTypeByExt } from '@shared/utils/file'
 
-import { checkProviderEnabled } from '../utils/checkProviderEnabled'
 import { generatePainting } from './generatePainting'
 import type { GenerateInput } from './types/generateInput'
 import type { PaintingData } from './types/paintingData'
@@ -82,7 +81,6 @@ export async function canonicalGenerate<T extends PaintingData>(
     throw createPaintingGenerateError('EDIT_IMAGE_REQUIRED')
   }
 
-  await checkProviderEnabled(provider)
   const modelId = painting.model
   if (!modelId) throw createPaintingGenerateError('MISSING_REQUIRED_FIELDS')
 

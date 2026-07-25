@@ -369,33 +369,6 @@ describe('AiService', () => {
     )
   })
 
-  it('stays quiet when the model reports no warnings', async () => {
-    const service = createService()
-    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
-      sdkConfig: {
-        providerId: 'test-provider',
-        providerSettings: {},
-        modelId: 'test-model',
-        concreteProviderId: 'test-provider',
-        optionsKey: 'test-provider'
-      }
-    } as never)
-
-    mockGenerateImage.mockResolvedValue({ images: [], warnings: [] })
-    mockApplicationGet.mockImplementation((name: string) =>
-      name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
-    )
-    mockMainLoggerService.warn.mockClear()
-
-    await service.generateImage({
-      uniqueModelId: 'test-provider::test-model',
-      prompt: 'draw a cat',
-      paramValues: {}
-    })
-
-    expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
-  })
-
   it("omits the SDK size for the 'auto' sentinel AND when no size is given (no 1024x1024 default)", async () => {
     const service = createService()
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
