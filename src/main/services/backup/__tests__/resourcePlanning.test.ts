@@ -34,7 +34,8 @@ function makeMinimalDbs(): void {
         id TEXT PRIMARY KEY,
         origin TEXT NOT NULL,
         ext TEXT,
-        external_path TEXT
+        external_path TEXT,
+        deleted_at TEXT
       );
       CREATE TABLE knowledge_base (id TEXT PRIMARY KEY);
       CREATE TABLE agent_global_skill (
@@ -46,20 +47,28 @@ function makeMinimalDbs(): void {
   }
 }
 
-function seedBackupFile(id: string, origin: 'internal' | 'external', ext: string | null = 'txt'): void {
+function seedBackupFile(
+  id: string,
+  origin: 'internal' | 'external',
+  ext: string | null = 'txt',
+  deletedAt: string | null = null
+): void {
   const db = new Database(backupDbPath)
-  db.prepare('INSERT INTO file_entry (id, origin, ext, external_path) VALUES (?, ?, ?, ?)').run(
+  db.prepare('INSERT INTO file_entry (id, origin, ext, external_path, deleted_at) VALUES (?, ?, ?, ?, ?)').run(
     id,
     origin,
     ext,
-    origin === 'external' ? '/tmp/ext' : null
+    origin === 'external' ? '/tmp/ext' : null,
+    deletedAt
   )
   db.close()
 }
 
 function seedWorkFile(id: string): void {
   const db = new Database(workDbPath)
-  db.prepare("INSERT INTO file_entry (id, origin, ext, external_path) VALUES (?, 'internal', 'txt', NULL)").run(id)
+  db.prepare(
+    "INSERT INTO file_entry (id, origin, ext, external_path, deleted_at) VALUES (?, 'internal', 'txt', NULL, NULL)"
+  ).run(id)
   db.close()
 }
 
@@ -254,6 +263,30 @@ describe('planResources', () => {
     expect(plan.toRestore).toEqual([])
   })
 
+  it('rejects an active internal file omitted from the manifest', () => {
+    seedBackupFile('0f100000-0000-4000-8000-000000000001', 'internal')
+
+    expect(() => planResources(ctx(baseManifest()))).toThrow(/files: manifest omits/)
+  })
+
+  it('allows an external file omitted from the manifest', () => {
+    seedBackupFile('0f100000-0000-4000-8000-000000000001', 'external')
+
+    expect(planResources(ctx(baseManifest())).resources).toEqual([])
+  })
+
+  it('allows a soft-deleted internal file omitted from the manifest', () => {
+    seedBackupFile('0f100000-0000-4000-8000-000000000001', 'internal', 'txt', '2026-07-25T00:00:00.000Z')
+
+    expect(planResources(ctx(baseManifest())).resources).toEqual([])
+  })
+
+  it('rejects a knowledge base omitted from the manifest', () => {
+    seedBackupKb('kb1')
+
+    expect(() => planResources(ctx(baseManifest()))).toThrow(/knowledge: manifest omits/)
+  })
+
   it('stages a new file as blob-add', () => {
     seedBackupFile('0f100000-0000-4000-8000-000000000001', 'internal', 'txt')
     writeStagingFile('files/0f100000-0000-4000-8000-000000000001')
@@ -313,7 +346,7 @@ describe('planResources', () => {
     expect(plan.skips[0]?.reason).toBe('local DB row exists')
   })
 
-  it('CORRUPT when file is external', () => {
+  it('rejects an external file listed in the manifest', () => {
     seedBackupFile('0f100000-0000-4000-8000-000000000001', 'external', 'txt')
     writeStagingFile('files/0f100000-0000-4000-8000-000000000001')
     expect(() =>
@@ -325,7 +358,7 @@ describe('planResources', () => {
           })
         )
       )
-    ).toThrow(/missing or external/)
+    ).toThrow(/files: manifest includes/)
   })
 
   it('CORRUPT when the backup row ext is unsafe (path fragment)', () => {
@@ -341,6 +374,20 @@ describe('planResources', () => {
         )
       )
     ).toThrow(/unsafe ext/)
+  })
+
+  it('rejects a file listed in the manifest but absent from backup DB', () => {
+    writeStagingFile('files/0f100000-0000-4000-8000-000000000001')
+    expect(() =>
+      planResources(
+        ctx(
+          baseManifest({
+            includeFiles: true,
+            files: { ids: ['0f100000-0000-4000-8000-000000000001'], total: 1, totalBytes: 1 }
+          })
+        )
+      )
+    ).toThrow(/files: manifest includes/)
   })
 
   it('CORRUPT when staging file missing', () => {
@@ -400,7 +447,7 @@ describe('planResources', () => {
     expect(plan.toRestore).toEqual([{ kind: 'knowledge', count: 1 }])
   })
 
-  it('CORRUPT when knowledge base missing from backup DB', () => {
+  it('rejects a knowledge base listed in the manifest but absent from backup DB', () => {
     writeStagingDir('knowledge/kb-missing')
     expect(() =>
       planResources(
@@ -411,7 +458,7 @@ describe('planResources', () => {
           })
         )
       )
-    ).toThrow(/missing from backup DB/)
+    ).toThrow(/knowledge: manifest includes/)
   })
 
   it('stages skill dir-add and skips on conflict into skippedSkillFolderNames (folderName)', () => {

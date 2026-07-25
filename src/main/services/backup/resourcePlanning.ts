@@ -113,6 +113,10 @@ interface FileEntrySqlRow {
   readonly external_path: string | null
 }
 
+interface IdSqlRow {
+  readonly id: string
+}
+
 function archiveCorrupt(detail: string): never {
   throw new BackupArchiveCorruptError(detail)
 }
@@ -234,6 +238,42 @@ export function toPathResolvable(row: FileEntrySqlRow): PathResolvableEntry {
   return { id: row.id, origin: 'internal', ext: row.ext }
 }
 
+function assertSameManifestIds(
+  manifestIds: ReadonlySet<string>,
+  backupIds: ReadonlySet<string>,
+  category: string
+): void {
+  for (const id of backupIds) {
+    if (!manifestIds.has(id)) {
+      archiveCorrupt(`${category}: manifest omits an active backup DB entry`)
+    }
+  }
+  for (const id of manifestIds) {
+    if (!backupIds.has(id)) {
+      archiveCorrupt(`${category}: manifest includes an entry absent from the active backup DB set`)
+    }
+  }
+}
+
+/**
+ * Full archives must describe the active resource rows in backup.sqlite exactly.
+ * Check this before per-resource staging validation so omitted rows cannot be
+ * silently restored without their filesystem resources.
+ */
+function assertFullResourceManifestSets(manifest: BackupManifest, backupDb: Database.Database): void {
+  const activeInternalFileIds = new Set(
+    (
+      backupDb.prepare("SELECT id FROM file_entry WHERE origin = 'internal' AND deleted_at IS NULL").all() as IdSqlRow[]
+    ).map(({ id }) => id)
+  )
+  assertSameManifestIds(new Set(manifest.files.ids), activeInternalFileIds, 'files')
+
+  const knowledgeBaseIds = new Set(
+    (backupDb.prepare('SELECT id FROM knowledge_base').all() as IdSqlRow[]).map(({ id }) => id)
+  )
+  assertSameManifestIds(new Set(manifest.knowledge.bases), knowledgeBaseIds, 'knowledge')
+}
+
 function buildToRestore(counts: Record<ResourceClass, number>): ResourcePlan['toRestore'] {
   const order: ResourceClass[] = ['file', 'knowledge', 'skill', 'note']
   return order.filter((k) => counts[k] > 0).map((kind) => ({ kind, count: counts[kind] }))
@@ -270,6 +310,7 @@ export function planResources(ctx: PlanCtx): ResourcePlan {
   let workDb: Database.Database | undefined
   try {
     backupDb = new Database(backupDbPath, { readonly: true, fileMustExist: true })
+    assertFullResourceManifestSets(manifest, backupDb)
     workDb = new Database(workPath, { readonly: true, fileMustExist: true })
 
     // One prepare per statement — the loops below run on the main thread while
