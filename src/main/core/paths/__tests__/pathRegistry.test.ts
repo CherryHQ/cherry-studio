@@ -35,16 +35,16 @@ describe('buildPathRegistry', () => {
     const registry = buildPathRegistry()
 
     expect(registry['feature.trace']).toBe(path.join('/mock/userData', 'Runtime', 'trace'))
-    expect(registry['feature.trace.legacy']).toBe(path.join(registry['cherry.home'], 'trace'))
+    expect(registry['v1.trace']).toBe(path.join(registry['cherry.home'], 'trace'))
     expect(shouldAutoEnsure('feature.trace')).toBe(true)
-    expect(shouldAutoEnsure('feature.trace.legacy')).toBe(false)
+    expect(shouldAutoEnsure('v1.trace')).toBe(false)
   })
 
   it('keeps the old CLI install root cleanup-only', () => {
     const registry = buildPathRegistry()
 
-    expect(registry['feature.cli.legacy_install']).toBe(path.join(registry['cherry.home'], 'install'))
-    expect(shouldAutoEnsure('feature.cli.legacy_install')).toBe(false)
+    expect(registry['v1.cli.install']).toBe(path.join(registry['cherry.home'], 'install'))
+    expect(shouldAutoEnsure('v1.cli.install')).toBe(false)
     expect('feature.cli.install_global' in registry).toBe(false)
   })
 })

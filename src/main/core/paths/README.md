@@ -35,9 +35,10 @@ application.getPath('invalid.key')
 | `sys.*` | OS-managed directories | `sys.home`, `sys.temp`, `sys.downloads` |
 | `app.*` | Electron app: install dir, userData, database, logs, temp root | `app.userdata`, `app.database.file` |
 | `feature.*` | Cherry-owned feature data (grouped by feature) | `feature.files.data`, `feature.mcp.oauth` |
+| `v1.*` | Old-version paths retained only for cleanup | `v1.trace`, `v1.cli.install` |
 | `external.*` | Third-party paths (Cherry reads/writes, does NOT own) | `external.openclaw.config` |
 
-**Default to `feature.*` for new keys.** The other four scopes are effectively closed.
+**Default to `feature.*` for active data.** Use `v1.*` only for old-version cleanup targets. The other scopes are effectively closed.
 `feature.*` → Cherry creates/manages/may delete. `external.*` → Cherry MUST NOT delete.
 
 ## Key Naming Convention
@@ -118,7 +119,7 @@ Reserved for features that genuinely need per-instance subdirectories.
 
 ## Adding a New Path Key
 
-1. Pick namespace (almost always `feature.*`)
+1. Pick namespace (almost always `feature.*`; `v1.*` only for cleanup-only old-version paths)
 2. Add entry in `pathRegistry.ts` under the appropriate section
 3. Reuse hoisted vars (`appUserDataData`, `appTemp`, etc.)
 4. Choose key shape: directory (no suffix), standalone file (`_file`), sibling file (`.file`)

@@ -2,7 +2,7 @@
  * Path registry — single source of truth for all main-process paths.
  * See `./README.md` for naming conventions and namespace taxonomy.
  *
- * Default to `feature.*` for new keys; cherry/sys/app are effectively closed.
+ * Default to `feature.*` for active data; `v1.*` is cleanup-only.
  *
  * **File constraint**: No object literals besides the registry itself — the
  * ESLint rule `data-schema-key/valid-key` validates every string-keyed property.
@@ -117,7 +117,6 @@ export function buildPathRegistry() {
 
     // Trace
     'feature.trace': path.join(appUserDataRuntime, 'trace'),
-    'feature.trace.legacy': path.join(CHERRY_HOME, 'trace'),
 
     // OVMS (OpenVINO Model Server)
     'feature.ovms': path.join(CHERRY_HOME, 'ovms'),
@@ -161,9 +160,6 @@ export function buildPathRegistry() {
     // Protocol deep-link (Linux .desktop entry for cherrystudio:// scheme)
     'feature.protocol.desktop_entries': path.join(os.homedir(), '.local', 'share', 'applications'),
 
-    // Legacy CLI install root — cleanup-only, never auto-created
-    'feature.cli.legacy_install': path.join(CHERRY_HOME, 'install'),
-
     // Feature-owned temp dirs (all under app.temp)
     'feature.backup.temp': path.join(appTemp, 'backup'),
     'feature.cli.temp': path.join(appTemp, 'cli'),
@@ -175,7 +171,11 @@ export function buildPathRegistry() {
     // unique sub-directory under here.
     'feature.files.tempcopy.temp': path.join(appTemp, 'files-tempcopy'),
 
-    // -- E. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --
+    // -- E. v1.* — old-version data, cleanup-only and never auto-created --
+    'v1.trace': path.join(CHERRY_HOME, 'trace'),
+    'v1.cli.install': path.join(CHERRY_HOME, 'install'),
+
+    // -- F. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --
     'external.openclaw.config': path.join(os.homedir(), '.openclaw'),
     // Nested ternary (not object literal) to satisfy file-level ESLint constraint
     'external.obsidian.config_file': isWin
@@ -212,6 +212,7 @@ const NO_ENSURE = [
   // Namespace prefixes
   'sys.',
   'external.',
+  'v1.',
   // Individual read-only keys (build artifacts)
   'app.root',
   'app.install',
@@ -223,8 +224,6 @@ const NO_ENSURE = [
   'app.session.webview',
   'app.database.migrations',
   'feature.provider_registry.data',
-  'feature.cli.legacy_install',
-  'feature.trace.legacy',
   'feature.agents.builtin',
   'feature.agents.skills.builtin'
 ] as const satisfies readonly NoEnsureEntry[]
