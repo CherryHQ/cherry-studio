@@ -1425,6 +1425,24 @@
       "pause": "Pause",
       "placeholder": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden - @ für Modellauswahl, / für Tools",
       "placeholder_without_triggers": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden",
+      "reference_panel": {
+        "load_failed": "[to be translated]:Failed to load the referenced conversation",
+        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "session": {
+          "no_results": {
+            "description": "[to be translated]:No sessions match your search",
+            "label": "[to be translated]:No Sessions Found"
+          },
+          "title": "[to be translated]:Sessions"
+        },
+        "topic": {
+          "no_results": {
+            "description": "[to be translated]:No topics match your search",
+            "label": "[to be translated]:No Topics Found"
+          },
+          "title": "[to be translated]:Topics"
+        }
+      },
       "resize_height": "Eingabehöhe ändern",
       "resource_panel": {
         "categories": {
@@ -2588,7 +2606,8 @@
     "edit": "Bearbeiten",
     "empty": {
       "no_match_description": "Keine Dateien entsprechen den aktuellen Filtern",
-      "no_match_title": "Keine passenden Dateien gefunden"
+      "no_match_title": "Keine passenden Dateien gefunden",
+      "title": "[to be translated]:No files yet"
     },
     "empty_trash": "Papierkorb leeren",
     "error": {
@@ -2986,7 +3005,6 @@
     "embedding_model": "Einbettungsmodell",
     "embedding_model_required": "Ein Einbettungsmodell für die Wissensbasis ist erforderlich",
     "empty": "Keine Wissensdatenbanken",
-    "empty_action": "Wissensdatenbank erstellen",
     "empty_description": "Sie haben noch keine Wissensdatenbanken. Erstellen Sie eine, um Ihre Dokumente zu organisieren und durchzusuchen.",
     "error": {
       "directory_not_migrated": "Ordnermigration fehlgeschlagen. Bitte löschen Sie ihn und laden Sie ihn erneut hoch.",

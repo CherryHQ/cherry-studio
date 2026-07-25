@@ -90,6 +90,7 @@ import { useComposerQuoteInsertion } from './shared/composerQuote'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
+import { useEntityReferenceMentionSource } from './shared/useEntityReferenceMentionSource'
 import { useLatest } from './shared/useLatest'
 
 const logger = loggerService.withContext('ChatComposer')
@@ -590,7 +591,6 @@ const ChatComposerInner = ({
           selectedKnowledgeBases: selectedKnowledgeBasesRef.current
         }
         setFiles([])
-        setMentionedModels([])
         setSelectedKnowledgeBases([])
         return
       }
@@ -930,6 +930,11 @@ const ChatComposerInner = ({
   // Editor→state reconciliation owned by the tools: attachmentTool prunes+dedupes files,
   // knowledgeBaseTool prunes+re-adds knowledge bases (against the injected selectableKnowledgeBases).
   const handleTokensChange = useComposerTokenReconcile({ scope, assistant: displayAssistant, model: runtimeModel })
+
+  const { sources: entityReferenceSources, hasPendingReference } = useEntityReferenceMentionSource({
+    entityType: 'topic',
+    excludeId: topicId
+  })
 
   const onPause = useCallback(() => {
     chatWrite?.pause()
@@ -1383,6 +1388,7 @@ const ChatComposerInner = ({
           draftTokens={draftTokens}
           managedTokenKinds={CHAT_MANAGED_TOKEN_KINDS}
           onTokensChange={handleTokensChange}
+          suggestionSources={entityReferenceSources}
           resolveKnowledgeBaseMarker={resolveKnowledgeBaseMarker}
           placeholder={searching ? t('chat.input.translating') : placeholderText}
           sendDisabled={
@@ -1392,12 +1398,13 @@ const ChatComposerInner = ({
             sendDisabled ||
             searching ||
             runtimeModelPending ||
+            hasPendingReference ||
             !!missingAssistantMessage ||
             !!missingModelMessage ||
             !!missingSelectedModelMessage
           }
           sendBlockedReason={
-            isSavingEdit || sendDisabled
+            isSavingEdit || sendDisabled || hasPendingReference
               ? t('common.loading')
               : (missingAssistantMessage ?? missingModelMessage ?? missingSelectedModelMessage)
           }

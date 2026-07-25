@@ -1425,6 +1425,24 @@
       "pause": "Tạm dừng",
       "placeholder": "Nhập tin nhắn của bạn ở đây, nhấn {{key}} để gửi - @ để Chọn Mô hình, / để Bao gồm Công cụ",
       "placeholder_without_triggers": "Nhập tin nhắn của bạn ở đây, nhấn {{key}} để gửi",
+      "reference_panel": {
+        "load_failed": "[to be translated]:Failed to load the referenced conversation",
+        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "session": {
+          "no_results": {
+            "description": "[to be translated]:No sessions match your search",
+            "label": "[to be translated]:No Sessions Found"
+          },
+          "title": "[to be translated]:Sessions"
+        },
+        "topic": {
+          "no_results": {
+            "description": "[to be translated]:No topics match your search",
+            "label": "[to be translated]:No Topics Found"
+          },
+          "title": "[to be translated]:Topics"
+        }
+      },
       "resize_height": "Điều chỉnh chiều cao đầu vào",
       "resource_panel": {
         "categories": {
@@ -2588,7 +2606,8 @@
     "edit": "Chỉnh sửa",
     "empty": {
       "no_match_description": "Không có tệp nào khớp với bộ lọc hiện tại",
-      "no_match_title": "Không tìm thấy tệp phù hợp"
+      "no_match_title": "Không tìm thấy tệp phù hợp",
+      "title": "[to be translated]:No files yet"
     },
     "empty_trash": "Xóa thùng rác",
     "error": {
@@ -2986,7 +3005,6 @@
     "embedding_model": "Mô hình Nhúng",
     "embedding_model_required": "Mô hình nhúng cơ sở tri thức là bắt buộc",
     "empty": "Không có cơ sở kiến thức",
-    "empty_action": "Tạo Cơ sở Kiến thức",
     "empty_description": "Bạn chưa có cơ sở kiến thức nào. Hãy tạo một cơ sở kiến thức để bắt đầu tổ chức và tìm kiếm tài liệu của bạn.",
     "error": {
       "directory_not_migrated": "Di chuyển thư mục không thành công. Vui lòng xóa và tải lên lại.",

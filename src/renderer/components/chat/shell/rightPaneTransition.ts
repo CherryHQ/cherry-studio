@@ -19,12 +19,20 @@ export interface PersistentRightPaneVisualState {
   reservesDockedSpace: boolean
 }
 
+export type PersistentRightPaneMotionState = TargetAndTransition
+
 export interface PersistentRightPaneTransitionPlan {
   animateTo: TargetAndTransition
   completedMode: RightPaneLayoutMode
   deferUntilNextFrame: boolean
   runningState: PersistentRightPaneVisualState
   setBeforeStart?: TargetAndTransition
+  settledState: PersistentRightPaneVisualState
+}
+
+export interface PersistentRightPaneReconnectPlan {
+  completedMode?: RightPaneLayoutMode
+  motionState: PersistentRightPaneMotionState
   settledState: PersistentRightPaneVisualState
 }
 
@@ -49,6 +57,30 @@ export function getInitialPersistentRightPaneState(targetMode: RightPaneLayoutMo
   if (targetMode === 'docked') return { phase: 'docked', reservesDockedSpace: true }
   if (targetMode === 'maximized') return { phase: 'maximized', reservesDockedSpace: false }
   return { phase: 'closed', reservesDockedSpace: false }
+}
+
+export function getSettledRightPaneMode(phase: PersistentRightPanePhase): RightPaneLayoutMode | null {
+  if (phase === 'closed' || phase === 'docked' || phase === 'maximized') return phase
+  return null
+}
+
+export function getPersistentRightPaneMotionState(targetMode: RightPaneLayoutMode): PersistentRightPaneMotionState {
+  return targetMode === 'closed'
+    ? { clipPath: RIGHT_PANE_CLIP_COLLAPSED, opacity: 0 }
+    : { clipPath: RIGHT_PANE_CLIP_REVEALED, opacity: 1 }
+}
+
+export function planPersistentRightPaneReconnect(
+  currentPhase: PersistentRightPanePhase,
+  targetMode: RightPaneLayoutMode
+): PersistentRightPaneReconnectPlan {
+  const settledMode = getSettledRightPaneMode(currentPhase)
+
+  return {
+    completedMode: settledMode === targetMode ? undefined : targetMode,
+    motionState: getPersistentRightPaneMotionState(targetMode),
+    settledState: getInitialPersistentRightPaneState(targetMode)
+  }
 }
 
 export function planPersistentRightPaneTransition(
