@@ -683,6 +683,7 @@
         "deleteFailed": "删除任务失败",
         "loadFailed": "加载任务失败",
         "runFailed": "运行任务失败",
+        "triggerInvalid": "定时设置无效：请检查表达式、时区或间隔范围",
         "updateFailed": "更新任务失败"
       },
       "frequency": {
