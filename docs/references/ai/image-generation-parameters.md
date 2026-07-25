@@ -220,7 +220,8 @@ interface WireRegistration {
                                   // (no delivery-key field — that is `sdkConfig.optionsKey`)
   passthrough?: boolean | 'wire'  // forward unmapped vendor-bag fields: raw camelCase (custom
                                   // models read them) or wire-named ('wire' — the body IS the HTTP body)
-  also?: { key; profile }[]       // a sibling provider key (dmxapi → google.imageConfig)
+  also?: { key; profile }[]       // a sibling provider key (multi-backend gateways);
+                                  // no live consumer since the dmxapi row was deleted
 }
 ```
 

@@ -150,28 +150,6 @@ export const GOOGLE_WIRE_PROFILE: WireProfile = {
 }
 
 /**
- * dmxapi multi-backend gateway. The factory routes models to native adapters
- * (gemini-image/imagen → google, gpt-image/dall-e → openai, custom → bespoke
- * transport, else openai-compat), so the emitter dual-keys across two provider
- * keys: a snake_case body under `dmxapi` (primary profile) and a `google`
- * `imageConfig` block (the `also` profile) so gemini-image picks up the form's
- * `aspectRatio` + `imageResolution` (1K/2K/4K — no top-level AI SDK field).
- */
-export const DMXAPI_WIRE_PROFILE: WireProfile = {
-  forward: ['negativePrompt', 'seed', 'quality']
-}
-
-/** dmxapi's google-routed block: aspectRatio + `imageResolution` (a vendor-bag
- *  field, not `size`) into `imageConfig`. Delivered under the `google` key via
- *  the registration's `also`. */
-export const DMXAPI_GOOGLE_PROFILE: WireProfile = {
-  fields: {
-    aspectRatio: aspectRatioImageConfigRule,
-    imageResolution: imageResolutionImageConfigRule
-  }
-}
-
-/**
  * Ollama's own experimental image-gen models (`x/z-image-turbo`,
  * `x/flux2-klein`, served through `/api/generate`). Only `numInferenceSteps`
  * needs a rule — its wire name is `steps`, not the catalog's auto snake_case
@@ -238,7 +216,12 @@ export const WIRE_REGISTRY: Record<string, WireRegistration> = {
   // the per-backend custom model (Doubao Seedream / Qwen / Wan …) reads it. The
   // `openai` mirror stays clean (mapped fields only).
   aihubmix: { profile: AIHUBMIX_WIRE_PROFILE, dualOpenAI: true, passthrough: true },
-  dmxapi: { profile: DMXAPI_WIRE_PROFILE, also: [{ key: 'google', profile: DMXAPI_GOOGLE_PROFILE }] },
+  // No `dmxapi` row: `config.ts` only gives DMXAPI its own SDK id under
+  // `dmxapiUsesCustomTransport`, which is the same predicate that gives it a transport
+  // — so `providerId === 'dmxapi'` always took the job branch, and every other DMXAPI
+  // image model resolves `openai-compatible`. Its profile and `also: google` block were
+  // unreachable from both sides. Reconnecting the gateway's native image adapters is a
+  // routing change in `config.ts`, not a row here. See `wireRegistryReachability`.
   ollama: { profile: OLLAMA_WIRE_PROFILE }
 }
 

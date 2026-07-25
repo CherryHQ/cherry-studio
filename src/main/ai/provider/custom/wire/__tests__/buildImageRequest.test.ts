@@ -255,26 +255,6 @@ describe('buildVendorProviderOptions — aihubmix (openai body + seed, bag forwa
   })
 })
 
-describe('buildVendorProviderOptions — dmxapi (cross-key: dmxapi body + google.imageConfig via `also`)', () => {
-  it('dual-keys snake_case under dmxapi + imageResolution/aspectRatio into google.imageConfig', () => {
-    const paramValues = {
-      negativePrompt: 'no blur',
-      seed: 7,
-      aspectRatio: 'ASPECT_1_1',
-      imageResolution: '4K',
-      numImages: 1
-    }
-    expect(engine('dmxapi', paramValues)).toEqual({
-      dmxapi: { negative_prompt: 'no blur', seed: 7 },
-      google: { imageConfig: { aspectRatio: '1:1', imageSize: '4K' } }
-    })
-  })
-
-  it('omits the google sibling key when no aspectRatio / imageResolution is set', () => {
-    expect(engine('dmxapi', { negativePrompt: 'x', numImages: 1 })).toEqual({ dmxapi: { negative_prompt: 'x' } })
-  })
-})
-
 describe('buildVendorProviderOptions — Ollama (numInferenceSteps → steps; size/seed are native, not profile fields)', () => {
   it('maps numInferenceSteps to steps and omits everything else', () => {
     const paramValues = { numInferenceSteps: 9, seed: 42, negativePrompt: 'no blur', quality: 'hd' }
