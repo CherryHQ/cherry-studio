@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { MessageEditingProvider } from '@renderer/components/chat/editing/MessageEditingContext'
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
 import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
@@ -24,6 +25,8 @@ import ChatComposerSlot from './ChatComposerSlot'
 import ChatMain from './ChatMain'
 import type { AddNewTopicPayload } from './types'
 import { useChatRuntimeState } from './useChatRuntimeState'
+
+const logger = loggerService.withContext('ChatContent')
 
 interface Props {
   topic: Topic
@@ -161,6 +164,8 @@ const ChatContentInner: FC<InnerProps> = ({
     getBranchDraftAnchorId
   })
   const siblingsContextValue = useMemo(() => ({ siblingsMap, activeNodeId }), [siblingsMap, activeNodeId])
+  const hasLocateMessage = Boolean(locateMessageId && uiMessages.some((message) => message.id === locateMessageId))
+  const locateHistoryLength = hasLocateMessage ? undefined : uiMessages.length
 
   useEffect(() => {
     if (!locateMessageId) {
@@ -168,17 +173,28 @@ const ChatContentInner: FC<InnerProps> = ({
       return
     }
 
-    if (uiMessages.some((message) => message.id === locateMessageId)) {
+    if (hasLocateMessage) {
       locateLoadRequestRef.current = undefined
-      window.requestAnimationFrame(() => {
-        void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + locateMessageId, true)
+      let active = true
+      const finishLocate = () => {
+        if (!active) return
+        active = false
+        onLocateMessageHandled?.()
+      }
+      const animationFrame = window.requestAnimationFrame(() => {
+        void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + locateMessageId, true).then(finishLocate, (error) => {
+          logger.error('Failed to locate message', error as Error, { messageId: locateMessageId })
+          finishLocate()
+        })
       })
-      onLocateMessageHandled?.()
-      return
+      return () => {
+        active = false
+        window.cancelAnimationFrame(animationFrame)
+      }
     }
 
     if (hasOlder && !isHistoryLoading) {
-      const requestKey = `${locateMessageId}:${uiMessages.length}`
+      const requestKey = `${locateMessageId}:${locateHistoryLength}`
       if (locateLoadRequestRef.current !== requestKey) {
         locateLoadRequestRef.current = requestKey
         loadOlder()
@@ -190,7 +206,15 @@ const ChatContentInner: FC<InnerProps> = ({
       locateLoadRequestRef.current = undefined
       onLocateMessageHandled?.()
     }
-  }, [hasOlder, isHistoryLoading, loadOlder, locateMessageId, onLocateMessageHandled, uiMessages])
+  }, [
+    hasLocateMessage,
+    hasOlder,
+    isHistoryLoading,
+    loadOlder,
+    locateHistoryLength,
+    locateMessageId,
+    onLocateMessageHandled
+  ])
 
   const isEmptyConversation = !isHistoryLoading && runtime.messages.length === 0
   const main = (

@@ -6,7 +6,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const eventMocks = vi.hoisted(() => ({
   emit: vi.fn(),
-  on: vi.fn(() => vi.fn())
+  on: vi.fn(() => vi.fn()),
+  onAny: vi.fn(() => vi.fn())
 }))
 
 const exportActionsMock = vi.hoisted(() => ({
@@ -358,6 +359,233 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     expect(eventMocks.on).not.toHaveBeenCalledWith('SEND_MESSAGE', runtime.scrollToBottom)
     expect(eventMocks.on).toHaveBeenCalledWith('COPY_TOPIC_IMAGE', expect.any(Function))
     expect(eventMocks.on).toHaveBeenCalledWith('EXPORT_TOPIC_IMAGE', expect.any(Function))
+  })
+
+  it('locates an unmounted target through the list runtime before its local runtimes mount', async () => {
+    let value: MessageListProviderValue | undefined
+    const targetMessage = {
+      id: 'message-a',
+      role: 'assistant',
+      parts: []
+    } as CherryUIMessage
+    render(
+      <MessageListAdapterHarness
+        messages={[targetMessage]}
+        topic={createTopic('topic-a')}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+    await waitFor(() => expect(value).toBeDefined())
+
+    const listLocate = vi.fn()
+    const groupLocate = vi.fn()
+    const messageHighlight = vi.fn()
+    value?.actions.bindRuntime?.({
+      copyTopicImage: vi.fn(),
+      exportTopicImage: vi.fn(),
+      locateMessage: listLocate,
+      scrollToBottom: vi.fn()
+    })
+    const locateHandler = eventMocks.onAny.mock.calls.at(-1)?.[0] as
+      | ((eventName: string, highlight?: boolean) => void | Promise<void>)
+      | undefined
+
+    const locateRequest = locateHandler?.('LOCATE_MESSAGE:message-a', true)
+
+    expect(listLocate).toHaveBeenCalledWith('message-a')
+    expect(groupLocate).not.toHaveBeenCalled()
+    expect(messageHighlight).not.toHaveBeenCalled()
+
+    value?.actions.bindMessageRuntime?.('message-a', {
+      locateMessage: messageHighlight,
+      startEditing: vi.fn()
+    })
+    expect(messageHighlight).not.toHaveBeenCalled()
+
+    value?.actions.bindMessageGroupRuntime?.(['message-a'], {
+      locateMessage: groupLocate
+    })
+    await locateRequest
+
+    expect(groupLocate).toHaveBeenCalledWith('message-a')
+    expect(messageHighlight).toHaveBeenCalledWith(true)
+    expect(listLocate.mock.invocationCallOrder[0]).toBeLessThan(groupLocate.mock.invocationCallOrder[0])
+    expect(groupLocate.mock.invocationCallOrder[0]).toBeLessThan(messageHighlight.mock.invocationCallOrder[0])
+  })
+
+  it('ignores stale list runtimes and clears the active locate route on cleanup', async () => {
+    let value: MessageListProviderValue | undefined
+    const targetMessage = {
+      id: 'message-a',
+      role: 'assistant',
+      parts: []
+    } as CherryUIMessage
+    render(
+      <MessageListAdapterHarness
+        messages={[targetMessage]}
+        topic={createTopic('topic-a')}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+    await waitFor(() => expect(value).toBeDefined())
+
+    const staleListLocate = vi.fn()
+    const activeListLocate = vi.fn()
+    const staleCleanup = value?.actions.bindRuntime?.({
+      copyTopicImage: vi.fn(),
+      exportTopicImage: vi.fn(),
+      locateMessage: staleListLocate,
+      scrollToBottom: vi.fn()
+    })
+    const staleLocateHandler = eventMocks.onAny.mock.calls.at(-1)?.[0] as
+      | ((eventName: string, highlight?: boolean) => void | Promise<void>)
+      | undefined
+    const activeCleanup = value?.actions.bindRuntime?.({
+      copyTopicImage: vi.fn(),
+      exportTopicImage: vi.fn(),
+      locateMessage: activeListLocate,
+      scrollToBottom: vi.fn()
+    })
+    const activeLocateHandler = eventMocks.onAny.mock.calls.at(-1)?.[0] as
+      | ((eventName: string, highlight?: boolean) => void | Promise<void>)
+      | undefined
+
+    staleLocateHandler?.('LOCATE_MESSAGE:message-a', true)
+    activeLocateHandler?.('LOCATE_MESSAGE:message-a', true)
+
+    expect(staleListLocate).not.toHaveBeenCalled()
+    expect(activeListLocate).toHaveBeenCalledTimes(1)
+
+    if (typeof staleCleanup === 'function') staleCleanup()
+    if (typeof activeCleanup === 'function') activeCleanup()
+    activeLocateHandler?.('LOCATE_MESSAGE:message-a', true)
+
+    expect(activeListLocate).toHaveBeenCalledTimes(1)
+  })
+
+  it('settles a pending locate when the target leaves the message list before mounting', async () => {
+    let value: MessageListProviderValue | undefined
+    const topic = createTopic('topic-a')
+    const targetMessage = {
+      id: 'message-a',
+      role: 'assistant',
+      parts: []
+    } as CherryUIMessage
+    const view = render(
+      <MessageListAdapterHarness
+        messages={[targetMessage]}
+        topic={topic}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+    await waitFor(() => expect(value).toBeDefined())
+
+    value?.actions.bindRuntime?.({
+      copyTopicImage: vi.fn(),
+      exportTopicImage: vi.fn(),
+      locateMessage: vi.fn(),
+      scrollToBottom: vi.fn()
+    })
+    const locateHandler = eventMocks.onAny.mock.calls.at(-1)?.[0] as
+      | ((eventName: string, highlight?: boolean) => void | Promise<void>)
+      | undefined
+    expect(locateHandler).toBeTypeOf('function')
+    const locateRequest = locateHandler?.('LOCATE_MESSAGE:message-a', true)
+    let settled = false
+    void locateRequest?.then(() => {
+      settled = true
+    })
+
+    view.rerender(
+      <MessageListAdapterHarness messages={[]} topic={topic} onValue={(nextValue) => (value = nextValue)} />
+    )
+
+    await waitFor(() => expect(settled).toBe(true))
+  })
+
+  it('settles a pending locate after a bounded wait when the target never mounts', async () => {
+    let value: MessageListProviderValue | undefined
+    const targetMessage = {
+      id: 'message-a',
+      role: 'assistant',
+      parts: []
+    } as CherryUIMessage
+    render(
+      <MessageListAdapterHarness
+        messages={[targetMessage]}
+        topic={createTopic('topic-a')}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+    await waitFor(() => expect(value).toBeDefined())
+
+    value?.actions.bindRuntime?.({
+      copyTopicImage: vi.fn(),
+      exportTopicImage: vi.fn(),
+      locateMessage: vi.fn(),
+      scrollToBottom: vi.fn()
+    })
+    const locateHandler = eventMocks.onAny.mock.calls.at(-1)?.[0] as
+      | ((eventName: string, highlight?: boolean) => void | Promise<void>)
+      | undefined
+
+    vi.useFakeTimers()
+    try {
+      const locateRequest = locateHandler?.('LOCATE_MESSAGE:message-a', true)
+      let settled = false
+      void locateRequest?.then(() => {
+        settled = true
+      })
+
+      await vi.runAllTimersAsync()
+      await Promise.resolve()
+
+      expect(settled).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('rejects a pending locate when a mounting local runtime throws', async () => {
+    let value: MessageListProviderValue | undefined
+    const targetMessage = {
+      id: 'message-a',
+      role: 'assistant',
+      parts: []
+    } as CherryUIMessage
+    render(
+      <MessageListAdapterHarness
+        messages={[targetMessage]}
+        topic={createTopic('topic-a')}
+        onValue={(nextValue) => (value = nextValue)}
+      />
+    )
+    await waitFor(() => expect(value).toBeDefined())
+
+    value?.actions.bindRuntime?.({
+      copyTopicImage: vi.fn(),
+      exportTopicImage: vi.fn(),
+      locateMessage: vi.fn(),
+      scrollToBottom: vi.fn()
+    })
+    const locateHandler = eventMocks.onAny.mock.calls.at(-1)?.[0] as
+      | ((eventName: string, highlight?: boolean) => void | Promise<void>)
+      | undefined
+    const locateRequest = locateHandler?.('LOCATE_MESSAGE:message-a', true)
+    const runtimeError = new Error('message group locate failed')
+    value?.actions.bindMessageRuntime?.('message-a', {
+      locateMessage: vi.fn(),
+      startEditing: vi.fn()
+    })
+
+    expect(() => {
+      value?.actions.bindMessageGroupRuntime?.(['message-a'], {
+        locateMessage: () => {
+          throw runtimeError
+        }
+      })
+    }).not.toThrow()
+    await expect(locateRequest).rejects.toBe(runtimeError)
   })
 
   it('passes layered streaming state and reuses unchanged history message projections', () => {

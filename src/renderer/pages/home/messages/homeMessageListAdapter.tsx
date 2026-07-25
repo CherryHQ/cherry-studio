@@ -71,6 +71,7 @@ import {
 } from './topicImageActionBus'
 
 const logger = loggerService.withContext('HomeMessageListAdapter')
+const MESSAGE_LOCATE_TIMEOUT_MS = 1500
 
 interface HomeMessageListParams {
   topic: Topic
@@ -86,6 +87,13 @@ interface HomeMessageListParams {
   onStartBranchDraft?: MessageListActions['startMessageBranch']
   onComponentUpdate?(): void
   onFirstUpdate?(): void
+}
+
+interface PendingMessageLocate {
+  highlight?: boolean
+  timeoutId?: number
+  reject(error: unknown): void
+  resolve(): void
 }
 
 export function useHomeMessageListProviderValue({
@@ -155,6 +163,10 @@ export function useHomeMessageListProviderValue({
 
   const messagesRef = useRef<MessageListItem[]>(messageItems)
   const partsByMessageIdRef = useRef(partsByMessageId)
+  const messageListRuntimeRef = useRef<MessageListRuntime | null>(null)
+  const messageRuntimesRef = useRef(new Map<string, Set<MessageRuntime>>())
+  const messageGroupRuntimesRef = useRef(new Map<string, Set<MessageGroupRuntime>>())
+  const pendingMessageLocatesRef = useRef(new Map<string, Set<PendingMessageLocate>>())
   const translationAbortControllersRef = useRef(new Map<string, AbortController>())
   const [translatingMessageIds, setTranslatingMessageIds] = useState<ReadonlySet<string>>(() => new Set())
 
@@ -312,10 +324,92 @@ export function useHomeMessageListProviderValue({
     return () => rejectPendingTopicImageActions(topicId, new Error('Topic image export was cancelled'))
   }, [topic.id])
 
+  const dispatchMessageLocate = useCallback((messageId: string, highlight?: boolean) => {
+    const messageRuntimes = messageRuntimesRef.current.get(messageId)
+    const messageGroupRuntimes = messageGroupRuntimesRef.current.get(messageId)
+    if (!messageRuntimes?.size || !messageGroupRuntimes?.size) return false
+
+    messageGroupRuntimes.forEach((runtime) => runtime.locateMessage(messageId))
+    messageRuntimes.forEach((runtime) => runtime.locateMessage(highlight))
+    return true
+  }, [])
+
+  const settlePendingMessageLocate = useCallback(
+    (messageId: string, request: PendingMessageLocate, error?: unknown) => {
+      const requests = pendingMessageLocatesRef.current.get(messageId)
+      if (!requests?.delete(request)) return
+
+      if (request.timeoutId !== undefined) {
+        window.clearTimeout(request.timeoutId)
+      }
+      if (requests.size === 0) {
+        pendingMessageLocatesRef.current.delete(messageId)
+      }
+
+      if (error !== undefined) {
+        request.reject(error)
+      } else {
+        request.resolve()
+      }
+    },
+    []
+  )
+
+  const cancelPendingMessageLocates = useCallback(
+    (messageId: string, reason?: 'message-removed' | 'target-not-mounted') => {
+      const requests = pendingMessageLocatesRef.current.get(messageId)
+      if (!requests?.size) return
+
+      if (reason) {
+        logger.warn('Message locate ended before local runtimes mounted', { messageId, reason })
+      }
+      for (const request of [...requests]) {
+        settlePendingMessageLocate(messageId, request)
+      }
+    },
+    [settlePendingMessageLocate]
+  )
+
+  const flushPendingMessageLocates = useCallback(
+    (messageId: string) => {
+      const requests = pendingMessageLocatesRef.current.get(messageId)
+      if (!requests?.size) return
+
+      for (const request of [...requests]) {
+        try {
+          if (!dispatchMessageLocate(messageId, request.highlight)) return
+          settlePendingMessageLocate(messageId, request)
+        } catch (error) {
+          settlePendingMessageLocate(messageId, request, error)
+        }
+      }
+    },
+    [dispatchMessageLocate, settlePendingMessageLocate]
+  )
+
+  useEffect(() => {
+    const messageIds = new Set(messageItems.map((message) => message.id))
+    for (const messageId of [...pendingMessageLocatesRef.current.keys()]) {
+      if (!messageIds.has(messageId)) {
+        cancelPendingMessageLocates(messageId, 'message-removed')
+      }
+    }
+  }, [cancelPendingMessageLocates, messageItems])
+
   const bindRuntime = useCallback(
     (runtime: MessageListRuntime) => {
+      messageListRuntimeRef.current = runtime
+      const clearRuntime = () => {
+        if (messageListRuntimeRef.current === runtime) {
+          messageListRuntimeRef.current = null
+          for (const messageId of [...pendingMessageLocatesRef.current.keys()]) {
+            cancelPendingMessageLocates(messageId)
+          }
+        }
+      }
+
       if (imageActionConsumer === 'capture') {
-        return bindCaptureMessageImageRuntime({
+        const unbindCaptureRuntime = bindCaptureMessageImageRuntime({
           cancelMessage: 'Topic image export was cancelled',
           consumePendingActions: consumePendingTopicImageActions,
           rejectPendingActions: rejectPendingTopicImageActions,
@@ -323,11 +417,42 @@ export function useHomeMessageListProviderValue({
           settleActionRequest: settleTopicImageActionRequest,
           targetId: topic.id
         })
+        return () => {
+          clearRuntime()
+          unbindCaptureRuntime()
+        }
       }
 
       flushPendingTopicImageActions(runtime)
 
+      const locateEventPrefix = EVENT_NAMES.LOCATE_MESSAGE + ':'
       const unsubscribes = [
+        EventEmitter.onAny((eventName, eventData) => {
+          if (
+            messageListRuntimeRef.current !== runtime ||
+            typeof eventName !== 'string' ||
+            !eventName.startsWith(locateEventPrefix)
+          ) {
+            return
+          }
+
+          const messageId = eventName.slice(locateEventPrefix.length)
+          if (!messageId || !messagesRef.current.some((message) => message.id === messageId)) return
+
+          runtime.locateMessage(messageId)
+          const highlight = typeof eventData === 'boolean' ? eventData : undefined
+          if (dispatchMessageLocate(messageId, highlight)) return
+
+          return new Promise<void>((resolve, reject) => {
+            const requests = pendingMessageLocatesRef.current.get(messageId) ?? new Set<PendingMessageLocate>()
+            const request: PendingMessageLocate = { highlight, reject, resolve }
+            requests.add(request)
+            pendingMessageLocatesRef.current.set(messageId, requests)
+            request.timeoutId = window.setTimeout(() => {
+              cancelPendingMessageLocates(messageId, 'target-not-mounted')
+            }, MESSAGE_LOCATE_TIMEOUT_MS)
+          })
+        }),
         EventEmitter.on(EVENT_NAMES.COPY_TOPIC_IMAGE, (data?: TopicImageActionRequest['topic']) =>
           consumeTopicImageAction(runtime, 'copy', data)
         ),
@@ -336,40 +461,69 @@ export function useHomeMessageListProviderValue({
         )
       ]
 
-      return () => unsubscribes.forEach((unsub) => unsub())
+      return () => {
+        clearRuntime()
+        unsubscribes.forEach((unsub) => unsub())
+      }
     },
-    [consumeTopicImageAction, flushPendingTopicImageActions, imageActionConsumer, topic.id]
+    [
+      cancelPendingMessageLocates,
+      consumeTopicImageAction,
+      dispatchMessageLocate,
+      flushPendingTopicImageActions,
+      imageActionConsumer,
+      topic.id
+    ]
   )
 
   const bindMessageRuntime = useCallback(
     (messageId: string, runtime: MessageRuntime) => {
       if (!normalInteractionsEnabled) return () => {}
 
-      const unsubscribes = [
-        EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, runtime.locateMessage),
-        EventEmitter.on(EVENT_NAMES.EDIT_MESSAGE, (targetId: string) => {
-          if (targetId === messageId) {
-            runtime.startEditing()
-          }
-        })
-      ]
+      const runtimes = messageRuntimesRef.current.get(messageId) ?? new Set<MessageRuntime>()
+      runtimes.add(runtime)
+      messageRuntimesRef.current.set(messageId, runtimes)
+      flushPendingMessageLocates(messageId)
 
-      return () => unsubscribes.forEach((unsub) => unsub())
+      const unsubscribeEdit = EventEmitter.on(EVENT_NAMES.EDIT_MESSAGE, (targetId: string) => {
+        if (targetId === messageId) {
+          runtime.startEditing()
+        }
+      })
+
+      return () => {
+        unsubscribeEdit()
+        runtimes.delete(runtime)
+        if (runtimes.size === 0) {
+          messageRuntimesRef.current.delete(messageId)
+        }
+      }
     },
-    [normalInteractionsEnabled]
+    [flushPendingMessageLocates, normalInteractionsEnabled]
   )
 
   const bindMessageGroupRuntime = useCallback(
     (messageIds: string[], runtime: MessageGroupRuntime) => {
       if (!normalInteractionsEnabled) return () => {}
 
-      const unsubscribes = messageIds.map((messageId) =>
-        EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + messageId, () => runtime.locateMessage(messageId))
-      )
+      messageIds.forEach((messageId) => {
+        const runtimes = messageGroupRuntimesRef.current.get(messageId) ?? new Set<MessageGroupRuntime>()
+        runtimes.add(runtime)
+        messageGroupRuntimesRef.current.set(messageId, runtimes)
+        flushPendingMessageLocates(messageId)
+      })
 
-      return () => unsubscribes.forEach((unsub) => unsub())
+      return () => {
+        messageIds.forEach((messageId) => {
+          const runtimes = messageGroupRuntimesRef.current.get(messageId)
+          runtimes?.delete(runtime)
+          if (runtimes?.size === 0) {
+            messageGroupRuntimesRef.current.delete(messageId)
+          }
+        })
+      }
     },
-    [normalInteractionsEnabled]
+    [flushPendingMessageLocates, normalInteractionsEnabled]
   )
 
   const locateMessage = useCallback((messageId: string, highlight?: boolean) => {
