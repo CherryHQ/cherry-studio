@@ -2861,6 +2861,10 @@ describe('useChatVirtualizerRuntime', () => {
       // it cannot fire after the pin below and silently unpin it.
       raf.tick(60)
 
+      // Drain the mount's deferred bottom-follow claim so it cannot fire after
+      // the pin below and silently re-engage bottom-follow.
+      raf.tick(60)
+
       // Send: pin the fresh user message to the top.
       view.rerender(
         <RuntimeDomProbe
@@ -2931,6 +2935,10 @@ describe('useChatVirtualizerRuntime', () => {
       runtime!.vlistHandleRef.current = createHandle({ getItemOffset: vi.fn(() => 300) })
       // Drain the mount's scroll-to-newest restore (it releases any anchor) so
       // it cannot fire after the pin below and silently unpin it.
+      raf.tick(60)
+
+      // Drain the mount's deferred bottom-follow claim so it cannot fire after
+      // the takeover below and silently re-engage bottom-follow.
       raf.tick(60)
 
       // A takeover latched while idle (the user clicked something in the list).

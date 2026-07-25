@@ -152,11 +152,15 @@ export function MessageVirtualList<T>({
   const [scrollerElement, setScrollerElement] = useState<HTMLDivElement | null>(null)
   const { scrollToBottom, markUserInput, takeUserControl } = runtime
   const { onWheel } = runtime.scrollerProps
+  // Latch the captured node like TabRouter does: a background tab detaches the
+  // ref (element === null) while its DOM node lives on, and clearing this state
+  // would unmount the virtualizer below — discarding virtua's measurements and
+  // every message's own state on a plain tab switch.
   const setScrollerRef = useCallback(
     (element: HTMLDivElement | null) => {
       runtime.scrollerRef.current = element
-      setScrollerElement(element)
       if (element) {
+        setScrollerElement(element)
         onScrollContainerReady?.(element)
       }
     },
@@ -242,19 +246,24 @@ export function MessageVirtualList<T>({
             {topPadding > 0 && (
               <div aria-hidden="true" data-message-virtual-list-top-spacer style={{ height: topPadding }} />
             )}
-            <Virtualizer
-              ref={runtime.vlistHandleRef}
-              scrollRef={runtime.scrollerRef}
-              data={runtime.wrappedItems}
-              itemSize={estimateSize}
-              bufferSize={Math.max(200, overscan * (estimateSize ?? 200))}
-              shift={runtime.shift}
-              keepMounted={runtime.keepMounted}
-              startMargin={topPadding}
-              onScroll={runtime.scrollerProps.onScroll}
-              onScrollEnd={runtime.scrollerProps.onScrollEnd}>
-              {runtime.wrappedRenderItem}
-            </Virtualizer>
+            {/* Virtua reads an external scrollRef only when it mounts. Wait for
+                Scrollbar's ref callback so staged layouts cannot leave it
+                permanently unmeasured with data but no rendered items. */}
+            {scrollerElement && (
+              <Virtualizer
+                ref={runtime.vlistHandleRef}
+                scrollRef={runtime.scrollerRef}
+                data={runtime.wrappedItems}
+                itemSize={estimateSize}
+                bufferSize={Math.max(200, overscan * (estimateSize ?? 200))}
+                shift={runtime.shift}
+                keepMounted={runtime.keepMounted}
+                startMargin={topPadding}
+                onScroll={runtime.scrollerProps.onScroll}
+                onScrollEnd={runtime.scrollerProps.onScrollEnd}>
+                {runtime.wrappedRenderItem}
+              </Virtualizer>
+            )}
           </ScrollOwnershipProvider>
         </div>
         {/* Outside the content wrapper: the anchor derives its natural content

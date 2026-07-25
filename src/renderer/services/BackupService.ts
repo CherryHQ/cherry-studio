@@ -168,42 +168,6 @@ export async function restore() {
   }
 }
 
-export async function reset() {
-  // Packaged builds refuse reset until DevResetCoordinator lands with restore stack.
-  if (!import.meta.env.DEV) {
-    toast.error(i18n.t('settings.data.backup.v2_unavailable'))
-    return
-  }
-
-  const confirmed = await popup.confirm({
-    title: i18n.t('common.warning'),
-    content: i18n.t('message.reset.confirm.content'),
-    centered: true,
-    okText: i18n.t('common.confirm'),
-    cancelText: i18n.t('common.cancel'),
-    okButtonProps: {
-      danger: true
-    }
-  })
-  if (!confirmed) return
-
-  const doubleConfirmed = await popup.confirm({
-    title: i18n.t('message.reset.double.confirm.title'),
-    content: i18n.t('message.reset.double.confirm.content'),
-    centered: true,
-    okText: i18n.t('common.confirm'),
-    cancelText: i18n.t('common.cancel')
-  })
-  if (!doubleConfirmed) return
-
-  localStorage.clear()
-  // Legacy Dexie cleanup is intentionally disabled in v2.
-  // await clearDatabase()
-  await window.api.resetData()
-  toast.success(i18n.t('message.reset.success'))
-  setTimeout(() => window.api.application.relaunch(), 1000)
-}
-
 // 备份到 webdav
 /**
  * @param showMessage

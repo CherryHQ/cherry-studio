@@ -199,7 +199,7 @@
       "type": "智能体图标"
     },
     "input": {
-      "placeholder": "输入消息，按 {{key}} 发送，输入 / 搜索路径或命令"
+      "placeholder": "输入消息，按 {{key}} 发送，输入 / 搜索路径或命令，输入 @ 引用文件或会话"
     },
     "list": {
       "error": {
@@ -377,6 +377,11 @@
         "helper": "选择预先授权的工具，未选中的工具在使用时需要手动审批。",
         "label": "预先授权工具",
         "placeholder": "选择预先授权的工具"
+      },
+      "api_retry": {
+        "reason": "请求失败（{{error}}，HTTP {{status}}），正在重试",
+        "retrying": "正在重试 {{attempt}}/{{max}}…",
+        "retrying_in": "{{seconds}} 秒后重试 {{attempt}}/{{max}}"
       },
       "auto_rename": "生成任务名",
       "create": {
@@ -1425,8 +1430,26 @@
       "paste_text_file": "粘贴到输入框",
       "pasted_text_file_name": "已粘贴的文本.txt",
       "pause": "暂停",
-      "placeholder": "输入消息，按 {{key}} 发送，输入 / 选择工具或操作",
+      "placeholder": "输入消息，按 {{key}} 发送，输入 / 选择工具或操作，输入 @ 引用话题",
       "placeholder_without_triggers": "在这里输入消息，按 {{key}} 发送",
+      "reference_panel": {
+        "load_failed": "加载引用内容失败",
+        "no_room": "输入框剩余长度不足，无法插入该会话",
+        "session": {
+          "no_results": {
+            "description": "没有名称匹配的会话",
+            "label": "无匹配会话"
+          },
+          "title": "会话"
+        },
+        "topic": {
+          "no_results": {
+            "description": "没有名称匹配的话题",
+            "label": "无匹配话题"
+          },
+          "title": "话题"
+        }
+      },
       "resize_height": "调整输入框高度",
       "resource_panel": {
         "categories": {
@@ -1444,7 +1467,7 @@
           "description": "没有可用的文件、Agents 或 Skills",
           "label": "未找到项目"
         },
-        "title": "资源"
+        "title": "文件与会话"
       },
       "restore": "还原",
       "send": "发送",
@@ -2276,6 +2299,7 @@
     "provider": "提供商",
     "reasoning_content": "已深度思考",
     "refresh": "刷新",
+    "refresh_failed": "无法刷新列表，正在显示上次加载的内容。",
     "regenerate": "重新生成",
     "remove_image": "移除图片",
     "rename": "重命名",
@@ -3763,6 +3787,8 @@
         "title": "删除确认"
       },
       "failed": "删除失败",
+      "first_turn_not_supported": "不能删除第一条用户消息。",
+      "root_unavailable": "消息仍在加载，暂时无法删除。",
       "success": "删除成功"
     },
     "dialog": {
@@ -3905,18 +3931,6 @@
     "processing": "正在处理...",
     "regenerate": {
       "confirm": "重新生成会覆盖当前消息"
-    },
-    "reset": {
-      "confirm": {
-        "content": "确定要重置所有数据吗？"
-      },
-      "double": {
-        "confirm": {
-          "content": "你的全部数据都会丢失，如果没有备份数据，将无法恢复，确定要继续吗？",
-          "title": "数据丢失！！！"
-        }
-      },
-      "success": "数据重置成功"
     },
     "restore": {
       "failed": "恢复失败",
@@ -5828,6 +5842,13 @@
       "data": {
         "title": "数据目录"
       },
+      "data_reset": {
+        "button": "重置",
+        "confirm_content": "将清除聊天、助手、知识库、文件和设置并重启应用。此操作无法撤销，是否继续？",
+        "confirm_title": "重置应用数据",
+        "error": "重置数据启动失败",
+        "title": "重置数据"
+      },
       "divider": {
         "basic": "基础数据设置",
         "cloud_storage": "云备份设置",
@@ -6560,10 +6581,6 @@
       "emoji_picker": "表情选择器",
       "image_upload": "图片上传",
       "label": "常规设置",
-      "reset": {
-        "button": "重置",
-        "title": "重置数据"
-      },
       "restore": {
         "button": "恢复"
       },

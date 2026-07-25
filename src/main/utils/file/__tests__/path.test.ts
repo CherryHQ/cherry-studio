@@ -2,7 +2,7 @@ import { chmod, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@application', async () => {
@@ -89,15 +89,15 @@ describe('canWrite', () => {
   })
 
   it('returns true for a freshly-created writable directory', async () => {
-    expect(await canWrite(tmp as FilePath)).toBe(true)
+    expect(await canWrite(tmp as AbsoluteFilePath)).toBe(true)
   })
 
   it('returns false for a non-existent path', async () => {
-    expect(await canWrite(path.join(tmp, 'nope', String(Date.now())) as FilePath)).toBe(false)
+    expect(await canWrite(path.join(tmp, 'nope', String(Date.now())) as AbsoluteFilePath)).toBe(false)
   })
 
   it.skipIf(process.platform === 'win32')('returns false for a chmod-stripped directory (POSIX)', async () => {
     await chmod(tmp, 0o500)
-    expect(await canWrite(tmp as FilePath)).toBe(false)
+    expect(await canWrite(tmp as AbsoluteFilePath)).toBe(false)
   })
 })

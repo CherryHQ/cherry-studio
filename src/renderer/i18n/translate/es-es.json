@@ -1427,6 +1427,24 @@
       "pause": "Pausar",
       "placeholder": "Escribe aquí tu mensaje...",
       "placeholder_without_triggers": "Escribe tu mensaje aquí, presiona {{key}} para enviar",
+      "reference_panel": {
+        "load_failed": "[to be translated]:Failed to load the referenced conversation",
+        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "session": {
+          "no_results": {
+            "description": "[to be translated]:No sessions match your search",
+            "label": "[to be translated]:No Sessions Found"
+          },
+          "title": "[to be translated]:Sessions"
+        },
+        "topic": {
+          "no_results": {
+            "description": "[to be translated]:No topics match your search",
+            "label": "[to be translated]:No Topics Found"
+          },
+          "title": "[to be translated]:Topics"
+        }
+      },
       "resize_height": "Ajustar altura de entrada",
       "resource_panel": {
         "categories": {
@@ -2276,6 +2294,7 @@
     "provider": "Proveedor",
     "reasoning_content": "Pensamiento profundo",
     "refresh": "Actualizar",
+    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
     "regenerate": "Regenerar",
     "remove_image": "Quitar imagen",
     "rename": "Renombrar",
@@ -3905,18 +3924,6 @@
     "processing": "Procesando...",
     "regenerate": {
       "confirm": "Regenerar sobrescribirá el mensaje actual"
-    },
-    "reset": {
-      "confirm": {
-        "content": "¿Está seguro de querer restablecer todos los datos?"
-      },
-      "double": {
-        "confirm": {
-          "content": "Todos sus datos se perderán, si no tiene una copia de seguridad, no podrán ser recuperados, ¿desea continuar?",
-          "title": "¡¡Pérdida de datos!!"
-        }
-      },
-      "success": "Restablecimiento de datos exitoso"
     },
     "restore": {
       "failed": "Restauración fallida",
@@ -5828,6 +5835,13 @@
       "data": {
         "title": "Directorio de datos"
       },
+      "data_reset": {
+        "button": "Restablecer",
+        "confirm_content": "Se borrarán los chats, asistentes, bases de conocimiento, archivos y ajustes, y luego se reiniciará la aplicación. Esta acción no se puede deshacer. ¿Desea continuar?",
+        "confirm_title": "Restablecer datos de la aplicación",
+        "error": "No se pudo iniciar el restablecimiento de datos",
+        "title": "Restablecer datos"
+      },
       "divider": {
         "basic": "Configuración básica",
         "cloud_storage": "Configuración de almacenamiento en la nube",
@@ -6560,10 +6574,6 @@
       "emoji_picker": "Selector de emojis",
       "image_upload": "Carga de imágenes",
       "label": "Configuración general",
-      "reset": {
-        "button": "Restablecer",
-        "title": "Restablecer datos"
-      },
       "restore": {
         "button": "Restaurar"
       },

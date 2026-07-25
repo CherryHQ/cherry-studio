@@ -1427,6 +1427,24 @@
       "pause": "一時停止",
       "placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",
       "placeholder_without_triggers": "ここにメッセージを入力し、{{key}} を押して送信...",
+      "reference_panel": {
+        "load_failed": "[to be translated]:Failed to load the referenced conversation",
+        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "session": {
+          "no_results": {
+            "description": "[to be translated]:No sessions match your search",
+            "label": "[to be translated]:No Sessions Found"
+          },
+          "title": "[to be translated]:Sessions"
+        },
+        "topic": {
+          "no_results": {
+            "description": "[to be translated]:No topics match your search",
+            "label": "[to be translated]:No Topics Found"
+          },
+          "title": "[to be translated]:Topics"
+        }
+      },
       "resize_height": "入力の高さを変更",
       "resource_panel": {
         "categories": {
@@ -2276,6 +2294,7 @@
     "provider": "プロバイダー",
     "reasoning_content": "深く考察済み",
     "refresh": "更新",
+    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
     "regenerate": "再生成",
     "remove_image": "画像を削除",
     "rename": "名前を変更",
@@ -3905,18 +3924,6 @@
     "processing": "処理中...",
     "regenerate": {
       "confirm": "再生成すると現在のメッセージが置き換えられます"
-    },
-    "reset": {
-      "confirm": {
-        "content": "すべてのデータをリセットしてもよろしいですか？"
-      },
-      "double": {
-        "confirm": {
-          "content": "すべてのデータが失われます。続行しますか？",
-          "title": "データが失われます！！！"
-        }
-      },
-      "success": "データリセット成功"
     },
     "restore": {
       "failed": "復元に失敗しました",
@@ -5828,6 +5835,13 @@
       "data": {
         "title": "データディレクトリ"
       },
+      "data_reset": {
+        "button": "リセット",
+        "confirm_content": "チャット、アシスタント、ナレッジベース、ファイル、設定を消去して、アプリを再起動します。この操作は元に戻せません。続行しますか？",
+        "confirm_title": "アプリデータをリセット",
+        "error": "データのリセットを開始できませんでした",
+        "title": "データをリセット"
+      },
       "divider": {
         "basic": "基本データ設定",
         "cloud_storage": "クラウドバックアップ設定",
@@ -6560,10 +6574,6 @@
       "emoji_picker": "絵文字ピッカー",
       "image_upload": "画像アップロード",
       "label": "一般設定",
-      "reset": {
-        "button": "リセット",
-        "title": "データをリセット"
-      },
       "restore": {
         "button": "復元"
       },

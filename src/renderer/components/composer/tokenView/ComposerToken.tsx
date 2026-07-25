@@ -10,7 +10,7 @@ import { formatFileSize } from '@renderer/utils/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { FileUrlString } from '@shared/types/file'
 import { fileUrlToPath } from '@shared/utils/file'
-import { Boxes, Braces, FileText, Folder, TextQuote, ToolCase, X } from 'lucide-react'
+import { Boxes, Braces, FileText, Folder, MessagesSquare, TextQuote, ToolCase, X } from 'lucide-react'
 import {
   type ComponentType,
   type FocusEvent as ReactFocusEvent,
@@ -43,6 +43,7 @@ const tokenIconByKind: Record<ChatInputTokenKind, ReactNode> = {
   file: <FileText className={tokenIconClassName} />,
   folder: <Folder className={tokenIconClassName} />,
   knowledge: <Boxes className={tokenIconClassName} />,
+  reference: <MessagesSquare className={tokenIconClassName} />,
   quote: <TextQuote className={tokenIconClassName} />,
   promptVariable: <Braces className={tokenIconClassName} />
 }
@@ -779,6 +780,13 @@ export function KnowledgeComposerToken(props: ComposerTokenProps) {
   })
 }
 
+export function ReferenceComposerToken(props: ComposerTokenProps) {
+  return renderActiveComposerTokenElement({
+    ...props,
+    icon: tokenIconByKind.reference
+  })
+}
+
 export function QuoteComposerToken(props: ComposerTokenProps) {
   const quoteTooltipContent = getQuoteTooltipContent(props.token.description, props.token.promptText)
   const tokenElement = renderActiveComposerTokenElement({ ...props, icon: tokenIconByKind.quote })
@@ -808,6 +816,7 @@ export const composerInputTokenComponentByKind = {
   file: FileComposerToken,
   folder: FolderComposerToken,
   knowledge: KnowledgeComposerToken,
+  reference: ReferenceComposerToken,
   quote: QuoteComposerToken,
   promptVariable: PromptVariableComposerToken
 } satisfies Record<ChatInputTokenKind, ComponentType<ComposerTokenProps>>

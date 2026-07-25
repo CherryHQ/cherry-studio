@@ -14,7 +14,7 @@ import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { fileRequestSchemas } from '@shared/ipc/schemas/file'
 import type { IpcHandlersFor } from '@shared/ipc/types'
-import type { CreateInternalEntryIpcParams, FilePath } from '@shared/types/file'
+import { AbsoluteFilePathSchema, type CreateInternalEntryIpcParams } from '@shared/types/file'
 import { dialog } from 'electron'
 
 const logger = loggerService.withContext('fileHandlers')
@@ -34,7 +34,7 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
   },
   'file.write_if_unchanged': async ({ path, data, expectedVersion }) => {
     try {
-      return await writeIfUnchangedByPath(path as FilePath, data, expectedVersion)
+      return await writeIfUnchangedByPath(path, data, expectedVersion)
     } catch (error) {
       if (error instanceof PathStaleVersionError) {
         throw new IpcError(fileErrorCodes.STALE_VERSION, error.message, {
@@ -103,7 +103,7 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
         return null
       }
       // Selection-only: return the path; never write/create/overwrite.
-      return result.filePath
+      return AbsoluteFilePathSchema.parse(result.filePath)
     } catch (error) {
       logger.error('file.select_save dialog failed', error as Error)
       throw error

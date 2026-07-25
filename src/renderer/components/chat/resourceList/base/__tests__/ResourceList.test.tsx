@@ -1341,6 +1341,47 @@ describe('ResourceList', () => {
     expect(screen.getByTestId('session-icon')).toHaveAttribute('data-collapsed', 'true')
   })
 
+  it('uses the icon visibility predicate without constructing icons for item alignment', () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const getGroupHeaderIcon = vi.fn((group: { id: string }) => <span data-testid={`${group.id}-icon`}>#</span>)
+    const isGroupHeaderIconVisible = vi.fn(() => true)
+    const renderList = (items: TestItem[]) => (
+      <Provider
+        items={items}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        getGroupHeaderIcon={getGroupHeaderIcon}
+        isGroupHeaderIconVisible={isGroupHeaderIconVisible}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    const view = render(renderList(ITEMS))
+
+    expect(screen.getByTestId('session-icon')).toBeInTheDocument()
+    expect(screen.getByTestId('topic-icon')).toBeInTheDocument()
+    expect(isGroupHeaderIconVisible).toHaveBeenCalled()
+
+    // Adding a row re-runs per-item alignment. Alignment must consult the
+    // predicate, never the icon getter — the getter only re-runs when a group
+    // header re-renders (at most twice per header here), so its call count
+    // stays independent of the row count. An alignment leak would add one call
+    // per rendered row on top of that and push the count past this bound.
+    getGroupHeaderIcon.mockClear()
+    isGroupHeaderIconVisible.mockClear()
+    view.rerender(renderList([...ITEMS, { id: 'delta', name: 'Delta', kind: 'topic', pinned: false, updatedAt: 4 }]))
+
+    expect(isGroupHeaderIconVisible).toHaveBeenCalled()
+    expect(getGroupHeaderIcon.mock.calls.length).toBeLessThanOrEqual(4)
+  })
+
   it('omits the group header icon slot when no icon is provided', () => {
     const Provider = ResourceList.Provider<TestItem>
 

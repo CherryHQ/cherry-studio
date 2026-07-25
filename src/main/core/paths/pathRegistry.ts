@@ -156,6 +156,9 @@ export function buildPathRegistry() {
     'feature.backup.restore.file': path.join(appUserData, 'restore-journal.json'),
     'feature.backup.restore.staging': path.join(appUserData, 'restore-staging'),
 
+    // Stored in the profile it authorizes for reset.
+    'feature.data_reset.marker_file': path.join(appUserData, 'data-reset.pending.json'),
+
     // Protocol deep-link (Linux .desktop entry for cherrystudio:// scheme)
     'feature.protocol.desktop_entries': path.join(os.homedir(), '.local', 'share', 'applications'),
 

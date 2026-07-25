@@ -1427,6 +1427,24 @@
       "pause": "Tạm dừng",
       "placeholder": "Nhập tin nhắn của bạn ở đây, nhấn {{key}} để gửi - @ để Chọn Mô hình, / để Bao gồm Công cụ",
       "placeholder_without_triggers": "Nhập tin nhắn của bạn ở đây, nhấn {{key}} để gửi",
+      "reference_panel": {
+        "load_failed": "[to be translated]:Failed to load the referenced conversation",
+        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "session": {
+          "no_results": {
+            "description": "[to be translated]:No sessions match your search",
+            "label": "[to be translated]:No Sessions Found"
+          },
+          "title": "[to be translated]:Sessions"
+        },
+        "topic": {
+          "no_results": {
+            "description": "[to be translated]:No topics match your search",
+            "label": "[to be translated]:No Topics Found"
+          },
+          "title": "[to be translated]:Topics"
+        }
+      },
       "resize_height": "Điều chỉnh chiều cao đầu vào",
       "resource_panel": {
         "categories": {
@@ -2276,6 +2294,7 @@
     "provider": "Nhà cung cấp",
     "reasoning_content": "Reasoning profundo",
     "refresh": "Làm mới",
+    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
     "regenerate": "Tái tạo",
     "remove_image": "Xóa hình ảnh",
     "rename": "Đổi tên",
@@ -3905,18 +3924,6 @@
     "processing": "Đang xử lý...",
     "regenerate": {
       "confirm": "Việc tái tạo sẽ thay thế tin nhắn hiện tại"
-    },
-    "reset": {
-      "confirm": {
-        "content": "Bạn có chắc chắn muốn xóa toàn bộ dữ liệu?"
-      },
-      "double": {
-        "confirm": {
-          "content": "Tất cả dữ liệu sẽ bị mất, bạn có muốn tiếp tục không?",
-          "title": "DỮ LIỆU BỊ MẤT !!!"
-        }
-      },
-      "success": "Đặt lại dữ liệu thành công"
     },
     "restore": {
       "failed": "Khôi phục thất bại",
@@ -5828,6 +5835,13 @@
       "data": {
         "title": "Thư mục dữ liệu"
       },
+      "data_reset": {
+        "button": "Đặt lại",
+        "confirm_content": "Thao tác này sẽ xóa các cuộc trò chuyện, trợ lý, cơ sở kiến thức, tệp và cài đặt, sau đó khởi động lại ứng dụng. Không thể hoàn tác. Tiếp tục?",
+        "confirm_title": "Đặt lại dữ liệu ứng dụng",
+        "error": "Không thể bắt đầu đặt lại dữ liệu",
+        "title": "Đặt lại dữ liệu"
+      },
       "divider": {
         "basic": "Cài đặt Dữ liệu Cơ bản",
         "cloud_storage": "Cài đặt Sao lưu Đám mây",
@@ -6560,10 +6574,6 @@
       "emoji_picker": "Bộ chọn biểu tượng cảm xúc",
       "image_upload": "Tải lên hình ảnh",
       "label": "Cài đặt chung",
-      "reset": {
-        "button": "Đặt lại",
-        "title": "Đặt lại dữ liệu"
-      },
       "restore": {
         "button": "Khôi phục"
       },

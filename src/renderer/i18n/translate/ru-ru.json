@@ -1427,6 +1427,24 @@
       "pause": "Остановить",
       "placeholder": "Введите ваше сообщение здесь, нажмите {{key}} для отправки...",
       "placeholder_without_triggers": "Напишите сообщение здесь, нажмите {{key}} для отправки",
+      "reference_panel": {
+        "load_failed": "[to be translated]:Failed to load the referenced conversation",
+        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "session": {
+          "no_results": {
+            "description": "[to be translated]:No sessions match your search",
+            "label": "[to be translated]:No Sessions Found"
+          },
+          "title": "[to be translated]:Sessions"
+        },
+        "topic": {
+          "no_results": {
+            "description": "[to be translated]:No topics match your search",
+            "label": "[to be translated]:No Topics Found"
+          },
+          "title": "[to be translated]:Topics"
+        }
+      },
       "resize_height": "Изменить высоту ввода",
       "resource_panel": {
         "categories": {
@@ -2276,6 +2294,7 @@
     "provider": "Провайдер",
     "reasoning_content": "Глубокий анализ",
     "refresh": "Обновить",
+    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
     "regenerate": "Пересоздать",
     "remove_image": "Удалить изображение",
     "rename": "Переименовать",
@@ -3905,18 +3924,6 @@
     "processing": "Обрабатывается...",
     "regenerate": {
       "confirm": "Перегенерация заменит текущее сообщение"
-    },
-    "reset": {
-      "confirm": {
-        "content": "Вы уверены, что хотите очистить все данные?"
-      },
-      "double": {
-        "confirm": {
-          "content": "Все данные будут утеряны, хотите продолжить?",
-          "title": "ДАННЫЕ БУДУТ УТЕРЯНЫ !!!"
-        }
-      },
-      "success": "Данные успешно сброшены"
     },
     "restore": {
       "failed": "Восстановление не удалось",
@@ -5828,6 +5835,13 @@
       "data": {
         "title": "Каталог данных"
       },
+      "data_reset": {
+        "button": "Сброс",
+        "confirm_content": "Будут удалены чаты, ассистенты, базы знаний, файлы и настройки, после чего приложение перезапустится. Это действие нельзя отменить. Продолжить?",
+        "confirm_title": "Сброс данных приложения",
+        "error": "Не удалось запустить сброс данных",
+        "title": "Сброс данных"
+      },
       "divider": {
         "basic": "Основные настройки данных",
         "cloud_storage": "Настройки облачного резервирования",
@@ -6560,10 +6574,6 @@
       "emoji_picker": "Выбор эмодзи",
       "image_upload": "Загрузка изображений",
       "label": "Общие настройки",
-      "reset": {
-        "button": "Сброс",
-        "title": "Сброс данных"
-      },
       "restore": {
         "button": "Восстановление"
       },

@@ -1,3 +1,4 @@
+import type { DeleteMessageOptions, MessageDeleteAvailability } from '@renderer/hooks/chat/ChatWriteContext'
 import type { SerializedError } from '@renderer/types/error'
 import type { FileMetadata } from '@renderer/types/file'
 import type { Citation } from '@renderer/types/message'
@@ -260,6 +261,11 @@ export interface MessageListState {
   /** When provided, streaming updates stay isolated from historical message subtrees. */
   streamingLayers?: MessageStreamingLayers
   beforeList?: ReactNode
+  /** Renders the live turn's processing status inline, replacing the default placeholder. Receives
+   *  that placeholder as a fallback, so an override (e.g. an ephemeral agent api-retry line) can take
+   *  over while active and fall back to the placeholder otherwise. Called only in the message that owns
+   *  the live turn. */
+  activeTurnStatus?: (placeholder: ReactNode) => ReactNode
   isInitialLoading?: boolean
   isMessagesStale?: boolean
   hasOlder?: boolean
@@ -358,7 +364,8 @@ export interface MessageListActions {
     parts: CherryMessagePart[],
     options?: { lockedMentionedModels?: Model[] }
   ) => void
-  deleteMessage?: (messageId: string, traceOptions?: { modelName?: string }) => void | Promise<void>
+  getMessageDeleteAvailability?: (messageId: string) => MessageDeleteAvailability
+  deleteMessage?: (messageId: string, options?: DeleteMessageOptions) => void | Promise<void>
   startMessageBranch?: (messageId: string) => void | Promise<void>
   setActiveBranch?: (messageId: string) => void | Promise<void>
   deleteMessageGroup?: (parentId: string) => void | Promise<void>
