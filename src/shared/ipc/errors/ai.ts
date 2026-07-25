@@ -15,7 +15,21 @@ export const aiErrorCodes = {
    * show provider error detail — Electron's invoke reject would otherwise drop
    * everything but `message`.
    */
-  AI_REQUEST_FAILED: 'AI_REQUEST_FAILED'
+  AI_REQUEST_FAILED: 'AI_REQUEST_FAILED',
+  /**
+   * An `ai.agent.task.*` command referenced a task that does not exist, is not
+   * an `agent.task` schedule, or belongs to another agent (the three cases are
+   * deliberately indistinguishable — no existence leak across agents).
+   */
+  AI_AGENT_TASK_NOT_FOUND: 'AI_AGENT_TASK_NOT_FOUND',
+  /**
+   * The task trigger failed scheduling-semantics validation (cron expression /
+   * IANA timezone parse, interval or once delay out of timer range) — a user
+   * input error the renderer maps to a form hint. Translated from the internal
+   * `JOB_SCHEDULE_TRIGGER_INVALID` by the `ai.agent.task.create/update`
+   * handlers so the renderer keeps a branchable code instead of `INTERNAL`.
+   */
+  AI_AGENT_TASK_TRIGGER_INVALID: 'AI_AGENT_TASK_TRIGGER_INVALID'
 } as const
 
 /**
