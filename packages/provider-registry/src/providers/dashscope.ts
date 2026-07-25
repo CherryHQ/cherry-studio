@@ -1,7 +1,22 @@
-import type { ReasoningSupport } from '../schemas/model'
+import type { ImageModeDef, ReasoningSupport } from '../schemas/model'
 import type { ProviderModelOverride } from '../schemas/provider-models'
 import type { ReasoningWireProfile } from '../schemas/reasoningWire'
 import { defineProvider } from './types'
+
+/** wanx2.x text-to-image SKUs share one parameter set on DashScope's async t2i transport. */
+const wanxT2iSupports: ImageModeDef['supports'] = {
+  addWatermark: { default: false, type: 'switch' },
+  negativePrompt: { multiline: true, type: 'text' },
+  numImages: { default: 1, max: 4, min: 1, type: 'range' },
+  promptExtend: { default: true, type: 'switch' },
+  seed: { type: 'text' },
+  size: {
+    default: '1024x1024',
+    options: ['1024x1024', '1280x720', '720x1280', '1440x720', '720x1440'],
+    render: 'chips',
+    type: 'enum'
+  }
+}
 
 const qwenChatWire: ReasoningWireProfile = {
   off: { operations: [{ target: 'enable_thinking', value: { source: 'literal', value: false } }] },
@@ -504,19 +519,7 @@ export default defineProvider({
       imageGeneration: {
         modes: {
           generate: {
-            supports: {
-              addWatermark: { default: false, type: 'switch' },
-              negativePrompt: { multiline: true, type: 'text' },
-              numImages: { default: 1, max: 4, min: 1, type: 'range' },
-              promptExtend: { default: true, type: 'switch' },
-              seed: { type: 'text' },
-              size: {
-                default: '1024x1024',
-                options: ['1024x1024', '1280x720', '720x1280', '1440x720', '720x1440'],
-                render: 'chips',
-                type: 'enum'
-              }
-            },
+            supports: wanxT2iSupports,
             vendorTransport: { endpoint: '/api/v1/services/aigc/text2image/image-synthesis' }
           }
         }
@@ -577,19 +580,7 @@ export default defineProvider({
       imageGeneration: {
         modes: {
           generate: {
-            supports: {
-              addWatermark: { default: false, type: 'switch' },
-              negativePrompt: { multiline: true, type: 'text' },
-              numImages: { default: 1, max: 4, min: 1, type: 'range' },
-              promptExtend: { default: true, type: 'switch' },
-              seed: { type: 'text' },
-              size: {
-                default: '1024x1024',
-                options: ['1024x1024', '1280x720', '720x1280', '1440x720', '720x1440'],
-                render: 'chips',
-                type: 'enum'
-              }
-            },
+            supports: wanxT2iSupports,
             vendorTransport: { endpoint: '/api/v1/services/aigc/text2image/image-synthesis' }
           }
         }
@@ -606,19 +597,7 @@ export default defineProvider({
       imageGeneration: {
         modes: {
           generate: {
-            supports: {
-              addWatermark: { default: false, type: 'switch' },
-              negativePrompt: { multiline: true, type: 'text' },
-              numImages: { default: 1, max: 4, min: 1, type: 'range' },
-              promptExtend: { default: true, type: 'switch' },
-              seed: { type: 'text' },
-              size: {
-                default: '1024x1024',
-                options: ['1024x1024', '1280x720', '720x1280', '1440x720', '720x1440'],
-                render: 'chips',
-                type: 'enum'
-              }
-            },
+            supports: wanxT2iSupports,
             vendorTransport: { endpoint: '/api/v1/services/aigc/text2image/image-synthesis' }
           }
         }
