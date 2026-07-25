@@ -23,9 +23,11 @@
  * - otherwise                      → `none` (no keys, pointer lost on
  *   restart, or key deleted before persist)
  *
- * Upsert semantics: usage/cost columns are last-write-wins; key-identity
- * columns keep the EARLIEST non-`none` attribution (it was resolved closest
- * to request time and is the most trustworthy).
+ * Upsert semantics: usage/cost columns are last-write-wins per column, but a
+ * writer that carries no value for a column never erases the stored one (the
+ * two sources report different column subsets); key-identity columns keep the
+ * EARLIEST non-`none` attribution (it was resolved closest to request time and
+ * is the most trustworthy).
  */
 
 import { application } from '@application'
@@ -272,8 +274,9 @@ export class UsageLedgerService {
    * Record (upsert) the ledger row for one billable AI request. Idempotent
    * on the row key: usage/cost columns are last-write-wins on re-records
    * (retries, continue-after-tool-approval, funnel + persistence-hook
-   * convergence); key-identity columns keep the earliest non-`none`
-   * attribution; `topicId` never regresses to NULL. No-op for stats without
+   * convergence) but never regress to NULL; key-identity columns keep the
+   * earliest non-`none` attribution; `topicId` never regresses to NULL either.
+   * No-op for stats without
    * any usage signal. Cost is enriched here (pricing/provider lookup) when
    * the caller's stats don't already carry one.
    *
@@ -354,6 +357,21 @@ export class UsageLedgerService {
             sourceId: sql`COALESCE(${usageLedgerTable.sourceId}, excluded.source_id)`,
             sourceName: sql`COALESCE(${usageLedgerTable.sourceName}, excluded.source_name)`,
             sourceIcon: sql`COALESCE(${usageLedgerTable.sourceIcon}, excluded.source_icon)`,
+            // Metric columns stay last-write-wins, but a writer that structurally
+            // carries no value must not erase one. The billing funnel records
+            // `usageToStats(total)` — token fields only, never cost or timings —
+            // so an unguarded funnel write landing second would null them out.
+            cost: sql`COALESCE(excluded.cost, ${usageLedgerTable.cost})`,
+            costCurrency: sql`COALESCE(excluded.cost_currency, ${usageLedgerTable.costCurrency})`,
+            costSource: sql`COALESCE(excluded.cost_source, ${usageLedgerTable.costSource})`,
+            costBreakdown: sql`COALESCE(excluded.cost_breakdown, ${usageLedgerTable.costBreakdown})`,
+            pricingSnapshot: sql`COALESCE(excluded.pricing_snapshot, ${usageLedgerTable.pricingSnapshot})`,
+            timeFirstTokenMs: sql`COALESCE(excluded.time_first_token_ms, ${usageLedgerTable.timeFirstTokenMs})`,
+            timeCompletionMs: sql`COALESCE(excluded.time_completion_ms, ${usageLedgerTable.timeCompletionMs})`,
+            timeThinkingMs: sql`COALESCE(excluded.time_thinking_ms, ${usageLedgerTable.timeThinkingMs})`,
+            noCacheTokens: sql`COALESCE(excluded.no_cache_tokens, ${usageLedgerTable.noCacheTokens})`,
+            cacheReadTokens: sql`COALESCE(excluded.cache_read_tokens, ${usageLedgerTable.cacheReadTokens})`,
+            cacheWriteTokens: sql`COALESCE(excluded.cache_write_tokens, ${usageLedgerTable.cacheWriteTokens})`,
             apiKeyId: sql`CASE WHEN ${keepStored} THEN ${usageLedgerTable.apiKeyId} ELSE excluded.api_key_id END`,
             apiKeyLabel: sql`CASE WHEN ${keepStored} THEN ${usageLedgerTable.apiKeyLabel} ELSE excluded.api_key_label END`,
             apiKeyMasked: sql`CASE WHEN ${keepStored} THEN ${usageLedgerTable.apiKeyMasked} ELSE excluded.api_key_masked END`,

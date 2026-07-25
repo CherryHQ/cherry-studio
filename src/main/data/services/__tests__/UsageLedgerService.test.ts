@@ -361,6 +361,39 @@ describe('UsageLedgerService', () => {
       expect(row).toMatchObject({ messageId: 'msg-conv', topicId: 'topic-1' })
     })
 
+    it('never erases cost and timings when a tokens-only re-record lands second', async () => {
+      await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
+
+      // Persistence hook lands first with the full metric set…
+      await usageLedgerService.recordFromMessage(makeMessage({ id: 'msg-metrics' } as never))
+      // …then the billing funnel re-records with `usageToStats(total)`, which
+      // carries token fields only — no cost, no timings.
+      await usageLedgerService.recordRequest({
+        id: 'msg-metrics',
+        modelId: 'openai::gpt-4o',
+        stats: { inputTokens: 120, outputTokens: 60, totalTokens: 180 }
+      })
+
+      const [row] = await dbh.db.select().from(usageLedgerTable)
+      expect(row).toMatchObject({
+        messageId: 'msg-metrics',
+        // Tokens are last-write-wins…
+        inputTokens: 120,
+        outputTokens: 60,
+        totalTokens: 180,
+        // …but columns the second writer never carries survive.
+        cost: 0.0042,
+        costCurrency: 'USD',
+        costSource: 'computed',
+        timeFirstTokenMs: 250,
+        timeCompletionMs: 1250,
+        timeThinkingMs: 100,
+        noCacheTokens: 60,
+        cacheReadTokens: 30,
+        cacheWriteTokens: 10
+      })
+    })
+
     it('records agent source by agent id, not session id', async () => {
       await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
       await seedAgentSession()
