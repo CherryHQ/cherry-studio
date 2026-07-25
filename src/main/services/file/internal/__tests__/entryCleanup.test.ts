@@ -1,4 +1,4 @@
-import { mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -33,7 +33,9 @@ vi.mock('@data/db/restore/restoreJournal', () => ({
   hasPendingRestore: () => hasPendingRestoreMock()
 }))
 
-const { ENTRY_CLEANUP_BATCH_LIMIT, runEntryCleanup, summariseEntryCleanup } = await import('../entryCleanup')
+const { ENTRY_CLEANUP_BATCH_LIMIT, ENTRY_CLEANUP_GRACE_MS, runEntryCleanup, summariseEntryCleanup } = await import(
+  '../entryCleanup'
+)
 
 const HOUR = 60 * 60 * 1000
 
@@ -201,6 +203,65 @@ describe('entryCleanup', () => {
     await seedInternal(id, 'delete_when_unreferenced', { ageMs: 0 })
     const report = await runEntryCleanup(makeDeps())
     expect(report.candidates).toBe(0)
+    expect(report.deleted).toBe(0)
+    expect(fileEntryService.findById(id)).not.toBeNull()
+  })
+
+  it('brackets the grace boundary: just inside is preserved, just outside is reclaimed', async () => {
+    // `ageMs: 0` only proves "very young"; it would still pass if the window
+    // were minutes instead of an hour. Bracket ENTRY_CLEANUP_GRACE_MS itself so
+    // a wrong constant or a flipped comparison shows up. Exact equality is not
+    // testable without a fake clock — real time advances between seeding and the
+    // pass, which would carry an exactly-on-boundary row over the line — so both
+    // sides carry a minute of slack.
+    const insideGrace = nthId(40)
+    const pastGrace = nthId(41)
+    await seedInternal(insideGrace, 'delete_when_unreferenced', { ageMs: ENTRY_CLEANUP_GRACE_MS - 60_000 })
+    await seedInternal(pastGrace, 'delete_when_unreferenced', { ageMs: ENTRY_CLEANUP_GRACE_MS + 60_000 })
+
+    const report = await runEntryCleanup(makeDeps())
+
+    expect(report.deleted).toBe(1)
+    expect(fileEntryService.findById(insideGrace)).not.toBeNull()
+    expect(fileEntryService.findById(pastGrace)).toBeNull()
+  })
+
+  it('counts unlinkFailures but still deletes the row, keeping DB and FS converged', async () => {
+    // A blob whose unlink genuinely fails must not hold the row hostage: the row
+    // is the source of truth and a stranded blob is reclaimable later by the FS
+    // orphan sweep, whereas keeping the row would retry the same failing unlink
+    // on every pass forever. Provoke a real failure rather than mocking one —
+    // `remove()` only swallows ENOENT, and unlinking a directory raises
+    // EPERM (macOS) / EISDIR (Linux).
+    const id = nthId(42)
+    await seedInternal(id, 'delete_when_unreferenced', { withBlob: false })
+    await mkdir(path.join(filesDir, `${id}.txt`))
+
+    const report = await runEntryCleanup(makeDeps())
+
+    expect(report.unlinkFailures).toBe(1)
+    expect(report.deleted).toBe(1)
+    expect(fileEntryService.findById(id)).toBeNull()
+  })
+
+  it('leaves the entry alone when the tx re-read finds it pinned to manual mid-flight', async () => {
+    // The other half of gone-or-pinned: the row is still there, but its policy
+    // was upgraded to `manual` between the candidate query and the serialized
+    // re-read (e.g. ensureExternal pinning a library file). Only the `null`
+    // half was covered by a mock; this drives the real re-read.
+    const id = nthId(43)
+    await seedInternal(id, 'delete_when_unreferenced')
+    const deps = makeDeps()
+    const original = deps.fileEntryService.findByIdTx.bind(deps.fileEntryService)
+    const spy = vi.spyOn(deps.fileEntryService, 'findByIdTx').mockImplementationOnce((tx, entryId) => {
+      const row = original(tx, entryId)
+      return row && { ...row, cleanupPolicy: 'manual' as const }
+    })
+
+    const report = await runEntryCleanup(deps)
+
+    spy.mockRestore()
+    expect(report.gonePinned).toBe(1)
     expect(report.deleted).toBe(0)
     expect(fileEntryService.findById(id)).not.toBeNull()
   })

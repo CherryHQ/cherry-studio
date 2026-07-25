@@ -657,8 +657,17 @@ export class FileManager extends BaseService implements IFileManager {
   private static readonly CLEANUP_INTERVAL_MS = 30 * 60 * 1000
   private static readonly CLEANUP_IDLE_THRESHOLD_S = 60
   private static readonly CLEANUP_MAX_DEFER_MS = 2 * 60 * 60 * 1000
+  /**
+   * Floor between FS orphan sweeps. Far coarser than the entry-cleanup cadence:
+   * an orphan blob needs a crash between row-delete and unlink, or an unlink that
+   * fails outright — both rare — and it only ever costs disk, never correctness.
+   * The sweep meanwhile pays a `listAllIds()` scan plus a `readdir` + per-file
+   * `stat` of the whole Files tree.
+   */
+  private static readonly FILE_SWEEP_MIN_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000
 
   private lastCleanupCompletedAt = 0
+  private lastFileSweepAt = 0
 
   protected override async onInit(): Promise<void> {
     await this.deps.danglingCache.initFromDb()
@@ -683,7 +692,41 @@ export class FileManager extends BaseService implements IFileManager {
     const idleSeconds = application.get('PowerService').getSystemIdleTime()
     const overdue = Date.now() - this.lastCleanupCompletedAt > FileManager.CLEANUP_MAX_DEFER_MS
     if (idleSeconds < FileManager.CLEANUP_IDLE_THRESHOLD_S && !overdue) return
-    await this.runEntryCleanup()
+    // Two independent GC mechanisms sharing one idle window, not a pipeline:
+    // the entry pass reclaims rows (and their blobs), the file sweep reclaims
+    // blobs whose row is already gone. Neither reads the other's output, so
+    // they run concurrently. `runFileSweep` tolerates the overlap on its own —
+    // its `listAllIds()` snapshot can go stale mid-run either way, and the
+    // 5-minute mtime freshness gate is what actually protects a file the
+    // snapshot never saw. The only cost of not serializing is latency: a blob
+    // this very pass strands via `unlinkFailures` may sit in the snapshot as
+    // still-referenced and wait for the next sweep. That is disk, not risk.
+    await Promise.all([this.runEntryCleanup(), this.fileSweepTick()])
+  }
+
+  /**
+   * Reclaim orphan blobs (spec §5.4/§6): internal files on disk whose row is
+   * gone — left by a crash between the row delete and the unlink, or by an
+   * unlink that failed outright (`unlinkFailures`).
+   *
+   * The cleanup pass above *manufactures* this class of orphan on every run, so
+   * without a scheduled sweep those blobs leak permanently: `runSweep()` is the
+   * only other caller and it is reachable solely through the `File_RunSweep`
+   * IPC, which is exposed on preload but invoked by no renderer code and never
+   * runs at startup.
+   *
+   * Rides the cleanup tick's idle gate rather than owning a timer, then applies
+   * its own weekly floor. `lastFileSweepAt` starts at 0 so the first idle tick of
+   * a session sweeps once — that is what collects the previous session's crash
+   * orphans. Failures are swallowed here (already logged inside): a hygiene pass
+   * must never break the entry cleanup it runs alongside.
+   */
+  private async fileSweepTick(): Promise<void> {
+    if (Date.now() - this.lastFileSweepAt < FileManager.FILE_SWEEP_MIN_INTERVAL_MS) return
+    this.lastFileSweepAt = Date.now()
+    await runFileSweep({ fileEntryService: this.deps.fileEntryService }).catch((err) => {
+      fileManagerLogger.error('Scheduled file sweep failed', err)
+    })
   }
 
   /**
@@ -744,8 +787,11 @@ export class FileManager extends BaseService implements IFileManager {
    * §7 Layer 3) concurrently, returning a single `OrphanReport` once all
    * three settle. Running the cleanup pass first means the DB sweep's
    * zero-ref report doesn't re-report entries the pass just reclaimed.
-   * Caller-initiated via the `File_RunSweep` IPC channel; there is no startup
-   * auto-run and no user-facing UI trigger. The cleanup pass's own outcome
+   * Caller-initiated via the `File_RunSweep` IPC channel, which has no renderer
+   * caller today; the FS half also runs unattended on the weekly floor in
+   * `fileSweepTick`, which is what actually reclaims orphan blobs in production.
+   * This method stays the on-demand "report everything" entry point. The cleanup
+   * pass's own outcome
    * rides in `counts.entryCleanup` and never changes the umbrella `outcome`
    * below.
    *
