@@ -94,13 +94,6 @@ vi.mock('@renderer/hooks/translate', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useAssistant', () => ({
-  useAssistant: () => ({
-    assistant: { id: 'assistant-1', name: 'Assistant' },
-    model: undefined
-  })
-}))
-
 vi.mock('@renderer/components/chat/messages/hooks/useMessageActivityState', () => ({
   useMessageActivityState: () => vi.fn(() => undefined)
 }))
@@ -262,6 +255,7 @@ function MessageListAdapterHarness({
 }) {
   const value = useHomeMessageListProviderValue({
     topic,
+    assistant: { id: 'assistant-1', name: 'Assistant' } as any,
     messages,
     partsByMessageId,
     streamingLayers,

@@ -86,6 +86,10 @@ type StreamContext = {
   toolBlocksByIndex: Map<number, string>
   toolInputAccumulators: Map<string, string>
   toolResultsEmitted: Set<string>
+  /** Tool calls the CLI auto-denied (`system/permission_denied`), reported as denied rather than failed. */
+  deniedToolUseIds: Set<string>
+  /** Set when the SDK flags an assistant message as interrupt-truncated (`aborted`). */
+  sawAbortedMessage: boolean
   textBlocksByIndex: Map<number, string>
   reasoningBlocksByIndex: Map<number, string>
   currentReasoningPartId: string | undefined
@@ -285,6 +289,8 @@ export class ClaudeCodeStreamAdapter {
       toolBlocksByIndex: new Map(),
       toolInputAccumulators: new Map(),
       toolResultsEmitted: new Set(),
+      deniedToolUseIds: new Set(),
+      sawAbortedMessage: false,
       textBlocksByIndex: new Map(),
       reasoningBlocksByIndex: new Map(),
       currentReasoningPartId: undefined,
@@ -324,7 +330,7 @@ export class ClaudeCodeStreamAdapter {
   }
 
   handleTruncationError(error: unknown): boolean {
-    if (!isClaudeCodeTruncationError(error, this.ctx.accumulatedText)) return false
+    if (!this.ctx.sawAbortedMessage && !isClaudeCodeTruncationError(error, this.ctx.accumulatedText)) return false
 
     logger.warn(
       `Detected truncated stream response, returning ${this.ctx.accumulatedText.length} chars of buffered text`
@@ -595,6 +601,14 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private handleAssistantMessage(message: SDKAssistantMessage, ctx: StreamContext): void {
+    // The SDK's own interrupt signal: set when the message was truncated before `stop_reason`
+    // arrived. `isClaudeCodeTruncationError` can only infer this from a mid-token JSON parse
+    // failure, so a clean truncation would otherwise go unnoticed.
+    if (message.aborted) {
+      ctx.sawAbortedMessage = true
+      logger.warn('Assistant message was truncated by an interrupt')
+    }
+
     if (!message.message?.content) return
 
     const sdkParentToolUseId = message.parent_tool_use_id
@@ -771,7 +785,11 @@ export class ClaudeCodeStreamAdapter {
       rawResult
     })
     const isError = this.isToolResultError(result)
-    if (isError) {
+    if (ctx.deniedToolUseIds.has(result.tool_use_id)) {
+      // The chunk schema is strict — `toolCallId` is the only accepted field, so the rejection
+      // text stays in the log written by `handlePermissionDeniedSystemMessage`.
+      ctx.sink.enqueue({ type: 'tool-output-denied', toolCallId: result.tool_use_id })
+    } else if (isError) {
       ctx.sink.enqueue({
         type: 'tool-output-error',
         toolCallId: result.tool_use_id,
@@ -857,12 +875,18 @@ export class ClaudeCodeStreamAdapter {
       case 'thinking_tokens':
         this.handleThinkingTokensSystemMessage(message, ctx)
         return
+      case 'permission_denied':
+        this.handlePermissionDeniedSystemMessage(message, ctx)
+        return
       case 'api_retry':
+        // Defensive fallback for future non-driver consumers. ClaudeCodeRuntimeDriver intercepts
+        // api_retry before this adapter and emits it as an ephemeral runtime event, so nothing is
+        // emitted into the message stream here (retry status is never persisted conversation content).
+        return
       case 'hook_started':
       case 'hook_progress':
       case 'hook_response':
       case 'session_state_changed':
-      case 'permission_denied':
       case 'memory_recall':
       case 'local_command_output':
       case 'elicitation_complete':
@@ -875,6 +899,22 @@ export class ClaudeCodeStreamAdapter {
         logger.debug(`Received system message subtype: ${message.subtype}`, { message })
         return
     }
+  }
+
+  private handlePermissionDeniedSystemMessage(
+    message: Extract<SDKMessage, { subtype: 'permission_denied' }>,
+    ctx: StreamContext
+  ): void {
+    // Auto-denials (deny rule, classifier, dontAsk) never reach `canUseTool`, and the tool_result
+    // that follows only carries `is_error: true` — indistinguishable from a real tool failure.
+    // Record the id so `handleToolResult` reports it as denied, and log the reason here since the
+    // `tool-output-denied` chunk has no field to carry it.
+    ctx.deniedToolUseIds.add(message.tool_use_id)
+    logger.info(`Tool call auto-denied: ${message.tool_name}`, {
+      toolUseId: message.tool_use_id,
+      reasonType: message.decision_reason_type,
+      reason: message.decision_reason ?? message.message
+    })
   }
 
   private handleInitSystemMessage(message: Extract<SDKMessage, { subtype: 'init' }>, ctx: StreamContext): void {

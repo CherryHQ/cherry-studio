@@ -9,11 +9,19 @@ import type { PaneManualToggleSignal } from '@renderer/components/chat/shell/Cha
 import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
 import type { ConversationCenterSlot } from '@renderer/components/chat/shell/ConversationPageShell'
 import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
+import { useConversationTopBarPortalLayout } from '@renderer/components/chat/shell/ConversationTopBarPortal'
 import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
+import {
+  ChatConversationControls,
+  type ChatConversationControlsProps
+} from '@renderer/components/composer/variants/chat/ChatConversationControls'
+import type { ChatConversationControlsSnapshot } from '@renderer/components/composer/variants/ChatComposer'
 import type { ContentSearchRef } from '@renderer/components/ContentSearch'
 import { ContentSearch } from '@renderer/components/ContentSearch'
 import PromptPopup from '@renderer/components/popups/PromptPopup'
 import { useCommandHandler } from '@renderer/hooks/command'
+import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -30,6 +38,20 @@ import { TopicRightPane, useTopicBranchLiveStateSetter } from './components/Topi
 import type { AddNewTopicPayload } from './types'
 
 const logger = loggerService.withContext('Chat')
+const EMPTY_MODELS: ChatConversationControlsSnapshot['mentionedModels'] = []
+const NOOP_MODEL_SELECT: ChatConversationControlsSnapshot['onModelSelect'] = () => undefined
+const NOOP_MODELS_SELECT: ChatConversationControlsSnapshot['onMentionedModelsSelect'] = () => undefined
+const NOOP_MULTI_SELECT_MODE_CHANGE: ChatConversationControlsSnapshot['onMentionedModelMultiSelectModeChange'] = () =>
+  undefined
+const NOOP_MODEL_SELECTOR_RESTORE: ChatConversationControlsSnapshot['onMentionedModelSelectorRestore'] = () => undefined
+
+type ChatTopBarControlsProps = Omit<ChatConversationControlsProps, 'iconOnly' | 'side'>
+
+function ChatTopBarControls(props: ChatTopBarControlsProps) {
+  const { iconOnly } = useConversationTopBarPortalLayout()
+
+  return <ChatConversationControls {...props} side="bottom" iconOnly={iconOnly} />
+}
 
 interface Props {
   activeTopic?: Topic
@@ -68,7 +90,32 @@ const Chat: FC<Props> = (props) => {
   const activeTopic = props.activeTopic
   const centerSurface = props.centerSurface
   const showConversation = Boolean(activeTopic && !centerSurface)
+  const showConversationChrome = !centerSurface
   const activeTopicId = activeTopic?.id
+  const assistantContext = useAssistant(activeTopic?.assistantId, {
+    loadDefaultModel: Boolean(activeTopic)
+  })
+  const { providers } = useProviders(undefined, { enabled: Boolean(activeTopic) })
+  const [conversationControlsSnapshot, setConversationControlsSnapshot] =
+    useState<ChatConversationControlsSnapshot | null>(null)
+  const activeConversationControlsSnapshot =
+    conversationControlsSnapshot?.scopeKey === activeTopicId ? conversationControlsSnapshot : null
+  const composerContextKey = activeTopic ? `${activeTopic.id}:${activeTopic.assistantId ?? 'default-assistant'}` : null
+  const composerContextResolved = !assistantContext.isLoading && !assistantContext.isModelPending
+  const [resolvedComposerContextKey, setResolvedComposerContextKey] = useState<string | null>(() =>
+    composerContextResolved ? composerContextKey : null
+  )
+  const nextResolvedComposerContextKey = !composerContextKey
+    ? null
+    : composerContextResolved
+      ? composerContextKey
+      : resolvedComposerContextKey === composerContextKey
+        ? resolvedComposerContextKey
+        : null
+  if (nextResolvedComposerContextKey !== resolvedComposerContextKey) {
+    setResolvedComposerContextKey(nextResolvedComposerContextKey)
+  }
+  const isComposerContextLoading = Boolean(composerContextKey && nextResolvedComposerContextKey !== composerContextKey)
   const locateMessageIdProp = props.locateMessageId
   const onLocateMessageHandledProp = props.onLocateMessageHandled
 
@@ -164,6 +211,17 @@ const Chat: FC<Props> = (props) => {
   const handleOpenCitationsPanel = useCallback(({ citations }: { citations: Citation[] }) => {
     setCitationPanelCitations(citations)
   }, [])
+  const handleAssistantChange = useCallback(
+    async (nextAssistantId: string | null) => {
+      if (!activeTopic || !nextAssistantId || nextAssistantId === activeTopic.assistantId) return
+      await patchTopic(activeTopic.id, { assistantId: nextAssistantId })
+    },
+    [activeTopic, patchTopic]
+  )
+  const handleRestoreComposerFocus = useCallback(() => {
+    if (!activeTopicId) return
+    void EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId: activeTopicId })
+  }, [activeTopicId])
 
   const handleBranchLiveStateChange = useCallback(
     (state: Parameters<typeof setTopicBranchLiveState>[1]) => {
@@ -255,6 +313,10 @@ const Chat: FC<Props> = (props) => {
         clearBranchDraft={clearBranchDraft}
         getBranchDraftAnchorId={getBranchDraftAnchorId}
         onStartBranchDraft={handleStartBranchDraft}
+        assistantContext={assistantContext}
+        providers={providers}
+        assistantContextLoading={isComposerContextLoading}
+        onConversationControlsChange={setConversationControlsSnapshot}
       />
     ) : (
       <ConversationCenterState state="loading" />
@@ -271,8 +333,50 @@ const Chat: FC<Props> = (props) => {
       onPaneAutoCollapseChange={props.onPaneAutoCollapseChange}
       paneManualToggle={props.paneManualToggle}
       topBar={
-        showConversation ? (
+        showConversationChrome ? (
           <ChatNavbar
+            conversationControls={
+              activeTopic ? (
+                <ChatTopBarControls
+                  assistantId={assistantContext.assistant?.id ?? null}
+                  assistantName={
+                    assistantContext.assistant?.name ??
+                    (assistantContext.isLoading ? t('common.loading') : t('button.select_assistant'))
+                  }
+                  assistantEmoji={assistantContext.assistant?.emoji}
+                  model={assistantContext.model}
+                  modelPending={
+                    assistantContext.isLoading || assistantContext.isModelPending || !activeConversationControlsSnapshot
+                  }
+                  providers={providers}
+                  mentionedModels={activeConversationControlsSnapshot?.mentionedModels ?? EMPTY_MODELS}
+                  mentionedModelSelectorValue={
+                    activeConversationControlsSnapshot?.mentionedModelSelectorValue ??
+                    (assistantContext.model ? [assistantContext.model] : EMPTY_MODELS)
+                  }
+                  lockedMentionedModels={activeConversationControlsSnapshot?.lockedMentionedModels ?? EMPTY_MODELS}
+                  mentionedModelMultiSelectMode={
+                    activeConversationControlsSnapshot?.mentionedModelMultiSelectMode ?? false
+                  }
+                  selectModelLabel={assistantContext.isModelPending ? t('common.loading') : t('button.select_model')}
+                  useMentionedModelSelector
+                  shouldAutoSelectCreatedAssistant={false}
+                  onDialogCloseAutoFocus={handleRestoreComposerFocus}
+                  onAssistantChange={handleAssistantChange}
+                  onModelSelect={activeConversationControlsSnapshot?.onModelSelect ?? NOOP_MODEL_SELECT}
+                  onMentionedModelsSelect={
+                    activeConversationControlsSnapshot?.onMentionedModelsSelect ?? NOOP_MODELS_SELECT
+                  }
+                  onMentionedModelMultiSelectModeChange={
+                    activeConversationControlsSnapshot?.onMentionedModelMultiSelectModeChange ??
+                    NOOP_MULTI_SELECT_MODE_CHANGE
+                  }
+                  onMentionedModelSelectorRestore={
+                    activeConversationControlsSnapshot?.onMentionedModelSelectorRestore ?? NOOP_MODEL_SELECTOR_RESTORE
+                  }
+                />
+              ) : undefined
+            }
             showSidebarControls={props.showResourceListControls}
             sidebarOpen={props.sidebarOpen}
             onSidebarToggle={props.onSidebarToggle}

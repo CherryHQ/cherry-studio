@@ -260,6 +260,11 @@ export interface MessageListState {
   /** When provided, streaming updates stay isolated from historical message subtrees. */
   streamingLayers?: MessageStreamingLayers
   beforeList?: ReactNode
+  /** Renders the live turn's processing status inline, replacing the default placeholder. Receives
+   *  that placeholder as a fallback, so an override (e.g. an ephemeral agent api-retry line) can take
+   *  over while active and fall back to the placeholder otherwise. Called only in the message that owns
+   *  the live turn. */
+  activeTurnStatus?: (placeholder: ReactNode) => ReactNode
   isInitialLoading?: boolean
   isMessagesStale?: boolean
   hasOlder?: boolean

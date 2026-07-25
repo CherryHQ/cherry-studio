@@ -7,6 +7,7 @@ import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import { count, eq } from 'drizzle-orm'
+import { app } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { DbOrTx, DbType, ISeeder } from '../../types'
@@ -45,7 +46,7 @@ export class CherryAssistantSeeder implements ISeeder {
       const row = agentService.createAgentTx(tx, agentId, {
         id: agentId,
         type: 'claude-code',
-        name: CHERRY_ASSISTANT_SEED.name,
+        name: this.getNameForPreferredSystemLanguage(),
         description: '',
         instructions: '',
         model: this.getCherryAiDefaultModelId(tx),
@@ -73,6 +74,15 @@ export class CherryAssistantSeeder implements ISeeder {
 
     const [{ sessionCount }] = tx.select({ sessionCount: count() }).from(agentSessionTable).all()
     return sessionCount > 0
+  }
+
+  private getNameForPreferredSystemLanguage(): string {
+    try {
+      const preferredLanguage = app.getPreferredSystemLanguages()[0]
+      return preferredLanguage?.toLowerCase().startsWith('zh') ? 'Cherry 助理' : CHERRY_ASSISTANT_SEED.name
+    } catch {
+      return CHERRY_ASSISTANT_SEED.name
+    }
   }
 
   private getCherryAiDefaultModelId(tx: DbOrTx): string | null {
