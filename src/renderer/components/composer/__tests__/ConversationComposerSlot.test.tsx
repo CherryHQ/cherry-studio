@@ -1,14 +1,26 @@
 import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ConversationComposerSlot from '../ConversationComposerSlot'
+
+const mocks = vi.hoisted(() => ({
+  narrowMode: false
+}))
+
+vi.mock('@renderer/data/hooks/usePreference', () => ({
+  usePreference: () => [mocks.narrowMode, vi.fn()]
+}))
 
 vi.mock('../ComposerCore', () => ({
   default: ({ fallback }: { fallback: ReactNode }) => <div data-testid="composer-core">{fallback}</div>
 }))
 
 describe('ConversationComposerSlot', () => {
+  beforeEach(() => {
+    mocks.narrowMode = false
+  })
+
   it('mounts a ready composer without an artificial loading frame', () => {
     const { rerender } = render(
       <ConversationComposerSlot
@@ -33,7 +45,7 @@ describe('ConversationComposerSlot', () => {
     expect(document.querySelector('[data-conversation-composer-loading]')).not.toBeInTheDocument()
   })
 
-  it('keeps the editor frame stable when the composer genuinely suspends', () => {
+  it('keeps the editor frame stable at the configured wide layout when the composer genuinely suspends', () => {
     const pendingComposer = new Promise<never>(() => undefined)
     const SuspendedComposer = () => {
       throw pendingComposer
@@ -49,7 +61,52 @@ describe('ConversationComposerSlot', () => {
     expect(loadingFrame).toBeInTheDocument()
     expect(editorFrame).toBeInTheDocument()
     expect(editorFrame?.querySelector('[data-slot="skeleton"]')).toBeNull()
-    expect(loadingFrame?.querySelector('[data-composer-controls-loading]')).toBeInTheDocument()
+    const controlsLoading = loadingFrame?.querySelector('[data-composer-controls-loading]')
+    expect(controlsLoading).toBeInTheDocument()
+    expect(loadingFrame?.querySelector('[data-composer-static-send]')).toBeInTheDocument()
+    for (const skeleton of loadingFrame?.querySelectorAll('[data-slot="skeleton"]') ?? []) {
+      expect(controlsLoading?.contains(skeleton)).toBe(true)
+    }
+    expect(loadingFrame?.closest('.narrow-mode')).toHaveClass('max-w-full')
+    expect(loadingFrame?.closest('.narrow-mode')).not.toHaveClass('active')
+  })
+
+  it('matches the configured narrow width while the composer genuinely suspends', () => {
+    mocks.narrowMode = true
+    const pendingComposer = new Promise<never>(() => undefined)
+    const SuspendedComposer = () => {
+      throw pendingComposer
+    }
+
+    const { container } = render(
+      <ConversationComposerSlot scopeKey="topic-1" composerContext={{}} fallback={<SuspendedComposer />} />
+    )
+
+    const loadingLayout = container.querySelector('[data-conversation-composer-loading]')?.closest('.narrow-mode')
+
+    expect(loadingLayout).toHaveClass('active', 'max-w-[calc(800px+3rem)]')
+    expect(loadingLayout).not.toHaveClass('max-w-full')
+  })
+
+  it('keeps home loading narrow when the global layout is wide', () => {
+    const pendingComposer = new Promise<never>(() => undefined)
+    const SuspendedComposer = () => {
+      throw pendingComposer
+    }
+
+    const { container } = render(
+      <ConversationComposerSlot
+        scopeKey="topic-1"
+        composerContext={{}}
+        fallback={<SuspendedComposer />}
+        forceNarrowLayout
+      />
+    )
+
+    expect(container.querySelector('[data-conversation-composer-loading]')?.closest('.narrow-mode')).toHaveClass(
+      'active',
+      'max-w-[calc(800px+3rem)]'
+    )
   })
 
   it('renders nothing when no fallback composer is available', () => {

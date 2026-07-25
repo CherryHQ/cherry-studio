@@ -9,6 +9,7 @@ export interface ConversationComposerSlotProps {
   scopeKey: string
   composerContext?: ComposerContextValue
   fallback?: ReactNode
+  forceNarrowLayout?: boolean
 }
 
 const emptyComposerContext: ComposerContextValue = {}
@@ -16,13 +17,14 @@ const emptyComposerContext: ComposerContextValue = {}
 export default function ConversationComposerSlot({
   scopeKey,
   composerContext = emptyComposerContext,
-  fallback
+  fallback,
+  forceNarrowLayout = false
 }: ConversationComposerSlotProps) {
   if (!fallback) return null
 
   return (
     <ComposerContextProvider value={composerContext}>
-      <Suspense key={scopeKey} fallback={<ConversationComposerLoading />}>
+      <Suspense key={scopeKey} fallback={<ConversationComposerLoading forceNarrowLayout={forceNarrowLayout} />}>
         <ComposerCore fallback={fallback} />
       </Suspense>
     </ComposerContextProvider>

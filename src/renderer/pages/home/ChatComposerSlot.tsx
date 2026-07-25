@@ -65,5 +65,12 @@ export default function ChatComposerSlot({
       />
     )
 
-  return <ConversationComposerSlot scopeKey={topic.id} composerContext={composerContext} fallback={fallback} />
+  return (
+    <ConversationComposerSlot
+      scopeKey={topic.id}
+      composerContext={composerContext}
+      fallback={fallback}
+      forceNarrowLayout={placement === 'home'}
+    />
+  )
 }

@@ -7,14 +7,26 @@ import { describe, expect, it, vi } from 'vitest'
 import ChatComposerSlot from '../ChatComposerSlot'
 
 vi.mock('@renderer/components/composer/ConversationComposerSlot', () => ({
-  default: ({ composerContext, fallback }: { composerContext?: ComposerContextValue; fallback?: ReactNode }) => {
+  default: ({
+    composerContext,
+    fallback,
+    forceNarrowLayout
+  }: {
+    composerContext?: ComposerContextValue
+    fallback?: ReactNode
+    forceNarrowLayout?: boolean
+  }) => {
     let activeOverride: NonNullable<ComposerContextValue['overrides']>[number] | undefined
     for (const candidate of composerContext?.overrides ?? []) {
       if (!activeOverride || (candidate.priority ?? 0) > (activeOverride.priority ?? 0)) {
         activeOverride = candidate
       }
     }
-    return <>{activeOverride ? activeOverride.render({}) : fallback}</>
+    return (
+      <div data-testid="conversation-composer-slot" data-force-narrow-layout={forceNarrowLayout || undefined}>
+        {activeOverride ? activeOverride.render({}) : fallback}
+      </div>
+    )
   }
 }))
 
@@ -65,6 +77,13 @@ describe('ChatComposerSlot', () => {
     const composer = await screen.findByTestId('chat-fallback-composer')
     expect(composer).toHaveAttribute('data-placement', 'home')
     expect(composer).not.toBeDisabled()
+    expect(screen.getByTestId('conversation-composer-slot')).toHaveAttribute('data-force-narrow-layout', 'true')
+  })
+
+  it('lets docked loading follow the global width preference', () => {
+    render(<ChatComposerSlot {...baseProps} composerContext={{ overrides: [] }} />)
+
+    expect(screen.getByTestId('conversation-composer-slot')).not.toHaveAttribute('data-force-narrow-layout')
   })
 
   it('surfaces an active composer override (tool-approval card) in place of the input', () => {
