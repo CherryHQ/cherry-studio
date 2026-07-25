@@ -8,6 +8,7 @@
  */
 
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
+import { enrichStatsWithCost } from '@main/data/services/utils/costEnrichment'
 import type { MessageSnapshot, MessageStats } from '@shared/data/types/message'
 
 import type { PersistAssistantInput, PersistenceBackend } from '../PersistenceBackend'
@@ -26,8 +27,14 @@ export class TemporaryChatBackend implements PersistenceBackend {
 
   constructor(private readonly opts: TemporaryChatBackendOptions) {}
 
-  persistAssistant(input: PersistAssistantInput): void {
-    const { finalMessage, status, stats } = input
+  async persistAssistant(input: PersistAssistantInput): Promise<void> {
+    const { finalMessage, status, stats, modelId } = input
+    const baseStats = this.opts.stats ?? stats
+    // Same enrichment as `MessageServiceBackend` — a temp message keeps the
+    // provider-reported cost so that keeping the chat (which re-records the
+    // ledger row from the promoted message) cannot downgrade it to a local
+    // estimate.
+    const enrichedStats = await enrichStatsWithCost(baseStats, modelId, finalMessage?.metadata?.providerCostUsd)
     temporaryChatService.appendMessage(
       this.opts.topicId,
       {
@@ -36,7 +43,7 @@ export class TemporaryChatBackend implements PersistenceBackend {
         status,
         modelId: this.opts.modelId,
         messageSnapshot: this.opts.messageSnapshot,
-        stats: this.opts.stats ?? stats
+        stats: enrichedStats
       },
       this.opts.messageId
     )

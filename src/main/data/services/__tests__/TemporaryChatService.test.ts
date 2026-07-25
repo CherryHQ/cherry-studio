@@ -280,6 +280,75 @@ describe('TemporaryChatService', () => {
       })
     })
 
+    it('keeps the provider-reported cost when the temporary chat is kept', async () => {
+      await dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI', orderKey: 'a0' })
+      await dbh.db.insert(userModelTable).values({
+        id: 'openai::gpt-4o',
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        presetModelId: 'gpt-4o',
+        name: 'gpt-4o',
+        isEnabled: true,
+        isHidden: false,
+        orderKey: 'a0',
+        // Local pricing would compute 3 USD for this usage — the provider billed 0.9.
+        pricing: {
+          input: { perMillionTokens: 3, currency: 'USD' },
+          output: { perMillionTokens: 15, currency: 'USD' }
+        }
+      })
+
+      const topic = service.createTopic({ name: 'billed-by-provider' })
+      const assistant = service.appendMessage(
+        topic.id,
+        {
+          role: 'assistant',
+          data: mainText('yo'),
+          modelId: 'openai::gpt-4o',
+          // What the temporary-chat persistence backend writes after cost enrichment.
+          stats: {
+            inputTokens: 1_000_000,
+            outputTokens: 0,
+            totalTokens: 1_000_000,
+            cost: 0.9,
+            costCurrency: 'USD',
+            costSource: 'provider'
+          }
+        },
+        'provider-billed-message'
+      )
+
+      // Generation-time billing funnel row for the same message id.
+      await dbh.db.insert(usageLedgerTable).values({
+        messageId: assistant.id,
+        providerId: 'openai',
+        modelId: 'openai::gpt-4o',
+        modality: 'language',
+        inputTokens: 1_000_000,
+        totalTokens: 1_000_000,
+        cost: 0.9,
+        costCurrency: 'USD',
+        costSource: 'provider',
+        updatedAt: Date.now()
+      })
+
+      service.persist(topic.id)
+
+      // The ledger write is post-commit fire-and-forget; `topicId` proves the
+      // re-record landed, so the cost assertions can't pass vacuously.
+      await vi.waitFor(async () => {
+        const rows = await dbh.db.select().from(usageLedgerTable)
+        expect(rows).toHaveLength(1)
+        expect(rows[0]).toMatchObject({
+          messageId: assistant.id,
+          topicId: topic.id,
+          cost: 0.9,
+          costCurrency: 'USD',
+          costSource: 'provider'
+        })
+      })
+    })
+
     it('persisted topic has a non-empty fractional-indexing orderKey', async () => {
       // Regression guard: a refactor swapping insertWithOrderKey for plain
       // tx.insert() would ship the row with orderKey = '' — silently breaks

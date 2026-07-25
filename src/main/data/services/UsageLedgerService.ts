@@ -25,9 +25,10 @@
  *
  * Upsert semantics: usage/cost columns are last-write-wins per column, but a
  * writer that carries no value for a column never erases the stored one (the
- * two sources report different column subsets); key-identity columns keep the
- * EARLIEST non-`none` attribution (it was resolved closest to request time and
- * is the most trustworthy).
+ * two sources report different column subsets); a stored provider-reported
+ * cost is never downgraded to a locally computed one; key-identity columns
+ * keep the EARLIEST non-`none` attribution (it was resolved closest to request
+ * time and is the most trustworthy).
  */
 
 import { application } from '@application'
@@ -274,7 +275,8 @@ export class UsageLedgerService {
    * Record (upsert) the ledger row for one billable AI request. Idempotent
    * on the row key: usage/cost columns are last-write-wins on re-records
    * (retries, continue-after-tool-approval, funnel + persistence-hook
-   * convergence) but never regress to NULL; key-identity columns keep the
+   * convergence) but never regress to NULL, and a `computed` cost never
+   * overwrites a stored `provider` one; key-identity columns keep the
    * earliest non-`none` attribution; `topicId` never regresses to NULL either.
    * No-op for stats without
    * any usage signal. Cost is enriched here (pricing/provider lookup) when
@@ -341,6 +343,12 @@ export class UsageLedgerService {
     // resolution happened closest to request time and is the most accurate;
     // a later 'none' (pointer lost on restart) must not downgrade it.
     const keepStored = sql`${usageLedgerTable.apiKeyAttribution} <> 'none'`
+    // A provider-reported cost is the billed truth; a locally computed estimate
+    // must never replace it (a re-record without the raw usage blob — e.g. a
+    // kept temporary chat re-recording from the promoted message — would
+    // otherwise silently rewrite the charge). Guard the whole cost tuple
+    // together so cost / currency / source / breakdown stay consistent.
+    const keepProviderCost = sql`${usageLedgerTable.costSource} = 'provider' AND COALESCE(excluded.cost_source, '') <> 'provider'`
     application.get('DbService').withWriteTx((tx) => {
       tx.insert(usageLedgerTable)
         .values(values)
@@ -361,10 +369,10 @@ export class UsageLedgerService {
             // carries no value must not erase one. The billing funnel records
             // `usageToStats(total)` — token fields only, never cost or timings —
             // so an unguarded funnel write landing second would null them out.
-            cost: sql`COALESCE(excluded.cost, ${usageLedgerTable.cost})`,
-            costCurrency: sql`COALESCE(excluded.cost_currency, ${usageLedgerTable.costCurrency})`,
-            costSource: sql`COALESCE(excluded.cost_source, ${usageLedgerTable.costSource})`,
-            costBreakdown: sql`COALESCE(excluded.cost_breakdown, ${usageLedgerTable.costBreakdown})`,
+            cost: sql`CASE WHEN ${keepProviderCost} THEN ${usageLedgerTable.cost} ELSE COALESCE(excluded.cost, ${usageLedgerTable.cost}) END`,
+            costCurrency: sql`CASE WHEN ${keepProviderCost} THEN ${usageLedgerTable.costCurrency} ELSE COALESCE(excluded.cost_currency, ${usageLedgerTable.costCurrency}) END`,
+            costSource: sql`CASE WHEN ${keepProviderCost} THEN ${usageLedgerTable.costSource} ELSE COALESCE(excluded.cost_source, ${usageLedgerTable.costSource}) END`,
+            costBreakdown: sql`CASE WHEN ${keepProviderCost} THEN ${usageLedgerTable.costBreakdown} ELSE COALESCE(excluded.cost_breakdown, ${usageLedgerTable.costBreakdown}) END`,
             pricingSnapshot: sql`COALESCE(excluded.pricing_snapshot, ${usageLedgerTable.pricingSnapshot})`,
             timeFirstTokenMs: sql`COALESCE(excluded.time_first_token_ms, ${usageLedgerTable.timeFirstTokenMs})`,
             timeCompletionMs: sql`COALESCE(excluded.time_completion_ms, ${usageLedgerTable.timeCompletionMs})`,

@@ -394,6 +394,37 @@ describe('UsageLedgerService', () => {
       })
     })
 
+    it('never downgrades a provider-reported cost to a locally computed one', async () => {
+      await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
+
+      // The billing funnel lands the provider-billed charge (e.g. OpenRouter)…
+      await usageLedgerService.recordRequest({
+        id: 'msg-provider-cost',
+        modelId: 'openai::gpt-4o',
+        stats: {
+          inputTokens: 100,
+          outputTokens: 50,
+          totalTokens: 150,
+          cost: 0.9,
+          costCurrency: 'USD',
+          costSource: 'provider'
+        }
+      })
+      // …then a re-record carrying only a local estimate lands second.
+      await usageLedgerService.recordFromMessage(makeMessage({ id: 'msg-provider-cost' } as never))
+
+      const [row] = await dbh.db.select().from(usageLedgerTable)
+      expect(row).toMatchObject({
+        // Tokens stay last-write-wins…
+        inputTokens: 100,
+        outputTokens: 50,
+        // …but the authoritative charge survives.
+        cost: 0.9,
+        costCurrency: 'USD',
+        costSource: 'provider'
+      })
+    })
+
     it('records agent source by agent id, not session id', async () => {
       await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
       await seedAgentSession()
