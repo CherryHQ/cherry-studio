@@ -52,6 +52,12 @@ describe('DefaultPreferences', () => {
     expect(DefaultPreferences.default['ui.sidebar.favorites']).toEqual(sidebarFavoritesDefault)
   })
 
+  it('defaults transparent windows on for new users', () => {
+    const windowStyleDefault: PreferenceSchemas['default']['ui.window_style'] = 'transparent'
+
+    expect(DefaultPreferences.default['ui.window_style']).toBe(windowStyleDefault)
+  })
+
   it('does not keep legacy classic/modern layout preferences', () => {
     expect('topic.layout' in DefaultPreferences.default).toBe(false)
     expect('agent.layout' in DefaultPreferences.default).toBe(false)

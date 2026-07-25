@@ -1,5 +1,6 @@
 import { Checkbox, Tooltip } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
+import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useTheme } from '@renderer/hooks/useTheme'
 import type { Model } from '@renderer/types/model'
 import { getModelLogoRef } from '@renderer/utils/model'
@@ -25,13 +26,14 @@ interface Props {
   message: MessageListItem
   model?: Model
   isGroupContextMessage?: boolean
+  showModelIdentity?: boolean
   actionsSlot?: ReactNode
   contentSlot?: ReactNode
   footerSlot?: ReactNode
 }
 
 const MessageHeader: FC<Props> = memo(
-  ({ model, message, isGroupContextMessage, actionsSlot, contentSlot, footerSlot }) => {
+  ({ model, message, isGroupContextMessage, showModelIdentity = false, actionsSlot, contentSlot, footerSlot }) => {
     const { theme } = useTheme()
     const actions = useMessageListActions()
     const meta = useMessageListMeta()
@@ -51,6 +53,7 @@ const MessageHeader: FC<Props> = memo(
 
     const messageModel = useMemo(() => getMessageListItemModel(message), [message])
     const displayModel = messageModel ?? model
+    const displayModelName = displayModel?.name || displayModel?.id
     const ModelIcon = useIcon(useMemo(() => getModelLogoRef(displayModel), [displayModel]))
 
     // Producing author (assistant/agent) snapshotted at creation — shown first; the model is secondary.
@@ -117,6 +120,14 @@ const MessageHeader: FC<Props> = memo(
               }}>
               {username}
             </span>
+            {isAssistantMessage && showModelIdentity && displayModelName && (
+              <span className="flex min-w-0 shrink items-center gap-1 text-foreground-muted text-xs leading-5">
+                <span aria-hidden="true" className="shrink-0">
+                  <ModelAvatar className="rounded-full" model={displayModel} size={16} />
+                </span>
+                <span className="truncate">{displayModelName}</span>
+              </span>
+            )}
             {isGroupContextMessage && (
               <Tooltip content={t('chat.message.useful.tip')}>
                 <Sparkle className="shrink-0" fill="var(--primary)" strokeWidth={0} size={16} />

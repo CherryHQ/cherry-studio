@@ -798,6 +798,54 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  // Background agents/tasks keep emitting after their turn's result (SDK 0.3.186+ keeps stdin open
+  // while they run). There is no turn stream left to carry them, so they are dropped — this pins that
+  // the drop is silent-but-safe: the connection stays usable and later messages still flow.
+  it('drops task_notification arriving after the result without breaking the connection', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    // No `getContextUsage`, so the post-result context-usage probe emits nothing and the event
+    // sequence below stays deterministic.
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    queryQueue.push({
+      type: 'result',
+      subtype: 'success',
+      session_id: 'resume-result',
+      usage: { input_tokens: 1, output_tokens: 1, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }
+    })
+
+    // Drain the turn's tail until it completes; the adapter is cleared at that point.
+    let event = await events.next()
+    while (event.value?.type !== 'turn-complete') {
+      event = await events.next()
+    }
+
+    // Arrives with no adapter → dropped. `commands_changed` is handled ahead of the drop, so seeing
+    // it next proves the task_notification produced no event rather than merely arriving late.
+    queryQueue.push({
+      type: 'system',
+      subtype: 'task_notification',
+      session_id: 'resume-result',
+      uuid: 'bg-task-uuid',
+      task_id: 'task-bg',
+      status: 'completed'
+    })
+    queryQueue.push({ type: 'system', subtype: 'commands_changed', session_id: 'resume-result', commands: ['/help'] })
+
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'supported-commands', commands: ['/help'] }
+    })
+    void connection.close()
+  })
+
   it('maps SDK compaction status and boundary messages to runtime compaction events', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
