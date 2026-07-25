@@ -1,18 +1,18 @@
 ---
-title: "V2 cannot restore from v1 backup archives"
+title: "V2 cannot restore v1 backup archives"
 category: data-migration
 severity: breaking
-introduced_in_pr: "#16683"
+introduced_in_pr: "#17206"
 date: 2026-07-03
 ---
 
 ## What changed
 
-V2's restore only reads the new v2 backup format (a `manifest` plus `backup.sqlite` plus `files`/`knowledge` resources). v1's legacy `.backup` archives (IndexedDB / LocalStorage / optional Data export produced by the old backup manager) are **not** readable by v2 restore. v1 data reaches v2 only through the one-way migration assistant (`src/main/data/migration/v2/`), never by importing a v1 `.backup` file.
+V2 restore accepts the new `.cherrybackup` format but cannot import legacy `.backup` archives created by v1. Existing v1 data reaches v2 through the one-way migration assistant instead.
 
 ## Why this matters to the user
 
-After upgrading to v2, a `.backup` file created under v1 can no longer be used to restore data. The app does not offer a "restore from v1 backup" action. The user must rely on the migration assistant (run automatically on first launch) to carry their current v1 data into v2.
+After upgrading to v2, a `.backup` file created under v1 can no longer be used to restore data. The migration assistant runs on first launch and carries the current v1 data into v2, but it does not read archived `.backup` files.
 
 ## What the user should do
 
@@ -20,4 +20,4 @@ Before upgrading, either (a) restore any v1 `.backup` files into the v1 app so t
 
 ## Notes for release manager
 
-This entry records an architectural contract fixed in the backup v2 refactor (the 14-domain contributor stack is v2-format-only; v1 has no read path in v2). The user-facing restore action lands in the C-import phase (ImportOrchestrator + RestoreSafetyManager), but the contract is already binding on the data model. If C-import's restore UI lands in a later PR, re-point `introduced_in_pr` to that PR if it better reflects "when the user first notices."
+The format boundary originated in #16683; #17206 is the user-facing restore PR. The pre-release `.cbu` extension was never shipped and does not need a separate release-note entry.
