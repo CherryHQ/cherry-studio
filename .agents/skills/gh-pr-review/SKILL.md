@@ -25,8 +25,44 @@ docs, internal skills, external skills, and official websites to consult for
 each changed area; load only the relevant subset.
 
 All user-facing text matches the user's language. Reviews never pause to ask
-the user anything mid-flow: no mode selection, no fix confirmation, no
-submission preview.
+the user procedural questions: no mode selection, no fix confirmation, no
+submission preview. The Product Demand gate below is the one exception — a
+product decision the skill cannot derive — and only in interactive sessions.
+
+## Review Stages
+
+Every review runs these stages in order. A later stage reviews only what
+survived the earlier ones, so a stage never re-litigates an earlier verdict.
+
+| # | Stage | Applies to | Reference |
+|---|-------|-----------|-----------|
+| 1 | **Product Demand** (gate) | changes with product impact | below |
+| 2 | **Consumer** | `feat`-shaped changes only | `references/consumer-review.md` |
+| 3 | **Architecture-First** | all code changes | `references/cherry-review-guidance.md` |
+| 4 | **Implementation** | all code changes | `references/code-checklist.md` (A/B), `doc-checklist.md` |
+| 5 | **Style / conventions** | all changes | `references/code-checklist.md` (C) |
+
+### Stage 1: Product Demand gate
+
+First decide whether the change affects **product semantics, user-visible
+behavior, or product direction**. Internal refactors, tooling, tests, docs,
+and non-user-facing fixes have no product impact — **skip this stage
+entirely**, in both interactive and automated runs, and say nothing about it.
+
+When there is product impact:
+
+- **Interactive session** (a human can answer now): summarize the change's
+  effect on product functionality and semantics, and ask the user for the
+  product decision. If the user judges the direction wrong, **stop the whole
+  review immediately** — do not run Consumer, Architecture, Implementation,
+  or Style stages, and do not report code findings. If the user approves the
+  direction, continue with the remaining stages.
+- **Automated session** (headless, CI, batch, or invoked by another
+  workflow — no human can answer): make **no** product decision on the
+  user's behalf. Run the remaining stages, and in the final report summarize
+  the product impact, the direction the change takes, and the points needing
+  human confirmation. Never phrase this as product approval having been
+  obtained.
 
 **Authority model** — a review request authorizes analysis and reporting
 only. The review target, review depth, and reviewer–verifier confidence never

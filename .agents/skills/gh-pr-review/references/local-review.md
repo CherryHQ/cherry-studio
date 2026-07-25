@@ -17,6 +17,7 @@ invocation explicitly authorized fixing. Never asks the user questions.
 
 | File | Purpose |
 |------|---------|
+| `consumer-review.md` | Consumer review stage (feat-shaped changes) |
 | `code-checklist.md` | Code review checklist |
 | `doc-checklist.md` | Document review checklist |
 | `cherry-review-guidance.md` | Cherry Studio project-specific review boundaries |
@@ -60,6 +61,18 @@ If diff is empty → show usage examples and exit:
 ---
 
 ## Step 2: Review
+
+Run the review stages defined in `SKILL.md` § Review Stages in order.
+
+1. **Product Demand gate** — skip silently when the change has no product
+   impact. Otherwise: interactive → summarize the product effect and ask for
+   the product decision, stopping the entire review if the direction is
+   rejected; automated → decide nothing, and carry the product-impact summary
+   into Step 4's report.
+2. **Consumer review** — only for `feat`-shaped diffs that add or expand
+   shared surface. Follow `consumer-review.md`; only surviving surfaces
+   continue to the stages below.
+3. **Architecture-First, Implementation, Style** — as follows.
 
 Review the diff. Apply `code-checklist.md` to code files,
 `doc-checklist.md` to documentation files. Apply `cherry-review-guidance.md` to
@@ -113,7 +126,10 @@ Do not ask the user which issues to fix.
   implementations must be surfaced, never silently picked.
 
 Present a summary of what was reviewed, the issues fixed (authorized fix
-only), and the issues reported with their proposed fixes.
+only), and the issues reported with their proposed fixes. In an automated
+session with product impact, include the Product Demand summary — impact,
+direction, and points needing human confirmation — explicitly marked as
+awaiting a product decision, never as approved.
 
 Validation: when fixes were applied, the session is a coding task — run
 `pnpm lint`, `pnpm test`, and `pnpm format`, and report their results; a

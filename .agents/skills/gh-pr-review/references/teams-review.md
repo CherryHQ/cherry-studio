@@ -26,6 +26,7 @@ share conversation history.
 
 | File | Purpose |
 |------|---------|
+| `consumer-review.md` | Consumer review stage (feat-shaped changes) |
 | `code-checklist.md` | Code review checklist |
 | `doc-checklist.md` | Document review checklist |
 | `cherry-review-guidance.md` | Cherry Studio project-specific review boundaries |
@@ -35,9 +36,16 @@ share conversation history.
 ## Flow
 
 ```
-Authorized fix:       Scope → Review → Filter → Fix/Validate → Report
-Report-only (default): Scope → Review → Filter → Report
+Authorized fix:        Scope → Product gate → Review → Filter → Fix/Validate → Report
+Report-only (default): Scope → Product gate → Review → Filter → Report
 ```
+
+The **Product gate** is stage 1 of `SKILL.md` § Review Stages, run by the
+coordinator before dispatching any reviewer: skip silently when the change
+has no product impact; interactive → summarize the product effect, ask for
+the product decision, and abort the entire review (no reviewers dispatched)
+if the direction is rejected; automated → decide nothing and carry the
+product-impact summary into the Report. Reviewers then cover stages 2–5.
 
 - **Filter** routes low-risk issues to Fix/Validate (authorized fix only);
   medium- and high-risk issues go straight to Report with their proposed fix
@@ -175,6 +183,10 @@ Each reviewer receives:
   behavior, paths, tools, or review rules.
   For React/performance-heavy modules, also include relevant rules from
   `vercel-react-best-practices` skill as supplementary checks.
+- **Stages**: run `SKILL.md` § Review Stages 2–5 in order for the module.
+  For a `feat`-shaped module that adds or expands shared surface, include
+  `consumer-review.md` verbatim and run it first — report its per-surface
+  decision, and review implementation quality only for surviving surfaces.
 - **Mandatory docs**: before reviewing, read the docs required by
   `cherry-review-guidance.md` § Mandatory Baseline Docs for the processes the
   module touches, plus its on-demand docs for touched subsystems. Review
@@ -381,6 +393,10 @@ fixer edit.
 ## Phase 5: Report
 
 Summary:
+- Product Demand summary when the change has product impact and the session
+  was automated: impact, direction, and points needing human confirmation,
+  explicitly marked as awaiting a product decision — never as approved
+- Consumer review decisions per surface (feat-shaped changes only)
 - Issues found / fixed (authorized fix only) / reported / failed
 - Reported issues listed with risk, `file:line`, and the proposed
   at-altitude fix (`cherry-review-guidance.md` § Fix Recommendation Policy)

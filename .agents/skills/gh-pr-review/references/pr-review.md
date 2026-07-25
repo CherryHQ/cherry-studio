@@ -15,6 +15,7 @@ is critical for review accuracy.
 
 | File | Purpose |
 |------|---------|
+| `consumer-review.md` | Consumer review stage (feat-shaped changes) |
 | `code-checklist.md` | Code review checklist |
 | `doc-checklist.md` | Document review checklist |
 | `cherry-review-guidance.md` | Cherry Studio project-specific review boundaries and reference routing |
@@ -127,6 +128,16 @@ whether each confirmed issue is worth reporting.
 
 Coordinator duties around the agent phases:
 
+0. Run the **Product Demand gate** (`SKILL.md` § Review Stages, stage 1)
+   before dispatching reviewers, using `PR_BODY` and the diff. Skip silently
+   when the PR has no product impact. Reviewing someone else's PR is normally
+   an automated-style run for this gate — do not decide the product direction
+   on the author's or user's behalf; summarize impact, direction, and open
+   product questions in the Step 4 report (and, when submitting, in the review
+   body) as points needing human confirmation. Ask the user for a product
+   decision only when the session is interactive **and** they own that
+   decision; a rejected direction stops the review before any code findings
+   are produced.
 1. Read `PR_BODY` to understand the stated motivation and include it in
    reviewer prompts. Verify the implementation actually achieves what the
    author describes.
