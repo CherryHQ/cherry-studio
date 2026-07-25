@@ -74,7 +74,7 @@ const DataSourcePanelHeader = ({
 
   return (
     <div className="flex min-h-8 w-full min-w-0 items-center justify-between gap-2">
-      <span className="min-w-0 truncate text-foreground-muted text-xs leading-4">
+      <span className="min-w-0 truncate pl-1 text-foreground-muted text-xs leading-4">
         {t('knowledge.meta.updated_at', { time: formatRelativeTime(updatedAt, i18n.language) })}
       </span>
       <div className="flex shrink-0 items-center gap-2">

@@ -62,7 +62,7 @@ describe('DataSourcePanelHeader', () => {
   it('renders the updated time and add button in the default state', () => {
     render(<DataSourcePanelHeader {...baseProps} selectedCount={0} />)
 
-    expect(screen.getByText('更新于 刚刚')).toBeInTheDocument()
+    expect(screen.getByText('更新于 刚刚')).toHaveClass('pl-1')
     const addButton = screen.getByRole('button', { name: '添加' })
 
     expect(addButton).toHaveAttribute('data-variant', 'outline')
