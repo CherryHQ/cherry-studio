@@ -24,7 +24,8 @@ vi.mock('@data/hooks/usePreference', () => ({
   }
 }))
 
-vi.mock('@data/hooks/useDataApi', () => ({
+vi.mock('@data/hooks/useDataApi', async () => ({
+  ...(await import('@test-mocks/renderer/useDataApi')).MockUseDataApi,
   useInvalidateCache: () => renderCounters.invalidateCache
 }))
 
