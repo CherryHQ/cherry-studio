@@ -43,12 +43,7 @@ import { versionService } from './services/VersionService'
 const logger = loggerService.withContext('MainEntry')
 
 const startApp = async () => {
-  // Data reset: consume a pending reset marker (wipe user data, reset
-  // BootConfig) before the backup gate or the migration gate read anything.
-  // Preboot timing only — the capability itself is owned by
-  // services/dataReset. Without a marker it is a no-op. Never throws, but
-  // quits the app when a completed wipe cannot durably clear its marker
-  // (booting on would re-wipe freshly created data on the next start).
+  // Reset before backup, migration, or services open user data.
   runDataReset()
 
   // userData relocation: a pending/failed relocation makes this a dedicated

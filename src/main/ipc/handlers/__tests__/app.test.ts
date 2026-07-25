@@ -100,9 +100,6 @@ describe('appHandlers', () => {
   })
 
   it('delegates data reset requests to the owning domain module', async () => {
-    // The request-to-restart contract itself (confirmation, marker staging,
-    // Chromium clear, graceful relaunch) is tested with the domain module in
-    // services/__tests__/dataReset.test.ts.
     const result = await appHandlers['app.data_reset.request'](undefined, ctx)
 
     expect(requestDataResetMock).toHaveBeenCalledTimes(1)

@@ -281,10 +281,7 @@ async function executeRelocation(
       filter: async (source, target) => {
         const isSourceRootEntry = normalizeForCompare(path.dirname(source)) === normalizeForCompare(pending.from)
         const name = path.basename(source)
-        // Exclude the data-reset pending marker: a copy carried into the
-        // relocated profile could never be consumed there (its canonicalPath
-        // pins the ORIGINAL userData, so runDataReset would forever refuse the
-        // mismatch) and must not ride along.
+        // The reset marker is bound to the source profile.
         if (
           isSourceRootEntry &&
           (name.startsWith('Singleton') || name === RELOCATION_OWNER_MARKER || name === dataResetMarkerBasename)

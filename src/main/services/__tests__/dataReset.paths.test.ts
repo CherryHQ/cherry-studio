@@ -5,16 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { USER_DATA_KEPT, USER_DATA_WIPE } from '../dataReset'
 
-// Conformance test: dataReset's wipe list is literal entry names,
-// while the paths they refer to are owned by pathRegistry. This suite pins
-// each literal to the registry key it mirrors, so relocating or renaming a
-// path in the registry fails here instead of silently un-covering (or
-// mis-covering) it in the wipe. It intentionally builds the REAL registry —
-// no buildPathRegistry mock — because the whole point is to observe the
-// registry's actual values.
-
-// The global electron mock (tests/main.setup.ts) lacks getAppPath/isPackaged,
-// which buildPathRegistry needs; override locally with the same getPath values.
+// Keep the literal reset lists aligned with the real path registry.
 vi.mock('electron', () => ({
   app: {
     getPath: vi.fn((key: string) => {
@@ -38,12 +29,10 @@ vi.mock('electron', () => ({
 const registry = buildPathRegistry()
 const userData = registry['app.userdata']
 
-/** First path segment of `child` relative to `parent` — a directory-entry name. */
 function firstSegment(child: string, parent: string): string {
   return path.relative(parent, child).split(path.sep)[0]
 }
 
-/** Same membership rule the wipe pass applies to a directory entry. */
 function isWiped(entry: string): boolean {
   return USER_DATA_WIPE.includes(entry)
 }
@@ -54,8 +43,7 @@ describe('dataReset ↔ pathRegistry conformance', () => {
     expect(isWiped(dbFile)).toBe(true)
     expect(isWiped(`${dbFile}-wal`)).toBe(true)
     expect(isWiped(`${dbFile}-shm`)).toBe(true)
-    // Exact names only: a user's own file that merely starts with the db name
-    // must NOT be swept up (#17138 review).
+    // Prefix matches could delete user-created backups.
     expect(isWiped(`${dbFile}-personal-backup`)).toBe(false)
     expect(isWiped(`${dbFile}.bak-20260101000000`)).toBe(false)
   })
@@ -65,12 +53,8 @@ describe('dataReset ↔ pathRegistry conformance', () => {
     expect(USER_DATA_WIPE).toContain(path.basename(registry['feature.backup.restore.file']))
     expect(USER_DATA_WIPE).toContain(path.basename(registry['feature.backup.restore.staging']))
     expect(USER_DATA_WIPE).toContain(firstSegment(registry['feature.agents.claude.root'], userData))
-    // 'cache.json' has no registry key — CacheService names it inline against
-    // 'app.userdata' (see the reverse comment at its persistFilePath).
     expect(USER_DATA_WIPE).toContain('cache.json')
-    // The `*.restore` staging sidecars have no registry keys — they are named
-    // inline by LegacyBackupManager's inert v1 restore path, which is slated
-    // for deletion (#17131); enrolling them would harden throwaway code.
+    // Legacy restore sidecars are not registered paths.
     expect(USER_DATA_WIPE).toContain('Data.restore')
     expect(USER_DATA_WIPE).toContain('IndexedDB.restore')
     expect(USER_DATA_WIPE).toContain('Local Storage.restore')
@@ -84,11 +68,7 @@ describe('dataReset ↔ pathRegistry conformance', () => {
   })
 
   it('the data-reset marker survives its own wipe (a deliberate third category)', () => {
-    // The pending marker is neither wiped user state nor a kept machine
-    // artifact: it must outlive the wipe pass so runDataReset can commit the
-    // durable `completed` record over it and only then remove it. It is
-    // therefore excluded from the classification loop below and pinned here
-    // instead.
+    // The marker is removed separately after the wipe is committed.
     const markerEntry = firstSegment(registry['feature.data_reset.marker_file'], userData)
     expect(markerEntry).toBe('data-reset.pending.json')
     expect(isWiped(markerEntry)).toBe(false)
@@ -96,10 +76,6 @@ describe('dataReset ↔ pathRegistry conformance', () => {
   })
 
   it('retains Data Reset sidecar residue as classified diagnostics', () => {
-    // Known artifacts of the marker protocol itself, deliberately retained
-    // (see the classification in dataReset's kept-contract comment): the
-    // quarantined invalid marker and writeMarker's crash-orphaned temp file.
-    // Pinned so neither name drifts into the wipe list.
     for (const residue of ['data-reset.pending.invalid', 'data-reset.pending.json.tmp-123-abc']) {
       expect(isWiped(residue)).toBe(false)
       expect(USER_DATA_KEPT).not.toContain(residue)
@@ -107,15 +83,12 @@ describe('dataReset ↔ pathRegistry conformance', () => {
   })
 
   it('classifies every userData registry entry as wiped user state or a kept machine artifact', () => {
-    // A NEW registry key under userData must be classified deliberately:
-    // user state → add its entry name to USER_DATA_WIPE in dataReset;
-    // re-downloadable machine artifact → add it to USER_DATA_KEPT.
+    // Every registered profile path must be classified.
     for (const [key, value] of Object.entries(registry)) {
       // process.resourcesPath ('app.extra_resources') is undefined outside Electron
       if (typeof value !== 'string') continue
       if (key === 'app.userdata' || !value.startsWith(userData + path.sep)) continue
-      // The pending-marker file is a deliberate third category — see the test
-      // above; it survives its own wipe and is removed separately.
+      // The marker is managed separately.
       if (key === 'feature.data_reset.marker_file') continue
       const entry = firstSegment(value, userData)
       expect(

@@ -324,9 +324,6 @@ describe('userDataRelocation execution', () => {
     const markerBasename = 'reset-transaction.json'
     fs.mkdirSync(source)
     fs.writeFileSync(path.join(source, 'data.txt'), 'data')
-    // A pending data-reset marker in the source profile must not ride along:
-    // its canonicalPath pins the ORIGINAL userData, so the relocated copy
-    // could never consume it (permanent mismatch refusal).
     fs.writeFileSync(path.join(source, markerBasename), JSON.stringify({ status: 'pending' }))
     relocationState['app.userdata'] = source
     relocationState['feature.data_reset.marker_file'] = path.join(source, markerBasename)

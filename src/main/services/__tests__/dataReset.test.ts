@@ -1,22 +1,7 @@
 import { createMockApplication } from '@test-mocks/main/application'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-/**
- * Tests for src/main/services/dataReset.ts — both faces: runDataReset (the
- * preboot-timed execution) and requestDataReset (the running-app request).
- *
- * Mocking strategy (mirrors userDataLocation.test.ts):
- *   - `vi.doMock` + `vi.resetModules()` + dynamic import of the module under
- *     test in each scenario.
- *   - `electron`, `node:fs`, `@application`, and `@main/i18n` are shadowed
- *     per test.
- *   - The pending marker is now a FILE at `feature.data_reset.marker_file`,
- *     not a BootConfig key. The fs stub keeps a small in-memory file map
- *     backing the marker protocol (open/write/fsync/close/rename/unlink/read)
- *     so the atomic write, corrupt-marker rename, and delete-last semantics
- *     are exercised without touching the real filesystem. The wipe pass
- *     (readdir/rm) keeps its own independent mocks for failure injection.
- */
+// The in-memory filesystem exercises the reset marker protocol without disk I/O.
 
 const USER_DATA = '/mock/home/appdata/CherryStudio'
 const APP_TEMP = '/mock/tmp/CherryStudio'
@@ -52,29 +37,21 @@ type DataResetMarker =
     }
   | null
 
-/** In-memory backing for the marker protocol's fs ops. */
 type FsControl = {
   files: Map<string, string>
   fds: Map<number, string>
   nextFd: number
-  /** Committed marker versions, in order (each rename onto MARKER_FILE). */
   commits: DataResetMarker[]
-  /** When set, openSync throws — models an un-writable marker directory. */
   failWrite: boolean
-  /** When set, unlinkSync(MARKER_FILE) throws a non-ENOENT error. */
   failDelete: boolean
-  /** When set, fsyncing the marker parent directory throws. */
   failDirectorySync: boolean
-  /** Number of parent-directory fsyncs to let succeed before failing. */
   directorySyncFailuresToSkip: number
-  /** Filesystem operation order for marker durability assertions. */
   operations: string[]
 }
 let fsCtl: FsControl
 
-/** A realistic userData listing: wiped ∪ kept ∪ unknown-provenance debris. */
 const DEFAULT_LISTING = [
-  // Cherry user state (version.log is retained)
+  // Cherry user state
   'cherrystudio.sqlite',
   'cherrystudio.sqlite-wal',
   'cherrystudio.sqlite-shm',
@@ -104,11 +81,9 @@ const DEFAULT_LISTING = [
   'migration_temp',
   '.pi',
   'holiday-photos',
-  // kept — a user's own file that only *looks* like a db sibling: the sqlite
-  // family is matched by exact name, so this survives (#17138 review).
+  // User file with a database-like name
   'cherrystudio.sqlite-personal-backup',
-  // kept — the pending marker itself survives its own wipe pass (removed
-  // separately, last, by runDataReset).
+  // Marker removed after the wipe commits
   'data-reset.pending.json'
 ]
 
@@ -205,10 +180,8 @@ function stubFs(listing: string[] | Error = DEFAULT_LISTING) {
     return [...listing]
   })
   rmSyncMock.mockImplementation(() => undefined)
-  // Identity: realpath resolves to the lexical path unless a test overrides.
   realpathNativeMock.mockImplementation((p: string) => p)
 
-  // --- marker protocol: in-memory file map ---
   readFileSyncMock.mockImplementation((p: string) => {
     if (!fsCtl.files.has(p)) {
       const error = new Error(`ENOENT: no such file or directory, open '${p}'`) as NodeJS.ErrnoException
@@ -304,12 +277,10 @@ function stubAll(marker: DataResetMarker) {
   if (marker) seedMarker(marker)
 }
 
-/** Write a valid marker into the in-memory map at this instance's marker path. */
 function seedMarker(marker: DataResetMarker): void {
   fsCtl.files.set(MARKER_FILE, JSON.stringify(marker))
 }
 
-/** Write arbitrary (possibly corrupt) raw content at the marker path. */
 function seedRawMarker(raw: string): void {
   fsCtl.files.set(MARKER_FILE, raw)
 }
@@ -378,8 +349,6 @@ describe('runDataReset', () => {
 
   it("boots normally when no marker file exists in this userData (a sibling instance's marker lives in its own userData and is invisible here)", async () => {
     stubAll(null)
-    // A pending marker sits in a DIFFERENT userData directory; this instance
-    // reads only its own marker path, so the foreign marker is never seen.
     fsCtl.files.set('/mock/other/CherryStudioDev/data-reset.pending.json', JSON.stringify(pendingMarker()))
     await runReset()
 
@@ -399,16 +368,11 @@ describe('runDataReset', () => {
     for (const entry of EXPECTED_KEPT) {
       expect(wiped).not.toContain(`${USER_DATA}/${entry}`)
     }
-    // app.temp is removed best-effort, and NOT recreated (the relaunch below
-    // hands path ensuring to the fresh process).
     expect(rmSyncMock).toHaveBeenCalledWith(APP_TEMP, expect.anything())
 
-    // Marker protocol: arm (attempts 1), then the durable completed terminal
-    // record, then best-effort removal.
     expect(fsCtl.commits.map((c) => c?.status)).toEqual(['pending', 'completed'])
     expect(markerExists()).toBe(false)
 
-    // Post-wipe relaunch into a clean process (#17138 suggestion).
     expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
@@ -418,8 +382,6 @@ describe('runDataReset', () => {
     stubAll(pendingMarker())
     await runReset()
 
-    // arm (attempts 1) → completed terminal record → best-effort unlink,
-    // each committed with a parent-directory sync.
     const markerOps = fsCtl.operations.filter((op) =>
       [`rename:${MARKER_FILE}`, `fsync:${USER_DATA}`, `unlink:${MARKER_FILE}`].includes(op)
     )
@@ -435,13 +397,10 @@ describe('runDataReset', () => {
 
   it('leaves the pending marker file in place during the wipe pass', async () => {
     stubAll(pendingMarker())
-    // rm nothing so we can observe every rmSync target; the marker is in the
-    // listing and must NOT be one of them.
     rmSyncMock.mockImplementation(() => undefined)
     await runReset()
 
     expect(wipedEntries()).not.toContain(MARKER_FILE)
-    // It was disarmed separately (completed record + unlink) after the pass.
     expect(unlinkSyncMock).toHaveBeenCalledWith(MARKER_FILE)
     expect(markerExists()).toBe(false)
   })
@@ -493,9 +452,6 @@ describe('runDataReset', () => {
 
   it('renames a schema-invalid marker aside and continues booting', async () => {
     stubAll(null)
-    // Valid JSON but fails the zod schema (missing required canonicalPath,
-    // attempts is a string). A hand-edited corrupt value can no longer void
-    // the cap — it is rejected wholesale.
     seedRawMarker(JSON.stringify({ status: 'pending', requestedAt: 'now', attempts: 'x' }))
     await runReset()
 
@@ -507,7 +463,6 @@ describe('runDataReset', () => {
   it('records the canonical physical path with the arming write', async () => {
     stubAll(pendingMarker())
     realpathNativeMock.mockImplementation(() => '/mock/physical/CherryStudio')
-    // Match canonicalPath so the mismatch guard passes and the arming write runs.
     seedMarker(pendingMarker({ canonicalPath: '/mock/physical/CherryStudio' }))
     await runReset()
 
@@ -560,8 +515,6 @@ describe('runDataReset', () => {
     })
     await runReset()
 
-    // The arming write committed attempts:1 and the marker is left pending for
-    // the retry pass.
     expect(readStoredMarker()).toMatchObject({ status: 'pending', attempts: 1 })
     expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
@@ -613,9 +566,6 @@ describe('runDataReset', () => {
   it('quits after a clean wipe when the completion record cannot be durably committed', async () => {
     if (process.platform === 'win32') return
     stubAll(pendingMarker())
-    // Let the arming write commit, then fail the completed record's
-    // directory sync: the rename landed but its durability is unproven, so
-    // the durable on-disk state may still be `pending` — fail closed.
     fsCtl.failDirectorySync = true
     fsCtl.directorySyncFailuresToSkip = 1
     await runReset()
@@ -629,10 +579,6 @@ describe('runDataReset', () => {
   it('relaunches after a clean wipe even when the marker unlink cannot be proven durable', async () => {
     if (process.platform === 'win32') return
     stubAll(pendingMarker())
-    // Arm and completed-record syncs succeed; the sync after the final
-    // unlink fails. The durable completed record already disarmed the
-    // marker, so an unprovable unlink is tolerable: a resurrected file
-    // reads as completed and never re-authorizes a wipe.
     fsCtl.failDirectorySync = true
     fsCtl.directorySyncFailuresToSkip = 2
     await runReset()
@@ -647,7 +593,6 @@ describe('runDataReset', () => {
     fsCtl.failDelete = true
     await runReset()
 
-    // The durable completed record disarms the marker; removal is best-effort.
     expect(readStoredMarker()?.status).toBe('completed')
     expect(showErrorBoxMock).not.toHaveBeenCalled()
     expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
@@ -668,26 +613,21 @@ describe('runDataReset', () => {
   it('fails closed across boots until the completed record is proven durable', async () => {
     if (process.platform === 'win32') return
     stubAll(pendingMarker())
-    // Boot 1: clean wipe; the completed rename lands but its directory sync
-    // fails — the durable on-disk state may still be `pending`, so quit.
+    // First boot
     fsCtl.failDirectorySync = true
     fsCtl.directorySyncFailuresToSkip = 1
     await runReset()
     expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
     expect(readStoredMarker()?.status).toBe('completed')
 
-    // Boot 2: the completed record is visible but nothing has yet proven it
-    // durable, and the directory sync keeps failing — the re-commit must
-    // fail closed again rather than boot writable over a possibly-pending
-    // durable state (sol review).
+    // Second boot
     vi.clearAllMocks()
     await runReset()
     expect(rmSyncMock).not.toHaveBeenCalled()
     expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
     expect(applicationMock.relaunch).not.toHaveBeenCalled()
 
-    // Boot 3: syncs recover — the re-commit proves durability, the marker is
-    // cleared, and the app finally boots writable.
+    // Third boot
     vi.clearAllMocks()
     fsCtl.failDirectorySync = false
     await runReset()
@@ -701,8 +641,6 @@ describe('runDataReset', () => {
     fsCtl.failDelete = true
     await runReset()
 
-    // A completed marker authorizes nothing, so a failed cleanup is inert —
-    // no wipe, no quit; a later boot retries the removal.
     expect(rmSyncMock).not.toHaveBeenCalled()
     expect(markerExists()).toBe(true)
     expect(showErrorBoxMock).not.toHaveBeenCalled()
@@ -716,9 +654,6 @@ describe('runDataReset', () => {
     ['unknown extra field', { ...pendingMarker(), extra: true }],
     ['unknown status', { version: 1, status: 'wiping', requestedAt: 'now', canonicalPath: USER_DATA }]
   ])('quarantines a schema-valid-looking marker (%s) without wiping', async (_name, raw) => {
-    // The marker is a persistent destructive authorization: values the
-    // schema does not positively allow (a negative `attempts` would re-open
-    // the retry cap by ~100 passes) are rejected wholesale, never coerced.
     stubAll(null)
     seedRawMarker(JSON.stringify(raw))
     await runReset()
@@ -782,8 +717,6 @@ describe('runDataReset', () => {
 
 describe('requestDataReset', () => {
   beforeEach(() => {
-    // The native confirmation dialog (the arming authority — renderer-side
-    // dialogs don't count for a whole-profile wipe): button 1 is confirm.
     showMessageBoxMock.mockResolvedValue({ response: 1, checkboxChecked: false })
   })
 
@@ -807,21 +740,14 @@ describe('requestDataReset', () => {
       expect.objectContaining({
         version: 1,
         status: 'pending',
-        // realpath resolves to the lexical path in the fs stub.
         canonicalPath: USER_DATA
       })
     )
-    // The marker's location is the ownership — no userDataPath field.
     expect(fsCtl.commits[0]).not.toHaveProperty('userDataPath')
-    // Durably fsync'd before the rename commit.
     expect(fsyncSyncMock).toHaveBeenCalled()
-    // Durability ordering: the marker rename (commit) must precede the
-    // shutdown sequence tearing services down.
     expect(renameSyncMock.mock.invocationCallOrder[0]).toBeLessThan(
       applicationMock.shutdown.mock.invocationCallOrder[0]
     )
-    // Graceful shutdown-then-relaunch, not the bare relaunch: running
-    // services must release file handles before the next boot's wipe.
     expect(applicationMock.shutdown.mock.invocationCallOrder[0]).toBeLessThan(
       applicationMock.relaunch.mock.invocationCallOrder[0]
     )
@@ -866,8 +792,6 @@ describe('requestDataReset', () => {
       expect(s.clearCache).toHaveBeenCalledTimes(1)
       expect(s.clearStorageData).toHaveBeenCalledTimes(1)
       expect(s.clearAuthCache).toHaveBeenCalledTimes(1)
-      // Ordering: the semantic clear runs only on a durably written marker —
-      // a failed write must not half-clear a session the user keeps using.
       expect(renameSyncMock.mock.invocationCallOrder[0]).toBeLessThan(s.clearStorageData.mock.invocationCallOrder[0])
     }
   })
@@ -901,9 +825,6 @@ describe('requestDataReset', () => {
 
     await expect(requestReset()).resolves.toBeUndefined()
 
-    // The staged marker must win over a broken teardown: a request that
-    // shut down halfway but never relaunched would leave the app closed
-    // with a pending wipe armed for whenever the user starts it next.
     expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
   })
 
@@ -913,8 +834,6 @@ describe('requestDataReset', () => {
 
     await expect(requestReset()).rejects.toThrow('EROFS')
 
-    // No marker was committed and no teardown/relaunch happened — the
-    // all-or-nothing write leaves nothing to roll back.
     expect(fsCtl.commits).toHaveLength(0)
     expect(applicationMock.shutdown).not.toHaveBeenCalled()
     expect(applicationMock.relaunch).not.toHaveBeenCalled()

@@ -503,11 +503,7 @@ class BackupManager {
 
   /**
    * Restore from direct backup format (version 6+).
-   * Writes to `*.restore` directories that a startup swap was meant to promote
-   * before any DB connection or window opens (issue #14774). That consumer
-   * (`handleStartupRestore`) is gone — nothing promotes these directories
-   * anymore, so this v1 restore path is inert pending the LegacyBackupManager
-   * cleanup flagged in #17131.
+   * This legacy path is inert because its `*.restore` startup consumer was removed.
    */
   private async restoreDirect(): Promise<void> {
     const onProgress = this.onProgress(IpcChannel.RestoreProgress, true)

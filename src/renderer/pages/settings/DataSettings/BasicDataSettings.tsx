@@ -207,12 +207,6 @@ const BasicDataSettings: React.FC = () => {
     if (!confirmed) return
 
     try {
-      // The final confirmation is a native dialog owned by the main process
-      // (arming a wipe must not hinge on renderer-side UI alone). On confirm
-      // the app relaunches before this resolves — the wipe runs at preboot
-      // on the next boot; on cancel it resolves without staging anything.
-      // Only rejection (the reset marker could not be persisted) is
-      // observable here.
       await ipcApi.request('app.data_reset.request')
     } catch (error) {
       toast.error(t('settings.data.data_reset.error'))
