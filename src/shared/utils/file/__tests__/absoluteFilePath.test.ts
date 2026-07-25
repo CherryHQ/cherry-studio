@@ -1,6 +1,14 @@
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { describe, expect, it } from 'vitest'
 
-import { AbsoluteFilePathSchema } from '../common'
+/**
+ * `AbsoluteFilePathSchema` is declared in `@shared/types/file/common` — a purely
+ * declarative Zod chain, which [shared-layer-architecture §3.1](../../../../../docs/references/shared-layer-architecture.md)
+ * permits to stay in `types/`. Its *behavioral* test cannot live there, though:
+ * the same section allows only type-level tests under `types/`. So the suite
+ * sits here, next to `canonicalize.test.ts`, which pins the `CanonicalFilePath`
+ * half of the same contract.
+ */
 
 describe('AbsoluteFilePathSchema', () => {
   // AbsoluteFilePathSchema validates absolute-path SHAPE only and does NOT canonicalize:
