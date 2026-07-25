@@ -11,7 +11,6 @@ import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceT
 import { type ComponentProps, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import NarrowLayout from '../layout/NarrowLayout'
-import { useMessageEnterMotionIds } from '../motion/messageEnterMotion'
 import { PartsProvider, usePartsMap } from './blocks/MessagePartsContext'
 import MessageOutline from './frame/MessageOutline'
 import { MessageListInitialLoading } from './layout/MessageListLoading'
@@ -120,13 +119,7 @@ const MessageHistoryLayer = memo(MessageGroupLayer, (previous, next) => {
     previous.captureMode === next.captureMode &&
     previous.registerMessageElement === next.registerMessageElement &&
     previous.isLatestAssistantGroup === next.isLatestAssistantGroup &&
-    previous.directAssistantModelsByUserId === next.directAssistantModelsByUserId &&
-    (previous.enteringMessageIds === next.enteringMessageIds ||
-      previous.messages.every(
-        (message) =>
-          (previous.enteringMessageIds?.has(message.id) ?? false) ===
-          (next.enteringMessageIds?.has(message.id) ?? false)
-      ))
+    previous.directAssistantModelsByUserId === next.directAssistantModelsByUserId
   )
 })
 
@@ -221,11 +214,6 @@ const MessageList = () => {
     setForceWideLayout(useWideMessageLayout)
     return () => setForceWideLayout(false)
   }, [setForceWideLayout, useWideMessageLayout])
-
-  const enteringMessageIds = useMessageEnterMotionIds({
-    messages,
-    scopeKey: data.listKey ?? topic.id
-  })
 
   const registerMessageElement = useCallback((id: string, element: HTMLElement | null) => {
     if (element) {
@@ -597,7 +585,6 @@ const MessageList = () => {
               const props: MessageGroupLayerProps = {
                 groupKey: key,
                 narrowMode: messageListNarrowMode,
-                enteringMessageIds,
                 isLatestAssistantGroup: key === latestAssistantGroupKey,
                 directAssistantModelsByUserId,
                 messages: groupMessages,

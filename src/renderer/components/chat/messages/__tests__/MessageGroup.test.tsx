@@ -721,75 +721,6 @@ describe('MessageGroup', () => {
     expect(container.querySelector('#message-user-bubble-editing-1 .message-menubar')).toBeNull()
   })
 
-  it('applies inline enter motion to newly inserted non-bubble user messages', () => {
-    mocks.settings.mockReturnValue({
-      multiModelMessageStyle: 'vertical',
-      gridColumns: 2,
-      gridPopoverTrigger: 'click',
-      messageFont: 'system',
-      fontSize: 14,
-      messageStyle: 'plain',
-      showMessageOutline: false
-    })
-
-    const message = {
-      ...createMessage('user-inline-1', 0, 'vertical'),
-      role: 'user'
-    } as MessageListItem & { index: number; multiModelMessageStyle: MultiModelMessageStyle }
-    const topic = { id: 'topic-1' } as Topic
-
-    const { container } = render(
-      <MessageGroup messages={[message]} topic={topic} enteringMessageIds={new Set(['user-inline-1'])} />
-    )
-
-    const messageElement = container.querySelector('#message-user-inline-1 .message')
-
-    expect(messageElement).toHaveAttribute('data-message-enter-motion', 'user-inline')
-    expect(messageElement).toHaveClass('animation-chat-message-enter-inline')
-  })
-
-  it('keeps sibling frames stable when enter motion changes within the group', () => {
-    mocks.settings.mockReturnValue({
-      multiModelMessageStyle: 'vertical',
-      gridColumns: 2,
-      gridPopoverTrigger: 'click',
-      messageFont: 'system',
-      fontSize: 14,
-      messageStyle: 'plain',
-      showMessageOutline: false
-    })
-
-    const messages = ['user-inline-a', 'user-inline-b'].map(
-      (id, index) =>
-        ({
-          ...createMessage(id, index, 'vertical'),
-          role: 'user'
-        }) as MessageListItem & { index: number; multiModelMessageStyle: MultiModelMessageStyle }
-    )
-    const topic = { id: 'topic-1' } as Topic
-    const view = render(<MessageGroup messages={messages} topic={topic} enteringMessageIds={new Set()} />)
-    const getRenderCount = (messageId: string) =>
-      mocks.MessageContent.mock.calls.filter(([props]) => props.messageId === messageId).length
-
-    expect(getRenderCount('user-inline-a')).toBe(1)
-    expect(getRenderCount('user-inline-b')).toBe(1)
-
-    view.rerender(<MessageGroup messages={messages} topic={topic} enteringMessageIds={new Set(['user-inline-a'])} />)
-    expect(getRenderCount('user-inline-a')).toBe(2)
-    expect(getRenderCount('user-inline-b')).toBe(1)
-    expect(view.container.querySelector('#message-user-inline-a .message')).toHaveAttribute(
-      'data-message-enter-motion',
-      'user-inline'
-    )
-
-    view.rerender(<MessageGroup messages={messages} topic={topic} enteringMessageIds={new Set()} />)
-    expect(getRenderCount('user-inline-a')).toBe(3)
-    expect(getRenderCount('user-inline-b')).toBe(1)
-    expect(view.container.querySelector('#message-user-inline-a .message')).not.toHaveAttribute(
-      'data-message-enter-motion'
-    )
-  })
-
   it('keeps user bubble content and footer out of the assistant title-column offset', () => {
     mocks.settings.mockReturnValue({
       multiModelMessageStyle: 'vertical',
@@ -821,33 +752,6 @@ describe('MessageGroup', () => {
     expect(contentContainer.style.width).toBe('')
     expect(footer.style.marginLeft).toBe('')
     expect(footer).toHaveClass('w-[calc(100%-30px)]')
-  })
-
-  it('applies bubble enter motion to newly inserted bubble user messages', () => {
-    mocks.settings.mockReturnValue({
-      multiModelMessageStyle: 'vertical',
-      gridColumns: 2,
-      gridPopoverTrigger: 'click',
-      messageFont: 'system',
-      fontSize: 14,
-      messageStyle: 'bubble',
-      showMessageOutline: false
-    })
-
-    const message = {
-      ...createMessage('user-bubble-1', 0, 'vertical'),
-      role: 'user'
-    } as MessageListItem & { index: number; multiModelMessageStyle: MultiModelMessageStyle }
-    const topic = { id: 'topic-1' } as Topic
-
-    const { container } = render(
-      <MessageGroup messages={[message]} topic={topic} enteringMessageIds={new Set(['user-bubble-1'])} />
-    )
-
-    const messageElement = container.querySelector('#message-user-bubble-1 .message')
-
-    expect(messageElement).toHaveAttribute('data-message-enter-motion', 'user-bubble')
-    expect(messageElement).toHaveClass('animation-chat-message-enter-bubble')
   })
 
   it('renders user messages with the normal card layout in multi-select mode', () => {
