@@ -759,7 +759,7 @@ function UsageSettings() {
   const costTotals = useMemo(() => getCostTotals(overviewBuckets), [overviewBuckets])
   const previousCostTotals = useMemo(() => getCostTotals(previousOverviewBuckets), [previousOverviewBuckets])
   const canShowCostMetric = costTotals.length === 1
-  const heatmapCostCurrency = canShowCostMetric ? costTotals[0].currency : undefined
+  const windowCostCurrency = canShowCostMetric ? costTotals[0].currency : undefined
   // Cost is only summable within a single currency, so mixed windows fall back to tokens
   // while keeping the stored preference intact.
   const activeChartMetric = chartMetric === 'cost' && !canShowCostMetric ? 'tokens' : chartMetric
@@ -1040,7 +1040,8 @@ function UsageSettings() {
   }
   const formatChartValue = (value: number, bucket?: UsageLedgerStatsBucket) => {
     if (activeChartMetric === 'cost') {
-      return formatCost(value, bucket?.costCurrency)
+      // Aggregates (window total, "Other") have no bucket; they belong to the window's single currency.
+      return formatCost(value, bucket?.costCurrency ?? windowCostCurrency)
     }
 
     return formatCompactNumber(value)
@@ -1094,7 +1095,7 @@ function UsageSettings() {
               tokens: otherExploreTokens,
               requests: otherExploreEntries,
               cost: otherExploreCost,
-              costCurrency: DEFAULT_COST_CURRENCY,
+              costCurrency: windowCostCurrency,
               share: totalExploreMetric > 0 ? otherExploreMetric / totalExploreMetric : 0,
               color: CHART_COLORS[exploreTopBuckets.length % CHART_COLORS.length],
               bucket: undefined
@@ -1400,7 +1401,7 @@ function UsageSettings() {
             metric={heatmapMetric}
             onMetricChange={setHeatmapMetric}
             onSelectDate={(date) => setSelectedDate((current) => (current === date ? undefined : date))}
-            costCurrency={heatmapCostCurrency}
+            costCurrency={windowCostCurrency}
             isCostDisabled={!canShowCostMetric}
             isLoading={timelineQueryResult.isLoading}
             range={windowRange}
