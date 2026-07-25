@@ -9,6 +9,9 @@ const mocks = vi.hoisted(() => ({
   createDefaultSession: vi.fn()
 }))
 
+vi.mock('@renderer/components/ContentSearch', () => ({
+  ContentSearch: () => null
+}))
 vi.mock('@renderer/components/QuickPanel', () => ({
   QuickPanelProvider: ({ children }: PropsWithChildren) => children
 }))
