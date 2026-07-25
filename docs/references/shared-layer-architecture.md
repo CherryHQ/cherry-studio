@@ -18,7 +18,7 @@ A module belongs in `@shared` only if **both** `main` and `renderer` actually us
 
 #### 1.1.1 Carve-out: the Cache schema registry
 
-The Cache subsystem is the one exception to §1.1. Every Cache **key schema and its value type** lives in `@shared/data/cache/` (`cacheSchemas.ts` + `cacheValueTypes.ts`) **regardless of which process consumes it** — including renderer-only types (`Tab`, `AgentOpenExternalAppTarget`, …). A renderer-only cache value type here is **compliant, not a §1.1 violation** — do not flag or relocate it. Cache subsystem only; §1.1 holds everywhere else.
+The Cache subsystem is the one exception to §1.1. Every Cache **key schema and its value type** lives in `@shared/data/cache/` (`cacheSchemas.ts` + `cacheValueTypes.ts`) **regardless of which process consumes it** — including renderer-only types (`Tab`, `ChatScrollAnchor`, `AgentOpenExternalAppTarget`, …). A renderer-only cache value type here is **compliant, not a §1.1 violation** — do not flag or relocate it. Cache subsystem only; §1.1 holds everywhere else.
 
 ### 1.2 No mutable runtime state
 

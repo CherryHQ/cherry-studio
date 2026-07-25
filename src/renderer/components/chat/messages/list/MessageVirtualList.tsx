@@ -105,6 +105,11 @@ export interface MessageVirtualListProps<T> {
   showScrollToBottomButton?: boolean
   /** Distance from the scroll viewport bottom to place the floating scroll-to-bottom affordance. */
   scrollToBottomButtonBottomOffset?: number
+  /**
+   * Topic id used to remember and restore this list's scroll position
+   * across remounts (topic / agent-session switches).
+   */
+  topicId?: string
 }
 
 export function MessageVirtualList<T>({
@@ -125,7 +130,8 @@ export function MessageVirtualList<T>({
   preserveScrollAnchor,
   keepMountedKeys,
   showScrollToBottomButton = false,
-  scrollToBottomButtonBottomOffset = MESSAGE_SCROLL_TO_BOTTOM_BUTTON_DEFAULT_BOTTOM_OFFSET_PX
+  scrollToBottomButtonBottomOffset = MESSAGE_SCROLL_TO_BOTTOM_BUTTON_DEFAULT_BOTTOM_OFFSET_PX,
+  topicId
 }: MessageVirtualListProps<T>): React.ReactElement {
   const { t } = useTranslation()
   const runtime = useChatVirtualizerRuntime({
@@ -138,6 +144,7 @@ export function MessageVirtualList<T>({
     topReachOverscanItems: overscan,
     topPadding,
     scrollToTopKey: forceScrollToBottomKey,
+    topicId,
     bottomPadding,
     preserveScrollAnchor,
     keepMountedKeys

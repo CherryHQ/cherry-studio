@@ -46,6 +46,7 @@ import { getEffectiveScrollSize, getRealBottom, isMoreThanOneViewportFromBottom 
 import { useAtBottomTracker } from './useAtBottomTracker'
 import { useAutoStickToBottom } from './useAutoStickToBottom'
 import { useScrollAnchor } from './useScrollAnchor'
+import { useScrollPositionMemory } from './useScrollPositionMemory'
 import { useSmoothScrollAnimation } from './useSmoothScrollAnimation'
 
 export interface MessageVirtualListHandle {
@@ -73,6 +74,11 @@ export interface ChatVirtualizerRuntimeOptions<T> {
    * the viewport top. Typically the latest user message after send.
    */
   scrollToTopKey?: string
+  /**
+   * Topic id used to remember and restore this list's scroll position
+   * across remounts (topic / agent-session switches). Omit to disable.
+   */
+  topicId?: string
   /** Padding reserved below the last message; used to restore to the bottom. */
   bottomPadding: number
   /** Keep the top-pinned user message stable while an assistant response is still growing. */
@@ -179,6 +185,7 @@ export function useChatVirtualizerRuntime<T>({
   topReachOverscanItems,
   topPadding = 0,
   scrollToTopKey,
+  topicId,
   bottomPadding,
   preserveScrollAnchor = false,
   keepMountedKeys = []
@@ -543,38 +550,22 @@ export function useChatVirtualizerRuntime<T>({
     )
   }, [])
 
-  // A newly mounted list always opens at the live edge. Normal tab switches
-  // keep this component mounted through React Activity, so their DOM scroll
-  // position is preserved naturally and this one-shot initializer does not run.
-  //
-  // The scroll runs one frame after the first non-empty render — virtua's
-  // `scrollToIndex` then measures and converges on the true bottom — and the
-  // bottom-follow claim checks suppression at fire time so a send/pin landing
-  // in the same window wins over it.
-  const didInitialScrollToLatestRef = useRef(false)
-  const initialScrollFrameRef = useRef(0)
-  const hasItems = items.length > 0
-  useEffect(() => {
-    if (didInitialScrollToLatestRef.current || !hasItems) return
-    didInitialScrollToLatestRef.current = true
+  // ---- per-topic scroll position memory -------------------------------
 
-    initialScrollFrameRef.current = requestAnimationFrame(() => {
-      const handle = vlistHandleRef.current
-      const scroller = scrollerRef.current
-      if (!handle && !scroller) return
-
-      anchor.release()
-      if (handle) {
-        handle.scrollToIndex(itemsRef.current.length - 1, { align: 'end', offset: bottomPadding })
-      } else if (scroller) {
-        scroller.scrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight)
-      }
-      if (!isBottomFollowSuppressed()) atBottom.notifyProgrammaticStick()
-    })
-  }, [anchor, atBottom, bottomPadding, hasItems, isBottomFollowSuppressed])
-  useEffect(() => {
-    return () => cancelAnimationFrame(initialScrollFrameRef.current)
-  }, [])
+  const { save: saveScrollPosition } = useScrollPositionMemory({
+    topicId,
+    itemCount: items.length,
+    bottomPadding,
+    scrollerRef,
+    vlistHandleRef,
+    getDataKeyAtIndex,
+    findDataIndexByKey,
+    isAtBottom: atBottom.isAtBottom,
+    notifyProgrammaticStick: atBottom.notifyProgrammaticStick,
+    suppressBottomFollow: isBottomFollowSuppressed,
+    releaseAnchor: anchor.release,
+    isAnimating: smoothScroll.isAnimating
+  })
 
   // ---- ResizeObserver: dispatch to anchor + auto-stick ----------------
 
@@ -805,6 +796,10 @@ export function useChatVirtualizerRuntime<T>({
     wasStreamingBeforeUserMessageRef.current = preserveScrollAnchor
   })
 
+  // Initial scroll on mount is owned by `useScrollPositionMemory` above: it
+  // restores the saved anchor for this topic, or scrolls to the newest message
+  // when there is nothing to restore.
+
   // ---- scroll / wheel handlers ---------------------------------------
 
   const wheelTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -944,6 +939,7 @@ export function useChatVirtualizerRuntime<T>({
         maintainFreezeScrollRange()
         reassertFreeze()
         updateScrollToBottomButtonVisibility()
+        saveScrollPosition()
         return
       }
     } else {
@@ -969,6 +965,7 @@ export function useChatVirtualizerRuntime<T>({
       }
     }
     updateScrollToBottomButtonVisibility()
+    saveScrollPosition()
     maybeNotifyReachTop(offset)
   }, [
     anchor,
@@ -979,6 +976,7 @@ export function useChatVirtualizerRuntime<T>({
     maintainFreezeScrollRange,
     maybeNotifyReachTop,
     reassertFreeze,
+    saveScrollPosition,
     smoothScroll,
     stickToEffectiveBottom,
     takeUserControl,
@@ -991,7 +989,10 @@ export function useChatVirtualizerRuntime<T>({
       captureFreezeAnchor(undefined, true)
     }
     userScrollGestureRef.current = false
-  }, [captureFreezeAnchor])
+    // Scrolling has settled — capture the exact resting position, bypassing the
+    // throttle that paces the in-flight `onScroll` saves.
+    saveScrollPosition(true)
+  }, [captureFreezeAnchor, saveScrollPosition])
   const scrollerProps = useMemo(() => ({ onWheel, onScroll, onScrollEnd }), [onScroll, onScrollEnd, onWheel])
 
   // ---- selection-survival keepMounted --------------------------------
