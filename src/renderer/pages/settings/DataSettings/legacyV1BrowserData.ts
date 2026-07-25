@@ -22,6 +22,8 @@ export const LEGACY_LOCAL_STORAGE_KEYS = [
   'tokenflux_token'
 ] as const
 
+const LEGACY_LOCAL_STORAGE_PREFIX = 'failed_favicon_'
+
 interface BrowserDataMeasurement {
   bytes: number
   issues: CacheCleanupIssue[]
@@ -31,11 +33,31 @@ function byteLength(value: string): number {
   return textEncoder.encode(value).byteLength
 }
 
+function collectLegacyLocalStorageKeys(): { keys: Set<string>; error?: unknown } {
+  const keys = new Set<string>(LEGACY_LOCAL_STORAGE_KEYS)
+  try {
+    for (let index = 0; index < localStorage.length; index++) {
+      const key = localStorage.key(index)
+      if (key?.startsWith(LEGACY_LOCAL_STORAGE_PREFIX)) {
+        keys.add(key)
+      }
+    }
+    return { keys }
+  } catch (error) {
+    return { keys, error }
+  }
+}
+
 function inspectLegacyLocalStorage(): BrowserDataMeasurement {
   let bytes = 0
   const issues: CacheCleanupIssue[] = []
+  const { keys, error: enumerationError } = collectLegacyLocalStorageKeys()
+  if (enumerationError) {
+    logger.warn('Failed to enumerate legacy localStorage keys', enumerationError as Error)
+    issues.push({ item: 'local_storage:failed_favicon_*', code: 'inspection_failed' })
+  }
 
-  for (const key of LEGACY_LOCAL_STORAGE_KEYS) {
+  for (const key of keys) {
     try {
       const value = localStorage.getItem(key)
       if (value !== null) {
@@ -142,8 +164,13 @@ async function deleteLegacyIndexedDb(): Promise<'cleared' | 'not_found' | 'block
 export async function clearLegacyV1BrowserData(): Promise<CacheCleanupGroupResult> {
   let clearedItems = 0
   const issues: CacheCleanupIssue[] = []
+  const { keys, error: enumerationError } = collectLegacyLocalStorageKeys()
+  if (enumerationError) {
+    logger.error('Failed to enumerate legacy localStorage keys', enumerationError as Error)
+    issues.push({ item: 'local_storage:failed_favicon_*', code: 'operation_failed' })
+  }
 
-  for (const key of LEGACY_LOCAL_STORAGE_KEYS) {
+  for (const key of keys) {
     try {
       if (localStorage.getItem(key) !== null) {
         localStorage.removeItem(key)

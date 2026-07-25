@@ -90,6 +90,7 @@ describe('legacyV1BrowserData', () => {
 
   it('estimates selected localStorage keys and every IndexedDB page', async () => {
     localStorage.setItem('persist:cherry-studio', 'legacy')
+    localStorage.setItem('failed_favicon_https://example.com', 'true')
     localStorage.setItem('cs_cache_persist', 'v2-cache')
     const rows = Array.from({ length: 205 }, (_, index) => ({
       id: `block-${String(index).padStart(3, '0')}`,
@@ -103,6 +104,8 @@ describe('legacyV1BrowserData', () => {
     const expectedBytes =
       encoder.encode('persist:cherry-studio').byteLength +
       encoder.encode('legacy').byteLength +
+      encoder.encode('failed_favicon_https://example.com').byteLength +
+      encoder.encode('true').byteLength +
       rows.reduce((total, row) => total + encoder.encode(JSON.stringify(row)).byteLength, 0)
 
     expect(result).toMatchObject({
@@ -128,12 +131,17 @@ describe('legacyV1BrowserData', () => {
     })
   })
 
-  it('deletes only the v1 keys and the CherryStudio database', async () => {
+  it('deletes only the v1 keys, failed favicon entries, and the CherryStudio database', async () => {
     for (const key of LEGACY_LOCAL_STORAGE_KEYS) {
       localStorage.setItem(key, `legacy-${key}`)
     }
+    const failedFaviconKeys = ['failed_favicon_https://example.com', 'failed_favicon_app://miniapp']
+    for (const key of failedFaviconKeys) {
+      localStorage.setItem(key, 'true')
+    }
     localStorage.setItem('cs_cache_persist', 'keep-cache')
     localStorage.setItem('modelscope_token', 'keep-token')
+    localStorage.setItem('failed-favicon-unrelated', 'keep-unrelated')
     const deleteDatabase = installDeleteDatabase('success')
 
     const result = await clearLegacyV1BrowserData()
@@ -142,8 +150,12 @@ describe('legacyV1BrowserData', () => {
     for (const key of LEGACY_LOCAL_STORAGE_KEYS) {
       expect(localStorage.getItem(key)).toBeNull()
     }
+    for (const key of failedFaviconKeys) {
+      expect(localStorage.getItem(key)).toBeNull()
+    }
     expect(localStorage.getItem('cs_cache_persist')).toBe('keep-cache')
     expect(localStorage.getItem('modelscope_token')).toBe('keep-token')
+    expect(localStorage.getItem('failed-favicon-unrelated')).toBe('keep-unrelated')
     expect(deleteDatabase).toHaveBeenCalledWith('CherryStudio')
   })
 
