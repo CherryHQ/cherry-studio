@@ -95,14 +95,13 @@ async function inspectCleanupGroup(group: CacheCleanupGroup): Promise<CacheClean
     let inspection = response.results[0]
     if (!inspection) throw new Error(`Missing cache cleanup inspection for ${group}`)
 
-    if (group === 'legacy_v1' && inspection.allowed) {
+    if (group === 'legacy_v1') {
       inspection = mergeLegacySizes(inspection, await inspectLegacyV1BrowserData())
     }
     return inspection
   } catch {
     return {
       group,
-      allowed: true,
       size: {
         bytes: null,
         accuracy: 'unavailable',
@@ -121,6 +120,7 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
   const [cleaning, setCleaning] = useState(false)
   const [hasRunCleanup, setHasRunCleanup] = useState(false)
   const inspectionGeneration = useRef(0)
+  const popupOpen = useRef(open)
 
   const refreshInspections = useCallback(async () => {
     const generation = ++inspectionGeneration.current
@@ -131,19 +131,12 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
         const inspection = await inspectCleanupGroup(group)
         if (generation !== inspectionGeneration.current) return
         setOptionStates((current) => ({ ...current, [group]: { loading: false, inspection } }))
-        if (!inspection.allowed) {
-          setSelected((current) => {
-            if (!current.has(group)) return current
-            const next = new Set(current)
-            next.delete(group)
-            return next
-          })
-        }
       })
     )
   }, [])
 
   useEffect(() => {
+    popupOpen.current = open
     if (open) {
       void refreshInspections()
     } else {
@@ -159,11 +152,7 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
       !state.loading && (state.inspection?.size.bytes === null || state.inspection?.size.completeness === 'partial')
   )
   const totalEstimated = selectedStates.some((state) => state.inspection?.size.accuracy === 'estimated')
-  const canConfirm =
-    !cleaning &&
-    selected.size > 0 &&
-    !totalLoading &&
-    selectedStates.every((state) => state.inspection?.allowed !== false)
+  const canConfirm = !cleaning && selected.size > 0 && !totalLoading
 
   const toggleGroup = (group: CacheCleanupGroup, checked: boolean) => {
     if (cleaning) return
@@ -214,22 +203,21 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
     try {
       await onClear(groups)
     } finally {
+      if (!popupOpen.current) return
       setHasRunCleanup(true)
-      await refreshInspections()
       setCleaning(false)
+      void refreshInspections()
     }
   }
 
+  const handleClose = () => {
+    popupOpen.current = false
+    resolve(undefined)
+  }
+
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && !cleaning && resolve(undefined)}>
-      <DialogContent
-        size="lg"
-        className="gap-5"
-        closeOnOverlayClick={!cleaning}
-        showCloseButton={!cleaning}
-        onEscapeKeyDown={(event) => {
-          if (cleaning) event.preventDefault()
-        }}>
+    <Dialog open={open} onOpenChange={(next) => !next && handleClose()}>
+      <DialogContent size="lg" className="gap-5">
         <DialogHeader>
           <DialogTitle>{t('settings.data.clear_cache.title')}</DialogTitle>
         </DialogHeader>
@@ -237,19 +225,17 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
         <div className="flex max-h-[60vh] flex-col gap-2 overflow-y-auto pr-1">
           {CLEANUP_OPTIONS.map(({ group, icon: Icon, titleKey, descriptionKey }) => {
             const state = optionStates[group]
-            const blocked = state.inspection?.allowed === false
-            const disabled = cleaning || blocked
 
             return (
               <label
                 key={group}
                 className={`flex gap-3 rounded-lg border p-3 ${
-                  disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-muted/40'
+                  cleaning ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-muted/40'
                 }`}>
                 <Checkbox
                   className="mt-0.5"
                   checked={selected.has(group)}
-                  disabled={disabled}
+                  disabled={cleaning}
                   onCheckedChange={(checked) => toggleGroup(group, checked === true)}
                 />
                 <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
@@ -261,11 +247,6 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
                     </span>
                   </span>
                   <span className="mt-1 block text-muted-foreground text-xs leading-5">{t(descriptionKey)}</span>
-                  {blocked ? (
-                    <span className="mt-1 block text-warning text-xs">
-                      {t('settings.data.clear_cache.migration_incomplete')}
-                    </span>
-                  ) : null}
                 </span>
               </label>
             )
@@ -278,8 +259,8 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
         </div>
 
         <DialogFooter>
-          <Button variant="outline" disabled={cleaning} onClick={() => resolve(undefined)}>
-            {t(hasRunCleanup ? 'common.close' : 'common.cancel')}
+          <Button variant="outline" onClick={handleClose}>
+            {t(cleaning || hasRunCleanup ? 'common.close' : 'common.cancel')}
           </Button>
           <Button variant="destructive" disabled={!canConfirm} loading={cleaning} onClick={handleConfirm}>
             {t('settings.data.clear_cache.button')}

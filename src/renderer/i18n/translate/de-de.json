@@ -5751,35 +5751,34 @@
         "v2_unavailable": "Backup & Restore V2 ist noch nicht verfügbar. Bald erhältlich."
       },
       "clear_cache": {
-        "approximately": "[to be translated]:Approx. {{size}}",
+        "approximately": "Ca. {{size}}",
         "button": "Cache löschen",
-        "calculating": "[to be translated]:Calculating…",
+        "calculating": "Wird berechnet…",
         "error": "Cache-Löschen fehlgeschlagen",
-        "migration_incomplete": "[to be translated]:Available after the v2 data migration is complete",
         "options": {
           "legacy_v1": {
-            "description": "[to be translated]:Data no longer used after upgrading, including old knowledge-base rollback data and old Memory data that was not migrated. Clearing it cannot be undone.",
-            "title": "[to be translated]:Leftover data from older versions"
+            "description": "Daten aus älteren Versionen, die nach dem Upgrade nicht mehr verwendet werden, einschließlich alter Rollback-Daten der Wissensdatenbank und alter Memory-Daten, die nicht migriert wurden. Das Löschen kann nicht rückgängig gemacht werden.",
+            "title": "Verbleibende Daten aus älteren Versionen"
           },
           "normal_cache": {
-            "description": "[to be translated]:HTTP, code, shader and CacheStorage caches, temporary files, and trace data.",
-            "title": "[to be translated]:Regular cache"
+            "description": "HTTP-, Code-, Shader- und CacheStorage-Caches sowie temporäre Dateien und Trace-Daten.",
+            "title": "Allgemeiner Cache"
           },
           "restore_staging": {
-            "description": "[to be translated]:Temporary files created by the older backup restore process. Clearing them prevents any unfinished restore from continuing.",
-            "title": "[to be translated]:Temporary restore files"
+            "description": "Temporäre Dateien, die bei der Wiederherstellung älterer Backups erstellt wurden. Nach dem Löschen kann eine nicht abgeschlossene Wiederherstellung nicht fortgesetzt werden.",
+            "title": "Temporäre Wiederherstellungsdateien"
           },
           "site_data": {
-            "description": "[to be translated]:Cookies and site storage used by websites and mini apps. You may be signed out of websites.",
-            "title": "[to be translated]:Website and mini app data"
+            "description": "Cookies und Website-Speicher, die von Websites und Mini-Apps verwendet werden. Möglicherweise werden Sie von Websites abgemeldet.",
+            "title": "Website- und Mini-App-Daten"
           }
         },
-        "partial_success": "[to be translated]:Cleanup finished, but some items could not be cleared",
-        "selected_total": "[to be translated]:Selected total",
+        "partial_success": "Bereinigung abgeschlossen, einige Elemente konnten jedoch nicht gelöscht werden",
+        "selected_total": "Ausgewählte Elemente gesamt",
         "success": "Cache erfolgreich geleert",
         "title": "Cache löschen",
-        "total_partial": "[to be translated]:{{size}} counted; some sizes are unknown",
-        "unavailable": "[to be translated]:Unable to calculate"
+        "total_partial": "{{size}} erfasst; einige Größen sind unbekannt",
+        "unavailable": "Berechnung nicht möglich"
       },
       "data": {
         "title": "Datenverzeichnis"

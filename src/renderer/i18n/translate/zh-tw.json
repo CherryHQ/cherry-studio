@@ -5751,35 +5751,34 @@
         "v2_unavailable": "V2 備份還原尚未上線，敬請期待"
       },
       "clear_cache": {
-        "approximately": "[to be translated]:Approx. {{size}}",
+        "approximately": "約 {{size}}",
         "button": "清除快取",
-        "calculating": "[to be translated]:Calculating…",
+        "calculating": "計算中…",
         "error": "清除快取失敗",
-        "migration_incomplete": "[to be translated]:Available after the v2 data migration is complete",
         "options": {
           "legacy_v1": {
-            "description": "[to be translated]:Data no longer used after upgrading, including old knowledge-base rollback data and old Memory data that was not migrated. Clearing it cannot be undone.",
-            "title": "[to be translated]:Leftover data from older versions"
+            "description": "升級後不再使用的舊版本資料，包括舊知識庫回復資料和未移轉的舊 Memory 資料。清理後無法復原。",
+            "title": "舊版本遺留資料"
           },
           "normal_cache": {
-            "description": "[to be translated]:HTTP, code, shader and CacheStorage caches, temporary files, and trace data.",
-            "title": "[to be translated]:Regular cache"
+            "description": "HTTP、程式碼、Shader、CacheStorage 快取，以及暫存檔和 Trace 資料。",
+            "title": "一般快取"
           },
           "restore_staging": {
-            "description": "[to be translated]:Temporary files created by the older backup restore process. Clearing them prevents any unfinished restore from continuing.",
-            "title": "[to be translated]:Temporary restore files"
+            "description": "舊版本備份還原過程中產生的暫存檔。清理後，未完成的還原將無法繼續。",
+            "title": "備份還原暫存檔"
           },
           "site_data": {
-            "description": "[to be translated]:Cookies and site storage used by websites and mini apps. You may be signed out of websites.",
-            "title": "[to be translated]:Website and mini app data"
+            "description": "網站和小程式使用的 Cookie 與網站儲存空間；清理後可能需要重新登入網站。",
+            "title": "網站與小程式資料"
           }
         },
-        "partial_success": "[to be translated]:Cleanup finished, but some items could not be cleared",
-        "selected_total": "[to be translated]:Selected total",
+        "partial_success": "清理已完成，但部分項目無法清除",
+        "selected_total": "所選項目總計",
         "success": "快取清除成功",
         "title": "清除快取",
-        "total_partial": "[to be translated]:{{size}} counted; some sizes are unknown",
-        "unavailable": "[to be translated]:Unable to calculate"
+        "total_partial": "已統計 {{size}}，部分大小未知",
+        "unavailable": "無法統計"
       },
       "data": {
         "title": "資料目錄"

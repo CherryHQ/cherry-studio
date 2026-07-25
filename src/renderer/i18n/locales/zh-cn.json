@@ -5755,7 +5755,6 @@
         "button": "清除缓存",
         "calculating": "计算中…",
         "error": "清除缓存失败",
-        "migration_incomplete": "完成 v2 数据迁移后才可清理",
         "options": {
           "legacy_v1": {
             "description": "升级后不再使用的旧版本数据，包括旧知识库回滚数据和未迁移的旧记忆数据。清理后无法恢复。",

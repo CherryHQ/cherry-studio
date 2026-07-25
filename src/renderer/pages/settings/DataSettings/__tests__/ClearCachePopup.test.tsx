@@ -39,7 +39,6 @@ describe('ClearCachePopup', () => {
           results: [
             {
               group,
-              allowed: true,
               size: {
                 bytes,
                 accuracy: group === 'restore_staging' ? 'exact' : 'estimated',
@@ -88,41 +87,6 @@ describe('ClearCachePopup', () => {
     expect(screen.getByText('0 B')).toBeInTheDocument()
   })
 
-  it('disables v1 and legacy restore cleanup while migration is incomplete', async () => {
-    inspectMock.mockImplementation(
-      (
-        _route: string,
-        { groups }: { groups: Array<'normal_cache' | 'site_data' | 'legacy_v1' | 'restore_staging'> }
-      ) => {
-        const group = groups[0]
-        const blocked = group === 'legacy_v1' || group === 'restore_staging'
-        return Promise.resolve({
-          results: [
-            {
-              group,
-              allowed: !blocked,
-              blockedReason: blocked ? 'migration_incomplete' : undefined,
-              size: {
-                bytes: blocked ? null : 0,
-                accuracy: blocked ? 'unavailable' : 'exact',
-                completeness: blocked ? 'partial' : 'complete',
-                issues: blocked ? [{ item: group, code: 'migration_incomplete' }] : []
-              }
-            }
-          ]
-        })
-      }
-    )
-
-    render(<ClearCachePopupContainer open resolve={vi.fn()} onClear={vi.fn()} />)
-
-    await waitFor(() => expect(screen.queryAllByText('计算中…')).toHaveLength(0))
-    expect(screen.getAllByRole('checkbox')[2]).toBeDisabled()
-    expect(screen.getAllByRole('checkbox')[3]).toBeDisabled()
-    expect(screen.getAllByText('完成 v2 数据迁移后才可清理')).toHaveLength(2)
-    expect(inspectBrowserMock).not.toHaveBeenCalled()
-  })
-
   it('marks the selected total as partially unknown when an item is only partially measured', async () => {
     inspectMock.mockImplementation(
       (
@@ -134,7 +98,6 @@ describe('ClearCachePopup', () => {
           results: [
             {
               group,
-              allowed: true,
               size: {
                 bytes: group === 'normal_cache' ? 1024 : 0,
                 accuracy: 'estimated',
@@ -153,7 +116,7 @@ describe('ClearCachePopup', () => {
     expect(screen.getAllByText('已统计 1 KB，部分大小未知')).toHaveLength(2)
   })
 
-  it('keeps the popup open, blocks repeated cleanup, and refreshes every size afterward', async () => {
+  it('blocks repeated cleanup and refreshes every size afterward when left open', async () => {
     let finishCleanup: (() => void) | undefined
     const cleanup = new Promise<void>((resolve) => {
       finishCleanup = resolve
@@ -168,6 +131,7 @@ describe('ClearCachePopup', () => {
 
     await waitFor(() => expect(onClear).toHaveBeenCalledWith(['normal_cache']))
     expect(confirmButton).toBeDisabled()
+    expect(screen.getByRole('button', { name: '关闭' })).toBeEnabled()
     expect(screen.getAllByRole('checkbox').every((checkbox) => checkbox.hasAttribute('disabled'))).toBe(true)
     expect(inspectMock).toHaveBeenCalledTimes(4)
 
@@ -181,5 +145,32 @@ describe('ClearCachePopup', () => {
     expect(resolve).not.toHaveBeenCalled()
     expect(confirmButton).toBeEnabled()
     expect(screen.getByRole('button', { name: '关闭' })).toBeEnabled()
+  })
+
+  it('allows closing while cleanup continues without rescanning the closed popup', async () => {
+    let finishCleanup: (() => void) | undefined
+    const cleanup = new Promise<void>((resolve) => {
+      finishCleanup = resolve
+    })
+    const onClear = vi.fn(() => cleanup)
+    const resolve = vi.fn()
+    const { rerender } = render(<ClearCachePopupContainer open resolve={resolve} onClear={onClear} />)
+
+    await waitFor(() => expect(screen.queryAllByText('计算中…')).toHaveLength(0))
+    const confirmButton = screen.getByRole('button', { name: '清除缓存' })
+    fireEvent.click(confirmButton)
+
+    await waitFor(() => expect(onClear).toHaveBeenCalledOnce())
+    expect(confirmButton).toBeDisabled()
+
+    fireEvent.click(screen.getByRole('button', { name: '关闭' }))
+    expect(resolve).toHaveBeenCalledWith(undefined)
+
+    rerender(<ClearCachePopupContainer open={false} resolve={resolve} onClear={onClear} />)
+    finishCleanup?.()
+    await cleanup
+
+    expect(onClear).toHaveBeenCalledOnce()
+    expect(inspectMock).toHaveBeenCalledTimes(4)
   })
 })

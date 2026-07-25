@@ -91,11 +91,10 @@ describe('appHandlers', () => {
   })
 
   it('delegates cache cleanup inspection and execution to the cleanup service', async () => {
-    inspectCacheCleanupMock.mockResolvedValue({ migrationStatus: 'completed', results: [] })
+    inspectCacheCleanupMock.mockResolvedValue({ results: [] })
     runCacheCleanupMock.mockResolvedValue({ results: [] })
 
     await expect(appHandlers['app.cache_cleanup.inspect']({ groups: ['normal_cache'] }, ctx)).resolves.toEqual({
-      migrationStatus: 'completed',
       results: []
     })
     await expect(appHandlers['app.cache_cleanup.run']({ groups: ['normal_cache', 'site_data'] }, ctx)).resolves.toEqual(

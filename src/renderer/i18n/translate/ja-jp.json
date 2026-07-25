@@ -5751,35 +5751,34 @@
         "v2_unavailable": "Backup & restore V2はまだ利用できません。近日公開予定です。"
       },
       "clear_cache": {
-        "approximately": "[to be translated]:Approx. {{size}}",
+        "approximately": "約 {{size}}",
         "button": "キャッシュをクリア",
-        "calculating": "[to be translated]:Calculating…",
+        "calculating": "計算中…",
         "error": "キャッシュのクリアに失敗しました",
-        "migration_incomplete": "[to be translated]:Available after the v2 data migration is complete",
         "options": {
           "legacy_v1": {
-            "description": "[to be translated]:Data no longer used after upgrading, including old knowledge-base rollback data and old Memory data that was not migrated. Clearing it cannot be undone.",
-            "title": "[to be translated]:Leftover data from older versions"
+            "description": "アップグレード後に使用されなくなったデータです。旧ナレッジベースのロールバック用データや、v2 に移行されなかった旧 Memory データが含まれます。削除後は復元できません。",
+            "title": "旧バージョンの残存データ"
           },
           "normal_cache": {
-            "description": "[to be translated]:HTTP, code, shader and CacheStorage caches, temporary files, and trace data.",
-            "title": "[to be translated]:Regular cache"
+            "description": "HTTP、コード、シェーダー、CacheStorage のキャッシュ、一時ファイル、Trace データ。",
+            "title": "通常のキャッシュ"
           },
           "restore_staging": {
-            "description": "[to be translated]:Temporary files created by the older backup restore process. Clearing them prevents any unfinished restore from continuing.",
-            "title": "[to be translated]:Temporary restore files"
+            "description": "旧バージョンのバックアップ復元処理で作成された一時ファイルです。削除すると、未完了の復元を続行できなくなります。",
+            "title": "復元用一時ファイル"
           },
           "site_data": {
-            "description": "[to be translated]:Cookies and site storage used by websites and mini apps. You may be signed out of websites.",
-            "title": "[to be translated]:Website and mini app data"
+            "description": "ウェブサイトとミニアプリが使用する Cookie とサイトストレージです。削除すると、ウェブサイトからログアウトする場合があります。",
+            "title": "ウェブサイトとミニアプリのデータ"
           }
         },
-        "partial_success": "[to be translated]:Cleanup finished, but some items could not be cleared",
-        "selected_total": "[to be translated]:Selected total",
+        "partial_success": "クリーンアップは完了しましたが、一部の項目を削除できませんでした",
+        "selected_total": "選択項目の合計",
         "success": "キャッシュがクリアされました",
         "title": "キャッシュをクリア",
-        "total_partial": "[to be translated]:{{size}} counted; some sizes are unknown",
-        "unavailable": "[to be translated]:Unable to calculate"
+        "total_partial": "{{size}} を集計済み（一部のサイズは不明）",
+        "unavailable": "計算できません"
       },
       "data": {
         "title": "データディレクトリ"

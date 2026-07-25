@@ -5751,35 +5751,34 @@
         "v2_unavailable": "La sauvegarde et la restauration V2 n'est pas encore disponible. Bientôt disponible."
       },
       "clear_cache": {
-        "approximately": "[to be translated]:Approx. {{size}}",
+        "approximately": "Environ {{size}}",
         "button": "Effacer le cache",
-        "calculating": "[to be translated]:Calculating…",
+        "calculating": "Calcul en cours…",
         "error": "Échec de l'effacement du cache",
-        "migration_incomplete": "[to be translated]:Available after the v2 data migration is complete",
         "options": {
           "legacy_v1": {
-            "description": "[to be translated]:Data no longer used after upgrading, including old knowledge-base rollback data and old Memory data that was not migrated. Clearing it cannot be undone.",
-            "title": "[to be translated]:Leftover data from older versions"
+            "description": "Données d’anciennes versions qui ne sont plus utilisées après la mise à niveau, notamment les anciennes données de restauration de la base de connaissances et les anciennes données Memory non migrées. Leur suppression est irréversible.",
+            "title": "Données résiduelles d’anciennes versions"
           },
           "normal_cache": {
-            "description": "[to be translated]:HTTP, code, shader and CacheStorage caches, temporary files, and trace data.",
-            "title": "[to be translated]:Regular cache"
+            "description": "Caches HTTP, de code, de shaders et CacheStorage, ainsi que fichiers temporaires et données de trace.",
+            "title": "Cache standard"
           },
           "restore_staging": {
-            "description": "[to be translated]:Temporary files created by the older backup restore process. Clearing them prevents any unfinished restore from continuing.",
-            "title": "[to be translated]:Temporary restore files"
+            "description": "Fichiers temporaires créés par l’ancien processus de restauration de sauvegarde. Leur suppression empêche toute restauration inachevée de se poursuivre.",
+            "title": "Fichiers temporaires de restauration"
           },
           "site_data": {
-            "description": "[to be translated]:Cookies and site storage used by websites and mini apps. You may be signed out of websites.",
-            "title": "[to be translated]:Website and mini app data"
+            "description": "Cookies et stockage de site utilisés par les sites web et les mini-apps. Vous devrez peut-être vous reconnecter à certains sites.",
+            "title": "Données des sites web et mini-apps"
           }
         },
-        "partial_success": "[to be translated]:Cleanup finished, but some items could not be cleared",
-        "selected_total": "[to be translated]:Selected total",
+        "partial_success": "Nettoyage terminé, mais certains éléments n’ont pas pu être supprimés",
+        "selected_total": "Total sélectionné",
         "success": "Le cache a été effacé avec succès",
         "title": "Effacer le cache",
-        "total_partial": "[to be translated]:{{size}} counted; some sizes are unknown",
-        "unavailable": "[to be translated]:Unable to calculate"
+        "total_partial": "Taille comptabilisée : {{size}} ; certaines tailles sont inconnues",
+        "unavailable": "Calcul impossible"
       },
       "data": {
         "title": "Répertoire des données"

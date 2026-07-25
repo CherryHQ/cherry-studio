@@ -4,7 +4,6 @@ import * as z from 'zod'
 import {
   CACHE_CLEANUP_GROUPS,
   CACHE_CLEANUP_ISSUE_CODES,
-  CACHE_CLEANUP_MIGRATION_STATUSES,
   CACHE_CLEANUP_RESULT_STATUSES,
   CACHE_CLEANUP_SIZE_ACCURACIES,
   CACHE_CLEANUP_SIZE_COMPLETENESS
@@ -69,13 +68,10 @@ export const appRequestSchemas = {
   'app.cache_cleanup.inspect': defineRoute({
     input: cacheCleanupGroupsInputSchema,
     output: z.object({
-      migrationStatus: z.enum(CACHE_CLEANUP_MIGRATION_STATUSES),
       results: z.array(
         z.object({
           group: cacheCleanupGroupSchema,
-          size: cacheCleanupSizeSchema,
-          allowed: z.boolean(),
-          blockedReason: z.literal('migration_incomplete').optional()
+          size: cacheCleanupSizeSchema
         })
       )
     })

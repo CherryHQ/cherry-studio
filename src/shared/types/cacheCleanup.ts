@@ -11,12 +11,8 @@ export type CacheCleanupSizeCompleteness = (typeof CACHE_CLEANUP_SIZE_COMPLETENE
 export const CACHE_CLEANUP_RESULT_STATUSES = ['cleared', 'not_found', 'partial', 'skipped', 'failed'] as const
 export type CacheCleanupResultStatus = (typeof CACHE_CLEANUP_RESULT_STATUSES)[number]
 
-export const CACHE_CLEANUP_MIGRATION_STATUSES = ['completed', 'incomplete'] as const
-export type CacheCleanupMigrationStatus = (typeof CACHE_CLEANUP_MIGRATION_STATUSES)[number]
-
 export const CACHE_CLEANUP_ISSUE_CODES = [
   'inspection_failed',
-  'migration_incomplete',
   'unsafe_target',
   'invalid_data',
   'operation_failed',
@@ -40,12 +36,9 @@ export interface CacheCleanupSizeSnapshot {
 export interface CacheCleanupGroupInspection {
   group: CacheCleanupGroup
   size: CacheCleanupSizeSnapshot
-  allowed: boolean
-  blockedReason?: 'migration_incomplete'
 }
 
 export interface CacheCleanupInspection {
-  migrationStatus: CacheCleanupMigrationStatus
   results: CacheCleanupGroupInspection[]
 }
 

@@ -5,7 +5,6 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { bootConfigService } from '@data/bootConfig'
-import { appStateTable } from '@data/db/schemas/appState'
 import { loggerService } from '@logger'
 import { getNormalizedExecutablePath } from '@main/core/preboot/userDataLocation'
 import type {
@@ -19,12 +18,10 @@ import type {
   CacheCleanupSizeSnapshot
 } from '@shared/types/cacheCleanup'
 import Database from 'better-sqlite3'
-import { eq } from 'drizzle-orm'
 import { type Session, session } from 'electron'
 
 const logger = loggerService.withContext('CacheCleanup')
 
-const MIGRATION_V2_STATUS_KEY = 'migration_v2_status'
 const SQLITE_SIDECAR_SUFFIXES = ['-wal', '-shm', '-journal'] as const
 const LEGACY_AGENTS_TABLES = [
   'agents',
@@ -309,21 +306,6 @@ async function inspectSiteData(): Promise<CacheCleanupSizeSnapshot> {
   )
 
   return toSizeSnapshot(await measurePaths(targets), 'estimated')
-}
-
-function isMigrationCompleted(): boolean {
-  try {
-    const db = application.get('DbService').getDb()
-    const row = db
-      .select({ value: appStateTable.value })
-      .from(appStateTable)
-      .where(eq(appStateTable.key, MIGRATION_V2_STATUS_KEY))
-      .get()
-    return isRecord(row?.value) && row.value.status === 'completed'
-  } catch (error) {
-    logger.warn('Failed to read v2 migration status', error as Error)
-    return false
-  }
 }
 
 async function inspectTarget(
@@ -701,22 +683,7 @@ async function inspectRestoreStaging(): Promise<CacheCleanupSizeSnapshot> {
   )
 }
 
-async function inspectGroup(
-  group: CacheCleanupGroup,
-  migrationCompleted: boolean
-): Promise<CacheCleanupGroupInspection> {
-  const requiresMigration = group === 'legacy_v1' || group === 'restore_staging'
-  const allowed = !requiresMigration || migrationCompleted
-
-  if (!allowed) {
-    return {
-      group,
-      allowed: false,
-      blockedReason: 'migration_incomplete',
-      size: toSizeSnapshot({ bytes: 0, issues: [issue(group, 'migration_incomplete')] }, 'exact')
-    }
-  }
-
+async function inspectGroup(group: CacheCleanupGroup): Promise<CacheCleanupGroupInspection> {
   try {
     const size =
       group === 'normal_cache'
@@ -726,22 +693,19 @@ async function inspectGroup(
           : group === 'legacy_v1'
             ? await inspectLegacyV1()
             : await inspectRestoreStaging()
-    return { group, size, allowed: true }
+    return { group, size }
   } catch (error) {
     logger.error('Unexpected cache cleanup inspection failure', { group, error })
     return {
       group,
-      allowed: true,
       size: toSizeSnapshot({ bytes: 0, issues: [issue(group, 'inspection_failed')] }, 'exact')
     }
   }
 }
 
 export async function inspectCacheCleanup(groups: CacheCleanupGroup[]): Promise<CacheCleanupInspection> {
-  const migrationCompleted = isMigrationCompleted()
   return {
-    migrationStatus: migrationCompleted ? 'completed' : 'incomplete',
-    results: await Promise.all(groups.map((group) => inspectGroup(group, migrationCompleted)))
+    results: await Promise.all(groups.map(inspectGroup))
   }
 }
 
@@ -862,10 +826,6 @@ async function applyJsonMutation(mutation: JsonMutation): Promise<CleanupStepRes
 }
 
 async function clearLegacyV1(): Promise<CacheCleanupGroupResult> {
-  if (!isMigrationCompleted()) {
-    return resultFromSteps('legacy_v1', [{ state: 'skipped', issue: issue('legacy_v1', 'migration_incomplete') }])
-  }
-
   const plan = await collectLegacyCleanupPlan()
   const steps = await Promise.all([...plan.targets.map(removeCleanupTarget), ...plan.mutations.map(applyJsonMutation)])
   steps.push(...plan.issues.map((targetIssue) => ({ state: 'skipped' as const, issue: targetIssue })))
@@ -873,12 +833,6 @@ async function clearLegacyV1(): Promise<CacheCleanupGroupResult> {
 }
 
 async function clearRestoreStaging(): Promise<CacheCleanupGroupResult> {
-  if (!isMigrationCompleted()) {
-    return resultFromSteps('restore_staging', [
-      { state: 'skipped', issue: issue('restore_staging', 'migration_incomplete') }
-    ])
-  }
-
   const { targets, issues } = await collectRestoreTargets()
   const steps = await Promise.all(targets.map(removeCleanupTarget))
   steps.push(...issues.map((targetIssue) => ({ state: 'skipped' as const, issue: targetIssue })))

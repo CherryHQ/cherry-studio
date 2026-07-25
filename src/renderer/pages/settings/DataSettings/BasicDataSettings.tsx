@@ -34,6 +34,7 @@ const BasicDataSettings: React.FC = () => {
   const { t } = useTranslation()
   const [appInfo, setAppInfo] = useState<AppInfo>()
   const [cacheSize, setCacheSize] = useState<CacheCleanupSizeSnapshot | null>()
+  const [clearingCache, setClearingCache] = useState(false)
   const { theme } = useTheme()
   const [skipBackupFile, setSkipBackupFile] = usePreference('data.backup.general.skip_backup_file')
   const [enableDataCollection, setEnableDataCollection] = usePreference('app.privacy.data_collection.enabled')
@@ -185,8 +186,11 @@ const BasicDataSettings: React.FC = () => {
   }
 
   const handleClearCache = () => {
+    if (clearingCache) return
+
     void ClearCachePopup.show({
       onClear: async (groups) => {
+        setClearingCache(true)
         try {
           const mainResult = await ipcApi.request('app.cache_cleanup.run', { groups })
           const results = mainResult.results
@@ -195,9 +199,7 @@ const BasicDataSettings: React.FC = () => {
             const legacyIndex = results.findIndex(({ group }) => group === 'legacy_v1')
             const mainLegacyResult = results[legacyIndex]
             if (!mainLegacyResult) throw new Error('Missing main-process v1 cleanup result')
-            if (!mainLegacyResult.issues.some(({ code }) => code === 'migration_incomplete')) {
-              results[legacyIndex] = mergeLegacyV1CleanupResults(mainLegacyResult, await clearLegacyV1BrowserData())
-            }
+            results[legacyIndex] = mergeLegacyV1CleanupResults(mainLegacyResult, await clearLegacyV1BrowserData())
           }
 
           const hasFailures = results.some(({ status }) => ['partial', 'skipped', 'failed'].includes(status))
@@ -208,9 +210,12 @@ const BasicDataSettings: React.FC = () => {
           }
         } catch {
           toast.error(t('settings.data.clear_cache.error'))
+        } finally {
+          setClearingCache(false)
+          void refreshCacheSize()
         }
       }
-    }).finally(refreshCacheSize)
+    })
   }
 
   const onSkipBackupFilesChange = (value: boolean) => {
@@ -304,7 +309,7 @@ const BasicDataSettings: React.FC = () => {
             )}
           </SettingRowTitle>
           <RowFlex className="gap-1.25">
-            <Button onClick={handleClearCache} variant="outline">
+            <Button onClick={handleClearCache} variant="outline" loading={clearingCache}>
               {t('settings.data.clear_cache.button')}
             </Button>
           </RowFlex>

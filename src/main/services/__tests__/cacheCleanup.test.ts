@@ -3,9 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { application } from '@application'
-import { appStateTable } from '@data/db/schemas/appState'
 import { inspectCacheCleanup, runCacheCleanup } from '@main/services/cacheCleanup'
-import { setupTestDatabase } from '@test-helpers/db'
 import Database from 'better-sqlite3'
 import { app, session } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -49,7 +47,6 @@ const KNOWLEDGE_SCHEMA =
 const MEMORY_SCHEMA = 'CREATE TABLE memories (id TEXT PRIMARY KEY, memory TEXT NOT NULL)'
 
 describe('cacheCleanup', () => {
-  const dbh = setupTestDatabase()
   let root: string
   let tracePath: string
 
@@ -114,16 +111,6 @@ describe('cacheCleanup', () => {
     await fs.rm(root, { recursive: true, force: true })
   })
 
-  function completeMigration(): void {
-    dbh.db
-      .insert(appStateTable)
-      .values({
-        key: 'migration_v2_status',
-        value: { status: 'completed' }
-      })
-      .run()
-  }
-
   it('sums both Electron sessions, disk caches, temp data, and traces', async () => {
     defaultSession.getCacheSize.mockResolvedValue(100)
     webviewSession.getCacheSize.mockResolvedValue(200)
@@ -143,7 +130,6 @@ describe('cacheCleanup', () => {
 
     expect(result.results[0]).toMatchObject({
       group: 'normal_cache',
-      allowed: true,
       size: {
         bytes: 353,
         accuracy: 'estimated',
@@ -193,21 +179,7 @@ describe('cacheCleanup', () => {
     })
   })
 
-  it('blocks legacy and restore cleanup until v2 migration completes', async () => {
-    const configPath = rootPath('config.json')
-    await fs.writeFile(configPath, JSON.stringify({ language: 'zh-cn' }))
-
-    const inspection = await inspectCacheCleanup(['legacy_v1', 'restore_staging'])
-    const cleanup = await runCacheCleanup(['legacy_v1', 'restore_staging'])
-
-    expect(inspection.migrationStatus).toBe('incomplete')
-    expect(inspection.results.every(({ allowed }) => !allowed)).toBe(true)
-    expect(cleanup.results.every(({ status }) => status === 'skipped')).toBe(true)
-    await expectExisting(configPath)
-  })
-
   it('removes exact owned files and directory trees without inspecting their contents', async () => {
-    completeMigration()
     const legacyFiles = [
       rootPath('config.json'),
       rootPath('window-state.json'),
@@ -244,7 +216,6 @@ describe('cacheCleanup', () => {
   })
 
   it('removes only schema-validated legacy knowledge and Memory databases', async () => {
-    completeMigration()
     const knowledgeRoot = rootPath('Data', 'KnowledgeBase')
     const legacyKnowledge = path.join(knowledgeRoot, 'legacy-base')
     const unrelatedKnowledge = path.join(knowledgeRoot, 'unrelated.db')
@@ -263,7 +234,6 @@ describe('cacheCleanup', () => {
     const inspection = await inspectCacheCleanup(['legacy_v1'])
     const cleanup = await runCacheCleanup(['legacy_v1'])
 
-    expect(inspection.migrationStatus).toBe('completed')
     expect(inspection.results[0]?.size.bytes).toBeGreaterThan(0)
     expect(cleanup.results[0]?.status).toBe('cleared')
     await expectMissing(legacyKnowledge, legacyMemory)
@@ -271,7 +241,6 @@ describe('cacheCleanup', () => {
   })
 
   it('does not follow a symbolic-link ancestor to a legacy database', async () => {
-    completeMigration()
     const externalMemoryDirectory = rootPath('ExternalMemory')
     const externalMemory = path.join(externalMemoryDirectory, 'memories.db')
     await fs.mkdir(externalMemoryDirectory)
@@ -286,7 +255,6 @@ describe('cacheCleanup', () => {
   })
 
   it('preserves a root agents.db copy when any SQLite sidecar differs', async () => {
-    completeMigration()
     const dataAgents = rootPath('Data', 'agents.db')
     const rootAgents = rootPath('agents.db')
     createSqlite(dataAgents, 'CREATE TABLE agents (id TEXT PRIMARY KEY)')
@@ -303,7 +271,6 @@ describe('cacheCleanup', () => {
   })
 
   it('removes only the current installation mapping from the shared legacy config', async () => {
-    completeMigration()
     const executablePath = rootPath('CherryStudio')
     const homeConfigPath = rootPath('HomeConfig', 'config.json')
     bootConfigGet.mockReturnValue({ [executablePath]: root })

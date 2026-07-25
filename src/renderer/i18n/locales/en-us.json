@@ -5755,7 +5755,6 @@
         "button": "Clear Cache",
         "calculating": "Calculating…",
         "error": "Error clearing cache",
-        "migration_incomplete": "Available after the v2 data migration is complete",
         "options": {
           "legacy_v1": {
             "description": "Data no longer used after upgrading, including old knowledge-base rollback data and old Memory data that was not migrated. Clearing it cannot be undone.",

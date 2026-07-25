@@ -5751,35 +5751,34 @@
         "v2_unavailable": "Sao lưu & khôi phục V2 chưa khả dụng. Sắp ra mắt."
       },
       "clear_cache": {
-        "approximately": "[to be translated]:Approx. {{size}}",
+        "approximately": "Khoảng {{size}}",
         "button": "Xóa bộ nhớ đệm",
-        "calculating": "[to be translated]:Calculating…",
+        "calculating": "Đang tính…",
         "error": "Lỗi khi xóa bộ nhớ cache",
-        "migration_incomplete": "[to be translated]:Available after the v2 data migration is complete",
         "options": {
           "legacy_v1": {
-            "description": "[to be translated]:Data no longer used after upgrading, including old knowledge-base rollback data and old Memory data that was not migrated. Clearing it cannot be undone.",
-            "title": "[to be translated]:Leftover data from older versions"
+            "description": "Dữ liệu từ các phiên bản cũ không còn được sử dụng sau khi nâng cấp, bao gồm dữ liệu hoàn tác cơ sở tri thức cũ và dữ liệu Memory cũ chưa được di chuyển. Không thể khôi phục sau khi xóa.",
+            "title": "Dữ liệu còn sót lại từ phiên bản cũ"
           },
           "normal_cache": {
-            "description": "[to be translated]:HTTP, code, shader and CacheStorage caches, temporary files, and trace data.",
-            "title": "[to be translated]:Regular cache"
+            "description": "Bộ nhớ đệm HTTP, mã, shader và CacheStorage, cùng các tệp tạm thời và dữ liệu truy vết.",
+            "title": "Bộ nhớ đệm thông thường"
           },
           "restore_staging": {
-            "description": "[to be translated]:Temporary files created by the older backup restore process. Clearing them prevents any unfinished restore from continuing.",
-            "title": "[to be translated]:Temporary restore files"
+            "description": "Các tệp tạm thời được tạo bởi quy trình khôi phục bản sao lưu cũ. Sau khi xóa, mọi quá trình khôi phục chưa hoàn tất sẽ không thể tiếp tục.",
+            "title": "Tệp khôi phục tạm thời"
           },
           "site_data": {
-            "description": "[to be translated]:Cookies and site storage used by websites and mini apps. You may be signed out of websites.",
-            "title": "[to be translated]:Website and mini app data"
+            "description": "Cookie và bộ nhớ trang web được các trang web và ứng dụng nhỏ sử dụng. Bạn có thể bị đăng xuất khỏi các trang web.",
+            "title": "Dữ liệu trang web và ứng dụng nhỏ"
           }
         },
-        "partial_success": "[to be translated]:Cleanup finished, but some items could not be cleared",
-        "selected_total": "[to be translated]:Selected total",
+        "partial_success": "Đã dọn dẹp xong nhưng không thể xóa một số mục",
+        "selected_total": "Tổng mục đã chọn",
         "success": "Bộ nhớ đệm đã được xóa",
         "title": "Xóa bộ nhớ đệm",
-        "total_partial": "[to be translated]:{{size}} counted; some sizes are unknown",
-        "unavailable": "[to be translated]:Unable to calculate"
+        "total_partial": "Đã tính {{size}}; chưa xác định được một số kích thước",
+        "unavailable": "Không thể tính"
       },
       "data": {
         "title": "Thư mục dữ liệu"

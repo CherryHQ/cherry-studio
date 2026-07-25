@@ -5751,35 +5751,34 @@
         "v2_unavailable": "Backup & restore V2 nu este încă disponibil. În curând."
       },
       "clear_cache": {
-        "approximately": "[to be translated]:Approx. {{size}}",
+        "approximately": "Aprox. {{size}}",
         "button": "Golește memoria cache",
-        "calculating": "[to be translated]:Calculating…",
+        "calculating": "Se calculează…",
         "error": "Eroare la golirea memoriei cache",
-        "migration_incomplete": "[to be translated]:Available after the v2 data migration is complete",
         "options": {
           "legacy_v1": {
-            "description": "[to be translated]:Data no longer used after upgrading, including old knowledge-base rollback data and old Memory data that was not migrated. Clearing it cannot be undone.",
-            "title": "[to be translated]:Leftover data from older versions"
+            "description": "Date din versiunile anterioare care nu mai sunt utilizate după actualizare, inclusiv date vechi pentru revenirea bazei de cunoștințe și date Memory vechi care nu au fost migrate. Ștergerea lor este ireversibilă.",
+            "title": "Date rămase din versiunile anterioare"
           },
           "normal_cache": {
-            "description": "[to be translated]:HTTP, code, shader and CacheStorage caches, temporary files, and trace data.",
-            "title": "[to be translated]:Regular cache"
+            "description": "Cache-uri HTTP, de cod, shader și CacheStorage, fișiere temporare și date de urmărire.",
+            "title": "Cache obișnuit"
           },
           "restore_staging": {
-            "description": "[to be translated]:Temporary files created by the older backup restore process. Clearing them prevents any unfinished restore from continuing.",
-            "title": "[to be translated]:Temporary restore files"
+            "description": "Fișiere temporare create de vechiul proces de restaurare a copiilor de siguranță. Ștergerea lor împiedică continuarea oricărei restaurări nefinalizate.",
+            "title": "Fișiere temporare de restaurare"
           },
           "site_data": {
-            "description": "[to be translated]:Cookies and site storage used by websites and mini apps. You may be signed out of websites.",
-            "title": "[to be translated]:Website and mini app data"
+            "description": "Cookie-uri și spațiu de stocare folosite de site-uri și miniaplicații. Este posibil să fiți deconectat de pe site-uri.",
+            "title": "Date pentru site-uri și miniaplicații"
           }
         },
-        "partial_success": "[to be translated]:Cleanup finished, but some items could not be cleared",
-        "selected_total": "[to be translated]:Selected total",
+        "partial_success": "Curățarea s-a încheiat, dar unele elemente nu au putut fi șterse",
+        "selected_total": "Total selectat",
         "success": "Memoria cache a fost golită",
         "title": "Golește memoria cache",
-        "total_partial": "[to be translated]:{{size}} counted; some sizes are unknown",
-        "unavailable": "[to be translated]:Unable to calculate"
+        "total_partial": "Dimensiune calculată: {{size}}; unele dimensiuni sunt necunoscute",
+        "unavailable": "Nu se poate calcula"
       },
       "data": {
         "title": "Director de date"
