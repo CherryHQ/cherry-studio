@@ -20,35 +20,11 @@
  * 4. Add renderer-only reusable patterns in `@layer components` when needed.
  * 5. Add custom utilities in `@layer utilities`.
  *
+ * The shared generated theme is the only Tailwind variable adapter. Do not
+ * recreate renderer aliases or duplicate its `@theme` mappings here. Genuine
+ * renderer-only App Shell variables belong in a dedicated owning stylesheet,
+ * not in this generic theme entry.
  */
-
-/* Renderer-only sidebar state tokens: light mode */
-:root {
-  --app-sidebar-active-bg: rgba(16, 185, 129, 0.08);
-  --app-sidebar-active-border: rgba(16, 185, 129, 0.15);
-  --app-sidebar-glow-bg: rgba(16, 185, 129, 0.25);
-  --app-sidebar-glow-line: rgba(16, 185, 129, 0.5);
-}
-
-/* Renderer-only sidebar state tokens: dark mode */
-.dark {
-  --app-sidebar-active-bg: rgba(114, 255, 121, 0.05);
-  --app-sidebar-active-border: rgba(114, 255, 121, 0.08);
-  --app-sidebar-glow-bg: rgba(114, 255, 121, 0.15);
-  --app-sidebar-glow-line: rgba(114, 255, 121, 0.35);
-}
-
-/*
- * Tailwind bridge for renderer-owned tokens.
- *
- * Keep this section limited to renderer-only app-shell tokens.
- */
-@theme inline {
-  --color-sidebar-active-bg: var(--app-sidebar-active-bg);
-  --color-sidebar-active-border: var(--app-sidebar-active-border);
-  --color-sidebar-glow-bg: var(--app-sidebar-glow-bg);
-  --color-sidebar-glow-line: var(--app-sidebar-glow-line);
-}
 
 @layer base {
   button:not(:disabled),
