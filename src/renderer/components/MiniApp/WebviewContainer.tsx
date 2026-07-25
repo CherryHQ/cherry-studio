@@ -167,7 +167,7 @@ const WebviewContainer = memo(
     const WebviewStyle: React.CSSProperties = {
       width: '100%',
       height: '100%',
-      backgroundColor: 'var(--color-background)',
+      backgroundColor: 'var(--background)',
       display: 'inline-flex'
     }
 

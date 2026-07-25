@@ -131,4 +131,37 @@ describe('canonicalGenerate', () => {
     expect(binaryImage).not.toHaveBeenCalled()
     expect(generatePaintingMock).not.toHaveBeenCalled()
   })
+
+  it('skips non-image input files (e.g. a pasted-text .txt) so they never ship as images', async () => {
+    const binaryImage = vi.fn(async () => ({ data: [1, 2, 3], mime: 'image/png' }))
+    ;(window as unknown as { api: unknown }).api = { file: { binaryImage } }
+
+    const inputFiles = [
+      { id: 'note', ext: 'txt' },
+      { id: 'pic', ext: 'png' }
+    ] as unknown as FileEntry[]
+    await canonicalGenerate(makeInput({}, { inputFiles }))
+
+    // Only the image was fetched/encoded; the .txt was filtered out.
+    expect(binaryImage).toHaveBeenCalledTimes(1)
+    expect(binaryImage).toHaveBeenCalledWith('pic.png')
+    expect(lastGenerateCall().inputImages).toEqual(['data:image/png;base64,AQID'])
+  })
+
+  it('throws EDIT_IMAGE_REQUIRED for an image-requiring mode with no image input', async () => {
+    await expect(canonicalGenerate(makeInput({}), { mode: 'edit' })).rejects.toMatchObject({
+      code: 'EDIT_IMAGE_REQUIRED'
+    })
+  })
+
+  it('throws EDIT_IMAGE_REQUIRED when the only input for an edit mode is a non-image file', async () => {
+    const inputFiles = [{ id: 'note', ext: 'txt' }] as unknown as FileEntry[]
+    await expect(canonicalGenerate(makeInput({}, { inputFiles }), { mode: 'edit' })).rejects.toMatchObject({
+      code: 'EDIT_IMAGE_REQUIRED'
+    })
+  })
+
+  it('allows the generate mode without any input image', async () => {
+    await expect(canonicalGenerate(makeInput({}), { mode: 'generate' })).resolves.toEqual([])
+  })
 })

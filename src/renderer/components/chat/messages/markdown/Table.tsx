@@ -87,7 +87,7 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
           ref={tableRef}
           className="[&&_td]:wrap-break-word [&&_th]:wrap-break-word [&&]:my-0 [&&]:w-full [&&]:min-w-160 [&&]:border-separate [&&]:bg-transparent [&&]:text-[0.9em] [&&]:text-foreground [&&]:leading-(--line-height-body-md) [&&_tbody]:bg-transparent [&&_td:last-child]:border-r-0 [&&_td]:border-border-muted [&&_td]:border-r-[0.5px] [&&_td]:border-b-[0.5px] [&&_td]:bg-transparent [&&_td]:p-[0.5em] [&&_td]:align-top [&&_td]:font-normal [&&_td]:tracking-normal [&&_th:last-child]:border-r-0 [&&_th]:border-border-muted [&&_th]:border-r-[0.5px] [&&_th]:border-b-[0.5px] [&&_th]:bg-muted [&&_th]:p-[0.5em] [&&_th]:text-left [&&_th]:align-top [&&_th]:font-semibold [&&_th]:tracking-normal [&&_thead]:bg-transparent [&&_tr:hover]:bg-accent [&&_tr:last-child_td]:border-b-0 [&&_tr]:bg-transparent"
           style={{
-            border: '0.5px solid var(--color-border)',
+            border: '0.5px solid var(--border)',
             borderRadius: 'var(--radius-md)',
             borderSpacing: 0,
             margin: 0,
@@ -105,7 +105,7 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
                 role="button"
                 aria-label={t('common.copy')}
                 onClick={handleCopyTable}>
-                {copied ? <Check size={14} color="var(--color-primary)" /> : <CopyIcon size={14} />}
+                {copied ? <Check size={14} color="var(--primary)" /> : <CopyIcon size={14} />}
               </div>
             </Tooltip>
           )}

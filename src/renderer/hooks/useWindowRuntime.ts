@@ -19,8 +19,8 @@ const logger = loggerService.withContext('useWindowRuntime')
 
 // A macOS transparent window blends the nav area with the vibrancy behind it; every
 // other window uses the opaque sidebar token.
-const MAC_TRANSPARENT_NAV_BACKGROUND = 'color-mix(in srgb, var(--color-background) 55%, transparent)'
-const DEFAULT_NAV_BACKGROUND = 'var(--color-sidebar)'
+const MAC_TRANSPARENT_NAV_BACKGROUND = 'color-mix(in srgb, var(--background) 55%, transparent)'
+const DEFAULT_NAV_BACKGROUND = 'var(--sidebar)'
 
 /**
  * The window runtime shared by every full-chrome window (main + subWindow): the

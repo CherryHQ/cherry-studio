@@ -640,13 +640,13 @@ describe('ProviderRegistryService', () => {
       const models = providerRegistryService.listProviderRegistryModels({ providerId: 'radeon-cloud' })
 
       expect(models.map(({ presetModelId, apiModelId }) => [presetModelId, apiModelId])).toEqual([
-        ['qwen3-6-35b-a3b', 'Qwen3.6-35B-A3B'],
         ['deepseek-v4-flash', 'DeepSeek-V4-Flash'],
         ['deepseek-v4-pro', 'DeepSeek-V4-Pro'],
         ['glm-5-1', 'GLM-5.1'],
         ['glm-5-2', 'GLM-5.2'],
         ['gpt-oss-120b', 'gpt-oss-120b'],
-        ['kimi-k2-6', 'Kimi-K2.6']
+        ['kimi-k2-6', 'Kimi-K2.6'],
+        ['qwen3-6-35b-a3b', 'Qwen3.6-35B-A3B']
       ])
     })
 

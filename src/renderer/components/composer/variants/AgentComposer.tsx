@@ -112,7 +112,6 @@ import {
   COMPOSER_ICON_ONLY_LABEL_CLASS,
   COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
   COMPOSER_SELECTOR_BUTTON_CLASS,
-  COMPOSER_SEND_ACCESSORY_BUTTON_CLASS,
   COMPOSER_TOOLBAR_CLASS,
   ComposerBelowControls,
   ComposerToolbarControls,
@@ -135,6 +134,7 @@ const ResourceEditDialogHost = React.lazy(() =>
 
 const AGENT_MANAGED_TOKEN_KINDS = ['file', 'skill'] as const satisfies readonly ComposerDraftToken['kind'][]
 const AGENT_SKILLS_LAUNCHER_ID = 'agent-skills'
+const AGENT_NEW_SESSION_TOOL_ID = 'composer:new-session'
 const EMPTY_ACCESSIBLE_PATHS: readonly string[] = []
 const FILE_IPC_BATCH_SIZE = 500
 
@@ -728,7 +728,7 @@ function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessio
         aria-label={`${t('agent.right_pane.info.context_usage')} ${percentage}%`}
         aria-busy={isCompacting || undefined}
         className={cn(
-          'relative inline-grid size-5 shrink-0 place-items-center rounded-full bg-[conic-gradient(var(--context-usage-color)_var(--context-usage-progress),var(--color-border-subtle)_0)]',
+          'relative inline-grid size-5 shrink-0 place-items-center rounded-full bg-[conic-gradient(var(--context-usage-color)_var(--context-usage-progress),var(--border-subtle)_0)]',
           isCompacting && 'animate-pulse'
         )}
         style={
@@ -927,6 +927,10 @@ const AgentComposerInner = ({
   const agentModelFilter = useAgentModelFilter(agentBase?.type)
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
   const [workspaceWarning, setWorkspaceWarning] = useState<string | undefined>(undefined)
+  const pinnedLauncherIds = useMemo(
+    () => pinnedToolIds.map((id) => (id === 'skills' ? AGENT_SKILLS_LAUNCHER_ID : id)),
+    [pinnedToolIds]
+  )
   const initialDraftRef = useRef<AgentComposerDraftCache | null>(null)
   if (initialDraftRef.current === null) {
     initialDraftRef.current = readAgentDraftCache(getAgentDraftCacheKey(agentId))
@@ -1196,7 +1200,7 @@ const AgentComposerInner = ({
 
     return [
       {
-        id: 'composer:new-session',
+        id: AGENT_NEW_SESSION_TOOL_ID,
         label,
         icon: <NewConversationIcon size={16} />,
         filterText: label,
@@ -1424,24 +1428,23 @@ const AgentComposerInner = ({
     />
   )
 
-  const newSessionControl = hasNewSessionAction ? (
-    <Tooltip content={t('agent.session.new')} placement="top">
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        className={cn(COMPOSER_SEND_ACCESSORY_BUTTON_CLASS, '[&_.new-conversation-icon]:!size-5')}
-        aria-label={t('agent.session.new')}
-        onClick={handleCreateEmptySession}>
-        <NewConversationIcon size={20} aria-hidden />
-      </Button>
-    </Tooltip>
-  ) : undefined
-
   const toolbarCustomTools = useMemo<ComposerToolbarCustomTool[]>(() => {
+    const newSessionLabel = t('agent.session.new')
     const skillLabel = t('plugins.skills')
     const slashCommandsLabel = t('chat.input.slash_commands.title')
     return [
+      ...(hasNewSessionAction
+        ? [
+            {
+              id: AGENT_NEW_SESSION_TOOL_ID,
+              label: newSessionLabel,
+              icon: <NewConversationIcon size={18} aria-hidden />,
+              customizePlacement: 'leading' as const,
+              requiresPanel: false,
+              onSelect: () => handleCreateEmptySession()
+            }
+          ]
+        : []),
       {
         id: 'skills',
         label: skillLabel,
@@ -1463,7 +1466,7 @@ const AgentComposerInner = ({
           unifiedPanelControl?.open({ launcherId: ComposerPanelSymbol.McpStatus, searchText: 'MCP' })
       }
     ]
-  }, [t])
+  }, [handleCreateEmptySession, hasNewSessionAction, t])
 
   const renderQuickPanelShortcuts = useCallback(
     ({
@@ -1509,7 +1512,6 @@ const AgentComposerInner = ({
     canChangeModel,
     onModelSelect: handleModelSelect,
     modelFilter: agentModelFilter,
-    leadingControl: newSessionControl,
     renderQuickPanelShortcuts,
     onAgentChange: handleAgentChange,
     renderWorkspaceControl
@@ -1525,7 +1527,7 @@ const AgentComposerInner = ({
         <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} reasoning={reasoningContext} />
       )}
       <ResourceEditDialogEventHost />
-      <ComposerPinnedToolsProvider value={pinnedToolIds}>
+      <ComposerPinnedToolsProvider value={pinnedLauncherIds}>
         <ComposerSurface
           text={text}
           onTextChange={handleTextChange}
