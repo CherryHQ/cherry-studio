@@ -1,8 +1,10 @@
+import { cacheService } from '@data/CacheService'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
+import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -70,7 +72,6 @@ const agentPageMocks = vi.hoisted(() => ({
   setLastUsedAgentId: vi.fn(),
   setLastUsedSessionId: vi.fn(),
   setLastUsedWorkspaceId: vi.fn(),
-  setSessionExpansionAgent: vi.fn(),
   setClassicLayoutRightPaneOpenOverride: vi.fn(),
   setShowSidebar: vi.fn(),
   closeConversationTabs: vi.fn(),
@@ -103,8 +104,7 @@ const agentPageMocks = vi.hoisted(() => ({
   isLatestSessionLoading: false,
   // `undefined` → derive the latest from `classicLayoutSessions`; `null` → none; a session → that exact
   // session (used to prove first-entry restore reads the dedicated latest query, not the paged list).
-  latestSessionOverride: undefined as { id: string; updatedAt: string } | null | undefined,
-  sessionExpansionAgent: [] as string[]
+  latestSessionOverride: undefined as { id: string; updatedAt: string } | null | undefined
 }))
 
 const activeSessionMocks = vi.hoisted(() => ({
@@ -195,8 +195,6 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
             return agentPageMocks.lastUsedWorkspaceId
           case 'ui.agent.right_pane_open_override':
             return agentPageMocks.classicLayoutRightPaneOpenOverride
-          case 'ui.agent.session.expansion.agent':
-            return agentPageMocks.sessionExpansionAgent
           default:
             return undefined
         }
@@ -206,13 +204,12 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
         key !== 'ui.agent.last_used_agent_id' &&
         key !== 'ui.agent.last_used_session_id' &&
         key !== 'ui.agent.last_used_workspace_id' &&
-        key !== 'ui.agent.right_pane_open_override' &&
-        key !== 'ui.agent.session.expansion.agent'
+        key !== 'ui.agent.right_pane_open_override'
       ) {
         return [undefined, vi.fn()]
       }
 
-      const setCache = vi.fn((nextValue: string | boolean | string[] | null) => {
+      const setCache = vi.fn((nextValue: string | boolean | null) => {
         if (key === 'ui.agent.last_used_agent_id') {
           agentPageMocks.lastUsedAgentId = nextValue as string | null
           agentPageMocks.setLastUsedAgentId(nextValue)
@@ -222,9 +219,6 @@ vi.mock('@renderer/data/hooks/useCache', async () => {
         } else if (key === 'ui.agent.right_pane_open_override') {
           agentPageMocks.classicLayoutRightPaneOpenOverride = nextValue as boolean | null
           agentPageMocks.setClassicLayoutRightPaneOpenOverride(nextValue)
-        } else if (key === 'ui.agent.session.expansion.agent') {
-          agentPageMocks.sessionExpansionAgent = nextValue as string[]
-          agentPageMocks.setSessionExpansionAgent(nextValue)
         } else {
           agentPageMocks.lastUsedWorkspaceId = nextValue as string | null
           agentPageMocks.setLastUsedWorkspaceId(nextValue)
@@ -713,7 +707,9 @@ describe('AgentPage', () => {
     agentPageMocks.lastUsedSessionId = null
     agentPageMocks.lastUsedWorkspaceId = null
     agentPageMocks.sessionsById.clear()
-    agentPageMocks.sessionExpansionAgent = []
+    // AgentPage writes its write-only persist keys (session expansion, global-search
+    // recents) straight through cacheService, bypassing the hook mock below.
+    MockCacheUtils.resetMocks()
     agentPageMocks.classicLayoutRightPaneOpenOverride = null
     agentPageMocks.activeSessionOptions = null
     agentPageMocks.pendingSession = null
@@ -956,7 +952,10 @@ describe('AgentPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Move sessions left' }))
 
     await waitFor(() => expect(agentPageMocks.sessionPanePosition).toBe('left'))
-    expect(agentPageMocks.sessionExpansionAgent).toEqual(['session:agent:agent-b', 'session:agent:agent-c'])
+    expect(cacheService.getPersist('ui.agent.session.expansion.agent')).toEqual([
+      'session:agent:agent-b',
+      'session:agent:agent-c'
+    ])
   })
 
   it('renders the agent resource view inside the stable AgentChat shell', () => {

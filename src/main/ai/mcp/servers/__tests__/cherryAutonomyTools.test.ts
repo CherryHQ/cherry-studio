@@ -23,11 +23,11 @@ const mockGetChannel = vi.fn()
 const mockUpdateChannel = vi.fn()
 const mockDeleteChannel = vi.fn()
 
+// Task reads stay on AgentTaskService; task commands (create / delete) go
+// through the AgentJobsService routed via the application mock below.
 vi.mock('@data/services/AgentTaskService', () => ({
   agentTaskService: {
-    createTask: mockCreateTask,
-    listTasks: mockListTasks,
-    deleteTask: mockDeleteTask
+    listTasks: mockListTasks
   }
 }))
 
@@ -41,6 +41,10 @@ vi.mock('@data/services/AgentService', () => ({
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
+    AgentJobsService: {
+      createTask: mockCreateTask,
+      deleteTask: mockDeleteTask
+    },
     ChannelManager: {
       getNotifyAdapters: mockGetNotifyAdapters,
       getAgentAdapters: mockGetNotifyAdapters,
@@ -120,7 +124,7 @@ describe('CherryAutonomyTools', () => {
   describe('add action', () => {
     it('should create a task with cron schedule', async () => {
       const task = { id: 'task_1', name: 'test', scheduleType: 'cron', scheduleValue: '0 9 * * 1-5' }
-      mockCreateTask.mockResolvedValue(task)
+      mockCreateTask.mockReturnValue(task)
 
       const server = createServer('agent_1')
       const result = await callTool(server, {
@@ -143,7 +147,7 @@ describe('CherryAutonomyTools', () => {
 
     it('should create a task with interval schedule', async () => {
       const task = { id: 'task_2', name: 'check', trigger: { kind: 'interval', ms: 30 * 60_000 } }
-      mockCreateTask.mockResolvedValue(task)
+      mockCreateTask.mockReturnValue(task)
 
       const server = createServer('agent_2')
       await callTool(server, {
@@ -164,7 +168,7 @@ describe('CherryAutonomyTools', () => {
     })
 
     it('should parse hour+minute durations', async () => {
-      mockCreateTask.mockResolvedValue({ id: 'task_3' })
+      mockCreateTask.mockReturnValue({ id: 'task_3' })
 
       const server = createServer()
       await callTool(server, {
@@ -183,7 +187,7 @@ describe('CherryAutonomyTools', () => {
     })
 
     it('should create a one-time task with at', async () => {
-      mockCreateTask.mockResolvedValue({ id: 'task_4' })
+      mockCreateTask.mockReturnValue({ id: 'task_4' })
 
       const server = createServer()
       await callTool(server, {
@@ -229,7 +233,7 @@ describe('CherryAutonomyTools', () => {
 
     it('should subscribe explicit channel_ids owned by this agent', async () => {
       mockGetChannel.mockReturnValue({ id: 'ch_own', agentId: 'agent_1' })
-      mockCreateTask.mockResolvedValue({ id: 'task_ch' })
+      mockCreateTask.mockReturnValue({ id: 'task_ch' })
 
       const server = createServer('agent_1')
       await callTool(server, {
