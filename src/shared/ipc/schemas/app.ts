@@ -87,6 +87,7 @@ export const appRequestSchemas = {
     output: z.number()
   }),
   'app.set_spell_check_enabled': defineRoute({ input: z.boolean(), output: z.void() }),
+  'app.data_reset.request': defineRoute({ input: z.void(), output: z.void() }),
   'app.updater.check_for_update': defineRoute({ input: z.void(), output: z.void() }),
   'app.updater.quit_and_install': defineRoute({ input: z.void(), output: z.void() })
 }

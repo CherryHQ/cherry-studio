@@ -8,6 +8,7 @@ import {
   type KnowledgeBase,
   type KnowledgeItemOf
 } from '@shared/data/types/knowledge'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as PathStorage from '../utils/storage/pathStorage'
@@ -1077,7 +1078,9 @@ describe('KnowledgeService', () => {
     knowledgeItemUpdateStatusMock.mockReturnValueOnce(processingFile)
     knowledgeItemGetByIdMock.mockReturnValueOnce(processingFile)
 
-    await service.addItems('kb-1', [{ type: 'file', data: { source: '/docs/source.pdf', path: '/docs/source.pdf' } }])
+    await service.addItems('kb-1', [
+      { type: 'file', data: { source: '/docs/source.pdf', path: '/docs/source.pdf' as AbsoluteFilePath } }
+    ])
 
     expect(fileProcessingStartJobMock).toHaveBeenCalledWith(
       {
@@ -1125,8 +1128,8 @@ describe('KnowledgeService', () => {
       .mockReturnValueOnce(createFileItem('file-2', 'kb-1', '/Users/me/b/notes.md', 'processing'))
 
     await service.addItems('kb-1', [
-      { type: 'file', data: { source: '/Users/me/a/notes.md', path: '/Users/me/a/notes.md' } },
-      { type: 'file', data: { source: '/Users/me/b/notes.md', path: '/Users/me/b/notes.md' } }
+      { type: 'file', data: { source: '/Users/me/a/notes.md', path: '/Users/me/a/notes.md' as AbsoluteFilePath } },
+      { type: 'file', data: { source: '/Users/me/b/notes.md', path: '/Users/me/b/notes.md' as AbsoluteFilePath } }
     ])
 
     // Both imports land; the second's relativePath is deduped (`_N`) rather than refused.
@@ -1149,8 +1152,8 @@ describe('KnowledgeService', () => {
       .mockReturnValueOnce(createFileItem('file-2', 'kb-1', '/Users/me/b/brief.docx', 'processing'))
 
     await service.addItems('kb-1', [
-      { type: 'file', data: { source: '/Users/me/a/brief.pdf', path: '/Users/me/a/brief.pdf' } },
-      { type: 'file', data: { source: '/Users/me/b/brief.docx', path: '/Users/me/b/brief.docx' } }
+      { type: 'file', data: { source: '/Users/me/a/brief.pdf', path: '/Users/me/a/brief.pdf' as AbsoluteFilePath } },
+      { type: 'file', data: { source: '/Users/me/b/brief.docx', path: '/Users/me/b/brief.docx' as AbsoluteFilePath } }
     ])
 
     // brief.pdf reserves brief.pdf + its brief.md output; brief.docx would also emit
@@ -1178,7 +1181,7 @@ describe('KnowledgeService', () => {
         data: {
           source: 'https://example.com/new',
           url: 'https://example.com/new',
-          snapshotPath: '/captured/example-page.md'
+          snapshotPath: '/captured/example-page.md' as AbsoluteFilePath
         }
       }
     ])
@@ -1216,7 +1219,7 @@ describe('KnowledgeService', () => {
           data: {
             source: 'https://example.com/p',
             url: 'https://example.com/p',
-            snapshotPath: '/captured/example-page.md'
+            snapshotPath: '/captured/example-page.md' as AbsoluteFilePath
           }
         }
       ])
@@ -1252,7 +1255,10 @@ describe('KnowledgeService', () => {
     )
 
     await service.addItems('kb-1', [
-      { type: 'file', data: { source: '/Users/me/Meeting notes.md', path: '/Users/me/Meeting notes.md' } }
+      {
+        type: 'file',
+        data: { source: '/Users/me/Meeting notes.md', path: '/Users/me/Meeting notes.md' as AbsoluteFilePath }
+      }
     ])
 
     // The new file's name collides with the existing note's reserved snapshot path, so it is
@@ -1311,7 +1317,7 @@ describe('KnowledgeService', () => {
     knowledgeItemGetItemsByBaseIdMock.mockReturnValue([createFileItem('file-existing', 'kb-1', '/old/notes.md')])
 
     await service.addItems('kb-1', [
-      { type: 'file', data: { source: '/Users/me/c/notes.md', path: '/Users/me/c/notes.md' } }
+      { type: 'file', data: { source: '/Users/me/c/notes.md', path: '/Users/me/c/notes.md' as AbsoluteFilePath } }
     ])
 
     expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledWith('kb-1', '/Users/me/c/notes.md', 'notes_1.md')
@@ -1326,7 +1332,7 @@ describe('KnowledgeService', () => {
     knowledgeItemGetItemsByBaseIdMock.mockReturnValue([createFileItem('file-existing', 'kb-1', '/old/brief.pdf')])
 
     await service.addItems('kb-1', [
-      { type: 'file', data: { source: '/Users/me/c/brief.md', path: '/Users/me/c/brief.md' } }
+      { type: 'file', data: { source: '/Users/me/c/brief.md', path: '/Users/me/c/brief.md' as AbsoluteFilePath } }
     ])
 
     expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledWith('kb-1', '/Users/me/c/brief.md', 'brief_1.md')
@@ -1337,7 +1343,9 @@ describe('KnowledgeService', () => {
     knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: null }))
 
     await expect(
-      service.addItems('kb-1', [{ type: 'file', data: { source: '/Users/me/app.exe', path: '/Users/me/app.exe' } }])
+      service.addItems('kb-1', [
+        { type: 'file', data: { source: '/Users/me/app.exe', path: '/Users/me/app.exe' as AbsoluteFilePath } }
+      ])
     ).rejects.toThrow('Unsupported knowledge file type: /Users/me/app.exe')
 
     expect(knowledgeItemCreateMock).not.toHaveBeenCalled()
@@ -1513,7 +1521,9 @@ describe('KnowledgeService', () => {
     knowledgeItemUpdateStatusMock.mockReturnValueOnce(processingFile)
     knowledgeItemGetByIdMock.mockReturnValueOnce(processingFile)
 
-    await service.addItems('kb-1', [{ type: 'file', data: { source: '/docs/source.md', path: '/docs/source.md' } }])
+    await service.addItems('kb-1', [
+      { type: 'file', data: { source: '/docs/source.md', path: '/docs/source.md' as AbsoluteFilePath } }
+    ])
 
     expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
     expect(enqueueMock).toHaveBeenCalledWith(
@@ -1536,7 +1546,9 @@ describe('KnowledgeService', () => {
     knowledgeItemUpdateStatusMock.mockReturnValueOnce(processingFile)
     knowledgeItemGetByIdMock.mockReturnValueOnce(processingFile)
 
-    await service.addItems('kb-1', [{ type: 'file', data: { source: '/docs/source.pdf', path: '/docs/source.pdf' } }])
+    await service.addItems('kb-1', [
+      { type: 'file', data: { source: '/docs/source.pdf', path: '/docs/source.pdf' as AbsoluteFilePath } }
+    ])
 
     expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
     expect(enqueueMock).toHaveBeenCalledWith(
@@ -1600,7 +1612,9 @@ describe('KnowledgeService', () => {
     })
 
     await expect(
-      service.addItems('kb-1', [{ type: 'file', data: { source: '/docs/x.pdf', path: '/docs/x.pdf' } }])
+      service.addItems('kb-1', [
+        { type: 'file', data: { source: '/docs/x.pdf', path: '/docs/x.pdf' as AbsoluteFilePath } }
+      ])
     ).rejects.toThrow('create failed')
 
     // Copied-file cleanup is delegated to the best-effort variant, which swallows its

@@ -12,7 +12,7 @@ import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
 import { joinPath } from '@renderer/utils/path'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import type { FilePath } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { toFileUrl } from '@shared/utils/file'
 import { LoaderCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -25,7 +25,9 @@ export function getPrivacyPolicyAsset(language: string): 'privacy-en.html' | 'pr
 }
 
 export function buildPrivacyPolicyUrl(resourcesPath: string, language: string, theme: ThemeMode): string {
-  const filePath = joinPath(resourcesPath, `cherry-studio/${getPrivacyPolicyAsset(language)}`) as FilePath
+  const filePath = AbsoluteFilePathSchema.parse(
+    joinPath(resourcesPath, `cherry-studio/${getPrivacyPolicyAsset(language)}`)
+  )
   const themeName = theme === ThemeMode.dark ? 'dark' : 'light'
   return `${toFileUrl(filePath)}?theme=${themeName}`
 }

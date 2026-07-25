@@ -3,24 +3,31 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   appGetMock,
   appGetPathMock,
+  appRelaunchMock,
   inspectCacheCleanupMock,
   inspectTargetMock,
-  relaunchMock,
+  requestDataResetMock,
   requestRelocationMock,
   runCacheCleanupMock
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   appGetPathMock: vi.fn(),
+  appRelaunchMock: vi.fn(),
   inspectCacheCleanupMock: vi.fn(),
   inspectTargetMock: vi.fn(),
-  relaunchMock: vi.fn(),
+  requestDataResetMock: vi.fn(),
   requestRelocationMock: vi.fn(),
   runCacheCleanupMock: vi.fn()
 }))
 
 vi.mock('@application', () => ({
-  application: { get: appGetMock, getPath: appGetPathMock, relaunch: relaunchMock }
+  application: {
+    get: appGetMock,
+    getPath: appGetPathMock,
+    relaunch: appRelaunchMock
+  }
 }))
+vi.mock('@main/services/dataReset', () => ({ requestDataReset: requestDataResetMock }))
 vi.mock('@main/services/userDataRelocation', () => ({
   inspectUserDataRelocationTarget: inspectTargetMock,
   requestUserDataRelocation: requestRelocationMock
@@ -89,7 +96,7 @@ describe('appHandlers', () => {
 
   it('relaunches through IpcApi', async () => {
     await expect(appHandlers['app.relaunch'](undefined, ctx)).resolves.toBeUndefined()
-    expect(relaunchMock).toHaveBeenCalledOnce()
+    expect(appRelaunchMock).toHaveBeenCalledOnce()
   })
 
   it('delegates cache cleanup inspection and execution to the cleanup service', async () => {
@@ -121,5 +128,18 @@ describe('appHandlers', () => {
 
     expect(appUpdaterService.quitAndInstall).toHaveBeenCalledTimes(1)
     expect(result).toBeUndefined()
+  })
+
+  it('delegates data reset requests to the owning domain module', async () => {
+    const result = await appHandlers['app.data_reset.request'](undefined, ctx)
+
+    expect(requestDataResetMock).toHaveBeenCalledTimes(1)
+    expect(result).toBeUndefined()
+  })
+
+  it('propagates data reset rejections to the caller', async () => {
+    requestDataResetMock.mockRejectedValueOnce(new Error('EACCES: permission denied'))
+
+    await expect(appHandlers['app.data_reset.request'](undefined, ctx)).rejects.toThrow('EACCES')
   })
 })

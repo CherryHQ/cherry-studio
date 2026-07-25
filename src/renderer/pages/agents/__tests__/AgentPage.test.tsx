@@ -60,7 +60,6 @@ const agentPageMocks = vi.hoisted(() => ({
   lastUsedWorkspaceId: null as string | null,
   classicLayoutRightPaneOpenOverride: null as boolean | null,
   agentResourceListSessionsSource: undefined as unknown,
-  agentSessionsSourceOptions: [] as Array<{ enabled?: boolean } | undefined>,
   agentSidePanelSessionsSource: undefined as unknown,
   activeSessionOptions: null as {
     activeSessionId: string | null
@@ -126,15 +125,14 @@ vi.mock('@data/DataApiService', () => ({
 }))
 
 vi.mock('@renderer/hooks/resourceViewSources', () => ({
-  useAgentSessionsSource: (options?: { enabled?: boolean }) => {
+  useAgentSessionsSource: () => {
     const source = {
-      sessions: options?.enabled === false ? [] : agentPageMocks.classicLayoutSessions,
+      sessions: agentPageMocks.classicLayoutSessions,
       isFullyLoaded: agentPageMocks.sessionsFullyLoaded,
       isLoadingAll: agentPageMocks.sessionsLoadingAll,
       isLoading: agentPageMocks.sessionsFirstPageLoading,
       hasMore: false
     }
-    agentPageMocks.agentSessionsSourceOptions.push(options)
     agentPageMocks.createdAgentSessionsSource = source
     return source
   }
@@ -707,7 +705,6 @@ describe('AgentPage', () => {
     agentPageMocks.isLatestSessionLoading = false
     agentPageMocks.latestSessionOverride = undefined
     agentPageMocks.agentResourceListSessionsSource = undefined
-    agentPageMocks.agentSessionsSourceOptions = []
     agentPageMocks.agentSidePanelSessionsSource = undefined
     agentPageMocks.createdAgentSessionsSource = undefined
     agentPageMocks.rightPanelSessionsSource = undefined
@@ -784,7 +781,6 @@ describe('AgentPage', () => {
 
     render(<AgentPage />)
 
-    expect(agentPageMocks.agentSessionsSourceOptions).toEqual([{ enabled: true }])
     expect(agentPageMocks.agentResourceListSessionsSource).toBe(agentPageMocks.createdAgentSessionsSource)
     expect(agentPageMocks.rightPanelSessionsSource).toBe(agentPageMocks.createdAgentSessionsSource)
   })
@@ -927,14 +923,6 @@ describe('AgentPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
 
     expect(screen.getByTestId('agent-create-dialog')).toBeInTheDocument()
-  })
-
-  it('disables the agent session source in message-only view', () => {
-    agentPageMocks.routeSearch = { sessionId: 'session-message', view: 'message' }
-
-    render(<AgentPage />)
-
-    expect(agentPageMocks.agentSessionsSourceOptions).toEqual([{ enabled: false }])
   })
 
   it('switches to agent grouping when changing session position from the left sidebar', async () => {

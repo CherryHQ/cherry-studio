@@ -23,6 +23,8 @@ export type AgentSessionExportTarget = Pick<AgentSessionEntity, 'agentId' | 'id'
 
 export interface AgentSessionExportOptions {
   modelFallback?: ModelSnapshot
+  /** Stop paging once this many of the newest messages are loaded; unset loads the whole session. */
+  maxMessages?: number
 }
 
 export function getAgentSessionExportTitle(session: Pick<AgentSessionExportTarget, 'id' | 'name'>): string {
@@ -76,6 +78,7 @@ export async function getAgentSessionMessagesForExport(
 ): Promise<MessageExportView[]> {
   const pages: MessageExportView[][] = []
   let cursor: string | undefined
+  let collected = 0
 
   do {
     const query = cursor
@@ -88,8 +91,9 @@ export async function getAgentSessionMessagesForExport(
     pages.push(
       response.items.map((row) => agentSessionMessageToExportView(row, session.agentId, options.modelFallback))
     )
+    collected += response.items.length
     cursor = response.nextCursor
-  } while (cursor)
+  } while (cursor && (!options.maxMessages || collected < options.maxMessages))
 
   return pages.reverse().flatMap((page) => page.reverse())
 }

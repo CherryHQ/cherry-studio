@@ -1,15 +1,15 @@
-import type { FilePath } from '@shared/types/file'
-import { canonicalizeAbsolutePath, createFilePathHandle } from '@shared/utils/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
+import { canonicalizeFilePath, createFilePathHandle } from '@shared/utils/file'
 
 export const FILE_PREVIEW_ROUTE = '/app/file-preview'
 export const FILE_PREVIEW_REFRESH_KEY = 'filePreviewRefreshKey'
 
 export interface FilePreviewRouteSearch {
-  path: FilePath | undefined
+  path: AbsoluteFilePath | undefined
 }
 
 export interface FilePreviewTabTarget {
-  filePath: FilePath
+  filePath: AbsoluteFilePath
   title: string
   url: string
 }
@@ -19,8 +19,8 @@ export function getFilePreviewRefreshKey(metadata: Record<string, unknown> | und
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0
 }
 
-export function normalizeFilePreviewPath(filePath: string): FilePath {
-  const canonicalPath = canonicalizeAbsolutePath(filePath) as FilePath
+export function normalizeFilePreviewPath(filePath: string): AbsoluteFilePath {
+  const canonicalPath = canonicalizeFilePath(filePath)
   return createFilePathHandle(canonicalPath).path
 }
 

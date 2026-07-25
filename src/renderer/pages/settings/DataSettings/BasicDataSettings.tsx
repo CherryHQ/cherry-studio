@@ -10,7 +10,6 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
-import { reset } from '@renderer/services/BackupService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
@@ -225,6 +224,26 @@ const BasicDataSettings: React.FC = () => {
     })
   }
 
+  const handleDataReset = async () => {
+    const confirmed = await popup.confirm({
+      title: t('settings.data.data_reset.confirm_title'),
+      content: t('settings.data.data_reset.confirm_content'),
+      okText: t('common.confirm'),
+      cancelText: t('common.cancel'),
+      centered: true,
+      okButtonProps: {
+        danger: true
+      }
+    })
+    if (!confirmed) return
+
+    try {
+      await ipcApi.request('app.data_reset.request')
+    } catch (error) {
+      toast.error(t('settings.data.data_reset.error'))
+    }
+  }
+
   const onSkipBackupFilesChange = (value: boolean) => {
     void setSkipBackupFile(value)
   }
@@ -323,10 +342,10 @@ const BasicDataSettings: React.FC = () => {
         </SettingRow>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.general.reset.title')}</SettingRowTitle>
+          <SettingRowTitle>{t('settings.data.data_reset.title')}</SettingRowTitle>
           <RowFlex className="gap-1.25">
-            <Button onClick={reset} variant="destructive">
-              {t('settings.general.reset.title')}
+            <Button onClick={handleDataReset} variant="destructive">
+              {t('settings.data.data_reset.button')}
             </Button>
           </RowFlex>
         </SettingRow>

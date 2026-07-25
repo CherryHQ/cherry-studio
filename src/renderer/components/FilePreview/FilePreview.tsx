@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import { safeOpen } from '@renderer/utils/file/safeOpen'
 import { getFilePreviewFileName, normalizeFilePreviewPath } from '@renderer/utils/filePreview'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 import { FileQuestion, FileWarning, FileX2, LoaderCircle } from 'lucide-react'
 import { lazy, type ReactNode, Suspense, useMemo } from 'react'
@@ -36,7 +36,7 @@ const FILE_PREVIEW_STATE_KEYS = {
 
 interface FilePreviewStateProps {
   kind: FilePreviewStateKind
-  filePath?: FilePath
+  filePath?: AbsoluteFilePath
 }
 
 function FilePreviewState({ kind, filePath }: FilePreviewStateProps) {
@@ -89,7 +89,7 @@ function PluginErrorFallback() {
 
 interface FilePreviewPluginRendererProps {
   fileName: string
-  filePath: FilePath
+  filePath: AbsoluteFilePath
   plugin: FilePreviewPlugin
   refreshKey: number
 }
@@ -133,7 +133,7 @@ function FilePreviewPluginRenderer({ fileName, filePath, plugin, refreshKey }: F
 }
 
 export interface FilePreviewProps {
-  filePath: FilePath
+  filePath: AbsoluteFilePath
   header?: ReactNode
   refreshKey?: number
 }

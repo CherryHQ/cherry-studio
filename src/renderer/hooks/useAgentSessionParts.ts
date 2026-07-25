@@ -67,6 +67,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
     limit: PAGE_SIZE,
     enabled,
     swrOptions: {
+      keepPreviousData: false,
       ...(!fetchOnMount && {
         revalidateIfStale: false,
         revalidateOnMount: false

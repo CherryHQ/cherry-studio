@@ -1,5 +1,5 @@
 import type { KnowledgeChunkStrategy } from '@shared/data/types/knowledge'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 export type KnowledgeTabKey = 'data' | 'rag' | 'recall'
 
@@ -10,7 +10,7 @@ export interface KnowledgeSelectOption {
 
 export interface KnowledgeFilePreviewTarget {
   readonly fileName: string
-  readonly filePath: FilePath
+  readonly filePath: AbsoluteFilePath
 }
 
 export interface KnowledgeRagConfigFormValues {

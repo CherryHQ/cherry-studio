@@ -788,13 +788,15 @@ vi.mock('@cherrystudio/ui', () => {
           ? React.createElement('button', { type: 'button', onClick: onSecondary }, secondaryLabel)
           : null
       ),
-    Alert: ({ children, message, description, type, ...props }) =>
+    Alert: ({ children, message, description, action, icon, showIcon, type, ...props }) =>
       React.createElement(
         'div',
         { ...props, role: 'alert', 'data-testid': 'alert', 'data-type': type },
+        showIcon ? icon : null,
         message,
         description,
-        children
+        children,
+        action
       ),
     EditableNumber: ({ value, onChange, disabled, ...props }) =>
       React.createElement('input', {

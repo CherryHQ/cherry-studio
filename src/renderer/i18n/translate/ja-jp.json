@@ -869,6 +869,7 @@
       "expired": "期限切れ",
       "inputPreview": "ツール入力プレビュー",
       "pending": "保留中（{{seconds}}秒）",
+      "pendingBadge": "[to be translated]:Pending",
       "permissionExpired": "許可リクエストの期限が切れました。新しい指示を待っています...",
       "requiresElevatedPermissions": "このツールは昇格した権限が必要です。",
       "suggestion": {
@@ -1425,6 +1426,24 @@
       "pause": "一時停止",
       "placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",
       "placeholder_without_triggers": "ここにメッセージを入力し、{{key}} を押して送信...",
+      "reference_panel": {
+        "load_failed": "[to be translated]:Failed to load the referenced conversation",
+        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "session": {
+          "no_results": {
+            "description": "[to be translated]:No sessions match your search",
+            "label": "[to be translated]:No Sessions Found"
+          },
+          "title": "[to be translated]:Sessions"
+        },
+        "topic": {
+          "no_results": {
+            "description": "[to be translated]:No topics match your search",
+            "label": "[to be translated]:No Topics Found"
+          },
+          "title": "[to be translated]:Topics"
+        }
+      },
       "resize_height": "入力の高さを変更",
       "resource_panel": {
         "categories": {
@@ -2274,6 +2293,7 @@
     "provider": "プロバイダー",
     "reasoning_content": "深く考察済み",
     "refresh": "更新",
+    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
     "regenerate": "再生成",
     "remove_image": "画像を削除",
     "rename": "名前を変更",
@@ -2588,7 +2608,8 @@
     "edit": "編集",
     "empty": {
       "no_match_description": "現在のフィルターに一致するファイルはありません",
-      "no_match_title": "一致するファイルが見つかりません"
+      "no_match_title": "一致するファイルが見つかりません",
+      "title": "[to be translated]:No files yet"
     },
     "empty_trash": "ゴミ箱を空にする",
     "error": {
@@ -2986,7 +3007,6 @@
     "embedding_model": "埋め込みモデル",
     "embedding_model_required": "ナレッジベース埋め込みモデルが必要です",
     "empty": "ナレッジベースなし",
-    "empty_action": "ナレッジベースを作成",
     "empty_description": "まだナレッジベースがありません。ドキュメントの整理と検索を開始するために、ナレッジベースを作成してください。",
     "error": {
       "directory_not_migrated": "フォルダーの移行に失敗しました。削除してから再度アップロードしてください。",
@@ -3903,18 +3923,6 @@
     "processing": "処理中...",
     "regenerate": {
       "confirm": "再生成すると現在のメッセージが置き換えられます"
-    },
-    "reset": {
-      "confirm": {
-        "content": "すべてのデータをリセットしてもよろしいですか？"
-      },
-      "double": {
-        "confirm": {
-          "content": "すべてのデータが失われます。続行しますか？",
-          "title": "データが失われます！！！"
-        }
-      },
-      "success": "データリセット成功"
     },
     "restore": {
       "failed": "復元に失敗しました",
@@ -5784,6 +5792,13 @@
       "data": {
         "title": "データディレクトリ"
       },
+      "data_reset": {
+        "button": "リセット",
+        "confirm_content": "チャット、アシスタント、ナレッジベース、ファイル、設定を消去して、アプリを再起動します。この操作は元に戻せません。続行しますか？",
+        "confirm_title": "アプリデータをリセット",
+        "error": "データのリセットを開始できませんでした",
+        "title": "データをリセット"
+      },
       "divider": {
         "basic": "基本データ設定",
         "cloud_storage": "クラウドバックアップ設定",
@@ -6516,10 +6531,6 @@
       "emoji_picker": "絵文字ピッカー",
       "image_upload": "画像アップロード",
       "label": "一般設定",
-      "reset": {
-        "button": "リセット",
-        "title": "データをリセット"
-      },
       "restore": {
         "button": "復元"
       },

@@ -869,6 +869,7 @@
       "expired": "Caducado",
       "inputPreview": "Vista previa de entrada de herramienta",
       "pending": "Pendiente ({{seconds}}s)",
+      "pendingBadge": "[to be translated]:Pending",
       "permissionExpired": "Solicitud de permiso expirada. Esperando nuevas instrucciones...",
       "requiresElevatedPermissions": "Esta herramienta requiere permisos elevados.",
       "suggestion": {
@@ -1425,6 +1426,24 @@
       "pause": "Pausar",
       "placeholder": "Escribe aquí tu mensaje...",
       "placeholder_without_triggers": "Escribe tu mensaje aquí, presiona {{key}} para enviar",
+      "reference_panel": {
+        "load_failed": "[to be translated]:Failed to load the referenced conversation",
+        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "session": {
+          "no_results": {
+            "description": "[to be translated]:No sessions match your search",
+            "label": "[to be translated]:No Sessions Found"
+          },
+          "title": "[to be translated]:Sessions"
+        },
+        "topic": {
+          "no_results": {
+            "description": "[to be translated]:No topics match your search",
+            "label": "[to be translated]:No Topics Found"
+          },
+          "title": "[to be translated]:Topics"
+        }
+      },
       "resize_height": "Ajustar altura de entrada",
       "resource_panel": {
         "categories": {
@@ -2274,6 +2293,7 @@
     "provider": "Proveedor",
     "reasoning_content": "Pensamiento profundo",
     "refresh": "Actualizar",
+    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
     "regenerate": "Regenerar",
     "remove_image": "Quitar imagen",
     "rename": "Renombrar",
@@ -2588,7 +2608,8 @@
     "edit": "Editar",
     "empty": {
       "no_match_description": "No hay archivos que coincidan con los filtros actuales",
-      "no_match_title": "No se encontraron archivos coincidentes"
+      "no_match_title": "No se encontraron archivos coincidentes",
+      "title": "[to be translated]:No files yet"
     },
     "empty_trash": "Vaciar papelera",
     "error": {
@@ -2986,7 +3007,6 @@
     "embedding_model": "Modelo de incrustación",
     "embedding_model_required": "Se requiere un modelo de incrustación de base de conocimiento",
     "empty": "Sin bases de conocimiento",
-    "empty_action": "Crear Base de Conocimientos",
     "empty_description": "Aún no tienes ninguna base de conocimientos. Crea una para empezar a organizar y buscar tus documentos.",
     "error": {
       "directory_not_migrated": "La migración de la carpeta falló. Por favor, elimínala y vuelve a subirla.",
@@ -3903,18 +3923,6 @@
     "processing": "Procesando...",
     "regenerate": {
       "confirm": "Regenerar sobrescribirá el mensaje actual"
-    },
-    "reset": {
-      "confirm": {
-        "content": "¿Está seguro de querer restablecer todos los datos?"
-      },
-      "double": {
-        "confirm": {
-          "content": "Todos sus datos se perderán, si no tiene una copia de seguridad, no podrán ser recuperados, ¿desea continuar?",
-          "title": "¡¡Pérdida de datos!!"
-        }
-      },
-      "success": "Restablecimiento de datos exitoso"
     },
     "restore": {
       "failed": "Restauración fallida",
@@ -5784,6 +5792,13 @@
       "data": {
         "title": "Directorio de datos"
       },
+      "data_reset": {
+        "button": "Restablecer",
+        "confirm_content": "Se borrarán los chats, asistentes, bases de conocimiento, archivos y ajustes, y luego se reiniciará la aplicación. Esta acción no se puede deshacer. ¿Desea continuar?",
+        "confirm_title": "Restablecer datos de la aplicación",
+        "error": "No se pudo iniciar el restablecimiento de datos",
+        "title": "Restablecer datos"
+      },
       "divider": {
         "basic": "Configuración básica",
         "cloud_storage": "Configuración de almacenamiento en la nube",
@@ -6516,10 +6531,6 @@
       "emoji_picker": "Selector de emojis",
       "image_upload": "Carga de imágenes",
       "label": "Configuración general",
-      "reset": {
-        "button": "Restablecer",
-        "title": "Restablecer datos"
-      },
       "restore": {
         "button": "Restaurar"
       },

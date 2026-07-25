@@ -1426,6 +1426,24 @@
       "pause": "暫停",
       "placeholder": "輸入訊息，按 {{key}} 傳送，輸入 / 選擇工具或操作",
       "placeholder_without_triggers": "在此輸入您的訊息，按 {{key}} 傳送",
+      "reference_panel": {
+        "load_failed": "[to be translated]:Failed to load the referenced conversation",
+        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "session": {
+          "no_results": {
+            "description": "[to be translated]:No sessions match your search",
+            "label": "[to be translated]:No Sessions Found"
+          },
+          "title": "[to be translated]:Sessions"
+        },
+        "topic": {
+          "no_results": {
+            "description": "[to be translated]:No topics match your search",
+            "label": "[to be translated]:No Topics Found"
+          },
+          "title": "[to be translated]:Topics"
+        }
+      },
       "resize_height": "調整輸入框高度",
       "resource_panel": {
         "categories": {
@@ -2275,6 +2293,7 @@
     "provider": "供應商",
     "reasoning_content": "已深度思考",
     "refresh": "重新整理",
+    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
     "regenerate": "重新產生",
     "remove_image": "移除圖片",
     "rename": "重新命名",
@@ -2589,7 +2608,8 @@
     "edit": "編輯",
     "empty": {
       "no_match_description": "目前篩選條件下沒有檔案",
-      "no_match_title": "找不到符合的檔案"
+      "no_match_title": "找不到符合的檔案",
+      "title": "[to be translated]:No files yet"
     },
     "empty_trash": "清空回收站",
     "error": {
@@ -2987,7 +3007,6 @@
     "embedding_model": "嵌入模型",
     "embedding_model_required": "知识库嵌入模型是必需的",
     "empty": "暂无知识库",
-    "empty_action": "建立知識庫",
     "empty_description": "你還沒有建立任何知識庫。建立一個來整理與檢索你的文件吧。",
     "error": {
       "directory_not_migrated": "該資料夾內容遷移失敗，請刪除後重新上傳。",
@@ -3904,18 +3923,6 @@
     "processing": "正在處理...",
     "regenerate": {
       "confirm": "重新產生會覆寫目前訊息"
-    },
-    "reset": {
-      "confirm": {
-        "content": "確定要清除所有資料嗎？"
-      },
-      "double": {
-        "confirm": {
-          "content": "所有資料將會被清除，您確定要繼續嗎？",
-          "title": "資料將會遺失！！！"
-        }
-      },
-      "success": "資料重設成功"
     },
     "restore": {
       "failed": "還原失敗",
@@ -5785,6 +5792,13 @@
       "data": {
         "title": "資料目錄"
       },
+      "data_reset": {
+        "button": "重設",
+        "confirm_content": "這將清除聊天、助手、知識庫、檔案和設定，然後重新啟動應用程式。此操作無法復原，是否繼續？",
+        "confirm_title": "重設應用程式資料",
+        "error": "無法啟動資料重設",
+        "title": "資料重設"
+      },
       "divider": {
         "basic": "基本資料設定",
         "cloud_storage": "雲備份設定",
@@ -6517,10 +6531,6 @@
       "emoji_picker": "表情選擇器",
       "image_upload": "圖片上傳",
       "label": "一般設定",
-      "reset": {
-        "button": "重設",
-        "title": "資料重設"
-      },
       "restore": {
         "button": "復原"
       },
