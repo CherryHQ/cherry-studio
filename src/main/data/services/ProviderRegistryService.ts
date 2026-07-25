@@ -23,6 +23,7 @@ import type {
   ProviderReasoningFormat,
   ReasoningEffort as ReasoningEffortType,
   ReasoningFormatType,
+  ReasoningWireDialect,
   ReasoningWireProfile
 } from '@cherrystudio/provider-registry'
 import type { EndpointType, Modality, ModelCapability } from '@cherrystudio/provider-registry'
@@ -36,7 +37,8 @@ import {
   inferReasoningOwnedBy,
   MODEL_CAPABILITY,
   REASONING_EFFORT,
-  REASONING_FORMAT_PROFILES
+  REASONING_FORMAT_PROFILES,
+  selectFormatWire
 } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { loggerService } from '@logger'
@@ -104,11 +106,14 @@ export function resolveReasoningProfileFromRegistry(input: {
   endpointType: EndpointType | undefined
   format?: ProviderReasoningFormat
   contract?: ProviderModelReasoningContract
+  wireDialect?: ReasoningWireDialect
 }): ResolvedReasoningProfile {
   const endpointDefault = input.endpointType ? DEFAULT_FORMAT_BY_ENDPOINT[input.endpointType] : undefined
   const formatType = input.format?.type ?? endpointDefault ?? 'openai-chat'
   const formatDefault = REASONING_FORMAT_PROFILES[formatType]
-  const wire = input.contract?.wire ?? input.format?.wire ?? formatDefault.wire
+  // Priority is unchanged; only the last-resort default becomes dialect-aware,
+  // so per-model contracts and endpoint-wide wires still win outright.
+  const wire = input.contract?.wire ?? input.format?.wire ?? selectFormatWire(formatDefault, input.wireDialect)
 
   return { format: formatType, support: input.contract?.support, wire }
 }
@@ -390,7 +395,8 @@ function mergeReasoningSupport(
     controls: override?.controls ?? preset?.controls,
     supportedEfforts: override?.supportedEfforts ?? preset?.supportedEfforts,
     thinkingTokenLimits: override?.thinkingTokenLimits ?? preset?.thinkingTokenLimits,
-    defaultEffort: override?.defaultEffort ?? preset?.defaultEffort
+    defaultEffort: override?.defaultEffort ?? preset?.defaultEffort,
+    wireDialect: override?.wireDialect ?? preset?.wireDialect
   }
 }
 
@@ -648,7 +654,8 @@ class ProviderRegistryService {
     const resolved = resolveReasoningProfileFromRegistry({
       endpointType,
       format: endpointType ? profileProvider?.endpointConfigs?.[endpointType]?.reasoningFormat : undefined,
-      contract
+      contract,
+      wireDialect: reasoning?.wireDialect
     })
     return { ...resolved, support: reasoning }
   }
@@ -680,16 +687,16 @@ class ProviderRegistryService {
       if (contract) break
     }
 
+    const presetReasoning = this.getLoader().findModel(matchedOverride?.modelId ?? model.presetModelId ?? '')?.reasoning
+    const support = mergeReasoningSupport(presetReasoning ?? model.reasoning, contract?.support)
+
     const resolved = resolveReasoningProfileFromRegistry({
       endpointType: effectiveEndpoint,
       format: effectiveEndpoint ? profileProvider?.endpointConfigs?.[effectiveEndpoint]?.reasoningFormat : undefined,
-      contract
+      contract,
+      wireDialect: support?.wireDialect
     })
-    const presetReasoning = this.getLoader().findModel(matchedOverride?.modelId ?? model.presetModelId ?? '')?.reasoning
-    return {
-      ...resolved,
-      support: mergeReasoningSupport(presetReasoning ?? model.reasoning, contract?.support)
-    }
+    return { ...resolved, support }
   }
 
   resolveRegistryModelProfile(

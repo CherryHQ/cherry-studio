@@ -15,8 +15,12 @@ const override = (providerId: string, modelId: string) => {
 }
 
 describe('provider reasoning contracts', () => {
-  it.each(['anthropic', 'aws-bedrock'])('keeps Claude Opus 4.5 on budget thinking for %s', (providerId) => {
-    const contract = override(providerId, 'claude-opus-4-5').reasoningContracts?.['anthropic-messages']
+  // Bedrock keeps a hand-pinned contract: its budget wire is in bedrock's own
+  // `reasoningConfig.*` namespace, so it isn't the shared anthropic dialect.
+  // The first-party anthropic pin is gone — Opus 4.5 now reaches the same wire
+  // through `wireDialect: 'budget'` (locked in reasoning-dialect.test.ts).
+  it('keeps Claude Opus 4.5 on budget thinking for aws-bedrock', () => {
+    const contract = override('aws-bedrock', 'claude-opus-4-5').reasoningContracts?.['anthropic-messages']
     expect(contract?.wire?.effort).toMatchObject({
       budget: expect.any(Object),
       operations: expect.arrayContaining([expect.objectContaining({ value: { source: 'budget' } })])
@@ -79,6 +83,19 @@ describe('provider reasoning contracts', () => {
       false
     )
   })
+
+  // No provider hand-pins a Gemini dialect any more — it comes from the model's
+  // declared `wireDialect`, so a new google-generate-content gateway cannot get
+  // it wrong by omission. Coverage lives in reasoning-dialect.test.ts.
+  it.each(['gemini', 'cherryin', 'new-api', 'vertexai'])(
+    'declares no per-model Gemini dialect contract for %s',
+    (providerId) => {
+      const pinned = provider(providerId).overrides?.filter(
+        (entry) => entry.reasoningContracts?.['google-generate-content']
+      )
+      expect(pinned ?? []).toEqual([])
+    }
+  )
 
   it('nests Poe custom reasoning parameters under extra_body', () => {
     expect(

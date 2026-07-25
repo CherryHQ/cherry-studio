@@ -7,6 +7,18 @@ export default defineCreator({
   fetchModels: googleModels(),
   modelsDevProviders: ['google', 'google-vertex'],
   reasoningFamilies: [
+    // Native-protocol dialect (google-generate-content). Gemini 2.x takes
+    // `thinkingConfig.thinkingBudget` and hard-rejects the Gemini 3
+    // `thinkingLevel` field, so the split is declared here rather than inferred
+    // — it does not line up with the effort/budget knob rules below (several
+    // Gemini 3 SKUs carry both knobs). Most specific first; first match wins.
+    { pattern: '^gemini-2', wireDialect: 'budget', template: true },
+    { pattern: '^gemini-omni', wireDialect: 'budget', template: true },
+    // Robotics-ER is a 2.x-era derivative on thinking_budget — never pinned
+    // before, so it had been silently taking the Gemini 3 level wire.
+    { pattern: '^gemini-robotics', wireDialect: 'budget', template: true },
+    { pattern: '^gemini-(?:3|flash-latest|pro-latest|flash-lite-latest)', wireDialect: 'effort', template: true },
+
     { pattern: '^gemma-?4', effort: ['minimal', 'high'] },
     {
       pattern: '^gemini-3(?:\\.\\d+)?-flash|^gemini-3\\.1-flash-lite|^gemini-flash-latest',
@@ -40,6 +52,7 @@ export default defineCreator({
         '^(?!.*tts).*gemini-(?:2[.-]5.*(?:-latest)?|3(?:[.-]\\d+)?-(?:flash|pro)(?:-preview)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\\w-]+)*$'
     },
     { pattern: '^gemini-omni-flash' },
+    { pattern: '^gemini-robotics' },
     { pattern: 'gemma-?4' }
   ],
   families: ['gemini', 'gemma'],
