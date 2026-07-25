@@ -174,15 +174,29 @@ function dirnameSimple(absolutePath: AbsoluteFilePath): AbsoluteFilePath {
 /**
  * Encode an absolute filesystem path into a `file://` URL.
  *
- * - Unix:    `/foo/bar baz.pdf`     → `file:///foo/bar%20baz.pdf`
- * - Windows: `C:\foo\bar baz.pdf`   → `file:///C:/foo/bar%20baz.pdf`
+ * - Unix:    `/foo/bar baz.pdf`         → `file:///foo/bar%20baz.pdf`
+ * - Windows: `C:\foo\bar baz.pdf`       → `file:///C:/foo/bar%20baz.pdf`
+ * - UNC:     `\\server\share\baz.pdf`   → `file://server/share/baz.pdf`
  *
  * Backslashes are normalized to forward slashes; each path segment is URL-encoded
  * (special chars like space, `#`, `?` become `%20` / `%23` / `%3F`). The Windows
  * drive letter segment (`C:`) is preserved unencoded because `%3A` would break
  * UNC / drive resolution in `<img src>` contexts.
  *
- * @param absolutePath Absolute filesystem path (Unix or Windows form).
+ * **UNC carries its server in the URL authority, not in the path.** After
+ * separator normalization a UNC path is `//server/share/…`, whose leading `//`
+ * already IS the authority marker — appending it to `file://` would emit
+ * `file:////server/share/…`: empty authority, server demoted to path text.
+ * That URL is not merely ugly, it is invalid: Node's
+ * `fileURLToPath(url, { windows: true })` rejects it with
+ * `ERR_INVALID_FILE_URL_PATH`, while `file://server/share/…` round-trips back
+ * to `\\server\share\…`. So a path already starting with `//` gets the `file:`
+ * scheme only.
+ *
+ * This also makes the function the exact inverse of `fileUrlToPath`, which
+ * decodes a `file://host/…` URL to the `//host/…` form.
+ *
+ * @param absolutePath Absolute filesystem path (Unix, Windows drive, or UNC form).
  * @returns `file://` URL suitable for `<img src>` / `<video src>` / `<embed>`.
  */
 export function toFileUrl(absolutePath: AbsoluteFilePath): FileUrlString {
@@ -194,7 +208,9 @@ export function toFileUrl(absolutePath: AbsoluteFilePath): FileUrlString {
     .split('/')
     .map((segment) => (/^[A-Za-z]:$/.test(segment) ? segment : encodeURIComponent(segment)))
     .join('/')
-  return `file://${encoded}`
+  // `//server/share/…` — drop the separator pair so `server` becomes the URL
+  // authority rather than the first path segment of an empty authority.
+  return encoded.startsWith('//') ? `file://${encoded.slice(2)}` : `file://${encoded}`
 }
 
 /**

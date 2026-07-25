@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url'
+
 import type { AbsoluteFilePath, FileUrlString } from '@shared/types/file'
 import { describe, expect, it } from 'vitest'
 
@@ -96,6 +98,38 @@ describe('toFileUrl', () => {
   it('encodes non-ASCII characters', () => {
     expect(toFileUrl('/foo/中文.pdf' as AbsoluteFilePath)).toBe('file:///foo/%E4%B8%AD%E6%96%87.pdf')
   })
+
+  // A UNC server belongs in the URL authority. Emitting `file:////server/...`
+  // instead leaves the authority empty and demotes the server to path text,
+  // which Node rejects with ERR_INVALID_FILE_URL_PATH — pinned below.
+  it('puts the UNC server in the authority, not the path', () => {
+    expect(toFileUrl('\\\\server\\share\\baz.pdf' as AbsoluteFilePath)).toBe('file://server/share/baz.pdf')
+    expect(toFileUrl('\\\\server\\share' as AbsoluteFilePath)).toBe('file://server/share')
+  })
+
+  it('encodes UNC path segments while leaving the authority intact', () => {
+    expect(toFileUrl('\\\\server\\share\\report final.pdf' as AbsoluteFilePath)).toBe(
+      'file://server/share/report%20final.pdf'
+    )
+  })
+
+  it('treats the forward-slash UNC spelling identically', () => {
+    // `fileUrlToPath` decodes UNC to this form, so both spellings must agree.
+    expect(toFileUrl('//server/share/baz.pdf' as AbsoluteFilePath)).toBe('file://server/share/baz.pdf')
+  })
+
+  it('emits a UNC URL that Node can convert back to a Windows UNC path', () => {
+    const url = toFileUrl('\\\\server\\share\\baz.pdf' as AbsoluteFilePath)
+    expect(fileURLToPath(url, { windows: true })).toBe('\\\\server\\share\\baz.pdf')
+  })
+
+  it('round-trips UNC through fileUrlToPath into the forward-slash form', () => {
+    const url = toFileUrl('\\\\server\\share\\report final.pdf' as AbsoluteFilePath)
+    const decoded = fileUrlToPath(url)
+    expect(decoded).toBe('//server/share/report final.pdf')
+    // The decoded form is itself a valid input that maps to the same URL.
+    expect(toFileUrl(decoded as AbsoluteFilePath)).toBe(url)
+  })
 })
 
 describe('fileUrlToPath', () => {
@@ -135,6 +169,18 @@ describe('toSafeFileUrl', () => {
 
   it('returns the dirname for dangerous extension on Windows paths', () => {
     expect(toSafeFileUrl('C:\\foo\\bar\\payload.exe' as AbsoluteFilePath, 'exe')).toBe('file:///C:/foo/bar')
+  })
+
+  it('keeps the UNC authority for a safe extension', () => {
+    expect(toSafeFileUrl('\\\\server\\share\\img.png' as AbsoluteFilePath, 'png')).toBe('file://server/share/img.png')
+  })
+
+  it('strips the filename but keeps the UNC authority for a dangerous extension', () => {
+    expect(toSafeFileUrl('\\\\server\\share\\sub\\payload.exe' as AbsoluteFilePath, 'exe')).toBe(
+      'file://server/share/sub'
+    )
+    // Share root: the danger wrap must not degrade the authority into path text.
+    expect(toSafeFileUrl('\\\\server\\share\\payload.exe' as AbsoluteFilePath, 'exe')).toBe('file://server/share')
   })
 
   it('handles null ext as safe (returns full file URL)', () => {

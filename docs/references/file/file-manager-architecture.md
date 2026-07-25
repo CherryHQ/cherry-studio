@@ -99,6 +99,8 @@ See the JSDoc for `canonicalizeFilePath` in `src/shared/utils/file/canonicalize.
 
 **Known gap (pre-existing, unchanged):** the forward-slash form `//server/share/x` still passes the POSIX branch of `canonicalizeFilePath` and is silently reduced to `/server/share/x`. Only the backslash form is caught. Fixing it means deciding whether `//` is UNC or a POSIX double-slash path, which is platform-dependent — tracked separately, not addressed here.
 
+**URL encoding puts the server in the authority.** `toFileUrl` emits `file://server/share/…` for a UNC path, not `file:////server/share/…`. The leading `//` produced by separator normalization already *is* the URL authority marker, so appending it to `file://` would leave the authority empty and demote the server to path text — a URL Node rejects with `ERR_INVALID_FILE_URL_PATH`. This also makes `toFileUrl` the exact inverse of `fileUrlToPath`, which decodes `file://host/…` to `//host/…`.
+
 **Containment checks degrade, they do not throw.** `isPathWithinAccessiblePath` / `getAccessiblePathRelativePath` (`src/renderer/components/composer/variants/agent/accessiblePath.ts`) canonicalize before comparing. A path that cannot be canonicalized is not *provably* inside anything, so they return `false` / the input unchanged. Containment is a predicate; it must stay total.
 
 #### Rejected: Unicode (NFC) normalization of `externalPath`
