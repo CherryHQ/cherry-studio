@@ -93,6 +93,28 @@ function mockMainRegionWidth(width: number) {
   })
 }
 
+function ActivityRightPaneHarness({
+  visible,
+  maximized = false,
+  onLayoutAnimationComplete
+}: {
+  visible: boolean
+  maximized?: boolean
+  onLayoutAnimationComplete?: (mode: 'closed' | 'docked' | 'maximized') => void
+}) {
+  return (
+    <Activity mode={visible ? 'visible' : 'hidden'}>
+      <PersistentRightPaneHost
+        open
+        maximized={maximized}
+        width={460}
+        onLayoutAnimationComplete={onLayoutAnimationComplete}>
+        <div>artifact pane</div>
+      </PersistentRightPaneHost>
+    </Activity>
+  )
+}
+
 describe('RightPaneHost', () => {
   beforeEach(() => {
     motionTestState.controls.set.mockReset()
@@ -383,26 +405,19 @@ describe('RightPaneHost', () => {
 
   it('restores the settled maximized visual state when Activity reconnects effects', () => {
     const onLayoutAnimationComplete = vi.fn()
-
-    function ActivityHarness({ visible }: { visible: boolean }) {
-      return (
-        <Activity mode={visible ? 'visible' : 'hidden'}>
-          <PersistentRightPaneHost open maximized width={460} onLayoutAnimationComplete={onLayoutAnimationComplete}>
-            <div>artifact pane</div>
-          </PersistentRightPaneHost>
-        </Activity>
-      )
-    }
-
-    const { rerender } = render(<ActivityHarness visible />)
+    const { rerender } = render(
+      <ActivityRightPaneHarness visible maximized onLayoutAnimationComplete={onLayoutAnimationComplete} />
+    )
     motionTestState.controls.set.mockClear()
     motionTestState.controls.start.mockClear()
 
-    rerender(<ActivityHarness visible={false} />)
+    rerender(
+      <ActivityRightPaneHarness visible={false} maximized onLayoutAnimationComplete={onLayoutAnimationComplete} />
+    )
     motionTestState.controls.set.mockClear()
     motionTestState.controls.start.mockClear()
 
-    rerender(<ActivityHarness visible />)
+    rerender(<ActivityRightPaneHarness visible maximized onLayoutAnimationComplete={onLayoutAnimationComplete} />)
 
     expect(motionTestState.controls.set).toHaveBeenCalledTimes(1)
     expect(motionTestState.controls.set).toHaveBeenCalledWith({
@@ -411,6 +426,97 @@ describe('RightPaneHost', () => {
     })
     expect(motionTestState.controls.start).not.toHaveBeenCalled()
     expect(onLayoutAnimationComplete).not.toHaveBeenCalled()
+  })
+
+  it('settles an interrupted maximize when Activity reconnects effects', async () => {
+    const maximizeAnimation = createDeferred()
+    const onLayoutAnimationComplete = vi.fn()
+    motionTestState.controls.start.mockImplementationOnce(() => maximizeAnimation.promise)
+
+    const { container, rerender } = render(
+      <ActivityRightPaneHarness visible onLayoutAnimationComplete={onLayoutAnimationComplete} />
+    )
+    rerender(<ActivityRightPaneHarness visible maximized onLayoutAnimationComplete={onLayoutAnimationComplete} />)
+
+    expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'maximizing')
+
+    rerender(
+      <ActivityRightPaneHarness visible={false} maximized onLayoutAnimationComplete={onLayoutAnimationComplete} />
+    )
+    motionTestState.controls.set.mockClear()
+    rerender(<ActivityRightPaneHarness visible maximized onLayoutAnimationComplete={onLayoutAnimationComplete} />)
+
+    await waitFor(() =>
+      expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'maximized')
+    )
+    expect(motionTestState.controls.set).toHaveBeenCalledWith({
+      clipPath: 'inset(0% 0% 0% 0%)',
+      opacity: 1
+    })
+    expect(onLayoutAnimationComplete).toHaveBeenCalledTimes(1)
+    expect(onLayoutAnimationComplete).toHaveBeenCalledWith('maximized')
+
+    await act(async () => maximizeAnimation.resolve())
+
+    expect(onLayoutAnimationComplete).toHaveBeenCalledTimes(1)
+  })
+
+  it('settles an interrupted minimize when Activity reconnects effects', async () => {
+    const minimizeAnimation = createDeferred()
+    const onLayoutAnimationComplete = vi.fn()
+    motionTestState.controls.start.mockImplementationOnce(() => minimizeAnimation.promise)
+
+    const { container, rerender } = render(
+      <ActivityRightPaneHarness visible maximized onLayoutAnimationComplete={onLayoutAnimationComplete} />
+    )
+    rerender(<ActivityRightPaneHarness visible onLayoutAnimationComplete={onLayoutAnimationComplete} />)
+
+    expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'minimizing')
+
+    rerender(<ActivityRightPaneHarness visible={false} onLayoutAnimationComplete={onLayoutAnimationComplete} />)
+    motionTestState.controls.set.mockClear()
+    rerender(<ActivityRightPaneHarness visible onLayoutAnimationComplete={onLayoutAnimationComplete} />)
+
+    await waitFor(() =>
+      expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'docked')
+    )
+    expect(motionTestState.controls.set).toHaveBeenCalledWith({
+      clipPath: 'inset(0% 0% 0% 0%)',
+      opacity: 1
+    })
+    expect(onLayoutAnimationComplete).toHaveBeenCalledTimes(1)
+    expect(onLayoutAnimationComplete).toHaveBeenCalledWith('docked')
+
+    await act(async () => minimizeAnimation.resolve())
+
+    expect(onLayoutAnimationComplete).toHaveBeenCalledTimes(1)
+  })
+
+  it('settles to a target that changed while Activity effects were disconnected', async () => {
+    const onLayoutAnimationComplete = vi.fn()
+    const { container, rerender } = render(
+      <ActivityRightPaneHarness visible onLayoutAnimationComplete={onLayoutAnimationComplete} />
+    )
+
+    rerender(<ActivityRightPaneHarness visible={false} onLayoutAnimationComplete={onLayoutAnimationComplete} />)
+    motionTestState.controls.set.mockClear()
+    motionTestState.controls.start.mockClear()
+
+    rerender(
+      <ActivityRightPaneHarness visible={false} maximized onLayoutAnimationComplete={onLayoutAnimationComplete} />
+    )
+    rerender(<ActivityRightPaneHarness visible maximized onLayoutAnimationComplete={onLayoutAnimationComplete} />)
+
+    await waitFor(() =>
+      expect(container.querySelector('[data-right-pane]')).toHaveAttribute('data-right-pane-phase', 'maximized')
+    )
+    expect(motionTestState.controls.set).toHaveBeenCalledWith({
+      clipPath: 'inset(0% 0% 0% 0%)',
+      opacity: 1
+    })
+    expect(motionTestState.controls.start).not.toHaveBeenCalled()
+    expect(onLayoutAnimationComplete).toHaveBeenCalledTimes(1)
+    expect(onLayoutAnimationComplete).toHaveBeenCalledWith('maximized')
   })
 
   it('ignores a stale maximize completion when minimizing before it finishes', async () => {
