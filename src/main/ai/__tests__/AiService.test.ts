@@ -1053,6 +1053,47 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
     } as never)
   }
 
+  it('builds the descriptor from the id the transport gate matched, not a second derivation', async () => {
+    // PPIO's registry row is `modelId: 'qwen-image'` / `apiModelId: 'qwen-image-txt2img'`,
+    // and `ppioTransport` dispatches its body builder on `descriptor.id` while sending
+    // `input.modelId` on the wire. If the descriptor were re-derived from the
+    // uniqueModelId instead of `sdkConfig.modelId`, the two would name different models
+    // and the request would carry one model's params in another's envelope.
+    const service = createService()
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: {
+        providerId: 'ppio',
+        providerSettings: {},
+        modelId: 'qwen-image-txt2img',
+        concreteProviderId: 'ppio',
+        optionsKey: 'ppio'
+      }
+    } as never)
+
+    mockGetImageGenerationSupport.mockReturnValueOnce({
+      modes: { generate: { vendorTransport: { endpoint: '/v3/async/qwen-image-txt2img', isSync: false } } }
+    })
+    const enqueue = vi.fn().mockReturnValue({
+      id: 'job-1',
+      snapshot: {},
+      finished: Promise.resolve({ status: 'completed', output: { files: [] }, error: null })
+    })
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'FileManager') return { createInternalEntry: vi.fn(), permanentDelete: vi.fn() }
+      if (name === 'JobManager') return { enqueue, cancel: vi.fn() }
+      return undefined
+    })
+
+    await service.generateImage({
+      uniqueModelId: 'ppio::qwen-image-txt2img',
+      prompt: 'a cat',
+      paramValues: {}
+    })
+
+    expect(mockGetImageGenerationSupport).toHaveBeenCalledWith('ppio', 'qwen-image-txt2img')
+    expect(enqueue.mock.calls[0]?.[1].modelDescriptor?.id).toBe('qwen-image-txt2img')
+  })
+
   it('enqueues the job, returns its output files, and cleans up the temp input copies', async () => {
     const service = createService()
     stubResolution(service)

@@ -531,7 +531,7 @@ export class AiService extends BaseService {
         sdkConfig.concreteProviderId
       )
     ) {
-      return await this.generateImageViaJob(request, structured, vendorBag, signal)
+      return await this.generateImageViaJob(request, structured, vendorBag, signal, sdkConfig.modelId)
     }
 
     // SDK: the WireProfile engine maps the canonical bag to the provider's wire — a
@@ -639,7 +639,9 @@ export class AiService extends BaseService {
     request: AsInProcess<AiImageRequest>,
     structured: SplitImageParams['structured'],
     providerParams: Record<string, unknown>,
-    signal: AbortSignal | undefined
+    signal: AbortSignal | undefined,
+    /** `sdkConfig.modelId` — the id the transport gate matched and the wire will carry. */
+    transportModelId: string
   ): Promise<AiImageResult> {
     const uniqueModelId = request.uniqueModelId
 
@@ -670,7 +672,16 @@ export class AiService extends BaseService {
       // Per-model transport routing, derived from the registry (main hosts it) —
       // NOT laundered through paramValues. Persisted in the payload so a restart-
       // resume reaches the right endpoint / response family.
-      const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+      //
+      // `modelId` must be the SAME string the transport gate and the submit input use
+      // (`sdkConfig.modelId`), because transports dispatch their body builder on
+      // `modelDescriptor.id` while sending `input.modelId` on the wire — a split would
+      // route one model's params into another's envelope. Both resolve to the model's
+      // `apiModelId` today (the renderer puts it in the uniqueModelId, and
+      // `providerToAiSdkConfig` prefers it), so this passes it explicitly rather than
+      // leaving the agreement to two independent derivations that happen to match.
+      const { providerId } = parseUniqueModelId(uniqueModelId)
+      const modelId = transportModelId
       const mode = request.mode ?? 'generate'
       const support = providerRegistryService.getImageGenerationSupport(providerId, modelId)
       const vendorTransport = support?.modes?.[mode]?.vendorTransport
