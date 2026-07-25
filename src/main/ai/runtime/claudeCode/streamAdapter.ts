@@ -865,6 +865,13 @@ export class ClaudeCodeStreamAdapter {
     this.setSessionId(message.session_id)
 
     if (message.subtype !== 'success') {
+      // Error results still carry the tokens Anthropic already billed. The driver only calls
+      // `emitUsageMetadata` when `handleMessage` returns normally, so emit the final snapshot
+      // BEFORE throwing — otherwise both the message metadata and the ledger lose them.
+      ctx.sink.enqueue({
+        type: 'message-metadata',
+        messageMetadata: this.buildMessageMetadata(ctx.usage)
+      })
       const errorMsg = message.errors.join('; ') || `Claude Code error: ${message.subtype}`
       throw Object.assign(new Error(errorMsg), { exitCode: 1, subtype: message.subtype })
     }

@@ -788,6 +788,38 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(sessionIds).toEqual(['sdk-error'])
   })
 
+  it('emits the billed usage metadata before throwing on error results', () => {
+    const { adapter, parts } = createAdapter()
+
+    expect(() =>
+      adapter.handleMessage(
+        successResult({
+          subtype: 'error_during_execution',
+          is_error: true,
+          errors: ['boom'],
+          session_id: 'sdk-error'
+        })
+      )
+    ).toThrow('boom')
+
+    // The driver never reaches `emitUsageMetadata` on a throw, so the adapter must have already
+    // flushed the tokens Anthropic billed — otherwise the ledger loses them.
+    expect(parts).toEqual([
+      {
+        type: 'message-metadata',
+        messageMetadata: {
+          modelId: 'sonnet',
+          stats: {
+            inputTokens: 21,
+            outputTokens: 5,
+            totalTokens: 26,
+            inputTokenDetails: { noCacheTokens: 3, cacheReadTokens: 11, cacheWriteTokens: 7 }
+          }
+        }
+      }
+    ])
+  })
+
   it('emits truncation fallback from buffered text', () => {
     const { adapter, parts } = createAdapter()
     const text = 'x'.repeat(600)
