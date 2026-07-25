@@ -4,6 +4,13 @@ PR review uses **Worktree mode** — fetch the PR branch locally so review can
 read related code across modules, at the exact version of the PR branch. This
 is critical for review accuracy.
 
+## Input from SKILL.md
+
+- `AUTHORIZED_SUBMIT`: `true` only when the invocation explicitly requested
+  publishing the review (`submit` modifier or equivalent user wording).
+  Default `false` — findings are reported to the user; nothing is written to
+  GitHub.
+
 ## References
 
 | File | Purpose |
@@ -168,14 +175,18 @@ gh pr-review review submit --repo {OWNER_REPO} --pr {number} \
 gh pr merge {number} --squash --delete-branch
 ```
 
-If issues found → submit **all** confirmed issues via the flow below (no
-selection question), then present them to the user in the following format:
+If issues found → present them to the user in the following format:
 
 ```
 {N}. [{priority}] {file}:{line} — {description of the problem and suggested fix}
 ```
 
 Where `{priority}` is the checklist item ID (e.g., A2, B1, C7).
+
+- **`AUTHORIZED_SUBMIT` = false** (default): stop here — no GitHub writes.
+  If the user then asks to submit, that grants authorization; continue below.
+- **`AUTHORIZED_SUBMIT` = true**: submit **all** confirmed issues via the
+  flow below, with no per-comment selection question.
 
 ### Prerequisites
 

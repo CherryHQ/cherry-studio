@@ -2,15 +2,16 @@
 
 Single-agent review for small local changes (routed here by `SKILL.md` when
 the diff is ≤ 1000 changed lines and ≤ 20 files). Reviews the diff and
-reports confirmed issues; when the scope is a self review, low- and
-medium-risk fixes are applied automatically. Never asks the user questions.
+reports confirmed issues with proposed fixes; edits code only when the
+invocation explicitly authorized fixing. Never asks the user questions.
 
 ## Input from SKILL.md
 
 - Review scope (already determined during routing; re-derive with the Step 1
   rules if invoked standalone).
-- `SELF_REVIEW`: `true` for working tree / current branch / file paths;
-  `false` for commit or range targets.
+- `AUTHORIZED_FIX`: `true` only when the invocation explicitly granted
+  fixing (`fix` modifier or equivalent user wording). Commit and range
+  targets are always report-only regardless of the flag.
 
 ## References
 
@@ -103,17 +104,22 @@ If no issues remain after filtering → report "no issues found" and exit.
 
 Do not ask the user which issues to fix.
 
-- **`SELF_REVIEW` = true**: auto-fix low- and medium-risk issues, with every
-  fix at the defect's altitude per `cherry-review-guidance.md` § Fix
-  Recommendation Policy. High-risk issues are reported with the proposed
-  at-altitude fix, not applied.
-- **`SELF_REVIEW` = false**: report all issues; edit nothing.
+- **`AUTHORIZED_FIX` = false** (default): report all issues with their
+  proposed at-altitude fixes; edit nothing.
+- **`AUTHORIZED_FIX` = true**: auto-fix **low-risk** issues only (a single
+  reasonable fix exists), keeping every fix at the defect's altitude per
+  `cherry-review-guidance.md` § Fix Recommendation Policy. Medium- and
+  high-risk issues are reported with the proposed fix — multiple possible
+  implementations must be surfaced, never silently picked.
 
-Present a summary of what was reviewed, the issues fixed (self review only),
-and the issues reported with their proposed fixes. Do not run local lint,
-test, or format commands as part of the review flow. Report that existing CI
-covers the reviewed commit, not unpushed local fixes; re-check CI only after
-the fixes are published through a user-authorized workflow.
+Present a summary of what was reviewed, the issues fixed (authorized fix
+only), and the issues reported with their proposed fixes.
+
+Validation: when fixes were applied, the session is a coding task — run
+`pnpm lint`, `pnpm test`, and `pnpm format`, and report their results; a
+failure caused by a fix means the fix is reverted or reported as failed.
+When nothing was edited, do not run local lint/test/format — state that
+existing CI covers the reviewed commit and the result is static review only.
 
 ---
 

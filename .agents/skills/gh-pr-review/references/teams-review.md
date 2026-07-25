@@ -5,8 +5,8 @@ the runtime-provided subagent coordination tools. Never modify source files
 directly. Read code only for arbitration, diagnosis, and fix verification.
 
 Never pause to ask the user anything — the flow runs start to finish and ends
-with Report. Fixing happens only in self reviews; all other invocations are
-report-only.
+with Report. Fixing happens only when the invocation explicitly authorized it
+(`AUTHORIZED_FIX`); all other invocations are report-only.
 
 The reviewer–verifier adversarial pair is the core quality mechanism: reviewers
 find issues, verifiers challenge them. This two-party check significantly reduces
@@ -17,8 +17,9 @@ share conversation history.
 
 - Review scope (already determined during routing; re-derive with the Phase 1
   rules if invoked standalone).
-- `SELF_REVIEW`: `true` for working tree / current branch / file paths;
-  `false` for commit or range targets. When false, skip Phase 4 entirely —
+- `AUTHORIZED_FIX`: `true` only when the invocation explicitly granted
+  fixing (`fix` modifier or equivalent user wording); commit and range
+  targets are always report-only. When false, skip Phase 4 entirely —
   every confirmed issue is reported, none is fixed.
 
 ## References
@@ -34,13 +35,14 @@ share conversation history.
 ## Flow
 
 ```
-Self review:  Scope → Review → Filter → Fix/Validate → Report
-Report-only:  Scope → Review → Filter → Report
+Authorized fix:       Scope → Review → Filter → Fix/Validate → Report
+Report-only (default): Scope → Review → Filter → Report
 ```
 
-- **Filter** routes low/medium-risk issues to Fix/Validate (self review only);
-  high-risk issues go straight to Report with their proposed fix. If nothing
-  is fixable, skip directly to Report.
+- **Filter** routes low-risk issues to Fix/Validate (authorized fix only);
+  medium- and high-risk issues go straight to Report with their proposed fix
+  — multiple possible implementations are surfaced, never silently picked.
+  If nothing is fixable, skip directly to Report.
 
 ---
 
@@ -278,8 +280,8 @@ All confirmed issues are recorded with risk level.
 
 | Condition | → |
 |-----------|---|
-| Low or medium risk, `SELF_REVIEW` = true | auto-fix queue |
-| High risk, or `SELF_REVIEW` = false | `reported` (with proposed fix) |
+| Low risk, `AUTHORIZED_FIX` = true | auto-fix queue |
+| Medium or high risk, or `AUTHORIZED_FIX` = false | `reported` (with proposed fix) |
 
 - Cross-module impact: if a fix requires updates outside the fixer's module,
   add it to the current fix queue and assign to the appropriate fixer.
@@ -291,7 +293,7 @@ Phase 4 if the auto-fix queue is non-empty; otherwise jump to Phase 5
 
 ## Phase 4: Fix/Validate
 
-Runs only when `SELF_REVIEW` is true and the auto-fix queue is non-empty.
+Runs only when `AUTHORIZED_FIX` is true and the auto-fix queue is non-empty.
 
 ### Fix
 
@@ -332,11 +334,10 @@ Fix rules:
    with the reason for skipping.
 ```
 
-Fixers leave all edits uncommitted. The review workflow never stages or commits
-fixes: repository policy requires local validation before a commit, while code
-review is CI-only. Hand verified patches to a separate user-authorized
-publish/commit workflow; that workflow owns the required local checks,
-Conventional Commit with a specific kebab-case scope, and `--signoff`. Never
+Fixers leave all edits uncommitted. The review workflow never stages or
+commits fixes even when fixing is authorized. Hand verified patches to a
+separate user-authorized publish/commit workflow; that workflow owns the
+Conventional Commit with a specific kebab-case scope and `--signoff`. Never
 stage pre-existing user changes.
 
 ### Verify fixes (coordinator)
@@ -354,15 +355,17 @@ user changes while removing an unsuccessful fixer edit.
 
 ### Validate fixes
 
-Re-read every fixer diff and repeat the relevant reviewer/verifier checks. Do
-not run local lint, test, format, or build commands. Existing CI validates the
-reviewed remote commit and does not cover unpushed fixes; state that limitation
-in the report. If a later user-authorized publish workflow pushes the fixes,
-inspect the resulting CI before claiming them fully validated.
+Re-read every fixer diff and repeat the relevant reviewer/verifier checks.
+Then, because applied fixes make the session a coding task, run the
+repository validation commands — `pnpm lint`, `pnpm test`, `pnpm format` —
+and include their results in the report. Existing CI validates the reviewed
+remote commit, not these unpushed fixes; state that limitation in the report.
+If a later user-authorized publish workflow pushes the fixes, inspect the
+resulting CI before claiming them fully validated.
 
-- **Static verification passes** → mark issues `fixed`, with CI pending when
+- **Verification passes** → mark issues `fixed`, with CI pending when
   the fix is not yet published.
-- **Static verification fails** → retry via a correction agent with failure
+- **Verification fails** → retry via a correction agent with failure
   details (max 2 retries). If still unresolved, mark the issue `failed` and ask
   before removing its exact patch; never reset, checkout, or otherwise discard
   unrelated or pre-existing changes.
@@ -378,12 +381,14 @@ fixer edit.
 ## Phase 5: Report
 
 Summary:
-- Issues found / fixed (self review only) / reported / failed
+- Issues found / fixed (authorized fix only) / reported / failed
 - Reported issues listed with risk, `file:line`, and the proposed
   at-altitude fix (`cherry-review-guidance.md` § Fix Recommendation Policy)
+- Local validation results (`pnpm lint` / `pnpm test` / `pnpm format`) when
+  fixes were applied
 - Rolled-back issues and reasons
 - Associated PR CI status, or "unavailable" when there is no PR
-- Unpushed fixes: static verification only, CI pending
+- Unpushed fixes: CI pending until published
 - Issues from PR comments (when `PR_COMMENTS` existed)
 - Note: "To verify fix quality, run `/gh-pr-review` again."
 
