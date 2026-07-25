@@ -1,11 +1,136 @@
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type * as ReactModule from 'react'
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseNavigator } from '../navigator'
+
+const dndMocks = vi.hoisted(() => ({
+  activatorNodes: new Map<string, HTMLElement>(),
+  draggableData: new Map<string, unknown>(),
+  draggableNodes: new Map<string, HTMLElement>(),
+  droppableData: new Map<string, unknown>(),
+  droppableNodes: new Map<string, HTMLElement>(),
+  listeners: new Map<
+    string,
+    {
+      onKeyDown: ReturnType<typeof vi.fn>
+      onPointerDown: ReturnType<typeof vi.fn>
+    }
+  >(),
+  accessibility: undefined as any,
+  onDragCancel: undefined as undefined | ((event: any) => void),
+  onDragEnd: undefined as undefined | ((event: any) => void),
+  onDragStart: undefined as undefined | ((event: any) => void),
+  sensors: undefined as any,
+  useSensor: vi.fn((sensor, options) => ({ options, sensor }))
+}))
+
+vi.mock('@dnd-kit/core', async () => {
+  const actual = await vi.importActual<typeof import('@dnd-kit/core')>('@dnd-kit/core')
+  const React = require('react') as typeof ReactModule
+
+  return {
+    ...actual,
+    DndContext: ({
+      accessibility,
+      children,
+      onDragCancel,
+      onDragEnd,
+      onDragStart,
+      sensors
+    }: {
+      accessibility?: any
+      children: ReactNode
+      onDragCancel?: (event: any) => void
+      onDragEnd?: (event: any) => void
+      onDragStart?: (event: any) => void
+      sensors?: any
+    }) => {
+      dndMocks.accessibility = accessibility
+      dndMocks.onDragCancel = onDragCancel
+      dndMocks.onDragEnd = onDragEnd
+      dndMocks.onDragStart = onDragStart
+      dndMocks.sensors = sensors
+      return React.createElement('div', { 'data-testid': 'knowledge-dnd-context' }, children)
+    },
+    DragOverlay: ({ children }: { children: ReactNode }) =>
+      React.createElement('div', { 'data-testid': 'knowledge-drag-overlay' }, children),
+    useDraggable: ({
+      attributes,
+      data,
+      id
+    }: {
+      attributes?: { roleDescription?: string }
+      data: unknown
+      id: string
+    }) => {
+      dndMocks.draggableData.set(id, data)
+      const listeners = {
+        onKeyDown: vi.fn(),
+        onPointerDown: vi.fn()
+      }
+      dndMocks.listeners.set(id, listeners)
+
+      return {
+        attributes: {
+          role: 'button',
+          tabIndex: 0,
+          'aria-roledescription': attributes?.roleDescription ?? 'draggable'
+        },
+        isDragging: false,
+        listeners,
+        setActivatorNodeRef: (node: HTMLElement | null) => {
+          if (node) {
+            dndMocks.activatorNodes.set(id, node)
+          } else {
+            dndMocks.activatorNodes.delete(id)
+          }
+        },
+        setNodeRef: (node: HTMLElement | null) => {
+          if (node) {
+            dndMocks.draggableNodes.set(id, node)
+          } else {
+            dndMocks.draggableNodes.delete(id)
+          }
+        },
+        transform: null
+      }
+    },
+    useDroppable: ({ data, id }: { data: unknown; id: string }) => {
+      dndMocks.droppableData.set(id, data)
+      return {
+        isOver: false,
+        setNodeRef: (node: HTMLElement | null) => {
+          if (node) {
+            dndMocks.droppableNodes.set(id, node)
+          } else {
+            dndMocks.droppableNodes.delete(id)
+          }
+        }
+      }
+    },
+    useSensor: dndMocks.useSensor,
+    useSensors: vi.fn((...sensors) => sensors)
+  }
+})
+
+vi.mock('@dnd-kit/utilities', async () => {
+  const actual = await vi.importActual<typeof import('@dnd-kit/utilities')>('@dnd-kit/utilities')
+
+  return {
+    ...actual,
+    CSS: {
+      ...actual.CSS,
+      Translate: {
+        toString: vi.fn(() => undefined)
+      }
+    }
+  }
+})
 
 vi.mock('@cherrystudio/ui', () => {
   const React = require('react') as typeof ReactModule
@@ -81,9 +206,21 @@ vi.mock('@cherrystudio/ui', () => {
         </div>
       ) : null
     },
-    AccordionItem: ({ children, value }: { children: ReactNode; value: string }) => (
+    AccordionItem: ({
+      children,
+      ref,
+      value,
+      ...props
+    }: {
+      children: ReactNode
+      ref?: ReactModule.Ref<HTMLDivElement>
+      value: string
+      [key: string]: unknown
+    }) => (
       <AccordionItemContext value={value}>
-        <div>{children}</div>
+        <div ref={ref} data-accordion-item={value} {...props}>
+          {children}
+        </div>
       </AccordionItemContext>
     ),
     AccordionTrigger: ({
@@ -434,7 +571,7 @@ vi.mock('react-i18next', () => ({
     i18n: {
       language: 'zh-CN'
     },
-    t: (key: string, options?: { count?: number }) =>
+    t: (key: string, options?: { count?: number; group?: string; groups?: string; name?: string }) =>
       (
         ({
           'common.add': '添加',
@@ -457,6 +594,13 @@ vi.mock('react-i18next', () => ({
           'knowledge.context.delete': '删除知识库',
           'knowledge.context.delete_confirm_title': '确认删除知识库',
           'knowledge.context.delete_confirm_description': '删除后无法恢复',
+          'knowledge.drag.cancelled': `已取消移动 ${options?.name ?? ''}。`,
+          'knowledge.drag.drop_requested': `已在 ${options?.group ?? ''} 放下 ${options?.name ?? ''}，正在请求移动。`,
+          'knowledge.drag.dropped': `已将 ${options?.name ?? ''} 移至 ${options?.group ?? ''}。`,
+          'knowledge.drag.instructions': `按空格或回车拿起知识库，使用方向键选择分组，再按空格或回车移动，按 Esc 取消。可用分组：${options?.groups ?? ''}。`,
+          'knowledge.drag.over': `${options?.name ?? ''} 位于 ${options?.group ?? ''} 分组上方。`,
+          'knowledge.drag.picked_up': `已拿起 ${options?.name ?? ''}，请选择目标分组。`,
+          'knowledge.drag.unchanged': `${options?.name ?? ''} 仍在 ${options?.group ?? ''}，未移动。`,
           'knowledge.status.completed': '就绪',
           'knowledge.status.failed': '失败'
         }) as Record<string, string>
@@ -517,7 +661,97 @@ const getMenuButton = (name: string) => {
   return button
 }
 
+const renderDragNavigator = ({
+  bases,
+  groups,
+  onMoveBase = vi.fn(),
+  onSelectBase = vi.fn()
+}: {
+  bases: KnowledgeBaseListItem[]
+  groups: Group[]
+  onMoveBase?: ReturnType<typeof vi.fn>
+  onSelectBase?: ReturnType<typeof vi.fn>
+}) => {
+  render(
+    <BaseNavigator
+      bases={bases}
+      groups={groups}
+      width={280}
+      selectedBaseId={bases[0]?.id ?? ''}
+      onSelectBase={onSelectBase}
+      onCreateGroup={vi.fn()}
+      onCreateBase={vi.fn()}
+      onMoveBase={onMoveBase}
+      onRenameBase={vi.fn()}
+      onRenameGroup={vi.fn()}
+      onDeleteGroup={vi.fn()}
+      onDeleteBase={vi.fn()}
+      onResizeStart={vi.fn()}
+    />
+  )
+
+  return { onMoveBase, onSelectBase }
+}
+
+const getDragEntry = (baseId: string) => {
+  const entry = Array.from(dndMocks.draggableData.entries()).find(
+    ([, data]) =>
+      typeof data === 'object' &&
+      data !== null &&
+      (data as { type?: string }).type === 'knowledge-base' &&
+      (data as { baseId?: string }).baseId === baseId
+  )
+
+  if (!entry) {
+    throw new Error(`Missing drag data for ${baseId}`)
+  }
+
+  return { data: { current: entry[1] }, id: entry[0] }
+}
+
+const getDropEntry = (groupId: string | null) => {
+  const entry = Array.from(dndMocks.droppableData.entries()).find(
+    ([, data]) =>
+      typeof data === 'object' &&
+      data !== null &&
+      (data as { type?: string }).type === 'knowledge-group' &&
+      (data as { groupId?: string | null }).groupId === groupId
+  )
+
+  if (!entry) {
+    throw new Error(`Missing drop data for ${groupId ?? 'ungrouped'}`)
+  }
+
+  return { data: { current: entry[1] }, id: entry[0] }
+}
+
+const dropBaseIntoGroup = (baseId: string, groupId: string | null) => {
+  if (!dndMocks.onDragEnd) {
+    throw new Error('Missing knowledge navigator drag-end handler')
+  }
+
+  dndMocks.onDragEnd({
+    active: getDragEntry(baseId),
+    over: getDropEntry(groupId)
+  })
+}
+
 describe('BaseNavigator', () => {
+  beforeEach(() => {
+    dndMocks.activatorNodes.clear()
+    dndMocks.draggableData.clear()
+    dndMocks.draggableNodes.clear()
+    dndMocks.droppableData.clear()
+    dndMocks.droppableNodes.clear()
+    dndMocks.listeners.clear()
+    dndMocks.accessibility = undefined
+    dndMocks.onDragCancel = undefined
+    dndMocks.onDragEnd = undefined
+    dndMocks.onDragStart = undefined
+    dndMocks.sensors = undefined
+    dndMocks.useSensor.mockClear()
+  })
+
   it('keeps stable horizontal layout around the knowledge base list', () => {
     const { container } = render(
       <BaseNavigator
@@ -832,6 +1066,335 @@ describe('BaseNavigator', () => {
     await waitFor(() => {
       expect(onMoveBase).toHaveBeenCalledWith('base-1', 'group-2')
     })
+  })
+
+  it('moves a knowledge base to another populated group by drag and drop', () => {
+    const { onMoveBase } = renderDragNavigator({
+      bases: [
+        createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-1' }),
+        createKnowledgeBase({ id: 'base-2', name: 'Beta', groupId: 'group-2' })
+      ],
+      groups: [
+        createGroup({ id: 'group-1', name: 'Research' }),
+        createGroup({ id: 'group-2', name: 'Archive', orderKey: 'a1' })
+      ]
+    })
+
+    dropBaseIntoGroup('base-1', 'group-2')
+
+    expect(onMoveBase).toHaveBeenCalledWith('base-1', 'group-2')
+  })
+
+  it('moves a grouped knowledge base to the ungrouped section by drag and drop', () => {
+    const { onMoveBase } = renderDragNavigator({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-1' })],
+      groups: [createGroup({ id: 'group-1', name: 'Research' })]
+    })
+
+    dropBaseIntoGroup('base-1', null)
+
+    expect(onMoveBase).toHaveBeenCalledWith('base-1', null)
+  })
+
+  it('moves a knowledge base into an empty group by drag and drop', () => {
+    const { onMoveBase } = renderDragNavigator({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-1' })],
+      groups: [
+        createGroup({ id: 'group-1', name: 'Research' }),
+        createGroup({ id: 'group-2', name: 'Archive', orderKey: 'a1' })
+      ]
+    })
+
+    expect(screen.getByText('Archive')).toBeInTheDocument()
+    dropBaseIntoGroup('base-1', 'group-2')
+
+    expect(onMoveBase).toHaveBeenCalledWith('base-1', 'group-2')
+  })
+
+  it('does not move a knowledge base when dropped into its current group', () => {
+    const { onMoveBase } = renderDragNavigator({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-1' })],
+      groups: [createGroup({ id: 'group-1', name: 'Research' })]
+    })
+
+    dropBaseIntoGroup('base-1', 'group-1')
+
+    expect(onMoveBase).not.toHaveBeenCalled()
+  })
+
+  it('does not select a knowledge base when the drag-end path moves it to another group', () => {
+    const { onMoveBase, onSelectBase } = renderDragNavigator({
+      bases: [
+        createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-1' }),
+        createKnowledgeBase({ id: 'base-2', name: 'Beta', groupId: 'group-2' })
+      ],
+      groups: [
+        createGroup({ id: 'group-1', name: 'Research' }),
+        createGroup({ id: 'group-2', name: 'Archive', orderKey: 'a1' })
+      ]
+    })
+
+    dropBaseIntoGroup('base-1', 'group-2')
+
+    expect(onMoveBase).toHaveBeenCalledWith('base-1', 'group-2')
+    expect(onSelectBase).not.toHaveBeenCalled()
+  })
+
+  it('uses a distance-activated pointer sensor that accepts left drag and rejects modifier-click and right-click', () => {
+    renderDragNavigator({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-1' })],
+      groups: [createGroup({ id: 'group-1', name: 'Research' })]
+    })
+
+    const [pointerSensor, options] = dndMocks.useSensor.mock.calls[0]
+    const activator = (pointerSensor as typeof import('@dnd-kit/core').PointerSensor).activators[0]
+    const activateLeftDrag = vi.fn()
+    const activateCtrlClick = vi.fn()
+    const activateMetaClick = vi.fn()
+    const activateRightClick = vi.fn()
+
+    expect(options).toEqual({ activationConstraint: { distance: 6 } })
+    expect(
+      activator.handler(
+        { nativeEvent: { button: 0, ctrlKey: false, isPrimary: true, metaKey: false } } as never,
+        { onActivation: activateLeftDrag } as never
+      )
+    ).toBe(true)
+    expect(activateLeftDrag).toHaveBeenCalledTimes(1)
+    expect(
+      activator.handler(
+        { nativeEvent: { button: 0, ctrlKey: true, isPrimary: true, metaKey: false } } as never,
+        { onActivation: activateCtrlClick } as never
+      )
+    ).toBe(false)
+    expect(activateCtrlClick).not.toHaveBeenCalled()
+    expect(
+      activator.handler(
+        { nativeEvent: { button: 0, ctrlKey: false, isPrimary: true, metaKey: true } } as never,
+        { onActivation: activateMetaClick } as never
+      )
+    ).toBe(false)
+    expect(activateMetaClick).not.toHaveBeenCalled()
+    expect(
+      activator.handler(
+        { nativeEvent: { button: 2, ctrlKey: false, isPrimary: true, metaKey: false } } as never,
+        { onActivation: activateRightClick } as never
+      )
+    ).toBe(false)
+    expect(activateRightClick).not.toHaveBeenCalled()
+  })
+
+  it('suppresses the click generated after a real pointer sensor drag activates', () => {
+    vi.useFakeTimers()
+
+    try {
+      const { onSelectBase } = renderDragNavigator({
+        bases: [createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-1' })],
+        groups: [createGroup({ id: 'group-1', name: 'Research' })]
+      })
+
+      const [pointerSensor, options] = dndMocks.useSensor.mock.calls[0]
+      const alpha = screen.getByRole('button', { name: /Alpha/ })
+      const pointerDown = new MouseEvent('pointerdown', { bubbles: true, button: 0, clientX: 10, clientY: 10 })
+      Object.defineProperty(pointerDown, 'target', { value: alpha })
+      const onStart = vi.fn()
+
+      new pointerSensor({
+        active: 'knowledge-base:base-1',
+        activeNode: {},
+        context: { current: {} },
+        event: pointerDown,
+        onAbort: vi.fn(),
+        onCancel: vi.fn(),
+        onEnd: vi.fn(),
+        onMove: vi.fn(),
+        onPending: vi.fn(),
+        onStart,
+        options
+      } as never)
+
+      document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 20, clientY: 10 }))
+      document.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, clientX: 20, clientY: 10 }))
+      alpha.click()
+
+      expect(onStart).toHaveBeenCalledTimes(1)
+      expect(onSelectBase).not.toHaveBeenCalled()
+      vi.runOnlyPendingTimers()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('renders the active knowledge base in an unclipped semantic drag overlay', () => {
+    renderDragNavigator({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-1' })],
+      groups: [createGroup({ id: 'group-1', name: 'Research' })]
+    })
+
+    act(() => {
+      dndMocks.onDragStart?.({
+        active: {
+          ...getDragEntry('base-1'),
+          rect: { current: { initial: { height: 32, width: 220 }, translated: null } }
+        }
+      })
+    })
+
+    const overlay = screen.getByTestId('knowledge-drag-overlay')
+    expect(overlay.parentElement).toBe(document.body)
+    expect(screen.getByTestId('knowledge-dnd-context')).not.toContainElement(overlay)
+    expect(within(overlay).getByText('Alpha')).toHaveClass('truncate')
+    expect(overlay.firstElementChild).toHaveClass('border-border', 'bg-popover', 'shadow-md')
+    expect(overlay.firstElementChild).toHaveStyle({ width: '220px' })
+    expect(screen.getByRole('button', { name: /Alpha/ }).parentElement?.style.transform).toBe('')
+
+    act(() => dndMocks.onDragCancel?.({}))
+    expect(within(overlay).queryByText('Alpha')).not.toBeInTheDocument()
+  })
+
+  it('wires the row DOM activator and executes keyboard coordinates toward a group', () => {
+    renderDragNavigator({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-1' })],
+      groups: [
+        createGroup({ id: 'group-1', name: 'Research' }),
+        createGroup({ id: 'group-2', name: 'Archive', orderKey: 'a1' })
+      ]
+    })
+
+    const [, keyboardOptions] = dndMocks.useSensor.mock.calls[1]
+    const active = getDragEntry('base-1')
+    const archive = getDropEntry('group-2')
+    const activeNode = dndMocks.droppableNodes.get(active.id)
+    const archiveNode = dndMocks.droppableNodes.get(archive.id)
+    const announcements = dndMocks.accessibility.announcements
+    const alphaButton = screen.getByRole('button', { name: /Alpha/ })
+    const listeners = dndMocks.listeners.get(active.id)
+
+    expect(keyboardOptions).toEqual({ coordinateGetter: sortableKeyboardCoordinates })
+    expect(alphaButton).toHaveAttribute('aria-roledescription', 'draggable')
+    expect(dndMocks.activatorNodes.get(active.id)).toBe(alphaButton)
+    expect(dndMocks.draggableNodes.get(active.id)).toBe(alphaButton.parentElement)
+    expect(activeNode).toBe(alphaButton.parentElement)
+    expect(listeners).toBeDefined()
+
+    fireEvent.pointerDown(alphaButton)
+    fireEvent.keyDown(alphaButton, { code: 'Space' })
+
+    expect(listeners?.onPointerDown).toHaveBeenCalledTimes(1)
+    expect(listeners?.onKeyDown).toHaveBeenCalledTimes(1)
+    expect(dndMocks.accessibility.screenReaderInstructions.draggable).toContain('默认')
+    expect(dndMocks.accessibility.screenReaderInstructions.draggable).toContain('Research')
+    expect(dndMocks.accessibility.screenReaderInstructions.draggable).toContain('Archive')
+    expect(announcements.onDragStart({ active })).toContain('Alpha')
+    expect(announcements.onDragOver({ active, over: archive })).toContain('Alpha')
+    expect(announcements.onDragOver({ active, over: archive })).toContain('Archive')
+    expect(announcements.onDragCancel({ active, over: null })).toContain('Alpha')
+    expect(dndMocks.droppableData.get('knowledge-base:base-1')).toMatchObject({
+      groupId: 'group-1',
+      type: 'knowledge-group'
+    })
+
+    const activeRect = new DOMRect(0, 0, 220, 32)
+    const archiveRect = new DOMRect(0, 100, 220, 32)
+    const containers = new Map([
+      [
+        active.id,
+        {
+          data: { current: dndMocks.droppableData.get(active.id) },
+          disabled: false,
+          id: active.id,
+          node: { current: activeNode }
+        }
+      ],
+      [
+        archive.id,
+        {
+          data: { current: dndMocks.droppableData.get(archive.id) },
+          disabled: false,
+          id: archive.id,
+          node: { current: archiveNode }
+        }
+      ]
+    ])
+    const keyboardEvent = new KeyboardEvent('keydown', { cancelable: true, code: 'ArrowDown' })
+    const coordinates = keyboardOptions.coordinateGetter(keyboardEvent, {
+      context: {
+        active,
+        collisionRect: activeRect,
+        droppableContainers: {
+          get: (id: string) => containers.get(id),
+          getEnabled: () => Array.from(containers.values())
+        },
+        droppableRects: new Map([
+          [active.id, activeRect],
+          [archive.id, archiveRect]
+        ]),
+        over: null,
+        scrollableAncestors: []
+      }
+    })
+
+    expect(keyboardEvent.defaultPrevented).toBe(true)
+    expect(coordinates).toEqual({ x: 0, y: 100 })
+  })
+
+  it('announces a cross-group drop as a move request rather than a completed update', () => {
+    renderDragNavigator({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-1' })],
+      groups: [
+        createGroup({ id: 'group-1', name: 'Research' }),
+        createGroup({ id: 'group-2', name: 'Archive', orderKey: 'a1' })
+      ]
+    })
+
+    const announcement = dndMocks.accessibility.announcements.onDragEnd({
+      active: getDragEntry('base-1'),
+      over: getDropEntry('group-2')
+    })
+
+    expect(announcement).toBe('已在 Archive 放下 Alpha，正在请求移动。')
+    expect(announcement).not.toContain('已将 Alpha 移至 Archive')
+  })
+
+  it('announces that a same-group drop did not move the knowledge base', () => {
+    renderDragNavigator({
+      bases: [createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-1' })],
+      groups: [createGroup({ id: 'group-1', name: 'Research' })]
+    })
+
+    expect(
+      dndMocks.accessibility.announcements.onDragEnd({
+        active: getDragEntry('base-1'),
+        over: getDropEntry('group-1')
+      })
+    ).toBe('Alpha 仍在 Research，未移动。')
+  })
+
+  it('mounts empty, collapsed, and ungrouped accordion items as concrete drop targets', () => {
+    renderDragNavigator({
+      bases: [
+        createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-1' }),
+        createKnowledgeBase({ id: 'base-2', name: 'Gamma', groupId: null })
+      ],
+      groups: [
+        createGroup({ id: 'group-1', name: 'Research' }),
+        createGroup({ id: 'group-2', name: 'Archive', orderKey: 'a1' })
+      ]
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /Research/ }))
+
+    const researchItem = document.querySelector<HTMLElement>('[data-accordion-item="group-1"]')
+    const archiveItem = document.querySelector<HTMLElement>('[data-accordion-item="group-2"]')
+    const ungroupedItem = document.querySelector<HTMLElement>('[data-accordion-item="ungrouped"]')
+
+    expect(screen.queryByRole('button', { name: /Alpha/ })).not.toBeInTheDocument()
+    expect(researchItem).toContainElement(screen.getByRole('button', { name: /Research/ }))
+    expect(archiveItem).toContainElement(screen.getByRole('button', { name: /Archive/ }))
+    expect(ungroupedItem).toContainElement(screen.getByRole('button', { name: /默认/ }))
+    expect(dndMocks.droppableNodes.get('knowledge-group:id:group-1')).toBe(researchItem)
+    expect(dndMocks.droppableNodes.get('knowledge-group:id:group-2')).toBe(archiveItem)
+    expect(dndMocks.droppableNodes.get('knowledge-group:ungrouped')).toBe(ungroupedItem)
   })
 
   it('offers group creation instead of move-to when an ungrouped base has no group targets', async () => {

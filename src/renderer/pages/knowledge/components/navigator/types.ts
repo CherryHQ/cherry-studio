@@ -62,6 +62,18 @@ export interface KnowledgeBaseRowProps {
   onDeleteBase: (baseId: string) => Promise<void> | void
 }
 
+export interface KnowledgeBaseDragData {
+  type: 'knowledge-base'
+  baseId: string
+  baseName: string
+  groupId: string | null
+}
+
+export interface KnowledgeGroupDropData {
+  type: 'knowledge-group'
+  groupId: string | null
+}
+
 export interface KnowledgeGroupRowProps {
   group: Group
   onRenameGroup: (group: Pick<Group, 'id' | 'name'>) => void
