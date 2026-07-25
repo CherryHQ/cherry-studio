@@ -116,6 +116,30 @@ vi.mock('../streamAdapter', () => ({
         else this.emitInitMetadata()
         return { type: 'continue' }
       }
+      if (message.type === 'system' && message.subtype === 'status') {
+        if (message.status === 'compacting') this.options.statusSink.emit({ type: 'compaction-start' })
+        else if (message.compact_result === 'failed' || message.compact_error)
+          this.options.statusSink.emit({
+            type: 'compaction-error',
+            error: message.compact_error ?? 'Compaction failed'
+          })
+        else if (message.compact_result === 'success') this.options.statusSink.emit({ type: 'compaction-complete' })
+        return { type: 'continue' }
+      }
+      if (message.type === 'system' && message.subtype === 'compact_boundary') {
+        const metadata = message.compact_metadata
+        this.options.statusSink.emit({
+          type: 'compaction-complete',
+          anchor: {
+            trigger: metadata.trigger,
+            completedAt: new Date().toISOString(),
+            preTokens: metadata.pre_tokens,
+            ...(metadata.post_tokens !== undefined ? { postTokens: metadata.post_tokens } : {}),
+            ...(metadata.duration_ms !== undefined ? { durationMs: metadata.duration_ms } : {})
+          }
+        })
+        return { type: 'continue' }
+      }
       if (message.type === 'system' && message.subtype === 'commands_changed') {
         this.options.statusSink.emit({ type: 'supported-commands', commands: message.commands })
         return { type: 'continue' }

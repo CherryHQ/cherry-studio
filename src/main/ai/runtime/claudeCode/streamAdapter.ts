@@ -8,6 +8,7 @@ import type {
 import { generateId } from '@ai-sdk/provider-utils'
 import type {
   SDKAssistantMessage,
+  SDKCompactBoundaryMessage,
   SDKMessage,
   SDKPartialAssistantMessage,
   SDKResultMessage,
@@ -31,6 +32,7 @@ import type {
   BetaToolUseBlock
 } from '@anthropic-ai/sdk/resources/beta/messages'
 import { loggerService } from '@logger'
+import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryUIMessageChunk, CherryUIMessageMetadata } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
@@ -110,7 +112,7 @@ type StreamContext = {
  */
 export type ClaudeCodeStreamStatusEvent = Extract<
   AgentRuntimeEvent,
-  { type: 'supported-commands' | 'background-tasks' }
+  { type: 'supported-commands' | 'background-tasks' | 'compaction-start' | 'compaction-complete' | 'compaction-error' }
 >
 
 type StatusSink = {
@@ -940,7 +942,7 @@ export class ClaudeCodeStreamAdapter {
         this.handleStatusSystemMessage(message)
         return
       case 'compact_boundary':
-        this.handleCompactBoundarySystemMessage()
+        this.handleCompactBoundarySystemMessage(message)
         return
       case 'thinking_tokens':
         this.handleThinkingTokensSystemMessage(message, ctx)
@@ -1019,17 +1021,34 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private handleStatusSystemMessage(message: SDKStatusMessage): void {
-    // Defensive fallback for future non-driver consumers. ClaudeCodeRuntimeDriver intercepts
-    // compaction status before this adapter and emits the runtime state itself.
-    if (message.status === 'compacting') return
+    if (message.status === 'compacting') {
+      this.statusSink.emit({ type: 'compaction-start' })
+      return
+    }
     if (message.compact_result === 'failed' || message.compact_error) {
       logger.warn('Claude compaction failed', { sessionId: message.session_id, error: message.compact_error })
+      this.statusSink.emit({ type: 'compaction-error', error: message.compact_error ?? 'Compaction failed' })
+      return
+    }
+    if (message.compact_result === 'success') {
+      // A successful compaction may report `success` WITHOUT a following `compact_boundary` (the SDK
+      // does not guarantee one). Settle idempotently with a no-anchor completion so the session does
+      // not stay `compacting` until the idle TTL; a real boundary below still wins with the anchor.
+      this.statusSink.emit({ type: 'compaction-complete' })
     }
   }
 
-  private handleCompactBoundarySystemMessage(): void {
-    // Defensive fallback for future non-driver consumers. The current driver path intercepts
-    // compact_boundary before this adapter, so no assistant stream chunk is emitted here.
+  private handleCompactBoundarySystemMessage(message: SDKCompactBoundaryMessage): void {
+    const metadata = message.compact_metadata
+    const anchor: AgentSessionCompactionAnchorData = {
+      trigger: metadata.trigger,
+      completedAt: new Date().toISOString(),
+      preTokens: metadata.pre_tokens
+    }
+    if (metadata.post_tokens !== undefined) anchor.postTokens = metadata.post_tokens
+    if (metadata.duration_ms !== undefined) anchor.durationMs = metadata.duration_ms
+
+    this.statusSink.emit({ type: 'compaction-complete', anchor })
   }
 
   private handleThinkingTokensSystemMessage(message: SDKThinkingTokensMessage, ctx: StreamContext): void {

@@ -4,17 +4,12 @@ import {
   type Options,
   type Query,
   query as createClaudeQuery,
-  type SDKCompactBoundaryMessage,
-  type SDKMessage,
   type SDKResultMessage,
-  type SDKStatusMessage,
   type SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
 import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
 
 type BetaUsage = SDKResultMessage['usage']
-type SDKRuntimeSystemMessage = Extract<SDKMessage, { type: 'system' }>
-type SDKCompactionSystemMessage = SDKCompactBoundaryMessage | SDKStatusMessage
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { modelService } from '@data/services/ModelService'
@@ -28,7 +23,6 @@ import {
   descriptorToTool,
   listClaudeAgentToolDescriptors
 } from '@main/ai/tools/adapters/claudeCode/agentTools'
-import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { Tool } from '@shared/ai/tool'
@@ -362,14 +356,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private async runQueryLoop(): Promise<void> {
     try {
       for await (const message of this.query!) {
-        if (
-          message.type === 'system' &&
-          isCompactionSystemMessage(message) &&
-          this.handleSystemControlMessage(message)
-        ) {
-          continue
-        }
-
         // A failed API request is backing off before a retry. Surface it as ephemeral session status
         // (the host writes it to shared cache) instead of letting the adapter drop it — the renderer
         // shows "Retrying 7/10 in 36s". Never enters the persisted message stream.
@@ -556,48 +542,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       logger.warn('getContextUsage failed after result', { sessionId: this.input.sessionId, error })
     }
   }
-
-  private handleSystemControlMessage(message: SDKCompactionSystemMessage): boolean {
-    if (message.subtype === 'status') {
-      if (message.status === 'compacting') {
-        this.eventQueue.push({ type: 'compaction-start' })
-        return true
-      }
-      if (message.compact_result === 'failed' || message.compact_error) {
-        this.eventQueue.push({ type: 'compaction-error', error: message.compact_error ?? 'Compaction failed' })
-        return true
-      }
-      if (message.compact_result === 'success') {
-        // A successful compaction may report `success` here WITHOUT a following `compact_boundary`
-        // (the SDK does not guarantee a boundary). Settle the compacting state idempotently with a
-        // no-anchor `compaction-complete` so the session doesn't stay stuck `compacting` until the
-        // idle TTL. A real `compact_boundary` (below) still wins by delivering the anchor.
-        this.eventQueue.push({ type: 'compaction-complete' })
-        return true
-      }
-      return true
-    }
-
-    if (message.subtype === 'compact_boundary') {
-      const metadata = message.compact_metadata
-      const anchor: AgentSessionCompactionAnchorData = {
-        trigger: metadata.trigger,
-        completedAt: new Date().toISOString()
-      }
-      anchor.preTokens = metadata.pre_tokens
-      if (metadata.post_tokens !== undefined) anchor.postTokens = metadata.post_tokens
-      if (metadata.duration_ms !== undefined) anchor.durationMs = metadata.duration_ms
-
-      this.eventQueue.push({ type: 'compaction-complete', anchor })
-      return true
-    }
-
-    return false
-  }
-}
-
-function isCompactionSystemMessage(message: SDKRuntimeSystemMessage): message is SDKCompactionSystemMessage {
-  return message.subtype === 'status' || message.subtype === 'compact_boundary'
 }
 
 /**

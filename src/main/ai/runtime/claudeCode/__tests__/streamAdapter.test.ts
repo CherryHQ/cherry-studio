@@ -974,6 +974,48 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(parts).toEqual([])
     })
 
+    it('reports compaction through the status sink, including a boundary anchor', () => {
+      const { adapter, statusEvents } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'status',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        status: 'compacting'
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'compact_boundary',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        compact_metadata: { trigger: 'auto', pre_tokens: 50_000, post_tokens: 12_000, duration_ms: 900 }
+      } as any)
+
+      expect(statusEvents).toEqual([
+        { type: 'compaction-start' },
+        {
+          type: 'compaction-complete',
+          anchor: expect.objectContaining({ trigger: 'auto', preTokens: 50_000, postTokens: 12_000, durationMs: 900 })
+        }
+      ])
+    })
+
+    it('settles a compaction that reports success without a boundary', () => {
+      const { adapter, statusEvents } = createAdapter()
+
+      // The SDK does not guarantee a boundary, so success alone must clear the compacting state.
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'status',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        compact_result: 'success'
+      } as any)
+
+      expect(statusEvents).toEqual([{ type: 'compaction-complete' }])
+    })
+
     it('holds init metadata until a turn opens, since it is turn content', () => {
       const { adapter, parts, sessionIds } = createAdapter({}, { openTurn: false })
 
