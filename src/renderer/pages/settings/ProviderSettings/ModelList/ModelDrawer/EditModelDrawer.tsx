@@ -173,6 +173,11 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       const nextName = overrides?.name ?? name
       const nextGroup = overrides?.group ?? group
       const nextEndpointTypes = overrides?.endpointTypes ?? endpointTypes
+      // An empty or zero field means "no dedicated cache-read rate", not "cache reads are free":
+      // cost computation falls back to the input rate only when the bucket is absent, so the
+      // bucket is omitted instead of persisting a literal 0. Omitting also clears a rate the
+      // user has wiped, since `pricing` is written as a whole object.
+      const nextCacheReadPrice = Number(overrides?.cacheReadPrice ?? cacheReadPrice) || 0
 
       return {
         name: nextName || model.name,
@@ -195,10 +200,9 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
             perMillionTokens: Number(overrides?.outputPrice ?? outputPrice) || 0,
             currency: finalCurrency
           },
-          cacheRead: {
-            perMillionTokens: Number(overrides?.cacheReadPrice ?? cacheReadPrice) || 0,
-            currency: finalCurrency
-          },
+          ...(nextCacheReadPrice > 0
+            ? { cacheRead: { perMillionTokens: nextCacheReadPrice, currency: finalCurrency } }
+            : {}),
           ...(model.pricing?.cacheWrite ? { cacheWrite: model.pricing.cacheWrite } : {})
         }
       }
