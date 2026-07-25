@@ -26,7 +26,6 @@ const logger = loggerService.withContext('CacheCleanup')
 
 const MIGRATION_V2_STATUS_KEY = 'migration_v2_status'
 const SQLITE_SIDECAR_SUFFIXES = ['-wal', '-shm', '-journal'] as const
-const MAX_SIZE_SCAN_DEPTH = 64
 const LEGACY_AGENTS_TABLES = [
   'agents',
   'sessions',
@@ -38,8 +37,6 @@ const LEGACY_AGENTS_TABLES = [
   'channel_task_subscriptions',
   'session_messages'
 ] as const
-
-const LEGACY_WINDOW_STATE_KEYS = new Set(['x', 'y', 'width', 'height', 'isMaximized', 'isFullScreen', 'displayBounds'])
 
 const NORMAL_CACHE_RELATIVE_PATHS = [
   'Code Cache',
@@ -185,12 +182,8 @@ async function measurePath(
   targetPath: string,
   item: string,
   excludedPaths: ReadonlySet<string> = new Set(),
-  depth = 0
+  nested = false
 ): Promise<SizeMeasurement> {
-  if (depth > MAX_SIZE_SCAN_DEPTH) {
-    return { bytes: 0, issues: [issue(item, 'inspection_failed')] }
-  }
-
   const resolvedPath = path.resolve(targetPath)
   if (excludedPaths.has(resolvedPath)) {
     return { bytes: 0, issues: [] }
@@ -208,16 +201,15 @@ async function measurePath(
   }
 
   if (stats.isSymbolicLink()) {
-    logger.warn('Skipped symlink while inspecting cleanup target', { item, path: targetPath })
-    return { bytes: 0, issues: [issue(item, 'unsafe_target')] }
-  }
-
-  if (stats.isFile()) {
+    if (!nested) {
+      logger.warn('Skipped symbolic-link cleanup target', { item, path: targetPath })
+      return { bytes: 0, issues: [issue(item, 'unsafe_target')] }
+    }
     return { bytes: stats.size, issues: [] }
   }
 
   if (!stats.isDirectory()) {
-    return { bytes: 0, issues: [issue(item, 'unsafe_target')] }
+    return { bytes: stats.size, issues: [] }
   }
 
   let entries
@@ -230,7 +222,7 @@ async function measurePath(
 
   const result: SizeMeasurement = { bytes: 0, issues: [] }
   for (const entry of entries) {
-    const child = await measurePath(path.join(targetPath, entry), item, excludedPaths, depth + 1)
+    const child = await measurePath(path.join(targetPath, entry), item, excludedPaths, true)
     result.bytes += child.bytes
     result.issues.push(...child.issues)
   }
@@ -372,31 +364,6 @@ async function collectOwnedTargets(
   }
 }
 
-async function readJsonFile(
-  targetPath: string,
-  item: string
-): Promise<
-  { status: 'missing' } | { status: 'invalid' } | { status: 'valid'; raw: string; value: unknown; size: number }
-> {
-  const fileStatus = await inspectTarget(targetPath, item, 'file')
-  if (fileStatus !== 'valid') {
-    return { status: fileStatus }
-  }
-
-  try {
-    const raw = await fs.readFile(targetPath, 'utf8')
-    return {
-      status: 'valid',
-      raw,
-      value: JSON.parse(raw),
-      size: Buffer.byteLength(raw)
-    }
-  } catch (error) {
-    logger.warn('Failed to parse legacy cleanup JSON', { item, path: targetPath, error })
-    return { status: 'invalid' }
-  }
-}
-
 function sqliteHasTable(targetPath: string, tableName: string, requiredColumns: string[] = []): boolean {
   const db = new Database(targetPath, { readonly: true, fileMustExist: true })
   try {
@@ -473,46 +440,6 @@ async function sqliteFileSetsAreIdentical(left: string, right: string): Promise<
   }
 
   return true
-}
-
-function validWindowState(value: unknown): boolean {
-  if (!isRecord(value)) return false
-  if (Object.keys(value).some((key) => !LEGACY_WINDOW_STATE_KEYS.has(key))) return false
-  const isFiniteNumber = (candidate: unknown) => typeof candidate === 'number' && Number.isFinite(candidate)
-  if (!isFiniteNumber(value.width) || !isFiniteNumber(value.height)) return false
-  if (value.x !== undefined && !isFiniteNumber(value.x)) return false
-  if (value.y !== undefined && !isFiniteNumber(value.y)) return false
-  if (value.isMaximized !== undefined && typeof value.isMaximized !== 'boolean') return false
-  if (value.isFullScreen !== undefined && typeof value.isFullScreen !== 'boolean') return false
-  if (value.displayBounds !== undefined) {
-    const bounds = value.displayBounds
-    if (!isRecord(bounds) || !['x', 'y', 'width', 'height'].every((key) => isFiniteNumber(bounds[key]))) {
-      return false
-    }
-  }
-  return true
-}
-
-async function collectWindowState(plan: LegacyCleanupPlan, targetPath: string): Promise<void> {
-  const item = `legacy_window_state:${path.basename(targetPath)}`
-  const result = await readJsonFile(targetPath, item)
-  if (result.status === 'missing') return
-  if (result.status === 'invalid' || !validWindowState(result.value)) {
-    plan.issues.push(issue(item, 'invalid_data'))
-    return
-  }
-  plan.targets.push({ item, path: targetPath, kind: 'file' })
-}
-
-async function collectCustomMiniApps(plan: LegacyCleanupPlan, targetPath: string): Promise<void> {
-  const item = 'legacy_custom_mini_apps'
-  const result = await readJsonFile(targetPath, item)
-  if (result.status === 'missing') return
-  if (result.status === 'invalid' || !Array.isArray(result.value)) {
-    plan.issues.push(issue(item, 'invalid_data'))
-    return
-  }
-  plan.targets.push({ item, path: targetPath, kind: 'file' })
 }
 
 async function collectAgentsDatabases(
@@ -620,14 +547,29 @@ async function collectKnowledgeDatabases(plan: LegacyCleanupPlan, knowledgeRoot:
 
 async function collectLegacyHomeConfig(plan: LegacyCleanupPlan, targetPath: string): Promise<void> {
   const item = 'legacy_home_config'
-  const result = await readJsonFile(targetPath, item)
-  if (result.status === 'missing') return
-  if (result.status === 'invalid' || !isRecord(result.value)) {
+  const status = await inspectTarget(targetPath, item, 'file')
+  if (status === 'missing') return
+  if (status === 'invalid') {
+    plan.issues.push(issue(item, 'unsafe_target'))
+    return
+  }
+
+  let raw: string
+  let value: unknown
+  try {
+    raw = await fs.readFile(targetPath, 'utf8')
+    value = JSON.parse(raw)
+  } catch (error) {
+    logger.warn('Failed to parse legacy shared config', { path: targetPath, error })
+    plan.issues.push(issue(item, 'invalid_data'))
+    return
+  }
+  if (!isRecord(value)) {
     plan.issues.push(issue(item, 'invalid_data'))
     return
   }
 
-  const appDataPath = result.value.appDataPath
+  const appDataPath = value.appDataPath
   if (typeof appDataPath === 'string') {
     // This historical shape applies to every installation sharing ~/.cherrystudio.
     plan.issues.push(issue(item, 'unsafe_target'))
@@ -662,15 +604,16 @@ async function collectLegacyHomeConfig(plan: LegacyCleanupPlan, targetPath: stri
   }
 
   const remainingEntries = appDataPath.filter((entry) => !isRecord(entry) || entry.executablePath !== executablePath)
-  const nextValue = { ...result.value, appDataPath: remainingEntries }
+  const nextValue = { ...value, appDataPath: remainingEntries }
+  const size = Buffer.byteLength(raw)
 
   if (remainingEntries.length === 0 && Object.keys(nextValue).length === 1) {
     plan.mutations.push({
       item,
       path: targetPath,
-      expectedRaw: result.raw,
+      expectedRaw: raw,
       nextValue: null,
-      estimatedBytes: result.size
+      estimatedBytes: size
     })
     return
   }
@@ -679,9 +622,9 @@ async function collectLegacyHomeConfig(plan: LegacyCleanupPlan, targetPath: stri
   plan.mutations.push({
     item,
     path: targetPath,
-    expectedRaw: result.raw,
+    expectedRaw: raw,
     nextValue,
-    estimatedBytes: Math.max(0, result.size - Buffer.byteLength(nextText))
+    estimatedBytes: Math.max(0, size - Buffer.byteLength(nextText))
   })
 }
 
@@ -690,13 +633,19 @@ async function collectLegacyCleanupPlan(): Promise<LegacyCleanupPlan> {
   const plan: LegacyCleanupPlan = { targets: [], mutations: [], issues: [] }
   const ownedTargets = collectOwnedTargets([
     { item: 'legacy_config', path: paths.legacyConfig, kind: 'file' },
+    ...paths.legacyWindowStates.map(
+      (targetPath): CleanupTarget => ({
+        item: `legacy_window_state:${path.basename(targetPath)}`,
+        path: targetPath,
+        kind: 'file'
+      })
+    ),
+    { item: 'legacy_custom_mini_apps', path: paths.customMiniApps, kind: 'file' },
     { item: 'legacy_migration_temp', path: paths.migrationTemp, kind: 'directory' },
     { item: 'legacy_cli_install', path: paths.legacyCliInstall, kind: 'directory' }
   ])
 
   await Promise.all([
-    ...paths.legacyWindowStates.map((targetPath) => collectWindowState(plan, targetPath)),
-    collectCustomMiniApps(plan, paths.customMiniApps),
     collectAgentsDatabases(plan, paths.legacyAgents, paths.rootLegacyAgents),
     collectMemoryDatabase(plan, paths.legacyMemory, 'legacy_memory_database'),
     collectMemoryDatabase(plan, paths.rootLegacyMemory, 'legacy_root_memory_database'),

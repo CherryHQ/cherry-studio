@@ -194,15 +194,28 @@ describe('cacheCleanup', () => {
     await expect(fs.stat(path.join(root, 'config.json'))).resolves.toBeDefined()
   })
 
-  it('removes the legacy userData config file without inspecting its contents', async () => {
+  it('removes exact legacy files without inspecting their contents', async () => {
     completeMigration()
-    const configPath = path.join(root, 'config.json')
-    await fs.writeFile(configPath, 'not-json')
+    const targetPaths = [
+      path.join(root, 'config.json'),
+      path.join(root, 'window-state.json'),
+      path.join(root, 'miniWindow-state.json'),
+      path.join(root, 'quickAssistant-state.json'),
+      path.join(root, 'Data', 'Files', 'custom-minapps.json')
+    ]
+    for (const targetPath of targetPaths) {
+      await fs.mkdir(path.dirname(targetPath), { recursive: true })
+      await fs.writeFile(targetPath, 'not-json')
+    }
 
+    const inspection = await inspectCacheCleanup(['legacy_v1'])
     const cleanup = await runCacheCleanup(['legacy_v1'])
 
+    expect(inspection.results[0]?.size).toMatchObject({ completeness: 'complete' })
     expect(cleanup.results[0]?.status).toBe('cleared')
-    await expect(fs.stat(configPath)).rejects.toMatchObject({ code: 'ENOENT' })
+    for (const targetPath of targetPaths) {
+      await expect(fs.stat(targetPath)).rejects.toMatchObject({ code: 'ENOENT' })
+    }
   })
 
   it('removes only schema-validated legacy knowledge and Memory databases', async () => {
@@ -327,7 +340,7 @@ describe('cacheCleanup', () => {
     }
   })
 
-  it('removes a restore directory containing a symlink without following the link', async () => {
+  it('treats nested restore contents as opaque without following symlinks', async () => {
     completeMigration()
     const restorePath = path.join(root, 'Data.restore')
     const externalPath = path.join(root, 'external-data')
@@ -338,7 +351,8 @@ describe('cacheCleanup', () => {
     const inspection = await inspectCacheCleanup(['restore_staging'])
     const cleanup = await runCacheCleanup(['restore_staging'])
 
-    expect(inspection.results[0]?.size).toMatchObject({ bytes: null, completeness: 'partial' })
+    expect(inspection.results[0]?.size.bytes).toBeGreaterThan(0)
+    expect(inspection.results[0]?.size.completeness).toBe('complete')
     expect(cleanup.results[0]?.status).toBe('cleared')
     await expect(fs.stat(restorePath)).rejects.toMatchObject({ code: 'ENOENT' })
     await expect(fs.stat(externalPath)).resolves.toBeDefined()
