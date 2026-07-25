@@ -497,25 +497,24 @@ export const readFileInputSchema = z.object({
     .describe(
       'Name of the attached file to read, exactly as it appears in the attachment manifest in the conversation.'
     ),
-  // `.nullable()` not `.optional()`: ReadFileTool runs with `strict: true`, and a strict
-  // OpenAI-compatible provider rejects a schema whose `required` omits a property (`z.toJSONSchema`
-  // drops `.optional()` fields from `required`), failing every call with "Missing 'offset'".
-  // `readFile` coerces null back to the paging defaults.
+  // Required plain numbers with a 0 sentinel, not `.optional()` / `.nullable()`: ReadFileTool runs
+  // with `strict: true`, so a strict OpenAI-compatible provider rejects a schema whose `required`
+  // omits a property (`z.toJSONSchema` drops `.optional()` fields from `required`) — while Gemini
+  // rejects the `anyOf: [number, null]` that `.nullable()` emits ("didn't specify the schema type
+  // field"). A bare `number` is the only shape both accept; `readFile` maps 0 back to the defaults.
   offset: z
     .number()
     .int()
     .nonnegative()
-    .nullable()
     .describe(
-      '0-based character offset to start from. Page through long documents with offset + limit. Pass null to start at the beginning.'
+      '0-based character offset to start from. Page through long documents with offset + limit. Use 0 to start at the beginning.'
     ),
   limit: z
     .number()
     .int()
-    .positive()
+    .nonnegative()
     .max(200_000)
-    .nullable()
-    .describe(`Max characters to return. Pass null to default to ${READ_FILE_PAGE_SIZE}.`)
+    .describe(`Max characters to return. Use 0 to default to ${READ_FILE_PAGE_SIZE}.`)
 })
 
 export const readFileOutputSchema = z.object({
