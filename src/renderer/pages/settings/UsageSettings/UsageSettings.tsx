@@ -46,7 +46,7 @@ import {
   X
 } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DEFAULT_COST_CURRENCY, formatCost, parseDateKey, startOfLocalDay, toDateKey } from './usageDisplay'
@@ -763,6 +763,7 @@ function UsageSettings() {
   // Cost is only summable within a single currency, so mixed windows fall back to tokens
   // while keeping the stored preference intact.
   const activeChartMetric = chartMetric === 'cost' && !canShowCostMetric ? 'tokens' : chartMetric
+  const activeHeatmapMetric = heatmapMetric === 'cost' && !canShowCostMetric ? 'tokens' : heatmapMetric
   const activeDays = activeDateKeys.length
   const longestStreak = useMemo(() => getLongestStreak(activeDateKeys), [activeDateKeys])
   const cacheMetrics = useMemo(() => getCacheUsageMetrics(overviewBuckets), [overviewBuckets])
@@ -814,12 +815,6 @@ function UsageSettings() {
       ),
     [overviewBuckets]
   )
-
-  useEffect(() => {
-    if (heatmapMetric === 'cost' && !canShowCostMetric) {
-      setHeatmapMetric('tokens')
-    }
-  }, [canShowCostMetric, heatmapMetric])
 
   const dateFormatter = useMemo(
     () => new Intl.DateTimeFormat(i18n.language, { year: 'numeric', month: 'short', day: 'numeric' }),
@@ -1399,7 +1394,7 @@ function UsageSettings() {
           <UsageHeatmap
             buckets={timelineBuckets}
             selectedDate={selectedDate}
-            metric={heatmapMetric}
+            metric={activeHeatmapMetric}
             onMetricChange={setHeatmapMetric}
             onSelectDate={(date) => setSelectedDate((current) => (current === date ? undefined : date))}
             costCurrency={windowCostCurrency}
