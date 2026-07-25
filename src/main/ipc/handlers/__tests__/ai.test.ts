@@ -27,7 +27,14 @@ const aiStreamManager = {
 const claudeCodeWarmQueryManager = { prewarmAgentSession: vi.fn(), closeAgentSessionWarm: vi.fn() }
 const agentSessionRuntimeService = { primeConnection: vi.fn(), releaseIdleConnection: vi.fn() }
 const claudeCodeTraceBridgeService = { isTraceModeEnabled: vi.fn() }
-const agentJobsService = { runTask: vi.fn() }
+const agentJobsService = {
+  createTask: vi.fn(),
+  updateTask: vi.fn(),
+  pauseTask: vi.fn(),
+  resumeTask: vi.fn(),
+  deleteTask: vi.fn(),
+  runTask: vi.fn()
+}
 
 // WebContentsListener (constructed in the stream_open handler) wires once()/isDestroyed().
 const fakeWebContents = { id: 1, once: vi.fn(), isDestroyed: () => false, send: vi.fn() }
@@ -240,10 +247,107 @@ describe('aiHandlers — agent sessions & tasks', () => {
     expect(aiService.respondToolApproval).toHaveBeenCalledWith(payload, undefined)
     expect(windowManager.getWindow).not.toHaveBeenCalled()
   })
+})
 
-  it('run_agent_task delegates to AgentJobsService', async () => {
-    agentJobsService.runTask.mockResolvedValue(true)
-    await aiHandlers['ai.run_agent_task']('task-1', ctx)
-    expect(agentJobsService.runTask).toHaveBeenCalledWith('task-1')
+describe('aiHandlers — agent task commands', () => {
+  const taskEntity = { id: 'task-1', agentId: 'agent-1', name: 'daily', enabled: true } as never
+  const form = {
+    name: 'daily',
+    prompt: 'do it',
+    trigger: { kind: 'interval', ms: 60_000 },
+    workspace: { type: 'system' }
+  } as never
+
+  it('create delegates once to AgentJobsService and returns the committed entity', async () => {
+    agentJobsService.createTask.mockReturnValue(taskEntity)
+
+    const result = await aiHandlers['ai.agent.task.create']({ agentId: 'agent-1', ...(form as object) } as never, ctx)
+
+    expect(agentJobsService.createTask).toHaveBeenCalledTimes(1)
+    expect(agentJobsService.createTask).toHaveBeenCalledWith('agent-1', form)
+    expect(result).toBe(taskEntity)
+  })
+
+  // The four-segment trigger-invalid chain: JobManager's coded Error must be
+  // translated to the AI-domain IpcError, or IpcError.from would flatten it to
+  // INTERNAL and the renderer form could not branch.
+  it('create translates JOB_SCHEDULE_TRIGGER_INVALID into AI_AGENT_TASK_TRIGGER_INVALID', async () => {
+    const domainError = Object.assign(new Error('JOB_SCHEDULE_TRIGGER_INVALID: Invalid trigger: bad expr'), {
+      code: 'JOB_SCHEDULE_TRIGGER_INVALID'
+    })
+    agentJobsService.createTask.mockImplementation(() => {
+      throw domainError
+    })
+
+    const error = await aiHandlers['ai.agent.task.create'](
+      { agentId: 'agent-1', ...(form as object) } as never,
+      ctx
+    ).catch((e) => e)
+
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error.code).toBe(aiErrorCodes.AI_AGENT_TASK_TRIGGER_INVALID)
+  })
+
+  it('update delegates and maps a null result to AI_AGENT_TASK_NOT_FOUND', async () => {
+    agentJobsService.updateTask.mockReturnValueOnce(taskEntity)
+    const patch = { name: 'renamed' }
+
+    const result = await aiHandlers['ai.agent.task.update']({ agentId: 'agent-1', taskId: 'task-1', patch }, ctx)
+    expect(agentJobsService.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', patch)
+    expect(result).toBe(taskEntity)
+
+    agentJobsService.updateTask.mockReturnValueOnce(null)
+    const error = await aiHandlers['ai.agent.task.update']({ agentId: 'agent-1', taskId: 'gone', patch }, ctx).catch(
+      (e) => e
+    )
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error.code).toBe(aiErrorCodes.AI_AGENT_TASK_NOT_FOUND)
+  })
+
+  it('update translates JOB_SCHEDULE_TRIGGER_INVALID into AI_AGENT_TASK_TRIGGER_INVALID', async () => {
+    agentJobsService.updateTask.mockImplementation(() => {
+      throw Object.assign(new Error('bad tz'), { code: 'JOB_SCHEDULE_TRIGGER_INVALID' })
+    })
+
+    const error = await aiHandlers['ai.agent.task.update'](
+      { agentId: 'agent-1', taskId: 'task-1', patch: {} },
+      ctx
+    ).catch((e) => e)
+
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error.code).toBe(aiErrorCodes.AI_AGENT_TASK_TRIGGER_INVALID)
+  })
+
+  it('pause / resume delegate and map null to AI_AGENT_TASK_NOT_FOUND', async () => {
+    agentJobsService.pauseTask.mockResolvedValueOnce(taskEntity)
+    expect(await aiHandlers['ai.agent.task.pause']({ agentId: 'agent-1', taskId: 'task-1' }, ctx)).toBe(taskEntity)
+    expect(agentJobsService.pauseTask).toHaveBeenCalledWith('agent-1', 'task-1')
+
+    agentJobsService.resumeTask.mockReturnValueOnce(null)
+    const error = await aiHandlers['ai.agent.task.resume']({ agentId: 'agent-1', taskId: 'gone' }, ctx).catch((e) => e)
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error.code).toBe(aiErrorCodes.AI_AGENT_TASK_NOT_FOUND)
+  })
+
+  it('delete resolves void on success and maps false to AI_AGENT_TASK_NOT_FOUND', async () => {
+    agentJobsService.deleteTask.mockResolvedValueOnce(true)
+    expect(await aiHandlers['ai.agent.task.delete']({ agentId: 'agent-1', taskId: 'task-1' }, ctx)).toBeUndefined()
+    expect(agentJobsService.deleteTask).toHaveBeenCalledWith('agent-1', 'task-1')
+
+    agentJobsService.deleteTask.mockResolvedValueOnce(false)
+    const error = await aiHandlers['ai.agent.task.delete']({ agentId: 'agent-1', taskId: 'gone' }, ctx).catch((e) => e)
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error.code).toBe(aiErrorCodes.AI_AGENT_TASK_NOT_FOUND)
+  })
+
+  it('run delegates with the owning agent id and maps false to AI_AGENT_TASK_NOT_FOUND', async () => {
+    agentJobsService.runTask.mockResolvedValueOnce(true)
+    await aiHandlers['ai.agent.task.run']({ agentId: 'agent-1', taskId: 'task-1' }, ctx)
+    expect(agentJobsService.runTask).toHaveBeenCalledWith('agent-1', 'task-1')
+
+    agentJobsService.runTask.mockResolvedValueOnce(false)
+    const error = await aiHandlers['ai.agent.task.run']({ agentId: 'agent-1', taskId: 'gone' }, ctx).catch((e) => e)
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error.code).toBe(aiErrorCodes.AI_AGENT_TASK_NOT_FOUND)
   })
 })

@@ -111,7 +111,9 @@ vi.mock('@main/core/lifecycle', async () => {
 })
 
 import { WindowType } from '@main/core/window/types'
+import { app } from 'electron'
 
+import { contextMenu } from '../ContextMenu'
 import { MainWindowService } from '../MainWindowService'
 
 interface MockBrowserWindow extends EventEmitter {
@@ -127,7 +129,12 @@ interface MockBrowserWindow extends EventEmitter {
   maximize: ReturnType<typeof vi.fn>
   setVisibleOnAllWorkspaces: ReturnType<typeof vi.fn>
   setFullScreen: ReturnType<typeof vi.fn>
-  webContents: { reload: ReturnType<typeof vi.fn>; on: ReturnType<typeof vi.fn> }
+  webContents: {
+    reload: ReturnType<typeof vi.fn>
+    on: ReturnType<typeof vi.fn>
+    setWindowOpenHandler: ReturnType<typeof vi.fn>
+    session: { webRequest: { onHeadersReceived: ReturnType<typeof vi.fn> } }
+  }
 }
 
 function createMockWindow(): MockBrowserWindow {
@@ -147,7 +154,9 @@ function createMockWindow(): MockBrowserWindow {
   win.webContents = {
     reload: vi.fn(),
     // capture render-process-gone listener for crash-recovery tests
-    on: vi.fn()
+    on: vi.fn(),
+    setWindowOpenHandler: vi.fn(),
+    session: { webRequest: { onHeadersReceived: vi.fn() } }
   }
   return win
 }
@@ -463,7 +472,6 @@ describe('MainWindowService', () => {
     beforeEach(() => {
       // Stub the other (heavy) setup steps so this isolates the read-back path.
       for (const m of [
-        'setupContextMenu',
         'setupSpellCheck',
         'setupWindowEvents',
         'setupWebContentsHandlers',
@@ -499,5 +507,69 @@ describe('MainWindowService', () => {
       expect(windowManagerMock.peekWindowBounds).toHaveBeenCalledWith(WindowType.Main)
       expect(win.maximize).not.toHaveBeenCalled()
     })
+  })
+
+  // Context-menu attach is app-level: one 'web-contents-created' listener owned by
+  // onInit covers the main window's webContents and every webview. Guards the
+  // regression where per-window registration stacked one app listener per singleton
+  // main-window rebuild, popping duplicate menus.
+  describe('context menu registration', () => {
+    beforeEach(() => {
+      // Stub the heavy per-window setup steps; this block only cares about wiring.
+      for (const m of [
+        'setupSpellCheck',
+        'setupWindowEvents',
+        'setupWebContentsHandlers',
+        'setupWindowLifecycleEvents',
+        'setupMainWindowMonitor'
+      ]) {
+        vi.spyOn(svc as any, m).mockImplementation(() => {})
+      }
+      prefValues['app.tray.on_launch'] = false
+      windowManagerMock.peekWindowBounds.mockReturnValue(undefined)
+    })
+
+    const webContentsCreatedRegistrations = () =>
+      (app.on as unknown as ReturnType<typeof vi.fn>).mock.calls.filter((call) => call[0] === 'web-contents-created')
+
+    it('registers one app-level web-contents-created listener across main-window rebuilds', async () => {
+      await (svc as any).onInit()
+
+      expect(webContentsCreatedRegistrations()).toHaveLength(1)
+
+      const createdCallback = (windowManagerMock.onWindowCreatedByType.mock.calls as any[])[0]?.[1]
+      expect(createdCallback).toBeDefined()
+
+      // Singleton rebuild: destroy + recreate fires onWindowCreatedByType again.
+      createdCallback({ window: createMockWindow() })
+      createdCallback({ window: createMockWindow() })
+
+      expect(webContentsCreatedRegistrations()).toHaveLength(1)
+      // No direct per-window attach — the app-level handler owns it.
+      expect(contextMenu.contextMenu).not.toHaveBeenCalled()
+    })
+
+    it('attaches the context menu to each webContents via the app-level handler', async () => {
+      await (svc as any).onInit()
+
+      const handler = webContentsCreatedRegistrations()[0]?.[1]
+      expect(handler).toBeDefined()
+
+      const first = { id: 1 }
+      const second = { id: 2 }
+      handler(null, first)
+      handler(null, second)
+
+      expect(contextMenu.contextMenu).toHaveBeenNthCalledWith(1, first)
+      expect(contextMenu.contextMenu).toHaveBeenNthCalledWith(2, second)
+    })
+  })
+
+  it('does not inject the application preload into webviews', () => {
+    platformState.isDev = true
+
+    ;(svc as any).setupWebContentsHandlers(win)
+
+    expect(win.webContents.on.mock.calls.map(([event]) => event)).not.toContain('will-attach-webview')
   })
 })

@@ -154,6 +154,7 @@ describe('useResourceCatalogController', () => {
       },
       description: createValues.description,
       instructions: createValues.prompt,
+      knowledgeBaseIds: createValues.knowledgeBaseIds,
       model: createValues.modelId,
       name: createValues.name,
       planModel: createValues.modelId,

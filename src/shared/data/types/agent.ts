@@ -10,10 +10,8 @@ export type {
   AgentBase,
   AgentConfiguration,
   AgentEntity,
-  CreateTaskDto as CreateTaskRequest,
   ScheduledTaskEntity,
-  TaskRunLogEntity,
-  UpdateTaskDto as UpdateTaskRequest
+  TaskRunLogEntity
 } from '../api/schemas/agents'
 export type { AgentSessionMessageEntity } from '../api/schemas/agentSessionMessages'
 export type { InstalledSkill } from '../api/schemas/skills'

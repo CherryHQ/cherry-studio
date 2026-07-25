@@ -1,9 +1,16 @@
+import { loggerService } from '@logger'
 import { FILE_TYPE } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
-import type { FilePath } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { fileUrlToPath, toSafeFileUrl } from '@shared/utils/file'
 import { File, FileCode2, FileImage, FileJson, FileSpreadsheet, FileText, FileType2, Presentation } from 'lucide-react'
 import type { ComponentType, ReactNode } from 'react'
+
+const logger = loggerService.withContext('fileTokenPresentation')
+
+// `getFilePreviewUrl` runs on every token render; dedupe the warn per offending
+// path/URL so a bad attachment can't flood the log across rerenders.
+const warnedPreviewKeys = new Set<string>()
 
 const fileTokenIconClassName = 'size-3 shrink-0 text-current'
 const fileTokenContainerClassName = 'border-border bg-background hover:bg-accent'
@@ -115,15 +122,36 @@ function getFilePreviewUrl(file: ComposerAttachment | undefined, fallbackLabel: 
   const extension = getNormalizedFileExtension(file, fallbackLabel)
 
   if (previewUrl) {
+    // `fileUrlToPath` (decodeURIComponent) throws URIError on malformed percent-
+    // encoding like `file:///tmp/100%.png` — which `new URL()` accepts — so the
+    // whole conversion (parse, path extraction, schema check, URL rebuild) stays
+    // inside one guard; a narrower try around only `new URL` would crash render.
     try {
       const url = new URL(previewUrl)
-      return url.protocol === 'file:' ? toSafeFileUrl(fileUrlToPath(url) as FilePath, extension || null) : previewUrl
+      if (url.protocol !== 'file:') return previewUrl
+      const parsedPath = AbsoluteFilePathSchema.safeParse(fileUrlToPath(url))
+      if (!parsedPath.success) {
+        if (!warnedPreviewKeys.has(previewUrl)) {
+          warnedPreviewKeys.add(previewUrl)
+          logger.warn('getFilePreviewUrl: non-absolute path in file: previewUrl', { previewUrl })
+        }
+        return undefined
+      }
+      return toSafeFileUrl(parsedPath.data, extension || null)
     } catch {
       return undefined
     }
   }
   if (!file.path) return undefined
-  return toSafeFileUrl(file.path as FilePath, extension || null)
+  const parsedPath = AbsoluteFilePathSchema.safeParse(file.path)
+  if (!parsedPath.success) {
+    if (!warnedPreviewKeys.has(file.path)) {
+      warnedPreviewKeys.add(file.path)
+      logger.warn('getFilePreviewUrl: non-absolute/invalid attachment path', { path: file.path })
+    }
+    return undefined
+  }
+  return toSafeFileUrl(parsedPath.data, extension || null)
 }
 
 function getFileTokenVariant(file: ComposerAttachment | undefined, fallbackLabel: string): FileTokenVariant {

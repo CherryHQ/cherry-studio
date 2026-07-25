@@ -2,6 +2,7 @@ import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrame
 import { TabRouter } from '@renderer/components/layout/TabRouter'
 import { TITLE_BAR_HEIGHT_CLASS } from '@renderer/components/layout/titleBar'
 import MiniAppTabsPool from '@renderer/components/MiniApp/MiniAppTabsPool'
+import { ResourceViewSourceProvider } from '@renderer/components/ResourceViewSourceProvider'
 import { useHasWindowControls, WindowControls } from '@renderer/components/WindowControls'
 import { useTabs } from '@renderer/hooks/tab'
 import type { WindowFrame } from '@renderer/hooks/useWindowFrame'
@@ -98,16 +99,18 @@ export const SubWindowAppShell = () => {
         {/* Content Area - Multi MemoryRouter Architecture */}
         <main className="relative flex-1 overflow-hidden bg-background">
           {/* Route Tabs: Only render non-dormant tabs */}
-          {tabs
-            .filter((t) => t.type === 'route' && !t.isDormant)
-            .map((tab) => (
-              <TabRouter
-                key={tab.id}
-                tab={tab}
-                isActive={tab.id === activeTabId}
-                onUrlChange={(url) => handleUrlChange(tab.id, url)}
-              />
-            ))}
+          <ResourceViewSourceProvider>
+            {tabs
+              .filter((t) => t.type === 'route' && !t.isDormant)
+              .map((tab) => (
+                <TabRouter
+                  key={tab.id}
+                  tab={tab}
+                  isActive={tab.id === activeTabId}
+                  onUrlChange={(url) => handleUrlChange(tab.id, url)}
+                />
+              ))}
+          </ResourceViewSourceProvider>
 
           {/* Webview Tabs: Only render non-dormant tabs */}
           {tabs
