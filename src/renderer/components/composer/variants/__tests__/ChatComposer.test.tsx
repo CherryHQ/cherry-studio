@@ -2070,7 +2070,7 @@ describe('ChatComposer', () => {
     ])
   })
 
-  it('clears mentioned models while previewing plain-text history before sending', async () => {
+  it('preserves mentioned models while previewing plain-text history before sending', async () => {
     seedInputHistory(['history entry'])
     mocks.mentionedModels = [model, modelB]
     mocks.getDraft.mockImplementation(() => ({
@@ -2085,7 +2085,7 @@ describe('ChatComposer', () => {
       expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
     })
     await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
-    expect(mocks.mentionedModels).toEqual([])
+    expect(mocks.mentionedModels).toEqual([model, modelB])
 
     await act(async () => {
       await mocks.surfaceProps?.onSendDraft({ text: 'history entry', tokens: [] })
@@ -2094,7 +2094,7 @@ describe('ChatComposer', () => {
     expect(onSend).toHaveBeenCalledWith(
       'history entry',
       expect.objectContaining({
-        mentionedModels: undefined
+        mentionedModels: [model.id, modelB.id]
       })
     )
   })
