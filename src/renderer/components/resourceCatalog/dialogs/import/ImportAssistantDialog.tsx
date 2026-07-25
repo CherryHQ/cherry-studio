@@ -14,7 +14,7 @@ import {
 import { useImportAssistantMutation } from '@renderer/hooks/resourceCatalog'
 import { toast } from '@renderer/services/toast'
 import { AssistantTransferError, parseAssistantImportContent } from '@renderer/utils/assistantTransfer'
-import { Clipboard, FileJson, Link, Upload } from 'lucide-react'
+import { Clipboard, FileJson, Import, Link } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -297,8 +297,8 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
     }
   }
 
-  const tabs: { id: ImportTab; label: string; icon: typeof Upload }[] = [
-    { id: 'file', label: t('library.import_dialog.tab.file'), icon: Upload },
+  const tabs: { id: ImportTab; label: string; icon: typeof Import }[] = [
+    { id: 'file', label: t('library.import_dialog.tab.file'), icon: Import },
     { id: 'clipboard', label: t('library.import_dialog.tab.clipboard'), icon: Clipboard },
     { id: 'url', label: t('library.import_dialog.tab.url'), icon: Link }
   ]
@@ -360,7 +360,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                   }
                   className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-border-muted border-dashed bg-transparent p-8 text-center shadow-none transition-colors hover:border-border-hover hover:bg-accent disabled:pointer-events-none disabled:opacity-60">
                   <DropzoneEmptyState>
-                    <Upload size={24} strokeWidth={1.2} className="mb-3 text-foreground-muted" />
+                    <Import size={24} strokeWidth={1.2} className="mb-3 text-foreground-muted" />
                     <p className="mb-1 text-foreground-secondary text-xs">
                       {t('library.import_dialog.file.drop_hint')}
                     </p>

@@ -339,6 +339,7 @@ function createAgentSessionsSource(): AgentSessionsSource {
     isStatsLoading: false,
     statsError: undefined,
     refetchStats: vi.fn().mockResolvedValue(undefined),
+    loadSession: vi.fn().mockResolvedValue(null),
     loadLatestSession: vi.fn().mockResolvedValue(null),
     loadReusableSessions: vi.fn().mockResolvedValue([])
   }

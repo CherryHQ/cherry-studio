@@ -64,7 +64,7 @@ import {
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import { getAgentModelFallbackSnapshot } from '@renderer/utils/agent'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { fetchMessagesSummary } from '@renderer/utils/aiGeneration'
 import {
   type AgentSessionDisplayMode,
@@ -128,6 +128,7 @@ import {
 import AgentSessionImageCaptureHost from '../messages/AgentSessionImageCaptureHost'
 import type { CreateAgentSessionDefaults } from '../types'
 import { type AgentGroupActionContext, executeAgentGroupAction, resolveAgentGroupActions } from './agentGroupActions'
+import { useOptionalAgentFileNavigation } from './AgentRightPane'
 import SessionItem, { type SessionItemMenuActions } from './SessionItem'
 import {
   executeWorkdirGroupAction,
@@ -338,6 +339,19 @@ export function findLatestSessionCreationDefaults(
   }
 
   return buildSessionCreationDefaults(latestSession)
+}
+
+function sessionCreationDefaultsPreserveFileWorkspace(
+  defaults: SessionCreationDefaults,
+  activeSession: Pick<AgentSessionEntity, 'workspaceId' | 'workspace'>
+): boolean {
+  if (defaults.workspace?.type === AGENT_WORKSPACE_TYPE.USER) {
+    return activeSession.workspaceId === defaults.workspace.workspaceId
+  }
+  // A path-only seed may be promoted to a persisted workspace id, and each
+  // system session owns a distinct generated-files directory. Only an exact
+  // existing user workspace id proves that the file session survives.
+  return false
 }
 
 const Sessions = ({
@@ -750,6 +764,7 @@ const Sessions = ({
   }, [])
   const sessionItemsRef = useRef(sessionItems)
   const activeSessionIdRef = useRef(activeSessionId)
+  const requestFileNavigation = useOptionalAgentFileNavigation()
   const previousRevealDisplayModeRef = useRef(displayMode)
   const modeRevealRequestIdRef = useRef(0)
   const incomingRevealRequestKey = revealRequest ? `${revealRequest.requestId}:${revealRequest.itemId}` : null
@@ -816,10 +831,35 @@ const Sessions = ({
 
   const setActiveSessionId = useCallback(
     (id: string | null, selectedSession?: AgentSessionEntity | null) => {
-      cancelOwnerResourceActivation()
-      commitActiveSession(id, selectedSession)
+      const session =
+        selectedSession === undefined
+          ? id
+            ? (sessionItemsRef.current.find((candidate) => candidate.id === id) ?? null)
+            : null
+          : selectedSession
+      const currentActiveSession =
+        activeSession?.id === activeSessionIdRef.current
+          ? activeSession
+          : activeSessionIdRef.current
+            ? sessionItemsRef.current.find((candidate) => candidate.id === activeSessionIdRef.current)
+            : null
+      const preservesFileWorkspace =
+        currentActiveSession &&
+        session &&
+        buildAgentFileWorkspaceKey(currentActiveSession.workspaceId, currentActiveSession.workspace?.path) ===
+          buildAgentFileWorkspaceKey(session.workspaceId, session.workspace?.path)
+      const transition = () => {
+        cancelOwnerResourceActivation()
+        commitActiveSession(id, session)
+      }
+
+      if (id === activeSessionIdRef.current || preservesFileWorkspace || !requestFileNavigation) {
+        transition()
+        return
+      }
+      requestFileNavigation(transition)
     },
-    [cancelOwnerResourceActivation, commitActiveSession]
+    [activeSession, cancelOwnerResourceActivation, commitActiveSession, requestFileNavigation]
   )
   const toggleSessionPin = useCallback(
     async (sessionId: string) => {
@@ -1426,9 +1466,37 @@ const Sessions = ({
     ]
   )
 
+  const requestCreateSessionFromDefaults = useCallback(
+    (defaults: SessionCreationDefaults | null | undefined) => {
+      const transition = () => {
+        void createSessionFromDefaults(defaults)
+      }
+      const currentActiveSession =
+        activeSession?.id === activeSessionIdRef.current
+          ? activeSession
+          : activeSessionIdRef.current
+            ? sessionItemsRef.current.find((session) => session.id === activeSessionIdRef.current)
+            : undefined
+      if (
+        defaults &&
+        currentActiveSession &&
+        sessionCreationDefaultsPreserveFileWorkspace(defaults, currentActiveSession)
+      ) {
+        transition()
+        return
+      }
+      if (requestFileNavigation) {
+        requestFileNavigation(transition)
+        return
+      }
+      transition()
+    },
+    [activeSession, createSessionFromDefaults, requestFileNavigation]
+  )
+
   const handleHeaderCreateSession = useCallback(() => {
-    void createSessionFromDefaults(headerSessionCreationDefaults)
-  }, [createSessionFromDefaults, headerSessionCreationDefaults])
+    requestCreateSessionFromDefaults(headerSessionCreationDefaults)
+  }, [headerSessionCreationDefaults, requestCreateSessionFromDefaults])
 
   const handleRetry = useCallback(async () => {
     await reloadSessionViews()
@@ -1921,7 +1989,7 @@ const Sessions = ({
                 disabled={creatingSession}
                 onClick={(event) => {
                   event.stopPropagation()
-                  void resolveSessionCreationDefaultsForGroup(group.id).then(createSessionFromDefaults)
+                  void resolveSessionCreationDefaultsForGroup(group.id).then(requestCreateSessionFromDefaults)
                 }}>
                 <SquarePen className="block" />
               </ResourceList.GroupHeaderActionButton>
@@ -1934,7 +2002,6 @@ const Sessions = ({
       agentById,
       agentPinnedIdSet,
       assistantIconType,
-      createSessionFromDefaults,
       creatingSession,
       deletingAgentId,
       deletingWorkspaceGroupId,
@@ -1949,6 +2016,7 @@ const Sessions = ({
       isUpdatingWorkspace,
       openAgentEditor,
       resolveSessionCreationDefaultsForGroup,
+      requestCreateSessionFromDefaults,
       setAssistantIconType,
       t,
       workdirDisplay,
@@ -1978,7 +2046,7 @@ const Sessions = ({
             onClick={(event) => {
               event.stopPropagation()
               void resolveSessionCreationDefaultsForGroup(SESSION_SYSTEM_WORKSPACE_GROUP_ID).then(
-                createSessionFromDefaults
+                requestCreateSessionFromDefaults
               )
             }}>
             <SquarePen className="block" />
@@ -1988,9 +2056,9 @@ const Sessions = ({
     },
     [
       agentById,
-      createSessionFromDefaults,
       creatingSession,
       filteredGroupedSessions,
+      requestCreateSessionFromDefaults,
       resolveSessionCreationDefaultsForGroup,
       t,
       workdirSessionStatsByGroupId

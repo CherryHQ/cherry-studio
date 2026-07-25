@@ -399,7 +399,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     if (isMac && windowStyle === 'transparent' && theme === ThemeMode.light) {
       return 'transparent'
     }
-    return 'var(--color-background)'
+    return 'var(--background)'
   }, [windowStyle, theme])
 
   const inputPlaceholder = useMemo(() => {

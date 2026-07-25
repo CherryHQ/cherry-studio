@@ -3,7 +3,7 @@ import { ResourceCatalogSearchInput } from '@renderer/components/resourceCatalog
 import { useSystemSkills } from '@renderer/hooks/useSkills'
 import { toast } from '@renderer/services/toast'
 import type { SystemSkillCandidate } from '@shared/types/skill'
-import { Check, Download, FolderSearch, Loader2, TriangleAlert } from 'lucide-react'
+import { Check, FolderSearch, Import, Loader2, TriangleAlert } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -160,7 +160,7 @@ function SystemSkillRow({
         ) : imported || enabled ? (
           <Check className="size-3" />
         ) : (
-          <Download className="size-3" />
+          <Import className="size-3" />
         )}
         {buttonLabel}
       </Button>
