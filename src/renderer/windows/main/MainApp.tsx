@@ -14,6 +14,7 @@ import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
 import { useEffect } from 'react'
 
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
+import { useRestoreOutcomeDisclosure } from './hooks/useRestoreOutcomeDisclosure'
 import { useTopicNamingErrorNotification } from './hooks/useTopicNamingErrorNotification'
 import OnboardingPage from './onboarding/OnboardingPage'
 
@@ -49,6 +50,7 @@ function MainWindowRuntime(): null {
 
   useAppUpdateHandler()
   useStorageMonitorNotification()
+  useRestoreOutcomeDisclosure()
   useTopicNamingErrorNotification()
 
   return null
