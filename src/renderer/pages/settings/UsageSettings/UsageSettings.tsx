@@ -905,8 +905,9 @@ function UsageSettings() {
     CHART_TYPE_LABEL_KEYS[chartType]
   )}`
   const hasUsage = totalEntries > 0 || timelineBuckets.some((bucket) => bucket.entryCount > 0)
-  const isInitialLoading =
-    timelineQueryResult.isLoading || overviewStatsResult.isLoading || exploreStatsResult.isLoading
+  // Explore refetches (group-by / heatmap day) must not blank the window-scoped cards;
+  // the distribution chart renders its own skeleton.
+  const isInitialLoading = timelineQueryResult.isLoading || overviewStatsResult.isLoading
   const totalExploreTokens = exploreBuckets.reduce((sum, bucket) => sum + bucket.totalTokens, 0)
   const totalExploreEntries = exploreBuckets.reduce((sum, bucket) => sum + bucket.entryCount, 0)
   const totalExploreCost = exploreBuckets.reduce((sum, bucket) => sum + bucket.totalCost, 0)
