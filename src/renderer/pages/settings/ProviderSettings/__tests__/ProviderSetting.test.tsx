@@ -95,11 +95,14 @@ describe('ProviderSetting', () => {
     render(<ProviderSetting providerId="openai" />)
 
     const innerWrap = screen.getByText('provider-header-openai').parentElement as HTMLElement
+    const bodyScroller = screen.getByText('authentication-section-openai').parentElement?.parentElement
+      ?.parentElement as HTMLElement
     expect(innerWrap.className).not.toMatch(/(^|\s)border-b(\s|$)/)
     expect(innerWrap.className).toMatch(/(^|\s)max-w-3xl(\s|$)/)
     expect(innerWrap.className).toMatch(/(^|\s)mx-auto(\s|$)/)
     expect(innerWrap).toHaveClass('pb-1')
     expect(innerWrap.parentElement).toHaveClass('pt-4')
+    expect(bodyScroller).toHaveClass('px-6', 'pt-3', 'pb-6')
   })
 
   it('keeps onboarding coordination at the page boundary', () => {

@@ -634,11 +634,8 @@ const McpSettings: React.FC = () => {
       label: t('settings.mcp.tabs.general'),
       children: (
         <Form {...form}>
-          <form
-            onChange={() => setIsFormChanged(true)}
-            className="flex w-full min-w-0 flex-col gap-5 pb-6"
-            id="mcp-settings-form">
-            <McpFormSection>
+          <form onChange={() => setIsFormChanged(true)} className="w-full min-w-0 pb-6" id="mcp-settings-form">
+            <McpFormSection className="flex flex-col gap-4">
               <McpFormGrid>
                 <FormField
                   control={form.control}
@@ -700,9 +697,6 @@ const McpSettings: React.FC = () => {
                   )}
                 />
               </McpFormGrid>
-            </McpFormSection>
-
-            <McpFormSection>
               {(serverType === 'sse' || serverType === 'streamableHttp') && (
                 <McpFormGrid>
                   <FormField
@@ -898,9 +892,6 @@ const McpSettings: React.FC = () => {
                   />
                 </McpFormGrid>
               )}
-            </McpFormSection>
-
-            <McpFormSection>
               <McpFormGrid>
                 <FormField
                   control={form.control}
@@ -1114,7 +1105,7 @@ const McpSettings: React.FC = () => {
                   size="sm"
                   variant="ghost"
                   onClick={() => onDeleteMcpServer(server)}
-                  className="-ml-2 -mt-1 rounded-full text-destructive opacity-60 hover:text-destructive hover:opacity-100 focus-visible:opacity-100 active:opacity-100">
+                  className="-ml-2 -mt-1 hover:!bg-destructive/10 hover:!text-destructive rounded-full text-destructive opacity-60 hover:opacity-100 focus-visible:opacity-100 active:opacity-100">
                   <DeleteIcon size={14} className="lucide-custom" />
                   {t('common.delete')}
                 </Button>

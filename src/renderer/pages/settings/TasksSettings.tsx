@@ -1367,13 +1367,11 @@ const TasksSettings: FC = () => {
               onRun={handleRun}
               onToggleStatus={handleToggleStatus}
             />
-          ) : (
+          ) : tasks.length > 0 ? (
             <div className="flex flex-1 items-center justify-center text-foreground-muted text-sm">
-              {tasks.length > 0
-                ? t('settings.scheduledTasks.selectTask', 'Select a task to view details')
-                : t('settings.scheduledTasks.noTasks')}
+              {t('settings.scheduledTasks.selectTask', 'Select a task to view details')}
             </div>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

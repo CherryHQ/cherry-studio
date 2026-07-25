@@ -456,6 +456,26 @@ describe('TasksSettings task logs', () => {
     await waitFor(() => expect(dataApiMock.get).toHaveBeenCalledWith('/agents', { query: { limit: 100 } }))
   })
 
+  it('shows the empty task message only once when no tasks exist', async () => {
+    dataApiMock.get.mockImplementation((path: string) => {
+      if (path === '/agents') {
+        return Promise.resolve({
+          items: [{ id: 'agent-1', name: 'Agent One', configuration: {} }]
+        })
+      }
+
+      if (path === '/agents/agent-1/tasks') {
+        return Promise.resolve({ items: [] })
+      }
+
+      throw new Error(`unexpected path: ${path}`)
+    })
+
+    render(<TasksSettings />)
+
+    await waitFor(() => expect(screen.getAllByText('settings.scheduledTasks.noTasks')).toHaveLength(1))
+  })
+
   it('keeps the full task log result in the DOM while clamping its height', async () => {
     const longResult = 'x'.repeat(220)
     taskLogsMock.logs = [{ ...taskLogsMock.defaultTaskLog, result: longResult }]

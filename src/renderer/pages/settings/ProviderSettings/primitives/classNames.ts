@@ -34,7 +34,7 @@ export const authConnectionClasses = {
  */
 export const providerDetailColumnClasses = {
   headerPad: 'shrink-0 px-6 pt-4',
-  scrollStrip: 'min-h-0 flex-1 overflow-x-hidden p-6',
+  scrollStrip: 'min-h-0 flex-1 overflow-x-hidden px-6 pt-3 pb-6',
   contentMaxWidth: 'mx-auto w-full max-w-3xl',
   /** Header inner wrapper: same max-width as body content. */
   headerContentMaxWidth: 'mx-auto w-full max-w-3xl pb-1',

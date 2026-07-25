@@ -33,7 +33,7 @@ function ProviderSettingSections({ providerId, isLoginBased }: { providerId: str
   )
 
   return (
-    <Scrollbar className={cn(providerDetailColumnClasses.scrollStrip, isLoginBased && 'pt-3')}>
+    <Scrollbar className={providerDetailColumnClasses.scrollStrip}>
       <div className={cn(providerDetailColumnClasses.sectionStack, isLoginBased && 'gap-3')}>
         {isLoginBased ? (
           <div className="shrink-0">{authenticationSection}</div>
