@@ -63,6 +63,7 @@ const PaintingPage: FC = () => {
   const {
     generating: liveGenerating,
     submit,
+    submitting,
     cancel: cancelGeneration
   } = usePaintingGenerationSubmit({
     painting: composerPainting,
@@ -128,6 +129,7 @@ const PaintingPage: FC = () => {
                       painting={composerPainting}
                       generating={generating}
                       onPromptChange={(prompt) => patchPainting({ prompt } as Partial<PaintingData>)}
+                      submitting={submitting}
                       onGenerate={submit}
                       onCancel={onCancel}
                       onModelSelect={switchModel}

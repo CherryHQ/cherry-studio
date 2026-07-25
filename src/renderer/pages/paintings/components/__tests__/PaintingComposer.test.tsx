@@ -1,5 +1,5 @@
 import type { ComposerSurfaceProps } from '@renderer/components/composer/ComposerSurface'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PaintingData } from '../../model/types/paintingData'
@@ -142,6 +142,7 @@ const renderComposer = (props: Partial<React.ComponentProps<typeof PaintingCompo
   const handlers = {
     painting: makePainting(),
     generating: false,
+    submitting: false,
     onPromptChange,
     onGenerate,
     onCancel: vi.fn(),
@@ -244,56 +245,26 @@ describe('PaintingComposer', () => {
     expect(onPromptChange).toHaveBeenCalledWith('a cat')
   })
 
-  it('triggers generation on send with the materialized inputs', async () => {
-    mockMaterializeInputs.mockResolvedValue({ entries: [{ id: 'fe-1' }], complete: true })
+  it('hands the request its input resolver rather than resolved inputs', async () => {
+    // The composer no longer orchestrates the send: materialization is the first
+    // step of the request, run by its owner only after the preconditions pass.
+    // What it owes the page is the capability, not the data.
     const { onGenerate } = renderComposer({ painting: makePainting({ prompt: 'a cat' }) })
     fireEvent.click(screen.getByLabelText('send'))
-    // Send is async now (materialize inputs → generate), so onGenerate fires after a tick.
     await waitFor(() => expect(onGenerate).toHaveBeenCalledTimes(1))
-    expect(onGenerate).toHaveBeenCalledWith([{ id: 'fe-1' }])
+    expect(onGenerate).toHaveBeenCalledWith(mockMaterializeInputs)
+    // Nothing is materialized by the act of pressing send.
+    expect(mockMaterializeInputs).not.toHaveBeenCalled()
   })
 
-  it('aborts the send without generating when an input fails to materialize', async () => {
-    // Contract: an incomplete input set must never reach generation — the composer
-    // drops the failed chip + toasts (in the hook) and does NOT call onGenerate,
-    // matching chat aborting when buildFileParts rejects.
-    mockMaterializeInputs.mockResolvedValue({ entries: [], complete: false })
-    const { onGenerate } = renderComposer({ painting: makePainting({ prompt: 'a cat' }) })
-    fireEvent.click(screen.getByLabelText('send'))
-    // Let the async materialize + guard settle before asserting the negative.
-    await waitFor(() => expect(mockMaterializeInputs).toHaveBeenCalledTimes(1))
-    expect(onGenerate).not.toHaveBeenCalled()
+  it('disables send while a request it started is in flight', () => {
+    renderComposer({ submitting: true, painting: makePainting({ prompt: 'a cat' }) })
+    expect(screen.getByLabelText('send')).toBeDisabled()
   })
 
   it('disables send while generating', () => {
     renderComposer({ generating: true, painting: makePainting({ prompt: 'a cat' }) })
     expect(screen.getByLabelText('send')).toBeDisabled()
-  })
-
-  it('ignores a second send while one is already in flight (synchronous re-entrancy guard)', async () => {
-    // Hold materialize pending so the first send stays in the `materializing` phase.
-    let resolveMaterialize!: (value: { entries: unknown[]; complete: boolean }) => void
-    mockMaterializeInputs.mockReturnValue(
-      new Promise((resolve) => {
-        resolveMaterialize = resolve
-      })
-    )
-    const { onGenerate } = renderComposer({ painting: makePainting({ prompt: 'a cat' }) })
-    const send = screen.getByLabelText('send')
-
-    // Both clicks in one act so the second runs before the state-driven disable
-    // re-renders — this exercises the synchronous ref guard, not the disabled button.
-    await act(async () => {
-      fireEvent.click(send)
-      fireEvent.click(send)
-    })
-    expect(mockMaterializeInputs).toHaveBeenCalledTimes(1)
-
-    // The single in-flight send completes as exactly one generation.
-    await act(async () => {
-      resolveMaterialize({ entries: [], complete: true })
-    })
-    await waitFor(() => expect(onGenerate).toHaveBeenCalledTimes(1))
   })
 
   it('does not render the image params button when imageGeneration support is missing', () => {

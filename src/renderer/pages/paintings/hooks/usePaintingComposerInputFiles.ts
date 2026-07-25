@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { toast } from '@renderer/services/toast'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
-import type { FileEntry } from '@shared/data/types/file'
+import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { FilePath } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
 import { type Dispatch, type SetStateAction, useCallback, useEffect, useRef } from 'react'
@@ -31,6 +31,21 @@ interface Params {
 const withDot = (ext: string | null | undefined): string => {
   if (!ext) return ''
   return ext.startsWith('.') ? ext : `.${ext}`
+}
+
+/**
+ * Existence probe for a cached entry id. `getPhysicalPath` resolves through
+ * `fileEntryService.getById`, so a reclaimed row rejects — the same signal the
+ * SEED path already relies on. Reused deliberately rather than adding an IPC
+ * route for a question an existing one already answers.
+ */
+async function entryStillExists(id: FileEntryId): Promise<boolean> {
+  try {
+    await window.api.file.getPhysicalPath({ id })
+    return true
+  } catch {
+    return false
+  }
 }
 
 /**
@@ -157,9 +172,23 @@ export function usePaintingComposerInputFiles({
     const failedSourceIds: string[] = []
     for (const file of filesRef.current) {
       const cached = cache.get(file.fileTokenSourceId)
-      if (cached) {
+      // A cached id is not proof the row still exists. Materialized entries are
+      // `delete_when_unreferenced`, and any send that ends before `generate`
+      // persists the painting refs leaves them zero-referenced — an aborted
+      // incomplete set is exactly that. The cleanup pass then reclaims them
+      // correctly, and the cache would go on handing out a dead id, which
+      // `PaintingService` silently drops from the refs: the chip stays visible
+      // while its image vanishes from the generation. Probe before trusting it,
+      // and fall through to a fresh import when it is gone.
+      if (cached && (await entryStillExists(cached.id))) {
         entries.push(cached)
         continue
+      }
+      if (cached) {
+        cache.delete(file.fileTokenSourceId)
+        logger.info('input entry was reclaimed since it was cached; re-importing', {
+          entryId: cached.id
+        })
       }
       try {
         const entry = await window.api.file.createInternalEntry({

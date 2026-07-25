@@ -146,6 +146,33 @@ describe('usePaintingComposerInputFiles', () => {
     expect(window.api.file.createInternalEntry).not.toHaveBeenCalled()
   })
 
+  it('re-imports a cached entry that was reclaimed since it was cached', async () => {
+    // A cached id is not proof the row survives. Any send ending before `generate`
+    // persists the painting refs leaves materialized entries zero-referenced, and
+    // the cleanup pass then reclaims them — correctly. Without a probe the cache
+    // would keep handing out the dead id, which PaintingService silently drops from
+    // the refs: the chip stays visible while its image vanishes from the request.
+    const seeded = makeEntry('fe-gone')
+    ;(window.api.file.getPhysicalPath as ReturnType<typeof vi.fn>).mockResolvedValue('/p/fe-gone.png')
+
+    const { result } = renderStatefulHarness('p-reclaimed', [seeded])
+    await waitFor(() => expect(result.current.files).toHaveLength(1))
+
+    // The entry is reclaimed between seeding and the send: the probe now rejects.
+    ;(window.api.file.getPhysicalPath as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('not found'))
+    ;(window.api.file.createInternalEntry as ReturnType<typeof vi.fn>).mockResolvedValue(makeEntry('fe-fresh'))
+
+    let out = { entries: [] as FileEntry[], complete: false }
+    await act(async () => {
+      out = await result.current.materializeInputs()
+    })
+
+    // Re-imported from the attachment path rather than handed the dead id.
+    expect(out.complete).toBe(true)
+    expect(out.entries.map((entry) => entry.id)).toEqual(['fe-fresh'])
+    expect(window.api.file.createInternalEntry).toHaveBeenCalledTimes(1)
+  })
+
   it('carries every input through when all seeds fail to resolve their path', async () => {
     ;(window.api.file.getPhysicalPath as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('blob missing'))
 
