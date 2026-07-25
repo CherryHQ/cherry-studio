@@ -212,12 +212,6 @@ export function useAgentRightPaneActions(): AgentRightPaneActions {
   return value
 }
 
-export function useAgentFileNavigation(): AgentFileNavigationRequest {
-  const value = useOptionalAgentFileNavigation()
-  if (!value) throw new Error('useAgentFileNavigation must be used within <AgentRightPane.Scope>')
-  return value
-}
-
 export function useOptionalAgentFileNavigation(): AgentFileNavigationRequest | null {
   return use(AgentFileNavigationContext)
 }

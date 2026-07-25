@@ -378,6 +378,11 @@
         "label": "预先授权工具",
         "placeholder": "选择预先授权的工具"
       },
+      "api_retry": {
+        "reason": "请求失败（{{error}}，HTTP {{status}}），正在重试",
+        "retrying": "正在重试 {{attempt}}/{{max}}…",
+        "retrying_in": "{{seconds}} 秒后重试 {{attempt}}/{{max}}"
+      },
       "auto_rename": "生成任务名",
       "create": {
         "error": {
@@ -2293,6 +2298,7 @@
     "provider": "提供商",
     "reasoning_content": "已深度思考",
     "refresh": "刷新",
+    "refresh_failed": "无法刷新列表，正在显示上次加载的内容。",
     "regenerate": "重新生成",
     "remove_image": "移除图片",
     "rename": "重命名",

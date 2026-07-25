@@ -869,6 +869,7 @@
       "expired": "Истёк",
       "inputPreview": "Предварительный просмотр ввода инструмента",
       "pending": "Ожидание ({{seconds}}с)",
+      "pendingBadge": "[to be translated]:Pending",
       "permissionExpired": "Срок действия запроса на разрешение истёк. Ожидание новых инструкций...",
       "requiresElevatedPermissions": "Этому инструменту требуются повышенные разрешения.",
       "suggestion": {
@@ -2292,6 +2293,7 @@
     "provider": "Провайдер",
     "reasoning_content": "Глубокий анализ",
     "refresh": "Обновить",
+    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
     "regenerate": "Пересоздать",
     "remove_image": "Удалить изображение",
     "rename": "Переименовать",

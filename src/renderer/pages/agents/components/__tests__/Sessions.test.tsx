@@ -1578,7 +1578,7 @@ describe('Sessions', () => {
     expect(sessionDataMocks.reload).toHaveBeenCalled()
   })
 
-  it('keeps grouped sessions in the generic loading state until all pages are ready', () => {
+  it('shows the first grouped session page while the remaining pages load', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'workdir')
     setupSessions({
       sessions: [createSession({ id: 'session-first-page', name: 'First page session', agentId: 'agent-a' })],
@@ -1598,13 +1598,12 @@ describe('Sessions', () => {
     render(<SessionsForTest />)
 
     expect(screen.queryByTestId('resource-list-grouped-loading')).not.toBeInTheDocument()
-    expect(screen.queryByText('project-a')).not.toBeInTheDocument()
-    expect(screen.queryByText('First page session')).not.toBeInTheDocument()
-    expect(screen.queryByText('1')).not.toBeInTheDocument()
-    expect(screen.queryAllByTestId('agent-session-row')).toHaveLength(0)
-    expect(document.querySelectorAll('[data-resource-list-loading-group]')).toHaveLength(2)
-    expect(document.querySelectorAll('[data-resource-list-loading-item]')).toHaveLength(5)
-    expect(document.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: 'Project A Workspace' })).toBeInTheDocument()
+    expect(screen.getByText('First page session')).toBeInTheDocument()
+    expect(screen.queryAllByTestId('agent-session-row')).toHaveLength(1)
+    expect(document.querySelectorAll('[data-resource-list-loading-group]')).toHaveLength(0)
+    expect(document.querySelectorAll('[data-resource-list-loading-item]')).toHaveLength(0)
+    expect(screen.getByText('Loading...')).toBeInTheDocument()
   })
 
   it('keeps workdir sessions loading until workspace rows are ready', () => {
@@ -3180,5 +3179,17 @@ describe('Sessions', () => {
     fireEvent.pointerDown(within(agentGroup as HTMLElement).getByRole('button', { name: 'More' }))
 
     expect(await screen.findByRole('menuitem', { name: 'Unpin Agent' })).toHaveAttribute('data-disabled')
+  })
+
+  it('offers a retry entry point when a background refresh fails behind a served list', () => {
+    setupSessions({ refreshError: new Error('refresh failed') })
+
+    render(<SessionsForTest />)
+
+    // The stale list stays on screen; the failure gets its own non-destructive strip.
+    expect(screen.getByText('Alpha session')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    expect(sessionDataMocks.reload).toHaveBeenCalled()
   })
 })
