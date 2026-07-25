@@ -249,8 +249,10 @@ function compactDetails<T extends Record<string, number | undefined>>(obj: T): {
 /**
  * Project a `LanguageModelV3Usage` into the persisted `MessageStats` token
  * shape (AI SDK v6 names). Top-level `inputTokens` follows the v6 semantic of
- * NON-cache input (`noCache`); cache buckets live in `inputTokenDetails`, and
- * `totalTokens` is the all-in figure. Cost is added later at persistence time.
+ * TOTAL input (cache reads and writes included) — matching the SDK's own
+ * `asLanguageModelUsage` projection; the cache breakdown lives in
+ * `inputTokenDetails`, and `totalTokens` is the all-in figure. Cost is added
+ * later at persistence time.
  */
 export function v3UsageToStats(usage: LanguageModelV3Usage): MessageStats {
   const inputTotal = usage.inputTokens.total ?? 0
@@ -265,7 +267,7 @@ export function v3UsageToStats(usage: LanguageModelV3Usage): MessageStats {
     reasoningTokens: usage.outputTokens.reasoning
   })
   return {
-    inputTokens: usage.inputTokens.noCache ?? inputTotal,
+    inputTokens: inputTotal,
     outputTokens: outputTotal,
     totalTokens: inputTotal + outputTotal,
     ...(inputTokenDetails ? { inputTokenDetails } : {}),
