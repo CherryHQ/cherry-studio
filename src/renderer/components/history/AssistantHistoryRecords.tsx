@@ -9,6 +9,7 @@ import { AssistantSelector } from '@renderer/components/resourceCatalog/selector
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
 import { createTopicActionContext, useTopicMenuPreset } from '@renderer/hooks/chat/useTopicMenuActions'
+import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
@@ -18,8 +19,7 @@ import {
   getTopicMessages,
   mapApiTopicToRendererTopic,
   startTopicRenaming,
-  useTopicMutations,
-  useTopics
+  useTopicMutations
 } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
@@ -66,7 +66,7 @@ const AssistantHistoryRecords = ({
   const [groupNow] = useState(() => new Date())
   const conversationNav = useConversationNavigation('assistants')
 
-  const { topics: rawTopics, isLoading: isTopicsLoading } = useTopics({ loadAll: true })
+  const { topics: rawTopics, isLoadingAll: isTopicsLoading } = useAssistantTopicsSource()
   const { assistants } = useAssistants()
   const [assistantIconType] = usePreference('assistant.icon_type')
   const [defaultModelId] = usePreference('chat.default_model_id')

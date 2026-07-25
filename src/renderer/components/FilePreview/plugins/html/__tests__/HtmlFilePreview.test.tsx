@@ -1,4 +1,4 @@
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentPropsWithoutRef } from 'react'
@@ -81,9 +81,9 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-const filePath = '/tmp/workspace/index.html' as FilePath
+const filePath = '/tmp/workspace/index.html' as AbsoluteFilePath
 
-function renderPreview(overrides: Partial<{ filePath: FilePath; fileName: string; refreshKey: number }> = {}) {
+function renderPreview(overrides: Partial<{ filePath: AbsoluteFilePath; fileName: string; refreshKey: number }> = {}) {
   return render(
     <HtmlFilePreview
       filePath={overrides.filePath ?? filePath}
@@ -180,7 +180,7 @@ describe('HtmlFilePreview', () => {
   })
 
   it('reloads when the path or refresh key changes', async () => {
-    const secondPath = '/tmp/workspace/about.html' as FilePath
+    const secondPath = '/tmp/workspace/about.html' as AbsoluteFilePath
     const view = renderPreview()
     await screen.findByTestId('html-frame')
 
@@ -192,12 +192,12 @@ describe('HtmlFilePreview', () => {
   })
 
   it('ignores a stale read after the path changes', async () => {
-    const secondPath = '/tmp/workspace/second.html' as FilePath
+    const secondPath = '/tmp/workspace/second.html' as AbsoluteFilePath
     let resolveFirstRead: ((value: string) => void) | undefined
     const firstRead = new Promise<string>((resolve) => {
       resolveFirstRead = resolve
     })
-    mocks.readText.mockImplementation((path: FilePath) =>
+    mocks.readText.mockImplementation((path: AbsoluteFilePath) =>
       path === filePath ? firstRead : Promise.resolve('<p>Second</p>')
     )
 

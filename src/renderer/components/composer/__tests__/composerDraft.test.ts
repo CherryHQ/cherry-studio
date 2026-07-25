@@ -347,6 +347,65 @@ describe('composer draft serialization', () => {
     ])
   })
 
+  it('serializes reference tokens with inlined context prompt text and persists them without payload', () => {
+    const promptText = '<referenced-conversation type="topic" name="Docs">\n[user]\nhi\n</referenced-conversation>'
+    const draft = serializeComposerDocument({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'See ' },
+            tokenNode({
+              id: 'reference:topic:t1',
+              kind: 'reference',
+              label: 'Docs',
+              description: 'Docs · Assistant',
+              promptText,
+              payload: { entityType: 'topic', id: 't1', name: 'Docs' }
+            })
+          ]
+        }
+      ]
+    })
+
+    expect(draft.text).toBe(`See ${promptText}`)
+    const snapshot = createComposerMessageSnapshot(draft)
+    expect(snapshot).toEqual({
+      version: 1,
+      tokens: [
+        {
+          id: 'reference:topic:t1',
+          kind: 'reference',
+          label: 'Docs',
+          description: 'Docs · Assistant',
+          index: 0,
+          textOffset: 4,
+          promptText
+        }
+      ]
+    })
+
+    expect(createComposerDocumentContent(draft.text, snapshot)).toEqual({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'See ' },
+            tokenNode({
+              id: 'reference:topic:t1',
+              kind: 'reference',
+              label: 'Docs',
+              description: 'Docs · Assistant',
+              promptText
+            })
+          ]
+        }
+      ]
+    })
+  })
+
   it('serializes quote tokens as blockquote prompt text and persists quote metadata', () => {
     const draft = serializeComposerDocument({
       type: 'doc',

@@ -10,11 +10,11 @@ vi.mock('@renderer/ipc', () => ({ ipcApi: ipcMocks }))
 
 import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { FILE_EDIT_MAX_SIZE_BYTES, useFileEditSession } from '../useFileEditSession'
 
-const path = '/ws/notes.txt' as FilePath
+const path = '/ws/notes.txt' as AbsoluteFilePath
 
 function utf8(content: string): Uint8Array {
   return new TextEncoder().encode(content)

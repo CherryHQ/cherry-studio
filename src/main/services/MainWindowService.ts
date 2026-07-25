@@ -3,7 +3,7 @@ import { optimizer } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
 import { installDevtoolsExtensions } from '@main/core/devtools'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
+import { isLinux, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -11,7 +11,7 @@ import type { MainWindowInitData } from '@shared/types/mainWindow'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import type { BrowserWindow } from 'electron'
 import { app, nativeImage, nativeTheme, shell } from 'electron'
-import path, { join } from 'path'
+import path from 'path'
 
 import iconPath from '../../../build/icon.png?asset'
 import { isSafeExternalUrl } from '../utils/externalUrlSafety'
@@ -71,6 +71,7 @@ export class MainWindowService extends BaseService {
     )
 
     this.registerWindowShortcuts()
+    this.registerContextMenu()
     this.registerIpcHandlers()
     this.registerActivateHandler()
     this.registerSecondInstanceHandler()
@@ -82,6 +83,19 @@ export class MainWindowService extends BaseService {
     }
     app.on('browser-window-created', handler)
     this.registerDisposable(() => app.removeListener('browser-window-created', handler))
+  }
+
+  private registerContextMenu() {
+    // App-level so every webContents gets the menu — the main window's own
+    // (web-contents-created fires during BrowserWindow construction, before
+    // onWindowCreatedByType) and all webviews like miniapp. Must stay a single
+    // registration here: a per-window one would stack one app listener per
+    // singleton main-window rebuild and pop duplicate menus.
+    const handler = (_: Electron.Event, webContents: Electron.WebContents) => {
+      contextMenu.contextMenu(webContents)
+    }
+    app.on('web-contents-created', handler)
+    this.registerDisposable(() => app.removeListener('web-contents-created', handler))
   }
 
   protected async onReady() {
@@ -197,7 +211,6 @@ export class MainWindowService extends BaseService {
     const saved = application.get('WindowManager').peekWindowBounds(WindowType.Main)
     this.setupMaximize(mainWindow, saved?.isMaximized ?? false)
 
-    this.setupContextMenu(mainWindow)
     this.setupSpellCheck(mainWindow)
     this.setupWindowEvents(mainWindow)
     this.setupWebContentsHandlers(mainWindow)
@@ -244,21 +257,6 @@ export class MainWindowService extends BaseService {
             mainWindow.maximize()
           })
         : mainWindow.maximize()
-    }
-  }
-
-  private setupContextMenu(mainWindow: BrowserWindow) {
-    contextMenu.contextMenu(mainWindow.webContents)
-    // setup context menu for all webviews like miniapp
-    app.on('web-contents-created', (_, webContents) => {
-      contextMenu.contextMenu(webContents)
-    })
-
-    // Dangerous API
-    if (isDev) {
-      mainWindow.webContents.on('will-attach-webview', (_, webPreferences) => {
-        webPreferences.preload = join(__dirname, '../preload/preload.js')
-      })
     }
   }
 
