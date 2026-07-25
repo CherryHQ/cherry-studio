@@ -11,12 +11,15 @@ import { app, session } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const bootConfigGet = vi.hoisted(() => vi.fn())
-const webviewSession = vi.hoisted(() => ({
-  clearCodeCaches: vi.fn(),
-  clearData: vi.fn(),
-  clearStorageData: vi.fn(),
-  getCacheSize: vi.fn()
-}))
+const { defaultSession, webviewSession } = vi.hoisted(() => {
+  const createSession = () => ({
+    clearCodeCaches: vi.fn(),
+    clearData: vi.fn(),
+    clearStorageData: vi.fn(),
+    getCacheSize: vi.fn()
+  })
+  return { defaultSession: createSession(), webviewSession: createSession() }
+})
 
 vi.mock('@data/bootConfig', () => ({
   bootConfigService: { get: bootConfigGet }
@@ -30,12 +33,7 @@ vi.mock('electron', () => ({
     getVersion: vi.fn(() => '1.0.0')
   },
   session: {
-    defaultSession: {
-      clearCodeCaches: vi.fn(),
-      clearData: vi.fn(),
-      clearStorageData: vi.fn(),
-      getCacheSize: vi.fn()
-    },
+    defaultSession,
     fromPartition: vi.fn(() => webviewSession)
   }
 }))
@@ -46,51 +44,70 @@ function createSqlite(targetPath: string, schema: string): void {
   db.close()
 }
 
+const KNOWLEDGE_SCHEMA =
+  'CREATE TABLE vectors (id TEXT, pageContent TEXT, uniqueLoaderId TEXT, source TEXT, vector BLOB)'
+const MEMORY_SCHEMA = 'CREATE TABLE memories (id TEXT PRIMARY KEY, memory TEXT NOT NULL)'
+
 describe('cacheCleanup', () => {
   const dbh = setupTestDatabase()
   let root: string
   let tracePath: string
+
+  const rootPath = (...segments: string[]) => path.join(root, ...segments)
+
+  async function writeTestFile(targetPath: string, data: string | Uint8Array): Promise<void> {
+    await fs.mkdir(path.dirname(targetPath), { recursive: true })
+    await fs.writeFile(targetPath, data)
+  }
+
+  async function expectMissing(...targetPaths: string[]): Promise<void> {
+    for (const targetPath of targetPaths) {
+      await expect(fs.stat(targetPath)).rejects.toMatchObject({ code: 'ENOENT' })
+    }
+  }
+
+  async function expectExisting(...targetPaths: string[]): Promise<void> {
+    for (const targetPath of targetPaths) {
+      await expect(fs.stat(targetPath)).resolves.toBeDefined()
+    }
+  }
 
   beforeEach(async () => {
     vi.clearAllMocks()
     bootConfigGet.mockReset()
     bootConfigGet.mockReturnValue(undefined)
     root = await fs.mkdtemp(path.join(os.tmpdir(), 'cache-cleanup-test-'))
-    tracePath = path.join(root, 'Trace')
-    vi.mocked(app.getPath).mockImplementation((name) =>
-      name === 'exe' ? path.join(root, 'CherryStudio') : '/mock/path'
-    )
+    tracePath = rootPath('Trace')
+    vi.mocked(app.getPath).mockImplementation((name) => (name === 'exe' ? rootPath('CherryStudio') : '/mock/path'))
 
     vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) => {
       const paths: Record<string, string> = {
         'app.userdata': root,
-        'app.userdata.data': path.join(root, 'Data'),
-        'app.session': path.join(root, 'Session'),
-        'app.session.webview': path.join(root, 'Session', 'Partitions', 'webview'),
-        'app.temp': path.join(root, 'Temp'),
+        'app.userdata.data': rootPath('Data'),
+        'app.session': rootPath('Session'),
+        'app.session.webview': rootPath('Session', 'Partitions', 'webview'),
+        'app.temp': rootPath('Temp'),
         'feature.trace': tracePath,
-        'v1.trace': path.join(root, 'Home', 'trace'),
-        'v1.cli.install': path.join(root, 'Home', 'install'),
-        'feature.files.data': path.join(root, 'Data', 'Files'),
-        'feature.knowledgebase.data': path.join(root, 'Data', 'KnowledgeBase'),
-        'cherry.home': path.join(root, 'Home'),
-        'cherry.config': path.join(root, 'HomeConfig')
+        'v1.trace': rootPath('Home', 'trace'),
+        'v1.cli.install': rootPath('Home', 'install'),
+        'feature.files.data': rootPath('Data', 'Files'),
+        'feature.knowledgebase.data': rootPath('Data', 'KnowledgeBase'),
+        'cherry.home': rootPath('Home'),
+        'cherry.config': rootPath('HomeConfig')
       }
       const base = paths[key]
       if (!base) throw new Error(`Unexpected path key: ${key}`)
       return filename ? path.join(base, filename) : base
     })
 
-    vi.mocked(session.defaultSession.getCacheSize).mockResolvedValue(0)
-    webviewSession.getCacheSize.mockResolvedValue(0)
-    vi.mocked(session.defaultSession.clearData).mockResolvedValue()
-    vi.mocked(session.defaultSession.clearCodeCaches).mockResolvedValue()
-    vi.mocked(session.defaultSession.clearStorageData).mockResolvedValue()
-    webviewSession.clearData.mockResolvedValue(undefined)
-    webviewSession.clearCodeCaches.mockResolvedValue(undefined)
-    webviewSession.clearStorageData.mockResolvedValue(undefined)
+    for (const mockedSession of [defaultSession, webviewSession]) {
+      mockedSession.getCacheSize.mockResolvedValue(0)
+      mockedSession.clearData.mockResolvedValue(undefined)
+      mockedSession.clearCodeCaches.mockResolvedValue(undefined)
+      mockedSession.clearStorageData.mockResolvedValue(undefined)
+    }
 
-    await fs.mkdir(path.join(root, 'Data'), { recursive: true })
+    await fs.mkdir(rootPath('Data'), { recursive: true })
   })
 
   afterEach(async () => {
@@ -108,19 +125,18 @@ describe('cacheCleanup', () => {
   }
 
   it('sums both Electron sessions, disk caches, temp data, and traces', async () => {
-    vi.mocked(session.defaultSession.getCacheSize).mockResolvedValue(100)
+    defaultSession.getCacheSize.mockResolvedValue(100)
     webviewSession.getCacheSize.mockResolvedValue(200)
 
     const files = [
-      [path.join(root, 'Session', 'Code Cache', 'default.bin'), 5],
-      [path.join(root, 'Session', 'Partitions', 'webview', 'Code Cache', 'webview.bin'), 7],
-      [path.join(root, 'Temp', 'temp.bin'), 11],
-      [path.join(root, 'Trace', 'trace.bin'), 13],
-      [path.join(root, 'Home', 'trace', 'legacy-trace.bin'), 17]
+      [rootPath('Session', 'Code Cache', 'default.bin'), 5],
+      [rootPath('Session', 'Partitions', 'webview', 'Code Cache', 'webview.bin'), 7],
+      [rootPath('Temp', 'temp.bin'), 11],
+      [rootPath('Trace', 'trace.bin'), 13],
+      [rootPath('Home', 'trace', 'legacy-trace.bin'), 17]
     ] as const
     for (const [filePath, size] of files) {
-      await fs.mkdir(path.dirname(filePath), { recursive: true })
-      await fs.writeFile(filePath, Buffer.alloc(size))
+      await writeTestFile(filePath, Buffer.alloc(size))
     }
 
     const result = await inspectCacheCleanup(['normal_cache'])
@@ -138,11 +154,9 @@ describe('cacheCleanup', () => {
   })
 
   it('clears both the active and legacy trace directories', async () => {
-    const legacyTracePath = path.join(root, 'Home', 'trace')
-    await fs.mkdir(tracePath, { recursive: true })
-    await fs.mkdir(legacyTracePath, { recursive: true })
-    await fs.writeFile(path.join(tracePath, 'active-trace'), 'active')
-    await fs.writeFile(path.join(legacyTracePath, 'legacy-trace'), 'legacy')
+    const legacyTracePath = rootPath('Home', 'trace')
+    await writeTestFile(path.join(tracePath, 'active-trace'), 'active')
+    await writeTestFile(path.join(legacyTracePath, 'legacy-trace'), 'legacy')
     vi.mocked(application.get).mockReturnValueOnce({
       cleanLocalData: () => fs.rm(tracePath, { recursive: true, force: true })
     } as never)
@@ -150,14 +164,12 @@ describe('cacheCleanup', () => {
     const cleanup = await runCacheCleanup(['normal_cache'])
 
     expect(cleanup.results[0]?.status).toBe('cleared')
-    await expect(fs.stat(tracePath)).rejects.toMatchObject({ code: 'ENOENT' })
-    await expect(fs.stat(legacyTracePath)).rejects.toMatchObject({ code: 'ENOENT' })
+    await expectMissing(tracePath, legacyTracePath)
   })
 
   it('counts a shared disk path only once', async () => {
-    tracePath = path.join(root, 'Temp')
-    await fs.mkdir(tracePath, { recursive: true })
-    await fs.writeFile(path.join(tracePath, 'shared.bin'), Buffer.alloc(17))
+    tracePath = rootPath('Temp')
+    await writeTestFile(path.join(tracePath, 'shared.bin'), Buffer.alloc(17))
 
     const result = await inspectCacheCleanup(['normal_cache'])
 
@@ -165,10 +177,9 @@ describe('cacheCleanup', () => {
   })
 
   it('reports a symlink as partially unknown without following it', async () => {
-    const external = path.join(root, 'External')
-    await fs.mkdir(external)
-    await fs.writeFile(path.join(external, 'secret.bin'), Buffer.alloc(23))
-    await fs.symlink(external, path.join(root, 'Temp'))
+    const external = rootPath('External')
+    await writeTestFile(path.join(external, 'secret.bin'), Buffer.alloc(23))
+    await fs.symlink(external, rootPath('Temp'))
 
     const result = await inspectCacheCleanup(['normal_cache'])
 
@@ -183,7 +194,8 @@ describe('cacheCleanup', () => {
   })
 
   it('blocks legacy and restore cleanup until v2 migration completes', async () => {
-    await fs.writeFile(path.join(root, 'config.json'), JSON.stringify({ language: 'zh-cn' }))
+    const configPath = rootPath('config.json')
+    await fs.writeFile(configPath, JSON.stringify({ language: 'zh-cn' }))
 
     const inspection = await inspectCacheCleanup(['legacy_v1', 'restore_staging'])
     const cleanup = await runCacheCleanup(['legacy_v1', 'restore_staging'])
@@ -191,55 +203,62 @@ describe('cacheCleanup', () => {
     expect(inspection.migrationStatus).toBe('incomplete')
     expect(inspection.results.every(({ allowed }) => !allowed)).toBe(true)
     expect(cleanup.results.every(({ status }) => status === 'skipped')).toBe(true)
-    await expect(fs.stat(path.join(root, 'config.json'))).resolves.toBeDefined()
+    await expectExisting(configPath)
   })
 
-  it('removes exact legacy files without inspecting their contents', async () => {
+  it('removes exact owned files and directory trees without inspecting their contents', async () => {
     completeMigration()
-    const targetPaths = [
-      path.join(root, 'config.json'),
-      path.join(root, 'window-state.json'),
-      path.join(root, 'miniWindow-state.json'),
-      path.join(root, 'quickAssistant-state.json'),
-      path.join(root, 'Data', 'Files', 'custom-minapps.json')
+    const legacyFiles = [
+      rootPath('config.json'),
+      rootPath('window-state.json'),
+      rootPath('miniWindow-state.json'),
+      rootPath('quickAssistant-state.json'),
+      rootPath('Data', 'Files', 'custom-minapps.json')
     ]
-    for (const targetPath of targetPaths) {
-      await fs.mkdir(path.dirname(targetPath), { recursive: true })
-      await fs.writeFile(targetPath, 'not-json')
-    }
+    const legacyDirectories = [rootPath('migration_temp'), rootPath('Home', 'install')]
+    const restoreDirectories = [
+      rootPath('Data.restore'),
+      rootPath('IndexedDB.restore'),
+      rootPath('Local Storage.restore')
+    ]
+    const externalPath = rootPath('external-data')
 
-    const inspection = await inspectCacheCleanup(['legacy_v1'])
-    const cleanup = await runCacheCleanup(['legacy_v1'])
-
-    expect(inspection.results[0]?.size).toMatchObject({ completeness: 'complete' })
-    expect(cleanup.results[0]?.status).toBe('cleared')
-    for (const targetPath of targetPaths) {
-      await expect(fs.stat(targetPath)).rejects.toMatchObject({ code: 'ENOENT' })
+    for (const targetPath of legacyFiles) {
+      await writeTestFile(targetPath, 'not-json')
     }
+    for (const targetPath of [...legacyDirectories, ...restoreDirectories]) {
+      await writeTestFile(path.join(targetPath, 'custom', 'unknown.bin'), 'remove')
+    }
+    await fs.mkdir(externalPath)
+    await fs.symlink(externalPath, path.join(legacyDirectories[0], 'custom', 'external-link'))
+    await fs.symlink(externalPath, path.join(restoreDirectories[0], 'custom', 'external-link'))
+
+    const groups = ['legacy_v1', 'restore_staging'] as const
+    const inspection = await inspectCacheCleanup([...groups])
+    const cleanup = await runCacheCleanup([...groups])
+
+    expect(inspection.results.every(({ size }) => size.bytes !== null && size.completeness === 'complete')).toBe(true)
+    expect(cleanup.results.every(({ status }) => status === 'cleared')).toBe(true)
+    await expectMissing(...legacyFiles, ...legacyDirectories, ...restoreDirectories)
+    await expectExisting(externalPath)
   })
 
   it('removes only schema-validated legacy knowledge and Memory databases', async () => {
     completeMigration()
-    const knowledgeRoot = path.join(root, 'Data', 'KnowledgeBase')
+    const knowledgeRoot = rootPath('Data', 'KnowledgeBase')
     const legacyKnowledge = path.join(knowledgeRoot, 'legacy-base')
     const unrelatedKnowledge = path.join(knowledgeRoot, 'unrelated.db')
     const v2Knowledge = path.join(knowledgeRoot, 'v2-base', '.cherry', 'index.sqlite')
-    const legacyMemory = path.join(root, 'Data', 'Memory', 'memories.db')
-    const unrelatedMemory = path.join(root, 'Data', 'Memory', 'notes.db')
+    const legacyMemory = rootPath('Data', 'Memory', 'memories.db')
+    const unrelatedMemory = rootPath('Data', 'Memory', 'notes.db')
 
     await fs.mkdir(path.dirname(v2Knowledge), { recursive: true })
     await fs.mkdir(path.dirname(legacyMemory), { recursive: true })
-    createSqlite(
-      legacyKnowledge,
-      'CREATE TABLE vectors (id TEXT, pageContent TEXT, uniqueLoaderId TEXT, source TEXT, vector BLOB)'
-    )
+    createSqlite(legacyKnowledge, KNOWLEDGE_SCHEMA)
     createSqlite(unrelatedKnowledge, 'CREATE TABLE vectors (id TEXT)')
-    createSqlite(
-      v2Knowledge,
-      'CREATE TABLE vectors (id TEXT, pageContent TEXT, uniqueLoaderId TEXT, source TEXT, vector BLOB)'
-    )
-    createSqlite(legacyMemory, 'CREATE TABLE memories (id TEXT PRIMARY KEY, memory TEXT NOT NULL)')
-    createSqlite(unrelatedMemory, 'CREATE TABLE memories (id TEXT PRIMARY KEY, memory TEXT NOT NULL)')
+    createSqlite(v2Knowledge, KNOWLEDGE_SCHEMA)
+    createSqlite(legacyMemory, MEMORY_SCHEMA)
+    createSqlite(unrelatedMemory, MEMORY_SCHEMA)
 
     const inspection = await inspectCacheCleanup(['legacy_v1'])
     const cleanup = await runCacheCleanup(['legacy_v1'])
@@ -247,32 +266,29 @@ describe('cacheCleanup', () => {
     expect(inspection.migrationStatus).toBe('completed')
     expect(inspection.results[0]?.size.bytes).toBeGreaterThan(0)
     expect(cleanup.results[0]?.status).toBe('cleared')
-    await expect(fs.stat(legacyKnowledge)).rejects.toMatchObject({ code: 'ENOENT' })
-    await expect(fs.stat(legacyMemory)).rejects.toMatchObject({ code: 'ENOENT' })
-    await expect(fs.stat(unrelatedKnowledge)).resolves.toBeDefined()
-    await expect(fs.stat(v2Knowledge)).resolves.toBeDefined()
-    await expect(fs.stat(unrelatedMemory)).resolves.toBeDefined()
+    await expectMissing(legacyKnowledge, legacyMemory)
+    await expectExisting(unrelatedKnowledge, v2Knowledge, unrelatedMemory)
   })
 
   it('does not follow a symbolic-link ancestor to a legacy database', async () => {
     completeMigration()
-    const externalMemoryDirectory = path.join(root, 'ExternalMemory')
+    const externalMemoryDirectory = rootPath('ExternalMemory')
     const externalMemory = path.join(externalMemoryDirectory, 'memories.db')
     await fs.mkdir(externalMemoryDirectory)
-    createSqlite(externalMemory, 'CREATE TABLE memories (id TEXT PRIMARY KEY, memory TEXT NOT NULL)')
-    await fs.symlink(externalMemoryDirectory, path.join(root, 'Data', 'Memory'))
+    createSqlite(externalMemory, MEMORY_SCHEMA)
+    await fs.symlink(externalMemoryDirectory, rootPath('Data', 'Memory'))
 
     const cleanup = await runCacheCleanup(['legacy_v1'])
 
     expect(cleanup.results[0]?.status).toBe('skipped')
-    await expect(fs.stat(externalMemory)).resolves.toBeDefined()
-    await expect(fs.lstat(path.join(root, 'Data', 'Memory'))).resolves.toBeDefined()
+    await expectExisting(externalMemory)
+    await expect(fs.lstat(rootPath('Data', 'Memory'))).resolves.toBeDefined()
   })
 
   it('preserves a root agents.db copy when any SQLite sidecar differs', async () => {
     completeMigration()
-    const dataAgents = path.join(root, 'Data', 'agents.db')
-    const rootAgents = path.join(root, 'agents.db')
+    const dataAgents = rootPath('Data', 'agents.db')
+    const rootAgents = rootPath('agents.db')
     createSqlite(dataAgents, 'CREATE TABLE agents (id TEXT PRIMARY KEY)')
     await fs.copyFile(dataAgents, rootAgents)
     await fs.writeFile(`${dataAgents}-wal`, 'data-sidecar')
@@ -281,19 +297,17 @@ describe('cacheCleanup', () => {
     const cleanup = await runCacheCleanup(['legacy_v1'])
 
     expect(cleanup.results[0]?.status).toBe('partial')
-    await expect(fs.stat(dataAgents)).rejects.toMatchObject({ code: 'ENOENT' })
-    await expect(fs.stat(`${dataAgents}-wal`)).rejects.toMatchObject({ code: 'ENOENT' })
-    await expect(fs.stat(rootAgents)).resolves.toBeDefined()
+    await expectMissing(dataAgents, `${dataAgents}-wal`)
+    await expectExisting(rootAgents)
     await expect(fs.readFile(`${rootAgents}-wal`, 'utf8')).resolves.toBe('root-sidecar')
   })
 
   it('removes only the current installation mapping from the shared legacy config', async () => {
     completeMigration()
-    const executablePath = path.join(root, 'CherryStudio')
-    const homeConfigPath = path.join(root, 'HomeConfig', 'config.json')
+    const executablePath = rootPath('CherryStudio')
+    const homeConfigPath = rootPath('HomeConfig', 'config.json')
     bootConfigGet.mockReturnValue({ [executablePath]: root })
-    await fs.mkdir(path.dirname(homeConfigPath), { recursive: true })
-    await fs.writeFile(
+    await writeTestFile(
       homeConfigPath,
       JSON.stringify({
         appDataPath: [
@@ -315,99 +329,23 @@ describe('cacheCleanup', () => {
     expect(app.getPath).toHaveBeenCalledWith('exe')
   })
 
-  it('removes whole legacy config and restore directories without inspecting their contents', async () => {
-    completeMigration()
-    const configPath = path.join(root, 'config.json')
-    const restorePaths = [
-      path.join(root, 'Data.restore'),
-      path.join(root, 'IndexedDB.restore'),
-      path.join(root, 'Local Storage.restore')
-    ]
-    await fs.writeFile(configPath, JSON.stringify({ unknown: true }))
-    for (const restorePath of restorePaths) {
-      await fs.mkdir(path.join(restorePath, 'custom', 'nested'), { recursive: true })
-      await fs.writeFile(path.join(restorePath, 'custom', 'nested', 'unknown.bin'), 'remove')
-    }
-
-    const inspection = await inspectCacheCleanup(['legacy_v1', 'restore_staging'])
-    const cleanup = await runCacheCleanup(['legacy_v1', 'restore_staging'])
-
-    expect(inspection.results.every(({ size }) => size.bytes !== null && size.completeness === 'complete')).toBe(true)
-    expect(cleanup.results.every(({ status }) => status === 'cleared')).toBe(true)
-    await expect(fs.stat(configPath)).rejects.toMatchObject({ code: 'ENOENT' })
-    for (const restorePath of restorePaths) {
-      await expect(fs.stat(restorePath)).rejects.toMatchObject({ code: 'ENOENT' })
-    }
-  })
-
-  it('treats nested restore contents as opaque without following symlinks', async () => {
-    completeMigration()
-    const restorePath = path.join(root, 'Data.restore')
-    const externalPath = path.join(root, 'external-data')
-    await fs.mkdir(path.join(restorePath, 'Files'), { recursive: true })
-    await fs.mkdir(externalPath)
-    await fs.symlink(externalPath, path.join(restorePath, 'Files', 'external-link'))
-
-    const inspection = await inspectCacheCleanup(['restore_staging'])
-    const cleanup = await runCacheCleanup(['restore_staging'])
-
-    expect(inspection.results[0]?.size.bytes).toBeGreaterThan(0)
-    expect(inspection.results[0]?.size.completeness).toBe('complete')
-    expect(cleanup.results[0]?.status).toBe('cleared')
-    await expect(fs.stat(restorePath)).rejects.toMatchObject({ code: 'ENOENT' })
-    await expect(fs.stat(externalPath)).resolves.toBeDefined()
-  })
-
-  it('removes the entire migration temp directory without following nested symlinks', async () => {
-    completeMigration()
-    const migrationTempPath = path.join(root, 'migration_temp')
-    const externalPath = path.join(root, 'external-migration-data')
-    await fs.mkdir(path.join(migrationTempPath, 'custom', 'nested'), { recursive: true })
-    await fs.mkdir(externalPath)
-    await fs.writeFile(path.join(migrationTempPath, 'unknown.bin'), 'legacy')
-    await fs.writeFile(path.join(migrationTempPath, 'custom', 'nested', 'data.json'), '{}')
-    await fs.symlink(externalPath, path.join(migrationTempPath, 'external-link'))
-
-    const inspection = await inspectCacheCleanup(['legacy_v1'])
-    const cleanup = await runCacheCleanup(['legacy_v1'])
-
-    expect(inspection.results[0]?.size.bytes).toBeGreaterThan(0)
-    expect(cleanup.results[0]?.status).toBe('cleared')
-    await expect(fs.stat(migrationTempPath)).rejects.toMatchObject({ code: 'ENOENT' })
-    await expect(fs.stat(externalPath)).resolves.toBeDefined()
-  })
-
-  it('counts and removes the legacy CLI install directory', async () => {
-    completeMigration()
-    const legacyInstallPath = path.join(root, 'Home', 'install')
-    await fs.mkdir(path.join(legacyInstallPath, 'global', 'node_modules'), { recursive: true })
-    await fs.writeFile(path.join(legacyInstallPath, 'global', 'node_modules', 'legacy-cli'), 'legacy')
-
-    const inspection = await inspectCacheCleanup(['legacy_v1'])
-    const cleanup = await runCacheCleanup(['legacy_v1'])
-
-    expect(inspection.results[0]?.size.bytes).toBeGreaterThanOrEqual(Buffer.byteLength('legacy'))
-    expect(cleanup.results[0]?.status).toBe('cleared')
-    await expect(fs.stat(legacyInstallPath)).rejects.toMatchObject({ code: 'ENOENT' })
-  })
-
   it('serializes concurrent cleanup requests', async () => {
     let finishFirstCleanup: (() => void) | undefined
     const firstCleanup = new Promise<void>((resolve) => {
       finishFirstCleanup = resolve
     })
-    vi.mocked(session.defaultSession.clearData).mockImplementation(() => firstCleanup)
+    defaultSession.clearData.mockImplementation(() => firstCleanup)
 
     const first = runCacheCleanup(['site_data'])
-    await vi.waitFor(() => expect(session.defaultSession.clearData).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(defaultSession.clearData).toHaveBeenCalledTimes(1))
 
     const second = runCacheCleanup(['site_data'])
     await Promise.resolve()
-    expect(session.defaultSession.clearData).toHaveBeenCalledTimes(1)
+    expect(defaultSession.clearData).toHaveBeenCalledTimes(1)
 
     finishFirstCleanup?.()
     await Promise.all([first, second])
 
-    expect(session.defaultSession.clearData).toHaveBeenCalledTimes(2)
+    expect(defaultSession.clearData).toHaveBeenCalledTimes(2)
   })
 })
