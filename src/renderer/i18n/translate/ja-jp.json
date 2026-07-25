@@ -327,6 +327,9 @@
         "agent": "エージェント",
         "context": "コンテキスト",
         "no_tasks": "アクティブなタスクはありません",
+        "run_task_live_one": "[to be translated]:{{count}} live",
+        "run_task_live_other": "[to be translated]:{{count}} live",
+        "run_tasks": "[to be translated]:Subtasks",
         "selected_tool": "選択されたツール",
         "task_count": "{{completed}} / {{total}} 完了",
         "tasks": "タスク",
@@ -377,6 +380,11 @@
         "helper": "事前承認済みのツールを選択します。未選択のツールは使用時に承認が必要になります。",
         "label": "事前承認済みツール",
         "placeholder": "事前承認するツールを選択"
+      },
+      "api_retry": {
+        "reason": "[to be translated]:Request failed ({{error}}, HTTP {{status}}) — retrying",
+        "retrying": "[to be translated]:Retrying {{attempt}}/{{max}}…",
+        "retrying_in": "[to be translated]:Retrying {{attempt}}/{{max}} in {{seconds}}s"
       },
       "auto_rename": "タスク名を生成",
       "create": {
@@ -678,6 +686,7 @@
         "deleteFailed": "タスクの削除に失敗しました",
         "loadFailed": "タスクの読み込みに失敗しました",
         "runFailed": "タスクの実行に失敗しました",
+        "triggerInvalid": "[to be translated]:Invalid schedule: check the expression, time zone, or interval range",
         "updateFailed": "タスクの更新に失敗しました"
       },
       "frequency": {
@@ -3781,6 +3790,8 @@
         "title": "削除確認"
       },
       "failed": "削除に失敗しました",
+      "first_turn_not_supported": "[to be translated]:The first user message cannot be deleted.",
+      "root_unavailable": "[to be translated]:Messages are still loading and cannot be deleted yet.",
       "success": "削除が成功しました"
     },
     "dialog": {
@@ -4049,6 +4060,7 @@
         "write": "保存",
         "writing": "保存"
       },
+      "agent_background": "[to be translated]:Running in background",
       "approvalRequired": "ツール「{{tool}}」は承認が必要です",
       "autoApproveEnabled": "このツールは自動承認が有効になっています",
       "cancelled": "キャンセル",

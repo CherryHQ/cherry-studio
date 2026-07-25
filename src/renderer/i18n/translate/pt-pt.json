@@ -327,6 +327,9 @@
         "agent": "Agente",
         "context": "Contexto",
         "no_tasks": "Sem tarefas ativas",
+        "run_task_live_one": "[to be translated]:{{count}} live",
+        "run_task_live_other": "[to be translated]:{{count}} live",
+        "run_tasks": "[to be translated]:Subtasks",
         "selected_tool": "Ferramenta selecionada",
         "task_count": "{{completed}} / {{total}} concluído",
         "tasks": "Tarefas",
@@ -377,6 +380,11 @@
         "helper": "Escolha quais ferramentas ficam pré-autorizadas. As não selecionadas exigirão aprovação antes do uso.",
         "label": "Ferramentas pré-aprovadas",
         "placeholder": "Selecionar ferramentas pré-aprovadas"
+      },
+      "api_retry": {
+        "reason": "[to be translated]:Request failed ({{error}}, HTTP {{status}}) — retrying",
+        "retrying": "[to be translated]:Retrying {{attempt}}/{{max}}…",
+        "retrying_in": "[to be translated]:Retrying {{attempt}}/{{max}} in {{seconds}}s"
       },
       "auto_rename": "Gerar nome da tarefa",
       "create": {
@@ -678,6 +686,7 @@
         "deleteFailed": "Falha ao excluir tarefa",
         "loadFailed": "Falha ao carregar tarefas",
         "runFailed": "Falha ao executar a tarefa",
+        "triggerInvalid": "[to be translated]:Invalid schedule: check the expression, time zone, or interval range",
         "updateFailed": "Falha ao atualizar a tarefa"
       },
       "frequency": {
@@ -3781,6 +3790,8 @@
         "title": "Confirmação de Exclusão"
       },
       "failed": "Falha ao excluir",
+      "first_turn_not_supported": "[to be translated]:The first user message cannot be deleted.",
+      "root_unavailable": "[to be translated]:Messages are still loading and cannot be deleted yet.",
       "success": "Excluído com sucesso"
     },
     "dialog": {
@@ -4049,6 +4060,7 @@
         "write": "Salvar",
         "writing": "Salvando"
       },
+      "agent_background": "[to be translated]:Running in background",
       "approvalRequired": "Ferramenta \"{{tool}}\" requer aprovação",
       "autoApproveEnabled": "Esta ferramenta tem aprovação automática ativada",
       "cancelled": "Cancelado",

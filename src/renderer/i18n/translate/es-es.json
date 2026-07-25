@@ -327,6 +327,9 @@
         "agent": "Agente",
         "context": "Contexto",
         "no_tasks": "Sin tareas activas",
+        "run_task_live_one": "[to be translated]:{{count}} live",
+        "run_task_live_other": "[to be translated]:{{count}} live",
+        "run_tasks": "[to be translated]:Subtasks",
         "selected_tool": "Herramienta seleccionada",
         "task_count": "{{completed}} / {{total}} completado",
         "tasks": "Tareas",
@@ -377,6 +380,11 @@
         "helper": "Elige qué herramientas quedan preaprobadas. Las no seleccionadas requerirán aprobación manual antes de usarse.",
         "label": "Herramientas preaprobadas",
         "placeholder": "Seleccionar herramientas preaprobadas"
+      },
+      "api_retry": {
+        "reason": "[to be translated]:Request failed ({{error}}, HTTP {{status}}) — retrying",
+        "retrying": "[to be translated]:Retrying {{attempt}}/{{max}}…",
+        "retrying_in": "[to be translated]:Retrying {{attempt}}/{{max}} in {{seconds}}s"
       },
       "auto_rename": "Generar nombre de tarea",
       "create": {
@@ -678,6 +686,7 @@
         "deleteFailed": "Error al eliminar la tarea",
         "loadFailed": "Error al cargar las tareas",
         "runFailed": "Error al ejecutar la tarea",
+        "triggerInvalid": "[to be translated]:Invalid schedule: check the expression, time zone, or interval range",
         "updateFailed": "Error al actualizar la tarea"
       },
       "frequency": {
@@ -3781,6 +3790,8 @@
         "title": "Confirmación de eliminación"
       },
       "failed": "Eliminación fallida",
+      "first_turn_not_supported": "[to be translated]:The first user message cannot be deleted.",
+      "root_unavailable": "[to be translated]:Messages are still loading and cannot be deleted yet.",
       "success": "Eliminación exitosa"
     },
     "dialog": {
@@ -4049,6 +4060,7 @@
         "write": "Guardar",
         "writing": "Guardando"
       },
+      "agent_background": "[to be translated]:Running in background",
       "approvalRequired": "La herramienta \"{{tool}}\" requiere aprobación",
       "autoApproveEnabled": "Esta herramienta tiene habilitada la aprobación automática",
       "cancelled": "Cancelado",

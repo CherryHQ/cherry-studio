@@ -327,6 +327,9 @@
         "agent": "Agent",
         "context": "Contexte",
         "no_tasks": "Aucune tâche active",
+        "run_task_live_one": "[to be translated]:{{count}} live",
+        "run_task_live_other": "[to be translated]:{{count}} live",
+        "run_tasks": "[to be translated]:Subtasks",
         "selected_tool": "Outil sélectionnée",
         "task_count": "{{completed}} / {{total}} terminé",
         "tasks": "Tâches",
@@ -377,6 +380,11 @@
         "helper": "Choisissez les outils préapprouvés. Les outils non sélectionnés nécessiteront une approbation avant utilisation.",
         "label": "Outils pré-approuvés",
         "placeholder": "Sélectionner des outils pré-approuvés"
+      },
+      "api_retry": {
+        "reason": "[to be translated]:Request failed ({{error}}, HTTP {{status}}) — retrying",
+        "retrying": "[to be translated]:Retrying {{attempt}}/{{max}}…",
+        "retrying_in": "[to be translated]:Retrying {{attempt}}/{{max}} in {{seconds}}s"
       },
       "auto_rename": "Générer le nom de la tâche",
       "create": {
@@ -678,6 +686,7 @@
         "deleteFailed": "Échec de la suppression de la tâche",
         "loadFailed": "Échec du chargement des tâches",
         "runFailed": "Échec de l'exécution de la tâche",
+        "triggerInvalid": "[to be translated]:Invalid schedule: check the expression, time zone, or interval range",
         "updateFailed": "Échec de la mise à jour de la tâche"
       },
       "frequency": {
@@ -3781,6 +3790,8 @@
         "title": "Confirmation de suppression"
       },
       "failed": "Échec de la suppression",
+      "first_turn_not_supported": "[to be translated]:The first user message cannot be deleted.",
+      "root_unavailable": "[to be translated]:Messages are still loading and cannot be deleted yet.",
       "success": "Suppression réussie"
     },
     "dialog": {
@@ -4049,6 +4060,7 @@
         "write": "Enregistrer",
         "writing": "Épargne"
       },
+      "agent_background": "[to be translated]:Running in background",
       "approvalRequired": "L'outil \"{{tool}}\" nécessite une approbation",
       "autoApproveEnabled": "Cet outil a l'approbation automatique activée",
       "cancelled": "Annulé",

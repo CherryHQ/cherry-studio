@@ -327,6 +327,9 @@
         "agent": "Agent",
         "context": "Context",
         "no_tasks": "No active tasks",
+        "run_task_live_one": "{{count}} live",
+        "run_task_live_other": "{{count}} live",
+        "run_tasks": "Subtasks",
         "selected_tool": "Selected tool",
         "task_count": "{{completed}} / {{total}} complete",
         "tasks": "Tasks",
@@ -4057,6 +4060,7 @@
         "write": "Write",
         "writing": "Writing it out"
       },
+      "agent_background": "Running in background",
       "approvalRequired": "Tool \"{{tool}}\" requires approval",
       "autoApproveEnabled": "Auto-approve enabled for this tool",
       "cancelled": "Cancelled",

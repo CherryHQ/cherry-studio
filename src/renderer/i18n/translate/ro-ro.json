@@ -327,6 +327,9 @@
         "agent": "Agent",
         "context": "Context",
         "no_tasks": "Nicio sarcină activă",
+        "run_task_live_one": "[to be translated]:{{count}} live",
+        "run_task_live_other": "[to be translated]:{{count}} live",
+        "run_tasks": "[to be translated]:Subtasks",
         "selected_tool": "Instrument selectat",
         "task_count": "{{completed}} / {{total}} finalizat",
         "tasks": "Sarcini",
@@ -377,6 +380,11 @@
         "helper": "Instrumentele pre-aprobate rulează fără aprobare manuală. Instrumentele neselectate necesită aprobare înainte de utilizare.",
         "label": "Instrumente pre-aprobate",
         "placeholder": "Selectează instrumente pre-aprobate"
+      },
+      "api_retry": {
+        "reason": "[to be translated]:Request failed ({{error}}, HTTP {{status}}) — retrying",
+        "retrying": "[to be translated]:Retrying {{attempt}}/{{max}}…",
+        "retrying_in": "[to be translated]:Retrying {{attempt}}/{{max}} in {{seconds}}s"
       },
       "auto_rename": "Generați numele sarcinii",
       "create": {
@@ -678,6 +686,7 @@
         "deleteFailed": "Nu s-a reușit ștergerea sarcinii",
         "loadFailed": "Nu s-au putut încărca sarcinile",
         "runFailed": "Nu s-a reușit executarea sarcinii",
+        "triggerInvalid": "[to be translated]:Invalid schedule: check the expression, time zone, or interval range",
         "updateFailed": "Nu s-a reușit actualizarea sarcinii"
       },
       "frequency": {
@@ -3781,6 +3790,8 @@
         "title": "Confirmare ștergere"
       },
       "failed": "Ștergere eșuată",
+      "first_turn_not_supported": "[to be translated]:The first user message cannot be deleted.",
+      "root_unavailable": "[to be translated]:Messages are still loading and cannot be deleted yet.",
       "success": "Ștergere reușită"
     },
     "dialog": {
@@ -4049,6 +4060,7 @@
         "write": "Salvează",
         "writing": "Salvare"
       },
+      "agent_background": "[to be translated]:Running in background",
       "approvalRequired": "Instrumentul „{{tool}}” necesită aprobare",
       "autoApproveEnabled": "Aprobare automată activată pentru acest instrument",
       "cancelled": "Anulat",

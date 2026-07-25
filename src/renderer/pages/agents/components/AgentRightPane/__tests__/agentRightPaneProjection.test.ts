@@ -215,7 +215,9 @@ describe('agent right pane projections', () => {
     expect(status.totalTaskCount).toBe(1)
   })
 
-  it('applies persisted Claude SDK task events to status tasks', () => {
+  // SDK task events describe spawned processes, not the agent's own plan, so they populate
+  // `runTasks` and stay out of the plan's done/total ratio.
+  it('applies persisted Claude SDK task events to run tasks, not the plan', () => {
     const parts = [
       {
         type: 'data-agent-task-event',
@@ -224,7 +226,9 @@ describe('agent right pane projections', () => {
           taskId: 'task-1',
           status: 'in_progress',
           title: 'Inspect task state',
-          activeText: 'Inspecting task state'
+          activeText: 'Inspecting task state',
+          taskType: 'subagent',
+          subagentType: 'code-reviewer'
         }
       },
       {
@@ -233,7 +237,9 @@ describe('agent right pane projections', () => {
           event: 'notification',
           taskId: 'task-1',
           status: 'completed',
-          summary: 'Inspect task state'
+          summary: 'Inspect task state',
+          outputFile: '/tmp/task-1.md',
+          usage: { totalTokens: 1200, toolUses: 4, durationMs: 9000 }
         }
       }
     ] as unknown as CherryMessagePart[]
@@ -241,12 +247,20 @@ describe('agent right pane projections', () => {
 
     const status = buildAgentRightPaneStatus(messages, { m1: parts })
 
-    expect(status.tasks).toEqual([
+    expect(status.tasks).toEqual([])
+    expect(status.totalTaskCount).toBe(0)
+    // Fields the old shared shape could not carry now survive the projection.
+    expect(status.runTasks).toEqual([
       {
         id: 'task-1',
         title: 'Inspect task state',
         activeText: 'Inspecting task state',
-        status: 'completed'
+        status: 'completed',
+        taskType: 'subagent',
+        subagentType: 'code-reviewer',
+        workflowName: undefined,
+        outputFile: '/tmp/task-1.md',
+        usage: { totalTokens: 1200, toolUses: 4, durationMs: 9000 }
       }
     ])
   })
@@ -285,6 +299,47 @@ describe('agent right pane projections', () => {
         name: 'output.json',
         description: undefined
       }
+    ])
+  })
+
+  // A detached subagent's launch receipt arrives immediately, so its tool call reaches
+  // `output-available` while the agent has barely started. Reporting that as 'done' is what made a
+  // background agent look finished the moment it was spawned.
+  it('keeps a backgrounded subagent running despite its terminal tool state', () => {
+    const parts = [
+      toolPart(
+        'agent-bg',
+        'Agent',
+        undefined,
+        'output-available',
+        { description: 'Audit the codebase' },
+        { status: 'async_launched', agentId: 'ag-1' }
+      ),
+      toolPart(
+        'agent-remote',
+        'Agent',
+        undefined,
+        'output-available',
+        { description: 'Remote sweep' },
+        { status: 'remote_launched', taskId: 't-1' }
+      ),
+      toolPart(
+        'agent-done',
+        'Agent',
+        undefined,
+        'output-available',
+        { description: 'Finished work' },
+        { status: 'completed', agentId: 'ag-2' }
+      )
+    ]
+    const messages = [message('m1', parts)]
+
+    const status = buildAgentRightPaneStatus(messages, { m1: parts })
+
+    expect(status.subagents).toEqual([
+      { toolCallId: 'agent-bg', name: 'Audit the codebase', status: 'running' },
+      { toolCallId: 'agent-remote', name: 'Remote sweep', status: 'running' },
+      { toolCallId: 'agent-done', name: 'Finished work', status: 'done' }
     ])
   })
 })

@@ -327,6 +327,9 @@
         "agent": "Агент",
         "context": "Контекст",
         "no_tasks": "Нет активных задач",
+        "run_task_live_one": "[to be translated]:{{count}} live",
+        "run_task_live_other": "[to be translated]:{{count}} live",
+        "run_tasks": "[to be translated]:Subtasks",
         "selected_tool": "Выбранный инструмент",
         "task_count": "{{completed}} / {{total}} завершено",
         "tasks": "Задачи",
@@ -377,6 +380,11 @@
         "helper": "Выберите инструменты с предварительным допуском. Неотмеченные инструменты потребуют подтверждения перед использованием.",
         "label": "Предварительно одобренные инструменты",
         "placeholder": "Выберите предварительно одобренные инструменты"
+      },
+      "api_retry": {
+        "reason": "[to be translated]:Request failed ({{error}}, HTTP {{status}}) — retrying",
+        "retrying": "[to be translated]:Retrying {{attempt}}/{{max}}…",
+        "retrying_in": "[to be translated]:Retrying {{attempt}}/{{max}} in {{seconds}}s"
       },
       "auto_rename": "Сгенерировать название задачи",
       "create": {
@@ -678,6 +686,7 @@
         "deleteFailed": "Не удалось удалить задачу",
         "loadFailed": "Не удалось загрузить задачи",
         "runFailed": "Не удалось выполнить задачу",
+        "triggerInvalid": "[to be translated]:Invalid schedule: check the expression, time zone, or interval range",
         "updateFailed": "Не удалось обновить задачу"
       },
       "frequency": {
@@ -3781,6 +3790,8 @@
         "title": "Подтверждение удаления"
       },
       "failed": "Ошибка удаления",
+      "first_turn_not_supported": "[to be translated]:The first user message cannot be deleted.",
+      "root_unavailable": "[to be translated]:Messages are still loading and cannot be deleted yet.",
       "success": "Удаление успешно"
     },
     "dialog": {
@@ -4049,6 +4060,7 @@
         "write": "Сохранить",
         "writing": "Сохранение"
       },
+      "agent_background": "[to be translated]:Running in background",
       "approvalRequired": "Инструмент \"{{tool}}\" требует одобрения",
       "autoApproveEnabled": "Для этого инструмента включен автоматический одобрен",
       "cancelled": "Отменено",

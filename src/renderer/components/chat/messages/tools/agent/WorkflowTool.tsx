@@ -4,17 +4,9 @@ import { AgentToolsType, type ToolRendererProps } from '../shared/agentToolTypes
 import { SkeletonValue, ToolHeader } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 
-type WorkflowOutputObject = Exclude<NonNullable<ToolRendererProps<typeof AgentToolsType.Workflow>['output']>, string>
-
-function isWorkflowOutputObject(
-  output: ToolRendererProps<typeof AgentToolsType.Workflow>['output']
-): output is WorkflowOutputObject {
-  return typeof output === 'object' && output !== null && !Array.isArray(output) && 'taskId' in output
-}
-
 export function WorkflowTool({ input, output }: ToolRendererProps<typeof AgentToolsType.Workflow>): ToolDisclosureItem {
   const { t } = useTranslation()
-  const result = isWorkflowOutputObject(output) ? output : undefined
+  const result = output && typeof output !== 'string' ? output : undefined
   // The tool always launches in the background and returns a receipt, so the run's identity comes
   // from the result: `workflowName` mirrors the script's `meta.name`. `input.description` / `title`
   // are documented as ignored by the SDK, so they are deliberately not used as a label.

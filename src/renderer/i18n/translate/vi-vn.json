@@ -327,6 +327,9 @@
         "agent": "Đại lý",
         "context": "Bối cảnh",
         "no_tasks": "Không có tác vụ nào đang hoạt động",
+        "run_task_live_one": "[to be translated]:{{count}} live",
+        "run_task_live_other": "[to be translated]:{{count}} live",
+        "run_tasks": "[to be translated]:Subtasks",
         "selected_tool": "Công cụ đã chọn",
         "task_count": "{{completed}} / {{total}} hoàn thành",
         "tasks": "Nhiệm vụ",
@@ -377,6 +380,11 @@
         "helper": "Các công cụ được phê duyệt trước chạy mà không cần phê duyệt thủ công. Các công cụ không được chọn yêu cầu phê duyệt trước khi sử dụng.",
         "label": "Công cụ được phê duyệt trước",
         "placeholder": "Chọn công cụ được phê duyệt trước"
+      },
+      "api_retry": {
+        "reason": "[to be translated]:Request failed ({{error}}, HTTP {{status}}) — retrying",
+        "retrying": "[to be translated]:Retrying {{attempt}}/{{max}}…",
+        "retrying_in": "[to be translated]:Retrying {{attempt}}/{{max}} in {{seconds}}s"
       },
       "auto_rename": "Tạo tên nhiệm vụ",
       "create": {
@@ -678,6 +686,7 @@
         "deleteFailed": "Không xóa được tác vụ",
         "loadFailed": "Không tải được nhiệm vụ",
         "runFailed": "Không thể chạy tác vụ",
+        "triggerInvalid": "[to be translated]:Invalid schedule: check the expression, time zone, or interval range",
         "updateFailed": "Không thể cập nhật tác vụ"
       },
       "frequency": {
@@ -3781,6 +3790,8 @@
         "title": "Xác nhận xóa"
       },
       "failed": "Xóa thất bại",
+      "first_turn_not_supported": "[to be translated]:The first user message cannot be deleted.",
+      "root_unavailable": "[to be translated]:Messages are still loading and cannot be deleted yet.",
       "success": "Xóa thành công"
     },
     "dialog": {
@@ -4049,6 +4060,7 @@
         "write": "Lưu",
         "writing": "Tiết kiệm"
       },
+      "agent_background": "[to be translated]:Running in background",
       "approvalRequired": "Werkzeug \"{{tool}}\" erfordert eine Genehmigung",
       "autoApproveEnabled": "Tự động phê duyệt đã được bật cho công cụ này",
       "cancelled": "Đã hủy",

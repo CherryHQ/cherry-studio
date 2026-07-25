@@ -327,6 +327,9 @@
         "agent": "Agent",
         "context": "Kontext",
         "no_tasks": "Keine aktiven Aufgaben",
+        "run_task_live_one": "[to be translated]:{{count}} live",
+        "run_task_live_other": "[to be translated]:{{count}} live",
+        "run_tasks": "[to be translated]:Subtasks",
         "selected_tool": "Ausgewähltes Werkzeug",
         "task_count": "{{completed}} / {{total}} abgeschlossen",
         "tasks": "Aufgaben",
@@ -377,6 +380,11 @@
         "helper": "Wählen Sie vorab autorisierte Tools aus. Nicht ausgewählte Tools erfordern bei der Verwendung eine manuelle Genehmigung.",
         "label": "Vorab autorisierte Tools",
         "placeholder": "Vorab autorisierte Tools auswählen"
+      },
+      "api_retry": {
+        "reason": "[to be translated]:Request failed ({{error}}, HTTP {{status}}) — retrying",
+        "retrying": "[to be translated]:Retrying {{attempt}}/{{max}}…",
+        "retrying_in": "[to be translated]:Retrying {{attempt}}/{{max}} in {{seconds}}s"
       },
       "auto_rename": "Aufgabenname generieren",
       "create": {
@@ -678,6 +686,7 @@
         "deleteFailed": "Fehler beim Löschen der Aufgabe",
         "loadFailed": "Aufgaben konnten nicht geladen werden",
         "runFailed": "Aufgabe konnte nicht ausgeführt werden",
+        "triggerInvalid": "[to be translated]:Invalid schedule: check the expression, time zone, or interval range",
         "updateFailed": "Aktualisierung der Aufgabe fehlgeschlagen"
       },
       "frequency": {
@@ -3781,6 +3790,8 @@
         "title": "Löschen bestätigen"
       },
       "failed": "Löschen fehlgeschlagen",
+      "first_turn_not_supported": "[to be translated]:The first user message cannot be deleted.",
+      "root_unavailable": "[to be translated]:Messages are still loading and cannot be deleted yet.",
       "success": "Erfolgreich gelöscht"
     },
     "dialog": {
@@ -4049,6 +4060,7 @@
         "write": "Speichern",
         "writing": "Speichern"
       },
+      "agent_background": "[to be translated]:Running in background",
       "approvalRequired": "Das Tool \"{{tool}}\" erfordert eine Genehmigung",
       "autoApproveEnabled": "Automatische Genehmigung für dieses Tool aktiviert",
       "cancelled": "Abgebrochen",

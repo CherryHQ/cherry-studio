@@ -220,6 +220,16 @@ export function isAskUserQuestionToolName(toolName: unknown): boolean {
 }
 
 /**
+ * Whether an `Agent`/`Task` result is a launch receipt for a subagent that is still running. A
+ * detached subagent returns immediately, so its tool call reaches a terminal state while the work has
+ * barely started — the tool call finished, the task did not.
+ */
+export function isBackgroundAgentOutput(output: AgentToolOutput | undefined): boolean {
+  if (!output || Array.isArray(output)) return false
+  return output.status === 'async_launched' || output.status === 'remote_launched'
+}
+
+/**
  * Safely parse AskUserQuestionToolInput from unknown data.
  * Returns undefined if the data doesn't match the expected structure.
  */

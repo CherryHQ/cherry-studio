@@ -327,6 +327,9 @@
         "agent": "智能体",
         "context": "上下文",
         "no_tasks": "暂无活动任务",
+        "run_task_live_one": "{{count}} 个进行中",
+        "run_task_live_other": "{{count}} 个进行中",
+        "run_tasks": "子任务",
         "selected_tool": "选中工具",
         "task_count": "{{completed}} / {{total}} 已完成",
         "tasks": "任务",
@@ -4057,6 +4060,7 @@
         "write": "写入",
         "writing": "认真写入"
       },
+      "agent_background": "后台运行中",
       "approvalRequired": "工具 \"{{tool}}\" 需要审批",
       "autoApproveEnabled": "此工具已启用自动批准",
       "cancelled": "已取消",
