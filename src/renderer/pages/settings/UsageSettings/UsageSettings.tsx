@@ -760,6 +760,9 @@ function UsageSettings() {
   const previousCostTotals = useMemo(() => getCostTotals(previousOverviewBuckets), [previousOverviewBuckets])
   const canShowCostMetric = costTotals.length === 1
   const heatmapCostCurrency = canShowCostMetric ? costTotals[0].currency : undefined
+  // Cost is only summable within a single currency, so mixed windows fall back to tokens
+  // while keeping the stored preference intact.
+  const activeChartMetric = chartMetric === 'cost' && !canShowCostMetric ? 'tokens' : chartMetric
   const activeDays = activeDateKeys.length
   const longestStreak = useMemo(() => getLongestStreak(activeDateKeys), [activeDateKeys])
   const cacheMetrics = useMemo(() => getCacheUsageMetrics(overviewBuckets), [overviewBuckets])
@@ -883,9 +886,10 @@ function UsageSettings() {
     () =>
       METRIC_KEYS.map((value) => ({
         value,
-        label: t(METRIC_LABEL_KEYS[value])
+        label: t(METRIC_LABEL_KEYS[value]),
+        disabled: value === 'cost' && !canShowCostMetric
       })),
-    [t]
+    [canShowCostMetric, t]
   )
   const chartTypeOptions = useMemo(
     () =>
@@ -897,7 +901,7 @@ function UsageSettings() {
   )
 
   const selectedDateLabel = selectedDate ? dateFormatter.format(parseDateKey(selectedDate)) : undefined
-  const analysisSummary = `${t(GROUP_BY_LABEL_KEYS[groupBy])} / ${t(METRIC_LABEL_KEYS[chartMetric])} / ${t(
+  const analysisSummary = `${t(GROUP_BY_LABEL_KEYS[groupBy])} / ${t(METRIC_LABEL_KEYS[activeChartMetric])} / ${t(
     CHART_TYPE_LABEL_KEYS[chartType]
   )}`
   const hasUsage = totalEntries > 0 || timelineBuckets.some((bucket) => bucket.entryCount > 0)
@@ -906,25 +910,28 @@ function UsageSettings() {
   const totalExploreTokens = exploreBuckets.reduce((sum, bucket) => sum + bucket.totalTokens, 0)
   const totalExploreEntries = exploreBuckets.reduce((sum, bucket) => sum + bucket.entryCount, 0)
   const totalExploreCost = exploreBuckets.reduce((sum, bucket) => sum + bucket.totalCost, 0)
-  const totalExploreMetric = exploreBuckets.reduce((sum, bucket) => sum + getMetricValue(bucket, chartMetric), 0)
+  const totalExploreMetric = exploreBuckets.reduce((sum, bucket) => sum + getMetricValue(bucket, activeChartMetric), 0)
   const exploreTopBuckets = useMemo(
     () =>
       [...exploreBuckets]
-        .filter((bucket) => getMetricValue(bucket, chartMetric) > 0)
-        .sort((a, b) => getMetricValue(b, chartMetric) - getMetricValue(a, chartMetric))
+        .filter((bucket) => getMetricValue(bucket, activeChartMetric) > 0)
+        .sort((a, b) => getMetricValue(b, activeChartMetric) - getMetricValue(a, activeChartMetric))
         .slice(0, DISTRIBUTION_SEGMENT_LIMIT),
-    [chartMetric, exploreBuckets]
+    [activeChartMetric, exploreBuckets]
   )
   const displayedExploreTokens = exploreTopBuckets.reduce((sum, bucket) => sum + bucket.totalTokens, 0)
   const displayedExploreEntries = exploreTopBuckets.reduce((sum, bucket) => sum + bucket.entryCount, 0)
   const displayedExploreCost = exploreTopBuckets.reduce((sum, bucket) => sum + bucket.totalCost, 0)
-  const displayedExploreMetric = exploreTopBuckets.reduce((sum, bucket) => sum + getMetricValue(bucket, chartMetric), 0)
+  const displayedExploreMetric = exploreTopBuckets.reduce(
+    (sum, bucket) => sum + getMetricValue(bucket, activeChartMetric),
+    0
+  )
   const otherExploreTokens = Math.max(0, totalExploreTokens - displayedExploreTokens)
   const otherExploreEntries = Math.max(0, totalExploreEntries - displayedExploreEntries)
   const otherExploreCost = Math.max(0, totalExploreCost - displayedExploreCost)
   const otherExploreMetric = Math.max(0, totalExploreMetric - displayedExploreMetric)
   const maxExploreMetric = Math.max(
-    ...exploreTopBuckets.map((bucket) => getMetricValue(bucket, chartMetric)),
+    ...exploreTopBuckets.map((bucket) => getMetricValue(bucket, activeChartMetric)),
     otherExploreMetric,
     0
   )
@@ -1032,7 +1039,7 @@ function UsageSettings() {
     )
   }
   const formatChartValue = (value: number, bucket?: UsageLedgerStatsBucket) => {
-    if (chartMetric === 'cost') {
+    if (activeChartMetric === 'cost') {
       return formatCost(value, bucket?.costCurrency)
     }
 
@@ -1062,7 +1069,7 @@ function UsageSettings() {
 
     const entries = [
       ...exploreTopBuckets.map((bucket, index) => {
-        const value = getMetricValue(bucket, chartMetric)
+        const value = getMetricValue(bucket, activeChartMetric)
         return {
           key: getBucketKey(bucket),
           label: renderBucketLabel(bucket),
@@ -1511,7 +1518,7 @@ function UsageSettings() {
                           <div className="-mx-1 max-w-full overflow-x-auto px-1">
                             <SegmentedControl
                               options={metricOptions}
-                              value={chartMetric}
+                              value={activeChartMetric}
                               onValueChange={setChartMetric}
                               size="sm"
                             />
