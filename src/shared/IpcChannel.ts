@@ -148,6 +148,7 @@ export enum IpcChannel {
 
   // TRACE
   TRACE_GET_DATA = 'trace:getData',
+  TRACE_CLEAN_LOCAL_DATA = 'trace:cleanLocalData',
 
   // ExternalApps
   ExternalApps_DetectInstalled = 'external-apps:detect-installed',
