@@ -82,9 +82,6 @@ importers:
 
   .:
     dependencies:
-      '@ai-sdk/bytedance':
-        specifier: 1.0.29
-        version: 1.0.29(zod@4.3.4)
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.3.218
         version: 0.3.218(@anthropic-ai/sdk@0.81.0(zod@4.3.4))(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.4))(zod@4.3.4)
@@ -191,6 +188,9 @@ importers:
       '@ai-sdk/azure':
         specifier: ^3.0.54
         version: 3.0.54(zod@4.3.4)
+      '@ai-sdk/bytedance':
+        specifier: 1.0.29
+        version: 1.0.29(zod@4.3.4)
       '@ai-sdk/cerebras':
         specifier: ^2.0.67
         version: 2.0.67(zod@4.3.4)
