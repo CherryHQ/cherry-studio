@@ -18,6 +18,11 @@ export interface ComposerToolbarCustomTool {
   id: string
   label: string
   icon: ReactNode
+  disabled?: boolean
+  /** Places the tool first in the default customize-menu order while keeping it reorderable. */
+  customizePlacement?: 'leading'
+  /** Defaults to true for category shortcuts that need the unified panel. */
+  requiresPanel?: boolean
   onSelect: (args: { inputAdapter?: QuickPanelInputAdapter; unifiedPanelControl?: ComposerUnifiedPanelControl }) => void
 }
 
@@ -25,6 +30,7 @@ interface ShortcutCandidate {
   id: string
   label: ReactNode | string
   icon: ReactNode
+  customizePlacement?: 'leading'
   active: boolean
   disabled: boolean
   disabledReason?: ReactNode | string
@@ -74,13 +80,14 @@ const haveSameOrder = (left: readonly string[], right: readonly string[]) =>
 const reconcileCustomizeOrder = (
   preferredOrder: readonly string[],
   pinnedIds: readonly string[],
-  candidateIds: readonly string[]
+  candidateIds: readonly string[],
+  leadingCandidateIds: readonly string[]
 ) => {
   const availableIds = new Set([...pinnedIds, ...candidateIds])
   const nextOrder: string[] = []
   const seenIds = new Set<string>()
 
-  for (const id of [...preferredOrder, ...pinnedIds, ...candidateIds]) {
+  for (const id of [...preferredOrder, ...leadingCandidateIds, ...pinnedIds, ...candidateIds]) {
     if (availableIds.has(id) && !seenIds.has(id)) {
       seenIds.add(id)
       nextOrder.push(id)
@@ -140,18 +147,20 @@ export const ComposerToolbarShortcuts = ({
           : () => dispatchLauncher(launcher, { source: 'popover', inputAdapter })
       }
     })
-    const customCandidates = (customTools ?? []).map(
-      (tool): ShortcutCandidate => ({
+    const customCandidates = (customTools ?? []).map((tool): ShortcutCandidate => {
+      const requiresPanel = tool.requiresPanel ?? true
+      return {
         id: tool.id,
         label: tool.label,
         icon: tool.icon,
+        customizePlacement: tool.customizePlacement,
         active: false,
-        disabled: panelUnavailable,
-        haspopup: 'menu',
+        disabled: Boolean(tool.disabled) || (requiresPanel && panelUnavailable),
+        haspopup: requiresPanel ? 'menu' : undefined,
         toggle: false,
         select: () => tool.onSelect({ inputAdapter, unifiedPanelControl })
-      })
-    )
+      }
+    })
     return [...launcherCandidates, ...customCandidates]
   }, [
     customTools,
@@ -174,6 +183,10 @@ export const ComposerToolbarShortcuts = ({
   const visiblePinnedRows = useMemo(() => pinnedRows.filter((row) => row.candidate), [pinnedRows])
   const pinnedIdSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
   const candidateIds = useMemo(() => candidates.map((candidate) => candidate.id), [candidates])
+  const leadingCandidateIds = useMemo(
+    () => candidates.filter((candidate) => candidate.customizePlacement === 'leading').map((candidate) => candidate.id),
+    [candidates]
+  )
   const [customizeOrderState, setCustomizeOrderState] = useState<CustomizeOrderState>(() => ({
     preferredOrder: [],
     syncedPinnedIds: pinnedIds,
@@ -194,8 +207,8 @@ export const ComposerToolbarShortcuts = ({
   }
 
   const customizeOrderIds = useMemo(
-    () => reconcileCustomizeOrder(customizeOrderState.preferredOrder, pinnedIds, candidateIds),
-    [candidateIds, customizeOrderState.preferredOrder, pinnedIds]
+    () => reconcileCustomizeOrder(customizeOrderState.preferredOrder, pinnedIds, candidateIds, leadingCandidateIds),
+    [candidateIds, customizeOrderState.preferredOrder, leadingCandidateIds, pinnedIds]
   )
   const customizeRows = useMemo<CustomizeRow[]>(
     () => customizeOrderIds.map((id) => ({ id, candidate: candidateById.get(id) })),
@@ -257,7 +270,7 @@ export const ComposerToolbarShortcuts = ({
   return (
     <Popover open={customizeOpen} onOpenChange={onCustomizeOpenChange}>
       <PopoverAnchor asChild>
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex min-h-8 shrink-0 items-center gap-1.5">
           {visiblePinnedRows.map(({ candidate }) => {
             const shortcut = candidate!
             const tooltip =
@@ -292,6 +305,8 @@ export const ComposerToolbarShortcuts = ({
           focus-outside so that restore doesn't instantly dismiss. Pointer-down outside
           still closes the popover. */}
       <PopoverContent
+        side="top"
+        sideOffset={8}
         align="start"
         className="w-64 p-1.5"
         aria-labelledby={customizeTitleId}

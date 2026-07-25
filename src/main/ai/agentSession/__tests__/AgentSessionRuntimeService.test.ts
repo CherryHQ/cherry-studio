@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   startRuntimeTurn: vi.fn(),
   pauseRuntimeTurn: vi.fn(),
   broadcastTopicError: vi.fn(),
+  resolveToolApproval: vi.fn(),
   terminateHeldTopicStream: vi.fn(),
   cacheSetShared: vi.fn(),
   cacheDeleteShared: vi.fn(),
@@ -48,6 +49,7 @@ vi.mock('@application', () => ({
 
 const { AgentSessionRuntimeService } = await import('../AgentSessionRuntimeService')
 const { runtimeDriverRegistry } = await import('../../runtime/registry')
+const { toolApprovalRegistry } = await import('../../runtime/claudeCode')
 const baseTurnInput = {
   sessionId: 'session-1',
   topicId: 'agent-session:session-1',
@@ -127,6 +129,7 @@ describe('AgentSessionRuntimeService', () => {
   beforeEach(() => {
     BaseService.resetInstances()
     runtimeDriverRegistry.clearForTest()
+    toolApprovalRegistry.clear('test-reset')
     vi.clearAllMocks()
     mocks.saveMessage.mockImplementation(({ message }) => ({
       ...message,
@@ -145,11 +148,37 @@ describe('AgentSessionRuntimeService', () => {
           startRuntimeTurn: mocks.startRuntimeTurn,
           pauseRuntimeTurn: mocks.pauseRuntimeTurn,
           broadcastTopicError: mocks.broadcastTopicError,
+          resolveToolApproval: mocks.resolveToolApproval,
           terminateHeldTopicStream: mocks.terminateHeldTopicStream
         }
       }
       if (name === 'CacheService') return { setShared: mocks.cacheSetShared, deleteShared: mocks.cacheDeleteShared }
       throw new Error(`Unexpected application.get(${name})`)
+    })
+  })
+
+  describe('respondToolApproval', () => {
+    it('clears the live awaiting-approval anchor as soon as the decision is dispatched', () => {
+      const resolve = vi.fn()
+      toolApprovalRegistry.register({
+        approvalId: 'approval-1',
+        sessionId: 'session-1',
+        toolCallId: 'tool-call-1',
+        toolName: 'Bash',
+        originalInput: { command: 'sleep 10' },
+        resolve
+      })
+
+      const service = new AgentSessionRuntimeService()
+      expect(service.respondToolApproval('approval-1', { approved: true })).toBe(true)
+      expect(resolve).toHaveBeenCalledWith({ behavior: 'allow', updatedInput: { command: 'sleep 10' } })
+      expect(mocks.resolveToolApproval).toHaveBeenCalledWith('agent-session:session-1', 'tool-call-1')
+    })
+
+    it('leaves stream status untouched for an unknown approval', () => {
+      const service = new AgentSessionRuntimeService()
+      expect(service.respondToolApproval('missing', { approved: true })).toBe(false)
+      expect(mocks.resolveToolApproval).not.toHaveBeenCalled()
     })
   })
 
@@ -250,6 +279,45 @@ describe('AgentSessionRuntimeService', () => {
       ;(service as any).handleRuntimeEvent(entry, contentChunk)
 
       expect(mocks.cacheSetShared).not.toHaveBeenCalledWith(RETRY_KEY, { status: 'idle' })
+    })
+  })
+
+  // Gates the out-of-turn approval denial in `canUseTool`: a detached background agent can call a
+  // tool after its turn's result, and the approval chunk would be dropped by the `chunk` event branch.
+  describe('hasLiveTurnStream — out-of-turn approval gate', () => {
+    it('is false with no entry, true while a turn streams, false once it settles', () => {
+      const service = new AgentSessionRuntimeService()
+      expect(service.hasLiveTurnStream('session-1')).toBe(false)
+
+      // The controller only exists once the consumer opens the stream — and `openTurnStream` assigns
+      // it before `admitTurn` sends the message, so no tool call can fire ahead of it.
+      const turn = service.beginTurn(baseTurnInput)
+      expect(service.hasLiveTurnStream('session-1')).toBe(false)
+
+      service.openTurnStream({
+        sessionId: 'session-1',
+        turnId: turn.turnId,
+        signal: new AbortController().signal
+      })
+      expect(service.hasLiveTurnStream('session-1')).toBe(true)
+
+      service.markTurnTerminal('session-1', 'success')
+      expect(service.hasLiveTurnStream('session-1')).toBe(false)
+    })
+
+    it('stays true mid-roll, when chunks are buffered for the continuation turn', () => {
+      const service = new AgentSessionRuntimeService()
+      const turn = service.beginTurn(baseTurnInput)
+      service.openTurnStream({
+        sessionId: 'session-1',
+        turnId: turn.turnId,
+        signal: new AbortController().signal
+      })
+      service.markTurnTerminal('session-1', 'success')
+      expect(service.hasLiveTurnStream('session-1')).toBe(false)
+
+      getEntry(service).rolling = true
+      expect(service.hasLiveTurnStream('session-1')).toBe(true)
     })
   })
 

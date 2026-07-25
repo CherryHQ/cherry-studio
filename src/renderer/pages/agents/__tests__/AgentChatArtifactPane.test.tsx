@@ -138,6 +138,7 @@ vi.mock('@renderer/components/chat/panes/useArtifactFileTreeModel', () => {
   const workspaceRootId = '__workspace_root__'
 
   return {
+    ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS: { watchMissingRoot: true },
     isSelectableFileNode: (nodeById: ReadonlyMap<string, { kind: string }>, selectedFile: string | null) =>
       Boolean(selectedFile && nodeById.get(selectedFile)?.kind === 'file'),
     useArtifactFileTreeModel: ({
@@ -506,6 +507,8 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
 }))
 
 vi.mock('@renderer/utils/agentSession', () => ({
+  buildAgentFileWorkspaceKey: (workspaceId?: string | null, workspacePath?: string) =>
+    `${workspaceId ?? ''}\0${workspacePath ?? ''}`,
   buildAgentSessionTopicId: (sessionId: string) => `agent-session:${sessionId}`
 }))
 

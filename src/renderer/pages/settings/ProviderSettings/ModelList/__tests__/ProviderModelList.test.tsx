@@ -94,7 +94,7 @@ describe('ProviderModelList', () => {
 
     expect(screen.getByText('settings.models.empty')).toBeInTheDocument()
     expect(screen.getByText('settings.models.empty_hint')).toBeInTheDocument()
-    expect(container.querySelector('.lucide-box')).toBeInTheDocument()
+    expect(container.querySelector('svg[viewBox="0 0 64 41"]')).toBeInTheDocument()
   })
 
   it('renders model groups without section action rows', () => {

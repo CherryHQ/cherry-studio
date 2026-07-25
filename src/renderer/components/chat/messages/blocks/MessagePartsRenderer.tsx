@@ -796,11 +796,15 @@ function renderGroupedEntry(
   const rendered = renderPart(entry.part, partId, message, isStreaming, isTranslationOverlayActive, options)
   if (!rendered) return null
 
+  const wrapperClassName =
+    entry.part.type === 'text'
+      ? 'text-black dark:text-foreground'
+      : isReasoningMessagePart(entry.part)
+        ? 'message-thought-wrapper'
+        : undefined
+
   return (
-    <AnimatedBlockWrapper
-      key={partId}
-      enableAnimation={enableAnimation}
-      className={isReasoningMessagePart(entry.part) ? 'message-thought-wrapper' : undefined}>
+    <AnimatedBlockWrapper key={partId} enableAnimation={enableAnimation} className={wrapperClassName}>
       {rendered}
     </AnimatedBlockWrapper>
   )
