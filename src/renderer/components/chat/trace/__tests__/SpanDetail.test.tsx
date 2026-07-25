@@ -24,8 +24,8 @@ vi.mock('@cherrystudio/ui', async () => {
   return {
     Button: ({
       children,
-      size: _size,
-      variant: _variant,
+      size,
+      variant,
       ...props
     }: PropsWithChildren<
       ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -33,7 +33,7 @@ vi.mock('@cherrystudio/ui', async () => {
         variant?: string
       }
     >) => (
-      <button type="button" {...props}>
+      <button type="button" data-size={size} data-variant={variant} {...props}>
         {children}
       </button>
     ),
