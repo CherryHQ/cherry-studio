@@ -1068,6 +1068,37 @@ describe('FileEntryService', () => {
       expect(updated.updatedAt).toBeGreaterThanOrEqual(original.updatedAt)
     })
 
+    it("rejects demoting cleanupPolicy from 'manual' to 'delete_when_unreferenced'", async () => {
+      // The one-way invariant (file-entry-cleanup.md §4.2) is what justified
+      // removing the volume safety abort (§5.3), so nothing downstream would
+      // catch a violation — the demoted entry just becomes a GC candidate and a
+      // user library file gets deleted. Pinned here so the direction is enforced
+      // at the write site, not left to caller discipline.
+      const id = '019606a0-0000-7000-8000-000000000b21' as FileEntryId
+      fileEntryService.create({ id, origin: 'internal', cleanupPolicy: 'manual', name: 'lib', ext: 'txt', size: 1 })
+
+      expect(() => fileEntryService.update(id, { cleanupPolicy: 'delete_when_unreferenced' })).toThrow()
+      expect(fileEntryService.getById(id).cleanupPolicy).toBe('manual')
+    })
+
+    it("allows upgrading cleanupPolicy from 'delete_when_unreferenced' to 'manual'", async () => {
+      // The sanctioned direction — `ensureExternal` upgrades a reused auto entry
+      // when a manual-policy caller references it.
+      const id = '019606a0-0000-7000-8000-000000000b22' as FileEntryId
+      fileEntryService.create({
+        id,
+        origin: 'internal',
+        cleanupPolicy: 'delete_when_unreferenced',
+        name: 'tmp',
+        ext: 'txt',
+        size: 1
+      })
+
+      expect(fileEntryService.update(id, { cleanupPolicy: 'manual' }).cleanupPolicy).toBe('manual')
+      // Re-stating the same policy must stay a no-op, not trip the guard.
+      expect(fileEntryService.update(id, { cleanupPolicy: 'manual' }).cleanupPolicy).toBe('manual')
+    })
+
     it('throws a typed DataApiError(NOT_FOUND) when entry does not exist', async () => {
       // Mirror of the getById typed-contract pin (line 51). A regression that
       // swapped to a generic Error with a similar message would slip past a

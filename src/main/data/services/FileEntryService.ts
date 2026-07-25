@@ -638,6 +638,23 @@ class FileEntryServiceImpl implements FileEntryService {
     if (values.name !== undefined) SafeNameSchema.parse(values.name)
     if (values.ext !== undefined) InternalEntrySchema.shape.ext.parse(values.ext)
     if (values.cleanupPolicy !== undefined) CleanupPolicySchema.parse(values.cleanupPolicy)
+    // Enforce the one-way cleanup-policy invariant at the write site
+    // (file-entry-cleanup.md §4.2): a runtime `manual` -> `delete_when_unreferenced`
+    // transition does not exist. It is load-bearing — removing the volume safety
+    // abort (§5.3) was justified *by* it, so nothing downstream would catch a
+    // violation: the demoted entry simply becomes a GC candidate and a user
+    // library file is deleted. Until now it rested entirely on the single caller
+    // (`create.ts`, upgrade-only) staying disciplined. Rejecting here makes it
+    // structural, so a future main-side caller cannot demote by accident.
+    if (values.cleanupPolicy === 'delete_when_unreferenced') {
+      const current = this.findByIdTx(tx, id)
+      if (current?.cleanupPolicy === 'manual') {
+        throw DataApiErrorFactory.invalidOperation(
+          'update FileEntry',
+          `cleanupPolicy cannot be demoted from 'manual' to 'delete_when_unreferenced' (${id})`
+        )
+      }
+    }
     const updates: Partial<typeof fileEntryTable.$inferInsert> = {
       updatedAt: Date.now()
     }
