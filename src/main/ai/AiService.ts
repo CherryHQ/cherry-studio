@@ -20,7 +20,7 @@ import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { type Assistant } from '@shared/data/types/assistant'
 import type { FileEntry } from '@shared/data/types/file'
 import type { ImageGenerationMode } from '@shared/data/types/model'
-import { type Model, parseUniqueModelId } from '@shared/data/types/model'
+import { type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Base64String, UrlString } from '@shared/types/file'
 import { isEmbeddingModel, isFunctionCallingModel, isRerankModel } from '@shared/utils/model'
 import {
@@ -116,6 +116,9 @@ export interface AiGenerateResult {
 
 /** Image generation request. */
 export interface AiImageRequest extends AiBaseRequest {
+  /** Required on this route (see the `ai.generate_image` payload schema): the image
+   *  path routes the delivery adapter on model identity. */
+  uniqueModelId: UniqueModelId
   prompt: string
   /** Input images for editing (base64 data URLs or URLs). If provided, uses edit mode. */
   inputImages?: string[]
@@ -511,23 +514,16 @@ export class AiService extends BaseService {
     const params = request.paramValues
     const { structured, vendorBag } = splitParamValues(params)
 
-    // Vendor body: the WireProfile engine maps the canonical bag to each
-    // provider's wire — a registered profile for the OpenAI / google / dashscope
-    // / aihubmix / dmxapi / doubao families, the wire-naming fallback for the
-    // generic openai-compatible family, else the diffusion catch-all. Delivered
-    // under `sdkConfig.optionsKey` — the namespace the SDK image model actually
-    // reads (the concrete provider name for openai-compatible, NOT
-    // 'openai-compatible').
-    const registration = resolveWireRegistration(sdkConfig.providerId)
-    const imageProviderOptions = buildVendorProviderOptions(sdkConfig.optionsKey, params, registration, vendorBag)
-    // Async custom-provider transports (ppio / dashscope / modelscope /
-    // dmxapi-bespoke / tokenhub) run the submit/poll loop on the job system so it
-    // survives a restart. Unlike the in-SDK path (whose `providerOptions[id]` IS
-    // the wire body), a transport builds its own request envelope per model, so
-    // it receives the canonical camelCase `vendorBag` directly (native n/size/seed
-    // travel via the job payload → `input.*`). No wire-naming, no casing probes.
+    // Delivery adapter — the two are mutually exclusive, and the transport branch is
+    // decided FIRST so no wire body is built for a request that discards it.
+    //
+    // Transport (ppio / dashscope / modelscope / dmxapi-bespoke / tokenhub): runs the
+    // submit/poll loop on the job system so it survives a restart, and builds its own
+    // per-model envelope — so it takes the CANONICAL camelCase `vendorBag` directly
+    // (native n/size/seed/aspectRatio travel the job payload as typed `input.*`). The
+    // WireProfile engine is not involved; a profile registered for a transport-only
+    // provider is dead code, which `wireRegistryReachability` asserts against.
     if (
-      request.uniqueModelId &&
       resolveImageTransport(
         sdkConfig.providerId,
         sdkConfig.modelId,
@@ -537,6 +533,15 @@ export class AiService extends BaseService {
     ) {
       return await this.generateImageViaJob(request, structured, vendorBag, signal)
     }
+
+    // SDK: the WireProfile engine maps the canonical bag to the provider's wire — a
+    // registered profile for the OpenAI / google / aihubmix / doubao families, the
+    // wire-naming fallback for the generic openai-compatible family, else the diffusion
+    // catch-all. Delivered under `sdkConfig.optionsKey`, the namespace the SDK image
+    // model actually reads (the concrete provider name for openai-compatible, NOT
+    // 'openai-compatible'). Here the body IS the wire body, so it is wire-named.
+    const registration = resolveWireRegistration(sdkConfig.providerId)
+    const imageProviderOptions = buildVendorProviderOptions(sdkConfig.optionsKey, params, registration, vendorBag)
 
     // `structured.aspectRatio` is already normalized to `X:Y` by the aspectRatio
     // native binding's `map` (in `splitParamValues`).
@@ -617,7 +622,6 @@ export class AiService extends BaseService {
     signal: AbortSignal | undefined
   ): Promise<AiImageResult> {
     const uniqueModelId = request.uniqueModelId
-    if (!uniqueModelId) throw new Error('generateImageViaJob requires a uniqueModelId')
 
     const fileManager = application.get('FileManager')
     const jobManager = application.get('JobManager')

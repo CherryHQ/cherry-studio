@@ -94,19 +94,6 @@ export const OPENROUTER_WIRE_PROFILE: WireProfile = {
 }
 
 /**
- * DashScope native image API (qwen-image / wanx / wan2.5 / qwen-mt-image …).
- * Reproduces the `dashscope` emitter: the mapped sampling fields under the
- * `dashscope` key, over a `passthrough` of the vendor bag the submit/poll
- * transport reads (`modelDescriptor`, `sourceLang`/`targetLang`, …) — without it,
- * `dashscopeTransport.submit` throws "Missing modelDescriptor". Mapped fields win
- * over bag entries of the same name. The async transport runs on the job system;
- * this bag is what it receives as `providerParams`.
- */
-export const DASHSCOPE_WIRE_PROFILE: WireProfile = {
-  forward: ['negativePrompt', 'seed', 'style']
-}
-
-/**
  * Doubao (Volcengine Ark) via `@ai-sdk/bytedance`. That package's option schema is
  * camelCase and does the vendor naming itself (`outputFormat` → `output_format`,
  * `maxImages` → `sequential_image_generation_options.max_images`), so this profile only
@@ -242,7 +229,9 @@ export const WIRE_REGISTRY: Record<string, WireRegistration> = {
   google: { profile: GOOGLE_WIRE_PROFILE },
   // Vertex reuses the google body; `resolveProviderOptionsKey` delivers it under `vertex`.
   'google-vertex': { profile: GOOGLE_WIRE_PROFILE },
-  dashscope: { profile: DASHSCOPE_WIRE_PROFILE, passthrough: true },
+  // No `dashscope` row: every DashScope image model resolves a transport
+  // (`imageTransportRegistry`), which takes the canonical bag and builds its own
+  // envelope — a profile here would never be read. See `wireRegistryReachability`.
   doubao: { profile: DOUBAO_WIRE_PROFILE, passthrough: true },
   // passthrough: forward the vendor bag (imageResolution / addWatermark /
   // sequentialImageGeneration / responseFormat …) under the `aihubmix` key, where

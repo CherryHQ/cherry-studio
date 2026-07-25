@@ -53,6 +53,14 @@ const aiBaseRequestShape = {
 
 const aiImagePayloadSchema = z.strictObject({
   ...aiBaseRequestShape,
+  /**
+   * REQUIRED here, unlike the shared shape: the image path routes on model identity —
+   * it picks the delivery adapter (`resolveImageTransport`) and, on the transport
+   * branch, persists the id so a restart-resumed job can rebuild the same transport.
+   * Optional it would mean "no identity ⇒ silently fall back to the SDK adapter", a
+   * branch no caller exercises and every transport provider is broken on.
+   */
+  uniqueModelId: UniqueModelIdSchema,
   prompt: z.string(),
   /**
    * The image-generation mode (which tab). A request property — NOT a param — so

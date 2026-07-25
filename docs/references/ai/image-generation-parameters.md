@@ -64,6 +64,18 @@ The contract between them is the **catalog** (the canonical key set + each key's
 value type and wire name). The form, the validation, the partition, and
 the static types all project from it.
 
+> **The two delivery adapters take the bag in different spellings — by design.**
+> The SDK adapter's body *is* the HTTP body, so it is **wire-named** (`negative_prompt`).
+> A transport builds its own per-model envelope with field names the catalog can't
+> predict (nested `parameters.*`, `messages[]`), so it takes the bag **canonical**
+> (`negativePrompt`) and names each field itself. `AiService.generateImage` picks the
+> branch *before* building a body, so the two never both run.
+>
+> Consequence — **a transport-only provider must not have a `WIRE_REGISTRY` row**: it
+> would never be read, while reading like a live declaration. `dashscope` was exactly
+> that dead row (its profile said `negative_prompt`, its transport read
+> `negativePrompt`); `wireRegistryReachability.test.ts` now fails on the next one.
+
 ---
 
 ## The single sources — each fact declared once
@@ -74,7 +86,8 @@ the static types all project from it.
 | per-model: which params + constraints (options/range/default) | registry `supports` | form + `buildParamsSchema` |
 | canonical → AI-SDK-native (`numImages→n`, `aspectRatio` normalize, …) | `AI_SDK_NATIVE_BINDINGS` | `splitParamValues` |
 | canonical → vendor wire name (`negativePrompt→negative_prompt`) | `wireName()` (catalog `wire` or auto snake_case) | WireProfiles + aihubmix DEFAULT |
-| per-provider delivery (dual-key / passthrough / sibling key / envelope) | `WIRE_REGISTRY` (SDK id; the openai-compatible fallback wire-names its passthrough) + each transport | the two adapters |
+| which delivery adapter a request takes | `imageTransportRegistry` (transport ⇒ job path; else SDK) | `AiService.generateImage` |
+| per-provider SDK delivery (dual-key / passthrough / sibling key) | `WIRE_REGISTRY` (SDK id; the openai-compatible fallback wire-names its passthrough) — **SDK branch only** | the SDK adapter |
 | providerOptions namespace the SDK model reads | `sdkConfig.optionsKey` (`resolveProviderOptionsKey`, attached by `providerToAiSdkConfig`) | SDK delivery + chat options |
 | per-model endpoint routing (endpoint / sync / response family) | registry `vendorTransport` → `modelDescriptor` | the transports |
 
