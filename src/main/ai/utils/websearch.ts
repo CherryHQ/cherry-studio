@@ -48,6 +48,19 @@ export function getWebSearchParams(model: Model): Record<string, any> {
 }
 
 /**
+ * Bailian splits built-in web search by endpoint. The Responses `{ type: 'web_search' }` tool is served
+ * for the Qwen3.x line only — "Responses API 仅支持 Qwen3.7 Max系列、Qwen3.6、Qwen3.5、qwen3-max"
+ * (help.aliyun.com/zh/model-studio/web-search). The `qwen-plus` / `qwen-flash` / character aliases and the
+ * hosted third-party models search through Chat Completions' `enable_search` instead (see
+ * `getWebSearchParams`), so emitting the tool for them yields a provider error or an empty result.
+ *
+ * Those aliases are ordered chat-first in the registry, so this only guards a manual endpoint override.
+ */
+function servesResponsesWebSearch(model: Model): boolean {
+  return /^qwen3[.-]/.test(model.apiModelId ?? '')
+}
+
+/**
  * range in [0, 100]
  * @param maxResults
  */
@@ -72,8 +85,13 @@ export function buildProviderBuiltinWebSearchConfig(
       // openai-only knobs like search_context_size are not documented and must not be sent. (DashScope
       // chat-endpoint models resolve to `openai-compatible` here → default `{}` → no tool; their web
       // search comes from getWebSearchParams instead.)
-      if (model?.providerId === 'doubao' || model?.providerId === 'dashscope') {
+      if (model?.providerId === 'doubao') {
         return { openai: {} }
+      }
+      if (model?.providerId === 'dashscope') {
+        // `undefined` (not `{}`) is what suppresses the tool: `providerWebSearchFeature` applies on a
+        // truthy config, so an empty object would still attach it.
+        return servesResponsesWebSearch(model) ? { openai: {} } : undefined
       }
       const searchContextSize =
         model && isOpenAIDeepResearchModel(model)

@@ -4831,7 +4831,7 @@
       "capabilities": {
         "add": ["web-search"]
       },
-      "endpointTypes": ["openai-responses", "openai-chat-completions"],
+      "endpointTypes": ["openai-chat-completions", "openai-responses"],
       "modelId": "qwen-flash",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -5054,7 +5054,7 @@
       "capabilities": {
         "add": ["web-search"]
       },
-      "endpointTypes": ["openai-responses", "openai-chat-completions"],
+      "endpointTypes": ["openai-chat-completions", "openai-responses"],
       "modelId": "qwen-plus",
       "providerId": "dashscope",
       "reasoningContracts": {
@@ -5172,7 +5172,7 @@
       "capabilities": {
         "add": ["web-search"]
       },
-      "endpointTypes": ["openai-responses", "openai-chat-completions"],
+      "endpointTypes": ["openai-chat-completions", "openai-responses"],
       "modelId": "qwen-plus-character",
       "providerId": "dashscope"
     },
@@ -36377,5 +36377,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "eb7704d74d320101"
+  "version": "815226d1509f9487"
 }

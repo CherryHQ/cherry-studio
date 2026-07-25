@@ -177,6 +177,14 @@ const responsesModels = new Set([
 /** Newest qwen served ONLY via the Responses API — Chat Completions errors (仅 Responses API 支持). */
 const responsesOnlyModels = new Set(['qwen3-7-max', 'qwen3-6-plus', 'qwen3-6-flash', 'qwen3-8-max-preview'])
 
+/**
+ * Dual-endpoint SKUs whose built-in search only works on Chat Completions. Bailian serves the Responses
+ * `web_search` tool for the Qwen3.x line only ("Responses API 仅支持 Qwen3.7 Max系列、Qwen3.6、Qwen3.5、
+ * qwen3-max"), while these aliases search via `enable_search` on Chat. Order Chat first so the default
+ * endpoint is the one where their search actually works; Responses stays selectable.
+ */
+const chatWebSearchOnlyModels = new Set(['qwen-plus', 'qwen-flash', 'qwen-plus-character'])
+
 const webSearchCapability = { capabilities: { add: ['web-search' as const] } }
 
 /**
@@ -189,9 +197,11 @@ const webSearchCapability = { capabilities: { add: ['web-search' as const] } }
 const endpointPin = (modelId: string): Partial<ProviderModelOverride> =>
   responsesOnlyModels.has(modelId)
     ? { endpointTypes: ['openai-responses'] }
-    : responsesModels.has(modelId)
-      ? { endpointTypes: ['openai-responses', 'openai-chat-completions'] }
-      : {}
+    : chatWebSearchOnlyModels.has(modelId)
+      ? { endpointTypes: ['openai-chat-completions', 'openai-responses'] }
+      : responsesModels.has(modelId)
+        ? { endpointTypes: ['openai-responses', 'openai-chat-completions'] }
+        : {}
 
 const qwenReasoningOverrides: Partial<ProviderModelOverride>[] = qwenChatModels.map((modelId) => ({
   modelId,
