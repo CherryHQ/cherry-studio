@@ -107,10 +107,7 @@ const NotesPage: FC = () => {
   const noteByPathRef = useRef(noteByPath)
   const { activeNode } = useActiveNode(notesTree, activeFilePath)
 
-  // `activeFilePath` is an untyped cache string. Every writer feeds it a main-derived
-  // absolute path, so validation is expected to pass; `safeParse` is used over `parse`
-  // only so an unexpected value degrades to "no active file" instead of throwing in render.
-  const fileSession = useFileEditSession(AbsoluteFilePathSchema.safeParse(activeFilePath).data)
+  const fileSession = useFileEditSession(activeFilePath)
   const {
     discard: discardFileDraft,
     flush: flushFileDraft,
@@ -569,7 +566,7 @@ const NotesPage: FC = () => {
         }
         const { path: notePath } = await addNote(name, '', targetPath)
         setFolderExpandedByPath(targetPath, true)
-        setActiveFilePath(notePath)
+        setActiveFilePath(AbsoluteFilePathSchema.parse(notePath))
         setSelectedFolderId(null)
 
         await refreshTree()
@@ -629,7 +626,7 @@ const NotesPage: FC = () => {
         if (node.externalPath === activeFilePath) return
         // Switching the active path re-reads the file through the session.
         requestFileTransition(() => {
-          setActiveFilePath(node.externalPath)
+          setActiveFilePath(AbsoluteFilePathSchema.parse(node.externalPath))
           setSelectedFolderId(null)
         })
       } else if (node.type === 'folder') {
@@ -742,7 +739,7 @@ const NotesPage: FC = () => {
         }
 
         if (nextActivePath) {
-          setActiveFilePath(nextActivePath)
+          setActiveFilePath(AbsoluteFilePathSchema.parse(nextActivePath))
         }
 
         await refreshTree()
@@ -924,7 +921,7 @@ const NotesPage: FC = () => {
         }
 
         if (nextActivePath) {
-          setActiveFilePath(nextActivePath)
+          setActiveFilePath(AbsoluteFilePathSchema.parse(nextActivePath))
         }
 
         await refreshTree()
@@ -1027,7 +1024,7 @@ const NotesPage: FC = () => {
         // switch to target note first then scroll to line (the session re-reads)
         requestFileTransition(() => {
           pendingScrollRef.current = { lineNumber, lineContent }
-          setActiveFilePath(targetNode.externalPath)
+          setActiveFilePath(AbsoluteFilePathSchema.parse(targetNode.externalPath))
         })
       } else {
         const richEditor = editorRef.current

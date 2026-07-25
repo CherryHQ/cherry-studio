@@ -1,5 +1,6 @@
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { MiniAppRegion } from '@shared/data/types/miniApp'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import type { TopicStatusSnapshotEntry } from '../../ai/transport'
 import type * as CacheValueTypes from './cacheValueTypes'
@@ -129,7 +130,7 @@ export type UseCacheSchema = {
   'knowledge.recall.search_queries': Record<string, string[]>
 
   // Notes page state
-  'notes.active_file_path': string | undefined
+  'notes.active_file_path': AbsoluteFilePath | undefined
 
   // MiniApp management
   'mini_app.opened_keep_alive': CacheValueTypes.CacheMiniAppType[]
