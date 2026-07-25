@@ -64,11 +64,12 @@ describe('ProviderSetting', () => {
     )
   })
 
-  it('keeps ordinary provider authentication and model settings in separate groups', () => {
+  it('groups ordinary provider authentication without double-framing the model list', () => {
     render(<ProviderSetting providerId="openai" />)
 
     expect(screen.getByText('authentication-section-openai').parentElement).toHaveClass('rounded-xl', 'border', 'p-4')
-    expect(screen.getByText('model-list-openai').parentElement).toHaveClass('rounded-xl', 'border', 'p-4')
+    expect(screen.getByText('model-list-openai').parentElement).toHaveClass('flex', 'min-h-0', 'flex-1', 'flex-col')
+    expect(screen.getByText('model-list-openai').parentElement).not.toHaveClass('rounded-xl', 'border', 'p-4')
   })
 
   it('renders a login alert without an extra group and tightens its surrounding spacing', () => {
@@ -81,7 +82,7 @@ describe('ProviderSetting', () => {
     const authenticationWrapper = screen.getByText('authentication-section-openai-codex').parentElement as HTMLElement
     expect(authenticationWrapper).not.toHaveClass('rounded-xl', 'border', 'p-4')
     expect(authenticationWrapper.parentElement).toHaveClass('gap-3')
-    expect(screen.getByText('model-list-openai-codex').parentElement).toHaveClass('rounded-xl', 'border', 'p-4')
+    expect(screen.getByText('model-list-openai-codex').parentElement).not.toHaveClass('rounded-xl', 'border', 'p-4')
   })
 
   it('keeps the provider detail shell transparent so the settings background is continuous', () => {
