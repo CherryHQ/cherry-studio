@@ -3,7 +3,7 @@ import { optimizer } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
 import { installDevtoolsExtensions } from '@main/core/devtools'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
+import { isLinux, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -11,7 +11,7 @@ import type { MainWindowInitData } from '@shared/types/mainWindow'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import type { BrowserWindow } from 'electron'
 import { app, nativeImage, nativeTheme, shell } from 'electron'
-import path, { join } from 'path'
+import path from 'path'
 
 import iconPath from '../../../build/icon.png?asset'
 import { isSafeExternalUrl } from '../utils/externalUrlSafety'
@@ -297,13 +297,6 @@ export class MainWindowService extends BaseService {
   }
 
   private setupWebContentsHandlers(mainWindow: BrowserWindow) {
-    // Dangerous API
-    if (isDev) {
-      mainWindow.webContents.on('will-attach-webview', (_, webPreferences) => {
-        webPreferences.preload = join(__dirname, '../preload/preload.js')
-      })
-    }
-
     // Fix for Electron bug where zoom resets during in-page navigation (route changes)
     // This complements the resize-based workaround by catching navigation events
     mainWindow.webContents.on('did-navigate-in-page', () => {

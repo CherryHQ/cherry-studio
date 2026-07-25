@@ -129,7 +129,12 @@ interface MockBrowserWindow extends EventEmitter {
   maximize: ReturnType<typeof vi.fn>
   setVisibleOnAllWorkspaces: ReturnType<typeof vi.fn>
   setFullScreen: ReturnType<typeof vi.fn>
-  webContents: { reload: ReturnType<typeof vi.fn>; on: ReturnType<typeof vi.fn> }
+  webContents: {
+    reload: ReturnType<typeof vi.fn>
+    on: ReturnType<typeof vi.fn>
+    setWindowOpenHandler: ReturnType<typeof vi.fn>
+    session: { webRequest: { onHeadersReceived: ReturnType<typeof vi.fn> } }
+  }
 }
 
 function createMockWindow(): MockBrowserWindow {
@@ -149,7 +154,9 @@ function createMockWindow(): MockBrowserWindow {
   win.webContents = {
     reload: vi.fn(),
     // capture render-process-gone listener for crash-recovery tests
-    on: vi.fn()
+    on: vi.fn(),
+    setWindowOpenHandler: vi.fn(),
+    session: { webRequest: { onHeadersReceived: vi.fn() } }
   }
   return win
 }
@@ -556,5 +563,13 @@ describe('MainWindowService', () => {
       expect(contextMenu.contextMenu).toHaveBeenNthCalledWith(1, first)
       expect(contextMenu.contextMenu).toHaveBeenNthCalledWith(2, second)
     })
+  })
+
+  it('does not inject the application preload into webviews', () => {
+    platformState.isDev = true
+
+    ;(svc as any).setupWebContentsHandlers(win)
+
+    expect(win.webContents.on.mock.calls.map(([event]) => event)).not.toContain('will-attach-webview')
   })
 })
