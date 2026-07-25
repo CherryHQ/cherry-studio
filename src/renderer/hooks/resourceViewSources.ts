@@ -23,8 +23,32 @@ export function useRawAgentSessionsSource({ enabled }: { enabled?: boolean } = {
   return useSessions(undefined, { loadAll: true, pageSize: AGENT_SESSIONS_LOAD_ALL_PAGE_SIZE, enabled })
 }
 
-export type AssistantTopicsSource = ReturnType<typeof useRawAssistantTopicsSource>
-export type AgentSessionsSource = ReturnType<typeof useRawAgentSessionsSource>
+type RawAssistantTopicsSource = ReturnType<typeof useRawAssistantTopicsSource>
+type RawAgentSessionsSource = ReturnType<typeof useRawAgentSessionsSource>
+
+export type AssistantTopicsSource = Pick<
+  RawAssistantTopicsSource,
+  'topics' | 'isLoadingAll' | 'isFullyLoaded' | 'isRefreshing' | 'error'
+>
+
+export type AgentSessionsSource = Pick<
+  RawAgentSessionsSource,
+  | 'sessions'
+  | 'pinIdBySessionId'
+  | 'hasMore'
+  | 'error'
+  | 'isLoading'
+  | 'isLoadingMore'
+  | 'isValidating'
+  | 'reload'
+  | 'deleteSession'
+  | 'deleteSessions'
+  | 'reorderSession'
+  | 'togglePin'
+  | 'isFullyLoaded'
+  | 'isLoadingAll'
+  | 'isPinsLoading'
+>
 
 export const AssistantTopicsSourceContext = createContext<AssistantTopicsSource | null>(null)
 export const AgentSessionsSourceContext = createContext<AgentSessionsSource | null>(null)

@@ -17,8 +17,8 @@ import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 
-type AssistantTopicsSnapshot = Pick<AssistantTopicsSource, 'pages' | 'topics'>
-type AgentSessionsSnapshot = Pick<AgentSessionsSource, 'pinIdBySessionId' | 'sessions'>
+type AssistantTopicsSnapshot = Pick<ReturnType<typeof useRawAssistantTopicsSource>, 'pages' | 'topics'>
+type AgentSessionsSnapshot = Pick<ReturnType<typeof useRawAgentSessionsSource>, 'pinIdBySessionId' | 'sessions'>
 
 export function shouldLoadResourceViewSource(
   tabs: readonly Tab[],
@@ -71,28 +71,16 @@ function useCommittedAssistantTopicsSource(enabled: boolean): AssistantTopicsSou
   return useMemo(
     () => ({
       topics: snapshot?.topics ?? (enabled ? rawSource.topics : []),
-      pages: snapshot?.pages ?? (enabled ? rawSource.pages : []),
-      hasNext: snapshot || !enabled ? false : rawSource.hasNext,
-      loadNext: rawSource.loadNext,
-      isLoading: isColdLoading && rawSource.isLoading,
       isLoadingAll: isColdLoading && rawSource.isLoadingAll,
       isFullyLoaded: snapshot !== null,
       isRefreshing: isBackgroundRefreshing,
-      error: snapshot ? undefined : rawSource.error,
-      refetch: rawSource.refetch,
-      mutate: rawSource.mutate
+      error: snapshot ? undefined : rawSource.error
     }),
     [
       isBackgroundRefreshing,
       isColdLoading,
       rawSource.error,
-      rawSource.hasNext,
-      rawSource.isLoading,
       rawSource.isLoadingAll,
-      rawSource.loadNext,
-      rawSource.mutate,
-      rawSource.pages,
-      rawSource.refetch,
       rawSource.topics,
       enabled,
       snapshot
@@ -142,30 +130,24 @@ function useCommittedAgentSessionsSource(enabled: boolean): AgentSessionsSource 
     () => ({
       sessions: snapshot?.sessions ?? (enabled ? rawSource.sessions : []),
       pinIdBySessionId: snapshot?.pinIdBySessionId ?? (enabled ? rawSource.pinIdBySessionId : new Map()),
-      total: snapshot?.sessions.length ?? (enabled ? rawSource.total : 0),
       hasMore: snapshot || !enabled ? false : rawSource.hasMore,
       error: snapshot ? undefined : rawSource.error,
       isLoading: isColdLoading && rawSource.isLoading,
       isLoadingMore: snapshot || !enabled ? false : rawSource.isLoadingMore,
       isValidating: isBackgroundRefreshing || (isColdLoading && rawSource.isValidating),
       reload: rawSource.reload,
-      loadMore: rawSource.loadMore,
-      createSession: rawSource.createSession,
       deleteSession: rawSource.deleteSession,
       deleteSessions: rawSource.deleteSessions,
       reorderSession: rawSource.reorderSession,
-      reorderSessions: rawSource.reorderSessions,
       togglePin: rawSource.togglePin,
       isFullyLoaded: snapshot !== null,
       isLoadingAll: isColdLoading && rawSource.isLoadingAll,
-      isPinsLoading: isColdLoading && rawSource.isPinsLoading,
-      isPinsRefreshing: isBackgroundRefreshing && rawSource.isPinsRefreshing
+      isPinsLoading: isColdLoading && rawSource.isPinsLoading
     }),
     [
       enabled,
       isBackgroundRefreshing,
       isColdLoading,
-      rawSource.createSession,
       rawSource.deleteSession,
       rawSource.deleteSessions,
       rawSource.error,
@@ -174,16 +156,12 @@ function useCommittedAgentSessionsSource(enabled: boolean): AgentSessionsSource 
       rawSource.isLoadingAll,
       rawSource.isLoadingMore,
       rawSource.isPinsLoading,
-      rawSource.isPinsRefreshing,
       rawSource.isValidating,
-      rawSource.loadMore,
       rawSource.pinIdBySessionId,
       rawSource.reload,
       rawSource.reorderSession,
-      rawSource.reorderSessions,
       rawSource.sessions,
       rawSource.togglePin,
-      rawSource.total,
       snapshot
     ]
   )
