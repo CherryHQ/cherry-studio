@@ -22,7 +22,7 @@ import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/hooks/tab'
-import { useAssistantApiById, useAssistants } from '@renderer/hooks/useAssistant'
+import { useAssistants } from '@renderer/hooks/useAssistant'
 import { toCreateAssistantDtoFromCatalogPreset } from '@renderer/hooks/useAssistantCatalogPresets'
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
 import {
@@ -363,7 +363,7 @@ const HomePage: FC = () => {
   // Label this tab with its assistant emoji + topic name so multiple chat tabs
   // are distinguishable in the tab bar (every tab labels itself — not gated on active).
   const visibleAssistantId = visibleTopic?.assistantId
-  const { assistant: visibleAssistant } = useAssistantApiById(visibleAssistantId ?? undefined)
+  const visibleAssistant = assistants.find((assistant) => assistant.id === visibleAssistantId)
   const topicListPosition: ChatPanePosition =
     !isWindowFrame && isClassicTopicLayout && panePosition === 'right' ? 'right' : 'left'
   const topicResourcePaneCount = useMemo<ResourcePaneCountButtonProps | undefined>(() => {
