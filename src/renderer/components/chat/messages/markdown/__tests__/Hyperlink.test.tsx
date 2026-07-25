@@ -141,7 +141,7 @@ describe('Hyperlink', () => {
     expect(screen.getByTestId('text')).toHaveTextContent('mailto:test@example.com')
   })
 
-  it('should configure the hover card with a 1.5 second open delay', () => {
+  it('should configure the hover card with a 1 second open delay', () => {
     render(
       <Hyperlink href="https://domain.com/a%20b">
         <span>child</span>
@@ -149,7 +149,7 @@ describe('Hyperlink', () => {
     )
 
     expect(mocks.hoverCardProps.at(-1)).toEqual({
-      openDelay: 1500,
+      openDelay: 1000,
       closeDelay: 100
     })
   })
