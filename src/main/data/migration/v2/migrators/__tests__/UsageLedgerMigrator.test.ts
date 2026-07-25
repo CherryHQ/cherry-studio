@@ -195,6 +195,111 @@ describe('UsageLedgerMigrator', () => {
     expect(rowsAfterRerun.map((row) => row.messageId).sort()).toEqual(['agent-message-ledger', 'chat-message-ledger'])
   })
 
+  it('attributes backfilled usage only when the provider has exactly one enabled key', async () => {
+    await dbh.db.insert(userProviderTable).values([
+      {
+        providerId: 'multi-key',
+        name: 'Multi Key',
+        apiKeys: [
+          { id: 'key-a', key: 'sk-multi-key-a-0000000000000000', label: 'A', isEnabled: true },
+          { id: 'key-b', key: 'sk-multi-key-b-0000000000000000', label: 'B', isEnabled: true }
+        ],
+        orderKey: 'a1',
+        isEnabled: true
+      },
+      {
+        providerId: 'disabled-key',
+        name: 'Disabled Key',
+        apiKeys: [{ id: 'key-off', key: 'sk-disabled-key-0000000000000000', label: 'Off', isEnabled: false }],
+        orderKey: 'a2',
+        isEnabled: true
+      }
+    ])
+    await dbh.db.insert(userModelTable).values([
+      {
+        id: 'multi-key::m1',
+        providerId: 'multi-key',
+        modelId: 'm1',
+        name: 'm1',
+        isEnabled: true,
+        isHidden: false,
+        orderKey: 'a0'
+      },
+      {
+        id: 'disabled-key::m1',
+        providerId: 'disabled-key',
+        modelId: 'm1',
+        name: 'm1',
+        isEnabled: true,
+        isHidden: false,
+        orderKey: 'a0'
+      }
+    ])
+    await dbh.db.insert(messageTable).values(
+      withRoot('topic-ledger', [
+        {
+          id: 'multi-key-message',
+          topicId: 'topic-ledger',
+          parentId: null,
+          role: 'assistant',
+          data: { parts: [] },
+          status: 'success',
+          modelId: 'multi-key::m1',
+          stats: { totalTokens: 5 },
+          createdAt: 1000,
+          updatedAt: 1000
+        },
+        {
+          id: 'disabled-key-message',
+          topicId: 'topic-ledger',
+          parentId: null,
+          role: 'assistant',
+          data: { parts: [] },
+          status: 'success',
+          modelId: 'disabled-key::m1',
+          stats: { totalTokens: 6 },
+          createdAt: 2000,
+          updatedAt: 2000
+        },
+        {
+          id: 'single-key-message',
+          topicId: 'topic-ledger',
+          parentId: null,
+          role: 'assistant',
+          data: { parts: [] },
+          status: 'success',
+          modelId: 'openai::gpt-4o',
+          stats: { totalTokens: 7 },
+          createdAt: 3000,
+          updatedAt: 3000
+        }
+      ])
+    )
+
+    const migrator = new UsageLedgerMigrator()
+    expect(await migrator.execute(ctxOf())).toMatchObject({ success: true, processedCount: 3 })
+
+    const rows = await dbh.db.select().from(usageLedgerTable)
+    expect(rows.find((row) => row.messageId === 'multi-key-message')).toMatchObject({
+      apiKeyAttribution: 'none',
+      apiKeyId: null,
+      apiKeyLabel: null,
+      apiKeyMasked: null
+    })
+    expect(rows.find((row) => row.messageId === 'disabled-key-message')).toMatchObject({
+      apiKeyAttribution: 'none',
+      apiKeyId: null,
+      apiKeyLabel: null,
+      apiKeyMasked: null
+    })
+    expect(rows.find((row) => row.messageId === 'single-key-message')).toMatchObject({
+      apiKeyAttribution: 'backfill',
+      apiKeyId: 'key-primary',
+      apiKeyLabel: 'Primary',
+      apiKeyMasked: maskApiKeyForSnapshot(historicalApiKey.key)
+    })
+  })
+
   it('skips stats without usage signal and invalid model ids', async () => {
     await dbh.db.insert(userModelTable).values({
       id: 'not-a-unique-model-id',

@@ -208,12 +208,20 @@ async function readAgentSessionCandidateRows(
   }))
 }
 
+/**
+ * Backfilled history can only be attributed when the provider has exactly one enabled
+ * key — v1 stored `provider.apiKey` as a comma-separated list, so multi-key providers
+ * are common and picking any one of them would misattribute years of per-key billing.
+ * Mirrors the live path's `UsageLedgerService.resolveKeyAttribution`; anything else
+ * stays `none`.
+ */
 function toApiKeySnapshot(apiKeys: ApiKeyEntry[] | null): ProviderSnapshot['apiKey'] {
-  const apiKey = apiKeys?.[0]
-  if (!apiKey) {
+  const enabled = apiKeys?.filter((entry) => entry.isEnabled) ?? []
+  if (enabled.length !== 1) {
     return undefined
   }
 
+  const apiKey = enabled[0]
   return {
     id: apiKey.id,
     label: apiKey.label ?? null,
