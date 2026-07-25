@@ -209,14 +209,20 @@ const AgentChat = ({
   const [resolvedComposerContextKey, setResolvedComposerContextKey] = useState<string | null>(() =>
     composerContextResolved ? composerContextKey : null
   )
-  useEffect(() => {
-    setResolvedComposerContextKey((currentKey) => {
-      if (!composerContextKey) return null
-      if (composerContextResolved) return composerContextKey
-      return currentKey === composerContextKey ? currentKey : null
-    })
-  }, [composerContextKey, composerContextResolved])
-  const isComposerContextLoading = Boolean(composerContextKey && resolvedComposerContextKey !== composerContextKey)
+  // Adjust during render (not in an effect) so a cached agent/model resolves in
+  // the same pass and the composer never paints a one-frame loading skeleton on
+  // plain session switches.
+  const nextResolvedComposerContextKey = !composerContextKey
+    ? null
+    : composerContextResolved
+      ? composerContextKey
+      : resolvedComposerContextKey === composerContextKey
+        ? resolvedComposerContextKey
+        : null
+  if (nextResolvedComposerContextKey !== resolvedComposerContextKey) {
+    setResolvedComposerContextKey(nextResolvedComposerContextKey)
+  }
+  const isComposerContextLoading = Boolean(composerContextKey && nextResolvedComposerContextKey !== composerContextKey)
   const composerAgentId = isComposerContextLoading ? undefined : sendableAgentId
   const shouldFetchSessionHistoryOnMount = Boolean(
     sessionSnapshot &&
