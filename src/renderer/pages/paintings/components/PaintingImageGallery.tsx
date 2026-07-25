@@ -3,14 +3,14 @@ import HorizontalScrollContainer from '@renderer/components/HorizontalScrollCont
 import ImageViewer from '@renderer/components/ImageViewer'
 import { FILE_TYPE } from '@renderer/types/file'
 import { toComposerAttachments } from '@renderer/utils/message/composerAttachment'
-import { AbsoluteFilePathSchema } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { toSafeFileUrl } from '@shared/utils/file'
 import { Plus, X } from 'lucide-react'
 import { type FC, type MouseEvent, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-function imagePreviewUrl(path: string, ext: string): string {
-  return toSafeFileUrl(AbsoluteFilePathSchema.parse(path), ext.replace(/^\./, '').toLowerCase() || null)
+function imagePreviewUrl(path: AbsoluteFilePath, ext: string): string {
+  return toSafeFileUrl(path, ext.replace(/^\./, '').toLowerCase() || null)
 }
 
 // Stop button clicks from bubbling to the tile (which would open the viewer) or the input frame.
@@ -75,13 +75,13 @@ export const PaintingImageGallery: FC = () => {
   // navigable gallery starting at that image (matched by `src`).
   const previewItems = useMemo(
     () =>
-      files
-        .filter((file) => file.type === FILE_TYPE.IMAGE)
-        .map((file) => ({
-          id: file.fileTokenSourceId,
-          src: imagePreviewUrl(file.path, file.ext),
-          alt: file.origin_name
-        })),
+      files.flatMap((file) =>
+        // A path-less attachment (message-editing round-trip) has no local file
+        // to preview; `flatMap` also narrows `file.path` for `imagePreviewUrl`.
+        file.type === FILE_TYPE.IMAGE && file.path
+          ? [{ id: file.fileTokenSourceId, src: imagePreviewUrl(file.path, file.ext), alt: file.origin_name }]
+          : []
+      ),
     [files]
   )
 

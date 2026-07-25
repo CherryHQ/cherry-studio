@@ -1,5 +1,6 @@
 import { FILE_TYPE } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { describe, expect, it } from 'vitest'
 
 import { getFileTokenPresentation } from '../fileTokenPresentation'
@@ -7,7 +8,7 @@ import { getFileTokenPresentation } from '../fileTokenPresentation'
 function imageAttachment(overrides: Partial<ComposerAttachment> = {}): ComposerAttachment {
   return {
     fileTokenSourceId: 'source-1',
-    path: '/tmp/image.png',
+    path: '/tmp/image.png' as AbsoluteFilePath,
     name: 'image.png',
     origin_name: 'image.png',
     ext: '.png',

@@ -13,7 +13,7 @@ const makeEntry = (id: string, ext = 'png'): FileEntry =>
 
 const makeAttachment = (sourceId: string, path: string): ComposerAttachment => ({
   fileTokenSourceId: sourceId,
-  path,
+  path: path as AbsoluteFilePath,
   name: 'x.png',
   origin_name: 'x.png',
   ext: '.png',
