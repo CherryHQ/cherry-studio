@@ -40,14 +40,17 @@ export const RESOURCE_LIST_TITLE_FADE_CLASS =
 /**
  * Companion to RESOURCE_LIST_TITLE_FADE_CLASS: shift the faded edge left of
  * the hover actions ONLY while they are actually visible — pointer hover,
- * keyboard focus inside the actions (two icons, mr-12), or the forced-active
- * dot/delete-confirm state (one icon, mr-7). Each margin is the icon zone
- * plus ~12px of breathing room so the fading text never touches the icons.
- * NOT group-focus-within: clicking a row focuses it and would pin the yield
- * while the icons stay hidden.
+ * keyboard focus inside the actions, or the forced-active dot/delete-confirm
+ * state. All three variants reserve the same two-icon zone (mr-12, the icon
+ * zone plus ~12px of breathing room so the fading text never touches the
+ * icons): the forced-active :has() variant out-specifies group-hover, so any
+ * smaller margin there would win the cascade while the row is hovered — the
+ * normal way delete-confirm is entered — and slide the title under the pin
+ * icon. NOT group-focus-within: clicking a row focuses it and would pin the
+ * yield while the icons stay hidden.
  */
 export const RESOURCE_LIST_TITLE_FADE_YIELD_CLASS =
-  'group-has-[[data-resource-list-item-actions][data-active=true]]:mr-7 group-has-[[data-resource-list-item-actions]:focus-within]:mr-12 group-hover:mr-12'
+  'group-has-[[data-resource-list-item-actions][data-active=true]]:mr-12 group-has-[[data-resource-list-item-actions]:focus-within]:mr-12 group-hover:mr-12'
 
 /** Compact search input used by the right-panel presentation of the topic/session lists (classic layout). */
 export const RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS =
