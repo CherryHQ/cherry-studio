@@ -103,6 +103,7 @@ import { useComposerQuoteInsertion } from './shared/composerQuote'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
+import { useEntityReferenceMentionItems } from './shared/useEntityReferenceMentionSource'
 import { useLatest } from './shared/useLatest'
 
 const logger = loggerService.withContext('AgentComposer')
@@ -1116,11 +1117,16 @@ const AgentComposerInner = ({
     ]
   )
 
+  const { getItems: getEntityReferenceItems, hasPendingReference } = useEntityReferenceMentionItems({
+    entityType: 'session',
+    excludeId: sessionId
+  })
   const resourceMentionSources = useAgentResourceMentionSource({
     accessiblePaths,
     files,
     setFiles,
-    enabled: enableResourceMention
+    enabled: enableResourceMention,
+    getAdditionalItems: getEntityReferenceItems
   })
 
   const toolbarCustomTools = useMemo<ComposerToolbarCustomTool[]>(() => {
@@ -1237,8 +1243,12 @@ const AgentComposerInner = ({
           onTokensChange={handleTokensChange}
           resolveSkillMarker={resolveSkillMarker}
           placeholder={placeholderText}
-          sendDisabled={sendDisabled || (text.trim().length === 0 && files.length === 0 && selectedSkills.length === 0)}
-          sendBlockedReason={sendDisabled ? t('common.loading') : undefined}
+          sendDisabled={
+            sendDisabled ||
+            hasPendingReference ||
+            (text.trim().length === 0 && files.length === 0 && selectedSkills.length === 0)
+          }
+          sendBlockedReason={sendDisabled || hasPendingReference ? t('common.loading') : undefined}
           isLoading={isStreaming}
           onSendDraft={handleSendDraft}
           onPause={abortAgentSession}

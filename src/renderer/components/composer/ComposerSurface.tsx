@@ -35,7 +35,7 @@ import React, { startTransition, useCallback, useEffect, useLayoutEffect, useMem
 import { useTranslation } from 'react-i18next'
 
 import ComposerControlsLoading from './ComposerControlsLoading'
-import { createComposerDocumentContent, serializeComposerDocument } from './composerDraft'
+import { COMPOSER_INPUT_MAX_LENGTH, createComposerDocumentContent, serializeComposerDocument } from './composerDraft'
 import {
   getComposerClipboardPasteOverride,
   getComposerPlainTextPasteOverride,
@@ -85,7 +85,6 @@ import {
   useComposerEditorFrameSizing
 } from './useComposerEditorFrameSizing'
 
-const COMPOSER_INPUT_MAX_LENGTH = 40000
 const ROOT_QUICK_PANEL_TRIGGER_SOURCES = [
   { char: ComposerPanelSymbol.Root, pluginKey: 'composer-root-suggestion' },
   { char: '、', pluginKey: 'composer-root-ideographic-comma-suggestion' }
