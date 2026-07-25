@@ -189,15 +189,14 @@ const BasicDataSettings: React.FC = () => {
       onClear: async (groups) => {
         try {
           const mainResult = await ipcApi.request('app.cache_cleanup.run', { groups })
-          let results = [...mainResult.results]
-          const mainLegacyResult = results.find(({ group }) => group === 'legacy_v1')
-          const legacyBlocked = mainLegacyResult?.issues.some(({ code }) => code === 'migration_incomplete')
+          const results = mainResult.results
 
           if (groups.includes('legacy_v1')) {
+            const legacyIndex = results.findIndex(({ group }) => group === 'legacy_v1')
+            const mainLegacyResult = results[legacyIndex]
             if (!mainLegacyResult) throw new Error('Missing main-process v1 cleanup result')
-            if (!legacyBlocked) {
-              const mergedLegacyResult = mergeLegacyV1CleanupResults(mainLegacyResult, await clearLegacyV1BrowserData())
-              results = results.map((result) => (result.group === 'legacy_v1' ? mergedLegacyResult : result))
+            if (!mainLegacyResult.issues.some(({ code }) => code === 'migration_incomplete')) {
+              results[legacyIndex] = mergeLegacyV1CleanupResults(mainLegacyResult, await clearLegacyV1BrowserData())
             }
           }
 
@@ -209,11 +208,9 @@ const BasicDataSettings: React.FC = () => {
           }
         } catch {
           toast.error(t('settings.data.clear_cache.error'))
-        } finally {
-          await refreshCacheSize()
         }
       }
-    })
+    }).finally(refreshCacheSize)
   }
 
   const onSkipBackupFilesChange = (value: boolean) => {

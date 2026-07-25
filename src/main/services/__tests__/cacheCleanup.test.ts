@@ -344,12 +344,15 @@ describe('cacheCleanup', () => {
     await expect(fs.stat(externalPath)).resolves.toBeDefined()
   })
 
-  it('removes all regular contents from the migration temp directory', async () => {
+  it('removes the entire migration temp directory without following nested symlinks', async () => {
     completeMigration()
     const migrationTempPath = path.join(root, 'migration_temp')
+    const externalPath = path.join(root, 'external-migration-data')
     await fs.mkdir(path.join(migrationTempPath, 'custom', 'nested'), { recursive: true })
+    await fs.mkdir(externalPath)
     await fs.writeFile(path.join(migrationTempPath, 'unknown.bin'), 'legacy')
     await fs.writeFile(path.join(migrationTempPath, 'custom', 'nested', 'data.json'), '{}')
+    await fs.symlink(externalPath, path.join(migrationTempPath, 'external-link'))
 
     const inspection = await inspectCacheCleanup(['legacy_v1'])
     const cleanup = await runCacheCleanup(['legacy_v1'])
@@ -357,6 +360,7 @@ describe('cacheCleanup', () => {
     expect(inspection.results[0]?.size.bytes).toBeGreaterThan(0)
     expect(cleanup.results[0]?.status).toBe('cleared')
     await expect(fs.stat(migrationTempPath)).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(fs.stat(externalPath)).resolves.toBeDefined()
   })
 
   it('counts and removes the legacy CLI install directory', async () => {

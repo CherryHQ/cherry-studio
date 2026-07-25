@@ -7,9 +7,9 @@ import type {
   CacheCleanupSizeSnapshot
 } from '@shared/types/cacheCleanup'
 import { CACHE_CLEANUP_GROUPS } from '@shared/types/cacheCleanup'
-import { ArchiveRestore, DatabaseZap, Globe2, LoaderCircle, type LucideIcon, Trash2 } from 'lucide-react'
+import { ArchiveRestore, DatabaseZap, Globe2, LoaderCircle, Trash2 } from 'lucide-react'
 import type React from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { inspectLegacyV1BrowserData } from './legacyV1BrowserData'
@@ -48,12 +48,7 @@ const CLEANUP_OPTIONS = [
     titleKey: 'settings.data.clear_cache.options.restore_staging.title',
     descriptionKey: 'settings.data.clear_cache.options.restore_staging.description'
   }
-] as const satisfies ReadonlyArray<{
-  group: CacheCleanupGroup
-  icon: LucideIcon
-  titleKey: string
-  descriptionKey: string
-}>
+] as const
 
 type Props = ClearCachePopupParams & PopupInjectedProps<void>
 
@@ -156,7 +151,7 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
     }
   }, [open, refreshInspections])
 
-  const selectedStates = useMemo(() => [...selected].map((group) => optionStates[group]), [optionStates, selected])
+  const selectedStates = [...selected].map((group) => optionStates[group])
   const totalLoading = selectedStates.some((state) => state.loading)
   const totalBytes = selectedStates.reduce((total, state) => total + (state.inspection?.size.bytes ?? 0), 0)
   const totalHasUnknown = selectedStates.some(
@@ -183,31 +178,19 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
   const renderSize = (state: CleanupOptionState) => {
     if (state.loading) {
       return (
-        <span className="flex items-center gap-1 text-muted-foreground">
+        <>
           <LoaderCircle className="size-3.5 animate-spin" />
           {t('settings.data.clear_cache.calculating')}
-        </span>
+        </>
       )
     }
 
     const size = state.inspection?.size
-    if (!size || size.bytes === null) {
-      return <span className="text-muted-foreground">{t('settings.data.clear_cache.unavailable')}</span>
-    }
+    if (!size || size.bytes === null) return t('settings.data.clear_cache.unavailable')
 
     const formatted = formatCacheCleanupSize(size.bytes)
-    if (size.completeness === 'partial') {
-      return (
-        <span className="text-muted-foreground">
-          {t('settings.data.clear_cache.total_partial', { size: formatted })}
-        </span>
-      )
-    }
-    return (
-      <span className="text-muted-foreground">
-        {size.accuracy === 'estimated' ? t('settings.data.clear_cache.approximately', { size: formatted }) : formatted}
-      </span>
-    )
+    if (size.completeness === 'partial') return t('settings.data.clear_cache.total_partial', { size: formatted })
+    return size.accuracy === 'estimated' ? t('settings.data.clear_cache.approximately', { size: formatted }) : formatted
   }
 
   const renderTotal = () => {
@@ -240,7 +223,8 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
   return (
     <Dialog open={open} onOpenChange={(next) => !next && !cleaning && resolve(undefined)}>
       <DialogContent
-        className="gap-5 sm:max-w-2xl"
+        size="lg"
+        className="gap-5"
         closeOnOverlayClick={!cleaning}
         showCloseButton={!cleaning}
         onEscapeKeyDown={(event) => {
@@ -272,7 +256,9 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
                 <span className="min-w-0 flex-1">
                   <span className="flex items-start justify-between gap-3">
                     <span className="font-medium text-sm">{t(titleKey)}</span>
-                    <span className="shrink-0 text-xs">{renderSize(state)}</span>
+                    <span className="flex shrink-0 items-center gap-1 text-muted-foreground text-xs">
+                      {renderSize(state)}
+                    </span>
                   </span>
                   <span className="mt-1 block text-muted-foreground text-xs leading-5">{t(descriptionKey)}</span>
                   {blocked ? (

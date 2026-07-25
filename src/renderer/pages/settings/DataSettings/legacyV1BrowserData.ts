@@ -6,6 +6,7 @@ const logger = loggerService.withContext('LegacyV1BrowserData')
 
 const LEGACY_DATABASE_NAME = 'CherryStudio'
 const INDEXED_DB_PAGE_SIZE = 100
+const textEncoder = new TextEncoder()
 
 export const LEGACY_LOCAL_STORAGE_KEYS = [
   'persist:cherry-studio',
@@ -23,12 +24,11 @@ export const LEGACY_LOCAL_STORAGE_KEYS = [
 
 interface BrowserDataMeasurement {
   bytes: number
-  failed: boolean
   issues: CacheCleanupIssue[]
 }
 
 function byteLength(value: string): number {
-  return new TextEncoder().encode(value).byteLength
+  return textEncoder.encode(value).byteLength
 }
 
 function inspectLegacyLocalStorage(): BrowserDataMeasurement {
@@ -47,19 +47,18 @@ function inspectLegacyLocalStorage(): BrowserDataMeasurement {
     }
   }
 
-  return { bytes, failed: issues.length > 0, issues }
+  return { bytes, issues }
 }
 
 async function inspectLegacyIndexedDb(): Promise<BrowserDataMeasurement> {
   try {
     if (!(await Dexie.exists(LEGACY_DATABASE_NAME))) {
-      return { bytes: 0, failed: false, issues: [] }
+      return { bytes: 0, issues: [] }
     }
   } catch (error) {
     logger.warn('Failed to check legacy IndexedDB existence', error as Error)
     return {
       bytes: 0,
-      failed: true,
       issues: [{ item: 'indexeddb:CherryStudio', code: 'inspection_failed' }]
     }
   }
@@ -107,39 +106,37 @@ async function inspectLegacyIndexedDb(): Promise<BrowserDataMeasurement> {
     db.close()
   }
 
-  return { bytes, failed: issues.length > 0, issues }
+  return { bytes, issues }
 }
 
 export async function inspectLegacyV1BrowserData(): Promise<CacheCleanupSizeSnapshot> {
   const localStorageMeasurement = inspectLegacyLocalStorage()
   const indexedDbMeasurement = await inspectLegacyIndexedDb()
   const bytes = localStorageMeasurement.bytes + indexedDbMeasurement.bytes
-  const failed = localStorageMeasurement.failed || indexedDbMeasurement.failed
+  const issues = [...localStorageMeasurement.issues, ...indexedDbMeasurement.issues]
+  const partial = issues.length > 0
 
   return {
-    bytes: failed && bytes === 0 ? null : bytes,
-    accuracy: failed && bytes === 0 ? 'unavailable' : 'estimated',
-    completeness: failed ? 'partial' : 'complete',
-    issues: [...localStorageMeasurement.issues, ...indexedDbMeasurement.issues]
+    bytes: partial && bytes === 0 ? null : bytes,
+    accuracy: partial && bytes === 0 ? 'unavailable' : 'estimated',
+    completeness: partial ? 'partial' : 'complete',
+    issues
   }
 }
 
-function deleteLegacyIndexedDb(): Promise<'cleared' | 'not_found' | 'blocked' | 'failed'> {
-  return Dexie.exists(LEGACY_DATABASE_NAME)
-    .then((exists) => {
-      if (!exists) return 'not_found' as const
-
-      return new Promise<'cleared' | 'blocked' | 'failed'>((resolve) => {
-        const request = indexedDB.deleteDatabase(LEGACY_DATABASE_NAME)
-        request.onsuccess = () => resolve('cleared')
-        request.onerror = () => resolve('failed')
-        request.onblocked = () => resolve('blocked')
-      })
+async function deleteLegacyIndexedDb(): Promise<'cleared' | 'not_found' | 'blocked' | 'failed'> {
+  try {
+    if (!(await Dexie.exists(LEGACY_DATABASE_NAME))) return 'not_found'
+    return await new Promise<'cleared' | 'blocked' | 'failed'>((resolve) => {
+      const request = indexedDB.deleteDatabase(LEGACY_DATABASE_NAME)
+      request.onsuccess = () => resolve('cleared')
+      request.onerror = () => resolve('failed')
+      request.onblocked = () => resolve('blocked')
     })
-    .catch((error) => {
-      logger.error('Failed to delete legacy IndexedDB', error as Error)
-      return 'failed' as const
-    })
+  } catch (error) {
+    logger.error('Failed to delete legacy IndexedDB', error as Error)
+    return 'failed'
+  }
 }
 
 export async function clearLegacyV1BrowserData(): Promise<CacheCleanupGroupResult> {

@@ -62,7 +62,6 @@ const COOKIE_RELATIVE_PATHS = [
 
 interface SizeMeasurement {
   bytes: number
-  failed: boolean
   issues: CacheCleanupIssue[]
 }
 
@@ -103,10 +102,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function childPath(root: string, ...segments: string[]): string {
-  return path.join(root, ...segments)
-}
-
 function isPathWithin(targetPath: string, rootPath: string): boolean {
   const relativePath = path.relative(path.resolve(rootPath), path.resolve(targetPath))
   return (
@@ -116,11 +111,7 @@ function isPathWithin(targetPath: string, rootPath: string): boolean {
 }
 
 async function pathHasSymlinkedOwnedSegment(targetPath: string): Promise<boolean> {
-  const trustedRoots = [
-    application.getPath('app.userdata'),
-    application.getPath('cherry.config'),
-    application.getPath('cherry.home')
-  ]
+  const trustedRoots = [application.getPath('app.userdata'), application.getPath('cherry.home')]
     .filter((rootPath) => isPathWithin(targetPath, rootPath))
     .sort((left, right) => right.length - left.length)
   const trustedRoot = trustedRoots[0]
@@ -129,7 +120,7 @@ async function pathHasSymlinkedOwnedSegment(targetPath: string): Promise<boolean
   const relativePath = path.relative(path.resolve(trustedRoot), path.resolve(targetPath))
   let currentPath = trustedRoot
   for (const segment of relativePath.split(path.sep).filter(Boolean)) {
-    currentPath = childPath(currentPath, segment)
+    currentPath = path.join(currentPath, segment)
     try {
       if ((await fs.lstat(currentPath)).isSymbolicLink()) return true
     } catch (error) {
@@ -162,7 +153,7 @@ function getCleanupPaths() {
     legacyAgents: application.getPath('app.userdata.data', 'agents.db'),
     rootLegacyAgents: application.getPath('app.userdata', 'agents.db'),
     customMiniApps: application.getPath('feature.files.data', 'custom-minapps.json'),
-    legacyMemory: childPath(data, 'Memory', 'memories.db'),
+    legacyMemory: path.join(data, 'Memory', 'memories.db'),
     rootLegacyMemory: application.getPath('app.userdata', 'memories.db'),
     indexedDbRestore: application.getPath('app.userdata', 'IndexedDB.restore'),
     localStorageRestore: application.getPath('app.userdata', 'Local Storage.restore'),
@@ -171,22 +162,21 @@ function getCleanupPaths() {
 }
 
 function mergeMeasurements(measurements: SizeMeasurement[]): SizeMeasurement {
-  return measurements.reduce<SizeMeasurement>(
-    (result, measurement) => ({
-      bytes: result.bytes + measurement.bytes,
-      failed: result.failed || measurement.failed,
-      issues: [...result.issues, ...measurement.issues]
-    }),
-    { bytes: 0, failed: false, issues: [] }
-  )
+  const result: SizeMeasurement = { bytes: 0, issues: [] }
+  for (const measurement of measurements) {
+    result.bytes += measurement.bytes
+    result.issues.push(...measurement.issues)
+  }
+  return result
 }
 
 function toSizeSnapshot(measurement: SizeMeasurement, accuracy: CacheCleanupSizeAccuracy): CacheCleanupSizeSnapshot {
-  const allUnavailable = measurement.failed && measurement.bytes === 0
+  const partial = measurement.issues.length > 0
+  const allUnavailable = partial && measurement.bytes === 0
   return {
     bytes: allUnavailable ? null : measurement.bytes,
     accuracy: allUnavailable ? 'unavailable' : accuracy,
-    completeness: measurement.failed ? 'partial' : 'complete',
+    completeness: partial ? 'partial' : 'complete',
     issues: measurement.issues
   }
 }
@@ -198,12 +188,12 @@ async function measurePath(
   depth = 0
 ): Promise<SizeMeasurement> {
   if (depth > MAX_SIZE_SCAN_DEPTH) {
-    return { bytes: 0, failed: true, issues: [issue(item, 'inspection_failed')] }
+    return { bytes: 0, issues: [issue(item, 'inspection_failed')] }
   }
 
   const resolvedPath = path.resolve(targetPath)
   if (excludedPaths.has(resolvedPath)) {
-    return { bytes: 0, failed: false, issues: [] }
+    return { bytes: 0, issues: [] }
   }
 
   let stats
@@ -211,23 +201,23 @@ async function measurePath(
     stats = await fs.lstat(targetPath)
   } catch (error) {
     if (isNodeError(error, 'ENOENT')) {
-      return { bytes: 0, failed: false, issues: [] }
+      return { bytes: 0, issues: [] }
     }
     logger.warn('Failed to inspect cleanup target size', { item, path: targetPath, error })
-    return { bytes: 0, failed: true, issues: [issue(item, 'inspection_failed')] }
+    return { bytes: 0, issues: [issue(item, 'inspection_failed')] }
   }
 
   if (stats.isSymbolicLink()) {
     logger.warn('Skipped symlink while inspecting cleanup target', { item, path: targetPath })
-    return { bytes: 0, failed: true, issues: [issue(item, 'unsafe_target')] }
+    return { bytes: 0, issues: [issue(item, 'unsafe_target')] }
   }
 
   if (stats.isFile()) {
-    return { bytes: stats.size, failed: false, issues: [] }
+    return { bytes: stats.size, issues: [] }
   }
 
   if (!stats.isDirectory()) {
-    return { bytes: 0, failed: true, issues: [issue(item, 'unsafe_target')] }
+    return { bytes: 0, issues: [issue(item, 'unsafe_target')] }
   }
 
   let entries
@@ -235,14 +225,13 @@ async function measurePath(
     entries = await fs.readdir(targetPath)
   } catch (error) {
     logger.warn('Failed to read cleanup target directory', { item, path: targetPath, error })
-    return { bytes: 0, failed: true, issues: [issue(item, 'inspection_failed')] }
+    return { bytes: 0, issues: [issue(item, 'inspection_failed')] }
   }
 
-  const result: SizeMeasurement = { bytes: 0, failed: false, issues: [] }
+  const result: SizeMeasurement = { bytes: 0, issues: [] }
   for (const entry of entries) {
-    const child = await measurePath(childPath(targetPath, entry), item, excludedPaths, depth + 1)
+    const child = await measurePath(path.join(targetPath, entry), item, excludedPaths, depth + 1)
     result.bytes += child.bytes
-    result.failed ||= child.failed
     result.issues.push(...child.issues)
   }
   return result
@@ -262,7 +251,7 @@ async function measurePaths(
   return mergeMeasurements(
     await Promise.all(
       [...uniqueTargets.values()].map(({ item, path: targetPath, excludedPaths }) =>
-        measurePath(targetPath, item, excludedPaths ?? new Set())
+        measurePath(targetPath, item, excludedPaths)
       )
     )
   )
@@ -271,10 +260,10 @@ async function measurePaths(
 async function measureSessionCache(ses: Session, item: string): Promise<SizeMeasurement> {
   try {
     const bytes = await ses.getCacheSize()
-    return { bytes, failed: false, issues: [] }
+    return { bytes, issues: [] }
   } catch (error) {
     logger.warn('Failed to query Electron session cache size', { item, error })
-    return { bytes: 0, failed: true, issues: [issue(item, 'inspection_failed')] }
+    return { bytes: 0, issues: [issue(item, 'inspection_failed')] }
   }
 }
 
@@ -289,7 +278,7 @@ async function inspectNormalCache(): Promise<CacheCleanupSizeSnapshot> {
   const diskTargets = sessions.flatMap(({ item, root }) =>
     NORMAL_CACHE_RELATIVE_PATHS.map((relativePath) => ({
       item,
-      path: childPath(root, relativePath)
+      path: path.join(root, relativePath)
     }))
   )
   diskTargets.push(
@@ -307,24 +296,24 @@ async function inspectSiteData(): Promise<CacheCleanupSizeSnapshot> {
   const targets: Array<{ item: string; path: string; excludedPaths?: ReadonlySet<string> }> = COOKIE_RELATIVE_PATHS.map(
     (relativePath) => ({
       item: 'default_session_cookies',
-      path: childPath(paths.defaultSession, relativePath)
+      path: path.join(paths.defaultSession, relativePath)
     })
   )
 
   targets.push(
     ...COOKIE_RELATIVE_PATHS.map((relativePath) => ({
       item: 'webview_cookies',
-      path: childPath(paths.webviewSession, relativePath)
+      path: path.join(paths.webviewSession, relativePath)
     })),
-    { item: 'webview_local_storage', path: childPath(paths.webviewSession, 'Local Storage') },
-    { item: 'webview_indexeddb', path: childPath(paths.webviewSession, 'IndexedDB') },
-    { item: 'webview_file_system', path: childPath(paths.webviewSession, 'File System') },
+    { item: 'webview_local_storage', path: path.join(paths.webviewSession, 'Local Storage') },
+    { item: 'webview_indexeddb', path: path.join(paths.webviewSession, 'IndexedDB') },
+    { item: 'webview_file_system', path: path.join(paths.webviewSession, 'File System') },
     {
       item: 'webview_service_workers',
-      path: childPath(paths.webviewSession, 'Service Worker'),
-      excludedPaths: new Set([path.resolve(childPath(paths.webviewSession, 'Service Worker', 'CacheStorage'))])
+      path: path.join(paths.webviewSession, 'Service Worker'),
+      excludedPaths: new Set([path.resolve(paths.webviewSession, 'Service Worker', 'CacheStorage')])
     },
-    { item: 'webview_websql', path: childPath(paths.webviewSession, 'databases') }
+    { item: 'webview_websql', path: path.join(paths.webviewSession, 'databases') }
   )
 
   return toSizeSnapshot(await measurePaths(targets), 'estimated')
@@ -345,55 +334,42 @@ function isMigrationCompleted(): boolean {
   }
 }
 
-async function inspectRegularFile(targetPath: string, item: string): Promise<'missing' | 'valid' | 'invalid'> {
+async function inspectTarget(
+  targetPath: string,
+  item: string,
+  kind: CleanupTarget['kind']
+): Promise<'missing' | 'valid' | 'invalid'> {
   try {
     if (await pathHasSymlinkedOwnedSegment(targetPath)) {
       logger.warn('Legacy cleanup target contains a symbolic-link path segment', { item, path: targetPath })
       return 'invalid'
     }
     const stats = await fs.lstat(targetPath)
-    if (stats.isSymbolicLink() || !stats.isFile()) {
-      logger.warn('Legacy cleanup target is not a regular file', { item, path: targetPath })
+    const hasExpectedType = kind === 'file' ? stats.isFile() : stats.isDirectory()
+    if (stats.isSymbolicLink() || !hasExpectedType) {
+      logger.warn('Legacy cleanup target has an unexpected type', { item, path: targetPath, kind })
       return 'invalid'
     }
     return 'valid'
   } catch (error) {
     if (isNodeError(error, 'ENOENT')) return 'missing'
-    logger.warn('Failed to inspect legacy cleanup file', { item, path: targetPath, error })
+    logger.warn('Failed to inspect legacy cleanup target', { item, path: targetPath, kind, error })
     return 'invalid'
   }
 }
 
-async function inspectDirectory(targetPath: string, item: string): Promise<'missing' | 'valid' | 'invalid'> {
-  try {
-    if (await pathHasSymlinkedOwnedSegment(targetPath)) {
-      logger.warn('Legacy cleanup target contains a symbolic-link path segment', { item, path: targetPath })
-      return 'invalid'
-    }
-    const stats = await fs.lstat(targetPath)
-    if (stats.isSymbolicLink() || !stats.isDirectory()) {
-      logger.warn('Legacy cleanup target is not a regular directory', { item, path: targetPath })
-      return 'invalid'
-    }
-    return 'valid'
-  } catch (error) {
-    if (isNodeError(error, 'ENOENT')) return 'missing'
-    logger.warn('Failed to inspect legacy cleanup directory', { item, path: targetPath, error })
-    return 'invalid'
+async function collectOwnedTargets(
+  candidates: readonly CleanupTarget[]
+): Promise<{ targets: CleanupTarget[]; issues: CacheCleanupIssue[] }> {
+  const inspected = await Promise.all(
+    candidates.map(async (target) => ({ target, status: await inspectTarget(target.path, target.item, target.kind) }))
+  )
+  return {
+    targets: inspected.filter(({ status }) => status === 'valid').map(({ target }) => target),
+    issues: inspected
+      .filter(({ status }) => status === 'invalid')
+      .map(({ target }) => issue(target.item, 'unsafe_target'))
   }
-}
-
-async function directoryTreeHasUnsafeEntry(targetPath: string, depth = 0): Promise<boolean> {
-  if (depth > MAX_SIZE_SCAN_DEPTH) return true
-
-  const entries = await fs.readdir(targetPath, { withFileTypes: true })
-  for (const entry of entries) {
-    if (entry.isSymbolicLink() || (!entry.isFile() && !entry.isDirectory())) return true
-    if (entry.isDirectory() && (await directoryTreeHasUnsafeEntry(childPath(targetPath, entry.name), depth + 1))) {
-      return true
-    }
-  }
-  return false
 }
 
 async function readJsonFile(
@@ -402,7 +378,7 @@ async function readJsonFile(
 ): Promise<
   { status: 'missing' } | { status: 'invalid' } | { status: 'valid'; raw: string; value: unknown; size: number }
 > {
-  const fileStatus = await inspectRegularFile(targetPath, item)
+  const fileStatus = await inspectTarget(targetPath, item, 'file')
   if (fileStatus !== 'valid') {
     return { status: fileStatus }
   }
@@ -453,7 +429,7 @@ async function addSqliteTargetWithSidecars(plan: LegacyCleanupPlan, targetPath: 
   plan.targets.push({ item, path: targetPath, kind: 'file' })
   for (const suffix of SQLITE_SIDECAR_SUFFIXES) {
     const sidecarPath = `${targetPath}${suffix}`
-    const status = await inspectRegularFile(sidecarPath, item)
+    const status = await inspectTarget(sidecarPath, item, 'file')
     if (status === 'valid') {
       plan.targets.push({ item, path: sidecarPath, kind: 'file' })
     } else if (status === 'invalid') {
@@ -484,8 +460,8 @@ async function sqliteFileSetsAreIdentical(left: string, right: string): Promise<
 
   for (const suffix of SQLITE_SIDECAR_SUFFIXES) {
     const [leftStatus, rightStatus] = await Promise.all([
-      inspectRegularFile(`${left}${suffix}`, 'legacy_agents_database'),
-      inspectRegularFile(`${right}${suffix}`, 'legacy_agents_root_duplicate')
+      inspectTarget(`${left}${suffix}`, 'legacy_agents_database', 'file'),
+      inspectTarget(`${right}${suffix}`, 'legacy_agents_root_duplicate', 'file')
     ])
     if (leftStatus === 'invalid' || rightStatus === 'invalid') {
       throw new Error(`Unsafe SQLite sidecar for duplicate agents database: ${suffix}`)
@@ -502,39 +478,19 @@ async function sqliteFileSetsAreIdentical(left: string, right: string): Promise<
 function validWindowState(value: unknown): boolean {
   if (!isRecord(value)) return false
   if (Object.keys(value).some((key) => !LEGACY_WINDOW_STATE_KEYS.has(key))) return false
-  if (
-    typeof value.width !== 'number' ||
-    typeof value.height !== 'number' ||
-    !Number.isFinite(value.width) ||
-    !Number.isFinite(value.height)
-  ) {
-    return false
-  }
-  if (value.x !== undefined && (typeof value.x !== 'number' || !Number.isFinite(value.x))) return false
-  if (value.y !== undefined && (typeof value.y !== 'number' || !Number.isFinite(value.y))) return false
+  const isFiniteNumber = (candidate: unknown) => typeof candidate === 'number' && Number.isFinite(candidate)
+  if (!isFiniteNumber(value.width) || !isFiniteNumber(value.height)) return false
+  if (value.x !== undefined && !isFiniteNumber(value.x)) return false
+  if (value.y !== undefined && !isFiniteNumber(value.y)) return false
   if (value.isMaximized !== undefined && typeof value.isMaximized !== 'boolean') return false
   if (value.isFullScreen !== undefined && typeof value.isFullScreen !== 'boolean') return false
   if (value.displayBounds !== undefined) {
     const bounds = value.displayBounds
-    if (
-      !isRecord(bounds) ||
-      !['x', 'y', 'width', 'height'].every((key) => typeof bounds[key] === 'number' && Number.isFinite(bounds[key]))
-    ) {
+    if (!isRecord(bounds) || !['x', 'y', 'width', 'height'].every((key) => isFiniteNumber(bounds[key]))) {
       return false
     }
   }
   return true
-}
-
-async function collectLegacyConfig(plan: LegacyCleanupPlan, targetPath: string): Promise<void> {
-  const item = 'legacy_config'
-  const status = await inspectRegularFile(targetPath, item)
-  if (status === 'missing') return
-  if (status === 'invalid') {
-    plan.issues.push(issue(item, 'unsafe_target'))
-    return
-  }
-  plan.targets.push({ item, path: targetPath, kind: 'file' })
 }
 
 async function collectWindowState(plan: LegacyCleanupPlan, targetPath: string): Promise<void> {
@@ -565,7 +521,7 @@ async function collectAgentsDatabases(
   rootLegacyAgentsPath: string
 ): Promise<void> {
   const item = 'legacy_agents_database'
-  const fileStatus = await inspectRegularFile(legacyAgentsPath, item)
+  const fileStatus = await inspectTarget(legacyAgentsPath, item, 'file')
   if (fileStatus === 'invalid') {
     plan.issues.push(issue(item, 'unsafe_target'))
     return
@@ -585,7 +541,7 @@ async function collectAgentsDatabases(
 
   await addSqliteTargetWithSidecars(plan, legacyAgentsPath, item)
 
-  const rootStatus = await inspectRegularFile(rootLegacyAgentsPath, 'legacy_agents_root_duplicate')
+  const rootStatus = await inspectTarget(rootLegacyAgentsPath, 'legacy_agents_root_duplicate', 'file')
   if (rootStatus === 'missing') return
   if (rootStatus === 'invalid') {
     plan.issues.push(issue('legacy_agents_root_duplicate', 'unsafe_target'))
@@ -605,7 +561,7 @@ async function collectAgentsDatabases(
 }
 
 async function collectMemoryDatabase(plan: LegacyCleanupPlan, targetPath: string, item: string): Promise<void> {
-  const status = await inspectRegularFile(targetPath, item)
+  const status = await inspectTarget(targetPath, item, 'file')
   if (status === 'missing') return
   if (status === 'invalid') {
     plan.issues.push(issue(item, 'unsafe_target'))
@@ -625,7 +581,7 @@ async function collectMemoryDatabase(plan: LegacyCleanupPlan, targetPath: string
 }
 
 async function collectKnowledgeDatabases(plan: LegacyCleanupPlan, knowledgeRoot: string): Promise<void> {
-  const rootStatus = await inspectDirectory(knowledgeRoot, 'legacy_knowledge_databases')
+  const rootStatus = await inspectTarget(knowledgeRoot, 'legacy_knowledge_databases', 'directory')
   if (rootStatus === 'missing') return
   if (rootStatus === 'invalid') {
     plan.issues.push(issue('legacy_knowledge_databases', 'unsafe_target'))
@@ -650,7 +606,7 @@ async function collectKnowledgeDatabases(plan: LegacyCleanupPlan, knowledgeRoot:
       continue
     }
 
-    const targetPath = childPath(knowledgeRoot, entry.name)
+    const targetPath = path.join(knowledgeRoot, entry.name)
     try {
       if (!sqliteHasTable(targetPath, 'vectors', ['id', 'pageContent', 'uniqueLoaderId', 'source', 'vector'])) {
         continue
@@ -660,10 +616,6 @@ async function collectKnowledgeDatabases(plan: LegacyCleanupPlan, knowledgeRoot:
       logger.debug('Skipped non-v1 knowledge file', { path: targetPath, error })
     }
   }
-}
-
-function comparablePath(value: string): string {
-  return path.normalize(path.resolve(value))
 }
 
 async function collectLegacyHomeConfig(plan: LegacyCleanupPlan, targetPath: string): Promise<void> {
@@ -703,7 +655,7 @@ async function collectLegacyHomeConfig(plan: LegacyCleanupPlan, targetPath: stri
     matchingEntries.length === 0 ||
     typeof migratedPath !== 'string' ||
     matchingEntries.some(
-      (entry) => typeof entry.dataPath !== 'string' || comparablePath(entry.dataPath) !== comparablePath(migratedPath)
+      (entry) => typeof entry.dataPath !== 'string' || path.resolve(entry.dataPath) !== path.resolve(migratedPath)
     )
   ) {
     return
@@ -736,9 +688,13 @@ async function collectLegacyHomeConfig(plan: LegacyCleanupPlan, targetPath: stri
 async function collectLegacyCleanupPlan(): Promise<LegacyCleanupPlan> {
   const paths = getCleanupPaths()
   const plan: LegacyCleanupPlan = { targets: [], mutations: [], issues: [] }
+  const ownedTargets = collectOwnedTargets([
+    { item: 'legacy_config', path: paths.legacyConfig, kind: 'file' },
+    { item: 'legacy_migration_temp', path: paths.migrationTemp, kind: 'directory' },
+    { item: 'legacy_cli_install', path: paths.legacyCliInstall, kind: 'directory' }
+  ])
 
   await Promise.all([
-    collectLegacyConfig(plan, paths.legacyConfig),
     ...paths.legacyWindowStates.map((targetPath) => collectWindowState(plan, targetPath)),
     collectCustomMiniApps(plan, paths.customMiniApps),
     collectAgentsDatabases(plan, paths.legacyAgents, paths.rootLegacyAgents),
@@ -748,27 +704,9 @@ async function collectLegacyCleanupPlan(): Promise<LegacyCleanupPlan> {
     collectLegacyHomeConfig(plan, paths.homeConfig)
   ])
 
-  const legacyDirectories = [
-    { item: 'legacy_migration_temp', path: paths.migrationTemp },
-    { item: 'legacy_cli_install', path: paths.legacyCliInstall }
-  ] as const
-  for (const target of legacyDirectories) {
-    const status = await inspectDirectory(target.path, target.item)
-    if (status === 'valid') {
-      try {
-        if (await directoryTreeHasUnsafeEntry(target.path)) {
-          plan.issues.push(issue(target.item, 'unsafe_target'))
-        } else {
-          plan.targets.push({ ...target, kind: 'directory' })
-        }
-      } catch (error) {
-        logger.warn('Failed to validate legacy directory contents', { item: target.item, path: target.path, error })
-        plan.issues.push(issue(target.item, 'inspection_failed'))
-      }
-    } else if (status === 'invalid') {
-      plan.issues.push(issue(target.item, 'unsafe_target'))
-    }
-  }
+  const owned = await ownedTargets
+  plan.targets.push(...owned.targets)
+  plan.issues.push(...owned.issues)
 
   const deduplicatedTargets = new Map<string, CleanupTarget>()
   for (const target of plan.targets) {
@@ -787,33 +725,19 @@ async function inspectLegacyV1(): Promise<CacheCleanupSizeSnapshot> {
   return toSizeSnapshot(
     {
       bytes: targetMeasurement.bytes + mutationBytes,
-      failed: targetMeasurement.failed || plan.issues.length > 0,
       issues: [...plan.issues, ...targetMeasurement.issues]
     },
     'estimated'
   )
 }
 
-async function collectRestoreTargets(): Promise<{ targets: CleanupTarget[]; issues: CacheCleanupIssue[] }> {
+function collectRestoreTargets(): Promise<{ targets: CleanupTarget[]; issues: CacheCleanupIssue[] }> {
   const paths = getCleanupPaths()
-  const candidates = [
-    { item: 'restore_indexeddb', path: paths.indexedDbRestore },
-    { item: 'restore_local_storage', path: paths.localStorageRestore },
-    { item: 'restore_data', path: paths.dataRestore }
-  ] as const
-  const inspected = await Promise.all(
-    candidates.map(async ({ item, path: targetPath }) => {
-      const status = await inspectDirectory(targetPath, item)
-      if (status === 'missing') return {}
-      if (status === 'invalid') return { issue: issue(item, 'unsafe_target') }
-      return { target: { item, path: targetPath, kind: 'directory' as const } }
-    })
-  )
-
-  return {
-    targets: inspected.flatMap(({ target }) => (target ? [target] : [])),
-    issues: inspected.flatMap(({ issue: targetIssue }) => (targetIssue ? [targetIssue] : []))
-  }
+  return collectOwnedTargets([
+    { item: 'restore_indexeddb', path: paths.indexedDbRestore, kind: 'directory' },
+    { item: 'restore_local_storage', path: paths.localStorageRestore, kind: 'directory' },
+    { item: 'restore_data', path: paths.dataRestore, kind: 'directory' }
+  ])
 }
 
 async function inspectRestoreStaging(): Promise<CacheCleanupSizeSnapshot> {
@@ -822,7 +746,6 @@ async function inspectRestoreStaging(): Promise<CacheCleanupSizeSnapshot> {
   return toSizeSnapshot(
     {
       bytes: measurement.bytes,
-      failed: measurement.failed || issues.length > 0,
       issues: [...issues, ...measurement.issues]
     },
     'exact'
@@ -841,12 +764,7 @@ async function inspectGroup(
       group,
       allowed: false,
       blockedReason: 'migration_incomplete',
-      size: {
-        bytes: null,
-        accuracy: 'unavailable',
-        completeness: 'partial',
-        issues: [issue(group, 'migration_incomplete')]
-      }
+      size: toSizeSnapshot({ bytes: 0, issues: [issue(group, 'migration_incomplete')] }, 'exact')
     }
   }
 
@@ -865,12 +783,7 @@ async function inspectGroup(
     return {
       group,
       allowed: true,
-      size: {
-        bytes: null,
-        accuracy: 'unavailable',
-        completeness: 'partial',
-        issues: [issue(group, 'inspection_failed')]
-      }
+      size: toSizeSnapshot({ bytes: 0, issues: [issue(group, 'inspection_failed')] }, 'exact')
     }
   }
 }
@@ -916,23 +829,12 @@ async function resetTempDirectory(targetPath: string): Promise<void> {
 
 function resultFromSteps(group: CacheCleanupGroup, steps: CleanupStepResult[]): CacheCleanupGroupResult {
   const issues = steps.flatMap(({ issue: stepIssue }) => (stepIssue ? [stepIssue] : []))
-  const cleared = steps.filter(({ state }) => state === 'cleared').length
-  const notFound = steps.filter(({ state }) => state === 'not_found').length
-  const skipped = steps.filter(({ state }) => state === 'skipped').length
-  const failed = steps.filter(({ state }) => state === 'failed').length
+  const succeeded = steps.some(({ state }) => state === 'cleared' || state === 'not_found')
+  const hasState = (state: CleanupStepResult['state']) => steps.some((step) => step.state === state)
 
-  let status: CacheCleanupGroupResult['status']
-  if (failed > 0) {
-    status = cleared > 0 || notFound > 0 || skipped > 0 ? 'partial' : 'failed'
-  } else if (skipped > 0) {
-    status = cleared > 0 || notFound > 0 ? 'partial' : 'skipped'
-  } else if (cleared > 0) {
-    status = 'cleared'
-  } else {
-    status = 'not_found'
-  }
-
-  return { group, status, issues }
+  if (hasState('failed')) return { group, status: succeeded || hasState('skipped') ? 'partial' : 'failed', issues }
+  if (hasState('skipped')) return { group, status: succeeded ? 'partial' : 'skipped', issues }
+  return { group, status: hasState('cleared') ? 'cleared' : 'not_found', issues }
 }
 
 async function clearNormalCache(): Promise<CacheCleanupGroupResult> {
@@ -966,10 +868,7 @@ async function clearSiteData(): Promise<CacheCleanupGroupResult> {
 }
 
 async function removeCleanupTarget(target: CleanupTarget): Promise<CleanupStepResult> {
-  const status =
-    target.kind === 'file'
-      ? await inspectRegularFile(target.path, target.item)
-      : await inspectDirectory(target.path, target.item)
+  const status = await inspectTarget(target.path, target.item, target.kind)
   if (status === 'missing') return { state: 'not_found' }
   if (status === 'invalid') return { state: 'skipped', issue: issue(target.item, 'unsafe_target') }
 
@@ -984,7 +883,7 @@ async function removeCleanupTarget(target: CleanupTarget): Promise<CleanupStepRe
 }
 
 async function applyJsonMutation(mutation: JsonMutation): Promise<CleanupStepResult> {
-  const fileStatus = await inspectRegularFile(mutation.path, mutation.item)
+  const fileStatus = await inspectTarget(mutation.path, mutation.item, 'file')
   if (fileStatus === 'missing') return { state: 'not_found' }
   if (fileStatus === 'invalid') {
     return { state: 'skipped', issue: issue(mutation.item, 'unsafe_target') }
@@ -1015,11 +914,7 @@ async function applyJsonMutation(mutation: JsonMutation): Promise<CleanupStepRes
 
 async function clearLegacyV1(): Promise<CacheCleanupGroupResult> {
   if (!isMigrationCompleted()) {
-    return {
-      group: 'legacy_v1',
-      status: 'skipped',
-      issues: [issue('legacy_v1', 'migration_incomplete')]
-    }
+    return resultFromSteps('legacy_v1', [{ state: 'skipped', issue: issue('legacy_v1', 'migration_incomplete') }])
   }
 
   const plan = await collectLegacyCleanupPlan()
@@ -1030,11 +925,9 @@ async function clearLegacyV1(): Promise<CacheCleanupGroupResult> {
 
 async function clearRestoreStaging(): Promise<CacheCleanupGroupResult> {
   if (!isMigrationCompleted()) {
-    return {
-      group: 'restore_staging',
-      status: 'skipped',
-      issues: [issue('restore_staging', 'migration_incomplete')]
-    }
+    return resultFromSteps('restore_staging', [
+      { state: 'skipped', issue: issue('restore_staging', 'migration_incomplete') }
+    ])
   }
 
   const { targets, issues } = await collectRestoreTargets()
@@ -1051,11 +944,7 @@ async function runGroup(group: CacheCleanupGroup): Promise<CacheCleanupGroupResu
     return await clearRestoreStaging()
   } catch (error) {
     logger.error('Unexpected cache cleanup group failure', { group, error })
-    return {
-      group,
-      status: 'failed',
-      issues: [issue(group, 'operation_failed')]
-    }
+    return resultFromSteps(group, [{ state: 'failed', issue: issue(group, 'operation_failed') }])
   }
 }
 

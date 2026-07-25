@@ -20,12 +20,10 @@ and the execution path checks it independently.
 | `restore_staging` | Exact `Data.restore`, `IndexedDB.restore`, and `Local Storage.restore` directories | Regular-file disk usage | Removes each selected directory in full and therefore cancels that pending restore |
 
 Missing files contribute `0 B`. Symbolic links are never followed or counted.
-A candidate path that is itself a symbolic link is not removed. Legacy
-directories that require content validation are retained when they contain a
-symbolic link. Restore directories are removed in full; nested symbolic links
-are unlinked without following their targets. An unreadable or invalid candidate
-makes the group size partial or unavailable but does not make adjacent
-candidates eligible.
+A candidate path that is itself a symbolic link is not removed. Whole-directory
+targets are removed in full; nested symbolic links are unlinked without
+following their targets. An unreadable or invalid candidate makes the group size
+partial or unavailable but does not make adjacent candidates eligible.
 
 ## `legacy_v1` audit
 
@@ -37,9 +35,9 @@ candidates eligible.
 | `{userData}/agents.db` | Same validation as above; the database and every present sidecar are byte-for-byte identical to the corresponding `{userData}/Data/agents.db` set | Removes it as a redundant copy; a different or incomplete copy is retained |
 | `{userData}/config.json` | Exact legacy location; regular file only, with contents intentionally not inspected | Removes the complete file |
 | `~/.cherrystudio/config/config.json` | Array-form `appDataPath` mapping whose current executable entry exactly matches the migrated BootConfig path | Removes only the current executable's mapping; preserves every other mapping and field, and removes the file only when it becomes empty |
-| `~/.cherrystudio/install` | Exact cleanup-only legacy CLI install root; regular directory with no symbolic links | Removes the complete directory and all regular contents |
+| `~/.cherrystudio/install` | Exact cleanup-only legacy CLI install root; regular directory only, with contents intentionally not inspected | Removes the complete directory |
 | `{userData}/window-state.json`, `miniWindow-state.json`, and `quickAssistant-state.json` | JSON objects restricted to the v1 window bounds/state shape | Removes each validated file |
-| `{userData}/migration_temp` | Exact migration-owned directory, regular directory only | Removes the directory |
+| `{userData}/migration_temp` | Exact migration-owned directory; regular directory only, with contents intentionally not inspected | Removes the complete directory |
 | `{userData}/Data/Files/custom-minapps.json` | Regular JSON file containing an array | Removes the file |
 | Top-level files under `Data/KnowledgeBase` | Regular SQLite files with the legacy `vectors` table and its `id`, `pageContent`, `uniqueLoaderId`, `source`, and `vector` columns | Removes each database and regular-file sidecars; nested v2 base directories are never candidates |
 | `Data/Memory/memories.db` and the old root `memories.db` | Regular SQLite files with a `memories` table containing `id` and `memory` | Removes each validated database and regular-file sidecars |
