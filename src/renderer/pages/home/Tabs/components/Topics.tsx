@@ -1795,11 +1795,9 @@ const TopicStreamIndicator = ({
       {isPending ? (
         // A spinner reads as "running", where the old pulsing amber dot looked
         // like a warning. Errored/done collapse to a red/green dot.
-        <Loader2 className="size-3 animate-spin text-(--color-foreground-muted)" />
+        <Loader2 className="size-3 animate-spin text-foreground-muted" />
       ) : (
-        <span
-          className={cn('size-1.25 rounded-full', isErrored ? 'bg-(--color-error-base)' : 'bg-(--color-success)')}
-        />
+        <span className={cn('size-1.25 rounded-full', isErrored ? 'bg-error-base' : 'bg-success')} />
       )}
     </span>
   )

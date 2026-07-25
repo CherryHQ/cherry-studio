@@ -1975,7 +1975,7 @@ describe('Topics', () => {
     // The indicator is an absolute overlay in every layout now; it fades out on
     // hover so the pin + delete actions take its resting spot.
     expect(indicatorRoot).toHaveClass('absolute', 'group-hover:opacity-0')
-    expect(indicator).toHaveClass('text-(--color-foreground-muted)')
+    expect(indicator).toHaveClass('text-foreground-muted')
     // The delete button always renders now (revealed on hover); assert only
     // that the row is not in the delete-confirm state.
     expect(topicRow.querySelector('[data-deleting="true"]')).not.toBeInTheDocument()
@@ -1992,7 +1992,7 @@ describe('Topics', () => {
     // The indicator is an absolute overlay in every layout now; it fades out on
     // hover so the pin + delete actions take its resting spot.
     expect(indicatorRoot).toHaveClass('absolute', 'group-hover:opacity-0')
-    expect(indicator).toHaveClass('bg-(--color-success)')
+    expect(indicator).toHaveClass('bg-success')
     expect(indicator).not.toHaveClass('animate-spin')
     // The delete button always renders now (revealed on hover); assert only
     // that the row is not in the delete-confirm state.
@@ -2025,7 +2025,7 @@ describe('Topics', () => {
     view = renderTopicList({ activeTopic })
 
     topicRow = getTopicRow('Alpha topic')
-    expect(topicRow.querySelector('[data-testid="topic-stream-indicator"] span')).toHaveClass('bg-(--color-error-base)')
+    expect(topicRow.querySelector('[data-testid="topic-stream-indicator"] span')).toHaveClass('bg-error-base')
 
     act(() => setTopicStreamCacheStatus('topic-a', 'done'))
     view.unmount()
@@ -2070,7 +2070,7 @@ describe('Topics', () => {
 
     expect(indicator).toBeInTheDocument()
     expect(indicator).toHaveClass('absolute', 'right-1.5', 'group-hover:opacity-0')
-    expect(indicator?.querySelector('.animate-spin')).toHaveClass('text-(--color-foreground-muted)')
+    expect(indicator?.querySelector('.animate-spin')).toHaveClass('text-foreground-muted')
     expect(within(topicRow).getByLabelText('Delete')).toBeInTheDocument()
   })
 
@@ -2080,7 +2080,7 @@ describe('Topics', () => {
 
     let topicRow = getTopicRow('Gamma topic')
     const indicator = topicRow.querySelector('[data-testid="topic-stream-indicator"]')?.querySelector('span')
-    expect(indicator).toHaveClass('bg-(--color-error-base)')
+    expect(indicator).toHaveClass('bg-error-base')
     expect(indicator).not.toHaveClass('animate-spin')
 
     setTopicStreamCacheStatus('topic-c', 'aborted')
