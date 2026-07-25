@@ -217,6 +217,24 @@
       "code": "Code",
       "code_unavailable": "Source view not available for binary files",
       "default_app": "Default app",
+      "edit": {
+        "conflict": {
+          "description": "This file changed on disk after editing started. Reloading will discard the current draft and load the latest file.",
+          "keep_draft": "Keep draft",
+          "reload": "Reload file",
+          "title": "File changed on disk"
+        },
+        "discard": "Discard changes",
+        "leave": {
+          "description": "If you continue, your unsaved changes to this file will be lost.",
+          "discard_and_continue": "Discard and continue",
+          "title": "Discard unsaved changes?"
+        },
+        "refresh_failed": "Unable to reload the latest file content.",
+        "save_failed": "Unable to save this file. Automatic saving is paused until you retry or discard the changes.",
+        "unsaved": "Unsaved",
+        "unsupported": "This file can be previewed but not safely edited here. Editing supports UTF-8 text files with consistent LF or CRLF line endings."
+      },
       "empty": {
         "description": "Start chatting with the agent; generated code and live previews will appear here.",
         "title": "Ready"
@@ -1223,6 +1241,8 @@
         "label": "Reasoning effort",
         "low": "Low",
         "low_description": "Low level reasoning",
+        "max": "Max",
+        "max_description": "Maximum reasoning effort",
         "medium": "Medium",
         "medium_description": "Medium level reasoning",
         "minimal": "Minimal",
@@ -1987,6 +2007,7 @@
         "default": "Default",
         "high": "High",
         "low": "Low",
+        "max": "Max",
         "medium": "Medium",
         "minimal": "Minimal",
         "xhigh": "Extra High"
@@ -2181,6 +2202,7 @@
     "copy_failed": "Copy failed",
     "create_success": "Created successfully",
     "current": "Current",
+    "decline": "Decline",
     "default": "Default",
     "delete": "Delete",
     "delete_confirm": "Are you sure you want to delete?",
@@ -2322,6 +2344,7 @@
     "image-generation": "Image Generation (OpenAI)",
     "jina-rerank": "Jina Rerank",
     "openai": "OpenAI",
+    "openai-embeddings": "Embeddings (OpenAI)",
     "openai-response": "OpenAI-Response"
   },
   "error": {
@@ -2376,6 +2399,8 @@
       "payload": "Request content too large, please reduce file or text size",
       "proxy": "Proxy or SSL certificate error, check proxy and network settings",
       "quota": "Account quota exhausted, please recharge or switch provider",
+      "rate_limit": "Too many requests in a short time. Wait a moment and retry, or switch to a model with a higher rate limit",
+      "region": "Service unavailable in your region. Configure a proxy or switch to a provider available in your area",
       "server": "Server error, please retry later",
       "stream": "Response interrupted, check network stability or retry",
       "unknown": "An error occurred",
@@ -2387,6 +2412,7 @@
     "http": {
       "400": "Request failed. Please check if the request parameters are correct. If you have changed the model settings, please reset them to the default settings",
       "401": "Authentication failed. Please check if your API key is correct",
+      "402": "Payment required. Your account balance or quota is exhausted - top up on the provider's website or switch to another provider",
       "403": "Access denied. Please check if your account is verified, or contact the service provider for more information",
       "404": "Model not found or request path is incorrect",
       "429": "Too many requests. Please try again later",
@@ -2562,7 +2588,8 @@
     "edit": "Edit",
     "empty": {
       "no_match_description": "No files match the current filters",
-      "no_match_title": "No matching files found"
+      "no_match_title": "No matching files found",
+      "title": "No files yet"
     },
     "empty_trash": "Empty trash",
     "error": {
@@ -2963,9 +2990,8 @@
     "dimensions_size_placeholder": "Leave empty to not pass dimensions",
     "embedding_model": "Embedding Model",
     "embedding_model_required": "Knowledge base embedding model is required",
-    "empty": "No knowledge bases",
-    "empty_action": "Create Knowledge Base",
-    "empty_description": "You don't have any knowledge bases yet. Create one to start organizing and searching your documents.",
+    "empty": "No knowledge bases yet",
+    "empty_description": "Build up your knowledge with AI",
     "error": {
       "directory_not_migrated": "Folder migration failed. Please delete it and re-upload.",
       "failed_base_unknown": "This knowledge base failed during migration. Rebuild it and choose a new embedding model.",
@@ -4278,10 +4304,13 @@
       "embedding": "Embedding",
       "free": "Free",
       "function_calling": "Tool",
+      "image": "Image",
       "reasoning": "Reasoning",
       "rerank": "Reranker",
       "select": "Model Types",
+      "speech": "Speech",
       "text": "Text",
+      "transcription": "Transcription",
       "video": "Video",
       "vision": "Vision",
       "websearch": "WebSearch"
@@ -4310,6 +4339,12 @@
     },
     "characters": "Characters",
     "collapse": "Collapse",
+    "conflict": {
+      "description": "This note was changed outside the editor. Reload to load the latest version (your unsaved edits will be discarded), or keep editing.",
+      "keep_draft": "Keep editing",
+      "reload": "Reload",
+      "title": "Note changed on disk"
+    },
     "content_placeholder": "Please enter the note content...",
     "copyContent": "Copy Content",
     "create_folder_failed": "Failed to create folder",
@@ -4331,7 +4366,13 @@
     "export_to_pdf_failed": "Failed to export to PDF",
     "export_to_pdf_success": "Exported to PDF",
     "export_to_word_failed": "Failed to export to Word",
+    "file_removed_draft": "This note was removed from disk. Your unsaved draft is still available in the editor.",
     "folder": "folder",
+    "leave": {
+      "description": "Leaving this note will discard your unsaved edits. Do you want to continue?",
+      "discard_and_continue": "Discard and continue",
+      "title": "Discard unsaved note edits?"
+    },
     "load_failed": "Failed to load note",
     "load_failed_description": "The file could not be read. Editing is disabled to protect the note content.",
     "metadata_sync_failed": "File updated, but note state sync failed. Please retry the operation.",
@@ -4354,6 +4395,9 @@
     "save": "Save to Notes",
     "save_blocked_load_failed": "Save blocked because the note failed to load",
     "save_failed": "Failed to save note",
+    "save_failure": {
+      "description": "This note could not be saved. Your edits remain in the editor and automatic saving is paused."
+    },
     "search": {
       "both": "Name+Content",
       "content": "Content",
@@ -4461,6 +4505,14 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "privacy": {
+      "accept_and_continue": "Accept and Continue",
+      "accept_policy": "Agree to the Privacy Policy",
+      "notice": "I have read and agree to the",
+      "period": ".",
+      "policy": "Privacy Policy",
+      "update_failed": "Unable to save your privacy agreement. Please try again."
+    },
     "provider_setup": {
       "missing_model": "Enable at least one model from the enabled provider",
       "missing_provider": "Enable a provider to continue",
@@ -4485,7 +4537,7 @@
       "other_provider": "Set up another provider",
       "select_other_provider": "Select Other Provider",
       "setup_hint": "You can change providers anytime in Settings",
-      "subtitle": "Connect a provider to power your AI workspace",
+      "subtitle": "Connect a provider to unlock your All-in-One AI Workstation",
       "title": "Welcome to Cherry Studio"
     }
   },
@@ -4650,6 +4702,7 @@
     "title": "Intel OVMS"
   },
   "paintings": {
+    "add_image": "Add image",
     "aspect_ratio": "Aspect Ratio",
     "aspect_ratios": {
       "landscape": "Landscape",
@@ -4802,6 +4855,8 @@
     "prompt_placeholder": "Describe the image you want to create, e.g. A serene lake at sunset with mountains in the background",
     "prompt_placeholder_edit": "Enter your image description, text drawing uses \"double quotes\" to wrap",
     "prompt_placeholder_en": "Enter your image description, currently only supports English prompts",
+    "prompt_placeholder_upload": "Describe the image you want, or upload one to edit",
+    "prompt_placeholder_upload_required": "Upload an image to edit, then describe the changes",
     "prompt_required": "Please enter a prompt",
     "proxy_required": "Open the proxy and enable \"TUN mode\" to view generated images or copy them to the browser for opening. In the future, domestic direct connection will be supported",
     "quality": "Quality",
@@ -4977,6 +5032,16 @@
     "source": "View Source Code",
     "zoom_in": "Zoom In",
     "zoom_out": "Zoom Out"
+  },
+  "privacy_policy": {
+    "load_failed": "Unable to load the privacy policy.",
+    "title": "Privacy Policy"
+  },
+  "privacy_policy_update": {
+    "acknowledge_failed": "Unable to save your acknowledgement. Please try again.",
+    "description_before_link": "We have updated the privacy policy. Please review the latest ",
+    "policy": "Privacy Policy",
+    "title": "Privacy Policy Updated"
   },
   "prompts": {
     "explanation": "Explain this concept to me",
@@ -6202,14 +6267,55 @@
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
       "checkUpdates": "Check for updates",
       "coreDepsMissing": "Core dependencies not installed",
-      "customTools": "Custom Tools",
-      "customToolsEmpty": "No custom tools yet. Add one to get started.",
       "description": "Manage binary tools and runtime dependencies required by the app.",
       "duplicateName": "A tool with the same name already exists",
       "fieldVersion": "Version (optional, defaults to latest)",
-      "install": "Install",
       "installError": "Failed to install tool",
+      "installErrorHint": "The install command failed. Copy the log below to troubleshoot or share it for help.",
+      "installSettings": {
+        "description": "Fine-tune how bundled CLI tools are installed. All fields are optional — leave them empty to keep the defaults.",
+        "githubMirror": {
+          "help": "Proxy prefix for GitHub release downloads (e.g. https://ghfast.top). GitHub API requests remain direct; use a token if rate-limited.",
+          "label": "GitHub mirror",
+          "placeholder": "https://ghfast.top (direct if empty)"
+        },
+        "githubToken": {
+          "help": "Raises the GitHub API rate limit for tool lookups. Stored locally in plain text. Leave empty to use the CHERRY_GITHUB_TOKEN environment variable.",
+          "hide": "Hide token",
+          "label": "GitHub token",
+          "placeholder": "ghp_…",
+          "show": "Show token"
+        },
+        "invalidUrl": "Enter a valid URL including https://",
+        "npmRegistry": {
+          "help": "Registry for npm: tools. Leave empty to auto-select a mirror in mainland China.",
+          "label": "npm registry",
+          "placeholder": "Auto (China mirror) if empty"
+        },
+        "pipIndexUrl": {
+          "help": "Index URL for pipx: tools. Leave empty to auto-select a mirror in mainland China.",
+          "label": "pip index URL",
+          "placeholder": "Auto (China mirror) if empty"
+        },
+        "presetLabels": {
+          "aliyun": "Aliyun (China)",
+          "default": "Default (no mirror)",
+          "ghfast": "ghfast.top",
+          "ghproxy": "ghproxy.net",
+          "npmOfficial": "npmjs (official)",
+          "npmmirror": "npmmirror (China)",
+          "pypiOfficial": "PyPI (official)",
+          "tsinghua": "Tsinghua (China)"
+        },
+        "presets": "Presets",
+        "title": "Advanced install settings",
+        "verifySignatures": {
+          "help": "Verifies Sigstore/SLSA signatures for aqua-backed tools. Disable only if verification fails on your network — it skips supply-chain checks.",
+          "label": "Verify tool signatures"
+        }
+      },
       "installing": "Installing...",
+      "installingHint": "The first install may download a runtime and take a few minutes",
       "invalidTool": "Invalid tool name or key",
       "localModels": {
         "cancel": "Cancel",
@@ -6239,12 +6345,21 @@
       "notInstalled": "Not installed",
       "openBinariesDir": "Open binaries directory",
       "remove": "Remove tool",
-      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
+      "removeConfirmMessage": "Remove \"{{name}}\" from Cherry Studio? Its portable definition will be deleted. Cherry will also clean up an exact mise-managed copy when present. System and bundled executables are never changed.",
       "removeConfirmTitle": "Remove Tool",
+      "removeDefinitionOnlyConfirmMessage": "Cherry could not safely clean up \"{{name}}\": {{details}} Removing only its definition will hide the card but leave its backend files installed. Continue?",
+      "removeDefinitionOnlyConfirmTitle": "Remove Definition Only?",
+      "removeDefinitionOnlyDependents": "Installed tools depend on it: {{dependents}}.",
+      "removeError": "Failed to remove tool",
+      "removeErrorHint": "The cleanup command failed. Copy the log below to troubleshoot or share it for help.",
+      "removeRuntimeConfirmMessage": "Remove \"{{name}}\" from Cherry Studio? Cherry will clean up only an exact mise-managed copy. System and bundled runtimes are never changed. Installed npm or pip tools may block removal if they depend on this runtime.",
+      "runtimeDependency": "Runtime",
+      "runtimeDependencyHint": "Runtime for npm/pip tools",
       "searchFailed": "Search failed, check logs",
       "searchRegistry": "Search mise registry...",
       "source": {
-        "bundled": "bundled"
+        "bundled": "bundled",
+        "system": "System"
       },
       "title": "Dependencies",
       "tools": {
@@ -6263,8 +6378,15 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
+      "uninstall": "Uninstall",
+      "uninstallConfirmMessage": "Are you sure you want to uninstall \"{{name}}\"? Cherry Studio's backend copy will be deleted.",
+      "uninstallConfirmTitle": "Uninstall Tool",
+      "uninstallFailed": "Failed to uninstall tool",
+      "uninstallSuccess": "Tool uninstalled",
       "update": "Update to latest version",
-      "updateCheckFailed": "Failed to check for updates"
+      "updateCheckFailed": "Failed to check for updates",
+      "updateCheckSuccess": "Version check complete",
+      "viewErrorDetails": "View details"
     },
     "developer": {
       "enable_developer_mode": "Enable Developer Mode",
@@ -6277,8 +6399,8 @@
       },
       "custom": {
         "css": {
-          "cherrycss": "Get from cherrycss.com",
           "label": "Custom CSS",
+          "migration_notice": "This stylesheet was migrated from v1 and is currently disabled. Adapt it for v2, then remove the first line to enable it.",
           "placeholder": "/* Put custom CSS here */"
         }
       },
@@ -6806,6 +6928,9 @@
       "add": {
         "add_model": "Add Model",
         "batch_add_models": "Batch Add Models",
+        "capabilities": {
+          "label": "Model Capabilities"
+        },
         "context_window": {
           "label": "Context window",
           "placeholder": "e.g. 128000"
@@ -6821,6 +6946,9 @@
           "label": "Group Name",
           "placeholder": "e.g. ChatGPT",
           "tooltip": "Optional e.g. ChatGPT"
+        },
+        "input_modalities": {
+          "label": "Input Modalities"
         },
         "max_input_tokens": {
           "label": "Max input tokens",
@@ -6843,6 +6971,26 @@
           "label": "Model Name",
           "placeholder": "e.g. GPT-5.5",
           "tooltip": "Optional e.g. GPT-4"
+        },
+        "model_type": {
+          "label": "Model Type"
+        },
+        "purpose": {
+          "chat": {
+            "description": "Use the provider's text API",
+            "label": "Chat"
+          },
+          "chat_protocol": "Chat protocol",
+          "description": "Choose how this model is used",
+          "image_edit": {
+            "description": "Accept an input image and return an edited image",
+            "label": "Image editing"
+          },
+          "image_generation": {
+            "description": "Generate images from a prompt",
+            "label": "Image generation"
+          },
+          "label": "Model purpose"
         },
         "supported_text_delta": {
           "label": "Support incremental text output",
@@ -6901,7 +7049,7 @@
       "default_assistant_model": "Default Assistant Model",
       "default_assistant_model_description": "Used when an assistant has no model.",
       "docs": "Model docs",
-      "empty": "No models found",
+      "empty": "Select a model",
       "empty_hint": "Click the Get model list button above to add models.",
       "enabled_models": "Enabled",
       "expand_all": "Expand all",
@@ -7219,8 +7367,9 @@
       },
       "balance": "Balance",
       "base_url": {
+        "invalid": "Enter a valid HTTP or HTTPS URL",
         "label": "Base URL",
-        "placeholder": "https://api.example.com",
+        "placeholder": "Base URL: https://example.com",
         "required": "Please enter the Base URL"
       },
       "basic_auth": {
@@ -7312,6 +7461,23 @@
         "toggle_headers_editor_list": "Switch to header list"
       },
       "create_custom": {
+        "endpoint_fields": {
+          "default_chat": "Default",
+          "label": "Endpoint settings",
+          "more": "More options",
+          "more_configured": "{{count}} configured",
+          "set_default_chat": "Set as default",
+          "text_endpoint_required": "Configure at least one text endpoint",
+          "url_help": "Enter the API root URL to preview the final request path"
+        },
+        "preset_instance": {
+          "description": "For Coding Plan services, multiple accounts, or project isolation; configure each Base URL and API key independently",
+          "empty": "No matching Provider presets",
+          "placeholder": "Create from a Provider preset…",
+          "search_placeholder": "Search Provider presets",
+          "title": "Start from a preset (optional)"
+        },
+        "request_preview": "Request path: {{path}}",
         "title": "Add Custom Provider"
       },
       "delete": {
@@ -7351,13 +7517,23 @@
         "sign_in_success": "Signed in to Grok CLI",
         "signing_in": "Waiting for browser…"
       },
+      "image_endpoints": {
+        "image_edit_base_url": {
+          "help": "Used for /images/edits; leave blank to use the default chat endpoint Base URL",
+          "label": "Image Edit Base URL"
+        },
+        "image_generation_base_url": {
+          "help": "Used for /images/generations; leave blank to use the default chat endpoint Base URL",
+          "label": "Image Generation Base URL"
+        }
+      },
       "logo_upload_failed": "Failed to process the selected image",
       "misc": "Other",
       "more_endpoints": {
         "add": "Add Endpoint",
-        "anthropic": "Anthropic Messages",
-        "gemini": "Google Gemini",
-        "openai_chat": "OpenAI Chat Completions",
+        "anthropic": "Anthropic",
+        "gemini": "Gemini",
+        "openai_chat": "OpenAI",
         "openai_responses": "OpenAI Responses",
         "toggle": "More Endpoints"
       },

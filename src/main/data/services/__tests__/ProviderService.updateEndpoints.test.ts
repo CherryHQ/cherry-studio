@@ -44,6 +44,30 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
 describe('ProviderService.update — adapterFamily backfill', () => {
   const dbh = setupTestDatabase()
 
+  it('strips legacy reasoningFormatType from persisted endpoint configs on read', async () => {
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'legacy-reasoning-format',
+      name: 'Legacy Reasoning Format',
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          baseUrl: 'https://proxy.example/v1',
+          adapterFamily: 'openai',
+          reasoningFormatType: 'openai-responses'
+        }
+      } as never,
+      orderKey: 'a0'
+    })
+
+    const provider = providerService.getByProviderId('legacy-reasoning-format')
+    const endpointConfig = provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+
+    expect(endpointConfig).toEqual({
+      baseUrl: 'https://proxy.example/v1',
+      adapterFamily: 'openai'
+    })
+    expect(endpointConfig).not.toHaveProperty('reasoningFormatType')
+  })
+
   it('backfills adapterFamily when a settings PATCH adds a { baseUrl }-only endpoint', async () => {
     // A correctly-created preset-derived instance (openai-chat tagged `cherryin`).
     providerService.create({

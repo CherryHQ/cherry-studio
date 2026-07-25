@@ -16,7 +16,6 @@ import {
   objectValues,
   ParameterSupportDbSchema,
   RuntimeModelPricingSchema,
-  RuntimeReasoningSchema,
   type UniqueModelId,
   UniqueModelIdSchema
 } from '../../types/model'
@@ -62,8 +61,6 @@ export const CreateModelSchema = z.strictObject({
   maxOutputTokens: z.number().int().positive().optional(),
   /** Streaming support */
   supportsStreaming: z.boolean().optional(),
-  /** Reasoning configuration */
-  reasoning: RuntimeReasoningSchema.optional(),
   /** Parameter support (DB form) */
   parameterSupport: ParameterSupportDbSchema.optional(),
   /** Pricing configuration */

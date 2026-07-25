@@ -49,21 +49,21 @@ type ScrollbarStage = 'active' | 'fade-1' | 'fade-2' | 'fade-3' | 'idle'
 
 const SCROLLBAR_THUMB_CLASS_BY_STAGE: Record<ScrollbarStage, string> = {
   active:
-    '[&::-webkit-scrollbar-thumb]:bg-[linear-gradient(180deg,var(--color-scrollbar-thumb)_0%,var(--color-scrollbar-thumb)_45%,color-mix(in_srgb,var(--color-scrollbar-thumb)_55%,transparent)_72%,transparent_100%)]',
+    '[&::-webkit-scrollbar-thumb]:bg-[linear-gradient(180deg,var(--scrollbar-thumb)_0%,var(--scrollbar-thumb)_45%,color-mix(in_srgb,var(--scrollbar-thumb)_55%,transparent)_72%,transparent_100%)]',
   'fade-1':
-    '[&::-webkit-scrollbar-thumb]:bg-[linear-gradient(180deg,color-mix(in_srgb,var(--color-scrollbar-thumb)_70%,transparent)_0%,color-mix(in_srgb,var(--color-scrollbar-thumb)_70%,transparent)_45%,color-mix(in_srgb,var(--color-scrollbar-thumb)_35%,transparent)_72%,transparent_100%)]',
+    '[&::-webkit-scrollbar-thumb]:bg-[linear-gradient(180deg,color-mix(in_srgb,var(--scrollbar-thumb)_70%,transparent)_0%,color-mix(in_srgb,var(--scrollbar-thumb)_70%,transparent)_45%,color-mix(in_srgb,var(--scrollbar-thumb)_35%,transparent)_72%,transparent_100%)]',
   'fade-2':
-    '[&::-webkit-scrollbar-thumb]:bg-[linear-gradient(180deg,color-mix(in_srgb,var(--color-scrollbar-thumb)_40%,transparent)_0%,color-mix(in_srgb,var(--color-scrollbar-thumb)_40%,transparent)_45%,color-mix(in_srgb,var(--color-scrollbar-thumb)_20%,transparent)_72%,transparent_100%)]',
+    '[&::-webkit-scrollbar-thumb]:bg-[linear-gradient(180deg,color-mix(in_srgb,var(--scrollbar-thumb)_40%,transparent)_0%,color-mix(in_srgb,var(--scrollbar-thumb)_40%,transparent)_45%,color-mix(in_srgb,var(--scrollbar-thumb)_20%,transparent)_72%,transparent_100%)]',
   'fade-3':
-    '[&::-webkit-scrollbar-thumb]:bg-[linear-gradient(180deg,color-mix(in_srgb,var(--color-scrollbar-thumb)_16%,transparent)_0%,color-mix(in_srgb,var(--color-scrollbar-thumb)_16%,transparent)_45%,color-mix(in_srgb,var(--color-scrollbar-thumb)_8%,transparent)_72%,transparent_100%)]',
+    '[&::-webkit-scrollbar-thumb]:bg-[linear-gradient(180deg,color-mix(in_srgb,var(--scrollbar-thumb)_16%,transparent)_0%,color-mix(in_srgb,var(--scrollbar-thumb)_16%,transparent)_45%,color-mix(in_srgb,var(--scrollbar-thumb)_8%,transparent)_72%,transparent_100%)]',
   idle: '[&::-webkit-scrollbar-thumb]:bg-[linear-gradient(180deg,transparent_0%,transparent_50%,transparent_100%)]'
 }
 
 const SCROLLBAR_COLOR_BY_STAGE: Record<ScrollbarStage, string> = {
-  active: 'var(--color-scrollbar-thumb) transparent',
-  'fade-1': 'color-mix(in srgb, var(--color-scrollbar-thumb) 70%, transparent) transparent',
-  'fade-2': 'color-mix(in srgb, var(--color-scrollbar-thumb) 40%, transparent) transparent',
-  'fade-3': 'color-mix(in srgb, var(--color-scrollbar-thumb) 16%, transparent) transparent',
+  active: 'var(--scrollbar-thumb) transparent',
+  'fade-1': 'color-mix(in srgb, var(--scrollbar-thumb) 70%, transparent) transparent',
+  'fade-2': 'color-mix(in srgb, var(--scrollbar-thumb) 40%, transparent) transparent',
+  'fade-3': 'color-mix(in srgb, var(--scrollbar-thumb) 16%, transparent) transparent',
   idle: 'transparent transparent'
 }
 
@@ -154,7 +154,7 @@ function useAutoHideScrollbar(delay = SCROLLBAR_AUTO_HIDE_DELAY) {
 function getListViewportClassName(stage: ScrollbarStage, className?: string) {
   return cn(
     '-mr-2 min-h-0 flex-1 overflow-auto py-1.5 pt-0.5! pr-2 [scrollbar-gutter:stable]',
-    '[&::-webkit-scrollbar-thumb:hover]:bg-[var(--color-scrollbar-thumb-hover)]',
+    '[&::-webkit-scrollbar-thumb:hover]:bg-[var(--scrollbar-thumb-hover)]',
     '[&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-150 [&::-webkit-scrollbar-thumb]:ease-out',
     SCROLLBAR_THUMB_CLASS_BY_STAGE[stage],
     className

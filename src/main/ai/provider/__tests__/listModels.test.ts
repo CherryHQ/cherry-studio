@@ -808,3 +808,36 @@ describe('listModels — vertexFetcher (per-publisher pagination)', () => {
     expect(aiSdkGetFromApiMock).not.toHaveBeenCalled()
   })
 })
+
+describe('listModels — jinaFetcher (strips jina-ai/ prefix)', () => {
+  function makeJinaProvider() {
+    return makeProvider({
+      id: 'jina',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.jina.ai' }
+      }
+    })
+  }
+
+  // Jina's /v1/models returns `jina-ai/`-prefixed ids, but its inference endpoints and the registry
+  // catalog both key on the bare id. Capabilities/metadata come from the registry at enrich time.
+  it('strips the `jina-ai/` prefix so apiModelId matches the bare id (REGRESSION)', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          { id: 'jina-ai/jina-embeddings-v2-base-zh', name: 'Jina AI: Embeddings v2 Base ZH' },
+          { id: 'jina-ai/jina-reranker-m0' }
+        ]
+      }
+    })
+
+    const models = await listModels(makeJinaProvider())
+
+    const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string }
+    expect(call.url).toBe('https://api.jina.ai/v1/models')
+    expect(models.map((m) => m.apiModelId)).toEqual(['jina-embeddings-v2-base-zh', 'jina-reranker-m0'])
+    // Forward the upstream display name; fall back to the bare id when absent.
+    expect(models.map((m) => m.name)).toEqual(['Jina AI: Embeddings v2 Base ZH', 'jina-reranker-m0'])
+  })
+})

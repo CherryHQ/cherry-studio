@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { type ReactNode, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -142,6 +142,27 @@ const FileStateWriter = ({ nextFiles }: { nextFiles: any[] }) => {
   useEffect(() => {
     setFiles(nextFiles)
   }, [nextFiles, setFiles])
+
+  return null
+}
+
+const LauncherRegistrationProbe = ({
+  onReady
+}: {
+  onReady: (value: { disposeFirst: () => void; readIds: () => string[] }) => void
+}) => {
+  const { toolsRegistry, triggers } = useComposerToolDispatch()
+
+  useEffect(() => {
+    const disposeFirst = toolsRegistry.registerLaunchers('agent-skills', [
+      { id: 'stale-skills', kind: 'panel', label: 'Stale skills', icon: 'stale' }
+    ])
+    const disposeLatest = toolsRegistry.registerLaunchers('agent-skills', [
+      { id: 'agent-skills', kind: 'panel', label: 'Skills', icon: 'skills' }
+    ])
+    onReady({ disposeFirst, readIds: () => triggers.getLaunchers().map((launcher) => launcher.id) })
+    return disposeLatest
+  }, [onReady, toolsRegistry, triggers])
 
   return null
 }
@@ -293,6 +314,21 @@ describe('ComposerToolRuntimeHost', () => {
     expect(onNonReactiveRender).toHaveBeenCalledTimes(1)
     expect(createItems).toHaveBeenCalledTimes(1)
     expect(runtimeRegisterCount).toBe(1)
+  })
+
+  it('keeps the latest launcher registration when a stale disposer runs', async () => {
+    let registration: { disposeFirst: () => void; readIds: () => string[] } | undefined
+    const onReady = vi.fn((value) => {
+      registration = value
+    })
+
+    renderRuntime([], <LauncherRegistrationProbe onReady={onReady} />)
+
+    await waitFor(() => expect(registration?.readIds()).toEqual(['agent-skills']))
+
+    act(() => registration?.disposeFirst())
+
+    expect(registration?.readIds()).toEqual(['agent-skills'])
   })
 
   it('does not subscribe the runtime host to quick panel state', async () => {

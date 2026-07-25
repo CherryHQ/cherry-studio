@@ -140,5 +140,5 @@ Does this R→M channel go through IpcApi?
 |---|---|
 | `Tab_MoveWindow` (per-frame R→M drag; native `ipcMain.on` + own `validateSender`) | `SubWindowService` (escape hatch) |
 | `shell.openExternal`, `webUtils.getPathForFile` (preload calls Electron directly, not IPC) | `window.electron` |
-| `preference.onChanged`, `dataApi.subscribe` | their own subsystems |
+| `preference.onChanged`, `dataApi.onDataChanged` | their own subsystems |
 | `Cache_Sync` "exclude self" (uses numeric `BrowserWindow.id`) | Cache subsystem |
