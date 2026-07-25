@@ -1,7 +1,11 @@
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { Agent } from 'undici'
 
-import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
+import type {
+  ImageGenerationSubmitInput,
+  ImageGenerationTransport,
+  ImageTransportInputSupport
+} from '../imageGenerationModel'
 
 /**
  * Ollama single-shot image transport. POSTs `${baseURL}/generate` — the same
@@ -47,6 +51,11 @@ class OllamaTransport implements ImageGenerationTransport {
     this.baseURL = settings.baseURL
     this.headers = settings.headers ?? {}
     this.fetch = settings.fetch
+  }
+
+  /** `/api/generate` takes a prompt only — Ollama's image models are text-to-image. */
+  supportsInput(): ImageTransportInputSupport {
+    return { files: false, mask: false }
   }
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {

@@ -87,6 +87,7 @@ the static types all project from it.
 | canonical → AI-SDK-native (`numImages→n`, `aspectRatio` normalize, …) | `AI_SDK_NATIVE_BINDINGS` | `splitParamValues` |
 | canonical → vendor wire name (`negativePrompt→negative_prompt`) | `wireName()` (catalog `wire` or auto snake_case) | WireProfiles + aihubmix DEFAULT |
 | which delivery adapter a request takes | `imageTransportRegistry` (transport ⇒ job path; else SDK) | `AiService.generateImage` |
+| whether a transport reads `files` / `mask` for a model | `ImageGenerationTransport.supportsInput` | the warning at both submit call sites |
 | per-provider SDK delivery (dual-key / passthrough / sibling key) | `WIRE_REGISTRY` (SDK id; the openai-compatible fallback wire-names its passthrough) — **SDK branch only** | the SDK adapter |
 | providerOptions namespace the SDK model reads | `sdkConfig.optionsKey` (`resolveProviderOptionsKey`, attached by `providerToAiSdkConfig`) | SDK delivery + chat options |
 | per-model endpoint routing (endpoint / sync / response family) | registry `vendorTransport` → `modelDescriptor` | the transports |

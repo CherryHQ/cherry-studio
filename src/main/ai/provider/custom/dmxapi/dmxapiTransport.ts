@@ -1,7 +1,11 @@
 import { t } from '@main/i18n'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
 
-import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
+import type {
+  ImageGenerationSubmitInput,
+  ImageGenerationTransport,
+  ImageTransportInputSupport
+} from '../imageGenerationModel'
 import { readErrorMessage } from '../readErrorMessage'
 import { fileToDataUrl } from '../transportUtils'
 
@@ -85,6 +89,13 @@ class DmxapiTransport implements ImageGenerationTransport {
   constructor(settings: DmxapiTransportSettings) {
     this.apiKey = settings.apiKey
     this.baseURL = settings.baseURL || DEFAULT_DMXAPI_BASE_URL
+  }
+
+  /** Only the `responses-messages` family (Wan) puts images in its message content;
+   *  Seedream's `responses-string` body is a bare prompt string, and both flat
+   *  families are prompt-only. Mirrors the `resolveDmxapiFamily` dispatch below. */
+  supportsInput(input: ImageGenerationSubmitInput): ImageTransportInputSupport {
+    return { files: resolveDmxapiFamily(input.modelId) === 'responses-messages', mask: false }
   }
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {

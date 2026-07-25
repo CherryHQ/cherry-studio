@@ -1,7 +1,11 @@
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 
-import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
+import type {
+  ImageGenerationSubmitInput,
+  ImageGenerationTransport,
+  ImageTransportInputSupport
+} from '../imageGenerationModel'
 import { createAbortError, isTerminalHttpStatus, uint8ToBase64, waitWithSignal } from '../transportUtils'
 
 /**
@@ -64,6 +68,11 @@ class ModelscopeTransport implements ImageGenerationTransport {
   constructor(settings: ModelscopeTransportSettings) {
     this.apiKey = settings.apiKey
     this.baseURL = settings.baseURL || DEFAULT_MODELSCOPE_BASE_URL
+  }
+
+  /** One unconditional body for every model, and it always carries `image_url`. */
+  supportsInput(): ImageTransportInputSupport {
+    return { files: true, mask: false }
   }
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {

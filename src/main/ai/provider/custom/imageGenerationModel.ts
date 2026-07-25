@@ -1,7 +1,10 @@
 import type { ImageModelV3, ImageModelV3CallOptions } from '@ai-sdk/provider'
+import { loggerService } from '@logger'
 import type { ImageGenerationMode } from '@shared/data/types/model'
 
 import { createAbortError } from './transportUtils'
+
+const logger = loggerService.withContext('imageTransport')
 
 /**
  * Per-model transport routing — which endpoint to POST, whether to poll, and
@@ -16,8 +19,32 @@ export interface ImageTransportDescriptor {
   mode?: ImageGenerationMode
 }
 
+/**
+ * Which non-prompt inputs a transport actually puts on the wire for one request.
+ *
+ * Unlike the SDK path — where the model reports what it refused via `warnings` — a
+ * transport hand-writes its own envelope, so only it knows whether a given model's
+ * body has a slot for a reference image or a mask. Undeclared, an ignored input is
+ * invisible: the request succeeds and returns an image that simply isn't an edit of
+ * what the user attached. Per-request rather than per-transport because support is
+ * per model — and for PPIO's Seedream family, per `modelDescriptor.mode` too.
+ */
+export interface ImageTransportInputSupport {
+  /** Reads `input.files` — reference images / image-to-image. */
+  readonly files: boolean
+  /** Reads `input.mask` — inpainting. */
+  readonly mask: boolean
+}
+
 export interface ImageGenerationTransport {
   submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }>
+  /**
+   * Declares what {@link submit} will read off this input. Callers warn when the
+   * request carries an input the transport drops. Must stay in lockstep with the body
+   * builders — `transportInputSupport.test.ts` drives a file/mask-bearing request
+   * through `submit()` for every declared model and fails if the two disagree.
+   */
+  supportsInput?(input: ImageGenerationSubmitInput): ImageTransportInputSupport
   /**
    * `modelDescriptor` is carried so a restart-resumed poll on a fresh transport
    * instance can rebuild per-task state (e.g. DashScope's response family).
@@ -77,6 +104,42 @@ export interface CreateImageGenerationModelOptions {
  * (typed loosely / cast — the function survives by reference through the
  * plugin chain). Abort is propagated via `options.abortSignal`.
  */
+/**
+ * The inputs this request carries that the transport has declared it will not read.
+ * Empty when the transport declares nothing (unknown ≠ unsupported) or carries none.
+ */
+export function unsupportedTransportInputs(
+  transport: ImageGenerationTransport,
+  input: ImageGenerationSubmitInput
+): string[] {
+  const support = transport.supportsInput?.(input)
+  if (!support) return []
+  const ignored: string[] = []
+  if (input.files && input.files.length > 0 && !support.files) ignored.push('files')
+  if (input.mask && !support.mask) ignored.push('mask')
+  return ignored
+}
+
+/**
+ * Log the inputs a transport will drop. A dropped reference image is the worst silent
+ * failure in the image path: the request succeeds and returns a plausible picture that
+ * simply ignored what the user attached, so image-to-image degrades to text-to-image
+ * with no error anywhere.
+ */
+export function warnUnsupportedTransportInputs(
+  transport: ImageGenerationTransport,
+  input: ImageGenerationSubmitInput,
+  context: Record<string, unknown>
+): void {
+  const ignored = unsupportedTransportInputs(transport, input)
+  if (ignored.length === 0) return
+  logger.warn('Transport ignores request inputs it has no wire slot for', {
+    ...context,
+    modelId: input.modelId,
+    ignored
+  })
+}
+
 export function createImageGenerationModel(
   modelId: string,
   { provider, transport }: CreateImageGenerationModelOptions
@@ -100,7 +163,7 @@ export function createImageGenerationModel(
           ? (providerParams.onProgress as (progress: number) => void)
           : undefined
 
-      const submitResult = await transport.submit({
+      const submitInput: ImageGenerationSubmitInput = {
         modelId,
         prompt: options.prompt,
         n: options.n,
@@ -111,7 +174,11 @@ export function createImageGenerationModel(
         mask: options.mask,
         providerParams,
         signal: abortSignal
-      })
+      }
+
+      warnUnsupportedTransportInputs(transport, submitInput, { provider })
+
+      const submitResult = await transport.submit(submitInput)
 
       let urls: string[]
       if (submitResult.imageUrls) {

@@ -3,7 +3,8 @@ import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import type {
   ImageGenerationSubmitInput,
   ImageGenerationTransport,
-  ImageTransportDescriptor
+  ImageTransportDescriptor,
+  ImageTransportInputSupport
 } from '../imageGenerationModel'
 import { createAbortError, fileToDataUrl, isTerminalHttpStatus, waitWithSignal } from '../transportUtils'
 
@@ -333,6 +334,25 @@ function buildWanxImageEditBody(
   }
 }
 
+/** Models whose body has a reference-image slot — mirrors the `buildRequestBody`
+ *  switch; the text-to-image family (`qwen-image`, `wanx*-t2i-*`) has none, so an
+ *  attached image is dropped there. `transportInputSupport.test.ts` pins both. */
+const DASHSCOPE_FILE_MODELS = new Set([
+  'z-image-turbo',
+  'qwen-image-edit',
+  'qwen-image-edit-plus',
+  'wan2.6-image',
+  'wan2.7-image',
+  'wan2.7-image-pro',
+  'wanx-v1',
+  'wan2.5-i2i-preview',
+  'qwen-mt-image',
+  'wanx2.1-imageedit'
+])
+
+/** The only model with a `mask_image_url` slot — anywhere in the image path. */
+const DASHSCOPE_MASK_MODELS = new Set(['wanx2.1-imageedit'])
+
 function buildRequestBody(
   input: ImageGenerationSubmitInput,
   descriptor: DashScopeModelDescriptor
@@ -373,6 +393,11 @@ class DashScopeTransport implements ImageGenerationTransport {
   constructor(settings: DashScopeTransportSettings) {
     this.apiKey = settings.apiKey
     this.baseURL = settings.imageBaseURL || DEFAULT_DASHSCOPE_IMAGE_BASE_URL
+  }
+
+  supportsInput(input: ImageGenerationSubmitInput): ImageTransportInputSupport {
+    const modelId = input.modelDescriptor?.id ?? input.modelId
+    return { files: DASHSCOPE_FILE_MODELS.has(modelId), mask: DASHSCOPE_MASK_MODELS.has(modelId) }
   }
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {

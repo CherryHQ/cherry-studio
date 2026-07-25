@@ -1,4 +1,8 @@
-import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
+import type {
+  ImageGenerationSubmitInput,
+  ImageGenerationTransport,
+  ImageTransportInputSupport
+} from '../imageGenerationModel'
 
 /**
  * OVMS (OpenVINO Model Server) single-shot transport.
@@ -32,6 +36,11 @@ class OvmsTransport implements ImageGenerationTransport {
 
   constructor(settings: OvmsTransportSettings) {
     this.baseURL = settings.baseURL || DEFAULT_OVMS_BASE_URL
+  }
+
+  /** Text-to-image only: the body is model/prompt/size/steps/seed, no image slot. */
+  supportsInput(): ImageTransportInputSupport {
+    return { files: false, mask: false }
   }
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {

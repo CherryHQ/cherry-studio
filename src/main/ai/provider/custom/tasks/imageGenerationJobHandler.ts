@@ -9,10 +9,11 @@ import type { FileEntry } from '@shared/data/types/file'
 import { parseUniqueModelId } from '@shared/data/types/model'
 
 import { providerToAiSdkConfig } from '../../config'
-import type {
-  ImageGenerationSubmitInput,
-  ImageGenerationTransport,
-  ImageTransportDescriptor
+import {
+  type ImageGenerationSubmitInput,
+  type ImageGenerationTransport,
+  type ImageTransportDescriptor,
+  warnUnsupportedTransportInputs
 } from '../imageGenerationModel'
 import { resolveImageTransport } from '../imageTransportRegistry'
 import { createAbortError } from '../transportUtils'
@@ -71,7 +72,9 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
         logger.debug('Resuming image-generation job from persisted task', { jobId: ctx.jobId, taskId: persistedTaskId })
         urls = await pollUntilDone(transport, persistedTaskId, ctx)
       } else {
-        const submit = await transport.submit(await buildSubmitInput(input, sdkConfig.modelId, ctx.signal))
+        const submitInput = await buildSubmitInput(input, sdkConfig.modelId, ctx.signal)
+        warnUnsupportedTransportInputs(transport, submitInput, { jobId: ctx.jobId, uniqueModelId: input.uniqueModelId })
+        const submit = await transport.submit(submitInput)
         if (submit.imageUrls) {
           urls = submit.imageUrls
         } else if (submit.taskId) {

@@ -1,6 +1,10 @@
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 
-import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
+import type {
+  ImageGenerationSubmitInput,
+  ImageGenerationTransport,
+  ImageTransportInputSupport
+} from '../imageGenerationModel'
 import { createAbortError, fileToDataUrl, isTerminalHttpStatus, waitWithSignal } from '../transportUtils'
 
 /**
@@ -14,6 +18,12 @@ import { createAbortError, fileToDataUrl, isTerminalHttpStatus, waitWithSignal }
  */
 
 export const DEFAULT_PPIO_BASE_URL = 'https://api.ppio.com'
+
+/** Models whose body has an `image` slot — mirrors the `buildRequestParams` switch.
+ *  `transportInputSupport.test.ts` drives both and fails if they disagree. */
+const QWEN_EDIT_MODELS = new Set(['qwen-image-edit', 'qwen-image-edit-2509'])
+/** Seedream reads a reference image only on the `edit` branch of its mode ternary. */
+const SEEDREAM_MODELS = new Set(['seedream-5.0-lite', 'seedream-4.5', 'seedream-4.0'])
 
 export class PpioApiError extends Error {
   constructor(
@@ -208,6 +218,18 @@ class PpioTransport implements ImageGenerationTransport {
       signal: input.signal
     })
     return { taskId: result.task_id }
+  }
+
+  /**
+   * Mirrors the `buildRequestParams` switch below: only the Qwen edit models and the
+   * Seedream family *in edit mode* have an `image` slot. Everything else drops an
+   * attached reference image, and PPIO has no mask slot at all.
+   */
+  supportsInput(input: ImageGenerationSubmitInput): ImageTransportInputSupport {
+    const modelId = input.modelDescriptor?.id ?? input.modelId
+    const files =
+      QWEN_EDIT_MODELS.has(modelId) || (SEEDREAM_MODELS.has(modelId) && input.modelDescriptor?.mode === 'edit')
+    return { files, mask: false }
   }
 
   private buildRequestParams(

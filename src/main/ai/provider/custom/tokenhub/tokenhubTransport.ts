@@ -1,6 +1,10 @@
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 
-import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
+import type {
+  ImageGenerationSubmitInput,
+  ImageGenerationTransport,
+  ImageTransportInputSupport
+} from '../imageGenerationModel'
 import { createAbortError, isTerminalHttpStatus, waitWithSignal } from '../transportUtils'
 
 /**
@@ -142,6 +146,11 @@ class TokenhubTransport implements ImageGenerationTransport {
       clearTimeout(timeoutId)
       externalSignal?.removeEventListener('abort', onExternalAbort)
     }
+  }
+
+  /** Hunyuan's text-to-image body has no image or mask slot for any model. */
+  supportsInput(): ImageTransportInputSupport {
+    return { files: false, mask: false }
   }
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
