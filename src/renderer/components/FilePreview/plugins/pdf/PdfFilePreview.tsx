@@ -67,7 +67,7 @@ function resolveThemeBackground(element: HTMLElement | null): string | null {
   const candidates = [element, window.root, document.documentElement].filter(Boolean) as HTMLElement[]
 
   for (const candidate of candidates) {
-    const value = getComputedStyle(candidate).getPropertyValue('--color-background').trim()
+    const value = getComputedStyle(candidate).getPropertyValue('--background').trim()
     if (value) return value
   }
 

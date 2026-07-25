@@ -1,5 +1,6 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { ChatTransport, ToolChoice, ToolSet, UIMessage } from 'ai'
 
 /**
@@ -44,6 +45,8 @@ export interface AiBaseRequest {
   mcpToolIds?: string[]
   /** Selected API key override, currently used by provider health checks. */
   apiKeyOverride?: string
+  /** Canonical per-turn reasoning selection captured when the message was submitted. */
+  reasoningEffort?: ReasoningEffortOption
   /**
    * Knowledge bases selected for this turn. Scope is resolved by `resolveKnowledgeBaseIds`: the
    * assistant's own bound bases take precedence when non-empty (these ids are then ignored); only

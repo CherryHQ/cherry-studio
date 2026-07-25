@@ -42,11 +42,116 @@ export const ThinkingTokenLimitsSchema = z
 /** Reasoning effort levels shared across providers */
 export const ReasoningEffortSchema = z.enum(objectValues(REASONING_EFFORT))
 
+/**
+ * Per-model reasoning control declaration — the SOURCE from which the legacy
+ * pair (`supportedEfforts` / `thinkingTokenLimits`) is DERIVED at generation
+ * time (`deriveLegacyReasoningFields`). Kinds align 1:1 with models.dev
+ * `reasoning_options` so upstream ingestion is lossless.
+ */
+export const ReasoningControlSchema = z.discriminatedUnion('kind', [
+  z.object({
+    /** Discrete effort knob. `values` is the model's intrinsic vocabulary, in
+     *  UI display order. The active endpoint profile may map those values to a
+     *  narrower wire vocabulary (`'none'` present ⇔ reasoning can be disabled). */
+    kind: z.literal('effort'),
+    values: z.array(ReasoningEffortSchema).min(1),
+    default: ReasoningEffortSchema.optional()
+  }),
+  z.object({
+    /** Numeric thinking-token budget knob. */
+    kind: z.literal('budget'),
+    min: z.number().nonnegative(),
+    max: z.number().positive(),
+    default: z.number().nonnegative().optional()
+  }),
+  z.object({
+    /** On/off only — no effort levels, no budget. */
+    kind: z.literal('toggle'),
+    default: z.boolean().optional()
+  })
+])
+export type ReasoningControl = z.infer<typeof ReasoningControlSchema>
+
+/**
+ * A creator-declared reasoning FAMILY rule — ID-pattern knowledge as DATA
+ * (#16598). Creators declare these next to their models (`Creator.
+ * reasoningFamilies`); generation compiles them into per-model `controls`
+ * and the shipped `patterns/reasoning-families.gen.ts` artifact consumed by
+ * the zero-knowledge matchers.
+ *
+ * Every rule is one of two semantic kinds:
+ *  - PROFILE (default): "this pattern IS a reasoning SKU (with knobs K)".
+ *    Membership is implied — the ingest gate (`inferReasoningMembership`)
+ *    accepts any id a profile rule matches. A profile may carry no knobs at
+ *    all (a fixed reasoner: reasons, nothing to tune).
+ *  - TEMPLATE (`template: true`): "models of this family that DO reason use
+ *    knob shape K". Deliberately broader than membership (e.g. the `^qwen`
+ *    toggle) — contributes knobs only, never membership; SKUs are admitted
+ *    by profile rules, the generic id shapes, or a declared capability.
+ *
+ * A rule carries MODEL KNOBS ONLY — never a reasoning format/wire field:
+ * open-weight models are served by many providers and the serialization
+ * dialect follows the serving endpoint, not a runtime model-id match.
+ *
+ * Matching: `pattern` is a case-insensitive regex SOURCE tested against the
+ * lowercased, namespace-stripped id (vocabulary part) and the raw id string
+ * (budget part — token-limit callers pass `provider::model` unique ids, so
+ * budget-only rules should stay unanchored). Patterns must be
+ * vendor-specific (same discipline as `idPrefixes`). Within a creator,
+ * declaration order is match priority — first rule wins per part.
+ */
+const compilableRegexSource = z.string().refine(
+  (source) => {
+    try {
+      new RegExp(source, 'i')
+      return true
+    } catch {
+      return false
+    }
+  },
+  { message: 'pattern must be a valid regular expression' }
+)
+
+export const ReasoningFamilyRuleSchema = z
+  .object({
+    /** Case-insensitive regex source. Must compile. */
+    pattern: compilableRegexSource,
+    /** Intrinsic effort vocabulary, in UI display order. */
+    effort: z.array(ReasoningEffortSchema).min(1).optional(),
+    /**
+     * Thinking on/off switch. `false` is an EXPLICIT "always-on, no switch"
+     * declaration that stops broader family rules below from applying
+     * (e.g. qwen3 `*-thinking` SKUs vs the generic qwen toggle).
+     */
+    toggle: z.boolean().optional(),
+    /** Thinking-token budget range. */
+    budget: z
+      .object({
+        min: z.number().nonnegative(),
+        max: z.number().positive()
+      })
+      .refine((b) => b.min <= b.max, { message: 'budget min must be <= max' })
+      .optional(),
+    /** Knob-shape template for a broad family — contributes NO membership. */
+    template: z.literal(true).optional()
+  })
+  .refine(
+    (rule) =>
+      rule.template !== true || rule.effort !== undefined || rule.toggle !== undefined || rule.budget !== undefined,
+    { message: 'a template rule with no knobs declares nothing — drop it or make it a profile' }
+  )
+export type ReasoningFamilyRule = z.infer<typeof ReasoningFamilyRuleSchema>
+
 // Common reasoning fields shared across all reasoning type variants
 // Exported for shared/runtime types to reuse
 export const CommonReasoningFieldsSchema = {
+  /** Source of truth for the model's reasoning knobs (at most one per kind).
+   *  The legacy fields below are DERIVED from it when present. */
+  controls: z.array(ReasoningControlSchema).optional(),
   thinkingTokenLimits: ThinkingTokenLimitsSchema.optional(),
-  supportedEfforts: z.array(ReasoningEffortSchema).optional()
+  supportedEfforts: z.array(ReasoningEffortSchema).optional(),
+  /** What the API does when no reasoning param is sent. */
+  defaultEffort: ReasoningEffortSchema.optional()
 }
 
 /**
@@ -56,9 +161,24 @@ export const CommonReasoningFieldsSchema = {
  * HOW to invoke reasoning is defined by the provider's reasoning format
  * (see provider.ts ProviderReasoningFormatSchema).
  */
-export const ReasoningSupportSchema = z.object({
-  ...CommonReasoningFieldsSchema
-})
+export const ReasoningSupportSchema = z
+  .object({
+    ...CommonReasoningFieldsSchema
+  })
+  .superRefine((r, ctx) => {
+    const kinds = (r.controls ?? []).map((c) => c.kind)
+    if (new Set(kinds).size !== kinds.length) {
+      ctx.addIssue({ code: 'custom', message: 'at most one reasoning control per kind' })
+    }
+    for (const c of r.controls ?? []) {
+      if (c.kind === 'effort' && c.default != null && !c.values.includes(c.default)) {
+        ctx.addIssue({ code: 'custom', message: 'effort default must be a member of values' })
+      }
+      if (c.kind === 'budget' && (c.min > c.max || (c.default != null && (c.default < c.min || c.default > c.max)))) {
+        ctx.addIssue({ code: 'custom', message: 'budget range must satisfy min <= default <= max' })
+      }
+    }
+  })
 
 /**
  * Image-generation support describes what controls a model accepts, in a

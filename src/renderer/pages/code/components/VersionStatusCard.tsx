@@ -1,4 +1,5 @@
 import { Button } from '@cherrystudio/ui'
+import { BinaryInstallFailureRow, BinaryInstallingHint } from '@renderer/components/BinaryInstallErrorDialog'
 import { ArrowUpCircle, Download, ExternalLink, Play, Square, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,6 +23,9 @@ interface VersionStatusCardProps {
   launching?: boolean
   running?: boolean
   stopping?: boolean
+  /** Failure message of the last install/upgrade attempt; renders a persistent failure row. */
+  installError?: string
+  onShowError?: () => void
 }
 
 export const VersionStatusCard: FC<VersionStatusCardProps> = ({
@@ -39,11 +43,32 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
   canLaunch,
   launching,
   running,
-  stopping
+  stopping,
+  installError,
+  onShowError
 }) => {
   const { t } = useTranslation()
   const isInstalled = status.installed
   const canUpgrade = isInstalled && status.canUpgrade
+  const removing = status.operation?.status === 'removing'
+  const failedInstall = status.operation?.status === 'failed' && status.operation.action === 'install'
+  const failedRemoval = status.operation?.status === 'failed' && status.operation.action === 'remove'
+  const retryInstall =
+    !failedRemoval &&
+    !!onInstall &&
+    (failedInstall || status.applicationStatus === 'broken' || status.applicationStatus === 'unknown')
+  const canRemove = !!onRemove && (status.applicationStatus === 'applied' || status.applicationStatus === 'broken')
+  const installing = isInstalling || isUpgrading
+  const busy = installing || removing
+  // "Up to date" must describe a genuinely current tool. A runnable-but-not-applied
+  // mise state (broken/conflict/unknown) still reports installed with no upgrade, so
+  // gate the badge on a clean application fact to avoid pairing it with Retry. A
+  // bundled/system source carries no application fact and stays eligible.
+  const cleanlyInstalled =
+    isInstalled &&
+    status.applicationStatus !== 'broken' &&
+    status.applicationStatus !== 'conflict' &&
+    status.applicationStatus !== 'unknown'
 
   return (
     <div className="rounded-lg border border-border/40 bg-background px-4 py-5">
@@ -53,10 +78,19 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="truncate font-medium text-foreground text-sm">{toolName}</span>
-            {isInstalled && !canUpgrade && (
-              <span className="shrink-0 rounded bg-success/15 px-1.5 py-0.5 text-[10px] text-success">
-                {t('code.up_to_date')}
+            {status.source === 'system' ? (
+              <span
+                className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                title={status.systemPath}>
+                {t('settings.dependencies.source.system')}
               </span>
+            ) : (
+              cleanlyInstalled &&
+              !canUpgrade && (
+                <span className="shrink-0 rounded bg-success/15 px-1.5 py-0.5 text-[10px] text-success">
+                  {t('code.up_to_date')}
+                </span>
+              )
             )}
           </div>
 
@@ -85,7 +119,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
               variant="ghost"
               size="sm"
               onClick={onUpgrade}
-              disabled={isUpgrading}
+              disabled={busy}
               className="shrink-0 gap-1 text-warning hover:bg-warning/10 hover:text-warning">
               {isUpgrading ? (
                 <>
@@ -101,16 +135,33 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
             </Button>
           )}
 
-          {isInstalled && onRemove && (
+          {canRemove && (
             <Button
               variant="ghost"
               size="icon-sm"
               className="text-muted-foreground/30 hover:text-destructive"
               onClick={onRemove}
-              disabled={isInstalling || isUpgrading}
-              aria-label={t('settings.dependencies.remove')}
-              title={t('settings.dependencies.remove')}>
-              <Trash2 className="size-3.5" />
+              disabled={busy}
+              aria-label={t('settings.dependencies.uninstall')}
+              title={t('settings.dependencies.uninstall')}>
+              {removing ? (
+                <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
+              ) : (
+                <Trash2 className="size-3.5" />
+              )}
+            </Button>
+          )}
+
+          {retryInstall && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onInstall}
+              disabled={busy}
+              className="shrink-0 text-muted-foreground hover:border-border hover:text-foreground">
+              <Download size={12} />
+              {t('common.retry')}
             </Button>
           )}
 
@@ -120,7 +171,7 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
               variant="outline"
               size="sm"
               onClick={running ? onStop : onLaunch}
-              disabled={running ? stopping : !canLaunch || launching}
+              disabled={busy || (running ? stopping : !canLaunch || launching)}
               className={running ? 'shrink-0 text-destructive hover:text-destructive' : 'shrink-0 text-foreground'}>
               {running && stopping ? (
                 <>
@@ -145,25 +196,28 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
               )}
             </Button>
           ) : (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onInstall}
-              disabled={isInstalling}
-              className="shrink-0 text-muted-foreground hover:border-border hover:text-foreground">
-              {isInstalling ? (
-                <>
-                  <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
-                  {t('code.installing')}
-                </>
-              ) : (
-                <>
-                  <Download size={12} />
-                  {t('code.install')}
-                </>
-              )}
-            </Button>
+            !failedRemoval &&
+            !retryInstall && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onInstall}
+                disabled={busy}
+                className="shrink-0 text-muted-foreground hover:border-border hover:text-foreground">
+                {installing ? (
+                  <>
+                    <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
+                    {t('code.installing')}
+                  </>
+                ) : (
+                  <>
+                    <Download size={12} />
+                    {installError ? t('common.retry') : t('code.install')}
+                  </>
+                )}
+              </Button>
+            )
           )}
 
           {isInstalled && running && onOpenDashboard && (
@@ -179,6 +233,11 @@ export const VersionStatusCard: FC<VersionStatusCardProps> = ({
           )}
         </div>
       </div>
+
+      {installing && <BinaryInstallingHint />}
+      {installError && !busy && onShowError && (
+        <BinaryInstallFailureRow error={installError} onShowError={onShowError} />
+      )}
     </div>
   )
 }

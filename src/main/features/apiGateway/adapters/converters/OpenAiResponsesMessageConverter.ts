@@ -8,6 +8,7 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type OpenAI from '@cherrystudio/openai'
 import type { CherryUIMessage } from '@shared/data/types/message'
+import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import type { DynamicToolUIPart, FileUIPart, TextUIPart, ToolSet } from 'ai'
@@ -277,8 +278,13 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
   /**
    * Extract provider-specific options from Responses API params
    */
-  extractProviderOptions(provider: Provider, params: ResponsesCreateParams): ProviderOptions | undefined {
-    return mapReasoningEffortToProviderOptions(provider, params.reasoning_effort)
+  extractProviderOptions(
+    provider: Provider,
+    model: Model,
+    params: ResponsesCreateParams,
+    maxOutputTokens?: number
+  ): ProviderOptions | undefined {
+    return mapReasoningEffortToProviderOptions(provider, model, params.reasoning_effort, maxOutputTokens)
   }
 }
 

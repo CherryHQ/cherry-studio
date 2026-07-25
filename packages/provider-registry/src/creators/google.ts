@@ -6,6 +6,37 @@ export default defineCreator({
   name: 'Google',
   fetchModels: googleModels(),
   modelsDevProviders: ['google', 'google-vertex'],
+  reasoningFamilies: [
+    { pattern: '^gemma-?4', effort: ['minimal', 'high'] },
+    {
+      pattern: '^gemini-3(?:\\.\\d+)?-flash|^gemini-3\\.1-flash-lite|^gemini-flash-latest',
+      effort: ['minimal', 'low', 'medium', 'high']
+    },
+    { pattern: '^gemini-3-pro', effort: ['low', 'high'] },
+    { pattern: '^gemini-3\\.\\d+-pro|^gemini-pro-latest', effort: ['low', 'medium', 'high'] },
+    // Gemini 2.x budget models: flash can be turned off (budget 0); pro
+    // cannot (budget-only via the tiers below — no vocabulary rule).
+    { pattern: '^gemini-[\\d.]+.*flash', toggle: true, template: true },
+    { pattern: 'gemini-2[.-]5-flash-lite.*$', budget: { min: 512, max: 24576 }, template: true },
+    // -latest aliases (point at the current Gemini 3 flagships).
+    { pattern: 'gemini-flash-lite-latest$', budget: { min: 512, max: 24576 }, template: true },
+    { pattern: 'gemini-flash-latest$', budget: { min: 0, max: 24576 }, template: true },
+    { pattern: 'gemini-pro-latest$', budget: { min: 128, max: 32768 }, template: true },
+    { pattern: 'gemini-.*-flash.*$', budget: { min: 0, max: 24576 }, template: true },
+    { pattern: 'gemini-.*-pro.*$', budget: { min: 128, max: 32768 }, template: true },
+    { pattern: 'gemma-?4[:-]?e[24]b', budget: { min: 1024, max: 8192 }, template: true },
+    { pattern: 'gemma-?4[:-]?26b', budget: { min: 1024, max: 30720 }, template: true },
+    { pattern: 'gemma-?4[:-]?31b', budget: { min: 1024, max: 30720 }, template: true },
+    // Membership profiles (no knobs): reasoning SKUs beyond the knob rules above.
+    { pattern: '^gemini.*thinking' },
+    { pattern: 'gemini-3(?:[.-]\\d+)?-pro-image' },
+    {
+      pattern:
+        '^(?!.*tts).*gemini-(?:2[.-]5.*(?:-latest)?|3(?:[.-]\\d+)?-(?:flash|pro)(?:-preview)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\\w-]+)*$'
+    },
+    { pattern: '^gemini-omni-flash' },
+    { pattern: 'gemma-?4' }
+  ],
   families: ['gemini', 'gemma'],
   // `text-embedding-004/005` + `text-multilingual-embedding-*` are Google's Vertex embeddings — claim them
   // here so they aren't mis-attributed to OpenAI (bare `text-embedding`) or left to a gateway listing.

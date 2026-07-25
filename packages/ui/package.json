@@ -12,6 +12,7 @@
     "clean": "rm -rf dist",
     "test": "vitest run",
     "test:watch": "vitest",
+    "theme:check": "tsx scripts/check-theme-contract.ts",
     "lint": "eslint src --ext .ts,.tsx --fix",
     "type:check": "tsc --noEmit -p tsconfig.json --composite false",
     "theme:build": "tsx scripts/build-theme-css.ts",

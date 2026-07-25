@@ -193,6 +193,7 @@ vi.mock('../components/AgentRightPane', () => {
       Viewport: () => <div data-testid="agent-right-pane-viewport" />,
       Shortcuts: () => <button type="button">Shortcuts</button>
     },
+    useAgentFileNavigation: () => (transition: () => void) => transition(),
     useAgentRightPaneActions: () => ({
       canOpenAgentToolFlow: true,
       canOpenArtifactFile: true,

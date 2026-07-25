@@ -20,8 +20,7 @@ import type {
   ApiKeyEntry,
   AuthConfig,
   EndpointConfig,
-  ProviderSettings,
-  ReasoningFormatType
+  ProviderSettings
 } from '@shared/data/types/provider'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -79,16 +78,6 @@ const ENDPOINT_MAP: Partial<Record<string, EndpointType>> = {
 }
 
 const PROVIDER_TYPES_WITHOUT_DEFAULT_ENDPOINT = new Set(['aws-bedrock'])
-
-const REASONING_FORMAT_MAP: Partial<Record<LegacyProvider['type'], ReasoningFormatType>> = {
-  openai: 'openai-chat',
-  'openai-response': 'openai-responses',
-  anthropic: 'anthropic',
-  gemini: 'gemini',
-  'new-api': 'openai-chat',
-  gateway: 'openai-chat',
-  ollama: 'openai-chat'
-}
 
 /**
  * Legacy `provider.type` → AI SDK adapter family, for custom-id v1 providers
@@ -228,11 +217,6 @@ function buildEndpointConfigs(
   if (legacy.anthropicApiHost) {
     const ep = ENDPOINT_TYPE.ANTHROPIC_MESSAGES
     configs[ep] = { ...configs[ep], baseUrl: legacy.anthropicApiHost }
-  }
-
-  const reasoningFormatType = REASONING_FORMAT_MAP[legacy.type]
-  if (endpointType !== undefined && reasoningFormatType) {
-    configs[endpointType] = { ...configs[endpointType], reasoningFormatType }
   }
 
   // Backfill `adapterFamily` so the runtime resolver (endpoint.ts) can route

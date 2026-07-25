@@ -1,4 +1,4 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
@@ -43,7 +43,7 @@ import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@rendere
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
-import { canModelUseAssistantWebSearch } from '@renderer/utils/model'
+import { canModelUseAssistantWebSearch, resolveReasoningEffortForModel } from '@renderer/utils/model'
 import { getLeadingEmoji } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
@@ -51,6 +51,7 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { isNonChatModel } from '@shared/utils/model'
 import { Bot, Cable, ChevronDown } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
@@ -78,7 +79,6 @@ import {
   COMPOSER_ICON_ONLY_LABEL_CLASS,
   COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
   COMPOSER_SELECTOR_BUTTON_CLASS,
-  COMPOSER_SEND_ACCESSORY_BUTTON_CLASS,
   COMPOSER_TOOLBAR_CLASS,
   ComposerBelowControls,
   ComposerToolbarControls,
@@ -95,6 +95,7 @@ import { useLatest } from './shared/useLatest'
 const logger = loggerService.withContext('ChatComposer')
 const CHAT_MANAGED_TOKEN_KINDS = ['file', 'knowledge'] as const satisfies readonly ComposerDraftToken['kind'][]
 const CHAT_MODEL_FILTER = (model: Model) => !isNonChatModel(model)
+const CHAT_NEW_CONVERSATION_TOOL_ID = 'composer:new-conversation'
 const CHAT_TOOLBAR_CUSTOM_TOOLS: readonly ComposerToolbarCustomTool[] = [
   {
     id: ComposerPanelSymbol.McpStatus,
@@ -116,6 +117,7 @@ interface ChatComposerProps {
       mentionedModels?: UniqueModelId[]
       knowledgeBaseIds?: KnowledgeBase['id'][]
       userMessageParts?: CherryMessagePart[]
+      reasoningEffort?: ReasoningEffortOption
     }
   ) => void | Promise<void>
   sendDisabled?: boolean
@@ -534,7 +536,8 @@ const ChatComposerInner = ({
     model,
     isModelPending,
     isModelMissing,
-    setModel
+    setModel,
+    updateAssistantSettings
   } = useAssistant(assistantId)
   const { updateTopic } = useTopicMutations()
   const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases()
@@ -637,6 +640,46 @@ const ChatComposerInner = ({
   const runtimeModel = assistant || !assistantId ? model : undefined
   const runtimeModelPending = isAssistantLoading || isModelPending
   const selectedAssistantId = assistant?.id ?? null
+  const canonicalReasoningEffort = (assistant?.settings.reasoning_effort ?? 'default') as ReasoningEffortOption
+  const [reasoningOverride, setReasoningOverride] = useState<{
+    assistantId: string
+    value: ReasoningEffortOption
+    version: number
+  } | null>(null)
+  const reasoningMutationVersionRef = useRef(0)
+  const reasoningEffort =
+    reasoningOverride?.assistantId === selectedAssistantId ? reasoningOverride.value : canonicalReasoningEffort
+
+  // A local override only bridges the latest PATCH/revalidation window. Do
+  // not retire it on an intermediate refresh from an older mutation.
+  useEffect(() => {
+    setReasoningOverride((current) => {
+      if (!current) return current
+      if (current.assistantId !== selectedAssistantId) return null
+      return current
+    })
+  }, [selectedAssistantId])
+
+  const handleReasoningEffortChange = useCallback(
+    (option: ReasoningEffortOption) => {
+      if (!selectedAssistantId) return
+      const version = ++reasoningMutationVersionRef.current
+      setReasoningOverride({
+        assistantId: selectedAssistantId,
+        value: option,
+        version
+      })
+      void updateAssistantSettings({ reasoning_effort: option })
+        .then(() => {
+          setReasoningOverride((current) => (current?.version === version ? null : current))
+        })
+        .catch((error) => {
+          setReasoningOverride((current) => (current?.version === version ? null : current))
+          logger.warn('Failed to persist reasoning effort', { error })
+        })
+    },
+    [selectedAssistantId, updateAssistantSettings]
+  )
 
   const handleModelSelect = useCallback(
     (nextModel: Model | undefined) => {
@@ -644,9 +687,36 @@ const ChatComposerInner = ({
       if (!assistant) return
 
       const enabledWebSearch = canModelUseAssistantWebSearch(nextModel)
-      return setModel(nextModel, { enableWebSearch: enabledWebSearch && assistant.settings.enableWebSearch })
+      const nextReasoningEffort = resolveReasoningEffortForModel(nextModel, reasoningEffort)
+      const version = ++reasoningMutationVersionRef.current
+      setReasoningOverride({
+        assistantId: assistant.id,
+        value: nextReasoningEffort ?? 'default',
+        version
+      })
+      const extraSettings: {
+        enableWebSearch: boolean
+        reasoning_effort?: ReasoningEffortOption
+      } = { enableWebSearch: enabledWebSearch && assistant.settings.enableWebSearch }
+      if (reasoningOverride?.assistantId === assistant.id) {
+        extraSettings.reasoning_effort = nextReasoningEffort
+      }
+      const update = setModel(nextModel, extraSettings)
+      return update
+        ?.then(() => {
+          setReasoningOverride((current) => (current?.version === version ? null : current))
+        })
+        .catch((error) => {
+          setReasoningOverride((current) => (current?.version === version ? null : current))
+          throw error
+        })
     },
-    [assistant, setModel]
+    [assistant, reasoningEffort, reasoningOverride, setModel]
+  )
+
+  const reasoningContext = useMemo(
+    () => ({ effort: reasoningEffort, onEffortChange: handleReasoningEffortChange }),
+    [handleReasoningEffortChange, reasoningEffort]
   )
 
   const {
@@ -911,7 +981,7 @@ const ChatComposerInner = ({
 
     return [
       {
-        id: 'composer:new-conversation',
+        id: CHAT_NEW_CONVERSATION_TOOL_ID,
         label,
         icon: <NewConversationIcon size={16} />,
         disabled: newTopicDisabled,
@@ -923,6 +993,25 @@ const ChatComposerInner = ({
       }
     ]
   }, [addNewTopic, hasNewTopicAction, newTopicDisabled, t])
+  const toolbarCustomTools = useMemo<ComposerToolbarCustomTool[]>(
+    () => [
+      ...(hasNewTopicAction
+        ? [
+            {
+              id: CHAT_NEW_CONVERSATION_TOOL_ID,
+              label: t('chat.conversation.new'),
+              icon: <NewConversationIcon size={18} aria-hidden />,
+              disabled: newTopicDisabled,
+              customizePlacement: 'leading' as const,
+              requiresPanel: false,
+              onSelect: () => addNewTopic()
+            }
+          ]
+        : []),
+      ...CHAT_TOOLBAR_CUSTOM_TOOLS
+    ],
+    [addNewTopic, hasNewTopicAction, newTopicDisabled, t]
+  )
 
   const rootPanelCustomizeItems = useMemo(() => [customizePanelItem], [customizePanelItem])
 
@@ -965,11 +1054,12 @@ const ChatComposerInner = ({
             mentionedModels: mentionedModels.length
               ? mentionedModels.map((currentModel) => currentModel.id)
               : undefined,
-            knowledgeBaseIds: knowledgeBaseIds.length ? knowledgeBaseIds : undefined
+            knowledgeBaseIds: knowledgeBaseIds.length ? knowledgeBaseIds : undefined,
+            reasoningEffort: assistantId ? reasoningEffort : 'default'
           }
         }
       }),
-    [files, mentionedModels, selectedKnowledgeBasesInScope]
+    [assistantId, files, mentionedModels, reasoningEffort, selectedKnowledgeBasesInScope]
   )
 
   const sendQueuedPayload = useCallback(
@@ -982,7 +1072,8 @@ const ChatComposerInner = ({
         await onSend(payload.text, {
           mentionedModels: payload.mentionedModels,
           knowledgeBaseIds: payload.knowledgeBaseIds,
-          userMessageParts: [...payload.userMessageParts, ...fileParts]
+          userMessageParts: [...payload.userMessageParts, ...fileParts],
+          reasoningEffort: payload.reasoningEffort
         })
         saveHistory(payload.text)
         return true
@@ -1227,7 +1318,7 @@ const ChatComposerInner = ({
         onPinnedIdsChange={setPinnedToolIds}
         onResetPinnedIds={resetPinnedToolIds}
         isDefault={pinnedToolsAtDefault}
-        customTools={CHAT_TOOLBAR_CUSTOM_TOOLS}
+        customTools={toolbarCustomTools}
         customizeOpen={customizeToolbarOpen}
         onCustomizeOpenChange={setCustomizeToolbarOpen}
         inputAdapter={inputAdapter}
@@ -1240,26 +1331,12 @@ const ChatComposerInner = ({
       pinnedToolsAtDefault,
       resetPinnedToolIds,
       setCustomizeToolbarOpen,
-      setPinnedToolIds
+      setPinnedToolIds,
+      toolbarCustomTools
     ]
   )
 
   if (isMultiSelectMode) return null
-
-  const newTopicControl = hasNewTopicAction ? (
-    <Tooltip content={t('chat.conversation.new')} placement="top">
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        className={cn(COMPOSER_SEND_ACCESSORY_BUTTON_CLASS, '[&_.new-conversation-icon]:!size-5')}
-        disabled={newTopicDisabled}
-        aria-label={t('chat.conversation.new')}
-        onClick={() => addNewTopic()}>
-        <NewConversationIcon size={20} aria-hidden />
-      </Button>
-    </Tooltip>
-  ) : undefined
 
   const controlSlots = renderControls({
     assistantId: selectedAssistantId,
@@ -1277,7 +1354,6 @@ const ChatComposerInner = ({
     selectModelLabel: runtimeModelPending ? t('common.loading') : t('button.select_model'),
     topBarPortalAvailable,
     topBarPortalIconOnly,
-    leadingControl: newTopicControl,
     renderPersistentToolShortcuts,
     onAssistantChange: handleAssistantChange,
     onModelSelect: handleModelSelect,
@@ -1291,7 +1367,12 @@ const ChatComposerInner = ({
       extensions={supportedExts}
       selectableKnowledgeBases={selectableKnowledgeBases}>
       {displayAssistant && runtimeModel && (
-        <ComposerToolRuntimeHost scope={scope} assistant={displayAssistant} model={runtimeModel} />
+        <ComposerToolRuntimeHost
+          scope={scope}
+          assistant={displayAssistant}
+          model={runtimeModel}
+          reasoning={reasoningContext}
+        />
       )}
       <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedToolIds}>

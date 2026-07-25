@@ -169,7 +169,8 @@ const TOPIC_RIGHT_PANEL_CAPABILITIES = [
       id: 'branch',
       instanceKey: `branch:${scope.topicId ?? 'unavailable'}`,
       title: scope.branchTitle,
-      readiness: scope.topicId ? 'ready' : 'unavailable'
+      readiness: scope.topicId ? 'ready' : 'unavailable',
+      canMaximize: true
     })
   },
   {
