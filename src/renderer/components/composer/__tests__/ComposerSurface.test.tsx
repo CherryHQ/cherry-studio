@@ -59,6 +59,7 @@ const mocks = vi.hoisted(() => ({
   quickPanelSymbol: '',
   quickPanelTriggerInfo: undefined as any,
   quickPanelUpdateList: vi.fn(),
+  pinnedLauncherIds: [] as string[],
   selection: { from: 1 } as any,
   translate: (key: string) => key,
   transaction: undefined as any
@@ -108,6 +109,9 @@ vi.mock('@cherrystudio/ui', () => ({
   PopoverContent: ({ children }: { children: ReactNode }) => <span data-testid="popover-content">{children}</span>,
   PopoverTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
   NormalTooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
+  Skeleton: ({ className, ...props }: HTMLAttributes<HTMLDivElement>) => (
+    <div {...props} data-slot="skeleton" className={className} />
+  ),
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
 
@@ -275,7 +279,8 @@ vi.mock('@renderer/components/SendMessageButton', () => ({
 }))
 
 vi.mock('../ComposerToolRuntime', () => ({
-  ComposerToolMenu: () => <button type="button">add tool</button>
+  ComposerToolMenu: () => <button type="button">add tool</button>,
+  useComposerPinnedTools: () => mocks.pinnedLauncherIds
 }))
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
@@ -476,6 +481,7 @@ describe('ComposerSurface', () => {
     mocks.quickPanelSymbol = ''
     mocks.quickPanelTriggerInfo = undefined
     mocks.quickPanelUpdateList.mockReset()
+    mocks.pinnedLauncherIds = []
     mocks.selection = { from: 1, to: 1, $to: {} }
     mocks.transaction = {
       doc: {},
@@ -497,6 +503,51 @@ describe('ComposerSurface', () => {
         error: vi.fn()
       }
     })
+  })
+
+  it('defers the editor engine so the composer frame can render first', () => {
+    render(<ComposerSurface {...baseProps} />)
+
+    expect(mocks.editorOptions?.immediatelyRender).toBe(false)
+  })
+
+  it('mounts the editor before deferred dynamic controls', () => {
+    const animationFrames: FrameRequestCallback[] = []
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      animationFrames.push(callback)
+      return animationFrames.length
+    })
+    const cancelAnimationFrameSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
+    const flushAnimationFrame = () => {
+      act(() => {
+        const callbacks = animationFrames.splice(0)
+        callbacks.forEach((callback) => callback(0))
+      })
+    }
+
+    try {
+      render(
+        <ComposerSurface
+          {...baseProps}
+          deferDynamicControls
+          renderLeftControls={() => <button type="button">dynamic control</button>}
+        />
+      )
+
+      expect(screen.getByTestId('editor-content')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'dynamic control' })).not.toBeInTheDocument()
+      expect(document.querySelector('[data-composer-controls-loading]')).toBeInTheDocument()
+
+      flushAnimationFrame()
+      expect(screen.queryByRole('button', { name: 'dynamic control' })).not.toBeInTheDocument()
+
+      flushAnimationFrame()
+      expect(screen.getByRole('button', { name: 'dynamic control' })).toBeInTheDocument()
+      expect(document.querySelector('[data-composer-controls-loading]')).not.toBeInTheDocument()
+    } finally {
+      requestAnimationFrameSpy.mockRestore()
+      cancelAnimationFrameSpy.mockRestore()
+    }
   })
 
   afterEach(() => {
@@ -1565,6 +1616,105 @@ describe('ComposerSurface', () => {
     )
   })
 
+  it('removes persistent actions from the button root and restores an unpinned launcher', async () => {
+    mocks.pinnedLauncherIds = ['thinking', 'new-topic']
+    const getToolLaunchers = () => [
+      {
+        id: 'thinking',
+        kind: 'group' as const,
+        label: 'Thinking',
+        icon: 'thinking',
+        sources: ['popover'] as const,
+        submenu: [
+          {
+            id: 'thinking-low',
+            kind: 'command' as const,
+            label: 'Low',
+            icon: 'low',
+            sources: ['popover'] as const
+          }
+        ]
+      },
+      {
+        id: 'attachment',
+        kind: 'command' as const,
+        label: 'Attachment',
+        icon: 'paperclip',
+        sources: ['popover'] as const
+      }
+    ]
+    const renderSurface = () => (
+      <ComposerSurface
+        {...baseProps}
+        quickPanelEnabled
+        getToolLaunchers={getToolLaunchers}
+        rootPanelLeadingItems={[{ id: 'new-topic', label: 'New conversation', icon: 'plus' }]}
+        rootPanelAdditionalItems={[
+          {
+            id: 'composer:customize-toolbar',
+            label: 'Customize toolbar',
+            icon: 'settings',
+            fixedToBottom: true
+          }
+        ]}
+        renderLeftControls={(_inputAdapter, unifiedPanelControl) => (
+          <>
+            <button type="button" aria-label="open plus panel" onClick={() => unifiedPanelControl?.open()}>
+              plus
+            </button>
+            <button
+              type="button"
+              aria-label="open thinking panel"
+              onClick={() => unifiedPanelControl?.open({ launcherId: 'thinking', searchText: 'Thinking' })}>
+              thinking
+            </button>
+          </>
+        )}
+      />
+    )
+    const { rerender } = render(renderSurface())
+
+    await waitFor(() => expect(mocks.editorPresetOptions).toBeDefined())
+
+    fireEvent.click(screen.getByRole('button', { name: 'open plus panel' }))
+    expect(mocks.quickPanelOpen.mock.calls.at(-1)?.[0].list.map((item: QuickPanelListItem) => item.id)).toEqual([
+      'attachment',
+      'composer:customize-toolbar'
+    ])
+
+    mocks.quickPanelOpen.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'open thinking panel' }))
+    expect(mocks.quickPanelOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        symbol: 'thinking',
+        list: [expect.objectContaining({ id: 'thinking-low' })],
+        // Opening a launcher directly is an explicit request, so its parentPanel is the
+        // undeduped root (includes pinned launchers), not the browsable "+" panel's list.
+        // The fixedToBottom customize-toolbar footer is also dropped here since this is a
+        // category view (seeded with the "Thinking" search text).
+        parentPanel: expect.objectContaining({
+          list: [
+            expect.objectContaining({ id: 'new-topic' }),
+            expect.objectContaining({ id: 'thinking' }),
+            expect.objectContaining({ id: 'attachment' })
+          ]
+        })
+      })
+    )
+
+    mocks.pinnedLauncherIds = []
+    rerender(renderSurface())
+    mocks.quickPanelOpen.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'open plus panel' }))
+
+    expect(mocks.quickPanelOpen.mock.calls.at(-1)?.[0].list.map((item: QuickPanelListItem) => item.id)).toEqual([
+      'new-topic',
+      'thinking',
+      'attachment',
+      'composer:customize-toolbar'
+    ])
+  })
+
   it('opens the unified QuickPanel with an initial search or a launcher submenu', async () => {
     render(
       <ComposerSurface
@@ -2289,6 +2439,7 @@ describe('ComposerSurface', () => {
 
   it('places leading items before tool launchers and keeps additional items at the end of the QuickPanel root list', async () => {
     const onRootPanelOpen = vi.fn()
+    mocks.pinnedLauncherIds = ['generate-image']
     render(
       <ComposerSurface
         {...baseProps}

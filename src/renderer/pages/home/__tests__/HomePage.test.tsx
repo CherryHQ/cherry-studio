@@ -78,7 +78,6 @@ const homeMocks = vi.hoisted(() => ({
   activeTopicOverride: undefined as Topic | undefined,
   activeTopicSource: 'query' as 'query' | 'pending' | 'none',
   assistantResourceListTopicsSource: undefined as unknown,
-  assistantTopicsSourceOptions: [] as Array<{ enabled?: boolean } | undefined>,
   createdAssistantTopicsSource: undefined as unknown,
   forceActiveTopicUndefined: false,
   homeTabsTopicsSource: undefined as unknown,
@@ -218,18 +217,17 @@ vi.mock('@renderer/hooks/resourceViewSources', async () => {
 
   return {
     // Match the real useTopics shape: isLoading (first page) / isLoadingAll / isFullyLoaded present.
-    useAssistantTopicsSource: (options: { enabled?: boolean } = {}) => {
+    useAssistantTopicsSource: () => {
       const source = React.useMemo(
         () => ({
-          topics: options.enabled === false ? [] : homeMocks.classicLayoutTopics,
+          topics: homeMocks.classicLayoutTopics,
           isLoading: homeMocks.isTopicsFirstPageLoading,
           isLoadingAll: homeMocks.isTopicsLoadingAll,
           isFullyLoaded: homeMocks.isTopicsFullyLoaded,
           error: undefined
         }),
-        [options.enabled]
+        []
       )
-      homeMocks.assistantTopicsSourceOptions.push(options)
       homeMocks.createdAssistantTopicsSource = source
       return source
     }
@@ -712,7 +710,6 @@ describe('HomePage', () => {
     homeMocks.topicsById.clear()
     homeMocks.activeTopicOptions = undefined
     homeMocks.assistantResourceListTopicsSource = undefined
-    homeMocks.assistantTopicsSourceOptions = []
     homeMocks.createdAssistantTopicsSource = undefined
     homeMocks.homeTabsTopicsSource = undefined
     homeMocks.topicPanelTopicsSource = undefined
@@ -769,8 +766,6 @@ describe('HomePage', () => {
 
     render(<HomePage />)
 
-    expect(homeMocks.assistantTopicsSourceOptions.length).toBeGreaterThan(0)
-    expect(homeMocks.assistantTopicsSourceOptions.every((options) => options?.enabled === true)).toBe(true)
     expect(homeMocks.assistantResourceListTopicsSource).toBe(homeMocks.createdAssistantTopicsSource)
     expect(homeMocks.topicPanelTopicsSource).toBe(homeMocks.createdAssistantTopicsSource)
   })
@@ -871,16 +866,6 @@ describe('HomePage', () => {
     expect(screen.getByTestId('topic-right-pane-provider')).toHaveAttribute('data-default-tab', 'branch')
     expect(screen.getByTestId('pane-position')).toHaveTextContent('left')
     expect(homeMocks.homeTabsTopicsSource).toBe(homeMocks.createdAssistantTopicsSource)
-  })
-
-  it('disables the assistant topic source in message-only view', () => {
-    homeMocks.locationState = undefined
-    homeMocks.routeSearch = { topicId: 'topic-missing', view: 'message' }
-
-    render(<HomePage />)
-
-    expect(homeMocks.assistantTopicsSourceOptions.length).toBeGreaterThan(0)
-    expect(homeMocks.assistantTopicsSourceOptions.every((options) => options?.enabled === false)).toBe(true)
   })
 
   it('switches to assistant grouping when changing topic position from the left sidebar', async () => {

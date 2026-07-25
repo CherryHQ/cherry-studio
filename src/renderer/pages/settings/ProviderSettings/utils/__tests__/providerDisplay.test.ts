@@ -6,11 +6,27 @@ import { describe, expect, it, vi } from 'vitest'
 // CherryAI helpers the module imports so the test stays focused on visibility.
 vi.mock('@renderer/i18n', () => ({ default: { t: (k: string) => k } }))
 vi.mock('@renderer/i18n/label', () => ({ getProviderLabelKey: (id: string) => id }))
-vi.mock('@shared/utils/provider', () => ({ isCherryAIProvider: (p: Provider) => p.id === 'cherryai' }))
+vi.mock('@shared/utils/provider', () => ({
+  isCherryAIProvider: (p: Provider) => p.id === 'cherryai',
+  isLoginBasedProvider: (p: Provider) =>
+    p.authMethods !== undefined && p.authMethods.length > 0 && !p.authMethods.includes('api-key')
+}))
 
-const { isProviderSettingsListVisibleProvider } = await import('../providerDisplay')
+const { isProviderPresetInstanceSource, isProviderSettingsListVisibleProvider } = await import('../providerDisplay')
 
 const provider = (id: string): Provider => ({ id }) as Provider
+const presetSource = (overrides: Partial<Provider> = {}): Provider =>
+  ({
+    id: 'openai',
+    name: 'OpenAI',
+    presetProviderId: 'openai',
+    authType: 'api-key',
+    defaultChatEndpoint: 'openai-responses',
+    endpointConfigs: {
+      'openai-responses': { baseUrl: 'https://api.openai.com' }
+    },
+    ...overrides
+  }) as Provider
 
 describe('isProviderSettingsListVisibleProvider', () => {
   it('hides the internal local-embedding provider from the management list', () => {
@@ -23,5 +39,39 @@ describe('isProviderSettingsListVisibleProvider', () => {
 
   it('keeps a normal provider visible', () => {
     expect(isProviderSettingsListVisibleProvider(provider('openai'))).toBe(true)
+  })
+})
+
+describe('isProviderPresetInstanceSource', () => {
+  it('accepts a canonical URL-based preset with a configured primary endpoint', () => {
+    expect(isProviderPresetInstanceSource(presetSource())).toBe(true)
+  })
+
+  it('accepts the canonical New API preset without a registry default endpoint', () => {
+    expect(
+      isProviderPresetInstanceSource(
+        presetSource({
+          id: 'new-api',
+          name: 'New API',
+          presetProviderId: 'new-api',
+          defaultChatEndpoint: undefined,
+          endpointConfigs: {
+            'openai-chat-completions': { baseUrl: 'http://localhost:3000' }
+          }
+        })
+      )
+    ).toBe(true)
+  })
+
+  it('rejects derived providers and presets without an independent generic-auth flow', () => {
+    expect(isProviderPresetInstanceSource(presetSource({ id: 'openai-work' }))).toBe(false)
+    expect(isProviderPresetInstanceSource(presetSource({ authMethods: ['oauth'] }))).toBe(false)
+    expect(isProviderPresetInstanceSource(presetSource({ authType: 'iam-gcp' }))).toBe(false)
+    expect(isProviderPresetInstanceSource(presetSource({ id: 'copilot', presetProviderId: 'copilot' }))).toBe(false)
+  })
+
+  it('rejects other presets without a configured default chat endpoint', () => {
+    expect(isProviderPresetInstanceSource(presetSource({ defaultChatEndpoint: undefined }))).toBe(false)
+    expect(isProviderPresetInstanceSource(presetSource({ endpointConfigs: undefined }))).toBe(false)
   })
 })

@@ -60,13 +60,13 @@ const agentPageMocks = vi.hoisted(() => ({
   lastUsedWorkspaceId: null as string | null,
   classicLayoutRightPaneOpenOverride: null as boolean | null,
   agentResourceListSessionsSource: undefined as unknown,
-  agentSessionsSourceOptions: [] as Array<{ enabled?: boolean } | undefined>,
   agentSidePanelSessionsSource: undefined as unknown,
   activeSessionOptions: null as {
     activeSessionId: string | null
     setActiveSessionId: (id: string | null) => void
   } | null,
   pendingSession: null as any,
+  fileNavigationRequest: vi.fn((transition: () => void) => transition()),
   setLastUsedAgentId: vi.fn(),
   setLastUsedSessionId: vi.fn(),
   setLastUsedWorkspaceId: vi.fn(),
@@ -125,15 +125,14 @@ vi.mock('@data/DataApiService', () => ({
 }))
 
 vi.mock('@renderer/hooks/resourceViewSources', () => ({
-  useAgentSessionsSource: (options?: { enabled?: boolean }) => {
+  useAgentSessionsSource: () => {
     const source = {
-      sessions: options?.enabled === false ? [] : agentPageMocks.classicLayoutSessions,
+      sessions: agentPageMocks.classicLayoutSessions,
       isFullyLoaded: agentPageMocks.sessionsFullyLoaded,
       isLoadingAll: agentPageMocks.sessionsLoadingAll,
       isLoading: agentPageMocks.sessionsFirstPageLoading,
       hasMore: false
     }
-    agentPageMocks.agentSessionsSourceOptions.push(options)
     agentPageMocks.createdAgentSessionsSource = source
     return source
   }
@@ -394,6 +393,7 @@ vi.mock('../AgentChat', () => ({
     sessionPaneUserOpenIntentSeq,
     onPaneCollapse,
     onPaneAutoCollapseChange,
+    onFileNavigationRequestChange,
     paneManualToggle
   }: {
     centerSurface?: { content?: ReactNode } | null
@@ -421,9 +421,12 @@ vi.mock('../AgentChat', () => ({
     sessionPaneUserOpenIntentSeq?: number
     onPaneCollapse?: () => void
     onPaneAutoCollapseChange?: (collapsed: boolean) => void
+    onFileNavigationRequestChange?: (request: ((transition: () => void) => void) | null) => void
     paneManualToggle?: { seq: number; open: boolean }
   }) => (
-    <section data-testid="agent-chat">
+    <section
+      data-testid="agent-chat"
+      ref={(node) => onFileNavigationRequestChange?.(node ? agentPageMocks.fileNavigationRequest : null)}>
       <output data-testid="active-session">{activeSession?.id ?? ''}</output>
       <output data-testid="active-session-loading">{String(Boolean(activeSessionLoading))}</output>
       <output data-testid="missing-agent-selection">{String(Boolean(missingAgentSelection))}</output>
@@ -692,6 +695,7 @@ import AgentPage from '../AgentPage'
 describe('AgentPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    agentPageMocks.fileNavigationRequest.mockImplementation((transition) => transition())
     agentPageMocks.routeSearch = { sessionId: 'session-initial' }
     agentPageMocks.agents = [{ id: 'agent-a', model: 'model-a', name: 'Agent A' }]
     agentPageMocks.classicLayoutSessions = []
@@ -701,7 +705,6 @@ describe('AgentPage', () => {
     agentPageMocks.isLatestSessionLoading = false
     agentPageMocks.latestSessionOverride = undefined
     agentPageMocks.agentResourceListSessionsSource = undefined
-    agentPageMocks.agentSessionsSourceOptions = []
     agentPageMocks.agentSidePanelSessionsSource = undefined
     agentPageMocks.createdAgentSessionsSource = undefined
     agentPageMocks.rightPanelSessionsSource = undefined
@@ -778,7 +781,6 @@ describe('AgentPage', () => {
 
     render(<AgentPage />)
 
-    expect(agentPageMocks.agentSessionsSourceOptions).toEqual([{ enabled: true }])
     expect(agentPageMocks.agentResourceListSessionsSource).toBe(agentPageMocks.createdAgentSessionsSource)
     expect(agentPageMocks.rightPanelSessionsSource).toBe(agentPageMocks.createdAgentSessionsSource)
   })
@@ -921,14 +923,6 @@ describe('AgentPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open agent picker' }))
 
     expect(screen.getByTestId('agent-create-dialog')).toBeInTheDocument()
-  })
-
-  it('disables the agent session source in message-only view', () => {
-    agentPageMocks.routeSearch = { sessionId: 'session-message', view: 'message' }
-
-    render(<AgentPage />)
-
-    expect(agentPageMocks.agentSessionsSourceOptions).toEqual([{ enabled: false }])
   })
 
   it('switches to agent grouping when changing session position from the left sidebar', async () => {
@@ -2130,6 +2124,32 @@ describe('AgentPage', () => {
     act(() => {
       sessionMessageHandler?.({ sessionId: 'session-open', messageId: 'message-open', targetTabId: 'agent-tab' })
     })
+
+    await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-open'))
+    expect(screen.getByTestId('locate-message-id')).toHaveTextContent('message-open')
+  })
+
+  it('waits for file-navigation confirmation before applying a global-search session jump', async () => {
+    let pendingTransition: (() => void) | undefined
+    agentPageMocks.fileNavigationRequest.mockImplementation((transition) => {
+      pendingTransition = transition
+    })
+    render(<AgentPage />)
+
+    const sessionMessageHandler = vi
+      .mocked(EventEmitter.on)
+      .mock.calls.find(([eventName]) => eventName === EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE)?.[1] as
+      | ((payload: unknown) => void)
+      | undefined
+
+    act(() => {
+      sessionMessageHandler?.({ sessionId: 'session-open', messageId: 'message-open', targetTabId: 'agent-tab' })
+    })
+
+    expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-initial')
+    expect(screen.getByTestId('locate-message-id')).toHaveTextContent('')
+
+    act(() => pendingTransition?.())
 
     await waitFor(() => expect(agentPageMocks.activeSessionOptions?.activeSessionId).toBe('session-open'))
     expect(screen.getByTestId('locate-message-id')).toHaveTextContent('message-open')

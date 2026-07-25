@@ -16,9 +16,9 @@ import { useEffect } from 'react'
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
 import { useTopicNamingErrorNotification } from './hooks/useTopicNamingErrorNotification'
 import OnboardingPage from './onboarding/OnboardingPage'
+import { PrivacyPolicyUpdateGate } from './privacy/PrivacyPolicyUpdateGate'
 
 const logger = loggerService.withContext('MainApp')
-
 // Behavior leaf inside the providers: the shared window runtime plus the main-only
 // concerns, then the popup/toast hosts. It sits inside the providers but outside every
 // TabRouter/<Activity>, so these window-scoped subscriptions and DOM sync are never
@@ -55,12 +55,12 @@ function MainWindowRuntime(): null {
 }
 
 export function MainWindowContent(): React.ReactElement {
-  const [providerSetupStatus, setProviderSetupStatus] = usePreference('app.onboarding.provider_setup.status')
+  const [providerSetupStatus] = usePreference('app.onboarding.provider_setup.status')
 
   if (providerSetupStatus === 'pending') {
     return (
       <>
-        <OnboardingPage onComplete={setProviderSetupStatus} />
+        <OnboardingPage />
         <MainWindowRuntime />
         <PopupHost />
         <ToastHost />
@@ -74,6 +74,7 @@ export function MainWindowContent(): React.ReactElement {
       <MainWindowRuntime />
       <PopupHost />
       <ToastHost />
+      <PrivacyPolicyUpdateGate />
     </TabsProvider>
   )
 }

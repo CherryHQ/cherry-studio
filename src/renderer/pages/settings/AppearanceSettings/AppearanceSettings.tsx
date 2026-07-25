@@ -39,6 +39,7 @@ import { isLinux, isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import type { LanguageVarious, MenuPresentationMode } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
+import { hasV1CustomCssMarker } from '@shared/utils/customCssMigration'
 import { defaultLanguage } from '@shared/utils/languages'
 import { Minus, Monitor, Moon, Plus, Sun } from 'lucide-react'
 import type React from 'react'
@@ -537,13 +538,10 @@ const AppearanceSettings: FC = () => {
       </SettingGroup>
 
       <SettingGroup theme={theme} className={appearanceSectionClassName}>
-        <SettingTitle>
-          {t('settings.display.custom.css.label')}
-          <TitleExtra onClick={() => ipcApi.request('system.shell.open_website', 'https://cherrycss.com/')}>
-            {t('settings.display.custom.css.cherrycss')}
-          </TitleExtra>
-        </SettingTitle>
-        <SettingDescription>{t('settings.display.custom.css.placeholder')}</SettingDescription>
+        <SettingTitle>{t('settings.display.custom.css.label')}</SettingTitle>
+        {hasV1CustomCssMarker(customCss) && (
+          <SettingDescription>{t('settings.display.custom.css.migration_notice')}</SettingDescription>
+        )}
         <div className="mt-4 overflow-hidden rounded-lg border border-border/60">
           <CodeEditor
             theme={activeCmTheme}
@@ -567,10 +565,6 @@ const AppearanceSettings: FC = () => {
     </SettingsContentColumn>
   )
 }
-
-const TitleExtra = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('cursor-pointer text-xs underline opacity-70', className)} {...props} />
-)
 
 const ZoomButtonGroup = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div className={cn('flex w-full min-w-0 max-w-52.5 items-center justify-end', className)} {...props} />

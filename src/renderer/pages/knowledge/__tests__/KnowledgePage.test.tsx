@@ -348,12 +348,7 @@ vi.mock('../components/CreateKnowledgeBaseDialog', () => ({
     open: boolean
     groups: Array<{ id: string; name: string }>
     initialGroupId?: string
-    createBase: (input: {
-      name: string
-      groupId?: string
-      embeddingModelId: string | null
-      dimensions: number
-    }) => Promise<KnowledgeBase>
+    createBase: (input: { name: string; groupId?: string }) => Promise<KnowledgeBase>
     onOpenChange: (open: boolean) => void
     onCreated: (base: KnowledgeBase) => void
   }) =>
@@ -366,9 +361,7 @@ vi.mock('../components/CreateKnowledgeBaseDialog', () => ({
           onClick={async () => {
             const createdBase = await createBase({
               name: 'Base 2',
-              ...(initialGroupId ? { groupId: initialGroupId } : {}),
-              embeddingModelId: 'openai::text-embedding-3-small',
-              dimensions: 1536
+              ...(initialGroupId ? { groupId: initialGroupId } : {})
             })
             onCreated(createdBase)
             onOpenChange(false)
@@ -510,6 +503,7 @@ vi.mock('react-i18next', () => ({
           'knowledge.error.failed_to_delete': '知识库删除失败',
           'knowledge.error.failed_to_move': '知识库移动失败',
           'knowledge.empty': '暂无知识库',
+          'knowledge.empty_description': '与 AI 一起积累知识',
           'knowledge.groups.error.failed_to_delete': '分组删除失败',
           'knowledge.title': '知识库'
         }) as Record<string, string>
@@ -1116,8 +1110,11 @@ describe('KnowledgePage', () => {
 
     render(<KnowledgePage />)
 
-    expect(screen.getByText('暂无知识库')).toBeInTheDocument()
+    expect(screen.getByText('与 AI 一起积累知识')).toBeInTheDocument()
     expect(screen.queryByTestId('detail-header')).not.toBeInTheDocument()
+    // The two-pane shell stays mounted: the navigator (with its create entry)
+    // must not disappear when there are zero bases.
+    expect(screen.getByTestId('navigator-width')).toBeInTheDocument()
   })
 
   it('opens the create-group dialog and wires submission to the group mutation hook', async () => {
@@ -1242,8 +1239,8 @@ describe('KnowledgePage', () => {
 
     await waitFor(() => {
       expect(updateGroup).toHaveBeenCalledWith('group-1', { name: 'Renamed Group' })
+      expect(screen.queryByTestId('rename-group-dialog')).not.toBeInTheDocument()
     })
-    expect(screen.queryByTestId('rename-group-dialog')).not.toBeInTheDocument()
   })
 
   it('passes group deletion through to the delete-group hook', async () => {
@@ -1320,8 +1317,8 @@ describe('KnowledgePage', () => {
 
     await waitFor(() => {
       expect(updateBase).toHaveBeenCalledWith('base-1', { name: 'Renamed Base' })
+      expect(screen.queryByTestId('rename-base-dialog')).not.toBeInTheDocument()
     })
-    expect(screen.queryByTestId('rename-base-dialog')).not.toBeInTheDocument()
   })
 
   it('shows a toast when knowledge base deletion fails', async () => {

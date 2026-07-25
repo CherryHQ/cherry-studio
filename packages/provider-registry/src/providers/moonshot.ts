@@ -1,13 +1,7 @@
 import { openaiCompatible } from './types'
+import { EFFORT, modeWire } from './wires'
 
-const effortWire = {
-  off: { operations: [{ target: 'reasoningEffort' as const, value: { source: 'literal' as const, value: 'none' } }] },
-  auto: {
-    operations: [{ target: 'reasoningEffort' as const, value: { source: 'effort' as const } }],
-    effortMap: { auto: 'medium' as const }
-  },
-  effort: { operations: [{ target: 'reasoningEffort' as const, value: { source: 'effort' as const } }] }
-}
+const effortWire = modeWire('reasoningEffort', { off: 'none', auto: EFFORT, effort: EFFORT }, { autoEffort: 'medium' })
 
 export default openaiCompatible({
   id: 'moonshot',

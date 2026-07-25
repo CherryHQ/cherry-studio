@@ -14,6 +14,7 @@ const {
   fetchGenerateMock,
   installedSkillsState,
   ipcRequestMock,
+  knowledgeBasesState,
   mcpStatusState,
   openSettingsTabMock,
   settingsNavigateMock,
@@ -66,6 +67,15 @@ const {
     }
   },
   ipcRequestMock: vi.fn(),
+  knowledgeBasesState: {
+    current: [
+      {
+        id: 'kb-1',
+        name: 'Knowledge One',
+        itemCount: 3
+      }
+    ]
+  },
   mcpStatusState: { current: {} as Record<string, { state: string; lastCheckedAt: number }> },
   openSettingsTabMock: vi.fn(),
   settingsNavigateMock: vi.fn(),
@@ -549,13 +559,7 @@ beforeEach(() => {
     if (path === '/knowledge-bases') {
       return {
         data: {
-          items: [
-            {
-              id: 'kb-1',
-              name: 'Knowledge One',
-              itemCount: 3
-            }
-          ]
+          items: knowledgeBasesState.current
         },
         isLoading: false
       }
@@ -589,6 +593,13 @@ beforeEach(() => {
   updateAssistantMock.mockResolvedValue({ ...ASSISTANT, name: 'Updated Assistant' })
   updateAgentMock.mockResolvedValue({ ...AGENT, instructions: 'Updated instructions' })
   fetchGenerateMock.mockResolvedValue('Generated prompt')
+  knowledgeBasesState.current = [
+    {
+      id: 'kb-1',
+      name: 'Knowledge One',
+      itemCount: 3
+    }
+  ]
 })
 
 afterEach(() => {
@@ -1027,6 +1038,57 @@ describe('edit dialogs', () => {
     expect(screen.getByText('Skill One')).toBeInTheDocument()
   })
 
+  it('removes deleted knowledge bases from an open agent form', async () => {
+    const boundAgent = { ...AGENT, knowledgeBaseIds: ['kb-1'] }
+    const { rerender } = render(<AgentEditDialog open resource={boundAgent} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+
+    selectTab('Built-in tools')
+    expect(screen.getByText('Knowledge Search')).toBeInTheDocument()
+
+    knowledgeBasesState.current = []
+    rerender(
+      <AgentEditDialog
+        open
+        resource={{ ...boundAgent, knowledgeBaseIds: [] }}
+        onOpenChange={vi.fn()}
+        onSaved={vi.fn()}
+      />
+    )
+
+    await waitFor(() => expect(screen.queryByText('Knowledge Search')).not.toBeInTheDocument())
+    expect(updateAgentMock).not.toHaveBeenCalled()
+  })
+
+  it('preserves a knowledge-base re-selection made while its removal is saving', async () => {
+    let resolveFirstSave: (() => void) | undefined
+    updateAgentMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirstSave = () => resolve({ ...AGENT, knowledgeBaseIds: [] })
+        })
+    )
+    const boundAgent = { ...AGENT, knowledgeBaseIds: ['kb-1'] }
+    const props = { open: true, onOpenChange: vi.fn(), onSaved: vi.fn(), initialTab: 'tools.knowledge' }
+    const { rerender } = render(<AgentEditDialog {...props} resource={boundAgent} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove knowledge base' }))
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add knowledge base' }))
+    fireEvent.click(screen.getByText('Knowledge One'))
+    rerender(<AgentEditDialog {...props} resource={{ ...boundAgent, knowledgeBaseIds: [] }} />)
+
+    selectTab('Built-in tools')
+    expect(screen.getByText('Knowledge Search')).toBeInTheDocument()
+
+    resolveFirstSave?.()
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenLastCalledWith({
+        body: expect.objectContaining({ knowledgeBaseIds: ['kb-1'] })
+      })
+    )
+  })
+
   it('opens the agent edit dialog directly on the requested initial tab', () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} initialTab="tools.skills" />)
 
@@ -1326,6 +1388,71 @@ describe('edit dialogs', () => {
     expect(await screen.findByText('Save failed')).toBeInTheDocument()
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(updateAssistantMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('retries saving when the form changes after a failed close', async () => {
+    updateAssistantMock.mockRejectedValueOnce(new Error('Network down'))
+    const onOpenChange = vi.fn()
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
+
+    const nameInput = screen.getByLabelText('Name')
+    fireEvent.change(nameInput, { target: { value: 'First Closing Edit' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+
+    expect(await screen.findByText('Save failed')).toBeInTheDocument()
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+
+    fireEvent.change(nameInput, { target: { value: 'Retry Closing Edit' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(2))
+    expect(updateAssistantMock).toHaveBeenNthCalledWith(2, {
+      body: expect.objectContaining({ name: 'Retry Closing Edit' })
+    })
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+  })
+
+  it('does not silently discard a save when reopened within the exit-animation window with an identical edit', async () => {
+    // The host (useResourceCatalogController) keeps this dialog instance mounted for
+    // DIALOG_EXIT_ANIMATION_MS after `open` goes false, so a reopen within that window
+    // reuses the SAME component instance instead of remounting — simulate that with
+    // `rerender` rather than a fresh `render`.
+    updateAssistantMock.mockRejectedValueOnce(new Error('Network down'))
+    const onOpenChange = vi.fn()
+    const { rerender } = render(
+      <AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={vi.fn()} />
+    )
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Repro Edit' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+
+    expect(await screen.findByText('Save failed')).toBeInTheDocument()
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+
+    // Discard-close, then reopen on the same instance before it unmounts.
+    rerender(<AssistantEditDialog open={false} resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
+    rerender(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
+
+    // Make the exact same edit again — this reproduces the identical changeKey as the
+    // failed attempt above. Without clearing failedSaveKeyRef on reopen, the stale key
+    // still matches this "new" changeKey, so handleOpenChange takes its synchronous
+    // discard branch and calls onOpenChange(false) immediately — without ever invoking
+    // the save mutation a second time. Assert synchronously (no waitFor) right after the
+    // click so an independent debounced auto-save firing later can't mask that bug.
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Repro Edit' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+    expect(updateAssistantMock).toHaveBeenCalledTimes(2)
+    expect(updateAssistantMock).toHaveBeenNthCalledWith(2, {
+      body: expect.objectContaining({ name: 'Repro Edit' })
+    })
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
   })
 
   it('reuses the in-flight save when closing mid-save instead of racing a second one', async () => {

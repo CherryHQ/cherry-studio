@@ -74,6 +74,53 @@ describe('ComposerDockTransitionFrame', () => {
     })
   })
 
+  it('keeps the last good insets while the composer measures as a zero rect', async () => {
+    const { rerender } = render(
+      <ComposerDockTransitionFrame
+        placement="docked"
+        main={<InsetProbe />}
+        composer={<div data-composer-inputbar="" />}
+        mainVisible
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('scroller-bottom-margin')).toHaveTextContent('80')
+    })
+
+    // A mid-swap composer (lazy chunk still loading behind Suspense) is hidden
+    // and measures as a zero rect. Insets must hold instead of collapsing the
+    // message list with a full-height bottom margin.
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function getBoundingClientRect(
+      this: HTMLElement
+    ) {
+      if (this.hasAttribute('data-composer-inputbar')) {
+        return rect(0, 0, 0, 0)
+      }
+      if (this.hasAttribute('data-composer-dock-surface')) {
+        return rect(600, 820)
+      }
+      return rect(0, 900)
+    })
+    rerender(
+      <ComposerDockTransitionFrame
+        placement="docked"
+        main={<InsetProbe />}
+        composer={
+          <div>
+            <div data-composer-inputbar="" />
+          </div>
+        }
+        mainVisible
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('content-bottom-padding')).toHaveTextContent('236')
+      expect(screen.getByTestId('scroller-bottom-margin')).toHaveTextContent('80')
+    })
+  })
+
   it('uses the generic composer viewport inset target when no inputbar is rendered', async () => {
     render(
       <ComposerDockTransitionFrame

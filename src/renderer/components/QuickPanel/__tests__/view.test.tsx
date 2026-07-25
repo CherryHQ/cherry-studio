@@ -871,6 +871,10 @@ describe('QuickPanelView', () => {
     const row = screen.getByText('filesystem').closest('[data-id="server"]')
     expect(row?.getAttribute('data-active')).toBe('false')
     expect(row).not.toHaveAttribute('data-selected')
+    expect(row).toHaveAttribute('role', 'button')
+    expect(row).toHaveAttribute('aria-disabled', 'true')
+    expect(row).not.toHaveAttribute('aria-pressed')
+    expect(row).toHaveAttribute('tabindex', '-1')
 
     fireEvent.click(row!)
     expect(action).not.toHaveBeenCalled()
@@ -899,6 +903,50 @@ describe('QuickPanelView', () => {
     await waitFor(() => {
       expect(screen.getByTestId('quick-panel')).not.toHaveClass('visible')
     })
+  })
+
+  it('exposes selectable rows as accessible toggle buttons', async () => {
+    const selectedAction = vi.fn()
+    const unselectedAction = vi.fn()
+    const disabledAction = vi.fn()
+    const items: QuickPanelListItem[] = [
+      { id: 'selected', label: 'Selected server', icon: 'mcp', isSelected: true, action: selectedAction },
+      { id: 'unselected', label: 'Unselected server', icon: 'mcp', isSelected: false, action: unselectedAction },
+      {
+        id: 'disabled',
+        label: 'Disabled server',
+        icon: 'mcp',
+        isSelected: false,
+        disabled: true,
+        action: disabledAction
+      }
+    ]
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness captureDispatch={vi.fn()} items={items} />
+      </QuickPanelProvider>
+    )
+
+    const selectedRow = await screen.findByRole('button', { name: /Selected server/ })
+    const unselectedRow = screen.getByRole('button', { name: /Unselected server/ })
+    const disabledRow = screen.getByRole('button', { name: /Disabled server/ })
+
+    expect(selectedRow).toHaveAttribute('aria-current', 'true')
+    expect(selectedRow).toHaveAttribute('aria-pressed', 'true')
+    expect(selectedRow).not.toHaveAttribute('aria-disabled')
+    expect(selectedRow).toHaveAttribute('tabindex', '0')
+    expect(unselectedRow).toHaveAttribute('aria-pressed', 'false')
+    expect(disabledRow).toHaveAttribute('aria-disabled', 'true')
+    expect(disabledRow).toHaveAttribute('tabindex', '-1')
+
+    fireEvent.keyDown(unselectedRow, { key: 'Enter' })
+    fireEvent.keyDown(selectedRow, { key: ' ' })
+    fireEvent.click(disabledRow)
+
+    expect(unselectedAction).toHaveBeenCalledTimes(1)
+    expect(selectedAction).toHaveBeenCalledTimes(1)
+    expect(disabledAction).not.toHaveBeenCalled()
   })
 
   it('selects the active item with Tab', async () => {
@@ -937,6 +985,30 @@ describe('QuickPanelView', () => {
         item: expect.objectContaining({ id: 'first' })
       })
     )
+  })
+
+  it('keeps the panel open when an item action requests it', async () => {
+    const action = vi.fn()
+    const captureDispatch = vi.fn()
+    const items: QuickPanelListItem[] = [
+      { id: 'toggle', label: 'Toggle binding', icon: 'mcp', keepOpenOnAction: true, action }
+    ]
+
+    render(
+      <QuickPanelProvider>
+        <PanelHarness captureDispatch={captureDispatch} items={items} />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('Toggle binding')
+    const dispatchKeyDown = captureDispatch.mock.calls.at(-1)?.[0] as QuickPanelContextType['dispatchKeyDown']
+
+    act(() => {
+      dispatchKeyDown(createKeyDownEvent('Enter').event)
+    })
+
+    expect(action).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('quick-panel')).toHaveClass('visible')
   })
 
   it('anchors bottom-fixed items outside the virtual list and keeps them last in keyboard navigation', async () => {
