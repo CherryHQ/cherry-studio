@@ -247,7 +247,6 @@ type Props = {
   stop: () => Promise<void>
   onCreateEmptySession?: () => void | Promise<unknown>
   onAgentChange?: (agentId: string | null) => void | Promise<void>
-  onModelChange?: (model: Model | undefined) => void | Promise<void>
   agentChanging?: boolean
   canChangeAgent?: boolean
   workspaceId?: string | null
@@ -277,7 +276,6 @@ const AgentComposerRoot = ({
   stop,
   onCreateEmptySession,
   onAgentChange,
-  onModelChange,
   agentChanging,
   canChangeAgent = false,
   workspaceId,
@@ -358,7 +356,6 @@ const AgentComposerRoot = ({
         chatStop={stop}
         onCreateEmptySession={onCreateEmptySession}
         onAgentChange={onAgentChange}
-        onModelChange={onModelChange}
         agentChanging={agentChanging}
         canChangeAgent={canChangeAgent}
         onWorkspaceChange={onWorkspaceChange}
@@ -389,7 +386,6 @@ interface InnerProps {
   chatStop: Props['stop']
   onCreateEmptySession?: Props['onCreateEmptySession']
   onAgentChange?: Props['onAgentChange']
-  onModelChange?: Props['onModelChange']
   agentChanging?: boolean
   canChangeAgent: boolean
   onWorkspaceChange?: Props['onWorkspaceChange']
@@ -611,7 +607,6 @@ const AgentComposerInner = ({
   chatStop,
   onCreateEmptySession,
   onAgentChange,
-  onModelChange,
   agentChanging,
   canChangeAgent,
   onWorkspaceChange,
@@ -894,15 +889,11 @@ const AgentComposerInner = ({
   const handleModelSelect = useCallback(
     async (nextModel?: Model) => {
       if (!canChangeModel || !nextModel || nextModel.id === model?.id) return
-      if (onModelChange) {
-        await onModelChange(nextModel)
-        return
-      }
       const updatedAgent = await updateModel(agentId, nextModel.id, { showSuccessToast: false })
       if (!updatedAgent) return
       setReasoningEffort((current) => resolveReasoningEffortForModel(nextModel, current) ?? 'default')
     },
-    [agentId, canChangeModel, model?.id, onModelChange, updateModel]
+    [agentId, canChangeModel, model?.id, updateModel]
   )
 
   const handleCreateEmptySession = useCallback(() => {
