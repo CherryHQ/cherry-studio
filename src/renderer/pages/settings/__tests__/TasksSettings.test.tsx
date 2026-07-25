@@ -70,6 +70,7 @@ const taskMutationMocks = vi.hoisted(() => ({
   prevPage: vi.fn(),
   refetchTasks: vi.fn(),
   runTask: vi.fn(),
+  setTaskEnabled: vi.fn(),
   updateTask: vi.fn()
 }))
 
@@ -200,6 +201,7 @@ vi.mock('@renderer/hooks/agent/useTasks', () => {
     useCreateTask: () => ({ createTask: taskMutationMocks.createTask }),
     useDeleteTask: () => ({ deleteTask: taskMutationMocks.deleteTask }),
     useRunTask: () => ({ runTask: taskMutationMocks.runTask }),
+    useSetTaskEnabled: () => ({ setTaskEnabled: taskMutationMocks.setTaskEnabled }),
     useTask: (taskId: string | null) => {
       React.useSyncExternalStore(subscribeTasks, () => tasksVersionMock.version)
       return {
@@ -803,6 +805,7 @@ describe('TasksSettings routing and creation', () => {
     taskMutationMocks.deleteTask.mockResolvedValue(true)
     taskMutationMocks.refetchTasks.mockResolvedValue(undefined)
     taskMutationMocks.runTask.mockResolvedValue(true)
+    taskMutationMocks.setTaskEnabled.mockResolvedValue(taskDataMock.task)
     taskMutationMocks.updateTask.mockResolvedValue(taskDataMock.task)
   })
 
@@ -1150,6 +1153,7 @@ describe('TasksSettings detail behavior', () => {
     taskMutationMocks.deleteTask.mockResolvedValue(true)
     taskMutationMocks.refetchTasks.mockResolvedValue(undefined)
     taskMutationMocks.runTask.mockResolvedValue(true)
+    taskMutationMocks.setTaskEnabled.mockResolvedValue(taskDataMock.task)
     taskMutationMocks.updateTask.mockResolvedValue(taskDataMock.task)
   })
 
@@ -1329,7 +1333,7 @@ describe('TasksSettings detail behavior', () => {
     )
   })
 
-  it('reassigns an edited task to another Agent and clears incompatible channels', async () => {
+  it('keeps the owning Agent fixed while editing an existing task', async () => {
     agentDataMock.agents = [
       { id: 'agent-1', name: 'Agent One', configuration: {} },
       { id: 'agent-2', name: 'Agent Two', configuration: {} }
@@ -1351,21 +1355,8 @@ describe('TasksSettings detail behavior', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.edit' }))
     const dialog = screen.getByRole('dialog')
     const agentTrigger = within(dialog).getByRole('button', { name: 'agent.channels.bindAgent' })
-    expect(agentTrigger).toBeEnabled()
-    fireEvent.click(within(dialog).getByRole('button', { name: 'select Agent Two' }))
-    expect(agentTrigger).toHaveTextContent('Agent Two')
-    fireEvent.click(within(dialog).getByRole('button', { name: 'agent.tasks.save' }))
-
-    await waitFor(() =>
-      expect(taskMutationMocks.updateTask).toHaveBeenCalledWith(
-        'agent-1',
-        'task-1',
-        expect.objectContaining({
-          agentId: 'agent-2',
-          channelIds: []
-        })
-      )
-    )
+    expect(agentTrigger).toBeDisabled()
+    expect(agentTrigger).toHaveTextContent('Agent One')
   })
 
   it('shows each channel enabled state inside the channel selector options', async () => {
@@ -1389,7 +1380,7 @@ describe('TasksSettings detail behavior', () => {
 
   it('skips a queued run after a failed save but still lets a queued pause through', async () => {
     let resolveFirstSave!: (value: unknown) => void
-    taskMutationMocks.updateTask.mockImplementationOnce(
+    taskMutationMocks.setTaskEnabled.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
           resolveFirstSave = resolve
@@ -1402,17 +1393,17 @@ describe('TasksSettings detail behavior', () => {
     fireEvent.click(statusSwitch)
     fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
     fireEvent.click(statusSwitch)
-    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(taskMutationMocks.setTaskEnabled).toHaveBeenCalledTimes(1))
     resolveFirstSave(undefined)
 
-    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(2))
-    expect(taskMutationMocks.updateTask).toHaveBeenLastCalledWith('agent-1', 'task-1', { enabled: false })
+    await waitFor(() => expect(taskMutationMocks.setTaskEnabled).toHaveBeenCalledTimes(2))
+    expect(taskMutationMocks.setTaskEnabled).toHaveBeenLastCalledWith('agent-1', 'task-1', false)
     expect(taskMutationMocks.runTask).not.toHaveBeenCalled()
   })
 
   it('defers a queued run until the pending status update succeeds', async () => {
     let resolveFirstSave!: (value: unknown) => void
-    taskMutationMocks.updateTask.mockImplementationOnce(
+    taskMutationMocks.setTaskEnabled.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
           resolveFirstSave = resolve
@@ -1424,12 +1415,12 @@ describe('TasksSettings detail behavior', () => {
     const statusSwitch = await screen.findByRole('switch', { name: 'agent.tasks.status.active' })
     fireEvent.click(statusSwitch)
     fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
-    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(taskMutationMocks.setTaskEnabled).toHaveBeenCalledTimes(1))
     expect(taskMutationMocks.runTask).not.toHaveBeenCalled()
 
     resolveFirstSave({ ...taskDataMock.defaultTask, enabled: false, status: 'paused' })
 
-    await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('task-1'))
+    await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('agent-1', 'task-1'))
     await waitFor(() => expect(taskMutationMocks.refetchTasks).toHaveBeenCalled())
   })
 
@@ -1462,9 +1453,7 @@ describe('TasksSettings detail behavior', () => {
     expect(statusSwitch).toHaveAttribute('aria-checked', 'true')
     fireEvent.click(statusSwitch)
 
-    await waitFor(() =>
-      expect(taskMutationMocks.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', { enabled: false })
-    )
+    await waitFor(() => expect(taskMutationMocks.setTaskEnabled).toHaveBeenCalledWith('agent-1', 'task-1', false))
   })
 
   it('runs the task from the detail header action', async () => {
@@ -1472,7 +1461,7 @@ describe('TasksSettings detail behavior', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'agent.tasks.run' }))
 
-    await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('task-1'))
+    await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('agent-1', 'task-1'))
   })
 
   it('uses a neutral Badge and hides run/status controls for completed tasks', async () => {

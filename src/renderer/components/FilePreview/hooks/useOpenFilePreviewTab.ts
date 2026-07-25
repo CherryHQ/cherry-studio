@@ -4,14 +4,14 @@ import {
   FILE_PREVIEW_REFRESH_KEY,
   getFilePreviewRefreshKey
 } from '@renderer/utils/filePreview'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { useCallback } from 'react'
 
-export function useOpenFilePreviewTab(): (filePath: FilePath, fileName?: string) => string {
+export function useOpenFilePreviewTab(): (filePath: AbsoluteFilePath, fileName?: string) => string {
   const { openTab, tabs, updateTab } = useTabs()
 
   return useCallback(
-    (filePath: FilePath, fileName?: string) => {
+    (filePath: AbsoluteFilePath, fileName?: string) => {
       const target = createFilePreviewTabTarget(filePath)
       const title = fileName || target.title
       const existingTab = tabs.find((tab) => tab.type === 'route' && tab.url === target.url)

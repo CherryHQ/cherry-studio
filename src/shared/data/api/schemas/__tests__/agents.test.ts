@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  AgentEntitySchema,
-  CreateAgentSchema,
-  ListAgentsQuerySchema,
-  UpdateAgentSchema,
-  UpdateTaskSchema
-} from '../agents'
+import { AgentEntitySchema, CreateAgentSchema, ListAgentsQuerySchema, UpdateAgentSchema } from '../agents'
 
 describe('AgentEntitySchema', () => {
   const baseAgent = {
@@ -62,6 +56,20 @@ describe('AgentEntitySchema', () => {
     expect(UpdateAgentSchema.safeParse({ skillIds: ['skill-b'] }).success).toBe(false)
   })
 
+  it('validates and deduplicates knowledgeBaseIds at the API parse boundary', () => {
+    expect(
+      CreateAgentSchema.parse({
+        type: 'claude-code',
+        name: 'Agent',
+        model: 'openai::gpt-4',
+        knowledgeBaseIds: ['kb-a', 'kb-b', 'kb-a']
+      }).knowledgeBaseIds
+    ).toEqual(['kb-a', 'kb-b'])
+    expect(UpdateAgentSchema.parse({ knowledgeBaseIds: ['kb-b', 'kb-b'] }).knowledgeBaseIds).toEqual(['kb-b'])
+    expect(UpdateAgentSchema.parse({ knowledgeBaseIds: [] }).knowledgeBaseIds).toEqual([])
+    expect(UpdateAgentSchema.safeParse({ knowledgeBaseIds: [''] }).success).toBe(false)
+  })
+
   it('deduplicates update skillUpdates at the API parse boundary', () => {
     expect(
       UpdateAgentSchema.parse({
@@ -75,10 +83,5 @@ describe('AgentEntitySchema', () => {
       { skillId: 'skill-a', isEnabled: false },
       { skillId: 'skill-b', isEnabled: true }
     ])
-  })
-
-  it('accepts a non-empty target Agent when reassigning a scheduled task', () => {
-    expect(UpdateTaskSchema.parse({ agentId: 'agent-2' })).toEqual({ agentId: 'agent-2' })
-    expect(UpdateTaskSchema.safeParse({ agentId: '' }).success).toBe(false)
   })
 })

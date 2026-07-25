@@ -1,22 +1,11 @@
 import { defineProvider } from './types'
+import { modeWire } from './wires'
 
-const deepSeekThinkingWire = {
-  off: {
-    operations: [
-      { target: 'extra_body.thinking.type' as const, value: { source: 'literal' as const, value: 'disabled' } }
-    ]
-  },
-  auto: {
-    operations: [
-      { target: 'extra_body.thinking.type' as const, value: { source: 'literal' as const, value: 'enabled' } }
-    ]
-  },
-  effort: {
-    operations: [
-      { target: 'extra_body.thinking.type' as const, value: { source: 'literal' as const, value: 'enabled' } }
-    ]
-  }
-}
+const deepSeekThinkingWire = modeWire('extra_body.thinking.type', {
+  off: 'disabled',
+  auto: 'enabled',
+  effort: 'enabled'
+})
 
 const deepSeekModels = ['deepseek-chat', 'deepseek-reasoner', 'deepseek-v3-1', 'deepseek-v3-2']
 

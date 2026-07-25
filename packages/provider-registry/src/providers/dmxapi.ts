@@ -1,4 +1,61 @@
+import type { ImageModeDef } from '../schemas/model'
 import { openaiCompatible } from './types'
+
+/** DMXAPI serves the Seedream 4.x line with one size ladder across every mode it exposes. */
+const seedream4Mode: ImageModeDef = {
+  supports: {
+    numImages: { default: 1, max: 1, min: 1, type: 'range' },
+    size: {
+      default: '2048x2048',
+      options: ['2048x2048', '2304x1728', '1728x2304', '2560x1440', '1440x2560', '2496x1664', '1664x2496', '3024x1296'],
+      render: 'chips',
+      type: 'enum'
+    }
+  }
+}
+
+const seedream4Modes = { edit: seedream4Mode, generate: seedream4Mode, merge: seedream4Mode }
+
+const geminiFlashImageMode: ImageModeDef = {
+  supports: {
+    numImages: { default: 1, max: 1, min: 1, type: 'range' },
+    size: { default: '1x1', options: ['1x1'], render: 'chips', type: 'enum' }
+  }
+}
+
+const geminiFlashImageModes = {
+  edit: geminiFlashImageMode,
+  generate: geminiFlashImageMode,
+  merge: geminiFlashImageMode
+}
+
+const nanoBananaMode: ImageModeDef = {
+  supports: {
+    aspectRatio: {
+      default: '1:1',
+      options: ['1:1', '16:9', '9:16', '4:3', '3:4', '1x1'],
+      render: 'chips',
+      type: 'enum'
+    },
+    numImages: { default: 1, max: 1, min: 1, type: 'range' }
+  }
+}
+
+const nanoBananaModes = { edit: nanoBananaMode, generate: nanoBananaMode, merge: nanoBananaMode }
+
+const nanoBanana2Mode: ImageModeDef = {
+  supports: {
+    aspectRatio: {
+      default: '1:1',
+      options: ['1:1', '16:9', '9:16', '4:3', '3:4'],
+      render: 'chips',
+      type: 'enum'
+    },
+    numImages: { default: 1, max: 1, min: 1, type: 'range' }
+  }
+}
+
+const nanoBanana2Modes = { edit: nanoBanana2Mode, merge: nanoBanana2Mode }
 
 export default openaiCompatible({
   id: 'dmxapi',
@@ -35,135 +92,13 @@ export default openaiCompatible({
     },
     {
       imageGeneration: {
-        modes: {
-          edit: {
-            supports: {
-              numImages: { default: 1, max: 1, min: 1, type: 'range' },
-              size: {
-                default: '2048x2048',
-                options: [
-                  '2048x2048',
-                  '2304x1728',
-                  '1728x2304',
-                  '2560x1440',
-                  '1440x2560',
-                  '2496x1664',
-                  '1664x2496',
-                  '3024x1296'
-                ],
-                render: 'chips',
-                type: 'enum'
-              }
-            }
-          },
-          generate: {
-            supports: {
-              numImages: { default: 1, max: 1, min: 1, type: 'range' },
-              size: {
-                default: '2048x2048',
-                options: [
-                  '2048x2048',
-                  '2304x1728',
-                  '1728x2304',
-                  '2560x1440',
-                  '1440x2560',
-                  '2496x1664',
-                  '1664x2496',
-                  '3024x1296'
-                ],
-                render: 'chips',
-                type: 'enum'
-              }
-            }
-          },
-          merge: {
-            supports: {
-              numImages: { default: 1, max: 1, min: 1, type: 'range' },
-              size: {
-                default: '2048x2048',
-                options: [
-                  '2048x2048',
-                  '2304x1728',
-                  '1728x2304',
-                  '2560x1440',
-                  '1440x2560',
-                  '2496x1664',
-                  '1664x2496',
-                  '3024x1296'
-                ],
-                render: 'chips',
-                type: 'enum'
-              }
-            }
-          }
-        }
+        modes: seedream4Modes
       },
       modelId: 'doubao-seedream-4-0'
     },
     {
       imageGeneration: {
-        modes: {
-          edit: {
-            supports: {
-              numImages: { default: 1, max: 1, min: 1, type: 'range' },
-              size: {
-                default: '2048x2048',
-                options: [
-                  '2048x2048',
-                  '2304x1728',
-                  '1728x2304',
-                  '2560x1440',
-                  '1440x2560',
-                  '2496x1664',
-                  '1664x2496',
-                  '3024x1296'
-                ],
-                render: 'chips',
-                type: 'enum'
-              }
-            }
-          },
-          generate: {
-            supports: {
-              numImages: { default: 1, max: 1, min: 1, type: 'range' },
-              size: {
-                default: '2048x2048',
-                options: [
-                  '2048x2048',
-                  '2304x1728',
-                  '1728x2304',
-                  '2560x1440',
-                  '1440x2560',
-                  '2496x1664',
-                  '1664x2496',
-                  '3024x1296'
-                ],
-                render: 'chips',
-                type: 'enum'
-              }
-            }
-          },
-          merge: {
-            supports: {
-              numImages: { default: 1, max: 1, min: 1, type: 'range' },
-              size: {
-                default: '2048x2048',
-                options: [
-                  '2048x2048',
-                  '2304x1728',
-                  '1728x2304',
-                  '2560x1440',
-                  '1440x2560',
-                  '2496x1664',
-                  '1664x2496',
-                  '3024x1296'
-                ],
-                render: 'chips',
-                type: 'enum'
-              }
-            }
-          }
-        }
+        modes: seedream4Modes
       },
       modelId: 'doubao-seedream-4-5'
     },
@@ -282,26 +217,7 @@ export default openaiCompatible({
       modelId: 'gemini-2-5-flash-image',
       apiModelId: 'gemini-2.5-flash-image',
       imageGeneration: {
-        modes: {
-          edit: {
-            supports: {
-              numImages: { default: 1, max: 1, min: 1, type: 'range' },
-              size: { default: '1x1', options: ['1x1'], render: 'chips', type: 'enum' }
-            }
-          },
-          generate: {
-            supports: {
-              numImages: { default: 1, max: 1, min: 1, type: 'range' },
-              size: { default: '1x1', options: ['1x1'], render: 'chips', type: 'enum' }
-            }
-          },
-          merge: {
-            supports: {
-              numImages: { default: 1, max: 1, min: 1, type: 'range' },
-              size: { default: '1x1', options: ['1x1'], render: 'chips', type: 'enum' }
-            }
-          }
-        }
+        modes: geminiFlashImageModes
       }
     },
     {
@@ -330,41 +246,7 @@ export default openaiCompatible({
       modelId: 'nano-banana',
       apiModelId: 'nano-banana',
       imageGeneration: {
-        modes: {
-          edit: {
-            supports: {
-              aspectRatio: {
-                default: '1:1',
-                options: ['1:1', '16:9', '9:16', '4:3', '3:4', '1x1'],
-                render: 'chips',
-                type: 'enum'
-              },
-              numImages: { default: 1, max: 1, min: 1, type: 'range' }
-            }
-          },
-          generate: {
-            supports: {
-              aspectRatio: {
-                default: '1:1',
-                options: ['1:1', '16:9', '9:16', '4:3', '3:4', '1x1'],
-                render: 'chips',
-                type: 'enum'
-              },
-              numImages: { default: 1, max: 1, min: 1, type: 'range' }
-            }
-          },
-          merge: {
-            supports: {
-              aspectRatio: {
-                default: '1:1',
-                options: ['1:1', '16:9', '9:16', '4:3', '3:4', '1x1'],
-                render: 'chips',
-                type: 'enum'
-              },
-              numImages: { default: 1, max: 1, min: 1, type: 'range' }
-            }
-          }
-        }
+        modes: nanoBananaModes
       },
       name: 'Nano Banana',
       inputModalities: ['text', 'image'],
@@ -374,30 +256,7 @@ export default openaiCompatible({
       modelId: 'nano-banana-2',
       apiModelId: 'nano-banana-2',
       imageGeneration: {
-        modes: {
-          edit: {
-            supports: {
-              aspectRatio: {
-                default: '1:1',
-                options: ['1:1', '16:9', '9:16', '4:3', '3:4'],
-                render: 'chips',
-                type: 'enum'
-              },
-              numImages: { default: 1, max: 1, min: 1, type: 'range' }
-            }
-          },
-          merge: {
-            supports: {
-              aspectRatio: {
-                default: '1:1',
-                options: ['1:1', '16:9', '9:16', '4:3', '3:4'],
-                render: 'chips',
-                type: 'enum'
-              },
-              numImages: { default: 1, max: 1, min: 1, type: 'range' }
-            }
-          }
-        }
+        modes: nanoBanana2Modes
       },
       name: 'Nano Banana 2',
       inputModalities: ['text', 'image'],

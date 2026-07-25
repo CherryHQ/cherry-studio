@@ -76,6 +76,7 @@ import {
   useCreateTask,
   useDeleteTask,
   useRunTask,
+  useSetTaskEnabled,
   useTask,
   useTaskLogs,
   useUpdateTask
@@ -88,12 +89,8 @@ import type { AgentChannelEntity } from '@shared/data/api/schemas/agentChannels'
 import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
-import type {
-  CreateTaskRequest,
-  ScheduledTaskEntity,
-  TaskRunLogEntity,
-  UpdateTaskRequest
-} from '@shared/data/types/agent'
+import type { ScheduledTaskEntity, TaskRunLogEntity } from '@shared/data/types/agent'
+import type { AgentTaskForm, AgentTaskPatch } from '@shared/ipc/schemas/ai'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import type { TFunction } from 'i18next'
 import {
@@ -757,7 +754,7 @@ const TaskDetail: FC<{
   task: ScheduledTaskEntity
   agents: AgentInfo[]
   onBack: () => void
-  onUpdate: (taskId: string, updates: UpdateTaskRequest) => Promise<TaskUpdateResult | undefined>
+  onUpdate: (taskId: string, updates: AgentTaskPatch) => Promise<TaskUpdateResult | undefined>
   onDelete: (taskId: string) => Promise<void>
   onRun: (taskId: string) => Promise<void>
   onToggleStatus: (taskId: string, newStatus: string) => Promise<void>
@@ -825,7 +822,7 @@ const TaskDetail: FC<{
   ]
 
   const handleEditSave = useCallback(
-    async (request: UpdateTaskRequest) => {
+    async (request: AgentTaskPatch) => {
       const result = await onUpdate(task.id, request)
       return result?.succeeded === true
     },
@@ -966,12 +963,12 @@ type TaskFormDialogProps = {
 } & (
   | {
       task: ScheduledTaskEntity
-      onUpdate: (request: UpdateTaskRequest) => Promise<boolean>
+      onUpdate: (request: AgentTaskPatch) => Promise<boolean>
       onCreate?: never
     }
   | {
       task?: undefined
-      onCreate: (agentId: string, request: CreateTaskRequest) => Promise<boolean>
+      onCreate: (agentId: string, request: AgentTaskForm) => Promise<boolean>
       onUpdate?: never
     }
 )
@@ -1050,9 +1047,8 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
       let saved: boolean
       if (props.task) {
         const initialDraft = initialDraftRef.current ?? taskToDraftSnapshot(props.task)
-        const updates: UpdateTaskRequest = {}
+        const updates: AgentTaskPatch = {}
 
-        if (agentId !== props.task.agentId) updates.agentId = agentId
         if (name !== initialDraft.name) updates.name = name.trim()
         if (prompt !== initialDraft.prompt) updates.prompt = prompt.trim()
         if (schedule.timeoutMinutes !== initialDraft.schedule.timeoutMinutes) {
@@ -1143,13 +1139,14 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
                     setAgentId(nextAgentId)
                     setChannelIds([])
                   }}
+                  disabled={saving || isEditing}
                   align="start"
                   mountStrategy="lazy-keep"
                   trigger={
                     <Button
                       type="button"
                       variant="outline"
-                      disabled={saving}
+                      disabled={saving || isEditing}
                       aria-label={t('agent.channels.bindAgent')}
                       aria-invalid={(submitted && !agentId) || undefined}
                       aria-busy={saving || undefined}>
@@ -1221,6 +1218,7 @@ const TasksSettings: FC = () => {
   const { updateTask } = useUpdateTask()
   const { deleteTask } = useDeleteTask()
   const { runTask } = useRunTask()
+  const { setTaskEnabled } = useSetTaskEnabled()
 
   // Mirror AgentSelector's query exactly so both read one shared SWR cache
   // entry: the selector can list (and create in-place) up to the same server
@@ -1308,7 +1306,7 @@ const TasksSettings: FC = () => {
   )
 
   const handleCreate = useCallback(
-    async (agentId: string, request: CreateTaskRequest) => {
+    async (agentId: string, request: AgentTaskForm) => {
       const created = await createTask(agentId, request)
       if (!created) return undefined
       await navigate({ to: '/settings/scheduled-tasks/$taskId', params: { taskId: created.id } })
@@ -1318,7 +1316,7 @@ const TasksSettings: FC = () => {
   )
 
   const persistTaskUpdate = useCallback(
-    async (task: ScheduledTaskEntity, updates: UpdateTaskRequest): Promise<TaskUpdateResult> => {
+    async (task: ScheduledTaskEntity, updates: AgentTaskPatch): Promise<TaskUpdateResult> => {
       const updated = await updateTask(task.agentId, task.id, updates)
       if (!updated) return { succeeded: false, task }
       return { succeeded: true, task: updated }
@@ -1335,7 +1333,7 @@ const TasksSettings: FC = () => {
   )
 
   const handleUpdate = useCallback(
-    (selectedTaskId: string, updates: UpdateTaskRequest): Promise<TaskUpdateResult | undefined> => {
+    (selectedTaskId: string, updates: AgentTaskPatch): Promise<TaskUpdateResult | undefined> => {
       const task = getTaskForAction(selectedTaskId)
       if (!task) return Promise.resolve(undefined)
 
@@ -1363,13 +1361,15 @@ const TasksSettings: FC = () => {
     async (selectedTaskId: string) => {
       await enqueueTaskOperation(selectedTaskId, async (previousSucceeded) => {
         if (!previousSucceeded) return false
-        const ran = await runTask(selectedTaskId)
+        const task = getTaskForAction(selectedTaskId)
+        if (!task) return false
+        const ran = await runTask(task.agentId, selectedTaskId)
         if (!ran) return false
         await refetchTasks()
         return true
       })
     },
-    [enqueueTaskOperation, refetchTasks, runTask]
+    [enqueueTaskOperation, getTaskForAction, refetchTasks, runTask]
   )
 
   const handleToggleStatus = useCallback(
@@ -1379,11 +1379,11 @@ const TasksSettings: FC = () => {
       await enqueueTaskOperation(selectedTaskId, async (previousSucceeded) => {
         const enabled = newStatus === 'active'
         if (enabled && !previousSucceeded) return false
-        const toggleResult = await persistTaskUpdate(task, { enabled })
-        return previousSucceeded && toggleResult.succeeded
+        const updated = await setTaskEnabled(task.agentId, task.id, enabled)
+        return previousSucceeded && updated !== undefined
       })
     },
-    [enqueueTaskOperation, getTaskForAction, persistTaskUpdate]
+    [enqueueTaskOperation, getTaskForAction, setTaskEnabled]
   )
 
   if (loading) {

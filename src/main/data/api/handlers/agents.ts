@@ -13,13 +13,11 @@ import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/sc
 import {
   type AgentSchemas,
   CreateAgentSchema,
-  CreateTaskSchema,
   DeleteAgentQuerySchema,
   ListAgentsQuerySchema,
   type ListQuery,
   ListQuerySchema,
-  UpdateAgentSchema,
-  UpdateTaskSchema
+  UpdateAgentSchema
 } from '@shared/data/api/schemas/agents'
 import type { HandlersFor } from '@shared/data/api/types'
 
@@ -96,17 +94,13 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     }
   },
 
+  // Task reads only — task mutations are mixed-effect commands (schedule row +
+  // subscriptions + timer) and live on IpcApi `ai.agent.task.*` (AgentJobsService).
   '/agents/:agentId/tasks': {
     GET: async ({ params, query }) => {
       const { page, limit, offset } = paginationFromQuery(parseListQuery(query))
       const { tasks, total } = taskService.listTasks(params.agentId, { limit, offset })
       return { items: tasks, total, page }
-    },
-
-    POST: async ({ params, body }) => {
-      const parsed = CreateTaskSchema.safeParse(body)
-      if (!parsed.success) throw toDataApiError(parsed.error)
-      return await taskService.createTask(params.agentId, parsed.data)
     }
   },
 
@@ -115,20 +109,6 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
       const task = taskService.getTask(params.agentId, params.taskId)
       if (!task) throw DataApiErrorFactory.notFound('Task', params.taskId)
       return task
-    },
-
-    PATCH: async ({ params, body }) => {
-      const parsed = UpdateTaskSchema.safeParse(body)
-      if (!parsed.success) throw toDataApiError(parsed.error)
-      const task = await taskService.updateTask(params.agentId, params.taskId, parsed.data)
-      if (!task) throw DataApiErrorFactory.notFound('Task', params.taskId)
-      return task
-    },
-
-    DELETE: async ({ params }) => {
-      const deleted = await taskService.deleteTask(params.agentId, params.taskId)
-      if (!deleted) throw DataApiErrorFactory.notFound('Task', params.taskId)
-      return undefined
     }
   },
 

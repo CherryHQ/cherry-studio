@@ -8,6 +8,9 @@ import Chat from '../Chat'
 const conversationShellProps = vi.hoisted(() => ({
   current: null as any
 }))
+const chatContentProps = vi.hoisted(() => ({
+  current: null as any
+}))
 
 const topic: Topic = {
   id: 'topic-1',
@@ -73,17 +76,61 @@ vi.mock('@renderer/hooks/useTopic', () => ({
   })
 }))
 
+vi.mock('@renderer/hooks/useAssistant', () => ({
+  useAssistant: () => ({
+    assistant: {
+      id: 'assistant-1',
+      name: 'Assistant',
+      emoji: '😀',
+      modelId: 'provider::model',
+      settings: {}
+    },
+    isLoading: false,
+    model: {
+      id: 'provider::model',
+      providerId: 'provider',
+      apiModelId: 'model',
+      name: 'Model'
+    },
+    isModelPending: false,
+    isModelMissing: false,
+    setModel: vi.fn(),
+    updateAssistantSettings: vi.fn()
+  })
+}))
+
+vi.mock('@renderer/hooks/useProvider', () => ({
+  useProviders: () => ({ providers: [] })
+}))
+
+vi.mock('@renderer/components/composer/variants/chat/ChatConversationControls', () => ({
+  ChatConversationControls: ({ assistantName }: { assistantName: string }) => (
+    <div data-testid="chat-conversation-controls">{assistantName}</div>
+  )
+}))
+
 vi.mock('react-hotkeys-hook', () => ({
   useHotkeys: vi.fn()
 }))
 
 vi.mock('../ChatContent', () => ({
-  default: () => <div data-testid="chat-content" />
+  default: (props: any) => {
+    chatContentProps.current = props
+    return <div data-testid="chat-content" />
+  }
 }))
 
 vi.mock('../components/ChatNavbar', () => ({
-  default: ({ showSidebarControls }: { showSidebarControls?: boolean }) => (
-    <div data-show-sidebar-controls={String(showSidebarControls)} data-testid="chat-navbar" />
+  default: ({
+    conversationControls,
+    showSidebarControls
+  }: {
+    conversationControls?: ReactNode
+    showSidebarControls?: boolean
+  }) => (
+    <div data-show-sidebar-controls={String(showSidebarControls)} data-testid="chat-navbar">
+      {conversationControls}
+    </div>
   )
 }))
 
@@ -102,6 +149,7 @@ describe('Chat', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     conversationShellProps.current = null
+    chatContentProps.current = null
   })
 
   it('renders the navbar and right pane shortcuts in the shared conversation shell', () => {
@@ -111,6 +159,9 @@ describe('Chat', () => {
     expect(conversationShellProps.current?.topBar).toBeTruthy()
     expect(conversationShellProps.current?.topRightTool).toBeTruthy()
     expect(screen.getByTestId('topic-right-shortcuts')).toBeInTheDocument()
+    expect(screen.getByTestId('chat-conversation-controls')).toHaveTextContent('Assistant')
+    expect(chatContentProps.current?.assistantContext?.assistant?.id).toBe('assistant-1')
+    expect(chatContentProps.current?.assistantContextLoading).toBe(false)
   })
 
   it('keeps the navbar mounted while disabling sidebar controls', () => {
@@ -119,5 +170,13 @@ describe('Chat', () => {
     expect(screen.getByTestId('chat-navbar')).toHaveAttribute('data-show-sidebar-controls', 'false')
     expect(conversationShellProps.current?.topBar).toBeTruthy()
     expect(conversationShellProps.current?.topRightTool).toBeTruthy()
+  })
+
+  it('renders the navbar while the active topic is still resolving', () => {
+    render(<Chat showResourceListControls />)
+
+    expect(screen.getByTestId('chat-navbar')).toBeInTheDocument()
+    expect(conversationShellProps.current?.topBar).toBeTruthy()
+    expect(conversationShellProps.current?.topRightTool).toBeFalsy()
   })
 })

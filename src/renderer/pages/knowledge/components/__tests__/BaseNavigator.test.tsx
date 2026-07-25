@@ -1310,7 +1310,7 @@ describe('BaseNavigator', () => {
     expect(onSelectBase).toHaveBeenCalledWith('base-2')
   })
 
-  it('creates a knowledge base directly from the search-row add button', () => {
+  it('creates a knowledge base from the full-width action below search', () => {
     const onCreateBase = vi.fn()
     const onCreateGroup = vi.fn()
 
@@ -1332,7 +1332,14 @@ describe('BaseNavigator', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '添加' }))
+    const searchInput = screen.getByPlaceholderText('搜索知识库...')
+    const createButton = screen.getByRole('button', { name: '新建知识库' })
+
+    expect(createButton.parentElement).toHaveClass('flex-col', 'px-2.5')
+    expect(createButton).toHaveClass('h-8', 'w-full', 'justify-start')
+    expect(searchInput.compareDocumentPosition(createButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    fireEvent.click(createButton)
 
     expect(onCreateBase).toHaveBeenCalledTimes(1)
     // No initialGroupId — and in particular not the click's MouseEvent.

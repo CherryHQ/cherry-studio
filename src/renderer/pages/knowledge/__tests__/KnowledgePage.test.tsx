@@ -348,12 +348,7 @@ vi.mock('../components/CreateKnowledgeBaseDialog', () => ({
     open: boolean
     groups: Array<{ id: string; name: string }>
     initialGroupId?: string
-    createBase: (input: {
-      name: string
-      groupId?: string
-      embeddingModelId: string | null
-      dimensions: number
-    }) => Promise<KnowledgeBase>
+    createBase: (input: { name: string; groupId?: string }) => Promise<KnowledgeBase>
     onOpenChange: (open: boolean) => void
     onCreated: (base: KnowledgeBase) => void
   }) =>
@@ -366,9 +361,7 @@ vi.mock('../components/CreateKnowledgeBaseDialog', () => ({
           onClick={async () => {
             const createdBase = await createBase({
               name: 'Base 2',
-              ...(initialGroupId ? { groupId: initialGroupId } : {}),
-              embeddingModelId: 'openai::text-embedding-3-small',
-              dimensions: 1536
+              ...(initialGroupId ? { groupId: initialGroupId } : {})
             })
             onCreated(createdBase)
             onOpenChange(false)
