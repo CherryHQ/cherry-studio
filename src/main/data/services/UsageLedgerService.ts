@@ -562,7 +562,24 @@ export class UsageLedgerService {
         // practice; max() just picks a stable value if labels changed).
         apiKeyLabel: sql<string | null>`max(${usageLedgerTable.apiKeyLabel})`,
         apiKeyMasked: sql<string | null>`max(${usageLedgerTable.apiKeyMasked})`,
-        apiKeyAttribution: sql<string>`max(${usageLedgerTable.apiKeyAttribution})`,
+        // Attribution is a confidence label, not an ordinal: alphabetically
+        // `backfill` < `exact`, so max() would report a bucket mixing migration
+        // guesses with exact rows as fully `exact`. Rank most confident (exact)
+        // → least (none) and report the LEAST confident label present, so the
+        // bucket never claims more certainty than its weakest row.
+        apiKeyAttribution: sql<string>`CASE min(CASE ${usageLedgerTable.apiKeyAttribution}
+            WHEN 'exact' THEN 5
+            WHEN 'rotation' THEN 4
+            WHEN 'backfill' THEN 3
+            WHEN 'auth' THEN 2
+            ELSE 1
+          END)
+          WHEN 5 THEN 'exact'
+          WHEN 4 THEN 'rotation'
+          WHEN 3 THEN 'backfill'
+          WHEN 2 THEN 'auth'
+          ELSE 'none'
+        END`,
         totalCost: sql<number>`coalesce(sum(${usageLedgerTable.cost}), 0)`,
         totalInputTokens: sql<number>`coalesce(sum(${usageLedgerTable.inputTokens}), 0)`,
         totalOutputTokens: sql<number>`coalesce(sum(${usageLedgerTable.outputTokens}), 0)`,

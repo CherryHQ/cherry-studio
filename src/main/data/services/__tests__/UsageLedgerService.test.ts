@@ -677,6 +677,20 @@ describe('UsageLedgerService', () => {
       expect(buckets[0]).toMatchObject({ costCurrency: 'CNY', totalCost: 7 })
     })
 
+    it('reports the least confident attribution for a bucket mixing exact and backfill rows', async () => {
+      const base = { providerId: 'openai', modelId: 'openai::gpt-4o', apiKeyId: 'key-a', costCurrency: 'USD' }
+      await dbh.db.insert(usageLedgerTable).values([
+        { ...base, messageId: 'm-exact', apiKeyAttribution: 'exact', cost: 1, createdAt: 1000, updatedAt: 1000 },
+        { ...base, messageId: 'm-backfill', apiKeyAttribution: 'backfill', cost: 2, createdAt: 2000, updatedAt: 2000 }
+      ])
+
+      const { buckets } = await usageLedgerService.stats({ groupBy: 'apiKey' })
+
+      expect(buckets).toHaveLength(1)
+      // Alphabetically 'backfill' < 'exact', so max() would have said 'exact'.
+      expect(buckets[0]).toMatchObject({ apiKeyId: 'key-a', apiKeyAttribution: 'backfill', entryCount: 2 })
+    })
+
     it('falls back to the current provider name when old ledger rows only have the provider id snapshot', async () => {
       await seedProvider([], { providerId: 'custom-provider' })
       await dbh.db.insert(usageLedgerTable).values({
