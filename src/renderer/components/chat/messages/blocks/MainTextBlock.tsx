@@ -11,7 +11,7 @@ import type { CitationReferenceView } from '@renderer/utils/partsToBlocks'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
-import { ChevronDown, Code2, Globe2 } from 'lucide-react'
+import { ChevronDown, Code2 } from 'lucide-react'
 import React, { useCallback, useEffect, useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Components } from 'streamdown'
@@ -38,8 +38,7 @@ interface Props {
 const composerTokenIcon: Partial<
   Record<ComposerMessageToken['kind'], React.ComponentType<{ size?: number; className?: string }>>
 > = {
-  command: Code2,
-  reference: Globe2
+  command: Code2
 }
 
 type ComposerTokenBackedMessageToken = ComposerMessageToken & { kind: ChatInputTokenKind }
@@ -49,6 +48,7 @@ const COMPOSER_TOKEN_BACKED_KINDS = new Set<ComposerMessageToken['kind']>([
   'folder',
   'knowledge',
   'quote',
+  'reference',
   'skill'
 ])
 

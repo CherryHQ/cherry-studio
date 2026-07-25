@@ -6,9 +6,9 @@
  * which bases are reachable: in the AI-SDK path it is the scope resolved by
  * `resolveKnowledgeBaseIds` (the assistant's own bound bases take precedence
  * when non-empty; only when the assistant has none does the composer's
- * per-turn selection define the scope); an empty array means "no scope"
- * (all user bases), which is what the Claude Code agent path passes since
- * agents have no per-assistant knowledge scope.
+ * per-turn selection define the scope). The Claude Code path passes the agent's
+ * bound knowledge bases after hiding/rejecting the kb_* tools for an empty binding.
+ * At this shared core boundary, an empty array still means "no scope" (all user bases).
  *
  * `searchKnowledge` never throws: an infrastructure failure (every targeted
  * base errored) returns `{ error }` so it is distinguishable from "ran fine,

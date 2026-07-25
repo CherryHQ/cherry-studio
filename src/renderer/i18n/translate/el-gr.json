@@ -869,6 +869,7 @@
       "expired": "Ληγμένο",
       "inputPreview": "Προεπισκόπηση εισόδου εργαλείου",
       "pending": "Εκκρεμεί ({{seconds}}δ)",
+      "pendingBadge": "[to be translated]:Pending",
       "permissionExpired": "Το αίτημα άδειας έληξε. Αναμονή για νέες οδηγίες...",
       "requiresElevatedPermissions": "Αυτό το εργαλείο απαιτεί αυξημένα δικαιώματα.",
       "suggestion": {
@@ -1425,6 +1426,24 @@
       "pause": "Παύση",
       "placeholder": "Εισάγετε μήνυμα εδώ...",
       "placeholder_without_triggers": "Γράψτε το μήνυμά σας εδώ, πατήστε {{key}} για αποστολή",
+      "reference_panel": {
+        "load_failed": "[to be translated]:Failed to load the referenced conversation",
+        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "session": {
+          "no_results": {
+            "description": "[to be translated]:No sessions match your search",
+            "label": "[to be translated]:No Sessions Found"
+          },
+          "title": "[to be translated]:Sessions"
+        },
+        "topic": {
+          "no_results": {
+            "description": "[to be translated]:No topics match your search",
+            "label": "[to be translated]:No Topics Found"
+          },
+          "title": "[to be translated]:Topics"
+        }
+      },
       "resize_height": "Αλλαγή ύψους εισόδου",
       "resource_panel": {
         "categories": {
@@ -2274,6 +2293,7 @@
     "provider": "Παρέχων",
     "reasoning_content": "Έχει σκεφτεί πολύ καλά",
     "refresh": "Ανανέωση",
+    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
     "regenerate": "Ξαναπαραγωγή",
     "remove_image": "Αφαίρεση εικόνας",
     "rename": "Μετονομασία",
@@ -2588,7 +2608,8 @@
     "edit": "Επεξεργασία",
     "empty": {
       "no_match_description": "Κανένα αρχείο δεν ταιριάζει με τα τρέχοντα φίλτρα",
-      "no_match_title": "Δεν βρέθηκαν αρχεία που να ταιριάζουν"
+      "no_match_title": "Δεν βρέθηκαν αρχεία που να ταιριάζουν",
+      "title": "[to be translated]:No files yet"
     },
     "empty_trash": "Άδειασμα κάδου απορριμμάτων",
     "error": {
@@ -2986,7 +3007,6 @@
     "embedding_model": "Μοντέλο Ενσωμάτωσης",
     "embedding_model_required": "Απαιτείται μοντέλο ενσωμάτωσης βάσης γνώσης",
     "empty": "Καμία βάση γνώσεων",
-    "empty_action": "Δημιουργία Βάσης Γνώσης",
     "empty_description": "Δεν έχετε ακόμα καμία βάση γνώσεων. Δημιουργήστε μία για να αρχίσετε να οργανώνετε και να αναζητάτε τα έγγραφά σας.",
     "error": {
       "directory_not_migrated": "Η μεταφορά του φακέλου απέτυχε. Παρακαλώ διαγράψτε τον και ανεβάστε τον ξανά.",

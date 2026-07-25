@@ -869,6 +869,7 @@
       "expired": "Истёк",
       "inputPreview": "Предварительный просмотр ввода инструмента",
       "pending": "Ожидание ({{seconds}}с)",
+      "pendingBadge": "[to be translated]:Pending",
       "permissionExpired": "Срок действия запроса на разрешение истёк. Ожидание новых инструкций...",
       "requiresElevatedPermissions": "Этому инструменту требуются повышенные разрешения.",
       "suggestion": {
@@ -1425,6 +1426,24 @@
       "pause": "Остановить",
       "placeholder": "Введите ваше сообщение здесь, нажмите {{key}} для отправки...",
       "placeholder_without_triggers": "Напишите сообщение здесь, нажмите {{key}} для отправки",
+      "reference_panel": {
+        "load_failed": "[to be translated]:Failed to load the referenced conversation",
+        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "session": {
+          "no_results": {
+            "description": "[to be translated]:No sessions match your search",
+            "label": "[to be translated]:No Sessions Found"
+          },
+          "title": "[to be translated]:Sessions"
+        },
+        "topic": {
+          "no_results": {
+            "description": "[to be translated]:No topics match your search",
+            "label": "[to be translated]:No Topics Found"
+          },
+          "title": "[to be translated]:Topics"
+        }
+      },
       "resize_height": "Изменить высоту ввода",
       "resource_panel": {
         "categories": {
@@ -2274,6 +2293,7 @@
     "provider": "Провайдер",
     "reasoning_content": "Глубокий анализ",
     "refresh": "Обновить",
+    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
     "regenerate": "Пересоздать",
     "remove_image": "Удалить изображение",
     "rename": "Переименовать",
@@ -2588,7 +2608,8 @@
     "edit": "Редактировать",
     "empty": {
       "no_match_description": "Ни один файл не соответствует текущим фильтрам",
-      "no_match_title": "Совпадающие файлы не найдены"
+      "no_match_title": "Совпадающие файлы не найдены",
+      "title": "[to be translated]:No files yet"
     },
     "empty_trash": "Очистить корзину",
     "error": {
@@ -2986,7 +3007,6 @@
     "embedding_model": "Модель встраивания",
     "embedding_model_required": "Требуется модель встраивания базы знаний",
     "empty": "Нет баз знаний",
-    "empty_action": "Создать базу знаний",
     "empty_description": "У вас пока нет баз знаний. Создайте одну, чтобы начать организовывать и искать ваши документы.",
     "error": {
       "directory_not_migrated": "Не удалось перенести папку. Пожалуйста, удалите её и загрузите заново.",
