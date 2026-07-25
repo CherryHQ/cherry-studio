@@ -1,11 +1,17 @@
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import ConversationComposerSlot from '@renderer/components/composer/ConversationComposerSlot'
-import { ChatPlacementComposer } from '@renderer/components/composer/variants/ChatComposer'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
+import { lazy } from 'react'
 
 import type { AddNewTopicPayload } from './types'
+
+const ChatPlacementComposer = lazy(() =>
+  import('@renderer/components/composer/variants/ChatComposer').then((module) => ({
+    default: module.ChatPlacementComposer
+  }))
+)
 
 interface ChatComposerSlotBaseProps {
   topic: Topic
@@ -59,5 +65,5 @@ export default function ChatComposerSlot({
       />
     )
 
-  return <ConversationComposerSlot composerContext={composerContext} fallback={fallback} />
+  return <ConversationComposerSlot scopeKey={topic.id} composerContext={composerContext} fallback={fallback} />
 }

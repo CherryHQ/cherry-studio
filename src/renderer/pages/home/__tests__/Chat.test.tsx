@@ -120,4 +120,12 @@ describe('Chat', () => {
     expect(conversationShellProps.current?.topBar).toBeTruthy()
     expect(conversationShellProps.current?.topRightTool).toBeTruthy()
   })
+
+  it('renders the navbar while the active topic is still resolving', () => {
+    render(<Chat showResourceListControls />)
+
+    expect(screen.getByTestId('chat-navbar')).toBeInTheDocument()
+    expect(conversationShellProps.current?.topBar).toBeTruthy()
+    expect(conversationShellProps.current?.topRightTool).toBeFalsy()
+  })
 })

@@ -1753,6 +1753,7 @@ export default function ComposerSurface({
     extensions: editorExtensions,
     content: createComposerEditorContent(text, draftTokens),
     editable,
+    immediatelyRender: false,
     enableSpellCheck,
     editorProps: memoizedEditorProps,
     handlePaste: memoizedHandlePaste,

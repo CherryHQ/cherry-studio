@@ -525,7 +525,7 @@ export function AssistantResourceList({
         // Reorder persists the global assistant `orderKey`; grouped sections use Group.orderKey.
         // Disable assistant reorder while grouped because it cannot change group ordering.
         onReorder={isGroupGrouping ? undefined : handleReorder}
-        reorderEnabled={!isTopicsRefreshing}
+        reorderEnabled={isTopicsFullyLoaded && !isTopicsLoadingAll && !isTopicsRefreshing}
         getContextMenuActions={getContextMenuActions}
         onContextMenuAction={handleContextMenuAction}
       />

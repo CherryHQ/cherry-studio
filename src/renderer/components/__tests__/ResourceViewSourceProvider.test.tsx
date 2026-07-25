@@ -16,6 +16,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const sourceMocks = vi.hoisted(() => ({
   tabs: [] as Tab[],
+  activeTabId: null as string | null,
   assistantEnabled: [] as Array<boolean | undefined>,
   agentEnabled: [] as Array<boolean | undefined>,
   assistantSource: undefined as unknown,
@@ -28,7 +29,7 @@ vi.mock('@renderer/hooks/tab', async (importOriginal) => {
 
   return {
     ...actual,
-    useTabs: () => ({ tabs: sourceMocks.tabs })
+    useTabs: () => ({ activeTabId: sourceMocks.activeTabId, tabs: sourceMocks.tabs })
   }
 })
 
@@ -150,6 +151,7 @@ const createProviderTree = () => (
 describe('ResourceViewSourceProvider', () => {
   beforeEach(() => {
     sourceMocks.tabs = []
+    sourceMocks.activeTabId = null
     sourceMocks.assistantEnabled = []
     sourceMocks.agentEnabled = []
     sourceMocks.assistantSource = createAssistantSource([], { complete: false })
@@ -157,13 +159,14 @@ describe('ResourceViewSourceProvider', () => {
     sourceProbeRenders.mockClear()
   })
 
-  it('publishes assistant topics only after a complete generation and keeps it stable during refresh', async () => {
+  it('publishes progressive assistant topics on cold start and keeps the complete snapshot stable during refresh', async () => {
     sourceMocks.tabs = [createTab('chat', '/app/chat')]
+    sourceMocks.activeTabId = 'chat'
     sourceMocks.assistantSource = createAssistantSource(['partial'], { complete: false })
 
     const { rerender } = render(createProviderTree())
 
-    expect(screen.getByTestId('topic-ids')).toHaveTextContent('')
+    expect(screen.getByTestId('topic-ids')).toHaveTextContent('partial')
     expect(screen.getByTestId('topics-loading')).toHaveTextContent('true')
 
     sourceMocks.assistantSource = createAssistantSource(['topic-1', 'topic-2'], { complete: true })
@@ -187,11 +190,18 @@ describe('ResourceViewSourceProvider', () => {
     await waitFor(() => expect(screen.getByTestId('topic-ids')).toHaveTextContent('topic-3'))
   })
 
-  it('keeps the complete agent-session snapshot while a replacement generation is loading', async () => {
+  it('publishes progressive agent sessions on cold start and keeps the complete snapshot during refresh', async () => {
     sourceMocks.tabs = [createTab('agent', '/app/agents')]
-    sourceMocks.agentSource = createAgentSource(['session-1', 'session-2'], { complete: true })
+    sourceMocks.activeTabId = 'agent'
+    sourceMocks.agentSource = createAgentSource(['session-partial'], { complete: false })
 
     const { rerender } = render(createProviderTree())
+
+    expect(screen.getByTestId('session-ids')).toHaveTextContent('session-partial')
+    expect(screen.getByTestId('sessions-loading')).toHaveTextContent('true')
+
+    sourceMocks.agentSource = createAgentSource(['session-1', 'session-2'], { complete: true })
+    rerender(createProviderTree())
 
     await waitFor(() => expect(screen.getByTestId('session-ids')).toHaveTextContent('session-1,session-2'))
 
@@ -208,46 +218,40 @@ describe('ResourceViewSourceProvider', () => {
   })
 
   it('does not publish another snapshot when a refresh resolves to the same references', async () => {
-    sourceMocks.tabs = [createTab('chat', '/app/chat'), createTab('agent', '/app/agents')]
+    sourceMocks.tabs = [createTab('chat', '/app/chat')]
+    sourceMocks.activeTabId = 'chat'
     const assistantSource = createAssistantSource(['topic-1'], { complete: true })
-    const agentSource = createAgentSource(['session-1'], { complete: true })
     sourceMocks.assistantSource = assistantSource
-    sourceMocks.agentSource = agentSource
 
     const { rerender } = render(createProviderTree())
 
-    await waitFor(() => {
-      expect(screen.getByTestId('topic-ids')).toHaveTextContent('topic-1')
-      expect(screen.getByTestId('session-ids')).toHaveTextContent('session-1')
-    })
+    await waitFor(() => expect(screen.getByTestId('topic-ids')).toHaveTextContent('topic-1'))
 
     sourceMocks.assistantSource = { ...assistantSource, isFullyLoaded: false, isRefreshing: true }
-    sourceMocks.agentSource = { ...agentSource, isFullyLoaded: false, isValidating: true }
     rerender(createProviderTree())
 
     sourceProbeRenders.mockClear()
     sourceMocks.assistantSource = assistantSource
-    sourceMocks.agentSource = agentSource
     rerender(createProviderTree())
 
-    await waitFor(() => {
-      expect(screen.getByTestId('topics-refreshing')).toHaveTextContent('false')
-      expect(screen.getByTestId('sessions-refreshing')).toHaveTextContent('false')
-    })
+    await waitFor(() => expect(screen.getByTestId('topics-refreshing')).toHaveTextContent('false'))
     expect(sourceProbeRenders).toHaveBeenCalledTimes(1)
   })
 
-  it('loads only sources owned by non-dormant, non-message-only route tabs', () => {
+  it('loads only the source owned by the active non-dormant, non-message-only route tab', () => {
     sourceMocks.tabs = [
       createTab('chat-message', '/app/chat?topicId=topic-1&view=message'),
       createTab('agent-dormant', '/app/agents?sessionId=session-1', true),
       createTab('chat', '/app/chat?topicId=topic-2')
     ]
+    sourceMocks.activeTabId = 'chat'
 
     render(createProviderTree())
 
     expect(sourceMocks.assistantEnabled.at(-1)).toBe(true)
     expect(sourceMocks.agentEnabled.at(-1)).toBe(false)
-    expect(shouldLoadResourceViewSource([createTab('message', '/app/chat?view=message')], 'assistants')).toBe(false)
+    expect(
+      shouldLoadResourceViewSource([createTab('message', '/app/chat?view=message')], 'message', 'assistants')
+    ).toBe(false)
   })
 })

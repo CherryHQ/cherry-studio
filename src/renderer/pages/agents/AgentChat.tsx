@@ -14,7 +14,7 @@ import type { ConversationCenterSlot } from '@renderer/components/chat/shell/Con
 import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
 import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
-import { MissingAgentHomeComposer } from '@renderer/components/composer/variants/AgentComposer'
+import ConversationComposerSlot from '@renderer/components/composer/ConversationComposerSlot'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useAgent } from '@renderer/hooks/agent/useAgent'
 import type { AgentSessionSource } from '@renderer/hooks/agent/useSession'
@@ -26,7 +26,7 @@ import { cn } from '@renderer/utils/style'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { ReactNode } from 'react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AgentChatMain from './AgentChatMain'
@@ -39,6 +39,11 @@ import { type AgentChatRuntimeState, useAgentChatRuntimeState } from './useAgent
 
 const EMPTY_MESSAGES: CherryUIMessage[] = []
 const EMPTY_PARTS: Record<string, CherryMessagePart[]> = {}
+const MissingAgentHomeComposer = lazy(() =>
+  import('@renderer/components/composer/variants/AgentComposer').then((module) => ({
+    default: module.MissingAgentHomeComposer
+  }))
+)
 
 function getNewSessionWorkspaceDefaults(
   session: AgentSessionEntity
@@ -155,7 +160,7 @@ const AgentChat = ({
   const visibleAgentId = sessionSnapshot?.agentId ?? null
   const visibleWorkspaceId = sessionSnapshot?.workspaceId ?? null
   const visibleWorkspace = sessionSnapshot?.workspace ?? null
-  const { agent: activeAgent } = useAgent(visibleAgentId)
+  const { agent: activeAgent, isLoading: isActiveAgentLoading } = useAgent(visibleAgentId)
 
   useEffect(() => {
     if (visibleAgentId) onVisibleAgentChange?.(visibleAgentId)
@@ -249,14 +254,27 @@ const AgentChat = ({
   if (centerSurface) {
     center = centerSurface.content
   } else if (isInitializing) {
+    topBar = (
+      <AgentChatNavbar
+        activeAgent={null}
+        showSidebarControls={showResourceListControls}
+        sidebarOpen={sidebarOpen}
+        onSidebarToggle={onSidebarToggle}
+      />
+    )
     center = <ConversationCenterState state="loading" />
   } else if (!sessionSnapshot && hasLockedSession) {
     center = <EmptyState compact className="h-full" title={t('agent.session.get.error.not_found')} />
   } else if (!sessionSnapshot && missingAgentSelection) {
     const composer = !isMultiSelectMode ? (
-      <MissingAgentHomeComposer
-        onAgentChange={onMissingAgentSelectionAgentChange}
-        agentChanging={selectingMissingAgent}
+      <ConversationComposerSlot
+        scopeKey="missing-agent-selection"
+        fallback={
+          <MissingAgentHomeComposer
+            onAgentChange={onMissingAgentSelectionAgentChange}
+            agentChanging={selectingMissingAgent}
+          />
+        }
       />
     ) : undefined
     topBar = (
@@ -295,6 +313,7 @@ const AgentChat = ({
         runtime={runtime}
         homeWelcomeText={t('agent.home.welcome_title')}
         agentId={sendableAgentId}
+        agentLoading={isActiveAgentLoading}
         activeAgent={activeAgent}
         isMultiSelectMode={isMultiSelectMode}
         sessionMessagesEnabled={sessionMessagesEnabled}
@@ -351,6 +370,7 @@ interface AgentChatSessionCenterProps {
   runtime: AgentChatRuntimeState
   homeWelcomeText?: string
   agentId?: string
+  agentLoading: boolean
   activeAgent: GetAgentResponse | undefined
   isMultiSelectMode: boolean
   sessionMessagesEnabled: boolean
@@ -365,6 +385,7 @@ const AgentChatSessionCenter = ({
   runtime,
   homeWelcomeText,
   agentId,
+  agentLoading,
   activeAgent,
   isMultiSelectMode,
   sessionMessagesEnabled,
@@ -403,6 +424,7 @@ const AgentChatSessionCenter = ({
   const composer = (
     <AgentComposerSlot
       agentId={agentId}
+      agentLoading={agentLoading}
       isMultiSelectMode={isMultiSelectMode}
       session={session}
       sessionId={runtime.sessionId}

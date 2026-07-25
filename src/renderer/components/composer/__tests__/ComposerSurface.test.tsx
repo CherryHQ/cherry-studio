@@ -502,6 +502,12 @@ describe('ComposerSurface', () => {
     })
   })
 
+  it('defers the editor engine so the composer frame can render first', () => {
+    render(<ComposerSurface {...baseProps} />)
+
+    expect(mocks.editorOptions?.immediatelyRender).toBe(false)
+  })
+
   afterEach(() => {
     clearMockTimers()
     document.body.style.cursor = ''

@@ -1,9 +1,22 @@
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import type { Topic } from '@renderer/types/topic'
 import { render, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import ChatComposerSlot from '../ChatComposerSlot'
+
+vi.mock('@renderer/components/composer/ConversationComposerSlot', () => ({
+  default: ({ composerContext, fallback }: { composerContext?: ComposerContextValue; fallback?: ReactNode }) => {
+    let activeOverride: NonNullable<ComposerContextValue['overrides']>[number] | undefined
+    for (const candidate of composerContext?.overrides ?? []) {
+      if (!activeOverride || (candidate.priority ?? 0) > (activeOverride.priority ?? 0)) {
+        activeOverride = candidate
+      }
+    }
+    return <>{activeOverride ? activeOverride.render({}) : fallback}</>
+  }
+}))
 
 // The real fallback composer pulls in the whole input toolbar; swap it for a
 // sentinel so the test exercises only the override-forwarding wire.
@@ -28,27 +41,30 @@ const baseProps = {
 }
 
 describe('ChatComposerSlot', () => {
-  it('renders the normal composer when no approval override is active', () => {
+  it('renders the normal composer when no approval override is active', async () => {
     render(<ChatComposerSlot {...baseProps} composerContext={{ overrides: [] }} />)
 
-    expect(screen.getByTestId('chat-fallback-composer')).toBeInTheDocument()
-    expect(screen.getByTestId('chat-fallback-composer')).toHaveAttribute('data-placement', 'docked')
+    const composer = await screen.findByTestId('chat-fallback-composer')
+    expect(composer).toBeInTheDocument()
+    expect(composer).toHaveAttribute('data-placement', 'docked')
   })
 
-  it('forwards sendDisabled only for docked placement', () => {
+  it('forwards sendDisabled only for docked placement', async () => {
     render(<ChatComposerSlot {...baseProps} sendDisabled composerContext={{ overrides: [] }} />)
 
-    expect(screen.getByTestId('chat-fallback-composer')).toHaveAttribute('data-placement', 'docked')
-    expect(screen.getByTestId('chat-fallback-composer')).toBeDisabled()
+    const composer = await screen.findByTestId('chat-fallback-composer')
+    expect(composer).toHaveAttribute('data-placement', 'docked')
+    expect(composer).toBeDisabled()
   })
 
-  it('does not forward slot sendDisabled into home placement', () => {
+  it('does not forward slot sendDisabled into home placement', async () => {
     render(
       <ChatComposerSlot placement="home" topic={topic} onSend={baseProps.onSend} composerContext={{ overrides: [] }} />
     )
 
-    expect(screen.getByTestId('chat-fallback-composer')).toHaveAttribute('data-placement', 'home')
-    expect(screen.getByTestId('chat-fallback-composer')).not.toBeDisabled()
+    const composer = await screen.findByTestId('chat-fallback-composer')
+    expect(composer).toHaveAttribute('data-placement', 'home')
+    expect(composer).not.toBeDisabled()
   })
 
   it('surfaces an active composer override (tool-approval card) in place of the input', () => {

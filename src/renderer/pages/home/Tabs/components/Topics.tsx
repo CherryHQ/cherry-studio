@@ -766,14 +766,23 @@ export function Topics({
   const listError =
     error ||
     (isAssistantDisplayMode ? (assistantsError ?? (isGroupGrouping ? assistantGroupsError : undefined)) : undefined)
-  const listLoading =
-    isLoadingAll ||
-    !isFullyLoaded ||
+  const historyLoading = isLoadingAll || !isFullyLoaded
+  const metadataLoading =
     isTopicPinsLoading ||
     (isAssistantDisplayMode &&
       (isAssistantsLoading || (isGroupGrouping && isAssistantGroupsLoading) || isAssistantPinsLoading))
-  const visibleFilteredTopics = useMemo(() => (listLoading ? [] : filteredTopics), [filteredTopics, listLoading])
-  const listStatus = listError ? 'error' : listLoading ? 'loading' : filteredTopics.length === 0 ? 'empty' : 'idle'
+  const listLoading = historyLoading || metadataLoading
+  const visibleFilteredTopics = useMemo(
+    () => (metadataLoading ? [] : filteredTopics),
+    [filteredTopics, metadataLoading]
+  )
+  const listStatus = listError
+    ? 'error'
+    : listLoading && visibleFilteredTopics.length === 0
+      ? 'loading'
+      : visibleFilteredTopics.length === 0
+        ? 'empty'
+        : 'idle'
   const dragReady = isAssistantDisplayMode && isFullyLoaded && !isLoadingAll && !isRefreshing
   const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
   const hasActiveCenterSurface = hasActiveResourceMenuItem || historyRecordsActive
@@ -1354,6 +1363,11 @@ export function Topics({
           topicsLength={topics.length}
           variant={isAssistantDisplayMode && !isRightPanel ? 'draggable' : 'plain'}
         />
+        {historyLoading && visibleFilteredTopics.length > 0 && (
+          <div className="shrink-0 px-3 py-2 text-center text-[11px] text-muted-foreground/55">
+            {t('common.loading')}
+          </div>
+        )}
       </TopicResourceList>
 
       {editDialogTarget ? (

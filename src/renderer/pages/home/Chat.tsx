@@ -68,6 +68,7 @@ const Chat: FC<Props> = (props) => {
   const activeTopic = props.activeTopic
   const centerSurface = props.centerSurface
   const showConversation = Boolean(activeTopic && !centerSurface)
+  const showConversationChrome = !centerSurface
   const activeTopicId = activeTopic?.id
   const locateMessageIdProp = props.locateMessageId
   const onLocateMessageHandledProp = props.onLocateMessageHandled
@@ -271,7 +272,7 @@ const Chat: FC<Props> = (props) => {
       onPaneAutoCollapseChange={props.onPaneAutoCollapseChange}
       paneManualToggle={props.paneManualToggle}
       topBar={
-        showConversation ? (
+        showConversationChrome ? (
           <ChatNavbar
             showSidebarControls={props.showResourceListControls}
             sidebarOpen={props.sidebarOpen}

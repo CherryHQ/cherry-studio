@@ -20,13 +20,20 @@ import { useEffect, useMemo, useState } from 'react'
 type AssistantTopicsSnapshot = Pick<AssistantTopicsSource, 'pages' | 'topics'>
 type AgentSessionsSnapshot = Pick<AgentSessionsSource, 'pinIdBySessionId' | 'sessions'>
 
-export function shouldLoadResourceViewSource(tabs: readonly Tab[], appId: SidebarAppId): boolean {
+export function shouldLoadResourceViewSource(
+  tabs: readonly Tab[],
+  activeTabId: string | null | undefined,
+  appId: SidebarAppId
+): boolean {
   const app = getSidebarApp(appId)
   if (!app) return false
 
-  return tabs.some(
-    (tab) =>
-      tab.type === 'route' && !tab.isDormant && tabBelongsToApp(app, tab.url) && !isMessageOnlyConversationUrl(tab.url)
+  const activeTab = tabs.find((tab) => tab.id === activeTabId)
+  return Boolean(
+    activeTab?.type === 'route' &&
+      !activeTab.isDormant &&
+      tabBelongsToApp(app, activeTab.url) &&
+      !isMessageOnlyConversationUrl(activeTab.url)
   )
 }
 
@@ -57,12 +64,12 @@ function useCommittedAssistantTopicsSource(enabled: boolean): AssistantTopicsSou
 
   return useMemo(
     () => ({
-      topics: snapshot?.topics ?? [],
-      pages: snapshot?.pages ?? [],
-      hasNext: snapshot ? false : rawSource.hasNext,
+      topics: snapshot?.topics ?? (enabled ? rawSource.topics : []),
+      pages: snapshot?.pages ?? (enabled ? rawSource.pages : []),
+      hasNext: snapshot || !enabled ? false : rawSource.hasNext,
       loadNext: rawSource.loadNext,
       isLoading: isColdLoading && rawSource.isLoading,
-      isLoadingAll: isColdLoading,
+      isLoadingAll: isColdLoading && rawSource.isLoadingAll,
       isFullyLoaded: snapshot !== null,
       isRefreshing: isBackgroundRefreshing,
       error: snapshot ? undefined : rawSource.error,
@@ -75,9 +82,13 @@ function useCommittedAssistantTopicsSource(enabled: boolean): AssistantTopicsSou
       rawSource.error,
       rawSource.hasNext,
       rawSource.isLoading,
+      rawSource.isLoadingAll,
       rawSource.loadNext,
       rawSource.mutate,
+      rawSource.pages,
       rawSource.refetch,
+      rawSource.topics,
+      enabled,
       snapshot
     ]
   )
@@ -121,14 +132,14 @@ function useCommittedAgentSessionsSource(enabled: boolean): AgentSessionsSource 
 
   return useMemo(
     () => ({
-      sessions: snapshot?.sessions ?? [],
-      pinIdBySessionId: snapshot?.pinIdBySessionId ?? new Map(),
-      total: snapshot?.sessions.length ?? 0,
-      hasMore: snapshot ? false : rawSource.hasMore,
+      sessions: snapshot?.sessions ?? (enabled ? rawSource.sessions : []),
+      pinIdBySessionId: snapshot?.pinIdBySessionId ?? (enabled ? rawSource.pinIdBySessionId : new Map()),
+      total: snapshot?.sessions.length ?? (enabled ? rawSource.total : 0),
+      hasMore: snapshot || !enabled ? false : rawSource.hasMore,
       error: snapshot ? undefined : rawSource.error,
       isLoading: isColdLoading && rawSource.isLoading,
-      isLoadingMore: snapshot ? false : rawSource.isLoadingMore,
-      isValidating: isBackgroundRefreshing,
+      isLoadingMore: snapshot || !enabled ? false : rawSource.isLoadingMore,
+      isValidating: isBackgroundRefreshing || (isColdLoading && rawSource.isValidating),
       reload: rawSource.reload,
       loadMore: rawSource.loadMore,
       createSession: rawSource.createSession,
@@ -138,11 +149,12 @@ function useCommittedAgentSessionsSource(enabled: boolean): AgentSessionsSource 
       reorderSessions: rawSource.reorderSessions,
       togglePin: rawSource.togglePin,
       isFullyLoaded: snapshot !== null,
-      isLoadingAll: isColdLoading,
-      isPinsLoading: snapshot === null && rawSource.isPinsLoading,
+      isLoadingAll: isColdLoading && rawSource.isLoadingAll,
+      isPinsLoading: isColdLoading && rawSource.isPinsLoading,
       isPinsRefreshing: isBackgroundRefreshing && rawSource.isPinsRefreshing
     }),
     [
+      enabled,
       isBackgroundRefreshing,
       isColdLoading,
       rawSource.createSession,
@@ -151,23 +163,34 @@ function useCommittedAgentSessionsSource(enabled: boolean): AgentSessionsSource 
       rawSource.error,
       rawSource.hasMore,
       rawSource.isLoading,
+      rawSource.isLoadingAll,
       rawSource.isLoadingMore,
       rawSource.isPinsLoading,
       rawSource.isPinsRefreshing,
+      rawSource.isValidating,
       rawSource.loadMore,
+      rawSource.pinIdBySessionId,
       rawSource.reload,
       rawSource.reorderSession,
       rawSource.reorderSessions,
+      rawSource.sessions,
       rawSource.togglePin,
+      rawSource.total,
       snapshot
     ]
   )
 }
 
 export function ResourceViewSourceProvider({ children }: { children: ReactNode }) {
-  const { tabs } = useTabs()
-  const assistantTopicsEnabled = useMemo(() => shouldLoadResourceViewSource(tabs, 'assistants'), [tabs])
-  const agentSessionsEnabled = useMemo(() => shouldLoadResourceViewSource(tabs, 'agents'), [tabs])
+  const { activeTabId, tabs } = useTabs()
+  const assistantTopicsEnabled = useMemo(
+    () => shouldLoadResourceViewSource(tabs, activeTabId, 'assistants'),
+    [activeTabId, tabs]
+  )
+  const agentSessionsEnabled = useMemo(
+    () => shouldLoadResourceViewSource(tabs, activeTabId, 'agents'),
+    [activeTabId, tabs]
+  )
   const assistantTopicsSource = useCommittedAssistantTopicsSource(assistantTopicsEnabled)
   const agentSessionsSource = useCommittedAgentSessionsSource(agentSessionsEnabled)
 

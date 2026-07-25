@@ -7,9 +7,9 @@ import { useTopics } from './useTopic'
  * Window-level data sources shared by every kept-alive chat / agent route.
  *
  * The raw hooks are mounted once by ResourceViewSourceProvider. Route pages read
- * the provider's last complete snapshot so intermediate cursor pages never leak
- * into grouping / sorting and multiple kept-alive tabs do not start competing
- * load-all chains.
+ * the provider's progressive cold-start data, then its last complete snapshot
+ * during background refreshes. This keeps first-page content responsive without
+ * letting multiple kept-alive tabs start competing load-all chains.
  */
 
 /** Full agent-session page size — kept in one place so the rail and right panel never drift. */
