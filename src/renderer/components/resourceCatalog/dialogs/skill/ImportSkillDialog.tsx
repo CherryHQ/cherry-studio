@@ -2,7 +2,7 @@ import { Alert, Button, Dialog, DialogContent, Dropzone, DropzoneEmptyState, Scr
 import { useSkillInstall } from '@renderer/hooks/useSkills'
 import { toast } from '@renderer/services/toast'
 import type { InstalledSkill } from '@shared/types/skill'
-import { CheckCircle2, CircleAlert, FolderOpen, Loader2, Upload } from 'lucide-react'
+import { CheckCircle2, CircleAlert, Import, Loader2 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -266,7 +266,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
             }}
             className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-border-muted border-dashed bg-transparent p-8 text-center shadow-none transition-colors hover:border-border-hover hover:bg-accent disabled:pointer-events-none disabled:opacity-60">
             <DropzoneEmptyState>
-              <Upload size={26} strokeWidth={1.2} className="mb-3 text-foreground-muted" />
+              <Import size={26} strokeWidth={1.2} className="mb-3 text-foreground-muted" />
               <p className="mb-1 text-foreground-secondary text-xs">
                 {t('library.import_skill_dialog.local.drop_hint')}
               </p>
@@ -281,7 +281,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
               onClick={() => void handleZipPick()}
               disabled={Boolean(installing)}
               className="shrink-0">
-              {installing === 'zip' ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+              {installing === 'zip' ? <Loader2 size={12} className="animate-spin" /> : <Import size={12} />}
               <span>{t('settings.skills.installFromZip')}</span>
             </Button>
             <Button
@@ -290,7 +290,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
               onClick={() => void handleDirPick()}
               disabled={Boolean(installing)}
               className="shrink-0">
-              {installing === 'directory' ? <Loader2 size={12} className="animate-spin" /> : <FolderOpen size={12} />}
+              {installing === 'directory' ? <Loader2 size={12} className="animate-spin" /> : <Import size={12} />}
               <span>{t('settings.skills.installFromDirectory')}</span>
             </Button>
           </div>

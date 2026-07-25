@@ -328,7 +328,7 @@ const CollapseShell = ({ className, ...props }: ComponentPropsWithoutRef<typeof 
   <ToolDisclosure
     variant="light"
     className={[
-      'border-none [--status-color-error:var(--color-foreground-secondary)] [--status-color-invoking:var(--color-primary)] [--status-color-success:var(--color-primary,green)] [--status-color-warning:var(--color-warning,#faad14)]',
+      'border-none [--status-color-error:color-mix(in_oklch,var(--foreground)_66.6667%,transparent)] [--status-color-invoking:var(--primary)] [--status-color-success:var(--primary)] [--status-color-warning:var(--warning)]',
       className
     ]
       .filter(Boolean)
@@ -371,7 +371,7 @@ const CopyButton = ({ className, type = 'button', ...props }: ComponentPropsWith
   <button
     type={type}
     className={[
-      'flex h-5 cursor-pointer items-center justify-center rounded border-none bg-transparent px-1 text-[11px] text-foreground-secondary opacity-70 transition-all duration-200 hover:bg-(--color-accent) hover:text-foreground hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-(--color-primary) focus-visible:outline-2 focus-visible:outline-offset-2',
+      'flex h-5 cursor-pointer items-center justify-center rounded border-none bg-transparent px-1 text-[11px] text-foreground-secondary opacity-70 transition-all duration-200 hover:bg-accent hover:text-foreground hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2',
       className
     ]
       .filter(Boolean)
@@ -418,7 +418,7 @@ const ResponseSectionStyled = ({ className, ...props }: ComponentPropsWithoutRef
 const CodeBlock = ({ className, ...props }: ComponentPropsWithoutRef<'pre'>) => (
   <pre
     className={[
-      'wrap-break-word font-(family-name:--code-font-family) m-0 max-h-[300px] overflow-auto whitespace-pre-wrap rounded bg-muted p-2 text-xs data-[error=true]:text-(--status-color-error,var(--color-foreground-secondary))',
+      'wrap-break-word font-(family-name:--code-font-family) m-0 max-h-[300px] overflow-auto whitespace-pre-wrap rounded bg-muted p-2 text-xs data-[error=true]:text-(--status-color-error)',
       className
     ]
       .filter(Boolean)

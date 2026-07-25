@@ -8,7 +8,7 @@ import {
 } from '@cherrystudio/ui'
 import { ResourceCatalogSearchInput } from '@renderer/components/resourceCatalog/ResourceCatalogSearchInput'
 import type { InstalledSkill } from '@shared/data/types/agent'
-import { ChevronDown, Download, FolderSearch, Plus, Search, Sparkles } from 'lucide-react'
+import { ChevronDown, FolderSearch, Import, Plus, Search, Sparkles } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -112,7 +112,7 @@ export function SkillCatalogPicker({
               {t('library.skill_add.online_search')}
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => setImportOpen(true)}>
-              <Download />
+              <Import />
               {t('library.skill_add.local_import')}
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => setSystemSkillOpen(true)}>

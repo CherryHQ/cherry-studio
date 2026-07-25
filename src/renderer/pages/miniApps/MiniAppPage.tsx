@@ -19,6 +19,7 @@ import MinimalToolbar from './components/MinimalToolbar'
 import WebviewSearch from './components/WebviewSearch'
 
 const logger = loggerService.withContext('MiniAppPage')
+const MINI_APP_LOADING_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
 
 // currentTab.url is always the app-relative route written by openTab(`/app/mini-app/<id>`),
 // never an absolute or live webview URL, so a direct compare is enough.
@@ -162,7 +163,7 @@ const MiniAppPage: FC = () => {
     return (
       <div className="pointer-events-none relative z-3 flex h-full w-full flex-col *:pointer-events-auto">
         <div className="absolute inset-x-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-card">
-          <BeatLoader color="var(--color-foreground-secondary)" size={8} />
+          <BeatLoader color={MINI_APP_LOADING_COLOR} size={8} />
         </div>
       </div>
     )
@@ -224,7 +225,7 @@ const MiniAppPage: FC = () => {
       {!isReady && (
         <div className="absolute inset-x-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-card">
           <MiniAppLogoAvatar logo={app.logoSrc ?? app.logo} size={60} />
-          <BeatLoader color="var(--color-foreground-secondary)" size={8} style={{ marginTop: 12 }} />
+          <BeatLoader color={MINI_APP_LOADING_COLOR} size={8} style={{ marginTop: 12 }} />
         </div>
       )}
     </div>
