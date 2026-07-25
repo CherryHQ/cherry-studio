@@ -278,6 +278,7 @@ export const AGENTS_CONTRIBUTOR = deepFreeze<BackupContributor>({
           // __tests__) — not real jobs, excluded from AGENTS ownership. Listed so
           // the Record stays compile-time exhaustive when tests are in the type graph.
           'dummy.echo': 'excluded', // test fixture (JobManager.schedule.test)
+          'dummy.other': 'excluded', // test fixture (AgentJobsService.test)
           'test.contract.alpha': 'excluded', // test fixture (jobRegistry.test)
           'test.contract.beta': 'excluded' // test fixture (jobRegistry.test)
         }
