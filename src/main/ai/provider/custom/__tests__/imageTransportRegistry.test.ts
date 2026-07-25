@@ -44,4 +44,15 @@ describe('resolveImageTransport', () => {
     expect(resolveImageTransport('openai', 'gpt-image-1', {})).toBeNull()
     expect(resolveImageTransport('unknown-provider', 'x', {})).toBeNull()
   })
+
+  it('resolves tokenhub hy-image via the concrete id (its SDK id is the generic openai-compatible)', () => {
+    const settings = { apiKey: 'k', baseURL: 'https://tokenhub.tencentmaas.com/v1' }
+    const transport = resolveImageTransport('openai-compatible', 'hy-image-v3.0', settings, 'tokenhub')
+    expect(transport).not.toBeNull()
+    expect(typeof transport?.poll).toBe('function')
+    // non-Hunyuan tokenhub models stay on the in-SDK path
+    expect(resolveImageTransport('openai-compatible', 'deepseek-v4-pro', settings, 'tokenhub')).toBeNull()
+    // other openai-compatible providers are untouched by the concrete-id lookup
+    expect(resolveImageTransport('openai-compatible', 'cogview-4', settings, 'zhipu')).toBeNull()
+  })
 })

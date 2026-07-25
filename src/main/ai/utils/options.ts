@@ -131,7 +131,7 @@ export function buildCapabilityProviderOptions(
   const resolvedReasoningOptions = capabilities.enableReasoning
     ? encodeReasoningOptions(rawProviderId, context.endpointType, context.reasoning, actualProvider.id)
     : {
-        providerId: rawProviderId === 'openai-compatible' ? actualProvider.id : providerOptionsKey,
+        providerId: resolveProviderOptionsKey(rawProviderId, actualProvider.id),
         options: {}
       }
   const reasoningOptions =
@@ -282,7 +282,7 @@ function encodeReasoningOptions(
       // createOpenAICompatible() names the language model after the concrete
       // provider. Unknown compatible fields are forwarded only from that
       // namespace; the canonical openai-compatible namespace is schema-stripped.
-      providerId = actualProviderId ?? aiSdkProviderId
+      providerId = resolveProviderOptionsKey(aiSdkProviderId, actualProviderId)
       break
     default:
       providerId = aiSdkProviderId

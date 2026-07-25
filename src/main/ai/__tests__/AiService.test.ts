@@ -238,7 +238,9 @@ describe('AiService', () => {
       sdkConfig: {
         providerId: 'test-provider',
         providerSettings: {},
-        modelId: 'test-model'
+        modelId: 'test-model',
+        concreteProviderId: 'test-provider',
+        optionsKey: 'test-provider'
       }
     } as never)
 
@@ -333,7 +335,9 @@ describe('AiService', () => {
       sdkConfig: {
         providerId: 'test-provider',
         providerSettings: {},
-        modelId: 'test-model'
+        modelId: 'test-model',
+        concreteProviderId: 'test-provider',
+        optionsKey: 'test-provider'
       }
     } as never)
 
@@ -362,7 +366,13 @@ describe('AiService', () => {
   it('routes silicon through the WireProfile engine, producing the same providerOptions.silicon', async () => {
     const service = createService()
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
-      sdkConfig: { providerId: 'silicon', providerSettings: {}, modelId: 'Kwai-Kolors/Kolors' }
+      sdkConfig: {
+        providerId: 'silicon',
+        providerSettings: {},
+        modelId: 'Kwai-Kolors/Kolors',
+        concreteProviderId: 'silicon',
+        optionsKey: 'silicon'
+      }
     } as never)
 
     mockGenerateImage.mockResolvedValue({ images: [] })
@@ -393,6 +403,43 @@ describe('AiService', () => {
         providerOptions: {
           silicon: { negative_prompt: 'low quality', seed: 42, num_inference_steps: 25, guidance_scale: 4.5, cfg: 7.5 }
         }
+      })
+    )
+  })
+
+  it('delivers generic openai-compatible vendor options under the concrete provider id, wire-named (#17394)', async () => {
+    const service = createService()
+    // The REAL split buildOpenAICompatibleConfig produces for a zhipu image model:
+    // providerId 'openai-compatible' + identity 'zhipu'. The SDK image model
+    // reads providerOptions['zhipu'] (provider `${name}.image`), so the bag must
+    // ride there — not under 'openai-compatible' — with catalog wire renames.
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: {
+        providerId: 'openai-compatible',
+        providerSettings: { name: 'zhipu' },
+        modelId: 'cogview-4',
+        concreteProviderId: 'zhipu',
+        optionsKey: 'zhipu'
+      }
+    } as never)
+
+    mockGenerateImage.mockResolvedValue({ images: [] })
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'FileManager' ? { createInternalEntry: vi.fn() } : undefined
+    )
+
+    await service.generateImage({
+      uniqueModelId: 'zhipu::cogview-4',
+      prompt: 'a lighthouse',
+      paramValues: { addWatermark: true, quality: 'hd', size: '1024x1024' }
+    })
+
+    expect(mockGenerateImage).toHaveBeenCalledWith(
+      'openai-compatible',
+      { name: 'zhipu' },
+      expect.objectContaining({
+        size: '1024x1024',
+        providerOptions: { zhipu: { watermark: true, quality: 'hd' } }
       })
     )
   })
@@ -773,7 +820,9 @@ describe('AiService tool approval', () => {
       sdkConfig: {
         providerId: 'test-provider',
         providerSettings: {},
-        modelId: 'test-reranker'
+        modelId: 'test-reranker',
+        concreteProviderId: 'test-provider',
+        optionsKey: 'test-provider'
       },
       options: {
         headers: { 'x-test': 'yes' },
@@ -927,7 +976,13 @@ describe('AiService.generateImage — custom async transport (job path)', () => 
   // through generateImageViaJob.
   function stubResolution(service: InstanceType<typeof AiService>) {
     vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
-      sdkConfig: { providerId: 'ppio', providerSettings: {}, modelId: 'qwen-image' }
+      sdkConfig: {
+        providerId: 'ppio',
+        providerSettings: {},
+        modelId: 'qwen-image',
+        concreteProviderId: 'ppio',
+        optionsKey: 'ppio'
+      }
     } as never)
   }
 

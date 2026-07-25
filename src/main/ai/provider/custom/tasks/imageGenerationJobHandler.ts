@@ -52,7 +52,12 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
       if (!model) throw new Error(`Image generation job: model '${modelId}' not found for provider '${providerId}'`)
 
       const sdkConfig = { ...(await providerToAiSdkConfig(provider, model)), modelId: model.apiModelId ?? model.id }
-      const transport = resolveImageTransport(sdkConfig.providerId, sdkConfig.modelId, sdkConfig.providerSettings)
+      const transport = resolveImageTransport(
+        sdkConfig.providerId,
+        sdkConfig.modelId,
+        sdkConfig.providerSettings,
+        sdkConfig.concreteProviderId
+      )
       if (!transport) {
         throw new Error(
           `Image generation job: no async transport for '${sdkConfig.providerId}' (model '${sdkConfig.modelId}')`
@@ -125,6 +130,7 @@ async function buildSubmitInput(
     prompt: input.prompt,
     n: input.n,
     size: input.size as `${number}x${number}` | undefined,
+    aspectRatio: input.aspectRatio,
     seed: input.seed,
     files,
     mask,

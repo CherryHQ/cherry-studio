@@ -1,4 +1,5 @@
-import { wireName } from '@cherrystudio/provider-registry'
+import { IMAGE_PARAM_CATALOG_KEYS, wireName } from '@cherrystudio/provider-registry'
+import type { CanonicalParamKey } from '@shared/data/types/model'
 import type { JSONValue } from 'ai'
 
 import type { WireProfile, WireRegistration } from './wireProfile'
@@ -79,6 +80,22 @@ function jsonBag(bag: Record<string, unknown>): Record<string, JSONValue> {
   return out
 }
 
+const CANONICAL_KEY_SET: ReadonlySet<string> = new Set(IMAGE_PARAM_CATALOG_KEYS)
+
+/**
+ * Rename a passthrough bag's catalog keys to their vendor wire spelling
+ * (`wireName`: `imageResolution → size`, `addWatermark → watermark`, …) for
+ * `passthrough: 'wire'` registrations, whose body goes on the HTTP wire as-is.
+ * Non-catalog keys keep their name.
+ */
+function wireNameBag(bag: Record<string, JSONValue>): Record<string, JSONValue> {
+  const out: Record<string, JSONValue> = {}
+  for (const [k, v] of Object.entries(bag)) {
+    out[CANONICAL_KEY_SET.has(k) ? wireName(k as CanonicalParamKey) : k] = v
+  }
+  return out
+}
+
 /** The vendor-bag entries the profile does NOT map (via `forward` or `fields`) —
  *  what `passthrough` forwards. */
 function passthroughExtras(vendorBag: Record<string, unknown>, profile: WireProfile): Record<string, unknown> {
@@ -116,8 +133,11 @@ export function buildVendorProviderOptions(
   // imageResolution, …) — never the canonical keys the profile already
   // wire-names, or they'd ride twice (camelCase from the bag + snake from the
   // profile). Native params (n/size/seed/aspectRatio) never reach the bag.
+  // `'wire'` passthrough additionally applies the catalog renames (see
+  // WireRegistration.passthrough).
   const extras = passthroughExtras(vendorBag, registration.profile)
-  const body = registration.passthrough ? { ...jsonBag(extras), ...mapped } : mapped
+  const forwarded = registration.passthrough === 'wire' ? wireNameBag(jsonBag(extras)) : jsonBag(extras)
+  const body = registration.passthrough ? { ...forwarded, ...mapped } : mapped
   const result: Record<string, Record<string, JSONValue>> = {}
   // The primary body rides under the registration's delivery key when it overrides
   // the provider id (Vertex: id `google-vertex`, but the SDK reads `providerOptions.vertex`).

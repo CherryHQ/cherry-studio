@@ -29,6 +29,10 @@ export interface SdkConfig<T extends AppProviderKey = AppProviderKey> {
   readonly providerId: T
   readonly providerSettings: AppProviderSettingsMap[T]
   readonly modelId: string
+  /** The app-level provider id (`Provider.id`), carried from `providerToAiSdkConfig`. */
+  readonly concreteProviderId: string
+  /** The `providerOptions` namespace the AI SDK model reads (`resolveProviderOptionsKey`). */
+  readonly optionsKey: string
 }
 
 export interface RequestScope extends ToolApplyScope {
