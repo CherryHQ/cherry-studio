@@ -194,10 +194,10 @@ describe('cacheCleanup', () => {
     await expect(fs.stat(path.join(root, 'config.json'))).resolves.toBeDefined()
   })
 
-  it('removes an electron-store config containing only recognized v1 keys', async () => {
+  it('removes the legacy userData config file without inspecting its contents', async () => {
     completeMigration()
     const configPath = path.join(root, 'config.json')
-    await fs.writeFile(configPath, JSON.stringify({ language: 'zh-cn', gitBashPath: '/usr/bin/bash' }))
+    await fs.writeFile(configPath, 'not-json')
 
     const cleanup = await runCacheCleanup(['legacy_v1'])
 
@@ -302,24 +302,32 @@ describe('cacheCleanup', () => {
     expect(app.getPath).toHaveBeenCalledWith('exe')
   })
 
-  it('preserves unrecognized config and restore directory contents', async () => {
+  it('removes whole legacy config and restore directories without inspecting their contents', async () => {
     completeMigration()
     const configPath = path.join(root, 'config.json')
-    const restorePath = path.join(root, 'Data.restore')
+    const restorePaths = [
+      path.join(root, 'Data.restore'),
+      path.join(root, 'IndexedDB.restore'),
+      path.join(root, 'Local Storage.restore')
+    ]
     await fs.writeFile(configPath, JSON.stringify({ unknown: true }))
-    await fs.mkdir(restorePath)
-    await fs.writeFile(path.join(restorePath, 'custom-user-file'), 'keep')
+    for (const restorePath of restorePaths) {
+      await fs.mkdir(path.join(restorePath, 'custom', 'nested'), { recursive: true })
+      await fs.writeFile(path.join(restorePath, 'custom', 'nested', 'unknown.bin'), 'remove')
+    }
 
     const inspection = await inspectCacheCleanup(['legacy_v1', 'restore_staging'])
     const cleanup = await runCacheCleanup(['legacy_v1', 'restore_staging'])
 
-    expect(inspection.results.every(({ size }) => size.completeness === 'partial')).toBe(true)
-    expect(cleanup.results.every(({ status }) => status === 'skipped')).toBe(true)
-    await expect(fs.stat(configPath)).resolves.toBeDefined()
-    await expect(fs.stat(restorePath)).resolves.toBeDefined()
+    expect(inspection.results.every(({ size }) => size.bytes !== null && size.completeness === 'complete')).toBe(true)
+    expect(cleanup.results.every(({ status }) => status === 'cleared')).toBe(true)
+    await expect(fs.stat(configPath)).rejects.toMatchObject({ code: 'ENOENT' })
+    for (const restorePath of restorePaths) {
+      await expect(fs.stat(restorePath)).rejects.toMatchObject({ code: 'ENOENT' })
+    }
   })
 
-  it('preserves restore staging when a nested symbolic link is present', async () => {
+  it('removes a restore directory containing a symlink without following the link', async () => {
     completeMigration()
     const restorePath = path.join(root, 'Data.restore')
     const externalPath = path.join(root, 'external-data')
@@ -331,8 +339,8 @@ describe('cacheCleanup', () => {
     const cleanup = await runCacheCleanup(['restore_staging'])
 
     expect(inspection.results[0]?.size).toMatchObject({ bytes: null, completeness: 'partial' })
-    expect(cleanup.results[0]?.status).toBe('skipped')
-    await expect(fs.stat(restorePath)).resolves.toBeDefined()
+    expect(cleanup.results[0]?.status).toBe('cleared')
+    await expect(fs.stat(restorePath)).rejects.toMatchObject({ code: 'ENOENT' })
     await expect(fs.stat(externalPath)).resolves.toBeDefined()
   })
 

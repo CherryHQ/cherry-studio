@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { createReadStream, type Dirent } from 'node:fs'
+import { createReadStream } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
@@ -39,50 +39,7 @@ const LEGACY_AGENTS_TABLES = [
   'session_messages'
 ] as const
 
-const LEGACY_CONFIG_KEYS = new Set([
-  'language',
-  'theme',
-  'launchToTray',
-  'tray',
-  'trayOnClose',
-  'ZoomFactor',
-  'shortcuts',
-  'clickTrayToShowQuickAssistant',
-  'enableQuickAssistant',
-  'autoUpdate',
-  'testPlan',
-  'testChannel',
-  'enableDataCollection',
-  'selectionAssistantEnabled',
-  'selectionAssistantTriggerMode',
-  'selectionAssistantFollowToolbar',
-  'selectionAssistantRemeberWinSize',
-  'selectionAssistantFilterMode',
-  'selectionAssistantFilterList',
-  'disableHardwareAcceleration',
-  'useSystemTitleBar',
-  'proxy',
-  'enableDeveloperMode',
-  'clientId',
-  'gitBashPath',
-  'gitBashPathSource',
-  'enableSpellCheck',
-  'spellCheckLanguages'
-])
-
 const LEGACY_WINDOW_STATE_KEYS = new Set(['x', 'y', 'width', 'height', 'isMaximized', 'isFullScreen', 'displayBounds'])
-
-const RESTORE_DATA_DIRECTORIES = new Set([
-  'Agents',
-  'Channels',
-  'Files',
-  'KnowledgeBase',
-  'Memory',
-  'Notes',
-  'Skills',
-  'Workspace'
-])
-const RESTORE_DATA_FILES = new Set(['agents.db', 'agents.db-journal', 'agents.db-shm', 'agents.db-wal'])
 
 const NORMAL_CACHE_RELATIVE_PATHS = [
   'Code Cache',
@@ -571,15 +528,10 @@ function validWindowState(value: unknown): boolean {
 
 async function collectLegacyConfig(plan: LegacyCleanupPlan, targetPath: string): Promise<void> {
   const item = 'legacy_config'
-  const result = await readJsonFile(targetPath, item)
-  if (result.status === 'missing') return
-  if (
-    result.status === 'invalid' ||
-    !isRecord(result.value) ||
-    Object.keys(result.value).length === 0 ||
-    Object.keys(result.value).some((key) => !LEGACY_CONFIG_KEYS.has(key))
-  ) {
-    plan.issues.push(issue(item, 'invalid_data'))
+  const status = await inspectRegularFile(targetPath, item)
+  if (status === 'missing') return
+  if (status === 'invalid') {
+    plan.issues.push(issue(item, 'unsafe_target'))
     return
   }
   plan.targets.push({ item, path: targetPath, kind: 'file' })
@@ -842,50 +794,21 @@ async function inspectLegacyV1(): Promise<CacheCleanupSizeSnapshot> {
   )
 }
 
-async function validateRestoreDirectory(
-  targetPath: string,
-  item: string,
-  validator: (entries: Dirent[]) => boolean
-): Promise<{ target?: CleanupTarget; issue?: CacheCleanupIssue }> {
-  const status = await inspectDirectory(targetPath, item)
-  if (status === 'missing') return {}
-  if (status === 'invalid') return { issue: issue(item, 'unsafe_target') }
-
-  try {
-    const entries = await fs.readdir(targetPath, { withFileTypes: true })
-    if (entries.some((entry) => entry.isSymbolicLink())) {
-      return { issue: issue(item, 'unsafe_target') }
-    }
-    if (!validator(entries)) {
-      return { issue: issue(item, 'invalid_data') }
-    }
-    if (await directoryTreeHasUnsafeEntry(targetPath)) {
-      return { issue: issue(item, 'unsafe_target') }
-    }
-    return { target: { item, path: targetPath, kind: 'directory' } }
-  } catch (error) {
-    logger.warn('Failed to validate restore staging directory', { item, path: targetPath, error })
-    return { issue: issue(item, 'inspection_failed') }
-  }
-}
-
 async function collectRestoreTargets(): Promise<{ targets: CleanupTarget[]; issues: CacheCleanupIssue[] }> {
   const paths = getCleanupPaths()
-  const inspected = await Promise.all([
-    validateRestoreDirectory(paths.indexedDbRestore, 'restore_indexeddb', (entries) =>
-      entries.every((entry) => entry.isDirectory() && entry.name.includes('.indexeddb.'))
-    ),
-    validateRestoreDirectory(paths.localStorageRestore, 'restore_local_storage', (entries) =>
-      entries.every((entry) => entry.isDirectory() && entry.name === 'leveldb')
-    ),
-    validateRestoreDirectory(paths.dataRestore, 'restore_data', (entries) =>
-      entries.every(
-        (entry) =>
-          (entry.isDirectory() && RESTORE_DATA_DIRECTORIES.has(entry.name)) ||
-          (entry.isFile() && RESTORE_DATA_FILES.has(entry.name))
-      )
-    )
-  ])
+  const candidates = [
+    { item: 'restore_indexeddb', path: paths.indexedDbRestore },
+    { item: 'restore_local_storage', path: paths.localStorageRestore },
+    { item: 'restore_data', path: paths.dataRestore }
+  ] as const
+  const inspected = await Promise.all(
+    candidates.map(async ({ item, path: targetPath }) => {
+      const status = await inspectDirectory(targetPath, item)
+      if (status === 'missing') return {}
+      if (status === 'invalid') return { issue: issue(item, 'unsafe_target') }
+      return { target: { item, path: targetPath, kind: 'directory' as const } }
+    })
+  )
 
   return {
     targets: inspected.flatMap(({ target }) => (target ? [target] : [])),

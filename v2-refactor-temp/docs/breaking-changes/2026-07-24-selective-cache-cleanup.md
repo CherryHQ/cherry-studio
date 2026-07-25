@@ -1,22 +1,22 @@
 ---
-title: Cache cleanup is now selective and can remove verified v1 leftovers
+title: Cache cleanup is now selective and can remove old-version leftovers
 category: data-migration
 severity: notice
-introduced_in_pr: "TBD"
+introduced_in_pr: "#17377"
 date: 2026-07-24
 ---
 
 ## What changed
 
 The cache cleanup confirmation has become a four-option dialog covering regular
-cache, website and mini-app data, verified v1 legacy data, and unfinished
-legacy restore staging. Each option shows its estimated removable size, and
-only regular cache is selected by default.
+cache, website and mini-app data, old-version data, and unfinished legacy
+restore staging. Each option shows its estimated removable size, and only
+regular cache is selected by default.
 
-The v1 option becomes available only after the v2 migration completes. It
-includes verified legacy application data, the old knowledge-base rollback
-source, old Memory data that did not migrate to v2, and the legacy
-`~/.cherrystudio/install` CLI directory.
+The old-version option becomes available only after the v2 migration completes.
+It includes the legacy `{userData}/config.json`, schema-verified database
+leftovers, the old knowledge-base rollback source, old Memory data that did not
+migrate to v2, and the legacy `~/.cherrystudio/install` CLI directory.
 
 New trace history is stored under `{userData}/Runtime/trace`. The regular-cache
 option also counts and removes trace files left in the previous
@@ -36,6 +36,8 @@ backup restore is still needed.
 
 ## Notes for release manager
 
-File targets are allowlisted and schema-validated. The renderer removes only
+Targets use explicit application-owned paths. Ambiguous databases and shared
+configuration are schema/content validated, while the dedicated legacy
+`config.json` and restore paths are removed in full. The renderer removes only
 explicit v1 localStorage keys and the `CherryStudio` IndexedDB database; current
 v2 cache keys and data stores are retained.
