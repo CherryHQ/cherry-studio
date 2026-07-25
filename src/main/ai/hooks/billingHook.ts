@@ -22,23 +22,41 @@ const logger = loggerService.withContext('AiBillingHook')
  */
 export function createBillingHook(model: Model, requestMessageId?: string): Partial<AgentLoopHooks> {
   let total: LanguageModelUsage = ZERO_USAGE
+  let flushed = false
   const id = requestMessageId ?? crypto.randomUUID()
+
+  /**
+   * Writes whatever usage has accrued so far. Wired to every terminal hook —
+   * `onFinish` fires only on a clean end, so a client abort or a throwing step
+   * would otherwise drop the whole request from the ledger (requests without
+   * message persistence, e.g. the API gateway, have no other capture path).
+   * Latched so the ledger can never double-count a request.
+   */
+  const flush = () => {
+    if (flushed) return
+    flushed = true
+    if (!total.inputTokens && !total.outputTokens && !total.totalTokens) return
+    void usageLedgerService
+      .recordRequest({
+        id,
+        modelId: model.id,
+        stats: usageToStats(total),
+        providerCostUsd: extractProviderCost(total.raw)
+      })
+      .catch((err) => {
+        logger.warn('usage ledger record failed', { id, modelId: model.id, err })
+      })
+  }
+
   return {
     onStepFinish: (step) => {
       if (step.usage) total = mergeUsage(total, step.usage)
     },
-    onFinish: () => {
-      if (!total.inputTokens && !total.outputTokens && !total.totalTokens) return
-      void usageLedgerService
-        .recordRequest({
-          id,
-          modelId: model.id,
-          stats: usageToStats(total),
-          providerCostUsd: extractProviderCost(total.raw)
-        })
-        .catch((err) => {
-          logger.warn('usage ledger record failed', { id, modelId: model.id, err })
-        })
+    onFinish: flush,
+    onAbort: flush,
+    onError: () => {
+      flush()
+      return 'abort'
     }
   }
 }
