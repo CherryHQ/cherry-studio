@@ -9,6 +9,7 @@ const TEMPLATE_PATH = path.join(
   'resources/builtin-agents/cherry-assistant/.claude/skills/cherry-assistant-guide/SKILL.zh-CN.template.md'
 )
 const AGENT_TEMPLATE_PATH = path.join(ROOT_DIR, 'resources/builtin-agents/cherry-assistant/agent.template.json')
+const SOUL_PATH = path.join(ROOT_DIR, 'resources/builtin-agents/cherry-assistant/SOUL.md')
 const DOC_WRITER_PATH = path.join(
   ROOT_DIR,
   'resources/builtin-agents/cherry-assistant/.claude/skills/cherry-doc-writer/SKILL.md'
@@ -69,6 +70,22 @@ describe('Cherry Assistant guide', () => {
     expect(agent.instructions['zh-CN']).toContain('不能仅因问题与 Cherry Studio 无关而拒答')
     expect(instructions).not.toMatch(/\/(?:app|settings)\//)
     expect(agent.accessible_paths).toEqual(['#{PROJECT_ROOT}'])
+  })
+
+  it('keeps the assistant lively and patient without forcing humor', () => {
+    const agent = JSON.parse(fs.readFileSync(AGENT_TEMPLATE_PATH, 'utf-8')) as {
+      instructions: Record<'en-US' | 'zh-CN', string>
+    }
+    const soul = fs.readFileSync(SOUL_PATH, 'utf-8')
+
+    expect(agent.instructions['en-US']).toContain('warm, lively, and natural')
+    expect(agent.instructions['en-US']).toContain('rephrase instead of repeating')
+    expect(agent.instructions['en-US']).toContain('never force jokes')
+    expect(agent.instructions['zh-CN']).toContain('温暖、活泼、自然')
+    expect(agent.instructions['zh-CN']).toContain('换一种说法解释')
+    expect(agent.instructions['zh-CN']).toContain('不强行讲笑话')
+    expect(soul).toContain('Sound lively and natural')
+    expect(soul).toContain('rephrase instead of repeating yourself')
   })
 
   it('declares only skills that are bundled with Cherry Assistant', () => {
