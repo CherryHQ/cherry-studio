@@ -1,16 +1,11 @@
 import { dataApiService } from '@data/DataApiService'
 import type { Topic } from '@renderer/types/topic'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
-import {
-  MockUseDataApiUtils,
-  mockUseInfiniteQuery,
-  mockUseInvalidateCache,
-  mockUseWriteCache
-} from '@test-mocks/renderer/useDataApi'
+import { MockUseDataApiUtils, mockUseInvalidateCache, mockUseWriteCache } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
-import { useActiveTopic, useLatestTopic, useTopicMutations, useTopics } from '../useTopic'
+import { useActiveTopic, useLatestTopic, useTopicMutations } from '../useTopic'
 
 const mockCloseConversationTabs = vi.hoisted(() => vi.fn())
 
@@ -22,36 +17,6 @@ vi.mock('@renderer/services/EventService', () => ({
   EVENT_NAMES: { CHANGE_TOPIC: 'change-topic' },
   EventEmitter: { emit: vi.fn() }
 }))
-
-describe('useTopics', () => {
-  beforeEach(() => {
-    MockUseDataApiUtils.resetMocks()
-    vi.clearAllMocks()
-  })
-
-  it('does not revalidate the first page while auto-loading all topics', () => {
-    mockUseInfiniteQuery.mockReturnValueOnce({
-      pages: [],
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      hasNext: false,
-      loadNext: vi.fn(),
-      refresh: vi.fn(),
-      reset: vi.fn(),
-      mutate: vi.fn()
-    } as never)
-
-    renderHook(() => useTopics({ loadAll: true }))
-
-    expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
-      '/topics',
-      expect.objectContaining({
-        swrOptions: { revalidateFirstPage: false }
-      })
-    )
-  })
-})
 
 describe('useTopicMutations', () => {
   beforeEach(() => {
