@@ -37,7 +37,6 @@ import type {
   RuntimeApiFeatures
 } from '@shared/data/types/provider'
 import { DEFAULT_API_FEATURES, DEFAULT_PROVIDER_SETTINGS, EndpointConfigSchema } from '@shared/data/types/provider'
-import { getCherryInEndpoints, resolveCherryInHost } from '@shared/utils/cherryin'
 import { and, asc, eq, sql, type SQLWrapper } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -141,7 +140,7 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     ...(row.providerSettings as Partial<ProviderSettings> | null)
   }
 
-  const provider: Provider = {
+  return {
     id: row.providerId,
     presetProviderId: row.presetProviderId ?? undefined,
     name: row.name,
@@ -166,19 +165,6 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     settings,
     isEnabled: row.isEnabled
   }
-
-  if (row.providerId === 'cherryin') {
-    const baseUrl = Object.values(provider.endpointConfigs ?? {}).find((config) => config.baseUrl)?.baseUrl
-    const endpoints = getCherryInEndpoints(resolveCherryInHost(baseUrl))
-    provider.websites = {
-      official: endpoints.official,
-      apiKey: endpoints.apiKey,
-      docs: endpoints.docs,
-      models: endpoints.models
-    }
-  }
-
-  return provider
 }
 
 /** The provider logo slot for a given providerId. */
