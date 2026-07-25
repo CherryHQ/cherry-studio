@@ -2,10 +2,10 @@ import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type * as ReactModule from 'react'
-import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
+import type { ComponentProps, MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { BaseNavigator } from '../navigator'
+import { BaseNavigator as BaseNavigatorComponent } from '../navigator'
 
 vi.mock('@cherrystudio/ui', () => {
   const React = require('react') as typeof ReactModule
@@ -441,6 +441,7 @@ vi.mock('react-i18next', () => ({
           'common.cancel': '取消',
           'common.delete': '删除',
           'common.clear': '清除',
+          'common.loading': '加载中',
           'common.more': '更多',
           'knowledge.title': '知识库',
           'knowledge.add.title': '新建知识库',
@@ -518,9 +519,18 @@ const getMenuButton = (name: string) => {
   return button
 }
 
+type TestBaseNavigatorProps = Omit<ComponentProps<typeof BaseNavigatorComponent>, 'isLoading'> & {
+  isLoading?: boolean
+}
+
+const BaseNavigator = ({ isLoading = false, ...props }: TestBaseNavigatorProps) => (
+  <BaseNavigatorComponent {...props} isLoading={isLoading} />
+)
+
 describe('BaseNavigator', () => {
   const baseProps = {
     groups: [] as Group[],
+    isLoading: false,
     width: 280,
     selectedBaseId: '',
     onSelectBase: vi.fn(),
@@ -533,6 +543,13 @@ describe('BaseNavigator', () => {
     onDeleteBase: vi.fn(),
     onResizeStart: vi.fn()
   }
+
+  it('shows loading instead of the empty state before the base query settles', () => {
+    render(<BaseNavigator {...baseProps} bases={[]} isLoading />)
+
+    expect(screen.getByText('加载中')).toBeInTheDocument()
+    expect(screen.queryByText('暂无知识库')).toBeNull()
+  })
 
   it('names the empty list state when no bases exist', () => {
     render(<BaseNavigator {...baseProps} bases={[]} />)

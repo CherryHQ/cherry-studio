@@ -170,7 +170,7 @@ function toFileItem(
   metadataById: FileMetadataById,
   physicalPathById: PhysicalPathById,
   danglingStateById: DanglingStateById
-): FileItem | null {
+): FileItem {
   const metadata = metadataById[entry.id]
   const format = entry.ext ?? ''
   const type = getFileTypeByExt(format)
@@ -196,8 +196,6 @@ function toFileItem(
   const originFields = entry.origin === 'external' ? { origin: 'external' as const } : { origin: 'internal' as const }
 
   if (type === 'image') {
-    if (!physicalPath && !isMissing) return null
-
     return {
       ...base,
       ...originFields,
@@ -497,8 +495,7 @@ function FilesPage() {
   }, [displayEntries, isFilesLoading, isFilesRefreshing])
 
   const files = useMemo(() => {
-    const items = displayEntries.map((entry) => toFileItem(entry, metadataById, physicalPathById, danglingStateById))
-    return items.filter((item): item is FileItem => item !== null)
+    return displayEntries.map((entry) => toFileItem(entry, metadataById, physicalPathById, danglingStateById))
   }, [displayEntries, danglingStateById, metadataById, physicalPathById])
 
   const refetchFiles = useCallback(async () => {

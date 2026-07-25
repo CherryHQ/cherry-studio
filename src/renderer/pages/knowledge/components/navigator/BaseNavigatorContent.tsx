@@ -8,6 +8,7 @@ import type { BaseNavigatorContentProps } from './types'
 import { UNGROUPED_SECTION_VALUE } from './types'
 
 const BaseNavigatorContent = ({
+  isLoading,
   hasBases,
   sections,
   groups,
@@ -51,7 +52,11 @@ const BaseNavigatorContent = ({
 
   return (
     <Scrollbar className="min-h-0 flex-1 overflow-x-hidden px-2.5 pb-3">
-      {!hasBases ? (
+      {isLoading ? (
+        <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
+          {t('common.loading')}
+        </div>
+      ) : !hasBases ? (
         // Truly empty (no bases at all — empty groups may still exist and are
         // deliberately hidden behind the state) names the list state here; the
         // content pane carries the "build knowledge with AI" invitation.
