@@ -17,6 +17,7 @@
 
 import path from 'node:path'
 
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { describe, expect, it } from 'vitest'
 
 import { CanonicalFilePathSchema, canonicalizeFilePath, isCanonicalFilePath } from '../canonicalize'
@@ -161,5 +162,63 @@ describe('isCanonicalFilePath', () => {
   it('is false (does not throw) for structurally invalid input', () => {
     expect(isCanonicalFilePath('foo/bar')).toBe(false)
     expect(isCanonicalFilePath('/foo/\0bar')).toBe(false)
+  })
+})
+
+describe('AbsoluteFilePathSchema ↔ canonicalizeFilePath alignment', () => {
+  // `AbsoluteFilePath` used to double as a proof that `canonicalizeFilePath`
+  // would succeed: the brand's shape refine and the canonicalization dispatch
+  // accepted exactly the same set. Nothing enforced that — it held because two
+  // regexes happened to agree — and accepting UNC in the brand broke it, since
+  // UNC has no canonical form here.
+  //
+  // The gap is now deliberate and must stay EXACTLY this wide. This table is
+  // the enforcement: widening the brand or narrowing the algorithm without
+  // updating it fails here, so the divergence cannot grow silently and let a
+  // call site go back to assuming "branded ⇒ canonicalizable".
+  const cases: ReadonlyArray<{ input: string; branded: boolean; canonicalizable: boolean }> = [
+    { input: '/Users/me/doc.pdf', branded: true, canonicalizable: true },
+    { input: 'C:\\Users\\me\\doc.pdf', branded: true, canonicalizable: true },
+    { input: 'C:/Users/me/doc.pdf', branded: true, canonicalizable: true },
+    // The one intended divergence: a valid path for `fs`, not a valid dedup key.
+    { input: '\\\\server\\share\\doc.pdf', branded: true, canonicalizable: false },
+    { input: '\\\\server\\share', branded: true, canonicalizable: false },
+    // Rejected by both — the brand still filters these out first.
+    { input: 'relative/doc.pdf', branded: false, canonicalizable: false },
+    { input: '\\\\server', branded: false, canonicalizable: false },
+    { input: '/foo/\0bar', branded: false, canonicalizable: false },
+    { input: 'file:///Users/me/doc.pdf', branded: false, canonicalizable: false }
+  ]
+
+  it.each(cases)(
+    '$input → branded=$branded canonicalizable=$canonicalizable',
+    ({ input, branded, canonicalizable }) => {
+      expect(AbsoluteFilePathSchema.safeParse(input).success).toBe(branded)
+
+      let didCanonicalize = true
+      try {
+        canonicalizeFilePath(input)
+      } catch {
+        didCanonicalize = false
+      }
+      expect(didCanonicalize).toBe(canonicalizable)
+    }
+  )
+
+  it('never lets canonicalizeFilePath accept what the brand rejects', () => {
+    // The reverse containment is the one that must NEVER break: every canonical
+    // key is a valid `AbsoluteFilePath`, because `CanonicalFilePathSchema` is
+    // built by refining the brand's schema. Asserted against real behavior, not
+    // against the table's own columns, so a wrong table cannot make it vacuous.
+    for (const { input } of cases) {
+      let canonical: string | null = null
+      try {
+        canonical = canonicalizeFilePath(input)
+      } catch {
+        continue
+      }
+      expect(AbsoluteFilePathSchema.safeParse(input).success).toBe(true)
+      expect(AbsoluteFilePathSchema.safeParse(canonical).success).toBe(true)
+    }
   })
 })
