@@ -69,19 +69,6 @@ exports.default = async function (context) {
   // Fail the build rather than ship a half-empty resources/binaries/<platform>.
   require('./download-binaries').verifyBundledBinaries(platform, arch)
 
-  // Cross-arch prebuilt packages come from supportedArchitectures in pnpm-workspace.yaml —
-  // pnpm ignores that setting once node_modules exists, so it can't be flipped per pack pass.
-  // sharp stands in for the whole set: if its binary for this arch is missing the app crashes
-  // on launch, so fail the build here instead of shipping it.
-  const sharpPackage = `@img/sharp-${platform}-${arch}`
-  if (!fs.existsSync(path.join(__dirname, '..', 'node_modules', sharpPackage))) {
-    throw new Error(
-      `${sharpPackage} is not installed — the ${platform}-${arch} build would crash on launch.\n` +
-        `Run \`rm -rf node_modules && pnpm install\` — pnpm only reads supportedArchitectures ` +
-        `on a fresh install, so plain \`pnpm install\` (even --force) will not fix it.`
-    )
-  }
-
   const excludePackages = async (packagesToExclude) => {
     // 从项目根目录的 electron-builder.yml 读取 files 配置，避免多次覆盖配置导致出错
     const electronBuilderConfigPath = path.join(__dirname, '..', 'electron-builder.yml')
@@ -109,6 +96,22 @@ exports.default = async function (context) {
   const x64ExcludePackages = packages
     .filter((p) => !x64KeepPackages.includes(p))
     .map((p) => '!node_modules/' + p + '/**')
+
+  // Cross-arch prebuilt packages come from supportedArchitectures in pnpm-workspace.yaml —
+  // pnpm ignores that setting once node_modules exists, so it can't be flipped per pack pass.
+  // Anything kept for this arch but never installed is a native module the app would fail to
+  // load at runtime, so stop here instead of shipping it. musl builds are excluded: pnpm
+  // installs them only on a musl host, and releases are built on glibc.
+  const missingPackages = (arch === 'arm64' ? arm64KeepPackages : x64KeepPackages)
+    .filter((p) => !p.includes('musl'))
+    .filter((p) => !fs.existsSync(path.join(__dirname, '..', 'node_modules', p)))
+  if (missingPackages.length > 0) {
+    throw new Error(
+      `Missing prebuilt packages for ${platform}-${arch}: ${missingPackages.join(', ')}\n` +
+        `Run \`rm -rf node_modules && pnpm install\` — pnpm only reads supportedArchitectures ` +
+        `on a fresh install, so plain \`pnpm install\` (even --force) will not fix it.`
+    )
+  }
 
   const currentPlatformKey = `${platform}-${arch}`
   // win32-arm64 is in this list so `build:win` (--x64 --arm64) can package it. The
