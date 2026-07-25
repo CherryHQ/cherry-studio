@@ -82,6 +82,9 @@ importers:
 
   .:
     dependencies:
+      '@ai-sdk/bytedance':
+        specifier: 1.0.29
+        version: 1.0.29(zod@4.3.4)
       '@anthropic-ai/claude-agent-sdk':
         specifier: 0.3.218
         version: 0.3.218(@anthropic-ai/sdk@0.81.0(zod@4.3.4))(@modelcontextprotocol/sdk@1.27.1(@cfworker/json-schema@4.1.1)(zod@4.3.4))(zod@4.3.4)
@@ -1650,6 +1653,12 @@ packages:
 
   '@ai-sdk/azure@3.0.54':
     resolution: {integrity: sha512-lnW7V+Kl3OKKvNXHaZSf/D35vo4bchfMm7WzxILZMPJ5N7W6i1oDeSXVurSKlR685Kvpi8ZA76LBJKSbzff3yw==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
+  '@ai-sdk/bytedance@1.0.29':
+    resolution: {integrity: sha512-rBRNNuu+JojVjjulswfWDRIvJuvTj845qWLas1SZvEUmMG3kIcFSzuwzjspYhg8bhsgsgDkj5o2notl3Rmf1Rg==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -13910,6 +13919,12 @@ snapshots:
     dependencies:
       '@ai-sdk/openai': 3.0.53(patch_hash=83a4d486601eff47ad8b5e22024878be2ced05b5b86e09884199a3f47fd53530)(zod@4.3.4)
       '@ai-sdk/provider': 3.0.8
+      '@ai-sdk/provider-utils': 4.0.40(zod@4.3.4)
+      zod: 4.3.4
+
+  '@ai-sdk/bytedance@1.0.29(zod@4.3.4)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.14
       '@ai-sdk/provider-utils': 4.0.40(zod@4.3.4)
       zod: 4.3.4
 

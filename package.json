@@ -95,6 +95,7 @@
     "ci": "pnpm ci:basic-check && pnpm ci:test-check"
   },
   "dependencies": {
+    "@ai-sdk/bytedance": "1.0.29",
     "@anthropic-ai/claude-agent-sdk": "0.3.218",
     "@huggingface/transformers": "4.2.0",
     "@larksuiteoapi/node-sdk": "^1.59.0",
