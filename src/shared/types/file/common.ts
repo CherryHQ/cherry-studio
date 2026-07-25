@@ -45,18 +45,28 @@ export type FileType = z.infer<typeof FileTypeSchema>
  * - Production: `AbsoluteFilePathSchema.parse(raw)` / `.safeParse(raw)`
  * - Tests / fixtures: `'…' as AbsoluteFilePath` for readability
  *
- * Accepts POSIX (`/…`) and Windows (`X:\…` or `X:/…`) absolute forms.
- * Rejects `file://` URLs.
+ * Accepts POSIX (`/…`), Windows drive (`X:\…` or `X:/…`) and Windows UNC
+ * (`\\server\share\…`) absolute forms. Rejects `file://` URLs.
  *
- * Known limitation (pre-existing): UNC paths (`\\server\share`) are rejected
- * by the absolute-shape refine above — they match neither the POSIX `/` form
- * nor the Windows `X:[/\\]` drive-letter form.
+ * UNC is accepted because it *is* an absolute filesystem path and Node's `fs`
+ * reads it natively on Windows: this brand gates path SHAPE, and excluding a
+ * legitimate shape silently downgraded network-share flows (a `file://` UNC
+ * snapshot became an unreadable, dropped attachment). Accepting it here does
+ * **not** make UNC a valid external-entry key — `canonicalizeFilePath` rejects
+ * UNC explicitly, because the byte-faithful canonical form has no defined
+ * `\\server\share` root handling. Feeding UNC to `fs` is fine; persisting it
+ * as a dedup key is not.
  */
 export const AbsoluteFilePathSchema = z
   .string()
   .min(1)
   .refine((s) => !s.includes('\0'), 'must not contain null bytes')
-  .refine((s) => s.startsWith('/') || /^[A-Za-z]:[/\\]/.test(s), 'must be an absolute filesystem path')
+  // `\\server\share…` — both components required, so a bare `\\` or `\\server`
+  // (no share) stays rejected.
+  .refine(
+    (s) => s.startsWith('/') || /^[A-Za-z]:[/\\]/.test(s) || /^\\\\[^\\]+\\[^\\]+/.test(s),
+    'must be an absolute filesystem path'
+  )
   .brand<'AbsoluteFilePath'>()
 
 export type AbsoluteFilePath = z.infer<typeof AbsoluteFilePathSchema>

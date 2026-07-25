@@ -43,6 +43,28 @@ describe('AbsoluteFilePathSchema', () => {
     expect(AbsoluteFilePathSchema.parse('/foo/./baz/../bar')).toBe('/foo/./baz/../bar')
   })
 
+  // UNC is accepted because the brand gates "safe to hand to `fs`", and Node
+  // reads UNC natively on Windows. It is NOT canonicalizable — that half of the
+  // contract is pinned in `canonicalize.test.ts`. See
+  // `docs/references/file/file-manager-architecture.md §1.2 "UNC paths"`.
+  it('accepts a UNC path and returns it unchanged', () => {
+    expect(AbsoluteFilePathSchema.parse('\\\\server\\share\\doc.pdf')).toBe('\\\\server\\share\\doc.pdf')
+  })
+
+  it('accepts a bare UNC share root', () => {
+    expect(AbsoluteFilePathSchema.parse('\\\\server\\share')).toBe('\\\\server\\share')
+  })
+
+  it('rejects a UNC prefix missing its share component', () => {
+    expect(AbsoluteFilePathSchema.safeParse('\\\\server').success).toBe(false)
+    expect(AbsoluteFilePathSchema.safeParse('\\\\server\\').success).toBe(false)
+    expect(AbsoluteFilePathSchema.safeParse('\\\\').success).toBe(false)
+  })
+
+  it('rejects a single leading backslash (not UNC, not absolute)', () => {
+    expect(AbsoluteFilePathSchema.safeParse('\\server\\share').success).toBe(false)
+  })
+
   it('rejects a relative path', () => {
     expect(AbsoluteFilePathSchema.safeParse('foo/bar').success).toBe(false)
     expect(AbsoluteFilePathSchema.safeParse('./foo').success).toBe(false)

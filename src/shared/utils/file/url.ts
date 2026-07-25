@@ -153,11 +153,18 @@ export function isDangerExt(ext: string | null | undefined): boolean {
  * `AbsoluteFilePathSchema` rejects as non-absolute (it requires the trailing
  * separator to recognize a drive letter as a root). Keep the separator so
  * the result stays a valid, canonical drive root (`C:\`).
+ *
+ * The UNC share root (`\\server\share`) is the third such case: its parent
+ * would be `\\server`, which is not an absolute path at all (a UNC path needs
+ * both a host and a share). There is nothing shallower to degrade to, so the
+ * share root is its own dirname — `toSafeFileUrl`'s wrap still holds, since a
+ * share root is a directory and carries no filename to strip.
  */
 function dirnameSimple(absolutePath: AbsoluteFilePath): AbsoluteFilePath {
   const sepIdx = Math.max(absolutePath.lastIndexOf('/'), absolutePath.lastIndexOf('\\'))
   if (sepIdx > 0) {
     const dir = absolutePath.slice(0, sepIdx)
+    if (/^\\\\[^\\]+$/.test(dir)) return absolutePath
     return AbsoluteFilePathSchema.parse(/^[A-Za-z]:$/.test(dir) ? absolutePath.slice(0, sepIdx + 1) : dir)
   }
   if (sepIdx === 0) return AbsoluteFilePathSchema.parse('/')

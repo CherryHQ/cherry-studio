@@ -73,6 +73,8 @@ CREATE UNIQUE INDEX fe_external_path_lower_unique_idx
 - Trailing separator trimming
 - Windows: drive-letter case folding (`c:\` → `C:\`) and separator normalization to `\` (so `C:/a/b` and `C:\a\b` share one stored form)
 
+- UNC rejection — `\\server\share\…` throws. `\\server\share` is an **indivisible root** that `../` must not be able to escape, and neither the POSIX nor the drive-letter branch models that; producing a silently wrong key is worse than refusing. Note the asymmetry this creates with the brand, and that it is deliberate: see [UNC paths](#unc-paths) below.
+
 These steps are purely lexical (no FS IO). **Unicode (NFC) normalization is deliberately NOT a step here** — an NFC-rewritten NFD path would not exist on disk on normalization-*sensitive* filesystems, so byte-faithful storage is what keeps the stored path reachable (see [Rejected](#rejected-unicode-nfc-normalization-of-externalpath) below). The `./`/`../` collapse, by contrast, is *not* guaranteed to preserve the on-disk target across symlinks/junctions (`/a/link/../b` ≠ `/a/b` if `link` resolves elsewhere) — this cleanup is a lexical dedup-key normalizer, **not** a reachability/security primitive; use `fs.realpath` at the main-process boundary when true target equivalence matters.
 
 **Intentionally omitted** (deferred until concrete user feedback warrants the cost):
@@ -81,6 +83,23 @@ These steps are purely lexical (no FS IO). **Unicode (NFC) normalization is deli
 - Windows 8.3 short-name resolution
 
 See the JSDoc for `canonicalizeFilePath` in `src/shared/utils/file/canonicalize.ts` for the detailed contract.
+
+#### UNC paths
+
+`AbsoluteFilePathSchema` **accepts** UNC (`\\server\share\…`); `canonicalizeFilePath` **rejects** it. The split is the point, not an oversight — the two gates answer different questions:
+
+| Gate | Question | UNC |
+|---|---|---|
+| `AbsoluteFilePathSchema` | Is this shape safe to hand to `fs`? | ✅ Node reads UNC natively on Windows |
+| `canonicalizeFilePath` | Is this safe to persist as a byte-compare dedup key? | ❌ no defined `\\server\share` root handling |
+
+**Consequence**: a UNC path can be read, previewed, and copied into an internal entry (`createInternalEntry` copies bytes; it never canonicalizes). It cannot become an **external** entry, because that requires a canonical `externalPath` — `ensureExternalEntry` and `findByExternalPath` both throw a descriptive UNC error rather than storing a corrupted key.
+
+**Why the brand accepts it.** UNC *is* an absolute filesystem path, and the schema was already inconsistent about it: `fileUrlToPath` decodes a UNC `file://` URL to the forward-slash form `//server/share/…`, which has always passed the POSIX branch. Rejecting only the backslash spelling of the same path meant a network-share `file://` snapshot (the shape v1 migration produces) silently became an unreadable, dropped attachment. Accepting both spellings makes the gate describe a property of the path instead of a property of how it happened to be spelled.
+
+**Known gap (pre-existing, unchanged):** the forward-slash form `//server/share/x` still passes the POSIX branch of `canonicalizeFilePath` and is silently reduced to `/server/share/x`. Only the backslash form is caught. Fixing it means deciding whether `//` is UNC or a POSIX double-slash path, which is platform-dependent — tracked separately, not addressed here.
+
+**Containment checks degrade, they do not throw.** `isPathWithinAccessiblePath` / `getAccessiblePathRelativePath` (`src/renderer/components/composer/variants/agent/accessiblePath.ts`) canonicalize before comparing. A path that cannot be canonicalized is not *provably* inside anything, so they return `false` / the input unchanged. Containment is a predicate; it must stay total.
 
 #### Rejected: Unicode (NFC) normalization of `externalPath`
 

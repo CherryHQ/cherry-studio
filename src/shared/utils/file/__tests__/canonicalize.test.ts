@@ -94,6 +94,25 @@ describe('canonicalizeFilePath — Windows', () => {
   })
 })
 
+describe('canonicalizeFilePath — UNC', () => {
+  // UNC is a valid `AbsoluteFilePath` (pinned in `absoluteFilePath.test.ts`)
+  // but has no canonical form here: `\\server\share` is an indivisible root
+  // that `..` must not escape, which neither branch models. Rejecting loudly
+  // beats persisting a corrupted dedup key. See
+  // `docs/references/file/file-manager-architecture.md §1.2 "UNC paths"`.
+  it('rejects a UNC path with a UNC-specific message, not "must be absolute"', () => {
+    expect(() => canonicalizeFilePath('\\\\server\\share\\doc.pdf')).toThrow(/UNC/i)
+  })
+
+  it('rejects a bare UNC share root', () => {
+    expect(() => canonicalizeFilePath('\\\\server\\share')).toThrow(/UNC/i)
+  })
+
+  it('does not let `..` escape the share root by silently canonicalizing', () => {
+    expect(() => canonicalizeFilePath('\\\\server\\share\\..\\..\\secret')).toThrow(/UNC/i)
+  })
+})
+
 describe('CanonicalFilePathSchema (assert-only, no repair)', () => {
   // Backs the FileEntry `externalPath` read path: an already-canonical value is
   // accepted unchanged; a non-canonical one is REJECTED (never silently

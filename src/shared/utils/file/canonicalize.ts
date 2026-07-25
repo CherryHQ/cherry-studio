@@ -40,6 +40,12 @@
  * detected by path shape, not by `process.platform`, so the rule is
  * deterministic across renderer / main / test runners.
  *
+ * UNC (`\\server\share\…`) is a valid `AbsoluteFilePath` but is **rejected
+ * here**: `\\server\share` is an indivisible root that `..` must not escape,
+ * and neither branch models that. The brand gates what is safe to hand to
+ * `fs`; this function gates what is safe to persist as a dedup key, and those
+ * are deliberately not the same set.
+ *
  * ## Rule-evolution discipline
  *
  * Dropping the NFC step removed a *reachability* hazard, not the *desync* one:
@@ -63,6 +69,14 @@ import type * as z from 'zod'
 function canonicalizeAbsolutePath(raw: string): string {
   if (raw.includes('\0')) {
     throw new Error('canonicalizeAbsolutePath: input contains null byte')
+  }
+  // UNC is a valid `AbsoluteFilePath` (see `AbsoluteFilePathSchema`) but has no
+  // defined canonical form here: `\\server\share` is an indivisible root that
+  // `..` must not escape, which neither branch below models. Reject explicitly
+  // — otherwise UNC falls through to `canonicalizePosix` and dies on the
+  // misleading "path must be absolute".
+  if (raw.startsWith('\\\\')) {
+    throw new Error('canonicalizeAbsolutePath: UNC paths are not supported as canonical keys')
   }
   const isWindows = /^[A-Za-z]:[/\\]/.test(raw)
   const normalized = isWindows ? canonicalizeWindows(raw) : canonicalizePosix(raw)
