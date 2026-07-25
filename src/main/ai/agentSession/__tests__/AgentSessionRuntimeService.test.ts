@@ -1404,6 +1404,33 @@ describe('AgentSessionRuntimeService', () => {
       expect(mocks.cacheSetShared).toHaveBeenLastCalledWith(BG_KEY, [])
     })
 
+    it('stops one task through the connection without touching the turn', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const stopTask = vi.fn().mockResolvedValue(true)
+      entry.connection = { stopTask, close: vi.fn(), send: vi.fn(), events: [] }
+
+      await expect(service.stopBackgroundTask('session-1', 'bg-1')).resolves.toBe(true)
+
+      expect(stopTask).toHaveBeenCalledWith('bg-1')
+      // The turn is untouched — only the SDK's own task_notification settles the row.
+      expect(entry.currentTurn?.terminalStatus).toBeUndefined()
+    })
+
+    it('reports failure when the session has no live connection', async () => {
+      const service = new AgentSessionRuntimeService()
+      await expect(service.stopBackgroundTask('session-unknown', 'bg-1')).resolves.toBe(false)
+    })
+
+    it('reports failure when the runtime cannot stop tasks', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      getEntry(service).connection = { close: vi.fn(), send: vi.fn(), events: [] }
+
+      await expect(service.stopBackgroundTask('session-1', 'bg-1')).resolves.toBe(false)
+    })
+
     it('drops the level when the session closes, since it is scoped to the CLI process', () => {
       const service = new AgentSessionRuntimeService()
       service.beginTurn(baseTurnInput)

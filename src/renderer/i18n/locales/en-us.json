@@ -331,6 +331,7 @@
         "run_task_live_other": "{{count}} live",
         "run_tasks": "Subtasks",
         "selected_tool": "Selected tool",
+        "stop_run_task": "Stop task",
         "task_count": "{{completed}} / {{total}} complete",
         "tasks": "Tasks",
         "tools_active": "Active",

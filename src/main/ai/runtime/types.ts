@@ -123,6 +123,7 @@ export interface AgentRuntimeConnection {
    * static builtin list.
    */
   getSupportedCommands?(): Promise<AgentSessionSlashCommand[] | null>
+  stopTask?(taskId: string): Promise<boolean>
   close(): void | Promise<void>
 }
 

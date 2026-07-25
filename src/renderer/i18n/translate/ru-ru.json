@@ -331,6 +331,7 @@
         "run_task_live_other": "[to be translated]:{{count}} live",
         "run_tasks": "[to be translated]:Subtasks",
         "selected_tool": "Выбранный инструмент",
+        "stop_run_task": "[to be translated]:Stop task",
         "task_count": "{{completed}} / {{total}} завершено",
         "tasks": "Задачи",
         "tools_active": "Активный",

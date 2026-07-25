@@ -192,6 +192,12 @@ export const aiRequestSchemas = {
     input: z.strictObject({ sessionId: z.string().min(1) }),
     output: z.void()
   }),
+  // Stops one background task, not the turn. False when the session has no live connection or its
+  // runtime cannot stop tasks; the outcome itself arrives as a `task_notification`.
+  'ai.stop_agent_background_task': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1), taskId: z.string().min(1) }),
+    output: z.boolean()
+  }),
   'ai.respond_tool_approval': defineRoute({
     // Mirrors AiToolApprovalRespondRequest (z.ZodType pins exact-shape drift here, not in a test).
     // strictObject for parity with the model-op routes — reject unknown keys rather than strip them.

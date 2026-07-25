@@ -331,6 +331,7 @@
         "run_task_live_other": "{{count}} 个进行中",
         "run_tasks": "子任务",
         "selected_tool": "选中工具",
+        "stop_run_task": "停止任务",
         "task_count": "{{completed}} / {{total}} 已完成",
         "tasks": "任务",
         "tools_active": "活跃",

@@ -758,6 +758,17 @@ export class AgentSessionRuntimeService extends BaseService {
     return true
   }
 
+  /**
+   * Stop one background task, leaving the turn and the session running. The runtime answers with a
+   * `task_notification` carrying status `stopped`, so nothing is updated here. Returns false when
+   * the session has no live connection or its runtime cannot stop tasks.
+   */
+  async stopBackgroundTask(sessionId: string, taskId: string): Promise<boolean> {
+    const connection = this.entries.get(sessionId)?.connection
+    if (!connection?.stopTask) return false
+    return await connection.stopTask(taskId)
+  }
+
   abortPendingTurn(sessionId: string, reason: string): boolean {
     const turn = this.entries.get(sessionId)?.currentTurn
     if (!turn || turn.terminalStatus || turn.abortController.signal.aborted) return false

@@ -340,6 +340,17 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
+  async stopTask(taskId: string): Promise<boolean> {
+    if (!this.query) return false
+    try {
+      await this.query.stopTask(taskId)
+      return true
+    } catch (error) {
+      logger.warn('stopTask failed', { sessionId: this.input.sessionId, taskId, error })
+      return false
+    }
+  }
+
   close(): void {
     this.sdkInputQueue.close()
     this.abortController.abort('agent-runtime-closed')

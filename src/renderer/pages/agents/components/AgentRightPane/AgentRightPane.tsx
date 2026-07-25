@@ -1,4 +1,5 @@
-import { Badge, ConfirmDialog, HoverCard, HoverCardContent, HoverCardTrigger } from '@cherrystudio/ui'
+import { Badge, Button, ConfirmDialog, HoverCard, HoverCardContent, HoverCardTrigger, Tooltip } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/agent/ContextUsageSummary'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
@@ -39,6 +40,7 @@ import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSession
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { type FileEditSession, useFileEditSession } from '@renderer/hooks/useFileEditSession'
+import { ipcApi } from '@renderer/ipc'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
@@ -51,6 +53,7 @@ import {
   Bot,
   CheckCircle,
   Circle,
+  CircleStop,
   FileText,
   FolderOpen,
   GitBranch,
@@ -72,6 +75,8 @@ import {
   buildAgentRightPaneStatus,
   buildAgentToolFlowProjection
 } from './agentRightPaneProjection'
+
+const logger = loggerService.withContext('AgentRightPane')
 
 // ── Agent-specific composition over the generic right panel ─────────────────
 
@@ -726,6 +731,42 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
   )
 }
 
+/**
+ * Stops one background task without touching the turn. The runtime answers with a task notification
+ * carrying status `stopped`, so the row updates from that rather than from optimistic local state;
+ * the button only disables itself so a second click cannot queue a duplicate request.
+ */
+function RunTaskStopButton({ sessionId, taskId }: { sessionId?: string; taskId: string }) {
+  const { t } = useTranslation()
+  const [stopping, setStopping] = useState(false)
+
+  if (!sessionId) return null
+
+  const label = t('agent.right_pane.status.stop_run_task')
+
+  return (
+    <Tooltip content={label}>
+      <Button
+        size="icon-sm"
+        variant="ghost"
+        disabled={stopping}
+        aria-label={label}
+        className="-mt-0.5 shrink-0 text-muted-foreground"
+        onClick={async () => {
+          setStopping(true)
+          try {
+            await ipcApi.request('ai.stop_agent_background_task', { sessionId, taskId })
+          } catch (error) {
+            logger.warn('Failed to stop background task', { taskId, error })
+            setStopping(false)
+          }
+        }}>
+        <CircleStop size={14} />
+      </Button>
+    </Tooltip>
+  )
+}
+
 function formatRunTaskUsage(usage: AgentRunTask['usage']): string | undefined {
   if (!usage) return undefined
   const parts: string[] = []
@@ -846,6 +887,7 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
                       .join(' · ')}
                   </div>
                 </div>
+                {task.status === 'in_progress' && <RunTaskStopButton sessionId={meta.sessionId} taskId={task.id} />}
               </div>
             ))}
           </div>
