@@ -19,7 +19,7 @@ export default function ConversationComposerLoading({ forceNarrowLayout = false 
               aria-hidden="true"
               data-composer-inputbar=""
               data-conversation-composer-loading=""
-              className="inputbar-container relative mb-3 rounded-[20px] border-[0.5px] border-border bg-card pt-2 shadow-[0_1px_5px_rgba(15,23,42,0.05)] dark:shadow-[0_1px_5px_rgba(0,0,0,0.14)]">
+              className="inputbar-container relative mb-3 rounded-[20px] border-[0.5px] border-border bg-card pt-2 shadow-sm">
               <div data-composer-editor-frame="" className="h-[46px] min-w-0" />
               <div
                 data-composer-toolbar=""
