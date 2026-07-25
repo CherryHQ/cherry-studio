@@ -651,20 +651,21 @@ export class UsageLedgerService {
     const rows = await db
       .select({
         date: dayBucket,
+        costCurrency: usageLedgerTable.costCurrency,
         totalTokens: sql<number>`coalesce(sum(${usageLedgerTable.totalTokens}), 0)`,
         totalNoCacheTokens: sql<number>`coalesce(sum(${usageLedgerTable.noCacheTokens}), 0)`,
         totalCacheReadTokens: sql<number>`coalesce(sum(${usageLedgerTable.cacheReadTokens}), 0)`,
         totalCacheWriteTokens: sql<number>`coalesce(sum(${usageLedgerTable.cacheWriteTokens}), 0)`,
-        // Naive cross-currency sum for timeline shape only. The renderer
-        // defaults to token intensity and enables cost mode only for an
-        // effectively single-currency ledger window.
         totalCost: sql<number>`coalesce(sum(${usageLedgerTable.cost}), 0)`,
         entryCount: sql<number>`count(*)`
       })
       .from(usageLedgerTable)
       .where(where)
-      .groupBy(dayBucket)
-      .orderBy(asc(dayBucket))
+      // costCurrency joins the group key — USD and CNY must never be summed
+      // into one daily number. The renderer merges the token metrics back
+      // together and reads cost from the currency it is scoped to.
+      .groupBy(dayBucket, usageLedgerTable.costCurrency)
+      .orderBy(asc(dayBucket), asc(usageLedgerTable.costCurrency))
 
     return { buckets: rows }
   }

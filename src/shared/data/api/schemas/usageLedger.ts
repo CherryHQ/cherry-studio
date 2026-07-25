@@ -107,9 +107,15 @@ export interface UsageLedgerStatsResponse {
   buckets: UsageLedgerStatsBucket[]
 }
 
+/**
+ * One daily bucket. `costCurrency` participates in the group key exactly like
+ * it does in {@link UsageLedgerStatsBucket}, so a day that mixes currencies
+ * yields one bucket per currency instead of one summed (meaningless) number.
+ */
 export interface UsageLedgerTimelineBucket {
   /** Local calendar date, formatted as YYYY-MM-DD. */
   date: string
+  costCurrency: string | null
   totalTokens: number
   totalNoCacheTokens: number
   totalCacheReadTokens: number

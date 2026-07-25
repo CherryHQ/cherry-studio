@@ -879,6 +879,7 @@ describe('UsageLedgerService', () => {
       expect(buckets).toEqual([
         {
           date: localDateKey(first),
+          costCurrency: null,
           totalTokens: 150,
           totalNoCacheTokens: 0,
           totalCacheReadTokens: 0,
@@ -886,6 +887,37 @@ describe('UsageLedgerService', () => {
           totalCost: 1,
           entryCount: 2
         }
+      ])
+    })
+
+    it('splits one day into a bucket per cost currency', async () => {
+      const at = new Date(2026, 0, 2, 9).getTime()
+
+      await dbh.db.insert(usageLedgerTable).values([
+        { ...base, messageId: 'usd-1', totalTokens: 100, cost: 0.5, costCurrency: 'USD', createdAt: at, updatedAt: at },
+        { ...base, messageId: 'usd-2', totalTokens: 20, cost: 0.25, costCurrency: 'USD', createdAt: at, updatedAt: at },
+        { ...base, messageId: 'cny-1', totalTokens: 40, cost: 3, costCurrency: 'CNY', createdAt: at, updatedAt: at },
+        { ...base, messageId: 'free-1', totalTokens: 7, cost: null, createdAt: at, updatedAt: at }
+      ])
+
+      const { buckets } = await usageLedgerService.timeline({})
+
+      expect(buckets).toEqual([
+        expect.objectContaining({ date: localDateKey(at), costCurrency: null, totalTokens: 7, totalCost: 0 }),
+        expect.objectContaining({
+          date: localDateKey(at),
+          costCurrency: 'CNY',
+          totalTokens: 40,
+          totalCost: 3,
+          entryCount: 1
+        }),
+        expect.objectContaining({
+          date: localDateKey(at),
+          costCurrency: 'USD',
+          totalTokens: 120,
+          totalCost: 0.75,
+          entryCount: 2
+        })
       ])
     })
 
