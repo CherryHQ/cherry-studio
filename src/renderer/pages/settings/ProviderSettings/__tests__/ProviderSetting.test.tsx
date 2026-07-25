@@ -64,6 +64,26 @@ describe('ProviderSetting', () => {
     )
   })
 
+  it('keeps ordinary provider authentication and model settings in separate groups', () => {
+    render(<ProviderSetting providerId="openai" />)
+
+    expect(screen.getByText('authentication-section-openai').parentElement).toHaveClass('rounded-xl', 'border', 'p-4')
+    expect(screen.getByText('model-list-openai').parentElement).toHaveClass('rounded-xl', 'border', 'p-4')
+  })
+
+  it('renders a login alert without an extra group and tightens its surrounding spacing', () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'openai-codex', isEnabled: true, name: 'OpenAI Codex', authMethods: ['oauth'] }
+    })
+
+    render(<ProviderSetting providerId="openai-codex" />)
+
+    const authenticationWrapper = screen.getByText('authentication-section-openai-codex').parentElement as HTMLElement
+    expect(authenticationWrapper).not.toHaveClass('rounded-xl', 'border', 'p-4')
+    expect(authenticationWrapper.parentElement).toHaveClass('gap-3')
+    expect(screen.getByText('model-list-openai-codex').parentElement).toHaveClass('rounded-xl', 'border', 'p-4')
+  })
+
   it('keeps the provider detail shell transparent so the settings background is continuous', () => {
     render(<ProviderSetting providerId="openai" />)
 
@@ -71,13 +91,15 @@ describe('ProviderSetting', () => {
     expect(screen.getByTestId('provider-detail-shell')).not.toHaveClass('bg-card')
   })
 
-  it('renders the provider detail divider below the provider header, aligned to body content width', () => {
+  it('aligns the provider header to the body without a divider and keeps its top spacing compact', () => {
     render(<ProviderSetting providerId="openai" />)
 
     const innerWrap = screen.getByText('provider-header-openai').parentElement as HTMLElement
-    expect(innerWrap.className).toMatch(/(^|\s)border-b(\s|$)/)
+    expect(innerWrap.className).not.toMatch(/(^|\s)border-b(\s|$)/)
     expect(innerWrap.className).toMatch(/(^|\s)max-w-3xl(\s|$)/)
     expect(innerWrap.className).toMatch(/(^|\s)mx-auto(\s|$)/)
+    expect(innerWrap).toHaveClass('pb-1')
+    expect(innerWrap.parentElement).toHaveClass('pt-4')
   })
 
   it('keeps onboarding coordination at the page boundary', () => {

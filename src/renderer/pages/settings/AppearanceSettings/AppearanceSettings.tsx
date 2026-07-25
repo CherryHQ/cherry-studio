@@ -51,7 +51,6 @@ import ThemeColorPicker from './components/ThemeColorPicker'
 
 const DEFAULT_COLOR_PRIMARY = '#00b96b'
 const DEFAULT_ZOOM_FACTOR = 1
-const appearanceSectionClassName = 'border-t-0 pt-0'
 const THEME_COLOR_PRESETS = [
   DEFAULT_COLOR_PRIMARY,
   '#EF4444', // Red
@@ -339,7 +338,7 @@ const AppearanceSettings: FC = () => {
 
   return (
     <SettingsContentColumn theme={theme} innerClassName="[&>*+*]:mt-8">
-      <SettingGroup theme={theme} className={appearanceSectionClassName}>
+      <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.general.common.sections.display_language')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
@@ -438,7 +437,7 @@ const AppearanceSettings: FC = () => {
         )}
       </SettingGroup>
 
-      <SettingGroup theme={theme} className={appearanceSectionClassName}>
+      <SettingGroup theme={theme}>
         <SettingTitle style={{ justifyContent: 'flex-start', gap: 5 }}>
           {t('settings.display.font.title')} <Badge className="border-primary/20 bg-primary/10 text-primary">New</Badge>
         </SettingTitle>
@@ -492,9 +491,9 @@ const AppearanceSettings: FC = () => {
         </SettingRow>
       </SettingGroup>
 
-      <ChatPreferenceSections sectionClassName={appearanceSectionClassName} />
+      <ChatPreferenceSections />
 
-      <SettingGroup theme={theme} className={appearanceSectionClassName}>
+      <SettingGroup theme={theme}>
         <SettingTitle>{t('chat.settings.code_execution.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
@@ -537,7 +536,7 @@ const AppearanceSettings: FC = () => {
         </SettingRow>
       </SettingGroup>
 
-      <SettingGroup theme={theme} className={appearanceSectionClassName}>
+      <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.display.custom.css.label')}</SettingTitle>
         {hasV1CustomCssMarker(customCss) && (
           <SettingDescription>{t('settings.display.custom.css.migration_notice')}</SettingDescription>
