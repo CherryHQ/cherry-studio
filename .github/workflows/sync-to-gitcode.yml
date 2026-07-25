@@ -83,22 +83,6 @@ jobs:
         shell: bash
         run: rm -rf node_modules
 
-      - name: Configure Windows package architectures
-        shell: pwsh
-        run: |
-          $workspaceConfig = Get-Content pnpm-workspace.yaml -Raw
-          $currentArchitectures = "supportedArchitectures:\r?\n  os:\r?\n    - current\r?\n  cpu:\r?\n    - current"
-          $windowsArchitectures = @'
-          supportedArchitectures:
-            os:
-              - current
-            cpu:
-              - current
-              - arm64
-          '@
-          $workspaceConfig = $workspaceConfig -replace $currentArchitectures, $windowsArchitectures
-          Set-Content pnpm-workspace.yaml $workspaceConfig
-
       - name: Install Dependencies
         shell: bash
         run: pnpm install

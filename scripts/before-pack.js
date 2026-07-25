@@ -2,9 +2,7 @@ const { Arch } = require('electron-builder')
 const { execSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
-const { parse, stringify } = require('yaml')
-
-const workspaceConfigPath = path.join(__dirname, '..', 'pnpm-workspace.yaml')
+const { parse } = require('yaml')
 
 // if you want to add new prebuild binaries packages with different architectures, you can add them here
 // please add to allX64 and allArm64 from pnpm-lock.yaml
@@ -71,42 +69,18 @@ exports.default = async function (context) {
   // Fail the build rather than ship a half-empty resources/binaries/<platform>.
   require('./download-binaries').verifyBundledBinaries(platform, arch)
 
-  const downloadPackages = async () => {
-    // Skip if target platform and architecture match current system
-    if (platform === process.platform && arch === process.arch) {
-      console.log(`Skipping install: target (${platform}/${arch}) matches current system`)
-      return
-    }
-
-    console.log(`Installing packages for target platform=${platform} arch=${arch}...`)
-
-    // Backup and modify pnpm-workspace.yaml to add target platform support
-    const originalWorkspaceConfig = fs.readFileSync(workspaceConfigPath, 'utf-8')
-    const workspaceConfig = parse(originalWorkspaceConfig)
-
-    // Add target platform to supportedArchitectures.os
-    if (!workspaceConfig.supportedArchitectures.os.includes(platform)) {
-      workspaceConfig.supportedArchitectures.os.push(platform)
-    }
-
-    // Add target architecture to supportedArchitectures.cpu
-    if (!workspaceConfig.supportedArchitectures.cpu.includes(arch)) {
-      workspaceConfig.supportedArchitectures.cpu.push(arch)
-    }
-
-    const modifiedWorkspaceConfig = stringify(workspaceConfig)
-    console.log('Modified workspace config:', modifiedWorkspaceConfig)
-    fs.writeFileSync(workspaceConfigPath, modifiedWorkspaceConfig)
-
-    try {
-      execSync(`pnpm install`, { stdio: 'inherit' })
-    } finally {
-      // Restore original pnpm-workspace.yaml
-      fs.writeFileSync(workspaceConfigPath, originalWorkspaceConfig)
-    }
+  // Cross-arch prebuilt packages come from supportedArchitectures in pnpm-workspace.yaml —
+  // pnpm ignores that setting once node_modules exists, so it can't be flipped per pack pass.
+  // sharp stands in for the whole set: if its binary for this arch is missing the app crashes
+  // on launch, so fail the build here instead of shipping it.
+  const sharpPackage = `@img/sharp-${platform}-${arch}`
+  if (!fs.existsSync(path.join(__dirname, '..', 'node_modules', sharpPackage))) {
+    throw new Error(
+      `${sharpPackage} is not installed — the ${platform}-${arch} build would crash on launch.\n` +
+        `Run \`rm -rf node_modules && pnpm install\` — pnpm only reads supportedArchitectures ` +
+        `on a fresh install, so plain \`pnpm install\` (even --force) will not fix it.`
+    )
   }
-
-  await downloadPackages()
 
   const excludePackages = async (packagesToExclude) => {
     // 从项目根目录的 electron-builder.yml 读取 files 配置，避免多次覆盖配置导致出错
