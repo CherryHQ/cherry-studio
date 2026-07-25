@@ -869,6 +869,7 @@
       "expired": "Abgelaufen",
       "inputPreview": "Vorschau der Werkzeugeingabe",
       "pending": "Ausstehend ({{seconds}}s)",
+      "pendingBadge": "[to be translated]:Pending",
       "permissionExpired": "Berechtigungsanfrage abgelaufen. Warte auf neue Anweisungen...",
       "requiresElevatedPermissions": "Dieses Tool erfordert erhöhte Berechtigungen.",
       "suggestion": {
@@ -2292,6 +2293,7 @@
     "provider": "Anbieter",
     "reasoning_content": "Tiefgehend nachgedacht",
     "refresh": "Aktualisieren",
+    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
     "regenerate": "Neu generieren",
     "remove_image": "Bild entfernen",
     "rename": "Umbenennen",

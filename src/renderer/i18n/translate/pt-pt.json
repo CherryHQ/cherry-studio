@@ -869,6 +869,7 @@
       "expired": "Expirado",
       "inputPreview": "Pré-visualização da entrada da ferramenta",
       "pending": "Pendente ({{seconds}}s)",
+      "pendingBadge": "[to be translated]:Pending",
       "permissionExpired": "Solicitação de permissão expirou. Aguardando novas instruções...",
       "requiresElevatedPermissions": "Esta ferramenta requer permissões elevadas.",
       "suggestion": {
@@ -2292,6 +2293,7 @@
     "provider": "Fornecedor",
     "reasoning_content": "Pensamento profundo concluído",
     "refresh": "Atualizar",
+    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
     "regenerate": "Regenerar",
     "remove_image": "Remover imagem",
     "rename": "Renomear",
