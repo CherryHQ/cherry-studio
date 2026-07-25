@@ -21,12 +21,18 @@ const CATEGORY_NAME_KEYS: Record<string, string> = {
 // value locally instead of changing the shared warning contract for one chart.
 const CONTEXT_USAGE_WARNING_COLOR = 'oklch(0.83 0.164 84)'
 
+// Window-filler pseudo-categories the CLI reports alongside real consumers; they
+// aren't "usage" (unused space / reserved compaction buffer), so hide them.
+const HIDDEN_CATEGORY_NAMES = new Set(['Free space', 'Autocompact buffer'])
+
 interface ContextUsageSummaryProps {
   usage: AgentSessionContextUsage | null
   percentage: number | null
   color?: string
   className?: string
   isCompacting?: boolean
+  /** Show the per-category breakdown. Off for the composer, which only reports the total. */
+  showCategories?: boolean
 }
 
 export function ContextUsageSummary({
@@ -34,13 +40,16 @@ export function ContextUsageSummary({
   percentage,
   color,
   className,
-  isCompacting = false
+  isCompacting = false,
+  showCategories = true
 }: ContextUsageSummaryProps) {
   const { t } = useTranslation()
   const normalizedPercentage = percentage === null ? null : Math.min(100, Math.max(0, percentage))
   const progressColor =
     color ?? (normalizedPercentage === null ? undefined : getAgentContextUsageColor(normalizedPercentage))
-  const visibleCategories = usage?.categories.filter((category) => category.tokens > 0).slice(0, 4) ?? []
+  const visibleCategories = showCategories
+    ? (usage?.categories.filter((category) => category.tokens > 0 && !HIDDEN_CATEGORY_NAMES.has(category.name)) ?? [])
+    : []
 
   return (
     <section className={cn('space-y-2 text-xs', className)} aria-busy={isCompacting || undefined}>
@@ -61,14 +70,21 @@ export function ContextUsageSummary({
           </div>
           {visibleCategories.length > 0 && (
             <div className="space-y-1 border-border-subtle border-t pt-2">
-              {visibleCategories.map((category) => (
-                <div key={category.name} className="flex items-center justify-between gap-3 text-muted-foreground">
-                  <span className="min-w-0 truncate">
-                    {CATEGORY_NAME_KEYS[category.name] ? t(CATEGORY_NAME_KEYS[category.name]) : category.name}
-                  </span>
-                  <span className="shrink-0 text-foreground-secondary">{category.tokens.toLocaleString()}</span>
-                </div>
-              ))}
+              {visibleCategories.map((category) => {
+                // Share of used context (totalTokens), so proportions stay meaningful
+                // even when the window (maxTokens) is huge and barely filled.
+                const share = usage.totalTokens > 0 ? Math.round((category.tokens / usage.totalTokens) * 100) : 0
+                return (
+                  <div key={category.name} className="flex items-center justify-between gap-3 text-muted-foreground">
+                    <span className="min-w-0 truncate">
+                      {CATEGORY_NAME_KEYS[category.name] ? t(CATEGORY_NAME_KEYS[category.name]) : category.name}
+                    </span>
+                    <span className="shrink-0 text-foreground-secondary">
+                      {category.tokens.toLocaleString()} ({share}%)
+                    </span>
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>

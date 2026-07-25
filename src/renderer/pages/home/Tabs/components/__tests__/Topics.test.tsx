@@ -353,6 +353,7 @@ vi.mock('react-i18next', () => ({
         if (key === 'chat.add.assistant.title') return 'Add Assistant'
         if (key === 'assistants.groups.group_by') return 'Show in groups'
         if (key === 'assistants.groups.ungroup') return 'Stop grouping'
+        if (key === 'agent.toolPermission.pendingBadge') return 'Pending'
         if (key === 'assistants.groups.ungrouped') return 'Ungrouped'
         if (key === 'settings.assistant.icon.type.emoji') return 'Emoji'
         if (key === 'settings.assistant.icon.type.model') return 'Model'
@@ -394,6 +395,9 @@ vi.mock('react-i18next', () => ({
         if (key === 'common.required_field') return 'Required field'
         if (key === 'common.save') return 'Save'
         if (key === 'common.select_all') return 'Select All'
+        if (key === 'message.tools.status.done') return 'Done'
+        if (key === 'message.tools.status.error') return 'Error'
+        if (key === 'message.tools.status.running') return 'Running'
         if (key === 'chat.topics.manage.deselect_all') return 'Deselect All'
         if (key === 'chat.topics.manage.delete.confirm.title') return 'Delete Conversations'
         if (key === 'chat.topics.manage.delete.confirm.content') return `Delete ${options?.count ?? 0} conversation(s)?`
@@ -666,8 +670,15 @@ const topicStreamStatusCacheKey = (topicId: string) => `topic.stream.statuses.${
 const topicStreamLastSeenCompletionCacheKey = (topicId: string) =>
   `topic.stream.last_seen_completion.${topicId}` as never
 
-function setTopicStreamCacheStatus(topicId: string, status: 'done' | 'pending' | 'streaming') {
-  cacheService.setShared(topicStreamStatusCacheKey(topicId), { status } as never)
+function setTopicStreamCacheStatus(
+  topicId: string,
+  status: 'aborted' | 'awaiting-approval' | 'done' | 'error' | 'pending' | 'streaming',
+  hasAwaitingApprovalAnchor = false
+) {
+  cacheService.setShared(topicStreamStatusCacheKey(topicId), {
+    status,
+    awaitingApprovalAnchors: hasAwaitingApprovalAnchor ? [{ executionId: 'exec-1' }] : []
+  } as never)
   cacheService.deleteShared(topicStreamLastSeenCompletionCacheKey(topicId))
 }
 
@@ -1963,10 +1974,16 @@ describe('Topics', () => {
 
     let topicRow = getTopicRow('Gamma topic')
     let indicatorRoot = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
-    let indicator = indicatorRoot?.querySelector('.animation-pulse')
-    expect(indicatorRoot).not.toHaveClass('absolute')
-    expect(indicator).toHaveClass('bg-warning')
-    expect(topicRow.querySelector('[data-deleting]')).not.toBeInTheDocument()
+    // Pending renders a spinner (not the old pulsing amber dot).
+    let indicator = indicatorRoot?.querySelector('.animate-spin')
+    // The indicator is an absolute overlay in every layout now; it fades out on
+    // hover so the pin + delete actions take its resting spot.
+    expect(indicatorRoot).toHaveAccessibleName('Running')
+    expect(indicatorRoot).toHaveClass('absolute', 'group-hover:opacity-0')
+    expect(indicator).toHaveClass('text-foreground-muted')
+    // The delete button always renders now (revealed on hover); assert only
+    // that the row is not in the delete-confirm state.
+    expect(topicRow.querySelector('[data-deleting="true"]')).not.toBeInTheDocument()
     expect(topicStreamStatusMocks.markSeen).not.toHaveBeenCalled()
 
     setTopicStreamCacheStatus('topic-c', 'done')
@@ -1977,10 +1994,16 @@ describe('Topics', () => {
     topicRow = getTopicRow('Gamma topic')
     indicatorRoot = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
     indicator = indicatorRoot?.querySelector('span')
-    expect(indicatorRoot).not.toHaveClass('absolute')
+    // The indicator is an absolute overlay in every layout now; it fades out on
+    // hover so the pin + delete actions take its resting spot.
+    expect(indicatorRoot).toHaveAccessibleName('Done')
+    expect(indicatorRoot).toHaveClass('absolute', 'group-hover:opacity-0')
     expect(indicator).toHaveClass('bg-success')
-    expect(indicator).not.toHaveClass('animation-pulse')
-    expect(topicRow.querySelector('[data-deleting]')).not.toBeInTheDocument()
+    expect(indicator?.tagName).toBe('SPAN')
+    expect(indicator).not.toHaveClass('animate-spin')
+    // The delete button always renders now (revealed on hover); assert only
+    // that the row is not in the delete-confirm state.
+    expect(topicRow.querySelector('[data-deleting="true"]')).not.toBeInTheDocument()
 
     fireEvent.click(topicRow)
     expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'topic-c' }))
@@ -1993,6 +2016,55 @@ describe('Topics', () => {
     topicRow = getTopicRow('Gamma topic')
     expect(topicRow.querySelector('[data-testid="topic-stream-indicator"]')).not.toBeInTheDocument()
     expect(topicRow.querySelector('[aria-label="Pin Conversation"]')).toBeInTheDocument()
+  })
+
+  it('keeps running and error indicators on the active topic but suppresses its completion dot', () => {
+    const activeTopic = createRendererTopic({ id: 'topic-a', assistantId: 'assistant-1', name: 'Alpha topic' })
+
+    setTopicStreamCacheStatus('topic-a', 'pending')
+    let view = renderTopicList({ activeTopic })
+
+    let topicRow = getTopicRow('Alpha topic')
+    expect(topicRow.querySelector('[data-testid="topic-stream-indicator"] .animate-spin')).toBeInTheDocument()
+
+    act(() => setTopicStreamCacheStatus('topic-a', 'error'))
+    view.unmount()
+    view = renderTopicList({ activeTopic })
+
+    topicRow = getTopicRow('Alpha topic')
+    const errorIndicator = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
+    expect(errorIndicator).toHaveAccessibleName('Error')
+    expect(errorIndicator?.firstElementChild).toHaveClass('text-error')
+    expect(errorIndicator?.firstElementChild?.tagName).toBe('svg')
+
+    act(() => setTopicStreamCacheStatus('topic-a', 'done'))
+    view.unmount()
+    renderTopicList({ activeTopic })
+
+    topicRow = getTopicRow('Alpha topic')
+    expect(topicRow.querySelector('[data-testid="topic-stream-indicator"]')).not.toBeInTheDocument()
+  })
+
+  it('shows an awaiting-approval badge for a terminal topic without a spinner', () => {
+    setTopicStreamCacheStatus('topic-c', 'awaiting-approval')
+    renderTopicList()
+
+    const topicRow = getTopicRow('Gamma topic')
+    const badge = within(topicRow).getByTestId('topic-awaiting-approval-badge')
+
+    expect(badge).toHaveTextContent('Pending')
+    expect(badge).toHaveClass('text-warning', 'group-hover:opacity-0')
+    expect(topicRow.querySelector('[data-testid="topic-stream-indicator"]')).not.toBeInTheDocument()
+  })
+
+  it('shows only the awaiting-approval badge when a live topic pauses for approval', () => {
+    setTopicStreamCacheStatus('topic-c', 'streaming', true)
+    renderTopicList()
+
+    const topicRow = getTopicRow('Gamma topic')
+
+    expect(within(topicRow).getByTestId('topic-awaiting-approval-badge')).toHaveTextContent('Pending')
+    expect(topicRow.querySelector('[data-testid="topic-stream-indicator"]')).not.toBeInTheDocument()
   })
 
   it('positions inactive topic stream indicators at the far right in the classic layout and hides them on hover', () => {
@@ -2008,8 +2080,27 @@ describe('Topics', () => {
 
     expect(indicator).toBeInTheDocument()
     expect(indicator).toHaveClass('absolute', 'right-1.5', 'group-hover:opacity-0')
-    expect(indicator?.querySelector('span')).toHaveClass('animation-pulse', 'bg-warning')
+    expect(indicator?.querySelector('.animate-spin')).toHaveClass('text-foreground-muted')
     expect(within(topicRow).getByLabelText('Delete')).toBeInTheDocument()
+  })
+
+  it('shows an accessible error icon for an errored topic stream and none for an aborted one', () => {
+    setTopicStreamCacheStatus('topic-c', 'error')
+    let view = renderTopicList()
+
+    let topicRow = getTopicRow('Gamma topic')
+    const indicator = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
+    expect(indicator).toHaveAccessibleName('Error')
+    expect(indicator?.firstElementChild).toHaveClass('text-error')
+    expect(indicator?.firstElementChild?.tagName).toBe('svg')
+    expect(indicator?.firstElementChild).not.toHaveClass('animate-spin')
+
+    setTopicStreamCacheStatus('topic-c', 'aborted')
+    view.unmount()
+    view = renderTopicList()
+
+    topicRow = getTopicRow('Gamma topic')
+    expect(topicRow.querySelector('[data-testid="topic-stream-indicator"]')).not.toBeInTheDocument()
   })
 
   it('marks only completed active topic streams as seen', () => {
