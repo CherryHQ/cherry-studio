@@ -1139,7 +1139,6 @@ const TaskFormDialog: FC<TaskFormDialogProps> = (props) => {
                     setAgentId(nextAgentId)
                     setChannelIds([])
                   }}
-                  disabled={saving || isEditing}
                   align="start"
                   mountStrategy="lazy-keep"
                   trigger={
