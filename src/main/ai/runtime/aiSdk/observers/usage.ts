@@ -11,9 +11,11 @@
  *   outputTokenDetails{text,reasoning}Tokens                → same
  *   raw.cost (provider-reported)                            → metadata.providerCostUsd
  *
- * A FULL cumulative snapshot is emitted every step: the AI SDK shallow-merges
- * `message-metadata` into the accumulating message, so a partial patch would
- * drop the nested breakdown (see the invariant on `CherryUIMessageMetadata`).
+ * A FULL cumulative snapshot is emitted every step: the AI SDK deep-merges
+ * `message-metadata` into the accumulating message (`updateMessageMetadata`
+ * recurses into plain objects), so a nested key can never be cleared — only
+ * overwritten. Emitting the whole snapshot keeps every bucket authoritative
+ * each step (see the invariant on `CherryUIMessageMetadata`).
  */
 
 import type { MessageStats } from '@shared/data/types/message'
@@ -54,8 +56,9 @@ export function mergeUsage(a: LanguageModelUsage, b: LanguageModelUsage): Langua
             reasoningTokens: addOpt(a.outputTokenDetails?.reasoningTokens, b.outputTokenDetails?.reasoningTokens)
           }
         : (undefined as unknown as LanguageModelUsage['outputTokenDetails']),
-    // Provider-reported cost is a per-response total, not a per-step delta —
-    // keep the latest non-empty `raw` rather than summing.
+    // `raw` is per-step (one upstream request), so only the latest is retained
+    // here. Inert today because usage accounting is never enabled; if it ever
+    // is, multi-step provider-reported cost would be under-counted.
     raw: b.raw ?? a.raw
   }
 }
