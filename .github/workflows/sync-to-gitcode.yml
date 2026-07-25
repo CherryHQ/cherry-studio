@@ -83,6 +83,32 @@ jobs:
         shell: bash
         run: rm -rf node_modules
 
+      # This job rebuilds arbitrary historical tags, whose pnpm-workspace.yaml may still say
+      # `cpu: [current]` and would ship a win32-arm64 package with no native modules. pnpm only
+      # reads supportedArchitectures on a fresh install, so a rewrite must drop node_modules —
+      # which the persistent self-hosted runner otherwise carries over between tags.
+      - name: Ensure dual-architecture install
+        shell: bash
+        run: |
+          node -e '
+            const fs = require("fs")
+            const file = "pnpm-workspace.yaml"
+            const wanted = "supportedArchitectures:\n  os:\n    - current\n  cpu:\n    - x64\n    - arm64\n"
+            const original = fs.readFileSync(file, "utf-8")
+            // Indentation of the list items varies across tags, so match the whole block by its
+            // key and everything indented under it rather than by an exact-shape regex.
+            const patched = /^supportedArchitectures:$/m.test(original)
+              ? original.replace(/^supportedArchitectures:\n(?:[ \t]+.*\n)*/m, wanted)
+              : original + "\n" + wanted
+            if (patched === original) {
+              console.log("pnpm-workspace.yaml already builds both architectures")
+              process.exit(0)
+            }
+            fs.writeFileSync(file, patched)
+            fs.rmSync("node_modules", { recursive: true, force: true })
+            console.log("Patched pnpm-workspace.yaml and removed node_modules")
+          '
+
       - name: Install Dependencies
         shell: bash
         run: pnpm install
