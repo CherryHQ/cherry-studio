@@ -185,7 +185,7 @@ export function useMessageSelectionController({
 
       try {
         for (const messageId of ids) {
-          await deleteMessage(messageId, { cascade: false, selectedMessageIds: ids })
+          await deleteMessage(messageId, { selectedMessageIds: ids })
         }
         toast.success(t('message.delete.success'))
       } catch (error) {

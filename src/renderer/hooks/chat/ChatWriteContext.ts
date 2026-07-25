@@ -14,8 +14,6 @@ import { createContext, use } from 'react'
 /** Optional arguments passed alongside `deleteMessage`. */
 export interface DeleteMessageOptions {
   modelName?: string
-  /** Request cascade or splice behavior. First-turn user messages cannot be spliced safely. */
-  cascade?: boolean
   /** Complete multi-select plan, used to reject unsafe batches before their first write. */
   selectedMessageIds?: readonly string[]
 }

@@ -228,8 +228,8 @@ describe('useMessageSelectionController', () => {
 
     expect(popupConfirm).toHaveBeenCalledWith(expect.objectContaining({ content: 'message.delete.confirm.content:2' }))
     expect(deleteMessage.mock.calls).toEqual([
-      ['u1', { cascade: false, selectedMessageIds: ['u1', 'a1'] }],
-      ['a1', { cascade: false, selectedMessageIds: ['u1', 'a1'] }]
+      ['u1', { selectedMessageIds: ['u1', 'a1'] }],
+      ['a1', { selectedMessageIds: ['u1', 'a1'] }]
     ])
     expect((window as any).toast.error).not.toHaveBeenCalled()
     expect(setCacheValue).toHaveBeenCalledWith('chat.multi_select_mode', false)

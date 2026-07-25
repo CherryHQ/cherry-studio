@@ -65,24 +65,21 @@ describe('useChatWriteActions — first-turn delete', () => {
     expect(actions.getMessageDeleteAvailability('a1')).toEqual({ enabled: true })
   })
 
-  it.each([undefined, false, true])(
-    'rejects direct first-turn deletion before any write (cascade: %s)',
-    async (cascade) => {
-      const cache = makeCache()
-      const { actions } = renderActions('vroot', tree(), cache)
+  it('rejects direct first-turn deletion before any write', async () => {
+    const cache = makeCache()
+    const { actions } = renderActions('vroot', tree(), cache)
 
-      await expect(actions.deleteMessage('u1', cascade === undefined ? undefined : { cascade })).rejects.toThrow()
+    await expect(actions.deleteMessage('u1')).rejects.toThrow()
 
-      expect(cache.seedOptimisticBranch).not.toHaveBeenCalled()
-      expect(cache.deleteMessageTrigger).not.toHaveBeenCalled()
-    }
-  )
+    expect(cache.seedOptimisticBranch).not.toHaveBeenCalled()
+    expect(cache.deleteMessageTrigger).not.toHaveBeenCalled()
+  })
 
   it('rejects a multi-select plan containing a first-turn user before deleting its assistant first', async () => {
     const cache = makeCache()
     const { actions } = renderActions('vroot', tree(), cache)
 
-    await expect(actions.deleteMessage('a1', { cascade: false, selectedMessageIds: ['u1', 'a1'] })).rejects.toThrow()
+    await expect(actions.deleteMessage('a1', { selectedMessageIds: ['u1', 'a1'] })).rejects.toThrow()
 
     expect(cache.seedOptimisticBranch).not.toHaveBeenCalled()
     expect(cache.deleteMessageTrigger).not.toHaveBeenCalled()
@@ -90,7 +87,7 @@ describe('useChatWriteActions — first-turn delete', () => {
 
   it('splices a deeper (non-first-turn) message', async () => {
     const { actions, cache } = renderActions('vroot', tree())
-    await actions.deleteMessage('a1', { cascade: false, selectedMessageIds: ['a1'] })
+    await actions.deleteMessage('a1', { selectedMessageIds: ['a1'] })
     expect(cache.deleteMessageTrigger).toHaveBeenCalledWith({ params: { id: 'a1' }, query: { cascade: false } })
   })
 

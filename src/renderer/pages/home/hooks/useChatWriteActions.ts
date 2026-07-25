@@ -110,8 +110,6 @@ export function useChatWriteActions(params: Params): Result {
 
   const handleDeleteMessage = useCallback<ChatWriteActions['deleteMessage']>(
     async (id, options) => {
-      const shouldCascade = options?.cascade ?? false
-
       // A first-turn user message anchors the conversation branch. Reject both direct deletion
       // and any multi-select plan containing it before the first optimistic or persistent write.
       const selectionContainsUnavailableMessage = options?.selectedMessageIds?.some((messageId) => {
@@ -125,12 +123,7 @@ export function useChatWriteActions(params: Params): Result {
       await seedOptimisticBranch((prev) => branchWithoutIds(prev, optimisticIds))
 
       try {
-        if (shouldCascade) {
-          const result = await deleteMessageTrigger({ params: { id }, query: { cascade: true } })
-          await seedOptimisticBranch((prev) => branchWithoutIds(prev, new Set(result.deletedIds)))
-        } else {
-          await deleteMessageTrigger({ params: { id }, query: { cascade: false } })
-        }
+        await deleteMessageTrigger({ params: { id }, query: { cascade: false } })
       } catch (err: unknown) {
         await rollbackBranch()
         throw err
