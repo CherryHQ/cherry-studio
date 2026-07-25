@@ -90,8 +90,14 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
         throw new Error(`Image generation for '${sdkConfig.modelId}' completed but returned no image URLs`)
       }
 
+      // Bill here, not after the download: non-empty URLs mean the vendor already
+      // generated (and charged for) every image, so a partial or total local
+      // download failure must not under-bill. `ctx.jobId` is stable across
+      // retries/restart-resume, so the ledger upsert stays idempotent on re-record.
+      // Fire-and-forget — a ledger failure must never fail a paid generation.
+      void recordImageUsage(ctx.jobId, model, urls.length)
+
       const files = await downloadAndPersistImageUrls(urls, ctx.signal)
-      await recordImageUsage(ctx.jobId, model, files.length)
       ctx.reportProgress(100, { stage: 'done' })
       return { files } satisfies ImageGenerationJobOutput
     } finally {

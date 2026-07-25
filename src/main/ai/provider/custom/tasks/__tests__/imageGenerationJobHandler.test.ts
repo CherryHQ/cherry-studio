@@ -331,9 +331,14 @@ describe('imageGenerationJobHandler.execute', () => {
   })
 
   it('fails when the remote returned URLs but every download fails (paid no-op guard)', async () => {
-    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/a.png'] })
+    submitMock.mockResolvedValue({ imageUrls: ['https://cdn.example.com/a.png', 'https://cdn.example.com/b.png'] })
     downloadMock.mockResolvedValue(null)
     await expect(imageGenerationJobHandler.execute(createCtx())).rejects.toThrow(/all downloads failed/i)
+    // The vendor generated (and charged for) both images before the download step,
+    // so the ledger must still carry them even though the job surfaces an error.
+    expect(recordRequestMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'img-job-1', modality: 'image', imageCount: 2 })
+    )
   })
 
   it('returns the subset (does not throw) when only some downloads fail', async () => {
@@ -345,6 +350,10 @@ describe('imageGenerationJobHandler.execute', () => {
 
     const result = (await imageGenerationJobHandler.execute(createCtx())) as { files: Array<{ id: string }> }
     expect(result.files).toEqual([{ id: 'file-a' }])
+    // Bills the generated URL count, not the persisted file count.
+    expect(recordRequestMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'img-job-1', modality: 'image', imageCount: 2 })
+    )
   })
 
   it('fails when submit returns an empty imageUrls array (paid no-op guard)', async () => {
