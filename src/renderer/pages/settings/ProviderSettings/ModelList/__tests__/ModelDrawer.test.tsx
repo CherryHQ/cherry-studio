@@ -182,6 +182,43 @@ describe('Model drawers', () => {
     )
   })
 
+  it('offers an optional endpoint picker for a preset provider serving two chat endpoints', async () => {
+    // doubao-shaped: an ordinary preset provider (legacy drawer mode) that speaks both chat and responses.
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'doubao',
+        name: 'doubao',
+        presetProviderId: 'doubao',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://ark.example.com' },
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://ark.example.com' }
+        }
+      }
+    })
+
+    render(<AddModelDrawer providerId="doubao" open prefill={null} onClose={vi.fn()} />)
+
+    expect(screen.getByTestId('provider-settings-model-endpoint-type-field')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('settings.models.add.model_id.label'), {
+      target: { value: 'doubao-seed-2-1-pro' }
+    })
+
+    await act(async () => {
+      fireEvent.submit(screen.getByTestId('provider-settings-model-add-drawer-content'))
+    })
+
+    // The picker seeds the provider's default endpoint, so it is pinned explicitly rather than left blank.
+    expect(createModelMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerId: 'doubao',
+        modelId: 'doubao-seed-2-1-pro',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+      })
+    )
+  })
+
   it('atomically maps a custom model to image editing from the purpose surface', async () => {
     useProviderMock.mockReturnValue({
       provider: {
@@ -760,6 +797,60 @@ describe('Model drawers', () => {
     expect(updateModelMock).toHaveBeenCalledWith(
       'cherryin',
       'claude-4-sonnet',
+      expect.objectContaining({
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES]
+      })
+    )
+  })
+
+  it('auto-saves an endpoint switch for a preset provider serving two chat endpoints', async () => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'doubao',
+        name: 'doubao',
+        presetProviderId: 'doubao',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://ark.example.com' },
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://ark.example.com' }
+        }
+      }
+    })
+
+    render(
+      <EditModelDrawer
+        providerId="doubao"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'doubao::doubao-seed-2-1-pro',
+            providerId: 'doubao',
+            name: 'doubao-seed-2-1-pro',
+            group: 'doubao',
+            capabilities: [],
+            endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+            supportsStreaming: true,
+            pricing: {
+              input: { perMillionTokens: 0, currency: 'USD' },
+              output: { perMillionTokens: 0, currency: 'USD' }
+            }
+          } as any
+        }
+      />
+    )
+
+    const endpointField = screen.getByTestId('provider-settings-model-endpoint-type-field')
+    // Only the provider's own chat endpoints are offered — no embedding/image/rerank protocols.
+    expect(within(endpointField).queryByRole('button', { name: 'endpoint_type.jina-rerank' })).not.toBeInTheDocument()
+
+    await act(async () => {
+      fireEvent.click(within(endpointField).getByRole('button', { name: 'endpoint_type.openai-response' }))
+    })
+
+    expect(updateModelMock).toHaveBeenCalledWith(
+      'doubao',
+      'doubao-seed-2-1-pro',
       expect.objectContaining({
         endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES]
       })

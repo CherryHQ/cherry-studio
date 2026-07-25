@@ -9,6 +9,9 @@ import {
 
 export type ModelDrawerMode = 'legacy' | 'endpoint-types' | 'purpose'
 
+/** How the drawer treats the endpoint picker. See `getEndpointPickerPolicy`. */
+export type EndpointPickerPolicy = 'hidden' | 'optional' | 'required'
+
 export type ModelDrawerEndpointType = EndpointType
 
 export interface AddModelDrawerPrefill {

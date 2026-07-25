@@ -3,15 +3,20 @@ import { drawerClasses } from '@renderer/pages/settings/ProviderSettings/primiti
 import { Check } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { MODEL_ENDPOINT_OPTIONS } from './helpers'
+import { MODEL_ENDPOINT_OPTIONS, type ModelEndpointOption } from './helpers'
 import type { ModelDrawerEndpointType } from './types'
 
 interface ModelEndpointTypeChipsProps {
   value: readonly ModelDrawerEndpointType[]
+  options?: readonly ModelEndpointOption[]
   onChange: (next: readonly ModelDrawerEndpointType[]) => void
 }
 
-export function ModelEndpointTypeChips({ value, onChange }: ModelEndpointTypeChipsProps) {
+export function ModelEndpointTypeChips({
+  value,
+  options = MODEL_ENDPOINT_OPTIONS,
+  onChange
+}: ModelEndpointTypeChipsProps) {
   const { t } = useTranslation()
   const selected = new Set(value)
 
@@ -22,13 +27,15 @@ export function ModelEndpointTypeChips({ value, onChange }: ModelEndpointTypeChi
     } else {
       next.add(id)
     }
+    // Keep the canonical option order, and preserve any already-selected endpoint the narrowed option
+    // list doesn't render so toggling a chip can't silently drop it.
     const ordered = MODEL_ENDPOINT_OPTIONS.map((option) => option.id).filter((optionId) => next.has(optionId))
     onChange(ordered)
   }
 
   return (
     <div className={drawerClasses.endpointChipRow}>
-      {MODEL_ENDPOINT_OPTIONS.map((option) => {
+      {options.map((option) => {
         const active = selected.has(option.id)
         return (
           <Button

@@ -31,6 +31,7 @@ import {
   buildModelInputModalities,
   getInitialModelClassification,
   getModelApiId,
+  getModelEndpointOptions,
   MODEL_DRAWER_CURRENCY_SYMBOLS,
   readCurrency
 } from './helpers'
@@ -39,6 +40,7 @@ import { ModelClassificationControls } from './ModelClassificationControls'
 import { ModelContextWindowFields } from './ModelContextWindowFields'
 import {
   applyModelPurpose,
+  getEndpointPickerPolicy,
   getInitialChatEndpointType,
   getModelDrawerMode,
   getProviderChatEndpointTypes,
@@ -130,6 +132,11 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
 
   const mode: ModelDrawerMode = provider ? getModelDrawerMode(provider) : 'legacy'
   const providerChatEndpointTypes = provider ? getProviderChatEndpointTypes(provider) : []
+  const endpointPicker = getEndpointPickerPolicy(mode, providerChatEndpointTypes)
+  // Only the `optional` picker narrows to the provider's own chat endpoints; aggregators keep the full
+  // list because they also serve embedding/image/rerank protocols outside `endpointConfigs`.
+  const endpointTypeOptions =
+    endpointPicker === 'optional' ? getModelEndpointOptions(providerChatEndpointTypes) : undefined
   const defaultChatEndpoint = providerChatEndpointTypes[0]
   const modelPurpose = inferModelPurpose(purposeFields)
   const chatEndpointType = getInitialChatEndpointType(purposeFields, defaultChatEndpoint)
@@ -232,7 +239,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
           ? { endpointTypes: [...resolvedPurposeFields.endpointTypes] }
           : hasEndpointTypesOverride
             ? {
-                endpointTypes: mode === 'endpoint-types' ? [...(overrides.endpointTypes ?? [])] : undefined
+                endpointTypes: endpointPicker !== 'hidden' ? [...(overrides.endpointTypes ?? [])] : undefined
               }
             : {}),
         ...(resolvedPurposeFields
@@ -397,7 +404,8 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                 maxOutputTokens,
                 endpointTypes
               }}
-              showEndpointType={mode === 'endpoint-types'}
+              showEndpointType={endpointPicker !== 'hidden'}
+              endpointTypeOptions={endpointTypeOptions}
               endpointTypeControl="chips"
               modelIdDisabled
               modelIdAction={

@@ -8,8 +8,10 @@ import {
 } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
+import { getModelEndpointOptions, MODEL_ENDPOINT_OPTIONS } from '../helpers'
 import {
   applyModelPurpose,
+  getEndpointPickerPolicy,
   getInitialChatEndpointType,
   getModelDrawerMode,
   getProviderChatEndpointTypes,
@@ -30,6 +32,44 @@ describe('getModelDrawerMode', () => {
     [{ id: 'custom-anthropic', presetProviderId: 'anthropic' }, 'legacy']
   ] as const)('returns %s for %o', (provider, expected) => {
     expect(getModelDrawerMode(provider)).toBe(expected)
+  })
+})
+
+describe('getEndpointPickerPolicy', () => {
+  const twoEndpoints = [ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] as const
+
+  it('requires a choice for aggregators, whose model list spans protocols', () => {
+    expect(getEndpointPickerPolicy('endpoint-types', [])).toBe('required')
+    expect(getEndpointPickerPolicy('endpoint-types', twoEndpoints)).toBe('required')
+  })
+
+  it('offers an optional choice when an ordinary provider serves more than one chat endpoint', () => {
+    expect(getEndpointPickerPolicy('legacy', twoEndpoints)).toBe('optional')
+  })
+
+  it('hides the picker when there is nothing to choose', () => {
+    expect(getEndpointPickerPolicy('legacy', [])).toBe('hidden')
+    expect(getEndpointPickerPolicy('legacy', [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])).toBe('hidden')
+  })
+
+  it('hides the picker in purpose mode, which drives the endpoint from its own controls', () => {
+    expect(getEndpointPickerPolicy('purpose', twoEndpoints)).toBe('hidden')
+  })
+})
+
+describe('getModelEndpointOptions', () => {
+  it('narrows to the allowed endpoints while keeping the canonical order', () => {
+    expect(
+      getModelEndpointOptions([ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]).map(
+        (option) => option.id
+      )
+    ).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES])
+  })
+
+  it('falls back to the full list rather than rendering an empty control', () => {
+    expect(getModelEndpointOptions([])).toBe(MODEL_ENDPOINT_OPTIONS)
+    expect(getModelEndpointOptions(undefined)).toBe(MODEL_ENDPOINT_OPTIONS)
+    expect(getModelEndpointOptions(['not-an-endpoint' as EndpointType])).toBe(MODEL_ENDPOINT_OPTIONS)
   })
 })
 

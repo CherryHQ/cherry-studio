@@ -10,7 +10,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { matchesPreset } from '@shared/utils/provider'
 import { isSystemProviderId } from '@shared/utils/systemProviderId'
 
-import type { ModelDrawerMode } from './types'
+import type { EndpointPickerPolicy, ModelDrawerMode } from './types'
 
 export type ModelPurpose = 'chat' | 'image-generation' | 'image-edit'
 
@@ -69,6 +69,30 @@ export function getModelDrawerMode(provider: ModelDrawerProvider): ModelDrawerMo
     return 'purpose'
   }
   return 'legacy'
+}
+
+/**
+ * Whether the drawer offers an endpoint picker for a model, and whether picking is mandatory.
+ *
+ * - `required` — aggregators (cherryin/aionly) whose model list spans several protocols: the endpoint
+ *   cannot be inferred, so the user must state it.
+ * - `optional` — an ordinary provider that serves more than one chat endpoint (doubao, dashscope,
+ *   azure-openai…). Pinning is meaningful but not required: an empty selection means "inherit
+ *   `provider.defaultChatEndpoint`", which is what request-time resolution already falls back to.
+ * - `hidden` — nothing to choose (single endpoint), or `purpose` mode, which drives the endpoint
+ *   through its own purpose + chat-protocol controls.
+ */
+export function getEndpointPickerPolicy(
+  mode: ModelDrawerMode,
+  providerChatEndpointTypes: readonly ModelChatEndpointType[]
+): EndpointPickerPolicy {
+  if (mode === 'endpoint-types') {
+    return 'required'
+  }
+  if (mode === 'purpose') {
+    return 'hidden'
+  }
+  return providerChatEndpointTypes.length > 1 ? 'optional' : 'hidden'
 }
 
 export function getProviderChatEndpointTypes(provider: ProviderChatEndpoints): ModelChatEndpointType[] {
