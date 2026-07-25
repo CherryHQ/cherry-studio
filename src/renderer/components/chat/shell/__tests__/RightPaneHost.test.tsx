@@ -2,7 +2,7 @@ import { DefaultRendererPersistCache } from '@shared/data/cache/cacheSchemas'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useAnimationControls } from 'motion/react'
 import type { HTMLAttributes, PropsWithChildren, ReactNode } from 'react'
-import { useEffect, useState } from 'react'
+import { Activity, useEffect, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -379,6 +379,38 @@ describe('RightPaneHost', () => {
         opacity: 1
       })
     )
+  })
+
+  it('restores the settled maximized visual state when Activity reconnects effects', () => {
+    const onLayoutAnimationComplete = vi.fn()
+
+    function ActivityHarness({ visible }: { visible: boolean }) {
+      return (
+        <Activity mode={visible ? 'visible' : 'hidden'}>
+          <PersistentRightPaneHost open maximized width={460} onLayoutAnimationComplete={onLayoutAnimationComplete}>
+            <div>artifact pane</div>
+          </PersistentRightPaneHost>
+        </Activity>
+      )
+    }
+
+    const { rerender } = render(<ActivityHarness visible />)
+    motionTestState.controls.set.mockClear()
+    motionTestState.controls.start.mockClear()
+
+    rerender(<ActivityHarness visible={false} />)
+    motionTestState.controls.set.mockClear()
+    motionTestState.controls.start.mockClear()
+
+    rerender(<ActivityHarness visible />)
+
+    expect(motionTestState.controls.set).toHaveBeenCalledTimes(1)
+    expect(motionTestState.controls.set).toHaveBeenCalledWith({
+      clipPath: 'inset(0% 0% 0% 0%)',
+      opacity: 1
+    })
+    expect(motionTestState.controls.start).not.toHaveBeenCalled()
+    expect(onLayoutAnimationComplete).not.toHaveBeenCalled()
   })
 
   it('ignores a stale maximize completion when minimizing before it finishes', async () => {

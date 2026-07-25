@@ -434,12 +434,15 @@ export function PersistentRightPaneHost({
     start(plan.animateTo, complete, plan.deferUntilNextFrame)
   }, [animationControls, dockedClip, paneRef, reduceMotion, setVisualState, targetMode])
 
-  // Runs after the docked width commits (pre-paint), when the docked-strip calc()
-  // clip already equals a zero inset — visually a no-op that restores the plain
-  // resting value so later transitions animate from a canonical clip. The target
-  // guard keeps it out of commits where a new transition just staged its own clip.
+  // Keep settled visible modes on their canonical pre-paint visual state. Besides
+  // normalizing the docked clip after its width commits, this also restores Motion
+  // controls when Activity reconnects effects without changing the target mode.
+  // The guards keep it out of commits where a transition staged its own clip.
   useLayoutEffect(() => {
-    if (phase === 'docked' && targetMode === 'docked') {
+    const settledVisible =
+      (phase === 'docked' && targetMode === 'docked') || (phase === 'maximized' && targetMode === 'maximized')
+
+    if (settledVisible) {
       animationControls.set({ clipPath: RIGHT_PANE_CLIP_REVEALED, opacity: 1 })
     }
   }, [animationControls, phase, targetMode])
