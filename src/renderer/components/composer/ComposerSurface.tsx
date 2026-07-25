@@ -2120,15 +2120,14 @@ export default function ComposerSurface({
   ) : renderBelowControls ? (
     <ComposerControlsLoading />
   ) : undefined
-  const sendAccessoryElement = dynamicControlsReady ? (
-    typeof sendAccessory === 'function' ? (
-      sendAccessory(inputAdapter, unifiedPanelControl)
-    ) : (
-      sendAccessory
-    )
-  ) : sendAccessory ? (
-    <ComposerControlsLoading compact />
-  ) : undefined
+  // No placeholder here: `sendAccessory` is always a truthy element but usually
+  // renders nothing (the context ring needs a live session), so reserving space
+  // for it would flash a skeleton dot that then disappears.
+  const sendAccessoryElement = dynamicControlsReady
+    ? typeof sendAccessory === 'function'
+      ? sendAccessory(inputAdapter, unifiedPanelControl)
+      : sendAccessory
+    : undefined
   const compactControls = dynamicControlsReady ? (
     renderCompactControls?.(inputAdapter, unifiedPanelControl)
   ) : renderCompactControls ? (

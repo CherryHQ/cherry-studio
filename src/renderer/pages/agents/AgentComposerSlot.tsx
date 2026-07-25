@@ -66,7 +66,7 @@ function AgentComposerSlot({
         compactWhenSingleLine={compactWhenSingleLine}
       />
     ) : agentLoading && !isMultiSelectMode ? (
-      <ConversationComposerLoading />
+      <ConversationComposerLoading compact={compactWhenSingleLine} />
     ) : undefined
 
   return <ConversationComposerSlot scopeKey={sessionId} composerContext={composerContext} fallback={fallback} />
