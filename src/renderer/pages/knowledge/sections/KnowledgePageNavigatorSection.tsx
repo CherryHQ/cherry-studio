@@ -12,6 +12,7 @@ const KnowledgePageNavigatorSection = () => {
   const {
     bases,
     groups,
+    isLoading,
     contentRef,
     selectedBaseId,
     selectBase,
@@ -45,6 +46,7 @@ const KnowledgePageNavigatorSection = () => {
     <BaseNavigator
       bases={bases}
       groups={groups}
+      isLoading={isLoading}
       width={navigatorWidth}
       selectedBaseId={selectedBaseId}
       onSelectBase={selectBase}

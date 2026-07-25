@@ -3,16 +3,43 @@
 exports[`Hyperlink > should match snapshot for normal url 1`] = `
 <div>
   <div
-    data-testid="popover"
+    data-testid="hover-card"
   >
-    <span
-      class="inline"
-      data-testid="popover-trigger"
+    <div
+      data-testid="hover-card-trigger"
     >
-      <span>
-        Child
+      <span
+        class="inline"
+      >
+        <span>
+          Child
+        </span>
       </span>
-    </span>
+    </div>
+    <div
+      class="w-auto max-w-none overflow-hidden rounded-lg p-0"
+      data-testid="hover-card-content"
+    >
+      <div
+        data-testid="og-card"
+      >
+        <img
+          alt="https://example.com/path with space"
+          data-hostname="example.com"
+          data-testid="favicon"
+        />
+        <div
+          data-testid="title"
+        >
+          example.com
+        </div>
+        <div
+          data-testid="text"
+        >
+          https://example.com/path with space
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 `;
