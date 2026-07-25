@@ -74,7 +74,11 @@ const baseJournal = {
   restoreId: 'rst-1',
   createdAt: '2026-07-22T00:00:00.000Z',
   db: { promote: 'p', aside: 'a', fingerprint: 'f', chain: [{ folderMillis: 1, hash: 'h' }] },
-  fileResources: []
+  fileResources: [],
+  summary: {
+    toRestore: [{ kind: 'knowledge', count: 2 }],
+    toSkip: [{ id: 'skill-a', kind: 'skill', reasonCode: 'local_record_exists' }]
+  }
 }
 
 function okJournal(state: string, step?: string) {
@@ -194,9 +198,9 @@ describe('BackupService restore journal lifecycle (A7)', () => {
     it('maps staged and promoting to pending', () => {
       const service = new BackupService()
       readRestoreJournalMock.mockReturnValue(okJournal('staged'))
-      expect(service.getRestoreStatus()).toEqual({ state: 'pending' })
+      expect(service.getRestoreStatus()).toEqual({ state: 'pending', summary: baseJournal.summary })
       readRestoreJournalMock.mockReturnValue(okJournal('promoting', 'live-aside'))
-      expect(service.getRestoreStatus()).toEqual({ state: 'pending' })
+      expect(service.getRestoreStatus()).toEqual({ state: 'pending', summary: baseJournal.summary })
     })
 
     it('maps completed to completed', () => {
@@ -407,7 +411,7 @@ describe('BackupService restore journal lifecycle (A7)', () => {
         return {
           plan: {
             toRestore: [{ kind: 'file', count: 2 }],
-            skips: [{ id: 'f1', kind: 'file', reason: 'live exists' }],
+            skips: [{ id: 'f1', kind: 'file', reasonCode: 'target_exists' }],
             resources: []
           }
         }
@@ -416,7 +420,7 @@ describe('BackupService restore journal lifecycle (A7)', () => {
       await service.startRestore({ archivePath: '/x.cherrybackup' })
       expect(broadcastMock).toHaveBeenCalledWith('backup.restore_summary', {
         toRestore: [{ kind: 'file', count: 2 }],
-        toSkip: [{ id: 'f1', kind: 'file', reason: 'live exists' }]
+        toSkip: [{ id: 'f1', kind: 'file', reasonCode: 'target_exists' }]
       })
       expect(relaunchMock).not.toHaveBeenCalled()
       expect(isBackupInProgress()).toBe(true)
@@ -445,7 +449,7 @@ describe('BackupService restore journal lifecycle (A7)', () => {
       setBackupInProgress(false) // module-singleton gate — reset for later tests
     })
 
-    it('a broadcast failure does not fail the sealed restore (renderer falls back)', async () => {
+    it('a broadcast failure does not fail the sealed restore (renderer can pull the journal)', async () => {
       drainInFlight.mockResolvedValue({ stragglerIds: [], startupRecoveryPending: false })
       broadcastMock.mockImplementationOnce(() => {
         throw new Error('no windows')

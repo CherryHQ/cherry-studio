@@ -326,7 +326,7 @@ describe('planResources', () => {
     expect(plan.skips[0]).toMatchObject({
       id: '0f100000-0000-4000-8000-000000000001',
       kind: 'file',
-      reason: 'live exists'
+      reasonCode: 'target_exists'
     })
   })
 
@@ -343,7 +343,7 @@ describe('planResources', () => {
       )
     )
     expect(plan.skippedFileEntryIds).toEqual(new Set(['0f100000-0000-4000-8000-000000000001']))
-    expect(plan.skips[0]?.reason).toBe('local DB row exists')
+    expect(plan.skips[0]?.reasonCode).toBe('local_record_exists')
   })
 
   it('rejects an external file listed in the manifest', () => {
@@ -529,7 +529,7 @@ describe('planResources', () => {
         livePath: 'Notes/a.md'
       }
     ])
-    expect(plan.skips).toEqual([{ id: 'b.md', kind: 'note', reason: 'exists — skip' }])
+    expect(plan.skips).toEqual([{ id: 'b.md', kind: 'note', reasonCode: 'target_exists' }])
     expect(plan.noteAdditions).toEqual(new Map([['a.md', notesRoot]]))
     expect(plan.toRestore).toEqual([{ kind: 'note', count: 1 }])
   })
@@ -546,7 +546,7 @@ describe('planResources', () => {
     )
     expect(plan.resources).toEqual([])
     expect(plan.noteAdditions).toEqual(new Map())
-    expect(plan.skips).toEqual([{ id: 'a.md', kind: 'note', reason: 'no managed notesRoot' }])
+    expect(plan.skips).toEqual([{ id: 'a.md', kind: 'note', reasonCode: 'notes_root_unavailable' }])
   })
 
   it('skips notes outside userData', () => {
@@ -563,7 +563,7 @@ describe('planResources', () => {
       )
       expect(plan.resources).toEqual([])
       expect(plan.noteAdditions).toEqual(new Map())
-      expect(plan.skips[0]).toMatchObject({ id: 'a.md', kind: 'note', reason: 'outside userData' })
+      expect(plan.skips[0]).toMatchObject({ id: 'a.md', kind: 'note', reasonCode: 'outside_user_data' })
     } finally {
       rmSync(outsideNotes, { recursive: true, force: true })
     }

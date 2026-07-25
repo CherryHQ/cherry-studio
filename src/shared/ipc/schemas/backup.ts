@@ -18,10 +18,23 @@
 // The `note` overlay rows + DB copy travel in both presets; Notes markdown bodies +
 // file blobs are full-preset file resources (orchestrator-enforced, not a route concern).
 
-import type { BackupProgressUpdate, RestoreResultSummary } from '@shared/types/backup'
+import {
+  type BackupProgressUpdate,
+  type RestoreResultSummary,
+  RestoreResultSummarySchema,
+  type RestoreStatus
+} from '@shared/types/backup'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
+
+const restoreStatusSchema: z.ZodType<RestoreStatus> = z.discriminatedUnion('state', [
+  z.strictObject({ state: z.literal('none') }),
+  z.strictObject({ state: z.literal('pending'), summary: RestoreResultSummarySchema.optional() }),
+  z.strictObject({ state: z.literal('completed') }),
+  z.strictObject({ state: z.literal('failed'), reason: z.string().optional() }),
+  z.strictObject({ state: z.literal('expired'), reason: z.string().optional() })
+])
 
 // ── Request: renderer→main calls (zod values, always parsed) ──
 export const backupRequestSchemas = {
@@ -49,10 +62,7 @@ export const backupRequestSchemas = {
   // it on open and clears it once the user has seen the outcome.
   'backup.restore_status': defineRoute({
     input: z.void(),
-    output: z.object({
-      state: z.enum(['none', 'pending', 'completed', 'failed', 'expired']),
-      reason: z.string().optional()
-    })
+    output: restoreStatusSchema
   }),
   'backup.restore_acknowledge': defineRoute({
     input: z.void(),

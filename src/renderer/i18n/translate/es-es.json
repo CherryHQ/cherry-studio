@@ -5741,6 +5741,13 @@
               "pending_hint": "[to be translated]:The restore is staged and will apply after restart. Summary of this restore:",
               "relaunch_failed": "[to be translated]:Restart failed. Click to try again.",
               "restart_button": "[to be translated]:Restart now",
+              "skip_reason": {
+                "local_record_exists": "[to be translated]:A local item with the same identity already exists.",
+                "notes_root_unavailable": "[to be translated]:No managed Notes folder is configured.",
+                "outside_user_data": "[to be translated]:The destination is outside the app data directory.",
+                "target_exists": "[to be translated]:The destination already exists."
+              },
+              "unavailable": "[to be translated]:The detailed summary is unavailable, but the sealed restore can still continue after restart.",
               "will_restore": "[to be translated]:Will restore",
               "will_skip": "[to be translated]:Will skip (keeping the local version)"
             }

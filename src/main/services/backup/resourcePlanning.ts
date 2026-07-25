@@ -22,7 +22,7 @@ import path from 'node:path'
 import { type PathResolvableEntry, resolvePhysicalPath } from '@main/services/file'
 import { isPathInside } from '@main/utils/file'
 import { FileEntryIdSchema, SafeNameSchema } from '@shared/data/types/file'
-import type { ResourceClass } from '@shared/types/backup'
+import type { ResourceClass, RestoreSkipReasonCode } from '@shared/types/backup'
 import { SafeExtSchema } from '@shared/types/file'
 import Database from 'better-sqlite3'
 
@@ -55,7 +55,7 @@ export interface PlanRoots {
 export interface SkippedResource {
   readonly id: string
   readonly kind: ResourceClass
-  readonly reason: string
+  readonly reasonCode: RestoreSkipReasonCode
 }
 
 /**
@@ -93,7 +93,7 @@ export interface ResourcePlan {
   readonly noteAdditions: ReadonlyMap<string, string>
   /** Pre-computed restore counts by class (knowledge vs skill stay distinguishable; not reverse-derived from resources). */
   readonly toRestore: ReadonlyArray<{ readonly kind: ResourceClass; readonly count: number }>
-  /** Skipped resources with reason → relaunch-result disclosure UI. */
+  /** Skipped resources with stable reason codes → relaunch-result disclosure UI. */
   readonly skips: SkippedResource[]
 }
 
@@ -343,7 +343,7 @@ export function planResources(ctx: PlanCtx): ResourcePlan {
         skips.push({
           id,
           kind: 'file',
-          reason: localRow ? 'local DB row exists' : 'live exists'
+          reasonCode: localRow ? 'local_record_exists' : 'target_exists'
         })
         skippedFileEntryIds.add(id)
         continue
@@ -372,7 +372,7 @@ export function planResources(ctx: PlanCtx): ResourcePlan {
         skips.push({
           id: baseId,
           kind: 'knowledge',
-          reason: localRow ? 'local DB row exists' : 'live exists'
+          reasonCode: localRow ? 'local_record_exists' : 'target_exists'
         })
         skippedKnowledgeBaseIds.add(baseId)
         continue
@@ -400,7 +400,7 @@ export function planResources(ctx: PlanCtx): ResourcePlan {
         skips.push({
           id: folderName,
           kind: 'skill',
-          reason: localRow ? 'local DB row exists' : 'live exists'
+          reasonCode: localRow ? 'local_record_exists' : 'target_exists'
         })
         skippedSkillFolderNames.add(folderName)
         continue
@@ -421,7 +421,7 @@ export function planResources(ctx: PlanCtx): ResourcePlan {
           archiveCorrupt(`note relPath contains '..': ${relPath}`)
         }
         assertStagingFile(path.join(workDir, 'notes', relPath))
-        skips.push({ id: relPath, kind: 'note', reason: 'no managed notesRoot' })
+        skips.push({ id: relPath, kind: 'note', reasonCode: 'notes_root_unavailable' })
       }
     } else if (notesRoot) {
       for (const relPath of manifest.notes.paths) {
@@ -432,11 +432,11 @@ export function planResources(ctx: PlanCtx): ResourcePlan {
         assertStagingFile(stagingAbs)
         const liveAbs = path.join(notesRoot, relPath)
         if (!isPathInside(liveAbs, notesRoot) || !isPathInside(liveAbs, userData)) {
-          skips.push({ id: relPath, kind: 'note', reason: 'outside userData' })
+          skips.push({ id: relPath, kind: 'note', reasonCode: 'outside_user_data' })
           continue
         }
         if (existsSync(liveAbs)) {
-          skips.push({ id: relPath, kind: 'note', reason: 'exists — skip' })
+          skips.push({ id: relPath, kind: 'note', reasonCode: 'target_exists' })
           continue
         }
         resources.push({

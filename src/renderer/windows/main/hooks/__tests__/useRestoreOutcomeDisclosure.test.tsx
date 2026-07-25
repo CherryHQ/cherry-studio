@@ -24,6 +24,7 @@ async function renderDisclosureHook() {
 
 describe('useRestoreOutcomeDisclosure', () => {
   beforeEach(() => {
+    vi.resetModules()
     vi.clearAllMocks()
     showMock.mockResolvedValue({})
   })
@@ -36,5 +37,26 @@ describe('useRestoreOutcomeDisclosure', () => {
     await waitFor(() => expect(showMock).toHaveBeenCalledTimes(1))
     expect(requestMock).toHaveBeenCalledTimes(1)
     expect(requestMock).toHaveBeenCalledWith('backup.restore_status')
+  })
+
+  it('opens the restore popup once for a pending restore with a persisted summary', async () => {
+    requestMock.mockResolvedValue({
+      state: 'pending',
+      summary: { toRestore: [{ kind: 'file', count: 1 }], toSkip: [] }
+    })
+
+    await renderDisclosureHook()
+
+    await waitFor(() => expect(showMock).toHaveBeenCalledTimes(1))
+    expect(requestMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not open the restore popup when no journal exists', async () => {
+    requestMock.mockResolvedValue({ state: 'none' })
+
+    await renderDisclosureHook()
+
+    await waitFor(() => expect(requestMock).toHaveBeenCalledTimes(1))
+    expect(showMock).not.toHaveBeenCalled()
   })
 })

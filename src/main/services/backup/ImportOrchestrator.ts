@@ -15,8 +15,8 @@
 //
 // Resource planning runs after snapshot and before merge so skipped* sets are
 // merge inputs (no dangling file_entry / knowledge_base / skill rows). Journal
-// fileResources come from the plan (additive only); skips stay in-memory for
-// RestoreResultSummary (B4), not in the journal schema.
+// fileResources and the disclosure summary come from the same plan and are
+// persisted together so a renderer reload cannot lose or invent the summary.
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -28,6 +28,7 @@ import { type AppliedMigration, readAppliedChain } from '@main/data/db/restore/a
 import { checkpointTruncateAssert } from '@main/data/db/restore/checkpoint'
 import { readRestoreJournal, type RestoreJournal, writeRestoreJournal } from '@main/data/db/restore/restoreJournal'
 import type { DbType } from '@main/data/db/types'
+import type { RestoreResultSummary } from '@shared/types/backup'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { readMigrationFiles } from 'drizzle-orm/migrator'
@@ -74,12 +75,7 @@ export interface ImportBackupResult {
   readonly restoreId: string
   /** Absolute path the staged journal was written to (for diagnostics; the gate reads it via the path key). */
   readonly journalPath: string
-  /**
-   * Planning skips / toRestore for relaunch-confirm disclosure (B4); not written
-   * into the journal. Deliberately excludes `resources` — the journal's
-   * fileResources is the single source for what gets promoted, and a second
-   * consumer here could only drift from it.
-   */
+  /** Immediate broadcast payload; the same values are persisted in journal.summary. */
   readonly plan: Pick<ResourcePlan, 'skips' | 'toRestore'>
 }
 
@@ -268,6 +264,10 @@ export class ImportOrchestrator {
       // journal + relaunch (the 2nd fingerprint is the last async before the synchronous write).
       this.assertNotCancelled(options)
 
+      const summary: RestoreResultSummary = {
+        toRestore: plan.toRestore,
+        toSkip: plan.skips
+      }
       const journal: RestoreJournal = {
         version: 1,
         restoreId: options.restoreId,
@@ -279,8 +279,8 @@ export class ImportOrchestrator {
           fingerprint,
           chain
         },
-        // Additive resources only — skips are not journal fields (P1-5); B4 reads plan.skips.
-        fileResources: plan.resources
+        fileResources: plan.resources,
+        summary
       }
       // writeRestoreJournal renames the journal before its parent-dir fsync; a throw after the
       // rename still leaves a valid staged journal on disk (plan R1-M3). Reread: if it landed

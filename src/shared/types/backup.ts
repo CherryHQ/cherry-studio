@@ -4,6 +4,8 @@
  * services; both sides pass them across the IPC boundary.
  */
 
+import * as z from 'zod'
+
 export type WebDavConfig = {
   webdavHost: string
   webdavUser?: string
@@ -67,6 +69,21 @@ export interface BackupV2StartResult {
  */
 export type ResourceClass = 'file' | 'knowledge' | 'skill' | 'note'
 
+export const RestoreSkipReasonCodeSchema = z.enum([
+  'local_record_exists',
+  'target_exists',
+  'notes_root_unavailable',
+  'outside_user_data'
+])
+
+export type RestoreSkipReasonCode = z.infer<typeof RestoreSkipReasonCodeSchema>
+
+export interface RestoreSkippedResource {
+  readonly id: string
+  readonly kind: ResourceClass
+  readonly reasonCode: RestoreSkipReasonCode
+}
+
 /**
  * Restore result summary shown in the relaunch-confirm dialog BEFORE promotion
  * applies. Promotion hasn't run yet at this point (preboot may expire the whole
@@ -76,12 +93,60 @@ export type ResourceClass = 'file' | 'knowledge' | 'skill' | 'note'
  * Main→renderer event payload (TCB source → pure type, not zod-parsed).
  * `toRestore` is pre-computed by planning (not reverse-derived from resources,
  * which can't separate knowledge vs skill — both are `dir-add`). `toSkip` mirrors
- * plan.skips 1:1 (see @main/services/backup/resourcePlanning).
+ * plan.skips 1:1 with stable reason codes for renderer i18n.
  */
 export interface RestoreResultSummary {
   readonly toRestore: ReadonlyArray<{ readonly kind: ResourceClass; readonly count: number }>
-  readonly toSkip: ReadonlyArray<{ readonly id: string; readonly kind: ResourceClass; readonly reason: string }>
+  readonly toSkip: ReadonlyArray<RestoreSkippedResource>
 }
+
+const ResourceClassSchema: z.ZodType<ResourceClass> = z.enum(['file', 'knowledge', 'skill', 'note'])
+
+const LegacyRestoreSkipReasonSchema = z.enum([
+  'local DB row exists',
+  'live exists',
+  'no managed notesRoot',
+  'outside userData',
+  'exists — skip'
+])
+
+const legacyRestoreSkipReasonCodes: Record<z.infer<typeof LegacyRestoreSkipReasonSchema>, RestoreSkipReasonCode> = {
+  'local DB row exists': 'local_record_exists',
+  'live exists': 'target_exists',
+  'no managed notesRoot': 'notes_root_unavailable',
+  'outside userData': 'outside_user_data',
+  'exists — skip': 'target_exists'
+}
+
+const RestoreSkippedResourceSchema = z.union([
+  z.strictObject({
+    id: z.string().min(1),
+    kind: ResourceClassSchema,
+    reasonCode: RestoreSkipReasonCodeSchema
+  }),
+  z
+    .strictObject({
+      id: z.string().min(1),
+      kind: ResourceClassSchema,
+      reason: LegacyRestoreSkipReasonSchema
+    })
+    .transform(({ id, kind, reason }) => ({
+      id,
+      kind,
+      reasonCode: legacyRestoreSkipReasonCodes[reason]
+    }))
+])
+
+/** Journal/status schema; legacy English reasons normalize to stable codes. */
+export const RestoreResultSummarySchema: z.ZodType<RestoreResultSummary> = z.strictObject({
+  toRestore: z.array(
+    z.strictObject({
+      kind: ResourceClassSchema,
+      count: z.number().int().nonnegative()
+    })
+  ),
+  toSkip: z.array(RestoreSkippedResourceSchema)
+})
 
 /**
  * Current restore journal outcome, returned by `backup.restore_status` so the
@@ -95,7 +160,9 @@ export interface RestoreResultSummary {
  *   journal's raw diagnostic for failed/expired.
  * - `none`: no journal (or corrupt — nothing actionable for the UI).
  */
-export interface RestoreStatus {
-  readonly state: 'none' | 'pending' | 'completed' | 'failed' | 'expired'
-  readonly reason?: string
-}
+export type RestoreStatus =
+  | { readonly state: 'none' }
+  | { readonly state: 'pending'; readonly summary?: RestoreResultSummary }
+  | { readonly state: 'completed' }
+  | { readonly state: 'failed'; readonly reason?: string }
+  | { readonly state: 'expired'; readonly reason?: string }

@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { application } from '@application'
+import { RestoreResultSummarySchema } from '@shared/types/backup'
 import * as z from 'zod'
 
 /**
@@ -88,7 +89,9 @@ const commonFields = {
   /** ISO-8601 timestamp, diagnostic only — the gate never reads it. */
   createdAt: z.string().min(1),
   db: RestoreDbSchema,
-  fileResources: z.array(FileResourceSchema)
+  fileResources: z.array(FileResourceSchema),
+  /** Optional only for journals sealed by older builds. */
+  summary: RestoreResultSummarySchema.optional()
 }
 
 /**

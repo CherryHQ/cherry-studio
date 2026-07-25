@@ -380,7 +380,6 @@ describe('e2e-restore full resource fixtures (B3)', () => {
         files: filesRoot,
         knowledge: join(tmpDir, 'Data', 'KnowledgeBase'),
         skills: join(tmpDir, 'Data', 'Skills'),
-        // No managed notes root → note paths become plan.skips (not journal fields).
         notes: () => undefined
       }
     })
@@ -393,7 +392,7 @@ describe('e2e-restore full resource fixtures (B3)', () => {
       { kind: 'knowledge', count: 1 },
       { kind: 'skill', count: 1 }
     ])
-    expect(result.plan.skips).toEqual([{ id: 'folder/note.md', kind: 'note', reason: 'no managed notesRoot' }])
+    expect(result.plan.skips).toEqual([{ id: 'folder/note.md', kind: 'note', reasonCode: 'notes_root_unavailable' }])
     const stagedDb = new Database(join(stagingRoot, restoreId, 'work.sqlite'), { readonly: true })
     try {
       expect((stagedDb.prepare(`SELECT COUNT(*) AS count FROM note`).get() as { count: number }).count).toBe(0)
@@ -404,11 +403,12 @@ describe('e2e-restore full resource fixtures (B3)', () => {
     const journal = readRestoreJournal()
     expect(journal.kind).toBe('ok')
     if (journal.kind !== 'ok') throw new Error('unreachable')
-    // P1-5: journal carries additive resources only — skips stay on the in-memory
-    // plan (the result surface deliberately does not expose resources).
     expect(journal.journal.fileResources).toHaveLength(3)
     expect(journal.journal.fileResources.map((r) => r.kind).sort()).toEqual(['blob-add', 'dir-add', 'dir-add'])
-    expect(journal.journal).not.toHaveProperty('skips')
+    expect(journal.journal.summary).toEqual({
+      toRestore: result.plan.toRestore,
+      toSkip: result.plan.skips
+    })
   })
 
   // restorePromotion e2e — follow-up beyond A2

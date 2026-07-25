@@ -135,6 +135,7 @@ describe('ImportOrchestrator spine', () => {
     // sibling temp dir, so assert the exact path.relative the producer computes.
     expect(read.journal.db.promote).toBe(join('restore-staging', 'rst-001', 'work.sqlite'))
     expect(read.journal.db.aside).toBe(relative(tmpDir, `${liveDbPath}.aside-rst-001`))
+    expect(read.journal.summary).toEqual({ toRestore: [], toSkip: [] })
     // work.sqlite sealed — no -wal/-shm sidecars (gate renames only the main file)
     expect(existsSync(join(stagingRoot, 'rst-001', 'work.sqlite'))).toBe(true)
     expect(existsSync(join(stagingRoot, 'rst-001', 'work.sqlite-wal'))).toBe(false)

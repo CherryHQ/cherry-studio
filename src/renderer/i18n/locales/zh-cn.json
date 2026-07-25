@@ -5741,6 +5741,13 @@
               "pending_hint": "恢复已暂存，将在重启后生效。本次恢复摘要：",
               "relaunch_failed": "重启失败，点击重试。",
               "restart_button": "立即重启",
+              "skip_reason": {
+                "local_record_exists": "本地已存在同一项目。",
+                "notes_root_unavailable": "尚未配置受管理的笔记目录。",
+                "outside_user_data": "目标位置不在应用数据目录内。",
+                "target_exists": "目标位置已存在。"
+              },
+              "unavailable": "详细恢复清单不可用，但已封存的恢复任务仍可在重启后继续。",
               "will_restore": "将恢复",
               "will_skip": "将跳过（保留本地版本）"
             }

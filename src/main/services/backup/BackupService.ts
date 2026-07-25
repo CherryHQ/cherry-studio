@@ -489,22 +489,12 @@ export class BackupService extends BaseService {
     }
   }
 
-  /**
-   * Broadcast the pre-relaunch disclosure summary (backup.restore_summary) after the
-   * journal is sealed. The renderer renders it in the confirm-restart dialog and
-   * triggers the relaunch via the backup.restore_relaunch route — the spine never relaunches on
-   * its own. Failures are swallowed: the journal is already durable and the renderer
-   * falls back to an empty summary on the resolved request, so a broadcast hiccup
-   * must not surface as a restore error.
-   *
-   * The summary is the resource plan (plan.toRestore / plan.skips) — what the staged
-   * journal will restore / will skip and why.
-   */
+  /** Best-effort live disclosure; the renderer can recover it from the journal. */
   private broadcastRestoreSummary(summary: RestoreResultSummary): void {
     try {
       application.get('IpcApiService').broadcast('backup.restore_summary', summary)
     } catch (e) {
-      logger.error('restore summary broadcast failed (renderer falls back to empty summary)', e as Error)
+      logger.error('restore summary broadcast failed (renderer will pull the durable summary)', e as Error)
     }
   }
 
@@ -587,7 +577,10 @@ export class BackupService extends BaseService {
     }
     const state = journal.journal.state
     if (state === 'staged' || state === 'promoting') {
-      return { state: 'pending' }
+      return {
+        state: 'pending',
+        ...(journal.journal.summary ? { summary: journal.journal.summary } : {})
+      }
     }
     if (state === 'failed' || state === 'expired') {
       return { state, reason: journal.journal.reason }

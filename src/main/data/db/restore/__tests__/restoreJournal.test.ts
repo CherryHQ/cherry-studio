@@ -57,7 +57,11 @@ function stagedJournal(): RestoreJournal {
         livePath: 'Notes/a.md',
         asidePath: 'restore-staging/restore-0001/aside/a.md'
       }
-    ]
+    ],
+    summary: {
+      toRestore: [{ kind: 'file', count: 1 }],
+      toSkip: [{ id: 'existing-note.md', kind: 'note', reasonCode: 'target_exists' }]
+    }
   }
 }
 
@@ -80,6 +84,30 @@ describe('restoreJournal', () => {
 
       const result = readRestoreJournal()
       expect(result).toEqual({ kind: 'ok', journal: stagedJournal() })
+    })
+
+    it('accepts a legacy journal without a persisted summary', () => {
+      const legacyJournal = stagedJournal()
+      Reflect.deleteProperty(legacyJournal, 'summary')
+      writeFileSync(journalPath(), JSON.stringify(legacyJournal))
+
+      expect(readRestoreJournal()).toEqual({ kind: 'ok', journal: legacyJournal })
+    })
+
+    it('normalizes a legacy persisted skip reason to its stable code', () => {
+      const journal = stagedJournal()
+      writeFileSync(
+        journalPath(),
+        JSON.stringify({
+          ...journal,
+          summary: {
+            ...journal.summary,
+            toSkip: [{ id: 'existing-note.md', kind: 'note', reason: 'exists — skip' }]
+          }
+        })
+      )
+
+      expect(readRestoreJournal()).toEqual({ kind: 'ok', journal })
     })
 
     it('round-trips a promoting journal (step required)', () => {
