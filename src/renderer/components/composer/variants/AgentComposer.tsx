@@ -58,9 +58,8 @@ import type { AgentEntity } from '@shared/data/types/agent'
 import type { FileUIPart } from '@shared/data/types/message'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { OutputFor } from '@shared/ipc/types'
-import type { FilePath } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
-import { canonicalizeAbsolutePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
+import { type CanonicalFilePath, canonicalizeFilePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
 import { Cable, Settings2, Terminal, ToolCase } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -116,7 +115,7 @@ const FILE_IPC_BATCH_SIZE = 500
 
 type AccessibleAttachment = {
   attachment: ComposerAttachment
-  filePath: FilePath
+  filePath: CanonicalFilePath
   index: number
 }
 
@@ -146,7 +145,7 @@ const requestAccessiblePathMetadata = async (
 
 const buildAccessiblePathFilePart = (
   attachment: ComposerAttachment,
-  filePath: FilePath,
+  filePath: CanonicalFilePath,
   metadataByPath: OutputFor<'file.batch_get_metadata'>
 ): FileUIPart => {
   const metadata = metadataByPath[filePath]
@@ -174,10 +173,13 @@ const buildAgentFilePartsForAttachments = async (
   const internalizedIndexes: number[] = []
 
   attachments.forEach((attachment, index) => {
-    if (isPathWithinAccessiblePath(attachment.path, accessiblePaths)) {
+    // A path-less attachment (message-editing round-trip) cannot be matched
+    // against the workspace, so it takes the internalized branch — the same
+    // outcome it already had when its non-path value failed the match.
+    if (attachment.path && isPathWithinAccessiblePath(attachment.path, accessiblePaths)) {
       accessibleAttachments.push({
         attachment,
-        filePath: canonicalizeAbsolutePath(attachment.path) as FilePath,
+        filePath: canonicalizeFilePath(attachment.path),
         index
       })
       return

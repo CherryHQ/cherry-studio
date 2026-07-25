@@ -32,7 +32,7 @@ import {
 import { toast } from '@renderer/services/toast'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import type { Note } from '@shared/data/types/note'
-import type { FilePath } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import type { DirectoryTreeOptions } from '@shared/utils/file'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
@@ -107,7 +107,7 @@ const NotesPage: FC = () => {
   const noteByPathRef = useRef(noteByPath)
   const { activeNode } = useActiveNode(notesTree, activeFilePath)
 
-  const fileSession = useFileEditSession(activeFilePath as FilePath | undefined)
+  const fileSession = useFileEditSession(activeFilePath)
   const {
     discard: discardFileDraft,
     flush: flushFileDraft,
@@ -566,7 +566,7 @@ const NotesPage: FC = () => {
         }
         const { path: notePath } = await addNote(name, '', targetPath)
         setFolderExpandedByPath(targetPath, true)
-        setActiveFilePath(notePath)
+        setActiveFilePath(AbsoluteFilePathSchema.parse(notePath))
         setSelectedFolderId(null)
 
         await refreshTree()
@@ -626,7 +626,7 @@ const NotesPage: FC = () => {
         if (node.externalPath === activeFilePath) return
         // Switching the active path re-reads the file through the session.
         requestFileTransition(() => {
-          setActiveFilePath(node.externalPath)
+          setActiveFilePath(AbsoluteFilePathSchema.parse(node.externalPath))
           setSelectedFolderId(null)
         })
       } else if (node.type === 'folder') {
@@ -739,7 +739,7 @@ const NotesPage: FC = () => {
         }
 
         if (nextActivePath) {
-          setActiveFilePath(nextActivePath)
+          setActiveFilePath(AbsoluteFilePathSchema.parse(nextActivePath))
         }
 
         await refreshTree()
@@ -921,7 +921,7 @@ const NotesPage: FC = () => {
         }
 
         if (nextActivePath) {
-          setActiveFilePath(nextActivePath)
+          setActiveFilePath(AbsoluteFilePathSchema.parse(nextActivePath))
         }
 
         await refreshTree()
@@ -1024,7 +1024,7 @@ const NotesPage: FC = () => {
         // switch to target note first then scroll to line (the session re-reads)
         requestFileTransition(() => {
           pendingScrollRef.current = { lineNumber, lineContent }
-          setActiveFilePath(targetNode.externalPath)
+          setActiveFilePath(AbsoluteFilePathSchema.parse(targetNode.externalPath))
         })
       } else {
         const richEditor = editorRef.current
