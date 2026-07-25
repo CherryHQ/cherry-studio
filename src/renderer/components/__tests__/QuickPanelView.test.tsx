@@ -230,7 +230,7 @@ describe('QuickPanelView', () => {
       expect(panel.className).not.toContain('top-px')
     })
 
-    it('renders the panel body with drawer-like elevation and motion', () => {
+    it('renders the panel body with a translucent glass surface and motion', () => {
       const list = createList(1)
       const input = createInputAdapter()
 
@@ -248,8 +248,29 @@ describe('QuickPanelView', () => {
       )
 
       const panelBody = screen.getByTestId('quick-panel-body')
-      expect(panelBody).toHaveClass('rounded-xl', 'border', 'border-border/80', 'bg-popover', 'text-popover-foreground')
-      expect(panelBody).toHaveClass('translate-y-0', 'scale-100', 'opacity-100', 'shadow-none')
+      expect(screen.getByTestId('quick-panel')).toHaveClass('motion-reduce:transition-none')
+      expect(panelBody).toHaveClass(
+        'overflow-hidden',
+        'rounded-xl',
+        '[border:0.5px_solid_var(--border)]',
+        'text-popover-foreground',
+        'backdrop-blur-2xl'
+      )
+      expect(panelBody).toHaveClass(
+        'translate-y-0',
+        'opacity-100',
+        'transition-[translate,opacity]',
+        '[transition-duration:140ms,200ms]',
+        '[transition-timing-function:cubic-bezier(0.16,1,0.3,1),ease-out]'
+      )
+      expect(panelBody.className).not.toContain('scale-')
+      expect(panelBody.className).not.toContain('motion-reduce:opacity-100')
+      expect(panelBody.className).not.toContain('backdrop-saturate-')
+      expect(panelBody.className).toContain('bg-[color:color-mix(in_srgb,var(--popover)_76%,transparent)]')
+      expect(panelBody.className).toContain(
+        'dark:bg-[color:color-mix(in_srgb,color-mix(in_srgb,var(--popover)_86%,var(--foreground)_14%)_82%,transparent)]'
+      )
+      expect(panelBody).toHaveClass('shadow-none')
       expect(panelBody.className).not.toContain('bg-background')
     })
 

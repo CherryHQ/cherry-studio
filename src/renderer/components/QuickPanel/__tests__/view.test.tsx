@@ -1034,7 +1034,7 @@ describe('QuickPanelView', () => {
 
     const fixedBottom = await screen.findByTestId('quick-panel-fixed-bottom')
     const virtualList = screen.getByTestId('quick-panel-virtual-list')
-    expect(fixedBottom).toHaveClass('absolute', 'bottom-0')
+    expect(fixedBottom).toHaveClass('absolute', 'bottom-0', 'bg-transparent')
     expect(within(fixedBottom).getByText('Customize toolbar')).toBeInTheDocument()
     expect(within(virtualList).queryByText('Customize toolbar')).not.toBeInTheDocument()
 
@@ -1225,7 +1225,16 @@ describe('QuickPanelView', () => {
     expect(panel).not.toHaveClass('visible')
     expect(panel).toHaveStyle({ maxHeight: `${expected.panelMaxHeight}px` })
     expect(panel).toHaveClass('transition-none')
-    expect(screen.getByTestId('quick-panel-body')).toHaveClass('transition-[translate,scale,opacity,box-shadow]')
+    expect(screen.getByTestId('quick-panel-body')).toHaveClass(
+      'translate-y-2',
+      'opacity-0',
+      'transition-[translate,opacity]',
+      '[transition-duration:80ms,100ms]',
+      '[transition-delay:0ms,80ms]',
+      '[transition-timing-function:cubic-bezier(0.4,0,1,1),ease-out]'
+    )
+    expect(screen.getByTestId('quick-panel-body').className).not.toContain('scale-')
+    expect(screen.getByTestId('quick-panel-body').className).not.toContain('motion-reduce:opacity-100')
     expect(screen.getByText('No results')).toBeInTheDocument()
     expect(screen.queryByText('Clear query')).not.toBeInTheDocument()
   })
