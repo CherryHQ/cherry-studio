@@ -40,11 +40,11 @@ import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { SiblingsContext } from '@renderer/hooks/SiblingsContext'
 import { useLanguages } from '@renderer/hooks/translate'
-import { useAssistant } from '@renderer/hooks/useAssistant'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
@@ -74,6 +74,7 @@ const logger = loggerService.withContext('HomeMessageListAdapter')
 
 interface HomeMessageListParams {
   topic: Topic
+  assistant?: Assistant
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
@@ -90,6 +91,7 @@ interface HomeMessageListParams {
 
 export function useHomeMessageListProviderValue({
   topic,
+  assistant,
   messages,
   partsByMessageId,
   streamingLayers,
@@ -106,7 +108,6 @@ export function useHomeMessageListProviderValue({
   const topicId = topic.id
   const assistantId = topic.assistantId
   const navigate = useNavigate()
-  const { assistant } = useAssistant(assistantId)
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const { t } = useTranslation()
   const { languages: translationLanguages, getLabel: getTranslationLanguageLabel } = useLanguages()
@@ -619,6 +620,11 @@ export function useHomeMessageListProviderValue({
     [requireChatWrite]
   )
 
+  const getMessageDeleteAvailability = useCallback<NonNullable<MessageListActions['getMessageDeleteAvailability']>>(
+    (messageId) => requireChatWrite('getMessageDeleteAvailability').getMessageDeleteAvailability(messageId),
+    [requireChatWrite]
+  )
+
   const startMessageBranch = useCallback<NonNullable<MessageListActions['startMessageBranch']>>(
     (messageId) => {
       if (onStartBranchDraft) {
@@ -801,6 +807,7 @@ export function useHomeMessageListProviderValue({
       updateRenderConfig,
       editMessage,
       startEditing,
+      getMessageDeleteAvailability,
       deleteMessage,
       startMessageBranch,
       setActiveBranch,
@@ -818,6 +825,7 @@ export function useHomeMessageListProviderValue({
       bindMessageGroupRuntime,
       bindMessageRuntime,
       bindRuntime,
+      getMessageDeleteAvailability,
       deleteMessage,
       deleteMessageGroup,
       deleteMessageGroupWithConfirm,

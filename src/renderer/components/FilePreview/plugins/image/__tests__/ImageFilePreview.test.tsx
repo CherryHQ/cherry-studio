@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/vitest'
 
 import { loggerService } from '@logger'
 import { FilePreview } from '@renderer/components/FilePreview'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -19,7 +19,7 @@ afterEach(() => {
 
 describe('image file preview plugin', () => {
   it('renders a local image through a safe file URL', async () => {
-    render(<FilePreview filePath={'/tmp/photos/drafts/../summer holiday.png' as FilePath} />)
+    render(<FilePreview filePath={'/tmp/photos/drafts/../summer holiday.png' as AbsoluteFilePath} />)
 
     expect(await screen.findByRole('img', { name: 'summer holiday.png' })).toHaveAttribute(
       'src',
@@ -28,7 +28,7 @@ describe('image file preview plugin', () => {
   })
 
   it('shows loading feedback until the image loads', async () => {
-    render(<FilePreview filePath={'/tmp/photos/example.webp' as FilePath} />)
+    render(<FilePreview filePath={'/tmp/photos/example.webp' as AbsoluteFilePath} />)
 
     const image = await screen.findByRole('img', { name: 'example.webp' })
     expect(screen.getByRole('status')).toHaveTextContent('file_preview.loading')
@@ -40,7 +40,7 @@ describe('image file preview plugin', () => {
 
   it('contains image loading errors inside the preview surface', async () => {
     const errorSpy = vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
-    render(<FilePreview filePath={'/tmp/photos/missing.gif' as FilePath} />)
+    render(<FilePreview filePath={'/tmp/photos/missing.gif' as AbsoluteFilePath} />)
 
     fireEvent.error(await screen.findByRole('img', { name: 'missing.gif' }))
 
@@ -50,7 +50,7 @@ describe('image file preview plugin', () => {
   })
 
   it('provides view-only transform controls in the plugin toolbar', async () => {
-    render(<FilePreview filePath={'/tmp/photos/diagram.bmp' as FilePath} />)
+    render(<FilePreview filePath={'/tmp/photos/diagram.bmp' as AbsoluteFilePath} />)
 
     const image = await screen.findByRole('img', { name: 'diagram.bmp' })
     fireEvent.load(image)
@@ -92,7 +92,7 @@ describe('image file preview plugin', () => {
   })
 
   it('resets image state when the file path changes', async () => {
-    const { rerender } = render(<FilePreview filePath={'/tmp/photos/first.jpg' as FilePath} />)
+    const { rerender } = render(<FilePreview filePath={'/tmp/photos/first.jpg' as AbsoluteFilePath} />)
     const firstImage = await screen.findByRole('img', { name: 'first.jpg' })
     fireEvent.load(firstImage)
     const toolbar = screen.getByRole('toolbar', { name: 'preview.label' })
@@ -103,7 +103,7 @@ describe('image file preview plugin', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
     expect(firstImage).toHaveStyle({ transform: 'scale(1.25) rotate(90deg) scaleX(-1) scaleY(1)' })
 
-    rerender(<FilePreview filePath={'/tmp/photos/second.jpg' as FilePath} />)
+    rerender(<FilePreview filePath={'/tmp/photos/second.jpg' as AbsoluteFilePath} />)
 
     const secondImage = await screen.findByRole('img', { name: 'second.jpg' })
     expect(screen.getByRole('status')).toHaveTextContent('file_preview.loading')
@@ -111,7 +111,7 @@ describe('image file preview plugin', () => {
   })
 
   it('rebuilds the image preview when the refresh key changes', async () => {
-    const filePath = '/tmp/photos/refresh.jpg' as FilePath
+    const filePath = '/tmp/photos/refresh.jpg' as AbsoluteFilePath
     const { rerender } = render(<FilePreview filePath={filePath} refreshKey={0} />)
     const firstImage = await screen.findByRole('img', { name: 'refresh.jpg' })
     fireEvent.load(firstImage)

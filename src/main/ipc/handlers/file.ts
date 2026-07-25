@@ -13,7 +13,7 @@ import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { fileRequestSchemas } from '@shared/ipc/schemas/file'
 import type { IpcHandlersFor } from '@shared/ipc/types'
-import type { CreateInternalEntryIpcParams, FilePath } from '@shared/types/file'
+import type { CreateInternalEntryIpcParams } from '@shared/types/file'
 
 /**
  * Thin adapters for FileManager-backed file routes. Pure SQL file-entry reads stay
@@ -30,7 +30,7 @@ export const fileHandlers: IpcHandlersFor<typeof fileRequestSchemas> = {
   },
   'file.write_if_unchanged': async ({ path, data, expectedVersion }) => {
     try {
-      return await writeIfUnchangedByPath(path as FilePath, data, expectedVersion)
+      return await writeIfUnchangedByPath(path, data, expectedVersion)
     } catch (error) {
       if (error instanceof PathStaleVersionError) {
         throw new IpcError(fileErrorCodes.STALE_VERSION, error.message, {
