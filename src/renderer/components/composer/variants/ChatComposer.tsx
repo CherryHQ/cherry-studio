@@ -424,6 +424,7 @@ const renderChatHomeControls: ChatComposerControlsRenderer = (props) => ({
 type ChatComposerRootProps = ChatComposerProps & {
   renderControls: ChatComposerControlsRenderer
   forceNarrowLayout?: boolean
+  deferDynamicControls?: boolean
 }
 
 type ChatPlacementDockedProps = Omit<ChatComposerProps, 'onDraftAssistantChange'>
@@ -443,7 +444,8 @@ const ChatComposerRoot = ({
   onNewTopic,
   onCreateEmptyTopic,
   renderControls,
-  forceNarrowLayout = false
+  forceNarrowLayout = false,
+  deferDynamicControls = false
 }: ChatComposerRootProps) => {
   const resolvedScopeKey = scopeKey ?? topic?.id
   const resolvedTopicId = topicId ?? topic?.id
@@ -492,6 +494,7 @@ const ChatComposerRoot = ({
             onCreateEmptyTopic={onCreateEmptyTopic}
             renderControls={renderControls}
             forceNarrowLayout={forceNarrowLayout}
+            deferDynamicControls={deferDynamicControls}
           />
         ) : null}
       </ComposerToolRuntimeProvider>
@@ -505,6 +508,7 @@ interface ChatComposerInnerProps extends Omit<ChatComposerProps, 'scopeKey'> {
   actionsRef: React.RefObject<ProviderActionHandlers>
   renderControls: ChatComposerControlsRenderer
   forceNarrowLayout?: boolean
+  deferDynamicControls?: boolean
 }
 
 const ChatComposerInner = ({
@@ -520,7 +524,8 @@ const ChatComposerInner = ({
   onNewTopic,
   onCreateEmptyTopic,
   renderControls,
-  forceNarrowLayout = false
+  forceNarrowLayout = false,
+  deferDynamicControls = false
 }: ChatComposerInnerProps) => {
   const streamScopeKey = topicId ?? scopeKey
   const awaitingApproval = useTopicAwaitingApproval(streamScopeKey)
@@ -1460,6 +1465,7 @@ const ChatComposerInner = ({
           rootPanelLeadingItems={rootPanelLeadingItems}
           rootPanelAdditionalItems={rootPanelCustomizeItems}
           onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
+          deferDynamicControls={deferDynamicControls}
           {...controlSlots}
         />
       </ComposerPinnedToolsProvider>
@@ -1486,12 +1492,20 @@ export const ChatPlacementComposer = (props: ChatPlacementComposerProps) => {
         {...composerProps}
         useMentionedModelSelector
         forceNarrowLayout
+        deferDynamicControls
         renderControls={renderChatHomeControls}
       />
     )
   }
 
-  return <ChatComposerRoot {...composerProps} useMentionedModelSelector renderControls={renderChatToolbarControls} />
+  return (
+    <ChatComposerRoot
+      {...composerProps}
+      useMentionedModelSelector
+      deferDynamicControls
+      renderControls={renderChatToolbarControls}
+    />
+  )
 }
 
 export default ChatComposer

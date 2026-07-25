@@ -31,9 +31,10 @@ import type { EditorView } from '@tiptap/pm/view'
 import type { Editor } from '@tiptap/react'
 import { EditorContent, type NodeViewProps } from '@tiptap/react'
 import { CirclePause, LocateFixed, Maximize2, Minimize2, Pencil, X } from 'lucide-react'
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import React, { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import ComposerControlsLoading from './ComposerControlsLoading'
 import { createComposerDocumentContent, serializeComposerDocument } from './composerDraft'
 import {
   getComposerClipboardPasteOverride,
@@ -188,6 +189,7 @@ export interface ComposerSurfaceProps {
     unifiedPanelControl?: ComposerUnifiedPanelControl
   ) => React.ReactNode
   sendAccessory?: React.ReactNode | ComposerSurfaceSendAccessoryRenderer
+  deferDynamicControls?: boolean
 }
 
 function getQuickPanelItemText(value: React.ReactNode | string | undefined) {
@@ -537,6 +539,28 @@ function getComposerSelectionState(view: EditorView, key: 'ArrowUp' | 'ArrowDown
 const COMPOSER_EDITING_BORDER_HIGHLIGHT_MS = 900
 const COMPOSER_EDITING_BORDER_HIGHLIGHT_TIMER_KEY = 'composerEditingBorderHighlight'
 
+function useComposerDynamicControlsReady(deferDynamicControls: boolean) {
+  const [controlsReady, setControlsReady] = useState(!deferDynamicControls)
+
+  useLayoutEffect(() => {
+    if (!deferDynamicControls || controlsReady) return
+
+    let controlsFrame = 0
+    const editorFrame = window.requestAnimationFrame(() => {
+      controlsFrame = window.requestAnimationFrame(() => {
+        startTransition(() => setControlsReady(true))
+      })
+    })
+
+    return () => {
+      window.cancelAnimationFrame(editorFrame)
+      if (controlsFrame) window.cancelAnimationFrame(controlsFrame)
+    }
+  }, [controlsReady, deferDynamicControls])
+
+  return !deferDynamicControls || controlsReady
+}
+
 export default function ComposerSurface({
   text,
   onTextChange,
@@ -583,8 +607,10 @@ export default function ComposerSurface({
   leadingContent,
   compactWhenSingleLine = false,
   renderCompactControls,
-  sendAccessory
+  sendAccessory,
+  deferDynamicControls = false
 }: ComposerSurfaceProps) {
+  const dynamicControlsReady = useComposerDynamicControlsReady(deferDynamicControls)
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
@@ -2004,13 +2030,20 @@ export default function ComposerSurface({
   const unifiedPanelAvailable = useMemo(() => {
     // Recompute when runtime launchers register or unregister.
     void toolLaunchersVersion
-    if (!quickPanelEnabled) return false
+    if (!dynamicControlsReady || !quickPanelEnabled) return false
 
     return hasUnifiedQuickPanelRootContent(getToolLaunchers?.() ?? [], {
       leadingItems: rootPanelLeadingItems,
       additionalItems: rootPanelAdditionalItems
     })
-  }, [getToolLaunchers, quickPanelEnabled, rootPanelAdditionalItems, rootPanelLeadingItems, toolLaunchersVersion])
+  }, [
+    dynamicControlsReady,
+    getToolLaunchers,
+    quickPanelEnabled,
+    rootPanelAdditionalItems,
+    rootPanelLeadingItems,
+    toolLaunchersVersion
+  ])
 
   const unifiedPanelControl = useMemo<ComposerUnifiedPanelControl>(
     () => ({
@@ -2074,12 +2107,33 @@ export default function ComposerSurface({
     ]
   )
 
-  const quickPanelElement = quickPanelEnabled ? <QuickPanelView inputAdapter={inputAdapter} /> : null
+  const quickPanelElement =
+    dynamicControlsReady && quickPanelEnabled ? <QuickPanelView inputAdapter={inputAdapter} /> : null
   const showPauseButton = isLoading && sendDisabled
-  const belowControls = renderBelowControls?.(inputAdapter, unifiedPanelControl)
-  const sendAccessoryElement =
-    typeof sendAccessory === 'function' ? sendAccessory(inputAdapter, unifiedPanelControl) : sendAccessory
-  const compactControls = renderCompactControls?.(inputAdapter, unifiedPanelControl)
+  const leftControls = dynamicControlsReady ? (
+    renderLeftControls?.(inputAdapter, unifiedPanelControl)
+  ) : renderLeftControls ? (
+    <ComposerControlsLoading />
+  ) : null
+  const belowControls = dynamicControlsReady ? (
+    renderBelowControls?.(inputAdapter, unifiedPanelControl)
+  ) : renderBelowControls ? (
+    <ComposerControlsLoading />
+  ) : undefined
+  const sendAccessoryElement = dynamicControlsReady ? (
+    typeof sendAccessory === 'function' ? (
+      sendAccessory(inputAdapter, unifiedPanelControl)
+    ) : (
+      sendAccessory
+    )
+  ) : sendAccessory ? (
+    <ComposerControlsLoading compact />
+  ) : undefined
+  const compactControls = dynamicControlsReady ? (
+    renderCompactControls?.(inputAdapter, unifiedPanelControl)
+  ) : renderCompactControls ? (
+    <ComposerControlsLoading compact />
+  ) : null
   const ExpandIcon = hasCustomHeight ? Minimize2 : Maximize2
   const sendAction = showPauseButton ? (
     <Tooltip content={t('chat.input.pause')} placement="top">
@@ -2196,7 +2250,13 @@ export default function ComposerSurface({
               ? 'flex items-start'
               : 'contents'
         }>
-        {isCompact ? <ComposerToolMenu inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} /> : null}
+        {isCompact ? (
+          dynamicControlsReady ? (
+            <ComposerToolMenu inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
+          ) : (
+            <ComposerControlsLoading compact />
+          )
+        ) : null}
         {leadingContent ? <div className="shrink-0 pt-1.5 pl-3.5">{leadingContent}</div> : null}
         <div
           ref={frameRef}
@@ -2226,9 +2286,7 @@ export default function ComposerSurface({
         <div
           data-composer-toolbar=""
           className="relative z-2 flex h-10 shrink-0 flex-row justify-between gap-4 px-2 py-1.25">
-          <div className="flex min-w-0 flex-1 items-center overflow-hidden">
-            {renderLeftControls?.(inputAdapter, unifiedPanelControl)}
-          </div>
+          <div className="flex min-w-0 flex-1 items-center overflow-hidden">{leftControls}</div>
           <div className="flex flex-row items-center gap-1.5">
             {sendAccessoryElement}
             {sendAction}

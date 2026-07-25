@@ -733,6 +733,7 @@ describe('AgentComposer', () => {
     expect(mocks.runtimeHostProps?.model).toBe(model)
     expect(mocks.runtimeHostProps?.session?.agentId).toBe('agent-1')
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
+    expect(mocks.surfaceProps?.deferDynamicControls).toBe(true)
   })
 
   it('uses the same 20px size for the model and workspace icons', () => {
@@ -761,6 +762,7 @@ describe('AgentComposer', () => {
 
     await notifyComposerBottomToolbarWidth(420)
 
+    expect(mocks.surfaceProps?.deferDynamicControls).toBe(true)
     expect(document.querySelector('.lucide-bot')).toHaveAttribute('width', '20')
     expect(document.querySelector('.lucide-sparkles')).toHaveAttribute('width', '20')
     expect(document.querySelector('.lucide-folder')).toHaveAttribute('width', '20')

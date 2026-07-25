@@ -285,6 +285,7 @@ type Props = {
 type AgentComposerRootProps = Props & {
   renderControls: AgentComposerControlsRenderer
   forceNarrowLayout?: boolean
+  deferDynamicControls?: boolean
 }
 
 const AgentComposerRoot = ({
@@ -305,7 +306,8 @@ const AgentComposerRoot = ({
   sendDisabled = false,
   compactWhenSingleLine = false,
   renderControls,
-  forceNarrowLayout = false
+  forceNarrowLayout = false,
+  deferDynamicControls = false
 }: AgentComposerRootProps) => {
   const { session: loadedSession } = useSession(sessionOverride ? null : sessionId)
   const session = sessionOverride ?? loadedSession
@@ -381,6 +383,7 @@ const AgentComposerRoot = ({
         compactWhenSingleLine={compactWhenSingleLine}
         renderControls={renderControls}
         forceNarrowLayout={forceNarrowLayout}
+        deferDynamicControls={deferDynamicControls}
       />
     </ComposerToolRuntimeProvider>
   )
@@ -408,6 +411,7 @@ interface InnerProps {
   compactWhenSingleLine: boolean
   renderControls: AgentComposerControlsRenderer
   forceNarrowLayout?: boolean
+  deferDynamicControls?: boolean
 }
 
 interface AgentComposerContextControlsProps {
@@ -898,7 +902,8 @@ const AgentComposerInner = ({
   sendDisabled,
   compactWhenSingleLine,
   renderControls,
-  forceNarrowLayout = false
+  forceNarrowLayout = false,
+  deferDynamicControls = false
 }: InnerProps) => {
   const { agent: agentBase } = useAgent(agentId)
   const { updateModel } = useUpdateAgent()
@@ -1590,6 +1595,7 @@ const AgentComposerInner = ({
           onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
           sendAccessory={sendAccessory}
           compactWhenSingleLine={compactWhenSingleLine}
+          deferDynamicControls={deferDynamicControls}
           {...controlSlots}
         />
       </ComposerPinnedToolsProvider>
@@ -1699,6 +1705,7 @@ const MissingAgentHomeComposerInner = ({
         getToolLaunchers={() => getLaunchers()}
         toolLaunchersVersion={toolLaunchersVersion}
         onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
+        deferDynamicControls
         {...controlSlots}
       />
     </ComposerToolDerivedStateProvider>
@@ -1733,7 +1740,14 @@ export const MissingAgentHomeComposer = (props: MissingAgentHomeComposerProps) =
 
 // Composer state is agent-scoped, so switching agents must also reset the draft and tool runtime.
 const AgentComposer = (props: Props) => {
-  return <AgentComposerRoot key={props.agentId} {...props} renderControls={renderAgentToolbarControls} />
+  return (
+    <AgentComposerRoot
+      key={props.agentId}
+      {...props}
+      deferDynamicControls
+      renderControls={renderAgentToolbarControls}
+    />
+  )
 }
 
 export const AgentHomeComposer = (props: Props) => {

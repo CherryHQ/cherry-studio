@@ -109,6 +109,9 @@ vi.mock('@cherrystudio/ui', () => ({
   PopoverContent: ({ children }: { children: ReactNode }) => <span data-testid="popover-content">{children}</span>,
   PopoverTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
   NormalTooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
+  Skeleton: ({ className, ...props }: HTMLAttributes<HTMLDivElement>) => (
+    <div {...props} data-slot="skeleton" className={className} />
+  ),
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
 
@@ -506,6 +509,45 @@ describe('ComposerSurface', () => {
     render(<ComposerSurface {...baseProps} />)
 
     expect(mocks.editorOptions?.immediatelyRender).toBe(false)
+  })
+
+  it('mounts the editor before deferred dynamic controls', () => {
+    const animationFrames: FrameRequestCallback[] = []
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      animationFrames.push(callback)
+      return animationFrames.length
+    })
+    const cancelAnimationFrameSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
+    const flushAnimationFrame = () => {
+      act(() => {
+        const callbacks = animationFrames.splice(0)
+        callbacks.forEach((callback) => callback(0))
+      })
+    }
+
+    try {
+      render(
+        <ComposerSurface
+          {...baseProps}
+          deferDynamicControls
+          renderLeftControls={() => <button type="button">dynamic control</button>}
+        />
+      )
+
+      expect(screen.getByTestId('editor-content')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'dynamic control' })).not.toBeInTheDocument()
+      expect(document.querySelector('[data-composer-controls-loading]')).toBeInTheDocument()
+
+      flushAnimationFrame()
+      expect(screen.queryByRole('button', { name: 'dynamic control' })).not.toBeInTheDocument()
+
+      flushAnimationFrame()
+      expect(screen.getByRole('button', { name: 'dynamic control' })).toBeInTheDocument()
+      expect(document.querySelector('[data-composer-controls-loading]')).not.toBeInTheDocument()
+    } finally {
+      requestAnimationFrameSpy.mockRestore()
+      cancelAnimationFrameSpy.mockRestore()
+    }
   })
 
   afterEach(() => {

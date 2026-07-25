@@ -1,6 +1,6 @@
-import { act, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import ConversationComposerSlot from '../ConversationComposerSlot'
 
@@ -9,29 +9,7 @@ vi.mock('../ComposerCore', () => ({
 }))
 
 describe('ConversationComposerSlot', () => {
-  const animationFrames: FrameRequestCallback[] = []
-
-  beforeEach(() => {
-    animationFrames.length = 0
-    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      animationFrames.push(callback)
-      return animationFrames.length
-    })
-    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
-  const flushAnimationFrame = () => {
-    act(() => {
-      const callbacks = animationFrames.splice(0)
-      callbacks.forEach((callback) => callback(0))
-    })
-  }
-
-  it('renders the stable frame for one paint before mounting the fallback composer', () => {
+  it('mounts a ready composer without an artificial loading frame', () => {
     const { rerender } = render(
       <ConversationComposerSlot
         scopeKey="topic-1"
@@ -40,15 +18,8 @@ describe('ConversationComposerSlot', () => {
       />
     )
 
-    expect(document.querySelector('[data-conversation-composer-loading]')).toBeInTheDocument()
-    expect(screen.queryByTestId('composer-core')).not.toBeInTheDocument()
-
-    flushAnimationFrame()
-    expect(screen.queryByTestId('composer-core')).not.toBeInTheDocument()
-
-    flushAnimationFrame()
-
     expect(screen.getByTestId('composer-core')).toContainElement(screen.getByRole('button', { name: 'send' }))
+    expect(document.querySelector('[data-conversation-composer-loading]')).not.toBeInTheDocument()
 
     rerender(
       <ConversationComposerSlot
@@ -57,8 +28,28 @@ describe('ConversationComposerSlot', () => {
         fallback={<button type="button">send</button>}
       />
     )
-    expect(document.querySelector('[data-conversation-composer-loading]')).toBeInTheDocument()
-    expect(screen.queryByTestId('composer-core')).not.toBeInTheDocument()
+
+    expect(screen.getByTestId('composer-core')).toContainElement(screen.getByRole('button', { name: 'send' }))
+    expect(document.querySelector('[data-conversation-composer-loading]')).not.toBeInTheDocument()
+  })
+
+  it('keeps the editor frame stable when the composer genuinely suspends', () => {
+    const pendingComposer = new Promise<never>(() => undefined)
+    const SuspendedComposer = () => {
+      throw pendingComposer
+    }
+
+    const { container } = render(
+      <ConversationComposerSlot scopeKey="topic-1" composerContext={{}} fallback={<SuspendedComposer />} />
+    )
+
+    const loadingFrame = container.querySelector('[data-conversation-composer-loading]')
+    const editorFrame = loadingFrame?.querySelector('[data-composer-editor-frame]')
+
+    expect(loadingFrame).toBeInTheDocument()
+    expect(editorFrame).toBeInTheDocument()
+    expect(editorFrame?.querySelector('[data-slot="skeleton"]')).toBeNull()
+    expect(loadingFrame?.querySelector('[data-composer-controls-loading]')).toBeInTheDocument()
   })
 
   it('renders nothing when no fallback composer is available', () => {
