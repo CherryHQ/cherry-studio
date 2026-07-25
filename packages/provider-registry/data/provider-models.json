@@ -16971,6 +16971,16 @@
       "providerId": "huggingface"
     },
     {
+      "apiModelId": "jina-code-embeddings-0.5b",
+      "modelId": "jina-code-embeddings-0-5b",
+      "providerId": "jina"
+    },
+    {
+      "apiModelId": "jina-code-embeddings-1.5b",
+      "modelId": "jina-code-embeddings-1-5b",
+      "providerId": "jina"
+    },
+    {
       "modelId": "deepseek-r1",
       "providerId": "lanyun"
     },
@@ -35383,5 +35393,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "a4e06b9748d4b4f7"
+  "version": "0c0758e44e4a4066"
 }

@@ -16,7 +16,7 @@ vi.mock('@application', async () => {
 
 const { fileEntryService } = await import('@data/services/FileEntryService')
 const { fileRefService } = await import('@data/services/FileRefService')
-const { read, readByPath } = await import('../read')
+const { read } = await import('../read')
 
 import type { FileManagerDeps } from '../../deps'
 
@@ -149,12 +149,5 @@ describe('internal/content/read', () => {
 
     await expect(read(deps, id)).rejects.toThrow(/ENOENT/)
     expect(onFsEventCalls).toEqual([{ path: file, state: 'missing' }])
-  })
-
-  it('readByPath bypasses entry resolution', async () => {
-    const file = path.join(tmp, 'direct.txt') as AbsoluteFilePath
-    await writeFile(file, 'direct content', 'utf-8')
-    const result = await readByPath(deps, file)
-    expect(result.content).toBe('direct content')
   })
 })

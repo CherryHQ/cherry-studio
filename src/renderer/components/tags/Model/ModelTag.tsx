@@ -1,20 +1,33 @@
-import { type Model, MODEL_CAPABILITY, type ModelCapability, type ModelTag } from '@shared/data/types/model'
+import {
+  MODALITY,
+  type Modality,
+  type Model,
+  MODEL_CAPABILITY,
+  type ModelCapability,
+  type ModelTag
+} from '@shared/data/types/model'
 import { isFreeModel } from '@shared/utils/model'
 import type { ComponentType } from 'react'
 
 import type { CustomTagProps } from '../CustomTag'
+import { AudioTag } from './AudioTag'
 import { EmbeddingTag } from './EmbeddingTag'
 import { FreeTag } from './FreeTag'
 import { ReasoningTag } from './ReasoningTag'
 import { RerankerTag } from './RerankerTag'
 import { ToolsCallingTag } from './ToolsCallingTag'
+import { VideoTag } from './VideoTag'
 import { VisionTag } from './VisionTag'
 import { WebSearchTag } from './WebSearchTag'
 
-export type ModelDisplayTagSource = Pick<Model, 'id' | 'name' | 'providerId' | 'capabilities'>
+export type ModelDisplayTagSource = Pick<Model, 'id' | 'name' | 'providerId' | 'capabilities' | 'inputModalities'>
 
 export const MODEL_DISPLAY_CAPABILITY_TAGS = [
+  // Input modalities
   MODEL_CAPABILITY.IMAGE_RECOGNITION,
+  MODEL_CAPABILITY.AUDIO_RECOGNITION,
+  MODEL_CAPABILITY.VIDEO_RECOGNITION,
+  // Capabilities
   MODEL_CAPABILITY.WEB_SEARCH,
   MODEL_CAPABILITY.REASONING,
   MODEL_CAPABILITY.FUNCTION_CALL,
@@ -26,6 +39,12 @@ export const MODEL_DISPLAY_TAGS = [...MODEL_DISPLAY_CAPABILITY_TAGS, 'free'] as 
 
 export type ModelDisplayCapabilityTag = (typeof MODEL_DISPLAY_CAPABILITY_TAGS)[number]
 export type ModelDisplayTag = (typeof MODEL_DISPLAY_TAGS)[number]
+
+const INPUT_MODALITY_BY_DISPLAY_TAG: Partial<Record<ModelDisplayCapabilityTag, Modality>> = {
+  [MODEL_CAPABILITY.IMAGE_RECOGNITION]: MODALITY.IMAGE,
+  [MODEL_CAPABILITY.AUDIO_RECOGNITION]: MODALITY.AUDIO,
+  [MODEL_CAPABILITY.VIDEO_RECOGNITION]: MODALITY.VIDEO
+}
 
 export interface ModelTagVisibilityOptions {
   showFree?: boolean
@@ -57,7 +76,8 @@ export function modelMatchesDisplayTag(model: ModelDisplayTagSource, tag: ModelD
     return isFreeModel(model)
   }
 
-  return model.capabilities.includes(tag)
+  const inputModality = INPUT_MODALITY_BY_DISPLAY_TAG[tag]
+  return model.capabilities.includes(tag) || Boolean(inputModality && model.inputModalities?.includes(inputModality))
 }
 
 export function getModelDisplayTags(model: ModelDisplayTagSource, options?: ModelTagVisibilityOptions) {
@@ -75,6 +95,8 @@ type ModelTagComponentProps = Omit<ModelTagProps, 'tag'>
 
 const MODEL_TAG_COMPONENTS = {
   'image-recognition': VisionTag,
+  'audio-recognition': AudioTag,
+  'video-recognition': VideoTag,
   'web-search': WebSearchTag,
   reasoning: ReasoningTag,
   'function-call': ToolsCallingTag,

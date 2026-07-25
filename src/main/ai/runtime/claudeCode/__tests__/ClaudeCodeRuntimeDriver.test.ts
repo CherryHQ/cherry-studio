@@ -1,3 +1,4 @@
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -5,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   buildRequest: vi.fn(),
   deriveConfig: vi.fn(),
   getAgent: vi.fn(),
+  getModelByKey: vi.fn(),
   applicationGet: vi.fn(),
   consumeWarmQuery: vi.fn(),
   getWarmAgentSessionIds: vi.fn(),
@@ -36,6 +38,10 @@ vi.mock('../agentSessionWarmup', () => ({
 
 vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: mocks.getAgent }
+}))
+
+vi.mock('@data/services/ModelService', () => ({
+  modelService: { getByKey: mocks.getModelByKey }
 }))
 
 vi.mock('@main/ai/messages/attachmentRouting', () => ({
@@ -178,6 +184,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       initializeTimeoutMs: 100
     })
     mocks.getAgent.mockReturnValue({ id: 'agent-1' })
+    mocks.getModelByKey.mockReturnValue({ capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] })
     mocks.deriveConfig.mockResolvedValue({
       ok: true,
       config: {
@@ -512,6 +519,152 @@ describe('ClaudeCodeRuntimeDriver', () => {
       isToolCapable: false
     })
     expect(mocks.materializeNativeFilePart).not.toHaveBeenCalled()
+    void connection.close()
+  })
+
+  it('routes first-party image attachments to OCR text when the model lacks vision support', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.getModelByKey.mockReturnValue({ capabilities: [] })
+    mocks.collectFileAttachments.mockReturnValueOnce([
+      { fileEntryId: 'entry-1', handle: 'pixel.png', displayName: 'pixel.png' }
+    ])
+    mocks.prepareChatMessages.mockImplementationOnce(async ([message]) => [
+      {
+        ...message,
+        parts: [
+          { type: 'text', text: 'describe this' },
+          { type: 'text', text: 'Attached file "pixel.png":\nOCR text' }
+        ]
+      }
+    ])
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'describe this' },
+            {
+              type: 'file',
+              url: 'file:///tmp/pixel.png',
+              mediaType: 'image/png',
+              filename: 'pixel.png',
+              providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
+            }
+          ]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        message: {
+          role: 'user',
+          content: 'describe this\nAttached file "pixel.png":\nOCR text'
+        }
+      },
+      done: false
+    })
+    expect(mocks.getModelByKey).toHaveBeenCalledWith('claude-code', 'sonnet')
+    expect(mocks.prepareChatMessages).toHaveBeenCalledWith([expect.objectContaining({ id: 'user-1', role: 'user' })], {
+      attachments: [{ fileEntryId: 'entry-1', handle: 'pixel.png', displayName: 'pixel.png' }],
+      nativeSupport: { image: false, pdf: false, audio: false, video: false },
+      isToolCapable: false
+    })
+    expect(mocks.materializeNativeFilePart).not.toHaveBeenCalled()
+    void connection.close()
+  })
+
+  it('falls back external image attachments to tool-readable paths when the model lacks vision support', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.getModelByKey.mockReturnValue({ capabilities: [] })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'describe this' },
+            { type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' }
+          ]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        message: {
+          role: 'user',
+          content:
+            'describe this\n\nAttached files (read them with your tools using these absolute paths):\n- /tmp/pixel.png'
+        }
+      },
+      done: false
+    })
+    expect(mocks.materializeNativeFilePart).not.toHaveBeenCalled()
+    void connection.close()
+  })
+
+  it('assumes vision support when the turn model cannot be resolved', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.getModelByKey.mockImplementation(() => {
+      throw new Error('model not found')
+    })
+    mocks.materializeNativeFilePart.mockResolvedValueOnce({
+      type: 'file',
+      url: 'data:image/png;base64,QUJD',
+      mediaType: 'image/png'
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [{ type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' }]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        message: {
+          role: 'user',
+          content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }]
+        }
+      },
+      done: false
+    })
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'Failed to resolve model for image support; assuming vision-capable',
+      expect.objectContaining({ uniqueModelId: 'claude-code::sonnet' })
+    )
     void connection.close()
   })
 

@@ -14,52 +14,55 @@ import { useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from
 import { useTranslation } from 'react-i18next'
 import { estimateTokenCount as estimateTextTokens } from 'tokenx'
 
+const PROMPT_EDITOR_SECONDARY_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
+const PROMPT_EDITOR_PLACEHOLDER_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
+
 const promptEditorThemeSpec = {
   '&': {
-    backgroundColor: 'var(--color-background)',
-    color: 'var(--color-foreground)'
+    backgroundColor: 'var(--background)',
+    color: 'var(--foreground)'
   },
   '.cm-scroller': {
-    backgroundColor: 'var(--color-background)'
+    backgroundColor: 'var(--background)'
   },
   '.cm-content': {
-    caretColor: 'var(--color-foreground)',
+    caretColor: 'var(--foreground)',
     padding: 'calc(var(--spacing) * 3)'
   },
   '.cm-cursor, .cm-dropCursor': {
-    borderLeftColor: 'var(--color-foreground)'
+    borderLeftColor: 'var(--foreground)'
   },
   '.cm-activeLine': {
     backgroundColor: 'transparent'
   },
   '.cm-placeholder': {
-    color: 'var(--color-foreground-muted)'
+    color: PROMPT_EDITOR_PLACEHOLDER_COLOR
   },
   '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
-    backgroundColor: 'var(--color-accent) !important'
+    backgroundColor: 'var(--accent) !important'
   }
 }
 
 const promptEditorHighlighting = syntaxHighlighting(
   HighlightStyle.define([
-    { tag: tags.content, color: 'var(--color-foreground)' },
+    { tag: tags.content, color: 'var(--foreground)' },
     {
       tag: [tags.heading1, tags.heading2, tags.heading3, tags.heading4, tags.heading5, tags.heading6],
-      color: 'var(--color-foreground)',
+      color: 'var(--foreground)',
       fontWeight: 'var(--font-weight-medium)'
     },
-    { tag: tags.strong, color: 'var(--color-foreground)', fontWeight: 'var(--font-weight-bold)' },
-    { tag: tags.emphasis, color: 'var(--color-foreground)', fontStyle: 'italic' },
+    { tag: tags.strong, color: 'var(--foreground)', fontWeight: 'var(--font-weight-bold)' },
+    { tag: tags.emphasis, color: 'var(--foreground)', fontStyle: 'italic' },
     {
       tag: [tags.link, tags.url],
-      color: 'var(--color-primary)',
+      color: 'var(--primary)',
       textDecoration: 'underline'
     },
-    { tag: [tags.monospace, tags.quote], color: 'var(--color-foreground)' },
-    { tag: tags.comment, color: 'var(--color-foreground-secondary)', fontStyle: 'italic' },
+    { tag: [tags.monospace, tags.quote], color: 'var(--foreground)' },
+    { tag: tags.comment, color: PROMPT_EDITOR_SECONDARY_COLOR, fontStyle: 'italic' },
     {
       tag: [tags.processingInstruction, tags.contentSeparator],
-      color: 'var(--color-foreground-secondary)'
+      color: PROMPT_EDITOR_SECONDARY_COLOR
     }
   ])
 )

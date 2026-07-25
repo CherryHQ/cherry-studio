@@ -7,6 +7,7 @@ import { oauthCardClasses } from '@renderer/pages/settings/ProviderSettings/prim
 import { oauthWithCherryIn } from '@renderer/services/oauth'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { cn } from '@renderer/utils/style'
 import type { CherryInBalance } from '@shared/ipc/schemas/cherryin'
 import { hasApiKeys } from '@shared/utils/provider'
 import type { FC } from 'react'
@@ -17,13 +18,6 @@ const logger = loggerService.withContext('CherryInOauth')
 
 const CHERRYIN_OAUTH_SERVER = 'https://open.cherryin.ai'
 const CHERRYIN_TOPUP_URL = 'https://open.cherryin.ai/console/topup'
-
-export const getAvatarInitials = (name: string): string => {
-  if (!name) return '??'
-  const trimmed = name.trim()
-  if (trimmed.length <= 2) return trimmed.toUpperCase()
-  return trimmed.slice(0, 2).toUpperCase()
-}
 
 interface CherryInOauthProps {
   providerId: string
@@ -185,7 +179,9 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
                 <div className={oauthCardClasses.loggedInName}>
                   {t('settings.provider.oauth.cherryIn.not_logged_in')}
                 </div>
-                <div className={oauthCardClasses.loggedInEmail}>{t('settings.provider.oauth.cherryIn.tagline')}</div>
+                <div className={cn(oauthCardClasses.loggedInEmail, 'text-muted-foreground')}>
+                  {t('settings.provider.oauth.cherryIn.tagline')}
+                </div>
               </div>
             </div>
             <Button variant="emphasis" onClick={handleOAuthLogin}>
@@ -205,24 +201,24 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
 
   return (
     <div className={oauthCardClasses.container}>
-      <div className={oauthCardClasses.shellLoggedIn}>
+      <div className={cn(oauthCardClasses.shellLoggedIn, 'text-muted-foreground')}>
         <div className={oauthCardClasses.loggedInRow}>
           <div className={oauthCardClasses.profileMeta}>
-            <div className={oauthCardClasses.avatarSm}>
-              <span>{getAvatarInitials(profileName)}</span>
-            </div>
+            <Cherryin.Avatar shape="circle" size={40} />
             <div className={oauthCardClasses.nameBlock}>
               <div className={oauthCardClasses.nameRow}>
-                <div className={oauthCardClasses.loggedInName}>{profileName}</div>
+                <div className={cn(oauthCardClasses.loggedInName, 'text-foreground')}>{profileName}</div>
                 {profileGroup ? <span className={oauthCardClasses.badge}>{profileGroup}</span> : null}
               </div>
-              <div className={oauthCardClasses.loggedInEmail}>{profileEmail}</div>
+              <div className={cn(oauthCardClasses.loggedInEmail, 'text-muted-foreground')}>{profileEmail}</div>
             </div>
           </div>
-          <div className={oauthCardClasses.loggedInActions}>
-            <div className={oauthCardClasses.inlineBalanceBlock}>
-              <p className={oauthCardClasses.inlineBalanceLabel}>{t('settings.provider.oauth.balance')}</p>
-              <div className={oauthCardClasses.inlineBalanceValue}>
+          <div className={cn(oauthCardClasses.loggedInActions, 'gap-1.5')}>
+            <div className={cn(oauthCardClasses.inlineBalanceBlock, 'mr-1 flex items-baseline gap-1.5 text-left')}>
+              <p className={cn(oauthCardClasses.inlineBalanceLabel, 'text-muted-foreground')}>
+                {t('settings.provider.oauth.balance')}
+              </p>
+              <div className={cn(oauthCardClasses.inlineBalanceValue, 'text-foreground')}>
                 {isLoadingData && !balanceInfo ? (
                   <Skeleton className={`${oauthCardClasses.balanceValueSkeleton} h-5`} />
                 ) : (
@@ -230,11 +226,15 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
                 )}
               </div>
             </div>
-            <Button className={oauthCardClasses.topupPrimaryButton} onClick={handleTopup} size="sm" variant="default">
+            <Button
+              className={cn(oauthCardClasses.topupPrimaryButton, 'h-7 px-2.5 py-0')}
+              onClick={handleTopup}
+              size="sm"
+              variant="default">
               {t('settings.provider.oauth.topup')}
             </Button>
             <Button
-              className={oauthCardClasses.logoutCompact}
+              className={cn(oauthCardClasses.logoutCompact, 'h-7 px-2 py-0 text-muted-foreground')}
               disabled={isLoggingOut}
               onClick={handleLogout}
               variant="ghost">
@@ -242,14 +242,14 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
             </Button>
           </div>
         </div>
-        <p className={oauthCardClasses.serviceAttribution}>
+        <p className={cn(oauthCardClasses.serviceAttribution, 'text-muted-foreground')}>
           <Trans
             i18nKey="settings.provider.oauth.cherryIn.service_attribution"
             components={{
               link: (
                 <a
                   key="cherryin-service-link"
-                  className={oauthCardClasses.serviceLink}
+                  className={cn(oauthCardClasses.serviceLink, 'text-muted-foreground')}
                   href={CHERRYIN_OAUTH_SERVER}
                   rel="noreferrer"
                   target="_blank"

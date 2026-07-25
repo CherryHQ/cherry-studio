@@ -10,7 +10,7 @@ export const DEFAULT_THEMES = ['one-light', 'material-theme-darker']
 
 const logger = loggerService.withContext('Shiki')
 const WHITE_TOKEN_COLOR_PATTERN = /^(?:white|#fff(?:fff)?)$/i
-const READABLE_TEXT_COLOR = 'var(--color-foreground)'
+const READABLE_TEXT_COLOR = 'var(--foreground)'
 
 // Literal white fallbacks (including #ffffffff with alpha). Shiki colorReplacements matches by exact, lowercased value, so enumerate each one.
 const LITERAL_WHITE_COLOR_REPLACEMENTS: Record<string, string> = {

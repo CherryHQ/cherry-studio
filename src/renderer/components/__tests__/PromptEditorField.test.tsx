@@ -169,13 +169,13 @@ describe('PromptEditorField', () => {
       return getComputedStyle(tokens[occurrence])
     }
 
-    expect(tokenStyle('#').color).toBe('var(--color-foreground-secondary)')
-    expect(tokenStyle(' Heading').color).toBe('var(--color-foreground)')
+    expect(tokenStyle('#').color).toBe('color-mix(in oklch, var(--foreground) 66.6667%, transparent)')
+    expect(tokenStyle(' Heading').color).toBe('var(--foreground)')
     expect(tokenStyle(' Heading').fontWeight).toBe('var(--font-weight-medium)')
-    expect(tokenStyle('**').color).toBe('var(--color-foreground-secondary)')
+    expect(tokenStyle('**').color).toBe('color-mix(in oklch, var(--foreground) 66.6667%, transparent)')
     expect(tokenStyle('strong').fontWeight).toBe('var(--font-weight-bold)')
-    expect(tokenStyle('link').color).toBe('var(--color-primary)')
-    expect(tokenStyle('[').color).toBe('var(--color-foreground-secondary)')
+    expect(tokenStyle('link').color).toBe('var(--primary)')
+    expect(tokenStyle('[').color).toBe('color-mix(in oklch, var(--foreground) 66.6667%, transparent)')
     expect(getComputedStyle(view.contentDOM).padding).toBe('calc(var(--spacing) * 3)')
 
     view.destroy()

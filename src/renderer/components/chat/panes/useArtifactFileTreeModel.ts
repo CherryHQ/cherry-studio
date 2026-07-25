@@ -23,6 +23,9 @@ const ARTIFACT_FILE_SEARCH_MAX_ENTRIES = 200
 const WORKSPACE_TREE_OPTIONS: DirectoryTreeOptions = {
   maxDepth: ARTIFACT_TREE_INITIAL_MAX_DEPTH
 }
+export const ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS: DirectoryTreeOptions = {
+  watchMissingRoot: true
+}
 
 const stripWorkspaceRootId = (ids: ReadonlySet<string>): ReadonlySet<string> => {
   if (!ids.has(WORKSPACE_ROOT_ID)) return ids
@@ -209,8 +212,11 @@ interface WorkspaceFileTreeResult {
   refresh: () => void
 }
 
-const useWorkspaceFileTree = (path: string | undefined): WorkspaceFileTreeResult => {
-  const { root, version, isLoading, error } = useDirectoryTree(path, WORKSPACE_TREE_OPTIONS)
+const useWorkspaceFileTree = (path: string | undefined, watchMissingRoot: boolean): WorkspaceFileTreeResult => {
+  const { root, version, isLoading, error } = useDirectoryTree(
+    path,
+    watchMissingRoot ? ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS : WORKSPACE_TREE_OPTIONS
+  )
 
   const tree = useMemo(() => {
     void version
@@ -540,6 +546,8 @@ export function isSelectableFileNode(
 
 export interface UseArtifactFileTreeModelParams {
   workspacePath?: string
+  /** Keep an empty watched tree while an app-owned workspace is created lazily. */
+  watchMissingRoot?: boolean
   /** Gates "create only while visible" — the tree is built only when open. */
   treeOpen: boolean
   /** Caller-owned expanded folder ids (synthetic workspace root managed internally). */
@@ -573,6 +581,7 @@ export interface ArtifactFileTreeModel {
  */
 export function useArtifactFileTreeModel({
   workspacePath,
+  watchMissingRoot = false,
   treeOpen,
   expandedIds,
   searchKeyword,
@@ -580,7 +589,10 @@ export function useArtifactFileTreeModel({
   selectedFile,
   onExpandedIdsChange
 }: UseArtifactFileTreeModelParams): ArtifactFileTreeModel {
-  const { tree, isLoading, hasLoaded, error, refresh } = useWorkspaceFileTree(treeOpen ? workspacePath : undefined)
+  const { tree, isLoading, hasLoaded, error, refresh } = useWorkspaceFileTree(
+    treeOpen ? workspacePath : undefined,
+    watchMissingRoot
+  )
   const {
     displayTree,
     isLoading: isLazyLoading,

@@ -741,7 +741,13 @@ export class AgentSessionRuntimeService extends BaseService {
    * falls back to MCP/DB path.
    */
   respondToolApproval(approvalId: string, decision: DispatchDecision): boolean {
-    return toolApprovalRegistry.dispatch(approvalId, decision)
+    const dispatched = toolApprovalRegistry.dispatch(approvalId, decision)
+    if (!dispatched) return false
+
+    application
+      .get('AiStreamManager')
+      .resolveToolApproval(buildAgentSessionTopicId(dispatched.sessionId), dispatched.toolCallId)
+    return true
   }
 
   abortPendingTurn(sessionId: string, reason: string): boolean {
