@@ -742,7 +742,10 @@ function UsageSettings() {
 
   const timelineBuckets = timelineQueryResult.data?.buckets ?? EMPTY_TIMELINE_BUCKETS
   const overviewBuckets = overviewStatsResult.data?.buckets ?? EMPTY_STATS_BUCKETS
-  const previousOverviewBuckets = previousOverviewStatsResult.data?.buckets ?? EMPTY_STATS_BUCKETS
+  // The disabled query still yields its last data (keepPreviousData), so gate on the range itself.
+  const previousOverviewBuckets = previousWindowRange
+    ? (previousOverviewStatsResult.data?.buckets ?? EMPTY_STATS_BUCKETS)
+    : EMPTY_STATS_BUCKETS
   const exploreBuckets = exploreStatsResult.data?.buckets ?? EMPTY_STATS_BUCKETS
 
   const activeDateKeys = useMemo(
