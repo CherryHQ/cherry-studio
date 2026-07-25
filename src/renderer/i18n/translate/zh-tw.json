@@ -226,11 +226,10 @@
         },
         "discard": "捨棄變更",
         "leave": {
-          "confirm": "捨棄並繼續",
           "description": "關閉目前檔案或開啟其他檔案會清除目前草稿，此操作無法復原。",
+          "discard_and_continue": "放棄並繼續",
           "title": "捨棄未儲存的變更？"
         },
-        "open_failed": "無法開啟此檔案進行編輯。",
         "refresh_failed": "無法重新載入最新檔案內容。",
         "save_failed": "無法儲存此檔案。",
         "unsaved": "未儲存",
@@ -1074,11 +1073,11 @@
       "title": "編輯助手"
     },
     "groups": {
-      "delete": "[to be translated]:Delete Group",
-      "deleteConfirm": "[to be translated]:Are you sure you want to delete this group?",
-      "group_by": "[to be translated]:Show in groups",
-      "ungroup": "[to be translated]:Stop grouping",
-      "ungrouped": "[to be translated]:Ungrouped"
+      "delete": "刪除群組",
+      "deleteConfirm": "您確定要刪除此群組嗎？",
+      "group_by": "分組顯示",
+      "ungroup": "停止分組",
+      "ungrouped": "未分組"
     },
     "icon": {
       "type": "助手圖示"
@@ -1410,7 +1409,7 @@
       },
       "generate_image": "產生圖片",
       "generate_image_no_model": "請在 設定 › 預設模型 中設定繪圖模型",
-      "image_preview_failed": "[to be translated]:Image preview failed",
+      "image_preview_failed": "圖片預覽失敗",
       "knowledge_base": "知識庫",
       "knowledge_base_disabled_by_files": "移除附加檔案以使用知識庫",
       "knowledge_base_unavailable": "選擇具備工具能力的模型或啟用提示工具使用",
@@ -1600,21 +1599,21 @@
         "model": "切換模型"
       },
       "token_details": {
-        "cache_read": "[to be translated]:Cache read",
-        "cache_write": "[to be translated]:Cache write",
-        "input": "[to be translated]:Input",
-        "input_breakdown": "[to be translated]:Input breakdown",
-        "output": "[to be translated]:Output",
-        "reasoning": "[to be translated]:Reasoning",
-        "reasoning_time": "[to be translated]:Reasoning",
-        "request_duration": "[to be translated]:Generation timing",
-        "text_generation": "[to be translated]:Text generation",
-        "text_output": "[to be translated]:Text output",
-        "tokens": "[to be translated]:{{value}} Tokens",
-        "tokens_per_second_value": "[to be translated]:{{value}} Tokens/s",
-        "uncached": "[to be translated]:Uncached",
-        "usage": "[to be translated]:Token usage",
-        "waiting_first_token": "[to be translated]:Waiting"
+        "cache_read": "快取讀取",
+        "cache_write": "快取寫入",
+        "input": "輸入",
+        "input_breakdown": "輸入分解",
+        "output": "輸出",
+        "reasoning": "推理",
+        "reasoning_time": "推理",
+        "request_duration": "生成時機",
+        "text_generation": "文字生成",
+        "text_output": "文字輸出",
+        "tokens": "{{value}} 代幣",
+        "tokens_per_second_value": "{{value}} Tokens/s",
+        "uncached": "未快取",
+        "usage": "Token 使用量",
+        "waiting_first_token": "等待"
       },
       "useful": {
         "label": "設為上下文",
@@ -2323,7 +2322,7 @@
     "swap": "交換",
     "topics": "對話",
     "translate_text": "翻譯文字",
-    "undo": "[to be translated]:Undo",
+    "undo": "復原",
     "unknown": "未知",
     "unnamed": "未命名",
     "unsubscribe": "取消訂閱",
@@ -2362,7 +2361,7 @@
     "image-generation": "影像產生（OpenAI）",
     "jina-rerank": "Jina Rerank",
     "openai": "OpenAI",
-    "openai-embeddings": "[to be translated]:Embeddings (OpenAI)",
+    "openai-embeddings": "嵌入向量（OpenAI）",
     "openai-response": "OpenAI-Response"
   },
   "error": {
@@ -2482,7 +2481,7 @@
     "text": "文字",
     "toolInput": "工具輸入",
     "toolName": "工具名稱",
-    "tool_call_limit_reached": "[to be translated]:The assistant reached the tool-call limit before producing a final answer. Try again or reduce the task scope.",
+    "tool_call_limit_reached": "助理在產生最終答案之前已達到工具呼叫上限。請重試或縮小任務範圍。",
     "truncated": "資料已截斷，原始大小",
     "truncatedBadge": "已截斷",
     "unknown": "未知錯誤",
@@ -2490,11 +2489,11 @@
     "user_message_not_found": "無法找到原始使用者訊息",
     "value": "值",
     "values": "值",
-    "web_lookup_network_error": "[to be translated]:Web access failed. Check your network connection and try again.",
-    "web_search_api_host_invalid": "[to be translated]:Web search is unavailable because the configured provider's API host is invalid. Enter a valid HTTP(S) URL in Settings → Web Search, then try again.",
-    "web_search_api_host_missing": "[to be translated]:Web search is unavailable because the configured provider is missing an API host. Add one in Settings → Web Search, then try again.",
-    "web_search_api_key_missing": "[to be translated]:Web search is unavailable because the configured provider is missing an API key. Add one in Settings → Web Search, then try again.",
-    "web_search_provider_unavailable": "[to be translated]:Web search is unavailable because no compatible provider is configured. Configure one in Settings → Web Search, then try again."
+    "web_lookup_network_error": "網頁存取失敗。請檢查您的網路連線後再試一次。",
+    "web_search_api_host_invalid": "網頁搜尋無法使用，因為設定的供應商 API 主機無效。請在「設定 → 網頁搜尋」中輸入有效的 HTTP(S) 網址，然後再試一次。",
+    "web_search_api_host_missing": "網頁搜尋無法使用，因為設定的提供者缺少 API 主機。請在「設定」→「網頁搜尋」中新增一個，然後再試一次。",
+    "web_search_api_key_missing": "網頁搜尋無法使用，因為設定的提供者缺少 API 金鑰。請在「設定 → 網頁搜尋」中添加一個，然後再試一次。",
+    "web_search_provider_unavailable": "網頁搜尋無法使用，因為未設定相容的提供者。請在「設定」→「網頁搜尋」中設定一個提供者，然後再試一次。"
   },
   "export": {
     "assistant": "助手",
@@ -2606,7 +2605,8 @@
     "edit": "編輯",
     "empty": {
       "no_match_description": "目前篩選條件下沒有檔案",
-      "no_match_title": "找不到符合的檔案"
+      "no_match_title": "找不到符合的檔案",
+      "title": "[to be translated]:No files yet"
     },
     "empty_trash": "清空回收站",
     "error": {
@@ -3004,7 +3004,6 @@
     "embedding_model": "嵌入模型",
     "embedding_model_required": "知识库嵌入模型是必需的",
     "empty": "暂无知识库",
-    "empty_action": "建立知識庫",
     "empty_description": "你還沒有建立任何知識庫。建立一個來整理與檢索你的文件吧。",
     "error": {
       "directory_not_migrated": "該資料夾內容遷移失敗，請刪除後重新上傳。",
@@ -3173,7 +3172,7 @@
       "duplicate": "複製",
       "edit": "編輯",
       "enable": "啟用",
-      "manage_groups": "[to be translated]:Manage groups",
+      "manage_groups": "管理群組",
       "uninstall": "解除安裝"
     },
     "assistant_catalog": {
@@ -3372,9 +3371,9 @@
             "hint": "啟用時限制權杖取樣範圍"
           }
         },
-        "group": "[to be translated]:Group",
-        "group_empty": "[to be translated]:No groups available",
-        "group_placeholder": "[to be translated]:Select group",
+        "group": "群組",
+        "group_empty": "沒有可用的群組",
+        "group_placeholder": "選擇群組",
         "json_invalid": "無效的 JSON 格式",
         "max_tokens": "最大權杖",
         "max_tool_calls": "最大工具呼叫",
@@ -3473,11 +3472,11 @@
         "insert_variable": "插入變數",
         "label": "系統提示",
         "placeholder": "輸入對助手的要求，例如回答風格、角色設定或背景說明",
-        "polish": "[to be translated]:Polish prompt",
-        "polish_failed_description": "[to be translated]:Check or change the default model, then try again.",
-        "polish_failed_title": "[to be translated]:Failed to polish prompt",
-        "polish_variables_changed_description": "[to be translated]:The polished result changed or removed prompt variables. Try again.",
-        "polish_variables_changed_title": "[to be translated]:Could not apply polished prompt",
+        "polish": "波蘭語提示",
+        "polish_failed_description": "檢查或變更預設模型，然後再試一次。",
+        "polish_failed_title": "未能潤飾提示詞",
+        "polish_variables_changed_description": "優化後的結果變更或移除了提示變數。請再試一次。",
+        "polish_variables_changed_title": "無法應用優化提示",
         "title": "提示",
         "tokens_label": "代幣：",
         "variables_description": "可在系統提示中插入這些系統變數；每次助手回覆前，系統會按當時的資訊自動填寫。",
@@ -3581,9 +3580,9 @@
     },
     "export_assistant_failed": "匯出助理失敗",
     "group_picker": {
-      "no_groups": "[to be translated]:No groups yet"
+      "no_groups": "尚無群組"
     },
-    "group_sync_failed": "[to be translated]:Failed to sync groups",
+    "group_sync_failed": "無法同步群組",
     "import_dialog": {
       "clipboard": {
         "button": "解析並匯入",
@@ -3695,9 +3694,9 @@
     },
     "title": "資源庫",
     "toolbar": {
-      "add_group_placeholder": "[to be translated]:Group name...",
-      "all_groups": "[to be translated]:All groups",
-      "group_button": "[to be translated]:Group",
+      "add_group_placeholder": "群組名稱...",
+      "all_groups": "所有群組",
+      "group_button": "群組",
       "new_resource": "新資源",
       "search_placeholder": "搜尋資源..."
     },
@@ -4272,7 +4271,7 @@
     },
     "function_calling": "函式呼叫",
     "group": {
-      "ungrouped": "[to be translated]:Ungrouped"
+      "ungrouped": "未分組"
     },
     "invalid_model": "無效模型",
     "json_parse_error": "無效的 JSON 格式",
@@ -4318,13 +4317,13 @@
       "embedding": "嵌入",
       "free": "免費",
       "function_calling": "工具",
-      "image": "[to be translated]:Image",
+      "image": "圖片",
       "reasoning": "推理",
       "rerank": "重排",
       "select": "模型類型",
-      "speech": "[to be translated]:Speech",
+      "speech": "演講",
       "text": "文字",
-      "transcription": "[to be translated]:Transcription",
+      "transcription": "轉錄",
       "video": "影片",
       "vision": "視覺",
       "websearch": "網路搜尋"
@@ -4353,6 +4352,12 @@
     },
     "characters": "字元",
     "collapse": "收合",
+    "conflict": {
+      "description": "此筆記在編輯器外被更改。請重新載入以載入最新版本（您未儲存的編輯將被捨棄），或繼續編輯。",
+      "keep_draft": "繼續編輯",
+      "reload": "重新載入",
+      "title": "磁碟上的筆記已變更"
+    },
     "content_placeholder": "請輸入筆記內容...",
     "copyContent": "複製內容",
     "create_folder_failed": "建立資料夾失敗",
@@ -4374,7 +4379,13 @@
     "export_to_pdf_failed": "匯出為 PDF 失敗",
     "export_to_pdf_success": "已匯出為 PDF",
     "export_to_word_failed": "匯出為 Word 失敗",
+    "file_removed_draft": "此筆記已從磁碟中移除。您未儲存的草稿仍可在編輯器中取得。",
     "folder": "資料夾",
+    "leave": {
+      "description": "離開此頁面將會放棄您未儲存的編輯。您是否確定要繼續？",
+      "discard_and_continue": "捨棄並繼續",
+      "title": "捨棄未儲存的筆記編輯？"
+    },
     "load_failed": "筆記載入失敗",
     "load_failed_description": "無法讀取該檔案。為保護筆記內容，已停用編輯。",
     "metadata_sync_failed": "檔案已更新，但筆記狀態同步失敗，請重試該操作。",
@@ -4397,6 +4408,9 @@
     "save": "儲存到筆記",
     "save_blocked_load_failed": "筆記載入失敗，已阻止儲存",
     "save_failed": "儲存筆記失敗",
+    "save_failure": {
+      "description": "此筆記無法儲存。您的編輯內容仍保留在編輯器中，自動儲存功能已暫停。"
+    },
     "search": {
       "both": "名稱 + 內容",
       "content": "內容",
@@ -4802,7 +4816,7 @@
     "inference_steps": "推理步數",
     "inference_steps_tip": "要執行的推理步數 ({{min}}-{{max}})。步數越多，品質越高但耗時越長",
     "input_image": "輸入圖片",
-    "input_image_limit_exceeded": "[to be translated]:Too many reference images for the selected model. Remove some images and try again.",
+    "input_image_limit_exceeded": "選取的模型參考圖片過多。請移除部分圖片後再試一次。",
     "input_parameters": "輸入參數",
     "invalid_image_url": "圖片網址格式無效",
     "learn_more": "了解更多",
@@ -4827,7 +4841,7 @@
     "number_images": "張數",
     "number_images_tip": "一次生成的圖片數量 ({{min}}-{{max}})",
     "operation_failed": "操作失敗，請稍後再試",
-    "output_compression": "[to be translated]:Output Compression",
+    "output_compression": "輸出壓縮",
     "paint_course": "教學",
     "per_image": "每張圖片",
     "per_images": "每張圖片",
@@ -4978,7 +4992,7 @@
     "install": "安裝",
     "install_plugins_from_browser": "瀏覽可用技能以開始使用",
     "installing": "安裝中...",
-    "manage_skills": "[to be translated]:Manage skills",
+    "manage_skills": "管理技能",
     "name": "名稱",
     "no_description": "無描述",
     "no_installed_plugins": "尚未安裝任何技能",
@@ -5612,7 +5626,7 @@
       "create_new": "新建助手",
       "empty_text": "暫無助手",
       "filter": "篩選助手",
-      "group_filter": "[to be translated]:Filter by group",
+      "group_filter": "按群組篩選",
       "multi_hint": "（與多模型互斥）",
       "multi_label": "多助手同時回答",
       "search_placeholder": "搜尋助手…"
@@ -6346,11 +6360,11 @@
       "remove": "移除工具",
       "removeConfirmMessage": "確定要移除「{{name}}」嗎？二進位檔案將會被刪除。",
       "removeConfirmTitle": "移除工具",
-      "removeDefinitionOnlyConfirmMessage": "[to be translated]:Cherry could not safely clean up \"{{name}}\". Removing only its definition will hide the card but leave its backend files installed. Continue?",
-      "removeDefinitionOnlyConfirmTitle": "[to be translated]:Remove Definition Only?",
-      "removeDefinitionOnlyDependents": "[to be translated]:Installed tools depend on it: {{dependents}}.",
-      "removeError": "[to be translated]:Failed to remove tool",
-      "removeErrorHint": "[to be translated]:The cleanup command failed. Copy the log below to troubleshoot or share it for help.",
+      "removeDefinitionOnlyConfirmMessage": "Cherry 無法安全地清理「{{name}}」。僅移除其定義將會隱藏卡片，但保留其後端檔案已安裝。是否繼續？",
+      "removeDefinitionOnlyConfirmTitle": "僅移除定義？",
+      "removeDefinitionOnlyDependents": "安裝的工具依賴於它：{{dependents}}。",
+      "removeError": "移除工具失敗",
+      "removeErrorHint": "清理命令失敗。複製以下日誌以進行疑難排解或分享以尋求協助。",
       "removeRuntimeConfirmMessage": "確定要移除「{{name}}」嗎？解除安裝此執行時可能導致依賴它的 npm 或 pip 工具無法使用。",
       "runtimeDependency": "執行時依賴",
       "runtimeDependencyHint": "npm/pip 工具使用的執行時",
@@ -6377,11 +6391,11 @@
         "rtk": "CLI 代理工具，透過壓縮終端輸出來減少 LLM token 消耗。",
         "uv": "用於 MCP 服務與依賴安裝的 Python 套件管理工具。"
       },
-      "uninstall": "[to be translated]:Uninstall",
-      "uninstallConfirmMessage": "[to be translated]:Are you sure you want to uninstall \"{{name}}\"? Cherry Studio's backend copy will be deleted.",
-      "uninstallConfirmTitle": "[to be translated]:Uninstall Tool",
-      "uninstallFailed": "[to be translated]:Failed to uninstall tool",
-      "uninstallSuccess": "[to be translated]:Tool uninstalled",
+      "uninstall": "解除安裝",
+      "uninstallConfirmMessage": "您確定要卸載「{{name}}」嗎？Cherry Studio 的後端副本將會被刪除。",
+      "uninstallConfirmTitle": "解除安裝工具",
+      "uninstallFailed": "無法解除安裝工具",
+      "uninstallSuccess": "工具已卸載",
       "update": "更新到最新版本",
       "updateCheckFailed": "檢查更新失敗",
       "updateCheckSuccess": "版本檢查完成",
@@ -6928,7 +6942,7 @@
         "add_model": "新增模型",
         "batch_add_models": "批次新增模型",
         "capabilities": {
-          "label": "[to be translated]:Model Capabilities"
+          "label": "模型能力"
         },
         "context_window": {
           "label": "上下文視窗",
@@ -6947,7 +6961,7 @@
           "tooltip": "選填，例如 ChatGPT"
         },
         "input_modalities": {
-          "label": "[to be translated]:Input Modalities"
+          "label": "輸入方式"
         },
         "max_input_tokens": {
           "label": "最大輸入 Token",
@@ -6972,24 +6986,24 @@
           "tooltip": "例如 GPT-4"
         },
         "model_type": {
-          "label": "[to be translated]:Model Type"
+          "label": "模型類型"
         },
         "purpose": {
           "chat": {
-            "description": "[to be translated]:Use the provider's text API",
-            "label": "[to be translated]:Chat"
+            "description": "使用提供者的文字 API",
+            "label": "聊天"
           },
-          "chat_protocol": "[to be translated]:Chat protocol",
-          "description": "[to be translated]:Choose how this model is used",
+          "chat_protocol": "聊天協議",
+          "description": "選擇此模型的使用方式",
           "image_edit": {
-            "description": "[to be translated]:Accept an input image and return an edited image",
-            "label": "[to be translated]:Image editing"
+            "description": "接受輸入圖像並返回編輯後的圖像",
+            "label": "圖片編輯"
           },
           "image_generation": {
-            "description": "[to be translated]:Generate images from a prompt",
-            "label": "[to be translated]:Image generation"
+            "description": "根據提示生成圖像",
+            "label": "圖像生成"
           },
-          "label": "[to be translated]:Model purpose"
+          "label": "模型用途"
         },
         "supported_text_delta": {
           "label": "支援增量文字輸出",
@@ -7049,7 +7063,7 @@
       "default_assistant_model_description": "建立新助手時使用的模型，如果助手未設定模型，則使用此模型",
       "docs": "模型文件",
       "empty": "請選擇模型",
-      "empty_hint": "[to be translated]:Click the Get model list button above to add models.",
+      "empty_hint": "點擊上方的「取得模型列表」按鈕來新增模型。",
       "enabled_models": "已啟用",
       "expand_all": "全部展開",
       "filter": {
@@ -7366,7 +7380,7 @@
       },
       "balance": "餘額",
       "base_url": {
-        "invalid": "[to be translated]:Enter a valid HTTP or HTTPS URL",
+        "invalid": "輸入有效的 HTTP 或 HTTPS URL",
         "label": "Base URL",
         "placeholder": "https://api.example.com",
         "required": "請輸入 Base URL"
@@ -7461,22 +7475,22 @@
       },
       "create_custom": {
         "endpoint_fields": {
-          "default_chat": "[to be translated]:Default",
-          "label": "[to be translated]:Endpoint settings",
-          "more": "[to be translated]:More options",
-          "more_configured": "[to be translated]:{{count}} configured",
-          "set_default_chat": "[to be translated]:Set as default",
-          "text_endpoint_required": "[to be translated]:Configure at least one text endpoint",
-          "url_help": "[to be translated]:Enter the API root URL to preview the final request path"
+          "default_chat": "預設",
+          "label": "端點設定",
+          "more": "更多選項",
+          "more_configured": "{{count}} 已配置",
+          "set_default_chat": "設為預設值",
+          "text_endpoint_required": "請設定至少一個文字端點",
+          "url_help": "輸入 API 根 URL 以預覽最終請求路徑"
         },
         "preset_instance": {
-          "description": "[to be translated]:For Coding Plan services, multiple accounts, or project isolation; configure each Base URL and API key independently",
-          "empty": "[to be translated]:No matching Provider presets",
-          "placeholder": "[to be translated]:Create from a Provider preset…",
-          "search_placeholder": "[to be translated]:Search Provider presets",
-          "title": "[to be translated]:Start from a preset (optional)"
+          "description": "針對 Coding Plan 服務、多個帳號或專案隔離需求；請分別設定每個 Base URL 和 API 金鑰",
+          "empty": "沒有相符的提供者預設值",
+          "placeholder": "從提供者預設建立…",
+          "search_placeholder": "搜尋提供者預設值",
+          "title": "從預設開始（選填）"
         },
-        "request_preview": "[to be translated]:Request path: {{path}}",
+        "request_preview": "請求路徑：{{path}}",
         "title": "新增自訂提供商"
       },
       "delete": {
@@ -7518,12 +7532,12 @@
       },
       "image_endpoints": {
         "image_edit_base_url": {
-          "help": "[to be translated]:Used for /images/edits; leave blank to use the default chat endpoint Base URL",
-          "label": "[to be translated]:Image Edit Base URL"
+          "help": "用於 /images/edits；留空則使用預設聊天端點 Base URL",
+          "label": "圖片編輯基礎網址"
         },
         "image_generation_base_url": {
-          "help": "[to be translated]:Used for /images/generations; leave blank to use the default chat endpoint Base URL",
-          "label": "[to be translated]:Image Generation Base URL"
+          "help": "用於 /images/generations；留空以使用預設的聊天端點 Base URL",
+          "label": "圖像生成基礎 URL"
         }
       },
       "logo_upload_failed": "無法處理所選圖片",
@@ -7650,7 +7664,7 @@
         "autoEmpty": "未啟用任何 MCP 伺服器",
         "description": "檢視目前的 MCP 伺服器狀態",
         "disabled": "此助理已停用 MCP",
-        "open_config": "[to be translated]:Configure MCP servers",
+        "open_config": "設定 MCP 伺服器",
         "unknownServer": "未知的 MCP 伺服器"
       },
       "multiple": "多選",
