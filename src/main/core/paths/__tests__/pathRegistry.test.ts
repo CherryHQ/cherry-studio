@@ -30,6 +30,23 @@ describe('buildPathRegistry', () => {
     expect(registry['feature.binary.data.isolated.localappdata']).toBe(path.join(miseRoot, 'localappdata'))
     expect(registry['feature.binary.data.isolated.appdata']).toBe(path.join(miseRoot, 'appdata'))
   })
+
+  it('stores active traces under userData Runtime and keeps the old path cleanup-only', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['feature.trace']).toBe(path.join('/mock/userData', 'Runtime', 'trace'))
+    expect(registry['feature.trace.legacy']).toBe(path.join(registry['cherry.home'], 'trace'))
+    expect(shouldAutoEnsure('feature.trace')).toBe(true)
+    expect(shouldAutoEnsure('feature.trace.legacy')).toBe(false)
+  })
+
+  it('keeps the old CLI install root cleanup-only', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['feature.cli.legacy_install']).toBe(path.join(registry['cherry.home'], 'install'))
+    expect(shouldAutoEnsure('feature.cli.legacy_install')).toBe(false)
+    expect('feature.cli.install_global' in registry).toBe(false)
+  })
 })
 
 describe('pathRegistry.shouldAutoEnsure', () => {
@@ -200,6 +217,10 @@ describe('pathRegistry.shouldAutoEnsure', () => {
 
     it('returns true for app.session', () => {
       expect(shouldAutoEnsure('app.session')).toBe(true)
+    })
+
+    it('does not auto-create the persist:webview session directory', () => {
+      expect(shouldAutoEnsure('app.session.webview')).toBe(false)
     })
 
     it('returns true for app.temp', () => {

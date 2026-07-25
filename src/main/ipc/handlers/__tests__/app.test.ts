@@ -1,11 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, appGetPathMock, inspectTargetMock, relaunchMock, requestRelocationMock } = vi.hoisted(() => ({
+const {
+  appGetMock,
+  appGetPathMock,
+  inspectCacheCleanupMock,
+  inspectTargetMock,
+  relaunchMock,
+  requestRelocationMock,
+  runCacheCleanupMock
+} = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   appGetPathMock: vi.fn(),
+  inspectCacheCleanupMock: vi.fn(),
   inspectTargetMock: vi.fn(),
   relaunchMock: vi.fn(),
-  requestRelocationMock: vi.fn()
+  requestRelocationMock: vi.fn(),
+  runCacheCleanupMock: vi.fn()
 }))
 
 vi.mock('@application', () => ({
@@ -14,6 +24,10 @@ vi.mock('@application', () => ({
 vi.mock('@main/services/userDataRelocation', () => ({
   inspectUserDataRelocationTarget: inspectTargetMock,
   requestUserDataRelocation: requestRelocationMock
+}))
+vi.mock('@main/services/cacheCleanup', () => ({
+  inspectCacheCleanup: inspectCacheCleanupMock,
+  runCacheCleanup: runCacheCleanupMock
 }))
 vi.mock('electron', () => ({
   app: { getVersion: () => '1.0.0', isPackaged: true },
@@ -74,6 +88,22 @@ describe('appHandlers', () => {
   it('relaunches through IpcApi', async () => {
     await expect(appHandlers['app.relaunch'](undefined, ctx)).resolves.toBeUndefined()
     expect(relaunchMock).toHaveBeenCalledOnce()
+  })
+
+  it('delegates cache cleanup inspection and execution to the cleanup service', async () => {
+    inspectCacheCleanupMock.mockResolvedValue({ migrationStatus: 'completed', results: [] })
+    runCacheCleanupMock.mockResolvedValue({ results: [] })
+
+    await expect(appHandlers['app.cache_cleanup.inspect']({ groups: ['normal_cache'] }, ctx)).resolves.toEqual({
+      migrationStatus: 'completed',
+      results: []
+    })
+    await expect(appHandlers['app.cache_cleanup.run']({ groups: ['normal_cache', 'site_data'] }, ctx)).resolves.toEqual(
+      { results: [] }
+    )
+
+    expect(inspectCacheCleanupMock).toHaveBeenCalledWith(['normal_cache'])
+    expect(runCacheCleanupMock).toHaveBeenCalledWith(['normal_cache', 'site_data'])
   })
 
   it('check_for_update triggers the AppUpdaterService check and resolves void', async () => {

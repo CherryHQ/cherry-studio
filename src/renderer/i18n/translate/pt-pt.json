@@ -5751,11 +5751,35 @@
         "v2_unavailable": "Backup & restore V2 ainda não está disponível. Em breve."
       },
       "clear_cache": {
+        "approximately": "[to be translated]:Approx. {{size}}",
         "button": "Limpar cache",
-        "confirm": "Limpar cache removerá os dados armazenados em cache do aplicativo, incluindo dados de aplicativos minúsculos. Esta ação não pode ser desfeita, deseja continuar?",
+        "calculating": "[to be translated]:Calculating…",
         "error": "Falha ao limpar cache",
+        "migration_incomplete": "[to be translated]:Available after the v2 data migration is complete",
+        "options": {
+          "legacy_v1": {
+            "description": "[to be translated]:Data no longer used after upgrading, including old knowledge-base rollback data and old Memory data that was not migrated. Clearing it cannot be undone.",
+            "title": "[to be translated]:Leftover data from older versions"
+          },
+          "normal_cache": {
+            "description": "[to be translated]:HTTP, code, shader and CacheStorage caches, temporary files, and trace data.",
+            "title": "[to be translated]:Regular cache"
+          },
+          "restore_staging": {
+            "description": "[to be translated]:Temporary files created by the older backup restore process. Clearing them prevents any unfinished restore from continuing.",
+            "title": "[to be translated]:Temporary restore files"
+          },
+          "site_data": {
+            "description": "[to be translated]:Cookies and site storage used by websites and mini apps. You may be signed out of websites.",
+            "title": "[to be translated]:Website and mini app data"
+          }
+        },
+        "partial_success": "[to be translated]:Cleanup finished, but some items could not be cleared",
+        "selected_total": "[to be translated]:Selected total",
         "success": "Cache limpo com sucesso",
-        "title": "Limpar cache"
+        "title": "Limpar cache",
+        "total_partial": "[to be translated]:{{size}} counted; some sizes are unknown",
+        "unavailable": "[to be translated]:Unable to calculate"
       },
       "data": {
         "title": "Diretório de dados"

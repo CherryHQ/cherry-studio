@@ -5751,11 +5751,35 @@
         "v2_unavailable": "V2 备份恢复尚未上线，敬请期待"
       },
       "clear_cache": {
+        "approximately": "约 {{size}}",
         "button": "清除缓存",
-        "confirm": "清除缓存将删除应用缓存的数据，包括小程序数据。此操作不可恢复，是否继续？",
+        "calculating": "计算中…",
         "error": "清除缓存失败",
+        "migration_incomplete": "完成 v2 数据迁移后才可清理",
+        "options": {
+          "legacy_v1": {
+            "description": "升级后不再使用的旧版本数据，包括旧知识库回滚数据和未迁移的旧记忆数据。清理后无法恢复。",
+            "title": "旧版本遗留数据"
+          },
+          "normal_cache": {
+            "description": "HTTP、代码、Shader、CacheStorage 缓存，以及临时文件和 Trace 数据。",
+            "title": "普通缓存"
+          },
+          "restore_staging": {
+            "description": "旧版本备份恢复过程中产生的临时文件。清理后，未完成的恢复将无法继续。",
+            "title": "备份恢复临时文件"
+          },
+          "site_data": {
+            "description": "网站与小程序使用的 Cookie 和站点存储；清理后可能需要重新登录网站。",
+            "title": "网站与小程序数据"
+          }
+        },
+        "partial_success": "清理已完成，但部分项目未能清除",
+        "selected_total": "所选项目总计",
         "success": "缓存清除成功",
-        "title": "清除缓存"
+        "title": "清除缓存",
+        "total_partial": "已统计 {{size}}，部分大小未知",
+        "unavailable": "无法统计"
       },
       "data": {
         "title": "数据目录"

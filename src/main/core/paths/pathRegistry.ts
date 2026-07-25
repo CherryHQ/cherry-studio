@@ -72,6 +72,7 @@ export function buildPathRegistry() {
     'app.crash_dumps': app.getPath('crashDumps'),
     'app.session': appSession,
     'app.session.cache': path.join(appSession, 'Cache'), // Chromium cache Directory
+    'app.session.webview': path.join(appSession, 'Partitions', 'webview'), // persist:webview Chromium partition
     'app.extra_resources': appExtraResources, // electron-builder extraResources output root
     'app.temp': appTemp, // Cherry-specific temp under sys.temp
     'app.userdata': appUserData, // Electron per-app data dir (Cherry-owned)
@@ -115,7 +116,8 @@ export function buildPathRegistry() {
     'feature.copilot.token_file': path.join(CHERRY_HOME, 'config', '.copilot_token'),
 
     // Trace
-    'feature.trace': path.join(CHERRY_HOME, 'trace'),
+    'feature.trace': path.join(appUserDataRuntime, 'trace'),
+    'feature.trace.legacy': path.join(CHERRY_HOME, 'trace'),
 
     // OVMS (OpenVINO Model Server)
     'feature.ovms': path.join(CHERRY_HOME, 'ovms'),
@@ -159,8 +161,8 @@ export function buildPathRegistry() {
     // Protocol deep-link (Linux .desktop entry for cherrystudio:// scheme)
     'feature.protocol.desktop_entries': path.join(os.homedir(), '.local', 'share', 'applications'),
 
-    // CLI tools (code-cli) bun global install root ($BUN_INSTALL/install/global)
-    'feature.cli.install_global': path.join(CHERRY_HOME, 'install', 'global'),
+    // Legacy CLI install root — cleanup-only, never auto-created
+    'feature.cli.legacy_install': path.join(CHERRY_HOME, 'install'),
 
     // Feature-owned temp dirs (all under app.temp)
     'feature.backup.temp': path.join(appTemp, 'backup'),
@@ -218,8 +220,11 @@ const NO_ENSURE = [
   'app.root.resources',
   'app.root.resources.scripts',
   'app.root.resources.binaries',
+  'app.session.webview',
   'app.database.migrations',
   'feature.provider_registry.data',
+  'feature.cli.legacy_install',
+  'feature.trace.legacy',
   'feature.agents.builtin',
   'feature.agents.skills.builtin'
 ] as const satisfies readonly NoEnsureEntry[]

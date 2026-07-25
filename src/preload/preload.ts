@@ -74,8 +74,6 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Application_Relaunch, options)
   },
   resetData: () => ipcRenderer.invoke(IpcChannel.App_ResetData),
-  getCacheSize: () => ipcRenderer.invoke(IpcChannel.App_GetCacheSize),
-  clearCache: () => ipcRenderer.invoke(IpcChannel.App_ClearCache),
   system: {
     getHostname: () => ipcRenderer.invoke(IpcChannel.System_GetHostname)
     // Git Bash is resolved in the main process (settingsBuilder); no renderer API.
@@ -245,8 +243,7 @@ const api = {
   //   ipcRenderer.invoke(IpcChannel.App_SetDisableHardwareAcceleration, isDisable),
   // setUseSystemTitleBar: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetUseSystemTitleBar, isActive),
   trace: {
-    getData: (topicId: string, traceId: string) => ipcRenderer.invoke(IpcChannel.TRACE_GET_DATA, topicId, traceId),
-    cleanLocalData: () => ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_LOCAL_DATA)
+    getData: (topicId: string, traceId: string) => ipcRenderer.invoke(IpcChannel.TRACE_GET_DATA, topicId, traceId)
   },
   shortcut: {
     onRegistrationConflict: (callback: (payload: ShortcutRegistrationConflictPayload) => void): (() => void) => {

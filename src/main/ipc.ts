@@ -8,7 +8,7 @@ import {
 } from '@main/services/file'
 import { hasWritePermission, isPathInside, untildify } from '@main/utils/legacyFile'
 import { IpcChannel } from '@shared/IpcChannel'
-import { BrowserWindow, dialog, ipcMain, session } from 'electron'
+import { BrowserWindow, dialog, ipcMain } from 'electron'
 
 import { skillService } from './ai/skills/SkillService'
 import { appService } from './services/AppService'
@@ -19,7 +19,6 @@ import FileService from './services/FileSystemService'
 import LegacyBackupManager from './services/LegacyBackupManager'
 import * as NutstoreService from './services/nutstore/NutstoreService'
 import { decrypt } from './utils/aes'
-import { getDirectorySize } from './utils/fileOperations'
 import { getHostname } from './utils/system'
 import { decompress } from './utils/zip'
 
@@ -61,45 +60,6 @@ export async function registerIpc() {
   // ipcMain.handle(IpcChannel.App_SetTheme, (_, theme: ThemeMode) => {
   //   themeService.setTheme(theme)
   // })
-
-  // clear cache
-  ipcMain.handle(IpcChannel.App_ClearCache, async () => {
-    const sessions = [session.defaultSession, session.fromPartition('persist:webview')]
-
-    try {
-      await Promise.all(
-        sessions.map(async (session) => {
-          await session.clearCache()
-          await session.clearStorageData({
-            storages: ['cookies', 'filesystem', 'shadercache', 'websql', 'serviceworkers', 'cachestorage']
-          })
-        })
-      )
-      await fileManager.clearTemp()
-      // do not clear logs for now
-      // TODO clear logs
-      // await fs.writeFileSync(log.transports.file.getFile().path, '')
-      return { success: true }
-    } catch (error: any) {
-      logger.error('Failed to clear cache:', error)
-      return { success: false, error: error.message }
-    }
-  })
-
-  // get cache size
-  ipcMain.handle(IpcChannel.App_GetCacheSize, async () => {
-    const cachePath = application.getPath('app.session.cache')
-    logger.info(`Calculating cache size for path: ${cachePath}`)
-
-    try {
-      const sizeInBytes = await getDirectorySize(cachePath)
-      const sizeInMB = (sizeInBytes / (1024 * 1024)).toFixed(2)
-      return `${sizeInMB}`
-    } catch (error: any) {
-      logger.error(`Failed to calculate cache size for ${cachePath}: ${error.message}`)
-      return '0'
-    }
-  })
 
   // Select app data path
   ipcMain.handle(IpcChannel.App_Select, async (_, options: Electron.OpenDialogOptions) => {

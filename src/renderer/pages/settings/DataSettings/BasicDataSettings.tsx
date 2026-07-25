@@ -15,14 +15,17 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
 import { cn } from '@renderer/utils/style'
+import type { CacheCleanupSizeSnapshot } from '@shared/types/cacheCleanup'
 import type { UserDataRelocationValidationReason } from '@shared/types/userDataRelocation'
 import { FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
 import type React from 'react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import BackupPopup from './BackupPopup'
 import { BackupUnavailableGate } from './BackupUnavailableGate'
+import ClearCachePopup, { formatCacheCleanupSize } from './ClearCachePopup'
+import { clearLegacyV1BrowserData, mergeLegacyV1CleanupResults } from './legacyV1BrowserData'
 import RestorePopup from './RestorePopup'
 
 const DATA_SETTINGS_SUBTLE_TEXT_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
@@ -30,15 +33,24 @@ const DATA_SETTINGS_SUBTLE_TEXT_COLOR = 'color-mix(in oklch, var(--foreground) 4
 const BasicDataSettings: React.FC = () => {
   const { t } = useTranslation()
   const [appInfo, setAppInfo] = useState<AppInfo>()
-  const [cacheSize, setCacheSize] = useState<string>('')
+  const [cacheSize, setCacheSize] = useState<CacheCleanupSizeSnapshot | null>()
   const { theme } = useTheme()
   const [skipBackupFile, setSkipBackupFile] = usePreference('data.backup.general.skip_backup_file')
   const [enableDataCollection, setEnableDataCollection] = usePreference('app.privacy.data_collection.enabled')
 
+  const refreshCacheSize = useCallback(async () => {
+    try {
+      const response = await ipcApi.request('app.cache_cleanup.inspect', { groups: ['normal_cache'] })
+      setCacheSize(response.results[0]?.size ?? null)
+    } catch {
+      setCacheSize(null)
+    }
+  }, [])
+
   useEffect(() => {
     void ipcApi.request('app.get_info').then(setAppInfo)
-    void window.api.getCacheSize().then(setCacheSize)
-  }, [])
+    void refreshCacheSize()
+  }, [refreshCacheSize])
 
   const handleSelectAppDataPath = async () => {
     if (!appInfo || !appInfo.appDataPath) {
@@ -172,26 +184,36 @@ const BasicDataSettings: React.FC = () => {
     }
   }
 
-  const handleClearCache = async () => {
-    const confirmed = await popup.confirm({
-      title: t('settings.data.clear_cache.title'),
-      content: t('settings.data.clear_cache.confirm'),
-      okText: t('settings.data.clear_cache.button'),
-      centered: true,
-      okButtonProps: {
-        danger: true
+  const handleClearCache = () => {
+    void ClearCachePopup.show({
+      onClear: async (groups) => {
+        try {
+          const mainResult = await ipcApi.request('app.cache_cleanup.run', { groups })
+          let results = [...mainResult.results]
+          const mainLegacyResult = results.find(({ group }) => group === 'legacy_v1')
+          const legacyBlocked = mainLegacyResult?.issues.some(({ code }) => code === 'migration_incomplete')
+
+          if (groups.includes('legacy_v1')) {
+            if (!mainLegacyResult) throw new Error('Missing main-process v1 cleanup result')
+            if (!legacyBlocked) {
+              const mergedLegacyResult = mergeLegacyV1CleanupResults(mainLegacyResult, await clearLegacyV1BrowserData())
+              results = results.map((result) => (result.group === 'legacy_v1' ? mergedLegacyResult : result))
+            }
+          }
+
+          const hasFailures = results.some(({ status }) => ['partial', 'skipped', 'failed'].includes(status))
+          if (hasFailures) {
+            toast.warning(t('settings.data.clear_cache.partial_success'))
+          } else {
+            toast.success(t('settings.data.clear_cache.success'))
+          }
+        } catch {
+          toast.error(t('settings.data.clear_cache.error'))
+        } finally {
+          await refreshCacheSize()
+        }
       }
     })
-    if (!confirmed) return
-
-    try {
-      await window.api.clearCache()
-      await window.api.trace.cleanLocalData()
-      await window.api.getCacheSize().then(setCacheSize)
-      toast.success(t('settings.data.clear_cache.success'))
-    } catch (error) {
-      toast.error(t('settings.data.clear_cache.error'))
-    }
   }
 
   const onSkipBackupFilesChange = (value: boolean) => {
@@ -268,7 +290,21 @@ const BasicDataSettings: React.FC = () => {
         <SettingRow>
           <SettingRowTitle>
             {t('settings.data.clear_cache.title')}
-            {cacheSize && <CacheText>({cacheSize}MB)</CacheText>}
+            {cacheSize !== undefined && (
+              <CacheText>
+                (
+                {cacheSize === null || cacheSize.bytes === null
+                  ? t('settings.data.clear_cache.unavailable')
+                  : cacheSize.completeness === 'partial'
+                    ? t('settings.data.clear_cache.total_partial', {
+                        size: formatCacheCleanupSize(cacheSize.bytes)
+                      })
+                    : t('settings.data.clear_cache.approximately', {
+                        size: formatCacheCleanupSize(cacheSize.bytes)
+                      })}
+                )
+              </CacheText>
+            )}
           </SettingRowTitle>
           <RowFlex className="gap-1.25">
             <Button onClick={handleClearCache} variant="outline">

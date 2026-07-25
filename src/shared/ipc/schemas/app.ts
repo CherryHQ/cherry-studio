@@ -1,6 +1,14 @@
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
 import * as z from 'zod'
 
+import {
+  CACHE_CLEANUP_GROUPS,
+  CACHE_CLEANUP_ISSUE_CODES,
+  CACHE_CLEANUP_MIGRATION_STATUSES,
+  CACHE_CLEANUP_RESULT_STATUSES,
+  CACHE_CLEANUP_SIZE_ACCURACIES,
+  CACHE_CLEANUP_SIZE_COMPLETENESS
+} from '../../types/cacheCleanup'
 import { USER_DATA_RELOCATION_VALIDATION_REASONS } from '../../types/userDataRelocation'
 import { defineRoute } from '../define'
 
@@ -8,6 +16,26 @@ const relocationInspectionSchema = z.discriminatedUnion('valid', [
   z.object({ valid: z.literal(true), targetEmpty: z.boolean() }),
   z.object({ valid: z.literal(false), reason: z.enum(USER_DATA_RELOCATION_VALIDATION_REASONS) })
 ])
+
+const cacheCleanupGroupSchema = z.enum(CACHE_CLEANUP_GROUPS)
+const cacheCleanupIssueSchema = z.object({
+  item: z.string(),
+  code: z.enum(CACHE_CLEANUP_ISSUE_CODES)
+})
+const cacheCleanupSizeSchema = z.object({
+  bytes: z.number().int().nonnegative().nullable(),
+  accuracy: z.enum(CACHE_CLEANUP_SIZE_ACCURACIES),
+  completeness: z.enum(CACHE_CLEANUP_SIZE_COMPLETENESS),
+  issues: z.array(cacheCleanupIssueSchema)
+})
+const cacheCleanupGroupsInputSchema = z
+  .object({
+    groups: z.array(cacheCleanupGroupSchema).min(1)
+  })
+  .refine(({ groups }) => new Set(groups).size === groups.length, {
+    message: 'Cache cleanup groups must be unique',
+    path: ['groups']
+  })
 
 export const appRequestSchemas = {
   'app.get_info': defineRoute({
@@ -37,6 +65,32 @@ export const appRequestSchemas = {
       copy: z.boolean()
     }),
     output: z.void()
+  }),
+  'app.cache_cleanup.inspect': defineRoute({
+    input: cacheCleanupGroupsInputSchema,
+    output: z.object({
+      migrationStatus: z.enum(CACHE_CLEANUP_MIGRATION_STATUSES),
+      results: z.array(
+        z.object({
+          group: cacheCleanupGroupSchema,
+          size: cacheCleanupSizeSchema,
+          allowed: z.boolean(),
+          blockedReason: z.literal('migration_incomplete').optional()
+        })
+      )
+    })
+  }),
+  'app.cache_cleanup.run': defineRoute({
+    input: cacheCleanupGroupsInputSchema,
+    output: z.object({
+      results: z.array(
+        z.object({
+          group: cacheCleanupGroupSchema,
+          status: z.enum(CACHE_CLEANUP_RESULT_STATUSES),
+          issues: z.array(cacheCleanupIssueSchema)
+        })
+      )
+    })
   }),
   'app.relaunch': defineRoute({ input: z.void(), output: z.void() }),
   'app.adjust_zoom': defineRoute({
