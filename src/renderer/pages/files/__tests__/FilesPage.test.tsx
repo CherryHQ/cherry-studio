@@ -756,9 +756,11 @@ describe('FilesPage file operations', () => {
     selectFileAt(0)
 
     const actionsButton = screen.getByRole('button', { name: 'files.actions' })
+    const pageHeader = screen.getByRole('heading', { name: 'files.all' }).parentElement
 
     expect(actionsButton).toBeInTheDocument()
-    expect(actionsButton.closest('.h-9')).toHaveClass('mx-3', 'border-border', 'border-b', 'px-1')
+    expect(pageHeader).toContainElement(actionsButton)
+    expect(actionsButton.closest('.h-7')).toHaveClass('shrink-0', 'items-center')
     expect(screen.getByText(/files.delete.label/)).toBeInTheDocument()
   })
 

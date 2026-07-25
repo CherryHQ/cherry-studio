@@ -265,7 +265,7 @@ const FileToolbar = memo(function FileToolbar({
   const { t } = useTranslation()
 
   return (
-    <div className="mx-3 flex h-9 shrink-0 items-center gap-1.5 border-border border-b px-1">
+    <div className="flex h-7 shrink-0 items-center gap-1">
       <span className="text-muted-foreground text-xs">
         {t('files.footer_selected_count', { count: selectedCount })}
       </span>
@@ -902,38 +902,39 @@ function FilesPage() {
             title={activeFilterLabel}
             className="relative mb-0 h-9 pb-1 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-border after:border-b after:content-['']"
             action={
-              isTrash ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={filteredFiles.length === 0}
-                  onClick={handleEmptyTrash}
-                  className="-translate-y-px h-7 px-2.5 text-muted-foreground text-xs hover:text-destructive">
-                  <Trash2 className="size-3.5" />
-                  {t('files.empty_trash')}
-                </Button>
-              ) : showUploadButton ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void handleUploadClick()}
-                  className="-translate-y-px h-7 gap-1.5 rounded-md px-2.5 text-muted-foreground text-xs hover:text-foreground">
-                  <Upload className="size-3.5 translate-y-px" />
-                  <span>{t('files.upload')}</span>
-                </Button>
-              ) : null
+              <div className="flex shrink-0 items-center gap-2">
+                {!isImageGrid && selectedIds.size > 0 && (
+                  <FileToolbar
+                    isTrash={isTrash}
+                    selectedCount={selectedIds.size}
+                    batchDeleteLabel={batchDeleteLabel}
+                    onBatchDelete={() => handleDelete()}
+                    onBatchRestore={() => void handleRestore(new Set(selectedIds))}
+                  />
+                )}
+                {isTrash ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={filteredFiles.length === 0}
+                    onClick={handleEmptyTrash}
+                    className="-translate-y-px h-7 px-2.5 text-muted-foreground text-xs hover:text-destructive">
+                    <Trash2 className="size-3.5" />
+                    {t('files.empty_trash')}
+                  </Button>
+                ) : showUploadButton ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void handleUploadClick()}
+                    className="-translate-y-px h-7 gap-1.5 rounded-md px-2.5 text-muted-foreground text-xs hover:text-foreground">
+                    <Upload className="size-3.5 translate-y-px" />
+                    <span>{t('files.upload')}</span>
+                  </Button>
+                ) : null}
+              </div>
             }
           />
-
-          {!isImageGrid && selectedIds.size > 0 && (
-            <FileToolbar
-              isTrash={isTrash}
-              selectedCount={selectedIds.size}
-              batchDeleteLabel={batchDeleteLabel}
-              onBatchDelete={() => handleDelete()}
-              onBatchRestore={() => void handleRestore(new Set(selectedIds))}
-            />
-          )}
 
           {dragOver && (
             <div className="pointer-events-none absolute inset-0 z-50 m-2 flex items-center justify-center rounded-lg border-2 border-border-strong border-dashed bg-accent/25">
