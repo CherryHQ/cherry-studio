@@ -13,6 +13,34 @@
       }
     }
   },
+  "apiGateway": {
+    "docs": {
+      "description": "与 OpenAI 和 Anthropic 兼容的 Cherry Studio HTTP API，另含 Cherry 专有接口（模型、知识库）",
+      "summaries": {
+        "chat_completion": "创建对话补全",
+        "count_tokens": "统计消息的 Token 数量",
+        "create_message": "创建消息",
+        "create_response": "创建响应",
+        "generate_content": "生成内容（Gemini 方言）",
+        "get_knowledge_base": "根据 ID 获取知识库",
+        "health": "健康检查接口",
+        "info": "API 信息",
+        "list_knowledge_bases": "列出所有知识库",
+        "list_models": "列出可用模型",
+        "search_knowledge_bases": "搜索知识库"
+      },
+      "tags": {
+        "chat": "对话",
+        "gemini": "Gemini",
+        "general": "通用",
+        "health": "健康检查",
+        "knowledge": "知识库",
+        "messages": "消息",
+        "models": "模型",
+        "responses": "响应"
+      }
+    }
+  },
   "appMenu": {
     "about": "关于",
     "close": "关闭窗口",

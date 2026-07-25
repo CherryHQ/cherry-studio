@@ -13,6 +13,34 @@
       }
     }
   },
+  "apiGateway": {
+    "docs": {
+      "description": "API HTTP tương thích với OpenAI và Anthropic cho Cherry Studio, cùng các endpoint riêng của Cherry (mô hình, cơ sở tri thức)",
+      "summaries": {
+        "chat_completion": "Tạo hoàn thành trò chuyện",
+        "count_tokens": "Đếm token cho tin nhắn",
+        "create_message": "Tạo tin nhắn",
+        "create_response": "Tạo phản hồi",
+        "generate_content": "Tạo nội dung (phương ngữ Gemini)",
+        "get_knowledge_base": "Lấy cơ sở tri thức theo ID",
+        "health": "Endpoint kiểm tra tình trạng",
+        "info": "Thông tin API",
+        "list_knowledge_bases": "Liệt kê tất cả cơ sở tri thức",
+        "list_models": "Liệt kê các mô hình khả dụng",
+        "search_knowledge_bases": "Tìm kiếm trong cơ sở tri thức"
+      },
+      "tags": {
+        "chat": "Trò chuyện",
+        "gemini": "Gemini",
+        "general": "Chung",
+        "health": "Tình trạng",
+        "knowledge": "Cơ sở tri thức",
+        "messages": "Tin nhắn",
+        "models": "Mô hình",
+        "responses": "Phản hồi"
+      }
+    }
+  },
   "appMenu": {
     "about": "Về",
     "close": "Đóng cửa sổ",

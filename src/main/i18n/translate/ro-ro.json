@@ -13,6 +13,34 @@
       }
     }
   },
+  "apiGateway": {
+    "docs": {
+      "description": "API HTTP compatibil cu OpenAI și Anthropic pentru Cherry Studio, plus endpointuri specifice Cherry (modele, baze de cunoștințe)",
+      "summaries": {
+        "chat_completion": "Creează o completare de chat",
+        "count_tokens": "Numără tokenurile pentru mesaje",
+        "create_message": "Creează mesaj",
+        "create_response": "Creează un răspuns",
+        "generate_content": "Generează conținut (dialect Gemini)",
+        "get_knowledge_base": "Obține o bază de cunoștințe după ID",
+        "health": "Endpoint de verificare a stării",
+        "info": "Informații despre API",
+        "list_knowledge_bases": "Listează toate bazele de cunoștințe",
+        "list_models": "Listează modelele disponibile",
+        "search_knowledge_bases": "Caută în bazele de cunoștințe"
+      },
+      "tags": {
+        "chat": "Chat",
+        "gemini": "Gemini",
+        "general": "General",
+        "health": "Stare",
+        "knowledge": "Bază de cunoștințe",
+        "messages": "Mesaje",
+        "models": "Modele",
+        "responses": "Răspunsuri"
+      }
+    }
+  },
   "appMenu": {
     "about": "Despre",
     "close": "Închide fereastra",

@@ -143,6 +143,7 @@ export const geminiRoutes = new Elysia({ prefix: '/v1beta' })
     },
     {
       body: GeminiGenerateContentBodySchema,
-      detail: { tags: ['Gemini'], summary: 'Generate content (Gemini dialect)' }
+      // i18n *keys*, not translated text — the docs translate them per request (see chat.ts).
+      detail: { tags: ['apiGateway.docs.tags.gemini'], summary: 'apiGateway.docs.summaries.generate_content' }
     }
   )

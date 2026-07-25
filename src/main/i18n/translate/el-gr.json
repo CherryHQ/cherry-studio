@@ -13,6 +13,34 @@
       }
     }
   },
+  "apiGateway": {
+    "docs": {
+      "description": "HTTP API συμβατό με OpenAI και Anthropic για το Cherry Studio, μαζί με ειδικά τελικά σημεία του Cherry (μοντέλα, βάσεις γνώσης)",
+      "summaries": {
+        "chat_completion": "Δημιουργία ολοκλήρωσης συνομιλίας",
+        "count_tokens": "Καταμέτρηση tokens για μηνύματα",
+        "create_message": "Δημιουργία μηνύματος",
+        "create_response": "Δημιουργία απόκρισης",
+        "generate_content": "Δημιουργία περιεχομένου (διάλεκτος Gemini)",
+        "get_knowledge_base": "Λήψη βάσης γνώσης βάσει ID",
+        "health": "Τελικό σημείο ελέγχου κατάστασης",
+        "info": "Πληροφορίες API",
+        "list_knowledge_bases": "Λίστα όλων των βάσεων γνώσης",
+        "list_models": "Λίστα διαθέσιμων μοντέλων",
+        "search_knowledge_bases": "Αναζήτηση σε βάσεις γνώσης"
+      },
+      "tags": {
+        "chat": "Συνομιλία",
+        "gemini": "Gemini",
+        "general": "Γενικά",
+        "health": "Κατάσταση",
+        "knowledge": "Βάση γνώσης",
+        "messages": "Μηνύματα",
+        "models": "Μοντέλα",
+        "responses": "Αποκρίσεις"
+      }
+    }
+  },
   "appMenu": {
     "about": "Σχετικά",
     "close": "Κλείσιμο Παραθύρου",

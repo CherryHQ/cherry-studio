@@ -21,6 +21,8 @@ const logger = loggerService.withContext('KnowledgeRoutes')
  * Redux, no renderer required. Handlers return success values (validated by the
  * `response` schemas) and throw for failures; the global `onError` shapes errors
  * (including `DataApiError` → the matching HTTP status).
+ *
+ * `detail.tags`/`summary` hold i18n *keys*, not translated text — see chat.ts.
  */
 export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
   .get(
@@ -40,7 +42,10 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
     {
       query: PaginationQuerySchema,
       response: { 200: ListKnowledgeBasesResponseSchema },
-      detail: { tags: ['Knowledge'], summary: 'List all knowledge bases' }
+      detail: {
+        tags: ['apiGateway.docs.tags.knowledge'],
+        summary: 'apiGateway.docs.summaries.list_knowledge_bases'
+      }
     }
   )
   .post(
@@ -134,11 +139,17 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
     {
       body: KnowledgeSearchSchema,
       response: { 200: SearchKnowledgeResponseSchema },
-      detail: { tags: ['Knowledge'], summary: 'Search knowledge bases' }
+      detail: {
+        tags: ['apiGateway.docs.tags.knowledge'],
+        summary: 'apiGateway.docs.summaries.search_knowledge_bases'
+      }
     }
   )
   .get('/:id', ({ params }) => knowledgeBaseService.getById(params.id), {
     params: KnowledgeBaseIdParamSchema,
     response: { 200: KnowledgeBaseResponseSchema },
-    detail: { tags: ['Knowledge'], summary: 'Get a knowledge base by ID' }
+    detail: {
+      tags: ['apiGateway.docs.tags.knowledge'],
+      summary: 'apiGateway.docs.summaries.get_knowledge_base'
+    }
   })

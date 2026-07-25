@@ -36,6 +36,18 @@ vi.mock('@logger', () => ({
   }
 }))
 
+// OpenAPI `detail`/`documentation` fields hold i18n *keys*; app.ts translates them
+// per request via `t()`. Stub `t` as `key::lang` (rather than a pure passthrough) so
+// the docs tests below can assert the requested language actually reached translation,
+// without needing the real catalog. `getAppLanguage`/`SUPPORTED_LANGUAGES` back the
+// docs' default language + language-switcher list — stub them since app.ts calls them
+// directly.
+vi.mock('@main/i18n', () => ({
+  t: (key: string, _params?: unknown, lang?: string) => (lang ? `${key}::${lang}` : key),
+  getAppLanguage: () => 'en-US',
+  SUPPORTED_LANGUAGES: ['en-US', 'zh-CN']
+}))
+
 // Heavy services are stubbed so building the app + exercising handlers never
 // touches the real AiService / data layer.
 vi.mock('../../proxyStream', () => ({
@@ -99,6 +111,60 @@ describe('API gateway routes (integration)', () => {
 
       const custom = await read(await get(buildApp({ host: '0.0.0.0', port: 8080 }), '/openapi/json', {}))
       expect(custom.body.servers).toEqual([{ url: 'http://0.0.0.0:8080' }])
+    })
+  })
+
+  describe('OpenAPI docs — per-language translation + switcher', () => {
+    it('GET /openapi/json (no ?lang=) translates against the app language', async () => {
+      const { status, body } = await read(await get(app, '/openapi/json', {}))
+      expect(status).toBe(200)
+      expect(body.info.description).toBe('apiGateway.docs.description::en-US')
+      expect(body.tags).toContainEqual({ name: 'apiGateway.docs.tags.health::en-US' })
+      const health = body.paths['/health'].get
+      expect(health.tags).toEqual(['apiGateway.docs.tags.health::en-US'])
+      expect(health.summary).toBe('apiGateway.docs.summaries.health::en-US')
+    })
+
+    it('GET /openapi/json?lang=zh-CN translates against the requested language', async () => {
+      const { body } = await read(await get(app, '/openapi/json?lang=zh-CN', {}))
+      expect(body.info.description).toBe('apiGateway.docs.description::zh-CN')
+      expect(body.paths['/health'].get.summary).toBe('apiGateway.docs.summaries.health::zh-CN')
+    })
+
+    it('GET /openapi/json?lang=not-a-real-language falls back to the app language', async () => {
+      const { body } = await read(await get(app, '/openapi/json?lang=not-a-real-language', {}))
+      expect(body.info.description).toBe('apiGateway.docs.description::en-US')
+    })
+
+    it('GET /openapi renders the description through t() (not a raw key) and points Scalar at the translated spec', async () => {
+      const res = await get(app, '/openapi', {})
+      expect(res.status).toBe(200)
+      expect(res.headers.get('content-type')).toContain('text/html')
+      const html = await res.text()
+      // The mocked `t()` embeds `::lang` on every call — the plain (untranslated) key never
+      // appears without it, so this proves the <meta description> went through translation.
+      expect(html).toContain('apiGateway.docs.description::en-US')
+      expect(html).not.toContain('apiGateway.docs.description"')
+
+      const configMatch = html.match(/data-configuration='(.+?)'/)
+      expect(configMatch).toBeTruthy()
+      const config = JSON.parse(configMatch![1])
+      expect(config.url).toBe('http://localhost/openapi/json?lang=en-US')
+      expect(config.localization).toEqual({ locale: 'en' })
+    })
+
+    it('GET /openapi renders a language dropdown offering every supported language, defaulting to the app language', async () => {
+      const html = await (await get(app, '/openapi', {})).text()
+      expect(html).toContain(`<option value="en-US" selected>English</option>`)
+      expect(html).toContain(`<option value="zh-CN">中文</option>`)
+    })
+
+    it('GET /openapi?lang=zh-CN renders Scalar chrome + the dropdown in the requested language', async () => {
+      const html = await (await get(app, '/openapi?lang=zh-CN', {})).text()
+      const config = JSON.parse(html.match(/data-configuration='(.+?)'/)![1])
+      expect(config.url).toBe('http://localhost/openapi/json?lang=zh-CN')
+      expect(config.localization).toEqual({ locale: 'zh-CN' })
+      expect(html).toContain(`<option value="zh-CN" selected>中文</option>`)
     })
   })
 

@@ -13,6 +13,34 @@
       }
     }
   },
+  "apiGateway": {
+    "docs": {
+      "description": "與 OpenAI 和 Anthropic 相容的 Cherry Studio HTTP API，另含 Cherry 專有介面（模型、知識庫）",
+      "summaries": {
+        "chat_completion": "建立對話補全",
+        "count_tokens": "統計訊息的 Token 數量",
+        "create_message": "建立訊息",
+        "create_response": "建立回應",
+        "generate_content": "生成內容（Gemini 方言）",
+        "get_knowledge_base": "依 ID 取得知識庫",
+        "health": "健康檢查介面",
+        "info": "API 資訊",
+        "list_knowledge_bases": "列出所有知識庫",
+        "list_models": "列出可用模型",
+        "search_knowledge_bases": "搜尋知識庫"
+      },
+      "tags": {
+        "chat": "對話",
+        "gemini": "Gemini",
+        "general": "通用",
+        "health": "健康檢查",
+        "knowledge": "知識庫",
+        "messages": "訊息",
+        "models": "模型",
+        "responses": "回應"
+      }
+    }
+  },
   "appMenu": {
     "about": "關於",
     "close": "關閉視窗",

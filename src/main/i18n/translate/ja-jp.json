@@ -13,6 +13,34 @@
       }
     }
   },
+  "apiGateway": {
+    "docs": {
+      "description": "Cherry Studio の OpenAI および Anthropic 互換 HTTP API に加え、Cherry 独自のエンドポイント（モデル、ナレッジベース）を提供します",
+      "summaries": {
+        "chat_completion": "チャット補完を作成",
+        "count_tokens": "メッセージのトークン数をカウント",
+        "create_message": "メッセージを作成",
+        "create_response": "レスポンスを作成",
+        "generate_content": "コンテンツを生成（Gemini 方言）",
+        "get_knowledge_base": "ID でナレッジベースを取得",
+        "health": "ヘルスチェックエンドポイント",
+        "info": "API 情報",
+        "list_knowledge_bases": "すべてのナレッジベースを一覧表示",
+        "list_models": "利用可能なモデルを一覧表示",
+        "search_knowledge_bases": "ナレッジベースを検索"
+      },
+      "tags": {
+        "chat": "チャット",
+        "gemini": "Gemini",
+        "general": "一般",
+        "health": "ヘルス",
+        "knowledge": "ナレッジベース",
+        "messages": "メッセージ",
+        "models": "モデル",
+        "responses": "レスポンス"
+      }
+    }
+  },
   "appMenu": {
     "about": "について",
     "close": "ウィンドウを閉じる",

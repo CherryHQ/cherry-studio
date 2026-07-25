@@ -13,6 +13,34 @@
       }
     }
   },
+  "apiGateway": {
+    "docs": {
+      "description": "HTTP API для Cherry Studio, совместимый с OpenAI и Anthropic, а также специфичные для Cherry эндпоинты (модели, базы знаний)",
+      "summaries": {
+        "chat_completion": "Создать завершение чата",
+        "count_tokens": "Подсчитать токены для сообщений",
+        "create_message": "Создать сообщение",
+        "create_response": "Создать ответ",
+        "generate_content": "Сгенерировать содержимое (диалект Gemini)",
+        "get_knowledge_base": "Получить базу знаний по ID",
+        "health": "Эндпоинт проверки состояния",
+        "info": "Информация об API",
+        "list_knowledge_bases": "Список всех баз знаний",
+        "list_models": "Список доступных моделей",
+        "search_knowledge_bases": "Поиск по базам знаний"
+      },
+      "tags": {
+        "chat": "Чат",
+        "gemini": "Gemini",
+        "general": "Общее",
+        "health": "Состояние",
+        "knowledge": "База знаний",
+        "messages": "Сообщения",
+        "models": "Модели",
+        "responses": "Ответы"
+      }
+    }
+  },
   "appMenu": {
     "about": "О",
     "close": "Закрыть окно",

@@ -94,6 +94,8 @@ const invalidRequest = (message: string) => ({
  * by `MessagesBodySchema`; validation and provider errors are shaped into the
  * Anthropic error envelope by the app's single root `onError` (`gatewayErrorHandler`),
  * which dispatches by request path to `anthropicErrorHandler` (see ../errors.ts).
+ *
+ * `detail.tags`/`summary` hold i18n *keys*, not translated text — see chat.ts.
  */
 export const messagesRoutes = new Elysia({ prefix: '/messages' })
   .post(
@@ -114,7 +116,7 @@ export const messagesRoutes = new Elysia({ prefix: '/messages' })
     },
     {
       body: MessagesBodySchema,
-      detail: { tags: ['Messages'], summary: 'Create message' }
+      detail: { tags: ['apiGateway.docs.tags.messages'], summary: 'apiGateway.docs.summaries.create_message' }
     }
   )
   .post(
@@ -130,6 +132,6 @@ export const messagesRoutes = new Elysia({ prefix: '/messages' })
     },
     {
       body: CountTokensBodySchema,
-      detail: { tags: ['Messages'], summary: 'Count tokens for messages' }
+      detail: { tags: ['apiGateway.docs.tags.messages'], summary: 'apiGateway.docs.summaries.count_tokens' }
     }
   )

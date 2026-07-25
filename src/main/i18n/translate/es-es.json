@@ -13,6 +13,34 @@
       }
     }
   },
+  "apiGateway": {
+    "docs": {
+      "description": "API HTTP compatible con OpenAI y Anthropic para Cherry Studio, además de endpoints específicos de Cherry (modelos, bases de conocimiento)",
+      "summaries": {
+        "chat_completion": "Crear completado de chat",
+        "count_tokens": "Contar tokens de los mensajes",
+        "create_message": "Crear mensaje",
+        "create_response": "Crear una respuesta",
+        "generate_content": "Generar contenido (dialecto Gemini)",
+        "get_knowledge_base": "Obtener una base de conocimiento por ID",
+        "health": "Endpoint de comprobación de estado",
+        "info": "Información de la API",
+        "list_knowledge_bases": "Listar todas las bases de conocimiento",
+        "list_models": "Listar los modelos disponibles",
+        "search_knowledge_bases": "Buscar en las bases de conocimiento"
+      },
+      "tags": {
+        "chat": "Chat",
+        "gemini": "Gemini",
+        "general": "General",
+        "health": "Estado",
+        "knowledge": "Base de conocimiento",
+        "messages": "Mensajes",
+        "models": "Modelos",
+        "responses": "Respuestas"
+      }
+    }
+  },
   "appMenu": {
     "about": "Acerca de",
     "close": "Cerrar ventana",

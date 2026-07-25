@@ -12,8 +12,10 @@ const ApiModelsFilterSchema = z.object({
 /**
  * `GET /v1/models`. `getModels` never throws (returns an empty
  * list on failure), so unexpected errors fall through to the global `onError`.
+ *
+ * `detail.tags`/`summary` hold i18n *keys*, not translated text — see chat.ts.
  */
 export const modelsRoutes = new Elysia({ prefix: '/models' }).get('/', ({ query }) => getModels(query), {
   query: ApiModelsFilterSchema,
-  detail: { tags: ['Models'], summary: 'List available models' }
+  detail: { tags: ['apiGateway.docs.tags.models'], summary: 'apiGateway.docs.summaries.list_models' }
 })
