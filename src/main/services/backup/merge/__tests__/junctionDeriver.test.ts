@@ -12,10 +12,10 @@ import { deriveJunctionDescriptors } from '../junctionDeriver'
 const registry = contributorManager.getRegistry()
 
 describe('deriveJunctionDescriptors', () => {
-  it('derives the 3 pure junctions for AGENTS+SKILLS+MCP_SERVERS (all AGENTS-owned, root endpoints)', () => {
-    const descs = deriveJunctionDescriptors(registry, ['AGENTS', 'SKILLS', 'MCP_SERVERS'])
+  it('derives the 4 pure junctions for AGENTS+SKILLS+MCP_SERVERS+KNOWLEDGE', () => {
+    const descs = deriveJunctionDescriptors(registry, ['AGENTS', 'SKILLS', 'MCP_SERVERS', 'KNOWLEDGE'])
     const tables = descs.map((d) => d.table).sort()
-    expect(tables).toEqual(['agent_channel_task', 'agent_mcp_server', 'agent_skill'])
+    expect(tables).toEqual(['agent_channel_task', 'agent_knowledge_base', 'agent_mcp_server', 'agent_skill'])
     for (const d of descs) {
       expect(d.ownerDomain).toBe('AGENTS')
       expect(d.sourceEndpoint.aggregatePath).toBe('root')
@@ -41,6 +41,17 @@ describe('deriveJunctionDescriptors', () => {
     expect(mcp!.sourceEndpoint.fkColumn).toBe('agentId')
     expect(mcp!.targetEndpoint.table).toBe('mcp_server')
     expect(mcp!.targetEndpoint.fkColumn).toBe('mcpServerId')
+  })
+
+  it('agent_knowledge_base: source agent (AGENTS) → target knowledge_base (KNOWLEDGE)', () => {
+    const knowledge = deriveJunctionDescriptors(registry, ['AGENTS', 'KNOWLEDGE']).find(
+      (d) => d.table === 'agent_knowledge_base'
+    )
+    expect(knowledge).toBeDefined()
+    expect(knowledge!.sourceEndpoint.table).toBe('agent')
+    expect(knowledge!.sourceEndpoint.fkColumn).toBe('agentId')
+    expect(knowledge!.targetEndpoint.table).toBe('knowledge_base')
+    expect(knowledge!.targetEndpoint.fkColumn).toBe('knowledgeBaseId')
   })
 
   it('agent_channel_task: both endpoints AGENTS roots (agent_channel + job_schedule)', () => {

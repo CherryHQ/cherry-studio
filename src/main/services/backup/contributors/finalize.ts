@@ -497,7 +497,8 @@ export function finalize(
   // ── #27: junctionRole on junction-phase tables only (scheme B / A8 ⑥) ────────
   // Junction-phase tables match deriveJunctionDescriptors' filter: not a
   // cascade:'include' member of any aggregate, AND ≥2 kind:'junction' refs.
-  // Today that is only AGENTS' agent_channel_task / agent_skill / agent_mcp_server.
+  // Today that is only AGENTS' agent_channel_task / agent_skill / agent_mcp_server /
+  // agent_knowledge_base.
   // The other 6 junction-ref tables are cascade-include members (or single-ref)
   // and never enter the global junction phase — they MUST NOT carry junctionRole
   // (#27b). #27a requires each junction-phase table declare exactly one source +

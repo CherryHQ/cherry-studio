@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { AGENTS_CONTRIBUTOR } from '../backupContributorAgents'
 
 describe('AGENTS contributor', () => {
-  it('owns the 9 agent tables (8 graph tables + job_schedule row-scope)', () => {
+  it('owns the 10 agent tables (9 graph tables + job_schedule row-scope)', () => {
     expect(AGENTS_CONTRIBUTOR.schema.tables).toEqual([
       table('agent'),
       table('agent_session'),
@@ -15,6 +15,7 @@ describe('AGENTS contributor', () => {
       table('agent_channel_task'),
       table('agent_skill'),
       table('agent_mcp_server'),
+      table('agent_knowledge_base'),
       table('job_schedule')
     ])
   })
@@ -83,6 +84,14 @@ describe('AGENTS contributor', () => {
     )
     expect(find('agent_mcp_server', 'mcpServerId')).toEqual(
       expect.objectContaining({ referencedDomain: 'MCP_SERVERS', kind: 'junction', junctionRole: 'target' })
+    )
+
+    // ── agent_knowledge_base (junction-phase: dual cascade) ──
+    expect(find('agent_knowledge_base', 'agentId')).toEqual(
+      expect.objectContaining({ referencedDomain: 'AGENTS', kind: 'junction', junctionRole: 'source' })
+    )
+    expect(find('agent_knowledge_base', 'knowledgeBaseId')).toEqual(
+      expect.objectContaining({ referencedDomain: 'KNOWLEDGE', kind: 'junction', junctionRole: 'target' })
     )
 
     // ── agent (scalar model refs → PROVIDERS, optional) ──

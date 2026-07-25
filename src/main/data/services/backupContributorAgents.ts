@@ -3,7 +3,7 @@
 // Co-located in the agent owning module (the agent/session/channel tables are
 // authored from src/main/ai + this flat data-services dir) per backup-architecture
 // §7 placement. This is the most structurally complex domain (architecture §5):
-// four independent aggregate roots + two junction tables + a shared-table row-scope.
+// four independent aggregate roots + four junction tables + a shared-table row-scope.
 //
 // Aggregate boundaries (§3.5 / §5):
 //  - agent_session (+ agent_session_message via sessionId): uuid-entity, SKIP.
@@ -25,6 +25,8 @@
 //    skillId→agent_global_skill → SKILLS domain).
 //  - agent_mcp_server: composite PK, dual cascade FK (agentId→agent +
 //    mcpServerId→mcp_server → MCP_SERVERS domain).
+//  - agent_knowledge_base: composite PK, dual cascade FK (agentId→agent +
+//    knowledgeBaseId→knowledge_base → KNOWLEDGE domain).
 //
 // Shared-table row-scope (§5 / invariant #5/#23):
 //  - job_schedule.type='agent.task' → AGENTS. job_schedule is a SHARED table (other
@@ -49,7 +51,7 @@ import { column, columns, mirrorPk, table } from '@main/data/db/backup/dbSchemaR
 import { deepFreeze } from '@main/data/db/backup/freeze'
 
 /**
- * AGENTS domain. Four independent aggregate roots + two junction tables + one
+ * AGENTS domain. Four independent aggregate roots + four junction tables + one
  * shared-table row-scope. conflictDefault derives per root: uuid-entity roots →
  * SKIP; agent_workspace + job_schedule(agent.task) → natural-key → FIELD_MERGE
  * (§6.2). All aggregates are renamable:false.
@@ -66,6 +68,7 @@ export const AGENTS_CONTRIBUTOR = deepFreeze<BackupContributor>({
       table('agent_channel_task'),
       table('agent_skill'),
       table('agent_mcp_server'),
+      table('agent_knowledge_base'),
       // job_schedule: AGENTS owns the type='agent.task' row partition. Listed as a
       // table so #12/#13 recognize its jsonSoftRef + aggregate; rowScopes below filter
       // export/restore to only agent.task rows (other job_schedule types are runtime).
@@ -166,6 +169,25 @@ export const AGENTS_CONTRIBUTOR = deepFreeze<BackupContributor>({
         junctionRole: 'target'
       },
 
+      // ── agent_knowledge_base (junction-phase: dual cascade) ────────────────
+      // agentId → agent: same-domain junction (cascade). #25-required.
+      {
+        table: table('agent_knowledge_base'),
+        column: column('agentId'),
+        referencedDomain: 'AGENTS',
+        kind: 'junction',
+        junctionRole: 'source'
+      },
+      // knowledgeBaseId → knowledge_base (KNOWLEDGE): cross-domain junction
+      // (cascade). #25-required.
+      {
+        table: table('agent_knowledge_base'),
+        column: column('knowledgeBaseId'),
+        referencedDomain: 'KNOWLEDGE',
+        kind: 'junction',
+        junctionRole: 'target'
+      },
+
       // ── agent (scalar model refs) ──────────────────────────────────────────
       // agent.model / planModel / smallModel → user_model (PROVIDERS): optional
       // (onDelete set null). Three #25-required FKs.
@@ -182,6 +204,7 @@ export const AGENTS_CONTRIBUTOR = deepFreeze<BackupContributor>({
       mirrorPk('agent_channel_task'),
       mirrorPk('agent_skill'),
       mirrorPk('agent_mcp_server'),
+      mirrorPk('agent_knowledge_base'),
       mirrorPk('job_schedule')
     ],
     aggregates: [

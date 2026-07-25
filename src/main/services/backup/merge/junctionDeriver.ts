@@ -5,9 +5,10 @@
 // would double-write). entity_tag is naturally excluded (its only ref is kind:'owning').
 //
 // Endpoints are resolved via `getForeignKeys` — `EntityReference` carries `referencedDomain`
-// only, not the target table. Stage-4 output: 3 descriptors — agent_skill, agent_mcp_server,
-// agent_channel_task — all ownerDomain AGENTS, all endpoints root tables (no member-table
-// endpoint among pure junctions; member-table endpoints belong to include-member junctions).
+// only, not the target table. Stage-4 output: 4 descriptors — agent_skill, agent_mcp_server,
+// agent_knowledge_base, agent_channel_task — all ownerDomain AGENTS, all endpoints root
+// tables (no member-table endpoint among pure junctions; member-table endpoints belong to
+// include-member junctions).
 //
 // Source vs target is resolved by explicit `EntityReference.junctionRole` (finalize #27a),
 // NOT by declaration order — a cosmetic reorder of the two junction refs is a silent no-op.
@@ -29,8 +30,8 @@ const resolveEndpoint = (
     throw new Error(`junctionDeriver: no FK on '${table}' for column '${ref.column}' (ref → ${ref.referencedDomain})`)
   }
   // Stage-4 pure-junction endpoints are all root tables (agent, agent_global_skill, mcp_server,
-  // agent_channel, job_schedule). Member-table endpoints (message/painting via file_ref) belong
-  // to include-member junctions, excluded by the caller.
+  // knowledge_base, agent_channel, job_schedule). Member-table endpoints (message/painting via
+  // file_ref) belong to include-member junctions, excluded by the caller.
   return { table: fk.targetTable, fkColumn: ref.column, aggregatePath: 'root' }
 }
 
