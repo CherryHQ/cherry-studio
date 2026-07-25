@@ -217,6 +217,24 @@
       "code": "Code",
       "code_unavailable": "Source view not available for binary files",
       "default_app": "Default app",
+      "edit": {
+        "conflict": {
+          "description": "This file changed on disk after editing started. Reloading will discard the current draft and load the latest file.",
+          "keep_draft": "Keep draft",
+          "reload": "Reload file",
+          "title": "File changed on disk"
+        },
+        "discard": "Discard changes",
+        "leave": {
+          "description": "If you continue, your unsaved changes to this file will be lost.",
+          "discard_and_continue": "Discard and continue",
+          "title": "Discard unsaved changes?"
+        },
+        "refresh_failed": "Unable to reload the latest file content.",
+        "save_failed": "Unable to save this file. Automatic saving is paused until you retry or discard the changes.",
+        "unsaved": "Unsaved",
+        "unsupported": "This file can be previewed but not safely edited here. Editing supports UTF-8 text files with consistent LF or CRLF line endings."
+      },
       "empty": {
         "description": "Start chatting with the agent; generated code and live previews will appear here.",
         "title": "Ready"
@@ -882,7 +900,8 @@
       "executing": "Executing...",
       "expired": "Expired",
       "inputPreview": "Tool input preview",
-      "pending": "Waiting for approval",
+      "pending": "Waiting for confirmation",
+      "pendingBadge": "Pending",
       "permissionExpired": "Permission request expired. Waiting for new instructions...",
       "requiresElevatedPermissions": "This tool requires elevated permissions.",
       "suggestion": {
@@ -2602,7 +2621,8 @@
     "edit": "Edit",
     "empty": {
       "no_match_description": "No files match the current filters",
-      "no_match_title": "No matching files found"
+      "no_match_title": "No matching files found",
+      "title": "No files yet"
     },
     "empty_trash": "Empty trash",
     "error": {
@@ -2999,9 +3019,8 @@
     "dimensions_size_placeholder": "Leave empty to not pass dimensions",
     "embedding_model": "Embedding Model",
     "embedding_model_required": "Knowledge base embedding model is required",
-    "empty": "No knowledge bases",
-    "empty_action": "Create Knowledge Base",
-    "empty_description": "You don't have any knowledge bases yet. Create one to start organizing and searching your documents.",
+    "empty": "No knowledge bases yet",
+    "empty_description": "Build up your knowledge with AI",
     "error": {
       "directory_not_migrated": "Folder migration failed. Please delete it and re-upload.",
       "failed_base_unknown": "This knowledge base failed during migration. Rebuild it and choose a new embedding model.",
@@ -4349,6 +4368,12 @@
     },
     "characters": "Characters",
     "collapse": "Collapse",
+    "conflict": {
+      "description": "This note was changed outside the editor. Reload to load the latest version (your unsaved edits will be discarded), or keep editing.",
+      "keep_draft": "Keep editing",
+      "reload": "Reload",
+      "title": "Note changed on disk"
+    },
     "content_placeholder": "Please enter the note content...",
     "copyContent": "Copy Content",
     "create_folder_failed": "Failed to create folder",
@@ -4370,7 +4395,13 @@
     "export_to_pdf_failed": "Failed to export to PDF",
     "export_to_pdf_success": "Exported to PDF",
     "export_to_word_failed": "Failed to export to Word",
+    "file_removed_draft": "This note was removed from disk. Your unsaved draft is still available in the editor.",
     "folder": "folder",
+    "leave": {
+      "description": "Leaving this note will discard your unsaved edits. Do you want to continue?",
+      "discard_and_continue": "Discard and continue",
+      "title": "Discard unsaved note edits?"
+    },
     "load_failed": "Failed to load note",
     "load_failed_description": "The file could not be read. Editing is disabled to protect the note content.",
     "metadata_sync_failed": "File updated, but note state sync failed. Please retry the operation.",
@@ -4393,6 +4424,9 @@
     "save": "Save to Notes",
     "save_blocked_load_failed": "Save blocked because the note failed to load",
     "save_failed": "Failed to save note",
+    "save_failure": {
+      "description": "This note could not be saved. Your edits remain in the editor and automatic saving is paused."
+    },
     "search": {
       "both": "Name+Content",
       "content": "Content",
@@ -6394,8 +6428,8 @@
       },
       "custom": {
         "css": {
-          "cherrycss": "Get from cherrycss.com",
           "label": "Custom CSS",
+          "migration_notice": "This stylesheet was migrated from v1 and is currently disabled. Adapt it for v2, then remove the first line to enable it.",
           "placeholder": "/* Put custom CSS here */"
         }
       },

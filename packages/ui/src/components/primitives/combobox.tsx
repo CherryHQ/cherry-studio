@@ -367,7 +367,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
               <button
                 type="button"
                 aria-label={getRemoveTagAriaLabel(option.label)}
-                className="inline-flex size-3 cursor-pointer items-center justify-center opacity-70 hover:opacity-100"
+                className="inline-flex size-3 cursor-pointer items-center justify-center opacity-70 hover:text-foreground hover:opacity-100"
                 onClick={(e) => handleRemoveTag(option.value, e)}
                 onKeyDown={(e) => handleRemoveTagKeyDown(option.value, e)}>
                 <X className="size-3" />

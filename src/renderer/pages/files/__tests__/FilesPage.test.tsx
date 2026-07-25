@@ -348,6 +348,35 @@ describe('FilesPage keyboard rename', () => {
     expect(screen.getByRole('button', { name: 'files.actions' })).toBeDisabled()
   })
 
+  it('shows the unified empty state once the file list loads empty', () => {
+    mockFileStats({ activeTotal: 0, trashTotal: 0, extCounts: [] })
+    mockFiles([])
+    render(<FilesPage />)
+
+    expect(screen.getByText('files.empty.title')).toBeInTheDocument()
+    expect(screen.queryByText('files.empty.no_match_title')).toBeNull()
+  })
+
+  it('shows loading feedback instead of an empty state while the file list is loading', () => {
+    mockFileStats({ activeTotal: 0, trashTotal: 0, extCounts: [] })
+    mockUseInfiniteQuery.mockImplementation(() => ({
+      pages: [],
+      isLoading: true,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn().mockResolvedValue(undefined),
+      reset: vi.fn(),
+      mutate: vi.fn().mockResolvedValue(undefined)
+    }))
+    render(<FilesPage />)
+
+    expect(screen.getByText('common.loading')).toBeInTheDocument()
+    expect(screen.queryByText('files.empty.title')).toBeNull()
+    expect(screen.queryByText('files.empty.no_match_title')).toBeNull()
+  })
+
   it('uses stats for type counts before all active pages are loaded', () => {
     mockFileStats({
       activeTotal: 170,
@@ -1073,6 +1102,42 @@ describe('FilesPage file operations', () => {
     await waitFor(() => {
       expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_permanent_delete', { ids: [externalEntry.id] })
     })
+  })
+
+  it('keeps image files visible while preview path enrichment is pending', () => {
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') return new Promise(() => {})
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      return Promise.resolve(input)
+    })
+    renderFilesPage([imageEntry])
+
+    fireEvent.click(screen.getByText('files.image'))
+
+    expect(screen.getByText('photo.png')).toBeInTheDocument()
+    expect(screen.queryByText('files.empty.title')).toBeNull()
+    expect(screen.queryByText('files.empty.no_match_title')).toBeNull()
+  })
+
+  it('keeps image files visible when preview path enrichment fails', async () => {
+    const errorSpy = vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') return Promise.reject(new Error('preview path failed'))
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      return Promise.resolve(input)
+    })
+    renderFilesPage([imageEntry])
+
+    fireEvent.click(screen.getByText('files.image'))
+
+    await waitFor(() => {
+      expect(errorSpy).toHaveBeenCalledWith('Failed to load file IPC metadata', expect.any(Error))
+    })
+    expect(screen.getByText('photo.png')).toBeInTheDocument()
+    expect(screen.queryByText('files.empty.title')).toBeNull()
+    expect(screen.queryByText('files.empty.no_match_title')).toBeNull()
   })
 
   it('shows image files in the image grid without view switch or selection controls', async () => {

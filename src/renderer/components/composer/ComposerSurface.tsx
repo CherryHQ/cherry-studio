@@ -42,7 +42,7 @@ import {
 } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
 import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './ComposerTokenNode'
-import { ComposerToolMenu } from './ComposerToolRuntime'
+import { ComposerToolMenu, useComposerPinnedTools } from './ComposerToolRuntime'
 import { type InputHistoryDirection, shouldHandleInputHistoryNavigation } from './inputHistoryNavigation'
 import pasteHandling from './paste/pasteHandling'
 import { useFileDragDrop } from './paste/useFileDragDrop'
@@ -588,6 +588,8 @@ export default function ComposerSurface({
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
+  const pinnedLauncherIds = useComposerPinnedTools()
+  const pinnedLauncherIdSet = useMemo(() => new Set(pinnedLauncherIds), [pinnedLauncherIds])
   const quickPanelRef = useRef(quickPanel)
   const { setTimeoutTimer } = useTimer()
   const [isEditingBorderHighlighted, setEditingBorderHighlighted] = useState(false)
@@ -960,6 +962,7 @@ export default function ComposerSurface({
     resourceProvider,
     rootPanelLeadingItems,
     rootPanelAdditionalItems,
+    pinnedLauncherIdSet,
     unifiedResourceItems
   })
 
@@ -972,12 +975,14 @@ export default function ComposerSurface({
       resourceProvider,
       rootPanelLeadingItems,
       rootPanelAdditionalItems,
+      pinnedLauncherIdSet,
       unifiedResourceItems
     }
   }, [
     getToolLaunchers,
     onRootPanelOpen,
     onToolLauncherSelect,
+    pinnedLauncherIdSet,
     quickPanel,
     resourceProvider,
     rootPanelAdditionalItems,
@@ -991,17 +996,26 @@ export default function ComposerSurface({
       inputAdapter,
       queryAnchor,
       resourceItems,
-      triggerInfo
+      triggerInfo,
+      includePinnedLaunchers = false
     }: {
       initialSearchText?: string
       inputAdapter?: QuickPanelInputAdapter
       queryAnchor?: number
       resourceItems?: readonly QuickPanelListItem[]
       triggerInfo?: QuickPanelTriggerInfo
+      includePinnedLaunchers?: boolean
     }): QuickPanelOpenOptions => {
-      const { getToolLaunchers, onToolLauncherSelect, quickPanel, rootPanelAdditionalItems, rootPanelLeadingItems } =
-        rootSuggestionStateRef.current
+      const {
+        getToolLaunchers,
+        onToolLauncherSelect,
+        pinnedLauncherIdSet,
+        quickPanel,
+        rootPanelAdditionalItems,
+        rootPanelLeadingItems
+      } = rootSuggestionStateRef.current
       const launchers = getToolLaunchers?.() ?? []
+      const isButtonRoot = (triggerInfo?.type ?? 'button') === 'button'
 
       return createUnifiedQuickPanelOpenOptions(launchers, {
         onToolLauncherSelect,
@@ -1013,7 +1027,8 @@ export default function ComposerSurface({
         resourceItems,
         queryAnchor,
         triggerInfo,
-        initialSearchText
+        initialSearchText,
+        excludedLauncherIds: isButtonRoot && !includePinnedLaunchers ? pinnedLauncherIdSet : undefined
       })
     },
     [t]
@@ -1140,12 +1155,15 @@ export default function ComposerSurface({
       triggerInfo?: QuickPanelTriggerInfo
     }) => {
       const { quickPanel } = rootSuggestionStateRef.current
+      // Opening a specific launcher is an explicit request, so it should not be filtered out by
+      // the pinned-launcher dedup that applies to the browsable root panel.
       const rootPanelOptions = createUnifiedPanelOptions({
         initialSearchText: searchText,
         inputAdapter,
         queryAnchor,
         resourceItems: [],
-        triggerInfo
+        triggerInfo,
+        includePinnedLaunchers: true
       })
       const launcherItem = rootPanelOptions.list.find((item) => item.id === launcherId)
       if (!launcherItem?.isMenu || launcherItem.disabled) return false
@@ -1906,6 +1924,7 @@ export default function ComposerSurface({
     rootQuickPanelTriggerInfo,
     rootPanelAdditionalItems,
     rootPanelLeadingItems,
+    pinnedLauncherIdSet,
     toolLaunchersVersion,
     unifiedResourceItems
   ])

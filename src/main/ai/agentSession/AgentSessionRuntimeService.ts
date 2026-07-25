@@ -741,7 +741,13 @@ export class AgentSessionRuntimeService extends BaseService {
    * falls back to MCP/DB path.
    */
   respondToolApproval(approvalId: string, decision: DispatchDecision): boolean {
-    return toolApprovalRegistry.dispatch(approvalId, decision)
+    const dispatched = toolApprovalRegistry.dispatch(approvalId, decision)
+    if (!dispatched) return false
+
+    application
+      .get('AiStreamManager')
+      .resolveToolApproval(buildAgentSessionTopicId(dispatched.sessionId), dispatched.toolCallId)
+    return true
   }
 
   abortPendingTurn(sessionId: string, reason: string): boolean {
@@ -1373,6 +1379,21 @@ export class AgentSessionRuntimeService extends BaseService {
 
   isCurrentTurnHeadless(sessionId: string): boolean {
     return this.entries.get(sessionId)?.currentTurn?.headless === true
+  }
+
+  /**
+   * Whether a chunk emitted right now would still reach a turn stream. Mirrors the `chunk` branch of
+   * the connection event loop, including the mid-roll buffer that replays into the continuation turn.
+   * `canUseTool` gates on this: a detached background agent can call a tool after its turn's result,
+   * and the approval chunk would be dropped here, leaving the SDK's promise pending with nobody able
+   * to answer it.
+   */
+  hasLiveTurnStream(sessionId: string): boolean {
+    const entry = this.entries.get(sessionId)
+    if (!entry) return false
+    if (entry.rolling === true) return true
+    const turn = entry.currentTurn
+    return turn?.controller !== undefined && turn.terminalStatus === undefined
   }
 
   private startRuntimeRootSpan(
