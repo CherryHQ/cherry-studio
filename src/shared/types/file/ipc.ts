@@ -128,6 +128,12 @@ export type CreateInternalEntryIpcParams =
  * `canonicalizeFilePath()` (`@shared/utils/file/canonicalize`) — not at IPC
  * parse time.
  *
+ * The two gates are not the same set, so passing this boundary does NOT
+ * guarantee the entry can be created: a UNC `externalPath` is a valid
+ * `AbsoluteFilePath` and is accepted here, then rejected by
+ * `canonicalizeFilePath()` inside `ensureExternalEntry`. UNC files can be read
+ * and copied into internal entries; they cannot become external ones.
+ *
  * What stays main-only is the **disambiguation** step beyond canonicalization:
  * `ensureExternalEntry` additionally runs `fs.realpath` to resolve
  * case-insensitive-filesystem collisions (see `internal/entry/create.ts`),

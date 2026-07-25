@@ -12,9 +12,15 @@
  * explicitly via `canonicalizeFilePath`, which produces the `CanonicalFilePath`
  * sub-brand, at the external-path persistence / lookup boundary.
  *
+ * `CanonicalFilePath` is a **proper** subset of `AbsoluteFilePath`, and the gap
+ * is not only unrepaired spelling: some absolute paths have no canonical form
+ * here at all (UNC — see below), so `canonicalizeFilePath` is a partial
+ * function over `AbsoluteFilePath` and throws rather than returning a key it
+ * cannot compute.
+ *
  * ## Scope (this function's contract)
  *
- *   0. Reject null bytes (`\0`).
+ *   0. Reject null bytes (`\0`) and UNC (`\\server\share\…`).
  *   1. Resolve segments (`.`, `..`, repeated separators).
  *   2. Strip trailing separator (except on a bare drive / POSIX root).
  *   3. Windows only: uppercase the drive letter, normalize separators to `\`.
@@ -122,6 +128,21 @@ export const CanonicalFilePathSchema = AbsoluteFilePathSchema.refine(
  * and used as the dedup / lookup key. Inferred from `CanonicalFilePathSchema`,
  * so its definition style matches `AbsoluteFilePath`. A `CanonicalFilePath` IS a
  * `AbsoluteFilePath`, accepted anywhere an `AbsoluteFilePath` is.
+ *
+ * **The converse does not hold, and not merely by spelling.** It is tempting to
+ * read the subset as "every `AbsoluteFilePath` is one `canonicalizeFilePath()`
+ * call away from being canonical" — that was true when the only difference was
+ * a repairable spelling (trailing separator, `./`/`../`, lowercase drive). It
+ * is not true now: UNC (`\\server\share\…`) is a valid `AbsoluteFilePath` that
+ * `canonicalizeFilePath` REJECTS, so it can never be mapped in at all. The two
+ * brands answer different questions (safe for `fs` vs. safe as a persisted
+ * dedup key) and the second is not a spelling-normalization of the first.
+ *
+ * Practical consequence for call sites: `canonicalizeFilePath(x)` on a value
+ * already typed `AbsoluteFilePath` can still throw. Code that must stay total
+ * has to handle that — see `accessiblePath.ts`, where containment degrades to
+ * "not contained" rather than propagating. See
+ * `docs/references/file/file-manager-architecture.md §1.2 "UNC paths"`.
  */
 export type CanonicalFilePath = z.infer<typeof CanonicalFilePathSchema>
 
@@ -133,8 +154,12 @@ export type CanonicalFilePath = z.infer<typeof CanonicalFilePathSchema>
  * lookup/persistence key (external-entry write + `findByExternalPath`) go
  * through here.
  *
- * @throws if `input` is not absolute / contains a null byte (delegated to the
- *   canonicalization algorithm, before branding).
+ * Not total over `AbsoluteFilePath`: a UNC input is a valid `AbsoluteFilePath`
+ * and still throws here. Callers holding an already-branded value cannot
+ * assume this call succeeds.
+ *
+ * @throws if `input` is not absolute / contains a null byte / is UNC
+ *   (delegated to the canonicalization algorithm, before branding).
  */
 export function canonicalizeFilePath(input: string): CanonicalFilePath {
   return CanonicalFilePathSchema.parse(canonicalizeAbsolutePath(input))

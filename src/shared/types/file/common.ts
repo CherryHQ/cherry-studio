@@ -38,6 +38,8 @@ export type FileType = z.infer<typeof FileTypeSchema>
  * a distinct `CanonicalFilePath` produced by `canonicalizeFilePath()`
  * (`@shared/utils/file/canonicalize`); it is applied explicitly at the
  * external-path persistence / lookup boundary, not on every `AbsoluteFilePath` parse.
+ * Not every `AbsoluteFilePath` HAS a canonical form — UNC does not, so
+ * `canonicalizeFilePath()` on an already-branded value can still throw.
  *
  * The `z.brand` is a phantom brand — zero runtime cost, dropped on IPC
  * serialization; receivers re-assert via `AbsoluteFilePathSchema.parse()` at the
@@ -76,6 +78,11 @@ export type AbsoluteFilePath = z.infer<typeof AbsoluteFilePathSchema>
  * in `@shared/utils/file/canonicalize` (co-located with its schema and the
  * `canonicalizeFilePath()` factory, which is the only place that can build both
  * the value and its brand). It is not re-exported here.
+ *
+ * The subset is PROPER and not merely a spelling difference: the two brands
+ * answer different questions (safe to hand to `fs` vs. safe to persist as a
+ * dedup key), so a valid `AbsoluteFilePath` may have no `CanonicalFilePath`
+ * counterpart at all. See that module's JSDoc for the full contract.
  */
 
 // TODO: Add schema for them
