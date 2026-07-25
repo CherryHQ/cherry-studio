@@ -28,10 +28,10 @@ import { readFile, readFileModelOutput } from '../fileLookup'
 const att = (handle: string): FileAttachmentRef => ({ fileEntryId: 'e1', handle, displayName: handle })
 const ctx = (attachments: FileAttachmentRef[]) => ({ attachments })
 
-// offset/limit are `.nullable()` (required under `strict: true`); default them to null here.
-const input = (rest: { filename: string; offset?: number | null; limit?: number | null }): ReadFileInput => ({
-  offset: null,
-  limit: null,
+// offset/limit are required numbers (under `strict: true`) with 0 meaning "default"; default them here.
+const input = (rest: { filename: string; offset?: number; limit?: number }): ReadFileInput => ({
+  offset: 0,
+  limit: 0,
   ...rest
 })
 
