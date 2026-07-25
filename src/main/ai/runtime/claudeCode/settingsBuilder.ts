@@ -39,6 +39,7 @@ import {
 import { PromptBuilder } from '@main/ai/agents/prompt'
 import AgentMemoryServer from '@main/ai/mcp/servers/agentMemory'
 import AssistantServer from '@main/ai/mcp/servers/assistant'
+import { AssistantFileToolsServer } from '@main/ai/mcp/servers/AssistantFileToolsServer'
 import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
 import SkillsServer from '@main/ai/mcp/servers/skills'
 import { createSdkMcpServerInstance } from '@main/ai/runtime/claudeCode/createSdkMcpServerInstance'
@@ -48,6 +49,8 @@ import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/cla
 import {
   ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
   ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES,
+  ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES,
+  ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES,
   CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
   CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES,
   toCherryBuiltinRuntimeName
@@ -115,7 +118,11 @@ const CHERRY_BUILTIN_APPROVAL_REQUIRED_RUNTIME_NAMES =
 
 function approvalRequiredRuntimeNames(assistantMcpEnabled: boolean): readonly string[] {
   return assistantMcpEnabled
-    ? [...CHERRY_BUILTIN_APPROVAL_REQUIRED_RUNTIME_NAMES, ...ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES]
+    ? [
+        ...CHERRY_BUILTIN_APPROVAL_REQUIRED_RUNTIME_NAMES,
+        ...ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
+        ...ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES
+      ]
     : CHERRY_BUILTIN_APPROVAL_REQUIRED_RUNTIME_NAMES
 }
 const WORKSPACE_PATH_FIELDS = {
@@ -759,7 +766,9 @@ async function buildToolPermissions(
       ...CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
       // Assistant MCP read-only lookups are explicit opt-ins. Sensitive and mutating tools must go
       // through per-call approval.
-      ...(assistantMcpEnabled ? ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES : [])
+      ...(assistantMcpEnabled
+        ? [...ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES, ...ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES]
+        : [])
     ],
     // Side-effecting and local-data-reading built-in tools must still prompt for approval.
     autoAllowRuntimeNameExceptions: approvalRequiredTools,
@@ -1301,6 +1310,15 @@ export function buildMcpServers(
   if (assistantMcpEnabled) {
     const assistantServer = new AssistantServer(agent.model ?? undefined)
     mcpList.assistant = { type: 'sdk', name: 'assistant', instance: assistantServer.mcpServer }
+    const fileToolsServer = new AssistantFileToolsServer({
+      sessionId: session.id,
+      workspacePath: session.workspace.path
+    })
+    mcpList['assistant-files'] = {
+      type: 'sdk',
+      name: 'assistant-files',
+      instance: fileToolsServer.mcpServer
+    }
     logger.debug('Cherry Assistant: injected assistant MCP server', {
       agentId: session.agentId,
       totalMcpServers: Object.keys(mcpList).length
@@ -1429,7 +1447,9 @@ export function adjustAllowedToolsForMcp(assistantMcpEnabled: boolean): string[]
   // search_skills is a read-only marketplace lookup — auto-approve it. install_skill mutates
   // (clones + installs third-party code), so it deliberately stays on per-call approval.
   result.push('mcp__skills__search_skills')
-  if (assistantMcpEnabled) result.push(...ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES)
+  if (assistantMcpEnabled) {
+    result.push(...ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES, ...ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES)
+  }
   return result
 }
 

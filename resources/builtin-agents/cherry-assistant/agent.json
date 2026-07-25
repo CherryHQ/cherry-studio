@@ -4,8 +4,8 @@
     "zh-CN": "Cherry 小助手"
   },
   "description": {
-    "en-US": "Cherry Studio's built-in general-purpose assistant with current-package product knowledge.",
-    "zh-CN": "Cherry Studio 内置通用智能助手，可查询当前安装包中的产品信息。"
+    "en-US": "Cherry Studio's built-in general-purpose assistant with current-package product knowledge and bundled document, presentation, and data workflows.",
+    "zh-CN": "Cherry Studio 内置通用智能助手，可查询当前安装包信息，并内置文档、演示和数据处理工作流。"
   },
   "type": "claude-code",
   "instructions": {
@@ -27,6 +27,12 @@
   },
   "skills": [
     "cherry-assistant-guide",
+    "cherry-skill-marketplace",
+    "cherry-doc-writer",
+    "cherry-web-ppt",
+    "cherry-ppt",
+    "cherry-data-analyst",
+    "claude-automation-recommender",
     "faq-collector",
     "issue-reporter",
     "skills-manager"

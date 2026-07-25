@@ -5,6 +5,7 @@ import path from 'node:path'
 
 import {
   ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
+  ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES,
   CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
   toCherryBuiltinRuntimeName
 } from '@main/ai/tools/adapters/claudeCode/cherryBuiltinApproval'
@@ -17,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   getBuiltinAgentPluginDirectory: vi.fn(),
   loadBuiltinAgentDefinition: vi.fn(),
   createAssistantServer: vi.fn(() => ({ mcpServer: {} })),
+  createAssistantFileToolsServer: vi.fn(() => ({ mcpServer: {} })),
   listSkills: vi.fn(),
   listLocalSkills: vi.fn(),
   getSkillPluginDirectory: vi.fn(),
@@ -113,6 +115,10 @@ vi.mock('@main/ai/agents/prompt', () => ({
 
 vi.mock('@main/ai/mcp/servers/assistant', () => ({
   default: mocks.createAssistantServer
+}))
+
+vi.mock('@main/ai/mcp/servers/AssistantFileToolsServer', () => ({
+  AssistantFileToolsServer: mocks.createAssistantFileToolsServer
 }))
 
 vi.mock('@main/ai/runtime/claudeCode/createSdkMcpServerInstance', () => ({
@@ -606,7 +612,8 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.permissionMode).toBe('bypassPermissions')
     const requiredTools = [
       ...CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.map(toCherryBuiltinRuntimeName),
-      ...ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES
+      ...ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
+      ...ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES
     ]
     for (const toolName of requiredTools) {
       await expect(permissionDecisions(toolName)).resolves.toContain('ask')
@@ -1137,13 +1144,18 @@ describe('buildClaudeCodeSessionSettings', () => {
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
     expect(settings.mcpServers?.assistant).toBeDefined()
+    expect(settings.mcpServers?.['assistant-files']).toBeDefined()
     // Only read-only Assistant tools are pre-approved. Mutations and diagnose use per-call approval.
     expect(settings.allowedTools).toContain('mcp__assistant__navigate')
     expect(settings.allowedTools).toContain('mcp__assistant__product_info')
+    expect(settings.allowedTools).toContain('mcp__assistant-files__read_file')
     expect(settings.allowedTools).not.toContain('mcp__assistant__apply_setting')
     expect(settings.allowedTools).not.toContain('mcp__assistant__create_agent')
     expect(settings.allowedTools).not.toContain('mcp__assistant__*')
     expect(settings.allowedTools).not.toContain('mcp__assistant__diagnose')
+    expect(settings.allowedTools).not.toContain('mcp__assistant-files__save_attachment')
+    expect(settings.allowedTools).not.toContain('mcp__assistant-files__export_office')
+    expect(settings.allowedTools).not.toContain('mcp__assistant-files__*')
     const snapshotOptions = mocks.createToolPolicySnapshot.mock.calls.at(-1)?.[1]
     expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__navigate')
     expect(snapshotOptions.autoAllowRuntimeNames).toContain('mcp__assistant__product_info')
@@ -1151,10 +1163,17 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__create_agent')
     expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__diagnose')
     expect(snapshotOptions.autoAllowRuntimeNameExceptions).toEqual(
-      expect.arrayContaining([...ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES])
+      expect.arrayContaining([
+        ...ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
+        ...ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES
+      ])
     )
     expect(snapshotOptions.autoAllowRuntimeNamePrefixes ?? []).toEqual([])
     expect(mocks.createAssistantServer).toHaveBeenCalledWith('anthropic::claude-sonnet')
+    expect(mocks.createAssistantFileToolsServer).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      workspacePath: '/workspace/project'
+    })
 
     const cherryServer = (settings.mcpServers?.['cherry-tools'] as any)?.instance
     const handlers = cherryServer.server._requestHandlers
@@ -1202,7 +1221,9 @@ describe('buildClaudeCodeSessionSettings', () => {
     })
 
     expect(settings.mcpServers?.assistant).toBeDefined()
+    expect(settings.mcpServers?.['assistant-files']).toBeDefined()
     expect(settings.allowedTools).toContain('mcp__assistant__navigate')
+    expect(settings.allowedTools).toContain('mcp__assistant-files__read_file')
     expect(settings.systemPrompt).not.toContain(CHANNEL_SECURITY_PROMPT)
     expect(mocks.findBySessionId).not.toHaveBeenCalled()
   })
@@ -1227,8 +1248,10 @@ describe('buildClaudeCodeSessionSettings', () => {
     const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
 
     expect(settings.mcpServers?.assistant).toBeUndefined()
+    expect(settings.mcpServers?.['assistant-files']).toBeUndefined()
     expect(settings.allowedTools).not.toContain('mcp__assistant__navigate')
     expect(settings.allowedTools).not.toContain('mcp__assistant__product_info')
+    expect(settings.allowedTools).not.toContain('mcp__assistant-files__read_file')
     const snapshotOptions = mocks.createToolPolicySnapshot.mock.calls.at(-1)?.[1]
     expect(snapshotOptions.autoAllowRuntimeNames).not.toContain('mcp__assistant__navigate')
   })
