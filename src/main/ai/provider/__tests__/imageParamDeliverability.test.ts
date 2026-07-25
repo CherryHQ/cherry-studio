@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-import type { EndpointType } from '@shared/data/types/model'
+import { wireName } from '@cherrystudio/provider-registry'
+import type { CanonicalParamKey, EndpointType } from '@shared/data/types/model'
 import type { AuthConfig } from '@shared/data/types/provider'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -33,6 +34,10 @@ import { resolveWireRegistration, type WireProfile } from '../custom/wire/wirePr
  * green on it. Tightening that needs a per-vendor accepted-field set, which the
  * `custom/__tests__/boundary/` snapshots own model by model. Read a green run as
  * "no declared key is dropped on the way to the wire" — nothing stronger.
+ *
+ * The second suite below closes the reverse direction, which needs no vendor knowledge:
+ * a `passthrough: 'wire'` key must not carry a wire name that OVERWRITES a body field
+ * the SDK already wrote.
  */
 
 // providerToAiSdkConfig reads the rotated API key (and Vertex/Bedrock auth) off the
@@ -110,26 +115,32 @@ function profileCovers(profile: WireProfile, key: string): boolean {
   return (profile.forward ?? []).includes(key as never) || key in (profile.fields ?? {})
 }
 
+/** Resolve a declaration through the real production path — no resolution logic here. */
+function resolveSdkConfig({ override, provider }: (typeof declarations)[number]) {
+  return providerToAiSdkConfig(
+    makeProvider({
+      id: provider.id,
+      defaultChatEndpoint: provider.defaultChatEndpoint,
+      endpointConfigs: provider.endpointConfigs as never
+    }),
+    makeModel({
+      id: `${override.providerId}::${override.modelId}`,
+      apiModelId: override.modelId,
+      providerId: override.providerId,
+      endpointTypes: override.endpointTypes
+    })
+  )
+}
+
 describe('registry image params are deliverable on the runtime wire', () => {
   it('covers every provider that declares image generation', () => {
     expect(declarations.length).toBeGreaterThan(0)
     expect(new Set(declarations.map((d) => d.override.providerId)).size).toBeGreaterThan(5)
   })
 
-  it.each(declarations)('$override.providerId / $override.modelId ($mode)', async ({ override, provider, keys }) => {
-    const sdkConfig = await providerToAiSdkConfig(
-      makeProvider({
-        id: provider.id,
-        defaultChatEndpoint: provider.defaultChatEndpoint,
-        endpointConfigs: provider.endpointConfigs as never
-      }),
-      makeModel({
-        id: `${override.providerId}::${override.modelId}`,
-        apiModelId: override.modelId,
-        providerId: override.providerId,
-        endpointTypes: override.endpointTypes
-      })
-    )
+  it.each(declarations)('$override.providerId / $override.modelId ($mode)', async (declaration) => {
+    const { override, keys } = declaration
+    const sdkConfig = await resolveSdkConfig(declaration)
 
     // A transport builds its own envelope from the raw canonical bag, so every key
     // reaches it; otherwise the key must be a native AI SDK option, mapped by the
@@ -155,5 +166,52 @@ describe('registry image params are deliverable on the runtime wire', () => {
     )
 
     expect(undeliverable, `no wire route under providerOptions.${sdkConfig.optionsKey}`).toEqual([])
+  })
+})
+
+/**
+ * Fields `@ai-sdk/openai-compatible` writes into the image body itself, BEFORE spreading
+ * the passthrough bag: `{ model, prompt, n, size, ...args }` — args last, so it wins.
+ */
+const OPENAI_COMPAT_OWNED_BODY_FIELDS = new Set(['model', 'prompt', 'n', 'size'])
+
+/** The canonical key `AI_SDK_NATIVE_BINDINGS` routes into each owned field. */
+const NATIVE_KEY_BY_OWNED_FIELD: Record<string, string | undefined> = { n: 'numImages', size: 'size' }
+
+/**
+ * The other half of the contract: a `passthrough: 'wire'` body IS the HTTP body, so a
+ * declared key whose catalog wire name collides with a field the SDK already wrote
+ * OVERWRITES it rather than adding to it — the control silently wins over the native
+ * param, which is the #17394 failure mode with the arrow reversed.
+ *
+ * `imageResolution` is the live hazard (catalog wire name `size`). No model declares it
+ * alongside the native `size` today, so this passes; it fails the day one does.
+ */
+describe('wire-passthrough bodies do not shadow a native AI SDK field', () => {
+  it('no declared key overwrites a body field the SDK writes itself', async () => {
+    const offenders: string[] = []
+
+    for (const declaration of declarations) {
+      const sdkConfig = await resolveSdkConfig(declaration)
+      if (resolveWireRegistration(sdkConfig.providerId).passthrough !== 'wire') continue
+
+      const { keys } = declaration
+      const shadowing = keys.filter((key) => {
+        if (nativeBindingFor(key)) return false // native keys are routed, never in the bag
+        const field = wireName(key as CanonicalParamKey)
+        if (!OPENAI_COMPAT_OWNED_BODY_FIELDS.has(field)) return false
+        // `model`/`prompt` are always written, so any collision is real; `n`/`size` only
+        // carry a value when the model also declares the native key.
+        const nativeKey = NATIVE_KEY_BY_OWNED_FIELD[field]
+        return nativeKey === undefined || keys.includes(nativeKey)
+      })
+
+      if (shadowing.length > 0) {
+        const { override, mode } = declaration
+        offenders.push(`${override.providerId}/${override.modelId} (${mode}): ${shadowing.join(', ')}`)
+      }
+    }
+
+    expect(offenders).toEqual([])
   })
 })
