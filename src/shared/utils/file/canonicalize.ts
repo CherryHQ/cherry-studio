@@ -42,11 +42,19 @@
  *
  * ## Rule-evolution discipline
  *
- * The steps above are lexical only and do not depend on filesystem Unicode
- * semantics, so they do NOT carry the "changing the rule desyncs historical
- * rows, requiring a paired re-canonicalize migration" hazard that the removed
- * NFC step did. See `docs/references/file/file-manager-architecture.md §1.2
- * "Residual normalization discipline"`.
+ * Dropping the NFC step removed a *reachability* hazard, not the *desync* one:
+ * this function's output is a byte-compare key persisted in
+ * `file_entry.externalPath`, so ANY change that changes its output leaves
+ * historical rows unreachable by new lookups — whether or not the changed step
+ * touches the filesystem. Every step above is output-sensitive.
+ *
+ * **Rule**: modifying this function ≡ ship a paired Drizzle migration that
+ * re-canonicalizes every `origin='external'` row in the same PR. The only
+ * current exemption is that v2 has not shipped, so no such rows exist yet; it
+ * expires with the first release. See
+ * `docs/references/file/file-manager-architecture.md §1.2 "Rule-evolution
+ * discipline"` for the full procedure (row merging, atomicity, cache
+ * invalidation).
  */
 
 import { AbsoluteFilePathSchema } from '@shared/types/file'

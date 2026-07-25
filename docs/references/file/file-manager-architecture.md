@@ -71,7 +71,7 @@ CREATE UNIQUE INDEX fe_external_path_lower_unique_idx
 - Null-byte rejection — `raw.includes('\0')` → throw, so poisoned paths never reach DB persistence (reject at the earliest boundary, not at use-time inside `resolvePhysicalPath`)
 - `path.resolve(raw)` → absolutize + eliminate `./` `../`
 - Trailing separator trimming
-- Windows: drive-letter case folding (`c:\` → `C:\`)
+- Windows: drive-letter case folding (`c:\` → `C:\`) and separator normalization to `\` (so `C:/a/b` and `C:\a\b` share one stored form)
 
 These steps are purely lexical (no FS IO). **Unicode (NFC) normalization is deliberately NOT a step here** — an NFC-rewritten NFD path would not exist on disk on normalization-*sensitive* filesystems, so byte-faithful storage is what keeps the stored path reachable (see [Rejected](#rejected-unicode-nfc-normalization-of-externalpath) below). The `./`/`../` collapse, by contrast, is *not* guaranteed to preserve the on-disk target across symlinks/junctions (`/a/link/../b` ≠ `/a/b` if `link` resolves elsewhere) — this cleanup is a lexical dedup-key normalizer, **not** a reachability/security primitive; use `fs.realpath` at the main-process boundary when true target equivalence matters.
 
@@ -93,7 +93,33 @@ An earlier design NFC-normalized `externalPath` (inside `canonicalizeFilePath`) 
 
 If real NFD/NFC duplicates are ever *observed*, the correct fix is an FS-aware `fs.realpath` fold at the collision probe (run only when the file exists), **never** re-introducing Unicode normalization into `canonicalizeFilePath` or the stored form.
 
-> **Residual normalization discipline.** What remains in `canonicalizeFilePath` is the lexical cleanup listed under "Normalization scope". It does not depend on filesystem semantics, so it does not carry the "changing the rule desyncs historical rows, requiring a paired re-canonicalize migration" hazard that the rejected NFC step did. (v2 has no shipped data to migrate regardless — schemas and rows are pre-release throwaway.)
+#### Rule-evolution discipline
+
+Removing the NFC step removed a *reachability* hazard (an NFC-rewritten path does not exist on disk). It did **not** remove the *desync* hazard, which is a separate problem with a separate cause: the canonical form is **application-layer logic** whose output is used as a **byte-compare key**. Any change to `canonicalizeFilePath` that changes its output desynchronizes historical rows (written under the old rule) from new queries (running under the new rule) — regardless of whether the step consults the filesystem. The failure is silent: byte-compare misses, the user sees "my file is in the library but the app says it isn't", and `ensureExternalEntry` inserts a duplicate.
+
+Every remaining step is output-sensitive. The `./`/`../` collapse is the likeliest one to be revisited, precisely because "Normalization scope" above already records that it is not target-preserving across symlinks; changing it would invalidate every stored row containing a collapsed segment.
+
+**Rule**: modifying `canonicalizeFilePath` ≡ ship a paired Drizzle migration that re-canonicalizes every existing `file_entry` row with `origin='external'` in the **same PR**. No exceptions — even if the new rule is claimed "strictly more permissive", the byte-compare will still miss.
+
+> **Current exception (expires at the first shipped release).** v2 has never shipped, so there are no historical rows to desync — `src/main/data/db/schemas/` and `migrations/sqlite-drizzle/` are pre-release throwaway per [CLAUDE.md](../../../CLAUDE.md). That is why removing the NFC step needed no paired migration. This exemption is temporal, not a property of the rule: it stops applying the moment a release writes real user rows, and it never covered the rule itself.
+
+When a rule change additionally collapses previously-distinct strings to the same canonical form (e.g. folding `/` and `\` on Windows merges `C:/a` and `C:\a`), the migration MUST also merge the colliding rows. The rules below are prescriptive; follow them exactly rather than improvising per-migration.
+
+**Winner selection when merging rows**:
+
+1. Oldest `createdAt` wins (preserves user-visible history — a 3-year-old entry's creation timestamp is more valuable than a 3-day-old one's).
+2. Tiebreaker: highest ref count (keeps the entry that more of the user's data already points at).
+3. Final tiebreaker: smallest `id` by lexicographic order (deterministic, no FS-state dependency).
+
+**Losers' dependents** (executed in the same Drizzle transaction as the merge):
+
+- Association rows with `fileEntryId = loser.id` → update to `winner.id`. No deduplication inside each table's `UNIQUE(fileEntryId, sourceId, role)` constraint is expected because each `(sourceId, role)` pair originally referenced only one entry; if violations occur, the update conflicts and the migration fails loudly (do not silently `ON CONFLICT DO NOTHING` — investigate).
+- `file_entry.id = loser.id` → delete.
+- Any downstream consumer of `loser.id` (future `file_upload.fileEntryId`, business-service caches keyed by entryId) MUST be enumerated and updated in the same migration. If you add a new table that references `file_entry.id`, the canonicalization migration procedure expands — document the expansion alongside the table's schema.
+
+**Atomicity**: the entire re-canonicalize + merge operation runs in one Drizzle migration transaction. On failure the DB rolls back to the pre-migration state and the next startup re-attempts; partial progress is not possible.
+
+**Renderer-side cache invalidation**: after the migration runs, some React Query caches keyed by the loser's `id` may be stale. Because migrations execute before the renderer boots, this is self-healing on the first query — no special coordination required.
 
 #### Duplicate-entry detection on insert
 
