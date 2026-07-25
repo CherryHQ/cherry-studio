@@ -30,7 +30,10 @@ describe('htmlArtifactRequiresUserConsent', () => {
     '<a href="https://example.com">External link</a>',
     '<img src="//example.com/image.png" alt="">',
     '<div style="background-image: url(https://example.com/image.png)"></div>',
-    '<style>@import "https://example.com/style.css";</style>'
+    '<style>@import "https://example.com/style.css";</style>',
+    '<img src="ht&#x0A;tps://example.com/pixel" alt="">',
+    String.raw`<div style="background-image: url(\68 ttps://example.com/image.png)"></div>`,
+    String.raw`<style>@import "\68 ttps://example.com/style.css";</style>`
   ])('requires consent for external resources: %s', (html) => {
     expect(htmlArtifactRequiresUserConsent(html)).toBe(true)
   })

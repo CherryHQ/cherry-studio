@@ -234,6 +234,7 @@ describe('MainWindowService', () => {
         nodeIntegration: true,
         nodeIntegrationInSubFrames: true,
         preload: '/unsafe/preload.js',
+        safeDialogs: false,
         sandbox: false,
         webSecurity: false
       }
@@ -249,6 +250,7 @@ describe('MainWindowService', () => {
         contextIsolation: true,
         nodeIntegration: false,
         nodeIntegrationInSubFrames: false,
+        safeDialogs: true,
         sandbox: true,
         webSecurity: true
       })

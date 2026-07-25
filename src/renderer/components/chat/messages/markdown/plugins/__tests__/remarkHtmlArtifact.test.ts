@@ -7,7 +7,7 @@ import { remarkHtmlArtifact } from '../remarkHtmlArtifact'
 
 function parse(source: string): Root {
   const processor = unified().use(remarkParse).use(remarkHtmlArtifact)
-  return processor.runSync(processor.parse(source))
+  return processor.runSync(processor.parse(source), { value: source })
 }
 
 describe('remarkHtmlArtifact', () => {
@@ -67,6 +67,33 @@ describe('remarkHtmlArtifact', () => {
         value: source
       })
     ])
+  })
+
+  it('keeps Markdown-shaped text inside a complete HTML document', () => {
+    const source = `<!doctype html>
+<html><body>
+
+Hello
+
+</body></html>`
+    const tree = parse(source)
+
+    expect(tree.children).toEqual([
+      expect.objectContaining({
+        type: 'code',
+        lang: 'html',
+        value: source
+      })
+    ])
+  })
+
+  it('leaves an incomplete HTML document on the Markdown path', () => {
+    const tree = parse(`<html><body>
+
+Still generating`)
+
+    expect(tree.children.some((child) => child.type === 'code')).toBe(false)
+    expect(tree.children[0]).toMatchObject({ type: 'html', value: '<html><body>' })
   })
 
   it('leaves inline HTML inside Markdown paragraphs unchanged', () => {

@@ -28,27 +28,13 @@ vi.mock('@cherrystudio/ui', () => ({
       {children}
     </button>
   ),
-  Dialog: ({ children, open }: { children: ReactNode; open: boolean }) => (open ? children : null),
-  DialogContent: ({
-    children,
-    className,
-    'data-testid': testId
-  }: {
-    children: ReactNode
-    className?: string
-    'data-testid'?: string
-  }) => (
-    <div className={className} data-testid={testId}>
-      {children}
-    </div>
-  ),
-  DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
   Tooltip: ({ children }: { children: ReactNode }) => children
 }))
 
 vi.mock('@renderer/components/CodeViewer', () => ({ default: mocks.CodeViewer }))
 vi.mock('@renderer/components/CodeBlockView/HtmlPreviewFrame', () => ({
   HTML_PREVIEW_RESTRICTED_CSP: mocks.htmlPreviewRestrictedCsp,
+  injectHtmlPreviewHeadElement: (html: string, element: string) => `${element}${html}`,
   default: mocks.HtmlPreviewFrame
 }))
 vi.mock('@logger', () => ({
@@ -151,11 +137,12 @@ describe('HtmlArtifactView', () => {
   it('switches directly between HTML and code in the message surface', () => {
     render(<HtmlArtifactView html="<h1>Hello</h1>" title="Preview" />)
 
-    expect(screen.getByTestId('html-preview-frame')).toBeInTheDocument()
+    const preview = screen.getByTestId('html-preview-frame')
     fireEvent.click(screen.getByRole('button', { name: 'html_artifacts.code' }))
     expect(screen.getByTestId('code-viewer')).toHaveTextContent('<h1>Hello</h1>')
+    expect(screen.getByTestId('html-preview-frame')).toBe(preview)
     fireEvent.click(screen.getByRole('button', { name: 'html_artifacts.preview' }))
-    expect(screen.getByTestId('html-preview-frame')).toBeInTheDocument()
+    expect(screen.getByTestId('html-preview-frame')).toBe(preview)
   })
 
   it('shows an artifact card before mounting HTML with scripts', () => {
@@ -169,7 +156,7 @@ describe('HtmlArtifactView', () => {
     expect(screen.queryByTestId('html-artifact-surface')).not.toBeInTheDocument()
     expect(screen.queryByTestId('html-preview-frame')).not.toBeInTheDocument()
     expect(screen.queryByTestId('interactive-html-webview')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'common.maximize' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'common.maximize' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'html_artifacts.interactive_preview.action' }))
 
@@ -177,40 +164,45 @@ describe('HtmlArtifactView', () => {
     expect(screen.queryByTestId('html-artifact-consent-card')).not.toBeInTheDocument()
   })
 
-  it('opens guarded HTML fullscreen from both the card and inline preview', () => {
+  it('requires consent before fullscreen and preserves the interactive webview across display modes', () => {
     const html = '<script>document.body.textContent = "interactive"</script>'
 
     render(<HtmlArtifactView html={html} title="Preview" />)
+
+    expect(screen.queryByRole('button', { name: 'common.maximize' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'html_artifacts.interactive_preview.action' }))
+    const webview = screen.getByTestId('interactive-html-webview')
 
     fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
 
     expect(screen.getByTestId('html-artifact-fullscreen')).toBeInTheDocument()
     expect(screen.queryByTestId('html-artifact-surface')).not.toBeInTheDocument()
-    expect(screen.getByTestId('interactive-html-webview')).toHaveAttribute('partition', 'html-artifact-preview')
+    expect(screen.getByTestId('interactive-html-webview')).toBe(webview)
 
     fireEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
 
     expect(screen.queryByTestId('html-artifact-fullscreen')).not.toBeInTheDocument()
     expect(screen.getByTestId('html-artifact-surface')).toBeInTheDocument()
-    expect(screen.getByTestId('interactive-html-webview')).toHaveAttribute('partition', 'html-artifact-preview')
+    expect(screen.getByTestId('interactive-html-webview')).toBe(webview)
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
-
-    expect(screen.getByTestId('html-artifact-fullscreen')).toBeInTheDocument()
-    expect(screen.queryByTestId('html-artifact-surface')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'html_artifacts.code' }))
+    expect(screen.getByTestId('interactive-html-webview')).toBe(webview)
+    fireEvent.click(screen.getByRole('button', { name: 'html_artifacts.preview' }))
+    expect(screen.getByTestId('interactive-html-webview')).toBe(webview)
   })
 
   it('opens static HTML fullscreen in the restricted iframe', () => {
     const html = '<main><style>h1 { color: red; }</style><h1>Hello</h1></main>'
 
     render(<HtmlArtifactView html={html} title="Preview" />)
+    const iframe = screen.getByTestId('html-preview-frame')
 
     fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
 
     expect(screen.getByTestId('html-artifact-fullscreen')).toBeInTheDocument()
-    expect(screen.getByTestId('static-html-fullscreen-preview')).toBeInTheDocument()
     expect(screen.queryByTestId('html-artifact-surface')).not.toBeInTheDocument()
     expect(screen.queryByTestId('interactive-html-webview')).not.toBeInTheDocument()
+    expect(screen.getByTestId('html-preview-frame')).toBe(iframe)
     expect(mocks.HtmlPreviewFrame).toHaveBeenLastCalledWith(
       expect.objectContaining({
         html,
@@ -224,6 +216,43 @@ describe('HtmlArtifactView', () => {
 
     expect(screen.queryByTestId('html-artifact-fullscreen')).not.toBeInTheDocument()
     expect(screen.getByTestId('html-artifact-surface')).toBeInTheDocument()
+    expect(screen.getByTestId('html-preview-frame')).toBe(iframe)
+  })
+
+  it('releases and restores virtual-list containing blocks around fullscreen', () => {
+    render(
+      <div data-testid="virtual-item" style={{ transform: 'translateY(120px)', willChange: 'transform' }}>
+        <HtmlArtifactView html="<main>Preview</main>" title="Preview" />
+      </div>
+    )
+    const virtualItem = screen.getByTestId('virtual-item')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.maximize' }))
+
+    expect(virtualItem.style.transform).toBe('none')
+    expect(virtualItem.style.getPropertyPriority('transform')).toBe('important')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.minimize' }))
+
+    expect(virtualItem.style.transform).toBe('translateY(120px)')
+    expect(virtualItem.style.willChange).toBe('transform')
+  })
+
+  it('installs the guest bridge before page scripts and accepts only trusted wheel events', () => {
+    const html = '<script>console.debug = () => {}; window.pageScriptRan = true</script>'
+
+    render(<HtmlArtifactView html={html} title="Preview" />)
+    fireEvent.click(screen.getByRole('button', { name: 'html_artifacts.interactive_preview.action' }))
+
+    const src = screen.getByTestId('interactive-html-webview').getAttribute('src')
+    if (!src) throw new Error('Expected an instrumented webview source')
+    const instrumentedHtml = decodeURIComponent(src.slice(src.indexOf(',') + 1))
+
+    expect(instrumentedHtml.indexOf('console.debug.bind(console)')).toBeLessThan(
+      instrumentedHtml.indexOf('console.debug = () => {}')
+    )
+    expect(instrumentedHtml).toContain('document.currentScript?.remove()')
+    expect(instrumentedHtml).toContain('!event.isTrusted')
   })
 
   it('renders static inline HTML immediately in the restricted iframe', () => {

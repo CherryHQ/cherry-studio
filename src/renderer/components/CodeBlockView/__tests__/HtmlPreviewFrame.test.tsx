@@ -64,6 +64,15 @@ describe('HtmlPreviewFrame', () => {
     expect(result.indexOf('Content-Security-Policy')).toBeLessThan(result.indexOf('hi'))
   })
 
+  it('does not inject security elements into a fake head inside a comment', () => {
+    const html = '<!-- <head> -->\n<img src="ht&#x0A;tps://example.com/pixel">'
+    const result = injectHtmlPreviewCsp(injectHtmlPreviewBase(html), HTML_PREVIEW_RESTRICTED_CSP)
+
+    expect(result.indexOf('Content-Security-Policy')).toBeGreaterThan(result.indexOf('-->'))
+    expect(result.indexOf('Content-Security-Policy')).toBeLessThan(result.indexOf('<img'))
+    expect(result).toContain('<head><meta http-equiv="Content-Security-Policy"')
+  })
+
   it('uses the provided file base URL for relative links in local artifact previews', () => {
     const html =
       '<!doctype html><html><head><title>Blog</title></head><body><a href="about.html">About</a></body></html>'

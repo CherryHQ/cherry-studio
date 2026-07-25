@@ -10,7 +10,7 @@ import { useTranslation } from 'react-i18next'
 import type { Components } from 'streamdown'
 import type { Pluggable } from 'unified'
 
-import { remarkHtmlArtifact } from './plugins/remarkHtmlArtifact'
+import { remarkHtmlArtifact, transformMarkdownOutsideHtmlArtifacts } from './plugins/remarkHtmlArtifact'
 import { useChatMarkdownComponents } from './useChatMarkdownComponents'
 
 interface Props {
@@ -40,10 +40,15 @@ const ChatMarkdown: FC<Props> = ({ block, inlineHtmlPreviewMode, postProcess, cl
     if (block.status === 'paused' && isEmpty(block.content)) {
       return t('message.chat.completion.paused')
     }
-    let text = removeSvgEmptyLines(processLatexBrackets(block.content))
-    if (postProcess) text = postProcess(text)
-    return text
-  }, [block.status, block.content, postProcess, t])
+    const transform = (source: string) => {
+      let text = removeSvgEmptyLines(processLatexBrackets(source))
+      if (postProcess) text = postProcess(text)
+      return text
+    }
+    return inlineHtmlPreviewMode
+      ? transformMarkdownOutsideHtmlArtifacts(block.content, transform)
+      : transform(block.content)
+  }, [block.status, block.content, inlineHtmlPreviewMode, postProcess, t])
 
   const hasStyleElement = STYLE_ELEMENT_REGEX.test(content)
   const chatComponents = useChatMarkdownComponents({

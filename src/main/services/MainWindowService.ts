@@ -323,6 +323,7 @@ export class MainWindowService extends BaseService {
       webPreferences.sandbox = true
       webPreferences.webSecurity = true
       webPreferences.allowRunningInsecureContent = false
+      webPreferences.safeDialogs = true
     })
 
     mainWindow.webContents.on('did-attach-webview', (_, webContents) => {

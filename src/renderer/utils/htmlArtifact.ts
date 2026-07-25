@@ -18,6 +18,33 @@ const URL_ATTRIBUTES = new Set([
 ])
 const EXTERNAL_URL_PATTERN = /(?:^|[\s"'(,])(?:https?:|file:|\/\/)/i
 const SCRIPT_URL_PATTERN = /^\s*(?:javascript|vbscript):/i
+const ASCII_TAB_OR_NEWLINE_PATTERN = /[\t\n\r]/g
+const CSS_ESCAPE_PATTERN = /\\(?:([0-9a-f]{1,6})[ \t\n\r\f]?|(\r\n|[\n\r\f])|(.))/gi
+
+function normalizeUrlAttribute(value: string): string {
+  return value.replace(ASCII_TAB_OR_NEWLINE_PATTERN, '')
+}
+
+function decodeCssEscapes(value: string): string {
+  return value.replace(
+    CSS_ESCAPE_PATTERN,
+    (_, hexEscape: string | undefined, lineBreak: string | undefined, escaped) => {
+      if (hexEscape) {
+        const codePoint = Number.parseInt(hexEscape, 16)
+        return codePoint === 0 || codePoint > 0x10ffff ? '\uFFFD' : String.fromCodePoint(codePoint)
+      }
+      return lineBreak ? '' : (escaped ?? '')
+    }
+  )
+}
+
+function containsExternalUrl(value: string): boolean {
+  return EXTERNAL_URL_PATTERN.test(normalizeUrlAttribute(value))
+}
+
+function containsExternalCssUrl(value: string): boolean {
+  return containsExternalUrl(decodeCssEscapes(value))
+}
 
 export function htmlArtifactRequiresUserConsent(html: string): boolean {
   if (!html.trim()) return false
@@ -39,22 +66,23 @@ export function htmlArtifactRequiresUserConsent(html: string): boolean {
           }
 
           for (const [attributeName, value] of Object.entries(attributes)) {
-            if (attributeName.startsWith('on') || SCRIPT_URL_PATTERN.test(value)) {
+            const normalizedValue = normalizeUrlAttribute(value)
+            if (attributeName.startsWith('on') || SCRIPT_URL_PATTERN.test(normalizedValue)) {
               requiresUserConsent = true
             }
             if (
               (URL_ATTRIBUTES.has(attributeName) || attributeName.endsWith(':href')) &&
-              EXTERNAL_URL_PATTERN.test(value)
+              containsExternalUrl(normalizedValue)
             ) {
               requiresUserConsent = true
             }
-            if (attributeName === 'style' && EXTERNAL_URL_PATTERN.test(value)) {
+            if (attributeName === 'style' && containsExternalCssUrl(value)) {
               requiresUserConsent = true
             }
           }
         },
         ontext(text) {
-          if (styleDepth > 0 && EXTERNAL_URL_PATTERN.test(text)) {
+          if (styleDepth > 0 && containsExternalCssUrl(text)) {
             requiresUserConsent = true
           }
         },

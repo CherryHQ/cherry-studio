@@ -57,7 +57,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, editable = true, isStreami
       <div className="special-preview mt-0 mb-2.5 flex w-full max-w-xl items-center overflow-hidden rounded-lg border-[0.5px] border-border bg-background-subtle font-[var(--font-family-body)] transition-colors hover:bg-accent">
         <button
           type="button"
-          aria-label={t('chat.artifacts.button.preview')}
+          aria-label={`${t('chat.artifacts.button.preview')}: ${title}`}
           title={title}
           disabled={!hasContent}
           onClick={() => setIsPopupOpen(true)}
@@ -67,12 +67,12 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, editable = true, isStreami
           </span>
           <span className="min-w-0 truncate font-medium text-[13px] text-foreground leading-5">{title}</span>
           {isStreaming ? (
-            <span className="flex shrink-0 items-center gap-1.5 text-foreground-muted text-xs">
+            <span className="flex shrink-0 items-center gap-1.5 text-muted-foreground text-xs">
               <span className="size-1.5 animate-pulse rounded-full bg-primary" />
               {t('html_artifacts.generating', 'Generating content...')}
             </span>
           ) : (
-            <span className="shrink-0 rounded-sm bg-background px-1.5 py-0.5 font-medium text-[10px] text-foreground-muted leading-4">
+            <span className="shrink-0 rounded-sm bg-background px-1.5 py-0.5 font-medium text-[10px] text-muted-foreground leading-4">
               HTML
             </span>
           )}
@@ -85,7 +85,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, editable = true, isStreami
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                className="size-7 text-foreground-muted opacity-70 hover:bg-background hover:text-foreground hover:opacity-100"
+                className="size-7 text-muted-foreground opacity-70 hover:bg-background hover:text-foreground hover:opacity-100"
                 aria-label={t('chat.artifacts.button.openExternal')}
                 disabled={!hasContent}
                 onClick={handleOpenExternal}>
@@ -97,7 +97,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, editable = true, isStreami
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                className="size-7 text-foreground-muted opacity-70 hover:bg-background hover:text-foreground hover:opacity-100"
+                className="size-7 text-muted-foreground opacity-70 hover:bg-background hover:text-foreground hover:opacity-100"
                 aria-label={t('code_block.download.label')}
                 disabled={!hasContent}
                 onClick={handleDownload}>

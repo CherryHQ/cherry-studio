@@ -1,9 +1,18 @@
 import type { Code, Html, Root, RootContent } from 'mdast'
+import remarkParse from 'remark-parse'
 import type { Plugin } from 'unified'
+import { unified } from 'unified'
 
 const LEADING_HTML_METADATA_REGEX = /^(?:\s*(?:<!--[\s\S]*?-->|<!doctype[^>]*>|<\?[\s\S]*?\?>))*/i
 const HTML_DOCUMENT_START_REGEX = /^<html(?:\s|>)/i
 const HTML_DOCUMENT_END_REGEX = /<\/html\s*>/i
+const HTML_LANGUAGE_REGEX = /^html?$/i
+const PROTECTED_HTML_PLACEHOLDER_PREFIX = '__CHERRY_STUDIO_HTML_ARTIFACT_'
+
+interface SourceRange {
+  start: number
+  end: number
+}
 
 function stripLeadingHtmlMetadata(value: string): string {
   return value.replace(LEADING_HTML_METADATA_REGEX, '').trimStart()
@@ -16,6 +25,11 @@ function isHtmlArtifact(node: Html): boolean {
 
 function isHtmlMetadataOnly(node: Html): boolean {
   return stripLeadingHtmlMetadata(node.value).length === 0
+}
+
+function isHtmlDocumentBoundary(node: Html): boolean {
+  const content = stripLeadingHtmlMetadata(node.value)
+  return HTML_DOCUMENT_START_REGEX.test(content) || HTML_DOCUMENT_END_REGEX.test(node.value)
 }
 
 function findHtmlDocumentEnd(children: readonly RootContent[], startIndex: number): number | undefined {
@@ -37,40 +51,33 @@ function findHtmlDocumentEnd(children: readonly RootContent[], startIndex: numbe
 
   for (let index = documentStartIndex; index < children.length; index += 1) {
     const child = children[index]
-    if (!child || child.type !== 'html') return undefined
-    if (HTML_DOCUMENT_END_REGEX.test(child.value)) return index
+    if (child?.type === 'html' && HTML_DOCUMENT_END_REGEX.test(child.value)) return index
   }
 
   return undefined
 }
 
-type HtmlDocumentNodes = readonly [Html, ...Html[]]
-
-function joinHtmlDocumentNodes(nodes: HtmlDocumentNodes): string {
-  return nodes.reduce((content, node, index) => {
-    if (index === 0) return node.value
-
-    const previousEndLine = nodes[index - 1]?.position?.end.line
-    const nextStartLine = node.position?.start.line
-    const separator =
-      previousEndLine !== undefined && nextStartLine !== undefined
-        ? '\n'.repeat(Math.max(0, nextStartLine - previousEndLine))
-        : '\n'
-
-    return `${content}${separator}${node.value}`
-  }, '')
+function getSourceRange(nodes: readonly RootContent[]): SourceRange | undefined {
+  const first = nodes[0]
+  const last = nodes[nodes.length - 1]
+  const start = first?.position?.start.offset
+  const end = last?.position?.end.offset
+  return start !== undefined && end !== undefined ? { start, end } : undefined
 }
 
-function createHtmlDocumentCodeNode(nodes: HtmlDocumentNodes): Code {
+function createHtmlDocumentCodeNode(nodes: readonly RootContent[], source: string): Code | undefined {
   const first = nodes[0]
   const last = nodes[nodes.length - 1] ?? first
+  const range = getSourceRange(nodes)
+  if (!first || !last || !range) return undefined
+
   const position =
     first.position && last.position ? { start: first.position.start, end: last.position.end } : first.position
 
   return {
     type: 'code',
     lang: 'html',
-    value: joinHtmlDocumentNodes(nodes),
+    value: source.slice(range.start, range.end),
     position
   }
 }
@@ -84,25 +91,98 @@ function createHtmlCodeNode(node: Html): Code {
   }
 }
 
+function collectProtectedHtmlRanges(tree: Root): SourceRange[] {
+  const ranges: SourceRange[] = []
+
+  for (let index = 0; index < tree.children.length; index += 1) {
+    const documentEndIndex = findHtmlDocumentEnd(tree.children, index)
+    if (documentEndIndex !== undefined) {
+      const range = getSourceRange(tree.children.slice(index, documentEndIndex + 1))
+      if (range) ranges.push(range)
+      index = documentEndIndex
+      continue
+    }
+
+    const child = tree.children[index]
+    const range = child ? getSourceRange([child]) : undefined
+    if (!child || !range) continue
+
+    if (child.type === 'code' && child.lang && HTML_LANGUAGE_REGEX.test(child.lang)) {
+      ranges.push(range)
+      continue
+    }
+
+    if (child.type === 'html' && isHtmlArtifact(child) && !isHtmlDocumentBoundary(child)) {
+      ranges.push(range)
+    }
+  }
+
+  return ranges
+}
+
+/**
+ * Runs general Markdown preprocessing without changing the exact source of raw
+ * or fenced HTML artifacts.
+ */
+export function transformMarkdownOutsideHtmlArtifacts(source: string, transform: (markdown: string) => string): string {
+  if (!source.includes('<')) return transform(source)
+
+  const processor = unified().use(remarkParse)
+  const ranges = collectProtectedHtmlRanges(processor.parse(source))
+  if (ranges.length === 0) return transform(source)
+
+  let placeholderPrefix = PROTECTED_HTML_PLACEHOLDER_PREFIX
+  while (source.includes(placeholderPrefix)) placeholderPrefix = `_${placeholderPrefix}`
+
+  const protectedSources: string[] = []
+  let cursor = 0
+  let maskedSource = ''
+
+  for (const range of ranges) {
+    const index = protectedSources.length
+    protectedSources.push(source.slice(range.start, range.end))
+    maskedSource += `${source.slice(cursor, range.start)}${placeholderPrefix}${index}__`
+    cursor = range.end
+  }
+  maskedSource += source.slice(cursor)
+
+  let transformed = transform(maskedSource)
+  protectedSources.forEach((protectedSource, index) => {
+    transformed = transformed.replaceAll(`${placeholderPrefix}${index}__`, protectedSource)
+  })
+  return transformed
+}
+
 /**
  * Routes top-level raw HTML regions through the same renderer as fenced HTML.
  * Inline HTML stays in the Markdown tree so citations and text formatting keep
  * their existing behavior.
  */
-export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree) => {
+export const remarkHtmlArtifact: Plugin<[], Root> = () => (tree, file) => {
+  const source = String(file)
   const children: RootContent[] = []
 
   for (let index = 0; index < tree.children.length; index += 1) {
     const documentEndIndex = findHtmlDocumentEnd(tree.children, index)
     if (documentEndIndex !== undefined) {
-      children.push(createHtmlDocumentCodeNode(tree.children.slice(index, documentEndIndex + 1) as [Html, ...Html[]]))
+      const documentNodes = tree.children.slice(index, documentEndIndex + 1)
+      const codeNode = createHtmlDocumentCodeNode(documentNodes, source)
+      if (codeNode) {
+        children.push(codeNode)
+      } else {
+        children.push(...documentNodes)
+      }
       index = documentEndIndex
       continue
     }
 
     const child = tree.children[index]
     if (!child) continue
-    children.push(child.type === 'html' && isHtmlArtifact(child) ? createHtmlCodeNode(child) : child)
+    children.push(
+      child.type === 'html' && isHtmlArtifact(child) && !isHtmlDocumentBoundary(child)
+        ? createHtmlCodeNode(child)
+        : child
+    )
   }
 
   tree.children = children

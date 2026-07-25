@@ -128,7 +128,7 @@ describe('HtmlArtifactsCard', () => {
     expect(mocks.loadHtmlArtifactsPopup).not.toHaveBeenCalled()
     expect(screen.queryByTestId('html-artifacts-popup')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'chat.artifacts.button.preview' }))
+    fireEvent.click(screen.getByRole('button', { name: 'chat.artifacts.button.preview: Sample Page' }))
 
     expect(await screen.findByTestId('html-artifacts-popup')).toBeInTheDocument()
     expect(mocks.loadHtmlArtifactsPopup).toHaveBeenCalledTimes(1)
@@ -154,5 +154,11 @@ describe('HtmlArtifactsCard', () => {
     render(<HtmlArtifactsCard html="<main>Page</main>" />)
 
     expect(screen.getByTitle('common.html_preview')).toBeInTheDocument()
+  })
+
+  it('includes the artifact title in the preview button accessible name', () => {
+    render(<HtmlArtifactsCard html={html} />)
+
+    expect(screen.getByRole('button', { name: 'chat.artifacts.button.preview: Sample Page' })).toBeInTheDocument()
   })
 })
