@@ -26,7 +26,7 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { type Disposable, Emitter } from '@main/core/lifecycle'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import {
   type DirectoryTreeOptions,
   type SerializedTreeNode,
@@ -216,7 +216,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     // sees zero notes when ripgrep is missing or the root is unreadable).
     let paths: string[]
     try {
-      paths = await searchListDirectory(this.rootPath as FilePath, {
+      paths = await searchListDirectory(this.rootPath as AbsoluteFilePath, {
         recursive: true,
         maxDepth: this.options.maxDepth,
         includeHidden: this.options.includeHidden,
@@ -283,11 +283,11 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     // is a real code repo with a `node_modules` blob. The predicate
     // fires before chokidar recurses into the dir, so the cost stays
     // at "one Ignore.ignores() call per entry".
-    const watcherIgnore = ((p: FilePath) => this.shouldIgnorePath(p)) as (path: FilePath) => boolean
+    const watcherIgnore = ((p: AbsoluteFilePath) => this.shouldIgnorePath(p)) as (path: AbsoluteFilePath) => boolean
     const watcherMaxDepth =
       this.options.maxDepth === Number.MAX_SAFE_INTEGER ? undefined : Math.max(0, this.options.maxDepth)
 
-    const watcher = createDirectoryWatcher(this.rootPath as FilePath, {
+    const watcher = createDirectoryWatcher(this.rootPath as AbsoluteFilePath, {
       recursive: true,
       maxDepth: watcherMaxDepth,
       stabilityThresholdMs: 200,

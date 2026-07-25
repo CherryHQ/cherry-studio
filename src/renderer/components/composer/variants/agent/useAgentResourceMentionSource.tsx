@@ -1,6 +1,7 @@
 import { FILE_TYPE } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
 import type { Editor } from '@tiptap/core'
 import { Folder } from 'lucide-react'
@@ -22,7 +23,7 @@ const getFileExtension = (fileName: string) => {
   return lastDotIndex > 0 ? fileName.slice(lastDotIndex) : ''
 }
 
-const createAttachmentFromPath = (filePath: string): ComposerAttachment => {
+const createAttachmentFromPath = (filePath: AbsoluteFilePath): ComposerAttachment => {
   const name = getBaseName(filePath)
   const ext = getFileExtension(name)
   return {
@@ -123,12 +124,14 @@ export function useAgentResourceMentionSource({
               })
             )
           )
-          const collected = new Set<string>()
+          const collected = new Set<AbsoluteFilePath>()
           for (const result of results) {
             if (result.status !== 'fulfilled') continue
             for (const entry of result.value) {
               if (!entry.isDirectory) {
-                collected.add(entry.path.replace(/\\/g, '/'))
+                // `entry.path` is already an `AbsoluteFilePath`; the separator
+                // normalization drops the brand, so re-assert it.
+                collected.add(AbsoluteFilePathSchema.parse(entry.path.replace(/\\/g, '/')))
               }
             }
           }
