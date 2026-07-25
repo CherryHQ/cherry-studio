@@ -35,7 +35,7 @@ import {
   useMessageRenderConfig
 } from './MessageListProvider'
 import { defaultMessageRenderConfig } from './types'
-import { getLatestAssistantGroupKey } from './utils/messageGroupKey'
+import { getLatestAssistantGroupKey, getMessageGroupKey } from './utils/messageGroupKey'
 import { shouldUseWideLayoutForMessageGroup } from './utils/messageGroupLayout'
 import { getDirectAssistantModelsByUserId, shareDirectAssistantModelsByUserId } from './utils/messageListItem'
 import { createStableGroupedMessagesCache, stableGroupedMessages } from './utils/stableGroupedMessages'
@@ -174,6 +174,10 @@ const MessageList = () => {
   const messageByIdRef = useRef(messageById)
   messageByIdRef.current = messageById
   const latestAssistantGroupKey = useMemo(() => getLatestAssistantGroupKey(messages), [messages])
+  const latestUserMessageKey = useMemo(() => {
+    const latestUserMessage = messages.findLast((message) => message.role === 'user' && message.type !== 'clear')
+    return latestUserMessage ? getMessageGroupKey(latestUserMessage) : undefined
+  }, [messages])
   const streamingLayers = data.streamingLayers
   const liveMessageIds = streamingLayers?.liveMessageIds ?? EMPTY_LIVE_MESSAGE_IDS
   const liveMessageIdSet = useMemo(() => new Set(liveMessageIds), [liveMessageIds])
@@ -538,21 +542,17 @@ const MessageList = () => {
   const activeOutlineMessage = activeOutline
     ? messages.find((message) => message.id === activeOutline.messageId)
     : undefined
-  const latestUserMessage = messages.findLast((message) => message.role === 'user' && message.type !== 'clear')
   const latestAssistantGroupMessages = latestAssistantGroupKey
     ? groupedMessages.find(([key]) => key === latestAssistantGroupKey)?.[1]
     : undefined
-  const preserveScrollAnchor =
+  const shouldKeepLatestAssistantGroupMounted =
     latestAssistantGroupMessages?.some(
       (message) =>
         message.role === 'assistant' &&
         (messageUi.getMessageActivityState?.(message).isProcessing ?? message.status === 'pending')
     ) ?? false
-  const keepMountedKeys = preserveScrollAnchor && latestAssistantGroupKey ? [latestAssistantGroupKey] : []
-  // The runtime now treats this key as the group to scroll to the viewport
-  // top (rather than scrolling to the absolute bottom). User-message groups
-  // are keyed by `user${msgId}` — see stableGroupedMessages.
-  const forceScrollToBottomKey = latestUserMessage ? `user${latestUserMessage.id}` : undefined
+  const keepMountedKeys =
+    shouldKeepLatestAssistantGroupMounted && latestAssistantGroupKey ? [latestAssistantGroupKey] : []
   const defaultBottomPadding = isMultiSelectMode
     ? MULTI_SELECT_BOTTOM_PADDING_PX
     : MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX
@@ -584,8 +584,7 @@ const MessageList = () => {
             overscan={data.overscan}
             topPadding={topPadding}
             bottomPadding={bottomPadding}
-            forceScrollToBottomKey={forceScrollToBottomKey}
-            preserveScrollAnchor={preserveScrollAnchor}
+            latestUserMessageKey={latestUserMessageKey}
             keepMountedKeys={keepMountedKeys}
             showScrollToBottomButton
             scrollToBottomButtonBottomOffset={Math.max(24, bottomPadding)}

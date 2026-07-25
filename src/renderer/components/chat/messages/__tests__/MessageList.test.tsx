@@ -1,4 +1,3 @@
-import { TopicType } from '@renderer/types/topic'
 import { captureScrollable, captureScrollableAsDataUrl } from '@renderer/utils/image'
 import { act, render, screen } from '@testing-library/react'
 import type { HTMLAttributes, ReactNode, Ref } from 'react'
@@ -171,12 +170,11 @@ vi.mock('../list/MessageVirtualList', async () => {
     MESSAGE_VIRTUAL_LIST_DEFAULT_BOTTOM_PADDING_PX: 12,
     MESSAGE_VIRTUAL_LIST_DEFAULT_TOP_PADDING_PX: 6,
     MessageVirtualList: ({
-      forceScrollToBottomKey,
       handleRef,
       items,
       keepMountedKeys,
+      latestUserMessageKey,
       onScrollContainerReady,
-      preserveScrollAnchor,
       renderItem,
       scrollToBottomButtonBottomOffset,
       showScrollToBottomButton,
@@ -209,9 +207,8 @@ vi.mock('../list/MessageVirtualList', async () => {
 
       return (
         <div
-          data-force-scroll-key={forceScrollToBottomKey ?? ''}
           data-keep-mounted-keys={(keepMountedKeys ?? []).join(',')}
-          data-preserve-scroll-anchor={String(Boolean(preserveScrollAnchor))}
+          data-latest-user-message-key={latestUserMessageKey ?? ''}
           data-scroll-to-bottom-button-bottom-offset={scrollToBottomButtonBottomOffset ?? ''}
           data-scroll-to-bottom-button-enabled={String(Boolean(showScrollToBottomButton))}
           data-testid="virtual-list"
@@ -328,63 +325,36 @@ describe('MessageList', () => {
     expect(messageGroupRenderCounts.get('assistant-live')).toBe(5)
   })
 
-  it('signals the virtual list to scroll after a user message is appended before an assistant placeholder', () => {
-    const view = renderMessageList([createMessage('assistant-1', 'assistant')])
-    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-force-scroll-key', '')
+  it('publishes the latest user-message key without changing it for an assistant append', () => {
+    const user = createMessage('user-1', 'user')
+    const assistant = createMessage('assistant-1', 'assistant')
+    const view = renderMessageList([user])
+    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-latest-user-message-key', 'useruser-1')
 
-    act(() => {
-      view.rerender(
-        <MessageListProvider
-          value={createValue([
-            createMessage('assistant-1', 'assistant'),
-            createMessage('user-1', 'user'),
-            createMessage('assistant-placeholder', 'assistant')
-          ])}>
-          <MessageList />
-        </MessageListProvider>
-      )
-    })
-
-    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-force-scroll-key', 'useruser-1')
-  })
-
-  it('forces the latest user message to the viewport top for agent session topics', () => {
-    render(
-      <MessageListProvider
-        value={createValue([createMessage('user-1', 'user'), createMessage('assistant-placeholder', 'assistant')], {
-          topic: {
-            id: 'session:session-1',
-            name: 'Session',
-            type: TopicType.Session
-          } as MessageListProviderValue['state']['topic']
-        })}>
+    view.rerender(
+      <MessageListProvider value={createValue([user, assistant])}>
         <MessageList />
       </MessageListProvider>
     )
+    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-latest-user-message-key', 'useruser-1')
 
-    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-force-scroll-key', 'useruser-1')
+    view.rerender(
+      <MessageListProvider
+        value={createValue([
+          user,
+          assistant,
+          createMessage('user-2', 'user'),
+          createMessage('assistant-2', 'assistant', 'pending')
+        ])}>
+        <MessageList />
+      </MessageListProvider>
+    )
+    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-latest-user-message-key', 'useruser-2')
   })
 
-  it('does not signal forced scroll when an assistant message is appended', () => {
-    const view = renderMessageList([createMessage('user-1', 'user')])
-    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-force-scroll-key', 'useruser-1')
-
-    act(() => {
-      view.rerender(
-        <MessageListProvider
-          value={createValue([createMessage('user-1', 'user'), createMessage('assistant-1', 'assistant')])}>
-          <MessageList />
-        </MessageListProvider>
-      )
-    })
-
-    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-force-scroll-key', 'useruser-1')
-  })
-
-  it('preserves the top anchor while the latest assistant response is pending', () => {
+  it('keeps the latest pending assistant group mounted', () => {
     renderMessageList([createMessage('user-1', 'user'), createMessage('assistant-1', 'assistant', 'pending')])
 
-    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-preserve-scroll-anchor', 'true')
     expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-keep-mounted-keys', 'assistantassistant-1')
     expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-scroll-to-bottom-button-enabled', 'true')
   })
@@ -404,14 +374,12 @@ describe('MessageList', () => {
       </MessageListProvider>
     )
 
-    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-preserve-scroll-anchor', 'true')
     expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-keep-mounted-keys', 'assistantassistant-1')
   })
 
   it('keeps the scroll-to-bottom button enabled after assistant response completes', () => {
     renderMessageList([createMessage('user-1', 'user'), createMessage('assistant-1', 'assistant')])
 
-    expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-preserve-scroll-anchor', 'false')
     expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-keep-mounted-keys', '')
     expect(screen.getByTestId('virtual-list')).toHaveAttribute('data-scroll-to-bottom-button-enabled', 'true')
   })
