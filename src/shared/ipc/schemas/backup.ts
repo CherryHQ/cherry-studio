@@ -9,6 +9,7 @@
 //     Returns the backupId (cancel/progress routing key) + final archive path.
 //   - backup.cancel: abort the active export whose id matches backupId (no-op if no
 //     match or idle). The orchestrator checks the AbortSignal at the next step boundary.
+//   - backup.restore_relaunch: relaunch only a sealed, staged restore journal.
 //   - backup.restore_status: read the restore journal's current outcome (post-relaunch disclosure).
 //   - backup.restore_acknowledge: user has seen a terminal outcome → clear the journal.
 //   - backup.progress (event): per-step progress ticks during the export.
@@ -40,6 +41,9 @@ export const backupRequestSchemas = {
     input: z.strictObject({ archivePath: z.string().trim().min(1) }),
     output: z.object({ restoreId: z.string() })
   }),
+  // The restore service verifies the journal is sealed and still staged before
+  // relaunching, so this capability cannot restart the app outside that transition.
+  'backup.restore_relaunch': defineRoute({ input: z.void(), output: z.void() }),
   // Post-relaunch outcome disclosure: the promotion result lives in the restore
   // journal (terminal journals are kept until acknowledged), so the UI queries
   // it on open and clears it once the user has seen the outcome.
@@ -64,7 +68,7 @@ export type BackupEventSchemas = {
   // Restore disclosure summary (full-restore-plan §5/§10.5): what the staged journal
   // will restore / will skip and why. Integration contract with the spine (A2):
   // startRestore broadcasts this after seal INSTEAD of auto-relaunching — the
-  // renderer's confirm dialog owns the restart via app.relaunch, so a broadcast
+  // renderer's confirm dialog owns the restart via backup.restore_relaunch, so a broadcast
   // followed by an unconditional relaunch would leave no window to read or click.
   // Quiesce + BACKUP_IN_PROGRESS must stay held while the dialog is up (writes during
   // disclosure raise whole-batch clean-expire risk at the preboot gate). Promotion has

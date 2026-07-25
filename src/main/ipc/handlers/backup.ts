@@ -30,6 +30,10 @@ export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
     const result = await application.get('BackupService').startRestore({ archivePath })
     return { restoreId: result.restoreId }
   },
+  'backup.restore_relaunch': async (_input, { senderId }) => {
+    assertBackupSender(senderId)
+    application.get('BackupService').relaunchStagedRestore()
+  },
   'backup.restore_status': async (_input, { senderId }) => {
     assertBackupSender(senderId)
     return application.get('BackupService').getRestoreStatus()

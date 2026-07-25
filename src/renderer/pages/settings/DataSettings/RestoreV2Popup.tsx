@@ -33,7 +33,7 @@ type RestorePhase =
  * In `relaunching`, the `backup.restore_summary` event (broadcast by main after
  * seal — full-restore-plan §10.5) switches the body to the disclosure summary
  * (future-tense: will restore / will skip) plus a restart button. Main never
- * relaunches on its own: this dialog owns the restart via `app.relaunch`, and a
+ * relaunches on its own: this dialog owns the restart via `backup.restore_relaunch`, and a
  * resolved startRestore falls back to an empty summary so the button always
  * appears once the journal is staged.
  *
@@ -141,7 +141,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
     setSummary(null)
     try {
       await startRestore(archivePath)
-      // Journal staged; main now waits for our app.relaunch (it never relaunches on
+      // Journal staged; main now waits for our backup.restore_relaunch (it never relaunches on
       // its own). Belt: if the backup.restore_summary broadcast was missed, fall back
       // to an empty summary so the confirm-restart view always renders. Do not toast,
       // resolve, or reset.
@@ -177,12 +177,12 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   const onRestart = async () => {
     setRelaunchError(false)
     try {
-      await ipcApi.request('app.relaunch')
+      await ipcApi.request('backup.restore_relaunch')
     } catch (error) {
-      // app.relaunch should not throw in normal operation; if it does, surface the
+      // backup.restore_relaunch should not throw in normal operation; if it does, surface the
       // failure so the user is not stuck in `relaunching` (canClose=false) with no
       // recourse — the Restart button stays available for retry.
-      logger.error('app.relaunch failed', error as Error)
+      logger.error('backup.restore_relaunch failed', error as Error)
       setRelaunchError(true)
     }
   }
@@ -274,9 +274,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
               </div>
             )}
             {relaunchError && (
-              <div className="text-destructive">
-                {t('settings.data.backup.v2.restore.summary.relaunch_failed')}
-              </div>
+              <div className="text-destructive">{t('settings.data.backup.v2.restore.summary.relaunch_failed')}</div>
             )}
           </div>
         )}

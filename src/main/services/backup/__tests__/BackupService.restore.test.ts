@@ -147,6 +147,39 @@ describe('BackupService restore journal lifecycle (A7)', () => {
     })
   })
 
+  describe('relaunchStagedRestore', () => {
+    it('relaunches only when the journal is staged', () => {
+      readRestoreJournalMock.mockReturnValue(okJournal('staged'))
+
+      new BackupService().relaunchStagedRestore()
+
+      expect(relaunchMock).toHaveBeenCalledTimes(1)
+    })
+
+    it('rejects when no journal exists', () => {
+      readRestoreJournalMock.mockReturnValue({ kind: 'none' })
+
+      expect(() => new BackupService().relaunchStagedRestore()).toThrow(/requires a staged journal/)
+      expect(relaunchMock).not.toHaveBeenCalled()
+    })
+
+    it('rejects terminal and promoting journals', () => {
+      const service = new BackupService()
+      for (const state of ['completed', 'failed', 'expired', 'promoting']) {
+        readRestoreJournalMock.mockReturnValue(okJournal(state, state === 'promoting' ? 'live-aside' : undefined))
+        expect(() => service.relaunchStagedRestore()).toThrow(/requires a staged journal/)
+      }
+      expect(relaunchMock).not.toHaveBeenCalled()
+    })
+
+    it('rejects a corrupt journal', () => {
+      readRestoreJournalMock.mockReturnValue({ kind: 'corrupt', error: 'bad' })
+
+      expect(() => new BackupService().relaunchStagedRestore()).toThrow(/requires a staged journal/)
+      expect(relaunchMock).not.toHaveBeenCalled()
+    })
+  })
+
   describe('getRestoreStatus / acknowledgeRestoreOutcome (B3)', () => {
     it('maps no journal to none', () => {
       readRestoreJournalMock.mockReturnValue({ kind: 'none' })
@@ -318,7 +351,7 @@ describe('BackupService restore journal lifecycle (A7)', () => {
 
       expect(afterQuiesce).toHaveBeenCalledTimes(1)
       // backup.restore_summary integration contract: the renderer confirm dialog owns
-      // the restart via app.relaunch — the spine must broadcast and keep waiting.
+      // the restart via backup.restore_relaunch — the spine must broadcast and keep waiting.
       expect(relaunchMock).not.toHaveBeenCalled()
       expect(broadcastMock).toHaveBeenCalledWith('backup.restore_summary', { toRestore: [], toSkip: [] })
       // Quiesce survives the resolved request: the write window stays closed from
@@ -416,7 +449,7 @@ describe('BackupService restore journal lifecycle (A7)', () => {
       await expect(service.startRestore({ archivePath: '/x.cherrybackup' })).resolves.toMatchObject({
         restoreId: expect.stringMatching(/^rst-/)
       })
-      // Sealed success broadcasts the summary and waits for the renderer's app.relaunch.
+      // Sealed success broadcasts the summary and waits for the renderer's backup.restore_relaunch.
       expect(relaunchMock).not.toHaveBeenCalled()
       expect(broadcastMock).toHaveBeenCalledWith('backup.restore_summary', { toRestore: [], toSkip: [] })
     })
@@ -441,7 +474,7 @@ describe('BackupService restore journal lifecycle (A7)', () => {
       await expect(service.startRestore({ archivePath: '/x.cherrybackup' })).resolves.toMatchObject({
         restoreId: expect.stringMatching(/^rst-/)
       })
-      // Sealed success broadcasts the summary and waits for the renderer's app.relaunch.
+      // Sealed success broadcasts the summary and waits for the renderer's backup.restore_relaunch.
       expect(relaunchMock).not.toHaveBeenCalled()
       expect(broadcastMock).toHaveBeenCalledWith('backup.restore_summary', { toRestore: [], toSkip: [] })
     })

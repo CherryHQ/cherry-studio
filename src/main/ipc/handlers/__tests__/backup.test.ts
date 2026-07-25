@@ -11,6 +11,7 @@ const backupService = {
   startBackup: vi.fn(),
   startRestore: vi.fn(),
   cancel: vi.fn(),
+  relaunchStagedRestore: vi.fn(),
   getRestoreStatus: vi.fn(),
   acknowledgeRestoreOutcome: vi.fn()
 }
@@ -86,6 +87,18 @@ describe('backupHandlers', () => {
       backupHandlers['backup.start_restore']({ archivePath: '/backups/lite.cherrybackup' }, { senderId: null })
     ).rejects.toMatchObject({ code: backupErrorCodes.INVALID_SENDER })
     expect(backupService.startRestore).not.toHaveBeenCalled()
+  })
+
+  it('restore_relaunch delegates for a managed sender', async () => {
+    await expect(backupHandlers['backup.restore_relaunch'](undefined, ctx)).resolves.toBeUndefined()
+    expect(backupService.relaunchStagedRestore).toHaveBeenCalledTimes(1)
+  })
+
+  it('restore_relaunch rejects when senderId is null', async () => {
+    await expect(backupHandlers['backup.restore_relaunch'](undefined, { senderId: null })).rejects.toMatchObject({
+      code: backupErrorCodes.INVALID_SENDER
+    })
+    expect(backupService.relaunchStagedRestore).not.toHaveBeenCalled()
   })
 
   it('restore_status returns the service outcome', async () => {

@@ -19,7 +19,7 @@
 // spine. The renderer triggers export via backup.start_backup; restore runs the
 // ImportOrchestrator spine (quiesce → fingerprint → snapshot → planResources → merge →
 // migrate → seal → 2nd fingerprint → journal → broadcast restore_summary → renderer
-// app.relaunch). quiesce is PARTIAL
+// backup.restore_relaunch). quiesce is PARTIAL
 // (BACKUP_IN_PROGRESS flag + JobManager.pause + best-effort drain; full quiesce a1/#17014
 // follow-up). MergeEngine (FIELD_MERGE for natural-key / SKIP for uuid-entity + junction +
 // dangling-ref repair + FTS) is wired; planResources feeds journal.fileResources + merge
@@ -341,7 +341,7 @@ export class BackupService extends BaseService {
    * Restore from a .cherrybackup archive (renderer-facing). Runs the ImportOrchestrator spine:
    * quiesce → snapshot → planResources → merge → migrate → seal → 2nd fingerprint → staged
    * journal, then broadcasts the disclosure summary and waits for the renderer-confirmed
-   * app.relaunch, whose next boot runs the preboot promotion gate (#16884) that swaps
+   * backup.restore_relaunch, whose next boot runs the preboot promotion gate (#16884) that swaps
    * work.sqlite in. Quiesce stays held from seal to that exit.
    *
    * Partial quiesce + FIELD_MERGE (natural-key) / SKIP (uuid-entity) merge with dangling-ref
@@ -468,7 +468,7 @@ export class BackupService extends BaseService {
         // onProgress wiring to the renderer lands with the restore progress UI.
       })
       // Staged journal written → broadcast the disclosure summary and WAIT. The
-      // renderer's confirm dialog owns the restart via the app.relaunch route
+      // renderer's confirm dialog owns the restart via the backup.restore_relaunch route
       // (backup.restore_summary integration contract): broadcasting and then
       // relaunching unconditionally would leave no window to read or click.
       // Quiesce + BACKUP_IN_PROGRESS stay HELD from seal to process exit so the
@@ -492,7 +492,7 @@ export class BackupService extends BaseService {
   /**
    * Broadcast the pre-relaunch disclosure summary (backup.restore_summary) after the
    * journal is sealed. The renderer renders it in the confirm-restart dialog and
-   * triggers the relaunch via the app.relaunch route — the spine never relaunches on
+   * triggers the relaunch via the backup.restore_relaunch route — the spine never relaunches on
    * its own. Failures are swallowed: the journal is already durable and the renderer
    * falls back to an empty summary on the resolved request, so a broadcast hiccup
    * must not surface as a restore error.
@@ -556,6 +556,23 @@ export class BackupService extends BaseService {
       logger.warn('clearing corrupt restore journal at BackupService init')
       clearRestoreJournal()
     }
+  }
+
+  /**
+   * Relaunch only after this service sealed a restore journal. The service, not the
+   * transport allowlist, owns this state transition so arbitrary app relaunches cannot
+   * bypass the restore quiesce gate.
+   */
+  relaunchStagedRestore(): void {
+    const journal = readRestoreJournal()
+    if (journal.kind !== 'ok' || journal.journal.state !== 'staged') {
+      const state = journal.kind === 'ok' ? journal.journal.state : journal.kind
+      throw new IpcError(
+        backupErrorCodes.RESTORE_RELAUNCH_UNAVAILABLE,
+        `backup: restore relaunch requires a staged journal (found ${state})`
+      )
+    }
+    application.relaunch()
   }
 
   /**

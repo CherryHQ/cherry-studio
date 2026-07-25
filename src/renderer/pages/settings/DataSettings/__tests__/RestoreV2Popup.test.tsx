@@ -184,17 +184,17 @@ describe('RestoreV2Popup', () => {
     expect(screen.getByText('exists — skip')).toBeInTheDocument()
 
     fireEvent.click(screen.getByTestId('v2-restore-restart-button'))
-    expect(requestMock).toHaveBeenCalledWith('app.relaunch')
+    expect(requestMock).toHaveBeenCalledWith('backup.restore_relaunch')
   })
 
-  it('surfaces a relaunch failure and keeps Restart retryable when app.relaunch throws', async () => {
+  it('surfaces a relaunch failure and keeps Restart retryable when backup.restore_relaunch throws', async () => {
     selectMock.mockResolvedValueOnce([{ path: '/tmp/backup.cherrybackup' }])
     confirmMock.mockResolvedValueOnce(true)
     startRestoreMock.mockResolvedValueOnce({ restoreId: 'rst-1' })
-    // app.relaunch rejects — the user must not be stuck in `relaunching` (canClose=false)
+    // backup.restore_relaunch rejects — the user must not be stuck in `relaunching` (canClose=false)
     // with no recourse. The failure is surfaced and the Restart button stays for retry.
     requestMock.mockImplementation(async (route: string) => {
-      if (route === 'app.relaunch') throw new Error('relaunch IPC failed')
+      if (route === 'backup.restore_relaunch') throw new Error('relaunch IPC failed')
       return undefined
     })
 
@@ -228,7 +228,7 @@ describe('RestoreV2Popup', () => {
     expect(screen.getByText('settings.data.backup.v2.restore.summary.none')).toBeInTheDocument()
 
     fireEvent.click(screen.getByTestId('v2-restore-restart-button'))
-    expect(requestMock).toHaveBeenCalledWith('app.relaunch')
+    expect(requestMock).toHaveBeenCalledWith('backup.restore_relaunch')
   })
 
   it('shows the none copy and hides the skip section for an empty summary', async () => {
@@ -265,7 +265,7 @@ describe('RestoreV2Popup', () => {
     expect(screen.getByText('settings.data.backup.v2.restore.summary.none')).toBeInTheDocument()
 
     fireEvent.click(screen.getByTestId('v2-restore-restart-button'))
-    expect(requestMock).toHaveBeenCalledWith('app.relaunch')
+    expect(requestMock).toHaveBeenCalledWith('backup.restore_relaunch')
   })
 
   it('shows a completed outcome and returns to idle after acknowledge', async () => {
