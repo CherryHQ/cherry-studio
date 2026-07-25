@@ -93,6 +93,57 @@ describe('agent right pane projections', () => {
     )
   })
 
+  it('uses a lazily loaded selected result and preserves child result source addresses', () => {
+    const selected = {
+      ...toolPart('root', 'Agent', undefined, 'output-available', { prompt: 'Explore the repo' }, ''),
+      resultProviderMetadata: {
+        cherry: {
+          deferredToolResult: {
+            messageId: 'm1',
+            toolCallId: 'root',
+            kind: 'output'
+          }
+        }
+      }
+    } as CherryMessagePart
+    const child = {
+      ...toolPart('child', 'Read', 'root', 'output-available', { file_path: '/tmp/example' }, ''),
+      resultProviderMetadata: {
+        'claude-code': { parentToolCallId: 'root' },
+        cherry: {
+          deferredToolResult: {
+            messageId: 'm1',
+            toolCallId: 'child',
+            kind: 'output'
+          }
+        }
+      }
+    } as CherryMessagePart
+    const parts = [selected, child]
+    const messages = [message('m1', parts)]
+
+    const projection = buildAgentToolFlowProjection(messages, { m1: parts }, 'root', {
+      kind: 'output',
+      value: 'Loaded subagent summary'
+    })
+
+    expect(projection.partsByMessageId['root:agent-flow-assistant']).toEqual([
+      expect.objectContaining({
+        toolCallId: 'child',
+        resultProviderMetadata: expect.objectContaining({
+          cherry: {
+            deferredToolResult: {
+              messageId: 'm1',
+              toolCallId: 'child',
+              kind: 'output'
+            }
+          }
+        })
+      }),
+      { type: 'text', text: 'Loaded subagent summary' }
+    ])
+  })
+
   it('degrades to the selected tool prompt when child metadata is missing', () => {
     const parts = [
       toolPart('root', 'Agent', undefined, 'output-available', { prompt: 'Run the subagent' }),

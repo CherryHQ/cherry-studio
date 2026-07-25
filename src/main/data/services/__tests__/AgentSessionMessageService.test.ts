@@ -195,6 +195,50 @@ describe('AgentSessionMessageService', () => {
     ).toThrow("Message with id '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d002' not found")
   })
 
+  it('updates an error diagnosis without replacing a stored tool output', () => {
+    const toolOutput = { content: 'large tool output' }
+    const diagnosis = {
+      summary: 'Check the API key',
+      category: 'auth',
+      explanation: 'The provider rejected the key.',
+      steps: [{ text: 'Open provider settings.' }]
+    }
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'error',
+        data: {
+          parts: [
+            {
+              type: 'dynamic-tool',
+              toolName: 'Read',
+              toolCallId: 'call-1',
+              state: 'output-available',
+              input: {},
+              output: toolOutput
+            },
+            { type: 'data-error', data: { name: 'AuthError', message: 'Unauthorized' } }
+          ]
+        }
+      }
+    })
+
+    agentSessionMessageService.updateSessionMessagePartDiagnosis(SESSION_ID, ASSISTANT_MESSAGE_ID, 1, diagnosis)
+
+    const updated = agentSessionMessageService.getSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
+    expect(updated.data.parts?.[0]).toMatchObject({ output: toolOutput })
+    expect(updated.data.parts?.[1]).toMatchObject({
+      providerMetadata: {
+        cherry: { diagnosis }
+      }
+    })
+    expect(() =>
+      agentSessionMessageService.updateSessionMessagePartDiagnosis(SESSION_ID, ASSISTANT_MESSAGE_ID, 0, diagnosis)
+    ).toThrow("Message error part with id '0' not found")
+  })
+
   it('uses one timestamp for a batch of newly saved messages', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(1_700_000_001_000)
 

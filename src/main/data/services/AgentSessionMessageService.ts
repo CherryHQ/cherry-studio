@@ -24,7 +24,8 @@ import {
 } from '@shared/data/api/schemas/agentSessionMessages'
 import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
-import { AGENT_SESSION_MESSAGE_SEARCH_ROLES, coerceSearchRole } from '@shared/data/types/message'
+import { AGENT_SESSION_MESSAGE_SEARCH_ROLES, coerceSearchRole, type MessageData } from '@shared/data/types/message'
+import { type DiagnosisResult, withCherryMeta } from '@shared/data/types/uiParts'
 import { and, desc, eq, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
@@ -236,15 +237,31 @@ export class AgentSessionMessageService {
       const existing = this.findExistingMessageRow(tx, sessionId, messageId)
       if (!existing) throw DataApiErrorFactory.notFound('Message', messageId)
 
-      const updatedAt = Date.now()
-      const [updated] = tx
-        .update(sessionMessagesTable)
-        .set({ data: dto.data, updatedAt })
-        .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
-        .returning()
-        .all()
-      agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
-      return this.rowToEntity(updated)
+      return this.updateSessionMessageDataTx(tx, sessionId, messageId, dto.data)
+    })
+  }
+
+  updateSessionMessagePartDiagnosis(
+    sessionId: string,
+    messageId: string,
+    partIndex: number,
+    diagnosis: DiagnosisResult
+  ): void {
+    application.get('DbService').withWriteTx((tx) => {
+      const existing = this.findExistingMessageRow(tx, sessionId, messageId)
+      if (!existing) throw DataApiErrorFactory.notFound('Message', messageId)
+
+      const parts = existing.data.parts ?? []
+      const target = parts[partIndex]
+      if (!target || target.type !== 'data-error') {
+        throw DataApiErrorFactory.notFound('Message error part', String(partIndex))
+      }
+
+      const data = {
+        ...existing.data,
+        parts: parts.map((part, index) => (index === partIndex ? withCherryMeta(target, { diagnosis }) : part))
+      }
+      this.updateSessionMessageDataTx(tx, sessionId, messageId, data)
     })
   }
 
@@ -293,6 +310,23 @@ export class AgentSessionMessageService {
       createdAt: timestampToISO(row.createdAt),
       updatedAt: timestampToISO(row.updatedAt)
     }
+  }
+
+  private updateSessionMessageDataTx(
+    tx: DbOrTx,
+    sessionId: string,
+    messageId: string,
+    data: MessageData
+  ): AgentSessionMessageEntity {
+    const updatedAt = Date.now()
+    const [updated] = tx
+      .update(sessionMessagesTable)
+      .set({ data, updatedAt })
+      .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
+      .returning()
+      .all()
+    agentSessionService.touchUpdatedAtTx(tx, sessionId, updatedAt)
+    return this.rowToEntity(updated)
   }
 
   getLastRuntimeResumeToken(sessionId: string): string | null {

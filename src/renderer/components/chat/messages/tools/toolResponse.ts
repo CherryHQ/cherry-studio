@@ -1,8 +1,10 @@
 import type { McpToolResponse, McpToolResponseStatus, NormalToolResponse } from '@renderer/types/mcpTool'
 import type { BaseTool, McpTool } from '@renderer/types/tool'
+import { getDeferredToolResultRef } from '@renderer/utils/deferredToolResult'
 import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import type { DeferredToolResultRef } from '@shared/data/types/uiParts'
 import { isMcpContentBlock } from '@shared/utils/mcp'
 import type { DynamicToolUIPart, ProviderMetadata, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
 import { getToolName, isToolUIPart } from 'ai'
@@ -33,6 +35,7 @@ export type ToolResponseLike = McpToolResponse | NormalToolResponse
 
 export interface ToolRenderItem {
   id: string
+  deferredToolResult?: DeferredToolResultRef
   toolResponse: ToolResponseLike
 }
 
@@ -74,8 +77,7 @@ function mapPartStateToStatus(state: string | undefined): McpToolResponseStatus 
   }
 }
 
-function extractOutputMetadata(part: ToolResponsePart): { response: unknown; metadata?: ToolMetadata } {
-  const output = part.output
+function extractOutputMetadata(output: unknown): { response: unknown; metadata?: ToolMetadata } {
   if (!isRecord(output)) return { response: output }
 
   const metadata = isRecord(output.metadata) ? output.metadata : undefined
@@ -94,6 +96,10 @@ function extractOutputMetadata(part: ToolResponsePart): { response: unknown; met
   }
 
   return { response: output }
+}
+
+export function normalizeToolOutputResponse(output: unknown): unknown {
+  return extractOutputMetadata(output).response
 }
 
 function hasProviderMetadata(part: ToolResponsePart, provider: string): boolean {
@@ -184,12 +190,16 @@ function buildBaseToolDescriptor(toolType: Exclude<ToolType, 'mcp'>, toolCallId:
   return baseTool
 }
 
-function normalizeErrorOutput(part: ToolResponsePart): unknown {
-  if (part.state !== 'output-error') return undefined
+export function normalizeToolErrorResponse(errorText: string): unknown {
   return {
     isError: true,
-    content: [{ type: 'text', text: part.errorText || 'Error' }]
+    content: [{ type: 'text', text: errorText || 'Error' }]
   }
+}
+
+function normalizeErrorOutput(part: ToolResponsePart): unknown {
+  if (part.state !== 'output-error') return undefined
+  return normalizeToolErrorResponse(part.errorText)
 }
 
 export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: string): ToolResponseLike | null {
@@ -201,7 +211,7 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
   const toolName = normalizeToolName(toolPart)
   const status = mapPartStateToStatus(toolPart.state)
 
-  const { response: rawResponse, metadata: outputMetadata } = extractOutputMetadata(toolPart)
+  const { response: rawResponse, metadata: outputMetadata } = extractOutputMetadata(toolPart.output)
   const cherryMetadata = extractCherryToolMetadata(toolPart)
   const metadata = outputMetadata ?? cherryMetadata
   const toolType = resolveToolType(toolPart, toolName, metadata)
@@ -243,7 +253,7 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
 export function buildToolRenderItemFromPart(part: CherryMessagePart, id: string): ToolRenderItem | null {
   const toolResponse = buildToolResponseFromPart(part, id)
   if (!toolResponse) return null
-  return { id, toolResponse }
+  return { id, deferredToolResult: getDeferredToolResultRef(part), toolResponse }
 }
 
 /** Matched `ToolUIPart` plus decoded approval fields. */

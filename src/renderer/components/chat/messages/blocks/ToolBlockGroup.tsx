@@ -588,7 +588,7 @@ export const ToolBlockGroupContent = React.memo(({ items, scrollRef }: ToolBlock
       return (
         <div key={item.id} data-block-id={item.id} className="w-full">
           <ErrorBoundary fallbackComponent={BlockErrorFallback}>
-            <MessageTools toolResponse={item.toolResponse} />
+            <MessageTools deferredToolResult={item.deferredToolResult} toolResponse={item.toolResponse} />
           </ErrorBoundary>
         </div>
       )

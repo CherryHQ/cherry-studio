@@ -3,7 +3,7 @@ import { useRightPanelState } from '@renderer/components/chat/panes/Shell'
 import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { TreeDir, TreeDirRoot, TreeFile } from '@shared/utils/file'
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type {
   ButtonHTMLAttributes,
   ComponentProps,
@@ -19,6 +19,7 @@ import type * as AgentRightPaneProjection from '../agentRightPaneProjection'
 
 const {
   buildAgentToolFlowProjectionMock,
+  loadAgentSessionToolResultMock,
   fileSessionDiscardMock,
   fileSessionFlushMock,
   fileSessionState,
@@ -31,6 +32,7 @@ const {
   useDirectoryTreeMock
 } = vi.hoisted(() => ({
   buildAgentToolFlowProjectionMock: vi.fn(),
+  loadAgentSessionToolResultMock: vi.fn(),
   fileSessionDiscardMock: vi.fn(),
   fileSessionFlushMock: vi.fn().mockResolvedValue(undefined),
   fileSessionState: {
@@ -171,6 +173,10 @@ vi.mock('@renderer/components/chat/messages/MessageList', () => ({
 
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   MessageListProvider: ({ children }: PropsWithChildren) => <>{children}</>
+}))
+
+vi.mock('@renderer/utils/agentSessionToolResult', () => ({
+  loadAgentSessionToolResult: (...args: unknown[]) => loadAgentSessionToolResultMock(...args)
 }))
 
 vi.mock('@renderer/utils/filePath', () => ({
@@ -475,6 +481,7 @@ describe('AgentRightPane', () => {
       hasLoaded: fileTreeModelState.hasLoaded,
       nodeById: fileTreeModelState.nodeById
     }))
+    loadAgentSessionToolResultMock.mockResolvedValue({ kind: 'output', value: 'Loaded flow result' })
   })
 
   it('uses a title header and keeps stable shortcuts available while the pane is open', () => {
@@ -706,6 +713,58 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('shell-tab-title')).toHaveTextContent('Inspect flow')
     expect(screen.getByTestId('empty-state')).toBeInTheDocument()
     expect(useArtifactFileTreeModelMock).not.toHaveBeenCalled()
+  })
+
+  it('loads a deferred selected flow result with the original message address', async () => {
+    const flowPart = {
+      type: 'dynamic-tool',
+      toolCallId: 'flow-1',
+      toolName: 'Agent',
+      state: 'output-available',
+      input: { prompt: 'Inspect the workspace' },
+      output: '',
+      resultProviderMetadata: {
+        cherry: {
+          deferredToolResult: {
+            messageId: 'm1',
+            toolCallId: 'flow-1',
+            kind: 'output'
+          }
+        }
+      }
+    } as unknown as CherryMessagePart
+    const messages = [{ id: 'm1', role: 'assistant', parts: [flowPart], metadata: {} }] as CherryUIMessage[]
+
+    render(
+      <TestAgentRightPane
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={messages}
+        partsByMessageId={{ m1: [flowPart] }}>
+        <OpenFlowButton toolCallId="flow-1" />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+
+    await waitFor(() =>
+      expect(loadAgentSessionToolResultMock).toHaveBeenCalledWith({
+        sessionId: 'session-a',
+        topicId: 'agent-session:session-a',
+        deferredToolResult: {
+          messageId: 'm1',
+          toolCallId: 'flow-1',
+          kind: 'output'
+        }
+      })
+    )
+    await waitFor(() =>
+      expect(buildAgentToolFlowProjectionMock).toHaveBeenLastCalledWith(messages, { m1: [flowPart] }, 'flow-1', {
+        kind: 'output',
+        value: 'Loaded flow result'
+      })
+    )
   })
 
   it('marks direct artifact opening as user initiated', () => {

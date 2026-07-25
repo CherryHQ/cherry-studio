@@ -380,10 +380,6 @@ describe('useAgentMessageListProviderValue', () => {
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
     } as Topic
-    dataApiMocks.get.mockResolvedValue({
-      data: { parts: [{ type: 'data-error', data: { name: 'AgentRuntimeError', message: 'failed' } }] }
-    })
-
     const Probe = () => {
       useAgentMessageListProviderValue({
         topic,
@@ -401,19 +397,95 @@ describe('useAgentMessageListProviderValue', () => {
     }
     await options.persistDiagnosis('message-1-part-0', { summary: 'Runtime failed' })
 
-    expect(dataApiMocks.get).toHaveBeenCalledWith('/agent-sessions/session-1/messages/message-1')
-    expect(dataApiMocks.patch).toHaveBeenCalledWith('/agent-sessions/session-1/messages/message-1', {
+    expect(dataApiMocks.get).not.toHaveBeenCalled()
+    expect(dataApiMocks.patch).toHaveBeenCalledWith('/agent-sessions/session-1/messages/message-1/parts/0/diagnosis', {
       body: {
-        data: {
-          parts: [
-            expect.objectContaining({
-              providerMetadata: expect.objectContaining({
-                cherry: expect.objectContaining({ diagnosis: expect.objectContaining({ summary: 'Runtime failed' }) })
-              })
-            })
-          ]
-        }
+        diagnosis: { summary: 'Runtime failed' }
       }
+    })
+  })
+
+  it('deduplicates concurrent tool-result reads without retaining settled requests', async () => {
+    const topic = {
+      id: 'agent-session:session-1',
+      assistantId: 'agent-1',
+      name: 'Agent session',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+    const output = { content: 'large stored output' }
+    const result = { kind: 'output' as const, value: output }
+    dataApiMocks.get.mockResolvedValue({ found: true, result })
+    let value: MessageListProviderValue | undefined
+
+    const Probe = () => {
+      value = useAgentMessageListProviderValue({
+        topic,
+        messages: [],
+        partsByMessageId: {},
+        isLoading: false,
+        messageNavigation: 'anchor'
+      })
+      return null
+    }
+    render(<Probe />)
+
+    const deferredToolResult = {
+      messageId: 'message-1',
+      toolCallId: 'call-1',
+      kind: 'output' as const
+    }
+    const first = value?.actions.loadToolResult?.(deferredToolResult)
+    const second = value?.actions.loadToolResult?.(deferredToolResult)
+
+    await expect(first).resolves.toBe(result)
+    await expect(second).resolves.toBe(result)
+    expect(dataApiMocks.get).toHaveBeenCalledTimes(1)
+    expect(dataApiMocks.get).toHaveBeenCalledWith('/agent-sessions/session-1/messages/message-1/tool-results/call-1')
+
+    await expect(value?.actions.loadToolResult?.(deferredToolResult)).resolves.toBe(result)
+    expect(dataApiMocks.get).toHaveBeenCalledTimes(2)
+  })
+
+  it('falls back to the active stream when the pending database row has no tool output yet', async () => {
+    const topic = {
+      id: 'agent-session:session-1',
+      assistantId: 'agent-1',
+      name: 'Agent session',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      messages: []
+    } as Topic
+    const output = { content: 'large live output' }
+    const result = { kind: 'output' as const, value: output }
+    dataApiMocks.get.mockResolvedValue({ found: false })
+    vi.mocked(window.api.ipcApi.request).mockResolvedValue({ ok: true, data: { found: true, result } })
+    let value: MessageListProviderValue | undefined
+
+    const Probe = () => {
+      value = useAgentMessageListProviderValue({
+        topic,
+        messages: [],
+        partsByMessageId: {},
+        isLoading: false,
+        messageNavigation: 'anchor'
+      })
+      return null
+    }
+    render(<Probe />)
+
+    await expect(
+      value?.actions.loadToolResult?.({
+        messageId: 'message-1',
+        toolCallId: 'call-1',
+        kind: 'output'
+      })
+    ).resolves.toBe(result)
+    expect(window.api.ipcApi.request).toHaveBeenCalledWith('ai.get_agent_session_tool_result', {
+      topicId: 'agent-session:session-1',
+      messageId: 'message-1',
+      toolCallId: 'call-1'
     })
   })
 

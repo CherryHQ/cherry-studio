@@ -21,6 +21,8 @@ const mocks = vi.hoisted(() => ({
   topicLoadNext: vi.fn(),
   sessionLoadNext: vi.fn(),
   useInfiniteQuery: vi.fn(),
+  messageContentProviderProps: [] as any[],
+  loadAgentSessionToolResult: vi.fn(),
   onClose: vi.fn(),
   onOpenMessage: vi.fn()
 }))
@@ -76,7 +78,14 @@ function mockPreviewInfiniteQuery(path: string) {
 }
 
 vi.mock('@renderer/components/chat/messages/MessageContentProvider', () => ({
-  MessageContentProvider: ({ children }: { children: ReactNode }) => <div>{children}</div>
+  MessageContentProvider: (props: { children: ReactNode }) => {
+    mocks.messageContentProviderProps.push(props)
+    return <div>{props.children}</div>
+  }
+}))
+
+vi.mock('@renderer/utils/agentSessionToolResult', () => ({
+  loadAgentSessionToolResult: (...args: unknown[]) => mocks.loadAgentSessionToolResult(...args)
 }))
 
 vi.mock('@renderer/components/chat/messages/frame/MessageContent', () => ({
@@ -172,6 +181,8 @@ describe('GlobalSearchMessagePreviewPanel', () => {
     mocks.sessionIsRefreshing = false
     mocks.topicError = undefined
     mocks.sessionError = undefined
+    mocks.messageContentProviderProps.length = 0
+    mocks.loadAgentSessionToolResult.mockResolvedValue({ kind: 'output', value: 'loaded output' })
     mocks.useInfiniteQuery.mockImplementation(mockPreviewInfiniteQuery)
   })
 
@@ -282,6 +293,21 @@ describe('GlobalSearchMessagePreviewPanel', () => {
       .mock.calls.find(([path]) => path === '/agent-sessions/:sessionId/messages')?.[1] as Record<string, unknown>
     expect(sessionQueryOptions).toMatchObject({
       query: { messageId: 'session-message-1' }
+    })
+    const deferredToolResult = {
+      messageId: 'session-message-1',
+      toolCallId: 'call-1',
+      kind: 'output' as const
+    }
+    const providerActions = mocks.messageContentProviderProps.at(-1)?.actions
+    await expect(providerActions?.loadToolResult?.(deferredToolResult)).resolves.toEqual({
+      kind: 'output',
+      value: 'loaded output'
+    })
+    expect(mocks.loadAgentSessionToolResult).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      topicId: 'agent-session:session-1',
+      deferredToolResult
     })
     // Anchored at the matched message; older context is never auto-paginated even when available.
     expect(mocks.sessionLoadNext).not.toHaveBeenCalled()

@@ -2,6 +2,7 @@
  * Agent session message domain API Schema definitions.
  */
 
+import type { AgentSessionToolResult } from '@shared/ai/transport'
 import {
   ContentMessageRoleSchema,
   MessageDataSchema,
@@ -9,6 +10,7 @@ import {
   MessageStatsSchema,
   MessageStatusSchema
 } from '@shared/data/types/message'
+import { DiagnosisResultSchema } from '@shared/data/types/uiParts'
 import * as z from 'zod'
 
 import type { CursorPaginationResponse } from '../types'
@@ -80,6 +82,13 @@ export type CreateAgentSessionMessagesDto = z.infer<typeof CreateAgentSessionMes
 export const UpdateAgentSessionMessageSchema = AgentSessionMessageBaseSchema.pick({ data: true })
 export type UpdateAgentSessionMessageDto = z.infer<typeof UpdateAgentSessionMessageSchema>
 
+export const UpdateAgentSessionMessageDiagnosisSchema = z.strictObject({
+  diagnosis: DiagnosisResultSchema
+})
+export type UpdateAgentSessionMessageDiagnosisDto = z.infer<typeof UpdateAgentSessionMessageDiagnosisSchema>
+
+export type AgentSessionToolResultResponse = { found: true; result: AgentSessionToolResult } | { found: false }
+
 // ============================================================================
 // API Schema definitions
 // ============================================================================
@@ -105,6 +114,21 @@ export type AgentSessionMessageSchemas = {
     }
     DELETE: {
       params: { sessionId: string; messageId: string }
+      response: void
+    }
+  }
+
+  '/agent-sessions/:sessionId/messages/:messageId/tool-results/:toolCallId': {
+    GET: {
+      params: { sessionId: string; messageId: string; toolCallId: string }
+      response: AgentSessionToolResultResponse
+    }
+  }
+
+  '/agent-sessions/:sessionId/messages/:messageId/parts/:partIndex/diagnosis': {
+    PATCH: {
+      params: { sessionId: string; messageId: string; partIndex: string }
+      body: UpdateAgentSessionMessageDiagnosisDto
       response: void
     }
   }

@@ -11,6 +11,7 @@ import {
   stripPartParentToolMetadata
 } from '@renderer/components/chat/messages/tools/toolParentMetadata'
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
+import type { AgentSessionToolResult } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import { getToolName, isDataUIPart, isToolUIPart } from 'ai'
@@ -145,7 +146,11 @@ function getToolPromptText(part: CherryMessagePart | undefined): string | undefi
   return textFromContent(input.prompt) ?? textFromContent(input.description)
 }
 
-function getToolOutputText(part: CherryMessagePart | undefined): string | undefined {
+function getToolOutputText(
+  part: CherryMessagePart | undefined,
+  deferredResult?: AgentSessionToolResult
+): string | undefined {
+  if (deferredResult) return textFromContent(deferredResult.value)
   if (!part) return undefined
   return textFromContent(getToolPartOutput(part))
 }
@@ -209,7 +214,8 @@ function isTerminalToolState(state: string | undefined): boolean {
 export function buildAgentToolFlowProjection(
   messages: CherryUIMessage[],
   partsByMessageId: Record<string, CherryMessagePart[]>,
-  selectedToolCallId?: string
+  selectedToolCallId?: string,
+  selectedToolResult?: AgentSessionToolResult
 ): AgentToolFlowProjection {
   const toolNodes: AgentToolFlowNode[] = []
   const childrenByParent = new Map<string, string[]>()
@@ -290,7 +296,7 @@ export function buildAgentToolFlowProjection(
       }
     }
 
-    const outputText = getToolOutputText(selectedToolPart)
+    const outputText = getToolOutputText(selectedToolPart, selectedToolResult)
     if (outputText) assistantParts.push({ type: 'text', text: outputText } as CherryMessagePart)
     const isFlowActive = toolNodes.some(
       (node) => selectedToolCallIds.has(node.toolCallId) && !isTerminalToolState(node.state)

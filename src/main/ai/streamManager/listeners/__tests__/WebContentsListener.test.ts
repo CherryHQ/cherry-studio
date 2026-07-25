@@ -180,6 +180,52 @@ describe('WebContentsListener coalescing', () => {
     })
   })
 
+  it('sends lightweight tool results to an agent-session renderer without mutating persistence input', () => {
+    const wc = fakeWc()
+    const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'agent-session:session-1')
+    const toolChunk = chunk('tool-output-available', {
+      toolCallId: 'call-1',
+      output: { content: 'large output' },
+      providerMetadata: {
+        'claude-code': {
+          sdkBlockType: 'tool_result',
+          rawResult: 'large raw result'
+        },
+        cherry: { transport: 'claude-agent' }
+      }
+    })
+
+    l.onChunk(toolChunk, undefined, 'assistant-1')
+
+    expect(wc.send).toHaveBeenCalledWith(IpcChannel.IpcApi_Event, 'ai.stream_chunk', {
+      topicId: 'agent-session:session-1',
+      executionId: undefined,
+      anchorMessageId: 'assistant-1',
+      chunk: {
+        type: 'tool-output-available',
+        toolCallId: 'call-1',
+        output: '',
+        providerMetadata: {
+          'claude-code': {
+            sdkBlockType: 'tool_result'
+          },
+          cherry: {
+            transport: 'claude-agent',
+            deferredToolResult: {
+              messageId: 'assistant-1',
+              toolCallId: 'call-1',
+              kind: 'output'
+            }
+          }
+        }
+      }
+    })
+    expect(toolChunk).toMatchObject({
+      output: { content: 'large output' },
+      providerMetadata: { 'claude-code': { rawResult: 'large raw result' } }
+    })
+  })
+
   it('coalesces reasoning-delta independently from text-delta', () => {
     const wc = fakeWc()
     const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')

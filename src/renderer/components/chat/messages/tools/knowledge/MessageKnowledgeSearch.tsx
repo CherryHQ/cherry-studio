@@ -4,10 +4,13 @@ import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { kbSearchInputSchema, type KbSearchOutputItem, kbSearchOutputSchema } from '@shared/ai/builtinTools'
 
 import { ToolDisclosure } from '../shared/ToolDisclosure'
+import { useRequestToolResult } from '../ToolResultLoadContext'
 
 function MessageKnowledgeSearchToolLabel({ toolResponse }: { toolResponse: NormalToolResponse }) {
+  const requestToolResult = useRequestToolResult()
   const inputParse = kbSearchInputSchema.safeParse(toolResponse.arguments)
   const outputParse = kbSearchOutputSchema.safeParse(toolResponse.response)
+  const outputDeferred = toolResponse.status === 'done' && !!requestToolResult
   const query = inputParse.success ? inputParse.data.query : ''
   const resultCount = outputParse.success ? outputParse.data.length : 0
 
@@ -22,14 +25,17 @@ function MessageKnowledgeSearchToolLabel({ toolResponse }: { toolResponse: Norma
     />
   ) : (
     <span className="flex items-center gap-1.5 py-0.5 text-[13px] text-foreground-secondary leading-5 transition-colors duration-150 group-hover/tool:text-foreground">
-      {i18n.t('message.websearch.fetch_complete', { count: resultCount })}
+      {outputDeferred ? query : i18n.t('message.websearch.fetch_complete', { count: resultCount })}
     </span>
   )
 }
 
 export function MessageKnowledgeSearchToolTitle({ toolResponse }: { toolResponse: NormalToolResponse }) {
+  const requestToolResult = useRequestToolResult()
   const outputParse = kbSearchOutputSchema.safeParse(toolResponse.response)
-  const hasResults = toolResponse.status === 'done' && outputParse.success && outputParse.data.length > 0
+  const outputDeferred = toolResponse.status === 'done' && !!requestToolResult
+  const hasResults =
+    toolResponse.status === 'done' && (outputDeferred || (outputParse.success && outputParse.data.length > 0))
   const label = <MessageKnowledgeSearchToolLabel toolResponse={toolResponse} />
 
   if (!hasResults) return label

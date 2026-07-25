@@ -783,6 +783,50 @@ describe('AiStreamManager', () => {
     })
   })
 
+  describe('agent-session tool result lookup', () => {
+    it('returns the full buffered output for an active assistant message', () => {
+      const topicId = 'agent-session:session-1'
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: { ...req(topicId), messageId: 'assistant-1' },
+        listeners: [new FakeListener('l:a')]
+      })
+      const output = { content: 'large live output' }
+      mgr.onChunk(topicId, 'provider-a::model-a', {
+        type: 'tool-output-available',
+        toolCallId: 'call-1',
+        output
+      } as UIMessageChunk)
+
+      expect(mgr.getAgentSessionToolResult(topicId, 'assistant-1', 'call-1')).toEqual({
+        found: true,
+        result: { kind: 'output', value: output }
+      })
+      expect(mgr.getAgentSessionToolResult(topicId, 'assistant-1', 'missing')).toEqual({ found: false })
+    })
+
+    it('returns the full buffered error for an active assistant message', () => {
+      const topicId = 'agent-session:session-1'
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: { ...req(topicId), messageId: 'assistant-1' },
+        listeners: [new FakeListener('l:a')]
+      })
+      mgr.onChunk(topicId, 'provider-a::model-a', {
+        type: 'tool-output-error',
+        toolCallId: 'call-1',
+        errorText: 'large live error'
+      } as UIMessageChunk)
+
+      expect(mgr.getAgentSessionToolResult(topicId, 'assistant-1', 'call-1')).toEqual({
+        found: true,
+        result: { kind: 'error', value: 'large live error' }
+      })
+    })
+  })
+
   // ── grace period ────────────────────────────────────────────────
 
   describe('grace period', () => {

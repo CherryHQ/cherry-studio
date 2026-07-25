@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 
 import Link from '../../markdown/Link'
 import { ToolDisclosure } from '../shared/ToolDisclosure'
+import { useRequestToolResult } from '../ToolResultLoadContext'
 
 /** Split a result URL into the favicon hostname (keeps `www.`) and the display domain (drops it). */
 function parseResultUrl(url: string): { hostname: string; domain: string } {
@@ -19,8 +20,10 @@ function parseResultUrl(url: string): { hostname: string; domain: string } {
 
 const MessageWebSearchToolLabel = ({ toolResponse }: { toolResponse: NormalToolResponse }) => {
   const { t } = useTranslation()
+  const requestToolResult = useRequestToolResult()
   const inputParse = webSearchInputSchema.safeParse(toolResponse.arguments)
   const outputParse = webSearchOutputSchema.safeParse(toolResponse.response)
+  const outputDeferred = toolResponse.status === 'done' && !!requestToolResult
   const query = inputParse.success ? inputParse.data.query : ''
   const resultCount = outputParse.success ? outputParse.data.length : 0
   const resultText =
@@ -45,14 +48,17 @@ const MessageWebSearchToolLabel = ({ toolResponse }: { toolResponse: NormalToolR
   return (
     <span className="flex min-w-0 flex-1 items-center justify-between gap-3 py-0.5 text-[13px] text-foreground-secondary leading-5 transition-colors duration-150 group-hover/tool:text-foreground">
       <span className="min-w-0 truncate">{query || resultText}</span>
-      {query && <span className="shrink-0 text-foreground-muted">{resultText}</span>}
+      {query && !outputDeferred && <span className="shrink-0 text-foreground-muted">{resultText}</span>}
     </span>
   )
 }
 
 export const MessageWebSearchToolTitle = ({ toolResponse }: { toolResponse: NormalToolResponse }) => {
+  const requestToolResult = useRequestToolResult()
   const outputParse = webSearchOutputSchema.safeParse(toolResponse.response)
-  const hasResults = toolResponse.status === 'done' && outputParse.success && outputParse.data.length > 0
+  const outputDeferred = toolResponse.status === 'done' && !!requestToolResult
+  const hasResults =
+    toolResponse.status === 'done' && (outputDeferred || (outputParse.success && outputParse.data.length > 0))
   const label = <MessageWebSearchToolLabel toolResponse={toolResponse} />
 
   if (!hasResults) return label

@@ -1,6 +1,9 @@
 export { applyApprovalDecisions } from './applyApprovalDecisions'
 export type {
   ActiveExecution,
+  AgentSessionToolResult,
+  AiAgentSessionToolResultRequest,
+  AiAgentSessionToolResultResponse,
   AiAgentSessionWarmCloseRequest,
   AiAgentSessionWarmRequest,
   AiChatRequestBody,

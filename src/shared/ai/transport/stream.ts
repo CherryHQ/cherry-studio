@@ -208,6 +208,17 @@ export interface AiStreamAbortRequest {
   topicId: string
 }
 
+/** Read one full tool result from an active agent-session stream. */
+export interface AiAgentSessionToolResultRequest {
+  topicId: string
+  messageId: string
+  toolCallId: string
+}
+
+export type AgentSessionToolResult = { kind: 'output'; value: unknown } | { kind: 'error'; value: string }
+
+export type AiAgentSessionToolResultResponse = { found: true; result: AgentSessionToolResult } | { found: false }
+
 /** Prewarm the next Claude Agent SDK query for an agent session. */
 export interface AiAgentSessionWarmRequest {
   sessionId: string

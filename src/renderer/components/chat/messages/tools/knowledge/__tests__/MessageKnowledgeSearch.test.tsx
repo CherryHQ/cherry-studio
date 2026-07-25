@@ -2,6 +2,7 @@ import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
+import { ToolResultLoadProvider } from '../../ToolResultLoadContext'
 import { MessageKnowledgeSearchToolTitle } from '../MessageKnowledgeSearch'
 
 vi.mock('@renderer/i18n/resolver', () => ({
@@ -25,6 +26,48 @@ vi.mock('lucide-react', async (importOriginal) => {
 })
 
 describe('MessageKnowledgeSearchToolTitle', () => {
+  it('keeps a disclosure trigger while the result payload is deferred', () => {
+    render(
+      <ToolResultLoadProvider value={() => undefined}>
+        <MessageKnowledgeSearchToolTitle
+          toolResponse={
+            {
+              id: 'tool-call-1',
+              toolCallId: 'tool-call-1',
+              tool: { id: 'knowledge-search', name: 'kb_search', type: 'builtin' },
+              status: 'done',
+              arguments: { query: 'Cherry Studio', baseIds: ['base-1'] },
+              response: ''
+            } as NormalToolResponse
+          }
+        />
+      </ToolResultLoadProvider>
+    )
+
+    expect(screen.getByRole('button')).toHaveTextContent('Cherry Studio')
+    expect(screen.queryByText('0 search results')).not.toBeInTheDocument()
+  })
+
+  it('does not infer a deferred payload from an empty response', () => {
+    render(
+      <MessageKnowledgeSearchToolTitle
+        toolResponse={
+          {
+            id: 'tool-call-1',
+            toolCallId: 'tool-call-1',
+            tool: { id: 'knowledge-search', name: 'kb_search', type: 'builtin' },
+            status: 'done',
+            arguments: { query: 'Cherry Studio', baseIds: ['base-1'] },
+            response: ''
+          } as NormalToolResponse
+        }
+      />
+    )
+
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    expect(screen.getByText('0 search results')).toBeInTheDocument()
+  })
+
   it('wraps result details in the shared disclosure container', async () => {
     render(
       <MessageKnowledgeSearchToolTitle

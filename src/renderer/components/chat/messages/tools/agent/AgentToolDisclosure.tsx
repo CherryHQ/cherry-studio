@@ -3,6 +3,7 @@ import { type KeyboardEvent, type ReactNode, useId, useState } from 'react'
 
 import { StreamingContext } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+import { useRequestToolResult } from '../ToolResultLoadContext'
 
 export function AgentToolDisclosureLabel({
   label,
@@ -42,9 +43,11 @@ export function AgentToolDisclosure({
   const itemKey = String(item.key)
   const canExpand = showInlineDetails && item.children !== undefined && item.children !== null
   const isInteractive = canExpand || !!onOpenDetails
+  const requestToolResult = useRequestToolResult()
   const [isExpanded, setIsExpanded] = useState(() => defaultActiveKey.includes(itemKey))
   const toggleExpanded = () => {
     if (!canExpand) return
+    if (!isExpanded) requestToolResult?.()
     setIsExpanded((expanded) => !expanded)
   }
   const openOrToggle = () => {

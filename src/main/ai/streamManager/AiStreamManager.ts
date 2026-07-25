@@ -10,6 +10,7 @@ import { messageService } from '@main/data/services/MessageService'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import { context as otelContext, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import type {
+  AiAgentSessionToolResultResponse,
   AiStreamAttachRequest,
   AiStreamAttachResponse,
   AiStreamDetachRequest,
@@ -30,6 +31,7 @@ import { promptStreamLifecycle } from './lifecycle/PromptStreamLifecycle'
 import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
 import { isRendererListener, WebContentsListener } from './listeners/WebContentsListener'
 import { pipeStreamLoop } from './pipeStreamLoop'
+import { projectStreamChunkPayloadForRenderer, projectStreamMessageForRenderer } from './rendererPayload'
 import type {
   ActiveStream,
   AiStreamManagerConfig,
@@ -1004,8 +1006,9 @@ export class AiStreamManager extends BaseService {
       let firstFinalMessage: CherryUIMessage | undefined
       for (const exec of stream.executions.values()) {
         if (!exec.finalMessage) continue
-        finalMessages[exec.modelId] = exec.finalMessage
-        if (!firstFinalMessage) firstFinalMessage = exec.finalMessage
+        const finalMessage = projectStreamMessageForRenderer(req.topicId, exec.finalMessage)
+        finalMessages[exec.modelId] = finalMessage
+        if (!firstFinalMessage) firstFinalMessage = finalMessage
       }
       return {
         status: stream.status === 'aborted' ? 'paused' : 'done',
@@ -1042,13 +1045,48 @@ export class AiStreamManager extends BaseService {
 
     const bufferedChunks: StreamChunkPayload[] = []
     for (const exec of stream.executions.values()) {
-      bufferedChunks.push(...buildCompactReplay(exec.buffer))
+      bufferedChunks.push(...buildCompactReplay(exec.buffer).map(projectStreamChunkPayloadForRenderer))
     }
     return { status: 'attached', bufferedChunks }
   }
 
   detach(sender: Electron.WebContents, req: AiStreamDetachRequest): void {
     this.removeListener(req.topicId, `wc:${sender.id}:${req.topicId}`)
+  }
+
+  getAgentSessionToolResult(topicId: string, messageId: string, toolCallId: string): AiAgentSessionToolResultResponse {
+    if (!isAgentSessionTopic(topicId)) return { found: false }
+
+    const stream = this.activeStreams.get(topicId)
+    if (!stream) return { found: false }
+
+    for (const exec of stream.executions.values()) {
+      if (exec.anchorMessageId !== messageId && exec.finalMessage?.id !== messageId) continue
+
+      for (let index = exec.buffer.length - 1; index >= 0; index -= 1) {
+        const chunk = exec.buffer[index].chunk
+        if (chunk.type === 'tool-output-error' && chunk.toolCallId === toolCallId) {
+          return { found: true, result: { kind: 'error', value: chunk.errorText } }
+        }
+        if (chunk.type === 'tool-output-available' && chunk.toolCallId === toolCallId) {
+          return { found: true, result: { kind: 'output', value: chunk.output } }
+        }
+      }
+
+      for (let index = (exec.finalMessage?.parts.length ?? 0) - 1; index >= 0; index -= 1) {
+        const part = exec.finalMessage?.parts[index] as Record<string, unknown> | undefined
+        if (part?.toolCallId !== toolCallId) continue
+        if (part.state === 'output-error') {
+          return {
+            found: true,
+            result: { kind: 'error', value: typeof part.errorText === 'string' ? part.errorText : '' }
+          }
+        }
+        if ('output' in part) return { found: true, result: { kind: 'output', value: part.output } }
+      }
+    }
+
+    return { found: false }
   }
 
   // ── Internal helpers ──────────────────────────────────────────────

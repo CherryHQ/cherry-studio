@@ -26,16 +26,16 @@ import type {
   MessageRuntime,
   MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
-import { parseMessagePartId, withMessagePartDiagnosis } from '@renderer/components/chat/messages/utils/messageDiagnosis'
+import { parseMessagePartId } from '@renderer/components/chat/messages/utils/messageDiagnosis'
 import { bindCaptureMessageImageRuntime } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types/topic'
 import { extractAgentSessionIdFromTopicId } from '@renderer/utils/agentSession'
+import { loadAgentSessionToolResult } from '@renderer/utils/agentSessionToolResult'
 import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
-import type { ResponseForPath } from '@shared/data/api/paths'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
@@ -216,19 +216,43 @@ export function useAgentMessageListProviderValue({
       const parsed = parseMessagePartId(partId)
       if (!parsed) return
 
-      const persistedMessage = (await dataApiService.get(
-        `/agent-sessions/${sessionId}/messages/${parsed.messageId}`
-      )) as ResponseForPath<'/agent-sessions/:sessionId/messages/:messageId', 'GET'>
-      const updatedParts = withMessagePartDiagnosis(persistedMessage.data.parts ?? [], parsed.partIndex, diagnosis)
-      if (!updatedParts) return
-
-      await dataApiService.patch(`/agent-sessions/${sessionId}/messages/${parsed.messageId}`, {
-        body: { data: { parts: updatedParts } }
-      })
+      await dataApiService.patch(
+        `/agent-sessions/${sessionId}/messages/${parsed.messageId}/parts/${parsed.partIndex}/diagnosis`,
+        {
+          body: { diagnosis }
+        }
+      )
     },
     [sessionId]
   )
   const errorActions = useMessageErrorActions({ persistDiagnosis })
+  const toolResultRequestState = useMemo(
+    () => ({
+      requests: new Map<string, ReturnType<typeof loadAgentSessionToolResult>>(),
+      sessionId
+    }),
+    [sessionId]
+  )
+  const loadToolResult = useCallback<NonNullable<MessageListActions['loadToolResult']>>(
+    (deferredToolResult) => {
+      const key = `${deferredToolResult.messageId}\0${deferredToolResult.toolCallId}`
+      const cached = toolResultRequestState.requests.get(key)
+      if (cached) return cached
+
+      const request = loadAgentSessionToolResult({
+        sessionId: toolResultRequestState.sessionId,
+        topicId: topic.id,
+        deferredToolResult
+      })
+      toolResultRequestState.requests.set(key, request)
+      const releaseRequest = () => {
+        if (toolResultRequestState.requests.get(key) === request) toolResultRequestState.requests.delete(key)
+      }
+      void request.then(releaseRequest, releaseRequest)
+      return request
+    },
+    [toolResultRequestState, topic.id]
+  )
   const leafCapabilities = useMessageLeafCapabilities({
     partsByMessageId: displayPartsByMessageId,
     streamingLayers: displayStreamingLayers
@@ -401,6 +425,7 @@ export function useAgentMessageListProviderValue({
       showInFolder,
       isDirectory,
       abortTool,
+      loadToolResult,
       bindMessageRuntime,
       bindMessageGroupRuntime,
       locateMessage,
@@ -419,6 +444,7 @@ export function useAgentMessageListProviderValue({
       headerCapabilities,
       isDirectory,
       leafCapabilities,
+      loadToolResult,
       navigateToRoute,
       loadOlder,
       locateMessage,

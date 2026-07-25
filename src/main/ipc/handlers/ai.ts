@@ -82,6 +82,9 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.stream_abort': async ({ topicId }) => {
     application.get('AiStreamManager').abort(topicId, 'user-requested')
   },
+  'ai.get_agent_session_tool_result': async ({ topicId, messageId, toolCallId }) => {
+    return application.get('AiStreamManager').getAgentSessionToolResult(topicId, messageId, toolCallId)
+  },
 
   // ── Agent sessions & tasks — delegate to the owning services. ──
   'ai.prewarm_agent_session': async ({ sessionId }) => {

@@ -16,8 +16,9 @@ import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
 import { useTopicOverlayHandoffOnTerminal, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { getDeferredToolResultRef } from '@renderer/utils/deferredToolResult'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
-import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
+import { type AiStreamOpenRequest, type AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { isToolUIPart } from 'ai'
@@ -67,6 +68,8 @@ function getAskUserQuestionAnswers(value: unknown): Record<string, string> | und
 }
 
 function hasAskUserQuestionAnswers(part: AskUserQuestionApprovalPart): boolean {
+  if (getDeferredToolResultRef(part)?.kind === 'output') return true
+
   const outputContent =
     typeof part.output === 'object' && part.output !== null && 'content' in part.output
       ? part.output.content

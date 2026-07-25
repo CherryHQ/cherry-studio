@@ -21,7 +21,8 @@ const aiStreamManager = {
   dispatch: vi.fn(),
   attach: vi.fn(),
   detach: vi.fn(),
-  abort: vi.fn()
+  abort: vi.fn(),
+  getAgentSessionToolResult: vi.fn()
 }
 
 const claudeCodeWarmQueryManager = { prewarmAgentSession: vi.fn(), closeAgentSessionWarm: vi.fn() }
@@ -198,6 +199,30 @@ describe('aiHandlers — streaming', () => {
     await aiHandlers['ai.stream_abort']({ topicId: 't' }, { senderId: null })
     expect(aiStreamManager.abort).toHaveBeenCalledWith('t', 'user-requested')
     expect(windowManager.getWindow).not.toHaveBeenCalled()
+  })
+
+  it('get_agent_session_tool_result delegates to the active stream registry', async () => {
+    const output = { content: 'large live output' }
+    aiStreamManager.getAgentSessionToolResult.mockReturnValue({
+      found: true,
+      result: { kind: 'output', value: output }
+    })
+
+    const result = await aiHandlers['ai.get_agent_session_tool_result'](
+      {
+        topicId: 'agent-session:session-1',
+        messageId: 'assistant-1',
+        toolCallId: 'call-1'
+      },
+      { senderId: null }
+    )
+
+    expect(aiStreamManager.getAgentSessionToolResult).toHaveBeenCalledWith(
+      'agent-session:session-1',
+      'assistant-1',
+      'call-1'
+    )
+    expect(result).toEqual({ found: true, result: { kind: 'output', value: output } })
   })
 })
 
