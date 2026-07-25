@@ -900,7 +900,7 @@ describe('AgentChat artifact pane', () => {
     expect(screen.queryByTestId('composer-dock-frame')).not.toBeInTheDocument()
   })
 
-  it('renders the missing-agent selection as a home composer without leasing a session', () => {
+  it('renders the missing-agent selection as a home composer without leasing a session', async () => {
     activeSessionMocks.result = {
       activeSessionId: null,
       session: undefined,
@@ -914,9 +914,10 @@ describe('AgentChat artifact pane', () => {
       onMissingAgentSelectionAgentChange
     })
 
+    // The home composer is lazy-loaded; wait for the chunk to resolve.
+    expect(await screen.findByTestId('missing-agent-home-composer')).toBeInTheDocument()
     expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
     expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-main-visible', 'true')
-    expect(screen.getByTestId('missing-agent-home-composer')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'select missing agent' }))
 

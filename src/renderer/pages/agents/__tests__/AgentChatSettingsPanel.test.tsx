@@ -534,7 +534,7 @@ describe('AgentChat settings panel', () => {
     expect(screen.queryByTestId('agent-inputbar')).not.toBeInTheDocument()
   })
 
-  it('keeps the missing-agent home composer for pending ask-user-question requests', () => {
+  it('keeps the missing-agent home composer for pending ask-user-question requests', async () => {
     partsByMessageIdMock.value = {
       'message-1': [
         {
@@ -564,12 +564,13 @@ describe('AgentChat settings panel', () => {
       missingAgentSelection: true
     })
 
+    // The home composer is lazy-loaded; wait for the chunk to resolve.
+    expect(await screen.findByTestId('missing-agent-home-composer')).toBeInTheDocument()
     expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
-    expect(screen.getByTestId('missing-agent-home-composer')).toBeInTheDocument()
     expect(screen.queryByText('Choose logger')).not.toBeInTheDocument()
   })
 
-  it('prioritizes AskUserQuestionComposer over regular permission requests', () => {
+  it('prioritizes AskUserQuestionComposer over regular permission requests', async () => {
     partsByMessageIdMock.value = {
       'message-1': [
         {
@@ -644,7 +645,7 @@ describe('AgentChat settings panel', () => {
     expect(screen.queryByTestId('agent-inputbar')).not.toBeInTheDocument()
   })
 
-  it('keeps the missing-agent home composer for pending tool permissions', () => {
+  it('keeps the missing-agent home composer for pending tool permissions', async () => {
     partsByMessageIdMock.value = {
       'message-1': [
         {
@@ -669,8 +670,9 @@ describe('AgentChat settings panel', () => {
       missingAgentSelection: true
     })
 
+    // The home composer is lazy-loaded; wait for the chunk to resolve.
+    expect(await screen.findByTestId('missing-agent-home-composer')).toBeInTheDocument()
     expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
-    expect(screen.getByTestId('missing-agent-home-composer')).toBeInTheDocument()
     expect(screen.queryByText('CustomTool')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'agent.toolPermission.button.allow' })).not.toBeInTheDocument()
   })
