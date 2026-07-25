@@ -397,7 +397,7 @@ describe('AppShellTabBar', () => {
     expect(pinnedTab).toHaveClass('nodrag')
   })
 
-  it('keeps a dragged inactive tab opaque while hovered in a transparent window', () => {
+  it("keeps an inactive tab's existing tone while dragging", () => {
     const originalSetPointerCapture = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'setPointerCapture')
     Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', {
       configurable: true,
@@ -430,17 +430,13 @@ describe('AppShellTabBar', () => {
       Object.defineProperty(pointerMove, 'pointerId', { value: 1 })
       fireEvent(document, pointerMove)
 
-      expect(tab).toHaveClass('bg-popover')
-      expect(tab).toHaveClass('dark:bg-popover')
-      expect(tab).toHaveClass('shadow-md')
-      expect(tab).toHaveClass('hover:bg-popover')
-      expect(tab).toHaveClass('dark:hover:bg-popover')
-      expect(tab).toHaveClass('hover:shadow-md')
-      expect(tab).toHaveClass('dark:hover:shadow-md')
-      expect(tab).not.toHaveClass('hover:bg-black/6')
-      expect(tab).not.toHaveClass('dark:hover:bg-white/6')
-      expect(tab).not.toHaveClass('hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)]')
-      expect(tab).not.toHaveClass('dark:hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]')
+      expect(tab).toHaveClass('cursor-grabbing')
+      expect(tab).toHaveClass('hover:bg-black/6')
+      expect(tab).toHaveClass('dark:hover:bg-white/6')
+      expect(tab).toHaveClass('hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)]')
+      expect(tab).toHaveClass('dark:hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]')
+      expect(tab).not.toHaveClass('bg-popover')
+      expect(tab).not.toHaveClass('shadow-md')
     } finally {
       if (originalSetPointerCapture) {
         Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', originalSetPointerCapture)
@@ -794,6 +790,8 @@ describe('AppShellTabBar', () => {
         vi.advanceTimersByTime(50)
       })
       expect(tabA).toHaveStyle({ flex: '0 0 0px' })
+      expect(tabA).toHaveStyle({ opacity: '0' })
+      expect(tabA.style.transition).toContain('opacity 40ms linear 140ms')
       expect(closeTab).not.toHaveBeenCalled()
 
       act(() => {

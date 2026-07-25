@@ -58,11 +58,6 @@ interface TabToneProps {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-// A dragged inactive tab remains hovered, so the matching hover variants must
-// override the transparent-window tone as well as the base background/shadow.
-const DRAGGING_TAB_SURFACE_CLASS =
-  'bg-popover shadow-md hover:bg-popover hover:shadow-md dark:bg-popover dark:hover:bg-popover dark:hover:shadow-md'
-
 const Separator = () => <div className="mx-0.5 h-4 w-px shrink-0 bg-border/50" />
 
 type PinnedTabButtonProps = {
@@ -103,7 +98,6 @@ const PinnedTabButton = ({ tab, isActive, onSelect, drag, tabRef, tone, ref, ...
           'nodrag flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-150 [-webkit-app-region:no-drag]',
           drag.isDragging ? 'cursor-grabbing' : 'cursor-default',
           isActive ? tone.activeClass : tone.hoverClass,
-          drag.isDragging && DRAGGING_TAB_SURFACE_CLASS,
           rest.className
         )}>
         <TabIcon tab={tab} size={14} />
@@ -240,12 +234,14 @@ const NormalTabButton = ({
           drag.isDragging || drag.noTransition
             ? 'none'
             : isClosing || isThawing
-              ? 'transform 200ms ease, flex 200ms ease, margin 200ms ease, padding 200ms ease, opacity 200ms ease'
+              ? isClosing
+                ? 'transform 200ms ease, flex 200ms ease, margin 200ms ease, padding 200ms ease, opacity 40ms linear 140ms'
+                : 'transform 200ms ease, flex 200ms ease, margin 200ms ease, padding 200ms ease, opacity 200ms ease'
               : 'transform 200ms ease, margin 200ms ease, padding 200ms ease, opacity 200ms ease',
         zIndex: drag.isDragging ? 50 : 'auto',
-        // No fade while closing — Chrome keeps the content visible and lets the
-        // shrinking width clip it; fading first reads as a white flash.
-        opacity: drag.isGhost ? 0.3 : 1
+        // Keep the tab opaque through most of the collapse, then fade only near
+        // the end so its surface and outline cannot compress into a vertical line.
+        opacity: drag.isGhost ? 0.3 : isClosing ? 0 : 1
       }}
       className={cn(
         'nodrag group relative flex h-[30px] min-w-[56px] max-w-[160px] items-center gap-1.5 rounded-[10px] px-2 transition-all duration-150 [-webkit-app-region:no-drag]',
@@ -259,7 +255,6 @@ const NormalTabButton = ({
           : isActive
             ? tone.activeClass
             : tone.hoverClass,
-        drag.isDragging && DRAGGING_TAB_SURFACE_CLASS,
         isClosing && 'min-w-0 overflow-hidden px-0'
       )}>
       <TabIcon tab={tab} size={14} className="shrink-0" />
