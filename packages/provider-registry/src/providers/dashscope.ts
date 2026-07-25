@@ -2,6 +2,7 @@ import type { ImageModeDef, ReasoningSupport } from '../schemas/model'
 import type { ProviderModelOverride } from '../schemas/provider-models'
 import type { ReasoningWireProfile } from '../schemas/reasoningWire'
 import { defineProvider } from './types'
+import { EFFORT, modeWire } from './wires'
 
 /** wanx2.x text-to-image SKUs share one parameter set on DashScope's async t2i transport. */
 const wanxT2iSupports: ImageModeDef['supports'] = {
@@ -36,15 +37,11 @@ const qwenChatWire: ReasoningWireProfile = {
   }
 }
 
-const responsesEffortWire: ReasoningWireProfile = {
-  off: { operations: [{ target: 'reasoningEffort', value: { source: 'literal', value: 'none' } }] },
-  auto: {
-    operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }],
-    // Bailian's own default is `xhigh`; map `auto` onto it rather than downgrading to medium.
-    effortMap: { auto: 'xhigh' }
-  },
-  effort: { operations: [{ target: 'reasoningEffort', value: { source: 'effort' } }] }
-}
+const responsesEffortWire = modeWire(
+  'reasoningEffort',
+  { off: 'none', auto: EFFORT, effort: EFFORT },
+  { autoEffort: 'xhigh' }
+)
 
 /**
  * Bailian's Responses API controls reasoning via `reasoning.effort` — seven tiers
@@ -88,16 +85,13 @@ const effortChatWire: ReasoningWireProfile = {
   effort: { operations: [{ target: 'reasoning_effort', value: { source: 'effort' } }] }
 }
 
-const qwen38ChatWire: ReasoningWireProfile = {
-  off: { operations: [{ target: 'reasoning_effort', value: { source: 'literal', value: 'none' } }] },
-  effort: { operations: [{ target: 'reasoning_effort', value: { source: 'effort' } }] }
-}
+const qwen38ChatWire: ReasoningWireProfile = modeWire('reasoning_effort', { off: 'none', effort: EFFORT })
 
-const minimaxM3Wire: ReasoningWireProfile = {
-  off: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'disabled' } }] },
-  auto: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'adaptive' } }] },
-  effort: { operations: [{ target: 'thinking.type', value: { source: 'literal', value: 'adaptive' } }] }
-}
+const minimaxM3Wire: ReasoningWireProfile = modeWire('thinking.type', {
+  off: 'disabled',
+  auto: 'adaptive',
+  effort: 'adaptive'
+})
 
 const qwenChatModels = [
   'qwen-plus',

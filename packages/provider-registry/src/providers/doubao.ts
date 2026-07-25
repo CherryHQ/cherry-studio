@@ -1,5 +1,6 @@
 import type { ProviderModelOverride } from '../schemas/provider-models'
 import { defineProvider } from './types'
+import { EFFORT, modeWire } from './wires'
 
 /**
  * Ark reasoning control (docs/82379/1449737 chat + 1956279 responses): effort SKUs take
@@ -7,16 +8,11 @@ import { defineProvider } from './types'
  * `minimal` is the off switch ('none' is glm-5-2-only and rejected elsewhere). `auto` is not an Ark
  * effort value; map it to the server default (medium).
  */
-const effortWire = {
-  off: {
-    operations: [{ target: 'reasoningEffort' as const, value: { source: 'literal' as const, value: 'minimal' } }]
-  },
-  auto: {
-    operations: [{ target: 'reasoningEffort' as const, value: { source: 'effort' as const } }],
-    effortMap: { auto: 'medium' as const }
-  },
-  effort: { operations: [{ target: 'reasoningEffort' as const, value: { source: 'effort' as const } }] }
-}
+const effortWire = modeWire(
+  'reasoningEffort',
+  { off: 'minimal', auto: EFFORT, effort: EFFORT },
+  { autoEffort: 'medium' }
+)
 
 const effortContracts = {
   'openai-chat-completions': { wire: effortWire },
