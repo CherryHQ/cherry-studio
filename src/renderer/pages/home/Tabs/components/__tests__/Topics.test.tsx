@@ -394,6 +394,9 @@ vi.mock('react-i18next', () => ({
         if (key === 'common.required_field') return 'Required field'
         if (key === 'common.save') return 'Save'
         if (key === 'common.select_all') return 'Select All'
+        if (key === 'message.tools.status.done') return 'Done'
+        if (key === 'message.tools.status.error') return 'Error'
+        if (key === 'message.tools.status.running') return 'Running'
         if (key === 'chat.topics.manage.deselect_all') return 'Deselect All'
         if (key === 'chat.topics.manage.delete.confirm.title') return 'Delete Conversations'
         if (key === 'chat.topics.manage.delete.confirm.content') return `Delete ${options?.count ?? 0} conversation(s)?`
@@ -1974,6 +1977,7 @@ describe('Topics', () => {
     let indicator = indicatorRoot?.querySelector('.animate-spin')
     // The indicator is an absolute overlay in every layout now; it fades out on
     // hover so the pin + delete actions take its resting spot.
+    expect(indicatorRoot).toHaveAccessibleName('Running')
     expect(indicatorRoot).toHaveClass('absolute', 'group-hover:opacity-0')
     expect(indicator).toHaveClass('text-foreground-muted')
     // The delete button always renders now (revealed on hover); assert only
@@ -1991,8 +1995,10 @@ describe('Topics', () => {
     indicator = indicatorRoot?.querySelector('span')
     // The indicator is an absolute overlay in every layout now; it fades out on
     // hover so the pin + delete actions take its resting spot.
+    expect(indicatorRoot).toHaveAccessibleName('Done')
     expect(indicatorRoot).toHaveClass('absolute', 'group-hover:opacity-0')
     expect(indicator).toHaveClass('bg-success')
+    expect(indicator?.tagName).toBe('SPAN')
     expect(indicator).not.toHaveClass('animate-spin')
     // The delete button always renders now (revealed on hover); assert only
     // that the row is not in the delete-confirm state.
@@ -2025,7 +2031,10 @@ describe('Topics', () => {
     view = renderTopicList({ activeTopic })
 
     topicRow = getTopicRow('Alpha topic')
-    expect(topicRow.querySelector('[data-testid="topic-stream-indicator"] span')).toHaveClass('bg-error-base')
+    const errorIndicator = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
+    expect(errorIndicator).toHaveAccessibleName('Error')
+    expect(errorIndicator?.firstElementChild).toHaveClass('text-error')
+    expect(errorIndicator?.firstElementChild?.tagName).toBe('svg')
 
     act(() => setTopicStreamCacheStatus('topic-a', 'done'))
     view.unmount()
@@ -2074,14 +2083,16 @@ describe('Topics', () => {
     expect(within(topicRow).getByLabelText('Delete')).toBeInTheDocument()
   })
 
-  it('shows a red dot for an errored topic stream and none for an aborted one', () => {
+  it('shows an accessible error icon for an errored topic stream and none for an aborted one', () => {
     setTopicStreamCacheStatus('topic-c', 'error')
     let view = renderTopicList()
 
     let topicRow = getTopicRow('Gamma topic')
-    const indicator = topicRow.querySelector('[data-testid="topic-stream-indicator"]')?.querySelector('span')
-    expect(indicator).toHaveClass('bg-error-base')
-    expect(indicator).not.toHaveClass('animate-spin')
+    const indicator = topicRow.querySelector('[data-testid="topic-stream-indicator"]')
+    expect(indicator).toHaveAccessibleName('Error')
+    expect(indicator?.firstElementChild).toHaveClass('text-error')
+    expect(indicator?.firstElementChild?.tagName).toBe('svg')
+    expect(indicator?.firstElementChild).not.toHaveClass('animate-spin')
 
     setTopicStreamCacheStatus('topic-c', 'aborted')
     view.unmount()

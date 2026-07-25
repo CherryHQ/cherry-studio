@@ -581,6 +581,9 @@ vi.mock('react-i18next', () => ({
         'common.saved': 'Saved',
         'common.unnamed': 'Untitled',
         'error.model.not_exists': 'Model does not exist',
+        'message.tools.status.done': 'Done',
+        'message.tools.status.error': 'Error',
+        'message.tools.status.running': 'Running',
         'settings.agent.position.label': 'Session position',
         'settings.agent.position.left': 'Left',
         'settings.agent.position.right': 'Right',
@@ -2343,7 +2346,9 @@ describe('Sessions', () => {
     const { unmount } = render(<SessionsForTest />)
 
     const indicator = screen.getByTestId('agent-session-stream-indicator')
+    expect(indicator).toHaveAccessibleName('Done')
     expect(indicator.firstElementChild).toHaveClass('bg-success')
+    expect(indicator.firstElementChild?.tagName).toBe('SPAN')
     expect(indicator.firstElementChild).not.toHaveClass('animate-spin')
     // The indicator is an absolute overlay that fades out on hover so the
     // pin + delete actions take its resting spot (not swapped out of the DOM).
@@ -2357,7 +2362,9 @@ describe('Sessions', () => {
     render(<SessionsForTest />)
 
     // Pending now renders a spinner (not the old pulsing amber dot).
-    expect(screen.getByTestId('agent-session-stream-indicator').firstElementChild).toHaveClass('animate-spin')
+    const pendingIndicator = screen.getByTestId('agent-session-stream-indicator')
+    expect(pendingIndicator).toHaveAccessibleName('Running')
+    expect(pendingIndicator.firstElementChild).toHaveClass('animate-spin')
   })
 
   it('keeps running and error indicators on the selected session row but suppresses the completion dot', () => {
@@ -2386,9 +2393,10 @@ describe('Sessions', () => {
     const erroredSelectedRow = screen
       .getAllByTestId('agent-session-row')
       .find((row) => row.getAttribute('data-selected') === 'true')
-    expect(
-      within(erroredSelectedRow as HTMLElement).getByTestId('agent-session-stream-indicator').firstElementChild
-    ).toHaveClass('bg-error-base')
+    const errorIndicator = within(erroredSelectedRow as HTMLElement).getByTestId('agent-session-stream-indicator')
+    expect(errorIndicator).toHaveAccessibleName('Error')
+    expect(errorIndicator.firstElementChild).toHaveClass('text-error')
+    expect(errorIndicator.firstElementChild?.tagName).toBe('svg')
 
     // A completion dot on the same selected row IS suppressed (read-receipt).
     topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
@@ -2403,7 +2411,7 @@ describe('Sessions', () => {
     expect(within(reselectedRow as HTMLElement).queryByTestId('agent-session-stream-indicator')).not.toBeInTheDocument()
   })
 
-  it('shows a red dot when the last turn errored', () => {
+  it('shows an accessible error icon when the last turn errored', () => {
     topicStreamStatusMocks.useTopicStreamStatus.mockImplementation((topicId: string) =>
       createTopicStreamStatusMock(topicId === 'agent-session:session-b' ? { status: 'error' } : {})
     )
@@ -2411,7 +2419,9 @@ describe('Sessions', () => {
     render(<SessionsForTest />)
 
     const indicator = screen.getByTestId('agent-session-stream-indicator')
-    expect(indicator.firstElementChild).toHaveClass('bg-error-base')
+    expect(indicator).toHaveAccessibleName('Error')
+    expect(indicator.firstElementChild).toHaveClass('text-error')
+    expect(indicator.firstElementChild?.tagName).toBe('svg')
     expect(indicator.firstElementChild).not.toHaveClass('animate-spin')
   })
 

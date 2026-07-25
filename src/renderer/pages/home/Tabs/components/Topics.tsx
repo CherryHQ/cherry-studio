@@ -77,7 +77,7 @@ import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transpor
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import { DEFAULT_ASSISTANT_EMOJI } from '@shared/data/presets/defaultAssistant'
 import dayjs from 'dayjs'
-import { Loader2, MoreHorizontal, PinIcon, Plus, SquarePen, Trash2, XIcon } from 'lucide-react'
+import { CircleAlert, Loader2, MoreHorizontal, PinIcon, Plus, SquarePen, Trash2, XIcon } from 'lucide-react'
 import type { MouseEvent, RefObject } from 'react'
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -1782,22 +1782,34 @@ const TopicStreamIndicator = ({
   isFulfilled: boolean
   isPending: boolean
 }) => {
+  const { t } = useTranslation()
+
   if (!isPending && !isFulfilled && !isErrored) return null
+
+  const statusLabel = isPending
+    ? t('message.tools.status.running')
+    : isErrored
+      ? t('message.tools.status.error')
+      : t('message.tools.status.done')
 
   return (
     // Absolute overlay at the actions' resting spot: it fades out on hover /
     // focus / delete-confirm so the pin + delete buttons take its place (the
     // dot/spinner and the actions are mutually exclusive, never side by side).
     <span
-      aria-hidden="true"
+      aria-label={statusLabel}
       className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex size-5 shrink-0 items-center justify-center opacity-100 transition-opacity duration-150 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0"
-      data-testid="topic-stream-indicator">
+      data-testid="topic-stream-indicator"
+      role="img">
       {isPending ? (
         // A spinner reads as "running", where the old pulsing amber dot looked
-        // like a warning. Errored/done collapse to a red/green dot.
-        <Loader2 className="size-3 animate-spin text-foreground-muted" />
+        // like a warning. Error uses a distinct icon instead of relying on
+        // red/green color alone; completion remains a green read-receipt dot.
+        <Loader2 aria-hidden="true" className="size-3 animate-spin text-foreground-muted" />
+      ) : isErrored ? (
+        <CircleAlert aria-hidden="true" className="size-3 text-error" />
       ) : (
-        <span className={cn('size-1.25 rounded-full', isErrored ? 'bg-error-base' : 'bg-success')} />
+        <span aria-hidden="true" className="size-1.25 rounded-full bg-success" />
       )}
     </span>
   )
