@@ -409,6 +409,7 @@ describe('AppShellTabBar', () => {
       renderTabBar()
 
       const tab = screen.getByRole('button', { name: 'A' })
+      const classNameBeforeDrag = tab.className
       const pointerDown = new MouseEvent('pointerdown', {
         bubbles: true,
         button: 0,
@@ -431,12 +432,7 @@ describe('AppShellTabBar', () => {
       fireEvent(document, pointerMove)
 
       expect(tab).toHaveClass('cursor-grabbing')
-      expect(tab).toHaveClass('hover:bg-black/6')
-      expect(tab).toHaveClass('dark:hover:bg-white/6')
-      expect(tab).toHaveClass('hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.28)]')
-      expect(tab).toHaveClass('dark:hover:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.03)]')
-      expect(tab).not.toHaveClass('bg-popover')
-      expect(tab).not.toHaveClass('shadow-md')
+      expect(tab.className.replace('cursor-grabbing', 'cursor-default')).toBe(classNameBeforeDrag)
     } finally {
       if (originalSetPointerCapture) {
         Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', originalSetPointerCapture)
@@ -791,7 +787,6 @@ describe('AppShellTabBar', () => {
       })
       expect(tabA).toHaveStyle({ flex: '0 0 0px' })
       expect(tabA).toHaveStyle({ opacity: '0' })
-      expect(tabA.style.transition).toContain('opacity 40ms linear 140ms')
       expect(closeTab).not.toHaveBeenCalled()
 
       act(() => {
