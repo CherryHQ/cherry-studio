@@ -510,9 +510,9 @@ export class BackupService extends BaseService {
 
   /**
    * Clear BACKUP_IN_PROGRESS and release the JobManager pause hold. No-op when no
-   * quiesce is held. Called only when restore fails short of seal — after seal the
-   * holds stay live until the user-confirmed relaunch exits the process, keeping the
-   * write window closed across the disclosure + relaunch gap.
+   * quiesce is held. Called when restore fails short of seal, or when lifecycle stops
+   * after seal without exiting the process. Otherwise sealed holds stay live until the
+   * user-confirmed relaunch exits, keeping the write window closed across that gap.
    */
   private releaseRestoreQuiesce(): void {
     setBackupInProgress(false)
@@ -1074,7 +1074,12 @@ export class BackupService extends BaseService {
     // copy + staging open. The orchestrator checks the abort signal at its next step
     // boundary + its finally cleans up temp + staging. (Sync stop cannot await the
     // async drain; abort is the bounded-shutdown lever.)
-    this.activeOperation?.abortController.abort()
+    const activeOperation = this.activeOperation
+    activeOperation?.abortController.abort()
+    // A sealed restore deliberately outlives activeOperation until relaunch. Lifecycle
+    // restart stays in-process, though, so release that process-local writer gate here.
+    // An active operation owns its hold until its async finally finishes abort cleanup.
+    if (!activeOperation) this.releaseRestoreQuiesce()
   }
 
   protected override onDestroy(): void {

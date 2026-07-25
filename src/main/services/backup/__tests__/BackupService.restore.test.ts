@@ -362,6 +362,42 @@ describe('BackupService restore journal lifecycle (A7)', () => {
       setBackupInProgress(false) // module-singleton gate — reset for later tests
     })
 
+    it('onStop releases a sealed restore quiesce hold for same-process lifecycle restart (CR-008)', async () => {
+      const holdDispose = vi.fn()
+      jobManagerPause.mockReturnValue({ dispose: holdDispose })
+      const service = new BackupService()
+
+      await service.startRestore({ archivePath: '/x.cherrybackup' })
+      expect(isBackupInProgress()).toBe(true)
+      expect(holdDispose).not.toHaveBeenCalled()
+
+      ;(service as unknown as { onStop: () => void }).onStop()
+
+      expect(isBackupInProgress()).toBe(false)
+      expect(holdDispose).toHaveBeenCalledTimes(1)
+    })
+
+    it('onStop leaves an active restore hold owned by its async abort cleanup', () => {
+      const abort = vi.fn()
+      const holdDispose = vi.fn()
+      const service = new BackupService()
+      const internals = service as unknown as {
+        activeOperation: { abortController: { abort: () => void } }
+        restoreQuiesceHold: { dispose: () => void }
+        onStop: () => void
+      }
+      internals.activeOperation = { abortController: { abort } }
+      internals.restoreQuiesceHold = { dispose: holdDispose }
+      setBackupInProgress(true)
+
+      internals.onStop()
+
+      expect(abort).toHaveBeenCalledTimes(1)
+      expect(isBackupInProgress()).toBe(true)
+      expect(holdDispose).not.toHaveBeenCalled()
+      setBackupInProgress(false)
+    })
+
     it('broadcasts a NON-empty plan: toSkip maps from plan.skips (not toRestore)', async () => {
       drainInFlight.mockResolvedValue({ stragglerIds: [], startupRecoveryPending: false })
       // Once: keep the describe's quiesce drive, but return a NON-empty plan so a
