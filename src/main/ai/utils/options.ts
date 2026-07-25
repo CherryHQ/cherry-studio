@@ -230,64 +230,10 @@ function encodeReasoningOptions(
   invocation: ResolvedReasoningInvocation,
   actualProviderId?: string
 ): { providerId: string; options: Record<string, unknown> } {
-  let providerId: string
-  switch (aiSdkProviderId) {
-    case 'openai':
-    case 'openai-chat':
-    case 'azure':
-    case 'azure-responses':
-    case 'huggingface':
-      providerId = 'openai'
-      break
-    case 'anthropic':
-    case 'azure-anthropic':
-      providerId = 'anthropic'
-      break
-    case 'google-vertex-anthropic':
-      providerId = resolveProviderOptionsKey(aiSdkProviderId)
-      break
-    case 'google':
-      providerId = 'google'
-      break
-    case 'google-vertex':
-    case 'google-vertex-maas':
-      providerId = resolveProviderOptionsKey(aiSdkProviderId)
-      break
-    case 'xai':
-    case 'xai-responses':
-      providerId = 'xai'
-      break
-    case 'bedrock':
-      providerId = 'bedrock'
-      break
-    case SystemProviderIds.ollama:
-      providerId = 'ollama'
-      break
-    case 'cherryin':
-    case 'cherryin-chat':
-    case 'newapi':
-    case 'aihubmix':
-    case SystemProviderIds.gateway:
-      if (endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
-        providerId = 'anthropic'
-      } else if (endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) {
-        providerId = 'google'
-      } else if (endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) {
-        providerId = 'openai'
-      } else {
-        providerId = aiSdkProviderId
-      }
-      break
-    case 'openai-compatible':
-      // createOpenAICompatible() names the language model after the concrete
-      // provider. Unknown compatible fields are forwarded only from that
-      // namespace; the canonical openai-compatible namespace is schema-stripped.
-      providerId = resolveProviderOptionsKey(aiSdkProviderId, actualProviderId)
-      break
-    default:
-      providerId = aiSdkProviderId
+  return {
+    providerId: resolveProviderOptionsKey(aiSdkProviderId, actualProviderId, endpointType),
+    options: encodeReasoningInvocation(invocation)
   }
-  return { providerId, options: encodeReasoningInvocation(invocation) }
 }
 
 /** Build the single providerOptions namespace that owns reasoning for this endpoint adapter. */

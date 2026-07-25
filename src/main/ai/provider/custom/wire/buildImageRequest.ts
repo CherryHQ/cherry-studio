@@ -139,9 +139,10 @@ export function buildVendorProviderOptions(
   const forwarded = registration.passthrough === 'wire' ? wireNameBag(jsonBag(extras)) : jsonBag(extras)
   const body = registration.passthrough ? { ...forwarded, ...mapped } : mapped
   const result: Record<string, Record<string, JSONValue>> = {}
-  // The primary body rides under the registration's delivery key when it overrides
-  // the provider id (Vertex: id `google-vertex`, but the SDK reads `providerOptions.vertex`).
-  if (Object.keys(body).length > 0) result[registration.key ?? providerId] = body
+  // `providerId` is `sdkConfig.optionsKey` — the namespace the SDK image model reads
+  // (`resolveProviderOptionsKey`), which already re-keys the ids whose SDK package
+  // hardcodes its own name (google-vertex → vertex, doubao → bytedance, …).
+  if (Object.keys(body).length > 0) result[providerId] = body
   // The `openai` mirror carries the CLEAN OpenAI image body (mapped fields only),
   // never the passthrough vendor bag: `@ai-sdk/openai` rejects unknown fields,
   // while the provider's own key (e.g. aihubmix, whose custom model reads the bag)

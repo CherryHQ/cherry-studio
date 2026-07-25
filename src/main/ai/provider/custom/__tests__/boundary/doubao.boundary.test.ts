@@ -4,6 +4,7 @@ import type { ImageModelV3CallOptions } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
+import { resolveProviderOptionsKey } from '../../../endpoint'
 import { buildVendorProviderOptions } from '../../wire/buildImageRequest'
 import { WIRE_REGISTRY } from '../../wire/wireProfile'
 import { captureWithFetch, runWithResponse } from './captureRequest'
@@ -42,9 +43,10 @@ const imageModel = (modelId: string, fetch: typeof globalThis.fetch) =>
 const file = (byte: number): NonNullable<ImageModelV3CallOptions['files']>[number] =>
   ({ mediaType: 'image/png', data: new Uint8Array([byte]) }) as NonNullable<ImageModelV3CallOptions['files']>[number]
 
-/** What `AiService.generateImage` delivers for a canonical param bag. */
+/** What `AiService.generateImage` delivers for a canonical param bag — under
+ *  `sdkConfig.optionsKey`, exactly as the service computes it. */
 const deliver = (paramValues: Record<string, unknown>) =>
-  buildVendorProviderOptions('doubao', paramValues, WIRE_REGISTRY.doubao, paramValues)
+  buildVendorProviderOptions(resolveProviderOptionsKey('doubao'), paramValues, WIRE_REGISTRY.doubao, paramValues)
 
 describe('Doubao (Ark) image boundary', () => {
   it('delivers the vendor body under `bytedance`, the key the package reads', () => {
