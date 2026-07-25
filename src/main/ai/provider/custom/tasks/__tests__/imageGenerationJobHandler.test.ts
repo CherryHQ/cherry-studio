@@ -1,12 +1,12 @@
 /**
  * Unit tests for imageGenerationJobHandler.
  *
- * Covers: the job contract, first-launch async path (submit → patchMetadata →
- * poll → download/persist), cross-restart resume (metadata.taskId present →
- * skip submit), synchronous submit (imageUrls, no poll / no patchMetadata),
- * progress reporting, and abort (remote cancel + AbortError). The provider /
- * transport resolution is mocked so the test exercises handler control flow,
- * not vendor wiring.
+ * Covers: the job contract (including the deliberate `recovery: 'abandon'` —
+ * results cannot reach a consumer across a restart), the async path (submit →
+ * poll → download/persist), synchronous submit (imageUrls, no poll), progress
+ * reporting, and abort (remote cancel + AbortError). The provider / transport
+ * resolution is mocked so the test exercises handler control flow, not vendor
+ * wiring.
  */
 import type { JobContext } from '@main/core/job/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -92,7 +92,11 @@ beforeEach(() => {
 
 describe('imageGenerationJobHandler contract', () => {
   it('declares the remote-poll job contract', () => {
-    expect(imageGenerationJobHandler.recovery).toBe('retry')
+    // 'abandon', not 'retry': the only consumer of this job's result is an
+    // in-process awaiter, so a resumed job would download a paid result nobody
+    // can reach and leave it to be GC'd. Flipping this back requires giving the
+    // payload a durable destination first (see the handler's doc comment).
+    expect(imageGenerationJobHandler.recovery).toBe('abandon')
     expect(
       imageGenerationJobHandler.defaultQueue?.({
         uniqueModelId: 'ppio::qwen-image',
@@ -113,7 +117,7 @@ describe('imageGenerationJobHandler contract', () => {
 })
 
 describe('imageGenerationJobHandler.execute', () => {
-  it('async: submit(taskId) → patchMetadata → poll → download/persist', async () => {
+  it('async: submit(taskId) → poll → download/persist', async () => {
     submitMock.mockResolvedValue({ taskId: 'task-xyz' })
     pollMock.mockImplementation(async (_taskId: string, opts: { onProgress?: (p: number) => void }) => {
       opts.onProgress?.(50)
@@ -124,7 +128,9 @@ describe('imageGenerationJobHandler.execute', () => {
     const result = (await imageGenerationJobHandler.execute(ctx)) as { files: Array<{ id: string }> }
 
     expect(result.files).toEqual([{ id: 'file-1' }])
-    expect(ctx.patchMetadata).toHaveBeenCalledWith({ taskId: 'task-xyz' })
+    // The task id is never persisted: nothing resumes a job of this type, so
+    // writing it would be metadata with no reader.
+    expect(ctx.patchMetadata).not.toHaveBeenCalled()
     expect(pollMock).toHaveBeenCalledWith(
       'task-xyz',
       expect.objectContaining({ signal: ctx.signal, modelDescriptor: ctx.input.modelDescriptor })
@@ -136,22 +142,6 @@ describe('imageGenerationJobHandler.execute', () => {
     // classified for GC reclaim instead of relying on an ad-hoc delete.
     expect(createInternalEntryMock).toHaveBeenCalledWith(
       expect.objectContaining({ cleanupPolicy: 'delete_when_unreferenced' })
-    )
-  })
-
-  it('resume: metadata.taskId present → skips submit, polls the persisted task', async () => {
-    pollMock.mockResolvedValue(['https://cdn.example.com/b.png'])
-
-    const ctx = createCtx({ metadata: { taskId: 'resumed-task' } })
-    await imageGenerationJobHandler.execute(ctx)
-
-    expect(submitMock).not.toHaveBeenCalled()
-    expect(ctx.patchMetadata).not.toHaveBeenCalled()
-    // Resume must re-supply the persisted descriptor so a stateful transport
-    // (DashScope) can rebuild its response-family routing.
-    expect(pollMock).toHaveBeenCalledWith(
-      'resumed-task',
-      expect.objectContaining({ signal: ctx.signal, modelDescriptor: ctx.input.modelDescriptor })
     )
   })
 
@@ -177,12 +167,14 @@ describe('imageGenerationJobHandler.execute', () => {
     expect(submitArg.modelDescriptor).toEqual(legacyDescriptor)
   })
 
-  it('legacy resume: falls back to providerParams.modelDescriptor for a persisted poll', async () => {
+  it('legacy poll: falls back to providerParams.modelDescriptor when the typed field is absent', async () => {
+    // Same fallback as the submit case, on the poll leg — a stateful transport
+    // (DashScope) needs the descriptor to rebuild its response-family routing.
     const legacyDescriptor = { id: 'qwen-image', endpoint: '/v3/async/qwen-image', isSync: false }
-    pollMock.mockResolvedValue(['https://cdn.example.com/legacy-resume.png'])
+    submitMock.mockResolvedValue({ taskId: 'task-legacy' })
+    pollMock.mockResolvedValue(['https://cdn.example.com/legacy-poll.png'])
 
     const ctx = createCtx({
-      metadata: { taskId: 'resumed-task' },
       input: {
         uniqueModelId: 'ppio::qwen-image',
         cleanupPolicy: 'delete_when_unreferenced',
@@ -194,7 +186,7 @@ describe('imageGenerationJobHandler.execute', () => {
     await imageGenerationJobHandler.execute(ctx)
 
     expect(pollMock).toHaveBeenCalledWith(
-      'resumed-task',
+      'task-legacy',
       expect.objectContaining({ signal: ctx.signal, modelDescriptor: legacyDescriptor })
     )
   })

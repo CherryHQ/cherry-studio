@@ -23,18 +23,33 @@ const logger = loggerService.withContext('ImageGenerationJobHandler')
 /**
  * Async image-generation handler for custom-provider submit/poll transports
  * (ppio / dashscope / modelscope / dmxapi-bespoke). Mirrors
- * `imageGenerationModel.doGenerate` but owns the poll loop so it survives a
- * restart: the remote `taskId` is persisted to job metadata after submit, and
- * recovery (`'retry'`) re-dispatches the job, which then resumes polling the
- * same task instead of re-submitting.
+ * `imageGenerationModel.doGenerate` but owns the submit/poll loop.
  *
  * Secrets are never persisted — the apiKey is re-read from provider config on
  * every attempt via `providerToAiSdkConfig`. Input images / mask are referenced
- * by FileEntry id and read back from FileManager (keeps the payload under the
- * 1MB job cap and restart-safe).
+ * by FileEntry id and read back from FileManager, keeping the payload under the
+ * 1MB job cap.
+ *
+ * **Deliberately not restart-durable.** The job's only consumer is the in-process
+ * awaiter in `AiService.generateImageViaJob` (`await handle.finished`) — the sole
+ * `handle.finished` in the main process; every other job type's result is a durable
+ * side effect the handler writes itself. Nothing here designates a durable
+ * destination: the payload records no consumer identity, so a result produced after
+ * a restart reaches nobody. It would be downloaded, persisted as zero-referenced
+ * `delete_when_unreferenced` entries, and reclaimed an hour later — and if the crash
+ * landed after the vendor accepted the submit but before the task id was durable,
+ * resuming would submit a second time and bill the user twice. So non-terminal jobs
+ * are cancelled at startup (`recovery: 'abandon'`) instead of resumed.
+ *
+ * To make results survive a restart, do what `file-processing.remote-poll` does:
+ * carry a durable destination in the payload (for paintings, the already-persisted
+ * `painting.id` — the row exists before enqueue) and have this handler write the
+ * result there, which registers `painting_file_ref` rows and makes GC correct for
+ * free. Then switch `recovery` back to `'retry'` and restore the resume branch from
+ * the recipe in `docs/references/job-and-scheduler/handler-authoring.md`.
  */
 export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = {
-  recovery: 'retry',
+  recovery: 'abandon',
   defaultQueue: (input) => `image-generation.${parseUniqueModelId(input.uniqueModelId).providerId}`,
   defaultConcurrency: 2,
   // The transport already retries transient poll errors internally; a job-level
@@ -58,26 +73,18 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
       )
     }
 
+    // No persisted-task resume branch: `recovery: 'abandon'` means a job never
+    // outlives the process that enqueued it, so every execution starts at submit.
     let urls: string[]
-    const persistedTaskId = typeof ctx.metadata.taskId === 'string' ? ctx.metadata.taskId : undefined
-    if (persistedTaskId) {
-      // Restart-resume: skip submit, continue polling the persisted remote task.
-      logger.debug('Resuming image-generation job from persisted task', { jobId: ctx.jobId, taskId: persistedTaskId })
-      urls = await pollUntilDone(transport, persistedTaskId, ctx)
+    const submit = await transport.submit(await buildSubmitInput(input, sdkConfig.modelId, ctx.signal))
+    if (submit.imageUrls) {
+      urls = submit.imageUrls
+    } else if (submit.taskId) {
+      urls = await pollUntilDone(transport, submit.taskId, ctx)
     } else {
-      const submit = await transport.submit(await buildSubmitInput(input, sdkConfig.modelId, ctx.signal))
-      if (submit.imageUrls) {
-        urls = submit.imageUrls
-      } else if (submit.taskId) {
-        // CRITICAL: persist before polling — without this, restart-recovery
-        // re-submits, wasting the user's vendor quota.
-        await ctx.patchMetadata({ taskId: submit.taskId })
-        urls = await pollUntilDone(transport, submit.taskId, ctx)
-      } else {
-        // A malformed submit response (neither URLs nor a task id) must fail the
-        // job rather than silently complete with zero files (a paid no-op).
-        throw new Error(`Image generation submit for '${sdkConfig.modelId}' returned neither imageUrls nor a taskId`)
-      }
+      // A malformed submit response (neither URLs nor a task id) must fail the
+      // job rather than silently complete with zero files (a paid no-op).
+      throw new Error(`Image generation submit for '${sdkConfig.modelId}' returned neither imageUrls nor a taskId`)
     }
 
     // An empty URL list from a *successful* submit/poll (e.g. content moderation
@@ -155,8 +162,8 @@ async function pollUntilDone(
     return await transport.poll(taskId, {
       signal: ctx.signal,
       onProgress: (progress) => ctx.reportProgress(progress, { stage: 'polling' }),
-      // Carry the persisted descriptor so a restart-resumed poll on a fresh
-      // transport instance rebuilds per-task state (DashScope's response family).
+      // Carry the descriptor so the poll rebuilds per-task state on a transport
+      // instance that did not run the submit (DashScope's response family).
       modelDescriptor: resolveModelDescriptor(ctx.input)
     })
   } finally {
