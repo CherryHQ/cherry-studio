@@ -849,6 +849,32 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('message-list')).toBeInTheDocument()
   })
 
+  it('hides the message avatar column in a flow panel', () => {
+    const flowPart = {
+      type: 'dynamic-tool',
+      toolCallId: 'flow-1',
+      toolName: 'task',
+      state: 'input-available',
+      input: { prompt: 'Inspect the workspace' }
+    } as unknown as CherryMessagePart
+    const messages = [{ id: 'm1', role: 'assistant', parts: [flowPart], metadata: {} }] as CherryUIMessage[]
+
+    render(
+      <TestAgentRightPane
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={messages}
+        partsByMessageId={{ m1: [flowPart] }}>
+        <OpenFlowButton />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
+
+    expect(screen.getByTestId('message-list').parentElement).toHaveClass('[&_.message-avatar]:hidden')
+  })
+
   it.each([
     { status: 'pending', iconClassNames: ['text-muted-foreground'] },
     { status: 'in_progress', iconClassNames: ['animate-spin', 'text-info'] },

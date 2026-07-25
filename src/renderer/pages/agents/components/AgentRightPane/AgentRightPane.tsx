@@ -705,7 +705,7 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
 
   return (
     <MessageListProvider value={flowProviderValue}>
-      <div className="h-full min-h-0 [&_.MessageFooter]:hidden [&_.group-menu-bar]:hidden">
+      <div className="h-full min-h-0 [&_.MessageFooter]:hidden [&_.group-menu-bar]:hidden [&_.message-avatar]:hidden">
         <MessageList />
       </div>
     </MessageListProvider>
