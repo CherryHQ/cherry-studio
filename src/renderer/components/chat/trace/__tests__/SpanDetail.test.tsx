@@ -199,7 +199,7 @@ describe('SpanDetail copy', () => {
       <SpanDetail
         node={node({
           status: 'ERROR',
-          events: [{ name: 'exception', attributes: { 'exception.message': 'request failed' } }]
+          events: [{ name: 'exception', time: [0, 0], attributes: { 'exception.message': 'request failed' } }]
         })}
         onShowList={vi.fn()}
       />
