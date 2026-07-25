@@ -60,18 +60,17 @@ describe('errorDetails light import graph (B6)', () => {
     vi.resetModules()
   })
 
+  // The control lives in the same test as the assertion: split across two tests, the
+  // second one raced the mocked-module cache (factory already run under the previous
+  // `loaded` spy) and flaked.
   it('does not evaluate zod/ai/axios when utils/errorDetails is imported', async () => {
     await import('../errorDetails')
-
     expect(loaded).not.toHaveBeenCalled()
-  })
 
-  it('probe control: a static heavy-dependency graph activates the interception layer', async () => {
-    await import('./fixtures/errorDetailsHeavyProbe')
-
-    // Any single probe firing proves the doMock interception layer is alive. Even this
-    // static probe can miss an optimized dependency under CI load, so per-dependency
-    // assertions would turn an optimizer race into a red push.
-    expect(loaded).toHaveBeenCalled()
+    // control: the same doMock layer does fire when a heavy dep is actually reached.
+    for (const dep of HEAVY_DEPS) {
+      await import(dep)
+    }
+    expect(loaded).toHaveBeenCalledTimes(HEAVY_DEPS.length)
   })
 })
