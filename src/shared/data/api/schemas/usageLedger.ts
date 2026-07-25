@@ -71,11 +71,7 @@ export type UsageLedgerTimelineQuery = z.infer<typeof UsageLedgerTimelineQuerySc
 // Responses
 // ============================================================================
 
-export interface UsageLedgerListResponse extends OffsetPaginationResponse<UsageLedgerEntry> {
-  items: UsageLedgerEntry[]
-  total: number
-  page: number
-}
+export type UsageLedgerListResponse = OffsetPaginationResponse<UsageLedgerEntry>
 
 /**
  * One aggregation bucket. Group identity fields are populated according to
