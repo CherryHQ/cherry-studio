@@ -217,6 +217,24 @@
       "code": "Κώδικας",
       "code_unavailable": "Η προβολή πηγής δεν είναι διαθέσιμη για δυαδικά αρχεία",
       "default_app": "Προεπιλεγμένη εφαρμογή",
+      "edit": {
+        "conflict": {
+          "description": "Αυτό το αρχείο άλλαξε στο δίσκο μετά την έναρξη της επεξεργασίας. Η επαναφόρτωση θα απορρίψει το τρέχον προσχέδιο και θα φορτώσει το πιο πρόσφατο αρχείο.",
+          "keep_draft": "Διατήρηση προχείρου",
+          "reload": "Επαναφόρτωση αρχείου",
+          "title": "Το αρχείο άλλαξε στο δίσκο"
+        },
+        "discard": "Απόρριψη αλλαγών",
+        "leave": {
+          "description": "Αν συνεχίσετε, οι μη αποθηκευμένες αλλαγές σας σε αυτό το αρχείο θα χαθούν.",
+          "discard_and_continue": "Απόρριψη και συνέχεια",
+          "title": "Απόρριψη μη αποθηκευμένων αλλαγών;"
+        },
+        "refresh_failed": "Αδυναμία επαναφόρτωσης του πιο πρόσφατου περιεχομένου αρχείου.",
+        "save_failed": "Δεν είναι δυνατή η αποθήκευση αυτού του αρχείου. Η αυτόματη αποθήκευση έχει διακοπεί έως ότου προσπαθήσετε ξανά ή απορρίψετε τις αλλαγές.",
+        "unsaved": "Μη αποθηκευμένο",
+        "unsupported": "Αυτό το αρχείο μπορεί να προεπισκοπηθεί αλλά όχι να επεξεργαστεί με ασφάλεια εδώ. Η επεξεργασία υποστηρίζει αρχεία κειμένου UTF-8 με συνεπείς καταλήξεις γραμμών LF ή CRLF."
+      },
       "empty": {
         "description": "Ξεκινήστε τη συνομιλία με τον πράκτορα· ο κώδικας που θα δημιουργηθεί και οι ζωντανές προεπισκοπήσεις θα εμφανιστούν εδώ.",
         "title": "Έτοιμος"
@@ -1055,11 +1073,11 @@
       "title": "Επεξεργασία βοηθού"
     },
     "groups": {
-      "delete": "[to be translated]:Delete Group",
-      "deleteConfirm": "[to be translated]:Are you sure you want to delete this group?",
-      "group_by": "[to be translated]:Show in groups",
-      "ungroup": "[to be translated]:Stop grouping",
-      "ungrouped": "[to be translated]:Ungrouped"
+      "delete": "Διαγραφή Ομάδας",
+      "deleteConfirm": "Είστε σίγουροι ότι θέλετε να διαγράψετε αυτήν την ομάδα;",
+      "group_by": "Εμφάνιση σε ομάδες",
+      "ungroup": "Διακοπή ομαδοποίησης",
+      "ungrouped": "Μη ομαδοποιημένο"
     },
     "icon": {
       "type": "Εικόνα Βοηθού"
@@ -1223,8 +1241,8 @@
         "label": "Μήκος λογισμικού αλυσίδας",
         "low": "Μικρό",
         "low_description": "Χαμηλού επιπέδου συλλογιστική",
-        "max": "[to be translated]:Max",
-        "max_description": "[to be translated]:Maximum reasoning effort",
+        "max": "Max",
+        "max_description": "Μέγιστη προσπάθεια συλλογισμού",
         "medium": "Μεσαίο",
         "medium_description": "Αιτιολόγηση μεσαίου επιπέδου",
         "minimal": "ελάχιστος",
@@ -1391,7 +1409,7 @@
       },
       "generate_image": "Δημιουργία εικόνας",
       "generate_image_no_model": "Ρυθμίστε ένα μοντέλο ζωγραφικής στις Ρυθμίσεις › Προεπιλεγμένο Μοντέλο",
-      "image_preview_failed": "[to be translated]:Image preview failed",
+      "image_preview_failed": "Η προεπισκόπηση της εικόνας απέτυχε",
       "knowledge_base": "Βάση γνώσεων",
       "knowledge_base_disabled_by_files": "Αφαιρέστε τα συνημμένα αρχεία για να χρησιμοποιήσετε τη Βάση Γνώσεων",
       "knowledge_base_unavailable": "Επιλέξτε ένα μοντέλο με δυνατότητα χρήσης εργαλείων ή ενεργοποιήστε τη χρήση εργαλείων στο prompt",
@@ -1564,21 +1582,21 @@
         "model": "Εναλλαγή μοντέλου"
       },
       "token_details": {
-        "cache_read": "[to be translated]:Cache read",
-        "cache_write": "[to be translated]:Cache write",
-        "input": "[to be translated]:Input",
-        "input_breakdown": "[to be translated]:Input breakdown",
-        "output": "[to be translated]:Output",
-        "reasoning": "[to be translated]:Reasoning",
-        "reasoning_time": "[to be translated]:Reasoning",
-        "request_duration": "[to be translated]:Generation timing",
-        "text_generation": "[to be translated]:Text generation",
-        "text_output": "[to be translated]:Text output",
-        "tokens": "[to be translated]:{{value}} Tokens",
-        "tokens_per_second_value": "[to be translated]:{{value}} Tokens/s",
-        "uncached": "[to be translated]:Uncached",
-        "usage": "[to be translated]:Token usage",
-        "waiting_first_token": "[to be translated]:Waiting"
+        "cache_read": "Ανάγνωση προσωρινής μνήμης",
+        "cache_write": "Εγγραφή κρυφής μνήμης",
+        "input": "Είσοδος",
+        "input_breakdown": "Ανάλυση εισόδου",
+        "output": "Έξοδος",
+        "reasoning": "Συλλογισμός",
+        "reasoning_time": "Αιτιολόγηση",
+        "request_duration": "Χρονοδιάγραμμα γενιάς",
+        "text_generation": "Δημιουργία κειμένου",
+        "text_output": "Έξοδος κειμένου",
+        "tokens": "Μάρκες {{value}}",
+        "tokens_per_second_value": "{{value}} Tokens/s",
+        "uncached": "Uncached",
+        "usage": "Χρήση token",
+        "waiting_first_token": "Αναμονή"
       },
       "useful": {
         "label": "Ορισμός ως πλαίσιο αναφοράς",
@@ -1989,7 +2007,7 @@
         "default": "Προεπιλογή",
         "high": "Υψηλή",
         "low": "Χαμηλός",
-        "max": "[to be translated]:Max",
+        "max": "Μαξ",
         "medium": "Μέτριο",
         "minimal": "Ελάχιστο",
         "xhigh": "Εξαιρετικά Υψηλό"
@@ -2184,7 +2202,7 @@
     "copy_failed": "Αποτυχία αντιγραφής",
     "create_success": "Δημιουργήθηκε με επιτυχία",
     "current": "Τρέχων",
-    "decline": "[to be translated]:Decline",
+    "decline": "Απόρριψη",
     "default": "Προεπιλογή",
     "delete": "Διαγραφή",
     "delete_confirm": "Είστε βέβαιοι ότι θέλετε να διαγράψετε;",
@@ -2287,7 +2305,7 @@
     "swap": "Εναλλαγή",
     "topics": "Θέματα",
     "translate_text": "Μετάφραση κειμένου",
-    "undo": "[to be translated]:Undo",
+    "undo": "Αναίρεση",
     "unknown": "Άγνωστο",
     "unnamed": "Χωρίς όνομα",
     "unsubscribe": "Απεγγραφή",
@@ -2326,7 +2344,7 @@
     "image-generation": "Δημιουργία Εικόνων (OpenAI)",
     "jina-rerank": "Επαναταξινόμηση Jina",
     "openai": "OpenAI",
-    "openai-embeddings": "[to be translated]:Embeddings (OpenAI)",
+    "openai-embeddings": "Embeddings (OpenAI)",
     "openai-response": "Απάντηση OpenAI"
   },
   "error": {
@@ -2446,7 +2464,7 @@
     "text": "κείμενο",
     "toolInput": "εισαγωγή εργαλείου",
     "toolName": "Όνομα εργαλείου",
-    "tool_call_limit_reached": "[to be translated]:The assistant reached the tool-call limit before producing a final answer. Try again or reduce the task scope.",
+    "tool_call_limit_reached": "Ο βοηθός έφτασε το όριο κλήσης εργαλείων πριν παράγει μια τελική απάντηση. Δοκιμάστε ξανά ή μειώστε το εύρος της εργασίας.",
     "truncated": "Δεδομένα περικόπηκαν, αρχικό μέγεθος",
     "truncatedBadge": "Αποκομμένο",
     "unknown": "Άγνωστο σφάλμα",
@@ -2454,11 +2472,11 @@
     "user_message_not_found": "Αδυναμία εύρεσης της αρχικής μηνύματος χρήστη",
     "value": "τιμή",
     "values": "τιμή",
-    "web_lookup_network_error": "[to be translated]:Web access failed. Check your network connection and try again.",
-    "web_search_api_host_invalid": "[to be translated]:Web search is unavailable because the configured provider's API host is invalid. Enter a valid HTTP(S) URL in Settings → Web Search, then try again.",
-    "web_search_api_host_missing": "[to be translated]:Web search is unavailable because the configured provider is missing an API host. Add one in Settings → Web Search, then try again.",
-    "web_search_api_key_missing": "[to be translated]:Web search is unavailable because the configured provider is missing an API key. Add one in Settings → Web Search, then try again.",
-    "web_search_provider_unavailable": "[to be translated]:Web search is unavailable because no compatible provider is configured. Configure one in Settings → Web Search, then try again."
+    "web_lookup_network_error": "Η πρόσβαση στο διαδίκτυο απέτυχε. Ελέγξτε τη σύνδεση δικτύου σας και δοκιμάστε ξανά.",
+    "web_search_api_host_invalid": "Η αναζήτηση στον ιστό δεν είναι διαθέσιμη επειδή το API host του διαμορφωμένου παρόχου δεν είναι έγκυρο. Εισαγάγετε μια έγκυρη διεύθυνση URL HTTP(S) στις Ρυθμίσεις → Αναζήτηση στον Ιστό και δοκιμάστε ξανά.",
+    "web_search_api_host_missing": "Η αναζήτηση στον ιστό δεν είναι διαθέσιμη επειδή ο διαμορφωμένος πάροχος δεν διαθέτει κεντρικό υπολογιστή API. Προσθέστε έναν στις Ρυθμίσεις → Αναζήτηση στον Ιστό και, στη συνέχεια, προσπαθήστε ξανά.",
+    "web_search_api_key_missing": "Η αναζήτηση στον ιστό δεν είναι διαθέσιμη επειδή ο πάροχος που έχει ρυθμιστεί δεν διαθέτει κλειδί API. Προσθέστε ένα στις Ρυθμίσεις → Αναζήτηση στον Ιστό και δοκιμάστε ξανά.",
+    "web_search_provider_unavailable": "Η αναζήτηση στον ιστό δεν είναι διαθέσιμη επειδή δεν έχει διαμορφωθεί συμβατός πάροχος. Διαμορφώστε έναν στις Ρυθμίσεις → Αναζήτηση στον Ιστό και προσπαθήστε ξανά."
   },
   "export": {
     "assistant": "βοηθός",
@@ -3137,7 +3155,7 @@
       "duplicate": "Αντίγραφο",
       "edit": "Επεξεργασία",
       "enable": "Ενεργοποίηση",
-      "manage_groups": "[to be translated]:Manage groups",
+      "manage_groups": "Διαχείριση ομάδων",
       "uninstall": "Απεγκατάσταση"
     },
     "assistant_catalog": {
@@ -3336,9 +3354,9 @@
             "hint": "Περιορίζει το εύρος δειγματοληψίας διακριτικών όταν είναι ενεργοποιημένο"
           }
         },
-        "group": "[to be translated]:Group",
-        "group_empty": "[to be translated]:No groups available",
-        "group_placeholder": "[to be translated]:Select group",
+        "group": "Ομάδα",
+        "group_empty": "Δεν υπάρχουν διαθέσιμες ομάδες",
+        "group_placeholder": "Επιλέξτε ομάδα",
         "json_invalid": "Μη έγκυρη μορφή JSON",
         "max_tokens": "Μέγιστα διακριτά σύμβολα",
         "max_tool_calls": "Μέγιστες κλήσεις εργαλείων",
@@ -3437,11 +3455,11 @@
         "insert_variable": "Εισαγωγή μεταβλητής",
         "label": "Προτροπή συστήματος",
         "placeholder": "Εισαγάγετε οδηγίες για τον βοηθό, όπως στιλ απάντησης, ρόλο ή πληροφορίες πλαισίου",
-        "polish": "[to be translated]:Polish prompt",
-        "polish_failed_description": "[to be translated]:Check or change the default model, then try again.",
-        "polish_failed_title": "[to be translated]:Failed to polish prompt",
-        "polish_variables_changed_description": "[to be translated]:The polished result changed or removed prompt variables. Try again.",
-        "polish_variables_changed_title": "[to be translated]:Could not apply polished prompt",
+        "polish": "Πολωνική προτροπή",
+        "polish_failed_description": "Ελέγξτε ή αλλάξτε το προεπιλεγμένο μοντέλο και δοκιμάστε ξανά.",
+        "polish_failed_title": "Αποτυχία γυαλίσματος της προτροπής",
+        "polish_variables_changed_description": "Το εξευγενισμένο αποτέλεσμα άλλαξε ή αφαίρεσε μεταβλητές προτροπής. Δοκιμάστε ξανά.",
+        "polish_variables_changed_title": "Δεν ήταν δυνατή η εφαρμογή του βελτιωμένου prompt",
         "title": "Προτροπή",
         "tokens_label": "Διακριτικά:",
         "variables_description": "Εισάγετε αυτές τις μεταβλητές συστήματος στο prompt του συστήματος· πριν από κάθε απάντηση του βοηθού, συμπληρώνονται με τις τρέχουσες πληροφορίες.",
@@ -3545,9 +3563,9 @@
     },
     "export_assistant_failed": "Αποτυχία εξαγωγής βοηθού",
     "group_picker": {
-      "no_groups": "[to be translated]:No groups yet"
+      "no_groups": "Δεν υπάρχουν ακόμα ομάδες"
     },
-    "group_sync_failed": "[to be translated]:Failed to sync groups",
+    "group_sync_failed": "Αποτυχία συγχρονισμού ομάδων",
     "import_dialog": {
       "clipboard": {
         "button": "Ανάλυση και εισαγωγή",
@@ -3659,9 +3677,9 @@
     },
     "title": "Βιβλιοθήκη",
     "toolbar": {
-      "add_group_placeholder": "[to be translated]:Group name...",
-      "all_groups": "[to be translated]:All groups",
-      "group_button": "[to be translated]:Group",
+      "add_group_placeholder": "Όνομα ομάδας...",
+      "all_groups": "Όλες οι ομάδες",
+      "group_button": "Ομάδα",
       "new_resource": "Νέος πόρος",
       "search_placeholder": "Αναζήτηση πόρων..."
     },
@@ -4236,7 +4254,7 @@
     },
     "function_calling": "Ξεχωριστική Κλήση Συναρτήσεων",
     "group": {
-      "ungrouped": "[to be translated]:Ungrouped"
+      "ungrouped": "Χωρίς ομαδοποίηση"
     },
     "invalid_model": "Μη έγκυρο μοντέλο",
     "json_parse_error": "Μη έγκυρη μορφή JSON",
@@ -4282,13 +4300,13 @@
       "embedding": "ενσωμάτωση",
       "free": "δωρεάν",
       "function_calling": "κλήση συνάρτησης",
-      "image": "[to be translated]:Image",
+      "image": "Εικόνα",
       "reasoning": "λογική",
       "rerank": "Τακτοποιώ",
       "select": "Τύποι μοντέλου",
-      "speech": "[to be translated]:Speech",
+      "speech": "Ομιλία",
       "text": "κείμενο",
-      "transcription": "[to be translated]:Transcription",
+      "transcription": "Μεταγραφή",
       "video": "Βίντεο",
       "vision": "εικόνα",
       "websearch": "δικτύωση"
@@ -4317,6 +4335,12 @@
     },
     "characters": "χαρακτήρας",
     "collapse": "σύμπτυξη",
+    "conflict": {
+      "description": "Αυτή η σημείωση άλλαξε εκτός του επεξεργαστή. Επαναφόρτωση για φόρτωση της τελευταίας έκδοσης (οι μη αποθηκευμένες επεξεργασίες σας θα απορριφθούν), ή συνεχίστε την επεξεργασία.",
+      "keep_draft": "Συνεχίστε την επεξεργασία",
+      "reload": "Επαναφόρτωση",
+      "title": "Η σημείωση άλλαξε στο δίσκο"
+    },
     "content_placeholder": "Παρακαλώ εισαγάγετε το περιεχόμενο των σημειώσεων...",
     "copyContent": "αντιγραφή περιεχομένου",
     "create_folder_failed": "Αποτυχία δημιουργίας φακέλου",
@@ -4338,7 +4362,13 @@
     "export_to_pdf_failed": "Αποτυχία εξαγωγής σε PDF",
     "export_to_pdf_success": "Εξήχθη σε PDF",
     "export_to_word_failed": "Αποτυχία εξαγωγής στο Word",
+    "file_removed_draft": "Αυτή η σημείωση καταργήθηκε από τον δίσκο. Το μη αποθηκευμένο σας προσχέδιο είναι ακόμα διαθέσιμο στον επεξεργαστή.",
     "folder": "φάκελος",
+    "leave": {
+      "description": "Η έξοδος θα απορρίψει τις μη αποθηκευμένες αλλαγές σας. Θέλετε να συνεχίσετε;",
+      "discard_and_continue": "Απόρριψη και συνέχεια",
+      "title": "Να απορριφθούν οι μη αποθηκευμένες επεξεργασίες σημείωσης;"
+    },
     "load_failed": "Αποτυχία φόρτωσης σημείωσης",
     "load_failed_description": "Το αρχείο δεν μπόρεσε να διαβαστεί. Η επεξεργασία έχει απενεργοποιηθεί για την προστασία του περιεχομένου της σημείωσης.",
     "metadata_sync_failed": "Το αρχείο ενημερώθηκε, αλλά σημειώστε ότι ο συγχρονισμός κατάστασης απέτυχε. Παρακαλώ δοκιμάστε ξανά τη λειτουργία.",
@@ -4361,6 +4391,9 @@
     "save": "αποθήκευση στις σημειώσεις",
     "save_blocked_load_failed": "Η αποθήκευση μπλοκαρίστηκε επειδή η σημείωση απέτυχε να φορτωθεί",
     "save_failed": "Αποτυχία αποθήκευσης σημείωσης",
+    "save_failure": {
+      "description": "Αυτή η σημείωση δεν μπόρεσε να αποθηκευτεί. Οι επεξεργασίες σας παραμένουν στον επεξεργαστή και η αυτόματη αποθήκευση έχει διακοπεί."
+    },
     "search": {
       "both": "Όνομα + Περιεχόμενο",
       "content": "περιεχόμενο",
@@ -4477,11 +4510,11 @@
       "update_failed": "Δεν ήταν δυνατή η αποθήκευση της συγκατάθεσής σας. Δοκιμάστε ξανά."
     },
     "provider_setup": {
-      "missing_model": "[to be translated]:Enable at least one model from the enabled provider",
-      "missing_provider": "[to be translated]:Enable a provider to continue",
-      "next": "[to be translated]:Next",
-      "subtitle": "[to be translated]:Add an API key or sign in with CherryIN, then enable a provider.",
-      "title": "[to be translated]:Choose a Provider"
+      "missing_model": "Ενεργοποιήστε τουλάχιστον ένα μοντέλο από τον ενεργοποιημένο πάροχο",
+      "missing_provider": "Ενεργοποίηση παρόχου για συνέχιση",
+      "next": "Επόμενο",
+      "subtitle": "Προσθέστε ένα κλειδί API ή συνδεθείτε με το CherryIN και, στη συνέχεια, ενεργοποιήστε έναν πάροχο.",
+      "title": "Επιλέξτε Πάροχο"
     },
     "select_model": {
       "change_later": "Μπορείς να το αλλάξεις οποιαδήποτε στιγμή από τις ρυθμίσεις",
@@ -4491,7 +4524,7 @@
     },
     "skip": "Παράλειψη",
     "toast": {
-      "complete_failed": "[to be translated]:Unable to complete setup. Please try again.",
+      "complete_failed": "Αδυναμία ολοκλήρωσης της ρύθμισης. Παρακαλώ προσπαθήστε ξανά.",
       "connected": "Συνδέθηκε επιτυχώς με το CherryIN"
     },
     "welcome": {
@@ -4766,7 +4799,7 @@
     "inference_steps": "Βήματα επεξεργασίας",
     "inference_steps_tip": "Το πλήθος των βημάτων επεξεργασίας που πρέπει να εκτελεστούν. Περισσότερα βήματα = χαμηλότερη ποιότητα και μεγαλύτερος χρόνος εκτέλεσης",
     "input_image": "Εικόνα εισόδου",
-    "input_image_limit_exceeded": "[to be translated]:Too many reference images for the selected model. Remove some images and try again.",
+    "input_image_limit_exceeded": "Πάρα πολλές εικόνες αναφοράς για το επιλεγμένο μοντέλο. Αφαιρέστε μερικές εικόνες και προσπαθήστε ξανά.",
     "input_parameters": "Παράμετροι εισόδου",
     "invalid_image_url": "Μη έγκυρη μορφή διεύθυνσης URL εικόνας",
     "learn_more": "Μάθετε περισσότερα",
@@ -4791,7 +4824,7 @@
     "number_images": "Ποσότητα δημιουργιών",
     "number_images_tip": "Ποσότητα εικόνων που θα δημιουργηθούν μια φορά (1-4)",
     "operation_failed": "Η λειτουργία απέτυχε, παρακαλώ δοκιμάστε ξανά αργότερα",
-    "output_compression": "[to be translated]:Output Compression",
+    "output_compression": "Συμπίεση Εξόδου",
     "paint_course": "Εκπαίδευση",
     "per_image": "Ανά εικόνα",
     "per_images": "Ανά εικόνα",
@@ -4942,7 +4975,7 @@
     "install": "εγκατάσταση",
     "install_plugins_from_browser": "Περιηγηθείτε στα διαθέσιμα πρόσθετα για να ξεκινήσετε",
     "installing": "Εγκατάσταση...",
-    "manage_skills": "[to be translated]:Manage skills",
+    "manage_skills": "Διαχείριση δεξιοτήτων",
     "name": "Όνομα",
     "no_description": "Χωρίς περιγραφή",
     "no_installed_plugins": "Δεν έχει εγκατασταθεί κανένα πρόσθετο",
@@ -4997,14 +5030,14 @@
     "zoom_out": "συρρίκνωση"
   },
   "privacy_policy": {
-    "load_failed": "[to be translated]:Unable to load the privacy policy.",
-    "title": "[to be translated]:Privacy Policy"
+    "load_failed": "Αδυναμία φόρτωσης της πολιτικής απορρήτου.",
+    "title": "Πολιτική Απορρήτου"
   },
   "privacy_policy_update": {
-    "acknowledge_failed": "[to be translated]:Unable to save your acknowledgement. Please try again.",
-    "description_before_link": "[to be translated]:We have updated the privacy policy. Please review the latest ",
-    "policy": "[to be translated]:Privacy Policy",
-    "title": "[to be translated]:Privacy Policy Updated"
+    "acknowledge_failed": "Αδυναμία αποθήκευσης της επιβεβαίωσής σας. Παρακαλώ προσπαθήστε ξανά.",
+    "description_before_link": "Έχουμε ενημερώσει την πολιτική απορρήτου. Παρακαλούμε ελέγξτε την πιο πρόσφατη",
+    "policy": "Πολιτική Απορρήτου",
+    "title": "Πολιτική Απορρήτου Ενημερώθηκε"
   },
   "prompts": {
     "explanation": "Με βοηθήστε να εξηγήσετε αυτό το όρισμα",
@@ -5576,7 +5609,7 @@
       "create_new": "Νέος Βοηθός",
       "empty_text": "Κανένας βοηθός ακόμα",
       "filter": "Φίλτρο βοηθών",
-      "group_filter": "[to be translated]:Filter by group",
+      "group_filter": "Φιλτράρισμα κατά ομάδα",
       "multi_hint": "(αμοιβαία αποκλειόμενο με πολλαπλά μοντέλα)",
       "multi_label": "Παράλληλος πολλαπλών βοηθών",
       "search_placeholder": "Αναζήτηση βοηθών…"
@@ -5698,7 +5731,7 @@
         "select": "Αλλαγή καταλόγου",
         "select_error": "Αποτυχία αλλαγής καταλόγου δεδομένων",
         "select_error_in_app_path": "Η νέα διαδρομή είναι ίδια με τη διαδρομή εγκατάστασης της εφαρμογής. Επιλέξτε άλλη διαδρομή",
-        "select_error_protected_path": "[to be translated]:The selected path is protected by the operating system or Cherry Studio. Please choose another folder.",
+        "select_error_protected_path": "Η επιλεγμένη διαδρομή προστατεύεται από το λειτουργικό σύστημα ή το Cherry Studio. Παρακαλώ επιλέξτε έναν άλλο φάκελο.",
         "select_error_root_path": "Η νέα διαδρομή δεν μπορεί να είναι η ριζική διαδρομή",
         "select_error_same_path": "Η νέα διαδρομή είναι ίδια με την παλιά. Επιλέξτε άλλη διαδρομή",
         "select_error_write_permission": "Η νέα διαδρομή δεν έχει δικαιώματα εγγραφής",
@@ -5706,7 +5739,7 @@
         "select_success": "Ο κατάλογος δεδομένων άλλαξε, η εφαρμογή θα επανεκκινήσει για να εφαρμοστούν οι αλλαγές",
         "select_title": "Αλλαγή καταλόγου δεδομένων εφαρμογής",
         "stop_quit_app_reason": "Η εφαρμογή προς το παρόν μεταφέρει δεδομένα, δεν μπορείτε να βγείτε",
-        "switch_existing_notice": "[to be translated]:This non-empty directory will be used as-is. Its existing files will not be overwritten."
+        "switch_existing_notice": "Αυτός ο μη κενός κατάλογος θα χρησιμοποιηθεί ως έχει. Τα υπάρχοντα αρχεία του δεν θα αντικατασταθούν."
       },
       "app_logs": {
         "button": "Άνοιγμα καταγραφής",
@@ -6234,51 +6267,51 @@
       "duplicateName": "A tool with the same name already exists",
       "fieldVersion": "Version (optional, defaults to latest)",
       "installError": "Failed to install tool",
-      "installErrorHint": "[to be translated]:The install command failed. Copy the log below to troubleshoot or share it for help.",
+      "installErrorHint": "Η εντολή εγκατάστασης απέτυχε. Αντιγράψτε το αρχείο καταγραφής παρακάτω για αντιμετώπιση προβλημάτων ή μοιραστείτε το για βοήθεια.",
       "installSettings": {
-        "description": "[to be translated]:Fine-tune how bundled CLI tools are installed. All fields are optional — leave them empty to keep the defaults.",
+        "description": "Ρυθμίστε τον τρόπο εγκατάστασης των ενσωματωμένων εργαλείων CLI. Όλα τα πεδία είναι προαιρετικά — αφήστε τα κενά για να διατηρήσετε τις προεπιλογές.",
         "githubMirror": {
-          "help": "[to be translated]:Proxy prefix for GitHub downloads and the GitHub API (e.g. https://ghfast.top). Leave empty for direct access.",
-          "label": "[to be translated]:GitHub mirror",
-          "placeholder": "[to be translated]:https://ghfast.top (direct if empty)"
+          "help": "Πρόθεμα διακομιστή μεσολάβησης για λήψεις από το GitHub και το API του GitHub (π.χ. https://ghfast.top). Αφήστε το κενό για απευθείας πρόσβαση.",
+          "label": "GitHub mirror",
+          "placeholder": "https://ghfast.top (άμεσο αν κενό)"
         },
         "githubToken": {
-          "help": "[to be translated]:Raises the GitHub API rate limit for tool lookups. Stored locally in plain text. Leave empty to use the CHERRY_GITHUB_TOKEN environment variable.",
-          "hide": "[to be translated]:Hide token",
-          "label": "[to be translated]:GitHub token",
-          "placeholder": "[to be translated]:ghp_…",
-          "show": "[to be translated]:Show token"
+          "help": "Αυξάνει το όριο ρυθμού του GitHub API για αναζητήσεις εργαλείων. Αποθηκεύεται τοπικά σε απλό κείμενο. Αφήστε κενό για να χρησιμοποιηθεί η μεταβλητή περιβάλλοντος CHERRY_GITHUB_TOKEN.",
+          "hide": "Απόκρυψη token",
+          "label": "Token GitHub",
+          "placeholder": "ghp_…",
+          "show": "Εμφάνιση token"
         },
-        "invalidUrl": "[to be translated]:Enter a valid URL including https://",
+        "invalidUrl": "Εισαγάγετε μια έγκυρη διεύθυνση URL που να περιλαμβάνει https://",
         "npmRegistry": {
-          "help": "[to be translated]:Registry for npm: tools. Leave empty to auto-select a mirror in mainland China.",
-          "label": "[to be translated]:npm registry",
-          "placeholder": "[to be translated]:Auto (China mirror) if empty"
+          "help": "Μητρώο για npm: εργαλεία. Αφήστε κενό για αυτόματη επιλογή καθρέφτη στην ηπειρωτική Κίνα.",
+          "label": "npm registry",
+          "placeholder": "Αυτόματο (καθρέφτης Κίνας) εάν είναι κενό"
         },
         "pipIndexUrl": {
-          "help": "[to be translated]:Index URL for pipx: tools. Leave empty to auto-select a mirror in mainland China.",
-          "label": "[to be translated]:pip index URL",
-          "placeholder": "[to be translated]:Auto (China mirror) if empty"
+          "help": "URL ευρετηρίου για pipx: εργαλεία. Αφήστε το κενό για αυτόματη επιλογή καθρέφτη στην ηπειρωτική Κίνα.",
+          "label": "URL ευρετηρίου pip",
+          "placeholder": "Αυτόματο (καθρέφτης Κίνας) αν κενό"
         },
         "presetLabels": {
-          "aliyun": "[to be translated]:Aliyun (China)",
-          "default": "[to be translated]:Default (no mirror)",
-          "ghfast": "[to be translated]:ghfast.top",
-          "ghproxy": "[to be translated]:ghproxy.net",
-          "npmOfficial": "[to be translated]:npmjs (official)",
-          "npmmirror": "[to be translated]:npmmirror (China)",
-          "pypiOfficial": "[to be translated]:PyPI (official)",
-          "tsinghua": "[to be translated]:Tsinghua (China)"
+          "aliyun": "Aliyun (Κίνα)",
+          "default": "Προεπιλογή (χωρίς καθρέφτη)",
+          "ghfast": "ghfast.top",
+          "ghproxy": "ghproxy.net",
+          "npmOfficial": "npmjs (επίσημο)",
+          "npmmirror": "npmmirror (Κίνα)",
+          "pypiOfficial": "PyPI (επίσημο)",
+          "tsinghua": "Tsinghua (Κίνα)"
         },
-        "presets": "[to be translated]:Presets",
-        "title": "[to be translated]:Advanced install settings",
+        "presets": "Προεπιλογές",
+        "title": "Προχωρημένες ρυθμίσεις εγκατάστασης",
         "verifySignatures": {
-          "help": "[to be translated]:Verifies Sigstore/SLSA signatures for aqua-backed tools. Disable only if verification fails on your network — it skips supply-chain checks.",
-          "label": "[to be translated]:Verify tool signatures"
+          "help": "Επαληθεύει υπογραφές Sigstore/SLSA για εργαλεία που υποστηρίζονται από aqua. Απενεργοποιήστε μόνο εάν η επαλήθευση αποτύχει στο δίκτυό σας — παρακάμπτει τους ελέγχους αλυσίδας εφοδιασμού.",
+          "label": "Επαλήθευση υπογραφών εργαλείων"
         }
       },
       "installing": "Εγκατάσταση...",
-      "installingHint": "[to be translated]:The first install may download a runtime and take a few minutes",
+      "installingHint": "Η πρώτη εγκατάσταση μπορεί να κατεβάσει ένα περιβάλλον εκτέλεσης και να διαρκέσει μερικά λεπτά",
       "invalidTool": "Μη έγκυρο όνομα ή κλειδί εργαλείου",
       "localModels": {
         "cancel": "Ακύρωση",
@@ -6310,19 +6343,19 @@
       "remove": "Remove tool",
       "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
       "removeConfirmTitle": "Remove Tool",
-      "removeDefinitionOnlyConfirmMessage": "[to be translated]:Cherry could not safely clean up \"{{name}}\". Removing only its definition will hide the card but leave its backend files installed. Continue?",
-      "removeDefinitionOnlyConfirmTitle": "[to be translated]:Remove Definition Only?",
-      "removeDefinitionOnlyDependents": "[to be translated]:Installed tools depend on it: {{dependents}}.",
-      "removeError": "[to be translated]:Failed to remove tool",
-      "removeErrorHint": "[to be translated]:The cleanup command failed. Copy the log below to troubleshoot or share it for help.",
-      "removeRuntimeConfirmMessage": "[to be translated]:Are you sure you want to remove \"{{name}}\"? Uninstalling this runtime may break npm or pip tools that depend on it.",
-      "runtimeDependency": "[to be translated]:Runtime",
-      "runtimeDependencyHint": "[to be translated]:Runtime for npm/pip tools",
+      "removeDefinitionOnlyConfirmMessage": "Το Cherry δεν μπορούσε να καθαρίσει με ασφάλεια το \"{{name}}\". Η κατάργηση μόνο του ορισμού του θα κρύψει την κάρτα αλλά θα αφήσει τα αρχεία του backend της εγκατεστημένα. Να συνεχίσετε;",
+      "removeDefinitionOnlyConfirmTitle": "Να αφαιρεθεί μόνο ο ορισμός;",
+      "removeDefinitionOnlyDependents": "Τα εγκατεστημένα εργαλεία εξαρτώνται από αυτό: {{dependents}}.",
+      "removeError": "Αποτυχία αφαίρεσης εργαλείου",
+      "removeErrorHint": "Η εντολή εκκαθάρισης απέτυχε. Αντιγράψτε το αρχείο καταγραφής παρακάτω για αντιμετώπιση προβλημάτων ή κοινοποιήστε το για βοήθεια.",
+      "removeRuntimeConfirmMessage": "Είστε σίγουροι ότι θέλετε να αφαιρέσετε το \"{{name}}\"; Η απεγκατάσταση αυτού του runtime ενδέχεται να καταστρέψει εργαλεία npm ή pip που εξαρτώνται από αυτό.",
+      "runtimeDependency": "Χρόνος εκτέλεσης",
+      "runtimeDependencyHint": "Χρόνος εκτέλεσης για εργαλεία npm/pip",
       "searchFailed": "Search failed, check logs",
       "searchRegistry": "Search mise registry...",
       "source": {
         "bundled": "bundled",
-        "system": "[to be translated]:System"
+        "system": "Σύστημα"
       },
       "title": "Εξαρτήσεις Περιβάλλοντος",
       "tools": {
@@ -6341,15 +6374,15 @@
         "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
         "uv": "Python package manager for MCP services and dependency installation."
       },
-      "uninstall": "[to be translated]:Uninstall",
-      "uninstallConfirmMessage": "[to be translated]:Are you sure you want to uninstall \"{{name}}\"? Cherry Studio's backend copy will be deleted.",
-      "uninstallConfirmTitle": "[to be translated]:Uninstall Tool",
-      "uninstallFailed": "[to be translated]:Failed to uninstall tool",
-      "uninstallSuccess": "[to be translated]:Tool uninstalled",
+      "uninstall": "Απεγκατάσταση",
+      "uninstallConfirmMessage": "Είστε σίγουροι ότι θέλετε να απεγκαταστήσετε το \"{{name}}\"; Το αντίγραφο backend του Cherry Studio θα διαγραφεί.",
+      "uninstallConfirmTitle": "Εργαλείο Απεγκατάστασης",
+      "uninstallFailed": "Αποτυχία απεγκατάστασης εργαλείου",
+      "uninstallSuccess": "Το εργαλείο απεγκαταστάθηκε",
       "update": "Update to latest version",
       "updateCheckFailed": "Αποτυχία ελέγχου για ενημερώσεις",
-      "updateCheckSuccess": "[to be translated]:Version check complete",
-      "viewErrorDetails": "[to be translated]:View details"
+      "updateCheckSuccess": "Ο έλεγχος έκδοσης ολοκληρώθηκε",
+      "viewErrorDetails": "Δείτε λεπτομέρειες"
     },
     "developer": {
       "enable_developer_mode": "Ενεργοποίηση λειτουργίας προγραμματιστή",
@@ -6892,7 +6925,7 @@
         "add_model": "Προσθήκη μοντέλου",
         "batch_add_models": "Προσθήκη Μοντέλων σε Μαζική Βάση",
         "capabilities": {
-          "label": "[to be translated]:Model Capabilities"
+          "label": "Δυνατότητες Μοντέλου"
         },
         "context_window": {
           "label": "Παράθυρο περιβάλλοντος",
@@ -6911,7 +6944,7 @@
           "tooltip": "Για παράδειγμα ChatGPT"
         },
         "input_modalities": {
-          "label": "[to be translated]:Input Modalities"
+          "label": "Τρόποι Εισόδου"
         },
         "max_input_tokens": {
           "label": "Μέγιστα διακριτά σύμβολα εισόδου",
@@ -6936,7 +6969,24 @@
           "tooltip": "Για παράδειγμα GPT-4"
         },
         "model_type": {
-          "label": "[to be translated]:Model Type"
+          "label": "Τύπος Μοντέλου"
+        },
+        "purpose": {
+          "chat": {
+            "description": "Χρησιμοποιήστε το API κειμένου του παρόχου",
+            "label": "Συνομιλία"
+          },
+          "chat_protocol": "Πρωτόκολλο συνομιλίας",
+          "description": "Επιλέξτε πώς χρησιμοποιείται αυτό το μοντέλο",
+          "image_edit": {
+            "description": "Δεχτείτε μια εικόνα εισόδου και επιστρέψτε μια επεξεργασμένη εικόνα",
+            "label": "Επεξεργασία εικόνας"
+          },
+          "image_generation": {
+            "description": "Δημιουργία εικόνων από μια προτροπή",
+            "label": "Δημιουργία εικόνων"
+          },
+          "label": "Σκοπός του μοντέλου"
         },
         "supported_text_delta": {
           "label": "αυξητική έξοδος κειμένου",
@@ -6996,7 +7046,7 @@
       "default_assistant_model_description": "Χρησιμοποιείται όταν ένας βοηθός δεν έχει μοντέλο.",
       "docs": "Τεκμηρίωση μοντέλου",
       "empty": "Επιλέξτε μοντέλο",
-      "empty_hint": "[to be translated]:Click the Get model list button above to add models.",
+      "empty_hint": "Κάντε κλικ στο κουμπί Λήψη λίστας μοντέλων παραπάνω για να προσθέσετε μοντέλα.",
       "enabled_models": "Ενεργοποιημένα",
       "expand_all": "Ανάπτυξη όλων",
       "filter": {
@@ -7313,6 +7363,7 @@
       },
       "balance": "Υπόλοιπο",
       "base_url": {
+        "invalid": "Εισαγάγετε έγκυρη διεύθυνση URL HTTP ή HTTPS",
         "label": "Βασικό URL",
         "placeholder": "https://api.example.com",
         "required": "Παρακαλώ εισάγετε το Base URL"
@@ -7406,6 +7457,23 @@
         "toggle_headers_editor_list": "Μετάβαση στη λίστα κεφαλίδων"
       },
       "create_custom": {
+        "endpoint_fields": {
+          "default_chat": "Προεπιλογή",
+          "label": "Ρυθμίσεις τελικού σημείου",
+          "more": "Περισσότερες επιλογές",
+          "more_configured": "{{count}} ρυθμισμένο",
+          "set_default_chat": "Ορισμός ως προεπιλογή",
+          "text_endpoint_required": "Ρυθμίστε τουλάχιστον ένα τελικό σημείο κειμένου",
+          "url_help": "Εισαγάγετε τη βασική διεύθυνση URL του API για να προεπισκοπήσετε την τελική διαδρομή αιτήματος"
+        },
+        "preset_instance": {
+          "description": "Για υπηρεσίες Coding Plan, πολλαπλούς λογαριασμούς ή απομόνωση έργου· ρυθμίστε κάθε Base URL και κλειδί API ανεξάρτητα",
+          "empty": "Δεν υπάρχουν αντίστοιχες προεπιλογές Παρόχου",
+          "placeholder": "Δημιουργία από προεπιλογή Παρόχου…",
+          "search_placeholder": "Προεπιλογές Παρόχου Αναζήτησης",
+          "title": "Ξεκινήστε από ένα προκαθορισμένο (προαιρετικά)"
+        },
+        "request_preview": "Διαδρομή αιτήματος: {{path}}",
         "title": "Προσθήκη Προσαρμοσμένου Παρόχου"
       },
       "delete": {
@@ -7444,6 +7512,16 @@
         "sign_in_failed": "Η σύνδεση απέτυχε. Παρακαλώ δοκιμάστε ξανά.",
         "sign_in_success": "Συνδεδεμένος στο Grok CLI",
         "signing_in": "Αναμονή για πρόγραμμα περιήγησης…"
+      },
+      "image_endpoints": {
+        "image_edit_base_url": {
+          "help": "Χρησιμοποιείται για /images/edits; αφήστε το κενό για να χρησιμοποιήσετε την προεπιλεγμένη Βασική URL τελικού σημείου συζήτησης",
+          "label": "URL Βάσης Επεξεργασίας Εικόνας"
+        },
+        "image_generation_base_url": {
+          "help": "Χρησιμοποιείται για /images/generations; αφήστε το κενό για να χρησιμοποιηθεί το προεπιλεγμένο chat endpoint Base URL",
+          "label": "Βασική διεύθυνση URL δημιουργίας εικόνας"
+        }
       },
       "logo_upload_failed": "Αποτυχία επεξεργασίας της επιλεγμένης εικόνας",
       "misc": "Άλλο",
@@ -7569,7 +7647,7 @@
         "autoEmpty": "Δεν υπάρχουν ενεργοποιημένοι διακομιστές MCP",
         "description": "Δείτε την τρέχουσα κατάσταση του διακομιστή MCP",
         "disabled": "Το MCP είναι απενεργοποιημένο για αυτόν τον βοηθό",
-        "open_config": "[to be translated]:Configure MCP servers",
+        "open_config": "Ρύθμιση διακομιστών MCP",
         "unknownServer": "Άγνωστος διακομιστής MCP"
       },
       "multiple": "Πολλαπλή επιλογή",
