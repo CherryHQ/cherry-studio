@@ -7,7 +7,7 @@ import { loggerService } from '@logger'
 import { SHUTDOWN_TIMEOUT_MS } from '@main/core/lifecycle'
 // Preboot dialogs cannot use PreferenceService-backed translations.
 import { t } from '@main/i18n'
-import { dialog, session } from 'electron'
+import { dialog } from 'electron'
 import * as z from 'zod'
 
 const logger = loggerService.withContext('DataReset')
@@ -40,6 +40,11 @@ export const USER_DATA_WIPE = [
   '.copilot_token',
   'config.json',
   'window-state.json',
+  'Cache',
+  'Code Cache',
+  'GPUCache',
+  'DawnGraphiteCache',
+  'DawnWebGPUCache',
   'Cookies',
   'Cookies-journal',
   'Partitions',
@@ -188,8 +193,7 @@ function deleteMarker(): void {
 }
 
 /**
- * Confirms in the main process, stages the marker, clears live Chromium
- * storage, and gracefully relaunches.
+ * Confirms in the main process, stages the marker, and gracefully relaunches.
  */
 export async function requestDataReset(): Promise<void> {
   const { response } = await dialog.showMessageBox({
@@ -218,9 +222,6 @@ export async function requestDataReset(): Promise<void> {
       error: String(error)
     })
   }
-
-  // Clear live session state before the filesystem pass.
-  await clearChromiumState()
 
   // Give services time to release files before the next boot wipes them.
   const timer = setTimeout(() => {
@@ -360,8 +361,7 @@ export function runDataReset(): void {
       })
     }
 
-    logger.info('Data reset completed — relaunching into a fresh state')
-    application.relaunch()
+    logger.info('Data reset completed — continuing startup')
   } catch (error) {
     logger.error('Data reset failed — refusing to boot', error as Error)
     showDataResetError(
@@ -390,37 +390,6 @@ function showDataResetError(title: string, message: string): void {
 
 function shouldWipe(entry: string): boolean {
   return USER_DATA_WIPE.includes(entry)
-}
-
-/** Clears known sessions with a timeout so shutdown cannot hang. */
-async function clearChromiumState(): Promise<void> {
-  const clearSessions = async () => {
-    const sessions = [session.defaultSession, session.fromPartition('persist:webview')]
-    for (const s of sessions) {
-      try {
-        await s.clearCache()
-        await s.clearStorageData()
-        await s.clearAuthCache()
-      } catch (error) {
-        logger.warn('Failed to clear a session during data reset request', { error: String(error) })
-      }
-    }
-  }
-
-  let timeout: NodeJS.Timeout | undefined
-  try {
-    await Promise.race([
-      clearSessions(),
-      new Promise<void>((resolve) => {
-        timeout = setTimeout(() => {
-          logger.warn('Chromium state clear timed out during data reset request — continuing with shutdown')
-          resolve()
-        }, SHUTDOWN_TIMEOUT_MS)
-      })
-    ])
-  } finally {
-    if (timeout) clearTimeout(timeout)
-  }
 }
 
 /** Resolves the physical target used to authorize the wipe. */

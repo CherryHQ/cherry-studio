@@ -1,5 +1,5 @@
 import { createMockApplication } from '@test-mocks/main/application'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // The in-memory filesystem exercises the reset marker protocol without disk I/O.
 
@@ -67,6 +67,11 @@ const DEFAULT_LISTING = [
   'config.json',
   'window-state.json',
   // wiped — Chromium state
+  'Cache',
+  'Code Cache',
+  'GPUCache',
+  'DawnGraphiteCache',
+  'DawnWebGPUCache',
   'Cookies',
   'Partitions',
   'Local Storage',
@@ -102,6 +107,11 @@ const EXPECTED_WIPED = [
   '.copilot_token',
   'config.json',
   'window-state.json',
+  'Cache',
+  'Code Cache',
+  'GPUCache',
+  'DawnGraphiteCache',
+  'DawnWebGPUCache',
   'Cookies',
   'Partitions',
   'Local Storage',
@@ -121,21 +131,10 @@ const EXPECTED_KEPT = [
   'data-reset.pending.json'
 ]
 
-const makeSession = () => ({
-  clearCache: vi.fn().mockResolvedValue(undefined),
-  clearStorageData: vi.fn().mockResolvedValue(undefined),
-  clearAuthCache: vi.fn().mockResolvedValue(undefined)
-})
-let defaultSession = makeSession()
-let webviewSession = makeSession()
-
 function stubElectron() {
-  defaultSession = makeSession()
-  webviewSession = makeSession()
   vi.doMock('electron', () => ({
     __esModule: true,
-    dialog: { showErrorBox: showErrorBoxMock, showMessageBox: showMessageBoxMock },
-    session: { defaultSession, fromPartition: vi.fn(() => webviewSession) }
+    dialog: { showErrorBox: showErrorBoxMock, showMessageBox: showMessageBoxMock }
   }))
 }
 
@@ -334,10 +333,6 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
-afterEach(() => {
-  vi.useRealTimers()
-})
-
 describe('runDataReset', () => {
   it('does nothing without a pending marker', async () => {
     stubAll(null)
@@ -357,7 +352,7 @@ describe('runDataReset', () => {
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
 
-  it('wipes exactly the whitelist, commits a completed record, removes the marker, and relaunches', async () => {
+  it('wipes exactly the whitelist, commits a completed record, removes the marker, and continues startup', async () => {
     stubAll(pendingMarker())
     await runReset()
 
@@ -373,7 +368,7 @@ describe('runDataReset', () => {
     expect(fsCtl.commits.map((c) => c?.status)).toEqual(['pending', 'completed'])
     expect(markerExists()).toBe(false)
 
-    expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
 
@@ -559,7 +554,7 @@ describe('runDataReset', () => {
     await runReset()
 
     expect(fsCtl.commits[0]).toMatchObject({ attempts: 1 })
-    expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
 
@@ -576,7 +571,7 @@ describe('runDataReset', () => {
     expect(applicationMock.relaunch).not.toHaveBeenCalled()
   })
 
-  it('relaunches after a clean wipe even when the marker unlink cannot be proven durable', async () => {
+  it('continues startup after a clean wipe even when the marker unlink cannot be proven durable', async () => {
     if (process.platform === 'win32') return
     stubAll(pendingMarker())
     fsCtl.failDirectorySync = true
@@ -584,18 +579,18 @@ describe('runDataReset', () => {
     await runReset()
 
     expect(showErrorBoxMock).not.toHaveBeenCalled()
-    expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
 
-  it('relaunches after a clean wipe even when the completed marker cannot be removed', async () => {
+  it('continues startup after a clean wipe even when the completed marker cannot be removed', async () => {
     stubAll(pendingMarker())
     fsCtl.failDelete = true
     await runReset()
 
     expect(readStoredMarker()?.status).toBe('completed')
     expect(showErrorBoxMock).not.toHaveBeenCalled()
-    expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
 
@@ -696,7 +691,7 @@ describe('runDataReset', () => {
     await runReset()
 
     expect(markerExists()).toBe(false)
-    expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
+    expect(applicationMock.relaunch).not.toHaveBeenCalled()
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
   })
 
@@ -763,7 +758,6 @@ describe('requestDataReset', () => {
 
     expect(fsCtl.commits).toHaveLength(0)
     expect(markerExists()).toBe(false)
-    expect(defaultSession.clearStorageData).not.toHaveBeenCalled()
     expect(applicationMock.shutdown).not.toHaveBeenCalled()
     expect(applicationMock.relaunch).not.toHaveBeenCalled()
   })
@@ -777,46 +771,9 @@ describe('requestDataReset', () => {
 
     expect(fsCtl.commits).toHaveLength(1)
     expect(markerExists()).toBe(true)
-    expect(defaultSession.clearStorageData).toHaveBeenCalledTimes(1)
     expect(applicationMock.shutdown).toHaveBeenCalledTimes(1)
     expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
     expect(applicationMock.forceExit).not.toHaveBeenCalled()
-  })
-
-  it('clears Chromium storage of both Cherry sessions after the marker is durable', async () => {
-    stubAll(null)
-
-    await requestReset()
-
-    for (const s of [defaultSession, webviewSession]) {
-      expect(s.clearCache).toHaveBeenCalledTimes(1)
-      expect(s.clearStorageData).toHaveBeenCalledTimes(1)
-      expect(s.clearAuthCache).toHaveBeenCalledTimes(1)
-      expect(renameSyncMock.mock.invocationCallOrder[0]).toBeLessThan(s.clearStorageData.mock.invocationCallOrder[0])
-    }
-  })
-
-  it('still relaunches when the Chromium clear fails — the wipe pass is the deterministic layer', async () => {
-    stubAll(null)
-    defaultSession.clearStorageData.mockRejectedValueOnce(new Error('session gone'))
-
-    await expect(requestReset()).resolves.toBeUndefined()
-    expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
-  })
-
-  it('bounds a Chromium clear that never settles after the marker is staged', async () => {
-    stubAll(null)
-    defaultSession.clearCache.mockImplementation(() => new Promise(() => {}))
-    const { requestDataReset } = await import('../dataReset')
-    vi.useFakeTimers()
-
-    const request = requestDataReset()
-    await vi.advanceTimersByTimeAsync(5_000)
-    await expect(request).resolves.toBeUndefined()
-
-    expect(markerExists()).toBe(true)
-    expect(applicationMock.shutdown).toHaveBeenCalledTimes(1)
-    expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
   })
 
   it('still relaunches when the graceful shutdown itself fails', async () => {
@@ -837,6 +794,5 @@ describe('requestDataReset', () => {
     expect(fsCtl.commits).toHaveLength(0)
     expect(applicationMock.shutdown).not.toHaveBeenCalled()
     expect(applicationMock.relaunch).not.toHaveBeenCalled()
-    expect(defaultSession.clearStorageData).not.toHaveBeenCalled()
   })
 })
