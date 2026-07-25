@@ -21,6 +21,15 @@ describe('parseDataUrl', () => {
     })
   })
 
+  it('requires base64 to be a standalone data URL token', () => {
+    const result = parseDataUrl('data:image/png;base64foo,QUJD')
+    expect(result).toEqual({
+      mediaType: 'image/png',
+      isBase64: false,
+      data: 'QUJD'
+    })
+  })
+
   it('parses a plain text data URL (non-base64)', () => {
     const result = parseDataUrl('data:text/plain,Hello%20World')
     expect(result).toEqual({
@@ -119,6 +128,7 @@ describe('isBase64ImageDataUrl', () => {
 
   it('returns false for non-base64 image data URLs', () => {
     expect(isBase64ImageDataUrl('data:image/svg+xml,<svg></svg>')).toBe(false)
+    expect(isBase64ImageDataUrl('data:image/png;base64foo,QUJD')).toBe(false)
   })
 
   it('returns false for non-image data URLs', () => {

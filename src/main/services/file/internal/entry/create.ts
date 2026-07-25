@@ -17,6 +17,7 @@ import { loggerService } from '@logger'
 import { atomicWriteFile, copy as fsCopy, download, remove as fsRemove, stat as fsStat } from '@main/utils/file'
 import type { FileEntry } from '@shared/data/types/file'
 import type { FilePath } from '@shared/types/file'
+import { parseDataUrl } from '@shared/utils/dataUrl'
 import mime from 'mime'
 import { v7 as uuidv7 } from 'uuid'
 
@@ -58,8 +59,6 @@ interface NormalisedSource {
   writeTo(target: FilePath): Promise<void>
 }
 
-const BASE64_DATA_URI = /^data:([^;,]+);base64,(.+)$/
-
 function normaliseSource(params: CreateInternalEntryParams): NormalisedSource {
   if (params.source === 'bytes') {
     const data = params.data
@@ -70,14 +69,12 @@ function normaliseSource(params: CreateInternalEntryParams): NormalisedSource {
     }
   }
   if (params.source === 'base64') {
-    const match = BASE64_DATA_URI.exec(params.data)
-    if (!match) {
+    const parsed = parseDataUrl(params.data)
+    if (!parsed?.isBase64 || !parsed.mediaType || parsed.data.length === 0) {
       throw new Error('createInternal(base64): data URI is not in the expected `data:<mime>;base64,<payload>` form')
     }
-    const mimeType = match[1]
-    const payload = match[2]
-    const ext = mime.getExtension(mimeType)
-    const bytes = Buffer.from(payload, 'base64')
+    const ext = mime.getExtension(parsed.mediaType)
+    const bytes = Buffer.from(parsed.data, 'base64')
     return {
       name: params.name ?? `Pasted ${new Date().toISOString().slice(0, 10)}`,
       ext: ext ?? null,
