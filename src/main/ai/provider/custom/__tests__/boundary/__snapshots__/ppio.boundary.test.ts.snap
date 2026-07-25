@@ -26,7 +26,7 @@ exports[`PPIO request boundary > jimeng — width/height split + use_pre_llm + l
   },
   "prompt": "a fox",
   "seed": 42,
-  "use_pre_llm": true,
+  "use_pre_llm": false,
   "width": 1024,
 }
 `;

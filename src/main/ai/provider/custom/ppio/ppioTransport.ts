@@ -96,10 +96,20 @@ export interface PpioModelDescriptor {
  * Painting fields forwarded through `providerOptions['ppio']`. Mirrors the
  * `PpioPaintingData` subset the legacy `buildRequestParams` consumed.
  */
+/**
+ * The vendor bag as this transport reads it. Every field except `ppioSeed` MUST be a
+ * canonical param key (`IMAGE_PARAM_CATALOG`) — the bag arrives straight from
+ * `splitParamValues`, and the `ai.generate_image` IPC boundary strips anything the
+ * catalog doesn't know. A non-canonical name here is not a rename, it is a field that
+ * can never arrive.
+ */
 export interface PpioProviderParams {
   size?: string
   ppioSeed?: number
-  usePreLlm?: boolean
+  /** Canonical key for jimeng's `use_pre_llm`. Was `usePreLlm`, which is not a catalog
+   *  key and so was stripped at the IPC boundary — the declared switch never arrived
+   *  and `use_pre_llm` always took its `true` default. */
+  promptEnhancement?: boolean
   addWatermark?: boolean
   outputFormat?: string
   /** SDK-path (chat) progress callback; the job path reports via `ctx.reportProgress`. */
@@ -275,7 +285,7 @@ class PpioTransport implements ImageGenerationTransport {
   private buildJimengParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams): Record<string, unknown> {
     const params: Record<string, unknown> = {
       prompt: input.prompt,
-      use_pre_llm: painting.usePreLlm ?? true,
+      use_pre_llm: painting.promptEnhancement ?? true,
       seed: painting.ppioSeed ?? -1
     }
 

@@ -73,7 +73,11 @@ const CASES: Case[] = [
     endpoint: '/v3/async/jimeng-txt2img-v3.1',
     size: '1024x1024',
     seed: 42,
-    params: { usePreLlm: true, addWatermark: true },
+    // `promptEnhancement` is the canonical key the registry declares and the only
+    // spelling that survives the IPC boundary; the bag used to be read as `usePreLlm`,
+    // which never arrived. Asserted as `false` on purpose — reading the wrong key
+    // falls back to the `true` default, so this fixture would pass either way at `true`.
+    params: { promptEnhancement: false, addWatermark: true },
     schema: z.strictObject({
       prompt: z.string(),
       use_pre_llm: z.boolean(),
