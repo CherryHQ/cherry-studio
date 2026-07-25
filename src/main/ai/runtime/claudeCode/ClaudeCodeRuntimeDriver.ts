@@ -375,6 +375,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           continue
         }
 
+        // Background work outlives its turn, so this snapshot lands after that turn's result — below
+        // the no-adapter drop. Handled here so the status survives the turn boundary.
+        if (message.type === 'system' && message.subtype === 'background_tasks_changed') {
+          this.eventQueue.push({ type: 'background-tasks', tasks: message.tasks })
+          continue
+        }
+
         if (!this.adapter) {
           if (message.type === 'result') {
             this.updateResumeToken(message.session_id)
@@ -382,9 +389,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
               sessionId: this.input.sessionId
             })
           } else {
-            // Background agents and tasks can keep emitting after their turn's result (e.g.
-            // `task_notification`). No turn stream is open to carry them, so they are dropped —
-            // logged rather than vanishing silently, since there is no background-task surface yet.
+            // Background agents and tasks can keep emitting after their turn's result. Their
+            // membership snapshot is routed above; the rest (per-task progress, the detached
+            // agent's own content) has no turn stream to land in, so it is dropped — logged rather
+            // than vanishing silently.
             logger.debug('Dropping message received with no active turn', {
               sessionId: this.input.sessionId,
               type: message.type,
@@ -412,6 +420,24 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
               retryDelayMs: message.retry_delay_ms,
               errorStatus: message.error_status,
               errorCategory: message.error
+            }
+          })
+          continue
+        }
+
+        // A subagent backing off on its own rate limit — same shape as the turn-level retry above,
+        // so it reuses that status surface rather than adding a parallel one.
+        if (message.type === 'tool_progress' && message.subagent_retry) {
+          const retry = message.subagent_retry
+          this.eventQueue.push({
+            type: 'api-retry',
+            retry: {
+              attempt: retry.attempt,
+              maxRetries: retry.max_retries,
+              retryDelayMs: retry.retry_delay_ms,
+              errorStatus: retry.error_status,
+              errorCategory: retry.error_category,
+              ...(message.subagent_type ? { subagentType: message.subagent_type } : {})
             }
           })
           continue

@@ -12,6 +12,10 @@ import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY, type AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import {
+  AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY,
+  type AgentSessionBackgroundTasks
+} from '@shared/ai/agentSessionBackgroundTasks'
+import {
   AGENT_SESSION_COMPACTION_CACHE_KEY,
   type AgentSessionCompactionAnchorData,
   type AgentSessionCompactionTrigger
@@ -983,6 +987,9 @@ export class AgentSessionRuntimeService extends BaseService {
         // composer and channel `/help` reflect commands discovered after the initial read.
         this.publishSupportedCommands(entry, event.commands)
         break
+      case 'background-tasks':
+        this.publishBackgroundTasks(entry, event.tasks)
+        break
       case 'turn-complete':
         this.clearApiRetry(entry)
         this.closeCurrentTurn(entry, 'success')
@@ -1096,6 +1103,16 @@ export class AgentSessionRuntimeService extends BaseService {
   private publishSupportedCommands(entry: AgentSessionRuntimeEntry, commands: AgentSessionSlashCommand[]): void {
     if (!this.isCurrentEntry(entry)) return
     application.get('CacheService').setShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(entry.sessionId), commands)
+  }
+
+  /**
+   * REPLACE the cached set with the SDK's snapshot. The level is per CLI process and nothing is
+   * emitted at startup, so `closeEntry` resets it — otherwise a task from a previous process would
+   * linger as a phantom until the next membership change repopulated the list.
+   */
+  private publishBackgroundTasks(entry: AgentSessionRuntimeEntry, tasks: AgentSessionBackgroundTasks): void {
+    if (!this.isCurrentEntry(entry)) return
+    application.get('CacheService').setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId), tasks)
   }
 
   private handleRuntimeError(entry: AgentSessionRuntimeEntry, error: unknown): void {
@@ -1536,6 +1553,8 @@ export class AgentSessionRuntimeService extends BaseService {
     this.clearApiRetry(entry)
     application.get('CacheService').deleteShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId))
     application.get('CacheService').deleteShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(entry.sessionId))
+    // The background-task level is per CLI process, so the closing process's set must not outlive it.
+    application.get('CacheService').deleteShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId))
 
     const connection = this.closeConnection(entry)
     entry.currentTurn = undefined

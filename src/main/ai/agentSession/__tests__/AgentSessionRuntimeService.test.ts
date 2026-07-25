@@ -1379,6 +1379,43 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
+  // Background work outlives its turn, so the SDK reports it as a session-scoped level rather than
+  // turn content. The runtime republishes each snapshot verbatim.
+  describe('background tasks', () => {
+    const BG_KEY = 'agent.session.background_tasks.session-1'
+    const tasks = [{ task_id: 'bg-1', task_type: 'subagent', description: 'Audit the codebase' }]
+
+    it('republishes the membership snapshot as session-scoped status', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-tasks', tasks })
+
+      expect(mocks.cacheSetShared).toHaveBeenCalledWith(BG_KEY, tasks)
+    })
+
+    it('replaces the set, so an emptied snapshot clears the last running task', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-tasks', tasks })
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-tasks', tasks: [] })
+
+      expect(mocks.cacheSetShared).toHaveBeenLastCalledWith(BG_KEY, [])
+    })
+
+    it('drops the level when the session closes, since it is scoped to the CLI process', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      ;(service as any).handleRuntimeEvent(entry, { type: 'background-tasks', tasks })
+
+      service.closeSession('session-1')
+
+      expect(mocks.cacheDeleteShared).toHaveBeenCalledWith(BG_KEY)
+    })
+  })
+
   it('clears the runtime and closes the connection on closeSession', () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)

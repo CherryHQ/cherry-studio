@@ -878,6 +878,11 @@ export class ClaudeCodeStreamAdapter {
       case 'permission_denied':
         this.handlePermissionDeniedSystemMessage(message, ctx)
         return
+      case 'background_tasks_changed':
+        // Session-scoped status: ClaudeCodeRuntimeDriver intercepts this ahead of the adapter so it
+        // survives the turn boundary. Cased here so the subtype is covered rather than falling
+        // through as an unknown, for any non-driver consumer.
+        return
       case 'api_retry':
         // Defensive fallback for future non-driver consumers. ClaudeCodeRuntimeDriver intercepts
         // api_retry before this adapter and emits it as an ephemeral runtime event, so nothing is

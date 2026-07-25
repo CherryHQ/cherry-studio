@@ -846,6 +846,149 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  // Background work outlives the turn that spawned it, so its membership snapshot lands after the
+  // result — where everything else is discarded. This is the case that previously threw away a
+  // detached agent's entire run, leaving no trace that anything was still running.
+  it('surfaces background_tasks_changed arriving after the result', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    queryQueue.push({
+      type: 'result',
+      subtype: 'success',
+      session_id: 'resume-result',
+      usage: { input_tokens: 1, output_tokens: 1, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }
+    })
+
+    let event = await events.next()
+    while (event.value?.type !== 'turn-complete') {
+      event = await events.next()
+    }
+
+    const tasks = [{ task_id: 'bg-1', task_type: 'subagent', description: 'Audit the codebase' }]
+    queryQueue.push({
+      type: 'system',
+      subtype: 'background_tasks_changed',
+      session_id: 'resume-result',
+      uuid: 'bg-level-uuid',
+      tasks
+    })
+
+    await expect(events.next()).resolves.toMatchObject({ value: { type: 'background-tasks', tasks } })
+    void connection.close()
+  })
+
+  // `tool_progress` carries a subagent's own rate-limit backoff. It has the same shape as the
+  // turn-level `api_retry`, so it reuses that status surface rather than a parallel one.
+  it('surfaces a subagent rate-limit backoff through the retry status', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    queryQueue.push({
+      type: 'tool_progress',
+      tool_use_id: 'tu-1',
+      tool_name: 'Agent',
+      parent_tool_use_id: null,
+      elapsed_time_seconds: 12,
+      subagent_type: 'code-reviewer',
+      subagent_retry: {
+        agent_id: 'ag-1',
+        attempt: 3,
+        max_retries: 10,
+        retry_delay_ms: 8000,
+        error_status: 429,
+        error_category: 'rate_limit'
+      },
+      uuid: 'progress-uuid',
+      session_id: 'resume-1'
+    })
+
+    await expect(events.next()).resolves.toMatchObject({
+      value: {
+        type: 'api-retry',
+        retry: {
+          attempt: 3,
+          maxRetries: 10,
+          retryDelayMs: 8000,
+          errorStatus: 429,
+          errorCategory: 'rate_limit',
+          subagentType: 'code-reviewer'
+        }
+      }
+    })
+    void connection.close()
+  })
+
+  it('ignores tool_progress heartbeats that carry no retry', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    // No retry → no status change. `commands_changed` next proves the heartbeat produced no event.
+    queryQueue.push({
+      type: 'tool_progress',
+      tool_use_id: 'tu-2',
+      tool_name: 'Agent',
+      parent_tool_use_id: null,
+      elapsed_time_seconds: 3,
+      heartbeat: true,
+      uuid: 'hb-uuid',
+      session_id: 'resume-1'
+    })
+    queryQueue.push({ type: 'system', subtype: 'commands_changed', session_id: 'resume-1', commands: ['/help'] })
+
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'supported-commands', commands: ['/help'] }
+    })
+    void connection.close()
+  })
+
+  it('reports an emptied background task set so the last finished task clears', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    // REPLACE semantics: an empty payload is the signal that nothing is running, not a no-op.
+    queryQueue.push({
+      type: 'system',
+      subtype: 'background_tasks_changed',
+      session_id: 'resume-1',
+      uuid: 'bg-empty-uuid',
+      tasks: []
+    })
+
+    await expect(events.next()).resolves.toMatchObject({ value: { type: 'background-tasks', tasks: [] } })
+    void connection.close()
+  })
+
   it('maps SDK compaction status and boundary messages to runtime compaction events', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }

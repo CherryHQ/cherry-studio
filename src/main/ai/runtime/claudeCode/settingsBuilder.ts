@@ -370,6 +370,7 @@ export async function buildClaudeCodeSessionSettings(
     settingSources: getSettingSources(agent, provider),
     settings: { autoCompactEnabled: true },
     includePartialMessages: true,
+    agentProgressSummaries: true,
     permissionMode: agentConfig?.permission_mode,
     maxTurns: agentConfig?.max_turns,
     allowedTools: finalAllowedTools,

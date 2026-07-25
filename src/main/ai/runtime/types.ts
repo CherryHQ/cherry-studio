@@ -1,4 +1,5 @@
 import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
+import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
@@ -66,6 +67,8 @@ export type AgentRuntimeEvent =
    *  skills discovered as the agent works in a subdirectory. `supportedCommands()` is captured at
    *  init and never reflects this, so the host REPLACES its cached list from `commands`. */
   | { type: 'supported-commands'; commands: AgentSessionSlashCommand[] }
+  /** Live background work after a membership change. REPLACE semantics — the payload is the full set. */
+  | { type: 'background-tasks'; tasks: AgentSessionBackgroundTasks }
   | { type: 'error'; error: unknown }
 
 /**
