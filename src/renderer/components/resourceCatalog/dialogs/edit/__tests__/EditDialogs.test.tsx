@@ -1651,18 +1651,22 @@ describe('edit dialogs', () => {
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Closing Edit' } })
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
-    expect(await screen.findByText('Save failed')).toBeInTheDocument()
+    expect(await screen.findByText('Save failed', {}, { timeout: 5_000 })).toBeInTheDocument()
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
 
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
-    expect(onOpenChange).toHaveBeenCalledWith(false)
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
     expect(updateAssistantMock).toHaveBeenCalledTimes(1)
   })
 
   it('retries saving when the form changes after a failed close', async () => {
-    updateAssistantMock.mockRejectedValueOnce(new Error('Network down'))
+    updateAssistantMock
+      .mockRejectedValueOnce(new Error('Network down'))
+      .mockImplementation((arg: { body: { name?: string } }) =>
+        Promise.resolve({ ...ASSISTANT, name: arg.body.name ?? ASSISTANT.name })
+      )
     const onOpenChange = vi.fn()
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
 
@@ -1670,7 +1674,7 @@ describe('edit dialogs', () => {
     fireEvent.change(nameInput, { target: { value: 'First Closing Edit' } })
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
-    expect(await screen.findByText('Save failed')).toBeInTheDocument()
+    expect(await screen.findByText('Save failed', {}, { timeout: 5_000 })).toBeInTheDocument()
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
 
     fireEvent.change(nameInput, { target: { value: 'Retry Closing Edit' } })
@@ -1688,16 +1692,22 @@ describe('edit dialogs', () => {
     // DIALOG_EXIT_ANIMATION_MS after `open` goes false, so a reopen within that window
     // reuses the SAME component instance instead of remounting — simulate that with
     // `rerender` rather than a fresh `render`.
-    updateAssistantMock.mockRejectedValueOnce(new Error('Network down'))
+    updateAssistantMock
+      .mockRejectedValueOnce(new Error('Network down'))
+      .mockImplementation((arg: { body: { name?: string } }) =>
+        Promise.resolve({ ...ASSISTANT, name: arg.body.name ?? ASSISTANT.name })
+      )
     const onOpenChange = vi.fn()
     const { rerender } = render(
       <AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={vi.fn()} />
     )
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Repro Edit' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(await screen.findByText('Save failed', {}, { timeout: 5_000 })).toBeInTheDocument()
 
-    expect(await screen.findByText('Save failed')).toBeInTheDocument()
+    // The debounce failed before any close request. The first explicit close must
+    // keep the error visible; only another close may discard this failed snapshot.
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
 
     // Discard-close, then reopen on the same instance before it unmounts.

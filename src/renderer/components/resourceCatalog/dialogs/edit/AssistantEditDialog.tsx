@@ -220,6 +220,8 @@ function AssistantEditDialogContent({
   // Tracks the exact form snapshot that failed so the first close keeps the
   // error visible, while a repeated close can explicitly discard that snapshot.
   const failedSaveKeyRef = useRef<string | null>(null)
+  const failedCloseKeyRef = useRef<string | null>(null)
+  const closeAttemptInFlightRef = useRef(false)
 
   const wasOpenRef = useRef(false)
   useEffect(() => {
@@ -237,6 +239,8 @@ function AssistantEditDialogContent({
     // hold in useResourceCatalogController) must not silently discard a new,
     // coincidentally-identical edit as if it were a repeated close.
     failedSaveKeyRef.current = null
+    failedCloseKeyRef.current = null
+    closeAttemptInFlightRef.current = false
     baselineAssistantRef.current = resource
     setBaselineAssistant(resource)
   }, [defaultValues, form, initialTab, open, resource])
@@ -260,10 +264,11 @@ function AssistantEditDialogContent({
       currentBaselineAssistant
     )
     if (!pending) return 'noop'
-    const attemptedKey = JSON.stringify(currentValues)
+    const attemptedKey = changeKey ?? JSON.stringify(currentValues)
 
     form.clearErrors('root')
     failedSaveKeyRef.current = null
+    failedCloseKeyRef.current = null
 
     let updated: Awaited<ReturnType<typeof updateAssistant>>
     try {
@@ -271,6 +276,7 @@ function AssistantEditDialogContent({
     } catch (error) {
       logger.error('Failed to auto-save assistant edit dialog', error as Error, { assistantId: resource.id })
       failedSaveKeyRef.current = attemptedKey
+      if (closeAttemptInFlightRef.current) failedCloseKeyRef.current = attemptedKey
       form.setError('root', { message: t('library.config.dialogs.edit.save_failed') })
       return 'failed'
     }
@@ -298,11 +304,21 @@ function AssistantEditDialogContent({
   // edit (or revert) made while the close waits is persisted rather than lost
   // when unmount clears its debounce timer.
   const attemptClose = async (): Promise<boolean> => {
-    if (failedSaveKeyRef.current === changeKey) {
+    if (failedCloseKeyRef.current !== null && failedCloseKeyRef.current === changeKey) {
       onOpenChange(false)
       return true
     }
-    if ((await flushAll()) === 'failed') return false
+    if (failedSaveKeyRef.current !== null && failedSaveKeyRef.current === changeKey) {
+      failedCloseKeyRef.current = changeKey
+      return false
+    }
+    closeAttemptInFlightRef.current = true
+    const outcome = await flushAll()
+    closeAttemptInFlightRef.current = false
+    if (outcome === 'failed') {
+      failedCloseKeyRef.current = failedSaveKeyRef.current
+      return false
+    }
     onOpenChange(false)
     return true
   }
