@@ -5,8 +5,9 @@ import {
   rerank as aiCoreRerank
 } from '@cherrystudio/ai-core'
 import type { ParamValues } from '@cherrystudio/provider-registry'
-import { type InsertJobFileRefRow, jobFileRefTable } from '@data/db/schemas/fileRelations'
+import type { InsertJobFileRefRow } from '@data/db/schemas/fileRelations'
 import { assistantDataService } from '@data/services/AssistantService'
+import { jobService } from '@data/services/JobService'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import type { JobHandle } from '@main/core/job/types'
@@ -663,17 +664,14 @@ export class AiService extends BaseService {
         cleanupPolicy: request.cleanupPolicy
       }
       // Enqueue the job AND register a job→file ref for every input it reads in a
-      // single transaction. The ids also live in `job.input` JSON, but the cleanup
-      // anti-join cannot see JSON — without a real ref row, a non-terminal job whose
-      // `delete_when_unreferenced` inputs aged past the grace window could have them
-      // reclaimed before startup recovery resumes it (file-entry-cleanup.md §5.1).
-      // Atomicity matters: were the job row to commit without its refs (a crash or
+      // single transaction. Why the refs are needed at all (the anti-join cannot see
+      // the ids in `job.input` JSON) lives with their owner, `jobService.addFileRefsTx`.
+      // Atomicity matters here: were the job row to commit without its refs (a crash or
       // insert failure between two separate statements), a recoverable job would run
       // with unprotected inputs — or the catch below would delete inputs out from
       // under an already-committed, possibly-running job. `enqueueTx` puts the job
       // INSERT on the same tx (dispatch deferred until after COMMIT), so the job row
-      // and its refs land or roll back together. Deleting the job row later cascades
-      // these refs, releasing the inputs for reclaim.
+      // and its refs land or roll back together.
       handle = application.get('DbService').withWriteTx((tx) => {
         const jobHandle = jobManager.enqueueTx(tx, 'image-generation.generate', payload)
         const jobFileRefRows: InsertJobFileRefRow[] = [
@@ -684,9 +682,7 @@ export class AiService extends BaseService {
           })),
           ...(maskFileId ? [{ fileEntryId: maskFileId, sourceId: jobHandle.id, role: 'mask' as const }] : [])
         ]
-        if (jobFileRefRows.length > 0) {
-          tx.insert(jobFileRefTable).values(jobFileRefRows).run()
-        }
+        jobService.addFileRefsTx(tx, jobFileRefRows)
         return jobHandle
       })
     } catch (error) {

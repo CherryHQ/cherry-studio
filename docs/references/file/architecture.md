@@ -838,7 +838,7 @@ Current examples:
 
 - `chat_message_file_ref` is owned by chat/topic/message flows (`TopicService` copies rows when duplicating message paths; migrators backfill rows directly).
 - `painting_file_ref` is owned by `PaintingService` (`create`/`update` write rows directly; source deletion relies on FK cascade).
-- `job_file_ref` is owned by `AiService.generateImageViaJob` (writes rows at enqueue so the async image job's `delete_when_unreferenced` inputs stay referenced for its lifetime; terminal-row pruning cascades them away — see [file-entry-cleanup.md §5.1](./file-entry-cleanup.md#51-candidate-query)).
+- `job_file_ref` is owned by `JobService.addFileRefsTx` (tx-scoped, so `AiService.generateImageViaJob` composes it into the same transaction as `JobManager.enqueueTx`; the async image job's `delete_when_unreferenced` inputs then stay referenced for its lifetime, and terminal-row pruning cascades them away — see [file-entry-cleanup.md §5.1](./file-entry-cleanup.md#51-candidate-query)).
 
 `FileRefService` does **not** create/copy/replace persistent refs. It is the cross-source read facade used by DataApi and sweep (`findByEntryId`, `findBySource`, `countByEntryIds`).
 
