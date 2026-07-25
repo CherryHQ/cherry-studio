@@ -140,38 +140,6 @@ interface Props {
   setActiveTopic: (topic: Topic) => void
 }
 
-function buildCreateTopicPayload(
-  topic: Topic | null | undefined,
-  assistantById?: ReadonlyMap<string, unknown>
-): AddNewTopicPayload | undefined {
-  if (!topic) return undefined
-
-  const assistantId = topic.assistantId
-  return { assistantId: assistantId && assistantById?.has(assistantId) ? assistantId : null }
-}
-
-function findLatestCreateTopicPayload(
-  topics: readonly Topic[],
-  predicate: (topic: Topic) => boolean = () => true,
-  assistantById?: ReadonlyMap<string, unknown>
-): AddNewTopicPayload | undefined {
-  let latestTopic: Topic | null = null
-  let latestUpdatedAtMs = Number.NEGATIVE_INFINITY
-
-  for (const topic of topics) {
-    if (topic.pinned || !predicate(topic)) continue
-
-    const parsedUpdatedAtMs = Date.parse(topic.updatedAt)
-    const updatedAtMs = Number.isFinite(parsedUpdatedAtMs) ? parsedUpdatedAtMs : Number.NEGATIVE_INFINITY
-    if (!latestTopic || updatedAtMs > latestUpdatedAtMs) {
-      latestTopic = topic
-      latestUpdatedAtMs = updatedAtMs
-    }
-  }
-
-  return buildCreateTopicPayload(latestTopic, assistantById)
-}
-
 function matchesAssistantFilter(topic: Topic, assistantIdFilter: string | null | undefined) {
   if (assistantIdFilter === undefined) return false
   if (assistantIdFilter === null) return !topic.assistantId
@@ -760,25 +728,24 @@ export function Topics({
     if (!isRightPanel) return groupedTopics
     return groupedTopics.filter((topic) => matchesAssistantFilter(topic, assistantIdFilter))
   }, [assistantIdFilter, groupedTopics, isRightPanel])
+  const assistantIdsWithTopics = useMemo(() => {
+    const assistantIds = new Set<string>()
+
+    for (const topic of apiTopics) {
+      if (topic.assistantId) assistantIds.add(topic.assistantId)
+    }
+
+    return assistantIds
+  }, [apiTopics])
   const headerCreateTopicPayload = useMemo(
-    () =>
-      isRightPanel
-        ? { assistantId: assistantIdFilter ?? null }
-        : isAssistantDisplayMode
-          ? findLatestCreateTopicPayload(filteredTopics, undefined, assistantById)
-          : undefined,
-    [assistantById, assistantIdFilter, filteredTopics, isAssistantDisplayMode, isRightPanel]
+    () => (isRightPanel ? { assistantId: assistantIdFilter ?? null } : undefined),
+    [assistantIdFilter, isRightPanel]
   )
   const headerCreateLabel = isAssistantDisplayMode ? t('chat.add.assistant.title') : t('chat.conversation.new')
   const handleHeaderCreate = isAssistantDisplayMode
     ? () => void onAddAssistant?.()
     : () => void onNewTopic?.(headerCreateTopicPayload)
   const showHeaderCreateItem = !(isAssistantDisplayMode && resolvedPanePosition === 'right')
-  const getCreateTopicPayloadForGroup = useCallback(
-    (groupId: string) =>
-      findLatestCreateTopicPayload(filteredTopics, (topic) => topicGroupBy(topic)?.id === groupId, assistantById),
-    [assistantById, filteredTopics, topicGroupBy]
-  )
   const handleGroupHeaderSelectTopic = useCallback(
     (topicId: string) => {
       const topic = filteredTopics.find((candidate) => candidate.id === topicId)
@@ -945,8 +912,7 @@ export function Topics({
 
       if (!assistantGroupId) return null
 
-      const payload = getCreateTopicPayloadForGroup(group.id)
-      if (!payload && !assistantGroupId) return null
+      const payload: AddNewTopicPayload = { assistantId: assistantGroupId }
 
       return (
         <>
@@ -959,7 +925,7 @@ export function Topics({
                 deleteTopicsDisabled={
                   deletingAssistantGroupId !== null ||
                   deletingAssistantId !== null ||
-                  !topics.some((topic) => topic.assistantId === assistantGroupId)
+                  !assistantIdsWithTopics.has(assistantGroupId)
                 }
                 disabled={isAssistantPinActionDisabled}
                 isGroupGrouping={isGroupGrouping}
@@ -991,12 +957,12 @@ export function Topics({
     },
     [
       assistantById,
+      assistantIdsWithTopics,
       assistantPinnedIdSet,
       assistantIconType,
       deletingAssistantId,
       deletingAssistantGroupId,
       displayMode,
-      getCreateTopicPayloadForGroup,
       handleDeleteAssistant,
       handleDeleteAssistantTopics,
       handleToggleAssistantPin,
@@ -1006,8 +972,7 @@ export function Topics({
       openAssistantEditor,
       setAssistantIconType,
       setAssistantSortType,
-      t,
-      topics
+      t
     ]
   )
 
@@ -1023,9 +988,7 @@ export function Topics({
         assistantIconType,
         deleteAssistantDisabled: deletingAssistantId !== null,
         deleteTopicsDisabled:
-          deletingAssistantGroupId !== null ||
-          deletingAssistantId !== null ||
-          !topics.some((topic) => topic.assistantId === assistantId),
+          deletingAssistantGroupId !== null || deletingAssistantId !== null || !assistantIdsWithTopics.has(assistantId),
         disabled: isAssistantPinActionDisabled,
         isGroupGrouping,
         onDeleteAssistant: handleDeleteAssistant,
@@ -1045,6 +1008,7 @@ export function Topics({
     },
     [
       assistantById,
+      assistantIdsWithTopics,
       assistantIconType,
       assistantPinnedIdSet,
       deletingAssistantId,
@@ -1058,8 +1022,7 @@ export function Topics({
       openAssistantEditor,
       setAssistantIconType,
       setAssistantSortType,
-      t,
-      topics
+      t
     ]
   )
 
@@ -1093,6 +1056,16 @@ export function Topics({
       defaultModelId,
       isAssistantDisplayMode
     ]
+  )
+  const isGroupHeaderIconVisible = useCallback(
+    (group: { id: string; label: string }) => {
+      if (!isAssistantDisplayMode || assistantIconType === 'none' || group.id === TOPIC_PINNED_GROUP_ID) return false
+      if (group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID) return group.label === defaultAssistant.name
+
+      const assistantId = getAssistantIdFromTopicGroupId(group.id)
+      return !!assistantId && assistantById.has(assistantId)
+    },
+    [assistantById, assistantIconType, defaultAssistant.name, isAssistantDisplayMode]
   )
 
   const collapsedTopicState = useMemo(
@@ -1290,6 +1263,7 @@ export function Topics({
         getGroupHeaderAction={getGroupHeaderAction}
         getGroupHeaderContextMenu={getGroupHeaderContextMenu}
         getGroupHeaderIcon={getGroupHeaderIcon}
+        isGroupHeaderIconVisible={isGroupHeaderIconVisible}
         groupHeaderClickBehavior={getGroupHeaderClickBehavior}
         dragCapabilities={{
           groups: dragReady,

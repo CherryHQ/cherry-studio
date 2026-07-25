@@ -225,7 +225,8 @@ export function useTopics(opts?: { q?: string; loadAll?: boolean; pageSize?: num
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh, mutate } = useInfiniteQuery('/topics', {
     query,
     limit: pageSize,
-    enabled: opts?.enabled
+    enabled: opts?.enabled,
+    swrOptions: loadAll ? { revalidateFirstPage: false } : undefined
   })
   const topics = useInfiniteFlatItems(pages)
   const isFullyLoaded = !loadAll || (!isLoading && !hasNext)

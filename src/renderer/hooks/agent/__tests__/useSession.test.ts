@@ -255,6 +255,12 @@ describe('useSessions', () => {
     await act(async () => {})
 
     expect(loadNext).toHaveBeenCalledTimes(1)
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
+      '/agent-sessions',
+      expect.objectContaining({
+        swrOptions: { revalidateFirstPage: false }
+      })
+    )
   })
 
   it('exposes full-load and pin-loading state for grouped sidebars', async () => {

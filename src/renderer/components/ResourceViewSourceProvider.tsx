@@ -38,10 +38,14 @@ function useCommittedAssistantTopicsSource(enabled: boolean): AssistantTopicsSou
   useEffect(() => {
     if (!rawSourceReady) return
 
-    setSnapshot({
-      pages: rawSource.pages,
-      topics: rawSource.topics
-    })
+    setSnapshot((currentSnapshot) =>
+      currentSnapshot?.pages === rawSource.pages && currentSnapshot?.topics === rawSource.topics
+        ? currentSnapshot
+        : {
+            pages: rawSource.pages,
+            topics: rawSource.topics
+          }
+    )
   }, [rawSource.pages, rawSource.topics, rawSourceReady])
 
   const isColdLoading = enabled && snapshot === null
@@ -93,10 +97,15 @@ function useCommittedAgentSessionsSource(enabled: boolean): AgentSessionsSource 
   useEffect(() => {
     if (!rawSourceReady) return
 
-    setSnapshot({
-      pinIdBySessionId: rawSource.pinIdBySessionId,
-      sessions: rawSource.sessions
-    })
+    setSnapshot((currentSnapshot) =>
+      currentSnapshot?.pinIdBySessionId === rawSource.pinIdBySessionId &&
+      currentSnapshot?.sessions === rawSource.sessions
+        ? currentSnapshot
+        : {
+            pinIdBySessionId: rawSource.pinIdBySessionId,
+            sessions: rawSource.sessions
+          }
+    )
   }, [rawSource.pinIdBySessionId, rawSource.sessions, rawSourceReady])
 
   const isColdLoading = enabled && snapshot === null

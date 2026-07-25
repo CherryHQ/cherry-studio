@@ -21,6 +21,7 @@ const sourceMocks = vi.hoisted(() => ({
   assistantSource: undefined as unknown,
   agentSource: undefined as unknown
 }))
+const sourceProbeRenders = vi.fn()
 
 vi.mock('@renderer/hooks/tab', async (importOriginal) => {
   const actual = await importOriginal<typeof TabHooksModule>()
@@ -124,6 +125,7 @@ function createAgentSource(
 }
 
 function SourceProbe() {
+  sourceProbeRenders()
   const topicsSource = useAssistantTopicsSource()
   const sessionsSource = useAgentSessionsSource()
 
@@ -152,6 +154,7 @@ describe('ResourceViewSourceProvider', () => {
     sourceMocks.agentEnabled = []
     sourceMocks.assistantSource = createAssistantSource([], { complete: false })
     sourceMocks.agentSource = createAgentSource([], { complete: false })
+    sourceProbeRenders.mockClear()
   })
 
   it('publishes assistant topics only after a complete generation and keeps it stable during refresh', async () => {
@@ -202,6 +205,36 @@ describe('ResourceViewSourceProvider', () => {
     expect(screen.getByTestId('session-ids')).toHaveTextContent('session-1,session-2')
     expect(screen.getByTestId('sessions-loading')).toHaveTextContent('false')
     expect(screen.getByTestId('sessions-refreshing')).toHaveTextContent('true')
+  })
+
+  it('does not publish another snapshot when a refresh resolves to the same references', async () => {
+    sourceMocks.tabs = [createTab('chat', '/app/chat'), createTab('agent', '/app/agents')]
+    const assistantSource = createAssistantSource(['topic-1'], { complete: true })
+    const agentSource = createAgentSource(['session-1'], { complete: true })
+    sourceMocks.assistantSource = assistantSource
+    sourceMocks.agentSource = agentSource
+
+    const { rerender } = render(createProviderTree())
+
+    await waitFor(() => {
+      expect(screen.getByTestId('topic-ids')).toHaveTextContent('topic-1')
+      expect(screen.getByTestId('session-ids')).toHaveTextContent('session-1')
+    })
+
+    sourceMocks.assistantSource = { ...assistantSource, isFullyLoaded: false, isRefreshing: true }
+    sourceMocks.agentSource = { ...agentSource, isFullyLoaded: false, isValidating: true }
+    rerender(createProviderTree())
+
+    sourceProbeRenders.mockClear()
+    sourceMocks.assistantSource = assistantSource
+    sourceMocks.agentSource = agentSource
+    rerender(createProviderTree())
+
+    await waitFor(() => {
+      expect(screen.getByTestId('topics-refreshing')).toHaveTextContent('false')
+      expect(screen.getByTestId('sessions-refreshing')).toHaveTextContent('false')
+    })
+    expect(sourceProbeRenders).toHaveBeenCalledTimes(1)
   })
 
   it('loads only sources owned by non-dormant, non-message-only route tabs', () => {

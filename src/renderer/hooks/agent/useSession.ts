@@ -168,7 +168,8 @@ export const useSessions = (
   const { pages, isLoading, isRefreshing, error, hasNext, loadNext, refresh } = useInfiniteQuery('/agent-sessions', {
     query: agentId ? { agentId } : undefined,
     limit: pageSize,
-    enabled
+    enabled,
+    swrOptions: loadAll ? { revalidateFirstPage: false } : undefined
   })
   // Cache key includes the query, so reorder operates on the same key.
   const { applyReorderedList } = useReorder('/agent-sessions')

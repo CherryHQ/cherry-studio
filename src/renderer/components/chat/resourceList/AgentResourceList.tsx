@@ -324,7 +324,8 @@ export function AgentResourceList({
         }
         onSelect={handleSelect}
         onSelectedClick={() => void onSelectedAgentClick?.()}
-        onReorder={isValidating ? undefined : handleReorder}
+        onReorder={handleReorder}
+        reorderEnabled={!isValidating}
         getContextMenuActions={getContextMenuActions}
         onContextMenuAction={handleContextMenuAction}
       />

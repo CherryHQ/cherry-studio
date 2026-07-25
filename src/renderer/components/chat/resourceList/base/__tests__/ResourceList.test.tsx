@@ -1341,6 +1341,35 @@ describe('ResourceList', () => {
     expect(screen.getByTestId('session-icon')).toHaveAttribute('data-collapsed', 'true')
   })
 
+  it('uses the icon visibility predicate without constructing icons for item alignment', () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const getGroupHeaderIcon = vi.fn((group: { id: string }) => <span data-testid={`${group.id}-icon`}>#</span>)
+    const isGroupHeaderIconVisible = vi.fn(() => true)
+
+    render(
+      <Provider
+        items={ITEMS}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        getGroupHeaderIcon={getGroupHeaderIcon}
+        isGroupHeaderIconVisible={isGroupHeaderIconVisible}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    expect(screen.getByTestId('session-icon')).toBeInTheDocument()
+    expect(screen.getByTestId('topic-icon')).toBeInTheDocument()
+    expect(isGroupHeaderIconVisible).toHaveBeenCalled()
+    expect(getGroupHeaderIcon).toHaveBeenCalledTimes(2)
+  })
+
   it('omits the group header icon slot when no icon is provided', () => {
     const Provider = ResourceList.Provider<TestItem>
 
