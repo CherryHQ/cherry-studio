@@ -235,19 +235,24 @@ export function MessageVirtualList<T>({
             {topPadding > 0 && (
               <div aria-hidden="true" data-message-virtual-list-top-spacer style={{ height: topPadding }} />
             )}
-            <Virtualizer
-              ref={runtime.vlistHandleRef}
-              scrollRef={runtime.scrollerRef}
-              data={runtime.wrappedItems}
-              itemSize={estimateSize}
-              bufferSize={Math.max(200, overscan * (estimateSize ?? 200))}
-              shift={runtime.shift}
-              keepMounted={runtime.keepMounted}
-              startMargin={topPadding}
-              onScroll={runtime.scrollerProps.onScroll}
-              onScrollEnd={runtime.scrollerProps.onScrollEnd}>
-              {runtime.wrappedRenderItem}
-            </Virtualizer>
+            {/* Virtua reads an external scrollRef only when it mounts. Wait for
+                Scrollbar's ref callback so staged layouts cannot leave it
+                permanently unmeasured with data but no rendered items. */}
+            {scrollerElement && (
+              <Virtualizer
+                ref={runtime.vlistHandleRef}
+                scrollRef={runtime.scrollerRef}
+                data={runtime.wrappedItems}
+                itemSize={estimateSize}
+                bufferSize={Math.max(200, overscan * (estimateSize ?? 200))}
+                shift={runtime.shift}
+                keepMounted={runtime.keepMounted}
+                startMargin={topPadding}
+                onScroll={runtime.scrollerProps.onScroll}
+                onScrollEnd={runtime.scrollerProps.onScrollEnd}>
+                {runtime.wrappedRenderItem}
+              </Virtualizer>
+            )}
           </ScrollOwnershipProvider>
         </div>
         {/* Outside the content wrapper: the anchor derives its natural content
