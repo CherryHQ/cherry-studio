@@ -580,6 +580,7 @@ const AgentChatSessionCenter = ({
         <div className="pointer-events-none absolute inset-0 z-10">
           <ConversationGreeting
             avatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
+            conversationId={session.id}
             title={homeWelcomeText ?? ''}
           />
         </div>

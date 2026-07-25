@@ -214,7 +214,11 @@ const ChatContentInner: FC<InnerProps> = ({
     <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       {isEmptyConversation && (
         <div className="pointer-events-none absolute inset-0 z-10">
-          <ConversationGreeting avatar={assistant?.emoji} title={t('chat.home.welcome_title')} />
+          <ConversationGreeting
+            avatar={assistant?.emoji}
+            conversationId={topic.id}
+            title={t('chat.home.welcome_title')}
+          />
         </div>
       )}
       <ChatMain
