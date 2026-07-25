@@ -2,7 +2,9 @@ import { useOptionalRightPanelState } from '@renderer/components/chat/panes/Shel
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import ConversationComposerLoading from '@renderer/components/composer/ConversationComposerLoading'
 import ConversationComposerSlot from '@renderer/components/composer/ConversationComposerSlot'
+import type { GetAgentResponse } from '@renderer/types/agent'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { Model } from '@shared/data/types/model'
 import { lazy, memo } from 'react'
 
 import type { AgentChatRuntimeState } from './useAgentChatRuntimeState'
@@ -12,6 +14,9 @@ const AgentComposer = lazy(() => import('@renderer/components/composer/variants/
 interface AgentComposerSlotProps {
   agentId?: string
   agentLoading: boolean
+  activeAgent?: GetAgentResponse
+  activeModel?: Model
+  workspaceWarning?: string
   isMultiSelectMode: boolean
   session: AgentSessionEntity
   sessionId: string
@@ -20,17 +25,15 @@ interface AgentComposerSlotProps {
   isStreaming: boolean
   sendDisabled: boolean
   onCreateEmptySession?: () => void | Promise<unknown>
-  canChangeAgent?: boolean
-  workspaceId?: string | null
-  onWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
-  workspaceChanging?: boolean
-  canChangeModel?: boolean
   composerContext: ComposerContextValue
 }
 
 function AgentComposerSlot({
   agentId,
   agentLoading,
+  activeAgent,
+  activeModel,
+  workspaceWarning,
   isMultiSelectMode,
   session,
   sessionId,
@@ -39,11 +42,6 @@ function AgentComposerSlot({
   isStreaming,
   sendDisabled,
   onCreateEmptySession,
-  canChangeAgent,
-  workspaceId,
-  onWorkspaceChange,
-  workspaceChanging,
-  canChangeModel,
   composerContext
 }: AgentComposerSlotProps) {
   const rightPanelState = useOptionalRightPanelState()
@@ -56,16 +54,15 @@ function AgentComposerSlot({
         agentId={agentId}
         sessionId={sessionId}
         sessionOverride={session}
+        resolvedAgent={activeAgent}
+        resolvedModel={activeModel}
+        resolvedWorkspaceWarning={workspaceWarning ?? null}
+        externalContextControls
         sendMessage={sendMessage}
         stop={stop}
         isStreaming={isStreaming}
         sendDisabled={sendDisabled}
         onCreateEmptySession={onCreateEmptySession}
-        canChangeAgent={canChangeAgent}
-        workspaceId={workspaceId}
-        onWorkspaceChange={onWorkspaceChange}
-        workspaceChanging={workspaceChanging}
-        canChangeModel={canChangeModel}
         compactWhenSingleLine={compactWhenSingleLine}
       />
     ) : agentLoading && !isMultiSelectMode ? (

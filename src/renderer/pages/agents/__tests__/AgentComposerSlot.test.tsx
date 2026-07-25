@@ -5,6 +5,10 @@ import { describe, expect, it, vi } from 'vitest'
 
 import AgentComposerSlot from '../AgentComposerSlot'
 
+const agentComposerPropsMock = vi.hoisted(() => ({
+  last: undefined as any
+}))
+
 vi.mock('@renderer/components/chat/panes/Shell', () => ({
   useOptionalRightPanelState: () => null
 }))
@@ -16,7 +20,10 @@ vi.mock('@renderer/components/composer/ConversationComposerSlot', () => ({
 }))
 
 vi.mock('@renderer/components/composer/variants/AgentComposer', () => ({
-  default: () => <div data-testid="agent-composer" />
+  default: (props: any) => {
+    agentComposerPropsMock.last = props
+    return <div data-testid="agent-composer" />
+  }
 }))
 
 const session = { id: 'session-1', agentId: 'agent-1' } as AgentSessionEntity
@@ -43,9 +50,28 @@ describe('AgentComposerSlot', () => {
   it('mounts the real composer after agent metadata resolves', async () => {
     const { rerender } = render(<AgentComposerSlot {...baseProps} />)
 
-    rerender(<AgentComposerSlot {...baseProps} agentId="agent-1" agentLoading={false} />)
+    const activeAgent = { id: 'agent-1', model: 'provider:model-1' } as any
+    const activeModel = { id: 'provider:model-1', name: 'Model 1' } as any
+    rerender(
+      <AgentComposerSlot
+        {...baseProps}
+        agentId="agent-1"
+        agentLoading={false}
+        activeAgent={activeAgent}
+        activeModel={activeModel}
+        workspaceWarning="Workspace unavailable"
+      />
+    )
 
     expect(await screen.findByTestId('agent-composer')).toBeInTheDocument()
+    expect(agentComposerPropsMock.last).toMatchObject({
+      resolvedAgent: activeAgent,
+      resolvedModel: activeModel,
+      resolvedWorkspaceWarning: 'Workspace unavailable',
+      externalContextControls: true
+    })
+    expect(agentComposerPropsMock.last?.onAgentChange).toBeUndefined()
+    expect(agentComposerPropsMock.last?.onWorkspaceChange).toBeUndefined()
   })
 
   it('does not leave an orphan session in a permanent loading state', () => {

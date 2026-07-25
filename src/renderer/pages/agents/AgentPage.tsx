@@ -1087,6 +1087,7 @@ const AgentPage = () => {
           onPaneCollapse={() => markManualPaneToggle(false)}
           onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
           onFileNavigationRequestChange={handleFileNavigationRequestChange}
+          requestFileNavigation={requestFileNavigation}
           paneManualToggle={paneManualToggle}
           showResourceListControls={!isMessageOnlyView}
           sidebarOpen={effectiveShowSidebar}

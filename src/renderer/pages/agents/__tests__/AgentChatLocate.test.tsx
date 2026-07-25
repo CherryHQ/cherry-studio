@@ -205,7 +205,19 @@ vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgents: () => ({
     agents: [{ id: 'agent-1', model: 'provider:model-1' }],
     isLoading: false
+  }),
+  useUpdateAgent: () => ({ updateModel: vi.fn() })
+}))
+
+vi.mock('@renderer/hooks/useModel', () => ({
+  useModelById: (modelId?: string | null) => ({
+    model: modelId ? { id: modelId, name: 'Model 1' } : undefined,
+    isLoading: false
   })
+}))
+
+vi.mock('@renderer/hooks/agent/useAgentWorkspaceWarning', () => ({
+  useAgentWorkspaceWarning: () => undefined
 }))
 
 const activeSessionMocks = vi.hoisted(() => ({
@@ -240,7 +252,8 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
 }))
 
 vi.mock('@renderer/hooks/agent/useSession', () => ({
-  useActiveSession: () => activeSessionMocks.result
+  useActiveSession: () => activeSessionMocks.result,
+  useUpdateSession: () => ({ updateSession: vi.fn() })
 }))
 
 vi.mock('@renderer/hooks/useAgentSessionParts', () => ({
