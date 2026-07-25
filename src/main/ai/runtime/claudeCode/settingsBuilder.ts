@@ -1132,7 +1132,8 @@ export function buildMcpServers(
       agentId: agent.id,
       workspaceSource,
       workspacePath: session.workspace.path,
-      sourceChannelId
+      sourceChannelId,
+      getKnowledgeBaseIds: () => agentService.getAgent(agent.id)?.knowledgeBaseIds ?? []
     }).mcpServer
   }
 

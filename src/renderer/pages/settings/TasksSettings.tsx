@@ -43,19 +43,21 @@ import {
 import { dataApiService } from '@renderer/data/DataApiService'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useChannels } from '@renderer/hooks/agent/useChannels'
-import { useCreateTask, useDeleteTask, useRunTask, useTaskLogs, useUpdateTask } from '@renderer/hooks/agent/useTasks'
+import {
+  useCreateTask,
+  useDeleteTask,
+  useRunTask,
+  useSetTaskEnabled,
+  useTaskLogs,
+  useUpdateTask
+} from '@renderer/hooks/agent/useTasks'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { toast } from '@renderer/services/toast'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
-import type {
-  AgentEntity,
-  CreateTaskRequest,
-  ScheduledTaskEntity,
-  TaskRunLogEntity,
-  UpdateTaskRequest
-} from '@shared/data/types/agent'
+import type { AgentEntity, ScheduledTaskEntity, TaskRunLogEntity } from '@shared/data/types/agent'
+import type { AgentTaskForm, AgentTaskPatch } from '@shared/ipc/schemas/ai'
 import {
   AlertTriangle,
   CalendarClock,
@@ -149,7 +151,7 @@ function taskToDraftSnapshot(task: ScheduledTaskEntity): TaskDraftSnapshot {
   }
 }
 
-function draftFieldsForUpdate(updates: UpdateTaskRequest): TaskDraftField[] {
+function draftFieldsForUpdate(updates: AgentTaskPatch): TaskDraftField[] {
   const fields: TaskDraftField[] = []
   if ('name' in updates) fields.push('name')
   if ('prompt' in updates) fields.push('prompt')
@@ -347,7 +349,7 @@ const TaskDetail: FC<{
   task: ScheduledTaskEntity
   agents: AgentInfo[]
   channels: ChannelInfo[]
-  onUpdate: (taskId: string, updates: UpdateTaskRequest) => Promise<TaskUpdateResult | undefined>
+  onUpdate: (taskId: string, updates: AgentTaskPatch) => Promise<TaskUpdateResult | undefined>
   onDelete: (taskId: string) => Promise<void>
   onRun: (taskId: string) => Promise<void>
   onToggleStatus: (taskId: string, newStatus: string) => Promise<void>
@@ -428,7 +430,7 @@ const TaskDetail: FC<{
   }, [task])
 
   const saveField = useCallback(
-    (updates: UpdateTaskRequest) => {
+    (updates: AgentTaskPatch) => {
       const fields = draftFieldsForUpdate(updates)
       const hasUnsubmittedDraft = fields.some(
         (field) => draftVersionsRef.current[field] !== submittedDraftVersionsRef.current[field]
@@ -917,7 +919,7 @@ const CreateForm: FC<{
   agents: AgentInfo[]
   channels: ChannelInfo[]
   onCancel: () => void
-  onCreate: (agentId: string, req: CreateTaskRequest) => Promise<void>
+  onCreate: (agentId: string, req: AgentTaskForm) => Promise<void>
 }> = ({ agents, channels, onCancel, onCreate }) => {
   const { t } = useTranslation()
   const { theme } = useTheme()
@@ -1085,6 +1087,7 @@ const TasksSettings: FC = () => {
   const { updateTask } = useUpdateTask()
   const { deleteTask } = useDeleteTask()
   const { runTask } = useRunTask()
+  const { setTaskEnabled } = useSetTaskEnabled()
 
   const [agents, setAgents] = useState<AgentInfo[]>([])
   const [tasks, setTasks] = useState<ScheduledTaskEntity[]>([])
@@ -1200,7 +1203,7 @@ const TasksSettings: FC = () => {
   }, [])
 
   const handleCreate = useCallback(
-    async (agentId: string, req: CreateTaskRequest) => {
+    async (agentId: string, req: AgentTaskForm) => {
       const created = await createTask(agentId, req)
       if (created) {
         setCreating(false)
@@ -1212,7 +1215,7 @@ const TasksSettings: FC = () => {
   )
 
   const persistTaskUpdate = useCallback(
-    async (task: ScheduledTaskEntity, updates: UpdateTaskRequest): Promise<TaskUpdateResult> => {
+    async (task: ScheduledTaskEntity, updates: AgentTaskPatch): Promise<TaskUpdateResult> => {
       const updated = await updateTask(task.agentId, task.id, updates)
       if (!updated) {
         return { succeeded: false, task: persistedTasksRef.current.get(task.id) ?? task }
@@ -1227,7 +1230,7 @@ const TasksSettings: FC = () => {
   )
 
   const handleUpdate = useCallback(
-    (taskId: string, updates: UpdateTaskRequest): Promise<TaskUpdateResult | undefined> => {
+    (taskId: string, updates: AgentTaskPatch): Promise<TaskUpdateResult | undefined> => {
       const task = tasks.find((currentTask) => currentTask.id === taskId)
       if (!task) return Promise.resolve(undefined)
 
@@ -1257,7 +1260,7 @@ const TasksSettings: FC = () => {
       if (!task) return
       await enqueueTaskOperation(taskId, async (previousSucceeded) => {
         if (!previousSucceeded) return false
-        await runTask(taskId)
+        await runTask(task.agentId, taskId)
         await refreshTask(task.agentId, taskId)
         return true
       })
@@ -1271,15 +1274,20 @@ const TasksSettings: FC = () => {
       if (!task) return
       // newStatus is the renderer's existing 'active' | 'paused' contract — keep
       // it so consumers don't need to think in terms of `enabled`, then translate
-      // at the IPC boundary.
+      // to the dedicated pause / resume commands at the IPC boundary.
       await enqueueTaskOperation(taskId, async (previousSucceeded) => {
         const enabled = newStatus === 'active'
         if (enabled && !previousSucceeded) return false
-        const toggleResult = await persistTaskUpdate(task, { enabled })
-        return previousSucceeded && toggleResult.succeeded
+        const updated = await setTaskEnabled(task.agentId, task.id, enabled)
+        if (!updated) return false
+        persistedTasksRef.current.set(task.id, updated)
+        setTasks((currentTasks) =>
+          currentTasks.map((currentTask) => (currentTask.id === task.id ? updated : currentTask))
+        )
+        return previousSucceeded
       })
     },
-    [enqueueTaskOperation, persistTaskUpdate, tasks]
+    [enqueueTaskOperation, setTaskEnabled, tasks]
   )
 
   if (loading) {

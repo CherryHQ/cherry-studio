@@ -1,3 +1,4 @@
+import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -8,7 +9,7 @@ import type { PaneManualToggleSignal } from '@renderer/components/chat/shell/Cha
 import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell/ConversationSidebarToggleButton'
 import {
   createRecentSessionEntryFromSession,
-  upsertGlobalSearchRecentEntry
+  recordGlobalSearchRecentEntry
 } from '@renderer/components/GlobalSearch/globalSearchGroups'
 import {
   type GlobalSearchAgentSessionMessageSelectionPayload,
@@ -176,7 +177,7 @@ const AgentPage = () => {
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeSessionId
   // Shared full-list source for the session UI and the composer reuse path. Reuse must read this
   // upper-layer data instead of issuing a second ad-hoc full pagination request.
-  const agentSessionsSource = useAgentSessionsSource({ enabled: !isMessageOnlyView })
+  const agentSessionsSource = useAgentSessionsSource()
   const { sessions: agentSessions } = agentSessionsSource
   // First-entry selection resumes the most-recently-updated session. A dedicated `updatedAt DESC LIMIT 1`
   // query proves the global latest, so it neither waits for the full session history to paginate in nor
@@ -221,8 +222,6 @@ const AgentPage = () => {
   const [lastUsedSessionId, setLastUsedSessionId] = usePersistCache('ui.agent.last_used_session_id')
   const [lastUsedAgentId, setLastUsedAgentId] = usePersistCache('ui.agent.last_used_agent_id')
   const [lastUsedWorkspaceId, setLastUsedWorkspaceId] = usePersistCache('ui.agent.last_used_workspace_id')
-  const [, setRecentItems] = usePersistCache('ui.global_search.recent_items')
-  const [, setSessionExpansionAgent] = usePersistCache('ui.agent.session.expansion.agent')
   // Resume target frozen at mount: `last_used_session_id` is rewritten as soon as any session
   // activates, so a reactive read would chase this page's own writes. Route / tab-metadata
   // targets take precedence over resume.
@@ -397,10 +396,8 @@ const AgentPage = () => {
     if (lastRecordedRecentSessionRef.current === signature) return
 
     lastRecordedRecentSessionRef.current = signature
-    setRecentItems((prev) =>
-      upsertGlobalSearchRecentEntry(prev ?? [], createRecentSessionEntryFromSession(activeSession))
-    )
-  }, [activeSession, isMessageOnlyView, setRecentItems])
+    recordGlobalSearchRecentEntry(createRecentSessionEntryFromSession(activeSession))
+  }, [activeSession, isMessageOnlyView])
 
   useEffect(() => {
     if (activeSession) lastVisibleSessionRef.current = activeSession
@@ -943,7 +940,7 @@ const AgentPage = () => {
               .map((agentId) => `session:agent:${agentId}`)
           )
         )
-        setSessionExpansionAgent(collapsedAgentGroupIds)
+        cacheService.setPersist('ui.agent.session.expansion.agent', collapsedAgentGroupIds)
       }
       await setPanePosition(position)
       setSessionPaneOpen(position === 'right', { force: true })
@@ -954,7 +951,6 @@ const AgentPage = () => {
       setPanePosition,
       setResourceListOpen,
       setSessionDisplayMode,
-      setSessionExpansionAgent,
       setSessionPaneOpen,
       visibleSession?.agentId
     ]
@@ -1087,6 +1083,7 @@ const AgentPage = () => {
           onPaneCollapse={() => markManualPaneToggle(false)}
           onPaneAutoCollapseChange={handleResourceListAutoCollapseChange}
           onFileNavigationRequestChange={handleFileNavigationRequestChange}
+          requestFileNavigation={requestFileNavigation}
           paneManualToggle={paneManualToggle}
           showResourceListControls={!isMessageOnlyView}
           sidebarOpen={effectiveShowSidebar}

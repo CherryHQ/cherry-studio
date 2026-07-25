@@ -154,7 +154,7 @@ export class McpServerService {
     // reject delete() — the server row is already gone. Log the un-refreshed
     // agents so warm sessions can be reconciled, then swallow.
     try {
-      agentService.emitAgentUpdatedForIds(affectedAgentIds)
+      agentService.emitAgentUpdatedForIds(affectedAgentIds, 'mcps')
     } catch (error) {
       logger.error('MCP server deleted but agent refresh failed; affected agents may retain stale tool policy', {
         mcpServerId: id,

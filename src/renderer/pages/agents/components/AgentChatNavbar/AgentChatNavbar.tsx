@@ -7,6 +7,7 @@ import AgentContent from './AgentContent'
 
 interface Props {
   activeAgent: AgentEntity | null
+  conversationControls?: ReactNode
   tools?: ReactNode
   className?: string
   showSidebarControls?: boolean
@@ -16,6 +17,7 @@ interface Props {
 
 const AgentChatNavbar = ({
   activeAgent,
+  conversationControls,
   tools,
   className,
   showSidebarControls = true,
@@ -27,6 +29,7 @@ const AgentChatNavbar = ({
       <div className="-mx-1 flex h-full min-w-0 flex-1 items-center justify-between overflow-hidden">
         <AgentContent
           activeAgent={activeAgent}
+          conversationControls={conversationControls}
           tools={tools}
           showSidebarControls={showSidebarControls}
           sidebarOpen={sidebarOpen}

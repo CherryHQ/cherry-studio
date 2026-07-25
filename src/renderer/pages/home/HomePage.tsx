@@ -1,3 +1,4 @@
+import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResourcePaneConfig, ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
@@ -9,7 +10,7 @@ import { ConversationSidebarToggleButton } from '@renderer/components/chat/shell
 import type { ChatPanePosition } from '@renderer/components/chat/shell/paneLayout'
 import {
   createRecentTopicEntryFromTopic,
-  upsertGlobalSearchRecentEntry
+  recordGlobalSearchRecentEntry
 } from '@renderer/components/GlobalSearch/globalSearchGroups'
 import {
   type GlobalSearchTopicMessageSelectionPayload,
@@ -22,7 +23,7 @@ import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/hooks/tab'
-import { useAssistantApiById, useAssistants } from '@renderer/hooks/useAssistant'
+import { useAssistants } from '@renderer/hooks/useAssistant'
 import { toCreateAssistantDtoFromCatalogPreset } from '@renderer/hooks/useAssistantCatalogPresets'
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
 import {
@@ -140,8 +141,6 @@ const HomePage: FC = () => {
   const isCreatingTopicRef = useRef(false)
   const [lastUsedAssistantId, setLastUsedAssistantId] = usePersistCache(LAST_USED_ASSISTANT_CACHE_KEY)
   const [lastUsedTopicId, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
-  const [, setRecentItems] = usePersistCache('ui.global_search.recent_items')
-  const [, setTopicExpansionAssistant] = usePersistCache('ui.topic.expansion.assistant')
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
@@ -167,7 +166,7 @@ const HomePage: FC = () => {
   })
   // Shared full-topics source for classic history selection and persisted empty-topic reuse.
   // Modern layout also creates real empty topics now, so it needs the same candidates.
-  const assistantTopicsSource = useAssistantTopicsSource({ enabled: !isMessageOnlyView })
+  const assistantTopicsSource = useAssistantTopicsSource()
   const { topics: allTopics } = assistantTopicsSource
   // First-entry selection resumes the most-recently-updated topic. A dedicated `updatedAt DESC LIMIT 1`
   // query proves the global latest, so it neither waits for the full topic history to paginate in nor
@@ -363,7 +362,7 @@ const HomePage: FC = () => {
   // Label this tab with its assistant emoji + topic name so multiple chat tabs
   // are distinguishable in the tab bar (every tab labels itself — not gated on active).
   const visibleAssistantId = visibleTopic?.assistantId
-  const { assistant: visibleAssistant } = useAssistantApiById(visibleAssistantId ?? undefined)
+  const visibleAssistant = assistants.find((assistant) => assistant.id === visibleAssistantId)
   const topicListPosition: ChatPanePosition =
     !isWindowFrame && isClassicTopicLayout && panePosition === 'right' ? 'right' : 'left'
   const topicResourcePaneCount = useMemo<ResourcePaneCountButtonProps | undefined>(() => {
@@ -393,8 +392,8 @@ const HomePage: FC = () => {
     if (lastRecordedRecentTopicRef.current === signature) return
 
     lastRecordedRecentTopicRef.current = signature
-    setRecentItems((prev) => upsertGlobalSearchRecentEntry(prev ?? [], createRecentTopicEntryFromTopic(activeTopic)))
-  }, [activeTopic, isMessageOnlyView, setRecentItems])
+    recordGlobalSearchRecentEntry(createRecentTopicEntryFromTopic(activeTopic))
+  }, [activeTopic, isMessageOnlyView])
 
   const setResourceListOpen = useCallback(
     (open: boolean) => {
@@ -818,21 +817,13 @@ const HomePage: FC = () => {
             allTopics.map(getTopicAssistantDisplayGroupId).filter((groupId) => groupId !== activeAssistantGroupId)
           )
         )
-        setTopicExpansionAssistant(collapsedAssistantGroupIds)
+        cacheService.setPersist('ui.topic.expansion.assistant', collapsedAssistantGroupIds)
       }
       await setPanePosition(position)
       setTopicPaneOpen(position === 'right', { force: true })
       setResourceListOpen(true)
     },
-    [
-      allTopics,
-      setPanePosition,
-      setResourceListOpen,
-      setTopicDisplayMode,
-      setTopicExpansionAssistant,
-      setTopicPaneOpen,
-      visibleTopic
-    ]
+    [allTopics, setPanePosition, setResourceListOpen, setTopicDisplayMode, setTopicPaneOpen, visibleTopic]
   )
   const shellPanePosition: ChatPanePosition = 'left'
 

@@ -1,4 +1,5 @@
 import { useQuery } from '@data/hooks/useDataApi'
+import { loggerService } from '@logger'
 import type {
   MessageListActions,
   MessageListState,
@@ -14,7 +15,7 @@ import { parseFileTypes } from '@renderer/utils/file'
 import { safeOpen } from '@renderer/utils/file/safeOpen'
 import type { FileHandle } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import type { FilePath } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFileEntryHandle, createFilePathHandle, toSafeFileUrl } from '@shared/utils/file'
 import dayjs from 'dayjs'
 import type { TFunction } from 'i18next'
@@ -23,6 +24,12 @@ import { useTranslation } from 'react-i18next'
 
 import { useAttachment } from './useAttachment'
 import { type MessagePlatformActions, useMessagePlatformActions } from './useMessagePlatformActions'
+
+const logger = loggerService.withContext('useMessageLeafCapabilities')
+
+// `getFileView` runs on every message render; dedupe the warn per offending
+// path so a bad attachment path can't flood the log across rerenders/streams.
+const warnedFileViewPaths = new Set<string>()
 
 type MessageLeafActions = Pick<
   MessageListActions,
@@ -59,10 +66,14 @@ function isMcpToolPart(part: CherryMessagePart): boolean {
 function fileMetadataToHandle(file: FileMetadata): FileHandle {
   if (file.path) {
     try {
-      return createFilePathHandle(file.path as FilePath)
+      return createFilePathHandle(AbsoluteFilePathSchema.parse(file.path))
     } catch {
       // Fall back to the entry id for legacy FileMetadata whose path is not an
       // absolute filesystem path. The IPC schema is still the authority.
+      logger.debug('fileMetadataToHandle: falling back to entry id for non-absolute path', {
+        fileId: file.id,
+        path: file.path
+      })
     }
   }
 
@@ -152,9 +163,14 @@ export function useMessageLeafCapabilities({
 
   const getFileView = useCallback<NonNullable<MessageListState['getFileView']>>(
     (file) => {
+      const parsedPath = file.path ? AbsoluteFilePathSchema.safeParse(file.path) : undefined
+      if (parsedPath && !parsedPath.success && file.path && !warnedFileViewPaths.has(file.path)) {
+        warnedFileViewPaths.add(file.path)
+        logger.warn('getFileView: non-canonical/invalid attachment path', { fileId: file.id, path: file.path })
+      }
       return {
         displayName: formatMessageAttachmentFileName(file, t),
-        previewUrl: file.path ? toSafeFileUrl(file.path as FilePath, file.ext || null) : undefined
+        previewUrl: parsedPath?.success ? toSafeFileUrl(parsedPath.data, file.ext || null) : undefined
       }
     },
     [t]
