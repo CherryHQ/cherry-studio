@@ -40,11 +40,14 @@ import { type UsageLedgerRow, usageLedgerTable } from '@data/db/schemas/usageLed
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
 import type {
+  UsageLedgerGroupBy,
+  UsageLedgerGroupIdentity,
   UsageLedgerListQuery,
   UsageLedgerListResponse,
   UsageLedgerStatsBucket,
   UsageLedgerStatsQuery,
   UsageLedgerStatsResponse,
+  UsageLedgerTimelineBucket,
   UsageLedgerTimelineQuery,
   UsageLedgerTimelineResponse
 } from '@shared/data/api/schemas/usageLedger'
@@ -135,6 +138,101 @@ function resolveProviderNameSnapshot(
   }
 
   return providerNames.get(providerId) ?? snapshotName
+}
+
+/** `undefined` aggregates every row into one group — used by the ungrouped timeline. */
+type GroupDimension = UsageLedgerGroupBy | undefined
+
+/** Columns that tell two groups of `groupBy` apart. */
+function groupIdentityColumns(groupBy: GroupDimension) {
+  switch (groupBy) {
+    case 'provider':
+      return [usageLedgerTable.providerId]
+    case 'apiKey':
+      return [usageLedgerTable.providerId, usageLedgerTable.apiKeyId]
+    case 'model':
+      return [usageLedgerTable.providerId, usageLedgerTable.modelId]
+    case 'source':
+      return [usageLedgerTable.sourceType, usageLedgerTable.sourceId]
+    default:
+      return []
+  }
+}
+
+/** Identity columns of a `groupBy` aggregate; the dimensions it does not group by read as NULL. */
+function groupIdentitySelect(groupBy: GroupDimension) {
+  const bySource = groupBy === 'source'
+  const byProvider = groupBy !== undefined && !bySource
+
+  return {
+    providerId: byProvider ? usageLedgerTable.providerId : sql<string | null>`NULL`,
+    providerName: byProvider ? sql<string | null>`max(${usageLedgerTable.providerName})` : sql<string | null>`NULL`,
+    sourceType: bySource ? usageLedgerTable.sourceType : sql<UsageLedgerSourceType | null>`NULL`,
+    sourceId: bySource ? usageLedgerTable.sourceId : sql<string | null>`NULL`,
+    sourceName: bySource ? sql<string | null>`max(${usageLedgerTable.sourceName})` : sql<string | null>`NULL`,
+    sourceIcon: bySource ? sql<string | null>`max(${usageLedgerTable.sourceIcon})` : sql<string | null>`NULL`,
+    apiKeyId: groupBy === 'apiKey' ? usageLedgerTable.apiKeyId : sql<string | null>`NULL`,
+    modelId: groupBy === 'model' ? usageLedgerTable.modelId : sql<string | null>`NULL`,
+    // Representative display fields (rows in one key bucket share them in
+    // practice; max() just picks a stable value if labels changed).
+    apiKeyLabel: sql<string | null>`max(${usageLedgerTable.apiKeyLabel})`,
+    apiKeyMasked: sql<string | null>`max(${usageLedgerTable.apiKeyMasked})`,
+    // Attribution is a confidence label, not an ordinal: alphabetically
+    // `backfill` < `exact`, so max() would report a bucket mixing migration
+    // guesses with exact rows as fully `exact`. Rank most confident (exact)
+    // → least (none) and report the LEAST confident label present, so the
+    // bucket never claims more certainty than its weakest row.
+    apiKeyAttribution: sql<string>`CASE min(CASE ${usageLedgerTable.apiKeyAttribution}
+        WHEN 'exact' THEN 5
+        WHEN 'rotation' THEN 4
+        WHEN 'backfill' THEN 3
+        WHEN 'auth' THEN 2
+        ELSE 1
+      END)
+      WHEN 5 THEN 'exact'
+      WHEN 4 THEN 'rotation'
+      WHEN 3 THEN 'backfill'
+      WHEN 2 THEN 'auth'
+      ELSE 'none'
+    END`
+  }
+}
+
+type GroupIdentityRow = {
+  [K in keyof ReturnType<typeof groupIdentitySelect>]: K extends 'apiKeyAttribution' ? string : string | null
+}
+
+function toGroupIdentity(
+  row: GroupIdentityRow,
+  groupBy: GroupDimension,
+  providerNames: Map<string, string>
+): UsageLedgerGroupIdentity {
+  if (groupBy === undefined) {
+    return {}
+  }
+
+  return {
+    ...(groupBy === 'source'
+      ? {
+          sourceType: row.sourceType as UsageLedgerSourceType | null,
+          sourceId: row.sourceId,
+          sourceName: row.sourceName,
+          sourceIcon: row.sourceIcon
+        }
+      : {
+          providerId: row.providerId as string,
+          providerName: resolveProviderNameSnapshot(row.providerId as string, row.providerName, providerNames)
+        }),
+    ...(groupBy === 'apiKey'
+      ? {
+          apiKeyId: row.apiKeyId,
+          apiKeyLabel: row.apiKeyLabel,
+          apiKeyMasked: row.apiKeyMasked,
+          apiKeyAttribution: row.apiKeyAttribution as UsageLedgerAttribution
+        }
+      : {}),
+    ...(groupBy === 'model' ? { modelId: row.modelId } : {})
+  }
 }
 
 type SourceSnapshot = {
@@ -535,59 +633,10 @@ export class UsageLedgerService {
     if (query.to !== undefined) conditions.push(lte(usageLedgerTable.createdAt, query.to))
     const where = conditions.length > 0 ? and(...conditions) : undefined
 
-    // costCurrency always participates in the group key — USD and CNY must
-    // never be summed into one number.
-    const groupColumns =
-      query.groupBy === 'apiKey'
-        ? [usageLedgerTable.providerId, usageLedgerTable.apiKeyId, usageLedgerTable.costCurrency]
-        : query.groupBy === 'model'
-          ? [usageLedgerTable.providerId, usageLedgerTable.modelId, usageLedgerTable.costCurrency]
-          : query.groupBy === 'source'
-            ? [usageLedgerTable.sourceType, usageLedgerTable.sourceId, usageLedgerTable.costCurrency]
-            : [usageLedgerTable.providerId, usageLedgerTable.costCurrency]
-
     const rows = await db
       .select({
-        providerId: query.groupBy === 'source' ? sql<string | null>`NULL` : usageLedgerTable.providerId,
-        providerName:
-          query.groupBy === 'source'
-            ? sql<string | null>`NULL`
-            : sql<string | null>`max(${usageLedgerTable.providerName})`,
-        sourceType: query.groupBy === 'source' ? usageLedgerTable.sourceType : sql<UsageLedgerSourceType | null>`NULL`,
-        sourceId: query.groupBy === 'source' ? usageLedgerTable.sourceId : sql<string | null>`NULL`,
-        sourceName:
-          query.groupBy === 'source'
-            ? sql<string | null>`max(${usageLedgerTable.sourceName})`
-            : sql<string | null>`NULL`,
-        sourceIcon:
-          query.groupBy === 'source'
-            ? sql<string | null>`max(${usageLedgerTable.sourceIcon})`
-            : sql<string | null>`NULL`,
-        apiKeyId: query.groupBy === 'apiKey' ? usageLedgerTable.apiKeyId : sql<string | null>`NULL`,
-        modelId: query.groupBy === 'model' ? usageLedgerTable.modelId : sql<string | null>`NULL`,
+        ...groupIdentitySelect(query.groupBy),
         costCurrency: usageLedgerTable.costCurrency,
-        // Representative display fields (rows in one key bucket share them in
-        // practice; max() just picks a stable value if labels changed).
-        apiKeyLabel: sql<string | null>`max(${usageLedgerTable.apiKeyLabel})`,
-        apiKeyMasked: sql<string | null>`max(${usageLedgerTable.apiKeyMasked})`,
-        // Attribution is a confidence label, not an ordinal: alphabetically
-        // `backfill` < `exact`, so max() would report a bucket mixing migration
-        // guesses with exact rows as fully `exact`. Rank most confident (exact)
-        // → least (none) and report the LEAST confident label present, so the
-        // bucket never claims more certainty than its weakest row.
-        apiKeyAttribution: sql<string>`CASE min(CASE ${usageLedgerTable.apiKeyAttribution}
-            WHEN 'exact' THEN 5
-            WHEN 'rotation' THEN 4
-            WHEN 'backfill' THEN 3
-            WHEN 'auth' THEN 2
-            ELSE 1
-          END)
-          WHEN 5 THEN 'exact'
-          WHEN 4 THEN 'rotation'
-          WHEN 3 THEN 'backfill'
-          WHEN 2 THEN 'auth'
-          ELSE 'none'
-        END`,
         totalCost: sql<number>`coalesce(sum(${usageLedgerTable.cost}), 0)`,
         totalInputTokens: sql<number>`coalesce(sum(${usageLedgerTable.inputTokens}), 0)`,
         totalOutputTokens: sql<number>`coalesce(sum(${usageLedgerTable.outputTokens}), 0)`,
@@ -599,11 +648,14 @@ export class UsageLedgerService {
       })
       .from(usageLedgerTable)
       .where(where)
-      .groupBy(...groupColumns)
+      // costCurrency always participates in the group key — USD and CNY must
+      // never be summed into one number.
+      .groupBy(...groupIdentityColumns(query.groupBy), usageLedgerTable.costCurrency)
       .orderBy(sql`coalesce(sum(${usageLedgerTable.cost}), 0) desc`)
 
     const providerNames = query.groupBy === 'source' ? new Map<string, string>() : await readProviderNameMap()
     const buckets: UsageLedgerStatsBucket[] = rows.map((row) => ({
+      ...toGroupIdentity(row, query.groupBy, providerNames),
       costCurrency: row.costCurrency,
       totalCost: row.totalCost,
       totalInputTokens: row.totalInputTokens,
@@ -612,27 +664,7 @@ export class UsageLedgerService {
       totalNoCacheTokens: row.totalNoCacheTokens,
       totalCacheReadTokens: row.totalCacheReadTokens,
       totalCacheWriteTokens: row.totalCacheWriteTokens,
-      entryCount: row.entryCount,
-      ...(query.groupBy === 'source'
-        ? {
-            sourceType: row.sourceType as UsageLedgerSourceType | null,
-            sourceId: row.sourceId,
-            sourceName: row.sourceName,
-            sourceIcon: row.sourceIcon
-          }
-        : {
-            providerId: row.providerId as string,
-            providerName: resolveProviderNameSnapshot(row.providerId as string, row.providerName, providerNames)
-          }),
-      ...(query.groupBy === 'apiKey'
-        ? {
-            apiKeyId: row.apiKeyId,
-            apiKeyLabel: row.apiKeyLabel,
-            apiKeyMasked: row.apiKeyMasked,
-            apiKeyAttribution: row.apiKeyAttribution as UsageLedgerAttribution
-          }
-        : {}),
-      ...(query.groupBy === 'model' ? { modelId: row.modelId } : {})
+      entryCount: row.entryCount
     }))
 
     return { buckets }
@@ -651,6 +683,7 @@ export class UsageLedgerService {
     const rows = await db
       .select({
         date: dayBucket,
+        ...groupIdentitySelect(query.groupBy),
         costCurrency: usageLedgerTable.costCurrency,
         totalTokens: sql<number>`coalesce(sum(${usageLedgerTable.totalTokens}), 0)`,
         totalNoCacheTokens: sql<number>`coalesce(sum(${usageLedgerTable.noCacheTokens}), 0)`,
@@ -664,10 +697,28 @@ export class UsageLedgerService {
       // costCurrency joins the group key — USD and CNY must never be summed
       // into one daily number. The renderer merges the token metrics back
       // together and reads cost from the currency it is scoped to.
-      .groupBy(dayBucket, usageLedgerTable.costCurrency)
+      // A grouped timeline never returns more buckets than the ledger has rows,
+      // so the response stays bounded without a server-side top-N.
+      .groupBy(dayBucket, ...groupIdentityColumns(query.groupBy), usageLedgerTable.costCurrency)
       .orderBy(asc(dayBucket), asc(usageLedgerTable.costCurrency))
 
-    return { buckets: rows }
+    const providerNames =
+      query.groupBy === undefined || query.groupBy === 'source'
+        ? new Map<string, string>()
+        : await readProviderNameMap()
+    const buckets: UsageLedgerTimelineBucket[] = rows.map((row) => ({
+      ...toGroupIdentity(row, query.groupBy, providerNames),
+      date: row.date,
+      costCurrency: row.costCurrency,
+      totalTokens: row.totalTokens,
+      totalNoCacheTokens: row.totalNoCacheTokens,
+      totalCacheReadTokens: row.totalCacheReadTokens,
+      totalCacheWriteTokens: row.totalCacheWriteTokens,
+      totalCost: row.totalCost,
+      entryCount: row.entryCount
+    }))
+
+    return { buckets }
   }
 }
 

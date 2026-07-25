@@ -55,15 +55,23 @@ export type UsageLedgerListQuery = z.infer<typeof UsageLedgerListQuerySchema>
 /** Input query parameters accepted by the API before schema defaults are applied. */
 export type UsageLedgerListQueryParams = z.input<typeof UsageLedgerListQuerySchema> & OffsetPaginationParams
 
+export const UsageLedgerGroupBySchema = z.enum(['provider', 'apiKey', 'model', 'source'])
+/** Aggregation dimension, shared by the stats and timeline endpoints. */
+export type UsageLedgerGroupBy = z.infer<typeof UsageLedgerGroupBySchema>
+
 export const UsageLedgerStatsQuerySchema = z.strictObject({
   /** Aggregation dimension */
-  groupBy: z.enum(['provider', 'apiKey', 'model', 'source']),
+  groupBy: UsageLedgerGroupBySchema,
   ...TimeRangeFields
 })
 /** Parsed query parameters for usage ledger aggregation. */
 export type UsageLedgerStatsQuery = z.infer<typeof UsageLedgerStatsQuerySchema>
 
-export const UsageLedgerTimelineQuerySchema = z.strictObject(TimeRangeFields)
+export const UsageLedgerTimelineQuerySchema = z.strictObject({
+  /** Optional second dimension; omit for one bucket per day and currency. */
+  groupBy: UsageLedgerGroupBySchema.optional(),
+  ...TimeRangeFields
+})
 /** Parsed query parameters for usage ledger daily timeline. */
 export type UsageLedgerTimelineQuery = z.infer<typeof UsageLedgerTimelineQuerySchema>
 
@@ -74,13 +82,12 @@ export type UsageLedgerTimelineQuery = z.infer<typeof UsageLedgerTimelineQuerySc
 export type UsageLedgerListResponse = OffsetPaginationResponse<UsageLedgerEntry>
 
 /**
- * One aggregation bucket. Group identity fields are populated according to
- * `groupBy` (provider → providerId; apiKey → providerId+apiKey fields;
- * model → providerId+modelId; source → source fields, without a provider).
- * `costCurrency` always participates in the group key so different
- * currencies are never summed together.
+ * Which group a bucket belongs to. Fields are populated according to `groupBy`
+ * (provider → providerId; apiKey → providerId+apiKey fields; model →
+ * providerId+modelId; source → source fields, without a provider), and all of
+ * them stay empty when no dimension was requested.
  */
-export interface UsageLedgerStatsBucket {
+export interface UsageLedgerGroupIdentity {
   providerId?: string
   providerName?: string | null
   sourceType?: UsageLedgerEntry['sourceType']
@@ -92,6 +99,13 @@ export interface UsageLedgerStatsBucket {
   apiKeyMasked?: string | null
   apiKeyAttribution?: UsageLedgerAttribution
   modelId?: string | null
+}
+
+/**
+ * One aggregation bucket. `costCurrency` always participates in the group key
+ * so different currencies are never summed together.
+ */
+export interface UsageLedgerStatsBucket extends UsageLedgerGroupIdentity {
   costCurrency: string | null
   totalCost: number
   totalInputTokens: number
@@ -108,11 +122,12 @@ export interface UsageLedgerStatsResponse {
 }
 
 /**
- * One daily bucket. `costCurrency` participates in the group key exactly like
- * it does in {@link UsageLedgerStatsBucket}, so a day that mixes currencies
- * yields one bucket per currency instead of one summed (meaningless) number.
+ * One daily bucket, split further by `groupBy` when one was requested.
+ * `costCurrency` participates in the group key exactly like it does in
+ * {@link UsageLedgerStatsBucket}, so a day that mixes currencies yields one
+ * bucket per currency instead of one summed (meaningless) number.
  */
-export interface UsageLedgerTimelineBucket {
+export interface UsageLedgerTimelineBucket extends UsageLedgerGroupIdentity {
   /** Local calendar date, formatted as YYYY-MM-DD. */
   date: string
   costCurrency: string | null

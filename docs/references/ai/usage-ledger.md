@@ -292,9 +292,17 @@ Returned totals include:
 
 Aggregates local-calendar daily buckets for the selected time window.
 
-Returned totals include tokens, cache buckets, cost, and request count. The
-timeline's `totalCost` is a simple numeric sum for chart shape; the renderer
-uses cost mode only when the selected window is effectively single-currency.
+Query:
+
+- optional `groupBy` (same dimensions as `/stats`) — splits each day by that
+  dimension and populates the same group identity fields; omit it for one
+  bucket per day and currency;
+- optional `from`, `to`.
+
+Returned totals include tokens, cache buckets, cost, and request count. Each
+bucket carries its own `costCurrency`, so a day that mixes currencies yields
+one bucket per currency; the renderer merges the token metrics back together
+and reads cost from the currency the page is scoped to.
 
 
 ---

@@ -936,6 +936,50 @@ describe('UsageLedgerService', () => {
       expect(buckets.map((bucket) => bucket.totalTokens)).toEqual([10, 30])
     })
 
+    it('splits a day per group when groupBy is given', async () => {
+      const at = new Date(2026, 0, 2, 9).getTime()
+      const next = new Date(2026, 0, 3, 9).getTime()
+
+      await dbh.db.insert(usageLedgerTable).values([
+        { ...base, messageId: 'a1', totalTokens: 10, createdAt: at, updatedAt: at },
+        { ...base, messageId: 'a2', totalTokens: 20, createdAt: at, updatedAt: at },
+        {
+          ...base,
+          messageId: 'b1',
+          modelId: 'openai::gpt-4o-mini',
+          totalTokens: 5,
+          createdAt: at,
+          updatedAt: at
+        },
+        { ...base, messageId: 'a3', totalTokens: 7, createdAt: next, updatedAt: next }
+      ])
+
+      const { buckets } = await usageLedgerService.timeline({ groupBy: 'model' })
+
+      expect(
+        buckets.map((bucket) => ({ date: bucket.date, modelId: bucket.modelId, totalTokens: bucket.totalTokens }))
+      ).toEqual([
+        { date: localDateKey(at), modelId: 'openai::gpt-4o', totalTokens: 30 },
+        { date: localDateKey(at), modelId: 'openai::gpt-4o-mini', totalTokens: 5 },
+        { date: localDateKey(next), modelId: 'openai::gpt-4o', totalTokens: 7 }
+      ])
+      expect(buckets[0].providerId).toBe('openai')
+    })
+
+    it('leaves group identity empty when no groupBy is given', async () => {
+      const at = new Date(2026, 0, 2, 9).getTime()
+
+      await dbh.db
+        .insert(usageLedgerTable)
+        .values([{ ...base, messageId: 'a1', totalTokens: 10, createdAt: at, updatedAt: at }])
+
+      const [bucket] = (await usageLedgerService.timeline({})).buckets
+
+      expect(bucket.providerId).toBeUndefined()
+      expect(bucket.modelId).toBeUndefined()
+      expect(bucket.apiKeyAttribution).toBeUndefined()
+    })
+
     it('respects inclusive from and to bounds', async () => {
       const before = new Date(2026, 0, 1, 12).getTime()
       const from = new Date(2026, 0, 2, 0).getTime()
