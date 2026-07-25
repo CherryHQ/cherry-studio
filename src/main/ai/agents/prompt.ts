@@ -253,7 +253,8 @@ ${content}
     return true
   }
 
-  private async buildMemoriesSection(agentDataPath: string): Promise<string> {
+  /** Build the persona and durable-memory section without the base agent prompt. */
+  async buildMemoriesSection(agentDataPath: string): Promise<string> {
     const memoryDir = path.join(agentDataPath, 'memory')
     const hasRealMemoryDirectory = await isRealDirectory(memoryDir)
 

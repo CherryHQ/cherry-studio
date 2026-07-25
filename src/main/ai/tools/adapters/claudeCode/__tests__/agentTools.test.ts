@@ -8,6 +8,8 @@
 
 import { CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } from '@main/ai/mcp/servers/cherryCliTools'
 import {
+  ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
+  ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES,
   CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
   CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES,
   CHERRY_BUILTIN_MCP_SERVER,
@@ -259,6 +261,17 @@ describe('createClaudeAgentToolPolicySnapshot — production approval-gate wirin
     expect(CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.some((name) => autoApproved.has(name))).toBe(false)
     // The derived prefix matches the fully-qualified runtime name, pinning the two helpers in sync.
     expect(toCherryBuiltinRuntimeName(KB_MANAGE_TOOL_NAME)).toBe(`${PREFIX}${KB_MANAGE_TOOL_NAME}`)
+  })
+
+  it('keeps Assistant read-only and sensitive tools in disjoint policy sets', () => {
+    expect(ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES).toEqual(['mcp__assistant__navigate', 'mcp__assistant__product_info'])
+    expect(ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES).toEqual([
+      'mcp__assistant__diagnose',
+      'mcp__assistant__apply_setting',
+      'mcp__assistant__create_agent'
+    ])
+    const autoApproved = new Set(ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES)
+    expect(ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES.some((name) => autoApproved.has(name))).toBe(false)
   })
 
   it('prompts for every approval-required tool and auto-approves every allowlisted tool under the real wiring', async () => {
