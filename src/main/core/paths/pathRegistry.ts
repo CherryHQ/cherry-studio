@@ -151,6 +151,16 @@ export function buildPathRegistry() {
       'cherry-assistant',
       'product-manifest.json'
     ),
+    'feature.agents.assistant.cherry_ppt.templates': path.join(
+      appRootResources,
+      'builtin-agents',
+      'cherry-assistant',
+      '.claude',
+      'skills',
+      'cherry-ppt',
+      'assets',
+      'templates'
+    ),
 
     // Files / Notes / Knowledgebase
     'feature.files.data': path.join(appUserDataData, 'Files'),
@@ -245,6 +255,7 @@ const NO_ENSURE = [
   'feature.provider_registry.data',
   'feature.agents.builtin',
   'feature.agents.assistant.manifest.file',
+  'feature.agents.assistant.cherry_ppt.templates',
   'feature.agents.skills.builtin',
   // AgentSessionService stores this path through DataApi. The runtime creates
   // the concrete session directory later, keeping database writes filesystem-free.

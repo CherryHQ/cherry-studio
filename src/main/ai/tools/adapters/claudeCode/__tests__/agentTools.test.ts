@@ -10,6 +10,8 @@ import { CLI_INSTALL_TOOL_NAME, CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME } from 
 import {
   ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES,
   ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES,
+  ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES,
+  ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES,
   CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES,
   CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES,
   CHERRY_BUILTIN_MCP_SERVER,
@@ -272,6 +274,14 @@ describe('createClaudeAgentToolPolicySnapshot — production approval-gate wirin
     ])
     const autoApproved = new Set(ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES)
     expect(ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES.some((name) => autoApproved.has(name))).toBe(false)
+
+    expect(ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES).toEqual(['mcp__assistant-files__read_file'])
+    expect(ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES).toEqual([
+      'mcp__assistant-files__export_office',
+      'mcp__assistant-files__save_attachment'
+    ])
+    const autoApprovedFiles = new Set(ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES)
+    expect(ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES.some((name) => autoApprovedFiles.has(name))).toBe(false)
   })
 
   it('prompts for every approval-required tool and auto-approves every allowlisted tool under the real wiring', async () => {

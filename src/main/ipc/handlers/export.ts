@@ -1,10 +1,9 @@
-import { ExportService } from '@main/services/ExportService'
+import { exportService } from '@main/services/ExportService'
 import ObsidianVaultService from '@main/services/ObsidianVaultService'
 import type { exportRequestSchemas } from '@shared/ipc/schemas/export'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
-// Both are plain, non-lifecycle classes; a single module-level instance backs the routes.
-const exportService = new ExportService()
+// ObsidianVaultService is a plain, non-lifecycle class; one module-level instance backs its routes.
 const obsidianVaultService = new ObsidianVaultService()
 
 export const exportHandlers: IpcHandlersFor<typeof exportRequestSchemas> = {

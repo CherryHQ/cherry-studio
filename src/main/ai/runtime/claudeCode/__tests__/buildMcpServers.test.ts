@@ -81,6 +81,18 @@ vi.mock('@main/i18n', () => ({
   t: vi.fn((key: string, vars?: { path?: string }) => `${key}:${vars?.path ?? ''}`)
 }))
 
+vi.mock('@main/ai/mcp/servers/assistant', () => ({
+  default: class {
+    readonly mcpServer = {}
+  }
+}))
+
+vi.mock('@main/ai/mcp/servers/AssistantFileToolsServer', () => ({
+  AssistantFileToolsServer: class {
+    readonly mcpServer = {}
+  }
+}))
+
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: { listChannels: vi.fn().mockResolvedValue([]) }
 }))
@@ -187,6 +199,10 @@ describe('adjustAllowedToolsForMcp', () => {
     // the tool itself nor an assistant namespace wildcard may appear in the SDK pre-approval list.
     expect(allowed).not.toContain('mcp__assistant__diagnose')
     expect(allowed).not.toContain('mcp__assistant__*')
+    expect(allowed).toContain('mcp__assistant-files__read_file')
+    expect(allowed).not.toContain('mcp__assistant-files__save_attachment')
+    expect(allowed).not.toContain('mcp__assistant-files__export_office')
+    expect(allowed).not.toContain('mcp__assistant-files__*')
   })
 })
 
@@ -309,6 +325,15 @@ describe('buildMcpServers', () => {
 
     expect(await cherryToolNames(servers)).toContain('kb_read')
     expect(await cherryToolNames(servers)).not.toContain('kb_read')
+  })
+
+  it('injects assistant file tools only for Cherry Assistant sessions', () => {
+    const plain = buildMcpServers(session, agent, false)
+    const assistant = buildMcpServers(session, agent, true)
+
+    expect(plain?.['assistant-files']).toBeUndefined()
+    expect(assistant?.assistant).toBeDefined()
+    expect(assistant?.['assistant-files']).toBeDefined()
   })
 })
 
