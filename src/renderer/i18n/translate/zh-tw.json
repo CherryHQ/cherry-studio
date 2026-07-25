@@ -8403,7 +8403,7 @@
         "assistant": "[to be translated]:Assistant",
         "unknown": "[to be translated]:Unattributed"
       },
-      "summary": "{{window}} / {{tokens}} Token / {{requests}} 個請求 / {{activeDays}} 個活躍日",
+      "summary": "{{window}} / {{tokens}} Token / {{requests}} 個請求",
       "table": {
         "apiKey": "API 金鑰",
         "cost": "成本",
