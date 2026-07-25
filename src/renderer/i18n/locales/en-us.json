@@ -683,7 +683,7 @@
         "deleteFailed": "Failed to delete task",
         "loadFailed": "Failed to load tasks",
         "runFailed": "Failed to run task",
-        "triggerInvalid": "Invalid schedule: check the cron expression or time zone",
+        "triggerInvalid": "Invalid schedule: check the expression, time zone, or interval range",
         "updateFailed": "Failed to update task"
       },
       "frequency": {

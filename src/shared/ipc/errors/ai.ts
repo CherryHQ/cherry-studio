@@ -20,6 +20,13 @@ export const aiErrorCodes = {
    * An `ai.agent.task.*` command referenced a task that does not exist, is not
    * an `agent.task` schedule, or belongs to another agent (the three cases are
    * deliberately indistinguishable — no existence leak across agents).
+   *
+   * Minted without a renderer branch (unlike the demand-first plain Errors for
+   * agent/channel guards): the handler detects the miss as a `null`/`false`
+   * return and must synthesize an IpcError from scratch — labelling a
+   * well-defined, client-addressable miss `INTERNAL` would be wrong transport
+   * semantics. A future consumer (e.g. "task deleted elsewhere → drop it from
+   * the list") can branch on it without a protocol change.
    */
   AI_AGENT_TASK_NOT_FOUND: 'AI_AGENT_TASK_NOT_FOUND',
   /**

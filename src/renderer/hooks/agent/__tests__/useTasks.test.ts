@@ -187,6 +187,7 @@ describe('useRunTask', () => {
     expect(requestMock).toHaveBeenCalledWith('ai.agent.task.run', { agentId: 'agent-1', taskId: 't-1' })
     expect(ran).toBe(true)
     expect(toast.success).toHaveBeenCalled()
+    expect(invalidateSpy).toHaveBeenCalledWith(TASK_READ_KEYS)
   })
 
   it('toasts error and returns false on failure', async () => {
@@ -197,5 +198,6 @@ describe('useRunTask', () => {
 
     expect(ran).toBe(false)
     expect(toast.error).toHaveBeenCalled()
+    expect(invalidateSpy).not.toHaveBeenCalled()
   })
 })

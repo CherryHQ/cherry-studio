@@ -107,18 +107,22 @@ export const useSetTaskEnabled = () => {
 
 export const useRunTask = () => {
   const { t } = useTranslation()
+  const invalidate = useInvalidateCache()
   const runTask = useCallback(
     async (agentId: string, taskId: string): Promise<boolean> => {
       try {
         await ipcApi.request('ai.agent.task.run', { agentId, taskId })
         toast.success({ key: 'run-task', title: t('agent.tasks.runTriggered') })
+        // The triggered job row is persisted before the command resolves, so
+        // the logs key (under `/tasks/*`) picks up the pending run right away.
+        await invalidate(taskReadKeys(agentId))
         return true
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('agent.tasks.error.runFailed', 'Failed to run task')))
         return false
       }
     },
-    [t]
+    [invalidate, t]
   )
   return { runTask }
 }
