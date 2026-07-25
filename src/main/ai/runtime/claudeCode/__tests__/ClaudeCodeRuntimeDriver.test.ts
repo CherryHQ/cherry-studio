@@ -116,6 +116,14 @@ vi.mock('../streamAdapter', () => ({
         else this.emitInitMetadata()
         return { type: 'continue' }
       }
+      if (message.type === 'system' && message.subtype === 'commands_changed') {
+        this.options.statusSink.emit({ type: 'supported-commands', commands: message.commands })
+        return { type: 'continue' }
+      }
+      if (message.type === 'system' && message.subtype === 'background_tasks_changed') {
+        this.options.statusSink.emit({ type: 'background-tasks', tasks: message.tasks })
+        return { type: 'continue' }
+      }
       if (message.type === 'stream_event') {
         this.options.sink.enqueue({ type: 'text-delta', id: 'text-1', delta: 'hello' })
         return { type: 'continue' }

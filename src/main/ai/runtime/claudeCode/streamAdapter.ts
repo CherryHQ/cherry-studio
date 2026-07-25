@@ -36,6 +36,7 @@ import type { CherryUIMessageChunk, CherryUIMessageMetadata } from '@shared/data
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import { isMcpContentBlock } from '@shared/utils/mcp'
 
+import type { AgentRuntimeEvent } from '../types'
 import type { McpToolDisplayMetadata } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeStreamAdapter')
@@ -102,12 +103,27 @@ type StreamContext = {
   textStreamedViaContentBlock: boolean
 }
 
+/**
+ * Session-scoped status the adapter reports outside the turn's message stream. Unlike `sink`, this
+ * has no turn dependency — background work outlives the turn that spawned it, so its signals must
+ * still be deliverable once that turn's stream is gone.
+ */
+export type ClaudeCodeStreamStatusEvent = Extract<
+  AgentRuntimeEvent,
+  { type: 'supported-commands' | 'background-tasks' }
+>
+
+type StatusSink = {
+  emit(event: ClaudeCodeStreamStatusEvent): void
+}
+
 export type ClaudeCodeStreamAdapterOptions = {
   modelId: string
   /** Cherry session id — for logs only; `onSessionId` reports the runtime's own id. */
   sessionId: string
   streamOptions: Parameters<LanguageModelV3['doStream']>[0]
   sink: StreamSink
+  statusSink: StatusSink
   onSessionId?: (sessionId: string) => void
   mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
 }
@@ -278,6 +294,7 @@ export class ClaudeCodeStreamAdapter {
   private readonly modelId: string
   private readonly sessionId: string
   private readonly sink: StreamSink
+  private readonly statusSink: StatusSink
   private readonly streamOptions: ClaudeCodeStreamAdapterOptions['streamOptions']
   private readonly onSessionId?: (sessionId: string) => void
   private readonly mcpToolMetadata: Record<string, McpToolDisplayMetadata>
@@ -290,6 +307,7 @@ export class ClaudeCodeStreamAdapter {
     this.modelId = options.modelId
     this.sessionId = options.sessionId
     this.sink = options.sink
+    this.statusSink = options.statusSink
     this.streamOptions = options.streamOptions
     this.onSessionId = options.onSessionId
     this.mcpToolMetadata = options.mcpToolMetadata ?? {}
@@ -931,9 +949,13 @@ export class ClaudeCodeStreamAdapter {
         this.handlePermissionDeniedSystemMessage(message, ctx)
         return
       case 'background_tasks_changed':
-        // Session-scoped status: ClaudeCodeRuntimeDriver intercepts this ahead of the adapter so it
-        // survives the turn boundary. Cased here so the subtype is covered rather than falling
-        // through as an unknown, for any non-driver consumer.
+        // REPLACE semantics: the payload is the full live set after a membership change.
+        this.statusSink.emit({ type: 'background-tasks', tasks: message.tasks })
+        return
+      case 'commands_changed':
+        // Mid-session catalog push (skills discovered in a subdirectory, etc.); consumers replace
+        // their cached list, since `supportedCommands()` is only read at init.
+        this.statusSink.emit({ type: 'supported-commands', commands: message.commands })
         return
       case 'api_retry':
         // Defensive fallback for future non-driver consumers. ClaudeCodeRuntimeDriver intercepts
@@ -947,7 +969,6 @@ export class ClaudeCodeStreamAdapter {
       case 'memory_recall':
       case 'local_command_output':
       case 'elicitation_complete':
-      case 'commands_changed':
       case 'files_persisted':
       case 'mirror_error':
       case 'notification':

@@ -370,20 +370,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           continue
         }
 
-        // Mid-session command catalog push (skills discovered in a subdirectory, etc.). Handle it
-        // ahead of the no-adapter drop so a primed (turn-less) connection still refreshes its cache.
-        if (message.type === 'system' && message.subtype === 'commands_changed') {
-          this.eventQueue.push({ type: 'supported-commands', commands: message.commands })
-          continue
-        }
-
-        // Background work outlives its turn, so this snapshot lands after that turn's result — below
-        // the no-adapter drop. Handled here so the status survives the turn boundary.
-        if (message.type === 'system' && message.subtype === 'background_tasks_changed') {
-          this.eventQueue.push({ type: 'background-tasks', tasks: message.tasks })
-          continue
-        }
-
         // A failed API request is backing off before a retry. Surface it as ephemeral session status
         // (the host writes it to shared cache) instead of letting the adapter drop it — the renderer
         // shows "Retrying 7/10 in 36s". Never enters the persisted message stream.
@@ -493,6 +479,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       streamOptions: {} as never,
       sink: {
         enqueue: (chunk) => this.eventQueue.push({ type: 'chunk', chunk })
+      },
+      statusSink: {
+        emit: (event) => this.eventQueue.push(event)
       },
       onSessionId: (resumeToken) => this.updateResumeToken(resumeToken),
       mcpToolMetadata: this.mcpToolMetadata

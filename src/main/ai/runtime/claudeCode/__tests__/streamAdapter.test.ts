@@ -31,16 +31,18 @@ function createAdapter(
 ) {
   const parts: CherryUIMessageChunk[] = []
   const sessionIds: string[] = []
+  const statusEvents: any[] = []
   const adapter = new ClaudeCodeStreamAdapter({
     modelId: 'sonnet',
     sessionId: 'session-1',
     streamOptions: { prompt: [] } as any,
     sink: { enqueue: (part) => parts.push(part) },
+    statusSink: { emit: (event) => statusEvents.push(event) },
     onSessionId: (sessionId) => sessionIds.push(sessionId),
     ...overrides
   })
   if (openTurn) adapter.beginTurn()
-  return { adapter, parts, sessionIds }
+  return { adapter, parts, sessionIds, statusEvents }
 }
 
 function streamEvent(event: Record<string, unknown>) {
@@ -941,6 +943,35 @@ describe('ClaudeCodeStreamAdapter', () => {
         'Received a result message with no active turn; dropping turn-complete',
         { sessionId: 'session-1' }
       )
+    })
+
+    // The whole point of the second output: background work outlives its turn, so its signals must
+    // still reach the host once that turn's message stream is gone.
+    it('reports session status through the status sink with no turn open', () => {
+      const { adapter, parts, statusEvents } = createAdapter({}, { openTurn: false })
+
+      const tasks = [{ task_id: 'bg-1', task_type: 'local_bash', description: 'sleep 300' }]
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'background_tasks_changed',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        tasks
+      } as any)
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'commands_changed',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        commands: [{ name: 'help', description: 'Help' }]
+      } as any)
+
+      expect(statusEvents).toEqual([
+        { type: 'background-tasks', tasks },
+        { type: 'supported-commands', commands: [{ name: 'help', description: 'Help' }] }
+      ])
+      // Status is not turn content, so nothing reaches the message stream.
+      expect(parts).toEqual([])
     })
 
     it('holds init metadata until a turn opens, since it is turn content', () => {
