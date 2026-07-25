@@ -116,9 +116,22 @@ describe('ClearCachePopup', () => {
     expect(screen.getAllByText('已统计 1 KB，部分大小未知')).toHaveLength(2)
   })
 
-  it('blocks repeated cleanup and refreshes every size afterward when left open', async () => {
-    let finishCleanup: (() => void) | undefined
-    const cleanup = new Promise<void>((resolve) => {
+  it('closes after a successful cleanup without rescanning', async () => {
+    const onClear = vi.fn().mockResolvedValue(true)
+    const resolve = vi.fn()
+    render(<ClearCachePopupContainer open resolve={resolve} onClear={onClear} />)
+
+    await waitFor(() => expect(screen.queryAllByText('计算中…')).toHaveLength(0))
+    fireEvent.click(screen.getByRole('button', { name: '清除缓存' }))
+
+    await waitFor(() => expect(resolve).toHaveBeenCalledWith(undefined))
+    expect(onClear).toHaveBeenCalledWith(['normal_cache'])
+    expect(inspectMock).toHaveBeenCalledTimes(4)
+  })
+
+  it('blocks repeated cleanup and refreshes every size after an incomplete cleanup', async () => {
+    let finishCleanup: ((success: boolean) => void) | undefined
+    const cleanup = new Promise<boolean>((resolve) => {
       finishCleanup = resolve
     })
     const onClear = vi.fn(() => cleanup)
@@ -138,7 +151,7 @@ describe('ClearCachePopup', () => {
     fireEvent.click(confirmButton)
     expect(onClear).toHaveBeenCalledTimes(1)
 
-    finishCleanup?.()
+    finishCleanup?.(false)
 
     await waitFor(() => expect(inspectMock).toHaveBeenCalledTimes(8))
     await waitFor(() => expect(screen.queryAllByText('计算中…')).toHaveLength(0))
@@ -148,8 +161,8 @@ describe('ClearCachePopup', () => {
   })
 
   it('allows closing while cleanup continues without rescanning the closed popup', async () => {
-    let finishCleanup: (() => void) | undefined
-    const cleanup = new Promise<void>((resolve) => {
+    let finishCleanup: ((success: boolean) => void) | undefined
+    const cleanup = new Promise<boolean>((resolve) => {
       finishCleanup = resolve
     })
     const onClear = vi.fn(() => cleanup)
@@ -167,7 +180,7 @@ describe('ClearCachePopup', () => {
     expect(resolve).toHaveBeenCalledWith(undefined)
 
     rerender(<ClearCachePopupContainer open={false} resolve={resolve} onClear={onClear} />)
-    finishCleanup?.()
+    finishCleanup?.(true)
     await cleanup
 
     expect(onClear).toHaveBeenCalledOnce()

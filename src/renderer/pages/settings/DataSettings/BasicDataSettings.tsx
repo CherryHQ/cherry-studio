@@ -208,8 +208,10 @@ const BasicDataSettings: React.FC = () => {
           } else {
             toast.success(t('settings.data.clear_cache.success'))
           }
+          return !hasFailures
         } catch {
           toast.error(t('settings.data.clear_cache.error'))
+          return false
         } finally {
           setClearingCache(false)
           void refreshCacheSize()

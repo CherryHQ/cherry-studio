@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next'
 import { inspectLegacyV1BrowserData } from './legacyV1BrowserData'
 
 interface ClearCachePopupParams {
-  onClear: (groups: CacheCleanupGroup[]) => Promise<void>
+  onClear: (groups: CacheCleanupGroup[]) => Promise<boolean>
 }
 
 interface CleanupOptionState {
@@ -200,14 +200,15 @@ export const ClearCachePopupContainer: React.FC<Props> = ({ open, resolve, onCle
 
     const groups = CACHE_CLEANUP_GROUPS.filter((group) => selected.has(group))
     setCleaning(true)
-    try {
-      await onClear(groups)
-    } finally {
-      if (!popupOpen.current) return
-      setHasRunCleanup(true)
-      setCleaning(false)
-      void refreshInspections()
+    const success = await onClear(groups)
+    if (!popupOpen.current) return
+    if (success) {
+      handleClose()
+      return
     }
+    setHasRunCleanup(true)
+    setCleaning(false)
+    void refreshInspections()
   }
 
   const handleClose = () => {
