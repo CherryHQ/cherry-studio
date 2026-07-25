@@ -18,6 +18,7 @@ import BaseNavigatorSearch from './BaseNavigatorSearch'
 interface BaseNavigatorProps {
   bases: KnowledgeBaseListItem[]
   groups: Group[]
+  isLoading: boolean
   width: number
   selectedBaseId: string
   onSelectBase: (baseId: string) => void
@@ -34,6 +35,7 @@ interface BaseNavigatorProps {
 const BaseNavigator = ({
   bases,
   groups,
+  isLoading,
   width,
   selectedBaseId,
   onSelectBase,
@@ -88,6 +90,8 @@ const BaseNavigator = ({
         </div>
 
         <BaseNavigatorContent
+          isLoading={isLoading}
+          hasBases={bases.length > 0}
           sections={knowledgeBaseGroupSections}
           groups={groups}
           groupById={groupById}
