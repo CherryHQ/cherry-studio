@@ -48,7 +48,7 @@ const AgentSessionApiRetryStatus = ({ sessionId, fallback = null }: { sessionId:
       data-testid="agent-session-api-retry"
       className="flex min-h-7 select-none flex-row items-center gap-1.5 py-0.5 text-[13px] text-foreground-muted leading-5">
       <span>{label}</span>
-      <BeatLoader color="var(--color-foreground-muted)" size={4} speedMultiplier={0.8} />
+      <BeatLoader color="currentColor" size={4} speedMultiplier={0.8} />
     </div>
   )
 }
