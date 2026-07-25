@@ -1391,31 +1391,8 @@ function UsageSettings() {
             </div>
           )}
 
-          <UsageHeatmap
-            buckets={timelineBuckets}
-            selectedDate={selectedDate}
-            metric={activeHeatmapMetric}
-            onMetricChange={setHeatmapMetric}
-            onSelectDate={(date) => setSelectedDate((current) => (current === date ? undefined : date))}
-            costCurrency={windowCostCurrency}
-            isCostDisabled={!canShowCostMetric}
-            isLoading={timelineQueryResult.isLoading}
-            range={windowRange}
-          />
-
-          {!hasUsage && !isInitialLoading && (
-            <div className="rounded-lg border border-border border-dashed">
-              <EmptyState
-                compact
-                preset="no-result"
-                title={t('settings.usage.empty.title')}
-                description={t('settings.usage.empty.description')}
-              />
-            </div>
-          )}
-
           {!isInitialLoading && hasUsage && (
-            <div className="grid min-w-0 @[640px]/usage:grid-cols-4 grid-cols-1 @[640px]/usage:divide-x divide-y @[640px]/usage:divide-y-0 divide-border border-border border-t">
+            <div className="grid min-w-0 @[640px]/usage:grid-cols-4 grid-cols-1 @[640px]/usage:divide-x divide-y @[640px]/usage:divide-y-0 divide-border border-border border-b">
               <InsightCell
                 label={t('settings.usage.cards.activeDays')}
                 value={activeDays}
@@ -1443,6 +1420,29 @@ function UsageSettings() {
                 label={t('settings.usage.cards.dailyAverage')}
                 value={formatCompactNumber(activeDays > 0 ? totalTokens / activeDays : 0)}
                 helper={t('settings.usage.tooltip.requests', { count: totalEntries })}
+              />
+            </div>
+          )}
+
+          <UsageHeatmap
+            buckets={timelineBuckets}
+            selectedDate={selectedDate}
+            metric={activeHeatmapMetric}
+            onMetricChange={setHeatmapMetric}
+            onSelectDate={(date) => setSelectedDate((current) => (current === date ? undefined : date))}
+            costCurrency={windowCostCurrency}
+            isCostDisabled={!canShowCostMetric}
+            isLoading={timelineQueryResult.isLoading}
+            range={windowRange}
+          />
+
+          {!hasUsage && !isInitialLoading && (
+            <div className="rounded-lg border border-border border-dashed">
+              <EmptyState
+                compact
+                preset="no-result"
+                title={t('settings.usage.empty.title')}
+                description={t('settings.usage.empty.description')}
               />
             </div>
           )}
