@@ -7,7 +7,7 @@ import { loggerService } from '@logger'
 import { SHUTDOWN_TIMEOUT_MS } from '@main/core/lifecycle'
 // Preboot dialogs cannot use PreferenceService-backed translations.
 import { t } from '@main/i18n'
-import { dialog } from 'electron'
+import { dialog, session } from 'electron'
 import * as z from 'zod'
 
 const logger = loggerService.withContext('DataReset')
@@ -193,7 +193,8 @@ function deleteMarker(): void {
 }
 
 /**
- * Confirms in the main process, stages the marker, and gracefully relaunches.
+ * Confirms in the main process, stages the marker, clears live Chromium
+ * state, and gracefully relaunches.
  */
 export async function requestDataReset(): Promise<void> {
   const { response } = await dialog.showMessageBox({
@@ -222,6 +223,9 @@ export async function requestDataReset(): Promise<void> {
       error: String(error)
     })
   }
+
+  // Clear live session state before the filesystem pass.
+  await clearChromiumState()
 
   // Give services time to release files before the next boot wipes them.
   const timer = setTimeout(() => {
@@ -361,7 +365,8 @@ export function runDataReset(): void {
       })
     }
 
-    logger.info('Data reset completed — continuing startup')
+    logger.info('Data reset completed — relaunching into a fresh state')
+    application.relaunch()
   } catch (error) {
     logger.error('Data reset failed — refusing to boot', error as Error)
     showDataResetError(
@@ -390,6 +395,42 @@ function showDataResetError(title: string, message: string): void {
 
 function shouldWipe(entry: string): boolean {
   return USER_DATA_WIPE.includes(entry)
+}
+
+/** Clears known sessions with a timeout so shutdown cannot hang. */
+async function clearChromiumState(): Promise<void> {
+  const clearOperation = async (sessionName: string, stateName: string, operation: () => Promise<void>) => {
+    try {
+      await operation()
+    } catch (error) {
+      logger.warn(`Failed to clear ${stateName} for the ${sessionName} session during data reset request`, {
+        error: String(error)
+      })
+    }
+  }
+  const clearSession = (name: string, target: Electron.Session) =>
+    Promise.all([
+      clearOperation(name, 'data', () => target.clearData()),
+      clearOperation(name, 'authentication cache', () => target.clearAuthCache())
+    ])
+
+  let timeout: NodeJS.Timeout | undefined
+  try {
+    await Promise.race([
+      Promise.all([
+        clearSession('default', session.defaultSession),
+        clearSession('persist:webview', session.fromPartition('persist:webview'))
+      ]),
+      new Promise<void>((resolve) => {
+        timeout = setTimeout(() => {
+          logger.warn('Chromium state clear timed out during data reset request — continuing with shutdown')
+          resolve()
+        }, SHUTDOWN_TIMEOUT_MS)
+      })
+    ])
+  } finally {
+    if (timeout) clearTimeout(timeout)
+  }
 }
 
 /** Resolves the physical target used to authorize the wipe. */
