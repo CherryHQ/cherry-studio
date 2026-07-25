@@ -252,6 +252,14 @@ function journalState(): string {
   return read.journal.state
 }
 
+/** Diagnostic reason persisted on failed/expired journals (backup.restore_status carrier). */
+function journalReason(): string | undefined {
+  const read = readRestoreJournal()
+  if (read.kind !== 'ok') throw new Error(`expected readable journal, got ${read.kind}`)
+  const journal = read.journal
+  return journal.state === 'failed' || journal.state === 'expired' ? journal.reason : undefined
+}
+
 describe('runRestorePromotion', () => {
   beforeEach(() => {
     userData = mkdtempSync(join(tmpdir(), 'cs-restore-promotion-'))
@@ -269,8 +277,13 @@ describe('runRestorePromotion', () => {
     expect(readdirSync(userData)).toEqual([])
   })
 
-  it('returns without touching anything on a terminal journal', async () => {
+  it('keeps the journal + live DB on a terminal journal but deletes staging residue', async () => {
     makeDb(livePath(), 'old')
+    // Residue models a crash between finalize's journal write and its rmSync (or an
+    // rmSync failure): the terminal journal survived, the secret-bearing tree too.
+    const residue = join(userData, 'restore-staging', RID)
+    mkdirSync(residue, { recursive: true })
+    writeFileSync(join(residue, 'backup.sqlite'), 'plaintext secrets')
     // Terminal journals are never gate-checked, so no work DB is needed.
     writeRestoreJournal(await buildJournal({ state: 'expired', chain: [{ folderMillis: 1, hash: 'x' }] }))
 
@@ -278,6 +291,34 @@ describe('runRestorePromotion', () => {
 
     expect(journalState()).toBe('expired')
     expect(readMarker(livePath())).toBe('old')
+    expect(existsSync(residue)).toBe(false)
+  })
+
+  it('deletes staging residue for a COMPLETED journal (the state no boot GC ever reaches)', async () => {
+    makeDb(livePath(), 'old')
+    const residue = join(userData, 'restore-staging', RID)
+    mkdirSync(residue, { recursive: true })
+    writeFileSync(join(residue, 'backup.sqlite'), 'plaintext secrets')
+    writeRestoreJournal(await buildJournal({ state: 'completed', chain: [{ folderMillis: 1, hash: 'x' }] }))
+
+    await runRestorePromotion()
+
+    expect(journalState()).toBe('completed')
+    expect(existsSync(residue)).toBe(false)
+  })
+
+  it('refuses staging deletion when a terminal restoreId escapes the staging root', async () => {
+    makeDb(livePath(), 'old')
+    const outside = join(userData, 'outside-dir')
+    mkdirSync(outside, { recursive: true })
+    writeFileSync(join(outside, 'keep.txt'), 'keep')
+    const journal = await buildJournal({ state: 'completed', chain: [{ folderMillis: 1, hash: 'x' }] })
+    writeRestoreJournal({ ...journal, restoreId: '../outside-dir' } as RestoreJournal)
+
+    await runRestorePromotion()
+
+    expect(existsSync(join(outside, 'keep.txt'))).toBe(true)
+    expect(journalState()).toBe('completed')
   })
 
   it('rejects absolute promote path before any fs op', async () => {
@@ -384,6 +425,7 @@ describe('runRestorePromotion', () => {
     await runRestorePromotion()
 
     expect(journalState()).toBe('expired')
+    expect(journalReason()).toContain('fingerprint mismatch')
     expect(readMarker(livePath())).toBe('old')
     expect(hasRow(livePath(), 'drift')).toBe(true)
     expect(existsSync(asidePath())).toBe(false)
@@ -467,6 +509,7 @@ describe('runRestorePromotion', () => {
     expect(existsSync(liveAddedNote())).toBe(false)
     expect(readFileSync(liveNote(), 'utf8')).toBe('NOTE-OLD')
     expect(journalState()).toBe('failed')
+    expect(journalReason()).toContain('before the commit point')
     expect(existsSync(stagingDir())).toBe(false)
   })
 

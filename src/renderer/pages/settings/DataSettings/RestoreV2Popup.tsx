@@ -1,27 +1,39 @@
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useBackupV2 } from '@renderer/hooks/useBackupV2'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { createPopup, popup, type PopupInjectedProps } from '@renderer/services/popup'
 import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
+import type { RestoreResultSummary, RestoreSkipReasonCode, RestoreStatus } from '@shared/types/backup'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('RestoreV2Popup')
 
+const restoreSkipReasonI18nKeys = {
+  local_record_exists: 'settings.data.backup.v2.restore.summary.skip_reason.local_record_exists',
+  target_exists: 'settings.data.backup.v2.restore.summary.skip_reason.target_exists',
+  notes_root_unavailable: 'settings.data.backup.v2.restore.summary.skip_reason.notes_root_unavailable',
+  outside_user_data: 'settings.data.backup.v2.restore.summary.skip_reason.outside_user_data'
+} as const satisfies Record<RestoreSkipReasonCode, string>
+
 type Props = PopupInjectedProps<Record<string, never>>
 
-type RestorePhase = 'idle' | 'selecting-archive' | 'ready' | 'confirming' | 'relaunching' | 'ready-with-error'
+type RestorePhase =
+  | 'idle'
+  | 'selecting-archive'
+  | 'ready'
+  | 'confirming'
+  | 'relaunching'
+  | 'ready-with-error'
+  | 'outcome'
+
+type RestoreOutcome = Extract<RestoreStatus, { readonly state: 'completed' | 'failed' | 'expired' }>
 
 /**
- * V2 restore popup. No restore progress stream — after confirm we enter
- * `relaunching` BEFORE startRestore (main may exit via app.exit before the
- * IPC response returns). Success must not toast / finally-reset; only reject
- * returns to a usable error state.
- *
- * idle → selecting-archive → ready → confirming → relaunching
- *                                      └────────→ ready (confirm cancel)
- * relaunching → ready-with-error
+ * V2 restore popup. A sealed restore waits here for user-confirmed relaunch;
+ * backup.restore_status recovers pending or terminal state after reconstruction.
  */
 const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   const { t } = useTranslation()
@@ -30,9 +42,19 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   const [archivePath, setArchivePath] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [errorCode, setErrorCode] = useState<string | null>(null)
+  const [summary, setSummary] = useState<RestoreResultSummary | null>(null)
+  const [summaryUnavailable, setSummaryUnavailable] = useState(false)
+  const [outcome, setOutcome] = useState<RestoreOutcome | null>(null)
+  const [relaunchError, setRelaunchError] = useState(false)
 
   const busy = phase === 'selecting-archive' || phase === 'confirming' || phase === 'relaunching'
   const canClose = phase !== 'relaunching'
+  const hasRelaunchDisclosure = summary !== null || summaryUnavailable
+
+  useIpcOn('backup.restore_summary', (nextSummary) => {
+    setSummary(nextSummary)
+    setSummaryUnavailable(false)
+  })
 
   useEffect(() => {
     if (!open) return
@@ -40,6 +62,25 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
     setArchivePath(null)
     setErrorMessage(null)
     setErrorCode(null)
+    setSummary(null)
+    setSummaryUnavailable(false)
+    setOutcome(null)
+    setRelaunchError(false)
+    void (async () => {
+      try {
+        const status = await ipcApi.request('backup.restore_status')
+        if (status.state === 'pending') {
+          setSummary(status.summary ?? null)
+          setSummaryUnavailable(status.summary === undefined)
+          setPhase('relaunching')
+        } else if (status.state !== 'none') {
+          setOutcome(status)
+          setPhase('outcome')
+        }
+      } catch (error) {
+        logger.warn('backup.restore_status query failed', error as Error)
+      }
+    })()
   }, [open])
 
   const onClose = () => {
@@ -88,13 +129,13 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
       return
     }
 
-    // Enter relaunching BEFORE the request — main may exit first.
     setPhase('relaunching')
     setErrorMessage(null)
     setErrorCode(null)
+    setSummary(null)
+    setSummaryUnavailable(false)
     try {
       await startRestore(archivePath)
-      // Success path: process is relaunching. Do not toast, resolve, or reset.
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       const code = error instanceof IpcError ? error.code : null
@@ -109,6 +150,51 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
       setErrorMessage(skipOnly ? t('settings.data.backup.v2.restore.skip_only') : message)
       setErrorCode(code)
       setPhase('ready-with-error')
+      return
+    }
+
+    // Pull the journal in case the live summary broadcast was missed.
+    try {
+      const status = await ipcApi.request('backup.restore_status')
+      if (status.state === 'pending') {
+        if (status.summary) {
+          setSummary(status.summary)
+          setSummaryUnavailable(false)
+        } else {
+          setSummaryUnavailable(true)
+        }
+      } else {
+        logger.warn(`backup.restore_status returned '${status.state}' after sealing`)
+        setSummaryUnavailable(true)
+      }
+    } catch (error) {
+      // Keep the sealed restore restartable without inventing an empty summary.
+      logger.warn('backup.restore_status post-seal query failed', error as Error)
+      setSummaryUnavailable(true)
+    }
+  }
+
+  const onAcknowledge = async () => {
+    try {
+      await ipcApi.request('backup.restore_acknowledge')
+    } catch (error) {
+      // Non-fatal: the journal stays and the outcome reports again on next open.
+      logger.warn('backup.restore_acknowledge failed', error as Error)
+    }
+    setOutcome(null)
+    setPhase('idle')
+  }
+
+  const onRestart = async () => {
+    setRelaunchError(false)
+    try {
+      await ipcApi.request('backup.restore_relaunch')
+    } catch (error) {
+      // backup.restore_relaunch should not throw in normal operation; if it does, surface the
+      // failure so the user is not stuck in `relaunching` (canClose=false) with no
+      // recourse — the Restart button stays available for retry.
+      logger.error('backup.restore_relaunch failed', error as Error)
+      setRelaunchError(true)
     }
   }
 
@@ -156,8 +242,73 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
           </div>
         )}
 
-        {phase === 'relaunching' && (
+        {phase === 'relaunching' && !hasRelaunchDisclosure && (
           <div className="py-4 text-center text-sm">{t('settings.data.backup.v2.restore.relaunching')}</div>
+        )}
+
+        {phase === 'relaunching' && hasRelaunchDisclosure && (
+          <div className="flex flex-col gap-3 text-sm" data-testid="v2-restore-summary">
+            {/* Future tense is mandatory: promotion runs at next boot and preboot may
+                still expire the whole batch (RestoreResultSummary contract). */}
+            <div>{t('settings.data.backup.v2.restore.summary.pending_hint')}</div>
+            {summary ? (
+              <>
+                <div>
+                  <div className="font-medium">{t('settings.data.backup.v2.restore.summary.will_restore')}</div>
+                  {summary.toRestore.length === 0 ? (
+                    <div className="mt-1 text-foreground-secondary">
+                      {t('settings.data.backup.v2.restore.summary.none')}
+                    </div>
+                  ) : (
+                    <ul className="mt-1 flex flex-col gap-0.5">
+                      {summary.toRestore.map((item) => (
+                        <li key={item.kind} className="flex justify-between">
+                          <span>{t(`settings.data.backup.v2.restore.summary.kind.${item.kind}`)}</span>
+                          <span>{item.count}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                {summary.toSkip.length > 0 && (
+                  <div>
+                    <div className="font-medium">{t('settings.data.backup.v2.restore.summary.will_skip')}</div>
+                    <ul className="mt-1 flex max-h-40 flex-col gap-1 overflow-y-auto">
+                      {summary.toSkip.map((item) => (
+                        <li key={`${item.kind}:${item.id}`} className="break-all">
+                          <span className="text-foreground-secondary">
+                            [{t(`settings.data.backup.v2.restore.summary.kind.${item.kind}`)}]
+                          </span>{' '}
+                          {item.id}
+                          <div className="text-foreground-secondary text-xs">
+                            {t(restoreSkipReasonI18nKeys[item.reasonCode])}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-foreground-secondary">
+                {t('settings.data.backup.v2.restore.summary.unavailable')}
+              </div>
+            )}
+            {relaunchError && (
+              <div className="text-destructive">{t('settings.data.backup.v2.restore.summary.relaunch_failed')}</div>
+            )}
+          </div>
+        )}
+
+        {phase === 'outcome' && outcome && (
+          <div className="flex flex-col gap-2 text-sm" data-testid="v2-restore-outcome">
+            <div className={outcome.state === 'completed' ? undefined : 'text-destructive'}>
+              {t(`settings.data.backup.v2.restore.outcome.${outcome.state}`)}
+            </div>
+            {outcome.state !== 'completed' && outcome.reason ? (
+              <div className="break-all text-foreground-secondary text-xs">{outcome.reason}</div>
+            ) : null}
+          </div>
         )}
 
         {phase === 'ready-with-error' && (
@@ -175,6 +326,16 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
           {(phase === 'ready' || phase === 'ready-with-error' || phase === 'confirming') && (
             <Button disabled={busy || !archivePath} onClick={() => void onConfirmRestore()}>
               {t('common.confirm')}
+            </Button>
+          )}
+          {phase === 'relaunching' && hasRelaunchDisclosure && (
+            <Button data-testid="v2-restore-restart-button" onClick={() => void onRestart()}>
+              {t('settings.data.backup.v2.restore.summary.restart_button')}
+            </Button>
+          )}
+          {phase === 'outcome' && (
+            <Button data-testid="v2-restore-acknowledge-button" onClick={() => void onAcknowledge()}>
+              {t('settings.data.backup.v2.restore.outcome.acknowledge_button')}
             </Button>
           )}
         </DialogFooter>

@@ -171,17 +171,17 @@ describe('IpcApiService request handling', () => {
       expect(dispatchMock).not.toHaveBeenCalled()
     })
 
-    it('allows backup.* routes while restore quiesce is held', async () => {
+    it('dispatches backup.restore_relaunch while restore quiesce is held', async () => {
       const { setBackupInProgress } = await import('@main/data/db/backup/quiesceGate')
       setBackupInProgress(true)
-      dispatchMock.mockResolvedValue({ cancelled: true })
+      dispatchMock.mockResolvedValue(undefined)
       const svc = makeService()
       ;(svc as unknown as { onInit(): void }).onInit()
 
-      const result = await registeredHandler()(trustedEvent, 'backup.cancel', { backupId: 'b-1' })
+      const result = await registeredHandler()(trustedEvent, 'backup.restore_relaunch', undefined)
 
-      expect(result).toEqual({ ok: true, data: { cancelled: true } })
-      expect(dispatchMock).toHaveBeenCalledWith('backup.cancel', { backupId: 'b-1' }, { senderId: 'win-7' })
+      expect(result).toEqual({ ok: true, data: undefined })
+      expect(dispatchMock).toHaveBeenCalledWith('backup.restore_relaunch', undefined, { senderId: 'win-7' })
     })
 
     it('allows read-only routes while restore quiesce is held (reads not gated)', async () => {

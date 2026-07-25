@@ -24,7 +24,7 @@ import { useTranslation } from 'react-i18next'
 import BackupExportV2Popup from './BackupExportV2Popup'
 import { BackupUnavailableGate } from './BackupUnavailableGate'
 import RestoreV2Popup from './RestoreV2Popup'
-import { isV2BackupExportReady, V2BackupRestoreFullGate, V2BackupRestoreGate } from './V2BackupActionGate'
+import { isV2BackupExportReady, V2BackupRestoreGate } from './V2BackupActionGate'
 
 const BasicDataSettings: React.FC = () => {
   const { t } = useTranslation()
@@ -220,20 +220,6 @@ const BasicDataSettings: React.FC = () => {
                 {t('settings.general.restore.button')}
               </Button>
             </V2BackupRestoreGate>
-            <Tooltip title={t('settings.data.backup.v2.restore.full_unavailable')}>
-              <span className="inline-flex">
-                <V2BackupRestoreFullGate>
-                  <Button
-                    onClick={() => RestoreV2Popup.show()}
-                    variant="outline"
-                    aria-label={t('settings.data.backup.v2.restore.full_unavailable')}
-                    data-testid="v2-backup-restore-full-button">
-                    <FolderOpen size={14} />
-                    {t('settings.data.backup.v2.restore.full_button')}
-                  </Button>
-                </V2BackupRestoreFullGate>
-              </span>
-            </Tooltip>
           </RowFlex>
         </SettingRow>
         <SettingDivider />

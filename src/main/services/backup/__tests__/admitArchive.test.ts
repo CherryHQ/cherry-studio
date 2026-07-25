@@ -74,9 +74,10 @@ const MANIFEST: BackupManifest = {
   backupFormatVersion: BACKUP_FORMAT_VERSION,
   createdAt: '2026-07-04T12:00:00.000Z',
   preset: 'full',
-  domains: ['PREFERENCES', 'PROVIDERS', 'FILE_STORAGE', 'KNOWLEDGE'],
-  includeFiles: true,
-  includeKnowledgeFiles: true,
+  domains: [...resolvePreset('full')],
+  // Empty resource lists → include* must be false (assertFullManifestInvariants).
+  includeFiles: false,
+  includeKnowledgeFiles: false,
   sensitiveData: { included: true, rotated: false },
   schemaMigrationId: '0001_abc.sql',
   producerAppVersion: '1.0.0',
@@ -625,6 +626,31 @@ describe('admitArchive', () => {
 
     const ctx = await admitArchive(archivePath, workDir, MIGRATIONS_FOLDER)
     expect(ctx.manifest.preset).toBe('lite')
+  })
+
+  it('forged full domains (incomplete set) → BackupArchiveCorruptError', async () => {
+    const dbCopy = join(tmpDir, 'backup.sqlite')
+    snapshotDbhTo(dbCopy)
+    const archivePath = join(tmpDir, 'forged-full-domains.cherrybackup')
+    await packArchive(archivePath, dbCopy, {
+      ...MANIFEST,
+      domains: ['PREFERENCES', 'PROVIDERS'] // not resolvePreset('full')
+    })
+    const workDir = join(tmpDir, 'work')
+
+    await expect(admitArchive(archivePath, workDir, MIGRATIONS_FOLDER)).rejects.toThrow(BackupArchiveCorruptError)
+    expect(existsSync(workDir)).toBe(false)
+  })
+
+  it('forged full includeFiles=true with empty files.ids → BackupArchiveCorruptError', async () => {
+    const dbCopy = join(tmpDir, 'backup.sqlite')
+    snapshotDbhTo(dbCopy)
+    const archivePath = join(tmpDir, 'forged-full-include.cherrybackup')
+    await packArchive(archivePath, dbCopy, { ...MANIFEST, includeFiles: true })
+    const workDir = join(tmpDir, 'work')
+
+    await expect(admitArchive(archivePath, workDir, MIGRATIONS_FOLDER)).rejects.toThrow(BackupArchiveCorruptError)
+    expect(existsSync(workDir)).toBe(false)
   })
 })
 

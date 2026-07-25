@@ -7,11 +7,15 @@
 // is deferred; PARTIAL quiesce (this PR) = this flag (IPC mutation reject) +
 // `JobManager.pause` (#16925, refcounted hold) + best-effort in-flight drain.
 //
-// The flag is a module-level singleton — `BackupService` enforces one restore at
-// a time via `activeOperation`, so the singleton cannot race a second restore.
-// `BackupService.acquireRestoreQuiesce` sets it for the quiesce window; IPC entry
-// points read `isBackupInProgress()` (DataApi IpcAdapter, returns an error
-// envelope) or call `assertNotBackupInProgress()` (PreferenceService /
+// The flag is a module-level singleton. One restore at a time is enforced by
+// `BackupService.activeOperation` UP TO seal; post-seal the operation slot is
+// released while the flag stays held until the user-confirmed relaunch exits the
+// process, and a second restore/export is blocked by the staged-journal guard in
+// `startRestore`/`startBackup` (backup.* routes bypass this gate). The flag is
+// set inside `startRestore`'s quiesceWriters callback and cleared by
+// `BackupService.releaseRestoreQuiesce` — only by the invocation that set it.
+// IPC entry points read `isBackupInProgress()` (DataApi IpcAdapter, returns an
+// error envelope) or call `assertNotBackupInProgress()` (PreferenceService /
 // IpcApiService, throw-based) to reject writes. Read-only requests are NOT gated
 // — snapshot reads are safe and merge runs on a detached work.sqlite.
 //
@@ -27,9 +31,10 @@ import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 
 /**
- * True while a restore quiesce window is held. Module singleton (one restore at a
- * time — see `BackupService.activeOperation`). Set/cleared by
- * `BackupService.acquireRestoreQuiesce` / `releaseRestoreQuiesce`.
+ * True while a restore quiesce window is held — from quiesce acquisition until
+ * either a pre-seal failure releases it or the post-seal relaunch exits the
+ * process. Set inside `BackupService.startRestore`'s quiesceWriters; cleared only
+ * by `BackupService.releaseRestoreQuiesce`.
  */
 let backupInProgress = false
 

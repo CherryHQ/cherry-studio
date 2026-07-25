@@ -38,6 +38,7 @@ import {
 } from './errors'
 import { BACKUP_FORMAT_VERSION, type BackupManifest, readManifest } from './manifest'
 import { resolvePreset } from './presets'
+import { assertFullManifestInvariants } from './resourcePlanning'
 
 /**
  * Recognized top-level archive entries. Unknown top-level entries are ignored (not
@@ -153,8 +154,9 @@ export async function admitArchiveWithLimits(
   limits: ArchiveAdmissionLimits
 ): Promise<ArchiveContext> {
   // mkdir FIRST — the orchestrator calls admission before its own mkdirSync, so StreamZip
-  // extract would otherwise target a nonexistent dir.
-  mkdirSync(workDir, { recursive: true })
+  // extract would otherwise target a nonexistent dir. 0700: the tree holds the extracted
+  // backup.sqlite (plaintext secrets) until promotion deletes it (mode ignored on Windows).
+  mkdirSync(workDir, { recursive: true, mode: 0o700 })
 
   let zip: StreamZip.StreamZipAsync | undefined
   let success = false
@@ -173,6 +175,8 @@ export async function admitArchiveWithLimits(
       throw new UnsupportedBackupFormatError(manifest.backupFormatVersion, BACKUP_FORMAT_VERSION)
     }
     assertLiteManifestInvariants(manifest)
+    // Full-preset cross-field invariants (domains / include* / unique ids) — no-op for lite.
+    assertFullManifestInvariants(manifest)
 
     // --- Unpack recognized entries (ignore unknown; zip-slip already ran on ALL entries) ---
     await unpackRecognized(zip, workDir, plan.recognizedFiles, limits, budget)
@@ -322,7 +326,7 @@ async function unpackRecognized(
 ): Promise<void> {
   for (const entry of recognizedFiles) {
     const dest = join(workDir, entry.name)
-    mkdirSync(dirname(dest), { recursive: true })
+    mkdirSync(dirname(dest), { recursive: true, mode: 0o700 })
     // Runtime cap = min(declared size, absolute per-entry): forged-small headers abort on the
     // first byte past declared size rather than waiting for the absolute GiB ceiling.
     const entryCap = Math.min(entry.size, limits.maxEntryUncompressedBytes)

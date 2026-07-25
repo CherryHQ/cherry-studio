@@ -85,8 +85,8 @@ export const PREFERENCES_CONTRIBUTOR = deepFreeze<BackupContributor>({
   },
   // Lite restore (includeFiles=false) skips ALL `note` overlay rows in
   // MergeEngine — lite archives stage zero Notes markdown bodies (§3.5). Full
-  // restore will additionally filter by selected-resource once Notes staging
-  // lands. Cache refresh is NOT needed under the D model (#16714): relaunch
+  // restore additionally filters overlays through ResourcePlan.noteAdditions so
+  // only staged bodies receive metadata. Cache refresh is NOT needed under the D model (#16714): relaunch
   // after preboot promotion fresh-loads PreferenceService.onInit.
   operations: {
     // PREFERENCES owns Notes markdown bodies as a file resource: the `note` table
