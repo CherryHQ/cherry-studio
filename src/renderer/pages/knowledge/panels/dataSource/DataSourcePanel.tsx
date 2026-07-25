@@ -193,9 +193,9 @@ const DataSourcePanel = ({
 
   return (
     <KnowledgePanelShell
-      headerClassName="shrink-0 px-3 pt-1"
+      headerClassName="shrink-0 px-3"
       header={
-        <div className="border-border-muted border-b pb-3">
+        <div className="flex h-11 items-center border-border border-b">
           <DataSourcePanelHeader
             total={total}
             loadedCount={items.length}
