@@ -24,7 +24,7 @@ import { buildEditorUrl } from '@renderer/utils/editor'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { joinPath } from '@renderer/utils/path'
 import { isMac, isWin } from '@renderer/utils/platform'
-import type { FilePath } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { toFileUrl } from '@shared/utils/file'
 import { AlertCircle, ArrowLeft, Eye, FileText, FolderOpen, RotateCw, Sparkles, SquarePen, X } from 'lucide-react'
 import {
@@ -134,6 +134,10 @@ type OfficePreviewPanelComponent = ComponentType<OfficePreviewPanelProps>
 
 let pdfPreviewPanelPromise: Promise<PdfPreviewPanelComponent> | null = null
 let officePreviewPanelPromise: Promise<OfficePreviewPanelComponent> | null = null
+
+// `ArtifactFilePreview` re-derives `parsedBase` on every render; dedupe the
+// warn per offending path so an open preview doesn't flood the log.
+const warnedArtifactBasePaths = new Set<string>()
 
 const loadPdfPreviewPanel = () => {
   pdfPreviewPanelPromise ??= import('@renderer/components/ArtifactPreview/pdf/PdfPreviewPanel')
@@ -338,10 +342,18 @@ export function ArtifactFilePreview({
 
   // Image: binary but renderable via `<img>`; bypass isText / size gating.
   if (isImageFile(filePath)) {
+    const base = joinPath(workspacePath, filePath)
+    const parsedBase = AbsoluteFilePathSchema.safeParse(base)
+    if (!parsedBase.success && !warnedArtifactBasePaths.has(base)) {
+      warnedArtifactBasePaths.add(base)
+      logger.warn('ArtifactPane: non-absolute HTML base path, relative resources may not resolve', {
+        path: base
+      })
+    }
     return (
       <ImagePreviewPanel
         key={`image-${filePath}-${contentRefreshKey}`}
-        src={toFileUrl(joinPath(workspacePath, filePath) as FilePath)}
+        src={parsedBase.success ? toFileUrl(parsedBase.data) : ''}
         fileName={filePath}
       />
     )
@@ -422,12 +434,20 @@ export function ArtifactFilePreview({
   const effectiveContent = contentOverride ?? fileContent ?? ''
 
   if (isHtmlFile(filePath)) {
+    const htmlBasePath = joinPath(workspacePath, filePath)
+    const parsedBase = AbsoluteFilePathSchema.safeParse(htmlBasePath)
+    if (!parsedBase.success && !warnedArtifactBasePaths.has(htmlBasePath)) {
+      warnedArtifactBasePaths.add(htmlBasePath)
+      logger.warn('ArtifactPane: non-absolute HTML base path, relative resources may not resolve', {
+        path: htmlBasePath
+      })
+    }
     return (
       <HtmlPreviewFrame
         key={`html-${filePath}-${contentRefreshKey}`}
         html={effectiveContent}
         title={filePath}
-        baseUrl={toFileUrl(joinPath(workspacePath, filePath) as FilePath)}
+        baseUrl={parsedBase.success ? toFileUrl(parsedBase.data) : undefined}
       />
     )
   }
@@ -818,7 +838,7 @@ export function ArtifactPaneView(props: ArtifactPaneViewProps) {
     props.headerVariant === 'pane' ? (
       <div
         data-testid="artifact-pane-header"
-        className="flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b px-2 [-webkit-app-region:no-drag]">
+        className="flex h-(--navbar-height) shrink-0 items-center justify-between gap-2 border-border-subtle border-b bg-card px-2 [-webkit-app-region:no-drag]">
         <div className="flex min-w-0 flex-1 items-center gap-0.5">
           {overlaySelection ? (
             <Tooltip content={t('common.back')} delay={800}>

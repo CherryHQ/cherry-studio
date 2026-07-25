@@ -15,9 +15,9 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import type { ChatWriteActions } from '@renderer/hooks/chat/ChatWriteContext'
-import { useAssistant } from '@renderer/hooks/useAssistant'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
+import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
@@ -57,6 +57,7 @@ interface Params {
   refresh: () => Promise<CherryUIMessage[]>
   cache: ReturnType<typeof useTopicMessagesCache>
   seedReservedMessages: (messages: CherryUIMessage[]) => Promise<void>
+  assistant?: Assistant
 }
 
 interface Result {
@@ -67,8 +68,8 @@ interface Result {
 }
 
 export function useChatWriteActions(params: Params): Result {
-  const { topic, uiMessages, rootId, regenerate, setMessages, stop, refresh, cache, seedReservedMessages } = params
-  const { assistant } = useAssistant(topic.assistantId)
+  const { topic, uiMessages, rootId, regenerate, setMessages, stop, refresh, cache, seedReservedMessages, assistant } =
+    params
   const {
     branchWithoutIds,
     seedOptimisticBranch,

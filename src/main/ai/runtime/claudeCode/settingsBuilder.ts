@@ -89,6 +89,8 @@ const promptBuilder = new PromptBuilder()
 const HEADLESS_INTERACTIVE_TOOLS = ['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode', 'EnterWorktree'] as const
 const HEADLESS_INTERACTIVE_TOOL_DENIAL =
   'This channel or scheduled turn has no interactive responder, so proceed without asking the user and state your assumptions instead.'
+const OUT_OF_TURN_APPROVAL_DENIAL =
+  'This tool call arrived after its turn had already ended, so no one can approve it. Request it again in your next turn if you still need it.'
 const HEADLESS_CONFIG_MUTATION_ACTIONS = new Set([
   'rename',
   'complete_bootstrap',
@@ -764,6 +766,16 @@ async function buildToolPermissions(
       return { behavior: 'allow', updatedInput: input }
     }
 
+    // A detached background agent outlives the turn that spawned it, and since SDK 0.3.186 its
+    // permission prompts are forwarded here instead of being auto-denied. The approval chunk below
+    // is dropped by the connection event loop once that turn's stream is gone, which would leave
+    // this promise pending until the session closes. Deny out-of-turn approvals outright; the
+    // auto-approved branch above still lets background work run unattended.
+    if (!application.get('AgentSessionRuntimeService').hasLiveTurnStream(session.id)) {
+      logger.warn('Approval requested outside a live turn — denying', { toolName })
+      return { behavior: 'deny', message: OUT_OF_TURN_APPROVAL_DENIAL }
+    }
+
     const approvalId = randomUUID()
     const emit = peekToolApprovalEmitter(session.id)?.emit
     if (!emit) {
@@ -1120,7 +1132,8 @@ export function buildMcpServers(
       agentId: agent.id,
       workspaceSource,
       workspacePath: session.workspace.path,
-      sourceChannelId
+      sourceChannelId,
+      getKnowledgeBaseIds: () => agentService.getAgent(agent.id)?.knowledgeBaseIds ?? []
     }).mcpServer
   }
 

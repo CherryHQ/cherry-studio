@@ -199,7 +199,7 @@
       "type": "Agent Icon"
     },
     "input": {
-      "placeholder": "Type a message. Press {{key}} to send. Type / to search paths or commands."
+      "placeholder": "Type a message. Press {{key}} to send. Type / to search paths or commands, @ for files and sessions."
     },
     "list": {
       "error": {
@@ -377,6 +377,11 @@
         "helper": "Pre-approved tools run without manual approval. Unselected tools require approval before use.",
         "label": "Pre-approved tools",
         "placeholder": "Select pre-approved tools"
+      },
+      "api_retry": {
+        "reason": "Request failed ({{error}}, HTTP {{status}}) — retrying",
+        "retrying": "Retrying {{attempt}}/{{max}}…",
+        "retrying_in": "Retrying {{attempt}}/{{max}} in {{seconds}}s"
       },
       "auto_rename": "Generate task name",
       "create": {
@@ -868,7 +873,8 @@
       "executing": "Executing...",
       "expired": "Expired",
       "inputPreview": "Tool input preview",
-      "pending": "Waiting for approval",
+      "pending": "Waiting for confirmation",
+      "pendingBadge": "Pending",
       "permissionExpired": "Permission request expired. Waiting for new instructions...",
       "requiresElevatedPermissions": "This tool requires elevated permissions.",
       "suggestion": {
@@ -1423,8 +1429,26 @@
       "paste_text_file": "Paste into input",
       "pasted_text_file_name": "Pasted text.txt",
       "pause": "Pause",
-      "placeholder": "Type a message. Press {{key}} to send. Type / for tools and actions.",
+      "placeholder": "Type a message. Press {{key}} to send. Type / for tools and actions, @ to reference topics.",
       "placeholder_without_triggers": "Type your message here, press {{key}} to send",
+      "reference_panel": {
+        "load_failed": "Failed to load the referenced conversation",
+        "no_room": "Not enough room left in the message to add this conversation",
+        "session": {
+          "no_results": {
+            "description": "No sessions match your search",
+            "label": "No Sessions Found"
+          },
+          "title": "Sessions"
+        },
+        "topic": {
+          "no_results": {
+            "description": "No topics match your search",
+            "label": "No Topics Found"
+          },
+          "title": "Topics"
+        }
+      },
       "resize_height": "Resize input height",
       "resource_panel": {
         "categories": {
@@ -1442,7 +1466,7 @@
           "description": "No files, agents, or skills available",
           "label": "No Items Found"
         },
-        "title": "Resources"
+        "title": "Files & Sessions"
       },
       "restore": "Restore",
       "send": "Send",
@@ -2274,6 +2298,7 @@
     "provider": "Provider",
     "reasoning_content": "Deep reasoning",
     "refresh": "Refresh",
+    "refresh_failed": "Couldn't refresh the list. Showing the last loaded version.",
     "regenerate": "Regenerate",
     "remove_image": "Remove image",
     "rename": "Rename",
@@ -3906,18 +3931,6 @@
     "regenerate": {
       "confirm": "Regenerating will replace current message"
     },
-    "reset": {
-      "confirm": {
-        "content": "Are you sure you want to clear all data?"
-      },
-      "double": {
-        "confirm": {
-          "content": "All data will be lost, do you want to continue?",
-          "title": "DATA LOST !!!"
-        }
-      },
-      "success": "Data reset successful"
-    },
     "restore": {
       "failed": "Restore failed",
       "success": "Restored successfully"
@@ -3962,20 +3975,20 @@
       "aborted": "Tool call aborted",
       "activity": {
         "analyze": "Analyze",
-        "analyzing": "Analyzing",
+        "analyzing": "Taking a closer look",
         "archive": "archive",
-        "assistantTask": "task",
+        "assistantTask": "assistant task",
         "availableFeatures": "available features",
         "availableResources": "available resources",
         "branch": "project version",
         "build": "Build",
-        "building": "Building",
+        "building": "Putting it together",
         "calendar": "calendar",
         "check": "Check",
-        "checking": "Checking",
-        "codeFiles": "program files",
-        "codeHostInfo": "online project information",
-        "configFiles": "project docs and settings",
+        "checking": "Going through each one",
+        "codeFiles": "code files",
+        "codeHostInfo": "remote repo info",
+        "configFiles": "project docs and config",
         "copy": "Copy",
         "copying": "Copying",
         "create": "Create",
@@ -3983,74 +3996,74 @@
         "currentFolder": "current folder",
         "data": "data",
         "delete": "Delete",
-        "deleting": "Deleting",
+        "deleting": "Carefully clearing out",
         "documentFiles": "document files",
         "download": "Download",
         "downloading": "Downloading",
         "email": "email",
         "environmentInfo": "environment information",
-        "executeCommand": "Run task",
-        "executingCommand": "Running task",
+        "executeCommand": "Run",
+        "executingCommand": "Running it",
         "extensionFailed": "Extension failed",
         "extract": "Extract",
-        "extracting": "Extracting",
+        "extracting": "Unpacking",
         "file": "file",
         "fileList": "file list",
         "folder": "folder",
         "handle": "Handle",
-        "handling": "Handling",
+        "handling": "Working on it",
         "imageFiles": "image files",
         "install": "Install",
         "installing": "Installing",
         "matchingFiles": "matching files",
         "modify": "Modify",
-        "modifying": "Modifying",
+        "modifying": "Fine-tuning",
         "move": "Move",
-        "moving": "Moving",
+        "moving": "Moving it over",
         "open": "Open",
-        "opening": "Opening",
+        "opening": "Opening it up",
         "plan": "execution plan",
         "projectChanges": "project changes",
         "projectChecks": "project checks",
-        "projectDependencies": "project requirements",
+        "projectDependencies": "project dependencies",
         "projectFiles": "project files",
-        "projectRootFiles": "top-level project files",
+        "projectRootFiles": "project root files",
         "projectTask": "project task",
         "relatedContent": "related content",
         "repository": "project content",
         "search": "Find",
-        "searching": "Finding",
+        "searching": "Searching around",
         "send": "Send",
         "sending": "Sending",
         "start": "Start",
-        "starting": "Starting",
+        "starting": "Starting up",
         "switch": "Switch",
-        "switching": "Switching",
+        "switching": "Switching over",
         "sync": "Sync",
-        "syncing": "Syncing",
+        "syncing": "Syncing up",
         "taskId": "Task {{id}}",
         "taskList": "task list",
         "translationFiles": "language files",
         "upload": "Upload",
         "uploading": "Uploading",
         "usedExtension": "Used an extension",
-        "usingExtension": "Using an extension",
+        "usingExtension": "Bringing in an extension",
         "view": "View",
-        "viewing": "Viewing",
+        "viewing": "Looking it over",
         "webPage": "web page",
         "webSearch": "web content",
         "workspace": "work area",
-        "write": "Save",
-        "writing": "Saving"
+        "write": "Write",
+        "writing": "Writing it out"
       },
       "approvalRequired": "Tool \"{{tool}}\" requires approval",
       "autoApproveEnabled": "Auto-approve enabled for this tool",
       "cancelled": "Cancelled",
       "collapse": "Collapse",
-      "completed": "Completed",
+      "completed": "All wrapped up",
       "error": "Error occurred",
       "groupHeader": "{{count}} tool calls",
-      "invoking": "Invoking",
+      "invoking": "Getting started",
       "labels": {
         "bash": "Run task",
         "edit": "Edit",
@@ -4085,10 +4098,10 @@
           "minutes": "{{minutes}}m {{seconds}}s",
           "seconds": "{{seconds}}s"
         },
-        "generating": "Writing response",
+        "generating": "Writing up a reply",
         "preparing": "Preparing response",
-        "thinking": "Thinking",
-        "usingTools": "Working on the task"
+        "thinking": "Let me think this through",
+        "usingTools": "Making progress"
       },
       "preview": "Preview",
       "processed": "Processed",
@@ -4116,7 +4129,7 @@
         "success": "Success"
       },
       "streaming": "Streaming",
-      "thinkingHeader": "Thinking",
+      "thinkingHeader": "Thinking it through",
       "truncated": "Output truncated (original: {{size}})",
       "units": {
         "done_one": "{{count}} Done",
@@ -5762,6 +5775,13 @@
       "data": {
         "title": "Data Directory"
       },
+      "data_reset": {
+        "button": "Reset",
+        "confirm_content": "This will erase chats, assistants, knowledge bases, files, and settings, then restart the app. This action cannot be undone. Continue?",
+        "confirm_title": "Reset App Data",
+        "error": "Failed to start data reset",
+        "title": "Data Reset"
+      },
       "divider": {
         "basic": "Basic Data",
         "cloud_storage": "Cloud Backup",
@@ -6494,10 +6514,6 @@
       "emoji_picker": "Emoji Picker",
       "image_upload": "Image Upload",
       "label": "General Settings",
-      "reset": {
-        "button": "Reset",
-        "title": "Data Reset"
-      },
       "restore": {
         "button": "Restore"
       },
