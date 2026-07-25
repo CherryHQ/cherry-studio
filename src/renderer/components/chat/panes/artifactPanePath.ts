@@ -1,6 +1,6 @@
 import { joinPath } from '@renderer/utils/path'
-import type { FilePath } from '@shared/types/file'
-import { canonicalizeAbsolutePath } from '@shared/utils/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
+import { canonicalizeFilePath } from '@shared/utils/file'
 
 /**
  * Pure path / selection helpers shared by `ArtifactPane` and the
@@ -17,8 +17,8 @@ export interface ArtifactPaneFileSelection {
 }
 
 /** The canonical absolute path a selection edits — the `useFileEditSession` key. */
-export const getArtifactPaneSelectionPath = (selection: ArtifactPaneFileSelection): FilePath =>
-  canonicalizeAbsolutePath(`${selection.workspacePath}/${selection.filePath}`) as FilePath
+export const getArtifactPaneSelectionPath = (selection: ArtifactPaneFileSelection): AbsoluteFilePath =>
+  canonicalizeFilePath(`${selection.workspacePath}/${selection.filePath}`)
 
 export const getPathBasename = (path: string): string => {
   const trimmed = path.trim().replace(/[\\/]+$/, '')

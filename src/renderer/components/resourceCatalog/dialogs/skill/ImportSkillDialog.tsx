@@ -2,7 +2,7 @@ import { Alert, Button, Dialog, DialogContent, Dropzone, DropzoneEmptyState, Scr
 import { useSkillInstall } from '@renderer/hooks/useSkills'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import type { InstalledSkill } from '@shared/types/skill'
 import { createFilePathHandle } from '@shared/utils/file'
 import { CheckCircle2, CircleAlert, Import, Loader2 } from 'lucide-react'
@@ -201,7 +201,7 @@ export function ImportSkillDialog({ open, onOpenChange }: Props) {
         const filePath = window.api.file.getPathForFile(file)
         if (!filePath) continue
 
-        const meta = await ipcApi.request('file.get_metadata', createFilePathHandle(filePath as FilePath))
+        const meta = await ipcApi.request('file.get_metadata', createFilePathHandle(filePath as AbsoluteFilePath))
         // A `null` metadata (path unreadable / vanished — near-nil since dropped
         // paths resolve) folds into "not a directory": it falls through to the
         // filename-based zip/invalid classification below, and a genuine read

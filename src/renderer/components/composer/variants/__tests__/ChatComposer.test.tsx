@@ -61,6 +61,8 @@ const mocks = vi.hoisted(() => ({
   files: undefined as any[] | undefined,
   topicLayout: undefined as string | undefined,
   inputAdapterFocus: vi.fn(),
+  assistantHookArgs: [] as unknown[][],
+  providerHookArgs: [] as unknown[][],
   runtimeHostProps: undefined as
     | {
         reasoning?: {
@@ -447,16 +449,19 @@ vi.mock('@renderer/hooks/chat/ChatWriteContext', () => ({
 }))
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
-  useAssistant: () => ({
-    assistant: mocks.assistant,
-    isLoading: mocks.assistantLoading,
-    model: mocks.model,
-    isModelPending: mocks.modelPending,
-    isModelMissing: mocks.modelMissing ?? (!mocks.assistantLoading && !mocks.modelPending && !mocks.model),
-    setModel: mocks.setModel,
-    updateAssistant: mocks.updateAssistant,
-    updateAssistantSettings: mocks.updateAssistantSettings
-  })
+  useAssistant: (...args: unknown[]) => {
+    mocks.assistantHookArgs.push(args)
+    return {
+      assistant: mocks.assistant,
+      isLoading: mocks.assistantLoading,
+      model: mocks.model,
+      isModelPending: mocks.modelPending,
+      isModelMissing: mocks.modelMissing ?? (!mocks.assistantLoading && !mocks.modelPending && !mocks.model),
+      setModel: mocks.setModel,
+      updateAssistant: mocks.updateAssistant,
+      updateAssistantSettings: mocks.updateAssistantSettings
+    }
+  }
 }))
 
 vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
@@ -470,7 +475,10 @@ vi.mock('@renderer/hooks/useModel', () => ({
 
 vi.mock('@renderer/hooks/useProvider', () => ({
   getProviderDisplayName: () => 'Provider',
-  useProviders: () => ({ providers: [{ id: 'provider', name: 'Provider' }] })
+  useProviders: (...args: unknown[]) => {
+    mocks.providerHookArgs.push(args)
+    return { providers: [{ id: 'provider', name: 'Provider' }] }
+  }
 }))
 
 vi.mock('@renderer/hooks/command', () => ({
@@ -697,6 +705,8 @@ describe('ChatComposer', () => {
     mocks.ipcOn.mockReset()
     mocks.chatWrite = undefined
     mocks.topicLayout = undefined
+    mocks.assistantHookArgs = []
+    mocks.providerHookArgs = []
     mocks.runtimeHostProps = undefined
     mocks.ipcOn.mockImplementation((channel: string, listener: (_event: unknown, payload: unknown) => void) => {
       mocks.ipcListeners.set(channel, listener)
@@ -744,6 +754,70 @@ describe('ChatComposer', () => {
       within(screen.getByTestId('composer-send-accessory')).queryByRole('button', { name: 'tool menu' })
     ).not.toBeInTheDocument()
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
+  })
+
+  it('uses page-owned context without querying or rendering duplicate context controls', async () => {
+    const onConversationControlsChange = vi.fn()
+    const nextConversationControlsChange = vi.fn()
+    const onSend = vi.fn()
+    const resolvedContext = {
+      assistant: mocks.assistant,
+      isLoading: false,
+      model,
+      isModelPending: false,
+      isModelMissing: false,
+      setModel: mocks.setModel,
+      updateAssistantSettings: mocks.updateAssistantSettings
+    }
+    const resolvedProviders = [{ id: 'provider', name: 'Provider' } as any]
+
+    const view = render(
+      <ChatPlacementComposer
+        placement="docked"
+        topic={topic}
+        onSend={onSend}
+        resolvedContext={resolvedContext}
+        resolvedProviders={resolvedProviders}
+        externalContextControls
+        onConversationControlsChange={onConversationControlsChange}
+      />
+    )
+
+    expect(mocks.assistantHookArgs.at(-1)).toEqual([null, { loadDefaultModel: false }])
+    expect(mocks.providerHookArgs.at(-1)).toEqual([undefined, { enabled: false }])
+    expect(screen.getByTestId('composer-left-controls')).not.toHaveTextContent('Assistant 1')
+    await waitFor(() => {
+      expect(onConversationControlsChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          scopeKey: topic.id,
+          mentionedModelSelectorValue: [model]
+        })
+      )
+    })
+
+    view.rerender(
+      <ChatPlacementComposer
+        placement="docked"
+        topic={topic}
+        onSend={onSend}
+        resolvedContext={resolvedContext}
+        resolvedProviders={resolvedProviders}
+        externalContextControls
+        onConversationControlsChange={nextConversationControlsChange}
+      />
+    )
+    expect(onConversationControlsChange).toHaveBeenLastCalledWith(null)
+    await waitFor(() => {
+      expect(nextConversationControlsChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          scopeKey: topic.id,
+          mentionedModelSelectorValue: [model]
+        })
+      )
+    })
+
+    view.unmount()
+    expect(nextConversationControlsChange).toHaveBeenLastCalledWith(null)
   })
 
   it('snapshots a newly selected reasoning effort before its assistant PATCH finishes', async () => {
@@ -860,6 +934,7 @@ describe('ChatComposer', () => {
     render(<ChatPlacementComposer placement="home" topic={topic} onSend={vi.fn()} />)
 
     expect(mocks.surfaceProps?.narrowMode).toBe(true)
+    expect(mocks.surfaceProps?.deferDynamicControls).toBe(true)
   })
 
   it('renders docked placement with toolbar controls and sendDisabled behavior', () => {
@@ -867,6 +942,7 @@ describe('ChatComposer', () => {
 
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
     expect(mocks.surfaceProps?.sendDisabled).toBe(true)
+    expect(mocks.surfaceProps?.deferDynamicControls).toBe(true)
     expect(screen.getByText('tool menu')).toBeInTheDocument()
     expect(screen.getByText('Assistant 1')).toBeInTheDocument()
     expect(screen.getByText('Model A')).toBeInTheDocument()
@@ -2003,7 +2079,7 @@ describe('ChatComposer', () => {
     ])
   })
 
-  it('clears mentioned models while previewing plain-text history before sending', async () => {
+  it('preserves mentioned models while previewing plain-text history before sending', async () => {
     seedInputHistory(['history entry'])
     mocks.mentionedModels = [model, modelB]
     mocks.getDraft.mockImplementation(() => ({
@@ -2018,7 +2094,7 @@ describe('ChatComposer', () => {
       expect(mocks.surfaceProps?.onInputHistoryNavigate?.('up')).toBe(true)
     })
     await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
-    expect(mocks.mentionedModels).toEqual([])
+    expect(mocks.mentionedModels).toEqual([model, modelB])
 
     await act(async () => {
       await mocks.surfaceProps?.onSendDraft({ text: 'history entry', tokens: [] })
@@ -2027,7 +2103,7 @@ describe('ChatComposer', () => {
     expect(onSend).toHaveBeenCalledWith(
       'history entry',
       expect.objectContaining({
-        mentionedModels: undefined
+        mentionedModels: [model.id, modelB.id]
       })
     )
   })

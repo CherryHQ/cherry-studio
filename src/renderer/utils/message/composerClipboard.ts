@@ -273,6 +273,7 @@ function isComposerClipboardTokenKind(value: unknown): value is ComposerClipboar
 // this renderer wrote it; otherwise they degrade to their visible fallback text.
 const COMPOSER_CLIPBOARD_PROMPT_RESTORATION_KINDS = new Set<ComposerClipboardTokenKind>([
   'folder',
+  'reference',
   'quote',
   'promptVariable'
 ])

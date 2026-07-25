@@ -1,5 +1,5 @@
 import { getFileType, stat as fsStat } from '@main/utils/file'
-import type { FilePath, PhysicalFileMetadata } from '@shared/types/file'
+import type { AbsoluteFilePath, PhysicalFileMetadata } from '@shared/types/file'
 import mime from 'mime'
 
 type FsStatResult = Awaited<ReturnType<typeof fsStat>>
@@ -16,7 +16,10 @@ type FsStatResult = Awaited<ReturnType<typeof fsStat>>
  * the barrel deliberately re-exports just `getMetadataByPath` (the public
  * path-arm), never this helper.
  */
-export async function buildPhysicalFileMetadata(path: FilePath, s: FsStatResult): Promise<PhysicalFileMetadata> {
+export async function buildPhysicalFileMetadata(
+  path: AbsoluteFilePath,
+  s: FsStatResult
+): Promise<PhysicalFileMetadata> {
   if (s.isDirectory) {
     return { kind: 'directory', size: s.size, createdAt: s.createdAt || s.modifiedAt, modifiedAt: s.modifiedAt }
   }
@@ -43,6 +46,6 @@ export async function buildPhysicalFileMetadata(path: FilePath, s: FsStatResult)
  * deliberately has no FileEntry/DanglingCache side effects. Entry-aware callers
  * should use `FileManager.getMetadata(entryId)` instead.
  */
-export async function getMetadataByPath(path: FilePath): Promise<PhysicalFileMetadata> {
+export async function getMetadataByPath(path: AbsoluteFilePath): Promise<PhysicalFileMetadata> {
   return buildPhysicalFileMetadata(path, await fsStat(path))
 }

@@ -12,7 +12,7 @@
 import { open } from 'node:fs/promises'
 import path from 'node:path'
 
-import { FILE_TYPE, type FilePath, type FileType } from '@shared/types/file'
+import { type AbsoluteFilePath, FILE_TYPE, type FileType } from '@shared/types/file'
 import { KB, MB } from '@shared/utils/constants'
 import { getFileTypeByExt } from '@shared/utils/file'
 import chardet from 'chardet'
@@ -83,7 +83,7 @@ export function decodeTextBufferIfText(data: Buffer): string | null {
  * (UTF-8 plus high-confidence legacy encodings). Best-effort — returns `false`
  * on any read/detection error.
  */
-export async function isTextByContent(target: FilePath): Promise<boolean> {
+export async function isTextByContent(target: AbsoluteFilePath): Promise<boolean> {
   try {
     const length = 8 * KB
     const fileHandle = await open(target, 'r')
@@ -129,7 +129,7 @@ export async function isTextByContent(target: FilePath): Promise<boolean> {
  * Callers that genuinely need content-based detection should call
  * `isTextByContent` directly instead.
  */
-export async function getFileType(target: FilePath): Promise<FileType> {
+export async function getFileType(target: AbsoluteFilePath): Promise<FileType> {
   const ext = path.extname(target)
   const fileType = getFileTypeByExt(ext)
   return fileType === FILE_TYPE.OTHER && (await isTextByContent(target)) ? FILE_TYPE.TEXT : fileType

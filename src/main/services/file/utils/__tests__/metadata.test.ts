@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { getMetadataByPath } from '../metadata'
@@ -28,7 +28,7 @@ describe('getMetadataByPath', () => {
   it('derives type: text for an extensionless text file via content sniff', async () => {
     const f = path.join(tmp, 'README') // no extension → forces the content sniff
     await writeFile(f, TEXT_SAMPLE)
-    const meta = await getMetadataByPath(f as FilePath)
+    const meta = await getMetadataByPath(f as AbsoluteFilePath)
     expect(meta).toMatchObject({ kind: 'file', type: 'text' })
     expect(typeof meta.size).toBe('number')
   })
@@ -36,12 +36,12 @@ describe('getMetadataByPath', () => {
   it('derives type: other for unknown-extension binary content', async () => {
     const f = path.join(tmp, 'mystery.xyz123')
     await writeFile(f, BINARY_SAMPLE)
-    expect(await getMetadataByPath(f as FilePath)).toMatchObject({ kind: 'file', type: 'other' })
+    expect(await getMetadataByPath(f as AbsoluteFilePath)).toMatchObject({ kind: 'file', type: 'other' })
   })
 
   it('returns kind: directory for a directory', async () => {
     const d = path.join(tmp, 'sub')
     await mkdir(d)
-    expect((await getMetadataByPath(d as FilePath)).kind).toBe('directory')
+    expect((await getMetadataByPath(d as AbsoluteFilePath)).kind).toBe('directory')
   })
 })

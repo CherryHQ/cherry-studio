@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { joinPath } from '@renderer/utils/path'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 import { useEffect, useState } from 'react'
 
@@ -49,7 +49,7 @@ export function useIsTextFile(
 
     void (async () => {
       try {
-        const meta = await ipcApi.request('file.get_metadata', createFilePathHandle(absPath as FilePath))
+        const meta = await ipcApi.request('file.get_metadata', createFilePathHandle(absPath as AbsoluteFilePath))
         const isText = meta?.kind === 'file' && meta.type === 'text'
         if (!cancelled) setState(isText ? 'text' : 'binary')
       } catch (err) {

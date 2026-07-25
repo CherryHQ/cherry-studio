@@ -19,7 +19,7 @@ import {
   readTextFileWithAutoEncoding
 } from '@main/utils/legacyFile'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { MB } from '@shared/utils/constants'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { documentExts, imageExts } from '@shared/utils/file'
@@ -111,7 +111,7 @@ class FileStorage {
         if (originalHash === storedHash) {
           const ext = path.extname(file)
           const id = path.basename(file, ext)
-          const type = await getFileType(filePath as FilePath)
+          const type = await getFileType(filePath as AbsoluteFilePath)
 
           return {
             id,
@@ -150,7 +150,7 @@ class FileStorage {
     const fileMetadataPromises = result.filePaths.map(async (filePath) => {
       const stats = fs.statSync(filePath)
       const ext = path.extname(filePath)
-      const fileType = await getFileType(filePath as FilePath)
+      const fileType = await getFileType(filePath as AbsoluteFilePath)
 
       return {
         id: uuidv4(),
@@ -216,7 +216,7 @@ class FileStorage {
     }
 
     const stats = await fs.promises.stat(destPath)
-    const fileType = await getFileType(destPath as FilePath)
+    const fileType = await getFileType(destPath as AbsoluteFilePath)
 
     const fileMetadata: FileMetadata = {
       id: uuid,
@@ -241,7 +241,7 @@ class FileStorage {
     }
 
     const stats = fs.statSync(filePath)
-    const fileType = await getFileType(filePath as FilePath)
+    const fileType = await getFileType(filePath as AbsoluteFilePath)
 
     return {
       id: uuidv4(),
@@ -938,7 +938,7 @@ class FileStorage {
       await fs.promises.writeFile(destPath, buffer)
 
       const stats = await fs.promises.stat(destPath)
-      const fileType = await getFileType(destPath as FilePath)
+      const fileType = await getFileType(destPath as AbsoluteFilePath)
 
       return {
         id: uuid,

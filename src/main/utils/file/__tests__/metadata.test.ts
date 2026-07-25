@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import iconv from 'iconv-lite'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
@@ -25,19 +25,19 @@ describe('getFileType', () => {
   it('classifies image extension as image', async () => {
     const f = path.join(tmp, 'pic.png')
     await writeFile(f, Buffer.from([0x89, 0x50, 0x4e, 0x47]))
-    expect(await getFileType(f as FilePath)).toBe('image')
+    expect(await getFileType(f as AbsoluteFilePath)).toBe('image')
   })
 
   it('classifies pdf as document', async () => {
     const f = path.join(tmp, 'doc.pdf')
     await writeFile(f, '%PDF-')
-    expect(await getFileType(f as FilePath)).toBe('document')
+    expect(await getFileType(f as AbsoluteFilePath)).toBe('document')
   })
 
   it('falls back to "other" for an unknown extension with binary content', async () => {
     const f = path.join(tmp, 'mystery.xyz123')
     await writeFile(f, BINARY_SAMPLE)
-    expect(await getFileType(f as FilePath)).toBe('other')
+    expect(await getFileType(f as AbsoluteFilePath)).toBe('other')
   })
 
   // Content-sniff upgrade: uncommon / extension-less text files must be
@@ -45,13 +45,13 @@ describe('getFileType', () => {
   it('upgrades an unknown extension with text content to "text"', async () => {
     const f = path.join(tmp, 'mystery.xyz123')
     await writeFile(f, TEXT_SAMPLE)
-    expect(await getFileType(f as FilePath)).toBe('text')
+    expect(await getFileType(f as AbsoluteFilePath)).toBe('text')
   })
 
   it('upgrades an extension-less text file to "text"', async () => {
     const f = path.join(tmp, 'no-ext')
     await writeFile(f, TEXT_SAMPLE)
-    expect(await getFileType(f as FilePath)).toBe('text')
+    expect(await getFileType(f as AbsoluteFilePath)).toBe('text')
   })
 
   // Extension wins on mismatch (deliberate — see getFileType's contract). A
@@ -59,13 +59,13 @@ describe('getFileType', () => {
   it('keeps a recognized text extension as "text" even when the content is binary', async () => {
     const f = path.join(tmp, 'mislabeled.txt')
     await writeFile(f, BINARY_SAMPLE)
-    expect(await getFileType(f as FilePath)).toBe('text')
+    expect(await getFileType(f as AbsoluteFilePath)).toBe('text')
   })
 
   it('keeps a recognized non-text extension even when the content is text', async () => {
     const f = path.join(tmp, 'mislabeled.png')
     await writeFile(f, TEXT_SAMPLE)
-    expect(await getFileType(f as FilePath)).toBe('image')
+    expect(await getFileType(f as AbsoluteFilePath)).toBe('image')
   })
 })
 
@@ -81,17 +81,17 @@ describe('isTextByContent', () => {
   it('returns true for text content regardless of extension', async () => {
     const f = path.join(tmp, 'weird.bin')
     await writeFile(f, TEXT_SAMPLE)
-    expect(await isTextByContent(f as FilePath)).toBe(true)
+    expect(await isTextByContent(f as AbsoluteFilePath)).toBe(true)
   })
 
   it('returns false for binary content', async () => {
     const f = path.join(tmp, 'data.txt')
     await writeFile(f, BINARY_SAMPLE)
-    expect(await isTextByContent(f as FilePath)).toBe(false)
+    expect(await isTextByContent(f as AbsoluteFilePath)).toBe(false)
   })
 
   it('returns false (does not throw) for a missing file', async () => {
-    expect(await isTextByContent(path.join(tmp, 'nope') as FilePath)).toBe(false)
+    expect(await isTextByContent(path.join(tmp, 'nope') as AbsoluteFilePath)).toBe(false)
   })
 })
 

@@ -796,6 +796,7 @@ describe('ArtifactPane', () => {
 
     await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
     expect(screen.getAllByTestId('artifact-pane-header')).toHaveLength(1)
+    expect(screen.getByTestId('artifact-pane-header')).toHaveClass('bg-card')
     expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('Files')
     expect(screen.queryByRole('button', { name: 'agent.preview_pane.close' })).toBeNull()
     expect(screen.queryByTestId('file-tree-search-toolbar')).toBeNull()

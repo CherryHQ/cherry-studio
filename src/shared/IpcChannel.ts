@@ -16,7 +16,6 @@ export enum IpcChannel {
   Application_PreventQuit = 'application:prevent-quit',
   Application_AllowQuit = 'application:allow-quit',
   Application_Relaunch = 'application:relaunch',
-  App_ResetData = 'app:reset-data',
   App_LogToMain = 'app:log-to-main',
   App_QuoteToMain = 'app:quote-to-main',
 
