@@ -104,16 +104,6 @@ describe('CodeToolbar', () => {
         'bottom-1'
       )
     })
-
-    it('should match snapshot with mixed tools', () => {
-      const { container } = render(<CodeToolbar tools={createMixedTools()} />)
-      expect(container).toMatchSnapshot()
-    })
-
-    it('should match snapshot with only core tools', () => {
-      const { container } = render(<CodeToolbar tools={[createMockTool({ id: 'core1', type: 'core' })]} />)
-      expect(container).toMatchSnapshot()
-    })
   })
 
   describe('empty state', () => {

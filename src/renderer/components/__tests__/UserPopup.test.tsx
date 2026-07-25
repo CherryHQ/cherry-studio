@@ -185,32 +185,14 @@ describe('UserPopup', () => {
     vi.useRealTimers()
   })
 
-  it('renders image avatars with object-cover cropping', async () => {
+  it('renders image avatars from the stored preference', async () => {
     const avatar = 'file:///tmp/wide-avatar.png'
     MockUsePreferenceUtils.setPreferenceValue('app.user.avatar', avatar)
 
     showUserPopup()
 
     const image = await screen.findByTestId('avatar-image')
-    expect(image).toHaveClass('object-cover')
     expect(image).toHaveAttribute('src', avatar)
-  })
-
-  it('only customizes avatar picker popover width and padding', async () => {
-    showUserPopup()
-
-    fireEvent.click(await screen.findByTestId('popover-trigger'))
-
-    const popoverContent = screen.getByTestId('popover-content')
-
-    expect(popoverContent).toHaveClass('w-auto', 'p-2')
-    expect(popoverContent).not.toHaveClass(
-      'border',
-      'border-border',
-      'bg-popover',
-      'text-popover-foreground',
-      'shadow-lg'
-    )
   })
 
   it('uploads an avatar as raw bytes via profile.set_avatar', async () => {

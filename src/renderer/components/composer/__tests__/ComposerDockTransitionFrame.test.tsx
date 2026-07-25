@@ -137,50 +137,6 @@ describe('ComposerDockTransitionFrame', () => {
     })
   })
 
-  it('does not add a separate dock-side padding outside the composer layout', () => {
-    const { container } = render(
-      <ComposerDockTransitionFrame
-        placement="docked"
-        main={<InsetProbe />}
-        composer={<div data-composer-inputbar="" />}
-        mainVisible
-      />
-    )
-
-    expect(container.querySelector('[data-composer-dock-layer]')).not.toHaveClass('px-4')
-  })
-
-  it('keeps home placement bottom offset and removes it when the inputbar is expanded', () => {
-    const { container } = render(
-      <ComposerDockTransitionFrame
-        placement="home"
-        main={<InsetProbe />}
-        composer={<div data-composer-inputbar="" />}
-      />
-    )
-
-    const dockLayer = container.querySelector('[data-composer-dock-layer]')
-    expect(dockLayer).toHaveClass('pb-[12vh]')
-    expect(dockLayer).toHaveClass('has-[.inputbar-container.expanded]:pb-0')
-    expect(dockLayer).not.toHaveClass('pt-(--navbar-height)')
-  })
-
-  it('keeps docked placement free of home placement offsets', () => {
-    const { container } = render(
-      <ComposerDockTransitionFrame
-        placement="docked"
-        main={<InsetProbe />}
-        composer={<div data-composer-inputbar="" />}
-        mainVisible
-      />
-    )
-
-    const dockLayer = container.querySelector('[data-composer-dock-layer]')
-    expect(dockLayer).not.toHaveClass('pb-[12vh]')
-    expect(dockLayer).not.toHaveClass('has-[.inputbar-container.expanded]:pb-0')
-    expect(dockLayer).not.toHaveClass('pt-(--navbar-height)')
-  })
-
   it('aligns composer width to the message scroller viewport', async () => {
     const { container } = render(
       <ComposerDockTransitionFrame

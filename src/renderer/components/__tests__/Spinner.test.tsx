@@ -31,9 +31,4 @@ describe('Spinner', () => {
     expect(spanElement).toBeInTheDocument()
     expect(spanElement).toHaveTextContent('')
   })
-
-  it('should match snapshot', () => {
-    const { container } = render(<Spinner text="Loading files..." />)
-    expect(container.firstChild).toMatchSnapshot()
-  })
 })

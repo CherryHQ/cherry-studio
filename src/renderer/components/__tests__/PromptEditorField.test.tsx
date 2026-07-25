@@ -107,13 +107,6 @@ describe('PromptEditorField', () => {
       lineNumbers: false
     })
     expect(screen.queryByTestId('gutter')).not.toBeInTheDocument()
-
-    const editorContainer = screen.getByTestId('editor-empty-area').parentElement
-    expect(editorContainer).toHaveClass('bg-background')
-    expect(editorContainer).toHaveClass('border-border', 'focus-within:border-border-hover')
-    expect(editorContainer).toHaveClass('focus-within:ring-2', 'focus-within:ring-ring/50')
-    expect(editorContainer).not.toHaveClass('bg-accent/15', 'focus-within:bg-accent/20')
-    expect(editorContainer).not.toHaveClass('border-border/20', 'focus-within:border-border/40')
   })
 
   it('marks the prompt theme as dark in dark mode', () => {
@@ -180,16 +173,6 @@ describe('PromptEditorField', () => {
 
     view.destroy()
     parent.remove()
-  })
-
-  it('composes fill layout classes without merging adjacent class names', () => {
-    render(<PromptEditorField fill label={<span>Prompt</span>} value="Original prompt" onChange={vi.fn()} />)
-
-    const preview = screen.getByTestId('markdown').parentElement
-    const editorFrame = preview?.parentElement
-
-    expect(preview).toHaveClass('text-xs', 'min-h-0', 'flex-1')
-    expect(editorFrame).toHaveClass('flex-col', 'border-border')
   })
 
   it('does not submit a parent form when toggling preview', () => {

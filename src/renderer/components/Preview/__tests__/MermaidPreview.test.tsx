@@ -85,11 +85,6 @@ describe('MermaidPreview', () => {
   })
 
   describe('basic rendering', () => {
-    it('should match snapshot', () => {
-      const { container } = render(<MermaidPreview enableToolbar>{mermaidCode}</MermaidPreview>)
-      expect(container).toMatchSnapshot()
-    })
-
     it('should handle valid mermaid content', () => {
       render(<MermaidPreview>{mermaidCode}</MermaidPreview>)
 

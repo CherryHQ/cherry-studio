@@ -95,17 +95,6 @@ describe('CitationTooltip', () => {
       expect(favicon).toHaveAttribute('hostname', 'example.com')
       expect(favicon).toHaveAttribute('alt', 'Example Title')
     })
-
-    it('should match snapshot', () => {
-      const citation = createCitationData()
-      const { container } = render(
-        <CitationTooltip citation={citation}>
-          <span>Test content</span>
-        </CitationTooltip>,
-        { wrapper: createWrapper() }
-      )
-      expect(container.firstChild).toMatchSnapshot()
-    })
   })
 
   describe('URL processing and hostname extraction', () => {

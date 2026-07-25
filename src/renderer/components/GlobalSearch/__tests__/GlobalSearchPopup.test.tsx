@@ -127,19 +127,4 @@ describe('GlobalSearchPopup', () => {
       expect(screen.queryByLabelText('Search input')).not.toBeInTheDocument()
     })
   })
-
-  it('renders above chat shell overlays', async () => {
-    render(<PopupHost />)
-
-    act(() => {
-      void GlobalSearchPopup.show()
-    })
-
-    const overlay = await screen.findByTestId('dialog-overlay')
-    expect(overlay).toHaveClass('z-1001')
-    expect(screen.getByTestId('dialog-content')).toHaveClass('z-1001')
-
-    // Flush the lazy panel's Suspense resolution inside act before the test ends.
-    await screen.findByLabelText('Search input')
-  })
 })

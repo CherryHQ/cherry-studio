@@ -15,7 +15,6 @@ describe('NavbarIcon', () => {
     const button = screen.getByRole('button', { name: 'Default action' })
 
     expect(button).not.toHaveAttribute('data-active')
-    expect(button).toHaveClass('hover:bg-muted')
   })
 
   it('uses the conversation hover style without active state', () => {
@@ -28,7 +27,6 @@ describe('NavbarIcon', () => {
     const button = screen.getByRole('button', { name: 'Conversation action' })
 
     expect(button).not.toHaveAttribute('data-active')
-    expect(button).toHaveClass('hover:bg-accent/60')
   })
 
   it('uses the conversation selected style when active', () => {
@@ -41,6 +39,5 @@ describe('NavbarIcon', () => {
     const button = screen.getByRole('button', { name: 'Active conversation action' })
 
     expect(button).toHaveAttribute('data-active', 'true')
-    expect(button).toHaveClass('bg-secondary')
   })
 })

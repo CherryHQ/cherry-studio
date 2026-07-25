@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ImageToolButton from '../ImageToolButton'
@@ -24,8 +24,14 @@ describe('ImageToolButton', () => {
     onClick: vi.fn()
   }
 
-  it('should match snapshot', () => {
-    const { asFragment } = render(<ImageToolButton {...defaultProps} />)
-    expect(asFragment()).toMatchSnapshot()
+  it('renders button content and emits click', () => {
+    render(<ImageToolButton {...defaultProps} />)
+
+    const button = screen.getByRole('button', { name: defaultProps.tooltip })
+    expect(button).toBeInTheDocument()
+    expect(screen.getByTestId('test-icon')).toBeInTheDocument()
+
+    fireEvent.click(button)
+    expect(defaultProps.onClick).toHaveBeenCalledTimes(1)
   })
 })

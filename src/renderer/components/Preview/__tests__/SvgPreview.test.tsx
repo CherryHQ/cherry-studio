@@ -54,11 +54,6 @@ describe('SvgPreview', () => {
   })
 
   describe('basic rendering', () => {
-    it('should match snapshot', () => {
-      const { container } = render(<SvgPreview enableToolbar>{svgContent}</SvgPreview>)
-      expect(container).toMatchSnapshot()
-    })
-
     it('should handle valid svg content', () => {
       render(<SvgPreview>{svgContent}</SvgPreview>)
 

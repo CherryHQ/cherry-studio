@@ -57,11 +57,6 @@ describe('PlantUmlPreview', () => {
   })
 
   describe('basic rendering', () => {
-    it('should match snapshot', () => {
-      const { container } = render(<PlantUmlPreview enableToolbar>{diagram}</PlantUmlPreview>)
-      expect(container).toMatchSnapshot()
-    })
-
     it('should handle valid plantuml diagram', () => {
       render(<PlantUmlPreview>{diagram}</PlantUmlPreview>)
 

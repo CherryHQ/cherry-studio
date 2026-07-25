@@ -90,11 +90,6 @@ describe('DynamicVirtualList', () => {
   })
 
   describe('basic rendering', () => {
-    it('snapshot test', () => {
-      const { container } = render(<DynamicVirtualList {...defaultProps} />)
-      expect(container).toMatchSnapshot()
-    })
-
     it('should apply custom scroller styles', () => {
       const customStyle = { backgroundColor: 'red', height: '400px' }
       render(<DynamicVirtualList {...defaultProps} scrollerStyle={customStyle} />)

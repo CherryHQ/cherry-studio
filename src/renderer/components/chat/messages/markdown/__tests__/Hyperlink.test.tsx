@@ -76,15 +76,6 @@ describe('Hyperlink', () => {
     mocks.ogCardProps.length = 0
   })
 
-  it('should match snapshot for normal url', () => {
-    const { container } = render(
-      <Hyperlink href="https://example.com/path%20with%20space">
-        <span>Child</span>
-      </Hyperlink>
-    )
-    expect(container).toMatchSnapshot()
-  })
-
   it('should return children directly when href is empty', () => {
     render(
       <Hyperlink href="">

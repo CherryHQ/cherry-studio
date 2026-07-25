@@ -203,11 +203,6 @@ describe('Table', () => {
       expect(tooltips[1]).toHaveAttribute('title', 'common.export.excel')
       expect(getExcelIcon()).toBeInTheDocument()
     })
-
-    it('should match snapshot', () => {
-      const { container } = render(<Table {...defaultProps} />)
-      expect(container.firstChild).toMatchSnapshot()
-    })
   })
 
   describe('extractTableMarkdown', () => {

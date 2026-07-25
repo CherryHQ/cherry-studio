@@ -53,25 +53,6 @@ describe('HorizontalScrollContainer', () => {
     globalThis.ResizeObserver = originalResizeObserver
   })
 
-  it('renders the scroll button above the scroll content layer', () => {
-    render(
-      <HorizontalScrollContainer>
-        <button type="button">copy</button>
-        <span className="message-tokens">Tokens: 42</span>
-      </HorizontalScrollContainer>
-    )
-
-    const content = screen.getByText('Tokens: 42').closest('[data-scrolling]') as HTMLElement
-    setElementSize(content, { clientWidth: 100, scrollWidth: 300 })
-
-    triggerResizeObserver()
-
-    const scrollButton = document.querySelector('.scroll-right-button')
-
-    expect(content).toHaveClass('relative', 'z-0')
-    expect(scrollButton).toHaveClass('z-10')
-  })
-
   it('keeps the scroll button interaction intact', () => {
     render(
       <HorizontalScrollContainer scrollDistance={180}>

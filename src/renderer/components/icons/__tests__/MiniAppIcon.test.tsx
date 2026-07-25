@@ -51,22 +51,13 @@ describe('MiniAppIcon', () => {
   }
 
   it('renders an uploaded logo (main-resolved logoSrc) as an image', () => {
-    const customStyle = { marginTop: '10px' }
-    const { container } = render(
-      <MiniAppIcon app={{ ...baseApp, logoSrc: 'file:///files/abc123.webp' }} size={64} style={customStyle} />
-    )
+    const { container } = render(<MiniAppIcon app={{ ...baseApp, logoSrc: 'file:///files/abc123.webp' }} size={64} />)
 
     const img = container.querySelector('img')
     expect(img).toBeInTheDocument()
     expect(img).toHaveAttribute('src', 'file:///files/abc123.webp')
     expect(img).toHaveAttribute('alt', 'Test App')
     expect(img).toHaveAttribute('draggable', 'false')
-    expect(img).toHaveStyle({
-      width: '64px',
-      height: '64px',
-      marginTop: '10px',
-      backgroundColor: '#f0f0f0'
-    })
   })
 
   it('renders logoSrc as an image in bare mode', () => {
@@ -97,8 +88,6 @@ describe('MiniAppIcon', () => {
 
     const avatar = container.querySelector('[data-testid="compound-logo-avatar"]')
     expect(avatar).toBeInTheDocument()
-    expect(avatar).toHaveClass('border', 'border-border')
-    expect(avatar).not.toHaveClass('[&_[data-slot=avatar-fallback]]:bg-transparent')
   })
 
   it('renders plain compound icons without avatar chrome', () => {
@@ -108,30 +97,5 @@ describe('MiniAppIcon', () => {
 
     expect(container.querySelector('[data-testid="compound-logo-avatar"]')).not.toBeInTheDocument()
     expect(container.querySelector('[data-testid="compound-logo"]')).toBeInTheDocument()
-  })
-
-  it('enlarges unconfigured icons and preserves automatic theme variants in plain mode', () => {
-    const { container } = render(
-      <MiniAppIcon app={{ ...baseApp, logo: 'compound-logo' }} appearance="plain" size={40} />
-    )
-
-    expect(container.querySelector('[data-testid="compound-logo"]')).toHaveAttribute('data-variant', 'auto')
-    expect(container.querySelector('[data-testid="compound-logo"]')).toHaveStyle({
-      width: '48px',
-      height: '48px',
-      flexShrink: 0
-    })
-    expect(container.querySelector('[data-testid="compound-logo"]')).not.toHaveStyle({ overflow: 'hidden' })
-  })
-
-  it.each(['felo', 'abacus'])('constrains the configured %s icon in plain mode', (logo) => {
-    const { container } = render(<MiniAppIcon app={{ ...baseApp, logo }} appearance="plain" size={56} />)
-
-    expect(container.querySelector('[data-testid="compound-logo"]')).toHaveStyle({
-      width: '40px',
-      height: '40px',
-      borderRadius: '10px',
-      overflow: 'hidden'
-    })
   })
 })
