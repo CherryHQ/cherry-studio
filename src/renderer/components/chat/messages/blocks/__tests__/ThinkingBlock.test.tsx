@@ -157,14 +157,28 @@ describe('ThinkingBlock', () => {
       expect(getContentContainer()).toHaveAttribute('hidden')
     })
 
-    it('should surface a rolling reasoning preview in the title while streaming without expanding', () => {
+    it('should keep the newest rolling reasoning visible while streaming without expanding', () => {
       const block = createThinkingBlock({
         status: 'streaming',
         content: 'First thought\n\nsecond thought\tthird thought'
       })
-      renderThinkingBlock(block)
+      const { rerender } = renderThinkingBlock(block)
+      const preview = screen.getByText('First thought second thought third thought')
+      Object.defineProperty(preview, 'scrollWidth', {
+        configurable: true,
+        value: 240
+      })
 
-      expect(screen.getByText('First thought second thought third thought')).toBeInTheDocument()
+      rerender(
+        <ThinkingBlock
+          id={block.id}
+          content={`${block.content} fourth thought`}
+          isStreaming={block.status === 'streaming'}
+        />
+      )
+
+      expect(screen.getByText('First thought second thought third thought fourth thought')).toBe(preview)
+      expect(preview.scrollLeft).toBe(240)
       expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
       expect(getContentContainer()).toHaveAttribute('hidden')
     })
