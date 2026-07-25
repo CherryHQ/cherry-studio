@@ -112,7 +112,7 @@ Pure FS primitives (src/main/utils/file/) — shared raw FS primitives, open to 
 
 Data Module dependencies (src/main/data/)
 ├── FileEntryService (data repository, pure DB) — file_entry table
-├── FileRefService (read facade) — aggregates chat/painting refs
+├── FileRefService (read facade) — aggregates all persistent source refs
 └── DataApi Handler (files.ts) — SQL-first read endpoints; no FS access, no main-side resolvers
 ```
 
@@ -1033,6 +1033,7 @@ src/main/data/                        -- data layer
   db/schemas/
     file.ts                           -- file_entry
     fileRelations.ts                  -- chat_message_file_ref / painting_file_ref / job_file_ref
+                                      -- provider_logo_file_ref / mini_app_logo_file_ref
 
 src/main/ipc/handlers/
   file.ts                            -- File IPC adapter: schema-validated routes,

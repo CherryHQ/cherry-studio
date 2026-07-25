@@ -592,7 +592,7 @@ export interface IFileManager {
 
   /**
    * Run the scan-based entry cleanup pass, then the FS-level orphan sweep
-   * (architecture §10) and the DB-level temp-session ref prune / entry
+   * (architecture §10) and the DB-level zero-ref entry
    * report (§7 Layer 3) concurrently, returning a single `OrphanReport` once
    * all three settle. The `outcome` discriminator on the report distinguishes
    * `'completed'` / `'partial'` / `'failed'` so the renderer cannot read a
@@ -783,9 +783,10 @@ export class FileManager extends BaseService implements IFileManager {
   /**
    * Run the scan-based entry cleanup pass (`runEntryCleanup`) first, then
    * the FS-level orphan sweep (file-manager-architecture §10) and the
-   * DB-level temp-session ref prune / entry report (file-manager-architecture
-   * §7 Layer 3) concurrently, returning a single `OrphanReport` once all
-   * three settle. Running the cleanup pass first means the DB sweep's
+   * DB-level zero-ref entry report (file-manager-architecture §7 Layer 3)
+   * concurrently, returning a single `OrphanReport` once all three settle.
+   * The DB pass only *reports*; it prunes nothing. Running the cleanup pass
+   * first means the DB sweep's
    * zero-ref report doesn't re-report entries the pass just reclaimed.
    * Caller-initiated via the `File_RunSweep` IPC channel, which has no renderer
    * caller today; the FS half also runs unattended on the weekly floor in
@@ -869,7 +870,7 @@ export class FileManager extends BaseService implements IFileManager {
       case 'completed':
         // DB clean; degrade umbrella to partial iff the FS sweep didn't also
         // come back clean — UI must not render "all clear" when an FS-side
-        // permission error / safety abort silently swallowed the unlink work.
+        // permission error / pending-restore stand-aside silently swallowed the unlink work.
         if (fsSweepIssue === undefined) {
           return { ...counts, outcome: 'completed', lastRunAt }
         }

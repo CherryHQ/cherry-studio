@@ -204,9 +204,7 @@ export interface FileEntryService {
    * `delete_when_unreferenced` entries are deliberately excluded: they are
    * owned by the cleanup pass (`findCleanupCandidates`), so reporting them
    * here too would double-count auto entries still pending reclamation
-   * (young, safety-aborted, or beyond the per-pass batch) as manual orphans.
-   * Temp-session refs live in CacheService and are filtered by the
-   * orphan-sweep layer.
+   * (young, or beyond the per-pass batch) as manual orphans.
    *
    * Un-parseable rows are skipped with a warning (see `rowToFileEntrySafe`).
    */

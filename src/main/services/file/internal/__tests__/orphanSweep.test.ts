@@ -187,7 +187,7 @@ describe('runDbSweep (umbrella + observability)', () => {
     const report = runDbSweep({ fileEntryService, fileRefService })
 
     expect(report.outcome).toBe('completed')
-    // The DB sweep no longer prunes temp refs — the ref pass is always empty.
+    // The DB sweep only reports; it prunes nothing.
     expect(report.orphanEntriesByOrigin.internal ?? 0).toBe(0)
     expect(typeof report.scanDurationMs).toBe('number')
 

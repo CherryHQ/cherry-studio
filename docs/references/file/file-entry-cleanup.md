@@ -109,9 +109,11 @@ Reuses the anti-join skeleton of `FileEntryService.findManualUnreferenced`:
 SELECT id FROM file_entry
 WHERE cleanup_policy = 'delete_when_unreferenced'
   AND created_at < :now - :grace
-  AND NOT EXISTS (SELECT 1 FROM chat_message_file_ref r WHERE r.file_entry_id = file_entry.id)
-  AND NOT EXISTS (SELECT 1 FROM painting_file_ref  r WHERE r.file_entry_id = file_entry.id)
-  AND NOT EXISTS (SELECT 1 FROM job_file_ref        r WHERE r.file_entry_id = file_entry.id)
+  AND NOT EXISTS (SELECT 1 FROM chat_message_file_ref    r WHERE r.file_entry_id = file_entry.id)
+  AND NOT EXISTS (SELECT 1 FROM painting_file_ref        r WHERE r.file_entry_id = file_entry.id)
+  AND NOT EXISTS (SELECT 1 FROM job_file_ref             r WHERE r.file_entry_id = file_entry.id)
+  AND NOT EXISTS (SELECT 1 FROM provider_logo_file_ref   r WHERE r.file_entry_id = file_entry.id)
+  AND NOT EXISTS (SELECT 1 FROM mini_app_logo_file_ref   r WHERE r.file_entry_id = file_entry.id)
 ORDER BY created_at
 LIMIT :batch   -- default 100 per pass
 ```
@@ -119,7 +121,8 @@ LIMIT :batch   -- default 100 per pass
 The `job_file_ref` clause is what keeps async image-generation job inputs alive: those input images / mask are `delete_when_unreferenced` entries whose ids live only in `job.input` JSON (invisible to the anti-join), so a live job holds them through a real ref row instead. Without it, a non-terminal job whose inputs aged past the grace window could have them reclaimed by a startup / interval pass before recovery resumes it, breaking `read(inputFileIds)`. Deleting the job row (terminal-row pruning) cascades the ref, releasing the inputs for reclaim.
 
 - `deleted_at` is **not** filtered: a trashed zero-ref auto entry is reclaimed too (the user already discarded it, and trash auto-expiry is deferred).
-- The unique index `(file_entry_id, source_id, role)` on each ref table backs the `NOT EXISTS` probes; at desktop scale the query is single-digit ms. A partial index on `cleanup_policy = 'delete_when_unreferenced'` is the first cheap lever if it ever measures slow (§11).
+- All **five** tables registered in `persistentFileRefTablesBySourceType` must appear — the two logo slots included, since §4.1 claims logo entries are protected by exactly these refs. Auditing coverage against a shortened example is how a reader concludes, wrongly, that logo entries are unprotected.
+- Each ref table carries a `file_entry_id` index that backs its `NOT EXISTS` probe: the collection tables through their unique `(file_entry_id, source_id, role)`, the two logo slots (which have no `role` column) through their own `*_entry_id_idx`. At desktop scale the query is single-digit ms. A partial index on `cleanup_policy = 'delete_when_unreferenced'` is the first cheap lever if it ever measures slow (§11).
 - The `NOT EXISTS` clauses MUST be generated from the `persistentFileRefTablesBySourceType` registry (`schemas/fileRelations.ts`), never hand-enumerated. A ref table missing from the anti-join makes its entire source's files look unreferenced — a catastrophe the fraction threshold (§5.3) cannot reliably catch (a source holding <50% of entries slips under it). Registry-driven generation plus a test asserting coverage of every registered table makes the omission structurally impossible.
 
 ### 5.2 Grace window
@@ -168,10 +171,9 @@ A failed candidate is logged and simply retried on the next pass — no attempt 
 ```typescript
 {
   event: 'file-entry-cleanup',
-  outcome: 'completed' | 'failed',   // no 'aborted' — the volume abort was removed (§5.3)
+  outcome: 'completed' | 'skipped' | 'failed',   // no 'aborted' — the volume abort was removed (§5.3)
   candidates: number,
   deleted: number,
-  skippedTempRefs: number,
   skippedRefsReappeared: number,
   gonePinned: number,          // vanished or upgraded to manual (ensureExternal reuse) between query and tx
   failed: number,              // per-candidate throws; retried next pass
@@ -180,6 +182,8 @@ A failed candidate is logged and simply retried on the next pass — no attempt 
   // 'failed': errorMessage: string (raw error also logged for the stack)
 }
 ```
+
+`'skipped'` is the pending-staged-restore stand-aside (§5.5): the pass ran, found the gate closed, and reclaimed nothing. Every count is zero and no candidate was examined — deliberately distinct from a `'completed'` pass that found nothing, so a restore window is never mistaken for a quiet one. It logs at `info` (a `'completed'`-level event, not a failure).
 
 ## 6. Race and Failure Analysis
 
@@ -191,7 +195,9 @@ A failed candidate is logged and simply retried on the next pass — no attempt 
 | New persistent ref races the delete | Serialized writes decide order. Ref insert commits first → step 3 sees it. Delete commits first → ref insert fails FK validation (same failure mode the business flow already has against explicit `permanentDelete`). |
 | Send pipeline: entry created, refs not yet written | Protected by the 1h `created_at` grace window; a crashed send's orphan is collected after the window. |
 | Policy upgraded to `manual` (ensureExternal reuse) between query and tx | Step 2 re-check skips; counted as `gonePinned`. |
-| Crash after row delete, before unlink | Blob becomes an FS orphan; existing `runFileSweep` reclaims it. |
+| Crash after row delete, before unlink | Blob becomes an FS orphan; `runFileSweep` reclaims it on the daily floor in `FileManager.fileSweepTick` (the `File_RunSweep` IPC has no renderer caller). |
+| Unlink fails outright (EACCES / EBUSY / EIO) | Row is still deleted and `unlinkFailures` incremented — the row is the source of truth, and keeping it would retry the same failing unlink forever. Same FS-orphan fate as the row above. |
+| Staged restore pending when the pass fires | Gate closed (§5.5): outcome `'skipped'`, nothing examined. A restore's blobs are on disk but not yet referenced by the live DB — exactly what the pass would reclaim. |
 | Crash mid-pass | No state to recover; the next pass re-derives candidates. |
 | Classification/migration bug creates a huge candidate set | No volume abort (§5.3): reclamation proceeds. The residual risk is bounded structurally — no runtime `manual → auto` path (§4.2), coverage guarded by the registry + reflection test (§5.1 / §9), creation surfaces `cleanupPolicy`-required + value-locked. |
 
@@ -274,4 +280,4 @@ Revisit the discovery mechanism only when measurement demands it, in this order:
 
 ## 12. Adding a New Persistent File Ref Source
 
-Unchanged from the existing checklist (`architecture.md` §5.2b): add the FK-constrained association table, register it in `persistentFileRefTablesBySourceType`, join `FileRefService` aggregation and the unreferenced/persistent-count queries, add tests. Because the candidate query is generated from that registry (§5.1), the cleanup pass automatically covers any registered table — there is no cleanup-specific registration step, and the coverage test fails if registration is forgotten.
+Unchanged from the existing checklist (`architecture.md` §5.2 → *(2) Developer Checklist for Adding a New sourceType*): add the FK-constrained association table, register it in `persistentFileRefTablesBySourceType`, join `FileRefService` aggregation and the unreferenced/persistent-count queries, add tests. Because the candidate query is generated from that registry (§5.1), the cleanup pass automatically covers any registered table — there is no cleanup-specific registration step, and the coverage test fails if registration is forgotten.

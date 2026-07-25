@@ -657,10 +657,10 @@ export interface FileIpcApi {
 
   /**
    * Run the scan-based entry cleanup pass, then both the FS-level orphan
-   * sweep (architecture §10) and the DB-level temp-session ref prune / entry
+   * sweep (architecture §10) and the DB-level zero-ref entry
    * report (§7 Layer 3) concurrently. Returns once all three settle, with the
    * umbrella discriminated outcome surfaced through the report's `outcome`
-   * field (`'completed'` / `'partial'` / `'failed'`); the cleanup pass's own
+   * field (`'completed'` / `'partial'` / `'aborted'` / `'failed'`); the cleanup pass's own
    * outcome rides in `entryCleanup` without affecting it.
    *
    * DB failures dominate as `failed`; FS-side partial/aborted/failed outcomes

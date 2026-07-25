@@ -1,7 +1,8 @@
 /**
  * Orphan-sweep wire types — shared between the main-process implementation
- * (`src/main/services/file/internal/orphanSweep.ts`) and the renderer-side
- * cleanup-UI consumer that calls the `File_RunSweep` IPC channel.
+ * (`src/main/services/file/internal/orphanSweep.ts`) and the `File_RunSweep`
+ * IPC channel. The channel is exposed on preload but has no renderer caller
+ * today; the FS half also runs unattended from `FileManager.fileSweepTick`.
  *
  * Living in shared so the FileIpcApi interface can name `OrphanReport`
  * without crossing the main / renderer boundary.
@@ -83,7 +84,7 @@ export type OrphanReport =
 /**
  * Narrow wire summary of an `EntryCleanupReport` (`internal/entryCleanup.ts`)
  * for consumers that only need the headline numbers, not the full internal
- * breakdown (skipped-temp-refs / skipped-refs-reappeared / unlink-failure
+ * breakdown (skipped-refs-reappeared / gone-or-pinned / unlink-failure
  * counts, timing).
  *
  * **Consumers MUST check `outcome` independently of the umbrella `OrphanReport.outcome`.**
