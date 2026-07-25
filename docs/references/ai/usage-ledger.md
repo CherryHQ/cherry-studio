@@ -72,7 +72,7 @@ not recalculate historical cost on every render.
   -------------------------------------------------------------------------
   AiService.streamText / generateText
     builds every aiSdk Agent request
-    -> billingHookPart(...).onFinish -> UsageLedgerService.recordRequest()
+    -> createBillingHook(...).onFinish -> UsageLedgerService.recordRequest()
 
   AiService.embedMany / generateImage
     use non-Agent SDK APIs
@@ -103,7 +103,8 @@ not recalculate historical cost on every render.
 Design rules:
 
 1. **Capture at request boundaries.** aiSdk text requests are captured from
-   `AiService.billingHookPart`; embeddings and image generation are captured
+   the billing hook (`src/main/ai/hooks/billingHook.ts`); embeddings and image
+   generation are captured
    at their `AiService` call sites because they do not construct an Agent.
 2. **Converge chat writes by row key.** Chat requests use the assistant
    message id as `messageId`, so the live billing funnel and durable
@@ -223,7 +224,7 @@ chat messages plus agent-session messages into `usage_ledger`.
 
 | Path | Covers | Mechanism |
 | --- | --- | --- |
-| `AiService.billingHookPart` | aiSdk text requests: chat, API gateway, translate, topic rename, discarded temp chats | `onFinish` -> fire-and-forget `recordRequest`; row key is assistant message id for chat or generated request id for stateless calls |
+| `createBillingHook` (`src/main/ai/hooks/billingHook.ts`) | aiSdk text requests: chat, API gateway, translate, topic rename, discarded temp chats | `onFinish` -> fire-and-forget `recordRequest`; row key is assistant message id for chat or generated request id for stateless calls |
 | `AiService.embedMany` | Embedding calls | Direct `recordRequest` with `modality = 'embedding'`; token-priced from input pricing |
 | `AiService.generateImage` | Image generation | Direct `recordRequest` with `modality = 'image'` and `imageCount`; per-image pricing when available |
 | `MessageService.update` | Persisted assistant chat messages | Post-commit `recordFromMessage`; converges with the billing funnel on the message id |
@@ -249,15 +250,13 @@ Lists raw request rows with offset pagination.
 Query:
 
 - `page`, `limit` (default 50, max 200);
-- `providerId`;
-- `apiKeyId`;
 - `from`, `to` (epoch milliseconds);
 - `sortBy`: `createdAt`, `totalTokens`, `cost`, `timeFirstTokenMs`,
   `tokensPerSecond`;
-- `sortDirection`: `asc`, `desc`.
+- `sortOrder`: `asc`, `desc`.
 
-Rows are sorted with null metric values last, then by `createdAt desc` and
-`id asc` for stable ordering. Provider display names are resolved from the
+Rows sorted by a nullable metric place null values last; ordering is then
+stabilised by `id asc`. Provider display names are resolved from the
 current provider table when the stored snapshot is missing or only equals the
 provider id.
 
@@ -273,7 +272,6 @@ Aggregates usage and cost by one dimension:
 Query:
 
 - `groupBy` (required);
-- optional `providerId`;
 - optional `from`, `to`.
 
 `costCurrency` always participates in the group key. Different currencies are

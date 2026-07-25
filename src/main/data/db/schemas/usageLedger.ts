@@ -15,7 +15,7 @@ import { createUpdateTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
  * deleted.
  *
  * Rows are written by `recordRequest`/`recordFromMessage` from two converging
- * sources: a billing funnel in the AI pipeline (`AiService.billingHookPart`,
+ * sources: a billing funnel in the AI pipeline (`createBillingHook`,
  * plus the `embedMany`/`generateImage` call sites) and post-commit data-layer
  * hooks (`MessageService.update`, `TemporaryChatService.persist`,
  * `AgentSessionMessageService.saveMessage`). One row per `messageId` (the

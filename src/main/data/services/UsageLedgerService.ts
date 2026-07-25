@@ -6,7 +6,7 @@
  * describe (the table has no foreign keys by design).
  *
  * Rows are recorded from two converging sources: a billing funnel in the AI
- * pipeline (`AiService.billingHookPart`, plus the `embedMany`/`generateImage`
+ * pipeline (`createBillingHook`, plus the `embedMany`/`generateImage`
  * call sites) fires `recordRequest` per request, and post-commit data-layer
  * hooks (`MessageService.update`, `TemporaryChatService.persist`,
  * `AgentSessionMessageService.saveMessage`) fire `recordFromMessage` /

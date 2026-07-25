@@ -92,7 +92,7 @@ vi.mock('@cherrystudio/ai-core', () => ({
 
 vi.mock('@main/data/services/UsageLedgerService', () => ({
   usageLedgerService: {
-    // Always resolve so the fire-and-forget `.catch(...)` in billingHookPart works.
+    // Always resolve so the fire-and-forget `.catch(...)` in the billing hook works.
     recordRequest: (...args: unknown[]) => {
       mockRecordRequest(...args)
       return Promise.resolve()
