@@ -20,16 +20,26 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
-function createAdapter(overrides: Partial<ConstructorParameters<typeof ClaudeCodeStreamAdapter>[0]> = {}) {
+/**
+ * The adapter is session-scoped, so content only flows inside a turn. These cases all exercise
+ * in-turn behaviour, so the turn is opened by default; pass `openTurn: false` to assert what a
+ * turn-less connection does with a message.
+ */
+function createAdapter(
+  overrides: Partial<ConstructorParameters<typeof ClaudeCodeStreamAdapter>[0]> = {},
+  { openTurn = true }: { openTurn?: boolean } = {}
+) {
   const parts: CherryUIMessageChunk[] = []
   const sessionIds: string[] = []
   const adapter = new ClaudeCodeStreamAdapter({
     modelId: 'sonnet',
+    sessionId: 'session-1',
     streamOptions: { prompt: [] } as any,
     sink: { enqueue: (part) => parts.push(part) },
     onSessionId: (sessionId) => sessionIds.push(sessionId),
     ...overrides
   })
+  if (openTurn) adapter.beginTurn()
   return { adapter, parts, sessionIds }
 }
 
@@ -879,5 +889,90 @@ describe('ClaudeCodeStreamAdapter', () => {
 
     expect(parts.map((part) => part.type)).toContain('tool-output-error')
     expect(parts.map((part) => part.type)).not.toContain('tool-output-denied')
+  })
+
+  // The adapter now lives for the whole connection, so a turn must start from clean state. This is
+  // the guarantee `createTurnContext` exists for — resetting fields individually would leak whichever
+  // one a later change forgets.
+  describe('session-scoped lifecycle', () => {
+    it('starts each turn from clean state instead of carrying the previous one', () => {
+      const { adapter, parts } = createAdapter()
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'first turn' } })
+      )
+      adapter.handleMessage(successResult())
+      const firstTurnParts = parts.length
+
+      adapter.beginTurn()
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'second' } })
+      )
+
+      // A leaked `streamedTextLength` / `accumulatedText` would make the second turn emit a delta
+      // diffed against the first turn's text instead of the whole string.
+      const secondTurnParts = parts.slice(firstTurnParts)
+      expect(secondTurnParts.some((part) => part.type === 'text-delta' && part.delta === 'second')).toBe(true)
+    })
+
+    it('drops turn content that arrives with no turn open, and says so', () => {
+      const { adapter, parts } = createAdapter({}, { openTurn: false })
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'orphan' } })
+      )
+
+      expect(parts).toEqual([])
+      expect(loggerMocks.debug).toHaveBeenCalledWith(
+        'Dropping message received with no active turn',
+        expect.objectContaining({ type: 'stream_event' })
+      )
+    })
+
+    it('advances the resume token but reports no turn to complete for a stray result', () => {
+      const { adapter, parts, sessionIds } = createAdapter({}, { openTurn: false })
+
+      const result = adapter.handleMessage(successResult({ session_id: 'resume-stray' }))
+
+      expect(result).toEqual({ type: 'continue' })
+      expect(sessionIds).toEqual(['resume-stray'])
+      expect(parts).toEqual([])
+      expect(loggerMocks.warn).toHaveBeenCalledWith(
+        'Received a result message with no active turn; dropping turn-complete',
+        { sessionId: 'session-1' }
+      )
+    })
+
+    it('holds init metadata until a turn opens, since it is turn content', () => {
+      const { adapter, parts, sessionIds } = createAdapter({}, { openTurn: false })
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'init',
+        session_id: 'sdk-primed',
+        uuid: crypto.randomUUID(),
+        mcp_servers: [],
+        model: 'claude-sonnet',
+        tools: [],
+        cwd: '/tmp',
+        claude_code_version: '1.0.0',
+        apiKeySource: 'none',
+        permissionMode: 'default',
+        slash_commands: [],
+        output_style: 'default',
+        skills: [],
+        plugins: []
+      } as any)
+
+      // The resume token is session state and applies at once; the metadata chunk waits for a turn.
+      expect(sessionIds).toEqual(['sdk-primed'])
+      expect(parts).toEqual([])
+
+      adapter.beginTurn()
+
+      expect(parts).toEqual([
+        expect.objectContaining({ type: 'message-metadata', messageMetadata: { modelId: 'sonnet' } })
+      ])
+    })
   })
 })

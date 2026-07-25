@@ -70,25 +70,50 @@ vi.mock('../streamAdapter', () => ({
   }),
   ClaudeCodeStreamAdapter: class {
     readonly finalizeOpenParts = vi.fn()
+    // Mirrors the real adapter: session-scoped, content only flows inside a turn.
+    private turnActive = false
+    private pendingInit: any
 
     constructor(private readonly options: any) {
       mocks.adapterInstances.push(this)
     }
 
+    get isTurnActive() {
+      return this.turnActive
+    }
+
+    beginTurn() {
+      this.turnActive = true
+      if (this.pendingInit) {
+        this.pendingInit = undefined
+        this.emitInitMetadata()
+      }
+    }
+
+    private emitInitMetadata() {
+      this.options.sink.enqueue({ type: 'message-metadata', messageMetadata: { modelId: 'sonnet-sdk' } })
+    }
+
     handleTruncationError(error: any) {
       if (!String(error?.message ?? '').includes('truncat')) return false
+      this.turnActive = false
       this.options.sink.enqueue({ type: 'text-delta', id: 'salvaged', delta: ' [truncated]' })
       this.options.sink.enqueue({ type: 'finish', finishReason: { unified: 'length', raw: 'truncation' } })
       return true
     }
 
     handleMessage(message: any) {
+      if (message.type !== 'system' && !this.turnActive) {
+        if (message.type === 'result') this.options.onSessionId(message.session_id)
+        return { type: 'continue' }
+      }
       if (message.type === 'truncate-now') {
         throw new Error('Claude Code SDK output ended unexpectedly; truncated response')
       }
       if (message.type === 'system' && message.subtype === 'init') {
         this.options.onSessionId(message.session_id)
-        this.options.sink.enqueue({ type: 'message-metadata', messageMetadata: { modelId: 'sonnet-sdk' } })
+        if (!this.turnActive) this.pendingInit = message
+        else this.emitInitMetadata()
         return { type: 'continue' }
       }
       if (message.type === 'stream_event') {
@@ -98,6 +123,7 @@ vi.mock('../streamAdapter', () => ({
       if (message.type === 'result') {
         this.options.onSessionId(message.session_id)
         this.options.sink.enqueue({ type: 'finish', finishReason: { unified: 'stop', raw: 'end_turn' } })
+        this.turnActive = false
         if (message.subtype !== 'success') throw new Error('runtime failed')
         return { type: 'result', sessionId: message.session_id, message }
       }
@@ -1358,7 +1384,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
-  it('warns and drops turn-complete when a result arrives with no active turn', async () => {
+  it('advances the resume token but opens no turn when a result arrives with none active', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
     mocks.createClaudeQuery.mockReturnValue(query)
@@ -1369,16 +1395,14 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     const events = connection.events[Symbol.asyncIterator]()
 
-    // No `send()` -> no active adapter; a stray result must not be silently dropped.
+    // No `send()` -> no turn open. The resume token still advances (it is session state), but no
+    // turn-complete is emitted. The warning itself now belongs to the adapter, which owns the
+    // turn flag, so it is asserted in streamAdapter.test.ts rather than here.
     queryQueue.push({ type: 'result', subtype: 'success', session_id: 'resume-stray', usage: {} })
 
     await expect(events.next()).resolves.toMatchObject({
       value: { type: 'resume-token', token: 'resume-stray' }
     })
-    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-      'Received a result message with no active turn; dropping turn-complete',
-      { sessionId: 'session-1' }
-    )
 
     // The stream closes with no turn-complete emitted for the stray result.
     queryQueue.close()

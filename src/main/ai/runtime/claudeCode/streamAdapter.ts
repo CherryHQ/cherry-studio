@@ -104,6 +104,8 @@ type StreamContext = {
 
 export type ClaudeCodeStreamAdapterOptions = {
   modelId: string
+  /** Cherry session id — for logs only; `onSessionId` reports the runtime's own id. */
+  sessionId: string
   streamOptions: Parameters<LanguageModelV3['doStream']>[0]
   sink: StreamSink
   onSessionId?: (sessionId: string) => void
@@ -272,18 +274,37 @@ function mapTaskStatus(status: SDKTaskStatus): AgentTaskEventPartData['status'] 
 }
 
 export class ClaudeCodeStreamAdapter {
-  private readonly ctx: StreamContext
+  private ctx: StreamContext
   private readonly modelId: string
+  private readonly sessionId: string
+  private readonly sink: StreamSink
+  private readonly streamOptions: ClaudeCodeStreamAdapterOptions['streamOptions']
   private readonly onSessionId?: (sessionId: string) => void
   private readonly mcpToolMetadata: Record<string, McpToolDisplayMetadata>
+  /** Content belongs to a turn's message stream; outside one there is nowhere for it to land. */
+  private turnActive = false
+  /** `system/init` can arrive before the first turn opens, so its metadata chunk waits for one. */
+  private pendingInit?: Extract<SDKMessage, { subtype: 'init' }>
 
   constructor(options: ClaudeCodeStreamAdapterOptions) {
     this.modelId = options.modelId
+    this.sessionId = options.sessionId
+    this.sink = options.sink
+    this.streamOptions = options.streamOptions
     this.onSessionId = options.onSessionId
     this.mcpToolMetadata = options.mcpToolMetadata ?? {}
-    this.ctx = {
-      sink: options.sink,
-      options: options.streamOptions,
+    this.ctx = this.createTurnContext()
+  }
+
+  /**
+   * The single construction site for per-turn state. Annotating the return type makes TypeScript's
+   * missing-property check the guarantee that a turn starts clean — resetting fields individually
+   * would silently leak whichever one a later change forgets.
+   */
+  private createTurnContext(): StreamContext {
+    return {
+      sink: this.sink,
+      options: this.streamOptions,
       toolStates: new Map(),
       activeTaskTools: new Map(),
       toolBlocksByIndex: new Map(),
@@ -304,7 +325,40 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
+  /** Whether a turn is open. Turn-scoped session status (an API retry) is gated on this. */
+  get isTurnActive(): boolean {
+    return this.turnActive
+  }
+
+  /** Opens a turn on the session-scoped adapter, discarding the previous turn's state wholesale. */
+  beginTurn(): void {
+    this.ctx = this.createTurnContext()
+    this.turnActive = true
+    if (this.pendingInit) {
+      const init = this.pendingInit
+      this.pendingInit = undefined
+      this.handleInitSystemMessage(init, this.ctx)
+    }
+  }
+
   handleMessage(message: SDKMessage): ClaudeCodeStreamAdapterResult {
+    // System messages carry session-scoped status and dispatch at any time; everything else is turn
+    // content, which has no stream to land in once the turn has ended.
+    if (message.type !== 'system' && !this.turnActive) {
+      if (message.type === 'result') {
+        this.setSessionId(message.session_id)
+        logger.warn('Received a result message with no active turn; dropping turn-complete', {
+          sessionId: this.sessionId
+        })
+      } else {
+        logger.debug('Dropping message received with no active turn', {
+          sessionId: this.sessionId,
+          type: message.type
+        })
+      }
+      return { type: 'continue' }
+    }
+
     switch (message.type) {
       case 'stream_event':
         this.handleStreamEvent(message, this.ctx)
@@ -317,6 +371,7 @@ export class ClaudeCodeStreamAdapter {
         return { type: 'continue' }
       case 'result':
         this.handleResultMessage(message, this.ctx)
+        this.turnActive = false
         return { type: 'result', sessionId: message.session_id, message }
       case 'system':
         this.handleSystemMessage(message, this.ctx)
@@ -325,12 +380,9 @@ export class ClaudeCodeStreamAdapter {
     return { type: 'continue' }
   }
 
-  finalizeOpenParts(): void {
-    this.finalizeToolCalls(this.ctx)
-  }
-
   handleTruncationError(error: unknown): boolean {
     if (!this.ctx.sawAbortedMessage && !isClaudeCodeTruncationError(error, this.ctx.accumulatedText)) return false
+    this.turnActive = false
 
     logger.warn(
       `Detected truncated stream response, returning ${this.ctx.accumulatedText.length} chars of buffered text`
@@ -923,8 +975,14 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private handleInitSystemMessage(message: Extract<SDKMessage, { subtype: 'init' }>, ctx: StreamContext): void {
-    this.logMcpConnectionIssues(message.mcp_servers)
     this.setSessionId(message.session_id)
+    // A primed connection initializes before any turn opens. The resume token above is session state
+    // and applies immediately, but the metadata chunk is turn content, so it waits for `beginTurn`.
+    if (!this.turnActive) {
+      this.pendingInit = message
+      return
+    }
+    this.logMcpConnectionIssues(message.mcp_servers)
     logger.info(`Stream session initialized: ${message.session_id}`)
     ctx.sink.enqueue({ type: 'message-metadata', messageMetadata: { modelId: this.modelId } })
   }

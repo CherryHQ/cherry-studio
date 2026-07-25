@@ -8,7 +8,6 @@ import {
   type SDKMessage,
   type SDKResultMessage,
   type SDKStatusMessage,
-  type SDKSystemMessage,
   type SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
 import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
@@ -149,11 +148,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private readonly sdkInputQueue = new SdkInputQueue()
   private readonly abortController = new AbortController()
   private query?: Query
+  /** Session-scoped: dispatches every message for the connection's lifetime, resetting per turn. */
   private adapter?: ClaudeCodeStreamAdapter
   private adapterModelId?: string
   private approvalEmitter?: ToolApprovalEmitterHolder
   private mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
-  private pendingInitMessage?: SDKSystemMessage
   private resumeToken?: string
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
   private steerHolder?: SteerHolder
@@ -213,12 +212,15 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       ? warmQuery.query(this.sdkInputQueue)
       : createClaudeQuery({ prompt: this.sdkInputQueue, options })
     this.adapterModelId = request.sdkModelId
+    this.mcpToolMetadata = request.settings.mcpToolMetadata
+    // Session-scoped: it must exist before the query loop starts so `system/init` — which can land
+    // before any turn opens — is dispatched by the adapter rather than parked by the driver.
+    this.adapter = this.createAdapter(this.adapterModelId ?? this.input.modelId)
     this.approvalEmitter = request.settings.approvalEmitter
     // Bind the approval emit once for the connection's lifetime — it only pushes into the connection
     // event queue, so it never varies per turn. (The prior per-turn rebind was the mirror of the
     // now-removed per-turn dispose; both gone, the emitter is plainly session-scoped.)
     this.bindApprovalEmitter()
-    this.mcpToolMetadata = request.settings.mcpToolMetadata
     this.toolPolicySnapshot = request.settings.toolPolicySnapshot
     this.steerHolder = request.settings.steerHolder
     // Arm a `steer-boundary` when the PreToolUse hook injects a steer this turn. Bound on the live
@@ -238,12 +240,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   async send(input: AgentRuntimeUserInput): Promise<void> {
-    this.adapter = this.createAdapter(this.adapterModelId ?? this.input.modelId)
-
-    if (this.pendingInitMessage) {
-      this.adapter.handleMessage(this.pendingInitMessage)
-      this.pendingInitMessage = undefined
-    }
+    this.adapter?.beginTurn()
 
     this.sdkInputQueue.push(
       await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
@@ -256,7 +253,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // The hook can only inject text. Decline attachments so the host owns them immediately and queues
     // them as the next SDK turn instead of leaving them in session-scoped state until this turn ends.
     const hasAttachments = input.message.data?.parts?.some((part) => part.type !== 'text') ?? false
-    if (!this.adapter || !this.steerHolder || hasAttachments) return false
+    // A steer is only injectable into a running turn. The adapter now lives for the whole connection,
+    // so its turn flag — not its existence — is what reports whether one is open.
+    if (!this.adapter?.isTurnActive || !this.steerHolder || hasAttachments) return false
     // Stash for the PreToolUse steer hook to inject as `additionalContext` before the next tool runs.
     // If the turn ends with no tool call, runQueryLoop emits `steer-undelivered` and the host queues it.
     this.steerHolder.pending.push(input)
@@ -363,14 +362,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private async runQueryLoop(): Promise<void> {
     try {
       for await (const message of this.query!) {
-        if (message.type === 'system' && message.subtype === 'init') {
-          this.updateResumeToken(message.session_id)
-          if (!this.adapter) {
-            this.pendingInitMessage = message
-            continue
-          }
-        }
-
         if (
           message.type === 'system' &&
           isCompactionSystemMessage(message) &&
@@ -393,36 +384,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           continue
         }
 
-        if (!this.adapter) {
-          if (message.type === 'result') {
-            this.updateResumeToken(message.session_id)
-            logger.warn('Received a result message with no active turn; dropping turn-complete', {
-              sessionId: this.input.sessionId
-            })
-          } else {
-            // Background agents and tasks can keep emitting after their turn's result. Their
-            // membership snapshot is routed above; the rest (per-task progress, the detached
-            // agent's own content) has no turn stream to land in, so it is dropped — logged rather
-            // than vanishing silently.
-            logger.debug('Dropping message received with no active turn', {
-              sessionId: this.input.sessionId,
-              type: message.type,
-              subtype: 'subtype' in message ? message.subtype : undefined
-            })
-          }
-          continue
-        }
-
         // A failed API request is backing off before a retry. Surface it as ephemeral session status
         // (the host writes it to shared cache) instead of letting the adapter drop it — the renderer
         // shows "Retrying 7/10 in 36s". Never enters the persisted message stream.
         //
-        // Deliberately gated on an active turn (below the no-adapter drop): retry status is turn-scoped
+        // Deliberately gated on an active turn: retry status is turn-scoped
         // (it renders in the active turn's message stream), and only a turn guarantees a clear boundary —
         // the turn ends with a chunk / turn-complete / error, all of which clear it. A prewarm/turn-less
         // connection's retry would have no message to attach to and no such boundary (init recovery only
         // emits a resume-token), so it must not enter the retry state at all.
-        if (message.type === 'system' && message.subtype === 'api_retry') {
+        if (message.type === 'system' && message.subtype === 'api_retry' && this.adapter?.isTurnActive) {
           this.eventQueue.push({
             type: 'api-retry',
             retry: {
@@ -438,7 +409,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
         // A subagent backing off on its own rate limit — same shape as the turn-level retry above,
         // so it reuses that status surface rather than adding a parallel one.
-        if (message.type === 'tool_progress' && message.subagent_retry) {
+        if (message.type === 'tool_progress' && message.subagent_retry && this.adapter?.isTurnActive) {
           const retry = message.subagent_retry
           this.eventQueue.push({
             type: 'api-retry',
@@ -468,7 +439,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           this.steerBoundaryPending = undefined
         }
 
-        const result = this.adapter.handleMessage(message)
+        // `start()` builds the adapter before the loop, so it is always present here.
+        const result = this.adapter!.handleMessage(message)
         if (result.type === 'result') {
           this.updateResumeToken(result.sessionId)
           // The steer was injected but no post-steer top-level assistant message followed (rare; the
@@ -480,7 +452,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           // the chunk shape identical to `attachUsageObserver` (AI SDK runtime).
           this.emitUsageMetadata(result.message.usage)
           void this.emitContextUsage()
-          this.adapter = undefined
           // NOTE: do NOT dispose the approval emitter here. It is session-scoped — it lives across
           // turns on the warm connection and is torn down only on close/error (below). Disposing it
           // per turn evicted the session emitter, so the next turn's `canUseTool` resolved no emitter
@@ -504,7 +475,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           error
         })
       }
-      this.adapter = undefined
       // The query stream ended (errored) → the connection is dead; tear the whole session down here
       // rather than relying on a later close() to dispose the steer holder / snapshot.
       this.emitPendingSteersAsUndelivered()
@@ -519,6 +489,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private createAdapter(modelId: string): ClaudeCodeStreamAdapter {
     return new ClaudeCodeStreamAdapter({
       modelId,
+      sessionId: this.input.sessionId,
       streamOptions: {} as never,
       sink: {
         enqueue: (chunk) => this.eventQueue.push({ type: 'chunk', chunk })
