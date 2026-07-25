@@ -42,6 +42,9 @@ export function createChatStreamLifecycle(gracePeriodMs: number): StreamLifecycl
     onPromotedToStreaming(stream) {
       broadcast(stream, 'streaming')
     },
+    onApprovalPendingChanged(stream) {
+      broadcast(stream, stream.status)
+    },
     onTerminal(stream) {
       broadcast(stream, stream.status)
     },
