@@ -378,6 +378,7 @@ function UsageDistributionHoverCard({
   )
 }
 
+/** Spend per currency, biggest spender first. Currencies without spend are not page-scope options. */
 function getCostTotals(buckets: UsageLedgerStatsBucket[]): { currency: string; total: number }[] {
   const totals = new Map<string, number>()
 
@@ -390,9 +391,83 @@ function getCostTotals(buckets: UsageLedgerStatsBucket[]): { currency: string; t
     totals.set(currency, (totals.get(currency) ?? 0) + bucket.totalCost)
   }
 
-  return Array.from(totals, ([currency, total]) => ({ currency, total })).sort((a, b) =>
-    a.currency.localeCompare(b.currency)
+  return Array.from(totals, ([currency, total]) => ({ currency, total })).sort(
+    (a, b) => b.total - a.total || a.currency.localeCompare(b.currency)
   )
+}
+
+/** Cost outside the page-scoped currency is not this page's cost — only its tokens count. */
+function getScopedCost(bucket: { costCurrency: string | null; totalCost: number }, currency?: string): number {
+  return currency !== undefined && (bucket.costCurrency ?? DEFAULT_COST_CURRENCY) === currency ? bucket.totalCost : 0
+}
+
+/**
+ * Collapse the per-currency splits `stats()` returns into one bucket per display
+ * identity. Tokens and requests are currency-independent and sum across the
+ * split (a row with no resolved cost still counts); cost stays scoped to
+ * `currency`, so two currencies are never added together.
+ */
+function mergeStatsBuckets(buckets: UsageLedgerStatsBucket[], currency?: string): UsageLedgerStatsBucket[] {
+  const merged = new Map<string, UsageLedgerStatsBucket>()
+
+  for (const bucket of buckets) {
+    const key = getBucketKey(bucket)
+    const existing = merged.get(key)
+
+    if (!existing) {
+      merged.set(key, {
+        ...bucket,
+        costCurrency: currency ?? null,
+        totalCost: getScopedCost(bucket, currency)
+      })
+      continue
+    }
+
+    existing.totalCost += getScopedCost(bucket, currency)
+    existing.totalInputTokens += bucket.totalInputTokens
+    existing.totalOutputTokens += bucket.totalOutputTokens
+    existing.totalTokens += bucket.totalTokens
+    existing.totalNoCacheTokens += bucket.totalNoCacheTokens
+    existing.totalCacheReadTokens += bucket.totalCacheReadTokens
+    existing.totalCacheWriteTokens += bucket.totalCacheWriteTokens
+    existing.entryCount += bucket.entryCount
+    // Snapshot labels are taken per split, so one split may carry a name the
+    // other lost; never let the merged row fall back to a raw id needlessly.
+    existing.providerName ??= bucket.providerName
+    existing.sourceName ??= bucket.sourceName
+    existing.sourceIcon ??= bucket.sourceIcon
+    existing.apiKeyLabel ??= bucket.apiKeyLabel
+    existing.apiKeyMasked ??= bucket.apiKeyMasked
+  }
+
+  return Array.from(merged.values())
+}
+
+/** {@link mergeStatsBuckets} for the daily timeline, whose display identity is the date. */
+function mergeTimelineBuckets(buckets: UsageLedgerTimelineBucket[], currency?: string): UsageLedgerTimelineBucket[] {
+  const merged = new Map<string, UsageLedgerTimelineBucket>()
+
+  for (const bucket of buckets) {
+    const existing = merged.get(bucket.date)
+
+    if (!existing) {
+      merged.set(bucket.date, {
+        ...bucket,
+        costCurrency: currency ?? null,
+        totalCost: getScopedCost(bucket, currency)
+      })
+      continue
+    }
+
+    existing.totalCost += getScopedCost(bucket, currency)
+    existing.totalTokens += bucket.totalTokens
+    existing.totalNoCacheTokens += bucket.totalNoCacheTokens
+    existing.totalCacheReadTokens += bucket.totalCacheReadTokens
+    existing.totalCacheWriteTokens += bucket.totalCacheWriteTokens
+    existing.entryCount += bucket.entryCount
+  }
+
+  return Array.from(merged.values())
 }
 
 function getCacheUsageMetrics(
@@ -416,8 +491,9 @@ function getCacheUsageMetrics(
   }
 }
 
+/** Display identity of a bucket — unique per rendered row once the currency splits are merged. */
 function getBucketKey(bucket: UsageLedgerStatsBucket): string {
-  return `${bucket.providerId ?? ''}-${bucket.sourceType ?? ''}-${bucket.sourceId ?? ''}-${bucket.apiKeyId ?? ''}-${bucket.modelId ?? ''}-${bucket.costCurrency ?? ''}`
+  return `${bucket.providerId ?? ''}-${bucket.sourceType ?? ''}-${bucket.sourceId ?? ''}-${bucket.apiKeyId ?? ''}-${bucket.modelId ?? ''}`
 }
 
 function getMetricValue(bucket: UsageLedgerStatsBucket, metric: UsageMetricKey): number {
@@ -681,6 +757,7 @@ function UsageSettings() {
   const [chartMetric, setChartMetric] = useState<UsageMetricKey>('tokens')
   const [chartType, setChartType] = useState<UsageChartType>('stack')
   const [selectedDate, setSelectedDate] = useState<string | undefined>()
+  const [selectedCurrency, setSelectedCurrency] = useState<string | undefined>()
   const [heatmapMetric, setHeatmapMetric] = useState<UsageHeatmapMetric>('tokens')
   const [entrySortBy, setEntrySortBy] = useState<UsageLedgerListSortBy>('createdAt')
   const [entrySortOrder, setEntrySortOrder] = useState<UsageLedgerSortOrder>('desc')
@@ -740,13 +817,27 @@ function UsageSettings() {
     limit: ENTRY_PAGE_SIZE
   })
 
-  const timelineBuckets = timelineQueryResult.data?.buckets ?? EMPTY_TIMELINE_BUCKETS
-  const overviewBuckets = overviewStatsResult.data?.buckets ?? EMPTY_STATS_BUCKETS
+  const timelineRows = timelineQueryResult.data?.buckets ?? EMPTY_TIMELINE_BUCKETS
+  const overviewRows = overviewStatsResult.data?.buckets ?? EMPTY_STATS_BUCKETS
   // The disabled query still yields its last data (keepPreviousData), so gate on the range itself.
-  const previousOverviewBuckets = previousWindowRange
+  const previousOverviewRows = previousWindowRange
     ? (previousOverviewStatsResult.data?.buckets ?? EMPTY_STATS_BUCKETS)
     : EMPTY_STATS_BUCKETS
-  const exploreBuckets = exploreStatsResult.data?.buckets ?? EMPTY_STATS_BUCKETS
+  const exploreRows = exploreStatsResult.data?.buckets ?? EMPTY_STATS_BUCKETS
+
+  const costTotals = useMemo(() => getCostTotals(overviewRows), [overviewRows])
+  const previousCostTotals = useMemo(() => getCostTotals(previousOverviewRows), [previousOverviewRows])
+  // Cost is only summable within one currency, so every cost figure on this page
+  // is scoped to a single one. Derive the effective choice during render: when
+  // the window no longer carries the stored currency it falls back to the
+  // biggest spender instead of being reset by an effect.
+  const activeCostTotal = costTotals.find((item) => item.currency === selectedCurrency) ?? costTotals[0]
+  const costCurrency = activeCostTotal?.currency
+  // The queries split every bucket by currency; merge the splits back so token
+  // and request figures stay whole (rows with no resolved cost included).
+  const timelineBuckets = useMemo(() => mergeTimelineBuckets(timelineRows, costCurrency), [costCurrency, timelineRows])
+  const overviewBuckets = useMemo(() => mergeStatsBuckets(overviewRows, costCurrency), [costCurrency, overviewRows])
+  const exploreBuckets = useMemo(() => mergeStatsBuckets(exploreRows, costCurrency), [costCurrency, exploreRows])
 
   const activeDateKeys = useMemo(
     () => timelineBuckets.filter((bucket) => bucket.entryCount > 0).map((bucket) => bucket.date),
@@ -754,30 +845,17 @@ function UsageSettings() {
   )
   const totalTokens = overviewBuckets.reduce((sum, bucket) => sum + bucket.totalTokens, 0)
   const totalEntries = overviewBuckets.reduce((sum, bucket) => sum + bucket.entryCount, 0)
-  const previousTotalTokens = previousOverviewBuckets.reduce((sum, bucket) => sum + bucket.totalTokens, 0)
-  const previousTotalEntries = previousOverviewBuckets.reduce((sum, bucket) => sum + bucket.entryCount, 0)
-  const costTotals = useMemo(() => getCostTotals(overviewBuckets), [overviewBuckets])
-  const previousCostTotals = useMemo(() => getCostTotals(previousOverviewBuckets), [previousOverviewBuckets])
-  const canShowCostMetric = costTotals.length === 1
-  const windowCostCurrency = canShowCostMetric ? costTotals[0].currency : undefined
-  // Cost is only summable within a single currency, so mixed windows fall back to tokens
-  // while keeping the stored preference intact.
-  const activeChartMetric = chartMetric === 'cost' && !canShowCostMetric ? 'tokens' : chartMetric
-  const activeHeatmapMetric = heatmapMetric === 'cost' && !canShowCostMetric ? 'tokens' : heatmapMetric
+  const previousTotalTokens = previousOverviewRows.reduce((sum, bucket) => sum + bucket.totalTokens, 0)
+  const previousTotalEntries = previousOverviewRows.reduce((sum, bucket) => sum + bucket.entryCount, 0)
   const activeDays = activeDateKeys.length
   const longestStreak = useMemo(() => getLongestStreak(activeDateKeys), [activeDateKeys])
   const cacheMetrics = useMemo(() => getCacheUsageMetrics(overviewBuckets), [overviewBuckets])
-  const previousCacheMetrics = useMemo(() => getCacheUsageMetrics(previousOverviewBuckets), [previousOverviewBuckets])
-  const totalCost = canShowCostMetric ? costTotals[0].total : undefined
-  const previousTotalCost =
-    totalCost !== undefined &&
-    previousCostTotals.length === 1 &&
-    previousCostTotals[0].currency === costTotals[0].currency
-      ? previousCostTotals[0].total
-      : undefined
+  const previousCacheMetrics = useMemo(() => getCacheUsageMetrics(previousOverviewRows), [previousOverviewRows])
+  const totalCost = activeCostTotal?.total
+  const previousTotalCost = previousCostTotals.find((item) => item.currency === costCurrency)?.total
   const costTrendValues = useMemo(
-    () => (canShowCostMetric ? getTimelineSeries(timelineBuckets, windowRange, (bucket) => bucket.totalCost) : []),
-    [canShowCostMetric, timelineBuckets, windowRange]
+    () => getTimelineSeries(timelineBuckets, windowRange, (bucket) => bucket.totalCost),
+    [timelineBuckets, windowRange]
   )
   const requestTrendValues = useMemo(
     () => getTimelineSeries(timelineBuckets, windowRange, (bucket) => bucket.entryCount),
@@ -881,10 +959,13 @@ function UsageSettings() {
     () =>
       METRIC_KEYS.map((value) => ({
         value,
-        label: t(METRIC_LABEL_KEYS[value]),
-        disabled: value === 'cost' && !canShowCostMetric
+        label: t(METRIC_LABEL_KEYS[value])
       })),
-    [canShowCostMetric, t]
+    [t]
+  )
+  const currencyOptions = useMemo(
+    () => costTotals.map((item) => ({ value: item.currency, label: item.currency })),
+    [costTotals]
   )
   const chartTypeOptions = useMemo(
     () =>
@@ -896,7 +977,7 @@ function UsageSettings() {
   )
 
   const selectedDateLabel = selectedDate ? dateFormatter.format(parseDateKey(selectedDate)) : undefined
-  const analysisSummary = `${t(GROUP_BY_LABEL_KEYS[groupBy])} / ${t(METRIC_LABEL_KEYS[activeChartMetric])} / ${t(
+  const analysisSummary = `${t(GROUP_BY_LABEL_KEYS[groupBy])} / ${t(METRIC_LABEL_KEYS[chartMetric])} / ${t(
     CHART_TYPE_LABEL_KEYS[chartType]
   )}`
   const hasUsage = totalEntries > 0 || timelineBuckets.some((bucket) => bucket.entryCount > 0)
@@ -906,28 +987,25 @@ function UsageSettings() {
   const totalExploreTokens = exploreBuckets.reduce((sum, bucket) => sum + bucket.totalTokens, 0)
   const totalExploreEntries = exploreBuckets.reduce((sum, bucket) => sum + bucket.entryCount, 0)
   const totalExploreCost = exploreBuckets.reduce((sum, bucket) => sum + bucket.totalCost, 0)
-  const totalExploreMetric = exploreBuckets.reduce((sum, bucket) => sum + getMetricValue(bucket, activeChartMetric), 0)
+  const totalExploreMetric = exploreBuckets.reduce((sum, bucket) => sum + getMetricValue(bucket, chartMetric), 0)
   const exploreTopBuckets = useMemo(
     () =>
       [...exploreBuckets]
-        .filter((bucket) => getMetricValue(bucket, activeChartMetric) > 0)
-        .sort((a, b) => getMetricValue(b, activeChartMetric) - getMetricValue(a, activeChartMetric))
+        .filter((bucket) => getMetricValue(bucket, chartMetric) > 0)
+        .sort((a, b) => getMetricValue(b, chartMetric) - getMetricValue(a, chartMetric))
         .slice(0, DISTRIBUTION_SEGMENT_LIMIT),
-    [activeChartMetric, exploreBuckets]
+    [chartMetric, exploreBuckets]
   )
   const displayedExploreTokens = exploreTopBuckets.reduce((sum, bucket) => sum + bucket.totalTokens, 0)
   const displayedExploreEntries = exploreTopBuckets.reduce((sum, bucket) => sum + bucket.entryCount, 0)
   const displayedExploreCost = exploreTopBuckets.reduce((sum, bucket) => sum + bucket.totalCost, 0)
-  const displayedExploreMetric = exploreTopBuckets.reduce(
-    (sum, bucket) => sum + getMetricValue(bucket, activeChartMetric),
-    0
-  )
+  const displayedExploreMetric = exploreTopBuckets.reduce((sum, bucket) => sum + getMetricValue(bucket, chartMetric), 0)
   const otherExploreTokens = Math.max(0, totalExploreTokens - displayedExploreTokens)
   const otherExploreEntries = Math.max(0, totalExploreEntries - displayedExploreEntries)
   const otherExploreCost = Math.max(0, totalExploreCost - displayedExploreCost)
   const otherExploreMetric = Math.max(0, totalExploreMetric - displayedExploreMetric)
   const maxExploreMetric = Math.max(
-    ...exploreTopBuckets.map((bucket) => getMetricValue(bucket, activeChartMetric)),
+    ...exploreTopBuckets.map((bucket) => getMetricValue(bucket, chartMetric)),
     otherExploreMetric,
     0
   )
@@ -1034,14 +1112,8 @@ function UsageSettings() {
       </UsageProviderLabel>
     )
   }
-  const formatChartValue = (value: number, bucket?: UsageLedgerStatsBucket) => {
-    if (activeChartMetric === 'cost') {
-      // Aggregates (window total, "Other") have no bucket; they belong to the window's single currency.
-      return formatCost(value, bucket?.costCurrency ?? windowCostCurrency)
-    }
-
-    return formatCompactNumber(value)
-  }
+  const formatChartValue = (value: number) =>
+    chartMetric === 'cost' ? formatCost(value, costCurrency) : formatCompactNumber(value)
   const formatMilliseconds = (value: number | null | undefined) => {
     if (value === null || value === undefined) {
       return t('settings.usage.cards.none')
@@ -1066,7 +1138,7 @@ function UsageSettings() {
 
     const entries = [
       ...exploreTopBuckets.map((bucket, index) => {
-        const value = getMetricValue(bucket, activeChartMetric)
+        const value = getMetricValue(bucket, chartMetric)
         return {
           key: getBucketKey(bucket),
           label: renderBucketLabel(bucket),
@@ -1075,10 +1147,8 @@ function UsageSettings() {
           tokens: bucket.totalTokens,
           requests: bucket.entryCount,
           cost: bucket.totalCost,
-          costCurrency: bucket.costCurrency,
           share: totalExploreMetric > 0 ? value / totalExploreMetric : 0,
-          color: CHART_COLORS[index % CHART_COLORS.length],
-          bucket
+          color: CHART_COLORS[index % CHART_COLORS.length]
         }
       }),
       ...(otherExploreMetric > 0
@@ -1091,10 +1161,8 @@ function UsageSettings() {
               tokens: otherExploreTokens,
               requests: otherExploreEntries,
               cost: otherExploreCost,
-              costCurrency: windowCostCurrency,
               share: totalExploreMetric > 0 ? otherExploreMetric / totalExploreMetric : 0,
-              color: CHART_COLORS[exploreTopBuckets.length % CHART_COLORS.length],
-              bucket: undefined
+              color: CHART_COLORS[exploreTopBuckets.length % CHART_COLORS.length]
             }
           ]
         : [])
@@ -1115,12 +1183,12 @@ function UsageSettings() {
       <UsageDistributionHoverCard
         key={entry.key}
         label={entry.label}
-        metric={formatChartValue(entry.value, entry.bucket)}
+        metric={formatChartValue(entry.value)}
         share={formatShare(entry.share)}
         tokens={formatCompactNumber(entry.tokens)}
         requests={entry.requests}
-        cost={formatCost(entry.cost, entry.costCurrency)}
-        costCurrency={entry.costCurrency}
+        cost={formatCost(entry.cost, costCurrency)}
+        costCurrency={costCurrency}
         labels={{
           share: t('settings.usage.explore.shareLabel'),
           tokens: t('settings.usage.table.tokens'),
@@ -1159,7 +1227,7 @@ function UsageSettings() {
                     strokeDasharray={`${length} ${circumference - length}`}
                     strokeDashoffset={dashOffset}
                     strokeLinecap="butt">
-                    <title>{`${entry.plainLabel}: ${formatChartValue(entry.value, entry.bucket)} (${formatShare(entry.share)})`}</title>
+                    <title>{`${entry.plainLabel}: ${formatChartValue(entry.value)} (${formatShare(entry.share)})`}</title>
                   </circle>
                 )
               })}
@@ -1172,9 +1240,7 @@ function UsageSettings() {
                 <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md px-2 py-1.5 hover:bg-accent">
                   <span className="size-2.5 rounded-full" style={{ backgroundColor: entry.color }} />
                   <span className="min-w-0 truncate text-foreground text-sm">{entry.label}</span>
-                  <span className="shrink-0 font-medium text-foreground text-xs">
-                    {formatChartValue(entry.value, entry.bucket)}
-                  </span>
+                  <span className="shrink-0 font-medium text-foreground text-xs">{formatChartValue(entry.value)}</span>
                 </div>
               )
             )}
@@ -1206,7 +1272,7 @@ function UsageSettings() {
             />
             {points.map((point) => (
               <circle key={point.key} cx={point.x} cy={point.y} r="5" fill={point.color}>
-                <title>{`${point.plainLabel}: ${formatChartValue(point.value, point.bucket)} (${formatShare(point.share)})`}</title>
+                <title>{`${point.plainLabel}: ${formatChartValue(point.value)} (${formatShare(point.share)})`}</title>
               </circle>
             ))}
           </svg>
@@ -1243,9 +1309,7 @@ function UsageSettings() {
                   />
                 </div>
                 <div className="truncate text-center text-foreground-muted text-xs">{entry.label}</div>
-                <div className="text-center font-medium text-foreground text-xs">
-                  {formatChartValue(entry.value, entry.bucket)}
-                </div>
+                <div className="text-center font-medium text-foreground text-xs">{formatChartValue(entry.value)}</div>
               </div>
             )
           })}
@@ -1284,7 +1348,7 @@ function UsageSettings() {
                     <div className="min-w-0 text-foreground text-sm">{entry.label}</div>
                   </div>
                   <div className="shrink-0 text-right font-medium text-foreground text-xs">
-                    {formatChartValue(entry.value, entry.bucket)}
+                    {formatChartValue(entry.value)}
                   </div>
                 </div>
                 <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
@@ -1313,16 +1377,29 @@ function UsageSettings() {
                 })}
               </p>
             </div>
-            <div className="-mx-1 max-w-full overflow-x-auto px-1">
-              <SegmentedControl
-                options={windowOptions}
-                value={windowKey}
-                onValueChange={(value) => {
-                  setWindowKey(value)
-                  setSelectedDate(undefined)
-                }}
-                size="sm"
-              />
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              {currencyOptions.length > 1 && (
+                <div className="-mx-1 max-w-full overflow-x-auto px-1">
+                  <SegmentedControl
+                    aria-label={t('settings.usage.currency')}
+                    options={currencyOptions}
+                    value={costCurrency}
+                    onValueChange={setSelectedCurrency}
+                    size="sm"
+                  />
+                </div>
+              )}
+              <div className="-mx-1 max-w-full overflow-x-auto px-1">
+                <SegmentedControl
+                  options={windowOptions}
+                  value={windowKey}
+                  onValueChange={(value) => {
+                    setWindowKey(value)
+                    setSelectedDate(undefined)
+                  }}
+                  size="sm"
+                />
+              </div>
             </div>
           </UsageSectionHeader>
 
@@ -1336,20 +1413,7 @@ function UsageSettings() {
                 delta={getRatioChange(totalCost, previousTotalCost)}
                 deltaLabel={t('settings.usage.cards.lastPeriod')}
                 formatDelta={formatDelta}
-                value={
-                  costTotals.length > 0 ? (
-                    <div className="flex flex-col gap-1 text-base leading-5">
-                      {costTotals.map((item) => (
-                        <span key={item.currency}>{formatCost(item.total, item.currency)}</span>
-                      ))}
-                    </div>
-                  ) : (
-                    t('settings.usage.cards.none')
-                  )
-                }
-                helper={
-                  costTotals.length > 1 ? t('settings.usage.cards.mixedCurrency') : t('settings.usage.cards.costHint')
-                }
+                value={totalCost !== undefined ? formatCost(totalCost, costCurrency) : t('settings.usage.cards.none')}
               />
               <MetricCell
                 label={t('settings.usage.cards.totalRequests')}
@@ -1427,11 +1491,10 @@ function UsageSettings() {
           <UsageHeatmap
             buckets={timelineBuckets}
             selectedDate={selectedDate}
-            metric={activeHeatmapMetric}
+            metric={heatmapMetric}
             onMetricChange={setHeatmapMetric}
             onSelectDate={(date) => setSelectedDate((current) => (current === date ? undefined : date))}
-            costCurrency={windowCostCurrency}
-            isCostDisabled={!canShowCostMetric}
+            costCurrency={costCurrency}
             isLoading={timelineQueryResult.isLoading}
             range={windowRange}
           />
@@ -1515,7 +1578,7 @@ function UsageSettings() {
                           <div className="-mx-1 max-w-full overflow-x-auto px-1">
                             <SegmentedControl
                               options={metricOptions}
-                              value={activeChartMetric}
+                              value={chartMetric}
                               onValueChange={setChartMetric}
                               size="sm"
                             />

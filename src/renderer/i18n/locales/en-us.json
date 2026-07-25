@@ -8351,10 +8351,8 @@
         "cacheHitRate": "Cache hit rate",
         "cacheObservedTokens": "Observable input: {{tokens}}",
         "cacheStartsWithNewRequests": "Starts with new requests",
-        "costHint": "Cost is grouped by currency.",
         "dailyAverage": "Daily average",
         "lastPeriod": "vs last period",
-        "mixedCurrency": "Multiple currencies are shown separately.",
         "none": "N/A",
         "peakDay": "Peak day",
         "providerAuth": "Provider auth",
@@ -8372,6 +8370,7 @@
         "pie": "Pie",
         "stack": "Stack"
       },
+      "currency": "Currency",
       "empty": {
         "description": "Usage appears after AI requests create ledger entries.",
         "title": "No usage yet"
@@ -8417,7 +8416,6 @@
       },
       "heatmap": {
         "ariaDate": "Usage on {{date}}",
-        "costDisabled": "Cost view is available only when this window has one currency.",
         "title": "Daily activity"
       },
       "metric": {

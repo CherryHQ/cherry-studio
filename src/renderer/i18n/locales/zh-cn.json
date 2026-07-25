@@ -8351,10 +8351,8 @@
         "cacheHitRate": "缓存命中率",
         "cacheObservedTokens": "可观测输入：{{tokens}}",
         "cacheStartsWithNewRequests": "发送新请求后开始统计",
-        "costHint": "按币种分别统计",
         "dailyAverage": "日均",
         "lastPeriod": "较上期",
-        "mixedCurrency": "多种货币会分开显示",
         "none": "N/A",
         "peakDay": "高峰日",
         "providerAuth": "供应商认证",
@@ -8372,6 +8370,7 @@
         "pie": "饼图",
         "stack": "分段"
       },
+      "currency": "货币",
       "empty": {
         "description": "有 AI 请求产生用量后，这里会显示记录。",
         "title": "暂无使用"
@@ -8417,7 +8416,6 @@
       },
       "heatmap": {
         "ariaDate": "使用于 {{date}}",
-        "costDisabled": "成本视图仅在此窗口仅有一种货币时可用。",
         "title": "日常活动"
       },
       "metric": {

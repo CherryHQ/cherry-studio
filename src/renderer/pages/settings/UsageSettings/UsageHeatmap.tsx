@@ -129,7 +129,6 @@ interface UsageHeatmapProps {
   onMetricChange: (metric: UsageHeatmapMetric) => void
   onSelectDate: (date: string) => void
   costCurrency?: string | null
-  isCostDisabled?: boolean
   isLoading?: boolean
   range?: { from?: number; to?: number }
 }
@@ -149,7 +148,6 @@ export default function UsageHeatmap({
   onMetricChange,
   onSelectDate,
   costCurrency,
-  isCostDisabled,
   isLoading,
   range
 }: UsageHeatmapProps) {
@@ -215,20 +213,15 @@ export default function UsageHeatmap({
     () =>
       [
         { value: 'tokens' as const, label: t('settings.usage.metric.tokens') },
-        { value: 'cost' as const, label: t('settings.usage.metric.cost'), disabled: isCostDisabled }
+        { value: 'cost' as const, label: t('settings.usage.metric.cost') }
       ] as const,
-    [isCostDisabled, t]
+    [t]
   )
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
       <div className="flex min-w-0 flex-col gap-2">
-        <div className="min-w-0">
-          <div className="font-medium text-foreground text-sm">{t('settings.usage.heatmap.title')}</div>
-          {isCostDisabled && (
-            <div className="mt-1 text-foreground-muted text-xs">{t('settings.usage.heatmap.costDisabled')}</div>
-          )}
-        </div>
+        <div className="min-w-0 font-medium text-foreground text-sm">{t('settings.usage.heatmap.title')}</div>
         <div className="-mx-1 max-w-full overflow-x-auto px-1">
           <SegmentedControl options={metricOptions} value={metric} onValueChange={onMetricChange} size="sm" />
         </div>
