@@ -1,4 +1,5 @@
 import { AssistantPresetPreviewDialog } from '@renderer/components/resourceCatalog/dialogs/detail/AssistantPresetPreviewDialog'
+import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -10,10 +11,9 @@ import { ResourceCardMenu } from '../ResourceCardMenu'
 import { ResourceCard } from '../ResourceCards'
 import { ResourceGrid } from '../ResourceGrid'
 
-const { deleteTagMock, ensureTagsMock, renameTagMock, updateAssistantMock } = vi.hoisted(() => ({
-  deleteTagMock: vi.fn(),
-  ensureTagsMock: vi.fn(),
-  renameTagMock: vi.fn(),
+const { deleteGroupMock, updateGroupMock, updateAssistantMock } = vi.hoisted(() => ({
+  deleteGroupMock: vi.fn(),
+  updateGroupMock: vi.fn(),
   updateAssistantMock: vi.fn()
 }))
 
@@ -22,8 +22,8 @@ vi.mock('react-i18next', () => ({
     t: (key: string) =>
       (
         ({
-          'assistants.tags.delete': '删除标签',
-          'assistants.tags.deleteConfirm': '确定要删除这个标签吗？',
+          'assistants.groups.delete': '删除分组',
+          'assistants.groups.deleteConfirm': '确定要删除这个分组吗？',
           'common.delete': '删除',
           'common.rename': '重命名',
           'common.save': '保存',
@@ -33,12 +33,12 @@ vi.mock('react-i18next', () => ({
           'library.assistant_catalog.title': '助手库',
           'library.assistant_catalog.go_to_chat': '去对话',
           'library.create_menu.create': '新建助手',
-          'library.skill_add.add': '添加 Skill',
+          'library.skill_add.add': '添加技能',
           'library.skill_add.local_import': '本地导入',
           'library.skill_add.online_search': '在线搜索',
           'library.skill_add.system_search': '系统搜索',
-          'library.toolbar.all_tags': '全部标签',
-          'library.toolbar.tag_button': '标签',
+          'library.toolbar.all_groups': '全部分组',
+          'library.toolbar.group_button': '分组',
           'library.type.assistant': '助手',
           'library.type.skill': '技能'
         }) satisfies Record<string, string>
@@ -98,6 +98,7 @@ vi.mock('@cherrystudio/ui', async () => {
     ConfirmDialog: ({
       cancelText,
       confirmText,
+      confirmLoading,
       description,
       onConfirm,
       open,
@@ -105,6 +106,7 @@ vi.mock('@cherrystudio/ui', async () => {
     }: {
       cancelText?: string
       confirmText?: string
+      confirmLoading?: boolean
       description?: ReactNode
       onConfirm?: () => void | Promise<void>
       open?: boolean
@@ -116,7 +118,7 @@ vi.mock('@cherrystudio/ui', async () => {
           {description && <div>{description}</div>}
           {cancelText && <button type="button">{cancelText}</button>}
           {confirmText && (
-            <button type="button" onClick={() => void onConfirm?.()}>
+            <button type="button" disabled={confirmLoading} onClick={() => void onConfirm?.()}>
               {confirmText}
             </button>
           )}
@@ -335,21 +337,10 @@ vi.mock('@renderer/hooks/resourceCatalog', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useTags', () => ({
-  useDeleteTag: () => ({
-    deleteTag: deleteTagMock
-  }),
-  useEnsureTags: () => ({
-    ensureTags: ensureTagsMock
-  }),
-  useRenameTag: () => ({
-    renameTag: renameTagMock
-  }),
-  useTagList: () => ({
-    tags: [
-      { id: 'tag-alpha', name: 'alpha', color: '#111111' },
-      { id: 'tag-beta', name: 'beta', color: '#222222' }
-    ]
+vi.mock('@renderer/hooks/useGroups', () => ({
+  useGroupMutations: () => ({
+    deleteGroup: deleteGroupMock,
+    updateGroup: updateGroupMock
   })
 }))
 
@@ -362,6 +353,25 @@ function createDeferred<T>() {
   })
   return { promise, resolve, reject }
 }
+
+const assistantGroups = [
+  {
+    id: 'group-alpha',
+    entityType: 'assistant' as const,
+    name: 'alpha',
+    orderKey: 'a0',
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z'
+  },
+  {
+    id: 'group-beta',
+    entityType: 'assistant' as const,
+    name: 'beta',
+    orderKey: 'a1',
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z'
+  }
+]
 
 function createAssistantResource(overrides: Partial<Extract<ResourceItem, { type: 'assistant' }>> = {}): ResourceItem {
   return {
@@ -431,12 +441,11 @@ function renderResourceGrid(props: Partial<ComponentProps<typeof ResourceGrid>> 
       onCreate={vi.fn()}
       onImportAssistant={vi.fn()}
       onOpenSkillMarketplace={vi.fn()}
-      tags={[]}
-      activeTag={null}
-      onTagFilter={vi.fn()}
-      onAddTag={vi.fn()}
-      allTagNames={[]}
-      allTags={[]}
+      groups={[]}
+      activeGroupId={null}
+      onGroupFilter={vi.fn()}
+      onAddGroup={vi.fn()}
+      allGroups={[]}
       {...props}
     />
   )
@@ -444,7 +453,7 @@ function renderResourceGrid(props: Partial<ComponentProps<typeof ResourceGrid>> 
 
 function getResourceCardProps(overrides: Partial<ComponentProps<typeof ResourceCard>> = {}) {
   return {
-    allTagNames: [],
+    allGroups: [],
     onDelete: vi.fn(),
     onDuplicate: vi.fn(),
     onEdit: vi.fn(),
@@ -454,6 +463,15 @@ function getResourceCardProps(overrides: Partial<ComponentProps<typeof ResourceC
 }
 
 describe('ResourceGrid empty state copy', () => {
+  it('uses the standalone resource toolbar spacing', () => {
+    renderResourceGrid()
+
+    const searchInput = screen.getByPlaceholderText('library.toolbar.search_placeholder')
+    const toolbar = searchInput.parentElement?.parentElement
+
+    expect(toolbar).toHaveClass('h-12', 'px-5')
+  })
+
   it('renders the optional toolbar leading slot before the search box', () => {
     renderResourceGrid({
       toolbarLeading: <button type="button">Toggle sidebar</button>
@@ -538,10 +556,9 @@ describe('ResourceGrid skill add actions', () => {
       onOpenSystemSkills
     })
 
-    expect(screen.getByRole('button', { name: '添加 Skill' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /添加技能/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '添加技能' })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: '添加 Skill' }))
+    await user.click(screen.getByRole('button', { name: '添加技能' }))
 
     expect(screen.getByRole('menuitem', { name: '在线搜索' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: '本地导入' })).toBeInTheDocument()
@@ -564,72 +581,77 @@ describe('ResourceGrid skill add actions', () => {
   it('hides system search when no current agent is available', () => {
     renderResourceGrid({ activeResourceType: 'skill' })
 
-    fireEvent.click(screen.getByRole('button', { name: '添加 Skill' }))
+    fireEvent.click(screen.getByRole('button', { name: '添加技能' }))
 
     expect(screen.queryByRole('menuitem', { name: '系统搜索' })).not.toBeInTheDocument()
   })
 })
 
-describe('ResourceGrid tag toolbar management', () => {
+describe('ResourceGrid group toolbar management', () => {
   beforeEach(() => {
-    deleteTagMock.mockReset()
-    renameTagMock.mockReset()
+    deleteGroupMock.mockReset()
+    updateGroupMock.mockReset()
   })
 
-  it('keeps unused tags collapsed behind the arrow before the add-tag button', async () => {
+  it('keeps unused groups collapsed behind the arrow before the add-group button', async () => {
     const user = userEvent.setup()
 
     renderResourceGrid({
-      tags: [{ id: 'tag-alpha', name: 'alpha', color: '#111111', count: 1 }],
-      allTags: [
+      groups: [{ id: 'group-alpha', name: 'alpha', count: 1 }],
+      allGroups: [
         {
-          id: 'tag-alpha',
-          name: 'alpha',
-          color: '#111111',
+          id: 'group-beta',
+          entityType: 'assistant',
+          name: 'beta',
+          orderKey: 'a0',
           createdAt: '2024-01-01T00:00:00.000Z',
           updatedAt: '2024-01-01T00:00:00.000Z'
         },
         {
-          id: 'tag-beta',
-          name: 'beta',
-          color: '#222222',
+          id: 'group-alpha',
+          entityType: 'assistant',
+          name: 'alpha',
+          orderKey: 'a1',
           createdAt: '2024-01-01T00:00:00.000Z',
           updatedAt: '2024-01-01T00:00:00.000Z'
         }
       ]
     })
 
-    const alphaTag = screen.getByRole('button', { name: /alpha/ })
-    const expandButton = screen.getByRole('button', { name: '全部标签' })
-    const addTagButton = screen.getByRole('button', { name: '标签' })
+    const alphaGroup = screen.getByRole('button', { name: /alpha/ })
+    const expandButton = screen.getByRole('button', { name: '全部分组' })
+    const addGroupButton = screen.getByRole('button', { name: '分组' })
 
     expect(screen.queryByRole('button', { name: /beta/ })).not.toBeInTheDocument()
-    expect(alphaTag.compareDocumentPosition(expandButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(expandButton.compareDocumentPosition(addTagButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(alphaGroup.compareDocumentPosition(expandButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(expandButton.compareDocumentPosition(addGroupButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
 
     await user.click(expandButton)
 
-    const betaTag = screen.getByRole('button', { name: /beta/ })
-    expect(betaTag.compareDocumentPosition(screen.getByRole('button', { name: '全部标签' }))).toBe(
+    const betaGroup = screen.getByRole('button', { name: /beta/ })
+    const expandedAlphaGroup = screen.getByRole('button', { name: /alpha/ })
+    expect(betaGroup.compareDocumentPosition(expandedAlphaGroup)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(betaGroup.compareDocumentPosition(screen.getByRole('button', { name: '全部分组' }))).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING
     )
   })
 
-  it('renames a tag from the right-click menu', async () => {
+  it('renames a group from the right-click menu', async () => {
     const user = userEvent.setup()
-    const onTagFilter = vi.fn()
-    renameTagMock.mockResolvedValueOnce({
-      id: 'tag-alpha',
+    const onGroupFilter = vi.fn()
+    updateGroupMock.mockResolvedValueOnce({
+      id: 'group-alpha',
+      entityType: 'assistant',
       name: 'renamed',
-      color: '#111111',
+      orderKey: 'a0',
       createdAt: '2024-01-01T00:00:00.000Z',
       updatedAt: '2024-01-01T00:00:00.000Z'
     })
 
     renderResourceGrid({
-      activeTag: 'alpha',
-      onTagFilter,
-      tags: [{ id: 'tag-alpha', name: 'alpha', color: '#111111', count: 1 }]
+      activeGroupId: 'group-alpha',
+      onGroupFilter,
+      groups: [{ id: 'group-alpha', name: 'alpha', count: 1 }]
     })
 
     fireEvent.contextMenu(screen.getByRole('button', { name: /alpha/ }), { clientX: 20, clientY: 30 })
@@ -637,30 +659,92 @@ describe('ResourceGrid tag toolbar management', () => {
     fireEvent.change(screen.getByLabelText('重命名'), { target: { value: 'renamed' } })
     await user.click(screen.getByRole('button', { name: '保存' }))
 
-    await waitFor(() => expect(renameTagMock).toHaveBeenCalledWith('tag-alpha', 'renamed'))
-    expect(onTagFilter).toHaveBeenCalledWith('renamed')
+    await waitFor(() => expect(updateGroupMock).toHaveBeenCalledWith('group-alpha', { name: 'renamed' }))
+    expect(onGroupFilter).not.toHaveBeenCalled()
   })
 
-  it('confirms before deleting a tag from the right-click menu', async () => {
+  it('confirms before deleting a group from the right-click menu', async () => {
     const user = userEvent.setup()
-    const onTagFilter = vi.fn()
+    const onGroupFilter = vi.fn()
 
     renderResourceGrid({
-      activeTag: 'alpha',
-      onTagFilter,
-      tags: [{ id: 'tag-alpha', name: 'alpha', color: '#111111', count: 1 }]
+      activeGroupId: 'group-alpha',
+      onGroupFilter,
+      groups: [{ id: 'group-alpha', name: 'alpha', count: 1 }]
     })
 
     fireEvent.contextMenu(screen.getByRole('button', { name: /alpha/ }), { clientX: 20, clientY: 30 })
-    await user.click(screen.getByRole('button', { name: '删除标签' }))
+    await user.click(screen.getByRole('button', { name: '删除分组' }))
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('确定要删除这个标签吗？')
-    expect(deleteTagMock).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toHaveTextContent('确定要删除这个分组吗？')
+    expect(deleteGroupMock).not.toHaveBeenCalled()
 
     await user.click(screen.getByRole('button', { name: '删除' }))
 
-    await waitFor(() => expect(deleteTagMock).toHaveBeenCalledWith('tag-alpha'))
-    expect(onTagFilter).toHaveBeenCalledWith(null)
+    await waitFor(() => expect(deleteGroupMock).toHaveBeenCalledWith('group-alpha'))
+    expect(onGroupFilter).toHaveBeenCalledWith(null)
+  })
+
+  it('keeps the add-group editor open and clears pending state when creation fails', async () => {
+    const user = userEvent.setup()
+    const onAddGroup = vi.fn().mockRejectedValueOnce(new Error('create failed'))
+
+    renderResourceGrid({ onAddGroup })
+
+    await user.click(screen.getByRole('button', { name: '分组' }))
+    const input = screen.getByPlaceholderText('library.toolbar.add_group_placeholder')
+    await user.type(input, 'work{Enter}')
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('create failed'))
+    expect(input).toBeInTheDocument()
+    expect(input).toHaveValue('work')
+    await waitFor(() => expect(input).not.toBeDisabled())
+  })
+
+  it('keeps the rename dialog open and clears pending state when rename fails', async () => {
+    const user = userEvent.setup()
+    updateGroupMock.mockRejectedValueOnce(new Error('rename failed'))
+
+    renderResourceGrid({ groups: [{ id: 'group-alpha', name: 'alpha', count: 1 }] })
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: /alpha/ }), { clientX: 20, clientY: 30 })
+    await user.click(screen.getByRole('button', { name: '重命名' }))
+    const input = screen.getByLabelText('重命名')
+    await user.clear(input)
+    await user.type(input, 'renamed')
+    await user.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('rename failed'))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(input).toHaveValue('renamed')
+    await waitFor(() => expect(input).not.toBeDisabled())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.cancel' })).not.toBeDisabled())
+  })
+
+  it('keeps the delete dialog and active filter when deletion fails, then allows retry', async () => {
+    const user = userEvent.setup()
+    const onGroupFilter = vi.fn()
+    deleteGroupMock.mockRejectedValueOnce(new Error('delete failed')).mockResolvedValueOnce(undefined)
+
+    renderResourceGrid({
+      activeGroupId: 'group-alpha',
+      onGroupFilter,
+      groups: [{ id: 'group-alpha', name: 'alpha', count: 1 }]
+    })
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: /alpha/ }), { clientX: 20, clientY: 30 })
+    await user.click(screen.getByRole('button', { name: '删除分组' }))
+    await user.click(screen.getByRole('button', { name: '删除' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('delete failed'))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(onGroupFilter).not.toHaveBeenCalled()
+
+    const confirmButton = screen.getByRole('button', { name: '删除' })
+    await waitFor(() => expect(confirmButton).not.toBeDisabled())
+    await user.click(confirmButton)
+    await waitFor(() => expect(deleteGroupMock).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(onGroupFilter).toHaveBeenCalledWith(null))
   })
 })
 
@@ -685,8 +769,8 @@ describe('ResourceGrid card actions', () => {
     expect(onDelete).toHaveBeenCalledWith(resource)
   })
 
-  it('shows only one assistant tag in the compact card layout', () => {
-    render(<ResourceCard resource={createAssistantResource({ tag: 'alpha' })} {...getResourceCardProps()} />)
+  it('shows only one assistant group in the compact card layout', () => {
+    render(<ResourceCard resource={createAssistantResource({ groupName: 'alpha' })} {...getResourceCardProps()} />)
 
     expect(screen.getByText('alpha')).toBeInTheDocument()
     expect(screen.queryByText('beta')).not.toBeInTheDocument()
@@ -746,35 +830,33 @@ describe('Assistant preset preview dialog actions', () => {
   })
 })
 
-describe('ResourceCardMenu tag binding', () => {
+describe('ResourceCardMenu group binding', () => {
   beforeEach(() => {
-    ensureTagsMock.mockReset()
     updateAssistantMock.mockReset()
   })
 
-  it('does not show a tag count in the single-select tag menu trigger', async () => {
+  it('does not show a group count in the single-select group menu trigger', async () => {
     const user = userEvent.setup()
 
     render(
       <ResourceCardMenu
-        resource={createAssistantResource({ tag: 'alpha' })}
+        resource={createAssistantResource({ groupId: 'group-alpha', groupName: 'alpha' })}
         onClose={vi.fn()}
         onDuplicate={vi.fn()}
         onDelete={vi.fn()}
         onExport={vi.fn()}
-        allTagNames={['alpha', 'beta']}
+        allGroups={assistantGroups}
       />
     )
 
     await user.click(screen.getByRole('button', { name: /common.more/ }))
-    expect(screen.getByRole('button', { name: /library.action.manage_tags/ })).not.toHaveTextContent(/\b1\b/)
+    expect(screen.getByRole('button', { name: /library.action.manage_groups/ })).not.toHaveTextContent(/\b1\b/)
   })
 
-  it('blocks a second tag write while the first one is still pending', async () => {
+  it('blocks a second group write while the first one is still pending', async () => {
     const user = userEvent.setup()
-    const pendingTags = createDeferred<Array<{ id: string; name: string }>>()
-    ensureTagsMock.mockReturnValueOnce(pendingTags.promise)
-    updateAssistantMock.mockResolvedValue({})
+    const pendingUpdate = createDeferred<unknown>()
+    updateAssistantMock.mockReturnValueOnce(pendingUpdate.promise)
 
     render(
       <ResourceCardMenu
@@ -783,114 +865,122 @@ describe('ResourceCardMenu tag binding', () => {
         onDuplicate={vi.fn()}
         onDelete={vi.fn()}
         onExport={vi.fn()}
-        allTagNames={['alpha', 'beta']}
+        allGroups={assistantGroups}
       />
     )
 
     await user.click(screen.getByRole('button', { name: /common.more/ }))
-    await user.click(screen.getByRole('button', { name: /library.action.manage_tags/ }))
+    await user.click(screen.getByRole('button', { name: /library.action.manage_groups/ }))
     await user.click(screen.getByRole('menuitem', { name: 'alpha' }))
 
     await user.click(screen.getByRole('button', { name: /common.more/ }))
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: /library.action.manage_tags/ })).toHaveAttribute(
+      expect(screen.getByRole('button', { name: /library.action.manage_groups/ })).toHaveAttribute(
         'aria-disabled',
         'true'
       )
     )
-    expect(ensureTagsMock).toHaveBeenCalledTimes(1)
+    expect(updateAssistantMock).toHaveBeenCalledTimes(1)
 
-    pendingTags.resolve([{ id: 'tag-alpha', name: 'alpha' }])
+    pendingUpdate.resolve({})
 
     await waitFor(() => {
-      expect(updateAssistantMock).toHaveBeenCalledWith({ tagIds: ['tag-alpha'] })
+      expect(updateAssistantMock).toHaveBeenCalledWith({ groupId: 'group-alpha' })
     })
-    expect(ensureTagsMock).toHaveBeenCalledTimes(1)
+    expect(updateAssistantMock).toHaveBeenCalledTimes(1)
   })
 
-  it('disables the current assistant tag in the command submenu', async () => {
+  it('disables the current assistant group in the command submenu', async () => {
     const user = userEvent.setup()
 
     render(
       <ResourceCardMenu
-        resource={createAssistantResource({ tag: 'alpha' })}
+        resource={createAssistantResource({ groupId: 'group-alpha', groupName: 'alpha' })}
         onClose={vi.fn()}
         onDuplicate={vi.fn()}
         onDelete={vi.fn()}
         onExport={vi.fn()}
-        allTagNames={['alpha', 'beta']}
+        allGroups={assistantGroups}
       />
     )
 
     await user.click(screen.getByRole('button', { name: /common.more/ }))
-    await user.click(screen.getByRole('button', { name: /library.action.manage_tags/ }))
+    await user.click(screen.getByRole('button', { name: /library.action.manage_groups/ }))
 
     expect(screen.getByRole('menuitem', { name: 'alpha' })).toHaveAttribute('aria-disabled', 'true')
     expect(screen.getByRole('menuitem', { name: 'beta' })).not.toHaveAttribute('aria-disabled')
   })
 
-  it('refreshes the disabled assistant tag when the resource tag changes', async () => {
+  it('refreshes the disabled assistant group when the resource group changes', async () => {
     const user = userEvent.setup()
     const menuProps = {
       onClose: vi.fn(),
       onDuplicate: vi.fn(),
       onDelete: vi.fn(),
       onExport: vi.fn(),
-      allTagNames: ['alpha', 'beta']
+      allGroups: assistantGroups
     }
 
     const { rerender } = render(
-      <ResourceCardMenu resource={createAssistantResource({ tag: 'alpha' })} {...menuProps} />
+      <ResourceCardMenu
+        resource={createAssistantResource({ groupId: 'group-alpha', groupName: 'alpha' })}
+        {...menuProps}
+      />
     )
 
-    rerender(<ResourceCardMenu resource={createAssistantResource({ tag: 'beta' })} {...menuProps} />)
+    rerender(
+      <ResourceCardMenu
+        resource={createAssistantResource({ groupId: 'group-beta', groupName: 'beta' })}
+        {...menuProps}
+      />
+    )
 
     await user.click(screen.getByRole('button', { name: /common.more/ }))
-    await user.click(screen.getByRole('button', { name: /library.action.manage_tags/ }))
+    await user.click(screen.getByRole('button', { name: /library.action.manage_groups/ }))
 
     expect(screen.getByRole('menuitem', { name: 'alpha' })).not.toHaveAttribute('aria-disabled')
     expect(screen.getByRole('menuitem', { name: 'beta' })).toHaveAttribute('aria-disabled', 'true')
   })
 
-  it('replaces the current assistant tag when a different tag is selected', async () => {
+  it('replaces the current assistant group when a different group is selected', async () => {
     const user = userEvent.setup()
-    ensureTagsMock.mockResolvedValueOnce([{ id: 'tag-beta', name: 'beta' }])
     updateAssistantMock.mockResolvedValue({})
 
     render(
       <ResourceCardMenu
-        resource={createAssistantResource({ tag: 'alpha' })}
+        resource={createAssistantResource({ groupId: 'group-alpha', groupName: 'alpha' })}
         onClose={vi.fn()}
         onDuplicate={vi.fn()}
         onDelete={vi.fn()}
         onExport={vi.fn()}
-        allTagNames={['alpha', 'beta']}
+        allGroups={assistantGroups}
       />
     )
 
     await user.click(screen.getByRole('button', { name: /common.more/ }))
-    await user.click(screen.getByRole('button', { name: /library.action.manage_tags/ }))
+    await user.click(screen.getByRole('button', { name: /library.action.manage_groups/ }))
     await user.click(screen.getByRole('menuitem', { name: 'beta' }))
 
-    await waitFor(() => expect(ensureTagsMock).toHaveBeenCalledWith(['beta']))
-    expect(updateAssistantMock).toHaveBeenCalledWith({ tagIds: ['tag-beta'] })
+    await waitFor(() => {
+      expect(updateAssistantMock).toHaveBeenCalledWith({ groupId: 'group-beta' })
+    })
   })
 
-  it('does not expose tag management for agent, skill, or prompt resources', async () => {
+  it('does not expose group management for agent, skill, or prompt resources', async () => {
     const user = userEvent.setup()
     const menuProps = {
       onClose: vi.fn(),
       onDuplicate: vi.fn(),
       onDelete: vi.fn(),
       onExport: vi.fn(),
-      allTagNames: ['alpha', 'beta']
+      allGroups: assistantGroups
     }
 
     for (const resource of [createAgentResource(), createSkillResource(), createPromptResource()]) {
       const { unmount } = render(<ResourceCardMenu resource={resource} {...menuProps} />)
 
       await user.click(screen.getByRole('button', { name: /common.more/ }))
-      expect(screen.queryByRole('button', { name: /library.action.manage_tags/ })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /library.action.manage_groups/ })).not.toBeInTheDocument()
 
       unmount()
     }
@@ -906,7 +996,7 @@ describe('ResourceCardMenu tag binding', () => {
         onDuplicate={vi.fn()}
         onDelete={vi.fn()}
         onExport={vi.fn()}
-        allTagNames={[]}
+        allGroups={[]}
       />
     )
 
@@ -925,7 +1015,7 @@ describe('ResourceCardMenu tag binding', () => {
         onDuplicate={vi.fn()}
         onDelete={vi.fn()}
         onExport={vi.fn()}
-        allTagNames={[]}
+        allGroups={[]}
       />
     )
 

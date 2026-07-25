@@ -17,6 +17,8 @@ interface ImagePreviewLayoutProps {
   className?: string
 }
 
+const IMAGE_PREVIEW_LOADING_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
+
 const ImagePreviewLayout = ({
   children,
   ref,
@@ -49,7 +51,7 @@ const ImagePreviewLayout = ({
     <PreviewContainer className={`image-preview-layout flex-col ${className ?? ''}`}>
       {loading && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-background-subtle">
-          <LoadingIcon color="var(--color-foreground-secondary)" />
+          <LoadingIcon color={IMAGE_PREVIEW_LOADING_COLOR} />
         </div>
       )}
       {error && <PreviewError>{error}</PreviewError>}

@@ -73,7 +73,7 @@ import {
   Trash2,
   X
 } from 'lucide-react'
-import { type FC, useCallback, useEffect, useMemo, useState } from 'react'
+import { type FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('TasksSettings')
@@ -100,6 +100,29 @@ type ScheduleCommitPatch = {
   trigger?: Trigger
   timeoutMinutes?: number | null
 }
+type TaskDraftField = 'name' | 'prompt' | 'schedule' | 'channelIds' | 'workspace'
+type TaskDraftVersions = Record<TaskDraftField, number>
+type TaskDraftSnapshot = {
+  name: string
+  prompt: string
+  schedule: ScheduleFormState
+  channelIds: string[]
+  workspaceId: string | null
+}
+type TaskUpdateResult = {
+  succeeded: boolean
+  task: ScheduledTaskEntity
+}
+
+function createTaskDraftVersions(): TaskDraftVersions {
+  return {
+    name: 0,
+    prompt: 0,
+    schedule: 0,
+    channelIds: 0,
+    workspace: 0
+  }
+}
 
 function triggerToFormState(trigger: Trigger): { kind: ScheduleKind; value: string } {
   switch (trigger.kind) {
@@ -111,6 +134,29 @@ function triggerToFormState(trigger: Trigger): { kind: ScheduleKind; value: stri
     case 'once':
       return { kind: 'once', value: new Date(trigger.at).toISOString() }
   }
+}
+
+function taskToDraftSnapshot(task: ScheduledTaskEntity): TaskDraftSnapshot {
+  return {
+    name: task.name,
+    prompt: task.prompt,
+    schedule: {
+      ...triggerToFormState(task.trigger),
+      timeoutMinutes: task.timeoutMinutes?.toString() ?? ''
+    },
+    channelIds: task.channelIds ?? [],
+    workspaceId: task.workspace.type === AGENT_WORKSPACE_TYPE.USER ? task.workspace.workspaceId : null
+  }
+}
+
+function draftFieldsForUpdate(updates: UpdateTaskRequest): TaskDraftField[] {
+  const fields: TaskDraftField[] = []
+  if ('name' in updates) fields.push('name')
+  if ('prompt' in updates) fields.push('prompt')
+  if ('trigger' in updates || 'timeoutMinutes' in updates) fields.push('schedule')
+  if ('channelIds' in updates) fields.push('channelIds')
+  if ('workspace' in updates) fields.push('workspace')
+  return fields
 }
 
 function formStateToTrigger(kind: ScheduleKind, value: string): Trigger | null {
@@ -134,11 +180,9 @@ function formStateToTrigger(kind: ScheduleKind, value: string): Trigger | null {
 const TaskScheduleControls: FC<{
   value: ScheduleFormState
   disabled?: boolean
-  committedTrigger?: Trigger
-  committedTimeoutMinutes?: number | null
   onChange: (value: ScheduleFormState) => void
   onCommit?: (patch: ScheduleCommitPatch) => void
-}> = ({ value, disabled, committedTrigger, committedTimeoutMinutes, onChange, onCommit }) => {
+}> = ({ value, disabled, onChange, onCommit }) => {
   const { t } = useTranslation()
 
   const scheduleTypeOptions = [
@@ -151,15 +195,13 @@ const TaskScheduleControls: FC<{
     if (!onCommit) return
     const trigger = formStateToTrigger(kind, scheduleValue)
     if (!trigger) return
-    if (committedTrigger && JSON.stringify(trigger) === JSON.stringify(committedTrigger)) return
     onCommit({ trigger })
   }
 
   const commitTimeoutMinutes = () => {
     if (!onCommit) return
     const nextTimeout = value.timeoutMinutes.trim() ? parseInt(value.timeoutMinutes, 10) : null
-    const previousTimeout = committedTimeoutMinutes ?? null
-    if (nextTimeout !== previousTimeout) onCommit({ timeoutMinutes: nextTimeout })
+    onCommit({ timeoutMinutes: nextTimeout })
   }
 
   return (
@@ -305,7 +347,7 @@ const TaskDetail: FC<{
   task: ScheduledTaskEntity
   agents: AgentInfo[]
   channels: ChannelInfo[]
-  onUpdate: (taskId: string, updates: UpdateTaskRequest) => Promise<void>
+  onUpdate: (taskId: string, updates: UpdateTaskRequest) => Promise<TaskUpdateResult | undefined>
   onDelete: (taskId: string) => Promise<void>
   onRun: (taskId: string) => Promise<void>
   onToggleStatus: (taskId: string, newStatus: string) => Promise<void>
@@ -330,24 +372,22 @@ const TaskDetail: FC<{
     [channels, task.agentId]
   )
 
-  const initialSchedule = triggerToFormState(task.trigger)
-  const [name, setName] = useState(task.name)
-  const [prompt, setPrompt] = useState(task.prompt)
+  const initialDraft = taskToDraftSnapshot(task)
+  const [name, setName] = useState(initialDraft.name)
+  const [prompt, setPrompt] = useState(initialDraft.prompt)
   const [promptModalOpen, setPromptModalOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false)
-  const [schedule, setSchedule] = useState<ScheduleFormState>({
-    ...initialSchedule,
-    timeoutMinutes: task.timeoutMinutes?.toString() ?? ''
-  })
-  const [channelIds, setChannelIds] = useState<string[]>(task.channelIds ?? [])
+  const [schedule, setSchedule] = useState<ScheduleFormState>(initialDraft.schedule)
+  const [channelIds, setChannelIds] = useState<string[]>(initialDraft.channelIds)
   const selectedChannelIds = useMemo(() => {
     const ownedChannelIds = new Set(taskChannels.map((channel) => channel.id))
     return channelIds.filter((channelId) => ownedChannelIds.has(channelId))
   }, [channelIds, taskChannels])
-  const [workspaceId, setWorkspaceId] = useState<string | null>(
-    task.workspace.type === AGENT_WORKSPACE_TYPE.USER ? task.workspace.workspaceId : null
-  )
+  const [workspaceId, setWorkspaceId] = useState<string | null>(initialDraft.workspaceId)
+  const draftVersionsRef = useRef<TaskDraftVersions>(createTaskDraftVersions())
+  const submittedDraftVersionsRef = useRef<TaskDraftVersions>(createTaskDraftVersions())
+  const appliedDraftVersionsRef = useRef<TaskDraftVersions>(createTaskDraftVersions())
   const { data: workspaces } = useQuery('/agent-workspaces')
 
   const isSystemWorkspace = workspaceId === null
@@ -360,30 +400,68 @@ const TaskDetail: FC<{
   const runLabel = t('agent.tasks.run')
   const deleteLabel = t('agent.tasks.delete.label')
 
+  const markDraftChanged = useCallback((field: TaskDraftField) => {
+    draftVersionsRef.current[field] += 1
+  }, [])
+
+  const applyPersistedTaskFields = useCallback((persistedTask: ScheduledTaskEntity, fields: TaskDraftField[]) => {
+    const next = taskToDraftSnapshot(persistedTask)
+    const selectedFields = new Set(fields)
+
+    if (selectedFields.has('name')) setName(next.name)
+    if (selectedFields.has('prompt')) setPrompt(next.prompt)
+    if (selectedFields.has('schedule')) setSchedule(next.schedule)
+    if (selectedFields.has('channelIds')) setChannelIds(next.channelIds)
+    if (selectedFields.has('workspace')) setWorkspaceId(next.workspaceId)
+  }, [])
+
   useEffect(() => {
-    setName(task.name)
-    setPrompt(task.prompt)
-    const next = triggerToFormState(task.trigger)
-    setSchedule({ ...next, timeoutMinutes: task.timeoutMinutes?.toString() ?? '' })
-    setChannelIds(task.channelIds ?? [])
-    setWorkspaceId(task.workspace.type === AGENT_WORKSPACE_TYPE.USER ? task.workspace.workspaceId : null)
+    const next = taskToDraftSnapshot(task)
+    const draftVersions = draftVersionsRef.current
+    const appliedVersions = appliedDraftVersionsRef.current
+
+    setName((current) => (draftVersions.name === appliedVersions.name ? next.name : current))
+    setPrompt((current) => (draftVersions.prompt === appliedVersions.prompt ? next.prompt : current))
+    setSchedule((current) => (draftVersions.schedule === appliedVersions.schedule ? next.schedule : current))
+    setChannelIds((current) => (draftVersions.channelIds === appliedVersions.channelIds ? next.channelIds : current))
+    setWorkspaceId((current) => (draftVersions.workspace === appliedVersions.workspace ? next.workspaceId : current))
   }, [task])
 
   const saveField = useCallback(
     (updates: UpdateTaskRequest) => {
-      void onUpdate(task.id, updates)
+      const fields = draftFieldsForUpdate(updates)
+      const hasUnsubmittedDraft = fields.some(
+        (field) => draftVersionsRef.current[field] !== submittedDraftVersionsRef.current[field]
+      )
+      if (!hasUnsubmittedDraft) return
+
+      const submittedVersions = fields.map((field) => [field, draftVersionsRef.current[field]] as const)
+      for (const [field, version] of submittedVersions) {
+        submittedDraftVersionsRef.current[field] = version
+      }
+
+      void onUpdate(task.id, updates).then((result) => {
+        if (!result) return
+        const applicableFields = submittedVersions
+          .filter(([field, version]) => draftVersionsRef.current[field] === version)
+          .map(([field, version]) => {
+            appliedDraftVersionsRef.current[field] = version
+            return field
+          })
+        applyPersistedTaskFields(result.task, applicableFields)
+      })
     },
-    [task.id, onUpdate]
+    [applyPersistedTaskFields, onUpdate, task.id]
   )
 
   const handlePromptModalOpenChange = useCallback(
     (open: boolean) => {
-      if (!open && prompt.trim() && prompt !== task.prompt) {
+      if (!open && prompt.trim()) {
         saveField({ prompt: prompt.trim() })
       }
       setPromptModalOpen(open)
     },
-    [prompt, saveField, task.prompt]
+    [prompt, saveField]
   )
 
   const handleRunNow = useCallback(() => {
@@ -509,8 +587,11 @@ const TaskDetail: FC<{
             <SettingRowTitle>{t('agent.tasks.name.label')}</SettingRowTitle>
             <UIInput
               value={name}
-              onChange={(e) => setName(e.target.value)}
-              onBlur={() => name.trim() && name !== task.name && saveField({ name: name.trim() })}
+              onChange={(e) => {
+                markDraftChanged('name')
+                setName(e.target.value)
+              }}
+              onBlur={() => name.trim() && saveField({ name: name.trim() })}
               disabled={isCompleted}
             />
           </SettingRow>
@@ -534,8 +615,11 @@ const TaskDetail: FC<{
             </div>
             <Textarea.Input
               value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              onBlur={() => prompt.trim() && prompt !== task.prompt && saveField({ prompt: prompt.trim() })}
+              onChange={(e) => {
+                markDraftChanged('prompt')
+                setPrompt(e.target.value)
+              }}
+              onBlur={() => prompt.trim() && saveField({ prompt: prompt.trim() })}
               disabled={isCompleted}
               rows={4}
               className="min-h-22 resize-y px-3 py-2"
@@ -544,15 +628,17 @@ const TaskDetail: FC<{
           <TaskScheduleControls
             value={schedule}
             disabled={isCompleted}
-            committedTrigger={task.trigger}
-            committedTimeoutMinutes={task.timeoutMinutes}
-            onChange={setSchedule}
+            onChange={(nextSchedule) => {
+              markDraftChanged('schedule')
+              setSchedule(nextSchedule)
+            }}
             onCommit={saveField}
           />
           <TaskChannelSelector
             channels={taskChannels}
             channelIds={selectedChannelIds}
             onChange={(value) => {
+              markDraftChanged('channelIds')
               setChannelIds(value)
               saveField({ channelIds: value })
             }}
@@ -565,6 +651,7 @@ const TaskDetail: FC<{
             <WorkspaceSelector
               value={workspaceId}
               onChange={(nextWorkspaceId) => {
+                markDraftChanged('workspace')
                 setWorkspaceId(nextWorkspaceId)
                 saveField({
                   workspace:
@@ -605,7 +692,10 @@ const TaskDetail: FC<{
           </DialogHeader>
           <Textarea.Input
             value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
+            onChange={(e) => {
+              markDraftChanged('prompt')
+              setPrompt(e.target.value)
+            }}
             disabled={isCompleted}
             rows={14}
             className="min-h-70 resize-y px-3 py-2"
@@ -1001,6 +1091,31 @@ const TasksSettings: FC = () => {
   const [loading, setLoading] = useState(true)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
+  const taskUpdateTailsRef = useRef<Map<string, Promise<boolean>> | null>(null)
+  const persistedTasksRef = useRef(new Map<string, ScheduledTaskEntity>())
+
+  const getTaskUpdateTails = useCallback(() => {
+    taskUpdateTailsRef.current ??= new Map()
+    return taskUpdateTailsRef.current
+  }, [])
+
+  const enqueueTaskOperation = useCallback(
+    (taskId: string, operation: (previousSucceeded: boolean) => Promise<boolean>): Promise<boolean> => {
+      const tails = getTaskUpdateTails()
+      const previous = tails.get(taskId) ?? Promise.resolve(true)
+      const current = previous
+        .catch(() => false)
+        .then(operation)
+        .catch(() => false)
+
+      tails.set(taskId, current)
+      void current.then(() => {
+        if (tails.get(taskId) === current) tails.delete(taskId)
+      })
+      return current
+    },
+    [getTaskUpdateTails]
+  )
 
   const channels: ChannelInfo[] = useMemo(
     () =>
@@ -1029,7 +1144,9 @@ const TasksSettings: FC = () => {
           return (result as any).items ?? []
         })
       )
-      setTasks(tasksPerAgent.flat())
+      const loadedTasks = tasksPerAgent.flat() as ScheduledTaskEntity[]
+      persistedTasksRef.current = new Map(loadedTasks.map((task) => [task.id, task]))
+      setTasks(loadedTasks)
       setAgents(agentList.map((a: AgentEntity) => ({ id: a.id, name: a.name ?? a.id })))
     } catch (error) {
       logger.error('Failed to load tasks settings', error as Error)
@@ -1038,6 +1155,24 @@ const TasksSettings: FC = () => {
       setLoading(false)
     }
   }, [t])
+
+  const refreshTask = useCallback(
+    async (agentId: string, taskId: string) => {
+      try {
+        const refreshed = (await dataApiService.get(
+          `/agents/${agentId}/tasks/${taskId}` as never
+        )) as ScheduledTaskEntity
+        persistedTasksRef.current.set(taskId, refreshed)
+        setTasks((currentTasks) =>
+          currentTasks.map((currentTask) => (currentTask.id === taskId ? refreshed : currentTask))
+        )
+      } catch (error) {
+        logger.error('Failed to refresh scheduled task', error as Error)
+        toast.error(t('agent.tasks.error.loadFailed'))
+      }
+    },
+    [t]
+  )
 
   useEffect(() => {
     void loadData()
@@ -1076,14 +1211,33 @@ const TasksSettings: FC = () => {
     [createTask, loadData]
   )
 
-  const handleUpdate = useCallback(
-    async (taskId: string, updates: UpdateTaskRequest) => {
-      const task = tasks.find((t) => t.id === taskId)
-      if (!task) return
-      await updateTask(task.agentId, taskId, updates)
-      void loadData()
+  const persistTaskUpdate = useCallback(
+    async (task: ScheduledTaskEntity, updates: UpdateTaskRequest): Promise<TaskUpdateResult> => {
+      const updated = await updateTask(task.agentId, task.id, updates)
+      if (!updated) {
+        return { succeeded: false, task: persistedTasksRef.current.get(task.id) ?? task }
+      }
+      persistedTasksRef.current.set(task.id, updated)
+      setTasks((currentTasks) =>
+        currentTasks.map((currentTask) => (currentTask.id === task.id ? updated : currentTask))
+      )
+      return { succeeded: true, task: updated }
     },
-    [updateTask, tasks, loadData]
+    [updateTask]
+  )
+
+  const handleUpdate = useCallback(
+    (taskId: string, updates: UpdateTaskRequest): Promise<TaskUpdateResult | undefined> => {
+      const task = tasks.find((currentTask) => currentTask.id === taskId)
+      if (!task) return Promise.resolve(undefined)
+
+      let updateResult: TaskUpdateResult | undefined
+      return enqueueTaskOperation(taskId, async (previousSucceeded) => {
+        updateResult = await persistTaskUpdate(task, updates)
+        return previousSucceeded && updateResult.succeeded
+      }).then(() => updateResult)
+    },
+    [enqueueTaskOperation, persistTaskUpdate, tasks]
   )
 
   const handleDelete = useCallback(
@@ -1099,27 +1253,33 @@ const TasksSettings: FC = () => {
 
   const handleRun = useCallback(
     async (taskId: string) => {
-      await runTask(taskId)
-      void loadData()
-      // Task runs asynchronously — refresh again after a delay to capture completion
-      setTimeout(() => {
-        void loadData()
-      }, 1000)
+      const task = tasks.find((currentTask) => currentTask.id === taskId)
+      if (!task) return
+      await enqueueTaskOperation(taskId, async (previousSucceeded) => {
+        if (!previousSucceeded) return false
+        await runTask(taskId)
+        await refreshTask(task.agentId, taskId)
+        return true
+      })
     },
-    [runTask, loadData]
+    [enqueueTaskOperation, refreshTask, runTask, tasks]
   )
 
   const handleToggleStatus = useCallback(
     async (taskId: string, newStatus: string) => {
-      const task = tasks.find((t) => t.id === taskId)
+      const task = tasks.find((currentTask) => currentTask.id === taskId)
       if (!task) return
       // newStatus is the renderer's existing 'active' | 'paused' contract — keep
       // it so consumers don't need to think in terms of `enabled`, then translate
       // at the IPC boundary.
-      await updateTask(task.agentId, taskId, { enabled: newStatus === 'active' })
-      void loadData()
+      await enqueueTaskOperation(taskId, async (previousSucceeded) => {
+        const enabled = newStatus === 'active'
+        if (enabled && !previousSucceeded) return false
+        const toggleResult = await persistTaskUpdate(task, { enabled })
+        return previousSucceeded && toggleResult.succeeded
+      })
     },
-    [updateTask, tasks, loadData]
+    [enqueueTaskOperation, persistTaskUpdate, tasks]
   )
 
   if (loading) {

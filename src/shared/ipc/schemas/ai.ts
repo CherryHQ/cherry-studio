@@ -10,6 +10,7 @@ import type {
 import { CleanupPolicySchema, type FileEntry, FileEntrySchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { ImageGenerationModeSchema, ModelSchema, UniqueModelIdSchema } from '@shared/data/types/model'
+import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import type { EmbeddingModelUsage, LanguageModelUsage, ModelMessage } from 'ai'
 import * as z from 'zod'
 
@@ -134,7 +135,8 @@ export const aiRequestSchemas = {
         z.object({
           trigger: z.literal('submit-message'),
           parentAnchorId: z.string().optional(),
-          userMessageParts: z.array(z.custom<CherryMessagePart>())
+          userMessageParts: z.array(z.custom<CherryMessagePart>()),
+          reasoningEffort: ReasoningEffortOptionSchema.optional()
         }),
         z.object({
           trigger: z.literal('regenerate-message'),

@@ -13,6 +13,7 @@ src/main/data/migration/v2/
 ├── core/              # MigrationEngine, MigrationContext, MigrationPaths
 ├── migrators/         # Domain-specific migrators
 │   └── mappings/      # Mapping definitions
+├── migrationDiagnosticBundle.ts # Migration diagnostic ZIP builder
 ├── utils/             # ReduxStateReader, DexieFileReader, JSONStreamReader, LegacyHomeConfigReader
 ├── window/            # IPC handlers, window manager
 └── index.ts           # Public exports
@@ -46,6 +47,22 @@ paths with `path.join()` from scratch inside migration code.
 then passed through `MigrationContext.paths` to all migrators. If you
 need a new path, add it to the `MigrationPaths` interface — do not
 construct it inline.
+
+### Narrow exception: application logger output
+
+Migration diagnostics read the application's own logger output, not v1/v2 migration source data. This change
+records one narrow exception to the rule above: logs **MUST** resolve through `application.getPath('app.logs')`
+and **MUST NOT** be added to `MigrationPaths`. No broader migration filesystem access rule is relaxed.
+
+## Migration Diagnostic Bundle
+
+Only Renderer error/version-incompatible pages can request a bundle; there is no native preboot entry. A bundle
+contains minimal system information plus a stable snapshot for one log date: prefer the failure panel's
+mount-time local date, otherwise choose the latest eligible date, and never mix dates. If a complete snapshot
+cannot be formed, publish metadata only and disclose that result in the UI only when the destination can still be
+proven safe. If destination or source identity cannot be established, saving fails without replacing the existing
+file. Metadata excludes failure stacks, paths, and run/process fields. Logs may be sensitive and must not be shared
+publicly or outside Cherry Studio support.
 
 ## Version Compatibility Gate
 
@@ -95,6 +112,8 @@ Path Safety section above.
 - `prepare(ctx)`: Dry-run checks, return counts
 - `execute(ctx)`: Perform inserts, report progress
 - `validate(ctx)`: Verify counts and integrity
+
+`AssistantMigrator` also owns v1 assistant tag-group migration: it inserts `group(entityType='assistant')` rows and assigns their IDs to `assistant.groupId` in the same transaction.
 
 ### Foreign Keys Caveat
 

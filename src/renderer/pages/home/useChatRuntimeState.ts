@@ -22,6 +22,7 @@ import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useChatWriteActions } from './hooks/useChatWriteActions'
@@ -36,6 +37,7 @@ export interface ChatTurnInput {
     mentionedModels?: UniqueModelId[]
     knowledgeBaseIds?: string[]
     userMessageParts?: CherryMessagePart[]
+    reasoningEffort?: ReasoningEffortOption
   }
 }
 
@@ -255,7 +257,8 @@ export function useChatRuntimeState({
       parentAnchorId: conversation.parentAnchorId ?? undefined,
       userMessageParts: options?.userMessageParts ?? [{ type: 'text', text }],
       mentionedModelIds: options?.mentionedModels,
-      knowledgeBaseIds: options?.knowledgeBaseIds
+      knowledgeBaseIds: options?.knowledgeBaseIds,
+      reasoningEffort: options?.reasoningEffort
     }),
     refreshMetadata: ({ topicId }) => invalidateCache(['/topics', `/topics/${topicId}`])
   })

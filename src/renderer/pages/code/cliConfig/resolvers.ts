@@ -106,5 +106,5 @@ export function resolveOpenCodeNpmInfo(provider: Provider, modelEndpointTypes?: 
 }
 
 export function modelSupportsReasoningEffort(modelRecord: Model | null): boolean {
-  return !!modelRecord?.reasoning?.supportedEfforts?.length
+  return !!modelRecord?.reasoning?.selectableEfforts?.length
 }

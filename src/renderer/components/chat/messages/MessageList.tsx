@@ -235,6 +235,8 @@ const MessageList = () => {
     }
   }, [])
 
+  const getMessageElement = useCallback((id: string) => messageElements.current.get(id) ?? null, [])
+
   const scrollToBottom = useCallback(() => {
     messageListRef.current?.scrollToBottom('instant')
   }, [])
@@ -619,8 +621,8 @@ const MessageList = () => {
           {isLoadingMore && (
             <div
               className="pointer-events-none flex w-full justify-center py-2.5"
-              style={{ background: 'var(--color-background)' }}>
-              <LoadingIcon color="var(--color-foreground-secondary)" />
+              style={{ background: 'var(--background)' }}>
+              <LoadingIcon color="color-mix(in oklch, var(--foreground) 66.6667%, transparent)" />
             </div>
           )}
         </div>
@@ -665,7 +667,8 @@ const MessageList = () => {
       )}
       {messageNavigation === 'buttons' && (
         <MessageNavigation
-          containerId="messages"
+          scrollContainerRef={scrollContainerRef}
+          getMessageElement={getMessageElement}
           messages={messages}
           scrollToMessageId={scrollToMessageById}
           scrollToTop={navigateToTop}

@@ -1,3 +1,4 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { CommandContextKeyProvider, CommandProvider } from '@renderer/components/command'
@@ -14,9 +15,10 @@ import { useEffect } from 'react'
 
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
 import { useTopicNamingErrorNotification } from './hooks/useTopicNamingErrorNotification'
+import OnboardingPage from './onboarding/OnboardingPage'
+import { PrivacyPolicyUpdateGate } from './privacy/PrivacyPolicyUpdateGate'
 
 const logger = loggerService.withContext('MainApp')
-
 // Behavior leaf inside the providers: the shared window runtime plus the main-only
 // concerns, then the popup/toast hosts. It sits inside the providers but outside every
 // TabRouter/<Activity>, so these window-scoped subscriptions and DOM sync are never
@@ -52,6 +54,31 @@ function MainWindowRuntime(): null {
   return null
 }
 
+export function MainWindowContent(): React.ReactElement {
+  const [providerSetupStatus] = usePreference('app.onboarding.provider_setup.status')
+
+  if (providerSetupStatus === 'pending') {
+    return (
+      <>
+        <OnboardingPage />
+        <MainWindowRuntime />
+        <PopupHost />
+        <ToastHost />
+      </>
+    )
+  }
+
+  return (
+    <TabsProvider>
+      <AppShell />
+      <MainWindowRuntime />
+      <PopupHost />
+      <ToastHost />
+      <PrivacyPolicyUpdateGate />
+    </TabsProvider>
+  )
+}
+
 function MainApp(): React.ReactElement {
   logger.info('MainApp initialized')
 
@@ -63,12 +90,7 @@ function MainApp(): React.ReactElement {
         <CodeStyleProvider>
           <CommandContextKeyProvider>
             <CommandProvider>
-              <TabsProvider>
-                <AppShell />
-                <MainWindowRuntime />
-                <PopupHost />
-                <ToastHost />
-              </TabsProvider>
+              <MainWindowContent />
             </CommandProvider>
           </CommandContextKeyProvider>
         </CodeStyleProvider>

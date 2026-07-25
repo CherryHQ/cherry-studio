@@ -24,6 +24,17 @@ export interface ContentPopupParams {
 
 type Props = ContentPopupParams & PopupInjectedProps<void>
 
+// Custom widths (width/minWidth/maxWidth) replace DialogContent's own
+// max-w-[calc(100%-2rem)] responsive cap as inline styles, so clamp every
+// caller-provided length to the viewport here — a fixed 600px minWidth must
+// not overflow a 520px window.
+const VIEWPORT_WIDTH_CAP = 'calc(100vw - 2rem)'
+function clampWidthToViewport(value: CSSProperties['width']): CSSProperties['width'] {
+  if (typeof value === 'number') return `min(${value}px, ${VIEWPORT_WIDTH_CAP})`
+  if (typeof value === 'string') return `min(${value}, ${VIEWPORT_WIDTH_CAP})`
+  return value
+}
+
 const PopupContainer = ({
   content,
   title,
@@ -37,6 +48,11 @@ const PopupContainer = ({
   const contentStyle: CSSProperties = { ...styles?.content }
   if (width !== undefined) {
     contentStyle.width = width
+  }
+  for (const key of ['width', 'minWidth', 'maxWidth'] as const) {
+    if (contentStyle[key] !== undefined) {
+      contentStyle[key] = clampWidthToViewport(contentStyle[key])
+    }
   }
   const useCustomWidth = width !== undefined || styles?.content?.maxWidth !== undefined
 

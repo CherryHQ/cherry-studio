@@ -1,6 +1,16 @@
-import { describe, expect, it } from 'vitest'
+import path from 'node:path'
 
-import { shouldAutoEnsure } from '../pathRegistry'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('electron', () => ({
+  app: {
+    getAppPath: vi.fn(() => '/mock/app'),
+    getPath: vi.fn((key: string) => `/mock/${key}`),
+    isPackaged: false
+  }
+}))
+
+import { buildPathRegistry, shouldAutoEnsure } from '../pathRegistry'
 
 // Pure data-rule tests for `shouldAutoEnsure`. Decoupled from
 // Application.getPath so that a regression in the auto-ensure rules can be
@@ -8,10 +18,19 @@ import { shouldAutoEnsure } from '../pathRegistry'
 // suite, and so a single source of truth for the NO_ENSURE list lives in
 // `pathRegistry.ts` (and is exercised here).
 //
-// We do NOT mock buildPathRegistry. The function being tested is a pure
-// rule on a string-keyed namespace; it does not call Electron APIs. The
-// global `electron` mock from `tests/main.setup.ts` covers the lone
-// `import { app } from 'electron'` at the top of the registry module.
+// We do NOT mock buildPathRegistry. The shouldAutoEnsure rule is pure; the
+// local Electron mock also lets the path-layout test exercise the real registry.
+
+describe('buildPathRegistry', () => {
+  it('keeps the isolated mise tree under the userData toolchain', () => {
+    const registry = buildPathRegistry()
+    const miseRoot = path.join('/mock/userData', 'Toolchain', 'mise')
+
+    expect(registry['feature.binary.data']).toBe(miseRoot)
+    expect(registry['feature.binary.data.isolated.localappdata']).toBe(path.join(miseRoot, 'localappdata'))
+    expect(registry['feature.binary.data.isolated.appdata']).toBe(path.join(miseRoot, 'appdata'))
+  })
+})
 
 describe('pathRegistry.shouldAutoEnsure', () => {
   describe('cherry-owned directories — should auto-ensure', () => {

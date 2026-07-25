@@ -7,6 +7,7 @@ import {
 } from '@renderer/components/chat/panes/Shell'
 import { EmptyState } from '@renderer/components/chat/primitives'
 import type { ResourceListRevealRequest } from '@renderer/components/chat/resourceList/base'
+import type { PaneManualToggleSignal } from '@renderer/components/chat/shell/ChatAppShell'
 import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
 import { ConversationGreeting } from '@renderer/components/chat/shell/ConversationGreeting'
 import type { ConversationCenterSlot } from '@renderer/components/chat/shell/ConversationPageShell'
@@ -31,7 +32,7 @@ import { useTranslation } from 'react-i18next'
 import AgentChatMain from './AgentChatMain'
 import AgentComposerSlot from './AgentComposerSlot'
 import { AgentChatNavbar } from './components/AgentChatNavbar'
-import { AgentRightPane } from './components/AgentRightPane'
+import { type AgentFileNavigationRequest, AgentRightPane, useAgentFileNavigation } from './components/AgentRightPane'
 import { locateAgentMessageInList } from './messages/agentMessageListAdapter'
 import type { CreateAgentSessionDefaults } from './types'
 import { type AgentChatRuntimeState, useAgentChatRuntimeState } from './useAgentChatRuntimeState'
@@ -65,6 +66,8 @@ interface AgentChatProps {
   onLocateMessageHandled?: () => void
   onPaneCollapse?: () => void
   onPaneAutoCollapseChange?: (collapsed: boolean) => void
+  onFileNavigationRequestChange?: (request: AgentFileNavigationRequest | null) => void
+  paneManualToggle?: PaneManualToggleSignal
   missingAgentSelection?: boolean
   onCreateEmptySession?: (defaults?: CreateAgentSessionDefaults) => void | Promise<unknown>
   onMissingAgentSelectionAgentChange?: (agentId: string | null) => void | Promise<void>
@@ -78,6 +81,7 @@ interface AgentChatProps {
   resourcePaneRevealRequest?: ResourceListRevealRequest
   sessionPaneOpen?: boolean
   onSessionPaneOpenChange?: (open: boolean) => void
+  sessionPaneUserOpenIntentSeq?: number
 }
 
 interface AgentChatLayoutProps {
@@ -90,7 +94,9 @@ interface AgentChatLayoutProps {
   messages: CherryUIMessage[]
   onPaneAutoCollapseChange?: (collapsed: boolean) => void
   onPaneCollapse?: () => void
+  onFileNavigationRequestChange?: (request: AgentFileNavigationRequest | null) => void
   pane?: ReactNode
+  paneManualToggle?: PaneManualToggleSignal
   paneOpen?: boolean
   panePosition?: ChatPanePosition
   partsByMessageId: Record<string, CherryMessagePart[]>
@@ -98,6 +104,7 @@ interface AgentChatLayoutProps {
   resourcePaneRevealRequest?: ResourceListRevealRequest
   rightPanelDefaultOpen?: boolean
   onRightPanelOpenChange?: (open: boolean) => void
+  rightPanelUserOpenIntentSeq?: number
   sessionSnapshot: AgentSessionEntity | null
   sidePanel?: ReactNode
   topBar?: ReactNode
@@ -121,6 +128,8 @@ const AgentChat = ({
   onLocateMessageHandled,
   onPaneCollapse,
   onPaneAutoCollapseChange,
+  onFileNavigationRequestChange,
+  paneManualToggle,
   missingAgentSelection = false,
   onCreateEmptySession,
   onMissingAgentSelectionAgentChange,
@@ -133,7 +142,8 @@ const AgentChat = ({
   resourcePaneCount,
   resourcePaneRevealRequest,
   sessionPaneOpen,
-  onSessionPaneOpenChange
+  onSessionPaneOpenChange,
+  sessionPaneUserOpenIntentSeq
 }: AgentChatProps) => {
   const { t } = useTranslation()
   const [messageStyle] = usePreference('chat.message.style')
@@ -314,6 +324,7 @@ const AgentChat = ({
     }),
     conversationState,
     messages: sessionSnapshot ? runtime.uiMessages : EMPTY_MESSAGES,
+    onFileNavigationRequestChange,
     onPaneAutoCollapseChange,
     onPaneCollapse,
     pane,
@@ -324,6 +335,8 @@ const AgentChat = ({
     resourcePaneRevealRequest,
     rightPanelDefaultOpen: sessionPaneOpen,
     onRightPanelOpenChange: onSessionPaneOpenChange,
+    rightPanelUserOpenIntentSeq: sessionPaneUserOpenIntentSeq,
+    paneManualToggle,
     sessionSnapshot,
     sidePanel,
     topBar,
@@ -361,12 +374,31 @@ const AgentChatSessionCenter = ({
   workspaceChanging
 }: AgentChatSessionCenterProps) => {
   const { hasOlder, isLoading, uiMessages } = runtime
+  const requestFileNavigation = useAgentFileNavigation()
   // `sessionMessagesEnabled` guards the locked/active session transition window,
   // where messages are force-disabled (empty + not loading) and would otherwise
   // read as an empty conversation.
   const isEmptyConversation =
     sessionMessagesEnabled && !isLoading && !runtime.isPending && !hasOlder && uiMessages.length === 0
   const canChangeWorkspace = Boolean(onWorkspaceChange && isEmptyConversation)
+  const handleWorkspaceChange = useCallback(
+    (workspaceId: string | null) => {
+      requestFileNavigation(() => {
+        void onWorkspaceChange?.(workspaceId)
+      })
+    },
+    [onWorkspaceChange, requestFileNavigation]
+  )
+  const handleCreateEmptySession = useCallback(() => {
+    const transition = () => {
+      void onCreateEmptySession?.()
+    }
+    if (session.workspaceId && session.workspace?.type !== 'system') {
+      transition()
+      return
+    }
+    requestFileNavigation(transition)
+  }, [onCreateEmptySession, requestFileNavigation, session.workspace?.type, session.workspaceId])
 
   const composer = (
     <AgentComposerSlot
@@ -378,10 +410,10 @@ const AgentChatSessionCenter = ({
       stop={runtime.stop}
       isStreaming={runtime.isPending}
       sendDisabled={false}
-      onCreateEmptySession={onCreateEmptySession}
+      onCreateEmptySession={onCreateEmptySession ? handleCreateEmptySession : undefined}
       canChangeAgent={isEmptyConversation}
       workspaceId={session.workspace?.type === 'system' ? null : session.workspaceId}
-      onWorkspaceChange={canChangeWorkspace ? onWorkspaceChange : undefined}
+      onWorkspaceChange={canChangeWorkspace ? handleWorkspaceChange : undefined}
       workspaceChanging={workspaceChanging}
       composerContext={runtime.composerContext}
     />
@@ -427,6 +459,7 @@ function AgentChatLayout({
   className,
   conversationState,
   messages,
+  onFileNavigationRequestChange,
   onPaneAutoCollapseChange,
   onPaneCollapse,
   pane,
@@ -437,6 +470,8 @@ function AgentChatLayout({
   resourcePaneRevealRequest,
   rightPanelDefaultOpen,
   onRightPanelOpenChange,
+  rightPanelUserOpenIntentSeq,
+  paneManualToggle,
   sessionSnapshot,
   sidePanel,
   topBar,
@@ -447,11 +482,14 @@ function AgentChatLayout({
       conversationState={conversationState}
       workspaceId={sessionSnapshot?.workspaceId}
       workspacePath={sessionSnapshot?.workspace?.path}
+      workspaceType={sessionSnapshot?.workspace?.type}
       messages={messages}
       partsByMessageId={partsByMessageId}
       resourcePane={resourcePane}
       defaultOpen={rightPanelDefaultOpen}
       onOpenChange={onRightPanelOpenChange}
+      onFileNavigationRequestChange={onFileNavigationRequestChange}
+      userOpenIntentSeq={rightPanelUserOpenIntentSeq}
       sessionId={sessionSnapshot?.id}
       sessionName={sessionSnapshot?.name}
       traceId={sessionSnapshot?.traceId ?? undefined}
@@ -467,6 +505,7 @@ function AgentChatLayout({
         panePosition={panePosition}
         onPaneCollapse={onPaneCollapse}
         onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+        paneManualToggle={paneManualToggle}
         topBar={topBar}
         topRightTool={topRightTool}
         showTopRightToolWhenPaneOpen

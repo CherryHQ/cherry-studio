@@ -4,6 +4,7 @@ import { execFileSync, spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 
+import { getBundledGitPath } from './bundledGit'
 import { getShellEnv } from './shellEnv'
 
 /**
@@ -328,26 +329,40 @@ function findMiseExecutable(env: Record<string, string>): string | null {
  * refreshShellEnv() explicitly before calling this function.
  *
  * Cross-platform: uses findCommandInShellEnv first, falls back to findExecutable on Windows,
- * and finally tries mise as a last resort on Windows.
+ * then mise, and finally (for `git` only) the bundled MinGit as the last resort.
  */
 export async function findExecutableInEnv(name: string): Promise<string | null> {
   const env = await getShellEnv()
 
+  // The bundled MinGit dir sits on the PATH tail (see shellEnv), so the PATH
+  // lookups below can surface it — e.g. `where git` skips mise's `.cmd` shim
+  // and hits the bundled `.exe`. Treat such hits as provisional: keep searching
+  // and only return the bundle after every system/mise lookup misses.
+  const bundledGit = name === 'git' ? getBundledGitPath() : null
+  const isBundledGit = (p: string) => bundledGit !== null && p.toLowerCase() === bundledGit.toLowerCase()
+
   // Cross-platform: try shell environment lookup first
   const found = await findCommandInShellEnv(name, env)
-  if (found) {
+  if (found && !isBundledGit(found)) {
     return found
   }
 
   // Windows fallback: findExecutable handles .cmd/.exe filtering and security checks
   if (isWin) {
     const winFound = findExecutable(name, { env })
-    if (winFound) {
+    if (winFound && !isBundledGit(winFound)) {
       return winFound
     }
 
-    // Last resort on Windows: ask mise for the real binary path
-    return findViaMise(name, env)
+    // Ask mise for the real binary path
+    const viaMise = findViaMise(name, env)
+    if (viaMise) {
+      return viaMise
+    }
+
+    // Last resort: the bundled MinGit shipped with the app, so git works even
+    // when the user has no system git installed. System/mise git always win above.
+    return bundledGit
   }
 
   return null

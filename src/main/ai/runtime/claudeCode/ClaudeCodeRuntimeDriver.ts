@@ -18,6 +18,7 @@ type SDKRuntimeSystemMessage = Extract<SDKMessage, { type: 'system' }>
 type SDKCompactionSystemMessage = SDKCompactBoundaryMessage | SDKStatusMessage
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
+import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
@@ -33,11 +34,13 @@ import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsa
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
-import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryUIMessage, FileUIPart } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { parseDataUrl } from '@shared/utils/dataUrl'
+import { isVisionModel } from '@shared/utils/model'
 
 import type {
   AgentRuntimeConnectInput,
@@ -45,6 +48,7 @@ import type {
   AgentRuntimeEvent,
   AgentRuntimeReconcileResult,
   AgentRuntimeUserInput,
+  AgentSessionLiveIndex,
   AgentSessionRuntimeDriver
 } from '../types'
 import {
@@ -53,6 +57,7 @@ import {
   deriveConnectionConfig,
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
+import { sweepClaudeSessionFiles } from './sessionFileSweep'
 import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
@@ -173,7 +178,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     const request = await buildClaudeCodeQueryRequestForAgentSession(
       this.input.sessionId,
       this.resumeToken,
-      this.input.modelId
+      this.input.modelId,
+      this.input.reasoningEffort ?? 'default'
     )
     if (!request) {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
@@ -238,7 +244,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.pendingInitMessage = undefined
     }
 
-    this.sdkInputQueue.push(await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder))
+    this.sdkInputQueue.push(
+      await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
+        supportsImages: resolveModelImageSupport(this.input.modelId)
+      })
+    )
   }
 
   redirect(input: AgentRuntimeUserInput): boolean {
@@ -252,7 +262,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     return true
   }
 
-  async reconcile(input: { modelId: UniqueModelId }): Promise<AgentRuntimeReconcileResult> {
+  async reconcile(input: {
+    modelId: UniqueModelId
+    reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
+  }): Promise<AgentRuntimeReconcileResult> {
     // Serialize per connection: a push (agent-updated) and a pull (fresh-turn check) reconciling
     // concurrently could interleave the SDK setPermissionMode and snapshot writes, leaving the local
     // gate and the subprocess on different policies.
@@ -264,9 +277,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     return run
   }
 
-  private async reconcileOnce(input: { modelId: UniqueModelId }): Promise<AgentRuntimeReconcileResult> {
+  private async reconcileOnce(input: {
+    modelId: UniqueModelId
+    reasoningEffort?: AgentRuntimeConnectInput['reasoningEffort']
+  }): Promise<AgentRuntimeReconcileResult> {
     if (!this.query) return 'rebuild'
-    const derived = await deriveConnectionConfig(this.input.sessionId, input.modelId)
+    const derived = await deriveConnectionConfig(
+      this.input.sessionId,
+      input.modelId,
+      input.reasoningEffort ?? 'default'
+    )
     if (!derived.ok) return 'invalid'
     const baseline = this.connectionConfig
     // A connection without its materialized baseline cannot prove what the subprocess serves.
@@ -359,6 +379,15 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
             this.updateResumeToken(message.session_id)
             logger.warn('Received a result message with no active turn; dropping turn-complete', {
               sessionId: this.input.sessionId
+            })
+          } else {
+            // Background agents and tasks can keep emitting after their turn's result (e.g.
+            // `task_notification`). No turn stream is open to carry them, so they are dropped —
+            // logged rather than vanishing silently, since there is no background-task surface yet.
+            logger.debug('Dropping message received with no active turn', {
+              sessionId: this.input.sessionId,
+              type: message.type,
+              subtype: 'subtype' in message ? message.subtype : undefined
             })
           }
           continue
@@ -550,12 +579,30 @@ function isCompactionSystemMessage(message: SDKRuntimeSystemMessage): message is
   return message.subtype === 'status' || message.subtype === 'compact_boundary'
 }
 
+/**
+ * Whether the turn's model accepts native image input. Unresolvable models keep the
+ * legacy always-native behavior instead of silently degrading images to OCR text.
+ */
+function resolveModelImageSupport(uniqueModelId: UniqueModelId): boolean {
+  try {
+    const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+    return isVisionModel(modelService.getByKey(providerId, modelId))
+  } catch (error) {
+    logger.warn('Failed to resolve model for image support; assuming vision-capable', {
+      uniqueModelId,
+      error
+    })
+    return true
+  }
+}
+
 async function toSdkUserMessage(
   message: AgentSessionMessageEntity,
   resumeToken?: string,
-  systemReminder = false
+  systemReminder = false,
+  { supportsImages = true }: { supportsImages?: boolean } = {}
 ): Promise<SDKUserMessage> {
-  let content = await materializeUserContent(message)
+  let content = await materializeUserContent(message, supportsImages)
   if (systemReminder) {
     content = applySteerReminder(content)
   }
@@ -587,15 +634,17 @@ function applySteerReminder(content: SDKUserMessage['message']['content']): SDKU
 }
 
 /**
- * Build SDK user content from a message entity. Supported image attachments
- * (png, jpeg, gif, webp) are materialized into native Anthropic image blocks;
- * first-party non-image files use the shared extracted-text routing. External
- * files and images that cannot be materialized fall back to local paths when available.
+ * Build SDK user content from a message entity. When the model supports vision,
+ * supported image attachments (png, jpeg, gif, webp) are materialized into native
+ * Anthropic image blocks; otherwise first-party images are OCR'd to text by the
+ * shared routing, like first-party non-image files. External files and images that
+ * cannot be materialized fall back to local paths when available.
  *
  * **Side effect**: performs file I/O via {@link materializeNativeFilePart}.
  */
 async function materializeUserContent(
-  message: AgentSessionMessageEntity
+  message: AgentSessionMessageEntity,
+  supportsImages: boolean
 ): Promise<SDKUserMessage['message']['content']> {
   const parts = message.data?.parts ?? []
   const firstPartyParts = parts.filter(
@@ -616,7 +665,7 @@ async function materializeUserContent(
     const userMessage = { id: message.id, role: 'user', parts: firstPartyParts } as CherryUIMessage
     const [prepared] = await prepareChatMessages([userMessage], {
       attachments: collectFileAttachments([userMessage]),
-      nativeSupport: { image: true, pdf: false, audio: false, video: false },
+      nativeSupport: { image: supportsImages, pdf: false, audio: false, video: false },
       isToolCapable: false
     })
     routedParts = prepared.parts
@@ -636,7 +685,7 @@ async function materializeUserContent(
   ]) {
     const fileEntryId = readCherryMeta(part)?.fileEntryId
     const originalPart = (fileEntryId && originalFirstPartyFiles.get(fileEntryId)) || part
-    if (!canBeClaudeImage(part)) {
+    if (!supportsImages || !canBeClaudeImage(part)) {
       const target = originalPart.url?.startsWith('file://') ? fallbackParts : unavailableParts
       target.push(originalPart)
       continue
@@ -757,5 +806,16 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
     // `prewarmAgentSession` already no-ops in trace mode (it closes any warm
     // queries and returns), so no driver-side trace guard is needed here.
     void application.get('ClaudeCodeWarmQueryManager').prewarmAgentSession(sessionId)
+  }
+
+  async sweepSessionFiles(live: AgentSessionLiveIndex): Promise<void> {
+    // A deleted session's prewarmed query can outlive its DB row within the warm TTL, still
+    // holding the workspace cwd and appending its transcript — the whole-directory removals
+    // below (and the host's workspace-dir sweep that follows) are only safe once it is closed.
+    const warmManager = application.get('ClaudeCodeWarmQueryManager')
+    for (const sessionId of warmManager.getWarmAgentSessionIds()) {
+      if (!live.isSessionLive(sessionId)) warmManager.closeAgentSessionWarm(sessionId)
+    }
+    await sweepClaudeSessionFiles(live)
   }
 }

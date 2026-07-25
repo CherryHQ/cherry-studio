@@ -19,6 +19,7 @@ import type {
   HookCallback,
   HookJSONOutput,
   McpServerConfig,
+  Options,
   PermissionResult,
   SdkPluginConfig
 } from '@anthropic-ai/claude-agent-sdk'
@@ -55,7 +56,7 @@ import { getProxyEnvironment } from '@main/services/proxy/proxyEnv'
 import { toAsarUnpackedPath } from '@main/utils/asar'
 import { getBinaryPath } from '@main/utils/binaryResolver'
 import { autoDiscoverGitBash } from '@main/utils/commandResolver'
-import { getPathStatus, type PathStatus } from '@main/utils/file'
+import { getPathStatus, isPathInside, type PathStatus } from '@main/utils/file'
 import { redactUrlToOrigin } from '@main/utils/redactUrl'
 import { rtkRewrite } from '@main/utils/rtk'
 import { getShellEnv } from '@main/utils/shellEnv'
@@ -88,6 +89,8 @@ const promptBuilder = new PromptBuilder()
 const HEADLESS_INTERACTIVE_TOOLS = ['AskUserQuestion', 'EnterPlanMode', 'ExitPlanMode', 'EnterWorktree'] as const
 const HEADLESS_INTERACTIVE_TOOL_DENIAL =
   'This channel or scheduled turn has no interactive responder, so proceed without asking the user and state your assumptions instead.'
+const OUT_OF_TURN_APPROVAL_DENIAL =
+  'This tool call arrived after its turn had already ended, so no one can approve it. Request it again in your next turn if you still need it.'
 const HEADLESS_CONFIG_MUTATION_ACTIONS = new Set([
   'rename',
   'complete_bootstrap',
@@ -97,6 +100,14 @@ const HEADLESS_CONFIG_MUTATION_ACTIONS = new Set([
   'remove_channel',
   'reconnect_channel'
 ])
+const WORKSPACE_PATH_FIELDS = {
+  Edit: 'file_path',
+  Glob: 'path',
+  Grep: 'path',
+  NotebookEdit: 'notebook_path',
+  Read: 'file_path',
+  Write: 'file_path'
+} as const
 
 const toolApprovalEmitters = new Map<string, ToolApprovalEmitterHolder>()
 
@@ -224,8 +235,8 @@ export interface ClaudeCodeSessionOptions {
   /** Channel binding captured by the request builder; `null` means the session was local. */
   linkedChannelSnapshot?: LinkedChannelSnapshot
   thinkingOptions?: {
-    effort?: 'low' | 'medium' | 'high' | 'max'
-    thinking?: { type: 'adaptive' } | { type: 'enabled'; budgetTokens?: number } | { type: 'disabled' }
+    effort?: Options['effort']
+    thinking?: Options['thinking']
   }
 }
 
@@ -487,6 +498,19 @@ async function resolveRealOrNearestExistingPath(targetPath: string): Promise<str
   }
 }
 
+async function isPathWithinWorkspace(cwd: string, requestedPath: string): Promise<boolean> {
+  if (requestedPath === '~' || requestedPath.startsWith('~/') || requestedPath.startsWith('~\\')) {
+    return false
+  }
+
+  const absoluteTarget = path.isAbsolute(requestedPath) ? path.resolve(requestedPath) : path.resolve(cwd, requestedPath)
+  const [resolvedWorkspace, resolvedTarget] = await Promise.all([
+    resolveRealOrNearestExistingPath(path.resolve(cwd)),
+    resolveRealOrNearestExistingPath(absoluteTarget)
+  ])
+  return resolvedTarget === resolvedWorkspace || isPathInside(resolvedTarget, resolvedWorkspace)
+}
+
 export async function assertClaudeCodeWorkspaceDirectory(sessionId: string, cwd: string): Promise<void> {
   const status = await getPathStatus(cwd)
   if (status.ok && status.kind === 'directory') return
@@ -742,6 +766,16 @@ async function buildToolPermissions(
       return { behavior: 'allow', updatedInput: input }
     }
 
+    // A detached background agent outlives the turn that spawned it, and since SDK 0.3.186 its
+    // permission prompts are forwarded here instead of being auto-denied. The approval chunk below
+    // is dropped by the connection event loop once that turn's stream is gone, which would leave
+    // this promise pending until the session closes. Deny out-of-turn approvals outright; the
+    // auto-approved branch above still lets background work run unattended.
+    if (!application.get('AgentSessionRuntimeService').hasLiveTurnStream(session.id)) {
+      logger.warn('Approval requested outside a live turn — denying', { toolName })
+      return { behavior: 'deny', message: OUT_OF_TURN_APPROVAL_DENIAL }
+    }
+
     const approvalId = randomUUID()
     const emit = peekToolApprovalEmitter(session.id)?.emit
     if (!emit) {
@@ -863,6 +897,38 @@ async function buildToolPermissions(
     }
   }
 
+  // `cwd` establishes the default SDK working directory but does not itself prevent an absolute
+  // path from reaching a built-in file tool. Force any workspace escape back through the approval
+  // path, including under acceptEdits / bypassPermissions where `canUseTool` may be skipped. This is
+  // deliberately scoped to structured file-tool paths: parsing Bash text would be incomplete and
+  // would create a false sandbox boundary.
+  const workspacePathHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'PreToolUse') return {}
+    const toolName = String((input as Record<string, unknown>).tool_name ?? '')
+    const pathField = WORKSPACE_PATH_FIELDS[toolName as keyof typeof WORKSPACE_PATH_FIELDS]
+    if (!pathField) return {}
+
+    const toolInput = (input as Record<string, unknown>).tool_input as Record<string, unknown> | undefined
+    const requestedPath = toolInput?.[pathField]
+    // Glob/Grep intentionally omit `path` to search from cwd. Let the SDK validate missing or
+    // malformed required fields for the other tools rather than duplicating their schemas here.
+    if (typeof requestedPath !== 'string' || !requestedPath.trim()) return {}
+    if (await isPathWithinWorkspace(cwd, requestedPath)) return {}
+
+    logger.info('Requiring approval for file-tool path outside the session workspace', {
+      sessionId: session.id,
+      toolName,
+      requestedPath
+    })
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'ask',
+        permissionDecisionReason: `${toolName} requested a path outside the session workspace (${cwd}): ${requestedPath}`
+      }
+    }
+  }
+
   // Real mid-turn steer (the agent SDK has no native steer API): when a steer is stashed via the
   // connection's `redirect()`, inject it as `additionalContext` before the next tool runs so the
   // model can change direction without aborting. If the turn ends with no tool call, the connection
@@ -904,6 +970,7 @@ async function buildToolPermissions(
             headlessInteractiveToolHook,
             headlessConfigMutationHook,
             disabledToolHook,
+            workspacePathHook,
             dependencyIsolationHook,
             rtkRewriteHook,
             steerHook
@@ -982,17 +1049,25 @@ export async function buildSystemPrompt(
   const channelSecurityBlock = isChannelLinked ? `\n\n${CHANNEL_SECURITY_PROMPT}` : ''
   const artifactsBlock = `\n\n${REPORT_ARTIFACTS_PROMPT}`
   const langInstruction = getLanguageInstruction()
+  const workspaceBlock = [
+    '## Current Workspace',
+    `Current working directory: ${JSON.stringify(cwd)}`,
+    'Use it as the default base for file operations and shell commands; resolve unspecified or relative paths against it.'
+  ].join('\n')
+  const workspaceContextBlock = `\n\n${workspaceBlock}`
 
   // Assistant mode
   if (isAssistant) {
     try {
       const context = buildAssistantContext()
-      return instructions ? `${instructions}\n\n${context}${channelSecurityBlock}` : `${context}${channelSecurityBlock}`
+      return instructions
+        ? `${instructions}\n\n${context}${workspaceContextBlock}${channelSecurityBlock}`
+        : `${context}${workspaceContextBlock}${channelSecurityBlock}`
     } catch (error) {
       // Don't silently degrade to generic behavior: a context read failure drops the entire
       // assistant context, so surface it before falling back to the base instructions.
       logger.error('buildAssistantContext failed; falling back to base instructions', error as Error)
-      return `${instructions}${channelSecurityBlock}`
+      return `${instructions}${workspaceContextBlock}${channelSecurityBlock}`
     }
   }
 
@@ -1002,7 +1077,7 @@ export async function buildSystemPrompt(
 
   const soulPrompt = await promptBuilder.buildSystemPrompt(cwd, agentConfig, Boolean(instructions?.trim()))
   const userInstructions = instructions ? `\n\n${instructions}` : ''
-  return `${soulPrompt}${userInstructions}${channelSecurityBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
+  return `${soulPrompt}${userInstructions}${workspaceContextBlock}${channelSecurityBlock}${artifactsBlock}${runtimeBlock}\n\n${langInstruction}`
 }
 
 export function buildMcpServers(

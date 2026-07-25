@@ -311,7 +311,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       hasShadow: false,
       thickFrame: false,
       // The toolbar is a transparent, frameless pill that draws its own rounded
-      // background in CSS (--selection-toolbar-border-radius). Newer macOS enlarged
+      // background in CSS. Newer macOS enlarged
       // the system window-corner radius, so with the OS rounding on, the window mask
       // overrides the pill's own corners — the top (only 2px from the window edge)
       // takes the larger OS radius while the bottom keeps the CSS radius, producing a

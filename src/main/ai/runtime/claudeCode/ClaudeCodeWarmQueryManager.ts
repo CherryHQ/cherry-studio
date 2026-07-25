@@ -135,6 +135,12 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     }
   }
 
+  /** Session ids with a live prewarmed query — warm entries are keyed by session id
+   *  (`warmQueryKey` is always `session.id`). The file sweep evicts dead ones first. */
+  getWarmAgentSessionIds(): string[] {
+    return [...this.entries.keys()]
+  }
+
   prewarm(request: WarmQueryRequest): void {
     const warmOptions = stripWarmQueryOptions(request.options)
     const signature = createClaudeCodeWarmQuerySignature(warmOptions, request.credentialsFingerprint)

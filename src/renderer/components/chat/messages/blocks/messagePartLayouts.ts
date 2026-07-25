@@ -1,5 +1,7 @@
+import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens'
 import { REPORT_ARTIFACTS_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { CherryMessagePart, ReasoningUIPart } from '@shared/data/types/message'
+import { readCherryMeta } from '@shared/data/types/uiParts'
 import { getToolName, isToolUIPart } from 'ai'
 
 import { isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'
@@ -59,10 +61,23 @@ function isIgnorableEmptyContentPart(part: CherryMessagePart): boolean {
   return reasoningPart.state !== 'streaming' && isEmptyContentPart(part)
 }
 
+function hasVisibleComposerToken(part: CherryMessagePart): boolean {
+  if (part.type !== 'text') return false
+  const text = part.text ?? ''
+  const composer = readCherryMeta(part)?.composer
+  if (!composer) return false
+
+  return getDisplayComposerTokens(composer).some((token) => {
+    if (!token.promptText) return true
+    const offset = Math.max(0, Math.min(text.length, token.textOffset))
+    return text.slice(offset, offset + token.promptText.length) === token.promptText
+  })
+}
+
 function isEmptyContentPart(part: CherryMessagePart): boolean {
   const partType = part.type as string
   if (partType !== 'text' && partType !== 'reasoning') return false
-  return !(part as { text?: string }).text?.trim()
+  return !(part as { text?: string }).text?.trim() && !hasVisibleComposerToken(part)
 }
 
 function isEllipsisOnlyTextPart(part: CherryMessagePart): boolean {
@@ -214,7 +229,7 @@ export function isSubstantiveAnswerPart(part: CherryMessagePart): boolean {
   const partType = part.type as string
   if (!SUBSTANTIVE_ANSWER_PART_TYPES.has(partType)) return false
   if (partType === 'data-compaction-anchor') return true
-  if (partType === 'text') return !!(part as { text?: string }).text?.trim()
+  if (partType === 'text') return !!(part as { text?: string }).text?.trim() || hasVisibleComposerToken(part)
   return !!(part as { data?: { content?: string } }).data?.content?.trim()
 }
 

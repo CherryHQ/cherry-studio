@@ -1,10 +1,11 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import { application } from '@application'
 import type { AiPlugin } from '@cherrystudio/ai-core'
+import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@main/ai/constants'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import type { Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
 import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
@@ -30,6 +31,8 @@ import {
   mergeCustomProviderParameters
 } from '../../../utils/options'
 import { getCustomParameters } from '../../../utils/reasoning'
+import { resolveReasoningInvocation } from '../../../utils/reasoningSerializers'
+import { createToolCallLimitStopCondition } from '../loop/toolLoopTermination'
 import type { AgentLoopHooks, AgentOptions } from '../loop/types'
 import { assembleSystemPrompt } from './assembleSystemPrompt'
 import { buildTelemetry } from './buildTelemetry'
@@ -84,6 +87,20 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
 
   const { endpointType } = resolveEffectiveEndpoint(provider, model)
   const aiSdkProviderId = resolveAiSdkProviderId(provider, endpointType)
+  const runtimeProviderId = sdkConfig.providerId
+  const reasoningEndpointType =
+    runtimeProviderId === 'google-vertex-maas' ? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS : endpointType
+  const reasoningProfile = providerRegistryService.resolveReasoningProfile(provider, model, reasoningEndpointType)
+  const invocationModel = reasoningProfile.support
+    ? { ...model, reasoning: projectRuntimeReasoning(reasoningProfile.support, reasoningProfile.wire) }
+    : model
+  const reasoning = resolveReasoningInvocation({
+    selection: request.reasoningEffort ?? assistant?.settings.reasoning_effort ?? 'default',
+    model: invocationModel,
+    profile: reasoningProfile.wire,
+    maxTokens: resolveReasoningMaxTokens(request.callOverrides?.maxOutputTokens, assistant, model),
+    assistantSummary: provider.settings.summaryText
+  })
   const nativeFileSupport = resolveNativeFileSupport(provider, model, aiSdkProviderId)
 
   const requestContext: RequestContext = {
@@ -106,6 +123,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     sdkConfig,
     endpointType,
     aiSdkProviderId,
+    reasoningProfile,
+    reasoning,
     requestContext,
     mcpToolIds,
     hasFileAttachments,
@@ -128,6 +147,19 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     nativeFileSupport,
     fileAttachments
   }
+}
+
+export function resolveReasoningMaxTokens(
+  requestMaxOutputTokens: number | undefined,
+  assistant: Assistant | undefined,
+  model: Model
+): number | undefined {
+  if (requestMaxOutputTokens !== undefined) return requestMaxOutputTokens
+
+  const enableMaxTokens = assistant?.settings.enableMaxTokens ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxTokens
+  if (enableMaxTokens) return assistant?.settings.maxTokens ?? DEFAULT_ASSISTANT_SETTINGS.maxTokens
+
+  return model.maxOutputTokens
 }
 
 async function resolveSdkConfig(provider: Provider, model: Model, apiKeyOverride?: string): Promise<SdkConfig> {
@@ -255,17 +287,40 @@ export function resolveKnowledgeBaseIds(assistant: Assistant | undefined, reques
  * and the tool-call repair function.
  */
 function buildAgentOptions(scope: RequestScope, featureStopConditions: StopCondition<ToolSet>[]): AgentOptions {
-  const { assistant, capabilities, model, provider, sdkConfig, requestContext, request, aiSdkProviderId } = scope
+  const {
+    assistant,
+    capabilities,
+    model,
+    provider,
+    sdkConfig,
+    requestContext,
+    request,
+    aiSdkProviderId,
+    endpointType,
+    reasoning
+  } = scope
 
   let providerOptions =
-    assistant && capabilities ? buildCapabilityProviderOptions(assistant, model, provider, capabilities) : {}
+    assistant && capabilities
+      ? buildCapabilityProviderOptions(assistant, model, provider, capabilities, {
+          aiSdkProviderId,
+          runtimeProviderId: sdkConfig.providerId,
+          endpointType,
+          reasoning
+        })
+      : {}
   let standardParams: Partial<Record<string, unknown>> = {}
   if (assistant) {
     const customParams = getCustomParameters(assistant)
     if (Object.keys(customParams).length > 0) {
       const split = extractAiSdkStandardParams(customParams)
       standardParams = filterStandardParams(split.standardParams, model)
-      providerOptions = mergeCustomProviderParameters(providerOptions, split.providerParams, aiSdkProviderId)
+      providerOptions = mergeCustomProviderParameters(
+        providerOptions,
+        split.providerParams,
+        provider.id,
+        sdkConfig.providerId === 'google-vertex-maas' ? 'openai-compatible' : aiSdkProviderId
+      )
     }
   }
 
@@ -276,7 +331,8 @@ function buildAgentOptions(scope: RequestScope, featureStopConditions: StopCondi
   providerOptions = overridden.providerOptions as typeof providerOptions
 
   const { headers, maxRetries } = request.requestOptions ?? {}
-  const baseStopWhen = assistant ? resolveStopWhenForAssistant(assistant) : undefined
+  const toolCallLimit = resolveToolCallLimit(assistant)
+  const baseStopWhen = createToolCallLimitStopCondition(toolCallLimit)
   const stopWhen = composeStopWhen(baseStopWhen, featureStopConditions)
   const telemetry = buildTelemetry(scope)
 
@@ -349,13 +405,14 @@ export function composeStopWhen(
   return [base, ...featureStopConditions]
 }
 
-function resolveStopWhenForAssistant(assistant: Assistant): ReturnType<typeof stepCountIs> {
+export function resolveToolCallLimit(assistant: Assistant | undefined): number {
+  if (!assistant) return SDK_DEFAULT_STEP_COUNT
+
   const enableMaxToolCalls = assistant.settings?.enableMaxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls
   if (!enableMaxToolCalls) {
-    return stepCountIs(DEFAULT_ASSISTANT_SETTINGS.maxToolCalls)
+    return DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
   }
   const raw = assistant.settings?.maxToolCalls
   const valid = raw !== undefined && raw >= MIN_TOOL_CALLS && raw <= MAX_TOOL_CALLS
-  const count = valid ? raw : DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
-  return stepCountIs(count)
+  return valid ? raw : DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
 }

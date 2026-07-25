@@ -1,3 +1,4 @@
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -5,8 +6,12 @@ const mocks = vi.hoisted(() => ({
   buildRequest: vi.fn(),
   deriveConfig: vi.fn(),
   getAgent: vi.fn(),
+  getModelByKey: vi.fn(),
   applicationGet: vi.fn(),
   consumeWarmQuery: vi.fn(),
+  getWarmAgentSessionIds: vi.fn(),
+  closeAgentSessionWarm: vi.fn(),
+  sweepClaudeSessionFiles: vi.fn(),
   prepareTrace: vi.fn(),
   createClaudeQuery: vi.fn(),
   collectFileAttachments: vi.fn(),
@@ -35,6 +40,10 @@ vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: mocks.getAgent }
 }))
 
+vi.mock('@data/services/ModelService', () => ({
+  modelService: { getByKey: mocks.getModelByKey }
+}))
+
 vi.mock('@main/ai/messages/attachmentRouting', () => ({
   collectFileAttachments: mocks.collectFileAttachments,
   prepareChatMessages: mocks.prepareChatMessages
@@ -42,6 +51,10 @@ vi.mock('@main/ai/messages/attachmentRouting', () => ({
 
 vi.mock('@main/ai/messages/fileProcessor', () => ({
   materializeNativeFilePart: mocks.materializeNativeFilePart
+}))
+
+vi.mock('../sessionFileSweep', () => ({
+  sweepClaudeSessionFiles: mocks.sweepClaudeSessionFiles
 }))
 
 vi.mock('../streamAdapter', () => ({
@@ -143,11 +156,18 @@ describe('ClaudeCodeRuntimeDriver', () => {
     vi.clearAllMocks()
     mocks.adapterInstances.length = 0
     mocks.applicationGet.mockImplementation((name: string) => {
-      if (name === 'ClaudeCodeWarmQueryManager') return { consume: mocks.consumeWarmQuery }
+      if (name === 'ClaudeCodeWarmQueryManager') {
+        return {
+          consume: mocks.consumeWarmQuery,
+          getWarmAgentSessionIds: mocks.getWarmAgentSessionIds,
+          closeAgentSessionWarm: mocks.closeAgentSessionWarm
+        }
+      }
       if (name === 'ClaudeCodeTraceBridgeService') return { prepareTrace: mocks.prepareTrace }
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.consumeWarmQuery.mockResolvedValue(undefined)
+    mocks.getWarmAgentSessionIds.mockReturnValue([])
     mocks.prepareTrace.mockResolvedValue(undefined)
     mocks.collectFileAttachments.mockReturnValue([])
     mocks.prepareChatMessages.mockImplementation(async (messages) => messages)
@@ -164,6 +184,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       initializeTimeoutMs: 100
     })
     mocks.getAgent.mockReturnValue({ id: 'agent-1' })
+    mocks.getModelByKey.mockReturnValue({ capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] })
     mocks.deriveConfig.mockResolvedValue({
       ok: true,
       config: {
@@ -187,7 +208,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
     // The connection routes with the host-chosen model — not a fresh DB read — so a live turn keeps
     // the model captured at its creation even if the agent was edited since.
-    expect(mocks.buildRequest).toHaveBeenCalledWith('session-1', 'resume-1', 'claude-code::sonnet')
+    expect(mocks.buildRequest).toHaveBeenCalledWith('session-1', 'resume-1', 'claude-code::sonnet', 'default')
     const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
     const nextInput = sdkInput[Symbol.asyncIterator]().next()
 
@@ -501,6 +522,152 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('routes first-party image attachments to OCR text when the model lacks vision support', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.getModelByKey.mockReturnValue({ capabilities: [] })
+    mocks.collectFileAttachments.mockReturnValueOnce([
+      { fileEntryId: 'entry-1', handle: 'pixel.png', displayName: 'pixel.png' }
+    ])
+    mocks.prepareChatMessages.mockImplementationOnce(async ([message]) => [
+      {
+        ...message,
+        parts: [
+          { type: 'text', text: 'describe this' },
+          { type: 'text', text: 'Attached file "pixel.png":\nOCR text' }
+        ]
+      }
+    ])
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'describe this' },
+            {
+              type: 'file',
+              url: 'file:///tmp/pixel.png',
+              mediaType: 'image/png',
+              filename: 'pixel.png',
+              providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
+            }
+          ]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        message: {
+          role: 'user',
+          content: 'describe this\nAttached file "pixel.png":\nOCR text'
+        }
+      },
+      done: false
+    })
+    expect(mocks.getModelByKey).toHaveBeenCalledWith('claude-code', 'sonnet')
+    expect(mocks.prepareChatMessages).toHaveBeenCalledWith([expect.objectContaining({ id: 'user-1', role: 'user' })], {
+      attachments: [{ fileEntryId: 'entry-1', handle: 'pixel.png', displayName: 'pixel.png' }],
+      nativeSupport: { image: false, pdf: false, audio: false, video: false },
+      isToolCapable: false
+    })
+    expect(mocks.materializeNativeFilePart).not.toHaveBeenCalled()
+    void connection.close()
+  })
+
+  it('falls back external image attachments to tool-readable paths when the model lacks vision support', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.getModelByKey.mockReturnValue({ capabilities: [] })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'describe this' },
+            { type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' }
+          ]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        message: {
+          role: 'user',
+          content:
+            'describe this\n\nAttached files (read them with your tools using these absolute paths):\n- /tmp/pixel.png'
+        }
+      },
+      done: false
+    })
+    expect(mocks.materializeNativeFilePart).not.toHaveBeenCalled()
+    void connection.close()
+  })
+
+  it('assumes vision support when the turn model cannot be resolved', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.getModelByKey.mockImplementation(() => {
+      throw new Error('model not found')
+    })
+    mocks.materializeNativeFilePart.mockResolvedValueOnce({
+      type: 'file',
+      url: 'data:image/png;base64,QUJD',
+      mediaType: 'image/png'
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [{ type: 'file', url: 'file:///tmp/pixel.png', mediaType: 'image/png', filename: 'pixel.png' }]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        message: {
+          role: 'user',
+          content: [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }]
+        }
+      },
+      done: false
+    })
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'Failed to resolve model for image support; assuming vision-capable',
+      expect.objectContaining({ uniqueModelId: 'claude-code::sonnet' })
+    )
+    void connection.close()
+  })
+
   it('adds a steer reminder text part for image-only turns', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
@@ -627,6 +794,54 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     await expect(events.next()).resolves.toMatchObject({
       value: { type: 'context-usage', usage: contextUsage }
+    })
+    void connection.close()
+  })
+
+  // Background agents/tasks keep emitting after their turn's result (SDK 0.3.186+ keeps stdin open
+  // while they run). There is no turn stream left to carry them, so they are dropped — this pins that
+  // the drop is silent-but-safe: the connection stays usable and later messages still flow.
+  it('drops task_notification arriving after the result without breaking the connection', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    // No `getContextUsage`, so the post-result context-usage probe emits nothing and the event
+    // sequence below stays deterministic.
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    queryQueue.push({
+      type: 'result',
+      subtype: 'success',
+      session_id: 'resume-result',
+      usage: { input_tokens: 1, output_tokens: 1, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }
+    })
+
+    // Drain the turn's tail until it completes; the adapter is cleared at that point.
+    let event = await events.next()
+    while (event.value?.type !== 'turn-complete') {
+      event = await events.next()
+    }
+
+    // Arrives with no adapter → dropped. `commands_changed` is handled ahead of the drop, so seeing
+    // it next proves the task_notification produced no event rather than merely arriving late.
+    queryQueue.push({
+      type: 'system',
+      subtype: 'task_notification',
+      session_id: 'resume-result',
+      uuid: 'bg-task-uuid',
+      task_id: 'task-bg',
+      status: 'completed'
+    })
+    queryQueue.push({ type: 'system', subtype: 'commands_changed', session_id: 'resume-result', commands: ['/help'] })
+
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'supported-commands', commands: ['/help'] }
     })
     void connection.close()
   })
@@ -1453,6 +1668,38 @@ describe('ClaudeCodeRuntimeDriver', () => {
       await expect(first).resolves.toBe('current')
       await expect(second).resolves.toBe('current')
       expect(secondStarted).toBe(true)
+    })
+  })
+
+  describe('sweepSessionFiles', () => {
+    it('closes warm queries of dead sessions before any file is judged', async () => {
+      mocks.getWarmAgentSessionIds.mockReturnValue(['dead-session', 'live-session'])
+      const live = {
+        isSessionLive: (id: string) => id === 'live-session',
+        isResumeTokenLive: () => false
+      }
+
+      await new ClaudeCodeRuntimeDriver().sweepSessionFiles(live)
+
+      expect(mocks.closeAgentSessionWarm).toHaveBeenCalledTimes(1)
+      expect(mocks.closeAgentSessionWarm).toHaveBeenCalledWith('dead-session')
+      expect(mocks.sweepClaudeSessionFiles).toHaveBeenCalledWith(live)
+      // The dying subprocess sits in the session's cwd — eviction must land before the sweep.
+      expect(mocks.closeAgentSessionWarm.mock.invocationCallOrder[0]).toBeLessThan(
+        mocks.sweepClaudeSessionFiles.mock.invocationCallOrder[0]
+      )
+    })
+
+    it('leaves warm queries of live sessions alone', async () => {
+      mocks.getWarmAgentSessionIds.mockReturnValue(['live-session'])
+
+      await new ClaudeCodeRuntimeDriver().sweepSessionFiles({
+        isSessionLive: () => true,
+        isResumeTokenLive: () => false
+      })
+
+      expect(mocks.closeAgentSessionWarm).not.toHaveBeenCalled()
+      expect(mocks.sweepClaudeSessionFiles).toHaveBeenCalled()
     })
   })
 })

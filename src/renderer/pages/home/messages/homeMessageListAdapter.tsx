@@ -28,6 +28,7 @@ import type {
   MessageRuntime,
   MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
+import { parseMessagePartId, withMessagePartDiagnosis } from '@renderer/components/chat/messages/utils/messageDiagnosis'
 import {
   bindCaptureMessageImageRuntime,
   flushPendingMessageImageActions,
@@ -46,6 +47,7 @@ import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
+import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import { updateCodeBlock } from '@renderer/utils/markdown'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
@@ -114,7 +116,6 @@ export function useHomeMessageListProviderValue({
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
   const menuConfig = useMessageMenuConfig()
   const exportActions = useMessageExportActions({ topicName: topic.name })
-  const errorActions = useMessageErrorActions()
   const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId, streamingLayers })
   const headerCapabilities = useMessageHeaderCapabilities()
   const messageUiStateCache = useMessageUiStateCache()
@@ -446,6 +447,18 @@ export function useHomeMessageListProviderValue({
     },
     [requireChatWrite]
   )
+
+  const persistDiagnosis = useCallback(async (partId: string, diagnosis: DiagnosisResult) => {
+    const parsed = parseMessagePartId(partId)
+    if (!parsed) return
+
+    const persistedMessage = await dataApiService.get(`/messages/${parsed.messageId}`)
+    const updatedParts = withMessagePartDiagnosis(persistedMessage.data.parts ?? [], parsed.partIndex, diagnosis)
+    if (!updatedParts) return
+
+    await dataApiService.patch(`/messages/${parsed.messageId}`, { body: { data: { parts: updatedParts } } })
+  }, [])
+  const errorActions = useMessageErrorActions({ persistDiagnosis })
 
   const createTranslationUpdater = useCallback(
     async (

@@ -55,7 +55,7 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
                     target="_blank"
                     rel="noreferrer"
                     className="truncate"
-                    aria-label={`${meta.fancyProviderName} · ${t('settings.provider.api.official_website')}`}>
+                    aria-label={`${meta.fancyProviderName} · ${t('settings.provider.oauth.official_website')}`}>
                     {meta.fancyProviderName}
                   </a>
                 ) : (

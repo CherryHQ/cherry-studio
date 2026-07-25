@@ -4,13 +4,14 @@ import {
   DanglingStateSchema,
   FileEntryIdSchema,
   FileEntrySchema,
+  FileHandleSchema,
   SafeNameSchema
 } from '@shared/data/types/file'
-import { FileHandleSchema } from '@shared/data/types/file'
-import { PhysicalFileMetadataSchema, SafeExtSchema } from '@shared/types/file'
+import { FileVersionSchema, PhysicalFileMetadataSchema, SafeExtSchema } from '@shared/types/file'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
+import { uint8ArraySchema } from './common'
 
 /** Maximum entry ids accepted by one file batch IPC call. */
 export const FILE_IPC_MAX_BATCH_IDS = 500
@@ -33,6 +34,23 @@ const batchMutationResultSchema = z.strictObject({
 const batchCreateResultSchema = z.strictObject({
   succeeded: z.array(z.strictObject({ id: FileEntryIdSchema, sourceRef: z.string() })),
   failed: z.array(z.strictObject({ sourceRef: z.string(), error: z.string() }))
+})
+
+const binaryReadInputSchema = z.strictObject({
+  handle: FileHandleSchema,
+  options: z.strictObject({ encoding: z.literal('binary') })
+})
+
+const binaryReadResultSchema = z.strictObject({
+  content: uint8ArraySchema,
+  mime: z.string().min(1),
+  version: FileVersionSchema
+})
+
+const writeIfUnchangedInputSchema = z.strictObject({
+  path: AbsolutePathSchema,
+  data: uint8ArraySchema,
+  expectedVersion: FileVersionSchema
 })
 
 // Fields common to every create-entry source. `cleanupPolicy` is required at
@@ -77,6 +95,8 @@ const batchCreateInternalEntriesInputSchema = z.strictObject({
  * live FS metadata and mutations / system actions that must run in main.
  */
 export const fileRequestSchemas = {
+  'file.read': defineRoute({ input: binaryReadInputSchema, output: binaryReadResultSchema }),
+  'file.write_if_unchanged': defineRoute({ input: writeIfUnchangedInputSchema, output: FileVersionSchema }),
   'file.batch_get_metadata': defineRoute({
     input: batchGetMetadataInputSchema,
     output: z.record(z.string(), PhysicalFileMetadataSchema.nullable())

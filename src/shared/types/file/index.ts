@@ -8,6 +8,8 @@ export {
   type FileType,
   FileTypeSchema,
   type FileUrlString,
+  type FileVersion,
+  FileVersionSchema,
   type PhysicalFileMetadata,
   PhysicalFileMetadataSchema,
   SafeExtSchema,
@@ -21,7 +23,6 @@ export {
   type EnsureExternalEntryIpcParams,
   type FileFilter,
   type FileIpcApi,
-  type FileVersion,
   type GetPhysicalPathIpcParams,
   type PermanentDeleteIpcParams,
   type ReadResult

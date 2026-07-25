@@ -278,7 +278,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({
           onClick={scrollToBottom}>
           <CircleChevronDown
             size={10 + calculateDistanceFactor('bottom-anchor') * 20}
-            style={{ color: theme === 'dark' ? 'var(--color-foreground)' : 'var(--color-primary)' }}
+            style={{ color: theme === 'dark' ? 'var(--foreground)' : 'var(--primary)' }}
           />
         </MessageItem>
       </MessagesList>
