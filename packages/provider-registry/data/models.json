@@ -1236,11 +1236,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.09999999999999999
+          "perMillionTokens": 0.04815
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.3
+          "perMillionTokens": 0.19305
         }
       }
     },
@@ -11438,6 +11438,104 @@
       }
     },
     {
+      "capabilities": ["image-generation"],
+      "id": "image-01",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "aspectRatio": {
+                "options": ["1:1", "16:9", "4:3", "3:2", "2:3", "3:4", "9:16", "21:9"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "customSize": {
+                "maxSide": 2048,
+                "minSide": 512,
+                "pairedEnumKey": "size",
+                "type": "size"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 9,
+                "min": 1,
+                "type": "range"
+              },
+              "outputFormat": {
+                "default": "url",
+                "options": ["url", "base64"],
+                "type": "enum"
+              },
+              "promptEnhancement": {
+                "default": false,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "options": ["custom"],
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "image-01",
+      "outputModalities": ["image"],
+      "ownedBy": "minimax"
+    },
+    {
+      "capabilities": ["image-generation"],
+      "id": "image-01-live",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "aspectRatio": {
+                "options": ["1:1", "16:9", "4:3", "3:2", "2:3", "3:4", "9:16"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 9,
+                "min": 1,
+                "type": "range"
+              },
+              "outputFormat": {
+                "default": "url",
+                "options": ["url", "base64"],
+                "type": "enum"
+              },
+              "promptEnhancement": {
+                "default": false,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "image-01-live",
+      "outputModalities": ["image"],
+      "ownedBy": "minimax"
+    },
+    {
       "capabilities": ["image-recognition"],
       "contextWindow": 1000192,
       "id": "minimax-01",
@@ -20618,5 +20716,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "f04f29ae2b31fda7"
+  "version": "4a5ab14279dacb9c"
 }
