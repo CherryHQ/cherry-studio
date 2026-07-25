@@ -58,9 +58,9 @@
     "all_files": "Todos os Arquivos",
     "data_reset": {
       "cancel": "Cancelar",
-      "confirm": "Apagar todos os dados",
-      "message": "Todos os seus dados serão perdidos, se não houver backup, eles não poderão ser recuperados, tem certeza de que deseja continuar?",
-      "title": "Perda de dados!!!"
+      "confirm": "Repor e reiniciar",
+      "message": "Esta ação irá apagar conversas, assistentes, bases de conhecimento, ficheiros e definições e, em seguida, reiniciar a aplicação. Esta ação não pode ser anulada. Pretende continuar?",
+      "title": "Repor os dados da aplicação"
     },
     "html_files": "Arquivos HTML",
     "open_file": "Abrir Arquivo",

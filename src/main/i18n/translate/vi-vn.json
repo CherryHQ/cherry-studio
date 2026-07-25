@@ -58,9 +58,9 @@
     "all_files": "Tất cả các tệp",
     "data_reset": {
       "cancel": "Hủy",
-      "confirm": "Xóa toàn bộ dữ liệu",
-      "message": "Tất cả dữ liệu sẽ bị mất, bạn có muốn tiếp tục không?",
-      "title": "DỮ LIỆU BỊ MẤT !!!"
+      "confirm": "Đặt lại và khởi động lại",
+      "message": "Thao tác này sẽ xóa các cuộc trò chuyện, trợ lý, cơ sở kiến thức, tệp và cài đặt, sau đó khởi động lại ứng dụng. Không thể hoàn tác. Tiếp tục?",
+      "title": "Đặt lại dữ liệu ứng dụng"
     },
     "html_files": "Tập tin HTML",
     "open_file": "Mở Tệp",

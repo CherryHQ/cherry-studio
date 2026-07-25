@@ -58,9 +58,9 @@
     "all_files": "All Files",
     "data_reset": {
       "cancel": "Cancel",
-      "confirm": "Erase Everything",
-      "message": "All data will be lost, do you want to continue?",
-      "title": "DATA LOST !!!"
+      "confirm": "Reset and Restart",
+      "message": "This will erase chats, assistants, knowledge bases, files, and settings, then restart the app. This action cannot be undone. Continue?",
+      "title": "Reset App Data"
     },
     "html_files": "HTML Files",
     "open_file": "Open File",

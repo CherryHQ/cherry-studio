@@ -5750,8 +5750,8 @@
       },
       "data_reset": {
         "button": "Đặt lại",
-        "confirm_content": "Bạn có chắc chắn muốn xóa toàn bộ dữ liệu?",
-        "confirm_title": "Cảnh báo",
+        "confirm_content": "Thao tác này sẽ xóa các cuộc trò chuyện, trợ lý, cơ sở kiến thức, tệp và cài đặt, sau đó khởi động lại ứng dụng. Không thể hoàn tác. Tiếp tục?",
+        "confirm_title": "Đặt lại dữ liệu ứng dụng",
         "error": "Không thể bắt đầu đặt lại dữ liệu",
         "title": "Đặt lại dữ liệu"
       },

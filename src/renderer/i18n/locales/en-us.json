@@ -5750,8 +5750,8 @@
       },
       "data_reset": {
         "button": "Reset",
-        "confirm_content": "Are you sure you want to clear all data?",
-        "confirm_title": "Warning",
+        "confirm_content": "This will erase chats, assistants, knowledge bases, files, and settings, then restart the app. This action cannot be undone. Continue?",
+        "confirm_title": "Reset App Data",
         "error": "Failed to start data reset",
         "title": "Data Reset"
       },

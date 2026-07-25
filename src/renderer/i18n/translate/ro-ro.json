@@ -5750,8 +5750,8 @@
       },
       "data_reset": {
         "button": "Resetează",
-        "confirm_content": "Ești sigur că vrei să ștergi toate datele?",
-        "confirm_title": "Avertisment",
+        "confirm_content": "Această acțiune va șterge conversațiile, asistenții, bazele de cunoștințe, fișierele și setările, apoi va reporni aplicația. Acțiunea nu poate fi anulată. Continui?",
+        "confirm_title": "Resetarea datelor aplicației",
         "error": "Pornirea resetării datelor a eșuat",
         "title": "Resetare date"
       },

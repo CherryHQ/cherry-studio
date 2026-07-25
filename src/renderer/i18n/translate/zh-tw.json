@@ -5750,8 +5750,8 @@
       },
       "data_reset": {
         "button": "重設",
-        "confirm_content": "確定要清除所有資料嗎？",
-        "confirm_title": "警告",
+        "confirm_content": "這將清除聊天、助手、知識庫、檔案和設定，然後重新啟動應用程式。此操作無法復原，是否繼續？",
+        "confirm_title": "重設應用程式資料",
         "error": "無法啟動資料重設",
         "title": "資料重設"
       },

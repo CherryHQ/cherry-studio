@@ -58,9 +58,9 @@
     "all_files": "Tous les fichiers",
     "data_reset": {
       "cancel": "Annuler",
-      "confirm": "Effacer toutes les données",
-      "message": "Toutes vos données seront perdues, si aucune sauvegarde n'a été effectuée, elles ne pourront pas être récupérées. Êtes-vous sûr de vouloir continuer?",
-      "title": "Perte de données!!!"
+      "confirm": "Réinitialiser et redémarrer",
+      "message": "Les discussions, assistants, bases de connaissances, fichiers et paramètres seront effacés, puis l’application redémarrera. Cette action est irréversible. Continuer ?",
+      "title": "Réinitialiser les données de l’application"
     },
     "html_files": "Fichiers HTML",
     "open_file": "Ouvrir le fichier",

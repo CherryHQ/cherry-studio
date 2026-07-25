@@ -5750,8 +5750,8 @@
       },
       "data_reset": {
         "button": "Restablecer",
-        "confirm_content": "¿Está seguro de querer restablecer todos los datos?",
-        "confirm_title": "Advertencia",
+        "confirm_content": "Se borrarán los chats, asistentes, bases de conocimiento, archivos y ajustes, y luego se reiniciará la aplicación. Esta acción no se puede deshacer. ¿Desea continuar?",
+        "confirm_title": "Restablecer datos de la aplicación",
         "error": "No se pudo iniciar el restablecimiento de datos",
         "title": "Restablecer datos"
       },

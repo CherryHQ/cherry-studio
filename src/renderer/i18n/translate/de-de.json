@@ -5750,8 +5750,8 @@
       },
       "data_reset": {
         "button": "Zurücksetzen",
-        "confirm_content": "Möchten Sie alle Daten wirklich zurücksetzen?",
-        "confirm_title": "Warnung",
+        "confirm_content": "Chats, Assistenten, Wissensdatenbanken, Dateien und Einstellungen werden gelöscht. Anschließend wird die App neu gestartet. Diese Aktion kann nicht rückgängig gemacht werden. Möchten Sie fortfahren?",
+        "confirm_title": "App-Daten zurücksetzen",
         "error": "Datenzurücksetzung konnte nicht gestartet werden",
         "title": "Daten zurücksetzen"
       },

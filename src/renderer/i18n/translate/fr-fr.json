@@ -5750,8 +5750,8 @@
       },
       "data_reset": {
         "button": "Réinitialiser",
-        "confirm_content": "Êtes-vous sûr de vouloir réinitialiser toutes les données ?",
-        "confirm_title": "Avertissement",
+        "confirm_content": "Les discussions, assistants, bases de connaissances, fichiers et paramètres seront effacés, puis l’application redémarrera. Cette action est irréversible. Continuer ?",
+        "confirm_title": "Réinitialiser les données de l’application",
         "error": "Impossible de démarrer la réinitialisation des données",
         "title": "Réinitialiser les données"
       },

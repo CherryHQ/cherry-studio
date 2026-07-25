@@ -58,9 +58,9 @@
     "all_files": "Toate fișierele",
     "data_reset": {
       "cancel": "Anulează",
-      "confirm": "Șterge toate datele",
-      "message": "Toate datele vor fi pierdute, vrei să continui?",
-      "title": "DATE PIERDUTE !!!"
+      "confirm": "Resetează și repornește",
+      "message": "Această acțiune va șterge conversațiile, asistenții, bazele de cunoștințe, fișierele și setările, apoi va reporni aplicația. Acțiunea nu poate fi anulată. Continui?",
+      "title": "Resetarea datelor aplicației"
     },
     "html_files": "Fișiere HTML",
     "open_file": "Deschide fișier",

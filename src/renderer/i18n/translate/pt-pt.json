@@ -5750,8 +5750,8 @@
       },
       "data_reset": {
         "button": "Redefinir",
-        "confirm_content": "Tem certeza de que deseja redefinir todos os dados?",
-        "confirm_title": "Aviso",
+        "confirm_content": "Esta ação irá apagar conversas, assistentes, bases de conhecimento, ficheiros e definições e, em seguida, reiniciar a aplicação. Esta ação não pode ser anulada. Pretende continuar?",
+        "confirm_title": "Repor os dados da aplicação",
         "error": "Falha ao iniciar a redefinição dos dados",
         "title": "Redefinir dados"
       },

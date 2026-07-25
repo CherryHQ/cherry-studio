@@ -58,9 +58,9 @@
     "all_files": "Alle Dateien",
     "data_reset": {
       "cancel": "Abbrechen",
-      "confirm": "Alle Daten löschen",
-      "message": "Alle Ihre Daten gehen verloren. Wenn Sie keine Datensicherung haben, können Sie sie nicht wiederherstellen. Möchten Sie wirklich fortfahren?",
-      "title": "Datenverlust!!!"
+      "confirm": "Zurücksetzen und neu starten",
+      "message": "Chats, Assistenten, Wissensdatenbanken, Dateien und Einstellungen werden gelöscht. Anschließend wird die App neu gestartet. Diese Aktion kann nicht rückgängig gemacht werden. Möchten Sie fortfahren?",
+      "title": "App-Daten zurücksetzen"
     },
     "html_files": "HTML-Dateien",
     "open_file": "Datei öffnen",
