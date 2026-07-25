@@ -100,7 +100,8 @@ export function useChatWriteActions(params: Params): Result {
     (id: string) => {
       if (rootId === null) return { enabled: false, reason: 'root-unavailable' }
       const message = uiMessages.find((item) => item.id === id)
-      return message?.role === 'user' && isFirstTurnId(message.metadata?.parentId)
+      if (!message) return { enabled: false, reason: 'message-unavailable' }
+      return message.role === 'user' && isFirstTurnId(message.metadata?.parentId)
         ? { enabled: false, reason: 'first-turn' }
         : { enabled: true }
     },

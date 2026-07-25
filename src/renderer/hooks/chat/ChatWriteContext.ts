@@ -22,7 +22,7 @@ export interface DeleteMessageOptions {
 
 export type MessageDeleteAvailability =
   | { enabled: true }
-  | { enabled: false; reason: 'first-turn' | 'root-unavailable' }
+  | { enabled: false; reason: 'first-turn' | 'root-unavailable' | 'message-unavailable' }
 
 /** Chat write actions injected via React Context. Operations delegate to DataApi + useChat. */
 /** Options carried alongside a regenerate request. */

@@ -103,6 +103,19 @@ describe('useChatWriteActions — first-turn delete', () => {
     expect(cache.deleteMessageTrigger).not.toHaveBeenCalled()
   })
 
+  it('rejects group deletion when the parent message is outside the loaded page', async () => {
+    const cache = makeCache()
+    const { actions } = renderActions('vroot', [uiMsg('a1', 'assistant', 'u1')], cache)
+
+    expect(actions.getMessageDeleteAvailability('u1')).toEqual({
+      enabled: false,
+      reason: 'message-unavailable'
+    })
+    await expect(actions.deleteMessageGroup('u1')).rejects.toThrow()
+    expect(cache.seedOptimisticBranch).not.toHaveBeenCalled()
+    expect(cache.deleteMessageTrigger).not.toHaveBeenCalled()
+  })
+
   it('deleteMessageGroup on a first-turn group (parent = rootId) clears the topic', async () => {
     const { actions, cache } = renderActions('vroot', tree())
     await actions.deleteMessageGroup('vroot')

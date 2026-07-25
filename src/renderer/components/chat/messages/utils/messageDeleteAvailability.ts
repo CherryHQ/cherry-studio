@@ -8,6 +8,7 @@ export function getMessageDeleteUnavailableText(
   t: TFunction
 ): string | undefined {
   if (reason === 'root-unavailable') return t('message.delete.root_unavailable')
+  if (reason === 'message-unavailable') return t('message.delete.root_unavailable')
   if (reason === 'first-turn') return t('message.delete.first_turn_not_supported')
   return undefined
 }
