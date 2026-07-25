@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.0.0-beta.1",
+    "version": "2.0.0-beta.2",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
@@ -86,6 +86,7 @@
       "/settings/mcp/mcp-install",
       "/settings/mcp/npx-search",
       "/settings/mcp/servers",
+      "/settings/scheduled-tasks/$taskId",
       "/app/mini-app",
       "/app/paintings",
       "/settings/mcp/settings/$serverId"
@@ -353,8 +354,8 @@
     }
   ],
   "providers": {
-    "version": "e561c92f27b667c2",
-    "count": 66,
+    "version": "716e3d74ef6dac75",
+    "count": 61,
     "entries": [
       {
         "id": "cherryin",
@@ -485,10 +486,6 @@
         "name": "Github Copilot"
       },
       {
-        "id": "yi",
-        "name": "Yi"
-      },
-      {
         "id": "moonshot",
         "name": "Moonshot AI"
       },
@@ -507,10 +504,6 @@
       {
         "id": "doubao",
         "name": "doubao"
-      },
-      {
-        "id": "infini",
-        "name": "Infini"
       },
       {
         "id": "minimax",
@@ -537,10 +530,6 @@
         "name": "Grok"
       },
       {
-        "id": "hyperbolic",
-        "name": "Hyperbolic"
-      },
-      {
         "id": "mistral",
         "name": "Mistral"
       },
@@ -559,14 +548,6 @@
       {
         "id": "xirang",
         "name": "Xirang"
-      },
-      {
-        "id": "hunyuan",
-        "name": "hunyuan"
-      },
-      {
-        "id": "tencent-cloud-ti",
-        "name": "Tencent Cloud TI"
       },
       {
         "id": "tokenhub",
