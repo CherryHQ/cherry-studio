@@ -507,6 +507,10 @@ class DashScopeTransport implements ImageGenerationTransport {
         const elapsedTime = Date.now() - startTime
         const pollDelay = interval ?? (elapsedTime < 60000 ? 3000 : 10000)
         await waitWithSignal(pollDelay, signal)
+        // Count the transient round against `maxAttempts` too — `transientRetries`
+        // resets on the next success, so alternating success/failure would otherwise
+        // never exhaust either counter.
+        attempts++
         continue
       }
 

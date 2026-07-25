@@ -482,6 +482,12 @@ class PpioTransport implements ImageGenerationTransport {
         const elapsedTime = Date.now() - startTime
         const pollDelay = interval ?? (elapsedTime < 60000 ? 3000 : 10000)
         await waitWithSignal(pollDelay, signal)
+        // Count the transient round against `maxAttempts` too. `transientRetries`
+        // resets on the next success, so without this a task that alternates
+        // success/transient-failure never exhausts either counter and the loop is
+        // bounded only by the 30-minute job timeout — and by nothing at all on the
+        // in-SDK path, which has no timeout above it.
+        attempts++
         continue
       }
 

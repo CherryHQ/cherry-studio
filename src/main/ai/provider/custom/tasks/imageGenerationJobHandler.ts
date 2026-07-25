@@ -161,14 +161,22 @@ async function pollUntilDone(
   if (!transport.poll) {
     throw new Error('Image transport returned a task id but does not implement polling')
   }
-  const cancelRemote = transport.cancel ? () => void transport.cancel?.(taskId).catch(() => {}) : undefined
-  if (cancelRemote) {
-    if (ctx.signal.aborted) {
-      cancelRemote()
-      throw createAbortError('Image generation aborted')
-    }
-    ctx.signal.addEventListener('abort', cancelRemote, { once: true })
+  // Most vendors expose no task-cancel endpoint, so aborting only stops OUR polling —
+  // the remote task keeps running and keeps billing. Nothing surfaced that, which made
+  // "cancel" look free. Log it so an abandoned paid task is at least traceable.
+  const cancelRemote = transport.cancel
+    ? () => void transport.cancel?.(taskId).catch(() => {})
+    : () =>
+        logger.warn('Image generation aborted locally; the remote task keeps running (no cancel endpoint)', {
+          jobId: ctx.jobId,
+          uniqueModelId: ctx.input.uniqueModelId,
+          taskId
+        })
+  if (ctx.signal.aborted) {
+    cancelRemote()
+    throw createAbortError('Image generation aborted')
   }
+  ctx.signal.addEventListener('abort', cancelRemote, { once: true })
   try {
     return await transport.poll(taskId, {
       signal: ctx.signal,
@@ -178,7 +186,7 @@ async function pollUntilDone(
       modelDescriptor: resolveModelDescriptor(ctx.input)
     })
   } finally {
-    if (cancelRemote) ctx.signal.removeEventListener('abort', cancelRemote)
+    ctx.signal.removeEventListener('abort', cancelRemote)
   }
 }
 

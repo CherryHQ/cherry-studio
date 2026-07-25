@@ -211,44 +211,51 @@ class TokenhubTransport implements ImageGenerationTransport {
     let transientRetries = 0
     const startTime = Date.now()
 
-    while (attempts < maxAttempts) {
-      if (signal?.aborted) {
-        throw createAbortError('Task polling aborted')
-      }
-      try {
-        const result = await this.request<TokenhubQueryResult>(
-          QUERY_ENDPOINT,
-          { model: modelId, id: taskId },
-          { timeout: 10000, signal }
-        )
-        transientRetries = 0
-        const status = result.status?.toLowerCase() ?? ''
-        if (COMPLETED_STATUSES.has(status)) {
-          this.taskModelIds.delete(taskId)
-          return extractImageUrls(result.data) ?? []
-        }
-        if (FAILED_STATUSES.has(status)) {
-          throw new TokenhubTaskFailedError(`TokenHub image task ${status}`)
-        }
-        // 'queued' / 'running' / any unknown-but-not-failed status: keep polling.
-      } catch (error) {
-        if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) {
+    // The map entry outlives every exit from this loop unless it is cleared here:
+    // failure, abort and timeout all leave `poll` by `throw`, and TokenHub has no
+    // `cancel()` to clean up after them — so a failed task used to pin its model id
+    // for the lifetime of the transport instance.
+    try {
+      while (attempts < maxAttempts) {
+        if (signal?.aborted) {
           throw createAbortError('Task polling aborted')
         }
-        if (error instanceof TokenhubTaskFailedError) throw error
-        if (error instanceof TokenhubApiError && isTerminalHttpStatus(error.statusCode)) throw error
-        transientRetries++
-        if (transientRetries >= maxTransientRetries) {
-          throw error instanceof Error ? error : new Error(String(error))
+        try {
+          const result = await this.request<TokenhubQueryResult>(
+            QUERY_ENDPOINT,
+            { model: modelId, id: taskId },
+            { timeout: 10000, signal }
+          )
+          transientRetries = 0
+          const status = result.status?.toLowerCase() ?? ''
+          if (COMPLETED_STATUSES.has(status)) {
+            return extractImageUrls(result.data) ?? []
+          }
+          if (FAILED_STATUSES.has(status)) {
+            throw new TokenhubTaskFailedError(`TokenHub image task ${status}`)
+          }
+          // 'queued' / 'running' / any unknown-but-not-failed status: keep polling.
+        } catch (error) {
+          if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) {
+            throw createAbortError('Task polling aborted')
+          }
+          if (error instanceof TokenhubTaskFailedError) throw error
+          if (error instanceof TokenhubApiError && isTerminalHttpStatus(error.statusCode)) throw error
+          transientRetries++
+          if (transientRetries >= maxTransientRetries) {
+            throw error instanceof Error ? error : new Error(String(error))
+          }
         }
+
+        const elapsedTime = Date.now() - startTime
+        await waitWithSignal(elapsedTime < 60000 ? 3000 : 10000, signal)
+        attempts++
       }
 
-      const elapsedTime = Date.now() - startTime
-      await waitWithSignal(elapsedTime < 60000 ? 3000 : 10000, signal)
-      attempts++
+      throw new Error('Task polling timeout')
+    } finally {
+      this.taskModelIds.delete(taskId)
     }
-
-    throw new Error('Task polling timeout')
   }
 }
 

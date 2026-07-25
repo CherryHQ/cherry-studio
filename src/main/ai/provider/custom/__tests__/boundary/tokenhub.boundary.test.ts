@@ -125,4 +125,33 @@ describe('tokenhub transport — poll', () => {
     const transport = buildTokenhubTransport(settings)
     await expect(transport.poll!('job-1', {})).rejects.toThrow(/requires the model id/)
   })
+
+  it('releases the task→model id entry when the task FAILS, not only when it completes', async () => {
+    // The entry was deleted on the success branch only, and TokenHub has no `cancel()`
+    // to clean up after a failure/abort/timeout — so every failed task pinned its model
+    // id for the lifetime of the transport. Observable through the model-id requirement:
+    // once released, a later poll of the same id has no remembered model.
+    // One spy, both responses queued: submit hands back the task id (which records the
+    // model), then the poll reports failure.
+    const { transport, done } = pollWithResponses([{ id: 'job-1' }, { status: 'failed' }])
+    try {
+      await transport.submit({
+        modelId: 'hy-image-v3.0',
+        prompt: 'a cat',
+        n: 1,
+        size: undefined,
+        seed: undefined,
+        files: undefined,
+        mask: undefined,
+        providerParams: {},
+        modelDescriptor: { id: 'hy-image-v3.0', endpoint: '/v1/api/image/submit' }
+      } satisfies ImageGenerationSubmitInput)
+
+      await expect(transport.poll!('job-1', {})).rejects.toThrow(TokenhubTaskFailedError)
+      // Entry released by the failure, so the remembered model id is gone.
+      await expect(transport.poll!('job-1', {})).rejects.toThrow(/requires the model id/)
+    } finally {
+      done()
+    }
+  })
 })
