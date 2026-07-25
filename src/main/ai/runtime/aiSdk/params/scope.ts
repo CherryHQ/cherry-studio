@@ -31,6 +31,9 @@ export interface SdkConfig<T extends AppProviderKey = AppProviderKey> {
   readonly modelId: string
   /** The app-level provider id (`Provider.id`), carried from `providerToAiSdkConfig`. */
   readonly concreteProviderId: string
+  /** The preset this provider derives from, else its own id — the "which vendor is
+   *  this" key, stable across a user duplicating or renaming a built-in. */
+  readonly presetProviderId: string
   /** The `providerOptions` namespace the AI SDK model reads (`resolveProviderOptionsKey`). */
   readonly optionsKey: string
 }

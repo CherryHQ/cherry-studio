@@ -144,23 +144,33 @@ export async function providerToAiSdkConfig(
     // (createXProvider().imageModel()) — a submit/poll loop for most, Ark's own
     // `/images/generations` protocol for doubao. Override the resolved `openai-compatible` id
     // to the extension id for image models only — chat/embedding fall through to the generic
-    // openai-compatible builder (which keeps `includeUsage`). provider.id is the extension
-    // id here, since the match requires it. Routing here is also what makes the vendor
-    // params land under the `providerOptions` key the image model reads: the delivery
-    // adapter keys the body by this `providerId`, which the generic branch would leave as
-    // `openai-compatible` while the model looked under the provider's own id.
+    // openai-compatible builder (which keeps `includeUsage`). Routing here is also what
+    // makes the vendor params land under the `providerOptions` key the image model reads:
+    // the delivery adapter keys the body by this `providerId`, which the generic branch
+    // would leave as `openai-compatible` while the model looked under the provider's own id.
+    //
+    // `matchesPreset`, not `p.id ===`: duplicating or renaming a built-in keeps
+    // `presetProviderId` but changes `id`, and an id-only check would drop such a copy
+    // onto the generic OpenAI-compatible image model — silently POSTing to
+    // `/images/generations` for vendors whose images need a submit/poll transport.
     {
       match: (p, id) =>
         id === 'openai-compatible' &&
         isGenerateImageModel(model) &&
-        (p.id === SystemProviderIds.modelscope ||
-          p.id === SystemProviderIds.ppio ||
-          p.id === SystemProviderIds.silicon ||
-          p.id === SystemProviderIds.doubao ||
-          (p.id === SystemProviderIds.dmxapi && dmxapiUsesCustomTransport(model.apiModelId ?? model.id))),
-      // provider.id is guaranteed to be one of these by the match above.
+        (matchesPreset(p, SystemProviderIds.modelscope) ||
+          matchesPreset(p, SystemProviderIds.ppio) ||
+          matchesPreset(p, SystemProviderIds.silicon) ||
+          matchesPreset(p, SystemProviderIds.doubao) ||
+          (matchesPreset(p, SystemProviderIds.dmxapi) && dmxapiUsesCustomTransport(model.apiModelId ?? model.id))),
+      // The preset id, not `provider.id`: a renamed copy must still resolve to the
+      // extension's registered id, which is what the AI SDK factory is keyed by.
       build: (ctx) => ({
-        providerId: ctx.actualProvider.id as 'modelscope' | 'ppio' | 'silicon' | 'doubao' | 'dmxapi',
+        providerId: (ctx.actualProvider.presetProviderId ?? ctx.actualProvider.id) as
+          | 'modelscope'
+          | 'ppio'
+          | 'silicon'
+          | 'doubao'
+          | 'dmxapi',
         endpoint: ctx.endpoint,
         providerSettings: {
           ...ctx.baseConfig,
@@ -199,6 +209,7 @@ export async function providerToAiSdkConfig(
   return {
     ...config,
     concreteProviderId: provider.id,
+    presetProviderId: provider.presetProviderId ?? provider.id,
     optionsKey: resolveProviderOptionsKey(config.providerId, provider.id)
   }
 }

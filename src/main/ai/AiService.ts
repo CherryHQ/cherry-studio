@@ -528,7 +528,8 @@ export class AiService extends BaseService {
         sdkConfig.providerId,
         sdkConfig.modelId,
         sdkConfig.providerSettings,
-        sdkConfig.concreteProviderId
+        sdkConfig.concreteProviderId,
+        sdkConfig.presetProviderId
       )
     ) {
       return await this.generateImageViaJob(request, structured, vendorBag, signal, sdkConfig.modelId)

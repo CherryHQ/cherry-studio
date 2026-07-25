@@ -54,8 +54,16 @@ export function resolveImageTransport(
   aiSdkProviderId: string,
   modelId: string,
   providerSettings: unknown,
-  concreteProviderId?: string
+  concreteProviderId?: string,
+  /** `sdkConfig.presetProviderId` — so a duplicated or renamed built-in still resolves
+   *  its vendor transport: its `Provider.id` changes, the preset it derives from does
+   *  not. Without it such a copy falls through to the generic OpenAI-compatible image
+   *  model and POSTs `/images/generations` to a vendor that needs submit/poll. */
+  presetProviderId?: string
 ): ImageGenerationTransport | null {
-  const resolver = (concreteProviderId ? RESOLVERS[concreteProviderId] : undefined) ?? RESOLVERS[aiSdkProviderId]
+  const resolver =
+    (concreteProviderId ? RESOLVERS[concreteProviderId] : undefined) ??
+    (presetProviderId ? RESOLVERS[presetProviderId] : undefined) ??
+    RESOLVERS[aiSdkProviderId]
   return resolver ? resolver(modelId, providerSettings) : null
 }

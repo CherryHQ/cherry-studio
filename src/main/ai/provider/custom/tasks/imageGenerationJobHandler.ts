@@ -57,7 +57,8 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
         sdkConfig.providerId,
         sdkConfig.modelId,
         sdkConfig.providerSettings,
-        sdkConfig.concreteProviderId
+        sdkConfig.concreteProviderId,
+        sdkConfig.presetProviderId
       )
       if (!transport) {
         throw new Error(

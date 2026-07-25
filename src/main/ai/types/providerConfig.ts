@@ -22,6 +22,12 @@ export type ProviderConfig<T extends StringKeys<AppProviderSettingsMap> = String
  * A `ProviderConfig` with the provider's resolved identity attached — computed
  * once by `providerToAiSdkConfig` so consumers never re-derive it:
  * - `concreteProviderId`: the app-level provider id (`Provider.id`)
+ * - `presetProviderId`: the preset this provider derives from, or its own id when
+ *   it is not preset-derived. A user can duplicate or rename a built-in provider,
+ *   which changes `Provider.id` but not what the provider *is* — so behaviour keyed
+ *   on "which vendor is this" (the image transport registry) must key on this, while
+ *   behaviour keyed on "what did we name this instance" (`optionsKey`, since
+ *   `providerSettings.name` is the concrete id) must not.
  * - `optionsKey`: the `providerOptions` namespace the AI SDK model actually
  *   reads (see `resolveProviderOptionsKey`); differs from `providerId` for the
  *   vertex family (`'vertex'`) and the `openai-compatible` family (the concrete
@@ -30,6 +36,7 @@ export type ProviderConfig<T extends StringKeys<AppProviderSettingsMap> = String
 export type ResolvedProviderConfig<T extends StringKeys<AppProviderSettingsMap> = StringKeys<AppProviderSettingsMap>> =
   ProviderConfig<T> & {
     concreteProviderId: string
+    presetProviderId: string
     optionsKey: string
   }
 

@@ -18,6 +18,7 @@ function makeScope(): RequestScope {
       providerSettings: {} as never,
       modelId: 'm1',
       concreteProviderId: 'p1',
+      presetProviderId: 'p1',
       optionsKey: 'p1'
     },
     endpointType: undefined,
