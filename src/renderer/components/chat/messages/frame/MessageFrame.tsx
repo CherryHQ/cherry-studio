@@ -48,6 +48,7 @@ interface Props {
   isGroupContextMessage?: boolean
   isHorizontalMultiModelLayout?: boolean
   isLatestAssistantMessage?: boolean
+  showModelIdentity?: boolean
   lockedMentionedModels?: Model[]
   enterMotionActive?: boolean
 }
@@ -63,6 +64,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
   isGroupContextMessage,
   isHorizontalMultiModelLayout = false,
   isLatestAssistantMessage = false,
+  showModelIdentity = false,
   lockedMentionedModels,
   enterMotionActive = false
 }) => {
@@ -291,6 +293,7 @@ const MessageItemContent: FC<Omit<Props, 'messageParts'>> = ({
           model={model}
           key={model ? createUniqueModelId(model.provider, model.id) : ''}
           isGroupContextMessage={isGroupContextMessage}
+          showModelIdentity={showModelIdentity}
           contentSlot={plainMessageContent}
           footerSlot={userFooter ?? assistantFooter}
         />
