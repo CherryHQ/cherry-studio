@@ -41,33 +41,29 @@ const TimeRangeFields = {
   to: z.number().int().nonnegative().optional()
 }
 
-export const UsageLedgerListQuerySchema = z
-  .object({
-    /** Page number (1-based), defaults to 1. */
-    page: z.int().positive().default(1),
-    /** Positive integer, max {@link USAGE_LEDGER_MAX_LIMIT}, defaults to {@link USAGE_LEDGER_DEFAULT_LIMIT} */
-    limit: z.int().positive().max(USAGE_LEDGER_MAX_LIMIT).default(USAGE_LEDGER_DEFAULT_LIMIT),
-    sortBy: UsageLedgerListSortBySchema.default('createdAt'),
-    sortOrder: UsageLedgerSortOrderSchema.default('desc'),
-    ...TimeRangeFields
-  })
-  .strict()
+export const UsageLedgerListQuerySchema = z.strictObject({
+  /** Page number (1-based), defaults to 1. */
+  page: z.int().positive().default(1),
+  /** Positive integer, max {@link USAGE_LEDGER_MAX_LIMIT}, defaults to {@link USAGE_LEDGER_DEFAULT_LIMIT} */
+  limit: z.int().positive().max(USAGE_LEDGER_MAX_LIMIT).default(USAGE_LEDGER_DEFAULT_LIMIT),
+  sortBy: UsageLedgerListSortBySchema.default('createdAt'),
+  sortOrder: UsageLedgerSortOrderSchema.default('desc'),
+  ...TimeRangeFields
+})
 /** Parsed query parameters for listing usage ledger entries. */
 export type UsageLedgerListQuery = z.infer<typeof UsageLedgerListQuerySchema>
 /** Input query parameters accepted by the API before schema defaults are applied. */
 export type UsageLedgerListQueryParams = z.input<typeof UsageLedgerListQuerySchema> & OffsetPaginationParams
 
-export const UsageLedgerStatsQuerySchema = z
-  .object({
-    /** Aggregation dimension */
-    groupBy: z.enum(['provider', 'apiKey', 'model', 'source']),
-    ...TimeRangeFields
-  })
-  .strict()
+export const UsageLedgerStatsQuerySchema = z.strictObject({
+  /** Aggregation dimension */
+  groupBy: z.enum(['provider', 'apiKey', 'model', 'source']),
+  ...TimeRangeFields
+})
 /** Parsed query parameters for usage ledger aggregation. */
 export type UsageLedgerStatsQuery = z.infer<typeof UsageLedgerStatsQuerySchema>
 
-export const UsageLedgerTimelineQuerySchema = z.object(TimeRangeFields).strict()
+export const UsageLedgerTimelineQuerySchema = z.strictObject(TimeRangeFields)
 /** Parsed query parameters for usage ledger daily timeline. */
 export type UsageLedgerTimelineQuery = z.infer<typeof UsageLedgerTimelineQuerySchema>
 
