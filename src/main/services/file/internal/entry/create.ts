@@ -16,12 +16,12 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { atomicWriteFile, copy as fsCopy, download, remove as fsRemove, stat as fsStat } from '@main/utils/file'
 import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
-import type { FilePath } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import { canonicalizeFilePath } from '@shared/utils/file'
 import mime from 'mime'
 import { v7 as uuidv7 } from 'uuid'
 
 import type { CreateInternalEntryParams, EnsureExternalEntryParams } from '../../FileManager'
-import { canonicalizeExternalPath } from '../../utils/pathResolver'
 import type { FileManagerDeps } from '../deps'
 
 const logger = loggerService.withContext('internal/entry/create')
@@ -37,7 +37,7 @@ const logger = loggerService.withContext('internal/entry/create')
  * EACCES / EBUSY / EIO equally with ENOENT — exactly the class of failure
  * `fs.errno-warn.test.ts` was built to guard against.
  */
-async function bestEffortCleanup(physical: FilePath, context: string): Promise<void> {
+async function bestEffortCleanup(physical: AbsoluteFilePath, context: string): Promise<void> {
   try {
     await fsRemove(physical)
   } catch (cleanupErr) {
@@ -55,7 +55,7 @@ async function bestEffortCleanup(physical: FilePath, context: string): Promise<v
 interface NormalisedSource {
   name: string
   ext: string | null
-  writeTo(target: FilePath): Promise<void>
+  writeTo(target: AbsoluteFilePath): Promise<void>
 }
 
 const BASE64_DATA_URI = /^data:([^;,]+);base64,(.+)$/
@@ -156,7 +156,7 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
   const source = normaliseSource(params)
   const id = uuidv7()
   const filename = `${id}${source.ext ? `.${source.ext}` : ''}`
-  const physical = application.getPath('feature.files.data', filename) as FilePath
+  const physical = AbsoluteFilePathSchema.parse(application.getPath('feature.files.data', filename))
   await source.writeTo(physical)
   let stats
   try {
@@ -183,27 +183,17 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
 
 /**
  * Ensure an entry exists for a user-provided absolute path. Pure upsert keyed
- * by canonicalized externalPath. Path existence is verified via `fs.stat`
- * before insert; ENOENT propagates.
+ * by the canonical form of `params.externalPath`: `AbsoluteFilePathSchema` at the IPC
+ * boundary validates shape only, so this function canonicalizes the input via
+ * `canonicalizeFilePath` and derives every downstream value (lookup, dedup,
+ * name/ext projection, persisted `externalPath`) from that `CanonicalFilePath`.
+ * Path existence is verified via `fs.stat` before insert; ENOENT propagates.
  */
 export async function ensureExternal(deps: FileManagerDeps, params: EnsureExternalEntryParams): Promise<FileEntry> {
-  const canonical = canonicalizeExternalPath(params.externalPath)
+  const canonical = canonicalizeFilePath(params.externalPath)
   const existing = deps.fileEntryService.findByExternalPath(canonical)
   if (existing) return upgradeCleanupPolicyIfNeeded(deps, existing, params.cleanupPolicy)
-  // Every downstream derivation must consume the canonical path, not the
-  // raw `params.externalPath`. On macOS APFS the raw input can arrive in
-  // NFD form while `canonical` is NFC; deriving `name` / `ext` from raw
-  // would persist NFD-encoded values alongside an NFC `externalPath`, so
-  // a later strict-equality check like `path.basename(canonical) === entry.name`
-  // would silently diverge. Same risk for trailing-separator / `..`
-  // noise in the raw input.
-  // `canonical` is `CanonicalExternalPath`; the schema-side S5 refine now
-  // makes the BO's `externalPath` `FilePath & CanonicalExternalPath`, but
-  // here we only hold the factory-side `CanonicalExternalPath`. The cast
-  // to `FilePath` is the sanctioned service-boundary upcast — the
-  // canonicalize pipeline already enforces the absolute-shape gate that
-  // `FilePath` represents at the type level.
-  await fsStat(canonical as unknown as FilePath)
+  await fsStat(canonical)
   // Case-insensitive peer lookup is index-backed via the
   // `fe_external_path_lower_unique_idx` functional UNIQUE on `lower(externalPath)`.
   // The same index hard-rejects an INSERT that would collide with an existing
@@ -218,8 +208,7 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
   // on-disk canonical string → same logical file, reuse the existing peer.
   // On case-sensitive filesystems the two paths resolve to distinct strings
   // (or one ENOENTs) → genuine distinct files, throw with peer info so the
-  // caller can decide (rename / surface to user). This is the `fs.realpath`
-  // upgrade pre-announced in `canonicalizeExternalPath`'s JSDoc.
+  // caller can decide (rename / surface to user).
   //
   // SELECT failure (transient DB lock, connection drop) propagates; the
   // subsequent INSERT would fail at the same boundary with a more
@@ -227,7 +216,7 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
   // error one stack frame earlier.
   const peers = deps.fileEntryService.findCaseInsensitivePeers(canonical)
   if (peers.length > 0) {
-    const reusable = await resolveCaseCollisionPeer(canonical as FilePath, peers)
+    const reusable = await resolveCaseCollisionPeer(canonical, peers)
     if (reusable) {
       // Re-read before trusting the peer: the `await` above (fs.realpath) yielded
       // the event loop, and a concurrent cleanup pass can reclaim exactly this
@@ -271,7 +260,7 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
       )
     }
   }
-  // `name` and `ext` are pure projections of `canonical` — derived here,
+  // `name` and `ext` are pure projections of `externalPath` — derived here,
   // not accepted from callers. Doc-stated invariant: "external `name` is a
   // pure projection of `externalPath`" (file-manager-architecture §1.5 +
   // architecture §3.3) is now enforced by the IPC type lacking a `name`
@@ -288,10 +277,10 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
   })
   // Reverse-index hook: subsequent watcher / opportunistic ops events for
   // `canonical` should reach this entry id. The fs.stat above succeeded —
-  // record a fresh 'present' observation so any imminent UI query short-
-  // circuits the cold-stat path.
-  deps.danglingCache.addEntry(inserted.id, canonical as FilePath)
-  deps.danglingCache.onFsEvent(canonical as FilePath, 'present', 'ops')
+  // record a fresh 'present' observation so any imminent UI query
+  // short-circuits the cold-stat path.
+  deps.danglingCache.addEntry(inserted.id, canonical)
+  deps.danglingCache.onFsEvent(canonical, 'present', 'ops')
   return inserted
 }
 
@@ -319,7 +308,7 @@ function defaultNameFromPath(p: string): string {
  *
  * Returns the matching peer, or `null` when no peer is the same FS entity.
  */
-async function resolveCaseCollisionPeer(newCanonical: FilePath, peers: FileEntry[]): Promise<FileEntry | null> {
+async function resolveCaseCollisionPeer(newCanonical: AbsoluteFilePath, peers: FileEntry[]): Promise<FileEntry | null> {
   // The caller's `fsStat(newCanonical)` already succeeded a moment ago, so a
   // realpath failure here means the file was raced away or a symlink target
   // became unreachable between calls. We let the error propagate unchanged

@@ -22,7 +22,8 @@ import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { isMac } from '@renderer/utils/platform'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { OutputFor } from '@shared/ipc/types'
-import type { FilePath, FileType } from '@shared/types/file'
+import type { AbsoluteFilePath, FileType } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFileEntryHandle, getFileTypeByExt, toSafeFileUrl } from '@shared/utils/file'
 import { ArrowLeft, MoreHorizontal, Upload } from 'lucide-react'
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
@@ -51,7 +52,7 @@ type FileBatchMutationRoute = 'file.batch_trash' | 'file.batch_restore' | 'file.
 
 interface EmbeddedFilePreview {
   fileName: string
-  filePath: FilePath
+  filePath: AbsoluteFilePath
   refreshKey: number
 }
 
@@ -121,8 +122,10 @@ async function requestBatchedFileMutation(
   }
 }
 
-async function requestBatchedInternalEntryCreates(paths: readonly string[]): Promise<BatchCreateInternalEntriesResult> {
-  const chunks: string[][] = []
+async function requestBatchedInternalEntryCreates(
+  paths: readonly AbsoluteFilePath[]
+): Promise<BatchCreateInternalEntriesResult> {
+  const chunks: AbsoluteFilePath[][] = []
   for (let i = 0; i < paths.length; i += FILE_IPC_CREATE_BATCH_SIZE) {
     chunks.push(paths.slice(i, i + FILE_IPC_CREATE_BATCH_SIZE))
   }
@@ -205,7 +208,7 @@ function toFileItem(
       ...base,
       ...originFields,
       type,
-      previewUrl: physicalPath ? toSafeFileUrl(physicalPath as FilePath, entry.ext) : undefined
+      previewUrl: physicalPath ? toSafeFileUrl(physicalPath, entry.ext) : undefined
     }
   }
 
@@ -611,7 +614,7 @@ function FilesPage() {
   }, [])
 
   const handleImportPaths = useCallback(
-    async (paths: string[]) => {
+    async (paths: AbsoluteFilePath[]) => {
       if (paths.length === 0) return
 
       try {
@@ -634,7 +637,9 @@ function FilesPage() {
       })
       if (!selected || selected.length === 0) return
 
-      const paths = selected.map((file) => file.path).filter((path): path is string => Boolean(path))
+      const paths = selected
+        .map((file) => AbsoluteFilePathSchema.safeParse(file.path).data)
+        .filter((path): path is AbsoluteFilePath => Boolean(path))
       await handleImportPaths(paths)
     } catch (error) {
       logger.error('Failed to select files for import', error as Error)
@@ -974,8 +979,8 @@ function FilesPage() {
           setDragOver(false)
           if (isTrash) return
           const paths = Array.from(e.dataTransfer.files)
-            .map((file) => window.api.file.getPathForFile(file))
-            .filter((path): path is string => Boolean(path))
+            .map((file) => AbsoluteFilePathSchema.safeParse(window.api.file.getPathForFile(file)).data)
+            .filter((path): path is AbsoluteFilePath => Boolean(path))
           void handleImportPaths(paths)
         }}>
         {!isImageGrid && (

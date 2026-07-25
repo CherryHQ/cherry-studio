@@ -12,6 +12,8 @@ import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
 import type { CleanupPolicy, FileEntryId } from '@shared/data/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { canonicalizeFilePath } from '@shared/utils/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
@@ -19,7 +21,6 @@ import { eq } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { danglingCache } from '../../danglingCache'
-import { canonicalizeExternalPath } from '../../utils/pathResolver'
 import { createVersionCacheImpl } from '../../versionCache'
 
 vi.mock('@application', async () => {
@@ -279,7 +280,7 @@ describe('entryCleanup', () => {
     const externalDir = await mkdtemp(path.join(tmpdir(), 'cherry-fm-entrycleanup-external-'))
     const realFile = path.join(externalDir, 'user-file.txt')
     await writeFile(realFile, 'user data')
-    const externalPath = canonicalizeExternalPath(realFile)
+    const externalPath = canonicalizeFilePath(AbsoluteFilePathSchema.parse(realFile))
     const ts = Date.now() - 2 * HOUR
     await dbh.db.insert(fileEntryTable).values({
       id,

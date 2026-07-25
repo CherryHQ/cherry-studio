@@ -68,6 +68,11 @@ async function renderSubWindowAppShell({
   vi.doMock('@renderer/components/MiniApp/MiniAppTabsPool', () => ({
     default: () => <div data-testid="mini-app-pool" />
   }))
+  vi.doMock('@renderer/components/ResourceViewSourceProvider', () => ({
+    ResourceViewSourceProvider: ({ children }: { children: ReactNode }) => (
+      <div data-testid="resource-view-source-provider">{children}</div>
+    )
+  }))
 
   const { SubWindowAppShell } = await import('../SubWindowAppShell')
   render(<SubWindowAppShell />)
@@ -83,8 +88,12 @@ describe('SubWindowAppShell', () => {
   it('renders the title bar and tab router', async () => {
     await renderSubWindowAppShell()
 
+    const provider = screen.getByTestId('resource-view-source-provider')
+
     expect(screen.getByTestId('sub-window-title-bar')).toBeInTheDocument()
-    expect(screen.getByTestId('tab-router')).toBeInTheDocument()
+    expect(provider).toContainElement(screen.getByTestId('tab-router'))
+    expect(provider).not.toContainElement(screen.getByTestId('sub-window-title-bar'))
+    expect(provider).not.toContainElement(screen.getByTestId('mini-app-pool'))
   })
 
   it('syncs a detached conversation URL from the active tab metadata', async () => {

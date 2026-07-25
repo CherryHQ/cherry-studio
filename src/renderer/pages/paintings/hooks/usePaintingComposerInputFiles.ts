@@ -3,7 +3,7 @@ import { toast } from '@renderer/services/toast'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
-import type { FilePath } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
 import { type Dispatch, type SetStateAction, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -193,7 +193,7 @@ export function usePaintingComposerInputFiles({
       try {
         const entry = await window.api.file.createInternalEntry({
           source: 'path',
-          path: file.path as FilePath,
+          path: AbsoluteFilePathSchema.parse(file.path),
           cleanupPolicy: 'delete_when_unreferenced'
         })
         cache.set(file.fileTokenSourceId, entry)

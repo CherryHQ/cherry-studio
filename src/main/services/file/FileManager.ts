@@ -130,18 +130,20 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { remove as fsRemove, stat as fsStat } from '@main/utils/file'
 import type { DanglingState, FileEntry, FileEntryId, FileHandle } from '@shared/data/types/file'
-import { AbsolutePathSchema, CleanupPolicySchema, FileEntryIdSchema, FileHandleSchema } from '@shared/data/types/file'
+import { CleanupPolicySchema, FileEntryIdSchema, FileHandleSchema } from '@shared/data/types/file'
 import { createInternalEntryInputSchema } from '@shared/ipc/schemas/file'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
+  AbsoluteFilePath,
   BatchCreateResult,
   BatchMutationResult,
   CreateInternalEntryIpcParams,
   EnsureExternalEntryIpcParams,
-  FilePath,
   FileUrlString,
   PhysicalFileMetadata
 } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { canonicalizeFilePath } from '@shared/utils/file'
 import mime from 'mime'
 import * as z from 'zod'
 
@@ -184,7 +186,7 @@ import { showInFolder as internalShellShowInFolder } from './internal/system/she
 import { withTempCopy as internalWithTempCopy } from './internal/system/tempCopy'
 import { safeOpen } from './system'
 import { getMetadataByPath } from './utils/metadata'
-import { canonicalizeExternalPath, resolvePhysicalPath } from './utils/pathResolver'
+import { resolvePhysicalPath } from './utils/pathResolver'
 import { createVersionCacheImpl, type VersionCache } from './versionCache'
 
 const fileManagerLogger = loggerService.withContext('FileManager')
@@ -232,7 +234,7 @@ export type EnsureExternalEntryParams = EnsureExternalEntryIpcParams
 export const CreateInternalEntryIpcSchema = createInternalEntryInputSchema
 
 export const EnsureExternalEntryIpcSchema = z.strictObject({
-  externalPath: AbsolutePathSchema,
+  externalPath: AbsoluteFilePathSchema,
   cleanupPolicy: CleanupPolicySchema
 })
 
@@ -565,7 +567,7 @@ export interface IFileManager {
   getUrl(id: FileEntryId): FileUrlString
 
   /** Resolve an entry to its absolute filesystem path. */
-  getPhysicalPath(id: FileEntryId): FilePath
+  getPhysicalPath(id: FileEntryId): AbsoluteFilePath
 
   // ─── Dangling state ───
 
@@ -752,7 +754,7 @@ export class FileManager extends BaseService implements IFileManager {
     //
     // Zod outputs the structural shapes (`{ path: string }`, `{ kind: 'path';
     // path: string }`, etc.). The TS-side param types use template literal
-    // brands (`FilePath`, `FileHandle`) that Zod can't reproduce without a
+    // brands (`AbsoluteFilePath`, `FileHandle`) that Zod can't reproduce without a
     // `.transform()` per field. The cast at this single boundary keeps the
     // brand-as-doc convention intact while letting runtime validation (Zod)
     // remain the actual gate — same pattern used by every other IPC handler
@@ -903,8 +905,8 @@ export class FileManager extends BaseService implements IFileManager {
     return this.deps.fileEntryService.findById(id)
   }
 
-  async findByExternalPath(rawPath: string): Promise<FileEntry | null> {
-    return this.deps.fileEntryService.findByExternalPath(canonicalizeExternalPath(rawPath))
+  async findByExternalPath(path: AbsoluteFilePath): Promise<FileEntry | null> {
+    return this.deps.fileEntryService.findByExternalPath(canonicalizeFilePath(path))
   }
 
   async ensureExternalEntry(params: EnsureExternalEntryParams): Promise<FileEntry> {
@@ -972,7 +974,7 @@ export class FileManager extends BaseService implements IFileManager {
     return pathToFileURL(physicalPath).toString() as FileUrlString
   }
 
-  getPhysicalPath(id: FileEntryId): FilePath {
+  getPhysicalPath(id: FileEntryId): AbsoluteFilePath {
     const entry = this.deps.fileEntryService.getById(id)
     return resolvePhysicalPath(entry)
   }
@@ -994,19 +996,22 @@ export class FileManager extends BaseService implements IFileManager {
   async batchEnsureExternalEntries(items: EnsureExternalEntryParams[]): Promise<BatchCreateResult> {
     // Within-batch path duplicates resolve to the same entry per the public
     // contract; the second occurrence reuses the just-inserted row. The
-    // canonical-path memoization here ensures both items end up in
-    // `succeeded` even though only one DB insert happens — and each carries
-    // its own `sourceRef`, so the caller can still correlate every input.
+    // in-memory memo keys on the branded `externalPath` directly — no re-parse,
+    // trusting the already-validated `AbsoluteFilePath` param. Byte-identical inputs
+    // dedup here; any canonically-equal-but-byte-different pair still coalesces
+    // one level down (`ensureExternalEntry` canonicalizes and hits the DB
+    // upsert). Both items end up in `succeeded` even though only one DB insert
+    // happens — and each carries its own `sourceRef`, so the caller can still
+    // correlate every input.
     const seen = new Map<string, FileEntry>()
     const succeeded: BatchCreateResult['succeeded'] = []
     const failed: BatchCreateResult['failed'] = []
     for (const params of items) {
       const sourceRef = params.externalPath
       try {
-        const canonical = canonicalizeExternalPath(params.externalPath)
-        const cached = seen.get(canonical)
+        const cached = seen.get(params.externalPath)
         const entry = cached ?? (await this.ensureExternalEntry(params))
-        if (!cached) seen.set(canonical, entry)
+        if (!cached) seen.set(params.externalPath, entry)
         succeeded.push({ id: entry.id, sourceRef })
       } catch (err) {
         // Wire format only carries `.message`; preserve the stack via the

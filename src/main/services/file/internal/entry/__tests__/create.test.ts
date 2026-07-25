@@ -3,7 +3,7 @@ import type { Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type { FilePath } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -238,7 +238,7 @@ describe('internal/entry/create.createInternal', () => {
     it('on insert: registers the entry in the reverse index AND records a "present" observation', async () => {
       const file = path.join(tmp, 'ext-new.txt')
       await writeFile(file, 'hello')
-      const e = await ensureExternal(deps, { externalPath: file as FilePath, cleanupPolicy: 'manual' })
+      const e = await ensureExternal(deps, { externalPath: file as AbsoluteFilePath, cleanupPolicy: 'manual' })
       expect(deps.danglingCache.addEntry).toHaveBeenCalledWith(e.id, expect.any(String))
       expect(deps.danglingCache.onFsEvent).toHaveBeenCalledWith(expect.any(String), 'present', 'ops')
     })
@@ -246,11 +246,11 @@ describe('internal/entry/create.createInternal', () => {
     it('on reuse (same canonical path): does NOT add a duplicate index entry', async () => {
       const file = path.join(tmp, 'ext-reuse.txt')
       await writeFile(file, 'hello')
-      await ensureExternal(deps, { externalPath: file as FilePath, cleanupPolicy: 'manual' })
+      await ensureExternal(deps, { externalPath: file as AbsoluteFilePath, cleanupPolicy: 'manual' })
       vi.mocked(deps.danglingCache.addEntry).mockClear()
       vi.mocked(deps.danglingCache.onFsEvent).mockClear()
       // Second call resolves to the already-inserted row.
-      await ensureExternal(deps, { externalPath: file as FilePath, cleanupPolicy: 'manual' })
+      await ensureExternal(deps, { externalPath: file as AbsoluteFilePath, cleanupPolicy: 'manual' })
       expect(deps.danglingCache.addEntry).not.toHaveBeenCalled()
       expect(deps.danglingCache.onFsEvent).not.toHaveBeenCalled()
     })
@@ -265,9 +265,9 @@ describe('internal/entry/create.createInternal', () => {
       vi.spyOn(fileEntryService, 'findCaseInsensitivePeers').mockImplementationOnce(() => {
         throw probeErr
       })
-      await expect(ensureExternal(deps, { externalPath: file as FilePath, cleanupPolicy: 'manual' })).rejects.toBe(
-        probeErr
-      )
+      await expect(
+        ensureExternal(deps, { externalPath: file as AbsoluteFilePath, cleanupPolicy: 'manual' })
+      ).rejects.toBe(probeErr)
     })
   })
 
@@ -294,8 +294,8 @@ describe('internal/entry/create.createInternal', () => {
         // exact miss, finds the first as a case-insensitive peer, realpaths
         // both to the same string, and returns the existing entry.
         await writeFile(upper, 'x')
-        const first = await ensureExternal(deps, { externalPath: upper as FilePath, cleanupPolicy: 'manual' })
-        const second = await ensureExternal(deps, { externalPath: lower as FilePath, cleanupPolicy: 'manual' })
+        const first = await ensureExternal(deps, { externalPath: upper as AbsoluteFilePath, cleanupPolicy: 'manual' })
+        const second = await ensureExternal(deps, { externalPath: lower as AbsoluteFilePath, cleanupPolicy: 'manual' })
         expect(second.id).toBe(first.id)
       }
     )
@@ -312,7 +312,7 @@ describe('internal/entry/create.createInternal', () => {
         const lower = path.join(tmp, 'race.txt')
         await writeFile(upper, 'x')
         const first = await ensureExternal(deps, {
-          externalPath: upper as FilePath,
+          externalPath: upper as AbsoluteFilePath,
           cleanupPolicy: 'delete_when_unreferenced'
         })
 
@@ -327,7 +327,7 @@ describe('internal/entry/create.createInternal', () => {
         })
 
         const second = await ensureExternal(deps, {
-          externalPath: lower as FilePath,
+          externalPath: lower as AbsoluteFilePath,
           cleanupPolicy: 'delete_when_unreferenced'
         })
         expect(second.id).not.toBe(first.id)
@@ -342,9 +342,9 @@ describe('internal/entry/create.createInternal', () => {
         const lower = path.join(tmp, 'collide.txt')
         await writeFile(upper, 'A')
         await writeFile(lower, 'a')
-        await ensureExternal(deps, { externalPath: upper as FilePath, cleanupPolicy: 'manual' })
+        await ensureExternal(deps, { externalPath: upper as AbsoluteFilePath, cleanupPolicy: 'manual' })
         await expect(
-          ensureExternal(deps, { externalPath: lower as FilePath, cleanupPolicy: 'manual' })
+          ensureExternal(deps, { externalPath: lower as AbsoluteFilePath, cleanupPolicy: 'manual' })
         ).rejects.toThrow(/case-collision/i)
       }
     )
@@ -376,7 +376,7 @@ describe('internal/entry/create.createInternal', () => {
           updatedAt: Date.now()
         })
         await expect(
-          ensureExternal(deps, { externalPath: realFile as FilePath, cleanupPolicy: 'manual' })
+          ensureExternal(deps, { externalPath: realFile as AbsoluteFilePath, cleanupPolicy: 'manual' })
         ).rejects.toThrow(/case-collision/i)
       }
     )
@@ -388,11 +388,11 @@ describe('internal/entry/create.createInternal', () => {
         const lower = path.join(tmp, 'upgrade.txt')
         await writeFile(upper, 'x')
         const first = await ensureExternal(deps, {
-          externalPath: upper as FilePath,
+          externalPath: upper as AbsoluteFilePath,
           cleanupPolicy: 'delete_when_unreferenced'
         })
         expect(first.cleanupPolicy).toBe('delete_when_unreferenced')
-        const second = await ensureExternal(deps, { externalPath: lower as FilePath, cleanupPolicy: 'manual' })
+        const second = await ensureExternal(deps, { externalPath: lower as AbsoluteFilePath, cleanupPolicy: 'manual' })
         expect(second.id).toBe(first.id)
         expect(second.cleanupPolicy).toBe('manual')
       }
@@ -404,10 +404,10 @@ describe('internal/entry/create.createInternal', () => {
         const upper = path.join(tmp, 'NODOWNGRADE.txt')
         const lower = path.join(tmp, 'nodowngrade.txt')
         await writeFile(upper, 'x')
-        const first = await ensureExternal(deps, { externalPath: upper as FilePath, cleanupPolicy: 'manual' })
+        const first = await ensureExternal(deps, { externalPath: upper as AbsoluteFilePath, cleanupPolicy: 'manual' })
         expect(first.cleanupPolicy).toBe('manual')
         const second = await ensureExternal(deps, {
-          externalPath: lower as FilePath,
+          externalPath: lower as AbsoluteFilePath,
           cleanupPolicy: 'delete_when_unreferenced'
         })
         expect(second.id).toBe(first.id)
@@ -416,42 +416,40 @@ describe('internal/entry/create.createInternal', () => {
     )
   })
 
-  describe('ensureExternal canonical derivation', () => {
-    // Skip on linux: ext4 stores filenames as opaque bytes (no NFC/NFD
-    // equivalence), so a file written under an NFD name is genuinely a
-    // different FS entry from the NFC form — statting the canonical ENOENTs
-    // at the FS layer before the derivation invariant is exercised. The bug
-    // this guards is an APFS / NTFS concern (silent NFC-vs-NFD divergence
-    // between raw drag-drop input and `canonical`), which the macOS / Windows
-    // runners do exercise.
-    it.skipIf(process.platform === 'linux')(
-      'derives name/ext from the canonical path, not the raw input (NFD → NFC byte equivalence)',
-      async () => {
-        // Regression guard: previously `name = params.name ?? defaultNameFromPath(params.externalPath)`
-        // and `ext = extWithoutDot(params.externalPath)` derived from the raw
-        // input. On macOS APFS the raw input can arrive in NFD form while
-        // `canonical` is NFC — persisting NFD-encoded name/ext alongside an
-        // NFC externalPath silently breaks `path.basename(canonical) === entry.name`
-        // equality checks. The fix derives every field from `canonical`.
-        const nfdName = 'qué' // 'qué' = e + combining acute (NFD)
-        const nfcName = 'qué' // 'qué' = single codepoint (NFC)
-        expect(nfdName).not.toBe(nfcName) // byte-distinct strings
-        expect(nfdName.normalize('NFC')).toBe(nfcName)
+  describe('ensureExternal byte-faithful derivation', () => {
+    // `externalPath` is stored byte-faithful — `canonicalizeFilePath` does NOT
+    // Unicode-normalize, so an NFD-named file keeps its NFD bytes end to end:
+    // the stored path reaches the real file on every filesystem (including
+    // Linux ext4, where an NFC-rewritten path would ENOENT), and `name`/`ext`
+    // are derived from that byte-faithful path, not folded to NFC. Runs on all
+    // platforms: the byte-faithful path matches the on-disk bytes everywhere.
+    it('derives name/ext from the byte-faithful canonical path (NFD stays NFD, no NFC fold)', async () => {
+      // ASCII \u escapes (not raw accented literals) so formatter/editor tooling
+      // cannot silently re-normalize the NFD form and turn this into a tautology.
+      const nfdName = 'qu\u0065\u0301' // q, u, e, combining acute -> NFD
+      const nfcName = 'qu\u00E9' // q, u, e-precomposed -> NFC
+      expect(nfdName).not.toBe(nfcName) // byte-distinct strings
+      expect(nfdName.normalize('NFC')).toBe(nfcName)
 
-        const file = path.join(tmp, `${nfdName}.txt`)
-        await writeFile(file, 'x')
-        const entry = await ensureExternal(deps, { externalPath: file as FilePath, cleanupPolicy: 'manual' })
+      const file = path.join(tmp, `${nfdName}.txt`)
+      await writeFile(file, 'x')
+      const entry = await ensureExternal(deps, {
+        externalPath: AbsoluteFilePathSchema.parse(file),
+        cleanupPolicy: 'manual'
+      })
 
-        if (entry.origin !== 'external') throw new Error('expected external entry')
-        // The stored externalPath is NFC (canonicalize applies .normalize('NFC')).
-        const canonical = entry.externalPath
-        expect(canonical.normalize('NFC')).toBe(canonical)
-        // name must derive from the canonical (NFC) basename, not the raw NFD input.
-        expect(entry.name).toBe(nfcName)
-        // Round-trip equality through path.basename now holds.
-        expect(path.basename(canonical, '.txt')).toBe(entry.name)
-      }
-    )
+      if (entry.origin !== 'external') throw new Error('expected external entry')
+      // The stored externalPath is byte-faithful — the exact NFD bytes we passed,
+      // NOT folded to NFC.
+      const canonical = entry.externalPath
+      expect(canonical).toBe(file)
+      expect(canonical).not.toBe(file.normalize('NFC'))
+      // name derives from the byte-faithful (NFD) basename, not an NFC fold.
+      expect(entry.name).toBe(nfdName)
+      expect(entry.name).not.toBe(nfcName)
+      // Round-trip equality through path.basename holds byte-for-byte.
+      expect(path.basename(canonical, '.txt')).toBe(entry.name)
+    })
   })
 
   describe('cleanupPolicy', () => {
@@ -467,7 +465,7 @@ describe('internal/entry/create.createInternal', () => {
     })
 
     it('ensureExternal reuse upgrades delete_when_unreferenced to manual but never downgrades', async () => {
-      const extPath = path.join(tmp, 'cleanup-policy.txt') as FilePath
+      const extPath = path.join(tmp, 'cleanup-policy.txt') as AbsoluteFilePath
       await writeFile(extPath, 'x')
       const first = await ensureExternal(deps, { externalPath: extPath, cleanupPolicy: 'delete_when_unreferenced' })
       expect(first.cleanupPolicy).toBe('delete_when_unreferenced')

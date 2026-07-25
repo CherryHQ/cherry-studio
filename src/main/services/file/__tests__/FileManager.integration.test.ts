@@ -5,8 +5,9 @@ import path from 'node:path'
 import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { BaseService } from '@main/core/lifecycle'
-import type { FileEntryId } from '@shared/data/types/file'
+import { type FileEntryId } from '@shared/data/types/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
@@ -128,12 +129,14 @@ describe('FileManager (integration)', () => {
     })
 
     // Canonical lookup
-    const found = await fm.findByExternalPath(`${file}/`) // trailing slash → canonicalize strips
+    const found = await fm.findByExternalPath(AbsoluteFilePathSchema.parse(`${file}/`)) // trailing slash → canonicalize strips
     expect(found?.id).toBe(id)
 
-    // NFC re-normalization survives a synthesized NFD form
+    // Byte-faithful lookup: canonicalization does NOT Unicode-normalize, so an
+    // NFD synthesis of this ASCII path is byte-identical and matches the stored
+    // (byte-faithful) row exactly.
     const nfdFile = file.normalize('NFD')
-    const foundNfc = await fm.findByExternalPath(nfdFile)
+    const foundNfc = await fm.findByExternalPath(AbsoluteFilePathSchema.parse(nfdFile))
     expect(foundNfc?.id).toBe(id)
 
     // Content hash works for external entries

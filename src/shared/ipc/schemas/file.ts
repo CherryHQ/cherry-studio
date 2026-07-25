@@ -1,5 +1,4 @@
 import {
-  AbsolutePathSchema,
   CleanupPolicySchema,
   DanglingStateSchema,
   FileEntryIdSchema,
@@ -7,7 +6,12 @@ import {
   FileHandleSchema,
   SafeNameSchema
 } from '@shared/data/types/file'
-import { FileVersionSchema, PhysicalFileMetadataSchema, SafeExtSchema } from '@shared/types/file'
+import {
+  AbsoluteFilePathSchema,
+  FileVersionSchema,
+  PhysicalFileMetadataSchema,
+  SafeExtSchema
+} from '@shared/types/file'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
@@ -48,7 +52,7 @@ const binaryReadResultSchema = z.strictObject({
 })
 
 const writeIfUnchangedInputSchema = z.strictObject({
-  path: AbsolutePathSchema,
+  path: AbsoluteFilePathSchema,
   data: uint8ArraySchema,
   expectedVersion: FileVersionSchema
 })
@@ -59,7 +63,7 @@ const writeIfUnchangedInputSchema = z.strictObject({
 const createInternalEntryBaseSchema = z.strictObject({ cleanupPolicy: CleanupPolicySchema })
 
 // TODO(file-ipc): Unify these schemas with the branded transport types in
-// `src/shared/types/file/ipc.ts`. `FilePath`, `Base64String`, and `UrlString` are
+// `src/shared/types/file/ipc.ts`. `AbsoluteFilePath`, `Base64String`, and `UrlString` are
 // TS-only aliases while their runtime schemas live elsewhere, so a successful
 // Zod parse still cannot prove `CreateInternalEntryIpcParams` without an `as`
 // cast in the handler. Keeping the type and schema definitions separate risks
@@ -69,7 +73,7 @@ const createInternalEntryBaseSchema = z.strictObject({ cleanupPolicy: CleanupPol
 // Exported: the legacy single-create channel (`File_CreateInternalEntry`,
 // registered in FileManager) parses with this same schema — one source of truth.
 export const createInternalEntryInputSchema = z.discriminatedUnion('source', [
-  createInternalEntryBaseSchema.extend({ source: z.literal('path'), path: AbsolutePathSchema }),
+  createInternalEntryBaseSchema.extend({ source: z.literal('path'), path: AbsoluteFilePathSchema }),
   createInternalEntryBaseSchema.extend({ source: z.literal('url'), url: z.url() }),
   createInternalEntryBaseSchema.extend({
     source: z.literal('base64'),
@@ -103,7 +107,7 @@ export const fileRequestSchemas = {
   }),
   'file.batch_get_physical_paths': defineRoute({
     input: fileEntryIdsInputSchema,
-    output: z.record(z.string(), AbsolutePathSchema.nullable())
+    output: z.record(z.string(), AbsoluteFilePathSchema.nullable())
   }),
   'file.batch_get_dangling_states': defineRoute({
     input: fileEntryIdsInputSchema,

@@ -82,10 +82,11 @@ export const fileEntryTable = sqliteTable(
     // Windows NTFS default) `/foo/A.txt` and `/foo/a.txt` *are* the same
     // file, and this index correctly forbids a second entry. On
     // case-sensitive filesystems (Linux ext4, case-sensitive APFS volumes)
-    // those are two different files — `ensureExternalEntry` resolves the
-    // disambiguation at the application layer via `fs.realpath` before
-    // any insert is attempted, so the DB constraint never fires
-    // user-visibly on legitimate distinct-file references. See
+    // those are two different files, and this index forbids referencing
+    // both. `ensureExternalEntry` runs an `fs.realpath` probe before the
+    // insert, so what the user sees is a descriptive `case-collision` error
+    // rather than an opaque SQLITE_CONSTRAINT — the application layer
+    // improves the diagnostic, it does not lift the restriction. See
     // `file-manager-architecture.md §1.2 Duplicate-entry detection on
     // insert`.
     uniqueIndex('fe_external_path_lower_unique_idx').on(sql`lower(${t.externalPath})`),

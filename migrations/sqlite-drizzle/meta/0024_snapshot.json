@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "daf65775-3108-49fa-a0d7-570a606e1e79",
+  "id": "89e1707b-580e-4d39-8c85-9bd812a65a5b",
   "prevId": "a77f1218-2bec-4fa7-8c19-9ad6e8d3cb30",
   "tables": {
     "agent": {
@@ -1063,6 +1063,68 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "agent_knowledge_base": {
+      "name": "agent_knowledge_base",
+      "columns": {
+        "agent_id": {
+          "name": "agent_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "knowledge_base_id": {
+          "name": "knowledge_base_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "agent_knowledge_base_agent_id_agent_id_fk": {
+          "name": "agent_knowledge_base_agent_id_agent_id_fk",
+          "tableFrom": "agent_knowledge_base",
+          "tableTo": "agent",
+          "columnsFrom": ["agent_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agent_knowledge_base_knowledge_base_id_knowledge_base_id_fk": {
+          "name": "agent_knowledge_base_knowledge_base_id_knowledge_base_id_fk",
+          "tableFrom": "agent_knowledge_base",
+          "tableTo": "knowledge_base",
+          "columnsFrom": ["knowledge_base_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "agent_knowledge_base_agent_id_knowledge_base_id_pk": {
+          "columns": ["agent_id", "knowledge_base_id"],
+          "name": "agent_knowledge_base_agent_id_knowledge_base_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "agent_mcp_server": {
       "name": "agent_mcp_server",
       "columns": {
@@ -1294,14 +1356,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "cleanup_policy": {
-          "name": "cleanup_policy",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'manual'"
-        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -1353,10 +1407,6 @@
         "fe_origin_check": {
           "name": "fe_origin_check",
           "value": "\"file_entry\".\"origin\" IN ('internal', 'external')"
-        },
-        "fe_cleanup_policy_check": {
-          "name": "fe_cleanup_policy_check",
-          "value": "\"file_entry\".\"cleanup_policy\" IN ('manual', 'delete_when_unreferenced')"
         },
         "fe_origin_consistency": {
           "name": "fe_origin_consistency",
@@ -1461,98 +1511,6 @@
         "cmfr_role_check": {
           "name": "cmfr_role_check",
           "value": "\"chat_message_file_ref\".\"role\" IN ('attachment')"
-        }
-      }
-    },
-    "job_file_ref": {
-      "name": "job_file_ref",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "file_entry_id": {
-          "name": "file_entry_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "source_id": {
-          "name": "source_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "role": {
-          "name": "role",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "jfr_entry_id_idx": {
-          "name": "jfr_entry_id_idx",
-          "columns": ["file_entry_id"],
-          "isUnique": false
-        },
-        "jfr_source_id_idx": {
-          "name": "jfr_source_id_idx",
-          "columns": ["source_id"],
-          "isUnique": false
-        },
-        "jfr_unique_idx": {
-          "name": "jfr_unique_idx",
-          "columns": ["file_entry_id", "source_id", "role"],
-          "isUnique": true
-        }
-      },
-      "foreignKeys": {
-        "job_file_ref_file_entry_id_file_entry_id_fk": {
-          "name": "job_file_ref_file_entry_id_file_entry_id_fk",
-          "tableFrom": "job_file_ref",
-          "tableTo": "file_entry",
-          "columnsFrom": ["file_entry_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "job_file_ref_source_id_job_id_fk": {
-          "name": "job_file_ref_source_id_job_id_fk",
-          "tableFrom": "job_file_ref",
-          "tableTo": "job",
-          "columnsFrom": ["source_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "jfr_role_check": {
-          "name": "jfr_role_check",
-          "value": "\"job_file_ref\".\"role\" IN ('input', 'mask')"
         }
       }
     },

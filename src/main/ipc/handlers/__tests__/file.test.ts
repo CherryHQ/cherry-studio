@@ -1,5 +1,5 @@
 import type * as FileDispatchModule from '@main/services/file/internal/dispatch'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -82,7 +82,7 @@ describe('fileHandlers', () => {
 
     await expect(
       fileHandlers['file.read'](
-        { handle: { kind: 'path', path: '/tmp/report.md' }, options: { encoding: 'binary' } },
+        { handle: { kind: 'path', path: '/tmp/report.md' as AbsoluteFilePath }, options: { encoding: 'binary' } },
         ctx
       )
     ).resolves.toBe(result)
@@ -110,7 +110,7 @@ describe('fileHandlers', () => {
     await expect(
       fileHandlers['file.write_if_unchanged'](
         {
-          path: '/tmp/report.md',
+          path: '/tmp/report.md' as AbsoluteFilePath,
           data,
           expectedVersion
         },
@@ -126,10 +126,13 @@ describe('fileHandlers', () => {
     const expected = { mtime: 1, size: 4 }
     const current = { mtime: 2, size: 8 }
     writeIfUnchangedByPathMock.mockRejectedValueOnce(
-      new PathStaleVersionError('/tmp/report.md' as FilePath, expected, current)
+      new PathStaleVersionError('/tmp/report.md' as AbsoluteFilePath, expected, current)
     )
     await expect(
-      fileHandlers['file.write_if_unchanged']({ path: '/tmp/report.md', data, expectedVersion: expected }, ctx)
+      fileHandlers['file.write_if_unchanged'](
+        { path: '/tmp/report.md' as AbsoluteFilePath, data, expectedVersion: expected },
+        ctx
+      )
     ).rejects.toMatchObject({
       code: fileErrorCodes.STALE_VERSION,
       data: { expected, current }
@@ -139,7 +142,7 @@ describe('fileHandlers', () => {
   it('batch_get_metadata dispatches FileHandle items inside the IPC adapter', async () => {
     const items = [
       { key: ids[0], handle: { kind: 'entry' as const, entryId: ids[0] } },
-      { key: '/tmp/a.txt', handle: { kind: 'path' as const, path: '/tmp/a.txt' } },
+      { key: '/tmp/a.txt', handle: { kind: 'path' as const, path: '/tmp/a.txt' as AbsoluteFilePath } },
       { key: ids[1], handle: { kind: 'entry' as const, entryId: ids[1] } }
     ]
     fileManager.getMetadata.mockResolvedValueOnce(metadata).mockRejectedValueOnce(new Error('ENOENT'))
@@ -204,8 +207,8 @@ describe('fileHandlers', () => {
   })
 
   it('dispatches path system commands without FileManager entry lookup', async () => {
-    await fileHandlers['file.open']({ kind: 'path', path: '/tmp/report.md' }, ctx)
-    await fileHandlers['file.show_in_folder']({ kind: 'path', path: '/tmp/report.md' }, ctx)
+    await fileHandlers['file.open']({ kind: 'path', path: '/tmp/report.md' as AbsoluteFilePath }, ctx)
+    await fileHandlers['file.show_in_folder']({ kind: 'path', path: '/tmp/report.md' as AbsoluteFilePath }, ctx)
 
     expect(safeOpenMock).toHaveBeenCalledWith('/tmp/report.md')
     expect(showPathInFolderMock).toHaveBeenCalledWith('/tmp/report.md')
@@ -216,8 +219,8 @@ describe('fileHandlers', () => {
   it('delegates internal-entry batch create items to FileManager', async () => {
     const result = { succeeded: [{ id: ids[0], sourceRef: '/tmp/a.txt' }], failed: [] }
     const items = [
-      { source: 'path' as const, path: '/tmp/a.txt', cleanupPolicy: 'manual' as const },
-      { source: 'path' as const, path: '/tmp/b.txt', cleanupPolicy: 'manual' as const }
+      { source: 'path' as const, path: '/tmp/a.txt' as AbsoluteFilePath, cleanupPolicy: 'manual' as const },
+      { source: 'path' as const, path: '/tmp/b.txt' as AbsoluteFilePath, cleanupPolicy: 'manual' as const }
     ]
     fileManager.batchCreateInternalEntries.mockResolvedValue(result)
 

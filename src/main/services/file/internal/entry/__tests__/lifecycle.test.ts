@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import type { FileEntryId } from '@shared/data/types/file'
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceExport, MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
@@ -83,7 +83,7 @@ describe('internal/entry/lifecycle', () => {
   async function makeExternal(): Promise<FileEntryId> {
     const file = path.join(tmp, 'ext.txt')
     await writeFile(file, 'x')
-    const e = await ensureExternal(deps, { externalPath: file as FilePath, cleanupPolicy: 'manual' })
+    const e = await ensureExternal(deps, { externalPath: file as AbsoluteFilePath, cleanupPolicy: 'manual' })
     return e.id
   }
 
@@ -130,10 +130,10 @@ describe('internal/entry/lifecycle', () => {
       const id = await makeInternal()
       const entry = fileEntryService.getById(id)
       const physical = path.join(filesDir, `${id}.${entry.ext}`)
-      expect(await exists(physical as FilePath)).toBe(true)
+      expect(await exists(physical as AbsoluteFilePath)).toBe(true)
       await permanentDelete(deps, id)
       expect(fileEntryService.findById(id)).toBeNull()
-      expect(await exists(physical as FilePath)).toBe(false)
+      expect(await exists(physical as AbsoluteFilePath)).toBe(false)
     })
 
     it('removes DB row but leaves user file untouched for external entries', async () => {
@@ -141,10 +141,10 @@ describe('internal/entry/lifecycle', () => {
       const entry = fileEntryService.getById(id)
       if (entry.origin !== 'external') throw new Error('expected external entry')
       const userFile = entry.externalPath
-      expect(await exists(userFile as FilePath)).toBe(true)
+      expect(await exists(userFile)).toBe(true)
       await permanentDelete(deps, id)
       expect(fileEntryService.findById(id)).toBeNull()
-      expect(await exists(userFile as FilePath)).toBe(true)
+      expect(await exists(userFile)).toBe(true)
     })
 
     it('still deletes the row when the internal physical file is missing', async () => {
