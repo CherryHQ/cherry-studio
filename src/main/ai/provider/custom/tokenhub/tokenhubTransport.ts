@@ -1,3 +1,4 @@
+import type { ParamValues } from '@cherrystudio/provider-registry'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 
 import type {
@@ -69,10 +70,12 @@ interface TokenhubQueryResult {
   data?: TokenhubImageData[]
 }
 
-/** Fields the transport reads off the canonical camelCase vendor bag. */
-interface TokenhubProviderParams {
-  negativePrompt?: string
-  addWatermark?: boolean
+/**
+ * The vendor bag as this transport reads it. Derived from {@link ParamValues} so every
+ * canonical key is CHECKED against `IMAGE_PARAM_CATALOG` — the IPC boundary strips
+ * anything else, so a hand-declared non-catalog name is a field that can never arrive.
+ */
+type TokenhubProviderParams = Pick<ParamValues, 'negativePrompt' | 'addWatermark'> & {
   /** SDK-path progress callback; the job path reports via `ctx.reportProgress`. */
   onProgress?: (progress: number) => void
 }

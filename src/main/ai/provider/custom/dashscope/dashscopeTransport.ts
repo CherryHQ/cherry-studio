@@ -1,3 +1,4 @@
+import type { ParamValues } from '@cherrystudio/provider-registry'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 
 import type {
@@ -77,36 +78,40 @@ export interface DashScopeModelDescriptor {
   mode?: string
 }
 
-export interface DashScopeProviderParams {
-  /** Canonical camelCase params (the transport receives the vendorBag directly;
-   *  native `seed` comes from `input.seed`, routing from `input.modelDescriptor`). */
-  negativePrompt?: string
-  style?: string
-  promptExtend?: boolean
-  addWatermark?: boolean
-  thinkingMode?: boolean
-  /** wan2.6-image mode toggle: true = text+image mixed output (default for
-   *  Cherry's generate tab — no input image required); false = edit mode
-   *  (1–4 input images required). Maps to `parameters.enable_interleave`. */
-  enableInterleave?: boolean
-  /** wan v2 1K / 2K / 4K resolution enum — maps to `parameters.size`. */
-  imageResolution?: string
-  /** wanx-v1 reference-image controls. */
-  refStrength?: number
-  refMode?: string
-  /** qwen-mt-image (Family D2) translation directions. */
-  sourceLang?: string
-  targetLang?: string
-  /** wanx2.1-imageedit (Family D3) function-driven edit controls. */
-  function?: string
-  strength?: number
-  upscaleFactor?: number
-  topScale?: number
-  bottomScale?: number
-  leftScale?: number
-  rightScale?: number
-  isSketch?: boolean
-}
+/**
+ * The vendor bag as this transport reads it — canonical camelCase, straight from
+ * `splitParamValues` (native `seed` comes from `input.seed`, routing from
+ * `input.modelDescriptor`).
+ *
+ * Derived from {@link ParamValues} so every key is CHECKED to be a catalog key. The
+ * IPC boundary strips anything `IMAGE_PARAM_CATALOG` doesn't know, so a hand-declared
+ * name that isn't one is a field that can never arrive, not a rename.
+ *
+ * Groups: wan2.6 interleave toggle + wan v2 resolution; wanx-v1 reference-image
+ * controls; qwen-mt-image translation directions; wanx2.1-imageedit function controls.
+ */
+export type DashScopeProviderParams = Pick<
+  ParamValues,
+  | 'negativePrompt'
+  | 'style'
+  | 'promptExtend'
+  | 'addWatermark'
+  | 'thinkingMode'
+  | 'enableInterleave'
+  | 'imageResolution'
+  | 'refStrength'
+  | 'refMode'
+  | 'sourceLang'
+  | 'targetLang'
+  | 'function'
+  | 'strength'
+  | 'upscaleFactor'
+  | 'topScale'
+  | 'bottomScale'
+  | 'leftScale'
+  | 'rightScale'
+  | 'isSketch'
+>
 
 export interface DashScopeTransportSettings {
   apiKey: string

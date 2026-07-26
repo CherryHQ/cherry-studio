@@ -1,3 +1,4 @@
+import type { ParamValues } from '@cherrystudio/provider-registry'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 
 import type {
@@ -93,25 +94,19 @@ export interface PpioModelDescriptor {
 }
 
 /**
- * Painting fields forwarded through `providerOptions['ppio']`. Mirrors the
- * `PpioPaintingData` subset the legacy `buildRequestParams` consumed.
+ * The vendor bag as this transport reads it, forwarded through `providerOptions.ppio`.
+ *
+ * Derived from {@link ParamValues} rather than hand-declared, so every canonical field
+ * is CHECKED to be a catalog key: the bag arrives straight from `splitParamValues`, and
+ * the `ai.generate_image` IPC boundary strips anything `IMAGE_PARAM_CATALOG` doesn't
+ * know. A non-canonical name here is not a rename — it is a field that can never
+ * arrive, which is what `usePreLlm` was (jimeng's declared prompt-enhancement switch
+ * silently did nothing). Anything genuinely not a catalog key — a vendor wire name, a
+ * callback — goes in the intersection below, where it is deliberate and visible.
  */
-/**
- * The vendor bag as this transport reads it. Every field except `ppioSeed` MUST be a
- * canonical param key (`IMAGE_PARAM_CATALOG`) — the bag arrives straight from
- * `splitParamValues`, and the `ai.generate_image` IPC boundary strips anything the
- * catalog doesn't know. A non-canonical name here is not a rename, it is a field that
- * can never arrive.
- */
-export interface PpioProviderParams {
-  size?: string
+export type PpioProviderParams = Pick<ParamValues, 'size' | 'promptEnhancement' | 'addWatermark' | 'outputFormat'> & {
+  /** PPIO's own wire name for the seed; `input.seed` is merged into it at submit. */
   ppioSeed?: number
-  /** Canonical key for jimeng's `use_pre_llm`. Was `usePreLlm`, which is not a catalog
-   *  key and so was stripped at the IPC boundary — the declared switch never arrived
-   *  and `use_pre_llm` always took its `true` default. */
-  promptEnhancement?: boolean
-  addWatermark?: boolean
-  outputFormat?: string
   /** SDK-path (chat) progress callback; the job path reports via `ctx.reportProgress`. */
   onProgress?: (progress: number) => void
 }

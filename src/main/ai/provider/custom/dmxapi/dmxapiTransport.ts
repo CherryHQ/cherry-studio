@@ -1,3 +1,4 @@
+import type { ParamValues } from '@cherrystudio/provider-registry'
 import { t } from '@main/i18n'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
 
@@ -20,23 +21,25 @@ interface NormalizedInput {
 }
 
 /**
- * Vendor-specific fields forwarded through `providerOptions.dmxapi`. AI SDK
- * native fields (size / n / seed / prompt) source from `input.*` at submit
- * entry. DMXAPI dispatches by `resolveDmxapiFamily(input.modelId)` to a family
- * path under `this.baseURL`, so it needs no `modelDescriptor` routing.
+ * Vendor-specific fields forwarded through `providerOptions.dmxapi`. AI SDK native
+ * fields (size / n / seed / prompt) source from `input.*` at submit entry; DMXAPI
+ * dispatches by `resolveDmxapiFamily(input.modelId)`, so it needs no `modelDescriptor`.
+ *
+ * The vendor bag as this transport reads it — canonical camelCase, straight from
+ * `splitParamValues`.
+ *
+ * Derived from {@link ParamValues} so every key is CHECKED to be a catalog key. A
+ * hand-declared name that isn't one can never arrive: the IPC boundary strips it. That
+ * is what `webSearch` was — read here to emit `tools: [{type:'web_search'}]`, never
+ * delivered, and declared by no model in the registry either, so the branch was dead
+ * on both ends and has been removed.
+ *
+ * Groups: doubao-seedream multi-image options; wan family extras (DashScope-passthrough).
  */
-export interface DmxapiProviderParams {
-  /** doubao-seedream multi-image options. */
-  sequentialImageGeneration?: 'auto' | 'disabled'
-  maxImages?: number
-  outputFormat?: string
-  webSearch?: boolean
-  addWatermark?: boolean
-  /** wan family extras (DashScope-passthrough). */
-  promptExtend?: boolean
-  /** Canonical camelCase (the transport receives the vendorBag directly). */
-  negativePrompt?: string
-}
+export type DmxapiProviderParams = Pick<
+  ParamValues,
+  'sequentialImageGeneration' | 'maxImages' | 'outputFormat' | 'addWatermark' | 'promptExtend' | 'negativePrompt'
+>
 
 export interface DmxapiTransportSettings {
   apiKey: string
@@ -160,7 +163,6 @@ class DmxapiTransport implements ImageGenerationTransport {
     }
     if (params.outputFormat) body.output_format = params.outputFormat
     if (params.addWatermark !== undefined) body.watermark = params.addWatermark
-    if (params.webSearch) body.tools = [{ type: 'web_search' }]
 
     const data = await this.requestJson('/v1/responses', body, input.signal)
     return { imageUrls: parseResponsesApiOutput(data) }
