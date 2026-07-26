@@ -1,32 +1,21 @@
 /**
- * Thin facade — preserves existing DataApi/MCP IPC shape (ScheduledTaskEntity etc.).
- * Internally delegates to JobManager + jobScheduleService + jobService.
- * TODO: migrate callers (data/api/handlers/agents.ts, ai/mcp/servers/cherryAutonomyTools.ts) to the
- * generic Job/Scheduler API directly, then delete this facade.
+ * Read-side service for agent scheduled tasks: list / get / run logs plus the
+ * JobScheduleSnapshot → ScheduledTaskEntity mapping and subscription reads.
+ * All task mutations go through `AgentJobsService` (IpcApi `ai.agent.task.*`)
+ * — this service must not reach JobManager / SchedulerService / ChannelManager.
  */
 
-import { application } from '@application'
-import { agentTable as agentsTable } from '@data/db/schemas/agent'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
-import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import type {
-  CreateTaskDto,
-  ScheduledTaskEntity,
-  TaskRunLogEntity,
-  UpdateTaskDto
-} from '@shared/data/api/schemas/agents'
+import type { ScheduledTaskEntity, TaskRunLogEntity } from '@shared/data/api/schemas/agents'
 import {
   type AgentSessionWorkspaceSource,
   AgentSessionWorkspaceSourceSchema
 } from '@shared/data/api/schemas/agentWorkspaces'
-import type { JobScheduleSnapshot, JobSnapshot, UpdateJobScheduleDto } from '@shared/data/api/schemas/jobs'
+import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { ListOptions } from '@shared/data/api/types'
-import { eq } from 'drizzle-orm'
-
-const logger = loggerService.withContext('AgentTaskService')
 
 const AGENT_TASK_TYPE = 'agent.task' as const
 const HEARTBEAT_TASK_NAME = 'heartbeat'
@@ -60,76 +49,12 @@ function deriveStatus(snapshot: JobScheduleSnapshot): 'active' | 'paused' | 'com
 }
 
 export class AgentTaskService {
-  private assertAgentExists(agentId: string): void {
-    const database = application.get('DbService').getDb()
-    const [row] = database
-      .select({ id: agentsTable.id })
-      .from(agentsTable)
-      .where(eq(agentsTable.id, agentId))
-      .limit(1)
-      .all()
-
-    if (!row) {
-      throw DataApiErrorFactory.notFound('Agent', agentId)
-    }
-  }
-
-  private assertChannelsBelongToAgent(agentId: string, channelIds: string[]): void {
-    for (const channelId of channelIds) {
-      const channel = agentChannelService.getChannel(channelId)
-      if (!channel || channel.agentId !== agentId) {
-        throw DataApiErrorFactory.notFound('Channel', channelId)
-      }
-    }
-  }
-
-  async createTask(agentId: string, dto: CreateTaskDto): Promise<ScheduledTaskEntity> {
-    this.assertAgentExists(agentId)
-    if (dto.channelIds?.length) {
-      this.assertChannelsBelongToAgent(agentId, dto.channelIds)
-    }
-
-    const timeoutMinutes = dto.timeoutMinutes ?? 2
-    const jobInputTemplate: AgentTaskJobInputTemplate = {
-      agentId,
-      prompt: dto.prompt,
-      timeoutMinutes,
-      workspace: dto.workspace
-    }
-
-    const { id } = application.get('JobManager').registerJobSchedule({
-      type: AGENT_TASK_TYPE,
-      name: dto.name,
-      trigger: dto.trigger,
-      jobInputTemplate,
-      catchUpPolicy: { kind: 'skip-missed' }
-    })
-
-    if (dto.channelIds?.length) {
-      try {
-        agentChannelService.replaceTaskSubscriptions(id, dto.channelIds)
-      } catch (error) {
-        try {
-          await application.get('JobManager').unregisterJobScheduleById(id)
-        } catch (rollbackError) {
-          logger.warn('Failed to rollback task schedule after channel subscription failure', {
-            taskId: id,
-            rollbackError
-          })
-        }
-        throw error
-      }
-    }
-
-    const snapshot = jobScheduleService.getById(id)
-    if (!snapshot) {
-      throw DataApiErrorFactory.invalidOperation('create task', 'schedule disappeared after insert')
-    }
-
-    logger.info('Task created', { taskId: id, agentId })
-    return this.toScheduledTaskEntity(snapshot)
-  }
-
+  /**
+   * Fetch one task, guarding identity in a single lookup: the row must exist,
+   * be an `agent.task` schedule, and belong to `agentId` — the three failure
+   * cases are indistinguishable (`null`) on purpose. AgentJobsService relies
+   * on this as the ownership/type guard for every by-id command.
+   */
   getTask(agentId: string, taskId: string): ScheduledTaskEntity | null {
     const snapshot = jobScheduleService.getById(taskId)
     if (!snapshot || snapshot.type !== AGENT_TASK_TYPE) return null
@@ -164,81 +89,6 @@ export class AgentTaskService {
       tasks: sliced.map((s) => this.toScheduledTaskEntity(s)),
       total: filtered.length
     }
-  }
-
-  async updateTask(agentId: string, taskId: string, patch: UpdateTaskDto): Promise<ScheduledTaskEntity | null> {
-    const existing = this.getTask(agentId, taskId)
-    if (!existing) return null
-
-    const existingSnapshot = jobScheduleService.getById(taskId)
-    const existingTemplate = existingSnapshot ? normalizeAgentTaskTemplate(existingSnapshot.jobInputTemplate) : null
-    if (!existingSnapshot || !existingTemplate) return null
-    if (patch.channelIds !== undefined) {
-      this.assertChannelsBelongToAgent(agentId, patch.channelIds)
-    }
-
-    // Build the updated jobInputTemplate when prompt/timeoutMinutes changed.
-    const nextPrompt = patch.prompt ?? existingTemplate.prompt
-    const nextTimeoutMinutes = patch.timeoutMinutes ?? existingTemplate.timeoutMinutes
-    const nextWorkspace = patch.workspace ?? existingTemplate.workspace
-    const templateChanged =
-      (patch.prompt !== undefined && patch.prompt !== existingTemplate.prompt) ||
-      (patch.timeoutMinutes !== undefined && patch.timeoutMinutes !== existingTemplate.timeoutMinutes) ||
-      patch.workspace !== undefined
-
-    const updatePatch: UpdateJobScheduleDto = {}
-    if (patch.name !== undefined) updatePatch.name = patch.name
-    if (patch.trigger !== undefined) updatePatch.trigger = patch.trigger
-    if (patch.enabled !== undefined) updatePatch.enabled = patch.enabled
-    if (templateChanged) {
-      updatePatch.jobInputTemplate = {
-        agentId: existingTemplate.agentId,
-        prompt: nextPrompt,
-        timeoutMinutes: nextTimeoutMinutes,
-        workspace: nextWorkspace
-      }
-    }
-
-    const updated = application.get('JobManager').updateJobSchedule(taskId, updatePatch)
-    if (!updated) return null
-
-    if (patch.channelIds !== undefined) {
-      try {
-        agentChannelService.replaceTaskSubscriptions(taskId, patch.channelIds)
-      } catch (error) {
-        const rollbackPatch: UpdateJobScheduleDto = {}
-        if (updatePatch.name !== undefined) rollbackPatch.name = existingSnapshot.name
-        if (updatePatch.trigger !== undefined) rollbackPatch.trigger = existingSnapshot.trigger
-        if (updatePatch.enabled !== undefined) rollbackPatch.enabled = existingSnapshot.enabled
-        if (updatePatch.jobInputTemplate !== undefined)
-          rollbackPatch.jobInputTemplate = existingSnapshot.jobInputTemplate
-
-        try {
-          application.get('JobManager').updateJobSchedule(taskId, rollbackPatch)
-        } catch (rollbackError) {
-          logger.warn('Failed to rollback task schedule after channel subscription failure', {
-            taskId,
-            rollbackError
-          })
-        }
-        throw error
-      }
-    }
-
-    logger.info('Task updated', { taskId, agentId })
-    const refreshed = jobScheduleService.getById(taskId)
-    if (!refreshed) return null
-    return this.toScheduledTaskEntity(refreshed)
-  }
-
-  async deleteTask(agentId: string, taskId: string): Promise<boolean> {
-    const existing = this.getTask(agentId, taskId)
-    if (!existing) return false
-    const deleted = await application.get('JobManager').unregisterJobScheduleById(taskId)
-    if (deleted) {
-      logger.info('Task deleted', { taskId, agentId })
-    }
-    return deleted
   }
 
   getTaskLogs(taskId: string, options: ListOptions = {}): { logs: TaskRunLogEntity[]; total: number } {

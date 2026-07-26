@@ -367,7 +367,7 @@ export class CherryAutonomyTools {
       channelIds = [this.sourceChannelId]
     }
 
-    const task = await taskService.createTask(this.agentId, {
+    const task = application.get('AgentJobsService').createTask(this.agentId, {
       name,
       prompt: message,
       trigger,
@@ -825,7 +825,7 @@ export class CherryAutonomyTools {
     const id = args.id
     if (!id) throw new McpError(ErrorCode.InvalidParams, "'id' is required for remove")
 
-    const deleted = await taskService.deleteTask(this.agentId, id)
+    const deleted = await application.get('AgentJobsService').deleteTask(this.agentId, id)
     if (!deleted) throw new McpError(ErrorCode.InvalidParams, `Job "${id}" not found`)
 
     logger.info('Cron job removed via tool', { agentId: this.agentId, taskId: id })
