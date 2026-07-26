@@ -60,7 +60,7 @@ const createGroupHeaderItem = (id: string, label: string): ComposerSuggestionIte
 })
 
 interface AgentResourceMentionOptions {
-  accessiblePaths: readonly string[]
+  accessiblePaths: readonly AbsoluteFilePath[]
   files: ComposerAttachment[]
   setFiles: React.Dispatch<React.SetStateAction<ComposerAttachment[]>>
   /** Whether the agent session exposes any accessible workspace paths to mention. */

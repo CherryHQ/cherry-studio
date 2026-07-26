@@ -61,6 +61,7 @@ import type { FileUIPart } from '@shared/data/types/message'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { OutputFor } from '@shared/ipc/types'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import type { LocalSkill } from '@shared/types/skill'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { type CanonicalFilePath, canonicalizeFilePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
@@ -129,7 +130,7 @@ const AGENT_MANAGED_TOKEN_KINDS_BEFORE_KNOWLEDGE_RESTORE = [
 ] as const satisfies readonly ComposerDraftToken['kind'][]
 const AGENT_SKILLS_LAUNCHER_ID = 'agent-skills'
 const AGENT_NEW_SESSION_TOOL_ID = 'composer:new-session'
-const EMPTY_ACCESSIBLE_PATHS: readonly string[] = []
+const EMPTY_ACCESSIBLE_PATHS: readonly AbsoluteFilePath[] = []
 const FILE_IPC_BATCH_SIZE = 500
 
 type AccessibleAttachment = {
@@ -183,9 +184,26 @@ const buildAccessiblePathFilePart = (
   )
 }
 
+/**
+ * `AgentWorkspacePathSchema` only guarantees a non-empty string, so the stored
+ * workspace path is asserted to be an absolute filesystem path here, before it
+ * reaches the path helpers. A malformed one yields no accessible paths, which
+ * degrades to inlining attachments instead of referencing them — still correct,
+ * just less efficient.
+ */
+const toAccessiblePaths = (workspacePath: string | undefined): AbsoluteFilePath[] => {
+  if (!workspacePath) return []
+  const parsed = AbsoluteFilePathSchema.safeParse(workspacePath)
+  if (!parsed.success) {
+    logger.warn('Ignoring agent workspace path that is not an absolute filesystem path', { path: workspacePath })
+    return []
+  }
+  return [parsed.data]
+}
+
 const buildAgentFilePartsForAttachments = async (
   attachments: ComposerAttachment[],
-  accessiblePaths: readonly string[]
+  accessiblePaths: readonly AbsoluteFilePath[]
 ): Promise<FileUIPart[]> => {
   const accessibleAttachments: AccessibleAttachment[] = []
   const internalizedAttachments: ComposerAttachment[] = []
@@ -391,7 +409,7 @@ const AgentComposerRoot = ({
   const sessionSlashCommands = useAgentSessionSlashCommands(sessionId)
   const sessionData = useMemo(() => {
     if (!session || !agent) return undefined
-    const accessiblePaths = session.workspace?.type === 'user' && session.workspace.path ? [session.workspace.path] : []
+    const accessiblePaths = toAccessiblePaths(session.workspace?.type === 'user' ? session.workspace.path : undefined)
     return {
       agentId,
       sessionId,
