@@ -1,8 +1,6 @@
 import { cn } from '@renderer/utils/style'
 import { type ComponentPropsWithoutRef, type ReactNode, useEffect, useState } from 'react'
 
-import { useRequestToolResult } from '../ToolResultLoadContext'
-
 export interface ToolDisclosureItem {
   key: string
   label: ReactNode
@@ -40,17 +38,14 @@ export function ToolDisclosure({
   variant = 'default'
 }: ToolDisclosureProps) {
   const isLight = variant === 'light'
-  const requestToolResult = useRequestToolResult()
   const [internalActiveKeys, setInternalActiveKeys] = useState<string[]>(defaultActiveKey ?? [])
   const currentActiveKeys = activeKey ?? internalActiveKeys
 
   const toggleKey = (key: string) => {
-    const isOpen = currentActiveKeys.includes(key)
-    const nextActiveKeys = isOpen
+    const nextActiveKeys = currentActiveKeys.includes(key)
       ? currentActiveKeys.filter((activeKey) => activeKey !== key)
       : [...currentActiveKeys, key]
 
-    if (!isOpen) requestToolResult?.()
     if (activeKey === undefined) {
       setInternalActiveKeys(nextActiveKeys)
     }

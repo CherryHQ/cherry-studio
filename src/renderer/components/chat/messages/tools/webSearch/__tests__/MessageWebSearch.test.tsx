@@ -3,7 +3,6 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
 import { describe, expect, it, vi } from 'vitest'
 
-import { ToolResultLoadProvider } from '../../ToolResultLoadContext'
 import { MessageWebSearchToolTitle } from '../MessageWebSearch'
 
 vi.mock('react-i18next', async (importOriginal) => {
@@ -48,48 +47,6 @@ describe('MessageWebSearchToolTitle', () => {
     expect(screen.getByText('Cherry Studio')).toBeInTheDocument()
     expect(screen.getByText('No search results found')).toBeInTheDocument()
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
-  })
-
-  it('keeps a disclosure trigger while the result payload is deferred', () => {
-    render(
-      <ToolResultLoadProvider value={() => undefined}>
-        <MessageWebSearchToolTitle
-          toolResponse={
-            {
-              id: 'tool-call-1',
-              toolCallId: 'tool-call-1',
-              tool: { id: 'web-search', name: 'web_search', type: 'builtin' },
-              status: 'done',
-              arguments: { query: 'Cherry Studio' },
-              response: ''
-            } as NormalToolResponse
-          }
-        />
-      </ToolResultLoadProvider>
-    )
-
-    expect(screen.getByRole('button')).toHaveTextContent('Cherry Studio')
-    expect(screen.queryByText('0 search results')).not.toBeInTheDocument()
-  })
-
-  it('does not infer a deferred payload from an empty response', () => {
-    render(
-      <MessageWebSearchToolTitle
-        toolResponse={
-          {
-            id: 'tool-call-1',
-            toolCallId: 'tool-call-1',
-            tool: { id: 'web-search', name: 'web_search', type: 'builtin' },
-            status: 'done',
-            arguments: { query: 'Cherry Studio' },
-            response: ''
-          } as NormalToolResponse
-        }
-      />
-    )
-
-    expect(screen.queryByRole('button')).not.toBeInTheDocument()
-    expect(screen.getByText('No search results found')).toBeInTheDocument()
   })
 
   it('shows the query in the header and renders each result as a link with favicon and domain', async () => {

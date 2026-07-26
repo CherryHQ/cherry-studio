@@ -783,8 +783,8 @@ describe('AiStreamManager', () => {
     })
   })
 
-  describe('agent-session tool result lookup', () => {
-    it('returns the full buffered output for an active assistant message', () => {
+  describe('deferred tool output lookup', () => {
+    it('retains only outputs large enough to have been stripped on the way out', () => {
       const topicId = 'agent-session:session-1'
       startSingle(mgr, {
         topicId,
@@ -792,38 +792,46 @@ describe('AiStreamManager', () => {
         request: { ...req(topicId), messageId: 'assistant-1' },
         listeners: [new FakeListener('l:a')]
       })
-      const output = { content: 'large live output' }
+      const large = { content: 'x'.repeat(64 * 1024) }
       mgr.onChunk(topicId, 'provider-a::model-a', {
         type: 'tool-output-available',
-        toolCallId: 'call-1',
-        output
+        toolCallId: 'call-large',
+        output: large
+      } as UIMessageChunk)
+      mgr.onChunk(topicId, 'provider-a::model-a', {
+        type: 'tool-output-available',
+        toolCallId: 'call-small',
+        output: { content: 'tiny' }
       } as UIMessageChunk)
 
-      expect(mgr.getAgentSessionToolResult(topicId, 'assistant-1', 'call-1')).toEqual({
-        found: true,
-        result: { kind: 'output', value: output }
-      })
-      expect(mgr.getAgentSessionToolResult(topicId, 'assistant-1', 'missing')).toEqual({ found: false })
+      expect(mgr.getDeferredToolOutput(topicId, 'call-large')).toEqual({ found: true, output: large })
+      // A small output travelled inline, so nothing needs to be resolvable for it.
+      expect(mgr.getDeferredToolOutput(topicId, 'call-small')).toEqual({ found: false })
+      expect(mgr.getDeferredToolOutput(topicId, 'missing')).toEqual({ found: false })
     })
 
-    it('returns the full buffered error for an active assistant message', () => {
+    it('evicts the oldest retained output instead of growing without bound', () => {
       const topicId = 'agent-session:session-1'
-      startSingle(mgr, {
+      const cappedMgr = createManager({ maxDeferredOutputs: 2 })
+      startSingle(cappedMgr, {
         topicId,
         modelId: 'provider-a::model-a',
         request: { ...req(topicId), messageId: 'assistant-1' },
         listeners: [new FakeListener('l:a')]
       })
-      mgr.onChunk(topicId, 'provider-a::model-a', {
-        type: 'tool-output-error',
-        toolCallId: 'call-1',
-        errorText: 'large live error'
-      } as UIMessageChunk)
+      const large = (tag: string) => ({ content: tag.repeat(64 * 1024) })
+      for (const tag of ['a', 'b', 'c']) {
+        cappedMgr.onChunk(topicId, 'provider-a::model-a', {
+          type: 'tool-output-available',
+          toolCallId: `call-${tag}`,
+          output: large(tag)
+        } as UIMessageChunk)
+      }
 
-      expect(mgr.getAgentSessionToolResult(topicId, 'assistant-1', 'call-1')).toEqual({
-        found: true,
-        result: { kind: 'error', value: 'large live error' }
-      })
+      // The evicted one is not lost — it resolves from SQLite once the message is persisted.
+      expect(cappedMgr.getDeferredToolOutput(topicId, 'call-a')).toEqual({ found: false })
+      expect(cappedMgr.getDeferredToolOutput(topicId, 'call-b')).toEqual({ found: true, output: large('b') })
+      expect(cappedMgr.getDeferredToolOutput(topicId, 'call-c')).toEqual({ found: true, output: large('c') })
     })
   })
 

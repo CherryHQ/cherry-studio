@@ -19,7 +19,7 @@ import type * as AgentRightPaneProjection from '../agentRightPaneProjection'
 
 const {
   buildAgentToolFlowProjectionMock,
-  loadAgentSessionToolResultMock,
+  getToolResultMock,
   fileSessionDiscardMock,
   fileSessionFlushMock,
   fileSessionState,
@@ -32,7 +32,7 @@ const {
   useDirectoryTreeMock
 } = vi.hoisted(() => ({
   buildAgentToolFlowProjectionMock: vi.fn(),
-  loadAgentSessionToolResultMock: vi.fn(),
+  getToolResultMock: vi.fn(),
   fileSessionDiscardMock: vi.fn(),
   fileSessionFlushMock: vi.fn().mockResolvedValue(undefined),
   fileSessionState: {
@@ -175,8 +175,8 @@ vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   MessageListProvider: ({ children }: PropsWithChildren) => <>{children}</>
 }))
 
-vi.mock('@renderer/utils/agentSessionToolResult', () => ({
-  loadAgentSessionToolResult: (...args: unknown[]) => loadAgentSessionToolResultMock(...args)
+vi.mock('@renderer/hooks/useToolResult', () => ({
+  useToolResult: (ref: unknown) => ({ output: ref ? getToolResultMock(ref) : undefined })
 }))
 
 vi.mock('@renderer/utils/filePath', () => ({
@@ -481,7 +481,7 @@ describe('AgentRightPane', () => {
       hasLoaded: fileTreeModelState.hasLoaded,
       nodeById: fileTreeModelState.nodeById
     }))
-    loadAgentSessionToolResultMock.mockResolvedValue({ kind: 'output', value: 'Loaded flow result' })
+    getToolResultMock.mockReturnValue('Loaded flow result')
   })
 
   it('uses a title header and keeps stable shortcuts available while the pane is open', () => {
@@ -715,23 +715,15 @@ describe('AgentRightPane', () => {
     expect(useArtifactFileTreeModelMock).not.toHaveBeenCalled()
   })
 
-  it('loads a deferred selected flow result with the original message address', async () => {
+  it('resolves a deferred selected flow output by its stored address', async () => {
+    const deferredToolResult = { topicId: 'agent-session:session-a', messageId: 'm1', toolCallId: 'flow-1' }
     const flowPart = {
       type: 'dynamic-tool',
       toolCallId: 'flow-1',
       toolName: 'Agent',
       state: 'output-available',
       input: { prompt: 'Inspect the workspace' },
-      output: '',
-      resultProviderMetadata: {
-        cherry: {
-          deferredToolResult: {
-            messageId: 'm1',
-            toolCallId: 'flow-1',
-            kind: 'output'
-          }
-        }
-      }
+      output: { $deferredToolResult: deferredToolResult }
     } as unknown as CherryMessagePart
     const messages = [{ id: 'm1', role: 'assistant', parts: [flowPart], metadata: {} }] as CherryUIMessage[]
 
@@ -748,22 +740,14 @@ describe('AgentRightPane', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'open flow' }))
 
+    await waitFor(() => expect(getToolResultMock).toHaveBeenCalledWith(deferredToolResult))
     await waitFor(() =>
-      expect(loadAgentSessionToolResultMock).toHaveBeenCalledWith({
-        sessionId: 'session-a',
-        topicId: 'agent-session:session-a',
-        deferredToolResult: {
-          messageId: 'm1',
-          toolCallId: 'flow-1',
-          kind: 'output'
-        }
-      })
-    )
-    await waitFor(() =>
-      expect(buildAgentToolFlowProjectionMock).toHaveBeenLastCalledWith(messages, { m1: [flowPart] }, 'flow-1', {
-        kind: 'output',
-        value: 'Loaded flow result'
-      })
+      expect(buildAgentToolFlowProjectionMock).toHaveBeenLastCalledWith(
+        messages,
+        { m1: [flowPart] },
+        'flow-1',
+        'Loaded flow result'
+      )
     )
   })
 

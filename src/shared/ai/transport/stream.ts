@@ -208,16 +208,14 @@ export interface AiStreamAbortRequest {
   topicId: string
 }
 
-/** Read one full tool result from an active agent-session stream. */
-export interface AiAgentSessionToolResultRequest {
+/** Resolve a tool output that was deferred at the boundary. See `transport/deferredToolResult`. */
+export interface AiToolResultRequest {
   topicId: string
   messageId: string
   toolCallId: string
 }
 
-export type AgentSessionToolResult = { kind: 'output'; value: unknown } | { kind: 'error'; value: string }
-
-export type AiAgentSessionToolResultResponse = { found: true; result: AgentSessionToolResult } | { found: false }
+export type AiToolResultResponse = { found: true; output: unknown } | { found: false }
 
 /** Prewarm the next Claude Agent SDK query for an agent session. */
 export interface AiAgentSessionWarmRequest {

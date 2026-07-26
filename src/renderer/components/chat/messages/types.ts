@@ -4,7 +4,6 @@ import type { Citation } from '@renderer/types/message'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { McpTool } from '@renderer/types/tool'
 import type { Topic } from '@renderer/types/topic'
-import type { AgentSessionToolResult } from '@shared/ai/transport'
 import type {
   ChatMessageStyle,
   MultiModelGridPopoverTrigger,
@@ -21,7 +20,6 @@ import type {
 } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import type { TranslateLanguage } from '@shared/data/types/translate'
-import type { DeferredToolResultRef } from '@shared/data/types/uiParts'
 import type { ExternalAppInfo } from '@shared/types/externalApp'
 import type { FileUrlString } from '@shared/types/file'
 import type { ReactNode } from 'react'
@@ -340,7 +338,6 @@ export interface MessageListActions {
   previewFile?: (file: FileMetadata) => void | Promise<void>
   abortTool?: (toolId: string) => boolean | Promise<boolean>
   subscribeToolProgress?: (toolId: string, onProgress: (progress: number) => void) => void | (() => void)
-  loadToolResult?: (input: DeferredToolResultRef) => Promise<AgentSessionToolResult>
   respondToolApproval?: (input: MessageToolApprovalInput) => void | Promise<void>
   diagnoseMessageError?: (
     input: MessageErrorDiagnosisInput

@@ -20,7 +20,6 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useIsActiveTurnTarget } from '@renderer/hooks/useIsActiveTurnTarget'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { FILE_TYPE } from '@renderer/types/file'
-import { getDeferredToolResultRef } from '@renderer/utils/deferredToolResult'
 import { readComposerFileTokenIdSuffix } from '@renderer/utils/message/composerFileTokenSource'
 import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens'
 import { convertReferencesToCitationReferences, convertReferencesToCitations } from '@renderer/utils/partsToBlocks'
@@ -613,7 +612,6 @@ function renderPart(
 }
 
 interface CachedToolProjection {
-  deferredToolResult?: ReturnType<typeof getDeferredToolResultRef>
   renderItem?: ToolRenderItem
   toolResponse: ToolResponseLike | null
 }
@@ -632,10 +630,9 @@ function getCachedToolProjection(part: CherryMessagePart, partId: string): Cache
   if (cached) return cached
 
   const toolResponse = buildToolResponseFromPart(part, partId)
-  const deferredToolResult = getDeferredToolResultRef(part)
-  const projection: CachedToolProjection = { deferredToolResult, toolResponse }
+  const projection: CachedToolProjection = { toolResponse }
   if (toolResponse && canRenderMessageTool(toolResponse)) {
-    projection.renderItem = { id: partId, deferredToolResult, toolResponse }
+    projection.renderItem = { id: partId, toolResponse }
   }
   projectionsById.set(partId, projection)
   return projection
@@ -655,15 +652,9 @@ const ToolPartView = React.memo(function ToolPartView({
   partId: string
   settleActiveTools?: boolean
 }) {
-  const projection = getCachedToolProjection(part, partId)
-  const toolResponse = projection.toolResponse
+  const toolResponse = getCachedToolProjection(part, partId).toolResponse
   if (!toolResponse) return null
-  return (
-    <MessageTools
-      deferredToolResult={projection.deferredToolResult}
-      toolResponse={settleActiveTools ? settleToolResponse(toolResponse) : toolResponse}
-    />
-  )
+  return <MessageTools toolResponse={settleActiveTools ? settleToolResponse(toolResponse) : toolResponse} />
 })
 
 function renderToolPart(part: CherryMessagePart, partId: string, settleActiveTools?: boolean): React.ReactNode {

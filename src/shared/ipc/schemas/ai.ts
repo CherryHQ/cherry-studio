@@ -1,9 +1,9 @@
 import { imageParamsSchema } from '@cherrystudio/provider-registry'
 import type {
-  AiAgentSessionToolResultResponse,
   AiStreamAttachResponse,
   AiStreamOpenResponse,
   AiToolApprovalRespondRequest,
+  AiToolResultResponse,
   StreamChunkPayload,
   StreamDonePayload,
   StreamErrorPayload
@@ -154,13 +154,13 @@ export const aiRequestSchemas = {
     input: z.strictObject({ topicId: z.string().min(1) }),
     output: z.void()
   }),
-  'ai.get_agent_session_tool_result': defineRoute({
+  'ai.get_tool_result': defineRoute({
     input: z.strictObject({
       topicId: z.string().min(1),
       messageId: z.string().min(1),
       toolCallId: z.string().min(1)
     }),
-    output: z.custom<AiAgentSessionToolResultResponse>()
+    output: z.custom<AiToolResultResponse>()
   }),
 
   // ── Agent sessions & tasks ──

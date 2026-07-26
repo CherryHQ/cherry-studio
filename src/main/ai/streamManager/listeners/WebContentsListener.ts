@@ -1,10 +1,10 @@
+import { projectStreamChunkForRenderer } from '@shared/ai/transport'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { IpcEventName } from '@shared/ipc/schemas/ipcSchemas'
 import type { EventPayload } from '@shared/ipc/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { UIMessageChunk } from 'ai'
 
-import { projectStreamChunkForRenderer } from '../rendererPayload'
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
 
 const COALESCE_WINDOW_MS = 16
@@ -169,7 +169,7 @@ export class WebContentsListener implements StreamListener {
       topicId: this.topicId,
       executionId: sourceModelId,
       anchorMessageId,
-      chunk: projectStreamChunkForRenderer(this.topicId, chunk, anchorMessageId)
+      chunk: projectStreamChunkForRenderer(chunk, this.topicId, anchorMessageId)
     })
   }
 

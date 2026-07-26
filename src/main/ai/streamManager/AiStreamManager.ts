@@ -10,12 +10,12 @@ import { messageService } from '@main/data/services/MessageService'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import { context as otelContext, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import type {
-  AiAgentSessionToolResultResponse,
   AiStreamAttachRequest,
   AiStreamAttachResponse,
   AiStreamDetachRequest,
   AiStreamOpenResponse
 } from '@shared/ai/transport'
+import { shouldDeferToolOutput } from '@shared/ai/transport'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
@@ -140,6 +140,7 @@ const DEFAULT_CONFIG: AiStreamManagerConfig = {
   gracePeriodMs: 30_000,
   backgroundMode: 'continue',
   maxBufferChunks: 10_000,
+  maxDeferredOutputs: 64,
   // Generous (2 h) but bounded: a human can deliberate, yet a renderer that never responds (window
   // closed/crashed) can't leave the stream + subprocess hanging until app quit.
   approvalIdleTimeoutMs: 2 * 60 * 60 * 1000
@@ -658,6 +659,19 @@ export class AiStreamManager extends BaseService {
     const anchorMessageId = exec.anchorMessageId
     exec.buffer.push({ topicId, executionId: sourceModelId, anchorMessageId, chunk })
 
+    // Outputs large enough to be stripped on the way out stay retrievable here until the message
+    // lands in SQLite, which is the window `ai.get_tool_result` covers with its live-stream branch.
+    // Bounded like the chunk buffer, and tighter because each entry is large: dropping the oldest
+    // only costs a lookup that then waits for the persisted copy.
+    if (chunk.type === 'tool-output-available' && shouldDeferToolOutput(chunk.output)) {
+      const deferredOutputs = (exec.deferredOutputs ??= new Map())
+      deferredOutputs.set(chunk.toolCallId, chunk.output)
+      if (deferredOutputs.size > this.config.maxDeferredOutputs) {
+        const oldest = deferredOutputs.keys().next()
+        if (!oldest.done) deferredOutputs.delete(oldest.value)
+      }
+    }
+
     // Synchronous fan-out (listeners must not block the loop). Inline
     // liveness scrub so dead listeners go before the next onChunk runs.
     const dead: string[] = []
@@ -1054,38 +1068,20 @@ export class AiStreamManager extends BaseService {
     this.removeListener(req.topicId, `wc:${sender.id}:${req.topicId}`)
   }
 
-  getAgentSessionToolResult(topicId: string, messageId: string, toolCallId: string): AiAgentSessionToolResultResponse {
-    if (!isAgentSessionTopic(topicId)) return { found: false }
-
+  /**
+   * Full output of a tool call whose payload was deferred at the boundary, if the stream that
+   * produced it is still active. Recorded as the chunk arrives, so this is a map lookup rather
+   * than a scan of a buffer whose size is the very thing deferral exists to contain.
+   */
+  getDeferredToolOutput(topicId: string, toolCallId: string): { found: true; output: unknown } | { found: false } {
     const stream = this.activeStreams.get(topicId)
     if (!stream) return { found: false }
 
     for (const exec of stream.executions.values()) {
-      if (exec.anchorMessageId !== messageId && exec.finalMessage?.id !== messageId) continue
-
-      for (let index = exec.buffer.length - 1; index >= 0; index -= 1) {
-        const chunk = exec.buffer[index].chunk
-        if (chunk.type === 'tool-output-error' && chunk.toolCallId === toolCallId) {
-          return { found: true, result: { kind: 'error', value: chunk.errorText } }
-        }
-        if (chunk.type === 'tool-output-available' && chunk.toolCallId === toolCallId) {
-          return { found: true, result: { kind: 'output', value: chunk.output } }
-        }
-      }
-
-      for (let index = (exec.finalMessage?.parts.length ?? 0) - 1; index >= 0; index -= 1) {
-        const part = exec.finalMessage?.parts[index] as Record<string, unknown> | undefined
-        if (part?.toolCallId !== toolCallId) continue
-        if (part.state === 'output-error') {
-          return {
-            found: true,
-            result: { kind: 'error', value: typeof part.errorText === 'string' ? part.errorText : '' }
-          }
-        }
-        if ('output' in part) return { found: true, result: { kind: 'output', value: part.output } }
+      if (exec.deferredOutputs?.has(toolCallId)) {
+        return { found: true, output: exec.deferredOutputs.get(toolCallId) }
       }
     }
-
     return { found: false }
   }
 

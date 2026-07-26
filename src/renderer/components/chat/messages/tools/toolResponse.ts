@@ -1,10 +1,8 @@
 import type { McpToolResponse, McpToolResponseStatus, NormalToolResponse } from '@renderer/types/mcpTool'
 import type { BaseTool, McpTool } from '@renderer/types/tool'
-import { getDeferredToolResultRef } from '@renderer/utils/deferredToolResult'
 import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import type { DeferredToolResultRef } from '@shared/data/types/uiParts'
 import { isMcpContentBlock } from '@shared/utils/mcp'
 import type { DynamicToolUIPart, ProviderMetadata, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
 import { getToolName, isToolUIPart } from 'ai'
@@ -35,7 +33,6 @@ export type ToolResponseLike = McpToolResponse | NormalToolResponse
 
 export interface ToolRenderItem {
   id: string
-  deferredToolResult?: DeferredToolResultRef
   toolResponse: ToolResponseLike
 }
 
@@ -253,7 +250,7 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
 export function buildToolRenderItemFromPart(part: CherryMessagePart, id: string): ToolRenderItem | null {
   const toolResponse = buildToolResponseFromPart(part, id)
   if (!toolResponse) return null
-  return { id, deferredToolResult: getDeferredToolResultRef(part), toolResponse }
+  return { id, toolResponse }
 }
 
 /** Matched `ToolUIPart` plus decoded approval fields. */

@@ -2,12 +2,10 @@ import { Button } from '@cherrystudio/ui'
 import { useInfiniteFlatItems, useInfiniteQuery } from '@data/hooks/useDataApi'
 import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
 import { MessageContentProvider } from '@renderer/components/chat/messages/MessageContentProvider'
-import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { toAgentSessionUIMessage } from '@renderer/hooks/useAgentSessionParts'
 import { type Topic, TopicType } from '@renderer/types/topic'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { loadAgentSessionToolResult } from '@renderer/utils/agentSessionToolResult'
 import { sharedMessageToUIMessage, uiMessagesToPartsMap } from '@renderer/utils/message/messageProjection'
 import { cn } from '@renderer/utils/style'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -211,7 +209,10 @@ export function GlobalSearchMessagePreviewPanel({
     loadNext: loadNextSessionPage
   } = useInfiniteQuery('/agent-sessions/:sessionId/messages', {
     params: { sessionId },
-    query: { messageId: target.sourceType === 'session' ? target.messageId : undefined },
+    query: {
+      messageId: target.sourceType === 'session' ? target.messageId : undefined,
+      deferToolOutputs: true
+    },
     limit: PREVIEW_PAGE_SIZE,
     enabled: target.sourceType === 'session'
   })
@@ -227,17 +228,6 @@ export function GlobalSearchMessagePreviewPanel({
   }, [sessionRows, target.sourceType, topicBranchItems])
   const partsByMessageId = useMemo(() => uiMessagesToPartsMap(messages), [messages])
   const previewTopic = useMemo(() => getPreviewTopic(target), [target])
-  const previewActions = useMemo<MessageListActions | undefined>(() => {
-    if (!sessionId) return undefined
-    return {
-      loadToolResult: (deferredToolResult) =>
-        loadAgentSessionToolResult({
-          sessionId,
-          topicId: previewTopic.id,
-          deferredToolResult
-        })
-    }
-  }, [previewTopic.id, sessionId])
   const messageItems = useMemo(
     () =>
       messages.map((message) =>
@@ -366,7 +356,6 @@ export function GlobalSearchMessagePreviewPanel({
             messages={messageItems}
             partsByMessageId={partsByMessageId}
             topic={previewTopic}
-            actions={previewActions}
             renderConfig={{ narrowMode: false, showMessageOutline: false }}>
             <div ref={contentRef} className="flex flex-col gap-4">
               {error && (

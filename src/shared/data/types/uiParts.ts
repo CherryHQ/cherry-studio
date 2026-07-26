@@ -132,19 +132,11 @@ export interface CherryReasoningMeta {
 }
 
 /** Cherry metadata on a ToolUIPart / DynamicToolUIPart. */
-export interface DeferredToolResultRef {
-  messageId: string
-  toolCallId: string
-  kind: 'output' | 'error'
-}
-
 export interface CherryToolMeta {
   /** Approval bridge transport. */
   transport?: string
   /** Tool name (used by approval bridge before the part has been finalized). */
   toolName?: string
-  /** Renderer-safe pointer used to fetch a trimmed tool result on demand. */
-  deferredToolResult?: DeferredToolResultRef
   /** MCP / builtin tool identity. Matches `ToolType` consumed by `toolResponse.ts`. */
   tool?: {
     serverId?: string
@@ -253,13 +245,6 @@ export const CherryReasoningMetaSchema: z.ZodType<CherryReasoningMeta> = z.objec
 export const CherryToolMetaSchema: z.ZodType<CherryToolMeta> = z.object({
   transport: z.string().optional(),
   toolName: z.string().optional(),
-  deferredToolResult: z
-    .object({
-      messageId: z.string().min(1),
-      toolCallId: z.string().min(1),
-      kind: z.enum(['output', 'error'])
-    })
-    .optional(),
   tool: z
     .object({
       serverId: z.string().optional(),
@@ -279,7 +264,7 @@ const DiagnosisStepSchema: z.ZodType<DiagnosisStep> = z.object({
   text: z.string()
 })
 
-export const DiagnosisResultSchema: z.ZodType<DiagnosisResult> = z.object({
+const DiagnosisResultSchema: z.ZodType<DiagnosisResult> = z.object({
   summary: z.string(),
   category: z.string(),
   explanation: z.string(),

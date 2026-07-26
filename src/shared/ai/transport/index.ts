@@ -1,9 +1,19 @@
 export { applyApprovalDecisions } from './applyApprovalDecisions'
+export {
+  DEFER_TOOL_OUTPUT_BYTES,
+  type DeferredToolOutput,
+  type DeferredToolResultRef,
+  deferToolOutput,
+  isDeferredToolOutput,
+  shouldDeferToolOutput
+} from './deferredToolResult'
+export {
+  projectMessagePartForRenderer,
+  projectMessagePartsForRenderer,
+  projectStreamChunkForRenderer
+} from './outboundProjection'
 export type {
   ActiveExecution,
-  AgentSessionToolResult,
-  AiAgentSessionToolResultRequest,
-  AiAgentSessionToolResultResponse,
   AiAgentSessionWarmCloseRequest,
   AiAgentSessionWarmRequest,
   AiChatRequestBody,
@@ -15,6 +25,8 @@ export type {
   AiStreamOpenResponse,
   AiToolApprovalRespondRequest,
   AiToolApprovalRespondResponse,
+  AiToolResultRequest,
+  AiToolResultResponse,
   ApprovalDecision,
   ComposerQueuedMessagePayload,
   StreamChunkPayload,

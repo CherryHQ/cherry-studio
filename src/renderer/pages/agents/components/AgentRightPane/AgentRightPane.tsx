@@ -38,13 +38,12 @@ import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSession
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { type FileEditSession, useFileEditSession } from '@renderer/hooks/useFileEditSession'
+import { useToolResult } from '@renderer/hooks/useToolResult'
 import { type Topic, TopicType, type TopicType as TopicTypeEnum } from '@renderer/types/topic'
 import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { loadAgentSessionToolResult } from '@renderer/utils/agentSessionToolResult'
-import { getDeferredToolResultRef } from '@renderer/utils/deferredToolResult'
 import { resolveInlineFilePath } from '@renderer/utils/filePath'
 import { cn } from '@renderer/utils/style'
-import type { AgentSessionToolResult } from '@shared/ai/transport'
+import { isDeferredToolOutput } from '@shared/ai/transport'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { TreeDirRoot } from '@shared/utils/file'
@@ -104,9 +103,9 @@ function findDeferredToolResult(partsByMessageId: Record<string, CherryMessagePa
 
   for (const parts of Object.values(partsByMessageId)) {
     for (const part of parts) {
-      const source = part as unknown as { toolCallId?: unknown }
+      const source = part as unknown as { toolCallId?: unknown; output?: unknown }
       if (source.toolCallId !== toolCallId) continue
-      return getDeferredToolResultRef(part)
+      return isDeferredToolOutput(source.output) ? source.output.$deferredToolResult : undefined
     }
   }
 
@@ -714,40 +713,14 @@ function AgentFlowRightPanel({ active, panelId, scope }: RightPanelComponentProp
     () => findDeferredToolResult(runtime.partsByMessageId, tab?.toolCallId),
     [runtime.partsByMessageId, tab?.toolCallId]
   )
-  const resultKey = deferredToolResult
-    ? `${deferredToolResult.messageId}\0${deferredToolResult.toolCallId}\0${deferredToolResult.kind}`
-    : ''
-  const [loadedToolResult, setLoadedToolResult] = useState<{
-    key: string
-    result: AgentSessionToolResult
-  }>()
-  const selectedToolResult = loadedToolResult?.key === resultKey ? loadedToolResult.result : undefined
+  const { output: selectedToolOutput } = useToolResult(active ? deferredToolResult : undefined)
   const retainedFlowRef = useRef<ReturnType<typeof buildAgentToolFlowProjection> | null>(null)
-  useEffect(() => {
-    const sessionId = scope.meta.sessionId
-    if (!active || !sessionId || !deferredToolResult || selectedToolResult) return
-
-    let disposed = false
-    void loadAgentSessionToolResult({
-      sessionId,
-      topicId: buildAgentSessionTopicId(sessionId),
-      deferredToolResult
-    })
-      .then((result) => {
-        if (!disposed) setLoadedToolResult({ key: resultKey, result })
-      })
-      .catch(() => undefined)
-
-    return () => {
-      disposed = true
-    }
-  }, [active, deferredToolResult, resultKey, scope.meta.sessionId, selectedToolResult])
   const flow = useMemo(
     () =>
       !active && retainedFlowRef.current
         ? retainedFlowRef.current
-        : buildAgentToolFlowProjection(runtime.messages, runtime.partsByMessageId, tab?.toolCallId, selectedToolResult),
-    [active, runtime.messages, runtime.partsByMessageId, selectedToolResult, tab?.toolCallId]
+        : buildAgentToolFlowProjection(runtime.messages, runtime.partsByMessageId, tab?.toolCallId, selectedToolOutput),
+    [active, runtime.messages, runtime.partsByMessageId, selectedToolOutput, tab?.toolCallId]
   )
   useLayoutEffect(() => {
     if (active) retainedFlowRef.current = flow

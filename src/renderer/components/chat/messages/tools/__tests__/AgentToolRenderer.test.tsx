@@ -29,6 +29,7 @@ const mockUseTranslation = vi.fn()
 // Parts map drives approval state post-migration. Default: no pending approvals.
 const mockPartsMap = vi.hoisted(() => vi.fn((): Record<string, unknown[]> | null => null))
 const mockMessageListActions = vi.hoisted(() => vi.fn(() => ({})))
+const mockGetToolResult = vi.hoisted(() => vi.fn())
 const mockThemeState = vi.hoisted(() => ({ theme: 'light' }))
 
 vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', async (importOriginal) => {
@@ -42,6 +43,11 @@ vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', async (
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   useOptionalMessageListActions: () => mockMessageListActions(),
   useOptionalMessageListUi: () => ({ externalCodeEditors: [] })
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: (...args: unknown[]) => mockGetToolResult(...args), on: () => () => {} },
+  useIpcOn: () => {}
 }))
 
 vi.mock('@renderer/hooks/useTheme', () => ({
@@ -441,66 +447,43 @@ describe('AgentToolRenderer', () => {
       expect(screen.getByText('View')).toBeInTheDocument()
     })
 
-    it('loads a trimmed tool output only when its details are expanded', async () => {
-      const loadToolResult = vi.fn().mockResolvedValue({
-        kind: 'output',
-        value: { content: 'lazy file content' }
-      })
-      mockMessageListActions.mockReturnValue({ loadToolResult })
+    it('resolves a deferred output before handing it to the card', async () => {
+      mockGetToolResult.mockResolvedValue({ found: true, output: { content: 'lazy file content' } })
       const toolResponse = createToolResponse({
         tool: { id: 'Read', name: 'Read', description: 'Read a file', type: 'provider' },
         status: 'done',
         arguments: { file_path: '/test.ts' },
-        response: ''
+        response: { $deferredToolResult: { topicId: 'topic-1', messageId: 'message-1', toolCallId: 'call-defer-1' } }
       })
 
-      render(
-        <MessageTools
-          deferredToolResult={{ messageId: 'message-1', toolCallId: 'call-123', kind: 'output' }}
-          toolResponse={toolResponse}
-        />
+      render(<MessageTools toolResponse={toolResponse} />)
+
+      await waitFor(() =>
+        expect(mockGetToolResult).toHaveBeenCalledWith('ai.get_tool_result', {
+          topicId: 'topic-1',
+          messageId: 'message-1',
+          toolCallId: 'call-defer-1'
+        })
       )
-
-      expect(loadToolResult).not.toHaveBeenCalled()
-      fireEvent.click(screen.getByRole('button'))
-
-      expect(loadToolResult).toHaveBeenCalledWith({
-        messageId: 'message-1',
-        toolCallId: 'call-123',
-        kind: 'output'
-      })
+      fireEvent.click(await screen.findByRole('button'))
       expect(await screen.findByTestId('code-viewer')).toHaveTextContent('lazy file content')
     })
 
-    it('loads a trimmed generated-image output when the visible result needs it', async () => {
-      const loadToolResult = vi.fn().mockResolvedValue({ kind: 'output', value: [] })
-      mockMessageListActions.mockReturnValue({ loadToolResult })
+    it('surfaces an error when a deferred output can no longer be resolved', async () => {
+      mockGetToolResult.mockResolvedValue({ found: false })
       const toolResponse = createToolResponse({
-        tool: { id: 'generate_image', name: 'generate_image', description: 'Generate image', type: 'builtin' },
+        tool: { id: 'Read', name: 'Read', description: 'Read a file', type: 'provider' },
         status: 'done',
-        arguments: { prompt: 'Cherry blossoms' },
-        response: ''
+        arguments: { file_path: '/test.ts' },
+        response: { $deferredToolResult: { topicId: 'topic-1', messageId: 'message-1', toolCallId: 'call-defer-2' } }
       })
 
-      render(
-        <MessageTools
-          deferredToolResult={{ messageId: 'message-1', toolCallId: 'call-123', kind: 'output' }}
-          toolResponse={toolResponse}
-        />
-      )
+      render(<MessageTools toolResponse={toolResponse} />)
 
-      await waitFor(() => {
-        expect(loadToolResult).toHaveBeenCalledWith({
-          messageId: 'message-1',
-          toolCallId: 'call-123',
-          kind: 'output'
-        })
-      })
+      expect(await screen.findByText('Error')).toBeInTheDocument()
     })
 
-    it('does not treat an empty response as deferred without an explicit result reference', () => {
-      const loadToolResult = vi.fn()
-      mockMessageListActions.mockReturnValue({ loadToolResult })
+    it('does not treat a small or empty output as deferred', async () => {
       const toolResponse = createToolResponse({
         tool: { id: 'Read', name: 'Read', description: 'Read a file', type: 'provider' },
         status: 'done',
@@ -511,99 +494,7 @@ describe('AgentToolRenderer', () => {
       render(<MessageTools toolResponse={toolResponse} />)
       fireEvent.click(screen.getByRole('button'))
 
-      expect(loadToolResult).not.toHaveBeenCalled()
-    })
-
-    it('loads AskUserQuestion answers automatically because the result is required to render them', async () => {
-      const questions = [
-        {
-          question: 'Choose logger',
-          header: 'Logger',
-          options: [{ label: 'Winston' }, { label: 'Pino' }],
-          multiSelect: false
-        }
-      ]
-      const loadToolResult = vi.fn().mockResolvedValue({
-        kind: 'output',
-        value: { questions, answers: { 'Choose logger': 'Winston' } }
-      })
-      mockMessageListActions.mockReturnValue({ loadToolResult })
-      const toolResponse = createToolResponse({
-        tool: { id: 'AskUserQuestion', name: 'AskUserQuestion', description: 'Ask user', type: 'provider' },
-        status: 'done',
-        toolCallId: 'call-ask',
-        arguments: { questions },
-        response: ''
-      })
-
-      render(
-        <MessageTools
-          deferredToolResult={{ messageId: 'message-1', toolCallId: 'call-ask', kind: 'output' }}
-          toolResponse={toolResponse}
-        />
-      )
-
-      await waitFor(() => expect(loadToolResult).toHaveBeenCalled())
-      fireEvent.click(screen.getAllByRole('button')[0])
-      expect(await screen.findByText('Winston')).toBeVisible()
-    })
-
-    it('loads TaskList output automatically before its disclosure exists', async () => {
-      const loadToolResult = vi.fn().mockResolvedValue({
-        kind: 'output',
-        value: {
-          tasks: [{ id: '1', subject: 'Build launch deck', status: 'completed', blockedBy: [] }]
-        }
-      })
-      mockMessageListActions.mockReturnValue({ loadToolResult })
-      const toolResponse = createToolResponse({
-        tool: { id: 'TaskList', name: 'TaskList', description: 'List tasks', type: 'provider' },
-        status: 'done',
-        response: ''
-      })
-
-      render(
-        <MessageTools
-          deferredToolResult={{ messageId: 'message-1', toolCallId: 'call-123', kind: 'output' }}
-          toolResponse={toolResponse}
-        />
-      )
-
-      await waitFor(() => expect(loadToolResult).toHaveBeenCalled())
-      fireEvent.click(await screen.findByRole('button'))
-      expect(screen.getByTestId('collapse-content-TaskList')).toHaveTextContent('Build launch deck')
-    })
-
-    it('loads a trimmed tool error only when its details are opened', async () => {
-      const loadToolResult = vi.fn().mockResolvedValue({
-        kind: 'error',
-        value: "EROFS: read-only file system, open '/plane.html'"
-      })
-      mockMessageListActions.mockReturnValue({ loadToolResult })
-      const toolResponse = createToolResponse({
-        tool: { id: 'Write', name: 'Write', description: 'Write a file', type: 'provider' },
-        status: 'error',
-        arguments: { file_path: '/plane.html', content: 'hello' },
-        response: { isError: true, content: [{ type: 'text', text: 'Error' }] }
-      })
-
-      render(
-        <MessageTools
-          deferredToolResult={{ messageId: 'message-1', toolCallId: 'call-123', kind: 'error' }}
-          toolResponse={toolResponse}
-        />
-      )
-
-      expect(loadToolResult).not.toHaveBeenCalled()
-      fireEvent.click(screen.getByRole('button'))
-
-      await waitFor(() =>
-        expect(
-          screen
-            .getAllByTestId('tooltip-content')
-            .some((element) => element.textContent === "EROFS: read-only file system, open '/plane.html'")
-        ).toBe(true)
-      )
+      expect(mockGetToolResult).not.toHaveBeenCalled()
     })
 
     it('should render error state correctly', () => {

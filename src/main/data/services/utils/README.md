@@ -6,18 +6,6 @@ Before using, read the [Row → Entity Mapping](../../../../../docs/references/d
 
 ## File Index
 
-### `agentSessionMessageProjection.ts` — renderer-safe Agent message projection
-
-Shared by the Agent Session DataApi handler and live stream dispatcher. It removes provider-only raw payloads and replaces stored tool results with a `DeferredToolResultRef` before a message crosses into the renderer.
-
-**Exports:**
-
-- `projectAgentMessagePartForRenderer(part, messageId)` — projects a stored or finalized message part.
-- `omitClaudeCodeRawPayload(metadata)` — removes Claude Code `rawInput` / `rawResult` fields.
-- `withDeferredToolResultRef(metadata, ref)` — adds the small lookup address consumed by the renderer.
-
-**Boundary:** this module transforms outbound copies only. Full tool results remain unchanged in SQLite and active main-process streams.
-
 ### `rowMappers.ts` — Row → Entity mapping utilities
 
 Serves each Service's `rowToEntity` function, performing the boundary translation from a SQLite row to a domain entity.

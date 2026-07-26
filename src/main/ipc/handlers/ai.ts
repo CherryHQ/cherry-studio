@@ -1,12 +1,16 @@
 import { application } from '@application'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
+import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
-import type { AiStreamOpenRequest } from '@shared/ai/transport'
+import type { AiStreamOpenRequest, AiToolResultResponse } from '@shared/ai/transport'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { aiRequestSchemas } from '@shared/ipc/schemas/ai'
 import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
+import { isToolUIPart } from 'ai'
 
 const logger = loggerService.withContext('ipc/ai')
 
@@ -48,6 +52,28 @@ function senderWebContents(senderId: WindowId | null): Electron.WebContents | un
   return application.get('WindowManager').getWindow(senderId)?.webContents
 }
 
+/**
+ * The persisted half of `ai.get_tool_result` — the inverse of `projectMessagePartForRenderer`, so
+ * it matches on the same shape that projection replaces (`isToolUIPart` + `output-available`).
+ *
+ * Agent sessions and ordinary topics store their messages in different tables, which is the only
+ * reason the topic kind is inspected here; the deferral policy is size-driven and identical.
+ */
+function findPersistedToolOutput(topicId: string, messageId: string, toolCallId: string): AiToolResultResponse {
+  try {
+    const parts = isAgentSessionTopic(topicId)
+      ? agentSessionMessageService.getSessionMessage(extractAgentSessionId(topicId), messageId).data.parts
+      : messageService.getById(messageId).data.parts
+    for (const part of parts ?? []) {
+      if (!isToolUIPart(part) || part.state !== 'output-available') continue
+      if (part.toolCallId === toolCallId) return { found: true, output: part.output }
+    }
+  } catch (e) {
+    logger.warn('ai.get_tool_result persisted lookup failed', { topicId, messageId, toolCallId, err: e })
+  }
+  return { found: false }
+}
+
 export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.generate_text': (request) =>
     exposeAiError('ai.generate_text', () => application.get('AiService').generateText(request)),
@@ -82,8 +108,14 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.stream_abort': async ({ topicId }) => {
     application.get('AiStreamManager').abort(topicId, 'user-requested')
   },
-  'ai.get_agent_session_tool_result': async ({ topicId, messageId, toolCallId }) => {
-    return application.get('AiStreamManager').getAgentSessionToolResult(topicId, messageId, toolCallId)
+  'ai.get_tool_result': async ({ topicId, messageId, toolCallId }) => {
+    // A deferred output lives in exactly one of two places depending on how far the turn has got.
+    // Resolving that here — rather than letting the renderer try one source then the other — keeps
+    // "where is it stored" a main-process detail. The active stream is checked first: it is the
+    // fresher copy, and it is the only one that has the value before the message is persisted.
+    const live = application.get('AiStreamManager').getDeferredToolOutput(topicId, toolCallId)
+    if (live.found) return live
+    return findPersistedToolOutput(topicId, messageId, toolCallId)
   },
 
   // ── Agent sessions & tasks — delegate to the owning services. ──

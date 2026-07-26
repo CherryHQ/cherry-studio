@@ -314,14 +314,11 @@ describe('useAgentChatRuntimeState', () => {
       parts: [
         makeAskUserQuestionPart({
           state: 'output-available',
-          output: '',
-          resultProviderMetadata: {
-            cherry: {
-              deferredToolResult: {
-                messageId: 'assistant-1',
-                toolCallId: 'call-ask',
-                kind: 'output'
-              }
+          output: {
+            $deferredToolResult: {
+              topicId: 'agent-session:session-1',
+              messageId: 'assistant-1',
+              toolCallId: 'call-ask'
             }
           }
         })
