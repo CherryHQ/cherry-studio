@@ -64,7 +64,7 @@ export const SettingSubtitle = ({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement> & { ref?: React.RefObject<HTMLDivElement | null> }) => (
-  <div ref={ref} className={cn('select-none font-bold text-foreground text-sm', className)} {...props} />
+  <div ref={ref} className={cn('select-none font-semibold text-foreground text-sm', className)} {...props} />
 )
 
 export const SettingDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
