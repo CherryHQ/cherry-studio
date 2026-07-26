@@ -80,9 +80,16 @@ describe('AihubmixImageModel', () => {
       vi.stubGlobal('fetch', fetchMock)
 
       const model = make('gemini-3-pro-image-preview')
+      // Exactly what production delivers: `aspectRatio` is a native binding, so it
+      // arrives as the SDK call option, never in the bag; the bag carries the CANONICAL
+      // `imageResolution`. The previous fixture used `{ mode, aspectRatio, imageSize }`
+      // — the v1 painting shape — which the IPC boundary strips (none is a catalog key
+      // except `aspectRatio`, and that one is routed away from the bag), so it pinned a
+      // spelling-probe path that could not occur.
       const result = await model.doGenerate(
         callOptions({
-          providerOptions: { aihubmix: { mode: 'generate', aspectRatio: 'ASPECT_16_9', imageSize: '2k' } } as any
+          aspectRatio: '16:9',
+          providerOptions: { aihubmix: { imageResolution: '2k' } } as never
         })
       )
 

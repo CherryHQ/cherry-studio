@@ -79,6 +79,26 @@ export interface ImageGenerationSubmitInput {
   mask: ImageModelV3CallOptions['mask']
   /** Per-model routing, derived in main from the registry (not a user param). */
   modelDescriptor?: ImageTransportDescriptor
+  /**
+   * The provider-specific options bag, by reference (so a non-JSON `onProgress`
+   * callback nested in it survives to the transport).
+   *
+   * `unknown`-valued because its SPELLING depends on which delivery adapter produced
+   * it, and one type cannot describe both:
+   *
+   * - **job path** (`AiService.generateImageViaJob` → ppio / dashscope / modelscope /
+   *   dmxapi / tokenhub) — the raw canonical camelCase `vendorBag`. Those transports
+   *   narrow it with a `Pick<ParamValues, …>` alias, so the cast is checked against
+   *   `IMAGE_PARAM_CATALOG` at the point of use and the values were already validated
+   *   by `imageParamsSchema` at the IPC boundary.
+   * - **in-SDK path** (`createImageGenerationModel` → ovms / ollama) —
+   *   `options.providerOptions[provider]`, i.e. the WIRE-NAMED body the WireProfile
+   *   engine produced (`num_inference_steps`, `steps`). Not canonical keys, so those
+   *   two read it as loose fields on purpose.
+   *
+   * Narrowing this field itself would force one spelling onto both. See
+   * `docs/references/ai/image-generation-parameters.md` on the two adapters.
+   */
   providerParams: Record<string, unknown>
   /**
    * Abort signal forwarded from `options.abortSignal`. Async providers

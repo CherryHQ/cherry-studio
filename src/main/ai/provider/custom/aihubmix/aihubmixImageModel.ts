@@ -22,7 +22,7 @@ import { OpenAICompatibleImageModel } from '@ai-sdk/openai-compatible'
 import type { ImageModelV3, ImageModelV3CallOptions, JSONValue } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { withoutTrailingSlash } from '@ai-sdk/provider-utils'
-import { IMAGE_PARAM_CATALOG_KEYS, wireName } from '@cherrystudio/provider-registry'
+import { IMAGE_PARAM_CATALOG_KEYS, type ParamValues, wireName } from '@cherrystudio/provider-registry'
 import { loggerService } from '@logger'
 import { t } from '@main/i18n'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
@@ -52,24 +52,41 @@ interface AihubmixImageFile {
   name: string
 }
 
+/** The two Google-image params the wrapper below re-keys into `providerOptions.google`. */
+type AihubmixGoogleImageParams = Pick<ParamValues, 'personGeneration' | 'imageResolution'>
+
 /**
- * Painting-specific bag forwarded by `generateUnified` under
- * `providerOptions.aihubmix`. Field names mirror the bespoke
- * `AihubmixPaintingData` exactly.
+ * The bag under `providerOptions.aihubmix` — `WIRE_REGISTRY.aihubmix` carries
+ * `passthrough: true`, so it is raw canonical camelCase and the IPC boundary has
+ * already stripped every non-catalog key.
+ *
+ * The canonical half is `Pick`ed from {@link ParamValues} so a key that isn't in
+ * `IMAGE_PARAM_CATALOG` no longer compiles. `imageSize` was one such key (dropped —
+ * `imageResolution` is the catalog spelling).
+ *
+ * `mode` and `imageFiles` are **v1 residue**: they mirror the old `AihubmixPaintingData`
+ * shape, are not catalog keys, and nothing in the v2 request path writes them (grep
+ * finds only the v1 migration mappings). They therefore always arrive `undefined`,
+ * which silently pins `mode` to `'generate'` and makes every `imageFiles` read empty.
+ * Left declared, and deliberately outside the `Pick`, so the dead branches downstream
+ * are traceable to a cause instead of looking live — see the note on `isDefaultModel`.
  */
-interface AihubmixImageOptions {
+type AihubmixImageOptions = Pick<
+  ParamValues,
+  | 'aspectRatio'
+  | 'numImages'
+  | 'seed'
+  | 'styleType'
+  | 'renderingSpeed'
+  | 'negativePrompt'
+  | 'magicPromptOption'
+  | 'imageWeight'
+  | 'resemblance'
+  | 'detail'
+> & {
+  /** v1 residue — never delivered; see above. */
   mode?: AihubmixMode
-  aspectRatio?: string
-  imageSize?: string
-  styleType?: string
-  renderingSpeed?: string
-  numImages?: number
-  seed?: string
-  negativePrompt?: string
-  magicPromptOption?: boolean
-  imageWeight?: number
-  resemblance?: number
-  detail?: number
+  /** v1 residue — never delivered; the real reference images are `options.files`. */
   imageFiles?: AihubmixImageFile[]
 }
 
@@ -169,34 +186,29 @@ function withAihubmixGoogleImageOptions(model: ImageModelV3, isGeminiImage: bool
     maxImagesPerCall: model.maxImagesPerCall,
     doGenerate(options) {
       const providerOptions = options.providerOptions ?? {}
-      const aihubmixOptions = (providerOptions.aihubmix ?? {}) as Record<string, unknown>
-      const openaiOptions = (providerOptions.openai ?? {}) as Record<string, unknown>
-      const existingGoogle = (providerOptions.google ?? {}) as Record<string, unknown>
-      const existingImageConfig = (existingGoogle.imageConfig ?? {}) as Record<string, unknown>
+      const bag = (providerOptions.aihubmix ?? {}) as AihubmixGoogleImageParams
 
-      const aspectRatio =
-        options.aspectRatio ??
-        normalizeAspectRatio(options.size) ??
-        normalizeAspectRatio(aihubmixOptions.aspectRatio ?? aihubmixOptions.aspect_ratio ?? openaiOptions.aspectRatio)
-      const personGeneration = normalizePersonGeneration(
-        aihubmixOptions.personGeneration ?? aihubmixOptions.person_generation ?? openaiOptions.personGeneration
-      )
-      const imageSize = normalizeImageSize(
-        aihubmixOptions.imageResolution ??
-          aihubmixOptions.imageSize ??
-          aihubmixOptions.image_size ??
-          aihubmixOptions.resolution
-      )
+      // One canonical read per param, not a spelling probe. The bag under `aihubmix` is
+      // `WIRE_REGISTRY.aihubmix` with `passthrough: true` — raw canonical camelCase, no
+      // snake_case conversion — and the IPC boundary strips every non-catalog key. So
+      // `aspect_ratio` / `person_generation` / `imageSize` / `image_size` could never
+      // arrive, and `providerOptions.openai` is the `dualOpenAI` mirror of the profile's
+      // mapped fields (quality/background/moderation/style/seed), which never carries
+      // these either. Probing those spellings only hid which one was real.
+      //
+      // `aspectRatio` is a native binding, so it reaches `options.aspectRatio` and never
+      // the bag; `size` is the fallback for models that express the ratio that way.
+      const aspectRatio = options.aspectRatio ?? normalizeAspectRatio(options.size)
+      const personGeneration = normalizePersonGeneration(bag.personGeneration)
+      const imageSize = normalizeImageSize(bag.imageResolution)
 
       const googleOptions: Record<string, unknown> = {
         ...(aspectRatio ? { aspectRatio } : {}),
-        ...(personGeneration ? { personGeneration } : {}),
-        ...existingGoogle
+        ...(personGeneration ? { personGeneration } : {})
       }
 
-      if (isGeminiImage && (aspectRatio || imageSize || Object.keys(existingImageConfig).length > 0)) {
+      if (isGeminiImage && (aspectRatio || imageSize)) {
         googleOptions.imageConfig = {
-          ...existingImageConfig,
           ...(aspectRatio ? { aspectRatio } : {}),
           ...(imageSize ? { imageSize } : {})
         }
@@ -393,7 +405,7 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
           formData.append('style_type', 'AUTO')
         }
         if (bag.seed) {
-          formData.append('seed', bag.seed)
+          formData.append('seed', String(bag.seed))
         }
         if (bag.negativePrompt) {
           formData.append('negative_prompt', bag.negativePrompt)
@@ -440,7 +452,7 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
           formData.append('style_type', bag.styleType)
         }
         if (bag.seed) {
-          formData.append('seed', bag.seed)
+          formData.append('seed', String(bag.seed))
         }
         if (bag.negativePrompt) {
           formData.append('negative_prompt', bag.negativePrompt)
@@ -631,6 +643,13 @@ const IDEOGRAM_V1_V2_MODELS = new Set(['V_1', 'V_2'])
  * pre-Phase-4a `OpenAICompatibleImageModel`.
  */
 function isDefaultModel(modelId: string, mode: AihubmixMode): boolean {
+  // NOTE: `mode` is always `'generate'` today. It is read from
+  // `providerOptions.aihubmix.mode`, which is v1 residue — not a catalog key, so the IPC
+  // boundary strips it, and nothing in the v2 path writes it. That makes this guard, and
+  // the `remix` / `upscale` branches in `createAihubmixImageModel`, unreachable. v2
+  // carries the mode as `request.mode` → `modelDescriptor.mode`, not through the param
+  // bag; wiring those branches to it — and their `bag.imageFiles` reads to
+  // `options.files` — is the fix, not a rename.
   if (mode !== 'generate') {
     return false
   }
