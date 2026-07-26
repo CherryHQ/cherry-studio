@@ -1729,6 +1729,37 @@ describe('AgentSessionRuntimeService', () => {
     await vi.waitFor(() => expect(connection.getContextUsage).toHaveBeenCalledTimes(2))
   })
 
+  describe('on-demand context usage', () => {
+    const usageAt = (percentage: number) => ({
+      categories: [],
+      totalTokens: percentage,
+      maxTokens: 100,
+      rawMaxTokens: 100,
+      percentage,
+      gridRows: [],
+      model: 'claude-sonnet-4-5',
+      memoryFiles: [],
+      mcpTools: [],
+      agents: [],
+      apiUsage: null
+    })
+
+    // Hovering the composer must not turn into a control-request flood, and must never be a reason
+    // to spawn a subprocess for a session that has already been torn down.
+    it('throttles on-demand refreshes and no-ops without a live connection', () => {
+      const service = new AgentSessionRuntimeService()
+      const getContextUsage = vi.fn().mockResolvedValue(usageAt(7))
+
+      service.refreshContextUsageOnDemand('session-1')
+      expect(getContextUsage).not.toHaveBeenCalled()
+      ;(service as any).entries.set('session-1', { sessionId: 'session-1', connection: { getContextUsage } })
+
+      service.refreshContextUsageOnDemand('session-1')
+      service.refreshContextUsageOnDemand('session-1')
+      expect(getContextUsage).toHaveBeenCalledTimes(1)
+    })
+  })
+
   describe('primeConnection — eager command load on session open', () => {
     it('opens the connection without a turn and caches the slash-command catalog', async () => {
       const commands = [{ name: 'clear', description: 'Clear conversation' }]
@@ -1984,9 +2015,10 @@ describe('AgentSessionRuntimeService', () => {
 
     service.closeSession('session-1')
 
-    // The context-usage entry is deleted outright; an in-flight compaction is settled to idle
-    // (not deleted) so a re-open doesn't briefly observe a stale compacting status.
-    expect(mocks.cacheDeleteShared).toHaveBeenCalledWith('agent.session.context_usage.session-1')
+    // Context usage outlives the connection — no turn can run without one, so the last reading is
+    // still true. An in-flight compaction is settled to idle (not deleted) so a re-open doesn't
+    // briefly observe a stale compacting status.
+    expect(mocks.cacheDeleteShared).not.toHaveBeenCalledWith('agent.session.context_usage.session-1')
     expect(mocks.cacheSetShared).toHaveBeenLastCalledWith('agent.session.compaction.session-1', {
       status: 'idle'
     })

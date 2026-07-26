@@ -122,6 +122,9 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
     // the primed subprocess until the idle TTL. Tear it down on view close unless a turn is running.
     application.get('AgentSessionRuntimeService').releaseIdleConnection(sessionId)
   },
+  'ai.refresh_agent_session_context_usage': async ({ sessionId }) => {
+    application.get('AgentSessionRuntimeService').refreshContextUsageOnDemand(sessionId)
+  },
   'ai.stop_agent_background_task': ({ sessionId, taskId }) =>
     application.get('AgentSessionRuntimeService').stopBackgroundTask(sessionId, taskId),
   // The continuation dispatch streams to the caller window, so it needs that window's WebContents.

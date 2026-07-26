@@ -194,6 +194,13 @@ export const aiRequestSchemas = {
   }),
   // Stops one background task, not the turn. False when the session has no live connection or its
   // runtime cannot stop tasks; the outcome itself arrives as a `task_notification`.
+  // Take a fresh context-usage reading for a UI about to show it. Best-effort and throttled in main:
+  // a session with no live connection keeps its last published value. The result arrives on the
+  // session's shared-cache key, not here.
+  'ai.refresh_agent_session_context_usage': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1) }),
+    output: z.void()
+  }),
   'ai.stop_agent_background_task': defineRoute({
     input: z.strictObject({ sessionId: z.string().min(1), taskId: z.string().min(1) }),
     output: z.boolean()

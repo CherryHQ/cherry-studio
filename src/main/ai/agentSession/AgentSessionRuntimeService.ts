@@ -64,6 +64,7 @@ const logger = loggerService.withContext('AgentSessionRuntimeService')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
 const SESSION_FILE_SWEEP_INTERVAL_MS = 30 * 60 * 1000
 const SESSION_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const CONTEXT_USAGE_REFRESH_THROTTLE_MS = 3_000
 
 export type AgentSessionRuntimeStatus = 'active' | 'idle'
 export type AgentSessionRuntimeTerminalStatus = 'success' | 'paused' | 'error'
@@ -173,6 +174,8 @@ type AgentSessionRuntimeEntry = {
   /** A `system/api_retry` backoff is in flight — set so its ephemeral cache state is cleared exactly
    *  once when content resumes / the turn settles / the connection closes. */
   retrying?: boolean
+  /** Throttle stamp for {@link AgentSessionRuntimeService.refreshContextUsageOnDemand}. */
+  lastContextUsageRefreshAt?: number
 }
 
 class AgentSessionRuntimeTerminalListener implements StreamListener {
@@ -1111,6 +1114,23 @@ export class AgentSessionRuntimeService extends BaseService {
     application.get('CacheService').setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId), usage)
   }
 
+  /**
+   * On-demand reading for a UI that is about to show the gauge (composer hover). Only a live
+   * connection can answer, so a session that has idled out keeps its last published value rather
+   * than paying for a subprocess spawn; the throttle keeps a hovering pointer from flooding the CLI
+   * with control requests.
+   */
+  refreshContextUsageOnDemand(sessionId: string): void {
+    const entry = this.entries.get(sessionId)
+    if (!entry?.connection) return
+    const now = Date.now()
+    if (entry.lastContextUsageRefreshAt && now - entry.lastContextUsageRefreshAt < CONTEXT_USAGE_REFRESH_THROTTLE_MS) {
+      return
+    }
+    entry.lastContextUsageRefreshAt = now
+    this.refreshContextUsage(entry)
+  }
+
   // The initial slash command catalog read (`query.supportedCommands()`) once the connection is live.
   // It only captures the catalog at init; mid-session changes arrive separately as `supported-commands`
   // events (`commands_changed`) and are applied via the same {@link publishSupportedCommands} sink.
@@ -1693,7 +1713,8 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     entry.compacting = false
     this.clearApiRetry(entry)
-    application.get('CacheService').deleteShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId))
+    // Context usage deliberately survives: unlike its neighbours here it is not per-CLI-process
+    // state. No turn can run without a connection, so the last reading stays true until one does.
     application.get('CacheService').deleteShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(entry.sessionId))
     // The background-task level is per CLI process, so the closing process's set must not outlive it.
     application.get('CacheService').deleteShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId))
