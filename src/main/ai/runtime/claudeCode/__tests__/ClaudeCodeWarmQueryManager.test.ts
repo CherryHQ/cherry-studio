@@ -122,6 +122,26 @@ describe('ClaudeCodeWarmQueryManager', () => {
     expect(keyA).toBe(keyB)
   })
 
+  // The driver has no trace branch around `consume`: a traced turn simply asks with the OTEL env
+  // merged in, and this divergence is what keeps it off a query parked without tracing. Telemetry
+  // env is fixed at spawn, so reusing such a park would silently produce an untraced turn.
+  it('changes the signature when Claude Code trace env is present', () => {
+    const traceless = createClaudeCodeWarmQuerySignature({
+      model: 'sonnet',
+      env: { ANTHROPIC_BASE_URL: 'https://api.example.com' }
+    } as any)
+    const traced = createClaudeCodeWarmQuerySignature({
+      model: 'sonnet',
+      env: {
+        ANTHROPIC_BASE_URL: 'https://api.example.com',
+        CLAUDE_CODE_ENABLE_TELEMETRY: '1',
+        TRACEPARENT: `00-${'0'.repeat(32)}-${'1'.repeat(16)}-01`
+      }
+    } as any)
+
+    expect(traced).not.toBe(traceless)
+  })
+
   it('does not mutate the caller env when stripping credentials for the signature', () => {
     const options = { model: 'sonnet', env: { ANTHROPIC_API_KEY: 'key-a' } } as any
 

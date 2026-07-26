@@ -192,15 +192,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         : {}),
       abortController: this.abortController
     }
-    const warmQuery = traceEnv
-      ? undefined
-      : await application.get('ClaudeCodeWarmQueryManager').consume({
-          key: request.key,
-          options,
-          initializeTimeoutMs: request.initializeTimeoutMs,
-          credentialsFingerprint: request.credentialsFingerprint,
-          knowledgeBaseIds: request.knowledgeBaseIds
-        })
+    // Env is part of the warm signature, so a traced turn asks with the OTEL vars merged in and can
+    // never match a query parked without them: the mismatch cold-starts and disposes the stale park,
+    // which is exactly what tracing needs (env is fixed at spawn). No trace branch required here.
+    const warmQuery = await application.get('ClaudeCodeWarmQueryManager').consume({
+      key: request.key,
+      options,
+      initializeTimeoutMs: request.initializeTimeoutMs,
+      credentialsFingerprint: request.credentialsFingerprint,
+      knowledgeBaseIds: request.knowledgeBaseIds
+    })
 
     this.query = warmQuery
       ? warmQuery.query(this.sdkInputQueue)

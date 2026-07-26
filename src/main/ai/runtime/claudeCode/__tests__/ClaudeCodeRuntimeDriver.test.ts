@@ -1471,7 +1471,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
-  it('injects Claude Code trace env and skips warm query for trace turns', async () => {
+  it('injects Claude Code trace env and asks for a warm query with it, so no trace-less park matches', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
     mocks.createClaudeQuery.mockReturnValue(query)
@@ -1503,7 +1503,15 @@ describe('ClaudeCodeRuntimeDriver', () => {
       turnId: 'turn-1',
       modelName: 'sonnet'
     })
-    expect(mocks.consumeWarmQuery).not.toHaveBeenCalled()
+    // The trace env travels into the warm lookup — the signature carries it, so a query parked
+    // before trace mode was on can never be reused (and the miss disposes it).
+    expect(mocks.consumeWarmQuery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        options: expect.objectContaining({
+          env: expect.objectContaining({ TRACEPARENT: `00-${'0'.repeat(32)}-${'1'.repeat(16)}-01` })
+        })
+      })
+    )
     expect(mocks.createClaudeQuery).toHaveBeenCalledWith({
       prompt: expect.anything(),
       options: expect.objectContaining({
