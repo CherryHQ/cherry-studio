@@ -16,7 +16,10 @@ export function useToolResult(ref: DeferredToolResultRef | undefined) {
       const response = await ipcApi.request('ai.get_tool_result', ref!)
       if (!response.found) throw new Error(`Tool result is no longer available: ${ref!.toolCallId}`)
       return response.output
-    }
+    },
+    // A miss is permanent — neither the active stream nor SQLite holds the output — so backing off
+    // and asking again only burns IPC round trips. Matches `useDataApi`'s default.
+    { shouldRetryOnError: false }
   )
 
   return { output: data, error, isLoading }

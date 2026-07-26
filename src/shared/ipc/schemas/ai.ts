@@ -3,6 +3,7 @@ import type {
   AiStreamAttachResponse,
   AiStreamOpenResponse,
   AiToolApprovalRespondRequest,
+  AiToolResultRequest,
   AiToolResultResponse,
   StreamChunkPayload,
   StreamDonePayload,
@@ -184,11 +185,12 @@ export const aiRequestSchemas = {
     output: z.void()
   }),
   'ai.get_tool_result': defineRoute({
+    // Mirrors AiToolResultRequest (z.ZodType pins exact-shape drift here, not in a test).
     input: z.strictObject({
       topicId: z.string().min(1),
       messageId: z.string().min(1),
       toolCallId: z.string().min(1)
-    }),
+    }) satisfies z.ZodType<AiToolResultRequest>,
     output: z.custom<AiToolResultResponse>()
   }),
 

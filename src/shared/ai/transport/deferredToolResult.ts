@@ -26,8 +26,9 @@ export interface DeferredToolOutput {
 }
 
 /**
- * Results at or below this travel inline. Tuned so ordinary tool cards (web search, knowledge
- * search, a small file read) are unaffected and only genuinely heavy payloads defer.
+ * Serialized UTF-8 size at or below which a result travels inline. Tuned so ordinary tool cards
+ * (web search, knowledge search, a small file read) are unaffected and only genuinely heavy
+ * payloads defer.
  */
 export const DEFER_TOOL_OUTPUT_BYTES = 32 * 1024
 
@@ -47,15 +48,22 @@ export function isDeferredToolOutput(value: unknown): value is DeferredToolOutpu
 }
 
 /**
- * ponytail: measures by serializing, because the value gets serialized for IPC anyway — this adds
- * no work that the boundary was not already going to do. If profiling ever shows it hot, swap in
- * an estimator that bails out once it passes the threshold.
+ * Measures by serializing, because the value gets serialized for IPC anyway — this adds no work
+ * the boundary was not already going to do.
+ *
+ * The wire size is UTF-8, so `String.length` (UTF-16 code units) undercounts anything non-ASCII —
+ * CJK is one code unit but three bytes. Code-unit length is still a valid *lower* bound on the byte
+ * count, so it short-circuits the common case for free and the encode only runs on strings already
+ * known to be under the threshold.
  */
 export function shouldDeferToolOutput(output: unknown): boolean {
   if (output === undefined || output === null) return false
   if (isDeferredToolOutput(output)) return false
   try {
-    return JSON.stringify(output).length > DEFER_TOOL_OUTPUT_BYTES
+    const serialized = JSON.stringify(output)
+    if (serialized === undefined) return false
+    if (serialized.length > DEFER_TOOL_OUTPUT_BYTES) return true
+    return new TextEncoder().encode(serialized).length > DEFER_TOOL_OUTPUT_BYTES
   } catch {
     return false
   }

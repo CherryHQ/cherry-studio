@@ -63,6 +63,18 @@ describe('outbound tool-output projection', () => {
     expect(fromPart).toEqual(fromChunk)
   })
 
+  // CJK is one UTF-16 code unit but three UTF-8 bytes, so measuring by `String.length` would let
+  // a payload roughly 3x over the threshold through inline.
+  it('measures the serialized UTF-8 size, not code units', () => {
+    const cjk = { content: '\u6d4b'.repeat(DEFER_TOOL_OUTPUT_BYTES / 2) }
+    expect(JSON.stringify(cjk).length).toBeLessThan(DEFER_TOOL_OUTPUT_BYTES)
+
+    const projected = projectMessagePartForRenderer(partWith(cjk), TOPIC_ID, MESSAGE_ID) as unknown as {
+      output: unknown
+    }
+    expect(isDeferredToolOutput(projected.output)).toBe(true)
+  })
+
   it('does nothing without a message id to address the result by', () => {
     const chunk = chunkWith(large)
     expect(projectStreamChunkForRenderer(chunk, TOPIC_ID, undefined)).toBe(chunk)
