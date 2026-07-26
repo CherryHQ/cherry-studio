@@ -1,32 +1,25 @@
 # Performance Debugging
 
-Use this reference for Cherry Studio lag, jank, CPU, memory, leak, startup, or
+Use this reference for Cherry Studio lag, jank, CPU, memory, leak, startup, and
 DevTools investigations.
 
 ## Contents
 
-- Safety and target binding
-- Choose the smallest profile
+- Bind safely and choose a profile
 - Quick renderer metrics
 - Interaction trace
-- Memory and allocation checks
+- Memory and allocation
 - Process and main-process checks
 - Startup analysis
 - Interpretation and reporting
 
-## Safety and target binding
+## Bind safely and choose a profile
 
-Follow the parent Skill's instance-binding checks first. Use the recorded PID,
-workspace, CDP port, and exact main-window URL. Never find or open a development
-instance through the macOS application name `Electron`.
+First complete the parent Skill's PID, workspace, CDP, and target checks. Never
+find or open a development instance through the macOS application name
+`Electron`.
 
-Use the renderer target returned by `/json/list` whose URL is exactly:
-
-```text
-http://localhost:5173/windows/main/index.html
-```
-
-Connect Playwright to the bound CDP endpoint and resolve the page by URL:
+Connect Playwright to the recorded CDP port and exact main target:
 
 ```js
 var { chromium } = await import("playwright")
@@ -41,39 +34,29 @@ if (!page || (await page.title()) !== "Cherry Studio") {
 var cdp = await page.context().newCDPSession(page)
 ```
 
-Do not call `browser.close()`, `page.close()`, or an Electron quit action.
-Detach only the profiling `CDPSession` when finished.
-
-Prefer programmatic CDP because it is repeatable and does not create another
-Electron process. If a visible DevTools panel is useful, read the selected
-target's `devtoolsFrontendUrl` from `/json/list` and open:
+Never call `browser.close()`, `page.close()`, or an Electron quit action.
+Detach only the profiling `CDPSession`. For visible DevTools, open the selected
+target's frontend without replacing the bound session:
 
 ```text
 http://127.0.0.1:<CDP_PORT><devtoolsFrontendUrl>
 ```
 
-Opening that frontend is optional and must not replace the bound CDP session.
+Choose the smallest profile:
 
-## Choose the smallest profile
-
-Use one mode at a time:
-
-| Question | Start with |
+| Question | Profile |
 | --- | --- |
-| Is the renderer busy or memory unusually high? | Quick renderer metrics |
-| Which task, script, layout, or paint caused a visible stall? | Interaction trace |
-| Does memory grow after repeating the same action? | Repeated checkpoints |
-| Which allocations dominate during an action? | Allocation sampling |
-| Is the main process or a helper consuming resources? | Process sampling |
-| Is startup slow? | Restart-aware startup analysis |
+| Renderer load or memory level? | Quick metrics |
+| Cause of a visible stall? | 5-30 second trace |
+| Memory growth after repetition? | Repeated checkpoints |
+| Allocation source? | Allocation sampling |
+| Main/helper resource use? | Process sampling |
+| Slow startup? | Restart-aware startup analysis |
 
-Collect a quiet idle baseline first. Record the exact action, duration, window
-size, route, data state, and whether DevTools was visibly open. Visible DevTools
-adds overhead, so compare like with like.
+Collect a quiet idle baseline. Keep action, duration, window size, route, data,
+and visible-DevTools state identical between comparisons.
 
 ## Quick renderer metrics
-
-Enable metrics once per comparison session:
 
 ```js
 await cdp.send("Performance.enable")
@@ -81,46 +64,31 @@ var beforeRaw = await cdp.send("Performance.getMetrics")
 var before = Object.fromEntries(
   beforeRaw.metrics.map(({ name, value }) => [name, value])
 )
-```
-
-Run one bounded idle or interaction window, then collect `after` through the
-same session:
-
-```js
+// Run one bounded scenario.
 var afterRaw = await cdp.send("Performance.getMetrics")
 var after = Object.fromEntries(
   afterRaw.metrics.map(({ name, value }) => [name, value])
 )
 ```
 
-Treat these as cumulative counters and compare deltas:
+Compare deltas for cumulative counters: `TaskDuration`, `ScriptDuration`,
+`LayoutDuration`, `LayoutCount`, `RecalcStyleDuration`, `RecalcStyleCount`, and
+`V8CompileDuration`. Treat `JSHeapUsedSize`, `JSHeapTotalSize`, `Nodes`,
+`Documents`, `Frames`, and `JSEventListeners` as point-in-time gauges.
 
-- `TaskDuration`: renderer main-thread task time
-- `ScriptDuration`: JavaScript execution time
-- `LayoutDuration` and `LayoutCount`: layout work
-- `RecalcStyleDuration` and `RecalcStyleCount`: style recalculation
-- `V8CompileDuration`: JavaScript compilation
-
-Treat these as point-in-time gauges:
-
-- `JSHeapUsedSize` and `JSHeapTotalSize`
-- `Nodes`, `Documents`, `Frames`
-- `JSEventListeners`
-
-For a window lasting `elapsedSeconds`, approximate renderer main-thread
-utilization as:
+Approximate renderer main-thread utilization for a window of
+`elapsedSeconds`:
 
 ```text
 100 * delta(TaskDuration) / elapsedSeconds
 ```
 
-This is an orientation metric, not a complete CPU measurement. Repeat the same
-scenario and compare medians when the difference is small.
+This is orientation, not complete CPU usage. Repeat identical scenarios and
+compare medians when differences are small.
 
 ## Interaction trace
 
-Use a 5-30 second trace around one reproducible slow action. Avoid long,
-unbounded recordings.
+Trace one reproducible action for 5-30 seconds:
 
 ```js
 var traceDone = new Promise((resolve) =>
@@ -135,19 +103,13 @@ await cdp.send("Tracing.start", {
   ].join(","),
   transferMode: "ReturnAsStream"
 })
-```
-
-Perform the action, then stop and read the trace stream:
-
-```js
+// Perform the action.
 await cdp.send("Tracing.end")
 var { stream } = await traceDone
 var chunks = []
 while (true) {
   var part = await cdp.send("IO.read", { handle: stream })
-  chunks.push(
-    Buffer.from(part.data, part.base64Encoded ? "base64" : "utf8")
-  )
+  chunks.push(Buffer.from(part.data, part.base64Encoded ? "base64" : "utf8"))
   if (part.eof) break
 }
 await cdp.send("IO.close", { handle: stream })
@@ -155,98 +117,71 @@ var fs = await import("node:fs/promises")
 await fs.writeFile("<TRACE_PATH>.json", Buffer.concat(chunks))
 ```
 
-Load the trace in the visible DevTools Performance panel or Chrome trace
-viewer. Correlate long tasks with script stacks, rendering, layout, paint, GC,
-and user-timing marks. Preserve the raw trace under `.context`; do not commit or
-share it because it may contain private UI content or URLs.
+Correlate long tasks with script stacks, layout, paint, GC, and user timing.
+Keep raw traces under `.context`; they may contain private UI content or URLs.
 
-## Memory and allocation checks
+## Memory and allocation
 
-For suspected leaks:
+For leak suspicion, record heap/nodes/documents/listeners at idle, repeat the
+same action a fixed number of times, return to the same idle state, and record
+again across multiple cycles. One larger heap value is not proof; V8 may defer
+GC. Do not force GC unless a post-GC comparison is explicitly needed.
 
-1. Record heap, node, document, and listener gauges at idle.
-2. Repeat the exact action a fixed number of times.
-3. Return to the same route and idle state.
-4. Record the gauges again.
-5. Repeat the cycle to see whether the retained baseline keeps rising.
-
-One larger heap value is not proof of a leak; V8 may defer garbage collection.
-Do not force GC unless the investigation explicitly needs a post-GC comparison,
-because forced GC changes runtime behavior.
-
-For allocation attribution, use bounded sampling:
+For bounded allocation attribution:
 
 ```js
 await cdp.send("HeapProfiler.enable")
-await cdp.send("HeapProfiler.startSampling", {
-  samplingInterval: 32768
-})
+await cdp.send("HeapProfiler.startSampling", { samplingInterval: 32768 })
 // Perform one bounded scenario.
 var { profile } = await cdp.send("HeapProfiler.stopSampling")
 var fs = await import("node:fs/promises")
 await fs.writeFile("<PROFILE_PATH>.json", JSON.stringify(profile))
 ```
 
-Take a full heap snapshot only when sampling and repeated gauges are
-insufficient. Heap snapshots can pause the renderer, be large, and contain
-private application data; state that impact before collecting one.
+Use a full heap snapshot only when sampling and gauges are insufficient. Warn
+first: it can pause the renderer, be large, and contain private data.
 
 ## Process and main-process checks
 
-Renderer metrics do not identify all Electron process costs. Sample the
-recorded process group before, during, and after the scenario:
+Sample the tracked process group several times before, during, and after:
 
 ```bash
 ps -axo pid=,ppid=,pgid=,%cpu=,rss=,command= | \
   awk '$3 == <TRACKED_PGID>'
 ```
 
-Use several samples rather than one. Separate the Electron main process,
-renderer/helper processes, Vite, and the runner when interpreting CPU and RSS.
-
-If renderer metrics remain quiet while the main PID is busy, inspect the
-recorded main-process inspector port, normally `9229`. Verify its `/json/list`
-Node target before attaching. Use a bounded Node CPU profile and correlate it
-with the application log. Do not confuse the Node inspector with renderer CDP
-port `9222`.
+Separate Electron main, renderer/helper, Vite, and runner costs. If renderer
+metrics are quiet while main is busy, verify and attach to the recorded Node
+inspector target, normally port `9229`. Use a bounded CPU profile and correlate
+it with application logs. Do not confuse it with renderer CDP `9222`.
 
 ## Startup analysis
 
-Startup profiling requires a restart and therefore is the exception to the
-persistent-window rule.
+Startup profiling requires a restart:
 
-1. Explain why a restart is required.
-2. Record the current instance and scenario.
-3. Gracefully stop only the tracked instance.
-4. Start the same debug command and profile.
-5. Preserve startup logs and timestamps.
-6. Measure renderer navigation milestones such as `NavigationStart`,
+1. Explain and record the current instance/scenario.
+2. Gracefully stop only the tracked instance.
+3. Start the same debug command and profile.
+4. Preserve startup logs and timestamps.
+5. Measure navigation milestones such as `NavigationStart`,
    `DomContentLoaded`, and `FirstMeaningfulPaint`.
-7. Update `instance.json` and keep the replacement running.
+6. Update `instance.json` and keep the replacement running.
 
-Distinguish cold native rebuild time, Electron/main-process bootstrap, database
-migration, service initialization, renderer load, and first interactive UI.
-Do not report the entire `pnpm debug` duration as application startup time.
+Separate native rebuild, main bootstrap, database migration, service startup,
+renderer load, and first interactive UI. Do not treat the whole `pnpm debug`
+duration as app startup.
 
 ## Interpretation and reporting
 
-Use evidence patterns, not a single number:
+- Script-heavy `TaskDuration` suggests JavaScript/React work.
+- Layout/style deltas suggest DOM measurement or CSS invalidation.
+- Repeated long trace tasks identify likely jank sources.
+- Heap plus node/listener growth after identical idle cycles suggests a leak.
+- Quiet renderer plus high main CPU points to services or IPC.
+- High helper/GPU CPU without renderer task growth points to media, canvas,
+  GPU, or embedded web content.
 
-- High `TaskDuration` with high `ScriptDuration`: JavaScript or React work
-- High layout/style deltas: DOM size, measurement loops, or CSS invalidation
-- Repeated long trace tasks: likely visible jank source
-- Rising heap plus nodes/listeners after identical idle cycles: leak suspicion
-- Quiet renderer with high main-process CPU: inspect main services or IPC
-- High helper/GPU CPU without renderer task growth: inspect media, canvas, GPU,
-  or embedded web content
-
-Report:
-
-- exact instance PID, CDP target, route, scenario, and duration
-- baseline and scenario metric deltas
-- trace/profile artifact paths
-- the strongest evidence and remaining uncertainty
-- before/after comparison when evaluating a fix
-
-Keep the Electron instance running after collection unless a restart was
-explicitly part of the profile.
+Report exact PID/target/route/scenario/duration, baseline and scenario deltas,
+artifact paths, strongest evidence, uncertainty, and before/after comparison
+for a fix. Keep Electron running after collection unless restart was explicitly
+part of the profile.
