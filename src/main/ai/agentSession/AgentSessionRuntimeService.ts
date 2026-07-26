@@ -1152,7 +1152,15 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!this.isCurrentEntry(entry)) return
     const cache = application.get('CacheService')
     const key = AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId)
-    cache.setShared(key, { ...cache.getShared(key), [data.taskId]: data })
+    const events = cache.getShared(key) ?? {}
+    // Merge instead of replace: `task_type` (and the row title) exist only on `task_started`, so a
+    // completion overwriting it wholesale would strip the task of its identity — a finished bash
+    // task would then land in the subagent bucket with no name.
+    const merged: Record<string, unknown> = { ...events[data.taskId] }
+    for (const [field, value] of Object.entries(data)) {
+      if (value !== undefined) merged[field] = value
+    }
+    cache.setShared(key, { ...events, [data.taskId]: merged as unknown as AgentTaskEventPartData })
   }
 
   private handleRuntimeError(entry: AgentSessionRuntimeEntry, error: unknown): void {

@@ -782,7 +782,8 @@ function RunTaskList({ tasks, sessionId }: { tasks: AgentRunTask[]; sessionId?: 
           className="flex items-start gap-2 rounded-md border border-border-subtle bg-background-subtle px-2.5 py-2">
           <TaskStatusIcon status={task.status} />
           <div className="min-w-0 flex-1">
-            <div className="wrap-break-word text-foreground text-xs leading-5">
+            {/* Rows persisted before summaries were kept out of titles can carry prose here — clamp it. */}
+            <div className="wrap-break-word line-clamp-2 text-foreground text-xs leading-5">
               {task.status === 'in_progress' && task.activeText ? task.activeText : task.title}
             </div>
             <div className="mt-0.5 truncate text-[11px] text-muted-foreground">

@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   resolveToolApproval: vi.fn(),
   terminateHeldTopicStream: vi.fn(),
   cacheSetShared: vi.fn(),
+  cacheGetShared: vi.fn(),
   cacheDeleteShared: vi.fn(),
   getSessionById: vi.fn(),
   getAgent: vi.fn(),
@@ -152,7 +153,12 @@ describe('AgentSessionRuntimeService', () => {
           terminateHeldTopicStream: mocks.terminateHeldTopicStream
         }
       }
-      if (name === 'CacheService') return { setShared: mocks.cacheSetShared, deleteShared: mocks.cacheDeleteShared }
+      if (name === 'CacheService')
+        return {
+          setShared: mocks.cacheSetShared,
+          getShared: mocks.cacheGetShared,
+          deleteShared: mocks.cacheDeleteShared
+        }
       throw new Error(`Unexpected application.get(${name})`)
     })
   })
@@ -1429,6 +1435,49 @@ describe('AgentSessionRuntimeService', () => {
       getEntry(service).connection = { close: vi.fn(), send: vi.fn(), events: [] }
 
       await expect(service.stopBackgroundTask('session-1', 'bg-1')).resolves.toBe(false)
+    })
+
+    // `task_type` and the row title exist only on `task_started` (SDK-verified); a completion event
+    // replacing the cache entry wholesale would strip both, dropping a finished bash task into the
+    // subagent bucket with no name.
+    it('merges late task events per task instead of letting the completion displace the start', () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const cacheStore: Record<string, any> = {}
+      mocks.cacheSetShared.mockImplementation((key: string, value: unknown) => {
+        cacheStore[key] = value
+      })
+      mocks.cacheGetShared.mockImplementation((key: string) => cacheStore[key])
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-task-event',
+        data: {
+          event: 'started',
+          taskId: 'bg-1',
+          status: 'in_progress',
+          title: 'Create worktree',
+          taskType: 'local_bash'
+        }
+      })
+      ;(service as any).handleRuntimeEvent(entry, {
+        type: 'background-task-event',
+        data: {
+          event: 'notification',
+          taskId: 'bg-1',
+          status: 'completed',
+          summary: 'long prose…',
+          outputFile: '/tmp/o'
+        }
+      })
+
+      const key = 'agent.session.task_events.session-1'
+      expect(cacheStore[key]['bg-1']).toMatchObject({
+        event: 'notification',
+        status: 'completed',
+        title: 'Create worktree',
+        taskType: 'local_bash',
+        summary: 'long prose…'
+      })
     })
 
     it('drops the level when the session closes, since it is scoped to the CLI process', () => {
