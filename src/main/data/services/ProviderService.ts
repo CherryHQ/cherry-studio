@@ -152,9 +152,17 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     logoSrc: resolveLogoSrc(getLogoFileId(logoSlot(row.providerId))),
     description: presetMetadata.description,
     websites: presetMetadata.websites,
-    // Strip legacy registry-only fields such as `reasoningFormatType`
-    // before persisted connection facts cross into runtime/renderer state.
-    endpointConfigs: normalizeEndpointConfigs(row.endpointConfigs) ?? undefined,
+    // Registry-owned connection facts (adapterFamily, modelsApiUrls, the
+    // endpoint-type key set) resolve from the CURRENT registry at read time
+    // (#17096 — the seeder is insert-only, so the row alone goes stale);
+    // the row contributes only the user-owned baseUrl override. Legacy
+    // registry-only fields such as `reasoningFormatType` are stripped first.
+    endpointConfigs:
+      providerRegistryService.mergeEndpointConfigs(
+        normalizeEndpointConfigs(row.endpointConfigs),
+        row.providerId,
+        row.presetProviderId ?? undefined
+      ) ?? undefined,
     defaultChatEndpoint: row.defaultChatEndpoint ?? undefined,
     modelListSource: presetMetadata.modelListSource,
     authMethods: presetMetadata.authMethods,

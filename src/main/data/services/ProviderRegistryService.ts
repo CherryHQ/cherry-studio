@@ -571,6 +571,68 @@ class ProviderRegistryService {
   }
 
   /**
+   * Merge persisted endpoint configs with the CURRENT registry at read time
+   * (#17096). The seeder is insert-only, so a row's endpoint set freezes at
+   * first seed — registry additions (new endpoint types, changed
+   * adapterFamily/modelsApiUrls) would otherwise never reach existing rows.
+   *
+   * Ownership per field: `adapterFamily` / `modelsApiUrls` are registry-owned
+   * (registry wins, row is a legacy fallback); `baseUrl` is user-owned (row
+   * wins). The key set is the union of registry and row keys, so a registry
+   * that gains an endpoint type surfaces it with zero data migration.
+   *
+   * Custom providers (no registry preset) keep their row configs, with
+   * `adapterFamily` inferred from the endpoint type when absent — mirroring
+   * the write-path backfill.
+   */
+  mergeEndpointConfigs(
+    rowConfigs: Partial<Record<EndpointType, EndpointConfig>> | null | undefined,
+    providerId: string,
+    presetProviderId?: string
+  ): Partial<Record<EndpointType, EndpointConfig>> | null {
+    try {
+      // lookupPersistedPreset=false — called from rowToRuntimeProvider; a DB
+      // read-back here would recurse (same guard as getProviderDisplayMetadata).
+      const preset = this.resolveProviderPreset(providerId, presetProviderId, false)
+      const presetConfigs = preset
+        ? (buildPersistedEndpointConfigs(preset.endpointConfigs) as Partial<
+            Record<EndpointType, EndpointConfig>
+          > | null)
+        : null
+
+      if (!presetConfigs) {
+        if (!rowConfigs) return null
+        return Object.fromEntries(
+          Object.entries(rowConfigs).map(([key, config]) => {
+            const ep = key as EndpointType
+            return [ep, { ...config, adapterFamily: config?.adapterFamily ?? inferAdapterFamily(ep) }]
+          })
+        )
+      }
+
+      const keys = new Set([...Object.keys(presetConfigs), ...Object.keys(rowConfigs ?? {})]) as Set<EndpointType>
+      const merged: Partial<Record<EndpointType, EndpointConfig>> = {}
+      for (const ep of keys) {
+        const presetConfig = presetConfigs[ep]
+        const rowConfig = rowConfigs?.[ep]
+        if (!presetConfig && !rowConfig) continue
+        const config: EndpointConfig = {
+          adapterFamily: presetConfig?.adapterFamily ?? rowConfig?.adapterFamily ?? inferAdapterFamily(ep)
+        }
+        const baseUrl = rowConfig?.baseUrl ?? presetConfig?.baseUrl
+        if (baseUrl !== undefined) config.baseUrl = baseUrl
+        const modelsApiUrls = presetConfig?.modelsApiUrls ?? rowConfig?.modelsApiUrls
+        if (modelsApiUrls !== undefined) config.modelsApiUrls = modelsApiUrls
+        merged[ep] = config
+      }
+      return Object.keys(merged).length > 0 ? merged : null
+    } catch (error) {
+      logger.warn('Failed to merge registry endpoint configs', { providerId, presetProviderId, error })
+      return rowConfigs ?? null
+    }
+  }
+
+  /**
    * Return only the requested provider-level preset fields. The effective
    * registry preset is selected once; models retain the runtime provider ID.
    */
