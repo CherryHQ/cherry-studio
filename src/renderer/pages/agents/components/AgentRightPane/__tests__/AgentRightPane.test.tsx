@@ -313,6 +313,13 @@ vi.mock('@renderer/hooks/agent/useAgentSessionContextUsage', () => ({
   useAgentSessionContextUsage: () => ({ percentage: null, usage: null })
 }))
 
+// A live turn: run-task rows render the status their events report. Staleness is covered where the
+// rule lives, in the projection tests.
+vi.mock('@renderer/hooks/agent/useAgentSessionStreamStatuses', () => ({
+  useAgentSessionStreamStatuses: (sessionIds: readonly string[]) =>
+    new Map(sessionIds.map((sessionId) => [sessionId, { isPending: true, status: 'streaming' }]))
+}))
+
 vi.mock('@renderer/hooks/command', () => ({
   useCommandHandler: useCommandHandlerMock
 }))

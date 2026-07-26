@@ -78,6 +78,17 @@ export interface AgentArtifactFile {
   description?: string
 }
 
+/**
+ * Ground truth for "is this run task actually still running". A row's own events cannot answer it:
+ * an interrupted turn, a crash or an app restart leaves the last event at `in_progress` forever.
+ */
+export interface AgentRunLiveness {
+  /** A turn is streaming, so foreground subagents it spawned are genuinely running. */
+  turnActive: boolean
+  /** Task ids in the SDK's live background set — background work outlives the turn. */
+  liveTaskIds: ReadonlySet<string>
+}
+
 export interface AgentRightPaneStatus {
   tasks: AgentStatusTask[]
   completedTaskCount: number
@@ -437,7 +448,9 @@ export function buildAgentRightPaneStatus(
    * Lifecycle that arrived after the spawning turn closed, so it never became a message part.
    * Applied last, by task id, so a background task's completion settles the row the parts built.
    */
-  lateTaskEvents: AgentSessionTaskEvents = {}
+  lateTaskEvents: AgentSessionTaskEvents = {},
+  /** Omitted means "trust the events" — production always passes it. */
+  liveness?: AgentRunLiveness
 ): AgentRightPaneStatus {
   const taskMap = new Map<string, AgentStatusTask>()
   const runTaskMap = new Map<string, AgentRunTask>()
@@ -475,6 +488,17 @@ export function buildAgentRightPaneStatus(
 
   for (const data of Object.values(lateTaskEvents)) {
     applyAgentTaskEvent(runTaskMap, data)
+  }
+
+  // A run only settles if its completion event arrives; an interrupted turn, a crashed CLI or an
+  // app restart means it never will. Nothing outside the turn and outside the live background set
+  // is running, whatever its last event said — otherwise the row spins for the rest of the session.
+  if (liveness) {
+    for (const [id, task] of runTaskMap) {
+      if (RUN_TASK_TERMINAL_STATUSES.has(task.status)) continue
+      if (liveness.turnActive || liveness.liveTaskIds.has(id)) continue
+      runTaskMap.set(id, { ...task, status: 'pending', activeText: undefined })
+    }
   }
 
   // The SDK's task tools share one id space with spawned runs, so `TaskList` output can echo a

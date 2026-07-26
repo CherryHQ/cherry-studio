@@ -363,4 +363,36 @@ describe('agent right pane projections', () => {
       })
     ])
   })
+
+  // An interrupted turn kills its subagents without a completion event, so the persisted parts end
+  // at in_progress forever. Liveness — not the events — decides whether a row still spins.
+  it('stops a run task the session is no longer running', () => {
+    const parts = [
+      {
+        type: 'data-agent-task-event',
+        data: { event: 'started', taskId: 'agent-1', status: 'in_progress', title: 'Review', taskType: 'local_agent' }
+      },
+      {
+        type: 'data-agent-task-event',
+        data: { event: 'progress', taskId: 'agent-1', status: 'in_progress', description: 'Reading files' }
+      }
+    ] as unknown as CherryMessagePart[]
+    const messages = [message('m1', parts)]
+
+    const live = buildAgentRightPaneStatus(messages, { m1: parts }, {}, { turnActive: true, liveTaskIds: new Set() })
+    expect(live.runTasks).toEqual([expect.objectContaining({ id: 'agent-1', status: 'in_progress' })])
+
+    const backgrounded = buildAgentRightPaneStatus(
+      messages,
+      { m1: parts },
+      {},
+      { turnActive: false, liveTaskIds: new Set(['agent-1']) }
+    )
+    expect(backgrounded.runTasks).toEqual([expect.objectContaining({ id: 'agent-1', status: 'in_progress' })])
+
+    const stale = buildAgentRightPaneStatus(messages, { m1: parts }, {}, { turnActive: false, liveTaskIds: new Set() })
+    expect(stale.runTasks).toEqual([
+      expect.objectContaining({ id: 'agent-1', status: 'pending', activeText: undefined })
+    ])
+  })
 })
