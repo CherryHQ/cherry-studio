@@ -347,6 +347,32 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     expect(afterKeyRemoval?.credentialsFingerprint).not.toBe(first?.credentialsFingerprint)
   })
 
+  it('passes app attribution and provider extra headers to direct SDK requests with provider overrides', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'provider-1',
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } },
+      settings: {
+        extraHeaders: {
+          'http-referer': 'https://custom.example.com',
+          'x-title': 'Custom App',
+          'X-Provider': 'provider-value',
+          'x-shared': 'provider-value'
+        }
+      }
+    })
+    mocks.buildSessionSettings.mockResolvedValueOnce({
+      env: {
+        ANTHROPIC_CUSTOM_HEADERS: 'X-Agent: agent-value\nX-Shared: agent-value'
+      }
+    })
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe(
+      'http-referer: https://custom.example.com\nX-Agent: agent-value\nX-Provider: provider-value\nx-shared: provider-value\nx-title: Custom App'
+    )
+  })
+
   it('uses the provider Anthropic endpoint directly when all selected models belong to that provider', async () => {
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
 
@@ -362,6 +388,9 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-sonnet',
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-sonnet'
     })
+    expect(request?.settings.env?.ANTHROPIC_CUSTOM_HEADERS).toBe(
+      'HTTP-Referer: https://cherry-ai.com\nX-Title: Cherry Studio'
+    )
     expect(mocks.apiGatewayStart).not.toHaveBeenCalled()
   })
 
@@ -456,7 +485,8 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
     mocks.getProviderByProviderId.mockImplementation((providerId: string) => ({
       id: providerId,
-      endpointConfigs: { 'openai-chat-completions': { baseUrl: `https://${providerId}.example.com` } }
+      endpointConfigs: { 'openai-chat-completions': { baseUrl: `https://${providerId}.example.com` } },
+      settings: { extraHeaders: { 'X-Upstream-Secret': `${providerId}-secret` } }
     }))
     mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
       id: modelId,
@@ -480,6 +510,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ANTHROPIC_DEFAULT_SONNET_MODEL: 'openai:gpt-plan-api',
       ANTHROPIC_DEFAULT_HAIKU_MODEL: 'other:small-api'
     })
+    expect(request?.settings.env).not.toHaveProperty('ANTHROPIC_CUSTOM_HEADERS')
   })
 
   it('pins cross-provider plan/small models onto the primary for an external-cli (claude-code) agent instead of routing through the gateway', async () => {
@@ -494,7 +525,8 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
         ? {
             id: 'claude-code',
             authMethods: ['external-cli'],
-            endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } }
+            endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://api.anthropic.com' } },
+            settings: { extraHeaders: { 'X-Upstream-Secret': 'subscription-secret' } }
           }
         : {
             id: providerId,
@@ -522,6 +554,7 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
     expect(request?.settings.env).not.toHaveProperty('ANTHROPIC_API_KEY')
     expect(request?.settings.env).not.toHaveProperty('ANTHROPIC_BASE_URL')
+    expect(request?.settings.env).not.toHaveProperty('ANTHROPIC_CUSTOM_HEADERS')
   })
 
   it('routes Gemini provider models through the local API gateway', async () => {
@@ -633,6 +666,24 @@ describe('deriveConnectionConfig', () => {
     const second = await deriveSignature()
 
     expect(second.rebuildSignature).toBe(first.rebuildSignature)
+  })
+
+  it('changes the rebuild signature when direct-provider extra headers change', async () => {
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'provider-1',
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } },
+      settings: { extraHeaders: { 'X-Tenant': 'tenant-a' } }
+    })
+    const first = await deriveSignature()
+
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'provider-1',
+      endpointConfigs: { 'anthropic-messages': { baseUrl: 'https://anthropic.example.com' } },
+      settings: { extraHeaders: { 'X-Tenant': 'tenant-b' } }
+    })
+    const changed = await deriveSignature()
+
+    expect(changed.rebuildSignature).not.toBe(first.rebuildSignature)
   })
 
   it('changes the rebuild signature for each rebuild-group input', async () => {

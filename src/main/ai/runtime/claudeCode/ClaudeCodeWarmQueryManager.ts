@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+
 import type { Options, WarmQuery } from '@anthropic-ai/claude-agent-sdk'
 import { startup } from '@anthropic-ai/claude-agent-sdk'
 import { application } from '@application'
@@ -23,10 +25,11 @@ export interface WarmQueryRequest {
   options: Options
   initializeTimeoutMs?: number
   /**
-   * Rotation-insensitive identity of the credentials the options were built with (e.g. a hash of the
-   * provider's enabled key SET). The raw rotated key is stripped from the signature — `getRotatedApiKey`
-   * advances per build, so prewarm/consume would otherwise never match on multi-key providers — while
-   * this fingerprint keeps the signature sensitive to the key set actually changing.
+   * Rotation-insensitive identity of the auth/header material the options were built with (e.g. a
+   * hash of the provider's enabled key SET and custom headers). The raw rotated key is stripped from
+   * the signature — `getRotatedApiKey` advances per build, so prewarm/consume would otherwise never
+   * match on multi-key providers — while this fingerprint keeps the signature sensitive to the
+   * underlying connection material actually changing.
    */
   credentialsFingerprint?: string
   /** Agent knowledge bindings baked into cherry-tools at startup. */
@@ -84,17 +87,29 @@ function sanitizeMcpServersForSignature(mcpServers: Options['mcpServers']): unkn
   return sanitized
 }
 
-const CREDENTIAL_ENV_KEYS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN'] as const
+const ROTATING_CREDENTIAL_ENV_KEYS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN'] as const
+const HASHED_CREDENTIAL_ENV_KEYS = ['ANTHROPIC_CUSTOM_HEADERS'] as const
 
 /**
- * Drop the injected credential env vars from the signature source WITHOUT mutating the caller's
- * options — `stripWarmQueryOptions` shallow-copies, so `env` is shared with the live spawn options.
+ * Remove rotating API keys and hash custom headers in the signature source WITHOUT mutating the
+ * caller's options. Header changes must invalidate a parked query, but their potentially-secret raw
+ * values must not be retained in the in-memory signature.
  */
-function stripCredentialEnvForSignature(options: Options): Options {
+function sanitizeSensitiveEnvForSignature(options: Options): Options {
   const env = options.env
-  if (!env || !CREDENTIAL_ENV_KEYS.some((key) => key in env)) return options
+  const hasSensitiveEnv =
+    env &&
+    (ROTATING_CREDENTIAL_ENV_KEYS.some((key) => key in env) || HASHED_CREDENTIAL_ENV_KEYS.some((key) => key in env))
+  if (!env || !hasSensitiveEnv) return options
+
   const cleanedEnv = { ...env }
-  for (const key of CREDENTIAL_ENV_KEYS) delete cleanedEnv[key]
+  for (const key of ROTATING_CREDENTIAL_ENV_KEYS) delete cleanedEnv[key]
+  for (const key of HASHED_CREDENTIAL_ENV_KEYS) {
+    const value = cleanedEnv[key]
+    if (value !== undefined) {
+      cleanedEnv[key] = createHash('sha256').update(value).digest('hex')
+    }
+  }
   return { ...options, env: cleanedEnv }
 }
 
@@ -103,7 +118,7 @@ export function createClaudeCodeWarmQuerySignature(
   credentialsFingerprint?: string,
   knowledgeBaseIds: readonly string[] = []
 ): string {
-  const stripped = stripCredentialEnvForSignature(stripWarmQueryOptions(options))
+  const stripped = sanitizeSensitiveEnvForSignature(stripWarmQueryOptions(options))
   const signatureSource = stripped.mcpServers
     ? { ...stripped, mcpServers: sanitizeMcpServersForSignature(stripped.mcpServers) }
     : stripped

@@ -138,6 +138,20 @@ describe('ClaudeCodeWarmQueryManager', () => {
     expect(keyA).toBe(keyB)
   })
 
+  it('hashes custom headers in the signature without retaining their raw values', () => {
+    const tenantA = createClaudeCodeWarmQuerySignature({
+      model: 'sonnet',
+      env: { ANTHROPIC_CUSTOM_HEADERS: 'X-Tenant-Token: tenant-secret-a' }
+    } as any)
+    const tenantB = createClaudeCodeWarmQuerySignature({
+      model: 'sonnet',
+      env: { ANTHROPIC_CUSTOM_HEADERS: 'X-Tenant-Token: tenant-secret-b' }
+    } as any)
+
+    expect(tenantA).not.toBe(tenantB)
+    expect(tenantA).not.toContain('tenant-secret-a')
+  })
+
   // The driver has no trace branch around `consume`: a traced turn simply asks with the OTEL env
   // merged in, and this divergence is what keeps it off a query parked without tracing. Telemetry
   // env is fixed at spawn, so reusing such a park would silently produce an untraced turn.
