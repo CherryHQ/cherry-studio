@@ -132,13 +132,26 @@ describe('temporaryChatHandlers', () => {
   })
 
   describe('POST /temporary/topics/:id/persist', () => {
-    it('forwards id and returns PersistTemporaryChatResponse', async () => {
+    it('validates and forwards id plus aggregate target', async () => {
       persistMock.mockReturnValue({ topicId: 'tid-123', messageCount: 4 })
+      const body = { aggregate: { key: 'selection-action:refine', name: 'Refine' } }
       const result = await temporaryChatHandlers['/temporary/topics/:id/persist'].POST(
-        reqEnvelope({ params: { id: 'tid-123' } })
+        reqEnvelope({ params: { id: 'tid-123' }, body })
       )
-      expect(persistMock).toHaveBeenCalledWith('tid-123')
+      expect(persistMock).toHaveBeenCalledWith('tid-123', body)
       expect(result).toEqual({ topicId: 'tid-123', messageCount: 4 })
+    })
+
+    it('rejects an empty aggregate key at the handler boundary', async () => {
+      await expect(
+        temporaryChatHandlers['/temporary/topics/:id/persist'].POST(
+          reqEnvelope({
+            params: { id: 'tid-123' },
+            body: { aggregate: { key: ' ', name: 'Refine' } }
+          })
+        )
+      ).rejects.toThrow()
+      expect(persistMock).not.toHaveBeenCalled()
     })
   })
 })

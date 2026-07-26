@@ -12,7 +12,8 @@
  */
 
 import type { Message } from '@shared/data/types/message'
-import type { Topic } from '@shared/data/types/topic'
+import { type Topic, TopicNameSchema } from '@shared/data/types/topic'
+import * as z from 'zod'
 
 import type { CreateMessageDto } from './messages'
 import type { CreateTopicDto } from './topics'
@@ -25,11 +26,23 @@ import type { CreateTopicDto } from './topics'
  * Response for POST /temporary/topics/:id/persist
  */
 export interface PersistTemporaryChatResponse {
-  /** The persistent topic id (identical to the temporary id — no remapping) */
+  /** The persistent topic id (may differ when messages append to an aggregate target). */
   topicId: string
   /** Number of messages written to the persistent DB */
   messageCount: number
 }
+
+export const PersistTemporaryChatSchema = z.strictObject({
+  aggregate: z
+    .strictObject({
+      /** Stable caller-owned grouping key, scoped by the temporary topic's assistant. */
+      key: z.string().trim().min(1).max(512),
+      /** Initial topic name. Existing aggregate topic names are preserved. */
+      name: TopicNameSchema
+    })
+    .optional()
+})
+export type PersistTemporaryChatDto = z.infer<typeof PersistTemporaryChatSchema>
 
 // ============================================================================
 // API Schema Definitions
@@ -106,12 +119,14 @@ export type TemporaryChatSchemas = {
 
   /**
    * Persist endpoint — promote a temporary topic to a persistent topic.
-   * The topic id does not change; the in-memory copy is discarded on success.
+   * Without an aggregate target the topic id does not change. With one, the
+   * messages append to the stable assistant-scoped aggregate topic instead.
    * @example POST /temporary/topics/abc123/persist
    */
   '/temporary/topics/:id/persist': {
     POST: {
       params: { id: string }
+      body: PersistTemporaryChatDto
       response: PersistTemporaryChatResponse
     }
   }

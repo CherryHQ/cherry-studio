@@ -23,6 +23,7 @@
 
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
+import type { PersistTemporaryChatDto, PersistTemporaryChatResponse } from '@shared/data/api/schemas/temporaryChats'
 import { clampSurrogateBoundary } from '@shared/utils/text'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -56,7 +57,12 @@ export interface UseTemporaryTopicResult {
   /** Drop the current topic and lease a fresh one. No-op when disabled. */
   reset: () => void
   /** Move the temporary topic (plus its messages) into SQLite. */
-  persist: (initialName?: string) => Promise<void>
+  persist: (options?: PersistTemporaryTopicOptions) => Promise<PersistTemporaryChatResponse | null>
+}
+
+export interface PersistTemporaryTopicOptions extends PersistTemporaryChatDto {
+  /** Optional placeholder name patch for normal same-id promotion. */
+  initialName?: string
 }
 
 export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTemporaryTopicResult {
@@ -121,18 +127,19 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
     setEpoch((n) => n + 1)
   }, [])
 
-  const persist = useCallback(async (initialName?: string) => {
+  const persist = useCallback(async (options: PersistTemporaryTopicOptions = {}) => {
     const id = activeIdRef.current
-    if (!id) return
-    await dataApiService.post(`/temporary/topics/${id}/persist`, { body: {} })
+    if (!id) return null
+    const { initialName, ...body } = options
+    const result = await dataApiService.post(`/temporary/topics/${id}/persist`, { body })
     // Clear before unmount so cleanup skips the now-pointless DELETE.
     activeIdRef.current = null
-    logger.debug('Persisted temporary topic', { topicId: id })
+    logger.debug('Persisted temporary topic', { temporaryTopicId: id, persistentTopicId: result.topicId })
 
     const trimmed = initialName?.trim()
-    if (trimmed) {
+    if (trimmed && result.topicId === id) {
       try {
-        await dataApiService.patch(`/topics/${id}`, {
+        await dataApiService.patch(`/topics/${result.topicId}`, {
           body: {
             name: trimmed.slice(0, clampSurrogateBoundary(trimmed, TEMPORARY_TOPIC_NAME_MAX_LENGTH)),
             isNameManuallyEdited: false
@@ -142,6 +149,7 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
         logger.warn('Failed to seed placeholder topic name', err as Error)
       }
     }
+    return result
   }, [])
 
   return { topicId, ready: topicId !== null, reset, persist }

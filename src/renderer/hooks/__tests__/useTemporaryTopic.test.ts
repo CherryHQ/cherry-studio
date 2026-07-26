@@ -11,7 +11,9 @@ describe('useTemporaryTopic', () => {
     vi.clearAllMocks()
     vi.mocked(dataApiService.post).mockImplementation(async (path) => {
       if (path === '/temporary/topics') return { id: 'temp-topic-1' } as never
-      if (path === '/temporary/topics/temp-topic-1/persist') return undefined as never
+      if (path === '/temporary/topics/temp-topic-1/persist') {
+        return { topicId: 'temp-topic-1', messageCount: 2 } as never
+      }
       throw new Error(`Unexpected POST ${path}`)
     })
   })
@@ -36,7 +38,7 @@ describe('useTemporaryTopic', () => {
     await waitFor(() => expect(result.current.ready).toBe(true))
 
     await act(async () => {
-      await result.current.persist(' Temporary title ')
+      await result.current.persist({ initialName: ' Temporary title ' })
     })
 
     expect(dataApiService.patch).toHaveBeenCalledWith('/topics/temp-topic-1', {
@@ -53,7 +55,7 @@ describe('useTemporaryTopic', () => {
     await waitFor(() => expect(result.current.ready).toBe(true))
 
     await act(async () => {
-      await result.current.persist('字'.repeat(29) + '😀' + '文'.repeat(10))
+      await result.current.persist({ initialName: '字'.repeat(29) + '😀' + '文'.repeat(10) })
     })
 
     expect(dataApiService.patch).toHaveBeenCalledWith('/topics/temp-topic-1', {
@@ -62,5 +64,34 @@ describe('useTemporaryTopic', () => {
         isNameManuallyEdited: false
       }
     })
+  })
+
+  it('forwards an aggregate target and skips same-id placeholder patching', async () => {
+    vi.mocked(dataApiService.post).mockImplementation(async (path) => {
+      if (path === '/temporary/topics') return { id: 'temp-topic-1' } as never
+      if (path === '/temporary/topics/temp-topic-1/persist') {
+        return { topicId: 'aggregate-topic-1', messageCount: 2 } as never
+      }
+      throw new Error(`Unexpected POST ${path}`)
+    })
+    const { result } = renderHook(() => useTemporaryTopic({ enabled: true, assistantId: 'assistant-1' }))
+
+    await waitFor(() => expect(result.current.ready).toBe(true))
+
+    let persisted: Awaited<ReturnType<typeof result.current.persist>>
+    await act(async () => {
+      persisted = await result.current.persist({
+        initialName: 'Ignored placeholder',
+        aggregate: { key: 'selection-action:refine', name: 'Refine' }
+      })
+    })
+
+    expect(dataApiService.post).toHaveBeenCalledWith('/temporary/topics/temp-topic-1/persist', {
+      body: {
+        aggregate: { key: 'selection-action:refine', name: 'Refine' }
+      }
+    })
+    expect(dataApiService.patch).not.toHaveBeenCalled()
+    expect(persisted!).toEqual({ topicId: 'aggregate-topic-1', messageCount: 2 })
   })
 })

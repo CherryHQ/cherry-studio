@@ -1,6 +1,9 @@
+import { application } from '@application'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
+import { assistantDataService } from '@data/services/AssistantService'
 import { TemporaryChatService } from '@data/services/TemporaryChatService'
+import { topicService } from '@data/services/TopicService'
 import type { MessageData } from '@shared/data/types/message'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
@@ -200,7 +203,8 @@ describe('TemporaryChatService', () => {
       expect(byId.get(m3.id)?.parentId).toBe(m2.id)
       expect(rows.every((r) => r.siblingsGroupId === 0)).toBe(true)
       expect(notifyDataApiDataChange).toHaveBeenCalledWith([
-        { endpoint: '/topics', kind: 'membership', entityIds: [topic.id] }
+        { endpoint: '/topics', kind: 'membership', entityIds: [topic.id] },
+        { endpoint: '/topics/:id', entityIds: [topic.id] }
       ])
     })
 
@@ -228,17 +232,115 @@ describe('TemporaryChatService', () => {
       expect(dbTopic?.orderKey?.length).toBeGreaterThan(0)
     })
 
-    it('does not publish topic membership when the transaction fails', () => {
+    it('does not publish topic changes when the transaction fails', () => {
       const topic = service.createTopic({ name: 'retryable' })
-      const transaction = vi.spyOn(dbh.db, 'transaction').mockImplementationOnce(() => {
+      const dbService = application.get('DbService')
+      vi.mocked(dbService.withWriteTx).mockImplementationOnce(() => {
         throw new Error('transaction failed')
       })
 
       expect(() => service.persist(topic.id)).toThrow('transaction failed')
       expect(notifyDataApiDataChange).not.toHaveBeenCalled()
       expect(service.hasTopic(topic.id)).toBe(true)
+    })
 
-      transaction.mockRestore()
+    it('appends repeated assistant/action runs to one stable topic without reusing generation context', async () => {
+      const assistant = assistantDataService.create({ name: 'Refine Assistant', modelId: null })
+      const first = service.createTopic({ name: 'first selected text', assistantId: assistant.id })
+      const firstUser = service.appendMessage(first.id, { role: 'user', data: mainText('first prompt') })
+      const firstAssistant = service.appendMessage(first.id, { role: 'assistant', data: mainText('first answer') })
+
+      const firstResult = service.persist(first.id, {
+        aggregate: { key: 'selection-action:refine', name: 'Refine' }
+      })
+
+      expect(firstResult.topicId).not.toBe(first.id)
+      expect(notifyDataApiDataChange).toHaveBeenLastCalledWith([
+        { endpoint: '/topics', kind: 'membership', entityIds: [firstResult.topicId] },
+        { endpoint: '/topics/:id', entityIds: [firstResult.topicId] }
+      ])
+
+      notifyDataApiDataChange.mockClear()
+      const second = service.createTopic({ name: 'second selected text', assistantId: assistant.id })
+      const secondUser = service.appendMessage(second.id, { role: 'user', data: mainText('second prompt') })
+      const secondAssistant = service.appendMessage(second.id, {
+        role: 'assistant',
+        data: mainText('second answer')
+      })
+      // A fresh in-memory topic proves the second generation did not load or
+      // append to the first run before persistence.
+      expect(service.listMessages(second.id).map((message) => message.id)).toEqual([secondUser.id, secondAssistant.id])
+
+      const secondResult = service.persist(second.id, {
+        aggregate: { key: 'selection-action:refine', name: 'Renamed value must not replace topic name' }
+      })
+
+      expect(secondResult.topicId).toBe(firstResult.topicId)
+      const topics = await dbh.db.select().from(topicTable).where(eq(topicTable.assistantId, assistant.id))
+      expect(topics).toHaveLength(1)
+      expect(topics[0].name).toBe('Refine')
+      expect(topics[0].activeNodeId).toBe(secondAssistant.id)
+
+      const messages = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, firstResult.topicId))
+      const byId = new Map(messages.map((message) => [message.id, message]))
+      const root = messages.find((message) => message.parentId === null)
+      expect(byId.get(firstUser.id)?.parentId).toBe(root?.id)
+      expect(byId.get(firstAssistant.id)?.parentId).toBe(firstUser.id)
+      expect(byId.get(secondUser.id)?.parentId).toBe(firstAssistant.id)
+      expect(byId.get(secondAssistant.id)?.parentId).toBe(secondUser.id)
+      expect(notifyDataApiDataChange).toHaveBeenCalledWith([
+        { endpoint: '/topics', kind: 'projection', entityIds: [firstResult.topicId] },
+        { endpoint: '/topics/:id', entityIds: [firstResult.topicId] }
+      ])
+    })
+
+    it('separates aggregate topics by action key and assistant', () => {
+      const assistantA = assistantDataService.create({ name: 'Assistant A', modelId: null })
+      const assistantB = assistantDataService.create({ name: 'Assistant B', modelId: null })
+
+      const persistRun = (assistantId: string, key: string) => {
+        const topic = service.createTopic({ assistantId })
+        service.appendMessage(topic.id, { role: 'user', data: mainText(`${assistantId}:${key}`) })
+        return service.persist(topic.id, { aggregate: { key, name: key } }).topicId
+      }
+
+      const refineA = persistRun(assistantA.id, 'selection-action:refine')
+      const summaryA = persistRun(assistantA.id, 'selection-action:summary')
+      const refineB = persistRun(assistantB.id, 'selection-action:refine')
+
+      expect(new Set([refineA, summaryA, refineB]).size).toBe(3)
+    })
+
+    it('recreates the same aggregate topic id after the user deletes it', async () => {
+      const assistant = assistantDataService.create({ name: 'Assistant', modelId: null })
+      const first = service.createTopic({ assistantId: assistant.id })
+      service.appendMessage(first.id, { role: 'user', data: mainText('first') })
+      const firstResult = service.persist(first.id, {
+        aggregate: { key: 'selection-action:refine', name: 'Refine' }
+      })
+
+      topicService.delete(firstResult.topicId)
+
+      const second = service.createTopic({ assistantId: assistant.id })
+      service.appendMessage(second.id, { role: 'user', data: mainText('second') })
+      const secondResult = service.persist(second.id, {
+        aggregate: { key: 'selection-action:refine', name: 'Refine' }
+      })
+
+      expect(secondResult.topicId).toBe(firstResult.topicId)
+      const rows = await dbh.db.select().from(topicTable).where(eq(topicTable.id, firstResult.topicId))
+      expect(rows).toHaveLength(1)
+    })
+
+    it('rejects aggregate persistence for a temporary topic without an assistant', () => {
+      const topic = service.createTopic({ name: 'default-model topic' })
+
+      expect(() =>
+        service.persist(topic.id, {
+          aggregate: { key: 'selection-action:refine', name: 'Refine' }
+        })
+      ).toThrow(/requires an assistant/i)
+      expect(service.hasTopic(topic.id)).toBe(true)
     })
 
     // NOTE: The original "rollback on tx failure" test dropped the message

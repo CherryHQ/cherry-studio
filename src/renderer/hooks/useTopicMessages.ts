@@ -13,8 +13,9 @@
  * lookup that can lag behind `useChat.state.messages` during streaming.
  */
 
-import { useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
+import { useDataChange, useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
+import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import type {
   BranchMessage,
   BranchMessagesResponse,
@@ -253,6 +254,16 @@ export function useTopicMessages(
       .flatMap((p) => p.items)
     return projectBranchMessagesToUI(allItems, projectionCacheRef.current)
   }, [mutate, enabled])
+
+  const handleTopicDataChange = useCallback(
+    (effects: DataApiDataChangeEffect[]) => {
+      if (effects.some((effect) => !effect.entityIds || effect.entityIds.includes(topicId))) {
+        void refresh()
+      }
+    },
+    [refresh, topicId]
+  )
+  useDataChange('/topics/:id', handleTopicDataChange)
 
   const isStale = enabled && (readyTopicId !== topicId || !pagesBelongToTopic)
 

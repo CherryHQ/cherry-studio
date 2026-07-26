@@ -19,11 +19,12 @@ import { topicTable } from '@data/db/schemas/topic'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
+import type { PersistTemporaryChatDto } from '@shared/data/api/schemas/temporaryChats'
 import type { CreateTopicDto } from '@shared/data/api/schemas/topics'
 import type { Message, MessageRole, MessageStatus } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 import { eq, isNull } from 'drizzle-orm'
-import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
+import { v4 as uuidv4, v5 as uuidv5, v7 as uuidv7 } from 'uuid'
 
 import { messageService } from './MessageService'
 import { insertWithOrderKey } from './utils/orderKey'
@@ -32,6 +33,7 @@ const logger = loggerService.withContext('DataApi:TemporaryChatService')
 
 const VALID_ROLES: readonly MessageRole[] = ['user', 'assistant', 'system']
 const ACCEPTED_STATUSES: readonly MessageStatus[] = ['success', 'error', 'paused']
+const AGGREGATE_TOPIC_NAMESPACE = 'cherry-studio:temporary-chat-aggregate:v1'
 
 /**
  * Internal row types — timestamps stored as millisecond numbers to match the
@@ -160,52 +162,77 @@ export class TemporaryChatService {
     return structuredClone(rows).map(rowToMessage)
   }
 
-  persist(topicId: string): { topicId: string; messageCount: number } {
+  persist(topicId: string, dto: PersistTemporaryChatDto = {}): { topicId: string; messageCount: number } {
     // 1. snapshot-and-clear: take the data out of the Maps immediately so that
-    // concurrent handlers can't mutate it while the DB transaction is awaiting.
+    // concurrent handlers can't mutate it while the DB transaction runs.
     const topic = this.topics.get(topicId)
     if (!topic) {
       throw DataApiErrorFactory.notFound('TemporaryTopic', topicId)
     }
+
+    if (dto.aggregate && !topic.assistantId) {
+      throw DataApiErrorFactory.invalidOperation(
+        'persist temporary chat',
+        'Aggregate persistence requires an assistant-bound temporary topic'
+      )
+    }
+
+    const persistentTopicId = dto.aggregate
+      ? uuidv5(JSON.stringify([AGGREGATE_TOPIC_NAMESPACE, topic.assistantId, dto.aggregate.key]), uuidv5.URL)
+      : topic.id
     const msgs = this.messages.get(topicId) ?? []
     this.topics.delete(topicId)
     this.messages.delete(topicId)
 
+    let createdPersistentTopic = false
     try {
-      const db = application.get('DbService').getDb()
-      db.transaction((tx) => {
-        // 2. Insert topic with the same id. Timestamps / defaults are filled by
-        // Drizzle's $defaultFn; we do not pass createdAt / updatedAt manually
-        // because the TS-side ISO strings don't match the DB's integer column.
-        //
-        // `orderKey` is computed via `insertWithOrderKey` so the new persisted
-        // topic lands at the tail of the global live-topic order. The
-        // `?? undefined` pattern used for optional fields converts `null` to
-        // `undefined` so Drizzle omits the column entirely.
-        const assistantId = topic.assistantId ?? undefined
-        insertWithOrderKey(
-          tx,
-          topicTable,
-          {
-            id: topic.id,
-            name: topic.name ?? undefined,
-            assistantId
-          },
-          {
-            pkColumn: topicTable.id,
-            scope: isNull(topicTable.deletedAt)
-          }
-        )
+      application.get('DbService').withWriteTx((tx) => {
+        const [existingTopic] = tx.select().from(topicTable).where(eq(topicTable.id, persistentTopicId)).limit(1).all()
 
-        // 3. Create the topic's virtual root, then linearize buffered messages under it:
-        // the first message hangs off the root, then parentId[i] = msgs[i-1].id.
-        const rootId = messageService.createRootMessageTx(tx, topic.id)
-        let prevId: string = rootId
+        let prevId: string
+        if (existingTopic) {
+          if (!dto.aggregate) {
+            throw DataApiErrorFactory.invalidOperation(
+              'persist temporary chat',
+              `Persistent topic ${persistentTopicId} already exists`
+            )
+          }
+          if (existingTopic.assistantId !== topic.assistantId) {
+            throw DataApiErrorFactory.invalidOperation(
+              'persist temporary chat',
+              'Aggregate topic belongs to a different assistant'
+            )
+          }
+          prevId = existingTopic.activeNodeId ?? messageService.getRootMessageIdTx(tx, persistentTopicId)
+        } else {
+          // 2. Insert the topic. Timestamps / defaults are filled by Drizzle's
+          // $defaultFn; the in-memory ISO timestamps do not cross the boundary.
+          // `orderKey` places a newly-created aggregate at the tail of live topics.
+          insertWithOrderKey(
+            tx,
+            topicTable,
+            {
+              id: persistentTopicId,
+              name: dto.aggregate?.name ?? topic.name ?? undefined,
+              assistantId: topic.assistantId ?? undefined
+            },
+            {
+              pkColumn: topicTable.id,
+              scope: isNull(topicTable.deletedAt)
+            }
+          )
+          prevId = messageService.createRootMessageTx(tx, persistentTopicId)
+          createdPersistentTopic = true
+        }
+
+        // 3. Linearize buffered messages after the aggregate topic's current
+        // active node. Generation happened in the isolated temporary topic;
+        // this chain is only the durable history projection.
         for (const m of msgs) {
           tx.insert(messageTable)
             .values({
               id: m.id,
-              topicId: topic.id,
+              topicId: persistentTopicId,
               parentId: prevId,
               role: m.role,
               data: m.data,
@@ -219,9 +246,10 @@ export class TemporaryChatService {
           prevId = m.id
         }
 
-        // 4. Set activeNodeId to the last real message (still the root → no messages, leave null).
-        if (prevId !== rootId) {
-          tx.update(topicTable).set({ activeNodeId: prevId }).where(eq(topicTable.id, topic.id)).run()
+        // 4. Set activeNodeId to the last real message. Empty sessions leave an
+        // existing active node unchanged and a new topic's active node null.
+        if (msgs.length > 0) {
+          tx.update(topicTable).set({ activeNodeId: prevId }).where(eq(topicTable.id, persistentTopicId)).run()
         }
       })
     } catch (err) {
@@ -231,9 +259,21 @@ export class TemporaryChatService {
       throw err
     }
 
-    notifyDataApiDataChange([{ endpoint: '/topics', kind: 'membership', entityIds: [topicId] }])
-    logger.info('Persisted temporary topic', { topicId, messageCount: msgs.length })
-    return { topicId, messageCount: msgs.length }
+    notifyDataApiDataChange([
+      {
+        endpoint: '/topics',
+        kind: createdPersistentTopic ? 'membership' : 'projection',
+        entityIds: [persistentTopicId]
+      },
+      { endpoint: '/topics/:id', entityIds: [persistentTopicId] }
+    ])
+    logger.info('Persisted temporary topic', {
+      temporaryTopicId: topicId,
+      persistentTopicId,
+      aggregateKey: dto.aggregate?.key,
+      messageCount: msgs.length
+    })
+    return { topicId: persistentTopicId, messageCount: msgs.length }
   }
 
   private assertAcceptableAppendDto(dto: CreateMessageDto): void {

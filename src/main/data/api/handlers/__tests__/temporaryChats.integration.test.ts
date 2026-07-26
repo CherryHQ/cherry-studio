@@ -93,7 +93,7 @@ describe('Temporary Chat end-to-end (handler → persist → persistent readback
 
     // 4. Persist. The returned topicId must equal the temporary id unchanged.
     const persistResult = unwrap<PersistTemporaryChatResponse>(
-      await temporaryChatHandlers['/temporary/topics/:id/persist'].POST(req({ params: { id: topic.id } }))
+      await temporaryChatHandlers['/temporary/topics/:id/persist'].POST(req({ params: { id: topic.id }, body: {} }))
     )
     expect(persistResult).toEqual({ topicId: topic.id, messageCount: 4 })
 
@@ -137,5 +137,70 @@ describe('Temporary Chat end-to-end (handler → persist → persistent readback
     expect(ftsIds.has(m3.id)).toBe(true)
     expect(ftsIds.has(m4.id)).toBe(true)
     expect(ftsIds.has(m1.id)).toBe(false)
+  })
+
+  it('aggregates two isolated selection runs into one searchable assistant topic', async () => {
+    const assistant = assistantDataService.create({ name: 'Refine Assistant', modelId: null })
+
+    const persistRun = async (selectedText: string, answer: string) => {
+      const temporaryTopic = unwrap<Topic>(
+        await temporaryChatHandlers['/temporary/topics'].POST(
+          req({ body: { name: selectedText, assistantId: assistant.id } })
+        )
+      )
+      const userMessage = unwrap<Message>(
+        await temporaryChatHandlers['/temporary/topics/:topicId/messages'].POST(
+          req({
+            params: { topicId: temporaryTopic.id },
+            body: { role: 'user', data: mainText(`Refine this: ${selectedText}`) }
+          })
+        )
+      )
+      const assistantMessage = unwrap<Message>(
+        await temporaryChatHandlers['/temporary/topics/:topicId/messages'].POST(
+          req({
+            params: { topicId: temporaryTopic.id },
+            body: { role: 'assistant', data: mainText(answer) }
+          })
+        )
+      )
+      const persisted = unwrap<PersistTemporaryChatResponse>(
+        await temporaryChatHandlers['/temporary/topics/:id/persist'].POST(
+          req({
+            params: { id: temporaryTopic.id },
+            body: {
+              aggregate: { key: 'selection-action:refine', name: 'Refine' }
+            }
+          })
+        )
+      )
+      return { temporaryTopic, userMessage, assistantMessage, persisted }
+    }
+
+    const first = await persistRun('first rough sentence', 'first polished sentence')
+    const second = await persistRun('second rough sentence', 'second polished sentence')
+
+    expect(second.temporaryTopic.id).not.toBe(first.temporaryTopic.id)
+    expect(second.persisted.topicId).toBe(first.persisted.topicId)
+
+    const topics = await dbh.db.select().from(topicTable).where(eq(topicTable.assistantId, assistant.id))
+    expect(topics).toHaveLength(1)
+    expect(topics[0].name).toBe('Refine')
+    expect(topics[0].activeNodeId).toBe(second.assistantMessage.id)
+
+    const tree = messageService.getTree(first.persisted.topicId, { depth: -1 })
+    expect(tree.nodes.map((node) => node.id)).toEqual([
+      first.userMessage.id,
+      first.assistantMessage.id,
+      second.userMessage.id,
+      second.assistantMessage.id
+    ])
+
+    const ftsMatches = dbh.sqlite
+      .prepare(`SELECT m.id FROM message m JOIN message_fts fts ON m.fts_rowid = fts.rowid WHERE message_fts MATCH ?`)
+      .all('second') as Array<{ id: string }>
+    expect(new Set(ftsMatches.map((row) => String(row.id)))).toEqual(
+      new Set([second.userMessage.id, second.assistantMessage.id])
+    )
   })
 })
