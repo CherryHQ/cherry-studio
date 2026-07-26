@@ -176,6 +176,8 @@ type AgentSessionRuntimeEntry = {
   retrying?: boolean
   /** Throttle stamp for {@link AgentSessionRuntimeService.refreshContextUsageOnDemand}. */
   lastContextUsageRefreshAt?: number
+  /** Single-flight marker for context-usage reads on the current connection. */
+  contextUsageRefresh?: { connection: AgentRuntimeConnection }
 }
 
 class AgentSessionRuntimeTerminalListener implements StreamListener {
@@ -910,7 +912,10 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     entry.connection = connection
-    this.refreshContextUsage(entry, connection)
+    // Priming opens an idle connection only to populate connection-local metadata such as slash
+    // commands. Context usage is expensive (the SDK issues multiple token-count probes), so defer it
+    // until a real turn, a runtime event, or an explicit UI refresh needs a reading.
+    if (entry.status === 'active') this.refreshContextUsage(entry, connection)
     this.refreshSupportedCommands(entry, connection)
     entry.connectionLoop = this.runConnectionLoop(entry, connection).finally(() => {
       if (entry.connection === connection) {
@@ -941,7 +946,7 @@ export class AgentSessionRuntimeService extends BaseService {
     switch (event.type) {
       case 'resume-token':
         entry.lastResumeToken = event.token
-        this.refreshContextUsage(entry)
+        if (entry.status === 'active') this.refreshContextUsage(entry)
         break
       case 'chunk': {
         // Any content chunk means the retried request succeeded and the stream resumed — clear the
@@ -1098,15 +1103,22 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private refreshContextUsage(entry: AgentSessionRuntimeEntry, connection = entry.connection): void {
     if (!connection?.getContextUsage) return
+    if (entry.contextUsageRefresh?.connection === connection) return
 
+    const refresh = { connection }
+    entry.contextUsageRefresh = refresh
     void (async () => {
       const usage = await connection.getContextUsage?.()
       if (!usage) return
       if (!this.isCurrentEntry(entry) || entry.connection !== connection) return
       this.persistContextUsage(entry, usage)
-    })().catch((error) => {
-      logger.warn('Failed to refresh agent session context usage', { sessionId: entry.sessionId, error })
-    })
+    })()
+      .catch((error) => {
+        logger.warn('Failed to refresh agent session context usage', { sessionId: entry.sessionId, error })
+      })
+      .finally(() => {
+        if (entry.contextUsageRefresh === refresh) entry.contextUsageRefresh = undefined
+      })
   }
 
   private persistContextUsage(entry: AgentSessionRuntimeEntry, usage: AgentSessionContextUsage): void {

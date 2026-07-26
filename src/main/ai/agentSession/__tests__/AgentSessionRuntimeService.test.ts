@@ -1758,16 +1758,38 @@ describe('AgentSessionRuntimeService', () => {
       service.refreshContextUsageOnDemand('session-1')
       expect(getContextUsage).toHaveBeenCalledTimes(1)
     })
+
+    it('coalesces concurrent refreshes on the same connection', async () => {
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn(baseTurnInput)
+      const entry = getEntry(service)
+      const usage = usageAt(8)
+      const deferred = createDeferred<typeof usage>()
+      const getContextUsage = vi.fn().mockReturnValue(deferred.promise)
+      entry.connection = { getContextUsage } as any
+
+      ;(service as any).refreshContextUsage(entry)
+      ;(service as any).refreshContextUsage(entry)
+
+      expect(getContextUsage).toHaveBeenCalledTimes(1)
+      deferred.resolve(usage)
+      await vi.waitFor(() =>
+        expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
+      )
+    })
   })
 
   describe('primeConnection — eager command load on session open', () => {
     it('opens the connection without a turn and caches the slash-command catalog', async () => {
       const commands = [{ name: 'clear', description: 'Clear conversation' }]
+      const events = createAsyncQueue<any>()
+      const getContextUsage = vi.fn()
       const connection = {
-        events: createAsyncQueue<any>().iterable,
+        events: events.iterable,
         send: vi.fn(),
         close: vi.fn(),
         reconcile: vi.fn().mockResolvedValue('current'),
+        getContextUsage,
         getSupportedCommands: vi.fn().mockResolvedValue(commands)
       }
       const connect = vi.fn().mockResolvedValue(connection)
@@ -1796,6 +1818,10 @@ describe('AgentSessionRuntimeService', () => {
       // No turn was admitted — the entry sits idle and the stream manager was never asked to start one.
       expect(service.inspect('session-1')?.status).toBe('idle')
       expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
+
+      events.push({ type: 'resume-token', token: 'resume-1' })
+      await vi.waitFor(() => expect(service.inspect('session-1')).toMatchObject({ resumeToken: 'resume-1' }))
+      expect(getContextUsage).not.toHaveBeenCalled()
     })
 
     it('is a no-op for a session whose agent was deleted', async () => {

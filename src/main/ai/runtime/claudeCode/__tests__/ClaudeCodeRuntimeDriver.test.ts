@@ -879,9 +879,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     await expect(events.next()).resolves.toMatchObject({
       value: { type: 'turn-complete' }
     })
-    await expect(events.next()).resolves.toMatchObject({
-      value: { type: 'context-usage', usage: contextUsage }
-    })
+    expect(query.getContextUsage).not.toHaveBeenCalled()
     void connection.close()
   })
 
@@ -890,8 +888,8 @@ describe('ClaudeCodeRuntimeDriver', () => {
   // the drop is silent-but-safe: the connection stays usable and later messages still flow.
   it('drops task_notification arriving after the result without breaking the connection', async () => {
     const queryQueue = createAsyncQueue<any>()
-    // No `getContextUsage`, so the post-result context-usage probe emits nothing and the event
-    // sequence below stays deterministic.
+    // Context usage refresh is owned by AgentSessionRuntimeService, so the driver emits no
+    // post-result probe and the event sequence below stays deterministic.
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
     mocks.createClaudeQuery.mockReturnValue(query)
     const connection = await new ClaudeCodeRuntimeDriver().connect({
