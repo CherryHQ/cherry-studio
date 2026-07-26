@@ -20,6 +20,9 @@ describe('SettingGroup', () => {
     render(<SettingGroup data-testid="setting-group">Content</SettingGroup>)
 
     expect(screen.getByTestId('setting-group')).toHaveClass('rounded-xl', 'border', 'border-border', 'bg-card', 'p-4')
+    expect(screen.getByTestId('setting-group')).toHaveStyle({
+      backgroundColor: 'var(--settings-group-background, var(--card))'
+    })
   })
 
   it('keeps the legacy divider layout for plain groups', () => {
@@ -31,5 +34,6 @@ describe('SettingGroup', () => {
 
     expect(screen.getByTestId('setting-group')).toHaveClass('border-t', 'pt-3')
     expect(screen.getByTestId('setting-group')).not.toHaveClass('rounded-xl', 'bg-card', 'p-4')
+    expect(screen.getByTestId('setting-group').style.backgroundColor).toBe('')
   })
 })

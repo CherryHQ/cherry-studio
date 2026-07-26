@@ -32,7 +32,7 @@ import {
   TextCursorInput,
   ToolCase
 } from 'lucide-react'
-import type { FC } from 'react'
+import type { CSSProperties, FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const SettingsPage: FC = () => {
@@ -47,6 +47,7 @@ const SettingsPage: FC = () => {
 
   return (
     <div
+      style={isMacTransparentWindow ? ({ '--settings-group-background': 'transparent' } as CSSProperties) : undefined}
       className={cn(
         'flex min-h-0 flex-1 flex-col',
         isMacTransparentWindow ? 'bg-transparent' : 'bg-white dark:bg-background'

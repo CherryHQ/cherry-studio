@@ -107,12 +107,17 @@ export const SettingTitleExternalLink = ({
 
 export const SettingGroup = ({
   className,
+  style,
   theme,
   variant = 'card',
   ...props
 }: React.ComponentPropsWithoutRef<'div'> & { theme?: ThemeMode; variant?: 'card' | 'plain' }) => (
   <div
     data-theme-mode={theme}
+    style={{
+      backgroundColor: variant === 'card' ? 'var(--settings-group-background, var(--card))' : undefined,
+      ...style
+    }}
     className={cn(
       variant === 'card'
         ? 'mt-4 rounded-xl border border-border bg-card p-4 first:mt-0'
