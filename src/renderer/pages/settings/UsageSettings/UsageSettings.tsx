@@ -29,6 +29,7 @@ import { getModelLogoRef } from '@renderer/utils/model'
 import { formatCompactNumber } from '@renderer/utils/number'
 import { cn } from '@renderer/utils/style'
 import type {
+  UsageLedgerGroupIdentity,
   UsageLedgerListSortBy,
   UsageLedgerSortOrder,
   UsageLedgerStatsBucket,
@@ -57,8 +58,13 @@ const ENTRY_PAGE_SIZE = 25
 const WINDOW_KEYS = ['30d', '90d', '365d', 'all'] as const
 const GROUP_BY_KEYS = ['provider', 'model', 'apiKey', 'source'] as const
 const METRIC_KEYS = ['tokens', 'requests', 'cost'] as const
-const CHART_TYPE_KEYS = ['stack', 'bar', 'line', 'pie'] as const
-const DISTRIBUTION_SEGMENT_LIMIT = 8
+const CHART_TYPE_KEYS = ['stack', 'pie', 'bar', 'line'] as const
+const ROLLUP_KEYS = ['total', 'daily', 'weekly', 'monthly'] as const
+const TOP_COUNT_KEYS = [5, 10, 20] as const
+// A rollup over the whole window has no time axis, and a rollup over periods
+// has nothing to put in a pie, so each side offers its own shapes.
+const TOTAL_CHART_TYPES = ['stack', 'pie'] as const
+const PERIOD_CHART_TYPES = ['bar', 'line'] as const
 const CHART_COLORS = [
   'var(--color-lime-500)',
   'var(--color-fuchsia-500)',
@@ -75,6 +81,7 @@ type WindowKey = (typeof WINDOW_KEYS)[number]
 type GroupByKey = (typeof GROUP_BY_KEYS)[number]
 type UsageMetricKey = (typeof METRIC_KEYS)[number]
 type UsageChartType = (typeof CHART_TYPE_KEYS)[number]
+type UsageRollupKey = (typeof ROLLUP_KEYS)[number]
 type UsageApiKeyDisplay = Pick<
   UsageLedgerStatsBucket,
   'apiKeyId' | 'apiKeyLabel' | 'apiKeyMasked' | 'apiKeyAttribution'
@@ -108,6 +115,13 @@ const CHART_TYPE_LABEL_KEYS: Record<UsageChartType, string> = {
   bar: 'settings.usage.chart.bar',
   line: 'settings.usage.chart.line',
   pie: 'settings.usage.chart.pie'
+}
+
+const ROLLUP_LABEL_KEYS: Record<UsageRollupKey, string> = {
+  total: 'settings.usage.rollup.total',
+  daily: 'settings.usage.rollup.daily',
+  weekly: 'settings.usage.rollup.weekly',
+  monthly: 'settings.usage.rollup.monthly'
 }
 
 const MODALITY_LABEL_KEYS: Record<UsageLedgerModality, string> = {
@@ -492,7 +506,7 @@ function getCacheUsageMetrics(
 }
 
 /** Display identity of a bucket — unique per rendered row once the currency splits are merged. */
-function getBucketKey(bucket: UsageLedgerStatsBucket): string {
+function getBucketKey(bucket: UsageLedgerGroupIdentity): string {
   return `${bucket.providerId ?? ''}-${bucket.sourceType ?? ''}-${bucket.sourceId ?? ''}-${bucket.apiKeyId ?? ''}-${bucket.modelId ?? ''}`
 }
 
@@ -557,21 +571,31 @@ function toQueryRange(range: TimeRange): TimeRange {
   }
 }
 
-/** Daily values in calendar order; days without usage are filled with 0 when the range is bounded. */
+/**
+ * Daily values in calendar order, with days that carry no usage filled in as 0 —
+ * a time axis that skipped them would put two months apart side by side. An
+ * unbounded range spans the buckets it was given, which the service returns in
+ * ascending date order.
+ */
 export function getTimelinePoints(
   buckets: UsageLedgerTimelineBucket[],
   range: TimeRange,
   getValue: (bucket: UsageLedgerTimelineBucket) => number
 ): Array<{ date: string; value: number }> {
-  if (range.from === undefined || range.to === undefined) {
-    return buckets.map((bucket) => ({ date: bucket.date, value: getValue(bucket) }))
+  const first = buckets[0]
+  const last = buckets[buckets.length - 1]
+  const from = range.from ?? (first ? startOfLocalDay(parseDateKey(first.date)).getTime() : undefined)
+  const to = range.to ?? (last ? endOfLocalDay(parseDateKey(last.date)).getTime() : undefined)
+
+  if (from === undefined || to === undefined) {
+    return []
   }
 
   const byDate = new Map(buckets.map((bucket) => [bucket.date, getValue(bucket)]))
   const points: Array<{ date: string; value: number }> = []
   // Step by calendar day: DST transitions make adjacent local midnights 23h or 25h apart.
-  const cursor = startOfLocalDay(new Date(range.from))
-  const end = endOfLocalDay(new Date(range.to))
+  const cursor = startOfLocalDay(new Date(from))
+  const end = endOfLocalDay(new Date(to))
 
   while (cursor.getTime() <= end.getTime()) {
     const date = toDateKey(cursor)
@@ -580,6 +604,93 @@ export function getTimelinePoints(
   }
 
   return points
+}
+
+/**
+ * Date key of the period a day rolls up into, so every period stays addressable
+ * as a real date: the day itself, the Monday of its week, or the 1st of its month.
+ */
+export function toPeriodKey(dateKey: string, rollup: UsageRollupKey): string {
+  if (rollup === 'monthly') {
+    return `${dateKey.slice(0, 7)}-01`
+  }
+
+  if (rollup === 'weekly') {
+    const date = startOfLocalDay(parseDateKey(dateKey))
+    // ISO weeks start on Monday; getDay() counts from Sunday.
+    date.setDate(date.getDate() - ((date.getDay() + 6) % 7))
+    return toDateKey(date)
+  }
+
+  return dateKey
+}
+
+interface UsageChartSeries {
+  key: string
+  /** Absent on the trailing "other" series, which stands for several groups. */
+  identity?: UsageLedgerGroupIdentity
+  /** One value per entry of `periodKeys`, in the same order. */
+  values: number[]
+  total: number
+}
+
+/**
+ * One series per group, biggest first, with everything past `topCount` folded
+ * into a trailing group-less series. Buckets outside `periodKeys` are dropped,
+ * and cost stays scoped to `currency` exactly like {@link mergeStatsBuckets}.
+ */
+export function buildChartSeries(
+  buckets: UsageLedgerTimelineBucket[],
+  periodKeys: string[],
+  options: { rollup: UsageRollupKey; metric: UsageMetricKey; currency?: string; topCount: number }
+): UsageChartSeries[] {
+  const positions = new Map(periodKeys.map((key, index) => [key, index]))
+  const groups = new Map<string, UsageChartSeries>()
+
+  for (const bucket of buckets) {
+    const position = positions.get(toPeriodKey(bucket.date, options.rollup))
+    if (position === undefined) {
+      continue
+    }
+
+    const value = getMetricValue(
+      {
+        totalTokens: bucket.totalTokens,
+        totalCost: getScopedCost(bucket, options.currency),
+        entryCount: bucket.entryCount
+      },
+      options.metric
+    )
+    if (value <= 0) {
+      continue
+    }
+
+    const key = getBucketKey(bucket)
+    let series = groups.get(key)
+    if (!series) {
+      // Copy the identity: the bucket belongs to the query cache.
+      series = { key, identity: { ...bucket }, values: periodKeys.map(() => 0), total: 0 }
+      groups.set(key, series)
+    }
+
+    series.values[position] += value
+    series.total += value
+  }
+
+  const ranked = Array.from(groups.values()).sort((a, b) => b.total - a.total)
+  if (ranked.length <= options.topCount) {
+    return ranked
+  }
+
+  const other: UsageChartSeries = { key: 'other', values: periodKeys.map(() => 0), total: 0 }
+  for (const series of ranked.slice(options.topCount)) {
+    for (const [index, value] of series.values.entries()) {
+      other.values[index] += value
+    }
+    other.total += series.total
+  }
+
+  return [...ranked.slice(0, options.topCount), other]
 }
 
 function getTimelineSeries(
@@ -758,6 +869,15 @@ function UsageSection({
   )
 }
 
+function UsageControlRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <div className="mb-1 text-foreground-muted text-xs">{label}</div>
+      <div className="-mx-1 max-w-full overflow-x-auto px-1">{children}</div>
+    </div>
+  )
+}
+
 function UsageSectionHeader({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-w-0 @[640px]/usage:flex-row flex-col @[640px]/usage:items-start @[640px]/usage:justify-between gap-3">
@@ -771,7 +891,9 @@ function UsageSettings() {
   const [windowKey, setWindowKey] = useState<WindowKey>('all')
   const [groupBy, setGroupBy] = useState<GroupByKey>('provider')
   const [chartMetric, setChartMetric] = useState<UsageMetricKey>('tokens')
-  const [chartType, setChartType] = useState<UsageChartType>('stack')
+  const [selectedChartType, setSelectedChartType] = useState<UsageChartType>('bar')
+  const [rollup, setRollup] = useState<UsageRollupKey>('daily')
+  const [topCount, setTopCount] = useState<number>(10)
   const [selectedDate, setSelectedDate] = useState<string | undefined>()
   const [selectedCurrency, setSelectedCurrency] = useState<string | undefined>()
   const [heatmapMetric, setHeatmapMetric] = useState<UsageHeatmapMetric>('tokens')
@@ -792,7 +914,9 @@ function UsageSettings() {
     }),
     [previousWindowRange]
   )
-  const exploreStatsQuery = useMemo(
+  // The stats and timeline endpoints take the same dimension and range; the
+  // timeline splits it by period on top.
+  const exploreQuery = useMemo(
     () => ({
       groupBy,
       ...toQueryRange(activeRange)
@@ -817,7 +941,11 @@ function UsageSettings() {
     query: previousOverviewStatsQuery,
     enabled: previousWindowRange !== undefined
   })
-  const exploreStatsResult = useQuery('/usage-ledger/stats', { query: exploreStatsQuery })
+  const exploreStatsResult = useQuery('/usage-ledger/stats', { query: exploreQuery })
+  const exploreTimelineResult = useQuery('/usage-ledger/timeline', {
+    query: exploreQuery,
+    enabled: rollup !== 'total'
+  })
   const {
     items: entries,
     total: entryTotal,
@@ -840,6 +968,9 @@ function UsageSettings() {
     ? (previousOverviewStatsResult.data?.buckets ?? EMPTY_STATS_BUCKETS)
     : EMPTY_STATS_BUCKETS
   const exploreRows = exploreStatsResult.data?.buckets ?? EMPTY_STATS_BUCKETS
+  // Only read while enabled: a disabled query keeps serving its last data.
+  const exploreTimelineRows =
+    rollup === 'total' ? EMPTY_TIMELINE_BUCKETS : (exploreTimelineResult.data?.buckets ?? EMPTY_TIMELINE_BUCKETS)
 
   const costTotals = useMemo(() => getCostTotals(overviewRows), [overviewRows])
   const previousCostTotals = useMemo(() => getCostTotals(previousOverviewRows), [previousOverviewRows])
@@ -914,6 +1045,10 @@ function UsageSettings() {
     () => new Intl.DateTimeFormat(i18n.language, { year: 'numeric', month: 'short', day: 'numeric' }),
     [i18n.language]
   )
+  const monthFormatter = useMemo(
+    () => new Intl.DateTimeFormat(i18n.language, { year: 'numeric', month: 'short' }),
+    [i18n.language]
+  )
   const percentFormatter = useMemo(
     () =>
       new Intl.NumberFormat(i18n.language, {
@@ -983,22 +1118,36 @@ function UsageSettings() {
     () => costTotals.map((item) => ({ value: item.currency, label: item.currency })),
     [costTotals]
   )
-  const chartTypeOptions = useMemo(
+  const rollupOptions = useMemo(
     () =>
-      CHART_TYPE_KEYS.map((value) => ({
+      ROLLUP_KEYS.map((value) => ({
         value,
-        label: t(CHART_TYPE_LABEL_KEYS[value])
+        label: t(ROLLUP_LABEL_KEYS[value])
       })),
     [t]
   )
+  const topCountOptions = useMemo(
+    () => TOP_COUNT_KEYS.map((value) => ({ value: String(value), label: String(value) })),
+    []
+  )
+  // A chart type the current rollup cannot draw falls back during render instead
+  // of being reset by an effect, so switching rollup back restores the choice.
+  const availableChartTypes: readonly UsageChartType[] = rollup === 'total' ? TOTAL_CHART_TYPES : PERIOD_CHART_TYPES
+  const chartType = availableChartTypes.includes(selectedChartType) ? selectedChartType : availableChartTypes[0]
+  const chartTypeOptions = useMemo(
+    () =>
+      availableChartTypes.map((value) => ({
+        value,
+        label: t(CHART_TYPE_LABEL_KEYS[value])
+      })),
+    [availableChartTypes, t]
+  )
 
   const selectedDateLabel = selectedDate ? dateFormatter.format(parseDateKey(selectedDate)) : undefined
-  // Bar and line read as a trend, so they plot the daily timeline instead of the
-  // group distribution — which leaves the group dimension without a meaning there.
-  const isTimeChart = chartType === 'bar' || chartType === 'line'
   const analysisSummary = [
-    ...(isTimeChart ? [] : [t(GROUP_BY_LABEL_KEYS[groupBy])]),
+    t(GROUP_BY_LABEL_KEYS[groupBy]),
     t(METRIC_LABEL_KEYS[chartMetric]),
+    t(ROLLUP_LABEL_KEYS[rollup]),
     t(CHART_TYPE_LABEL_KEYS[chartType])
   ].join(' / ')
   const hasUsage = totalEntries > 0 || timelineBuckets.some((bucket) => bucket.entryCount > 0)
@@ -1009,17 +1158,37 @@ function UsageSettings() {
   const totalExploreEntries = exploreBuckets.reduce((sum, bucket) => sum + bucket.entryCount, 0)
   const totalExploreCost = exploreBuckets.reduce((sum, bucket) => sum + bucket.totalCost, 0)
   const totalExploreMetric = exploreBuckets.reduce((sum, bucket) => sum + getMetricValue(bucket, chartMetric), 0)
-  const exploreTimelinePoints = useMemo(
-    () => getTimelinePoints(timelineBuckets, activeRange, (bucket) => getMetricValue(bucket, chartMetric)),
-    [activeRange, chartMetric, timelineBuckets]
+  // The period axis comes from the ungrouped daily timeline, so periods without
+  // usage keep their slot instead of collapsing the chart.
+  const periodKeys = useMemo(() => {
+    const keys: string[] = []
+
+    for (const point of getTimelinePoints(timelineBuckets, activeRange, () => 0)) {
+      const key = toPeriodKey(point.date, rollup)
+      if (keys[keys.length - 1] !== key) {
+        keys.push(key)
+      }
+    }
+
+    return keys
+  }, [activeRange, rollup, timelineBuckets])
+  const chartSeries = useMemo(
+    () =>
+      buildChartSeries(exploreTimelineRows, periodKeys, {
+        rollup,
+        metric: chartMetric,
+        currency: costCurrency,
+        topCount
+      }),
+    [chartMetric, costCurrency, exploreTimelineRows, periodKeys, rollup, topCount]
   )
   const exploreTopBuckets = useMemo(
     () =>
       [...exploreBuckets]
         .filter((bucket) => getMetricValue(bucket, chartMetric) > 0)
         .sort((a, b) => getMetricValue(b, chartMetric) - getMetricValue(a, chartMetric))
-        .slice(0, DISTRIBUTION_SEGMENT_LIMIT),
-    [chartMetric, exploreBuckets]
+        .slice(0, topCount),
+    [chartMetric, exploreBuckets, topCount]
   )
   const displayedExploreTokens = exploreTopBuckets.reduce((sum, bucket) => sum + bucket.totalTokens, 0)
   const displayedExploreEntries = exploreTopBuckets.reduce((sum, bucket) => sum + bucket.entryCount, 0)
@@ -1052,14 +1221,14 @@ function UsageSettings() {
 
     return apiKey.apiKeyLabel || apiKey.apiKeyMasked || apiKey.apiKeyId
   }
-  const getSourceLabel = (bucket: UsageLedgerStatsBucket): string => {
+  const getSourceLabel = (bucket: UsageLedgerGroupIdentity): string => {
     if (!bucket.sourceType || !bucket.sourceId) {
       return t('settings.usage.cards.unattributedSource')
     }
 
     return bucket.sourceName || bucket.sourceId
   }
-  const getBucketLabel = (bucket: UsageLedgerStatsBucket): string => {
+  const getBucketLabel = (bucket: UsageLedgerGroupIdentity): string => {
     if (groupBy === 'provider') {
       return getProviderName(bucket.providerId ?? '', bucket.providerName)
     }
@@ -1112,7 +1281,7 @@ function UsageSettings() {
     )
   }
 
-  const renderBucketLabel = (bucket: UsageLedgerStatsBucket) => {
+  const renderBucketLabel = (bucket: UsageLedgerGroupIdentity) => {
     const label = getBucketLabel(bucket)
 
     if (groupBy === 'model') {
@@ -1158,77 +1327,114 @@ function UsageSettings() {
       description={t('settings.usage.explore.noBreakdownDescription')}
     />
   )
-  const renderTimelineChart = () => {
-    const points = exploreTimelinePoints
-    const maxValue = Math.max(...points.map((point) => point.value), 0)
-
-    if (points.length === 0 || maxValue <= 0) {
+  const renderPeriodChart = () => {
+    if (periodKeys.length === 0 || chartSeries.every((series) => series.total <= 0)) {
       return renderEmptyDistribution()
     }
 
-    const formatPoint = (point: (typeof points)[number]) =>
-      `${dateFormatter.format(parseDateKey(point.date))}: ${formatChartValue(point.value)}`
+    const periodTotals = periodKeys.map((_, index) =>
+      chartSeries.reduce((sum, series) => sum + series.values[index], 0)
+    )
+    const maxPeriodTotal = Math.max(...periodTotals)
+    const maxSeriesValue = Math.max(...chartSeries.flatMap((series) => series.values))
+    const seriesColor = (index: number) => CHART_COLORS[index % CHART_COLORS.length]
+    const seriesLabel = (series: (typeof chartSeries)[number]) =>
+      series.identity ? getBucketLabel(series.identity) : t('common.other')
+    const formatPeriod = (periodKey: string) => {
+      if (rollup === 'monthly') {
+        return monthFormatter.format(parseDateKey(periodKey))
+      }
+
+      if (rollup === 'weekly') {
+        const end = parseDateKey(periodKey)
+        end.setDate(end.getDate() + 6)
+        return `${dateFormatter.format(parseDateKey(periodKey))} – ${dateFormatter.format(end)}`
+      }
+
+      return dateFormatter.format(parseDateKey(periodKey))
+    }
     const axis = (
       <div className="mt-2 flex min-w-0 justify-between gap-3 text-foreground-muted text-xs">
-        <span className="truncate">{dateFormatter.format(parseDateKey(points[0].date))}</span>
-        <span className="truncate">{dateFormatter.format(parseDateKey(points[points.length - 1].date))}</span>
+        <span className="truncate">{formatPeriod(periodKeys[0])}</span>
+        <span className="truncate">{formatPeriod(periodKeys[periodKeys.length - 1])}</span>
+      </div>
+    )
+    const legend = (
+      <div className="mt-3 grid min-w-0 @[760px]/usage:grid-cols-4 grid-cols-2 gap-2">
+        {chartSeries.map((series, index) => (
+          <div key={series.key} className="flex min-w-0 items-center gap-2 text-xs">
+            <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: seriesColor(index) }} />
+            <span className="min-w-0 truncate text-foreground-muted">
+              {series.identity ? renderBucketLabel(series.identity) : t('common.other')}
+            </span>
+            <span className="ml-auto shrink-0 font-medium text-foreground">{formatChartValue(series.total)}</span>
+          </div>
+        ))}
       </div>
     )
 
     if (chartType === 'line') {
       const width = 720
       const height = 220
-      const toX = (index: number) => (points.length > 1 ? (index / (points.length - 1)) * width : width / 2)
-      const toY = (value: number) => height - (value / maxValue) * (height - 24) - 12
+      const toX = (index: number) => (periodKeys.length > 1 ? (index / (periodKeys.length - 1)) * width : width / 2)
+      const toY = (value: number) => height - (value / maxSeriesValue) * (height - 24) - 12
 
       return (
         <div className="min-w-0 p-3">
-          <svg
-            viewBox={`0 0 ${width} ${height}`}
-            preserveAspectRatio="none"
-            className="h-64 w-full text-primary"
-            role="img">
+          <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" className="h-64 w-full" role="img">
             <title>{t('settings.usage.chart.line')}</title>
-            <polyline
-              points={points.map((point, index) => `${toX(index)},${toY(point.value)}`).join(' ')}
-              fill="none"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="3"
-            />
-            {/* Markers only while they stay distinguishable; a 365-day window would read as a band. */}
-            {points.length <= 64 &&
-              points.map((point, index) => (
-                <circle key={point.date} cx={toX(index)} cy={toY(point.value)} r="4" fill="currentColor">
-                  <title>{formatPoint(point)}</title>
-                </circle>
-              ))}
+            {chartSeries.map((series, index) => (
+              <polyline
+                key={series.key}
+                points={series.values.map((value, position) => `${toX(position)},${toY(value)}`).join(' ')}
+                fill="none"
+                stroke={seriesColor(index)}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+              />
+            ))}
           </svg>
           {axis}
+          {legend}
         </div>
       )
     }
 
     return (
       <div className="min-w-0 p-3">
-        {/* A year of daily bars leaves under 2px each, so the 1px gap only stays while it fits. */}
-        <div className={cn('flex h-64 min-w-0 items-end border-border border-b', points.length <= 120 && 'gap-px')}>
-          {points.map((point) => (
+        {/* A year of daily columns leaves under 2px each, so the 1px gap only stays while it fits. */}
+        <div className={cn('flex h-64 min-w-0 items-end border-border border-b', periodKeys.length <= 120 && 'gap-px')}>
+          {periodKeys.map((periodKey, index) => (
             <div
-              key={point.date}
-              title={formatPoint(point)}
-              className="min-w-0 flex-1 rounded-t-sm bg-primary"
-              style={{ height: `${(point.value / maxValue) * 100}%` }}
-            />
+              key={periodKey}
+              title={`${formatPeriod(periodKey)}: ${formatChartValue(periodTotals[index])}`}
+              // Reversed so the biggest series sits at the bottom of the stack.
+              className="flex h-full min-w-0 flex-1 flex-col-reverse">
+              {chartSeries.map((series, seriesIndex) =>
+                series.values[index] > 0 ? (
+                  <div
+                    key={series.key}
+                    title={`${seriesLabel(series)}: ${formatChartValue(series.values[index])}`}
+                    style={{
+                      height: `${(series.values[index] / maxPeriodTotal) * 100}%`,
+                      backgroundColor: seriesColor(seriesIndex)
+                    }}
+                  />
+                ) : null
+              )}
+            </div>
           ))}
         </div>
         {axis}
+        {legend}
       </div>
     )
   }
   const renderDistributionChart = () => {
-    if (isTimeChart ? timelineQueryResult.isLoading : exploreStatsResult.isLoading) {
+    const isPeriodChart = rollup !== 'total'
+
+    if (isPeriodChart ? exploreTimelineResult.isLoading : exploreStatsResult.isLoading) {
       return (
         <div className="flex flex-col gap-2 p-3">
           {Array.from({ length: 6 }, (_, index) => (
@@ -1238,8 +1444,8 @@ function UsageSettings() {
       )
     }
 
-    if (isTimeChart) {
-      return renderTimelineChart()
+    if (isPeriodChart) {
+      return renderPeriodChart()
     }
 
     const entries = [
@@ -1591,43 +1797,46 @@ function UsageSettings() {
                     </PopoverTrigger>
                     <PopoverContent align="end" className="w-[calc(100vw-2rem)] max-w-lg p-3">
                       <div className="flex min-w-0 flex-col gap-3">
-                        {!isTimeChart && (
-                          <div className="min-w-0">
-                            <div className="mb-1 text-foreground-muted text-xs">
-                              {t('settings.usage.explore.groupBy')}
-                            </div>
-                            <div className="-mx-1 max-w-full overflow-x-auto px-1">
-                              <SegmentedControl
-                                options={groupByOptions}
-                                value={groupBy}
-                                onValueChange={setGroupBy}
-                                size="sm"
-                              />
-                            </div>
-                          </div>
-                        )}
-                        <div className="min-w-0">
-                          <div className="mb-1 text-foreground-muted text-xs">{t('settings.usage.explore.metric')}</div>
-                          <div className="-mx-1 max-w-full overflow-x-auto px-1">
-                            <SegmentedControl
-                              options={metricOptions}
-                              value={chartMetric}
-                              onValueChange={setChartMetric}
-                              size="sm"
-                            />
-                          </div>
-                        </div>
-                        <div className="min-w-0">
-                          <div className="mb-1 text-foreground-muted text-xs">{t('settings.usage.explore.chart')}</div>
-                          <div className="-mx-1 max-w-full overflow-x-auto px-1">
-                            <SegmentedControl
-                              options={chartTypeOptions}
-                              value={chartType}
-                              onValueChange={setChartType}
-                              size="sm"
-                            />
-                          </div>
-                        </div>
+                        <UsageControlRow label={t('settings.usage.explore.groupBy')}>
+                          <SegmentedControl
+                            options={groupByOptions}
+                            value={groupBy}
+                            onValueChange={setGroupBy}
+                            size="sm"
+                          />
+                        </UsageControlRow>
+                        <UsageControlRow label={t('settings.usage.explore.metric')}>
+                          <SegmentedControl
+                            options={metricOptions}
+                            value={chartMetric}
+                            onValueChange={setChartMetric}
+                            size="sm"
+                          />
+                        </UsageControlRow>
+                        <UsageControlRow label={t('settings.usage.explore.rollup')}>
+                          <SegmentedControl
+                            options={rollupOptions}
+                            value={rollup}
+                            onValueChange={setRollup}
+                            size="sm"
+                          />
+                        </UsageControlRow>
+                        <UsageControlRow label={t('settings.usage.explore.top')}>
+                          <SegmentedControl
+                            options={topCountOptions}
+                            value={String(topCount)}
+                            onValueChange={(value) => setTopCount(Number(value))}
+                            size="sm"
+                          />
+                        </UsageControlRow>
+                        <UsageControlRow label={t('settings.usage.explore.chart')}>
+                          <SegmentedControl
+                            options={chartTypeOptions}
+                            value={chartType}
+                            onValueChange={setSelectedChartType}
+                            size="sm"
+                          />
+                        </UsageControlRow>
                       </div>
                     </PopoverContent>
                   </Popover>

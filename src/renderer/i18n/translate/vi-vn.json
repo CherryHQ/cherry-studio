@@ -8352,10 +8352,12 @@
         "noEntriesDescription": "[to be translated]:Try a broader window or a different provider.",
         "provider": "[to be translated]:Provider",
         "requestsTab": "[to be translated]:Requests",
+        "rollup": "[to be translated]:Rollup",
         "selectedDate": "[to be translated]:Selected date: {{date}}",
         "share": "[to be translated]:Share {{value}}",
         "shareLabel": "[to be translated]:Share",
         "title": "[to be translated]:Explore",
+        "top": "[to be translated]:Top",
         "topApiKeys": "[to be translated]:Top API keys",
         "topModels": "[to be translated]:Top models",
         "topProviders": "[to be translated]:Top providers",
@@ -8385,6 +8387,12 @@
       },
       "overview": {
         "title": "[to be translated]:Overview"
+      },
+      "rollup": {
+        "daily": "[to be translated]:Daily",
+        "monthly": "[to be translated]:Monthly",
+        "total": "[to be translated]:Total",
+        "weekly": "[to be translated]:Weekly"
       },
       "source": {
         "agent": "[to be translated]:Agent",

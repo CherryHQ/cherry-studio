@@ -8397,10 +8397,12 @@
         "noEntriesDescription": "Try a broader window or a different provider.",
         "provider": "Provider",
         "requestsTab": "Requests",
+        "rollup": "Rollup",
         "selectedDate": "Selected date: {{date}}",
         "share": "Share {{value}}",
         "shareLabel": "Share",
         "title": "Explore",
+        "top": "Top",
         "topApiKeys": "Top API keys",
         "topModels": "Top models",
         "topProviders": "Top providers",
@@ -8430,6 +8432,12 @@
       },
       "overview": {
         "title": "Overview"
+      },
+      "rollup": {
+        "daily": "Daily",
+        "monthly": "Monthly",
+        "total": "Total",
+        "weekly": "Weekly"
       },
       "source": {
         "agent": "Agent",

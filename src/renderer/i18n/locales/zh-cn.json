@@ -8397,10 +8397,12 @@
         "noEntriesDescription": "尝试扩大时间范围或更换提供商。",
         "provider": "提供商",
         "requestsTab": "请求",
+        "rollup": "汇总",
         "selectedDate": "选定日期：{{date}}",
         "share": "占比 {{value}}",
         "shareLabel": "占比",
         "title": "探索",
+        "top": "Top",
         "topApiKeys": "API 密钥最高",
         "topModels": "模型最高",
         "topProviders": "提供商最高",
@@ -8430,6 +8432,12 @@
       },
       "overview": {
         "title": "概述"
+      },
+      "rollup": {
+        "daily": "按天",
+        "monthly": "按月",
+        "total": "总计",
+        "weekly": "按周"
       },
       "source": {
         "agent": "Agent",

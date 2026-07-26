@@ -8364,10 +8364,12 @@
         "noEntriesDescription": "請嘗試更大的時間範圍或其他提供者。",
         "provider": "提供者",
         "requestsTab": "[to be translated]:Requests",
+        "rollup": "匯總",
         "selectedDate": "已選日期：{{date}}",
         "share": "[to be translated]:Share {{value}}",
         "shareLabel": "占比",
         "title": "探索",
+        "top": "Top",
         "topApiKeys": "[to be translated]:Top API keys",
         "topModels": "[to be translated]:Top models",
         "topProviders": "[to be translated]:Top providers",
@@ -8397,6 +8399,12 @@
       },
       "overview": {
         "title": "[to be translated]:Overview"
+      },
+      "rollup": {
+        "daily": "按天",
+        "monthly": "按月",
+        "total": "總計",
+        "weekly": "按週"
       },
       "source": {
         "agent": "[to be translated]:Agent",
