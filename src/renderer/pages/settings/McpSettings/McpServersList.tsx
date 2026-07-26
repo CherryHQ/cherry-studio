@@ -7,11 +7,18 @@ import {
   PopoverContent,
   PopoverTrigger,
   Scrollbar,
+  SearchInput,
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Sortable,
+  Switch,
   useDndReorder
 } from '@cherrystudio/ui'
-import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import { SettingTitle } from '@renderer/components/SettingsPrimitives'
+import { SettingDescription, SettingDivider, SettingTitle } from '@renderer/components/SettingsPrimitives'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import EnvironmentDependencies from '@renderer/pages/settings/DependenciesSettings/EnvironmentDependencies'
 import { toast } from '@renderer/services/toast'
@@ -19,25 +26,30 @@ import { matchKeywordsInString } from '@renderer/utils/match'
 import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { useNavigate } from '@tanstack/react-router'
-import { Check, Filter, Plus } from 'lucide-react'
+import { ChevronDown, Plus } from 'lucide-react'
 import type { FC } from 'react'
-import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AddMcpServerModal from './AddMcpServerModal'
 import McpServerCard from './McpServerCard'
+import QuickCreateMcpServerDialog from './QuickCreateMcpServerDialog'
 
 type ImportMethod = 'json' | 'dxt' | 'mcpb'
-type McpServerFilter = 'all' | 'enabled' | 'disabled' | 'stdio' | 'sse' | 'streamableHttp' | 'builtin'
+type StatusFilter = 'all' | 'enabled' | 'disabled'
+type TypeFilter = 'all' | 'stdio' | 'sse' | 'streamableHttp'
 
-const FILTER_OPTIONS: { value: McpServerFilter; labelKey?: string; label?: string }[] = [
-  { value: 'all', labelKey: 'models.all' },
+const STATUS_OPTIONS: { value: StatusFilter; labelKey: string }[] = [
+  { value: 'all', labelKey: 'settings.mcp.filter.allStatuses' },
   { value: 'enabled', labelKey: 'common.enabled' },
-  { value: 'disabled', labelKey: 'common.disabled' },
-  { value: 'stdio', label: 'STDIO' },
-  { value: 'sse', label: 'SSE' },
-  { value: 'streamableHttp', labelKey: 'settings.mcp.types.streamableHttp' },
-  { value: 'builtin', labelKey: 'settings.mcp.builtinServers' }
+  { value: 'disabled', labelKey: 'common.disabled' }
+]
+
+const TYPE_OPTIONS: { value: TypeFilter; labelKey: string }[] = [
+  { value: 'all', labelKey: 'settings.mcp.filter.allTypes' },
+  { value: 'stdio', labelKey: 'settings.mcp.types.stdio' },
+  { value: 'sse', labelKey: 'settings.mcp.types.sse' },
+  { value: 'streamableHttp', labelKey: 'settings.mcp.types.streamableHttp' }
 ]
 
 const McpServersList: FC = () => {
@@ -46,35 +58,31 @@ const McpServersList: FC = () => {
   const navigate = useNavigate()
   const [isAddModalVisible, setIsAddModalVisible] = useState(false)
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false)
-  const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false)
+  const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false)
   const [modalType, setModalType] = useState<ImportMethod>('json')
-  const [filter, setFilter] = useState<McpServerFilter>('all')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
+  const [builtinOnly, setBuiltinOnly] = useState(false)
 
-  const [searchText, _setSearchText] = useState('')
-
-  const setSearchText = useCallback((text: string) => {
-    startTransition(() => {
-      _setSearchText(text)
-    })
-  }, [])
+  const [searchText, setSearchText] = useState('')
+  // Keep typing responsive: the list re-filters on the deferred value.
+  const deferredSearchText = useDeferredValue(searchText)
 
   const filteredMcpServers = useMemo(() => {
-    const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
+    const keywords = deferredSearchText.toLowerCase().split(/\s+/).filter(Boolean)
 
     return mcpServers.filter((server) => {
-      if (filter === 'enabled' && !server.isActive) return false
-      if (filter === 'disabled' && server.isActive) return false
-      if (filter === 'stdio' && server.type !== 'stdio') return false
-      if (filter === 'sse' && server.type !== 'sse') return false
-      if (filter === 'streamableHttp' && server.type !== 'streamableHttp') return false
-      if (filter === 'builtin' && server.installSource !== 'builtin') return false
+      if (statusFilter === 'enabled' && !server.isActive) return false
+      if (statusFilter === 'disabled' && server.isActive) return false
+      if (typeFilter !== 'all' && server.type !== typeFilter) return false
+      if (builtinOnly && server.installSource !== 'builtin') return false
 
       if (keywords.length === 0) return true
 
       const searchTarget = `${server.name} ${server.description} ${server.tags?.join(' ')} ${server.provider ?? ''}`
       return matchKeywordsInString(keywords, searchTarget)
     })
-  }, [filter, mcpServers, searchText])
+  }, [builtinOnly, deferredSearchText, mcpServers, statusFilter, typeFilter])
 
   const activeServerCount = useMemo(() => mcpServers.filter((server) => server.isActive).length, [mcpServers])
 
@@ -107,19 +115,14 @@ const McpServersList: FC = () => {
     return () => container?.removeEventListener('scroll', handleScroll)
   }, [])
 
-  const onAddMcpServer = useCallback(async () => {
-    const newServer = await addMcpServer({
-      name: t('settings.mcp.newServer'),
-      description: '',
-      baseUrl: '',
-      command: '',
-      args: [],
-      env: {},
-      isActive: false
-    })
-    void navigate({ to: `/settings/mcp/settings/${newServer.id}` })
-    toast.success(t('settings.mcp.addSuccess'))
-  }, [addMcpServer, navigate, t])
+  const handleQuickCreate = useCallback(
+    async (dto: CreateMcpServerDto) => {
+      const newServer = await addMcpServer(dto)
+      void navigate({ to: `/settings/mcp/settings/${newServer.id}` })
+      toast.success(t('settings.mcp.addSuccess'))
+    },
+    [addMcpServer, navigate, t]
+  )
 
   const handleAddServerSuccess = useCallback(
     async (dto: CreateMcpServerDto): Promise<McpServer> => {
@@ -133,8 +136,8 @@ const McpServersList: FC = () => {
 
   const handleManualAdd = useCallback(() => {
     setIsAddMenuOpen(false)
-    void onAddMcpServer()
-  }, [onAddMcpServer])
+    setIsQuickCreateOpen(true)
+  }, [])
 
   const handleImport = useCallback((importMethod: ImportMethod) => {
     setIsAddMenuOpen(false)
@@ -145,77 +148,78 @@ const McpServersList: FC = () => {
   return (
     <div className="flex h-[calc(100vh-var(--navbar-height))] w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden px-6 py-4 pt-3">
       <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
-        <div className="mb-3 flex w-full flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 flex-wrap items-center gap-3">
-            <div className="flex min-w-0 items-center gap-2">
-              <SettingTitle className="m-0">{t('settings.mcp.allServers')}</SettingTitle>
-              <span className="text-muted-foreground text-sm">
-                {activeServerCount}/{mcpServers.length}
-              </span>
-            </div>
-            <div className="flex shrink-0 items-center gap-1">
-              <Popover open={isFilterMenuOpen} onOpenChange={setIsFilterMenuOpen}>
-                <PopoverTrigger asChild>
-                  <button
-                    type="button"
-                    aria-label={t('settings.mcp.filter.label')}
-                    className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-accent">
-                    <Filter
-                      size={14}
-                      color={filter === 'all' ? 'var(--muted-foreground)' : undefined}
-                      className={filter === 'all' ? undefined : 'text-primary'}
-                    />
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent align="start" side="bottom" className="w-auto min-w-36 p-1">
-                  <MenuList className="gap-1">
-                    {FILTER_OPTIONS.map((option) => (
-                      <MenuItem
-                        key={option.value}
-                        label={option.label ?? t(option.labelKey!)}
-                        className="h-8 rounded-lg px-2.5 text-sm"
-                        icon={
-                          <Check className={filter === option.value ? 'size-3.5 opacity-100' : 'size-3.5 opacity-0'} />
-                        }
-                        onClick={() => {
-                          setFilter(option.value)
-                          setIsFilterMenuOpen(false)
-                        }}
-                      />
-                    ))}
-                  </MenuList>
-                </PopoverContent>
-              </Popover>
-              <CollapsibleSearchBar
-                onSearch={setSearchText}
-                placeholder={t('settings.mcp.search.placeholder')}
-                tooltip={t('settings.mcp.search.tooltip')}
-                maxWidth={200}
-                collapsedSize={28}
-                animated={false}
-                style={{ borderRadius: 14 }}
-              />
-            </div>
+        <SettingTitle>
+          <div className="flex min-w-0 items-center gap-2">
+            <span>{t('settings.mcp.allServers')}</span>
+            <span className="font-normal text-muted-foreground text-sm tabular-nums">
+              {activeServerCount}/{mcpServers.length}
+            </span>
           </div>
-          <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-            <EnvironmentDependencies mini />
-            <Popover open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
-              <PopoverTrigger asChild>
-                <Button variant="secondary" size="sm" className="rounded-lg text-xs shadow-none">
-                  <Plus size={15} />
-                  {t('common.add')}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" side="bottom" className="w-auto p-1">
-                <MenuList className="gap-1">
-                  <MenuItem label={t('settings.mcp.addServer.create')} onClick={handleManualAdd} />
-                  <MenuItem label={t('settings.mcp.addServer.importFrom.json')} onClick={() => handleImport('json')} />
-                  <MenuItem label={t('settings.mcp.addServer.importFrom.dxt')} onClick={() => handleImport('dxt')} />
-                  <MenuItem label={t('settings.mcp.addServer.importFrom.mcpb')} onClick={() => handleImport('mcpb')} />
-                </MenuList>
-              </PopoverContent>
-            </Popover>
+          <Popover open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
+            <PopoverTrigger asChild>
+              <Button type="button">
+                <Plus size={16} />
+                {t('common.add')}
+                <ChevronDown size={14} />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" side="bottom" className="w-auto p-1">
+              <MenuList className="gap-1">
+                <MenuItem label={t('settings.mcp.addServer.create')} onClick={handleManualAdd} />
+                <MenuItem label={t('settings.mcp.addServer.importFrom.json')} onClick={() => handleImport('json')} />
+                <MenuItem label={t('settings.mcp.addServer.importFrom.dxt')} onClick={() => handleImport('dxt')} />
+                <MenuItem label={t('settings.mcp.addServer.importFrom.mcpb')} onClick={() => handleImport('mcpb')} />
+              </MenuList>
+            </PopoverContent>
+          </Popover>
+        </SettingTitle>
+        <SettingDescription>{t('settings.mcp.pageDescription')}</SettingDescription>
+        <SettingDivider />
+
+        <div className="flex w-full flex-wrap items-center gap-2 py-1">
+          <div className="min-w-56 flex-1">
+            <SearchInput
+              aria-label={t('settings.mcp.search.tooltip')}
+              placeholder={t('settings.mcp.search.placeholder')}
+              value={searchText}
+              onChange={(event) => setSearchText(event.currentTarget.value)}
+              onClear={() => setSearchText('')}
+              clearLabel={t('common.clear')}
+            />
           </div>
+          <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
+            <SelectTrigger aria-label={t('settings.mcp.filter.status')}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {STATUS_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {t(option.labelKey)}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as TypeFilter)}>
+            <SelectTrigger aria-label={t('settings.mcp.filter.type')}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {TYPE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {t(option.labelKey)}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          <label className="flex shrink-0 items-center gap-2 text-foreground-muted text-sm">
+            {t('settings.mcp.filter.builtinOnly')}
+            <Switch checked={builtinOnly} onCheckedChange={setBuiltinOnly} />
+          </label>
+          <EnvironmentDependencies mini />
         </div>
         <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -255,6 +259,13 @@ const McpServersList: FC = () => {
           </div>
         </div>
       </div>
+
+      <QuickCreateMcpServerDialog
+        open={isQuickCreateOpen}
+        onOpenChange={setIsQuickCreateOpen}
+        existingServers={mcpServers}
+        onCreate={handleQuickCreate}
+      />
 
       <AddMcpServerModal
         visible={isAddModalVisible}
