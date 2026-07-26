@@ -2277,6 +2277,26 @@ describe('AgentComposer', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('ignores a workspace path that is not an absolute filesystem path', async () => {
+    mocks.sessionWorkspacePath = 'relative/workspace'
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const source = mocks.surfaceProps?.suggestionSources?.[0]
+    const items = await source?.items({ query: 'notes', editor: {} as any })
+
+    expect(mocks.listDirectoryEntries).not.toHaveBeenCalled()
+    expect(items).toEqual([expect.objectContaining({ id: 'agent-resource:no-paths' })])
+  })
+
   it('provides workspace file resources through the @ mention suggestion source', async () => {
     vi.useFakeTimers()
     try {
