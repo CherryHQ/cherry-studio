@@ -2,8 +2,9 @@ import { OpenAICompatibleChatLanguageModel, OpenAICompatibleEmbeddingModel } fro
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
+import type { VendorBag } from '@main/ai/utils/imageOptions'
 
-import { createImageGenerationModel, type ImageGenerationTransport } from '../imageGenerationModel'
+import { type ImageGenerationTransport, transportOnlyImageModel } from '../imageGenerationModel'
 import { createModelscopeTransport, DEFAULT_MODELSCOPE_BASE_URL } from './modelscopeTransport'
 
 export const MODELSCOPE_PROVIDER_NAME = 'modelscope' as const
@@ -33,7 +34,7 @@ export interface ModelscopeProvider extends ProviderV3 {
  * registry (`resolveImageTransport`) so the job handler can rebuild the same
  * transport after a restart from the re-resolved provider settings.
  */
-export function buildModelscopeTransport(settings: ModelscopeProviderSettings): ImageGenerationTransport {
+export function buildModelscopeTransport(settings: ModelscopeProviderSettings): ImageGenerationTransport<VendorBag> {
   return createModelscopeTransport({
     apiKey: settings.apiKey ?? '',
     baseURL: settings.imageBaseURL || DEFAULT_MODELSCOPE_BASE_URL
@@ -69,8 +70,6 @@ export function createModelscopeProvider(settings: ModelscopeProviderSettings = 
       fetch: customFetch
     })
 
-  const transport = buildModelscopeTransport(settings)
-
   const provider = (modelId: string) => createChatModel(modelId)
   provider.specificationVersion = 'v3' as const
   provider.languageModel = createChatModel
@@ -81,8 +80,7 @@ export function createModelscopeProvider(settings: ModelscopeProviderSettings = 
       headers: authHeaders,
       fetch: customFetch
     })
-  provider.imageModel = (modelId: string) =>
-    createImageGenerationModel(modelId, { provider: MODELSCOPE_PROVIDER_NAME, transport })
+  provider.imageModel = (modelId: string) => transportOnlyImageModel(MODELSCOPE_PROVIDER_NAME, modelId)
 
   return provider as ModelscopeProvider
 }

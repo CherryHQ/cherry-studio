@@ -1,5 +1,6 @@
 import type { ParamValues } from '@cherrystudio/provider-registry'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
+import type { VendorBag } from '@main/ai/utils/imageOptions'
 
 import type {
   ImageGenerationSubmitInput,
@@ -91,7 +92,7 @@ export interface DashScopeModelDescriptor {
  * controls; qwen-mt-image translation directions; wanx2.1-imageedit function controls.
  */
 export type DashScopeProviderParams = Pick<
-  ParamValues,
+  VendorBag,
   | 'negativePrompt'
   | 'style'
   | 'promptExtend'
@@ -390,7 +391,7 @@ function buildRequestBody(
   }
 }
 
-class DashScopeTransport implements ImageGenerationTransport {
+class DashScopeTransport implements ImageGenerationTransport<DashScopeProviderParams> {
   private apiKey: string
   private baseURL: string
   private pendingDescriptors = new Map<string, DashScopeModelDescriptor>()
@@ -400,12 +401,14 @@ class DashScopeTransport implements ImageGenerationTransport {
     this.baseURL = settings.imageBaseURL || DEFAULT_DASHSCOPE_IMAGE_BASE_URL
   }
 
-  supportsInput(input: ImageGenerationSubmitInput): ImageTransportInputSupport {
+  supportsInput(input: ImageGenerationSubmitInput<DashScopeProviderParams>): ImageTransportInputSupport {
     const modelId = input.modelDescriptor?.id ?? input.modelId
     return { files: DASHSCOPE_FILE_MODELS.has(modelId), mask: DASHSCOPE_MASK_MODELS.has(modelId) }
   }
 
-  async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
+  async submit(
+    input: ImageGenerationSubmitInput<DashScopeProviderParams>
+  ): Promise<{ taskId?: string; imageUrls?: string[] }> {
     const descriptor = input.modelDescriptor
     if (!descriptor) {
       throw new Error(`Missing modelDescriptor for DashScope model: ${input.modelId}`)

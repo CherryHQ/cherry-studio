@@ -2,6 +2,7 @@ import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ImageGenerationSubmitInput } from '../imageGenerationModel'
+import type { PpioBag } from '../ppio/ppioTransport'
 import { createPpioTransport, PpioApiError, PpioTaskFailedError } from '../ppio/ppioTransport'
 
 /**
@@ -112,14 +113,12 @@ describe('PpioTransport', () => {
       modelId: 'jimeng-txt2img-v3.1',
       prompt: 'a fox',
       n: 1,
-      size: undefined,
+      size: '1328x1328',
       seed: undefined,
       files: undefined,
       mask: undefined,
       modelDescriptor: { id: 'jimeng-txt2img-v3.1', endpoint: '/v3/async/jimeng-txt2img-v3.1' },
       providerParams: {
-        model: 'jimeng-txt2img-v3.1',
-        size: '1328x1328',
         addWatermark: true
       }
     })
@@ -150,9 +149,7 @@ describe('PpioTransport', () => {
       files: undefined,
       mask: undefined,
       modelDescriptor: { id: 'seedream-4.5-draw', endpoint: '/v3/seedream-4.5', isSync: true },
-      providerParams: {
-        model: 'seedream-4.5-draw'
-      }
+      providerParams: {}
     })
 
     expect(result).toEqual({ imageUrls: ['https://img/a.png'] })
@@ -182,9 +179,7 @@ describe('PpioTransport', () => {
         files: undefined,
         mask: undefined,
         modelDescriptor: { id: 'seedream-4.5-draw', endpoint: '/v3/seedream-4.5', isSync: true },
-        providerParams: {
-          model: 'seedream-4.5-draw'
-        }
+        providerParams: {}
       })
       .catch((error) => error)
 
@@ -207,7 +202,7 @@ describe('PpioTransport', () => {
       modelId: 'seedream-5.0-lite',
       prompt: 'a fox',
       n: 1,
-      size: undefined,
+      size: '2K',
       seed: undefined,
       files: undefined,
       mask: undefined,
@@ -218,8 +213,6 @@ describe('PpioTransport', () => {
         mode: 'generate'
       },
       providerParams: {
-        model: 'seedream-5.0-lite',
-        size: '2K',
         addWatermark: false
       }
     })
@@ -245,11 +238,11 @@ describe('PpioTransport', () => {
       modelId: 'seedream-4.0',
       prompt: 'edit it',
       n: 1,
-      size: undefined,
+      size: '2048x2048',
       seed: undefined,
       // Attached edit image flows through the canonical `input.files` path
       // (inputImages → options.files), not a providerOptions bag key.
-      files: [{ mediaType: 'image/png', data: 'abc' }] as ImageGenerationSubmitInput['files'],
+      files: [{ mediaType: 'image/png', data: 'abc' }] as ImageGenerationSubmitInput<PpioBag>['files'],
       mask: undefined,
       modelDescriptor: {
         id: 'seedream-4.0',
@@ -257,10 +250,7 @@ describe('PpioTransport', () => {
         isSync: true,
         mode: 'edit'
       },
-      providerParams: {
-        model: 'seedream-4.0',
-        size: '2048x2048'
-      }
+      providerParams: {}
     })
 
     const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)
@@ -278,14 +268,12 @@ describe('PpioTransport', () => {
       modelId: 'glm-image',
       prompt: 'a fox',
       n: 1,
-      size: undefined,
+      size: '1568x1056',
       seed: undefined,
       files: undefined,
       mask: undefined,
       modelDescriptor: { id: 'glm-image', endpoint: '/v3/async/glm-image', mode: 'generate' },
       providerParams: {
-        model: 'glm-image',
-        size: '1568x1056',
         addWatermark: false
       }
     })

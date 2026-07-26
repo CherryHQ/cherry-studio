@@ -1,4 +1,5 @@
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
+import type { VendorBag } from '@main/ai/utils/imageOptions'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 
 import type {
@@ -61,7 +62,10 @@ export interface ModelscopeTransportSettings {
   baseURL?: string
 }
 
-class ModelscopeTransport implements ImageGenerationTransport {
+/** The three canonical keys this transport's single body carries. */
+export type ModelscopeProviderParams = Pick<VendorBag, 'numInferenceSteps' | 'guidanceScale' | 'negativePrompt'>
+
+class ModelscopeTransport implements ImageGenerationTransport<ModelscopeProviderParams> {
   private apiKey: string
   private baseURL: string
 
@@ -75,8 +79,10 @@ class ModelscopeTransport implements ImageGenerationTransport {
     return { files: true, mask: false }
   }
 
-  async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
-    const bag = input.providerParams ?? {}
+  async submit(
+    input: ImageGenerationSubmitInput<ModelscopeProviderParams>
+  ): Promise<{ taskId?: string; imageUrls?: string[] }> {
+    const bag = input.providerParams
 
     const body: Record<string, unknown> = {
       model: input.modelId,

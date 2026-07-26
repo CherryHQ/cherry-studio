@@ -1,6 +1,7 @@
 import type { ImageModelV3File } from '@ai-sdk/provider'
 import { application } from '@application'
 import { loggerService } from '@logger'
+import type { VendorBag } from '@main/ai/utils/imageOptions'
 import type { JobContext, JobHandler } from '@main/core/job/types'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
@@ -12,7 +13,6 @@ import { providerToAiSdkConfig } from '../../config'
 import {
   type ImageGenerationSubmitInput,
   type ImageGenerationTransport,
-  type ImageTransportDescriptor,
   warnUnsupportedTransportInputs
 } from '../imageGenerationModel'
 import { resolveImageTransport } from '../imageTransportRegistry'
@@ -111,22 +111,11 @@ export const imageGenerationJobHandler: JobHandler<ImageGenerationJobPayload> = 
   }
 }
 
-/**
- * Jobs enqueued before `modelDescriptor` became a typed payload field carried
- * it inside the vendor bag instead (`providerParams.modelDescriptor`). A job
- * still queued (or mid-poll) across that upgrade resumes with the new field
- * absent — fall back to the legacy bag location so PPIO/DashScope submit/poll
- * still route correctly.
- */
-function resolveModelDescriptor(input: ImageGenerationJobPayload): ImageTransportDescriptor | undefined {
-  return input.modelDescriptor ?? (input.providerParams?.modelDescriptor as ImageTransportDescriptor | undefined)
-}
-
 async function buildSubmitInput(
   input: ImageGenerationJobPayload,
   modelId: string,
   signal: AbortSignal
-): Promise<ImageGenerationSubmitInput> {
+): Promise<ImageGenerationSubmitInput<VendorBag>> {
   const files = input.inputFileIds?.length ? await Promise.all(input.inputFileIds.map(readImageFile)) : undefined
   const mask = input.maskFileId ? await readImageFile(input.maskFileId) : undefined
   return {
@@ -138,7 +127,7 @@ async function buildSubmitInput(
     seed: input.seed,
     files,
     mask,
-    modelDescriptor: resolveModelDescriptor(input),
+    modelDescriptor: input.modelDescriptor,
     providerParams: input.providerParams,
     signal
   }
@@ -154,7 +143,7 @@ async function readImageFile(fileId: string): Promise<ImageModelV3File> {
  * Mirrors the abort handling in `imageGenerationModel.doGenerate`.
  */
 async function pollUntilDone(
-  transport: ImageGenerationTransport,
+  transport: ImageGenerationTransport<VendorBag>,
   taskId: string,
   ctx: JobContext<ImageGenerationJobPayload>
 ): Promise<string[]> {
@@ -183,7 +172,7 @@ async function pollUntilDone(
       onProgress: (progress) => ctx.reportProgress(progress, { stage: 'polling' }),
       // Carry the persisted descriptor so a restart-resumed poll on a fresh
       // transport instance rebuilds per-task state (DashScope's response family).
-      modelDescriptor: resolveModelDescriptor(ctx.input)
+      modelDescriptor: ctx.input.modelDescriptor
     })
   } finally {
     ctx.signal.removeEventListener('abort', cancelRemote)

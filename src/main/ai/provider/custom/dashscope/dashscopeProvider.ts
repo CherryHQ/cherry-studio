@@ -3,8 +3,9 @@ import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3, Reran
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import { OpenAICompatibleRerankingModel } from '@cherrystudio/ai-sdk-provider'
+import type { VendorBag } from '@main/ai/utils/imageOptions'
 
-import { createImageGenerationModel, type ImageGenerationTransport } from '../imageGenerationModel'
+import { type ImageGenerationTransport, transportOnlyImageModel } from '../imageGenerationModel'
 import { createDashScopeTransport, DEFAULT_DASHSCOPE_IMAGE_BASE_URL } from './dashscopeTransport'
 
 export const DASHSCOPE_PROVIDER_NAME = 'dashscope' as const
@@ -49,7 +50,7 @@ const getDashScopeRerankBaseURL = (baseURL: string) => {
  * registry (`resolveImageTransport`) so the job handler can rebuild the same
  * transport after a restart from the re-resolved provider settings.
  */
-export function buildDashScopeTransport(settings: DashScopeProviderSettings): ImageGenerationTransport {
+export function buildDashScopeTransport(settings: DashScopeProviderSettings): ImageGenerationTransport<VendorBag> {
   return createDashScopeTransport({
     apiKey: settings.apiKey ?? '',
     imageBaseURL: settings.imageBaseURL || DEFAULT_DASHSCOPE_IMAGE_BASE_URL
@@ -96,8 +97,6 @@ export function createDashScopeProvider(settings: DashScopeProviderSettings = {}
       includeUsage: settings.includeUsage
     })
 
-  const transport = buildDashScopeTransport(settings)
-
   const provider = (modelId: string) => createChatModel(modelId)
   provider.specificationVersion = 'v3' as const
   provider.languageModel = createChatModel
@@ -108,8 +107,7 @@ export function createDashScopeProvider(settings: DashScopeProviderSettings = {}
       headers: authHeaders,
       fetch: customFetch
     })
-  provider.imageModel = (modelId: string) =>
-    createImageGenerationModel(modelId, { provider: DASHSCOPE_PROVIDER_NAME, transport })
+  provider.imageModel = (modelId: string) => transportOnlyImageModel(DASHSCOPE_PROVIDER_NAME, modelId)
   provider.rerankingModel = (modelId: string) =>
     new OpenAICompatibleRerankingModel(modelId, {
       provider: `${DASHSCOPE_PROVIDER_NAME}.rerank`,

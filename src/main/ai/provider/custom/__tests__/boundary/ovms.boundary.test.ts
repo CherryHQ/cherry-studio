@@ -1,3 +1,4 @@
+import type { WireVendorBag } from '@main/ai/utils/imageOptions'
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
@@ -16,7 +17,7 @@ const base = {
   files: undefined,
   mask: undefined,
   providerParams: {}
-} satisfies Partial<ImageGenerationSubmitInput>
+} satisfies Partial<ImageGenerationSubmitInput<WireVendorBag>>
 
 const bodySchema = z.strictObject({
   model: z.string(),
@@ -39,7 +40,7 @@ describe('OVMS request boundary', () => {
       // OVMS is in-SDK: the WireProfile diffusion profile delivers the snake_case
       // wire body, so the bag carries `num_inference_steps` (not the camelCase twin).
       providerParams: { num_inference_steps: 8 }
-    } as ImageGenerationSubmitInput)
+    } as ImageGenerationSubmitInput<WireVendorBag>)
 
     expect(req.url).toBe('http://localhost:8000/images/generations')
     bodySchema.parse(req.body)

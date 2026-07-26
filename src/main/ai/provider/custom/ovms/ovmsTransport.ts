@@ -1,3 +1,5 @@
+import type { WireVendorBag } from '@main/ai/utils/imageOptions'
+
 import type {
   ImageGenerationSubmitInput,
   ImageGenerationTransport,
@@ -31,7 +33,7 @@ export interface OvmsTransportSettings {
   baseURL?: string
 }
 
-class OvmsTransport implements ImageGenerationTransport {
+class OvmsTransport implements ImageGenerationTransport<WireVendorBag> {
   private baseURL: string
 
   constructor(settings: OvmsTransportSettings) {
@@ -43,7 +45,7 @@ class OvmsTransport implements ImageGenerationTransport {
     return { files: false, mask: false }
   }
 
-  async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
+  async submit(input: ImageGenerationSubmitInput<WireVendorBag>): Promise<{ taskId?: string; imageUrls?: string[] }> {
     const bag = input.providerParams ?? {}
 
     // OVMS is the in-SDK (createImageGenerationModel) path, so its bag is the

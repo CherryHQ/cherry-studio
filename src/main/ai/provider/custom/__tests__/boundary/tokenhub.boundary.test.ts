@@ -1,3 +1,4 @@
+import type { VendorBag } from '@main/ai/utils/imageOptions'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { ImageGenerationSubmitInput } from '../../imageGenerationModel'
@@ -14,7 +15,9 @@ import { captureImageRequest, submitWithResponse } from './captureRequest'
 
 const settings = { apiKey: 'k', baseURL: 'https://tokenhub.tencentmaas.com/v1' }
 
-function submitInput(overrides: Partial<ImageGenerationSubmitInput> = {}): ImageGenerationSubmitInput {
+function submitInput(
+  overrides: Partial<ImageGenerationSubmitInput<VendorBag>> = {}
+): ImageGenerationSubmitInput<VendorBag> {
   return {
     modelId: 'hy-image-v3.0',
     prompt: 'a fox',
@@ -145,7 +148,7 @@ describe('tokenhub transport — poll', () => {
         mask: undefined,
         providerParams: {},
         modelDescriptor: { id: 'hy-image-v3.0', endpoint: '/v1/api/image/submit' }
-      } satisfies ImageGenerationSubmitInput)
+      } satisfies ImageGenerationSubmitInput<VendorBag>)
 
       await expect(transport.poll!('job-1', {})).rejects.toThrow(TokenhubTaskFailedError)
       // Entry released by the failure, so the remembered model id is gone.

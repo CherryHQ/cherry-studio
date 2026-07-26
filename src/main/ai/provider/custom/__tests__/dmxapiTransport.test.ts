@@ -71,7 +71,6 @@ describe('DmxapiTransport', () => {
     expect(call[0]).toBe('https://www.dmxapi.com/v1/responses')
     const body = JSON.parse((call[1] as RequestInit).body as string)
     expect(body).toMatchObject({
-      model: 'doubao-seedream-3-0',
       input: 'a fox',
       stream: false,
       size: '1024x1024',
@@ -143,7 +142,7 @@ describe('DmxapiTransport', () => {
       ...baseInput,
       modelId: 'seededit-3.0',
       prompt: 'p',
-      providerParams: { model: 'seededit-3.0', n: 1, mode: 'edit' }
+      providerParams: {}
     })
 
     expect(fetchMock.mock.calls[0][0]).toBe('https://x.test/v1/images/generations')
@@ -159,7 +158,7 @@ describe('DmxapiTransport', () => {
       ...baseInput,
       modelId: 'm',
       prompt: 'p',
-      providerParams: { model: 'm', n: 1, mode: 'generation' }
+      providerParams: {}
     })
 
     expect(result).toEqual({ imageUrls: ['data:image/png;base64,QUJD', 'https://img/c.png'] })
@@ -173,7 +172,7 @@ describe('DmxapiTransport', () => {
         ...baseInput,
         modelId: 'm',
         prompt: 'p',
-        providerParams: { model: 'm', n: 1, mode: 'generation' }
+        providerParams: {}
       })
     ).rejects.toMatchObject({ name: 'PaintingGenerateError', code: 'REQ_ERROR_TOKEN' })
 
@@ -183,7 +182,7 @@ describe('DmxapiTransport', () => {
         ...baseInput,
         modelId: 'm',
         prompt: 'p',
-        providerParams: { model: 'm', n: 1, mode: 'generation' }
+        providerParams: {}
       })
     ).rejects.toMatchObject({ name: 'PaintingGenerateError', code: 'REQ_ERROR_NO_BALANCE' })
   })
@@ -198,7 +197,7 @@ describe('DmxapiTransport', () => {
         ...baseInput,
         modelId: 'm',
         prompt: 'p',
-        providerParams: { model: 'm', n: 1, mode: 'generation' }
+        providerParams: {}
       })
     ).rejects.toMatchObject({ name: 'PaintingGenerateError', code: 'REMOTE_ERROR', message: 'rate limited' })
   })
@@ -220,7 +219,7 @@ describe('DmxapiTransport', () => {
       ...baseInput,
       modelId: 'm',
       prompt: 'p',
-      providerParams: { model: 'm', n: 1, mode: 'generation' },
+      providerParams: {},
       signal: controller.signal
     })
     controller.abort()

@@ -1,5 +1,6 @@
-import type { ParamValues } from '@cherrystudio/provider-registry'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
+import type { ImageSizeToken } from '@main/ai/utils/aiSdkNativeBindings'
+import type { VendorBag } from '@main/ai/utils/imageOptions'
 
 import type {
   ImageGenerationSubmitInput,
@@ -94,21 +95,20 @@ export interface PpioModelDescriptor {
 }
 
 /**
- * The vendor bag as this transport reads it, forwarded through `providerOptions.ppio`.
- *
- * Derived from {@link ParamValues} rather than hand-declared, so every canonical field
- * is CHECKED to be a catalog key: the bag arrives straight from `splitParamValues`, and
- * the `ai.generate_image` IPC boundary strips anything `IMAGE_PARAM_CATALOG` doesn't
- * know. A non-canonical name here is not a rename — it is a field that can never
- * arrive, which is what `usePreLlm` was (jimeng's declared prompt-enhancement switch
- * silently did nothing). Anything genuinely not a catalog key — a vendor wire name, a
- * callback — goes in the intersection below, where it is deliberate and visible.
+ * The vendor bag as it ARRIVES, derived from {@link VendorBag} rather than
+ * {@link ParamValues}: the bag comes straight from `splitParamValues`, which routes the
+ * native keys (`size`/`seed`/`n`/`aspectRatio`) onto `input.*` instead. Picking from
+ * `ParamValues` admitted `size` here, and `bagParams.size ?? input.size` then read a
+ * field that can never arrive — a probe chain whose first arm is structurally dead.
  */
-export type PpioProviderParams = Pick<ParamValues, 'size' | 'promptEnhancement' | 'addWatermark' | 'outputFormat'> & {
-  /** PPIO's own wire name for the seed; `input.seed` is merged into it at submit. */
+export type PpioBag = Pick<VendorBag, 'promptEnhancement' | 'addWatermark' | 'outputFormat'>
+
+/** The merged view the per-model builders read: the bag plus the native fields PPIO
+ *  needs under its own wire names. Not a bag type — nothing arrives shaped like this. */
+export type PpioProviderParams = PpioBag & {
+  size?: ImageSizeToken
+  /** PPIO's own wire name for the seed, merged from `input.seed` at submit. */
   ppioSeed?: number
-  /** SDK-path (chat) progress callback; the job path reports via `ctx.reportProgress`. */
-  onProgress?: (progress: number) => void
 }
 
 export interface PpioTransportSettings {
@@ -116,7 +116,7 @@ export interface PpioTransportSettings {
   baseURL?: string
 }
 
-class PpioTransport implements ImageGenerationTransport {
+class PpioTransport implements ImageGenerationTransport<PpioBag> {
   private apiKey: string
   private baseURL: string
 
@@ -191,23 +191,17 @@ class PpioTransport implements ImageGenerationTransport {
     }
   }
 
-  async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
-    const bagParams = input.providerParams as PpioProviderParams
+  async submit(input: ImageGenerationSubmitInput<PpioBag>): Promise<{ taskId?: string; imageUrls?: string[] }> {
+    const bagParams = input.providerParams
     const descriptor = input.modelDescriptor
     if (!descriptor) {
       throw new Error(`Unknown model: ${input.modelId}`)
     }
 
-    // Native AI SDK fields (size / seed) land on `input.*` post-canonicalGenerate
-    // partition, not in the providerOptions bag. Merge them into a unified
-    // view so the per-model builders below can read uniformly. `ppioSeed`
-    // remains PPIO's bespoke wire field name; if the bag carries one
-    // explicitly we keep it, otherwise fall back to `input.seed`.
-    const params: PpioProviderParams = {
-      ...bagParams,
-      size: bagParams.size ?? input.size,
-      ppioSeed: bagParams.ppioSeed ?? input.seed
-    }
+    // `size`/`seed` are native params: `splitParamValues` routes them onto `input.*`, so
+    // the bag never carries them. One read each — the previous `bagParams.size ?? …`
+    // probed an arm the type system now proves cannot exist.
+    const params: PpioProviderParams = { ...bagParams, size: input.size, ppioSeed: input.seed }
 
     const requestParams = this.buildRequestParams(input, params, descriptor)
 
@@ -230,7 +224,7 @@ class PpioTransport implements ImageGenerationTransport {
    * Seedream family *in edit mode* have an `image` slot. Everything else drops an
    * attached reference image, and PPIO has no mask slot at all.
    */
-  supportsInput(input: ImageGenerationSubmitInput): ImageTransportInputSupport {
+  supportsInput(input: ImageGenerationSubmitInput<PpioBag>): ImageTransportInputSupport {
     const modelId = input.modelDescriptor?.id ?? input.modelId
     const files =
       QWEN_EDIT_MODELS.has(modelId) || (SEEDREAM_MODELS.has(modelId) && input.modelDescriptor?.mode === 'edit')

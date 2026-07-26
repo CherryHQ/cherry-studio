@@ -1,4 +1,5 @@
 import type { FetchFunction } from '@ai-sdk/provider-utils'
+import type { VendorBag } from '@main/ai/utils/imageOptions'
 import { t } from '@main/i18n'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
 
@@ -23,10 +24,9 @@ import { createAbortError, fileToDataUrl, waitWithSignal } from '../transportUti
  *            resp  `{ status: 'Pending'|'Ready'|'Error'|…,
  *                     result: { sample: 'https://...' } }`
  *
- * Field sourcing — `aspect_ratio` and `seed` arrive positionally from AI
- * SDK; the rest (`safety_tolerance`) sits in `providerParams` keyed by
- * `safetyTolerance` (Cherry canonical) or `safety_tolerance` (already
- * snake-cased by aihubmixImageModel's bag rename).
+ * Field sourcing — `aspectRatio` / `seed` / `files` arrive on the typed submit input;
+ * `safetyTolerance` is the one vendor knob, and it is a catalog key so
+ * `imageParamsSchema` has already coerced it to an int.
  */
 export interface AihubmixFluxTransportSettings {
   apiRoot: string
@@ -37,36 +37,30 @@ export interface AihubmixFluxTransportSettings {
 const POLL_INTERVAL_MS = 2_000
 const MAX_WAIT_MS = 5 * 60_000
 
-class AihubmixFluxTransport implements ImageGenerationTransport {
+/** The one vendor knob BFL takes beyond the native params. */
+export type AihubmixFluxBag = Pick<VendorBag, 'safetyTolerance'>
+
+class AihubmixFluxTransport implements ImageGenerationTransport<AihubmixFluxBag> {
   private settings: AihubmixFluxTransportSettings
   constructor(settings: AihubmixFluxTransportSettings) {
     this.settings = settings
   }
 
-  async submit(input: ImageGenerationSubmitInput): Promise<{ taskId: string }> {
-    const bag = input.providerParams ?? {}
+  async submit(input: ImageGenerationSubmitInput<AihubmixFluxBag>): Promise<{ taskId: string }> {
     const inputBody: Record<string, unknown> = {}
     if (input.prompt) inputBody.prompt = input.prompt
 
-    // aspectRatio gets normalized into `${number}:${number}` upstream and lives
-    // on `options.aspectRatio`, but it isn't part of ImageGenerationSubmitInput —
-    // callers that need it pass it via the bag (snake or camel). Strip any
-    // `ASPECT_X_Y` form to `X:Y` as a defensive fallback.
-    const rawAspect =
-      (typeof bag.aspect_ratio === 'string' ? bag.aspect_ratio : undefined) ??
-      (typeof bag.aspectRatio === 'string' ? bag.aspectRatio : undefined)
-    if (rawAspect) {
-      const aspect = rawAspect.replace(/^ASPECT_/i, '').replace('_', ':')
-      if (/^\d+:\d+$/.test(aspect)) inputBody.aspect_ratio = aspect
+    // One canonical read each. `aspectRatio` is already normalized to `X:Y` by the
+    // native binding's `map`, `seed` is the native channel, and `safetyTolerance` is an
+    // `optInt` catalog key the IPC boundary already coerced. The previous four-arm
+    // probe chain (`aspect_ratio ?? aspectRatio`, three `seed` arms, `safetyTolerance ??
+    // safety_tolerance`) laundered all three through the bag; only the caller-stamped
+    // `aspect_ratio` could ever arrive, and only because the caller stamped it.
+    if (input.aspectRatio) inputBody.aspect_ratio = input.aspectRatio
+    if (input.seed !== undefined) inputBody.seed = input.seed
+    if (input.providerParams.safetyTolerance !== undefined) {
+      inputBody.safety_tolerance = input.providerParams.safetyTolerance
     }
-
-    if (typeof input.seed === 'number') inputBody.seed = input.seed
-    else if (typeof bag.seed === 'number') inputBody.seed = bag.seed
-    else if (typeof bag.seed === 'string' && /^-?\d+$/.test(bag.seed.trim())) inputBody.seed = Number(bag.seed.trim())
-
-    const safety = bag.safetyTolerance ?? bag.safety_tolerance
-    if (typeof safety === 'number') inputBody.safety_tolerance = safety
-    else if (typeof safety === 'string' && /^\d+$/.test(safety)) inputBody.safety_tolerance = Number(safety)
 
     const firstFile = input.files?.[0]
     if (firstFile) inputBody.input_image = fileToDataUrl(firstFile)

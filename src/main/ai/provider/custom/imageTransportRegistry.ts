@@ -1,4 +1,5 @@
 import type { AppProviderId, ConcreteProviderId, PresetProviderId } from '../../types'
+import type { VendorBag } from '../../utils/imageOptions'
 import {
   buildDashScopeTransport,
   DASHSCOPE_PROVIDER_NAME,
@@ -33,7 +34,13 @@ import { buildTokenhubTransport, TOKENHUB_PROVIDER_NAME } from './tokenhub/token
  * `build*Transport` helpers are the single source of truth shared with each
  * provider factory.
  */
-type TransportResolver = (modelId: string, providerSettings: unknown) => ImageGenerationTransport | null
+/**
+ * Job path only, so the bag is canonical BY CONSTRUCTION — `AiService.generateImage`
+ * hands `splitParamValues`' output straight to the job payload. Fixing `VendorBag`
+ * here is what makes each transport's `Pick<ParamValues, …>` checked against the
+ * bag that actually arrives instead of against `unknown`.
+ */
+type TransportResolver = (modelId: string, providerSettings: unknown) => ImageGenerationTransport<VendorBag> | null
 
 const RESOLVERS: Record<string, TransportResolver> = {
   [PPIO_PROVIDER_NAME]: (_modelId, settings) => buildPpioTransport(settings as PpioProviderSettings),
@@ -58,7 +65,7 @@ export function resolveImageTransport(
   concreteProviderId?: ConcreteProviderId,
   /** So a duplicated or renamed built-in still resolves its vendor transport. */
   presetProviderId?: PresetProviderId
-): ImageGenerationTransport | null {
+): ImageGenerationTransport<VendorBag> | null {
   const resolver =
     (concreteProviderId ? RESOLVERS[concreteProviderId] : undefined) ??
     (presetProviderId ? RESOLVERS[presetProviderId] : undefined) ??

@@ -1,3 +1,4 @@
+import type { WireVendorBag } from '@main/ai/utils/imageOptions'
 import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
@@ -13,7 +14,7 @@ const base = {
   files: undefined,
   mask: undefined,
   providerParams: {}
-} satisfies Partial<ImageGenerationSubmitInput>
+} satisfies Partial<ImageGenerationSubmitInput<WireVendorBag>>
 
 const responseSchema = z.object({
   data: z.array(z.object({ url: z.string().optional(), b64_json: z.string().optional() }))
@@ -21,7 +22,11 @@ const responseSchema = z.object({
 
 describe('OVMS response boundary', () => {
   const transport = createOvmsTransport({ baseURL: 'http://localhost:8000' })
-  const input = { ...base, modelId: 'OpenVINO/stable-diffusion-v1-5', prompt: 'a fox' } as ImageGenerationSubmitInput
+  const input = {
+    ...base,
+    modelId: 'OpenVINO/stable-diffusion-v1-5',
+    prompt: 'a fox'
+  } as ImageGenerationSubmitInput<WireVendorBag>
 
   it('data[].b64_json → data: URLs', async () => {
     const response = { data: [{ b64_json: 'QUJD' }] }

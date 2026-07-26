@@ -1,3 +1,4 @@
+import type { VendorBag } from '@main/ai/utils/imageOptions'
 import type { FileEntry } from '@shared/data/types/file'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -14,9 +15,9 @@ import type { ImageTransportDescriptor } from '../imageGenerationModel'
  *   - Input images / mask are persisted as FileEntries at enqueue time and
  *     referenced by id, so the JSON payload stays under the 1MB job cap and the
  *     bytes survive a restart-resume.
- *   - `providerParams` is `imageProviderOptions[sdkConfig.providerId]` — the
- *     exact bag the in-SDK path hands `transport.submit` (JSON-only; the
- *     plugin-chain callbacks like `onProgress` are already stripped).
+ *   - `providerParams` is the canonical `vendorBag` from `splitParamValues` — the job
+ *     path takes it raw, NOT the WireProfile engine's wire-named body (which is the
+ *     in-SDK path's spelling). `VendorBag` pins that; see `imageOptions.ts`.
  */
 export interface ImageGenerationJobPayload {
   uniqueModelId: UniqueModelId
@@ -33,7 +34,7 @@ export interface ImageGenerationJobPayload {
   /** Per-model transport routing, derived in main from the registry — persisted
    *  here so a restart-resume reaches the right endpoint / response family. */
   modelDescriptor?: ImageTransportDescriptor
-  providerParams: Record<string, unknown>
+  providerParams: VendorBag
 }
 
 /** Job output — the persisted result FileEntries the IPC layer returns verbatim. */

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
 import type { ImageGenerationSubmitInput } from '../../imageGenerationModel'
+import type { ModelscopeProviderParams } from '../../modelscope/modelscopeTransport'
 import { createModelscopeTransport } from '../../modelscope/modelscopeTransport'
 import { captureImageRequest } from './captureRequest'
 
@@ -17,7 +18,7 @@ const base = {
   files: undefined,
   mask: undefined,
   providerParams: {}
-} satisfies Partial<ImageGenerationSubmitInput>
+} satisfies Partial<ImageGenerationSubmitInput<ModelscopeProviderParams>>
 
 const url = 'https://api-inference.modelscope.cn/v1/images/generations'
 
@@ -48,7 +49,7 @@ describe('ModelScope request boundary', () => {
       size: '1024x1024',
       seed: 7,
       providerParams: { numInferenceSteps: 30, guidanceScale: 4, negativePrompt: 'blur' }
-    } as ImageGenerationSubmitInput)
+    } as ImageGenerationSubmitInput<ModelscopeProviderParams>)
 
     expect(req.url).toBe(url)
     txt2imgBody.parse(req.body)
@@ -60,8 +61,10 @@ describe('ModelScope request boundary', () => {
       ...base,
       modelId: 'Qwen/Qwen-Image-Edit',
       prompt: 'make it night',
-      files: [{ mediaType: 'image/png', data: new Uint8Array([1, 2, 3]) }] as ImageGenerationSubmitInput['files']
-    } as ImageGenerationSubmitInput)
+      files: [
+        { mediaType: 'image/png', data: new Uint8Array([1, 2, 3]) }
+      ] as ImageGenerationSubmitInput<ModelscopeProviderParams>['files']
+    } as ImageGenerationSubmitInput<ModelscopeProviderParams>)
 
     expect(req.url).toBe(url)
     editBody.parse(req.body)

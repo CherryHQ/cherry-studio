@@ -1,4 +1,5 @@
 import type { ParamValues } from '@cherrystudio/provider-registry'
+import type { VendorBag } from '@main/ai/utils/imageOptions'
 import { t } from '@main/i18n'
 import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
 
@@ -37,7 +38,7 @@ interface NormalizedInput {
  * Groups: doubao-seedream multi-image options; wan family extras (DashScope-passthrough).
  */
 export type DmxapiProviderParams = Pick<
-  ParamValues,
+  VendorBag,
   'sequentialImageGeneration' | 'maxImages' | 'outputFormat' | 'addWatermark' | 'promptExtend' | 'negativePrompt'
 >
 
@@ -85,7 +86,7 @@ function extractUrlsFromText(text: string): string[] {
   return Array.from(urls)
 }
 
-class DmxapiTransport implements ImageGenerationTransport {
+class DmxapiTransport implements ImageGenerationTransport<DmxapiProviderParams> {
   private apiKey: string
   private baseURL: string
 
@@ -97,12 +98,14 @@ class DmxapiTransport implements ImageGenerationTransport {
   /** Only the `responses-messages` family (Wan) puts images in its message content;
    *  Seedream's `responses-string` body is a bare prompt string, and both flat
    *  families are prompt-only. Mirrors the `resolveDmxapiFamily` dispatch below. */
-  supportsInput(input: ImageGenerationSubmitInput): ImageTransportInputSupport {
+  supportsInput(input: ImageGenerationSubmitInput<DmxapiProviderParams>): ImageTransportInputSupport {
     return { files: resolveDmxapiFamily(input.modelId) === 'responses-messages', mask: false }
   }
 
-  async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
-    const params = (input.providerParams ?? {}) as DmxapiProviderParams
+  async submit(
+    input: ImageGenerationSubmitInput<DmxapiProviderParams>
+  ): Promise<{ taskId?: string; imageUrls?: string[] }> {
+    const params = input.providerParams
     const normalized: NormalizedInput = {
       modelId: input.modelId,
       prompt: input.prompt ?? '',

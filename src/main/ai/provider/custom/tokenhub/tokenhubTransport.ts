@@ -1,5 +1,6 @@
 import type { ParamValues } from '@cherrystudio/provider-registry'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
+import type { VendorBag } from '@main/ai/utils/imageOptions'
 
 import type {
   ImageGenerationSubmitInput,
@@ -75,10 +76,7 @@ interface TokenhubQueryResult {
  * canonical key is CHECKED against `IMAGE_PARAM_CATALOG` — the IPC boundary strips
  * anything else, so a hand-declared non-catalog name is a field that can never arrive.
  */
-type TokenhubProviderParams = Pick<ParamValues, 'negativePrompt' | 'addWatermark'> & {
-  /** SDK-path progress callback; the job path reports via `ctx.reportProgress`. */
-  onProgress?: (progress: number) => void
-}
+export type TokenhubProviderParams = Pick<VendorBag, 'negativePrompt' | 'addWatermark'>
 
 const FAILED_STATUSES = new Set(['failed', 'error', 'cancelled', 'canceled'])
 const COMPLETED_STATUSES = new Set(['completed', 'succeeded', 'success'])
@@ -89,7 +87,7 @@ export interface TokenhubTransportSettings {
   origin?: string
 }
 
-class TokenhubTransport implements ImageGenerationTransport {
+class TokenhubTransport implements ImageGenerationTransport<TokenhubProviderParams> {
   private apiKey: string
   private origin: string
   /** taskId → model id, for the query body; a restart-resumed poll on a fresh
@@ -156,13 +154,15 @@ class TokenhubTransport implements ImageGenerationTransport {
     return { files: false, mask: false }
   }
 
-  async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
+  async submit(
+    input: ImageGenerationSubmitInput<TokenhubProviderParams>
+  ): Promise<{ taskId?: string; imageUrls?: string[] }> {
     const descriptor = input.modelDescriptor
     if (!descriptor) {
       throw new Error(`Unknown model: ${input.modelId}`)
     }
 
-    const bag = input.providerParams as TokenhubProviderParams
+    const bag = input.providerParams
     const resolution = input.aspectRatio ? ASPECT_RATIO_RESOLUTIONS[input.aspectRatio] : undefined
     const body: Record<string, unknown> = {
       model: descriptor.id,
@@ -273,7 +273,10 @@ function extractImageUrls(data: TokenhubImageData[] | undefined): string[] | und
  * adapter). The chat `baseURL` (`https://tokenhub.tencentmaas.com/v1`) is reduced
  * to its origin; the registry endpoints are host-absolute paths.
  */
-export function buildTokenhubTransport(settings: { apiKey?: string; baseURL?: string }): ImageGenerationTransport {
+export function buildTokenhubTransport(settings: {
+  apiKey?: string
+  baseURL?: string
+}): ImageGenerationTransport<VendorBag> {
   let origin: string | undefined
   try {
     origin = settings.baseURL ? new URL(settings.baseURL).origin : undefined

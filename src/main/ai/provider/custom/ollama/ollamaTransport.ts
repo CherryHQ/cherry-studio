@@ -1,4 +1,5 @@
 import type { FetchFunction } from '@ai-sdk/provider-utils'
+import type { WireVendorBag } from '@main/ai/utils/imageOptions'
 import { Agent } from 'undici'
 
 import type {
@@ -42,7 +43,7 @@ export interface OllamaTransportSettings {
   fetch?: FetchFunction
 }
 
-class OllamaTransport implements ImageGenerationTransport {
+class OllamaTransport implements ImageGenerationTransport<WireVendorBag> {
   private baseURL: string
   private headers: Record<string, string>
   private fetch?: FetchFunction
@@ -58,7 +59,7 @@ class OllamaTransport implements ImageGenerationTransport {
     return { files: false, mask: false }
   }
 
-  async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
+  async submit(input: ImageGenerationSubmitInput<WireVendorBag>): Promise<{ taskId?: string; imageUrls?: string[] }> {
     const [width, height] = input.size?.split('x').map(Number) ?? []
     const steps = input.providerParams.steps
     const fetchImpl = this.fetch ?? fetch

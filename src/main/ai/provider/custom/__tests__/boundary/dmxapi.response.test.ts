@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
+import type { DmxapiProviderParams } from '../../dmxapi/dmxapiTransport'
 import { createDmxapiTransport } from '../../dmxapi/dmxapiTransport'
 import type { ImageGenerationSubmitInput } from '../../imageGenerationModel'
 import { submitWithResponse } from './captureRequest'
@@ -21,7 +22,7 @@ const base = {
   files: undefined,
   mask: undefined,
   providerParams: {}
-} satisfies Partial<ImageGenerationSubmitInput>
+} satisfies Partial<ImageGenerationSubmitInput<DmxapiProviderParams>>
 
 const openAiFlatResponse = z.object({
   data: z.array(z.object({ url: z.string().optional(), b64_json: z.string().optional() }))
@@ -77,7 +78,7 @@ describe('DMXAPI response boundary', () => {
       c.schema.parse(c.response)
       const result = await submitWithResponse(
         transport,
-        { ...base, modelId: c.modelId, prompt: 'a fox' } as ImageGenerationSubmitInput,
+        { ...base, modelId: c.modelId, prompt: 'a fox' } as ImageGenerationSubmitInput<DmxapiProviderParams>,
         c.response
       )
       expect(result.imageUrls).toMatchSnapshot()

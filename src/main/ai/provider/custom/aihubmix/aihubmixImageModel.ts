@@ -91,6 +91,10 @@ type AihubmixImageOptions = Pick<
   | 'imageWeight'
   | 'resemblance'
   | 'detail'
+  // BFL's one vendor knob, forwarded to the async FLUX transport as
+  // `safety_tolerance`. Declared by aihubmix's flux models in the registry, but
+  // missing from this list — so the transport read it off an untyped bag.
+  | 'safetyTolerance'
 > & {
   /** v1 residue — never delivered; see above. */
   mode?: AihubmixMode
@@ -368,25 +372,20 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
     const numImages = options.n ?? bag.numImages ?? 1
 
     // ---- BFL async FLUX branch (flux-2-flex / flux-2-pro / flux-kontext-max) ----
-    // Submit task + poll. The transport pre-normalizes aspect_ratio / seed /
-    // safety_tolerance / input_image; this branch only forwards the AI SDK
-    // call options.
+    // Submit task + poll. `aspectRatio` travels on the typed submit field, not stamped
+    // into the bag as `aspect_ratio` — the transport's spelling is declared now.
     if (ASYNC_FLUX_MODELS.has(modelId)) {
       const transport = createAihubmixFluxTransport({ apiRoot, apiKey: resolveApiKey(), fetch: fetchImpl })
-      // The transport reads `aspect_ratio` from the bag; AI SDK has already
-      // normalized `ASPECT_X_Y` → `X:Y` on `options.aspectRatio`, so stamp it
-      // in alongside the user's other params.
-      const transportBag: Record<string, unknown> = { ...(bag as Record<string, unknown>) }
-      if (typeof aspectRatio === 'string') transportBag.aspect_ratio = aspectRatio
       const { taskId } = await transport.submit({
         modelId,
         prompt,
         n: numImages,
         size: options.size,
+        aspectRatio,
         seed: typeof options.seed === 'number' ? options.seed : undefined,
         files: options.files,
         mask: options.mask,
-        providerParams: transportBag,
+        providerParams: { safetyTolerance: typeof bag.safetyTolerance === 'number' ? bag.safetyTolerance : undefined },
         signal: abortSignal
       })
       const urls = await transport.poll(taskId, { signal: abortSignal })

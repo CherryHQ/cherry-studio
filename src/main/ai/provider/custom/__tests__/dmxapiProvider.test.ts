@@ -12,6 +12,12 @@ vi.mock('@ai-sdk/openai-compatible', () => ({
       this.provider = config.provider
     }
   },
+  OpenAICompatibleImageModel: class {
+    provider: string
+    constructor(_modelId: string, config: { provider: string }) {
+      this.provider = config.provider
+    }
+  },
   OpenAICompatibleEmbeddingModel: class {
     provider: string
     constructor(modelId: string, config: { provider: string }) {
@@ -32,7 +38,7 @@ vi.mock('../dmxapi/dmxapiTransport', async (importOriginal) => {
   }
 })
 
-import { createDmxapiProvider } from '../dmxapi/dmxapiProvider'
+import { buildDmxapiTransport, createDmxapiProvider } from '../dmxapi/dmxapiProvider'
 
 describe('createDmxapiProvider', () => {
   afterEach(() => {
@@ -59,20 +65,23 @@ describe('createDmxapiProvider', () => {
     expect((provider.embeddingModel('e') as unknown as { provider: string }).provider).toBe('dmxapi.embedding')
   })
 
-  it('imageModel returns an ImageGenerationModel with provider="dmxapi"', () => {
+  // The bespoke families (Doubao Seedream / Wan / async Qwen-image) are gated onto the
+  // job transport by `dmxapiUsesCustomTransport`, which `AiService.generateImage`
+  // resolves BEFORE any SDK image model — so the factory no longer builds one for them.
+  it('imageModel serves only the openai-flat families', () => {
     const provider = createDmxapiProvider({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn' })
-    // A bespoke-family model (Doubao Seedream) routes through the custom
-    // transport-backed ImageGenerationModel, whose provider is plain "dmxapi".
-    expect(provider.imageModel('doubao-seedream-3-0').provider).toBe('dmxapi')
+    expect(provider.imageModel('doubao-seedream-3-0').provider).toBe('dmxapi.image')
   })
 
+  // `buildDmxapiTransport` is the shared constructor `resolveImageTransport` and a
+  // restart-resume both use, so the host derivation is pinned there.
   it('strips the OpenAI-compat suffix from baseURL to derive the transport host', () => {
-    createDmxapiProvider({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn/v1' })
+    buildDmxapiTransport({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn/v1' })
     expect(TransportCtor).toHaveBeenCalledWith({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn' })
   })
 
   it('keeps baseURL untouched when no OpenAI-compat suffix is present', () => {
-    createDmxapiProvider({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn' })
+    buildDmxapiTransport({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn' })
     expect(TransportCtor).toHaveBeenCalledWith({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn' })
   })
 })

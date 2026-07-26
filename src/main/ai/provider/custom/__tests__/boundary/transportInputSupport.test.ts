@@ -1,4 +1,5 @@
 import type { ImageModelV3File } from '@ai-sdk/provider'
+import type { VendorBag } from '@main/ai/utils/imageOptions'
 import { describe, expect, it, vi } from 'vitest'
 
 import { createDashScopeTransport } from '../../dashscope/dashscopeTransport'
@@ -12,7 +13,7 @@ import { captureImageRequest } from './captureRequest'
 vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
 /**
- * `ImageGenerationTransport.supportsInput` is a hand-written mirror of each transport's
+ * `ImageGenerationTransport<VendorBag>.supportsInput` is a hand-written mirror of each transport's
  * body builders, so it can drift the moment someone adds a files-reading branch without
  * updating it — and a wrong declaration is worse than none, because the caller then
  * stays quiet about a dropped reference image.
@@ -30,7 +31,7 @@ const MASK_IMAGE: ImageModelV3File = { type: 'file', mediaType: 'image/png', dat
 const IMAGE_MARKER = 'aGVsbG8='
 const MASK_MARKER = 'bWFzaw=='
 
-function submitInput(overrides: Partial<ImageGenerationSubmitInput>): ImageGenerationSubmitInput {
+function submitInput(overrides: Partial<ImageGenerationSubmitInput<VendorBag>>): ImageGenerationSubmitInput<VendorBag> {
   return {
     modelId: 'unused',
     prompt: 'a cat',
@@ -45,12 +46,12 @@ function submitInput(overrides: Partial<ImageGenerationSubmitInput>): ImageGener
 }
 
 interface Case {
-  transport: ImageGenerationTransport
+  transport: ImageGenerationTransport<VendorBag>
   /** Label only. */
   vendor: string
   modelId: string
   /** Transports that dispatch on the descriptor need one; those that don't ignore it. */
-  descriptor?: ImageGenerationSubmitInput['modelDescriptor']
+  descriptor?: ImageGenerationSubmitInput<VendorBag>['modelDescriptor']
 }
 
 const settings = { apiKey: 'sk-test', baseURL: 'https://example.invalid' }

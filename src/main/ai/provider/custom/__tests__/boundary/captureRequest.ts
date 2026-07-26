@@ -48,9 +48,9 @@ function makeCapturingFetch() {
  * Capture the outbound request of a `submit`-based transport. Transports call
  * the global `fetch` directly, so the global is mocked for the call.
  */
-export async function captureImageRequest(
-  transport: ImageGenerationTransport,
-  input: ImageGenerationSubmitInput
+export async function captureImageRequest<P>(
+  transport: ImageGenerationTransport<P>,
+  input: ImageGenerationSubmitInput<P>
 ): Promise<CapturedRequest> {
   const cap = makeCapturingFetch()
   const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(cap.fetch)
@@ -68,9 +68,9 @@ export async function captureImageRequest(
  * Inbound boundary: run a `submit`-based transport against a canned vendor
  * response (global `fetch` mocked) and return the parsed `{ imageUrls | taskId }`.
  */
-export async function submitWithResponse(
-  transport: ImageGenerationTransport,
-  input: ImageGenerationSubmitInput,
+export async function submitWithResponse<P>(
+  transport: ImageGenerationTransport<P>,
+  input: ImageGenerationSubmitInput<P>,
   responseBody: unknown
 ): Promise<{ taskId?: string; imageUrls?: string[] }> {
   const spy = vi

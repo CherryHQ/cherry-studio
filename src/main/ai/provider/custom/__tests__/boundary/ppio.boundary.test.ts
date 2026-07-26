@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import * as z from 'zod'
 
 import type { ImageGenerationSubmitInput } from '../../imageGenerationModel'
+import type { PpioBag } from '../../ppio/ppioTransport'
 import { createPpioTransport } from '../../ppio/ppioTransport'
 import { captureImageRequest } from './captureRequest'
 
@@ -19,7 +20,7 @@ const base = {
   files: undefined,
   mask: undefined,
   providerParams: {}
-} satisfies Partial<ImageGenerationSubmitInput>
+} satisfies Partial<ImageGenerationSubmitInput<PpioBag>>
 
 const host = 'https://api.ppio.com'
 
@@ -27,7 +28,7 @@ interface Case {
   name: string
   endpoint: string
   mode: string
-  input: ImageGenerationSubmitInput
+  input: ImageGenerationSubmitInput<PpioBag>
   schema: z.ZodTypeAny
 }
 
@@ -38,7 +39,7 @@ function fixture(opts: {
   mode?: string
   size?: string
   seed?: number
-  files?: ImageGenerationSubmitInput['files']
+  files?: ImageGenerationSubmitInput<PpioBag>['files']
   params?: Record<string, unknown>
   schema: z.ZodTypeAny
 }): Case {
@@ -57,14 +58,16 @@ function fixture(opts: {
       files: opts.files,
       modelDescriptor: { id: opts.id, endpoint: opts.endpoint, isSync: false, mode },
       providerParams: { ...opts.params }
-    } as ImageGenerationSubmitInput
+    } as ImageGenerationSubmitInput<PpioBag>
   }
 }
 
 // `[1, 2, 3]` base64-encodes to `AQID`, so `fileToDataUrl` yields
 // `data:image/png;base64,AQID` — the canonical attached-image path the
 // painting pipeline feeds edit models via `inputImages` → `options.files`.
-const editFiles = [{ mediaType: 'image/png', data: new Uint8Array([1, 2, 3]) }] as ImageGenerationSubmitInput['files']
+const editFiles = [
+  { mediaType: 'image/png', data: new Uint8Array([1, 2, 3]) }
+] as ImageGenerationSubmitInput<PpioBag>['files']
 
 const CASES: Case[] = [
   fixture({

@@ -1,3 +1,4 @@
+import type { WireVendorBag } from '@main/ai/utils/imageOptions'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -26,7 +27,7 @@ function makeOptions(
 
 describe('createImageGenerationModel.doGenerate', () => {
   it('returns urls for a terminal success (async submit → poll)', async () => {
-    const transport: ImageGenerationTransport = {
+    const transport: ImageGenerationTransport<WireVendorBag> = {
       submit: vi.fn().mockResolvedValue({ taskId: 'task-1' }),
       poll: vi.fn().mockResolvedValue(['https://img/1.png', 'https://img/2.png'])
     }
@@ -41,7 +42,7 @@ describe('createImageGenerationModel.doGenerate', () => {
   })
 
   it('returns urls directly for the synchronous (imageUrls) path without requiring polling', async () => {
-    const transport: ImageGenerationTransport = {
+    const transport: ImageGenerationTransport<WireVendorBag> = {
       submit: vi.fn().mockResolvedValue({ imageUrls: ['https://img/sync.png'] })
     }
     const model = createImageGenerationModel('m', { provider: 'ppio', transport })
@@ -52,7 +53,7 @@ describe('createImageGenerationModel.doGenerate', () => {
   })
 
   it('rejects when poll rejects (terminal failure)', async () => {
-    const transport: ImageGenerationTransport = {
+    const transport: ImageGenerationTransport<WireVendorBag> = {
       submit: vi.fn().mockResolvedValue({ taskId: 'task-1' }),
       poll: vi.fn().mockRejectedValue(new Error('Task failed'))
     }
@@ -62,7 +63,7 @@ describe('createImageGenerationModel.doGenerate', () => {
   })
 
   it('throws AbortError when the signal is already aborted', async () => {
-    const transport: ImageGenerationTransport = {
+    const transport: ImageGenerationTransport<WireVendorBag> = {
       submit: vi.fn(),
       poll: vi.fn()
     }
@@ -79,7 +80,7 @@ describe('createImageGenerationModel.doGenerate', () => {
   it('propagates an AbortError raised mid-poll', async () => {
     const abortError = new Error('Task polling aborted')
     abortError.name = 'AbortError'
-    const transport: ImageGenerationTransport = {
+    const transport: ImageGenerationTransport<WireVendorBag> = {
       submit: vi.fn().mockResolvedValue({ taskId: 'task-1' }),
       poll: vi.fn().mockRejectedValue(abortError)
     }
@@ -91,7 +92,7 @@ describe('createImageGenerationModel.doGenerate', () => {
   it('cancels the remote async task when aborted after submit', async () => {
     const controller = new AbortController()
     const cancel = vi.fn().mockResolvedValue(undefined)
-    const transport: ImageGenerationTransport = {
+    const transport: ImageGenerationTransport<WireVendorBag> = {
       submit: vi.fn().mockResolvedValue({ taskId: 'task-1' }),
       poll: vi.fn(
         async (_taskId, opts) =>
@@ -115,30 +116,30 @@ describe('createImageGenerationModel.doGenerate', () => {
     expect(cancel).toHaveBeenCalledWith('task-1')
   })
 
-  it('forwards the onProgress callback (by reference) and provider params to submit', async () => {
-    const onProgress = vi.fn()
-    let polledOnProgress: ((p: number) => void) | undefined
-    const transport: ImageGenerationTransport = {
-      submit: vi.fn(async (input: ImageGenerationSubmitInput) => {
-        expect(input.providerParams).toMatchObject({ model: 'mid', onProgress })
+  // The bag is the WireProfile engine's JSON body, so it is forwarded verbatim and
+  // carries no callback: the previous version of this test put an `onProgress` function
+  // in `providerOptions` and asserted it reached `poll`, but `buildImageRequest` drops
+  // anything unserializable, so that channel was dead on both ends.
+  it('forwards the wire-named provider params to submit verbatim', async () => {
+    const transport: ImageGenerationTransport<WireVendorBag> = {
+      submit: vi.fn(async (input: ImageGenerationSubmitInput<WireVendorBag>) => {
+        expect(input.providerParams).toMatchObject({ num_inference_steps: 20 })
         return { taskId: 'task-1' }
       }),
-      poll: vi.fn(async (_taskId, opts) => {
-        polledOnProgress = opts.onProgress
-        opts.onProgress?.(42)
-        return ['https://img/1.png']
-      })
+      poll: vi.fn(async () => ['https://img/1.png'])
     }
     const model = createImageGenerationModel('m', { provider: 'ppio', transport })
 
-    await model.doGenerate(makeOptions({ providerOptions: { ppio: { model: 'mid', onProgress } } as never }))
+    const result = await model.doGenerate(
+      makeOptions({ providerOptions: { ppio: { num_inference_steps: 20 } } as never })
+    )
 
-    expect(polledOnProgress).toBe(onProgress)
-    expect(onProgress).toHaveBeenCalledWith(42)
+    expect(transport.submit).toHaveBeenCalled()
+    expect(result.images).toEqual(['https://img/1.png'])
   })
 
   it('returns empty images when submit yields neither taskId nor imageUrls', async () => {
-    const transport: ImageGenerationTransport = {
+    const transport: ImageGenerationTransport<WireVendorBag> = {
       submit: vi.fn().mockResolvedValue({})
     }
     const model = createImageGenerationModel('m', { provider: 'ppio', transport })
@@ -149,7 +150,7 @@ describe('createImageGenerationModel.doGenerate', () => {
   })
 
   it('rejects when an async task id is returned by a non-polling transport', async () => {
-    const transport: ImageGenerationTransport = {
+    const transport: ImageGenerationTransport<WireVendorBag> = {
       submit: vi.fn().mockResolvedValue({ taskId: 'task-1' })
     }
     const model = createImageGenerationModel('m', { provider: 'sync-provider', transport })

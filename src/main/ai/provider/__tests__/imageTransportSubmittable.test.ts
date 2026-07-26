@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
+import type { VendorBag } from '@main/ai/utils/imageOptions'
 import type { ImageGenerationMode } from '@shared/data/types/model'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -78,7 +79,7 @@ function descriptorFor(modelId: string, mode: string, def: ModeDef): ImageTransp
     : undefined
 }
 
-function submitInput(overrides: Partial<ImageGenerationSubmitInput>): ImageGenerationSubmitInput {
+function submitInput(overrides: Partial<ImageGenerationSubmitInput<VendorBag>>): ImageGenerationSubmitInput<VendorBag> {
   return {
     modelId: 'unused',
     prompt: 'a cat',

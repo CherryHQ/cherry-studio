@@ -2,8 +2,9 @@ import { OpenAICompatibleChatLanguageModel, OpenAICompatibleEmbeddingModel } fro
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
+import type { VendorBag } from '@main/ai/utils/imageOptions'
 
-import { createImageGenerationModel, type ImageGenerationTransport } from '../imageGenerationModel'
+import { type ImageGenerationTransport, transportOnlyImageModel } from '../imageGenerationModel'
 import { createPpioTransport, DEFAULT_PPIO_BASE_URL } from './ppioTransport'
 
 export const PPIO_PROVIDER_NAME = 'ppio' as const
@@ -33,7 +34,7 @@ export interface PpioProvider extends ProviderV3 {
  * transport registry (`resolveImageTransport`), so the job handler can rebuild
  * the same transport after a restart from the re-resolved provider settings.
  */
-export function buildPpioTransport(settings: PpioProviderSettings): ImageGenerationTransport {
+export function buildPpioTransport(settings: PpioProviderSettings): ImageGenerationTransport<VendorBag> {
   return createPpioTransport({
     apiKey: settings.apiKey ?? '',
     baseURL: settings.imageBaseURL || DEFAULT_PPIO_BASE_URL
@@ -73,8 +74,6 @@ export function createPpioProvider(settings: PpioProviderSettings = {}): PpioPro
       fetch: customFetch
     })
 
-  const transport = buildPpioTransport(settings)
-
   const provider = (modelId: string) => createChatModel(modelId)
   provider.specificationVersion = 'v3' as const
   provider.languageModel = createChatModel
@@ -85,8 +84,7 @@ export function createPpioProvider(settings: PpioProviderSettings = {}): PpioPro
       headers: authHeaders,
       fetch: customFetch
     })
-  provider.imageModel = (modelId: string) =>
-    createImageGenerationModel(modelId, { provider: PPIO_PROVIDER_NAME, transport })
+  provider.imageModel = (modelId: string) => transportOnlyImageModel(PPIO_PROVIDER_NAME, modelId)
 
   return provider as PpioProvider
 }

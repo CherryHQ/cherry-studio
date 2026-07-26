@@ -11,9 +11,10 @@ import {
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
+import type { VendorBag } from '@main/ai/utils/imageOptions'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 
-import { createImageGenerationModel, type ImageGenerationTransport } from '../imageGenerationModel'
+import type { ImageGenerationTransport } from '../imageGenerationModel'
 import { createDmxapiTransport, resolveDmxapiFamily } from './dmxapiTransport'
 
 export const DMXAPI_PROVIDER_NAME = 'dmxapi' as const
@@ -116,7 +117,7 @@ export function dmxapiUsesCustomTransport(modelId: string): boolean {
  * the job handler can rebuild the same transport after a restart from the
  * re-resolved provider settings.
  */
-export function buildDmxapiTransport(settings: DmxapiProviderSettings): ImageGenerationTransport {
+export function buildDmxapiTransport(settings: DmxapiProviderSettings): ImageGenerationTransport<VendorBag> {
   if (!settings.baseURL) {
     throw new Error('DMXAPI provider requires a non-empty `baseURL` to build the image transport.')
   }
@@ -164,8 +165,6 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
       headers: settings.headers,
       fetch: customFetch
     }).chat(modelId)
-
-  const transport = buildDmxapiTransport(settings)
 
   const createChatModel = (modelId: string): LanguageModelV3 => {
     switch (resolveChatFamily(modelId)) {
@@ -217,16 +216,15 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
       case 'gemini-native':
         return googleImageModel(modelId)
     }
-    // Bespoke families (Doubao Seedream / Wan / async Qwen-image) — no native
-    // AI SDK adapter covers these wire shapes (Responses-API string/messages
-    // body, `extra.output.results[].url` async wrapper), so they go through
-    // the custom transport.
-    if (resolveDmxapiFamily(modelId) !== 'openai-flat') {
-      return createImageGenerationModel(modelId, { provider: DMXAPI_PROVIDER_NAME, transport })
-    }
-    // Fallback for unknown models — OpenAI-compat image model is the safest
-    // assumption since DMXAPI's gateway translates the rest of its catalog
-    // through that wire shape.
+    // The bespoke families (Doubao Seedream / Wan / async Qwen-image) are NOT built
+    // here: `dmxapiUsesCustomTransport` gates them onto the job transport, and
+    // `AiService.generateImage` resolves that BEFORE reaching any SDK image model — the
+    // two predicates coincide once the native families above have returned. Registering
+    // them here too is a compile error: `createImageGenerationModel` delivers WIRE names
+    // while the transport reads the canonical `VendorBag`.
+    //
+    // So everything left is openai-flat (or unknown, for which the gateway's compat wire
+    // shape is the safest assumption).
     return new OpenAICompatibleImageModel(modelId, {
       provider: `${DMXAPI_PROVIDER_NAME}.image`,
       url: compatUrl,
