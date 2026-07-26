@@ -252,7 +252,9 @@ describe('ClaudeCodeStreamAdapter', () => {
           event: 'notification',
           taskId: 'task-1',
           status: 'completed',
-          title: 'Build launch deck',
+          // The summary is prose, so it is carried as `summary` only — consumers keep the
+          // started-event title for the row.
+          summary: 'Build launch deck',
           outputFile: '/tmp/task.out',
           usage: { totalTokens: 120, toolUses: 3, durationMs: 4500 }
         })

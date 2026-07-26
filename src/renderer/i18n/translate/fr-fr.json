@@ -324,6 +324,7 @@
         "more": "+{{count}} de plus",
         "no_artifacts": "Aucun livrable déclaré",
         "no_subagents": "Aucun sous-agent",
+        "shell_tasks": "[to be translated]:Background commands",
         "subagents": "Sous-agents"
       },
       "status": {

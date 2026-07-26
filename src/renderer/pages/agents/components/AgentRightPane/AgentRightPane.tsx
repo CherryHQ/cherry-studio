@@ -35,7 +35,6 @@ import type { ResourceListRevealRequest } from '@renderer/components/chat/resour
 import { TracePane } from '@renderer/components/chat/trace/TracePane'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { usePreference } from '@renderer/data/hooks/usePreference'
-import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useAgentSessionTaskEvents } from '@renderer/hooks/agent/useAgentSessionTaskEvents'
@@ -60,6 +59,7 @@ import {
   GitBranch,
   Loader2,
   Package,
+  Terminal,
   Waypoints
 } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -71,7 +71,6 @@ import {
   type AgentRightPaneStatus,
   type AgentRunTask,
   type AgentStatusTask,
-  type AgentSubagent,
   type AgentToolFlowOpenInput,
   buildAgentRightPaneStatus,
   buildAgentToolFlowProjection
@@ -768,6 +767,37 @@ function RunTaskStopButton({ sessionId, taskId }: { sessionId?: string; taskId: 
   )
 }
 
+/** A shell run is a command, not an agent — the two read differently, so they get separate sections. */
+function isShellRunTask(task: AgentRunTask): boolean {
+  const type = task.taskType ?? ''
+  return type.includes('bash') || type.includes('shell')
+}
+
+function RunTaskList({ tasks, sessionId }: { tasks: AgentRunTask[]; sessionId?: string }) {
+  return (
+    <div className="space-y-1.5">
+      {tasks.map((task) => (
+        <div
+          key={task.id}
+          className="flex items-start gap-2 rounded-md border border-border-subtle bg-background-subtle px-2.5 py-2">
+          <TaskStatusIcon status={task.status} />
+          <div className="min-w-0 flex-1">
+            <div className="wrap-break-word text-foreground text-xs leading-5">
+              {task.status === 'in_progress' && task.activeText ? task.activeText : task.title}
+            </div>
+            <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
+              {[task.subagentType ?? task.workflowName ?? task.taskType, formatRunTaskUsage(task.usage)]
+                .filter(Boolean)
+                .join(' · ')}
+            </div>
+          </div>
+          {task.status === 'in_progress' && <RunTaskStopButton sessionId={sessionId} taskId={task.id} />}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function formatRunTaskUsage(usage: AgentRunTask['usage']): string | undefined {
   if (!usage) return undefined
   const parts: string[] = []
@@ -824,7 +854,6 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
   const status = useAgentRightPaneStatus(active)
   const { usage, percentage } = useAgentSessionContextUsage(meta.sessionId)
   const compaction = useAgentSessionCompaction(meta.sessionId)
-  const backgroundTasks = useAgentSessionBackgroundTasks(meta.sessionId)
   const isCompacting = compaction.status === 'compacting'
   const contextUsageColor = percentage === null ? undefined : getAgentContextUsageColor(percentage)
 
@@ -856,42 +885,6 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
                     {task.status === 'in_progress' && task.activeText ? task.activeText : task.title}
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Subagent / shell / workflow runs. These have no done-of-total ratio, so the badge reports
-          how many are still alive — taken from the SDK's level signal, which unlike these
-          part-derived rows keeps updating after the turn that spawned them ends. */}
-      {status.runTasks.length > 0 && (
-        <section className="space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="font-medium text-foreground text-sm">{t('agent.right_pane.status.run_tasks')}</h3>
-            {backgroundTasks.length > 0 && (
-              <Badge variant="outline" className="text-[11px]">
-                {t('agent.right_pane.status.run_task_live', { count: backgroundTasks.length })}
-              </Badge>
-            )}
-          </div>
-          <div className="space-y-1.5">
-            {status.runTasks.map((task) => (
-              <div
-                key={task.id}
-                className="flex items-start gap-2 rounded-md border border-border-subtle bg-background-subtle px-2.5 py-2">
-                <TaskStatusIcon status={task.status} />
-                <div className="min-w-0 flex-1">
-                  <div className="wrap-break-word text-foreground text-xs leading-5">
-                    {task.status === 'in_progress' && task.activeText ? task.activeText : task.title}
-                  </div>
-                  <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                    {[task.subagentType ?? task.workflowName ?? task.taskType, formatRunTaskUsage(task.usage)]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </div>
-                </div>
-                {task.status === 'in_progress' && <RunTaskStopButton sessionId={meta.sessionId} taskId={task.id} />}
               </div>
             ))}
           </div>
@@ -992,18 +985,6 @@ const AgentRightPaneViewport = memo(function AgentRightPaneViewport() {
   )
 })
 
-function SubagentStatusIcon({ status }: { status: AgentSubagent['status'] }) {
-  switch (status) {
-    case 'done':
-      return <CheckCircle size={14} className="text-success" />
-    case 'error':
-      return <Circle size={14} className="text-destructive" />
-    case 'running':
-    default:
-      return <Loader2 size={14} className="animate-spin text-info" />
-  }
-}
-
 function AgentRightPaneHighlightSection({
   title,
   icon,
@@ -1043,11 +1024,12 @@ function AgentRightPaneHighlights({
 }) {
   const actions = useAgentRightPaneActions()
   const { t } = useTranslation()
-  // The preview is a digest, so the plan and the runs it spawned are listed together here even
-  // though the panel keeps them apart — `includeTasks` is false when the panel already shows both.
-  const tasks = includeTasks ? [...status.tasks, ...status.runTasks] : []
+  const meta = useAgentRightPaneMeta()
+  const shellRunTasks = status.runTasks.filter(isShellRunTask)
+  const agentRunTasks = status.runTasks.filter((task) => !isShellRunTask(task))
+  const tasks = includeTasks ? status.tasks : []
   const artifacts = actions.canOpenArtifactFile ? status.artifacts : []
-  const hasHighlights = tasks.length > 0 || status.subagents.length > 0 || artifacts.length > 0
+  const hasHighlights = tasks.length > 0 || status.runTasks.length > 0 || artifacts.length > 0
 
   if (!hasHighlights) return null
 
@@ -1075,21 +1057,21 @@ function AgentRightPaneHighlights({
         </AgentRightPaneHighlightSection>
       )}
 
-      {status.subagents.length > 0 && (
+      {agentRunTasks.length > 0 && (
         <AgentRightPaneHighlightSection
           title={t('agent.right_pane.info.subagents')}
           icon={<Bot size={14} className="text-muted-foreground" />}
           compact={compact}>
-          <ul className="space-y-1">
-            {status.subagents.map((subagent) => (
-              <li key={subagent.toolCallId} className="flex min-w-0 items-start gap-2">
-                <SubagentStatusIcon status={subagent.status} />
-                <span className="wrap-break-word min-w-0 flex-1 text-foreground-secondary text-xs leading-5">
-                  {subagent.name}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <RunTaskList tasks={agentRunTasks} sessionId={meta.sessionId} />
+        </AgentRightPaneHighlightSection>
+      )}
+
+      {shellRunTasks.length > 0 && (
+        <AgentRightPaneHighlightSection
+          title={t('agent.right_pane.info.shell_tasks')}
+          icon={<Terminal size={14} className="text-muted-foreground" />}
+          compact={compact}>
+          <RunTaskList tasks={shellRunTasks} sessionId={meta.sessionId} />
         </AgentRightPaneHighlightSection>
       )}
 

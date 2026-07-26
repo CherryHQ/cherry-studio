@@ -837,14 +837,15 @@ describe('AgentRightPane', () => {
     expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'false')
     const preview = screen.getByTestId('status-shortcut-preview')
 
+    // Task events now surface as run-task cards: icon container + a text column inside a card row.
     for (const title of [shortTitle, wrappingTitle]) {
       const taskText = within(preview).getByText(title)
-      const row = taskText.closest('li')
-      const iconContainer = taskText.previousElementSibling
+      const textColumn = taskText.parentElement
+      const row = textColumn?.parentElement
+      const iconContainer = textColumn?.previousElementSibling
 
-      expect(row).toHaveClass('flex', 'min-w-0', 'items-start')
-      expect(taskText.parentElement).toBe(row)
-      expect(taskText).toHaveClass('wrap-break-word', 'min-w-0', 'flex-1', 'leading-5')
+      expect(row).toHaveClass('flex', 'items-start')
+      expect(taskText).toHaveClass('wrap-break-word', 'leading-5')
       expect(iconContainer).toHaveClass('flex', 'size-5', 'shrink-0', 'items-center', 'justify-center')
     }
   })

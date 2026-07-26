@@ -417,7 +417,7 @@ function AgentComposerBackgroundTasks({ sessionId }: { sessionId: string }) {
   return (
     <div
       aria-label={t('agent.composer.background_running', { count: backgroundTasks.length })}
-      className="mt-1 flex flex-wrap gap-1">
+      className="mt-1 mb-2 flex flex-wrap justify-center gap-1">
       {backgroundTasks.map((task) => (
         <div
           key={task.task_id}

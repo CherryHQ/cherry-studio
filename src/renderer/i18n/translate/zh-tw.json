@@ -324,6 +324,7 @@
         "more": "還有 {{count}} 項",
         "no_artifacts": "暫無宣告產物",
         "no_subagents": "暫無子智能體",
+        "shell_tasks": "[to be translated]:Background commands",
         "subagents": "子智能體"
       },
       "status": {

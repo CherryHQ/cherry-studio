@@ -324,6 +324,7 @@
         "more": "+{{count}} weitere",
         "no_artifacts": "Keine erklärten Liefergegenstände",
         "no_subagents": "Keine Unteragenten",
+        "shell_tasks": "[to be translated]:Background commands",
         "subagents": "Unteragenten"
       },
       "status": {

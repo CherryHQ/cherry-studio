@@ -324,6 +324,7 @@
         "more": "+{{count}} nữa",
         "no_artifacts": "Không có sản phẩm giao nộo nào được khai báo",
         "no_subagents": "Không có đại lý phụ",
+        "shell_tasks": "[to be translated]:Background commands",
         "subagents": "Đại lý phụ"
       },
       "status": {

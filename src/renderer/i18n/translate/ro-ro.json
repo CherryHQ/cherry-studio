@@ -324,6 +324,7 @@
         "more": "+{{count}} mai multe",
         "no_artifacts": "Niciun livrabil declarat",
         "no_subagents": "Fără subagenți",
+        "shell_tasks": "[to be translated]:Background commands",
         "subagents": "Subagenți"
       },
       "status": {

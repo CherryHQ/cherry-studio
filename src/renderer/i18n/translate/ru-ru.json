@@ -324,6 +324,7 @@
         "more": "+{{count}} ещё",
         "no_artifacts": "Нет заявленных результатов",
         "no_subagents": "Без субагентов",
+        "shell_tasks": "[to be translated]:Background commands",
         "subagents": "Субагенты"
       },
       "status": {

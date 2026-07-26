@@ -1202,7 +1202,7 @@ export class ClaudeCodeStreamAdapter {
           ...base,
           event: 'notification',
           status: mapTaskStatus(message.status),
-          title: message.summary,
+          // The completion summary is prose, not a name — consumers keep the started-event title.
           summary: message.summary,
           outputFile: message.output_file,
           skipTranscript: message.skip_transcript === true,

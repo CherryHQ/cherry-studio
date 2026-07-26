@@ -324,6 +324,7 @@
         "more": "还有 {{count}} 项",
         "no_artifacts": "暂无声明产物",
         "no_subagents": "暂无子智能体",
+        "shell_tasks": "后台命令",
         "subagents": "子智能体"
       },
       "status": {

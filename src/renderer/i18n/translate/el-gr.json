@@ -324,6 +324,7 @@
         "more": "+{{count}} ακόμα",
         "no_artifacts": "Καμία δηλωμένη παράδοση",
         "no_subagents": "Καμία υπο-αντιπροσωπεία",
+        "shell_tasks": "[to be translated]:Background commands",
         "subagents": "Υπο-πράκτορες"
       },
       "status": {

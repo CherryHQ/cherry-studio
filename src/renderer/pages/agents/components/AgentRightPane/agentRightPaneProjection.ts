@@ -5,11 +5,7 @@ import {
   isTaskRecord,
   normalizeTaskStatus
 } from '@renderer/components/chat/messages/tools/agent'
-import {
-  type AgentToolOutput,
-  AgentToolsType,
-  isBackgroundAgentOutput
-} from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
+import { AgentToolsType } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import {
   getPartParentToolCallId,
   stripPartParentToolMetadata
@@ -74,13 +70,6 @@ export interface AgentRunTask {
   usage?: AgentTaskEventPartData['usage']
 }
 
-/** A sub-agent spawned via the `Agent`/`Task` tool, derived from the message stream. */
-export interface AgentSubagent {
-  toolCallId: string
-  name: string
-  status: 'running' | 'done' | 'error'
-}
-
 /** A final deliverable file the agent declared via the `report_artifacts` tool. */
 export interface AgentArtifactFile {
   toolCallId: string
@@ -94,7 +83,6 @@ export interface AgentRightPaneStatus {
   completedTaskCount: number
   totalTaskCount: number
   runTasks: AgentRunTask[]
-  subagents: AgentSubagent[]
   artifacts: AgentArtifactFile[]
 }
 
@@ -403,7 +391,8 @@ function getNextTaskOrdinalId(taskMap: Map<string, AgentStatusTask>): string | u
 
 function applyAgentTaskEvent(runTaskMap: Map<string, AgentRunTask>, data: AgentTaskEventPartData): void {
   const existing = runTaskMap.get(data.taskId)
-  const title = data.title?.trim() || data.summary?.trim() || data.description?.trim() || existing?.title
+  // A completion's summary is prose, not a name — it must never become the row title.
+  const title = data.title?.trim() || data.description?.trim() || existing?.title
   if (!title) return
 
   runTaskMap.set(data.taskId, {
@@ -421,25 +410,6 @@ function applyAgentTaskEvent(runTaskMap: Map<string, AgentRunTask>, data: AgentT
 
 function isReportArtifactsTool(toolName: string | undefined): boolean {
   return toolName === REPORT_ARTIFACTS_TOOL_NAME || (toolName?.endsWith(`__${REPORT_ARTIFACTS_TOOL_NAME}`) ?? false)
-}
-
-function getSubagentName(input: unknown, fallback: string): string {
-  if (isRecord(input)) {
-    const description = typeof input.description === 'string' ? input.description.trim() : ''
-    if (description) return description
-    const name = typeof input.name === 'string' ? input.name.trim() : ''
-    if (name) return name
-  }
-  return fallback
-}
-
-function getSubagentStatus(state: string | undefined, output: AgentToolOutput | undefined): AgentSubagent['status'] {
-  if (state === 'output-error' || state === 'output-denied') return 'error'
-  // A detached subagent's launch receipt lands as a terminal tool state while the agent is still
-  // working, so the tool state alone would report it done.
-  if (isBackgroundAgentOutput(output)) return 'running'
-  if (isTerminalToolState(state)) return 'done'
-  return 'running'
 }
 
 function getPathBasename(path: string): string {
@@ -461,7 +431,6 @@ export function buildAgentRightPaneStatus(
 ): AgentRightPaneStatus {
   const taskMap = new Map<string, AgentStatusTask>()
   const runTaskMap = new Map<string, AgentRunTask>()
-  const subagentByCallId = new Map<string, AgentSubagent>()
   const artifactByPath = new Map<string, AgentArtifactFile>()
 
   for (const message of messages) {
@@ -472,20 +441,11 @@ export function buildAgentRightPaneStatus(
       }
 
       if (!isToolUIPart(part)) return
-      const state = getToolPartState(part)
       const fallbackId = getToolCallId(part) ?? `${message.id}-${partIndex}`
       applyTaskToolPart(taskMap, part, fallbackId)
 
       const toolName = getToolNameFromPart(part)
-      if (toolName === AgentToolsType.Agent || toolName === AgentToolsType.Task) {
-        subagentByCallId.set(fallbackId, {
-          toolCallId: fallbackId,
-          name: getSubagentName(getToolPartInput(part), toolName),
-          // Message parts carry an untyped output; this is the boundary where it becomes the
-          // Agent/Task tool's shape.
-          status: getSubagentStatus(state, getToolPartOutput(part) as AgentToolOutput | undefined)
-        })
-      } else if (isReportArtifactsTool(toolName)) {
+      if (isReportArtifactsTool(toolName)) {
         const parsed = reportArtifactsInputSchema.safeParse(getToolPartInput(part))
         if (parsed.success) {
           for (const artifact of parsed.data.artifacts) {
@@ -507,6 +467,13 @@ export function buildAgentRightPaneStatus(
     applyAgentTaskEvent(runTaskMap, data)
   }
 
+  // The SDK's task tools share one id space with spawned runs, so `TaskList` output can echo a
+  // running subagent back into the plan. The runs section owns those ids; keep the plan to items
+  // that are only ever plan.
+  for (const id of runTaskMap.keys()) {
+    taskMap.delete(id)
+  }
+
   const tasks = Array.from(taskMap.values())
   const completedTaskCount = tasks.filter((task) => task.status === 'completed').length
 
@@ -515,7 +482,6 @@ export function buildAgentRightPaneStatus(
     completedTaskCount,
     totalTaskCount: tasks.length,
     runTasks: Array.from(runTaskMap.values()),
-    subagents: Array.from(subagentByCallId.values()),
     artifacts: Array.from(artifactByPath.values())
   }
 }

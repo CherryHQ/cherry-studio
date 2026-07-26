@@ -265,7 +265,7 @@ describe('agent right pane projections', () => {
     ])
   })
 
-  it('projects sub-agents and declared artifacts into status', () => {
+  it('projects declared artifacts into status', () => {
     const parts = [
       toolPart('agent-1', 'Agent', undefined, 'input-available', { description: 'Inspect renderer state' }),
       toolPart('task-1', 'Task', undefined, 'output-error', { name: 'Audit tests' }),
@@ -282,10 +282,6 @@ describe('agent right pane projections', () => {
 
     const status = buildAgentRightPaneStatus(messages, { m1: parts })
 
-    expect(status.subagents).toEqual([
-      { toolCallId: 'agent-1', name: 'Inspect renderer state', status: 'running' },
-      { toolCallId: 'task-1', name: 'Audit tests', status: 'error' }
-    ])
     expect(status.artifacts).toEqual([
       {
         toolCallId: 'artifacts-1',
@@ -338,47 +334,6 @@ describe('agent right pane projections', () => {
         taskType: 'local_bash',
         outputFile: '/tmp/bg-1.md'
       })
-    ])
-  })
-
-  // A detached subagent's launch receipt arrives immediately, so its tool call reaches
-  // `output-available` while the agent has barely started. Reporting that as 'done' is what made a
-  // background agent look finished the moment it was spawned.
-  it('keeps a backgrounded subagent running despite its terminal tool state', () => {
-    const parts = [
-      toolPart(
-        'agent-bg',
-        'Agent',
-        undefined,
-        'output-available',
-        { description: 'Audit the codebase' },
-        { status: 'async_launched', agentId: 'ag-1' }
-      ),
-      toolPart(
-        'agent-remote',
-        'Agent',
-        undefined,
-        'output-available',
-        { description: 'Remote sweep' },
-        { status: 'remote_launched', taskId: 't-1' }
-      ),
-      toolPart(
-        'agent-done',
-        'Agent',
-        undefined,
-        'output-available',
-        { description: 'Finished work' },
-        { status: 'completed', agentId: 'ag-2' }
-      )
-    ]
-    const messages = [message('m1', parts)]
-
-    const status = buildAgentRightPaneStatus(messages, { m1: parts })
-
-    expect(status.subagents).toEqual([
-      { toolCallId: 'agent-bg', name: 'Audit the codebase', status: 'running' },
-      { toolCallId: 'agent-remote', name: 'Remote sweep', status: 'running' },
-      { toolCallId: 'agent-done', name: 'Finished work', status: 'done' }
     ])
   })
 })
