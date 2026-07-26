@@ -1,6 +1,6 @@
 import { ipcApi } from '@renderer/ipc'
 import { FILE_TYPE, type FileMetadata, type FileType } from '@renderer/types/file'
-import type { AbsoluteFilePath } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { GB, KB, MB } from '@shared/utils/constants'
 import { audioExts, createFilePathHandle, documentExts, imageExts, textExts, videoExts } from '@shared/utils/file'
 import mime from 'mime-types'
@@ -92,7 +92,7 @@ export async function isSupportedFile(filePath: string, supportExts: Set<string>
       return true
     }
 
-    const meta = await ipcApi.request('file.get_metadata', createFilePathHandle(filePath as AbsoluteFilePath))
+    const meta = await ipcApi.request('file.get_metadata', createFilePathHandle(AbsoluteFilePathSchema.parse(filePath)))
     if (meta?.kind === 'file' && meta.type === 'text') {
       return true
     }

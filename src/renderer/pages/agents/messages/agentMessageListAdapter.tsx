@@ -37,7 +37,7 @@ import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import { normalizeInlineFilePath, resolveInlineFilePath } from '@renderer/utils/filePath'
 import type { ResponseForPath } from '@shared/data/api/paths'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import type { AbsoluteFilePath } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle } from '@shared/utils/file'
 import { useNavigate } from '@tanstack/react-router'
 import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
@@ -266,7 +266,7 @@ export function useAgentMessageListProviderValue({
     async (path: string) => {
       const meta = await ipcApi.request(
         'file.get_metadata',
-        createFilePathHandle(resolveWorkspaceFilePath(workspacePath, path) as AbsoluteFilePath)
+        createFilePathHandle(AbsoluteFilePathSchema.parse(resolveWorkspaceFilePath(workspacePath, path)))
       )
       return meta?.kind === 'directory'
     },

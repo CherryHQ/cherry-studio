@@ -7,7 +7,7 @@ import { filterSupportedFiles, isSupportedFile } from '@renderer/utils/file'
 import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'
 import { type ComposerAttachment, toComposerAttachments } from '@renderer/utils/message/composerAttachment'
 import { isComposerFileTokenPathLike } from '@renderer/utils/message/composerFileTokenSource'
-import type { AbsoluteFilePath, FileUrlString } from '@shared/types/file'
+import { AbsoluteFilePathSchema, type FileUrlString } from '@shared/types/file'
 import { createFilePathHandle, fileUrlToPath } from '@shared/utils/file'
 import type { TFunction } from 'i18next'
 import { useCallback } from 'react'
@@ -54,7 +54,7 @@ export function getSingleDroppedPathFromText(text: string): string | null {
 
 async function getDroppedPathKind(path: string): Promise<'file' | 'directory' | null> {
   try {
-    const meta = await ipcApi.request('file.get_metadata', createFilePathHandle(path as AbsoluteFilePath))
+    const meta = await ipcApi.request('file.get_metadata', createFilePathHandle(AbsoluteFilePathSchema.parse(path)))
     return meta?.kind ?? 'file'
   } catch {
     return null
