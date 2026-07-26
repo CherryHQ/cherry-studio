@@ -187,7 +187,7 @@ describe('AihubmixImageModel', () => {
       expect(result.images).toEqual(['https://img/r.png'])
     })
 
-    it('upscale → image_request JSON + image_file blob to /ideogram/aihubmix_image_upscale', async () => {
+    it('upscale → image_request JSON + image_file blob to /ideogram/upscale', async () => {
       const fetchMock = vi.fn().mockResolvedValue(okJson({ data: [{ url: 'https://img/u.png' }] }))
       vi.stubGlobal('fetch', fetchMock)
 
@@ -207,7 +207,7 @@ describe('AihubmixImageModel', () => {
       )
 
       const [url, init] = fetchMock.mock.calls[0]
-      expect(url).toBe('https://aihubmix.com/ideogram/aihubmix_image_upscale')
+      expect(url).toBe('https://aihubmix.com/ideogram/upscale')
       const form = init.body as FormData
       const imageRequest = JSON.parse(form.get('image_request') as string)
       expect(imageRequest).toMatchObject({ resemblance: 60, detail: 80, num_images: 1, magic_prompt_option: 'OFF' })
@@ -216,7 +216,7 @@ describe('AihubmixImageModel', () => {
   })
 
   describe('Ideogram V_1/V_2', () => {
-    it('generate → JSON {image_request} to /ideogram/aihubmix_image_generate', async () => {
+    it('generate → JSON {image_request} to /ideogram/generate', async () => {
       const fetchMock = vi.fn().mockResolvedValue(okJson({ data: [{ url: 'https://img/v1.png' }] }))
       vi.stubGlobal('fetch', fetchMock)
 
@@ -237,7 +237,7 @@ describe('AihubmixImageModel', () => {
       )
 
       const [url, init] = fetchMock.mock.calls[0]
-      expect(url).toBe('https://aihubmix.com/ideogram/aihubmix_image_generate')
+      expect(url).toBe('https://aihubmix.com/ideogram/generate')
       expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/json')
       expect((init.headers as Record<string, string>)['Api-Key']).toBe('sk-test')
       const body = JSON.parse(init.body as string)
@@ -254,7 +254,7 @@ describe('AihubmixImageModel', () => {
       expect(result.images).toEqual(['https://img/v1.png'])
     })
 
-    it('remix → FormData (image_request JSON + image_file) to /ideogram/aihubmix_image_remix', async () => {
+    it('remix → FormData (image_request JSON + image_file) to /ideogram/remix', async () => {
       const fetchMock = vi.fn().mockResolvedValue(okJson({ data: [{ b64_json: 'QUJD' }] }))
       vi.stubGlobal('fetch', fetchMock)
 
@@ -271,7 +271,7 @@ describe('AihubmixImageModel', () => {
       )
 
       const [url, init] = fetchMock.mock.calls[0]
-      expect(url).toBe('https://aihubmix.com/ideogram/aihubmix_image_remix')
+      expect(url).toBe('https://aihubmix.com/ideogram/remix')
       const form = init.body as FormData
       const imageRequest = JSON.parse(form.get('image_request') as string)
       expect(imageRequest.image_weight).toBe(30)

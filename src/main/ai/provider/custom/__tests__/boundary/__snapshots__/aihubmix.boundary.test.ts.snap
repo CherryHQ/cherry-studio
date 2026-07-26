@@ -1,6 +1,6 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`AiHubMix image-model boundary (Ideogram branches) > V_2 generate → { image_request } JSON to /ideogram/aihubmix_image_generate 1`] = `
+exports[`AiHubMix image-model boundary (Ideogram branches) > V_2 generate → { image_request } JSON to /ideogram/generate 1`] = `
 {
   "image_request": {
     "aspect_ratio": "ASPECT_1_1",

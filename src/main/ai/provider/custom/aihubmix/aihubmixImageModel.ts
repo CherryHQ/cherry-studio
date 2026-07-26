@@ -40,10 +40,18 @@ const AIHUBMIX_GOOGLE_PROVIDER = 'aihubmix.google' as const
 
 type AihubmixMode = 'generate' | 'remix' | 'upscale'
 
-const MODE_TO_CONFIG: Record<AihubmixMode, string> = {
-  generate: 'aihubmix_image_generate',
-  remix: 'aihubmix_image_remix',
-  upscale: 'aihubmix_image_upscale'
+/**
+ * Ideogram V1/V2 endpoint path segment per mode —
+ * `POST {apiRoot}/ideogram/{generate|remix|upscale}` (docs.aihubmix.com "V2-V1 接口说明").
+ *
+ * These were `aihubmix_image_generate` / `_remix` / `_upscale`: v1 CONFIG keys spliced
+ * into a URL, which produced `/ideogram/aihubmix_image_generate` and a 404. The generate
+ * arm is reachable for a hand-added `V_1` / `V_2` model, so that one was live and broken.
+ */
+const MODE_TO_ENDPOINT: Record<AihubmixMode, string> = {
+  generate: 'generate',
+  remix: 'remix',
+  upscale: 'upscale'
 }
 
 interface AihubmixImageFile {
@@ -534,7 +542,7 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
     // ---- Ideogram V_1/V_2 (non-default) + V_3 upscale branch (relocated verbatim) ----
     let body: string | FormData = ''
     const reqHeaders: Record<string, string> = { 'Api-Key': resolveApiKey() }
-    const url = `${apiRoot}/ideogram/${MODE_TO_CONFIG[mode]}`
+    const url = `${apiRoot}/ideogram/${MODE_TO_ENDPOINT[mode]}`
 
     const v1v2Aspect = aspectRatioToIdeogramV1V2(aspectRatio)
 

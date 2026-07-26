@@ -10,11 +10,21 @@ vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 /**
  * AiHubMix image-model boundary — the bespoke branches (NOT the gpt-image /
  * dall-e OpenAI-compat delegate or the Google delegate, which forward to AI SDK
- * adapters covered elsewhere). V_3 posts FormData to `/ideogram/v1/ideogram-v3/*`;
- * V_1/V_2 post an `{ image_request }` JSON to `/ideogram/aihubmix_image_*`; Doubao
- * Seedream posts its own JSON to `/v1/images/generations` with an explicit
- * `response_format`. numImages comes from `options.n`, aspectRatio from
- * `options.aspectRatio`.
+ * adapters covered elsewhere).
+ *
+ * ORACLE: https://docs.aihubmix.com/cn/api/IdeogramAI (retrieved 2026-07-26).
+ * Read that before changing an expectation here. These assertions are only worth
+ * anything if their expected values come from the vendor's spec — an expectation
+ * read off the implementation makes the test agree with whatever the code does,
+ * including a bug. This file did exactly that: it pinned
+ * `/ideogram/aihubmix_image_generate`, a v1 config key spliced into a URL, which
+ * 404s. Per the doc the V1/V2 endpoints are `/ideogram/{generate,remix,upscale}`
+ * and V3 is `/ideogram/v1/ideogram-v3/{generate,remix}`; the reference image is
+ * `image` (V3, multipart) and `image_file` (V1/V2, alongside an `image_request`
+ * JSON part).
+ *
+ * What this file CAN do: tell you the wire changed. What it CANNOT do: tell you
+ * the wire is right — only the doc above does that.
  */
 function opts(partial: Partial<ImageModelV3CallOptions>): ImageModelV3CallOptions {
   return {
@@ -73,7 +83,7 @@ describe('AiHubMix image-model boundary (Ideogram branches)', () => {
     expect(req.body).toMatchSnapshot()
   })
 
-  it('V_2 generate → { image_request } JSON to /ideogram/aihubmix_image_generate', async () => {
+  it('V_2 generate → { image_request } JSON to /ideogram/generate', async () => {
     const req = await captureWithFetch((fetch) =>
       createAihubmixImageModel('V_2', { ...config, fetch }).doGenerate(
         opts({
@@ -81,9 +91,8 @@ describe('AiHubMix image-model boundary (Ideogram branches)', () => {
           aspectRatio: '1:1',
           providerOptions: {
             aihubmix: {
-              mode: 'generate',
               styleType: 'REALISTIC',
-              seed: '7',
+              seed: 7,
               negativePrompt: 'noise',
               magicPromptOption: false
             }
@@ -91,7 +100,10 @@ describe('AiHubMix image-model boundary (Ideogram branches)', () => {
         })
       )
     )
-    expect(req.url).toBe('https://aihubmix.com/ideogram/aihubmix_image_generate')
+    // Per docs.aihubmix.com "V2-V1 接口说明": `POST https://aihubmix.com/ideogram/generate`.
+    // This asserted `/ideogram/aihubmix_image_generate` — the v1 CONFIG key spliced into
+    // the path — so the test agreed with a URL that 404s.
+    expect(req.url).toBe('https://aihubmix.com/ideogram/generate')
     z.strictObject({
       image_request: z.strictObject({
         prompt: z.string(),

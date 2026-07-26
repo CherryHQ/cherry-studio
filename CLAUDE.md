@@ -53,11 +53,21 @@ collectively fatal, so treat each as **banned unless justified in a comment**:
 Before writing any of them, answer: **"who writes this field, and can I name the line?"**
 If not, it is suspect — that single question is what unmasked every one of these.
 
-**Tests do not protect against this.** A test written from the same mental model as the
-code agrees with the code's misconception — four separate tests in this repo pinned the
-bug as expected behaviour. So: build fixtures from the producer's real data, not
-hand-authored literals, and **never trust a test you have not seen fail** (break the
-code on purpose once, confirm it goes red, put it back).
+**Tests do not protect against this — most of them cannot.** A test whose expected value
+was read off the implementation has **no oracle**: it detects change, never error, and
+when the code is wrong it is wrong in exactly the same way. Five separate tests in this
+repo pinned a bug as expected behaviour, including a boundary test asserting a URL that
+404s. So:
+
+- An assertion that encodes an **external** contract (a vendor URL, a wire field name, a
+  protocol shape) must **cite its source in the test** — doc link + retrieval date.
+  Uncited, it is an echo of the code and a reviewer cannot tell the difference.
+- Prefer fixtures derived from the **producer's real data** (walk the registry, the
+  schema, the DB) over hand-authored literals, which inherit the author's misconception.
+- A snapshot of a payload you wrote yourself asserts nothing. Use it only as
+  change-detection, and don't describe it as verifying a contract.
+- **Never trust a test you have not seen fail**: break the code on purpose once, confirm
+  it goes red, put it back.
 
 #### Goal-Driven Execution
 
