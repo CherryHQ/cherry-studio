@@ -172,7 +172,8 @@ function getToolPromptText(part: CherryMessagePart | undefined): string | undefi
   return textFromContent(input.prompt) ?? textFromContent(input.description)
 }
 
-function getToolOutputText(part: CherryMessagePart | undefined): string | undefined {
+function getToolOutputText(part: CherryMessagePart | undefined, resolvedOutput?: unknown): string | undefined {
+  if (resolvedOutput !== undefined) return textFromContent(resolvedOutput)
   if (!part) return undefined
   return textFromContent(getToolPartOutput(part))
 }
@@ -236,7 +237,8 @@ function isTerminalToolState(state: string | undefined): boolean {
 export function buildAgentToolFlowProjection(
   messages: CherryUIMessage[],
   partsByMessageId: Record<string, CherryMessagePart[]>,
-  selectedToolCallId?: string
+  selectedToolCallId?: string,
+  selectedToolOutput?: unknown
 ): AgentToolFlowProjection {
   const toolNodes: AgentToolFlowNode[] = []
   const childrenByParent = new Map<string, string[]>()
@@ -317,7 +319,7 @@ export function buildAgentToolFlowProjection(
       }
     }
 
-    const outputText = getToolOutputText(selectedToolPart)
+    const outputText = getToolOutputText(selectedToolPart, selectedToolOutput)
     if (outputText) assistantParts.push({ type: 'text', text: outputText } as CherryMessagePart)
     const isFlowActive = toolNodes.some(
       (node) => selectedToolCallIds.has(node.toolCallId) && !isTerminalToolState(node.state)

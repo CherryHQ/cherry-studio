@@ -465,7 +465,7 @@ function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessio
         // throttles this and answers on the shared-cache key; a session with no live connection
         // keeps showing its last reading.
         onPointerEnter={() => {
-          void ipcApi.request('ai.refresh_agent_session_context_usage', { sessionId })
+          void ipcApi.request('ai.agent.session.refresh_context_usage', { sessionId })
         }}
         className={cn(
           'relative inline-grid size-5 shrink-0 place-items-center rounded-full bg-[conic-gradient(var(--context-usage-color)_var(--context-usage-progress),var(--border-subtle)_0)]',

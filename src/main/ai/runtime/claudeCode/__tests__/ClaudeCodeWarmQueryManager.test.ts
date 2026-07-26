@@ -319,7 +319,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
   })
 
   // sessionId validation (empty / non-string) now lives in the IpcApi router's zod parse of
-  // `ai.prewarm_agent_session` / `ai.close_agent_session_warm`, not in this service — so it is no
+  // `ai.agent.session.prewarm` / `ai.agent.session.close_warm`, not in this service — so it is no
   // longer unit-tested here (a thin schema contract; see ipc-usage.md "Testing"). The
   // prewarm/close methods are exercised directly above and below.
 

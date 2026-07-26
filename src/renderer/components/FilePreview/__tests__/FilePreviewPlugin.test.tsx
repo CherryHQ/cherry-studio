@@ -109,7 +109,8 @@ describe('FilePreview plugin loading', () => {
     const header = screen.getByTestId('file-preview-header')
     const toolbarHost = screen.getByTestId('file-preview-toolbar-host')
 
-    expect(header).toHaveClass('h-10')
+    expect(header).toHaveClass('h-11', 'after:left-3', 'after:right-3', 'after:border-border', 'after:border-b')
+    expect(header.nextElementSibling).not.toHaveClass('px-3')
     expect(header.firstElementChild).toContainElement(screen.getByTestId('preview-title'))
     expect(header.lastElementChild).toBe(toolbarHost)
     expect(toolbarHost).toContainElement(toolbar)

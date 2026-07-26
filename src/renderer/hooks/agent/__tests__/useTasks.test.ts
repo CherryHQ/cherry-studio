@@ -5,7 +5,17 @@ import { MockUseDataApiUtils, mockUseInvalidateCache } from '@test-mocks/rendere
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useCreateTask, useDeleteTask, useRunTask, useSetTaskEnabled, useTasks, useUpdateTask } from '../useTasks'
+import {
+  TASKS_PAGE_LIMIT,
+  useAllTasks,
+  useCreateTask,
+  useDeleteTask,
+  useRunTask,
+  useSetTaskEnabled,
+  useTask,
+  useTasks,
+  useUpdateTask
+} from '../useTasks'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
@@ -21,7 +31,7 @@ vi.mock('@renderer/ipc', () => ({
 }))
 
 const taskEntity = { id: 't-1', agentId: 'agent-1', name: 'Task 1', enabled: true }
-const TASK_READ_KEYS = ['/agents/agent-1/tasks', '/agents/agent-1/tasks/*']
+const TASK_READ_KEYS = ['/agent-tasks', '/agent-tasks/*', '/agents/agent-1/tasks', '/agents/agent-1/tasks/*']
 
 // Pin one stable invalidate spy across renders so the read-key assertions
 // below can see it (the default mock returns a fresh fn per render).
@@ -56,6 +66,35 @@ describe('useTasks', () => {
 
     expect(result.current.tasks).toEqual(mockTasks)
     expect(result.current.total).toBe(2)
+  })
+})
+
+describe('useAllTasks', () => {
+  it('returns the cross-agent paginated task list and page count', () => {
+    MockUseDataApiUtils.mockPaginatedData('/agent-tasks', [taskEntity], {
+      total: TASKS_PAGE_LIMIT + 1,
+      page: 2,
+      hasPrev: true
+    })
+
+    const { result } = renderHook(() => useAllTasks())
+
+    expect(result.current.tasks).toEqual([taskEntity])
+    expect(result.current.total).toBe(TASKS_PAGE_LIMIT + 1)
+    expect(result.current.page).toBe(2)
+    expect(result.current.pageCount).toBe(2)
+    expect(result.current.hasPrev).toBe(true)
+  })
+})
+
+describe('useTask', () => {
+  it('reads one task without requiring its owning agent id', () => {
+    MockUseDataApiUtils.mockQueryResult('/agent-tasks/:taskId', { data: taskEntity as any })
+
+    const { result } = renderHook(() => useTask('t-1'))
+
+    expect(result.current.task).toEqual(taskEntity)
+    expect(result.current.isLoading).toBe(false)
   })
 })
 

@@ -866,7 +866,7 @@ export class ClaudeCodeStreamAdapter {
     state.name = toolName
 
     const normalizedResult = this.normalizeToolResult(result.content)
-    const rawResult =
+    const errorText =
       typeof result.content === 'string'
         ? result.content
         : (() => {
@@ -880,9 +880,7 @@ export class ClaudeCodeStreamAdapter {
     this.emitToolCall(result.tool_use_id, state, ctx)
     if (isSubagentToolName(toolName)) ctx.activeTaskTools.delete(result.tool_use_id)
 
-    const providerMetadata = this.buildToolProviderMetadata(state, {
-      rawResult
-    })
+    const providerMetadata = this.buildToolProviderMetadata(state)
     const isError = this.isToolResultError(result)
     if (ctx.deniedToolUseIds.has(result.tool_use_id)) {
       // The chunk schema is strict — `toolCallId` is the only accepted field, so the rejection
@@ -892,7 +890,7 @@ export class ClaudeCodeStreamAdapter {
       ctx.sink.enqueue({
         type: 'tool-output-error',
         toolCallId: result.tool_use_id,
-        errorText: rawResult,
+        errorText,
         dynamic: true,
         providerExecuted: true,
         providerMetadata
@@ -1392,18 +1390,12 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
-  private buildToolProviderMetadata(
-    state: ToolStreamState,
-    extra: Record<string, JSONValue | undefined> = {}
-  ): Record<string, JSONObject> {
+  private buildToolProviderMetadata(state: ToolStreamState): Record<string, JSONObject> {
     const claudeCode: JSONObject = {
       parentToolCallId: state.parentToolCallId ?? null,
       ...(state.sdkBlockType ? { sdkBlockType: state.sdkBlockType } : {}),
       ...(state.serverName ? { serverName: state.serverName } : {}),
       ...(state.serverId ? { serverId: state.serverId } : {})
-    }
-    for (const [key, value] of Object.entries(extra)) {
-      if (value !== undefined) claudeCode[key] = value
     }
 
     return {
@@ -1532,7 +1524,7 @@ export class ClaudeCodeStreamAdapter {
       providerExecuted: true,
       dynamic: true,
       title: this.getToolTitle(state),
-      providerMetadata: this.buildToolProviderMetadata(state, { rawInput: serializedInput })
+      providerMetadata: this.buildToolProviderMetadata(state)
     })
     state.inputStarted = true
     state.inputClosed = true
