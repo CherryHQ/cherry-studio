@@ -24,7 +24,16 @@ import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
 import { type Model, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isGenerateImageModel, isNonChatModel } from '@shared/utils/model'
-import { ChevronDown, Languages, MessageSquareMore, Palette, RefreshCcw, Rocket, RotateCcw, Settings2 } from 'lucide-react'
+import {
+  ChevronDown,
+  Languages,
+  MessageSquareMore,
+  Palette,
+  RefreshCcw,
+  Rocket,
+  RotateCcw,
+  Settings2
+} from 'lucide-react'
 import type { ComponentProps, FC, ReactNode } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
