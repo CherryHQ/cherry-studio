@@ -1,9 +1,14 @@
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { streamOpen } = vi.hoisted(() => ({ streamOpen: vi.fn() }))
+
 vi.mock('@data/DataApiService', () => ({ dataApiService: { get: vi.fn(), patch: vi.fn() } }))
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }) }
+}))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: (...args: unknown[]) => streamOpen(...args) }
 }))
 vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistant: () => ({ assistant: { settings: {} } })
@@ -36,6 +41,7 @@ const uiMsg = (id: string, role: string, parentId: string | null): any => ({
 })
 
 function renderActions(rootId: string | null, uiMessages: ReturnType<typeof uiMsg>[], cache = makeCache()) {
+  const onLocalSendStarted = vi.fn()
   const { result } = renderHook(() =>
     useChatWriteActions({
       topic: { id: 't1' } as Topic,
@@ -46,10 +52,11 @@ function renderActions(rootId: string | null, uiMessages: ReturnType<typeof uiMs
       stop: vi.fn(async () => {}),
       refresh: vi.fn(async () => []),
       cache,
-      seedReservedMessages: vi.fn(async () => {})
+      seedReservedMessages: vi.fn(async () => {}),
+      onLocalSendStarted
     })
   )
-  return { actions: result.current.actions, cache }
+  return { actions: result.current.actions, cache, onLocalSendStarted }
 }
 
 describe('useChatWriteActions — first-turn delete', () => {
@@ -184,5 +191,52 @@ describe('useChatWriteActions — edit message', () => {
       body: { data: { parts: editedParts } }
     })
     expect(cache.rollbackBranch).toHaveBeenCalledOnce()
+  })
+})
+
+describe('useChatWriteActions — fork and resend', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    streamOpen.mockReset()
+  })
+
+  function createForkedUser() {
+    return {
+      id: 'forked-user',
+      parentId: 'vroot',
+      siblingsGroupId: 1,
+      status: 'success',
+      createdAt: '2026-01-01T00:00:00.000Z'
+    }
+  }
+
+  it('marks a successful edit-and-resend as a local send', async () => {
+    const cache = makeCache()
+    vi.mocked(cache.createSiblingTrigger).mockResolvedValueOnce(createForkedUser() as never)
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    const { actions, onLocalSendStarted } = renderActions('vroot', [uiMsg('u1', 'user', 'vroot')], cache)
+
+    await actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any)
+
+    expect(streamOpen).toHaveBeenCalledWith(
+      'ai.stream_open',
+      expect.objectContaining({
+        trigger: 'regenerate-message',
+        topicId: 't1',
+        parentAnchorId: 'forked-user'
+      })
+    )
+    expect(onLocalSendStarted).toHaveBeenCalledOnce()
+  })
+
+  it('does not mark edit-and-resend when stream open is blocked', async () => {
+    const cache = makeCache()
+    vi.mocked(cache.createSiblingTrigger).mockResolvedValueOnce(createForkedUser() as never)
+    streamOpen.mockResolvedValueOnce({ mode: 'blocked', message: 'blocked' })
+    const { actions, onLocalSendStarted } = renderActions('vroot', [uiMsg('u1', 'user', 'vroot')], cache)
+
+    await expect(actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any)).rejects.toThrow('blocked')
+
+    expect(onLocalSendStarted).not.toHaveBeenCalled()
   })
 })

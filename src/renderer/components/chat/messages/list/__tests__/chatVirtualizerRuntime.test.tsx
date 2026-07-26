@@ -1188,7 +1188,74 @@ describe('useChatVirtualizerRuntime', () => {
     }
   })
 
-  it('keeps the reading position on send when it was more than one viewport from bottom', () => {
+  it('returns to the live bottom when edit-and-resend starts within one viewport of the bottom', () => {
+    const callbacks: ResizeObserverCallback[] = []
+    const restoreResizeObserver = installResizeObserverMock(callbacks)
+    const raf = installQueuedAnimationFrame()
+
+    try {
+      let runtime: ChatVirtualizerRuntime<string> | undefined
+      let handle: MessageVirtualListHandle | null = null
+      const handleRef: Ref<MessageVirtualListHandle> = (nextHandle) => {
+        handle = nextHandle
+      }
+      let scrollTop = 500
+      let scrollHeight = 1200
+      const view = render(
+        <RuntimeDomProbe
+          items={['history-message']}
+          handleRef={handleRef}
+          localSendGeneration={0}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      const scroller = runtime!.scrollerRef.current!
+      Object.defineProperty(scroller, 'scrollTop', {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value) => {
+          scrollTop = value
+        }
+      })
+      setElementMetric(scroller, 'scrollHeight', () => scrollHeight)
+      setElementMetric(scroller, 'clientHeight', () => 400)
+      runtime!.vlistHandleRef.current = createHandle()
+      raf.tick(60)
+
+      act(() => runtime!.takeUserControl())
+      view.rerender(
+        <RuntimeDomProbe
+          items={['history-message']}
+          handleRef={handleRef}
+          localSendGeneration={1}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      expect(scrollTop).toBe(800)
+
+      scrollHeight = 1400
+      view.rerender(
+        <RuntimeDomProbe
+          items={['history-message', 'edited-user-message', 'pending-assistant']}
+          handleRef={handleRef}
+          localSendGeneration={1}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+      raf.tick(60)
+
+      expect(scrollTop).toBe(1000)
+      expect(handle!.isAtBottom()).toBe(true)
+    } finally {
+      restoreResizeObserver()
+      raf.restore()
+    }
+  })
+
+  it('keeps the reading position when edit-and-resend starts more than one viewport from the bottom', () => {
+    const callbacks: ResizeObserverCallback[] = []
+    const restoreResizeObserver = installResizeObserverMock(callbacks)
     const raf = installQueuedAnimationFrame()
 
     try {
@@ -1221,19 +1288,32 @@ describe('useChatVirtualizerRuntime', () => {
       raf.tick(60)
 
       act(() => runtime!.takeUserControl())
-      scrollHeight = 1700
       view.rerender(
         <RuntimeDomProbe
-          items={['history-message', 'sent-user-message']}
+          items={['history-message']}
           handleRef={handleRef}
           localSendGeneration={1}
           onRuntime={(nextRuntime) => (runtime = nextRuntime)}
         />
       )
+      expect(scrollTop).toBe(100)
+
+      scrollHeight = 1700
+      view.rerender(
+        <RuntimeDomProbe
+          items={['history-message', 'edited-user-message', 'pending-assistant']}
+          handleRef={handleRef}
+          localSendGeneration={1}
+          onRuntime={(nextRuntime) => (runtime = nextRuntime)}
+        />
+      )
+      act(() => callbacks[0]?.([], {} as ResizeObserver))
+      raf.tick(60)
 
       expect(scrollTop).toBe(100)
       expect(handle!.isAtBottom()).toBe(false)
     } finally {
+      restoreResizeObserver()
       raf.restore()
     }
   })

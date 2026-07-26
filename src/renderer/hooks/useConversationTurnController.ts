@@ -32,6 +32,9 @@ export function useConversationTurnController<TInput, TConversation>({
 }: UseConversationTurnControllerOptions<TInput, TConversation>) {
   const [phase, setPhase] = useState<ConversationTurnPhase>('draft')
   const [localSendGeneration, setLocalSendGeneration] = useState(0)
+  const markLocalSendStarted = useCallback(() => {
+    setLocalSendGeneration((generation) => generation + 1)
+  }, [])
 
   useEffect(() => {
     setPhase('draft')
@@ -60,7 +63,7 @@ export function useConversationTurnController<TInput, TConversation>({
           return ack
         }
 
-        setLocalSendGeneration((generation) => generation + 1)
+        markLocalSendStarted()
         const reservedMessages = ack.reservedMessages ?? []
         if (reservedMessages.length > 0) {
           await historyAdapter.seedReservedMessages(reservedMessages)
@@ -81,13 +84,14 @@ export function useConversationTurnController<TInput, TConversation>({
         throw err
       }
     },
-    [buildStreamRequest, ensureConversation, historyAdapter, refreshMetadata]
+    [buildStreamRequest, ensureConversation, historyAdapter, markLocalSendStarted, refreshMetadata]
   )
 
   return {
     phase,
     layout: phase === 'draft' ? ('draft' as const) : ('docked' as const),
     localSendGeneration,
+    markLocalSendStarted,
     send
   }
 }

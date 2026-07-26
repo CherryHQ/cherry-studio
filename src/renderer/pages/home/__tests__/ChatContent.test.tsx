@@ -848,7 +848,7 @@ describe('ChatContent', () => {
     })
   })
 
-  it('adds the forked user sibling to branch live state before refreshed tree data arrives', async () => {
+  it('adds the forked user sibling to branch live state and advances the local send generation', async () => {
     const onBranchLiveStateChange = vi.fn()
     const editedParts = [{ type: 'text', text: 'edited branch prompt' } as CherryMessagePart]
     const historyUser = {
@@ -952,6 +952,7 @@ describe('ChatContent', () => {
         parentAnchorId: 'forked-user'
       })
     )
+    expect(mockMessageListValue.current.state.localSendGeneration).toBe(1)
     expect(regenerate).not.toHaveBeenCalled()
     await waitFor(() => {
       expect(onBranchLiveStateChange).toHaveBeenCalledWith(

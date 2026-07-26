@@ -366,6 +366,7 @@ export function useChatRuntimeState({
     refresh,
     cache,
     seedReservedMessages,
+    onLocalSendStarted: turnController.markLocalSendStarted,
     assistant
   })
 

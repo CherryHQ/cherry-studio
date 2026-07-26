@@ -57,6 +57,7 @@ interface Params {
   refresh: () => Promise<CherryUIMessage[]>
   cache: ReturnType<typeof useTopicMessagesCache>
   seedReservedMessages: (messages: CherryUIMessage[]) => Promise<void>
+  onLocalSendStarted: () => void
   assistant?: Assistant
 }
 
@@ -68,8 +69,19 @@ interface Result {
 }
 
 export function useChatWriteActions(params: Params): Result {
-  const { topic, uiMessages, rootId, regenerate, setMessages, stop, refresh, cache, seedReservedMessages, assistant } =
-    params
+  const {
+    topic,
+    uiMessages,
+    rootId,
+    regenerate,
+    setMessages,
+    stop,
+    refresh,
+    cache,
+    seedReservedMessages,
+    onLocalSendStarted,
+    assistant
+  } = params
   const {
     branchWithoutIds,
     seedOptimisticBranch,
@@ -281,9 +293,19 @@ export function useChatWriteActions(params: Params): Result {
         throw new Error(ack.message)
       }
 
+      onLocalSendStarted()
       await seedReservedMessages(ack.reservedMessages ?? [])
     },
-    [createSiblingTrigger, seedReservedMessages, refresh, setMessages, topic.id, topic.assistantId, uiMessages]
+    [
+      createSiblingTrigger,
+      seedReservedMessages,
+      refresh,
+      setMessages,
+      topic.id,
+      topic.assistantId,
+      uiMessages,
+      onLocalSendStarted
+    ]
   )
 
   const handleResend = useCallback<ChatWriteActions['resend']>(
