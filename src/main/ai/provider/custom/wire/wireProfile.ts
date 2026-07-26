@@ -15,6 +15,7 @@
 import type { CanonicalParamKey } from '@shared/data/types/model'
 import type { JSONValue } from 'ai'
 
+import type { AppProviderId, KnownAppProviderId } from '../../../types'
 import { normalizeAspectRatio } from '../../../utils/aiSdkNativeBindings'
 
 /**
@@ -201,8 +202,13 @@ export const OPENAI_COMPAT_FALLBACK_REGISTRATION: WireRegistration = {
  * delivery (dual-keying / passthrough / sibling keys). Providers absent from this
  * map fall back to {@link DEFAULT_DIFFUSION_REGISTRATION}. Grows one row per
  * migrated provider with bespoke delivery; the plain diffusion family needs no row.
+ *
+ * Keyed by {@link KnownAppProviderId}, not `string`: a row for an id no extension
+ * registers is dead config that still reads as a live declaration, which is what
+ * `wireRegistryReachability` had to catch at runtime. `Partial<Record<…>>` because the
+ * map is deliberately incomplete — absence means "take the diffusion catch-all".
  */
-export const WIRE_REGISTRY: Record<string, WireRegistration> = {
+export const WIRE_REGISTRY = {
   openrouter: { profile: OPENROUTER_WIRE_PROFILE },
   openai: { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
   'openai-chat': { profile: OPENAI_WIRE_PROFILE, dualOpenAI: true },
@@ -243,7 +249,7 @@ export const WIRE_REGISTRY: Record<string, WireRegistration> = {
   // `providerOptions[name]` verbatim), so its passthrough is wire-named — see
   // OPENAI_COMPAT_FALLBACK_REGISTRATION below.
   'openai-compatible': OPENAI_COMPAT_FALLBACK_REGISTRATION
-}
+} as const satisfies Partial<Record<KnownAppProviderId, WireRegistration>>
 
 /**
  * Fallback for any provider not in {@link WIRE_REGISTRY} and not on the legacy
@@ -260,6 +266,9 @@ export const DEFAULT_DIFFUSION_REGISTRATION: WireRegistration = {
  * back to the raw diffusion catch-all. `openai-compatible` is a row like any other
  * ({@link OPENAI_COMPAT_FALLBACK_REGISTRATION}); it needs no branch here.
  */
-export function resolveWireRegistration(sdkProviderId: string): WireRegistration {
-  return WIRE_REGISTRY[sdkProviderId] ?? DEFAULT_DIFFUSION_REGISTRATION
+export function resolveWireRegistration(sdkProviderId: AppProviderId): WireRegistration {
+  // One lookup widening: the CALLER's id is open (`AppProviderId` admits any string for
+  // user-created providers), while the TABLE's keys are closed. Widening here keeps
+  // every row key checked without forcing the caller to prove membership.
+  return (WIRE_REGISTRY as Partial<Record<string, WireRegistration>>)[sdkProviderId] ?? DEFAULT_DIFFUSION_REGISTRATION
 }

@@ -1,5 +1,6 @@
 import type { ImageModelV3, ImageModelV3CallOptions } from '@ai-sdk/provider'
 import { loggerService } from '@logger'
+import type { ImageSizeToken } from '@main/ai/utils/aiSdkNativeBindings'
 import type { ImageGenerationMode } from '@shared/data/types/model'
 
 import { createAbortError } from './transportUtils'
@@ -71,7 +72,9 @@ export interface ImageGenerationSubmitInput {
   modelId: string
   prompt: string | undefined
   n: number
-  size: `${number}x${number}` | undefined
+  /** `WxH` pixels OR a vendor shorthand (`1K`/`2K`/`4K`) — see {@link ImageSizeToken}.
+   *  Transports that split on `'x'` must guard; a Seedream `2K` is a legal value here. */
+  size: ImageSizeToken | undefined
   /** Normalized `X:Y` aspect ratio (a native AI SDK param, like `size`/`seed`). */
   aspectRatio?: string
   seed: number | undefined
@@ -115,16 +118,6 @@ export interface CreateImageGenerationModelOptions {
 }
 
 /**
- * Builds an `ImageModelV3` whose `doGenerate` runs submit→optional-poll→return-urls,
- * parameterized by an injected `ImageGenerationTransport`. It returns image **URLs**;
- * the patched `ai` SDK auto-downloads them (default download function) into a
- * `GeneratedFile` so no AiProvider/convertImageResult change is needed.
- *
- * Progress is surfaced through `options.providerOptions[provider].onProgress`
- * (typed loosely / cast — the function survives by reference through the
- * plugin chain). Abort is propagated via `options.abortSignal`.
- */
-/**
  * The inputs this request carries that the transport has declared it will not read.
  * Empty when the transport declares nothing (unknown ≠ unsupported) or carries none.
  */
@@ -160,6 +153,14 @@ export function warnUnsupportedTransportInputs(
   })
 }
 
+/**
+ * Builds an `ImageModelV3` whose `doGenerate` runs submit→optional-poll→return-urls,
+ * parameterized by an injected `ImageGenerationTransport`. It returns image **URLs**;
+ * the patched `ai` SDK auto-downloads them (default download function) into a
+ * `GeneratedFile` so no AiProvider/convertImageResult change is needed.
+ *
+ * Abort is propagated via `options.abortSignal`.
+ */
 export function createImageGenerationModel(
   modelId: string,
   { provider, transport }: CreateImageGenerationModelOptions

@@ -1,20 +1,26 @@
+import type { ParamValues } from '@cherrystudio/provider-registry'
 import { describe, expect, it } from 'vitest'
 
 import { splitParamValues } from '../imageOptions'
 
 describe('splitParamValues', () => {
   it('routes binding-mapped keys to structured (numImages→n) and the rest to vendorBag', () => {
-    expect(
-      splitParamValues({ numImages: 2, size: '1024x1024', seed: 5, addWatermark: true, modelDescriptor: { id: 'x' } })
-    ).toEqual({
+    // The fixture used to carry a `modelDescriptor` too, asserting that non-catalog
+    // keys land in the bag. That is unreachable in production — `imageParamsSchema`
+    // strips them at the IPC boundary — and the `ParamValues` parameter now says so.
+    expect(splitParamValues({ numImages: 2, size: '1024x1024', seed: 5, addWatermark: true })).toEqual({
       structured: { n: 2, size: '1024x1024', seed: 5 },
-      vendorBag: { addWatermark: true, modelDescriptor: { id: 'x' } }
+      vendorBag: { addWatermark: true }
     })
   })
 
   it('skips empty-string / null / undefined values (byte-identical-wire guard)', () => {
-    // negativePrompt is NOT an AI SDK native option → vendorBag.
-    expect(splitParamValues({ size: '', seed: undefined, cfg: null, negativePrompt: 'x' })).toEqual({
+    // `cfg: null` is cast in: the catalog types it `number | undefined` and
+    // `blankToUndefined` maps null → undefined at the boundary, so the type is right
+    // that it cannot arrive. The runtime guard is still defensive and still covered —
+    // this pins the guard, not a reachable input. negativePrompt is not native → bag.
+    const withNull = { size: '', seed: undefined, cfg: null, negativePrompt: 'x' } as unknown as ParamValues
+    expect(splitParamValues(withNull)).toEqual({
       structured: {},
       vendorBag: { negativePrompt: 'x' }
     })

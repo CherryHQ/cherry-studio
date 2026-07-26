@@ -1,6 +1,7 @@
 import type { FileEntry } from '@shared/data/types/file'
 import type { UniqueModelId } from '@shared/data/types/model'
 
+import type { ImageSizeToken } from '../../../utils/aiSdkNativeBindings'
 import type { ImageTransportDescriptor } from '../imageGenerationModel'
 
 /**
@@ -21,7 +22,10 @@ export interface ImageGenerationJobPayload {
   uniqueModelId: UniqueModelId
   prompt?: string
   n: number
-  size?: string
+  /** `WxH` pixels OR a vendor shorthand (`1K`/`2K`/`4K`) — see {@link ImageSizeToken}.
+   *  Declared as the token so the resume path cannot re-assert `${number}x${number}`
+   *  over a Seedream `2K` and hand a transport a `[NaN]` from `size.split('x')`. */
+  size?: ImageSizeToken
   aspectRatio?: string
   seed?: number
   inputFileIds?: string[]

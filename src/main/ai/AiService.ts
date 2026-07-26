@@ -52,6 +52,7 @@ import type {
   AppProviderSettingsMap,
   ListModelsRequest
 } from './types'
+import { asSdkImageSize, type ImageSizeToken } from './utils/aiSdkNativeBindings'
 import { installProviderUserAgentInterceptor } from './utils/customFetch'
 import { type SplitImageParams, splitParamValues } from './utils/imageOptions'
 
@@ -174,7 +175,7 @@ export function imageInputEntryParams(
  * and reject a pixel size; models that want a concrete default declare it on
  * their registry `size` param instead.)
  */
-function resolveImageRequestSize(size: string | undefined): string | undefined {
+function resolveImageRequestSize(size: ImageSizeToken | undefined): ImageSizeToken | undefined {
   return size === 'auto' ? undefined : size
 }
 
@@ -568,8 +569,10 @@ export class AiService extends BaseService {
       model: sdkConfig.modelId,
       prompt: promptParam,
       n: structured.n ?? 1,
-      ...(requestSize !== undefined && { size: requestSize as `${number}x${number}` }),
+      ...(requestSize !== undefined && { size: asSdkImageSize(requestSize) }),
       ...(structured.seed !== undefined ? { seed: structured.seed } : {}),
+      // Sound, unlike `size`: the `aspectRatio` native binding's `map` already
+      // normalized this to `X:Y` (`normalizeAspectRatio` drops anything else).
       ...(structured.aspectRatio ? { aspectRatio: structured.aspectRatio as `${number}:${number}` } : {}),
       ...(Object.keys(imageProviderOptions).length > 0 ? { providerOptions: imageProviderOptions } : {}),
       ...(signal ? { abortSignal: signal } : {}),

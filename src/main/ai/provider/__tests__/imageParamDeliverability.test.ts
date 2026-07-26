@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
-import { nativeBindingFor } from '../../utils/aiSdkNativeBindings'
+import { nativeBindingFor, type NativeParamKey } from '../../utils/aiSdkNativeBindings'
 import { resolveImageTransport } from '../custom/imageTransportRegistry'
 import { resolveWireRegistration, type WireProfile } from '../custom/wire/wireProfile'
 
@@ -98,7 +98,10 @@ const declarations = overrides.flatMap((override) => {
     override,
     provider,
     mode,
-    keys: Object.keys(def.supports ?? {})
+    // `supports` is `z.partialRecord(CanonicalParamKeySchema, …)` in the registry
+    // schema, so its keys are canonical by construction — assert once here rather
+    // than at each `nativeBindingFor` / `wireName` use below.
+    keys: Object.keys(def.supports ?? {}) as CanonicalParamKey[]
   }))
 })
 
@@ -176,7 +179,7 @@ describe('registry image params are deliverable on the runtime wire', () => {
 const OPENAI_COMPAT_OWNED_BODY_FIELDS = new Set(['model', 'prompt', 'n', 'size'])
 
 /** The canonical key `AI_SDK_NATIVE_BINDINGS` routes into each owned field. */
-const NATIVE_KEY_BY_OWNED_FIELD: Record<string, string | undefined> = { n: 'numImages', size: 'size' }
+const NATIVE_KEY_BY_OWNED_FIELD: Record<string, NativeParamKey | undefined> = { n: 'numImages', size: 'size' }
 
 /**
  * The other half of the contract: a `passthrough: 'wire'` body IS the HTTP body, so a
@@ -198,7 +201,7 @@ describe('wire-passthrough bodies do not shadow a native AI SDK field', () => {
       const { keys } = declaration
       const shadowing = keys.filter((key) => {
         if (nativeBindingFor(key)) return false // native keys are routed, never in the bag
-        const field = wireName(key as CanonicalParamKey)
+        const field = wireName(key)
         if (!OPENAI_COMPAT_OWNED_BODY_FIELDS.has(field)) return false
         // `model`/`prompt` are always written, so any collision is real; `n`/`size` only
         // carry a value when the model also declares the native key.

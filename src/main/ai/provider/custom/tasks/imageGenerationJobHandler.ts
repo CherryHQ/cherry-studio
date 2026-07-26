@@ -133,7 +133,7 @@ async function buildSubmitInput(
     modelId,
     prompt: input.prompt,
     n: input.n,
-    size: input.size as `${number}x${number}` | undefined,
+    size: input.size,
     aspectRatio: input.aspectRatio,
     seed: input.seed,
     files,
