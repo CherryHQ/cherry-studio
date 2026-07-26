@@ -103,7 +103,7 @@ vi.mock('../streamAdapter', () => ({
     }
 
     handleMessage(message: any) {
-      if (message.type !== 'system' && !this.turnActive) {
+      if (message.type !== 'system' && message.type !== 'tool_progress' && !this.turnActive) {
         if (message.type === 'result') this.options.onSessionId(message.session_id)
         return { type: 'continue' }
       }
@@ -114,6 +114,35 @@ vi.mock('../streamAdapter', () => ({
         this.options.onSessionId(message.session_id)
         if (!this.turnActive) this.pendingInit = message
         else this.emitInitMetadata()
+        return { type: 'continue' }
+      }
+      if (message.type === 'system' && message.subtype === 'api_retry') {
+        if (this.turnActive)
+          this.options.statusSink.emit({
+            type: 'api-retry',
+            retry: {
+              attempt: message.attempt,
+              maxRetries: message.max_retries,
+              retryDelayMs: message.retry_delay_ms,
+              errorStatus: message.error_status,
+              errorCategory: message.error
+            }
+          })
+        return { type: 'continue' }
+      }
+      if (message.type === 'tool_progress') {
+        if (message.subagent_retry && this.turnActive)
+          this.options.statusSink.emit({
+            type: 'api-retry',
+            retry: {
+              attempt: message.subagent_retry.attempt,
+              maxRetries: message.subagent_retry.max_retries,
+              retryDelayMs: message.subagent_retry.retry_delay_ms,
+              errorStatus: message.subagent_retry.error_status,
+              errorCategory: message.subagent_retry.error_category,
+              ...(message.subagent_type ? { subagentType: message.subagent_type } : {})
+            }
+          })
         return { type: 'continue' }
       }
       if (message.type === 'system' && message.subtype === 'status') {

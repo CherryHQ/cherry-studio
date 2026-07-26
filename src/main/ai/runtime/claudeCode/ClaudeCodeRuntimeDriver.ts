@@ -356,47 +356,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private async runQueryLoop(): Promise<void> {
     try {
       for await (const message of this.query!) {
-        // A failed API request is backing off before a retry. Surface it as ephemeral session status
-        // (the host writes it to shared cache) instead of letting the adapter drop it — the renderer
-        // shows "Retrying 7/10 in 36s". Never enters the persisted message stream.
-        //
-        // Deliberately gated on an active turn: retry status is turn-scoped
-        // (it renders in the active turn's message stream), and only a turn guarantees a clear boundary —
-        // the turn ends with a chunk / turn-complete / error, all of which clear it. A prewarm/turn-less
-        // connection's retry would have no message to attach to and no such boundary (init recovery only
-        // emits a resume-token), so it must not enter the retry state at all.
-        if (message.type === 'system' && message.subtype === 'api_retry' && this.adapter?.isTurnActive) {
-          this.eventQueue.push({
-            type: 'api-retry',
-            retry: {
-              attempt: message.attempt,
-              maxRetries: message.max_retries,
-              retryDelayMs: message.retry_delay_ms,
-              errorStatus: message.error_status,
-              errorCategory: message.error
-            }
-          })
-          continue
-        }
-
-        // A subagent backing off on its own rate limit — same shape as the turn-level retry above,
-        // so it reuses that status surface rather than adding a parallel one.
-        if (message.type === 'tool_progress' && message.subagent_retry && this.adapter?.isTurnActive) {
-          const retry = message.subagent_retry
-          this.eventQueue.push({
-            type: 'api-retry',
-            retry: {
-              attempt: retry.attempt,
-              maxRetries: retry.max_retries,
-              retryDelayMs: retry.retry_delay_ms,
-              errorStatus: retry.error_status,
-              errorCategory: retry.error_category,
-              ...(message.subagent_type ? { subagentType: message.subagent_type } : {})
-            }
-          })
-          continue
-        }
-
         // A steer was injected this turn → the first TOP-LEVEL assistant message after it (the model's
         // post-steer response; subagent/nested messages carry a parent_tool_use_id and are skipped) is
         // where the host rolls A1a + A2. Emit the boundary BEFORE the adapter handles this message so it

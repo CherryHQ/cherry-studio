@@ -7,6 +7,7 @@ import type {
 } from '@ai-sdk/provider'
 import { generateId } from '@ai-sdk/provider-utils'
 import type {
+  SDKAPIRetryMessage,
   SDKAssistantMessage,
   SDKCompactBoundaryMessage,
   SDKMessage,
@@ -18,6 +19,7 @@ import type {
   SDKTaskStartedMessage,
   SDKTaskUpdatedMessage,
   SDKThinkingTokensMessage,
+  SDKToolProgressMessage,
   SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
 import type {
@@ -112,7 +114,15 @@ type StreamContext = {
  */
 export type ClaudeCodeStreamStatusEvent = Extract<
   AgentRuntimeEvent,
-  { type: 'supported-commands' | 'background-tasks' | 'compaction-start' | 'compaction-complete' | 'compaction-error' }
+  {
+    type:
+      | 'supported-commands'
+      | 'background-tasks'
+      | 'compaction-start'
+      | 'compaction-complete'
+      | 'compaction-error'
+      | 'api-retry'
+  }
 >
 
 type StatusSink = {
@@ -380,6 +390,9 @@ export class ClaudeCodeStreamAdapter {
     }
 
     switch (message.type) {
+      case 'tool_progress':
+        this.handleToolProgressMessage(message)
+        return { type: 'continue' }
       case 'stream_event':
         this.handleStreamEvent(message, this.ctx)
         return { type: 'continue' }
@@ -960,9 +973,7 @@ export class ClaudeCodeStreamAdapter {
         this.statusSink.emit({ type: 'supported-commands', commands: message.commands })
         return
       case 'api_retry':
-        // Defensive fallback for future non-driver consumers. ClaudeCodeRuntimeDriver intercepts
-        // api_retry before this adapter and emits it as an ephemeral runtime event, so nothing is
-        // emitted into the message stream here (retry status is never persisted conversation content).
+        this.handleApiRetrySystemMessage(message)
         return
       case 'hook_started':
       case 'hook_progress':
@@ -1017,6 +1028,43 @@ export class ClaudeCodeStreamAdapter {
       type: 'data-agent-task-event',
       id: `task-${eventData.taskId}-${eventData.event}-${message.uuid}`,
       data: eventData
+    })
+  }
+
+  /**
+   * A failed API request is backing off. Turn-scoped by design: it renders inside the active turn's
+   * message stream, and only a turn gives it a clear end (a chunk, turn-complete or error all clear
+   * it). A turn-less connection's retry would have nothing to attach to and no such boundary, so it
+   * must not enter the retry state at all.
+   */
+  private handleApiRetrySystemMessage(message: SDKAPIRetryMessage): void {
+    if (!this.turnActive) return
+    this.statusSink.emit({
+      type: 'api-retry',
+      retry: {
+        attempt: message.attempt,
+        maxRetries: message.max_retries,
+        retryDelayMs: message.retry_delay_ms,
+        errorStatus: message.error_status,
+        errorCategory: message.error
+      }
+    })
+  }
+
+  /** Only a subagent's own rate-limit backoff carries state the UI reads; the rest is liveness. */
+  private handleToolProgressMessage(message: SDKToolProgressMessage): void {
+    const retry = message.subagent_retry
+    if (!retry || !this.turnActive) return
+    this.statusSink.emit({
+      type: 'api-retry',
+      retry: {
+        attempt: retry.attempt,
+        maxRetries: retry.max_retries,
+        retryDelayMs: retry.retry_delay_ms,
+        errorStatus: retry.error_status,
+        errorCategory: retry.error_category,
+        ...(message.subagent_type ? { subagentType: message.subagent_type } : {})
+      }
     })
   }
 
