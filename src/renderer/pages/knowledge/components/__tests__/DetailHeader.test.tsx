@@ -21,6 +21,12 @@ vi.mock('@cherrystudio/ui', () => ({
     <button type={type} {...props}>
       {children}
     </button>
+  ),
+  PageHeader: ({ title, action, className }: { title: ReactNode; action?: ReactNode; className?: string }) => (
+    <div className={className}>
+      <h2>{title}</h2>
+      {action}
+    </div>
   )
 }))
 
@@ -77,6 +83,12 @@ describe('DetailHeader', () => {
 
     expect(screen.getByText('Base 1')).toBeInTheDocument()
     expect(screen.queryByText('就绪')).not.toBeInTheDocument()
+    expect(screen.getByText('Base 1').parentElement).toHaveClass(
+      'relative',
+      'after:left-3',
+      'after:right-3',
+      'after:border-b'
+    )
   })
 
   it('renders the failed status as a clickable rebuild trigger', () => {

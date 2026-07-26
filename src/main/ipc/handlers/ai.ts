@@ -1,13 +1,17 @@
 import { application } from '@application'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
+import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
-import type { AiStreamOpenRequest } from '@shared/ai/transport'
+import type { AiStreamOpenRequest, AiToolResultResponse } from '@shared/ai/transport'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { aiRequestSchemas } from '@shared/ipc/schemas/ai'
 import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
+import { isToolUIPart } from 'ai'
 
 const logger = loggerService.withContext('ipc/ai')
 
@@ -47,6 +51,22 @@ async function exposeAiError<T>(route: string, op: () => Promise<T>): Promise<T>
 function senderWebContents(senderId: WindowId | null): Electron.WebContents | undefined {
   if (senderId == null) return undefined
   return application.get('WindowManager').getWindow(senderId)?.webContents
+}
+
+/** The persisted half of `ai.get_tool_result` — matches the same shape projection replaces. */
+function findPersistedToolOutput(topicId: string, messageId: string, toolCallId: string): AiToolResultResponse {
+  try {
+    const parts = isAgentSessionTopic(topicId)
+      ? agentSessionMessageService.getSessionMessage(extractAgentSessionId(topicId), messageId).data.parts
+      : messageService.getById(messageId).data.parts
+    for (const part of parts ?? []) {
+      if (!isToolUIPart(part) || part.state !== 'output-available') continue
+      if (part.toolCallId === toolCallId) return { found: true, output: part.output }
+    }
+  } catch (e) {
+    logger.warn('ai.get_tool_result persisted lookup failed', { topicId, messageId, toolCallId, err: e })
+  }
+  return { found: false }
 }
 
 /**
@@ -104,6 +124,12 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   },
   'ai.stream_abort': async ({ topicId }) => {
     application.get('AiStreamManager').abort(topicId, 'user-requested')
+  },
+  'ai.get_tool_result': async ({ topicId, messageId, toolCallId }) => {
+    // Active stream first: it is the only source holding the value before the message persists.
+    const live = application.get('AiStreamManager').getDeferredToolOutput(topicId, toolCallId)
+    if (live.found) return live
+    return findPersistedToolOutput(topicId, messageId, toolCallId)
   },
 
   // ── Agent sessions & tasks — delegate to the owning services. ──

@@ -195,7 +195,7 @@ describe('CreateKnowledgeBaseDialog', () => {
     )
 
     expect(screen.getByRole('heading', { name: '新建知识库' })).toBeInTheDocument()
-    expect(screen.getByText('名称')).toBeInTheDocument()
+    expect(screen.queryByText('名称')).not.toBeInTheDocument()
     expect(screen.getByLabelText('名称')).toBeInTheDocument()
     expect(screen.queryByText('分组')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '取消' })).toBeInTheDocument()

@@ -1,6 +1,6 @@
 import type * as CherryUi from '@cherrystudio/ui'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { parse as parsePartialJson } from 'partial-json'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,6 +8,7 @@ import { ToolBlockGroup } from '../../blocks/ToolBlockGroup'
 import { AgentToolRenderer, isValidAgentToolsType } from '../agent'
 import { AskUserQuestionOptimisticInputProvider } from '../agent/AskUserQuestionOptimisticContext'
 import MessageTool from '../MessageTool'
+import MessageTools from '../MessageTools'
 
 vi.mock('@renderer/services/AssistantService', () => ({
   getDefaultAssistant: vi.fn(() => ({
@@ -28,6 +29,7 @@ const mockUseTranslation = vi.fn()
 // Parts map drives approval state post-migration. Default: no pending approvals.
 const mockPartsMap = vi.hoisted(() => vi.fn((): Record<string, unknown[]> | null => null))
 const mockMessageListActions = vi.hoisted(() => vi.fn(() => ({})))
+const mockGetToolResult = vi.hoisted(() => vi.fn())
 const mockThemeState = vi.hoisted(() => ({ theme: 'light' }))
 
 vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', async (importOriginal) => {
@@ -41,6 +43,11 @@ vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', async (
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   useOptionalMessageListActions: () => mockMessageListActions(),
   useOptionalMessageListUi: () => ({ externalCodeEditors: [] })
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: (...args: unknown[]) => mockGetToolResult(...args), on: () => () => {} },
+  useIpcOn: () => {}
 }))
 
 vi.mock('@renderer/hooks/useTheme', () => ({
@@ -438,6 +445,56 @@ describe('AgentToolRenderer', () => {
 
       // Should render the complete tool with output
       expect(screen.getByText('View')).toBeInTheDocument()
+    })
+
+    it('resolves a deferred output before handing it to the card', async () => {
+      mockGetToolResult.mockResolvedValue({ found: true, output: { content: 'lazy file content' } })
+      const toolResponse = createToolResponse({
+        tool: { id: 'Read', name: 'Read', description: 'Read a file', type: 'provider' },
+        status: 'done',
+        arguments: { file_path: '/test.ts' },
+        response: { $deferredToolResult: { topicId: 'topic-1', messageId: 'message-1', toolCallId: 'call-defer-1' } }
+      })
+
+      render(<MessageTools toolResponse={toolResponse} />)
+
+      await waitFor(() =>
+        expect(mockGetToolResult).toHaveBeenCalledWith('ai.get_tool_result', {
+          topicId: 'topic-1',
+          messageId: 'message-1',
+          toolCallId: 'call-defer-1'
+        })
+      )
+      fireEvent.click(await screen.findByRole('button'))
+      expect(await screen.findByTestId('code-viewer')).toHaveTextContent('lazy file content')
+    })
+
+    it('surfaces an error when a deferred output can no longer be resolved', async () => {
+      mockGetToolResult.mockResolvedValue({ found: false })
+      const toolResponse = createToolResponse({
+        tool: { id: 'Read', name: 'Read', description: 'Read a file', type: 'provider' },
+        status: 'done',
+        arguments: { file_path: '/test.ts' },
+        response: { $deferredToolResult: { topicId: 'topic-1', messageId: 'message-1', toolCallId: 'call-defer-2' } }
+      })
+
+      render(<MessageTools toolResponse={toolResponse} />)
+
+      expect(await screen.findByText('Error')).toBeInTheDocument()
+    })
+
+    it('does not treat a small or empty output as deferred', async () => {
+      const toolResponse = createToolResponse({
+        tool: { id: 'Read', name: 'Read', description: 'Read a file', type: 'provider' },
+        status: 'done',
+        arguments: { file_path: '/empty.ts' },
+        response: ''
+      })
+
+      render(<MessageTools toolResponse={toolResponse} />)
+      fireEvent.click(screen.getByRole('button'))
+
+      expect(mockGetToolResult).not.toHaveBeenCalled()
     })
 
     it('should render error state correctly', () => {

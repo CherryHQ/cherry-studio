@@ -380,6 +380,25 @@ describe('DataSourcePanel', () => {
     expect(screen.queryByRole('button', { name: '网站' })).not.toBeInTheDocument()
   })
 
+  it('uses the same 44px band height as the surrounding dividers', () => {
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
+
+    const divider = screen.getByText(/更新于/).closest('.border-b')
+
+    expect(divider).toHaveClass('flex', 'h-11', 'items-center')
+    expect(divider?.parentElement).toHaveClass('px-3')
+    expect(divider?.parentElement).not.toHaveClass('pt-2')
+  })
+
   it('guides users from the empty data source state into file or URL add flows', () => {
     const onAdd = vi.fn()
 

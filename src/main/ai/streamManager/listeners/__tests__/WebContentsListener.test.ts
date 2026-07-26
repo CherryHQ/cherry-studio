@@ -180,6 +180,47 @@ describe('WebContentsListener coalescing', () => {
     })
   })
 
+  it('sends an oversized tool output as a reference without mutating the persistence input', () => {
+    const wc = fakeWc()
+    const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'agent-session:session-1')
+    const output = { content: 'x'.repeat(64 * 1024) }
+    const toolChunk = chunk('tool-output-available', { toolCallId: 'call-1', output })
+
+    l.onChunk(toolChunk, undefined, 'assistant-1')
+
+    expect(wc.send).toHaveBeenCalledWith(IpcChannel.IpcApi_Event, 'ai.stream_chunk', {
+      topicId: 'agent-session:session-1',
+      executionId: undefined,
+      anchorMessageId: 'assistant-1',
+      chunk: {
+        type: 'tool-output-available',
+        toolCallId: 'call-1',
+        output: {
+          $deferredToolResult: {
+            topicId: 'agent-session:session-1',
+            messageId: 'assistant-1',
+            toolCallId: 'call-1'
+          }
+        }
+      }
+    })
+    expect(toolChunk).toMatchObject({ output })
+  })
+
+  it('sends a small tool output through untouched', () => {
+    const wc = fakeWc()
+    const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'agent-session:session-1')
+    const toolChunk = chunk('tool-output-available', { toolCallId: 'call-1', output: { content: 'small' } })
+
+    l.onChunk(toolChunk, undefined, 'assistant-1')
+
+    expect(wc.send).toHaveBeenCalledWith(
+      IpcChannel.IpcApi_Event,
+      'ai.stream_chunk',
+      expect.objectContaining({ chunk: toolChunk })
+    )
+  })
+
   it('coalesces reasoning-delta independently from text-delta', () => {
     const wc = fakeWc()
     const l = new WebContentsListener(wc as unknown as Electron.WebContents, 'topic-1')

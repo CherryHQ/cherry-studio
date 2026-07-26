@@ -2,8 +2,14 @@ import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock } = vi.hoisted(() => ({ appGetMock: vi.fn() }))
+const { appGetMock, agentSessionMessageService, messageService } = vi.hoisted(() => ({
+  appGetMock: vi.fn(),
+  agentSessionMessageService: { getSessionMessage: vi.fn() },
+  messageService: { getById: vi.fn() }
+}))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
+vi.mock('@data/services/AgentSessionMessageService', () => ({ agentSessionMessageService }))
+vi.mock('@data/services/MessageService', () => ({ messageService }))
 
 import { aiHandlers } from '../ai'
 
@@ -21,8 +27,19 @@ const aiStreamManager = {
   dispatch: vi.fn(),
   attach: vi.fn(),
   detach: vi.fn(),
-  abort: vi.fn()
+  abort: vi.fn(),
+  getDeferredToolOutput: vi.fn()
 }
+
+/** A settled tool part as the persistence layer actually stores it. */
+const toolPart = (toolCallId: string, output: unknown) => ({
+  type: 'dynamic-tool',
+  toolName: 'Read',
+  toolCallId,
+  state: 'output-available',
+  input: {},
+  output
+})
 
 const claudeCodeWarmQueryManager = { prewarmAgentSession: vi.fn(), closeAgentSessionWarm: vi.fn() }
 const agentSessionRuntimeService = { primeConnection: vi.fn(), releaseIdleConnection: vi.fn() }
@@ -205,6 +222,64 @@ describe('aiHandlers — streaming', () => {
     await aiHandlers['ai.stream_abort']({ topicId: 't' }, { senderId: null })
     expect(aiStreamManager.abort).toHaveBeenCalledWith('t', 'user-requested')
     expect(windowManager.getWindow).not.toHaveBeenCalled()
+  })
+
+  it('get_tool_result prefers the active stream over the persisted copy', async () => {
+    const output = { content: 'large live output' }
+    aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: true, output })
+
+    const result = await aiHandlers['ai.get_tool_result'](
+      { topicId: 'agent-session:session-1', messageId: 'assistant-1', toolCallId: 'call-1' },
+      { senderId: null }
+    )
+
+    expect(aiStreamManager.getDeferredToolOutput).toHaveBeenCalledWith('agent-session:session-1', 'call-1')
+    expect(agentSessionMessageService.getSessionMessage).not.toHaveBeenCalled()
+    expect(result).toEqual({ found: true, output })
+  })
+
+  it('get_tool_result falls back to the stored agent-session message', async () => {
+    const output = { content: 'large stored output' }
+    aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: false })
+    agentSessionMessageService.getSessionMessage.mockReturnValue({
+      data: { parts: [toolPart('call-1', output)] }
+    })
+
+    const result = await aiHandlers['ai.get_tool_result'](
+      { topicId: 'agent-session:session-1', messageId: 'assistant-1', toolCallId: 'call-1' },
+      { senderId: null }
+    )
+
+    expect(agentSessionMessageService.getSessionMessage).toHaveBeenCalledWith('session-1', 'assistant-1')
+    expect(result).toEqual({ found: true, output })
+  })
+
+  it('get_tool_result resolves an ordinary chat topic through the message table', async () => {
+    const output = { content: 'large chat output' }
+    aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: false })
+    messageService.getById.mockReturnValue({ data: { parts: [toolPart('call-1', output)] } })
+
+    const result = await aiHandlers['ai.get_tool_result'](
+      { topicId: 'topic-42', messageId: 'assistant-1', toolCallId: 'call-1' },
+      { senderId: null }
+    )
+
+    expect(messageService.getById).toHaveBeenCalledWith('assistant-1')
+    expect(result).toEqual({ found: true, output })
+  })
+
+  it('get_tool_result reports a miss instead of throwing when nothing holds the output', async () => {
+    aiStreamManager.getDeferredToolOutput.mockReturnValue({ found: false })
+    messageService.getById.mockImplementation(() => {
+      throw new Error('not found')
+    })
+
+    await expect(
+      aiHandlers['ai.get_tool_result'](
+        { topicId: 'topic-42', messageId: 'gone', toolCallId: 'call-1' },
+        { senderId: null }
+      )
+    ).resolves.toEqual({ found: false })
   })
 })
 

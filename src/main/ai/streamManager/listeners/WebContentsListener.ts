@@ -1,3 +1,4 @@
+import { projectStreamChunkForRenderer } from '@shared/ai/transport'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { IpcEventName } from '@shared/ipc/schemas/ipcSchemas'
 import type { EventPayload } from '@shared/ipc/types'
@@ -168,7 +169,7 @@ export class WebContentsListener implements StreamListener {
       topicId: this.topicId,
       executionId: sourceModelId,
       anchorMessageId,
-      chunk
+      chunk: projectStreamChunkForRenderer(chunk, this.topicId, anchorMessageId)
     })
   }
 
