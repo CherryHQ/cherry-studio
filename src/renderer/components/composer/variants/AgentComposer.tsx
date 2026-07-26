@@ -405,9 +405,9 @@ interface InnerProps {
 }
 
 /**
- * Background work keeps running after a turn ends, and the SDK will wake the agent with a follow-up
- * response when it settles. Without this the moment between reads as a truncated answer — the
- * indicator says the session is still pending on background work.
+ * Chip row above the input for background work that keeps running after a turn ends. The SDK will
+ * wake the agent with a follow-up response when it settles; without this the gap in between reads
+ * as a truncated answer.
  */
 function AgentComposerBackgroundTasks({ sessionId }: { sessionId: string }) {
   const { t } = useTranslation()
@@ -415,24 +415,18 @@ function AgentComposerBackgroundTasks({ sessionId }: { sessionId: string }) {
   if (backgroundTasks.length === 0) return null
 
   return (
-    <Tooltip
-      placement="top"
-      content={
-        <div className="space-y-0.5 text-xs">
-          {backgroundTasks.map((task) => (
-            <div key={task.task_id} className="max-w-60 truncate">
-              {task.description}
-            </div>
-          ))}
+    <div
+      aria-label={t('agent.composer.background_running', { count: backgroundTasks.length })}
+      className="mt-1 flex flex-wrap gap-1">
+      {backgroundTasks.map((task) => (
+        <div
+          key={task.task_id}
+          className="flex min-w-0 items-center gap-1.5 rounded-[12px] bg-muted/40 px-2 py-1.5 text-muted-foreground text-xs">
+          <Loader2 size={12} className="shrink-0 animate-spin" />
+          <span className="max-w-60 truncate">{task.description}</span>
         </div>
-      }>
-      <span
-        aria-label={t('agent.composer.background_running', { count: backgroundTasks.length })}
-        className="inline-flex shrink-0 items-center gap-1 rounded-full bg-background-subtle px-2 py-0.5 text-[11px] text-muted-foreground">
-        <Loader2 size={11} className="animate-spin" />
-        {t('agent.composer.background_running', { count: backgroundTasks.length })}
-      </span>
-    </Tooltip>
+      ))}
+    </div>
   )
 }
 
@@ -1259,10 +1253,7 @@ const AgentComposerInner = ({
   })
 
   const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (
-    <>
-      <AgentComposerBackgroundTasks sessionId={sessionId} />
-      <AgentComposerContextUsage model={model} sessionId={sessionId} />
-    </>
+    <AgentComposerContextUsage model={model} sessionId={sessionId} />
   )
 
   return (
@@ -1291,30 +1282,33 @@ const AgentComposerInner = ({
           onSendDraft={handleSendDraft}
           onPause={abortAgentSession}
           queueContent={
-            queuedFollowups.length > 0 ? (
-              <QueuedFollowupsDock
-                items={queuedFollowups}
-                paused={followupPaused}
-                onTogglePause={() => setFollowupPaused(!followupPaused)}
-                onSteer={async (id) => {
-                  const item = queuedFollowups.find((entry) => entry.id === id)
-                  if (!item) return
-                  // Only drop the item once the send actually succeeds; a failed manual
-                  // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
-                  const sent = await sendQueuedPayload(item.payload)
-                  if (sent) removeFollowup(id)
-                  else toast.error(t('chat.input.send_failed'))
-                }}
-                onEdit={(id) => {
-                  const item = queuedFollowups.find((entry) => entry.id === id)
-                  if (!item) return
-                  restoreFollowupDraft(item)
-                  removeFollowup(id)
-                }}
-                onRemove={removeFollowup}
-                onReorder={reorderFollowups}
-              />
-            ) : undefined
+            <>
+              <AgentComposerBackgroundTasks sessionId={sessionId} />
+              {queuedFollowups.length > 0 ? (
+                <QueuedFollowupsDock
+                  items={queuedFollowups}
+                  paused={followupPaused}
+                  onTogglePause={() => setFollowupPaused(!followupPaused)}
+                  onSteer={async (id) => {
+                    const item = queuedFollowups.find((entry) => entry.id === id)
+                    if (!item) return
+                    // Only drop the item once the send actually succeeds; a failed manual
+                    // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
+                    const sent = await sendQueuedPayload(item.payload)
+                    if (sent) removeFollowup(id)
+                    else toast.error(t('chat.input.send_failed'))
+                  }}
+                  onEdit={(id) => {
+                    const item = queuedFollowups.find((entry) => entry.id === id)
+                    if (!item) return
+                    restoreFollowupDraft(item)
+                    removeFollowup(id)
+                  }}
+                  onRemove={removeFollowup}
+                  onReorder={reorderFollowups}
+                />
+              ) : undefined}
+            </>
           }
           supportedExts={supportedExts}
           setFiles={setFiles}
