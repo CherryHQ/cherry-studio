@@ -102,10 +102,43 @@ export interface UsageLedgerGroupIdentity {
 }
 
 /**
+ * The identity of a stats bucket. `groupBy` is the discriminator: only fields
+ * meaningful for that aggregation dimension exist on each member.
+ */
+export type UsageLedgerStatsGroupIdentity =
+  | {
+      groupBy: 'provider'
+      providerId: string
+      providerName: string | null
+    }
+  | {
+      groupBy: 'apiKey'
+      providerId: string
+      providerName: string | null
+      apiKeyId: string | null
+      apiKeyLabel: string | null
+      apiKeyMasked: string | null
+      apiKeyAttribution: UsageLedgerAttribution
+    }
+  | {
+      groupBy: 'model'
+      providerId: string
+      providerName: string | null
+      modelId: string
+    }
+  | {
+      groupBy: 'source'
+      sourceType: UsageLedgerEntry['sourceType']
+      sourceId: string | null
+      sourceName: string | null
+      sourceIcon: string | null
+    }
+
+/**
  * One aggregation bucket. `costCurrency` always participates in the group key
  * so different currencies are never summed together.
  */
-export interface UsageLedgerStatsBucket extends UsageLedgerGroupIdentity {
+export interface UsageLedgerStatsMetrics {
   costCurrency: string | null
   totalCost: number
   totalInputTokens: number
@@ -116,6 +149,8 @@ export interface UsageLedgerStatsBucket extends UsageLedgerGroupIdentity {
   totalCacheWriteTokens: number
   entryCount: number
 }
+
+export type UsageLedgerStatsBucket = UsageLedgerStatsGroupIdentity & UsageLedgerStatsMetrics
 
 export interface UsageLedgerStatsResponse {
   buckets: UsageLedgerStatsBucket[]

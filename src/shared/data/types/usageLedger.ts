@@ -9,7 +9,7 @@
 
 import * as z from 'zod'
 
-import { MessageStatsSchema } from './message'
+import { CostSourceSchema, MessageStatsSchema } from './message'
 
 /**
  * How the API key was attributed at write time:
@@ -58,7 +58,7 @@ export const UsageLedgerEntrySchema = z.strictObject({
   sourceName: z.string().nullable(),
   sourceIcon: z.string().nullable(),
   /** UniqueModelId ("providerId::modelId") snapshot */
-  modelId: z.string().nullable(),
+  modelId: z.string(),
   modality: UsageLedgerModalitySchema,
 
   /** API key id snapshot (null when attribution is auth/none) */
@@ -83,7 +83,7 @@ export const UsageLedgerEntrySchema = z.strictObject({
   // Cost (mirrors MessageStats cost fields)
   cost: z.number().nullable(),
   costCurrency: z.string().nullable(),
-  costSource: z.enum(['provider', 'computed']).nullable(),
+  costSource: CostSourceSchema.nullable(),
   costBreakdown: MessageStatsSchema.shape.costBreakdown.nullable(),
   pricingSnapshot: MessageStatsSchema.shape.pricingSnapshot.nullable(),
   timeFirstTokenMs: z.number().nullable(),

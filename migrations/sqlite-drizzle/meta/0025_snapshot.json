@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "145b8ce0-7aaa-4d53-ae6d-f617e450c823",
+  "id": "11f189f4-a567-4b0d-9fa0-e493dffcf15e",
   "prevId": "89e1707b-580e-4d39-8c85-9bd812a65a5b",
   "tables": {
     "agent": {
@@ -3755,7 +3755,7 @@
           "name": "model_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "modality": {
@@ -3960,6 +3960,14 @@
         "usage_ledger_cost_source_check": {
           "name": "usage_ledger_cost_source_check",
           "value": "\"usage_ledger\".\"cost_source\" IN ('provider', 'computed')"
+        },
+        "usage_ledger_cost_pairing_check": {
+          "name": "usage_ledger_cost_pairing_check",
+          "value": "\"usage_ledger\".\"cost_source\" IS NULL OR \"usage_ledger\".\"cost\" IS NOT NULL"
+        },
+        "usage_ledger_api_key_identity_check": {
+          "name": "usage_ledger_api_key_identity_check",
+          "value": "\"usage_ledger\".\"api_key_attribution\" NOT IN ('exact', 'rotation', 'backfill') OR \"usage_ledger\".\"api_key_id\" IS NOT NULL"
         },
         "usage_ledger_modality_check": {
           "name": "usage_ledger_modality_check",

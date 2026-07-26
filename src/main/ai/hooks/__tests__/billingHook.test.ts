@@ -8,11 +8,7 @@ const mockRecordRequest = vi.fn()
 
 vi.mock('@main/data/services/UsageLedgerService', () => ({
   usageLedgerService: {
-    // Always resolve so the fire-and-forget `.catch(...)` in the billing hook works.
-    recordRequest: (...args: unknown[]) => {
-      mockRecordRequest(...args)
-      return Promise.resolve()
-    }
+    recordRequest: (...args: unknown[]) => mockRecordRequest(...args)
   }
 }))
 
@@ -32,6 +28,9 @@ const fakeStep = (usage: Partial<LanguageModelUsage>) =>
 describe('createBillingHook', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Default: resolve, like the real ledger's best-effort contract. Individual
+    // tests override with mockRejectedValueOnce to exercise the failure path.
+    mockRecordRequest.mockResolvedValue(undefined)
   })
 
   it('records the usage accrued across steps when the run is aborted', () => {
@@ -94,5 +93,20 @@ describe('createBillingHook', () => {
         stats: expect.objectContaining({ inputTokens: 6, outputTokens: 3, totalTokens: 9 })
       })
     )
+  })
+
+  // The central safety claim: a rejecting ledger write must never surface out of the
+  // hook (there is no request to fail — `onFinish` is void and fire-and-forget).
+  it('does not throw and settles the rejection when the ledger write fails', async () => {
+    mockRecordRequest.mockRejectedValueOnce(new Error('ledger unavailable'))
+    const hook = createBillingHook(model, 'assistant-reject')
+
+    void hook.onStepFinish?.(fakeStep({ inputTokens: 1, outputTokens: 1, totalTokens: 2 }))
+    expect(() => hook.onFinish?.()).not.toThrow()
+
+    expect(mockRecordRequest).toHaveBeenCalledTimes(1)
+    // Let the rejected promise's `.catch(...)` run — an unattended rejection here
+    // would surface as an unhandled rejection failing the test.
+    await new Promise((resolve) => setTimeout(resolve, 20))
   })
 })

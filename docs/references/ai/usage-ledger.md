@@ -138,7 +138,7 @@ Design rules:
 
 | Group | Columns | Notes |
 | --- | --- | --- |
-| Identity | `messageId`, `topicId`, `providerId`, `providerName`, `modelId`, `modality` | No FKs. `modelId` is a `UniqueModelId` (`providerId::modelId`) when available. `modality` is `language`, `embedding`, or `image`. |
+| Identity | `messageId`, `topicId`, `providerId`, `providerName`, `modelId`, `modality` | No FKs. `modelId` is a `UniqueModelId` (`providerId::modelId`) and is required — a request whose model cannot be identified is not billable and is skipped. `modality` is `language`, `embedding`, or `image`. |
 | Source snapshot | `sourceType`, `sourceId`, `sourceName`, `sourceIcon` | User-facing origin of usage. Current values are `assistant` and `agent`; stateless rows may be null. |
 | API-key snapshot | `apiKeyId`, `apiKeyLabel`, `apiKeyMasked`, `apiKeyAttribution` | Denormalized at write time. Raw key secrets are never stored. |
 | Token usage | `inputTokens`, `outputTokens`, `totalTokens`, `reasoningTokens`, `noCacheTokens`, `cacheReadTokens`, `cacheWriteTokens` | Mirrors `MessageStats` / AI SDK v6 usage. `noCacheTokens` is needed for accurate cache-hit denominator. |
@@ -153,6 +153,15 @@ Indexes:
 - `(apiKeyId, createdAt)`;
 - `(sourceType, sourceId, createdAt)`;
 - `createdAt`.
+
+CHECK constraints (value domains plus the two cross-column invariants):
+
+- `apiKeyAttribution`, `costSource`, `modality`, `costCurrency` are constrained
+  to their enums;
+- a non-null `costSource` requires a non-null `cost` — recording where a number
+  came from without the number would report unpriced usage as priced;
+- `exact` / `rotation` / `backfill` attribution requires a non-null `apiKeyId`;
+  `auth` and `none` deliberately carry no key id.
 
 ### API-key attribution
 
@@ -275,7 +284,9 @@ Query:
 - optional `from`, `to`.
 
 `costCurrency` always participates in the group key. Different currencies are
-never summed into one bucket.
+never summed into one bucket. Every bucket repeats the requested `groupBy` as
+a discriminator and exposes only that dimension's identity fields: provider,
+provider plus API key, provider plus model, or source.
 
 Returned totals include:
 

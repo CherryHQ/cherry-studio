@@ -11,10 +11,12 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { maskApiKeyForSnapshot } from '@shared/utils/api'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import type { MigrationContext } from '../../core/MigrationContext'
+import { importLegacySessionMessages } from '../AgentsMigrator'
+import { createEmptyAgentsSchemaInfo } from '../mappings/AgentsDbMappings'
 import { getAllMigrators } from '../migratorRegistry'
 import { UsageLedgerMigrator } from '../UsageLedgerMigrator'
 
@@ -533,6 +535,92 @@ describe('UsageLedgerMigrator', () => {
       totalTokens: 13,
       createdAt: 3000,
       updatedAt: 3000
+    })
+  })
+
+  it('backfills ledger usage from a real AgentsMigrator-imported message whose model cannot be resolved', async () => {
+    // Chain test: runs the actual `importLegacySessionMessages` producer (not a
+    // hand-inserted row) against a legacy message referencing a model with no
+    // matching `user_model` row, then verifies `UsageLedgerMigrator` — the
+    // consumer under test in this file — resolves usage from the resulting
+    // `modelId: null` + `messageSnapshot` row exactly as it would in production.
+    dbh.db.run(sql.raw("ATTACH DATABASE ':memory:' AS agents_legacy"))
+    try {
+      dbh.db.run(
+        sql.raw(`CREATE TABLE agents_legacy.session_messages (
+          id INTEGER PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          role TEXT NOT NULL,
+          content TEXT NOT NULL,
+          agent_session_id TEXT,
+          created_at TEXT,
+          updated_at TEXT
+        )`)
+      )
+      dbh.db.run(sql`
+        INSERT INTO agents_legacy.session_messages
+          (id, session_id, role, content, agent_session_id, created_at, updated_at)
+        VALUES
+          (
+            1,
+            'agent-session-ledger',
+            'assistant',
+            ${JSON.stringify({
+              message: {
+                id: '1',
+                role: 'assistant',
+                status: 'success',
+                model: { id: 'vanished-model', provider: 'vanished-provider', name: 'Vanished Model' },
+                modelId: 'vanished-model',
+                usage: { prompt_tokens: 5, completion_tokens: 8, total_tokens: 13 },
+                data: { parts: [{ type: 'text', text: 'legacy chain' }] }
+              },
+              blocks: []
+            })},
+            NULL,
+            '2026-01-01T00:00:00.000Z',
+            '2026-01-01T00:00:01.000Z'
+          )
+      `)
+
+      const schemaInfo = createEmptyAgentsSchemaInfo()
+      schemaInfo.session_messages = {
+        exists: true,
+        columns: new Set(['id', 'session_id', 'role', 'content', 'agent_session_id', 'created_at', 'updated_at'])
+      }
+
+      const imported = await importLegacySessionMessages(dbh.db, schemaInfo)
+      expect(imported).toBe(1)
+    } finally {
+      dbh.db.run(sql.raw('DETACH DATABASE agents_legacy'))
+    }
+
+    // Producer-side assertion: the model no longer resolves to a user_model row,
+    // so modelId is null, but the author's messageSnapshot still carries it.
+    const [producedRow] = await dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.sessionId, 'agent-session-ledger'))
+    expect(producedRow.modelId).toBeNull()
+    expect(producedRow.messageSnapshot).toMatchObject({
+      model: { id: 'vanished-model', provider: 'vanished-provider' }
+    })
+
+    // Consumer-side assertion: UsageLedgerMigrator picks up the row via the
+    // messageSnapshot fallback and resolves the model from it.
+    const migrator = new UsageLedgerMigrator()
+    expect(await migrator.execute(ctxOf())).toMatchObject({ success: true, processedCount: 1 })
+
+    const [row] = await dbh.db.select().from(usageLedgerTable).where(eq(usageLedgerTable.messageId, producedRow.id))
+    expect(row).toMatchObject({
+      sourceType: 'agent',
+      sourceId: 'agent-ledger',
+      providerId: 'vanished-provider',
+      providerName: 'vanished-provider',
+      modelId: 'vanished-provider::vanished-model',
+      apiKeyAttribution: 'none',
+      apiKeyId: null,
+      totalTokens: 13
     })
   })
 })

@@ -252,6 +252,18 @@ describe('UsageLedgerService', () => {
   })
 
   describe('recordRequest (billing funnel)', () => {
+    it('never rejects when a ledger write fails', async () => {
+      await expect(
+        usageLedgerService.recordRequest({
+          id: 'req-invalid-cost-pair',
+          modelId: 'openai::gpt-4o',
+          stats: { inputTokens: 1, costSource: 'computed' }
+        })
+      ).resolves.toBeUndefined()
+
+      expect(await dbh.db.select().from(usageLedgerTable)).toHaveLength(0)
+    })
+
     it('enriches cost from model pricing when the caller stats carry none', async () => {
       await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
       await dbh.db.insert(userModelTable).values({
@@ -632,6 +644,34 @@ describe('UsageLedgerService', () => {
     })
   })
 
+  describe('schema constraints', () => {
+    const base = {
+      providerId: 'openai',
+      modelId: 'openai::gpt-4o',
+      apiKeyAttribution: 'none',
+      createdAt: 1000,
+      updatedAt: 1000
+    } as const
+
+    it('rejects a cost source without a cost', () => {
+      expect(() =>
+        dbh.db
+          .insert(usageLedgerTable)
+          .values({ ...base, messageId: 'invalid-cost-pair', costSource: 'computed' })
+          .run()
+      ).toThrow('usage_ledger_cost_pairing_check')
+    })
+
+    it('rejects key-level attribution without an API key id', () => {
+      expect(() =>
+        dbh.db
+          .insert(usageLedgerTable)
+          .values({ ...base, messageId: 'invalid-key-pair', apiKeyAttribution: 'exact' })
+          .run()
+      ).toThrow('usage_ledger_api_key_identity_check')
+    })
+  })
+
   describe('stats', () => {
     it('aggregates by api key and never mixes currencies', async () => {
       const base = { providerId: 'openai', modelId: 'openai::gpt-4o', apiKeyAttribution: 'exact' }
@@ -693,8 +733,11 @@ describe('UsageLedgerService', () => {
       const { buckets } = await usageLedgerService.stats({ groupBy: 'apiKey' })
 
       expect(buckets).toHaveLength(3)
-      const keyAUsd = buckets.find((b) => b.apiKeyId === 'key-a' && b.costCurrency === 'USD')
+      const keyAUsd = buckets.find(
+        (bucket) => bucket.groupBy === 'apiKey' && bucket.apiKeyId === 'key-a' && bucket.costCurrency === 'USD'
+      )
       expect(keyAUsd).toMatchObject({
+        groupBy: 'apiKey',
         apiKeyLabel: 'Main',
         totalCost: 2,
         totalInputTokens: 300,
@@ -702,7 +745,9 @@ describe('UsageLedgerService', () => {
         totalTokens: 450,
         entryCount: 2
       })
-      const keyACny = buckets.find((b) => b.apiKeyId === 'key-a' && b.costCurrency === 'CNY')
+      const keyACny = buckets.find(
+        (bucket) => bucket.groupBy === 'apiKey' && bucket.apiKeyId === 'key-a' && bucket.costCurrency === 'CNY'
+      )
       expect(keyACny).toMatchObject({ totalCost: 7, entryCount: 1 })
       // Ordered by total cost descending
       expect(buckets[0]).toMatchObject({ costCurrency: 'CNY', totalCost: 7 })
@@ -755,6 +800,7 @@ describe('UsageLedgerService', () => {
         {
           messageId: 'm1',
           providerId: 'openai',
+          modelId: 'openai::gpt-4o',
           apiKeyAttribution: 'none',
           cost: 1,
           costCurrency: 'USD',
@@ -764,6 +810,7 @@ describe('UsageLedgerService', () => {
         {
           messageId: 'm2',
           providerId: 'openai',
+          modelId: 'openai::gpt-4o',
           apiKeyAttribution: 'none',
           cost: 2,
           costCurrency: 'USD',
@@ -782,6 +829,7 @@ describe('UsageLedgerService', () => {
         {
           messageId: 'assistant-row-1',
           providerId: 'openai',
+          modelId: 'openai::gpt-4o',
           sourceType: 'assistant',
           sourceId: 'assistant-1',
           sourceName: 'Assistant One',
@@ -799,6 +847,7 @@ describe('UsageLedgerService', () => {
         {
           messageId: 'assistant-row-2',
           providerId: 'openai',
+          modelId: 'openai::gpt-4o',
           sourceType: 'assistant',
           sourceId: 'assistant-1',
           sourceName: 'Assistant One',
@@ -816,6 +865,7 @@ describe('UsageLedgerService', () => {
         {
           messageId: 'agent-row',
           providerId: 'openai',
+          modelId: 'openai::gpt-4o',
           sourceType: 'agent',
           sourceId: 'agent-1',
           sourceName: 'Agent One',
@@ -833,10 +883,11 @@ describe('UsageLedgerService', () => {
       ])
 
       const { buckets } = await usageLedgerService.stats({ groupBy: 'source' })
-      const assistant = buckets.find((bucket) => bucket.sourceType === 'assistant')
-      const agent = buckets.find((bucket) => bucket.sourceType === 'agent')
+      const assistant = buckets.find((bucket) => bucket.groupBy === 'source' && bucket.sourceType === 'assistant')
+      const agent = buckets.find((bucket) => bucket.groupBy === 'source' && bucket.sourceType === 'agent')
 
       expect(assistant).toMatchObject({
+        groupBy: 'source',
         sourceId: 'assistant-1',
         sourceName: 'Assistant One',
         sourceIcon: '✨',

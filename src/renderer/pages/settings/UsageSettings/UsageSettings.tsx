@@ -35,7 +35,7 @@ import type {
   UsageLedgerStatsBucket,
   UsageLedgerTimelineBucket
 } from '@shared/data/api/schemas/usageLedger'
-import type { UsageLedgerModality } from '@shared/data/types/usageLedger'
+import type { UsageLedgerModality, UsageLedgerSourceType } from '@shared/data/types/usageLedger'
 import {
   ArrowDown,
   ArrowUp,
@@ -82,8 +82,9 @@ type GroupByKey = (typeof GROUP_BY_KEYS)[number]
 type UsageMetricKey = (typeof METRIC_KEYS)[number]
 type UsageChartType = (typeof CHART_TYPE_KEYS)[number]
 type UsageRollupKey = (typeof ROLLUP_KEYS)[number]
+type UsageApiKeyStatsBucket = Extract<UsageLedgerStatsBucket, { groupBy: 'apiKey' }>
 type UsageApiKeyDisplay = Pick<
-  UsageLedgerStatsBucket,
+  UsageApiKeyStatsBucket,
   'apiKeyId' | 'apiKeyLabel' | 'apiKeyMasked' | 'apiKeyAttribution'
 >
 
@@ -308,7 +309,7 @@ function UsageSourceLabel({
   size = 18,
   className
 }: {
-  sourceType: UsageLedgerStatsBucket['sourceType']
+  sourceType: UsageLedgerSourceType | null | undefined
   sourceIcon?: string | null
   children: ReactNode
   size?: number
@@ -447,11 +448,19 @@ function mergeStatsBuckets(buckets: UsageLedgerStatsBucket[], currency?: string)
     existing.entryCount += bucket.entryCount
     // Snapshot labels are taken per split, so one split may carry a name the
     // other lost; never let the merged row fall back to a raw id needlessly.
-    existing.providerName ??= bucket.providerName
-    existing.sourceName ??= bucket.sourceName
-    existing.sourceIcon ??= bucket.sourceIcon
-    existing.apiKeyLabel ??= bucket.apiKeyLabel
-    existing.apiKeyMasked ??= bucket.apiKeyMasked
+    if (existing.groupBy === 'source' && bucket.groupBy === 'source') {
+      existing.sourceName ??= bucket.sourceName
+      existing.sourceIcon ??= bucket.sourceIcon
+    } else if (existing.groupBy === 'apiKey' && bucket.groupBy === 'apiKey') {
+      existing.providerName ??= bucket.providerName
+      existing.apiKeyLabel ??= bucket.apiKeyLabel
+      existing.apiKeyMasked ??= bucket.apiKeyMasked
+    } else if (
+      (existing.groupBy === 'provider' || existing.groupBy === 'model') &&
+      bucket.groupBy === existing.groupBy
+    ) {
+      existing.providerName ??= bucket.providerName
+    }
   }
 
   return Array.from(merged.values())
@@ -1034,10 +1043,12 @@ function UsageSettings() {
   )
   const topModel = useMemo(
     () =>
-      overviewBuckets.reduce<UsageLedgerStatsBucket | undefined>(
-        (best, bucket) => (!best || bucket.totalTokens > best.totalTokens ? bucket : best),
-        undefined
-      ),
+      overviewBuckets
+        .filter((bucket): bucket is Extract<UsageLedgerStatsBucket, { groupBy: 'model' }> => bucket.groupBy === 'model')
+        .reduce<Extract<UsageLedgerStatsBucket, { groupBy: 'model' }> | undefined>(
+          (best, bucket) => (!best || bucket.totalTokens > best.totalTokens ? bucket : best),
+          undefined
+        ),
     [overviewBuckets]
   )
 
@@ -1242,7 +1253,12 @@ function UsageSettings() {
       return getSourceLabel(bucket)
     }
 
-    return getApiKeyLabel(bucket)
+    return getApiKeyLabel({
+      apiKeyId: bucket.apiKeyId ?? null,
+      apiKeyLabel: bucket.apiKeyLabel ?? null,
+      apiKeyMasked: bucket.apiKeyMasked ?? null,
+      apiKeyAttribution: bucket.apiKeyAttribution ?? 'none'
+    })
   }
 
   const getModalityLabel = (modality: UsageLedgerModality) => t(MODALITY_LABEL_KEYS[modality])

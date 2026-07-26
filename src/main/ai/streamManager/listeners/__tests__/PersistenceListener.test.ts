@@ -575,4 +575,30 @@ describe('PersistenceListener + MessageServiceBackend — success-path cost enri
       expect.objectContaining({ status: 'success', stats: enriched })
     )
   })
+
+  it('persists raw stats when cost enrichment rejects', async () => {
+    const rawStats = { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
+    enrichStatsWithCostMock.mockRejectedValueOnce(new Error('pricing unavailable'))
+    const finalMessage = {
+      id: 'msg-x',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'hi' }],
+      metadata: { stats: rawStats }
+    } as unknown as CherryUIMessage
+    const listener = new PersistenceListener({
+      topicId: 'topic-1',
+      modelId: 'openrouter::x' as UniqueModelId,
+      backend: new MessageServiceBackend({ assistantMessageId: 'assistant-1' })
+    })
+
+    await expect(
+      listener.onDone({ finalMessage, status: 'success', modelId: 'openrouter::x' as UniqueModelId })
+    ).resolves.toBeUndefined()
+
+    expect(messageUpdateMock).toHaveBeenCalledTimes(1)
+    expect(messageUpdateMock).toHaveBeenCalledWith(
+      'assistant-1',
+      expect.objectContaining({ status: 'success', stats: rawStats })
+    )
+  })
 })

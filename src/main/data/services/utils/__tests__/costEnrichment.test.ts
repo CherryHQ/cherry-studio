@@ -125,4 +125,21 @@ describe('enrichStatsWithCost', () => {
     const result = await enrichStatsWithCost(tokenStats, 'openai::gpt-4o' as UniqueModelId, undefined)
     expect(result).toBe(tokenStats)
   })
+
+  it('never rejects: an unexpected failure returns the unpriced stats', async () => {
+    // Both callers enrich on the message-persistence path, where a rejection
+    // would fail the save and show an error bubble for a successful generation.
+    getByKeyMock.mockReturnValue({
+      get pricing(): RuntimeModelPricing {
+        throw new Error('corrupt model row')
+      }
+    })
+    await expect(enrichStatsWithCost(tokenStats, 'openai::gpt-4o' as UniqueModelId, 1)).resolves.toBe(tokenStats)
+  })
+
+  it('returns the stats unpriced when the model id cannot be parsed', async () => {
+    const result = await enrichStatsWithCost(tokenStats, 'not-a-unique-id' as UniqueModelId, undefined)
+    expect(result).toBe(tokenStats)
+    expect(getByKeyMock).not.toHaveBeenCalled()
+  })
 })

@@ -28,6 +28,15 @@ export const MessageIdSchema = z.uuid()
 export type MessageId = z.infer<typeof MessageIdSchema>
 
 /**
+ * Where a cost figure came from: the provider's own reported spend, or a local
+ * computation from the model's pricing. Shared with the usage ledger entity
+ * and its `usage_ledger.cost_source` CHECK constraint.
+ */
+export const COST_SOURCES = ['provider', 'computed'] as const
+export const CostSourceSchema = z.enum(COST_SOURCES)
+export type CostSource = z.infer<typeof CostSourceSchema>
+
+/**
  * Message Statistics — token usage, cost, and performance for one assistant
  * message. Token fields mirror AI SDK v6 `LanguageModelUsage` 1:1 so the
  * stream accumulator projects provider usage into this shape without
@@ -73,7 +82,7 @@ export const MessageStatsSchema = z.strictObject({
   /** Currency of `cost` / `costBreakdown` / `pricingSnapshot` rates. */
   costCurrency: z.enum(objectValues(CURRENCY)).optional(),
   /** Provider-reported actual spend vs locally computed from pricing. */
-  costSource: z.enum(['provider', 'computed']).optional(),
+  costSource: CostSourceSchema.optional(),
   /** Per-bucket cost. For provider-reported cost this is a computed cross-check. */
   costBreakdown: z
     .strictObject({

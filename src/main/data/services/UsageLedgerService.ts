@@ -45,6 +45,7 @@ import type {
   UsageLedgerListQuery,
   UsageLedgerListResponse,
   UsageLedgerStatsBucket,
+  UsageLedgerStatsGroupIdentity,
   UsageLedgerStatsQuery,
   UsageLedgerStatsResponse,
   UsageLedgerTimelineBucket,
@@ -235,6 +236,46 @@ function toGroupIdentity(
   }
 }
 
+function toStatsGroupIdentity(
+  row: GroupIdentityRow,
+  groupBy: UsageLedgerGroupBy,
+  providerNames: Map<string, string>
+): UsageLedgerStatsGroupIdentity {
+  switch (groupBy) {
+    case 'provider':
+      return {
+        groupBy,
+        providerId: row.providerId as string,
+        providerName: resolveProviderNameSnapshot(row.providerId as string, row.providerName, providerNames)
+      }
+    case 'apiKey':
+      return {
+        groupBy,
+        providerId: row.providerId as string,
+        providerName: resolveProviderNameSnapshot(row.providerId as string, row.providerName, providerNames),
+        apiKeyId: row.apiKeyId,
+        apiKeyLabel: row.apiKeyLabel,
+        apiKeyMasked: row.apiKeyMasked,
+        apiKeyAttribution: row.apiKeyAttribution as UsageLedgerAttribution
+      }
+    case 'model':
+      return {
+        groupBy,
+        providerId: row.providerId as string,
+        providerName: resolveProviderNameSnapshot(row.providerId as string, row.providerName, providerNames),
+        modelId: row.modelId as string
+      }
+    case 'source':
+      return {
+        groupBy,
+        sourceType: row.sourceType as UsageLedgerSourceType | null,
+        sourceId: row.sourceId,
+        sourceName: row.sourceName,
+        sourceIcon: row.sourceIcon
+      }
+  }
+}
+
 type SourceSnapshot = {
   type: UsageLedgerSourceType
   id: string
@@ -385,10 +426,19 @@ export class UsageLedgerService {
    * leg only — the same under-count is visible on the message itself.
    * Fixing that belongs upstream in the stream pipeline, not here.
    *
-   * Best-effort by contract: callers fire-and-forget; failures must never
-   * disrupt the request or message persistence.
+   * Best-effort by construction, not by convention: the whole write is wrapped
+   * so a caller that awaits it without a `.catch()` still cannot fail the
+   * request or message persistence it belongs to.
    */
   async recordRequest(input: RecordRequestInput): Promise<void> {
+    try {
+      await this.writeRequest(input)
+    } catch (err) {
+      logger.error('recordRequest failed', { messageId: input.id, modelId: input.modelId, err })
+    }
+  }
+
+  private async writeRequest(input: RecordRequestInput): Promise<void> {
     const modality = input.modality ?? 'language'
     if (!hasUsageSignal(input.stats) && !input.imageCount) return
 
@@ -655,7 +705,7 @@ export class UsageLedgerService {
 
     const providerNames = query.groupBy === 'source' ? new Map<string, string>() : await readProviderNameMap()
     const buckets: UsageLedgerStatsBucket[] = rows.map((row) => ({
-      ...toGroupIdentity(row, query.groupBy, providerNames),
+      ...toStatsGroupIdentity(row, query.groupBy, providerNames),
       costCurrency: row.costCurrency,
       totalCost: row.totalCost,
       totalInputTokens: row.totalInputTokens,

@@ -70,13 +70,30 @@ export async function enrichStatsWithCost(
   modelId: UniqueModelId | undefined,
   providerCostUsd: number | undefined
 ): Promise<MessageStats | undefined> {
+  try {
+    return await computeEnrichedStats(stats, modelId, providerCostUsd)
+  } catch (err) {
+    // Cost is an annotation on usage, never a reason to lose it: both callers
+    // enrich on the persistence path, where a throw would fail the message save
+    // (and surface as an error bubble on a generation that actually succeeded).
+    logger.error('cost enrichment failed, keeping the stats unpriced', { modelId, err })
+    return stats
+  }
+}
+
+async function computeEnrichedStats(
+  stats: MessageStats | undefined,
+  modelId: UniqueModelId | undefined,
+  providerCostUsd: number | undefined
+): Promise<MessageStats | undefined> {
   if (!stats || !modelId) return stats
 
   let providerId: string
   let bareModelId: string
   try {
     ;({ providerId, modelId: bareModelId } = parseUniqueModelId(modelId))
-  } catch {
+  } catch (err) {
+    logger.debug('cost enrichment: unparseable modelId', { modelId, err })
     return stats
   }
 

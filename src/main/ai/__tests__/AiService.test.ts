@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentLoopHooks } from '../runtime/aiSdk'
 
 const mockGenerateImage = vi.fn()
+const mockEmbedMany = vi.fn()
 const mockRerank = vi.fn()
 const mockDownloadImageAsBase64 = vi.fn()
 const mockApplicationGet = vi.fn()
@@ -85,18 +86,14 @@ vi.mock('@main/data/services/MessageService', () => ({
 
 vi.mock('@cherrystudio/ai-core', () => ({
   createAgent: vi.fn(),
-  embedMany: vi.fn(),
+  embedMany: (...args: unknown[]) => mockEmbedMany(...args),
   generateImage: (...args: unknown[]) => mockGenerateImage(...args),
   rerank: (...args: unknown[]) => mockRerank(...args)
 }))
 
 vi.mock('@main/data/services/UsageLedgerService', () => ({
   usageLedgerService: {
-    // Always resolve so the fire-and-forget `.catch(...)` in the billing hook works.
-    recordRequest: (...args: unknown[]) => {
-      mockRecordRequest(...args)
-      return Promise.resolve()
-    }
+    recordRequest: (...args: unknown[]) => mockRecordRequest(...args)
   }
 }))
 
@@ -142,6 +139,9 @@ describe('AiService', () => {
       isEnabled: true,
       isHidden: false
     })
+    // Default: resolve, like the real ledger's best-effort contract. Individual
+    // tests override with mockRejectedValueOnce to exercise the failure path.
+    mockRecordRequest.mockResolvedValue(undefined)
   })
 
   it('routes agent-session runtime requests directly to the runtime service', async () => {
@@ -416,6 +416,113 @@ describe('AiService', () => {
         }
       })
     )
+  })
+
+  // The direct (non-job) image path bills through `recordImageUsage` (billingHook.ts),
+  // fire-and-forget — zero coverage before this: neither the ledger payload shape nor
+  // the failure-must-not-disrupt-the-request contract was tested here.
+  describe('generateImage — usage ledger (direct path)', () => {
+    function stubDirectImage(service: InstanceType<typeof AiService>) {
+      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+        model: { id: 'test-provider::test-model', providerId: 'test-provider' }
+      } as never)
+      mockGenerateImage.mockResolvedValue({ images: [{ base64: 'abc123', mediaType: 'image/png' }] })
+      const fileEntry = { id: 'file-1', origin: 'internal', ext: 'png', name: 'img', size: 3, createdAt: 0 }
+      mockApplicationGet.mockImplementation((name: string) =>
+        name === 'FileManager' ? { createInternalEntry: vi.fn().mockResolvedValue(fileEntry) } : undefined
+      )
+      return fileEntry
+    }
+
+    it('records the ledger entry with modality "image" and the persisted file count', async () => {
+      const service = createService()
+      stubDirectImage(service)
+
+      await service.generateImage({
+        uniqueModelId: 'test-provider::test-model',
+        prompt: 'draw a cat',
+        paramValues: {}
+      })
+
+      expect(mockRecordRequest).toHaveBeenCalledWith(
+        expect.objectContaining({ modelId: 'test-provider::test-model', modality: 'image', imageCount: 1 })
+      )
+    })
+
+    it('still returns the generated files when the ledger write rejects', async () => {
+      const service = createService()
+      const fileEntry = stubDirectImage(service)
+      mockRecordRequest.mockRejectedValueOnce(new Error('ledger unavailable'))
+
+      const result = await service.generateImage({
+        uniqueModelId: 'test-provider::test-model',
+        prompt: 'draw a cat',
+        paramValues: {}
+      })
+
+      expect(result).toEqual({ files: [fileEntry] })
+      expect(mockRecordRequest).toHaveBeenCalledTimes(1)
+      // Let recordImageUsage's internal try/catch settle — an unattended rejection
+      // here would surface as an unhandled rejection failing the test.
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    })
+  })
+
+  // `embedMany`'s ledger write had zero coverage before this: neither the payload
+  // shape (modality/token count) nor the failure-must-not-disrupt-the-request
+  // contract was tested.
+  describe('embedMany — usage ledger', () => {
+    function stubEmbedding(service: InstanceType<typeof AiService>) {
+      vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+        sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-embedding-model' },
+        model: { id: 'test-provider::test-embedding-model', providerId: 'test-provider' }
+      } as never)
+      mockEmbedMany.mockResolvedValue({ embeddings: [[0.1, 0.2]], usage: { tokens: 42 } })
+    }
+
+    it('records the ledger entry with modality "embedding" and the token count', async () => {
+      const service = createService()
+      stubEmbedding(service)
+
+      await service.embedMany({ uniqueModelId: 'test-provider::test-embedding-model', values: ['hello'] })
+
+      expect(mockRecordRequest).toHaveBeenCalledWith({
+        id: expect.any(String),
+        modelId: 'test-provider::test-embedding-model',
+        modality: 'embedding',
+        stats: { inputTokens: 42, totalTokens: 42 }
+      })
+    })
+
+    it('still returns the embeddings when the ledger write rejects', async () => {
+      const service = createService()
+      stubEmbedding(service)
+      mockRecordRequest.mockRejectedValueOnce(new Error('ledger unavailable'))
+
+      await expect(
+        service.embedMany({ uniqueModelId: 'test-provider::test-embedding-model', values: ['hello'] })
+      ).resolves.toEqual({ embeddings: [[0.1, 0.2]], usage: { tokens: 42 } })
+
+      expect(mockRecordRequest).toHaveBeenCalledTimes(1)
+      // Let the fire-and-forget `.catch(...)` settle — an unattended rejection here
+      // would surface as an unhandled rejection failing the test.
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    })
+
+    it('does not record usage when recordUsage is disabled (health checks)', async () => {
+      const service = createService()
+      stubEmbedding(service)
+
+      await service.embedMany(
+        { uniqueModelId: 'test-provider::test-embedding-model', values: ['hello'] },
+        {
+          recordUsage: false
+        }
+      )
+
+      expect(mockRecordRequest).not.toHaveBeenCalled()
+    })
   })
 })
 
@@ -1256,6 +1363,7 @@ describe('createBillingHook', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockRecordRequest.mockResolvedValue(undefined)
   })
 
   it('records the accumulated usage with the request message id and provider-reported cost', () => {

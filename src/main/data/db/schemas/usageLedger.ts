@@ -1,8 +1,10 @@
-import type { MessageStats } from '@shared/data/types/message'
+import { CostSourceSchema, type MessageStats } from '@shared/data/types/message'
 import { sql } from 'drizzle-orm'
 import { check, index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
+
+const costSourceCheckValues = CostSourceSchema.options.map((source) => `'${source}'`).join(', ')
 
 /**
  * Usage ledger - append-only record of per-message token usage and cost.
@@ -37,8 +39,10 @@ export const usageLedgerTable = sqliteTable(
     sourceId: text(),
     sourceName: text(),
     sourceIcon: text(),
-    // UniqueModelId ("providerId::modelId") snapshot
-    modelId: text(),
+    // UniqueModelId ("providerId::modelId") snapshot. Every write path resolves
+    // it before inserting — a request whose model cannot be identified is not
+    // billable and is skipped rather than stored half-attributed.
+    modelId: text().notNull(),
     // What kind of request this row bills: language (chat/gateway/one-shot
     // text), embedding (token-priced, input only), image (per-image priced).
     modality: text().notNull().default('language'),
@@ -88,7 +92,16 @@ export const usageLedgerTable = sqliteTable(
       sql`${t.apiKeyAttribution} IN ('exact', 'rotation', 'backfill', 'auth', 'none')`
     ),
     // NULL passes a CHECK in SQLite, so nullable columns need no IS NULL branch.
-    check('usage_ledger_cost_source_check', sql`${t.costSource} IN ('provider', 'computed')`),
+    check('usage_ledger_cost_source_check', sql`${t.costSource} IN (${sql.raw(costSourceCheckValues)})`),
+    // A cost source describes a cost: recording where a number came from
+    // without the number itself would report unpriced usage as priced.
+    check('usage_ledger_cost_pairing_check', sql`${t.costSource} IS NULL OR ${t.cost} IS NOT NULL`),
+    // The three key-level attributions name a specific key; `auth` (provider
+    // credential) and `none` (unresolvable) deliberately carry no key id.
+    check(
+      'usage_ledger_api_key_identity_check',
+      sql`${t.apiKeyAttribution} NOT IN ('exact', 'rotation', 'backfill') OR ${t.apiKeyId} IS NOT NULL`
+    ),
     check('usage_ledger_modality_check', sql`${t.modality} IN ('language', 'embedding', 'image')`),
     // Constrain to the CURRENCY enum (keep in sync with provider-registry
     // `CURRENCY`) so stats() can safely GROUP BY costCurrency without 'USD' vs
