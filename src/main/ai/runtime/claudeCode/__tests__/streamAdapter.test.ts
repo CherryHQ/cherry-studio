@@ -1016,6 +1016,49 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(statusEvents).toEqual([{ type: 'compaction-complete' }])
     })
 
+    // The bug this whole refactor exists for: a background task's completion used to be dropped,
+    // leaving its row running forever.
+    it('reports task lifecycle as status once the spawning turn has ended', () => {
+      const { adapter, parts, statusEvents } = createAdapter({}, { openTurn: false })
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'task_notification',
+        session_id: 'sdk-1',
+        uuid: crypto.randomUUID(),
+        task_id: 'bg-1',
+        status: 'completed',
+        output_file: '/tmp/bg-1.md',
+        summary: 'Audited the codebase',
+        usage: { total_tokens: 120, tool_uses: 3, duration_ms: 4500 }
+      } as any)
+
+      expect(parts).toEqual([])
+      expect(statusEvents).toEqual([
+        {
+          type: 'background-task-event',
+          data: expect.objectContaining({ taskId: 'bg-1', event: 'notification', status: 'completed' })
+        }
+      ])
+    })
+
+    it('keeps task lifecycle in the message stream while a turn is open', () => {
+      const { adapter, parts, statusEvents } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'task_started',
+        session_id: 'sdk-1',
+        uuid: 'started-uuid',
+        task_id: 'bg-1',
+        description: 'Audit the codebase'
+      } as any)
+
+      // In-turn events stay parts so the transcript keeps the history.
+      expect(statusEvents).toEqual([])
+      expect(parts).toEqual([expect.objectContaining({ type: 'data-agent-task-event' })])
+    })
+
     it('holds init metadata until a turn opens, since it is turn content', () => {
       const { adapter, parts, sessionIds } = createAdapter({}, { openTurn: false })
 

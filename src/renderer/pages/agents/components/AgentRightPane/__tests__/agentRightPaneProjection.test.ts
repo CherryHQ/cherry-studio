@@ -302,6 +302,45 @@ describe('agent right pane projections', () => {
     ])
   })
 
+  // A background task's completion arrives after its turn closed, so it never becomes a part.
+  // Without merging it the row would stay running for the rest of the session.
+  it('settles a run task from lifecycle that arrived after its turn closed', () => {
+    const parts = [
+      {
+        type: 'data-agent-task-event',
+        data: { event: 'started', taskId: 'bg-1', status: 'in_progress', title: 'sleep 300', taskType: 'local_bash' }
+      }
+    ] as unknown as CherryMessagePart[]
+    const messages = [message('m1', parts)]
+
+    const running = buildAgentRightPaneStatus(messages, { m1: parts })
+    expect(running.runTasks).toEqual([expect.objectContaining({ id: 'bg-1', status: 'in_progress' })])
+
+    const settled = buildAgentRightPaneStatus(
+      messages,
+      { m1: parts },
+      {
+        'bg-1': {
+          event: 'notification',
+          taskId: 'bg-1',
+          status: 'completed',
+          summary: 'slept',
+          outputFile: '/tmp/bg-1.md'
+        }
+      }
+    )
+
+    // Merged by task id onto the part-derived row, keeping what only the parts knew.
+    expect(settled.runTasks).toEqual([
+      expect.objectContaining({
+        id: 'bg-1',
+        status: 'completed',
+        taskType: 'local_bash',
+        outputFile: '/tmp/bg-1.md'
+      })
+    ])
+  })
+
   // A detached subagent's launch receipt arrives immediately, so its tool call reaches
   // `output-available` while the agent has barely started. Reporting that as 'done' is what made a
   // background agent look finished the moment it was spawned.

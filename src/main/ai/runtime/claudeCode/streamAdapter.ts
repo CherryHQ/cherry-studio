@@ -122,6 +122,7 @@ export type ClaudeCodeStreamStatusEvent = Extract<
       | 'compaction-complete'
       | 'compaction-error'
       | 'api-retry'
+      | 'background-task-event'
   }
 >
 
@@ -1038,8 +1039,20 @@ export class ClaudeCodeStreamAdapter {
     ctx.sink.enqueue({ type: 'message-metadata', messageMetadata: { modelId: this.modelId } })
   }
 
+  /**
+   * Task lifecycle describes work the run spawned, which routinely outlives the turn that spawned
+   * it. Inside a turn it stays a hidden message part, so the transcript keeps the full history;
+   * afterwards there is no message to attach to, and the host keeps the latest event per task as
+   * session status instead — otherwise a background task's completion never lands anywhere and its
+   * row stays running forever.
+   */
   private handleTaskSystemMessage(message: SDKTaskSystemMessage, ctx: StreamContext): void {
     const eventData = this.toTaskEventPartData(message)
+
+    if (!this.turnActive) {
+      this.statusSink.emit({ type: 'background-task-event', data: eventData })
+      return
+    }
 
     ctx.sink.enqueue({
       type: 'data-agent-task-event',

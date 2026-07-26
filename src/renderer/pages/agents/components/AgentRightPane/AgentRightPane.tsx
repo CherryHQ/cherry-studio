@@ -38,6 +38,7 @@ import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgentSessionBackgroundTasks } from '@renderer/hooks/agent/useAgentSessionBackgroundTasks'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
+import { useAgentSessionTaskEvents } from '@renderer/hooks/agent/useAgentSessionTaskEvents'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { type FileEditSession, useFileEditSession } from '@renderer/hooks/useFileEditSession'
 import { ipcApi } from '@renderer/ipc'
@@ -800,13 +801,16 @@ function TaskStatusIcon({ status }: { status: AgentStatusTask['status'] }) {
 
 function useAgentRightPaneStatus(active = true): AgentRightPaneStatus {
   const runtime = useAgentRightPaneRuntime()
+  const meta = useAgentRightPaneMeta()
+  // Lifecycle that landed after its turn closed, so it never became a message part.
+  const lateTaskEvents = useAgentSessionTaskEvents(meta.sessionId)
   const retainedStatusRef = useRef<AgentRightPaneStatus | null>(null)
   const status = useMemo(
     () =>
       !active && retainedStatusRef.current
         ? retainedStatusRef.current
-        : buildAgentRightPaneStatus(runtime.messages, runtime.partsByMessageId),
-    [active, runtime.messages, runtime.partsByMessageId]
+        : buildAgentRightPaneStatus(runtime.messages, runtime.partsByMessageId, lateTaskEvents),
+    [active, runtime.messages, runtime.partsByMessageId, lateTaskEvents]
   )
   useLayoutEffect(() => {
     if (active) retainedStatusRef.current = status

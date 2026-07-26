@@ -13,6 +13,7 @@ import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY, type AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
 import {
   AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY,
+  AGENT_SESSION_TASK_EVENTS_CACHE_KEY,
   type AgentSessionBackgroundTasks
 } from '@shared/ai/agentSessionBackgroundTasks'
 import {
@@ -32,6 +33,7 @@ import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agent
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryUIMessage, MessageSnapshot } from '@shared/data/types/message'
 import { createUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { UIMessageChunk } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
@@ -1001,6 +1003,9 @@ export class AgentSessionRuntimeService extends BaseService {
       case 'background-tasks':
         this.publishBackgroundTasks(entry, event.tasks)
         break
+      case 'background-task-event':
+        this.publishBackgroundTaskEvent(entry, event.data)
+        break
       case 'turn-complete':
         this.clearApiRetry(entry)
         this.closeCurrentTurn(entry, 'success')
@@ -1124,6 +1129,18 @@ export class AgentSessionRuntimeService extends BaseService {
   private publishBackgroundTasks(entry: AgentSessionRuntimeEntry, tasks: AgentSessionBackgroundTasks): void {
     if (!this.isCurrentEntry(entry)) return
     application.get('CacheService').setShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId), tasks)
+  }
+
+  /**
+   * Keep the latest lifecycle event per task. These arrive once the spawning turn's message stream
+   * is closed, so unlike in-turn events they cannot become message parts; the renderer merges them
+   * onto the part-derived rows by task id.
+   */
+  private publishBackgroundTaskEvent(entry: AgentSessionRuntimeEntry, data: AgentTaskEventPartData): void {
+    if (!this.isCurrentEntry(entry)) return
+    const cache = application.get('CacheService')
+    const key = AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId)
+    cache.setShared(key, { ...cache.getShared(key), [data.taskId]: data })
   }
 
   private handleRuntimeError(entry: AgentSessionRuntimeEntry, error: unknown): void {
@@ -1566,6 +1583,7 @@ export class AgentSessionRuntimeService extends BaseService {
     application.get('CacheService').deleteShared(AGENT_SESSION_SLASH_COMMANDS_CACHE_KEY(entry.sessionId))
     // The background-task level is per CLI process, so the closing process's set must not outlive it.
     application.get('CacheService').deleteShared(AGENT_SESSION_BACKGROUND_TASKS_CACHE_KEY(entry.sessionId))
+    application.get('CacheService').deleteShared(AGENT_SESSION_TASK_EVENTS_CACHE_KEY(entry.sessionId))
 
     const connection = this.closeConnection(entry)
     entry.currentTurn = undefined

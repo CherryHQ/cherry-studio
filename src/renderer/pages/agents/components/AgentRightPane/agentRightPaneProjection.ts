@@ -14,6 +14,7 @@ import {
   getPartParentToolCallId,
   stripPartParentToolMetadata
 } from '@renderer/components/chat/messages/tools/toolParentMetadata'
+import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTasks'
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
@@ -451,7 +452,12 @@ function getPathBasename(path: string): string {
 
 export function buildAgentRightPaneStatus(
   messages: CherryUIMessage[],
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: Record<string, CherryMessagePart[]>,
+  /**
+   * Lifecycle that arrived after the spawning turn closed, so it never became a message part.
+   * Applied last, by task id, so a background task's completion settles the row the parts built.
+   */
+  lateTaskEvents: AgentSessionTaskEvents = {}
 ): AgentRightPaneStatus {
   const taskMap = new Map<string, AgentStatusTask>()
   const runTaskMap = new Map<string, AgentRunTask>()
@@ -495,6 +501,10 @@ export function buildAgentRightPaneStatus(
         }
       }
     })
+  }
+
+  for (const data of Object.values(lateTaskEvents)) {
+    applyAgentTaskEvent(runTaskMap, data)
   }
 
   const tasks = Array.from(taskMap.values())

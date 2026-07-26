@@ -7,6 +7,7 @@ import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { UIMessageChunk } from 'ai'
 
@@ -69,6 +70,8 @@ export type AgentRuntimeEvent =
   | { type: 'supported-commands'; commands: AgentSessionSlashCommand[] }
   /** Live background work after a membership change. REPLACE semantics — the payload is the full set. */
   | { type: 'background-tasks'; tasks: AgentSessionBackgroundTasks }
+  /** Task lifecycle that arrived with no turn stream to carry it; the host keeps the latest per task. */
+  | { type: 'background-task-event'; data: AgentTaskEventPartData }
   | { type: 'error'; error: unknown }
 
 /**
