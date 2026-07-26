@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Hoisted state mirrors the pattern in MainWindowService.test.ts: platform flags are
 // per-test mutable, mocks use getters to preserve live-binding semantics.
-const { platformState, nativeThemeState, applicationMock, windowManagerMock } = vi.hoisted(() => {
+const { platformState, nativeThemeState, applicationMock, windowManagerMock, ipcApiServiceMock } = vi.hoisted(() => {
   const platformState = { isMac: false, isWin: false, isLinux: false }
   const nativeThemeState = { shouldUseDarkColors: false }
   const windowManagerMock = {
@@ -12,19 +12,25 @@ const { platformState, nativeThemeState, applicationMock, windowManagerMock } = 
     ),
     close: vi.fn<(id: string) => boolean>(() => true),
     getWindow: vi.fn<(id: string) => unknown>(() => undefined),
+    getWindowType: vi.fn<(id: string) => string | undefined>(() => undefined),
     getWindowsByType: vi.fn<(type: string) => unknown[]>(() => []),
     getWindowInfosByType: vi.fn<(type: string) => Array<{ id: string }>>(() => []),
     getWindowIdByWebContents: vi.fn<(wc: unknown) => string | undefined>(() => undefined),
     broadcastToType: vi.fn<(type: string, channel: string, ...rest: unknown[]) => void>(),
     behavior: { setAlwaysOnTop: vi.fn<(id: string, enabled: boolean) => void>() }
   }
+  const ipcApiServiceMock = {
+    broadcastToType: vi.fn<(type: string, event: string, payload: unknown) => void>()
+  }
   const applicationMock = {
     get: vi.fn((name: string) => {
       if (name === 'WindowManager') return windowManagerMock
+      if (name === 'IpcApiService') return ipcApiServiceMock
       throw new Error(`unexpected service: ${name}`)
-    })
+    }),
+    getPath: vi.fn(() => '/mock/app/root')
   }
-  return { platformState, nativeThemeState, applicationMock, windowManagerMock }
+  return { platformState, nativeThemeState, applicationMock, windowManagerMock, ipcApiServiceMock }
 })
 
 vi.mock('@main/core/platform', () => ({
@@ -49,10 +55,15 @@ vi.mock('@application', () => ({ application: applicationMock }))
 
 vi.mock('electron', () => ({
   BrowserWindow: { fromWebContents: vi.fn() },
+  ipcMain: { on: vi.fn(), removeListener: vi.fn() },
   get nativeTheme() {
     return nativeThemeState
   }
 }))
+
+// Tab_MoveWindow stays on native ipcMain and gates on validateSender; the test events are minimal
+// ({ sender: {} }) so force the gate open — the handler returns early otherwise.
+vi.mock('@main/core/security/validateSender', () => ({ validateSender: () => true }))
 
 vi.mock('@main/core/lifecycle', async () => {
   const actual = (await vi.importActual('@main/core/lifecycle')) as Record<string, unknown>
@@ -65,7 +76,8 @@ vi.mock('@main/core/lifecycle', async () => {
 })
 
 // Import after mocks
-import { BrowserWindow } from 'electron'
+import { WindowType } from '@main/core/window/types'
+import { BrowserWindow, ipcMain } from 'electron'
 
 import { SubWindowService } from '../SubWindowService'
 
@@ -110,16 +122,10 @@ function lastOpenCall() {
   return { type, args: args ?? {} }
 }
 
-function getIpcOnHandler(svc: SubWindowService, channel: string) {
-  const call = (svc as any).ipcOn.mock.calls.find(([c]: [string]) => c === channel)
-  if (!call) throw new Error(`ipcOn handler not registered for channel: ${channel}`)
-  return call[1]
-}
-
-function getIpcHandleHandler(svc: SubWindowService, channel: string) {
-  const call = (svc as any).ipcHandle.mock.calls.find(([c]: [string]) => c === channel)
-  if (!call) throw new Error(`ipcHandle handler not registered for channel: ${channel}`)
-  return call[1]
+function getNativeOnHandler(channel: string) {
+  const call = vi.mocked(ipcMain.on).mock.calls.find(([c]) => c === channel)
+  if (!call) throw new Error(`ipcMain.on handler not registered for channel: ${channel}`)
+  return call[1] as (event: any, payload: any) => void
 }
 
 describe('SubWindowService', () => {
@@ -133,11 +139,13 @@ describe('SubWindowService', () => {
     windowManagerMock.open.mockReset().mockReturnValue('mock-window-id')
     windowManagerMock.close.mockReset().mockReturnValue(true)
     windowManagerMock.getWindow.mockReset().mockReturnValue(undefined)
+    windowManagerMock.getWindowType.mockReset().mockReturnValue(undefined)
     windowManagerMock.getWindowsByType.mockReset().mockReturnValue([])
     windowManagerMock.getWindowInfosByType.mockReset().mockReturnValue([])
     windowManagerMock.getWindowIdByWebContents.mockReset().mockReturnValue(undefined)
     windowManagerMock.broadcastToType.mockReset()
     windowManagerMock.behavior.setAlwaysOnTop.mockReset()
+    ipcApiServiceMock.broadcastToType.mockReset()
     vi.mocked(BrowserWindow.fromWebContents).mockReset()
 
     svc = new SubWindowService()
@@ -366,44 +374,57 @@ describe('SubWindowService', () => {
     })
   })
 
-  describe('Tab_Attach handler', () => {
-    it('closes sender when it is tracked as SubWindow by WindowManager', async () => {
-      const handler = getIpcHandleHandler(svc, 'tab:attach')
-      windowManagerMock.getWindowsByType.mockImplementation((type) =>
-        type === 'main' ? [{ id: 'main-1' } as any] : []
-      )
-      windowManagerMock.getWindowInfosByType.mockImplementation((type) =>
-        type === 'subWindow' ? [{ id: 'sub-1' }] : []
-      )
-      windowManagerMock.getWindowIdByWebContents.mockReturnValue('sub-1')
+  describe('attachTab', () => {
+    const tab = { id: 'tab-1', title: 'T' } as Parameters<SubWindowService['attachTab']>[0]
 
-      const result = await handler({ sender: {} } as any, { id: 'some-tab' })
+    it('broadcasts tab.attached to the main window and closes the caller sub-window', () => {
+      windowManagerMock.getWindowsByType.mockReturnValue([{}])
+      windowManagerMock.getWindowType.mockReturnValue(WindowType.SubWindow)
 
-      expect(result).toBe(true)
-      expect(windowManagerMock.broadcastToType).toHaveBeenCalledWith('main', 'tab:attach', { id: 'some-tab' })
-      expect(windowManagerMock.close).toHaveBeenCalledWith('sub-1')
+      svc.attachTab(tab, 'sub1' as never)
+
+      expect(ipcApiServiceMock.broadcastToType).toHaveBeenCalledWith(WindowType.Main, 'tab.attached', tab)
+      expect(windowManagerMock.close).toHaveBeenCalledWith('sub1')
     })
 
-    it('does not close sender when sender is the Main window', async () => {
-      const handler = getIpcHandleHandler(svc, 'tab:attach')
-      windowManagerMock.getWindowsByType.mockImplementation((type) =>
-        type === 'main' ? [{ id: 'main-1' } as any] : []
-      )
-      windowManagerMock.getWindowIdByWebContents.mockReturnValue('main-1')
+    it('skips broadcast and close when no main window exists (tab must not be lost)', () => {
+      windowManagerMock.getWindowsByType.mockReturnValue([])
 
-      const result = await handler({ sender: {} } as any, { id: 'some-tab' })
+      svc.attachTab(tab, 'sub1' as never)
 
-      expect(result).toBe(true)
+      expect(ipcApiServiceMock.broadcastToType).not.toHaveBeenCalled()
       expect(windowManagerMock.close).not.toHaveBeenCalled()
     })
 
-    it('fails when no Main window exists', async () => {
-      const handler = getIpcHandleHandler(svc, 'tab:attach')
-      windowManagerMock.getWindowsByType.mockReturnValue([])
+    it('does not close the caller when it is not a SubWindow (never closes the main window)', () => {
+      windowManagerMock.getWindowsByType.mockReturnValue([{}])
+      windowManagerMock.getWindowType.mockReturnValue(WindowType.Main)
 
-      const result = await handler({ sender: {} } as any, { id: 'some-tab' })
-      expect(result).toBe(false)
-      expect(windowManagerMock.broadcastToType).not.toHaveBeenCalled()
+      svc.attachTab(tab, 'main1' as never)
+
+      expect(ipcApiServiceMock.broadcastToType).toHaveBeenCalledWith(WindowType.Main, 'tab.attached', tab)
+      expect(windowManagerMock.close).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('setAlwaysOnTop', () => {
+    it('pins a SubWindow caller and returns true', () => {
+      windowManagerMock.getWindowType.mockReturnValue(WindowType.SubWindow)
+
+      expect(svc.setAlwaysOnTop('sub1' as never, true)).toBe(true)
+      expect(windowManagerMock.behavior.setAlwaysOnTop).toHaveBeenCalledWith('sub1', true)
+    })
+
+    it('rejects (false) a non-SubWindow caller without touching setAlwaysOnTop', () => {
+      windowManagerMock.getWindowType.mockReturnValue(WindowType.Main)
+
+      expect(svc.setAlwaysOnTop('main1' as never, true)).toBe(false)
+      expect(windowManagerMock.behavior.setAlwaysOnTop).not.toHaveBeenCalled()
+    })
+
+    it('rejects (false) a null sender', () => {
+      expect(svc.setAlwaysOnTop(null, true)).toBe(false)
+      expect(windowManagerMock.behavior.setAlwaysOnTop).not.toHaveBeenCalled()
     })
   })
 
@@ -415,7 +436,7 @@ describe('SubWindowService', () => {
       ;(svc as any).tabIdToWindowId.set('tab-move', 'wid-target')
       vi.mocked(BrowserWindow.fromWebContents).mockReturnValue(senderWin as any)
 
-      const handler = getIpcOnHandler(svc, 'tab:move-window')
+      const handler = getNativeOnHandler('tab:move-window')
       handler({ sender: {} } as any, { tabId: 'tab-move', x: 100, y: 200 })
 
       // moved target window, not sender
@@ -432,7 +453,7 @@ describe('SubWindowService', () => {
       const senderWin = createMockWindow()
       vi.mocked(BrowserWindow.fromWebContents).mockReturnValue(senderWin as any)
 
-      const handler = getIpcOnHandler(svc, 'tab:move-window')
+      const handler = getNativeOnHandler('tab:move-window')
       handler({ sender: {} } as any, { tabId: 'unknown-tab', x: 10, y: 20 })
 
       expect(senderWin.setPosition).toHaveBeenCalledWith(10, 20)
@@ -444,64 +465,10 @@ describe('SubWindowService', () => {
       ;(svc as any).tabIdToWindowId.set('tab-self', 'wid-self')
       vi.mocked(BrowserWindow.fromWebContents).mockReturnValue(win as any)
 
-      const handler = getIpcOnHandler(svc, 'tab:move-window')
+      const handler = getNativeOnHandler('tab:move-window')
       handler({ sender: {} } as any, { tabId: 'tab-self', x: 5, y: 5 })
 
       expect(win.setOpacity).toHaveBeenCalledWith(0.85)
-    })
-  })
-
-  describe('SubWindow_SetAlwaysOnTop handler', () => {
-    it('pins via WindowManager behavior when the sender is a tracked SubWindow', () => {
-      const handler = getIpcHandleHandler(svc, 'sub-window:set-always-on-top')
-      windowManagerMock.getWindowIdByWebContents.mockReturnValue('sub-9')
-      windowManagerMock.getWindowInfosByType.mockImplementation((type) =>
-        type === 'subWindow' ? [{ id: 'sub-9' }] : []
-      )
-
-      const result = handler({ sender: {} } as any, true)
-
-      expect(result).toBe(true)
-      expect(windowManagerMock.behavior.setAlwaysOnTop).toHaveBeenCalledWith('sub-9', true)
-      expect(BrowserWindow.fromWebContents).not.toHaveBeenCalled()
-    })
-
-    it('ignores (returns false) when the sender is not a WindowManager-tracked window', () => {
-      const handler = getIpcHandleHandler(svc, 'sub-window:set-always-on-top')
-      windowManagerMock.getWindowIdByWebContents.mockReturnValue(undefined)
-
-      const result = handler({ sender: {} } as any, true)
-
-      expect(result).toBe(false)
-      expect(windowManagerMock.behavior.setAlwaysOnTop).not.toHaveBeenCalled()
-      // No fallback: an untracked sender is not a sub-window, so we never poke a raw BrowserWindow.
-      expect(BrowserWindow.fromWebContents).not.toHaveBeenCalled()
-    })
-
-    it('ignores (returns false) when the sender is tracked but not a SubWindow (e.g. the main window)', () => {
-      const handler = getIpcHandleHandler(svc, 'sub-window:set-always-on-top')
-      windowManagerMock.getWindowIdByWebContents.mockReturnValue('main-1')
-      windowManagerMock.getWindowInfosByType.mockReturnValue([])
-
-      const result = handler({ sender: {} } as any, true)
-
-      expect(result).toBe(false)
-      expect(windowManagerMock.behavior.setAlwaysOnTop).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('Tab_DragEnd handler', () => {
-    it('restores opacity only when sender opacity is <1 (self-gating predicate)', () => {
-      const translucentWin = createMockWindow({ getOpacity: vi.fn(() => 0.85) })
-      vi.mocked(BrowserWindow.fromWebContents).mockReturnValue(translucentWin as any)
-      const handler = getIpcOnHandler(svc, 'tab:drag-end')
-      handler({ sender: {} } as any)
-      expect(translucentWin.setOpacity).toHaveBeenCalledWith(1)
-
-      const opaqueWin = createMockWindow({ getOpacity: vi.fn(() => 1) })
-      vi.mocked(BrowserWindow.fromWebContents).mockReturnValue(opaqueWin as any)
-      handler({ sender: {} } as any)
-      expect(opaqueWin.setOpacity).not.toHaveBeenCalled()
     })
   })
 })

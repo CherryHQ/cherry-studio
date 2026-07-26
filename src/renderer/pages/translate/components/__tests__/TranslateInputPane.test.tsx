@@ -19,7 +19,7 @@ vi.mock('@renderer/hooks/useDrag', () => ({
   })
 }))
 
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/style', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
 
@@ -28,6 +28,11 @@ vi.mock('@cherrystudio/ui', () => ({
     <button type="button" {...props}>
       {children}
     </button>
+  ),
+  Scrollbar: ({ children, ref, ...props }: React.ComponentProps<'div'> & { ref?: React.Ref<HTMLDivElement> }) => (
+    <div ref={ref} data-testid="translate-input-scrollbar" {...props}>
+      {children}
+    </div>
   ),
   NormalTooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>
 }))
@@ -69,6 +74,15 @@ describe('TranslateInputPane', () => {
     render(<TranslateInputPane {...props} />)
 
     expect(screen.queryByRole('button', { name: 'translate.files.upload' })).not.toBeInTheDocument()
+  })
+
+  it('renders the editable input inside the shared Scrollbar', () => {
+    const props = baseProps()
+    props.text = 'hello'
+
+    render(<TranslateInputPane {...props} />)
+
+    expect(screen.getByTestId('translate-input-scrollbar')).toContainElement(screen.getByRole('textbox'))
   })
 
   it('clears the input when the clear button is clicked', () => {

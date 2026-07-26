@@ -1,7 +1,6 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
+import { SettingRow, SettingRowTitle } from '@renderer/components/SettingsPrimitives'
 import { useTranslation } from 'react-i18next'
-
-import { SettingRow, SettingRowTitle } from '../..'
 
 const PADDLEOCR_OCR_MODEL_OPTIONS = ['PP-OCRv6', 'PP-OCRv5'] as const
 const PADDLEOCR_DOCUMENT_MODEL_OPTIONS = [

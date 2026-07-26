@@ -1,4 +1,4 @@
-import { application } from '@main/core/application'
+import { application } from '@application'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { buildAgentSessionTopicId } from '../../agentSession/topic'
@@ -27,6 +27,7 @@ export async function startAgentSessionRun(input: {
   sessionId: string
   userParts: CherryMessagePart[]
   listeners: StreamListener[]
+  headless?: boolean
 }): Promise<void> {
   if (input.listeners.length === 0) {
     throw new Error('startAgentSessionRun requires at least one listener')
@@ -45,7 +46,8 @@ export async function startAgentSessionRun(input: {
     const prepared = await agentChatContextProvider.prepareDispatch(primary, {
       trigger: 'submit-message',
       topicId,
-      userMessageParts: input.userParts
+      userMessageParts: input.userParts,
+      headless: input.headless === true
     })
 
     manager.send({

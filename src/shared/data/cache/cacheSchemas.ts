@@ -1,5 +1,6 @@
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { MiniAppRegion } from '@shared/data/types/miniApp'
+import type { AbsoluteFilePath } from '@shared/types/file'
 
 import type { TopicStatusSnapshotEntry } from '../../ai/transport'
 import type * as CacheValueTypes from './cacheValueTypes'
@@ -18,7 +19,7 @@ import type * as CacheValueTypes from './cacheValueTypes'
  * - Template placeholders `${xxx}` are treated as literal string segments
  *
  * Examples:
- * - 'app.user.avatar' (valid)
+ * - 'app.path.resources' (valid)
  * - 'chat.multi_select_mode' (valid)
  * - 'scroll.position.${topicId}' (valid template key)
  * - 'userAvatar' (invalid - missing dot separator)
@@ -59,7 +60,7 @@ import type * as CacheValueTypes from './cacheValueTypes'
  * ```typescript
  * type Test1 = IsTemplateKey<'scroll.position.${id}'>     // true
  * type Test2 = IsTemplateKey<'entity.cache.${a}_${b}'>    // true
- * type Test3 = IsTemplateKey<'app.user.avatar'>           // false
+ * type Test3 = IsTemplateKey<'app.path.resources'>           // false
  * ```
  */
 export type IsTemplateKey<K extends string> = K extends `${string}\${${string}}${string}` ? true : false
@@ -82,8 +83,8 @@ export type IsTemplateKey<K extends string> = K extends `${string}\${${string}}$
  * type Test2 = ExpandTemplateKey<'entity.cache.${type}_${id}'>
  * // Result: `entity.cache.${string}_${string}` (matches 'entity.cache.user_123', etc.)
  *
- * type Test3 = ExpandTemplateKey<'app.user.avatar'>
- * // Result: 'app.user.avatar' (unchanged for non-template keys)
+ * type Test3 = ExpandTemplateKey<'app.path.resources'>
+ * // Result: 'app.path.resources' (unchanged for non-template keys)
  * ```
  */
 export type ExpandTemplateKey<T extends string> = T extends `${infer Prefix}\${${string}}${infer Suffix}`
@@ -102,7 +103,7 @@ export type ExpandTemplateKey<T extends string> = T extends `${infer Prefix}\${$
  * @example
  * ```typescript
  * type Test1 = ProcessKey<'scroll.position.${id}'>  // `scroll.position.${string}`
- * type Test2 = ProcessKey<'app.user.avatar'>        // 'app.user.avatar'
+ * type Test2 = ProcessKey<'app.path.resources'>        // 'app.path.resources'
  * ```
  */
 export type ProcessKey<K extends string> = IsTemplateKey<K> extends true ? ExpandTemplateKey<K> : K
@@ -114,9 +115,7 @@ export type ProcessKey<K extends string> = IsTemplateKey<K> extends true ? Expan
 export type UseCacheSchema = {
   // App state
   'app.dist.update_state': CacheValueTypes.CacheAppUpdateState
-  'app.user.avatar': string
 
-  'app.path.files': string
   'app.path.resources': string
 
   // Chat context
@@ -131,7 +130,7 @@ export type UseCacheSchema = {
   'knowledge.recall.search_queries': Record<string, string[]>
 
   // Notes page state
-  'notes.active_file_path': string | undefined
+  'notes.active_file_path': AbsoluteFilePath | undefined
 
   // MiniApp management
   'mini_app.opened_keep_alive': CacheValueTypes.CacheMiniAppType[]
@@ -141,14 +140,10 @@ export type UseCacheSchema = {
   'mini_app.detected_region': MiniAppRegion | null
 
   // Topic management
-  'topic.active': CacheValueTypes.CacheTopic | null
   'topic.renaming': string[]
   'topic.newly_renamed': string[]
-  'topic.home.first_launch_temp_used': boolean
 
-  // Agent management — sessions are the user-facing primary; active agent is
-  // derived from the active session's `agentId`, so a single pointer is enough.
-  'agent.active_session_id': string | null
+  // Agent management
   'agent.session.waiting_id_map': Record<string, boolean>
 
   // Translate page state management
@@ -160,9 +155,6 @@ export type UseCacheSchema = {
   'translate.detecting': boolean
   /** Whether translating input text */
   'translate.translating': CacheValueTypes.TranslatingState
-
-  // Assistant reasoning effort cache (per-assistant, not persisted to DB)
-  'assistant.reasoning_effort_cache.${assistantId}': string | undefined
 
   // Painting in-flight generation state, keyed by paintingId. Survives page
   // navigation so the spinner reappears when the user returns mid-run.
@@ -202,8 +194,6 @@ export const DefaultUseCache: UseCacheSchema = {
     ignore: false,
     manualCheck: false
   },
-  'app.user.avatar': '',
-  'app.path.files': '',
   'app.path.resources': '',
   // Chat context
   'chat.multi_select_mode': false,
@@ -221,13 +211,10 @@ export const DefaultUseCache: UseCacheSchema = {
   'mini_app.detected_region': null,
 
   // Topic management
-  'topic.active': null,
   'topic.renaming': [],
   'topic.newly_renamed': [],
-  'topic.home.first_launch_temp_used': false,
 
   // Agent management
-  'agent.active_session_id': null,
   'agent.session.waiting_id_map': {},
 
   // Translate page state management
@@ -238,9 +225,6 @@ export const DefaultUseCache: UseCacheSchema = {
     isTranslating: false,
     abortKey: null
   },
-
-  // Assistant reasoning effort cache
-  'assistant.reasoning_effort_cache.${assistantId}': undefined,
 
   'painting.generation.${paintingId}': null,
 
@@ -266,12 +250,15 @@ export type SharedCacheSchema = {
   'mcp.tools.${serverId}': CacheValueTypes.CacheMcpTool[]
   'mcp.status.${serverId}': CacheValueTypes.McpRuntimeStatus
   'agent.session.compaction.${sessionId}': CacheValueTypes.CacheAgentSessionCompactionState
+  'agent.session.api_retry.${sessionId}': CacheValueTypes.CacheAgentSessionApiRetryState
   'agent.session.context_usage.${sessionId}': CacheValueTypes.CacheAgentSessionContextUsage
+  'agent.session.slash_commands.${sessionId}': CacheValueTypes.CacheAgentSessionSlashCommands
   'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
   'topic.stream.last_seen_completion.${topicId}': number | null
   'feature.openclaw.gateway_status': CacheValueTypes.OpenClawGatewayStatus
   // API gateway  runtime running state.
   'feature.api_gateway.running': boolean
+  'feature.binary.latest_versions': Record<string, string>
   // API key rotation state (cross-window, tracks last used key per provider)
   'web_search.provider.last_used_key.${providerId}': string
   'ocr.provider.last_used_key.${providerId}': string
@@ -282,6 +269,12 @@ export type SharedCacheSchema = {
   // a concrete job exists. Renderer treats null as cache miss.
   'jobs.state.${jobId}': JobSnapshot | null
   'jobs.progress.${jobId}': JobProgress
+  // Embedding batch progress for a knowledge item, main → all windows. Purely
+  // in-memory: created by the index-documents job only when it actually embeds
+  // chunks (subscribers read-only via useSharedCacheValue), kept TTL-free while
+  // active, then left to linger under a short TTL after the job exits so the
+  // polled item status can reach its terminal state before the value vanishes.
+  'knowledge.item.embedding_progress.${itemId}': number | null
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
@@ -289,17 +282,21 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'mcp.tools.${serverId}': [],
   'mcp.status.${serverId}': { state: 'disabled', lastCheckedAt: 0 },
   'agent.session.compaction.${sessionId}': null,
+  'agent.session.api_retry.${sessionId}': null,
   'agent.session.context_usage.${sessionId}': null,
+  'agent.session.slash_commands.${sessionId}': null,
   'topic.stream.statuses.${topicId}': null,
   'topic.stream.last_seen_completion.${topicId}': null,
   'feature.openclaw.gateway_status': 'stopped',
   'feature.api_gateway.running': false,
+  'feature.binary.latest_versions': {},
   'web_search.provider.last_used_key.${providerId}': '',
   'ocr.provider.last_used_key.${providerId}': '',
   // Template defaults are placeholders never consumed at runtime — concrete
   // keys are populated by JobManager when actual jobs exist.
   'jobs.state.${jobId}': null,
-  'jobs.progress.${jobId}': { progress: 0 }
+  'jobs.progress.${jobId}': { progress: 0 },
+  'knowledge.item.embedding_progress.${itemId}': null
 }
 
 /**
@@ -308,37 +305,93 @@ export const DefaultSharedCache: SharedCacheSchema = {
  */
 export type RendererPersistCacheSchema = {
   'ui.tab.pinned_tabs': CacheValueTypes.Tab[]
+  // Open (unpinned) tabs and the active tab id, persisted so the tab session is restored on
+  // restart. Main window only — written from TabsContext, gated on includePinnedTabs.
+  'ui.tab.normal_tabs': CacheValueTypes.Tab[]
+  'ui.tab.active_tab_id': string
+  'ui.global_search.recent_items': CacheValueTypes.GlobalSearchRecentEntry[]
   'ui.sidebar.docked_tabs': CacheValueTypes.Tab[]
   'ui.sidebar.width': number
   'ui.chat.sidebar.width': number
   'ui.chat.artifact_pane.width': number
-  'ui.chat.artifact_pane.file_tree.width': number
-  'agent.open_external_app.last_used_target': CacheValueTypes.AgentOpenExternalAppTarget
+  // Recent composer inputs shared by chat and agent surfaces (MRU order, capped by the consumer)
+  'ui.composer.input_history': string[]
+  'ui.chat.last_used_assistant_id': string | null
+  'ui.chat.last_used_topic_id': string | null
+  // Per-surface classic-layout right-pane override. Null delegates to the page's position-derived
+  // default; booleans preserve an explicit user choice across page re-entry.
+  'ui.chat.right_pane_open_override': boolean | null
+  // Sidebar section/group collapse — one fixed key per display mode so toggling a group in one
+  // mode never re-writes the others (avoids the whole-blob cross-mode/cross-window clobber).
+  // Stores the flat list of collapsed section/group ids; empty = everything expanded.
+  // Null means no user preference has been written yet, so the view may apply its default.
+  'ui.topic.expansion.time': string[]
+  'ui.topic.expansion.assistant': string[] | null
+  'ui.agent.last_used_session_id': string | null
+  'ui.agent.last_used_agent_id': string | null
+  'ui.agent.last_used_workspace_id': string | null
+  // Kept separate so the assistant and agent surfaces don't bleed into each other.
+  'ui.agent.right_pane_open_override': boolean | null
+  'ui.agent.session.expansion.time': string[]
+  'ui.agent.session.expansion.agent': string[] | null
+  'ui.agent.session.expansion.workdir': string[] | null
   'settings.provider.last_selected_provider_id': string | null
-  'settings.provider.openai.alert.dismissed': boolean
-  'feature.mcp.is_uv_installed': boolean
-  'feature.mcp.is_bun_installed': boolean
-  // Multi-model list for @mention parallel answering, keyed by assistantId
-  // This is UI-level state, not core assistant config (default model is assistant.modelId)
-  'ui.assistant.multi_model_ids': Record<string, string[]>
+  // MCP marketplace "available servers" fetched per provider; re-fetchable, so cached not stored
+  'feature.mcp.provider_available_servers': CacheValueTypes.McpAvailableServers
+  'agent.open_external_app.last_used_target': CacheValueTypes.AgentOpenExternalAppTarget
   // Recently picked emojis (MRU order, capped to 32) shown at the top of the shared emoji picker
   'ui.emoji.recently_used': string[]
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.tab.pinned_tabs': [],
+  'ui.tab.normal_tabs': [],
+  'ui.tab.active_tab_id': '',
+  'ui.global_search.recent_items': [],
   'ui.sidebar.docked_tabs': [],
   'ui.sidebar.width': 50, // keep in sync with SIDEBAR_ICON_WIDTH (renderer Sidebar/constants.ts)
   'ui.chat.sidebar.width': 275,
   'ui.chat.artifact_pane.width': 460,
-  'ui.chat.artifact_pane.file_tree.width': 160,
-  'agent.open_external_app.last_used_target': null,
+  'ui.composer.input_history': [],
+  'ui.chat.last_used_assistant_id': null,
+  'ui.chat.last_used_topic_id': null,
+  'ui.chat.right_pane_open_override': null,
+  'ui.topic.expansion.time': [],
+  'ui.topic.expansion.assistant': null,
+  'ui.agent.last_used_session_id': null,
+  'ui.agent.last_used_agent_id': null,
+  'ui.agent.last_used_workspace_id': null,
+  'ui.agent.right_pane_open_override': null,
+  'ui.agent.session.expansion.time': [],
+  'ui.agent.session.expansion.agent': null,
+  'ui.agent.session.expansion.workdir': null,
   'settings.provider.last_selected_provider_id': null,
-  'settings.provider.openai.alert.dismissed': false,
-  'feature.mcp.is_uv_installed': false,
-  'feature.mcp.is_bun_installed': false,
-  'ui.assistant.multi_model_ids': {},
+  'feature.mcp.provider_available_servers': {},
+  'agent.open_external_app.last_used_target': null,
   'ui.emoji.recently_used': []
+}
+
+/**
+ * Main-process persist cache schema (fixed keys only, main-authoritative).
+ *
+ * Independent from the renderer persist cache: the main-process CacheService
+ * stores these keys in its own JSON file. They are never relayed to, synced
+ * with, or readable by the renderer.
+ */
+export type MainPersistCacheSchema = {
+  // Persist-layer self-test key: exercises the typed persist API and round-trip
+  // tests for the generic mechanism, independent of any real consumer.
+  'internal.persist_probe': number
+  // Window geometry for WindowManager's "remember bounds" capability, keyed by
+  // WindowType value (a string). The schema lives in @shared while WindowType is
+  // a @main enum (no reverse import), so the key type is `string`; the
+  // windowBoundsTracker is the sole writer and controls which keys appear.
+  'window.bounds': Record<string, CacheValueTypes.WindowBoundsState>
+}
+
+export const DefaultMainPersistCache: MainPersistCacheSchema = {
+  'internal.persist_probe': 0,
+  'window.bounds': {}
 }
 
 // ============================================================================
@@ -349,6 +402,11 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
  * Key type for renderer persist cache (fixed keys only)
  */
 export type RendererPersistCacheKey = keyof RendererPersistCacheSchema
+
+/**
+ * Key type for main-process persist cache (fixed keys only)
+ */
+export type MainPersistCacheKey = keyof MainPersistCacheSchema
 
 /**
  * Key type for shared cache (supports both fixed and template keys).
@@ -375,7 +433,7 @@ export type InferSharedCacheValue<K extends string> = {
  * Key type for memory cache (supports both fixed and template keys).
  *
  * This type expands all schema keys using ProcessKey, which:
- * - Keeps fixed keys unchanged (e.g., 'app.user.avatar')
+ * - Keeps fixed keys unchanged (e.g., 'app.path.resources')
  * - Expands template keys to match patterns (e.g., 'scroll.position.${id}' -> `scroll.position.${string}`)
  *
  * The resulting union type allows TypeScript to accept any concrete key
@@ -384,13 +442,13 @@ export type InferSharedCacheValue<K extends string> = {
  * @example
  * ```typescript
  * // Given schema:
- * // 'app.user.avatar': string
+ * // 'app.path.resources': string
  * // 'scroll.position.${topicId}': number
  *
- * // UseCacheKey becomes: 'app.user.avatar' | `scroll.position.${string}`
+ * // UseCacheKey becomes: 'app.path.resources' | `scroll.position.${string}`
  *
  * // Valid keys:
- * const k1: UseCacheKey = 'app.user.avatar'       // fixed key
+ * const k1: UseCacheKey = 'app.path.resources'       // fixed key
  * const k2: UseCacheKey = 'scroll.position.123'   // matches template
  * const k3: UseCacheKey = 'scroll.position.abc'   // matches template
  *
@@ -421,10 +479,10 @@ export type UseCacheKey = {
  * @example
  * ```typescript
  * // Given schema:
- * // 'app.user.avatar': string
+ * // 'app.path.resources': string
  * // 'scroll.position.${topicId}': number
  *
- * type T1 = InferUseCacheValue<'app.user.avatar'>       // string
+ * type T1 = InferUseCacheValue<'app.path.resources'>       // string
  * type T2 = InferUseCacheValue<'scroll.position.123'>   // number
  * type T3 = InferUseCacheValue<'scroll.position.abc'>   // number
  * type T4 = InferUseCacheValue<'unknown.key'>           // never
@@ -448,11 +506,11 @@ export type InferUseCacheValue<K extends string> = {
  * @example
  * ```typescript
  * // Given schema:
- * // 'app.user.avatar': string
+ * // 'app.path.resources': string
  * // 'scroll.position.${topicId}': number
  *
  * // These cause compile-time errors (key matches schema):
- * getCasual('app.user.avatar')        // Error: never
+ * getCasual('app.path.resources')        // Error: never
  * getCasual('scroll.position.123')    // Error: never (matches template)
  *
  * // These are allowed (key doesn't match any schema pattern):

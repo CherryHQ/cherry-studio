@@ -1,2 +1,2 @@
-export { default as ProviderList } from './ProviderList'
+export { useProviderModelSync } from './hooks/useProviderModelSync'
 export { default as ProviderSettingsPage } from './ProviderSettingsPage'

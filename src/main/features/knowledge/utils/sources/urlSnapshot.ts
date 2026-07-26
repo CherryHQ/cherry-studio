@@ -1,4 +1,4 @@
-import { sanitizeFilename } from '@shared/utils/file/filename'
+import { sanitizeFilename } from '@shared/utils/file'
 
 import { reserveImportedFileRelativePath, writeFileIntoKnowledgeBaseAt } from '../storage/pathStorage'
 import { serializeOkfFrontmatter } from './okfFrontmatter'
@@ -56,14 +56,35 @@ function urlStem(url: string): string {
 }
 
 /**
+ * Build a captured URL snapshot's file content and its human-readable slug (no
+ * extension), without touching disk. The `fileText` is the markdown prefixed with
+ * an OKF frontmatter block recording the source URL and title; reading for indexing
+ * strips it back off. Shared by {@link captureUrlSnapshotFile} (native capture) and
+ * the v1→v2 vector migrator so both produce byte-identical snapshots; the caller
+ * supplies the `timestamp` (frontmatter-only, so it never affects a content hash).
+ */
+export function buildUrlSnapshotFile(
+  url: string,
+  markdown: string,
+  timestamp: string
+): { slug: string; fileText: string } {
+  const frontmatter = serializeOkfFrontmatter({
+    type: 'URL',
+    title: deriveUrlSnapshotTitle(markdown, url),
+    resource: url,
+    timestamp
+  })
+  return {
+    slug: deriveUrlSnapshotSlug(markdown, url),
+    fileText: frontmatter + markdown
+  }
+}
+
+/**
  * Write a captured URL snapshot into the base under a collision-free, readable
  * name and return its base-relative path. `reservedPaths` is the set of names
  * already occupied in the base; callers build it and call this under the base
  * mutation lock so two concurrent captures cannot pick the same path.
- *
- * The file is the markdown prefixed with the OKF frontmatter block, which
- * records the source URL and title on the file itself; reading for indexing
- * strips it back off.
  */
 export async function captureUrlSnapshotFile(
   baseId: string,
@@ -71,16 +92,7 @@ export async function captureUrlSnapshotFile(
   markdown: string,
   reservedPaths: Set<string>
 ): Promise<string> {
-  const relativePath = reserveImportedFileRelativePath(
-    `${deriveUrlSnapshotSlug(markdown, url)}.md`,
-    false,
-    reservedPaths
-  )
-  const frontmatter = serializeOkfFrontmatter({
-    type: 'URL',
-    title: deriveUrlSnapshotTitle(markdown, url),
-    resource: url,
-    timestamp: new Date().toISOString()
-  })
-  return await writeFileIntoKnowledgeBaseAt(baseId, relativePath, frontmatter + markdown)
+  const { slug, fileText } = buildUrlSnapshotFile(url, markdown, new Date().toISOString())
+  const relativePath = reserveImportedFileRelativePath(`${slug}.md`, false, reservedPaths)
+  return await writeFileIntoKnowledgeBaseAt(baseId, relativePath, fileText)
 }

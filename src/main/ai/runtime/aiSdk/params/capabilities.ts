@@ -64,12 +64,11 @@ export function resolveCapabilities(
   assistant: Assistant,
   options: ResolveCapabilitiesOptions = {}
 ): ResolvedCapabilities {
-  // `isFixedReasoningModel` covers models where reasoning is always on regardless
-  // of user setting (e.g. OpenAI o1 / o3 — they reason by construction).
+  // This flag means the model exposes reasoning behavior, not that the persisted assistant setting
+  // enabled it. The request snapshot may legitimately be `none`, `default`, or a freshly selected
+  // effort that has not reached assistant persistence yet; the resolver/profile decides what emits.
   const enableReasoning =
-    ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
-      assistant.settings?.reasoning_effort !== undefined) ||
-    isFixedReasoningModel(model)
+    isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model) || isFixedReasoningModel(model)
 
   const hasExternalSearch = !!options.webSearchProviderId
   const enableWebSearch =
@@ -78,14 +77,16 @@ export function resolveCapabilities(
       isOpenRouterBuiltInWebSearchModel(model) ||
       model.id.includes('sonar'))
 
-  // `assistant.enableUrlContext` / `enableGenerateImage` are not yet on the
-  // shared `Assistant` schema, so the toggles stay guarded and default to false.
+  // `assistant.enableUrlContext` is not yet on the shared `Assistant` schema, so it stays guarded.
   const urlContextSupported =
     isSupportUrlContextProvider(provider) &&
     !isPureGenerateImageModel(model) &&
     (isGeminiModel(model) || isAnthropicModel(model))
   const enableUrlContext = urlContextSupported && false
 
+  // Native chat-model image output (Gemini `responseModalities`) stays disabled intentionally:
+  // image generation is delivered via the `generate_image` tool (gated on `settings.enableGenerateImage`),
+  // not this capability. Kept `&& false` so the provider-option plumbing below never fires.
   const enableGenerateImage = isGenerateImageModel(model) && false
 
   const isSupportedToolUse = isFunctionCallingModel(model)

@@ -1,4 +1,5 @@
-import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
+import { type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -59,11 +60,14 @@ function wireDeps(opts: {
   isPinsLoading?: boolean
   isPinsRefreshing?: boolean
   isPinsMutating?: boolean
+  refetchModels?: () => Promise<unknown>
+  refetchPinnedModels?: () => Promise<unknown>
+  refetchProviders?: () => Promise<unknown>
 }) {
   mockUseProvidersFn.mockReturnValue({
     providers: opts.providers,
     isLoading: false,
-    refetch: vi.fn().mockResolvedValue(undefined),
+    refetch: opts.refetchProviders ?? vi.fn().mockResolvedValue(undefined),
     createProvider: vi.fn(),
     isCreating: false,
     createError: undefined
@@ -71,7 +75,7 @@ function wireDeps(opts: {
   mockUseModelsFn.mockReturnValue({
     models: opts.models,
     isLoading: opts.isModelsLoading ?? false,
-    refetch: vi.fn().mockResolvedValue(undefined)
+    refetch: opts.refetchModels ?? vi.fn().mockResolvedValue(undefined)
   })
   mockUsePinsFn.mockReturnValue({
     isLoading: opts.isPinsLoading ?? false,
@@ -79,7 +83,7 @@ function wireDeps(opts: {
     isMutating: opts.isPinsMutating ?? false,
     error: undefined,
     pinnedIds: opts.pinnedIds ?? [],
-    refetch: vi.fn().mockResolvedValue(undefined),
+    refetch: opts.refetchPinnedModels ?? vi.fn().mockResolvedValue(undefined),
     togglePin: vi.fn()
   })
 }
@@ -92,6 +96,40 @@ beforeEach(() => {
 
 // ─── Tests ────────────────────────────────────────────────────────────
 describe('useModelSelectorData', () => {
+  it('exposes model, provider, and pinned refetch callbacks', () => {
+    const refetchModels = vi.fn(async () => undefined)
+    const refetchProviders = vi.fn(async () => undefined)
+    const refetchPinnedModels = vi.fn(async () => undefined)
+    wireDeps({
+      providers: [makeProvider('openai')],
+      models: [makeModel('gpt-4', 'openai')],
+      refetchModels,
+      refetchProviders,
+      refetchPinnedModels
+    })
+
+    const { result } = renderHook(() => useModelSelectorData({ searchText: '' }))
+
+    expect(result.current.refetchModels).toBe(refetchModels)
+    expect(result.current.refetchProviders).toBe(refetchProviders)
+    expect(result.current.refetchPinnedModels).toBe(refetchPinnedModels)
+  })
+
+  it('does not override focus revalidation for model and provider list queries', () => {
+    wireDeps({
+      providers: [makeProvider('openai')],
+      models: [makeModel('gpt-4', 'openai')]
+    })
+
+    renderHook(() => useModelSelectorData({ searchText: '' }))
+
+    // Freshness on open is handled by ModelSelector's explicit refetch-on-open effect,
+    // so these list queries inherit the DataApi default (revalidateOnFocus: false) and
+    // must not refetch on every window focus while the selector stays mounted.
+    expect(mockUseProvidersFn).toHaveBeenCalledWith({ enabled: true })
+    expect(mockUseModelsFn).toHaveBeenCalledWith({ enabled: true })
+  })
+
   it('groups models by their enabled provider', () => {
     wireDeps({
       providers: [makeProvider('openai'), makeProvider('anthropic')],
@@ -103,6 +141,20 @@ describe('useModelSelectorData', () => {
     const groups = result.current.listItems.filter((i) => i.type === 'group')
     expect(groups.map((g) => g.key)).toEqual(['provider-openai', 'provider-anthropic'])
     expect(result.current.modelItems).toHaveLength(3)
+  })
+
+  it('hides the provider group settings action for CherryAI', () => {
+    wireDeps({
+      providers: [makeProvider('cherryai')],
+      models: [makeModel('qwen', 'cherryai')]
+    })
+
+    const { result } = renderHook(() => useModelSelectorData({ searchText: '' }))
+
+    expect(result.current.listItems.find((item) => item.type === 'group')).toMatchObject({
+      key: 'provider-cherryai',
+      canNavigateToSettings: false
+    })
   })
 
   it('drops orphan models whose providerId is not in the providers list', () => {
@@ -316,9 +368,65 @@ describe('useModelSelectorData', () => {
     // resolved list keeps both ids — business data is never truncated by the UI cap
     expect(result.current.resolvedSelectedModelIds).toEqual(['openai::gpt-4', 'openai::gpt-3.5'])
 
-    // but only the first one is rendered as `isSelected`
-    const selectedRows = result.current.modelItems.filter((m) => m.isSelected).map((m) => m.modelId)
-    expect(selectedRows).toEqual(['openai::gpt-4'])
+    // but only the first one is exposed as visible-selected for row rendering
+    expect([...result.current.visibleSelectedModelIdSet]).toEqual(['openai::gpt-4'])
+  })
+
+  it('keeps filtered model groups stable when only the selected ids change', () => {
+    const filter = vi.fn(() => true)
+    wireDeps({
+      providers: [makeProvider('openai')],
+      models: [makeModel('gpt-4', 'openai'), makeModel('gpt-3.5', 'openai')],
+      pinnedIds: ['openai::gpt-4']
+    })
+
+    const { result, rerender } = renderHook(
+      ({ selectedModelIds }: { selectedModelIds: UniqueModelId[] }) =>
+        useModelSelectorData({ searchText: '', selectedModelIds, filter }),
+      { initialProps: { selectedModelIds: [] as UniqueModelId[] } }
+    )
+    const listItemsBeforeSelection = result.current.listItems
+    const modelItemsBeforeSelection = result.current.modelItems
+
+    expect(filter).toHaveBeenCalled()
+    filter.mockClear()
+
+    rerender({ selectedModelIds: ['openai::gpt-4'] })
+
+    expect(filter).not.toHaveBeenCalled()
+    expect(result.current.listItems).toBe(listItemsBeforeSelection)
+    expect(result.current.modelItems).toBe(modelItemsBeforeSelection)
+    expect(result.current.visibleSelectedModelIdSet.has('openai::gpt-4')).toBe(true)
+  })
+
+  it('hides external-cli (agent-only) providers from a general selector', () => {
+    wireDeps({
+      providers: [makeProvider('openai'), makeProvider('claude-code', { authMethods: ['external-cli'] })],
+      models: [makeModel('gpt-4', 'openai'), makeModel('claude-sonnet', 'claude-code')]
+    })
+
+    const { result } = renderHook(() => useModelSelectorData({ searchText: '' }))
+
+    expect(result.current.modelItems.map((m) => m.modelId)).toEqual(['openai::gpt-4'])
+    expect(result.current.selectableModelsById.has('claude-code::claude-sonnet')).toBe(false)
+  })
+
+  it('surfaces external-cli providers when the filter is marked as an agent picker', () => {
+    wireDeps({
+      providers: [makeProvider('openai'), makeProvider('claude-code', { authMethods: ['external-cli'] })],
+      models: [makeModel('gpt-4', 'openai'), makeModel('claude-sonnet', 'claude-code')]
+    })
+    // The marker is a module-private Symbol, so the only way to get a genuinely
+    // tagged filter is the real hook — render it to obtain one.
+    const { result: filterResult } = renderHook(() => useAgentModelFilter('claude-code'))
+    const marked = filterResult.current
+
+    const { result } = renderHook(() => useModelSelectorData({ searchText: '', filter: marked }))
+
+    expect(result.current.modelItems.map((m) => m.modelId).sort()).toEqual([
+      'claude-code::claude-sonnet',
+      'openai::gpt-4'
+    ])
   })
 
   it('applies caller-provided filter predicate', () => {

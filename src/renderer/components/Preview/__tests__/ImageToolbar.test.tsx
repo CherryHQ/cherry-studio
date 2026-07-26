@@ -30,12 +30,12 @@ vi.mock('lucide-react', () => ({
   Scan: () => <span data-testid="scan">⊞</span>
 }))
 
-vi.mock('@renderer/components/Icons', () => ({
-  ResetIcon: () => <span data-testid="reset">↻</span>
+vi.mock('@renderer/components/icons/ResetIcon', () => ({
+  default: () => <span data-testid="reset">↻</span>
 }))
 
 // Mock utils
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/style', () => ({
   classNames: (...args: any[]) => args.filter(Boolean).join(' ')
 }))
 

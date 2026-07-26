@@ -1,6 +1,7 @@
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { useState } from 'react'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import { toast } from '@renderer/services/toast'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('SelectionContextMenu')
@@ -50,57 +51,87 @@ function extractSelectedText(selection: Selection): string {
     node = walker.nextNode()
   }
 
-  return result.trim()
+  return result.startsWith('\n') ? result.slice(1) : result
 }
 
 /**
- * Right-click menu for any text region: copy the current selection or quote it
- * back to the main window. Items are disabled when there is no live selection
- * so a non-text right-click still surfaces the menu (discoverability) but the
- * actions remain inert until the user selects something.
+ * Right-click menu for selected text regions: copy the current selection or quote it
+ * back to the main window. No selection means no selection-specific actions.
  */
 const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children }) => {
   const { t } = useTranslation()
   const [selectedText, setSelectedText] = useState('')
 
-  const handleOpenChange = (open: boolean) => {
-    if (!open) return
+  const getSelectedText = useCallback((): string => {
     const selection = window.getSelection()
     if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-      setSelectedText('')
-      return
+      return ''
     }
-    setSelectedText(extractSelectedText(selection))
-  }
+    return extractSelectedText(selection)
+  }, [])
 
-  const handleCopy = () => {
-    navigator.clipboard
-      .writeText(selectedText)
-      .then(() => window.toast.success(t('message.copied')))
-      .catch((error) => {
-        logger.error('clipboard write failed', error as Error)
-        window.toast.error(t('message.copy.failed'))
-      })
-  }
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open) return
+      setSelectedText(getSelectedText())
+    },
+    [getSelectedText]
+  )
 
-  const handleQuote = () => {
-    void window.api.quoteToMainWindow(selectedText)
-  }
+  const handleCopy = useCallback(
+    (text: string) => {
+      navigator.clipboard
+        .writeText(text)
+        .then(() => toast.success(t('message.copied')))
+        .catch((error) => {
+          logger.error('clipboard write failed', error as Error)
+          toast.error(t('message.copy.failed'))
+        })
+    },
+    [t]
+  )
 
-  const hasSelection = selectedText.length > 0
+  const handleQuote = useCallback((text: string) => {
+    void window.api.quoteToMainWindow(text)
+  }, [])
+
+  const getMenuItems = useCallback(
+    (text: string): CommandContextMenuExtraItem[] => {
+      if (text.length === 0) return []
+
+      return [
+        {
+          type: 'item',
+          id: 'selection.copy',
+          label: t('common.copy'),
+          onSelect: () => handleCopy(text)
+        },
+        {
+          type: 'item',
+          id: 'selection.quote',
+          label: t('chat.message.quote'),
+          onSelect: () => handleQuote(text)
+        }
+      ]
+    },
+    [handleCopy, handleQuote, t]
+  )
+
+  const extraItems = useMemo(() => getMenuItems(selectedText), [getMenuItems, selectedText])
+  const getExtraItems = useCallback(() => {
+    const text = getSelectedText()
+    setSelectedText(text)
+    return getMenuItems(text)
+  }, [getMenuItems, getSelectedText])
 
   return (
-    <ContextMenu onOpenChange={handleOpenChange}>
-      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuItem disabled={!hasSelection} onSelect={handleCopy}>
-          {t('common.copy')}
-        </ContextMenuItem>
-        <ContextMenuItem disabled={!hasSelection} onSelect={handleQuote}>
-          {t('chat.message.quote')}
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+    <CommandContextMenu
+      location="chat.message.context"
+      extraItems={extraItems}
+      getExtraItems={getExtraItems}
+      onOpenChange={handleOpenChange}>
+      {children}
+    </CommandContextMenu>
   )
 }
 

@@ -5,17 +5,12 @@ import { useProviderEnable } from '../useProviderEnable'
 
 const useProviderMock = vi.fn()
 const useProviderMutationsMock = vi.fn()
-const useReorderMock = vi.fn()
 const updateProviderMock = vi.fn().mockResolvedValue(undefined)
-const moveMock = vi.fn().mockResolvedValue(undefined)
+const enableProviderMock = vi.fn().mockResolvedValue(undefined)
 
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args),
   useProviderMutations: (...args: any[]) => useProviderMutationsMock(...args)
-}))
-
-vi.mock('@data/hooks/useReorder', () => ({
-  useReorder: (...args: any[]) => useReorderMock(...args)
 }))
 
 describe('useProviderEnable', () => {
@@ -25,10 +20,8 @@ describe('useProviderEnable', () => {
       provider: { id: 'openai', isEnabled: true }
     })
     useProviderMutationsMock.mockReturnValue({
-      updateProvider: updateProviderMock
-    })
-    useReorderMock.mockReturnValue({
-      move: moveMock
+      updateProvider: updateProviderMock,
+      enableProvider: enableProviderMock
     })
   })
 
@@ -40,18 +33,18 @@ describe('useProviderEnable', () => {
     })
 
     expect(updateProviderMock).toHaveBeenCalledWith({ isEnabled: false })
-    expect(moveMock).not.toHaveBeenCalled()
+    expect(enableProviderMock).not.toHaveBeenCalled()
   })
 
-  it('moves the provider to the top after enabling it', async () => {
+  it('enables and moves the provider to the top through the atomic mutation', async () => {
     const { result } = renderHook(() => useProviderEnable('openai'))
 
     await act(async () => {
       await result.current.toggleProviderEnabled(true)
     })
 
-    expect(updateProviderMock).toHaveBeenCalledWith({ isEnabled: true })
-    expect(moveMock).toHaveBeenCalledWith('openai', { position: 'first' })
+    expect(enableProviderMock).toHaveBeenCalledTimes(1)
+    expect(updateProviderMock).not.toHaveBeenCalled()
   })
 
   it('does nothing when the provider is missing', async () => {
@@ -66,15 +59,15 @@ describe('useProviderEnable', () => {
     })
 
     expect(updateProviderMock).not.toHaveBeenCalled()
-    expect(moveMock).not.toHaveBeenCalled()
+    expect(enableProviderMock).not.toHaveBeenCalled()
   })
 
-  it('rolls the enable state back when pin-to-top fails after enabling', async () => {
+  it('surfaces atomic enable-and-pin failures without stale rollback', async () => {
     useProviderMock.mockReturnValue({
       provider: { id: 'openai', isEnabled: false }
     })
-    const moveError = new Error('move failed')
-    moveMock.mockRejectedValueOnce(moveError)
+    const enableError = new Error('enable and pin failed')
+    enableProviderMock.mockRejectedValueOnce(enableError)
 
     const { result } = renderHook(() => useProviderEnable('openai'))
 
@@ -87,10 +80,8 @@ describe('useProviderEnable', () => {
       }
     })
 
-    expect(thrown).toBe(moveError)
-    expect(updateProviderMock).toHaveBeenCalledTimes(2)
-    expect(updateProviderMock).toHaveBeenNthCalledWith(1, { isEnabled: true })
-    expect(moveMock).toHaveBeenCalledWith('openai', { position: 'first' })
-    expect(updateProviderMock).toHaveBeenNthCalledWith(2, { isEnabled: false })
+    expect(thrown).toBe(enableError)
+    expect(enableProviderMock).toHaveBeenCalledTimes(1)
+    expect(updateProviderMock).not.toHaveBeenCalled()
   })
 })

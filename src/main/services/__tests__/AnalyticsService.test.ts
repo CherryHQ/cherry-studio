@@ -2,13 +2,9 @@ import { BaseService } from '@main/core/lifecycle'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
- * Exercises `AnalyticsService`'s reconcile-after-settle convergence. The reachable race lives in the
- * ASYNC `onDeactivate` (`await client.destroy()`): a re-enable that lands while the deactivation is
- * in flight must be honoured, not dropped by the shared `_activating` guard. This is the mirror of
- * `ApiGatewayService`, whose race is in async activation.
- *
- * `AnalyticsClient` is mocked so `destroy()` timing is controllable; the preference-change handler
- * is captured so the toggle can be driven directly.
+ * Exercises the data-collection preference and reconcile-after-settle convergence. The reachable
+ * race lives in async deactivation: a re-enable that lands while client.destroy() is pending must
+ * still be honoured.
  */
 
 const { mockTrackAppLaunch, mockTrackTokenUsage, mockTrackAppUpdate, mockDestroy, MockAnalyticsClient, captured } =
@@ -28,7 +24,10 @@ const { mockTrackAppLaunch, mockTrackTokenUsage, mockTrackAppUpdate, mockDestroy
         trackAppUpdate,
         destroy
       })),
-      captured: { prefHandler: undefined as ((enabled: boolean) => void) | undefined }
+      captured: {
+        prefHandlers: {} as Record<string, (value: never) => void>,
+        preferenceValues: {} as Record<string, boolean | string>
+      }
     }
   })
 
@@ -45,11 +44,11 @@ vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
     PreferenceService: {
-      subscribeChange: vi.fn((_key: string, cb: (enabled: boolean) => void) => {
-        captured.prefHandler = cb
+      subscribeChange: vi.fn((key: string, cb: (value: never) => void) => {
+        captured.prefHandlers[key] = cb
         return () => {}
       }),
-      get: vi.fn(() => true)
+      get: vi.fn((key: string) => captured.preferenceValues[key])
     }
   })
 })
@@ -58,53 +57,70 @@ import { AnalyticsService } from '../AnalyticsService'
 
 let destroyResolvers: Array<() => void>
 
+function changePreference(key: string, value: boolean | string): void {
+  captured.preferenceValues[key] = value
+  captured.prefHandlers[key]?.(value as never)
+}
+
 beforeEach(() => {
   BaseService.resetInstances()
-  captured.prefHandler = undefined
+  for (const key of Object.keys(captured.prefHandlers)) {
+    delete captured.prefHandlers[key]
+  }
+  captured.preferenceValues['app.privacy.data_collection.enabled'] = true
   destroyResolvers = []
   mockTrackAppLaunch.mockReset()
   mockTrackTokenUsage.mockReset()
   mockTrackAppUpdate.mockReset()
   mockDestroy.mockReset()
   MockAnalyticsClient.mockClear()
-  // destroy() stays pending until the test resolves it — opens the in-flight deactivate window.
   mockDestroy.mockImplementation(() => new Promise<void>((resolve) => destroyResolvers.push(resolve)))
 })
 
-describe('AnalyticsService reconcile', () => {
-  it('re-activates when re-enabled during an in-flight async deactivate (no dropped toggle)', async () => {
+describe('AnalyticsService data collection preference', () => {
+  it('activates when data collection is enabled regardless of the policy version', async () => {
+    captured.preferenceValues['app.privacy.policy_version'] = ''
+
     const service = new AnalyticsService()
-    // onReady auto-activates because the preference is enabled — client #1 is the baseline.
     await service._doInit()
-    expect(captured.prefHandler).toBeDefined()
+
     await vi.waitFor(() => expect(service.isActivated).toBe(true))
     expect(MockAnalyticsClient).toHaveBeenCalledTimes(1)
+    expect(captured.prefHandlers['app.privacy.policy_version']).toBeUndefined()
 
-    // Disable → onDeactivate awaits client.destroy(), which we keep pending.
-    captured.prefHandler!(false)
-    await vi.waitFor(() => expect(mockDestroy).toHaveBeenCalledTimes(1))
-    expect(service.isActivated).toBe(true) // still mid-deactivation
-
-    // Re-enable mid-destroy. The shared `_activating` guard would drop this; the reconciler
-    // re-reads the desired state after the deactivation settles.
-    captured.prefHandler!(true)
-
-    // Complete the destroy — the loop must now re-activate to converge to enabled.
-    destroyResolvers[0]()
-    await vi.waitFor(() => expect(MockAnalyticsClient).toHaveBeenCalledTimes(2))
-    expect(service.isActivated).toBe(true)
+    await service.trackAppUpdate()
+    expect(mockTrackAppUpdate).toHaveBeenCalledTimes(1)
   })
 
-  it('converges to deactivated when the final desired state is disabled', async () => {
+  it('deactivates when data collection is disabled', async () => {
     const service = new AnalyticsService()
     await service._doInit()
     await vi.waitFor(() => expect(service.isActivated).toBe(true))
 
-    captured.prefHandler!(false)
+    changePreference('app.privacy.data_collection.enabled', false)
     await vi.waitFor(() => expect(mockDestroy).toHaveBeenCalledTimes(1))
 
     destroyResolvers[0]()
     await vi.waitFor(() => expect(service.isActivated).toBe(false))
-    expect(MockAnalyticsClient).toHaveBeenCalledTimes(1) // no spurious re-activation
+    expect(MockAnalyticsClient).toHaveBeenCalledTimes(1)
+  })
+
+  it('re-activates when re-enabled during an in-flight async deactivate', async () => {
+    const service = new AnalyticsService()
+    await service._doInit()
+    expect(captured.prefHandlers['app.privacy.data_collection.enabled']).toBeDefined()
+    expect(captured.prefHandlers['app.privacy.policy_version']).toBeUndefined()
+    await vi.waitFor(() => expect(service.isActivated).toBe(true))
+    expect(MockAnalyticsClient).toHaveBeenCalledTimes(1)
+
+    changePreference('app.privacy.data_collection.enabled', false)
+    await vi.waitFor(() => expect(mockDestroy).toHaveBeenCalledTimes(1))
+    expect(service.isActivated).toBe(true)
+
+    changePreference('app.privacy.data_collection.enabled', true)
+    destroyResolvers[0]()
+
+    await vi.waitFor(() => expect(MockAnalyticsClient).toHaveBeenCalledTimes(2))
+    expect(service.isActivated).toBe(true)
   })
 })

@@ -6,7 +6,7 @@
 
 import * as z from 'zod'
 
-import { ENDPOINT_TYPE, type EndpointType, objectValues } from '../../types/model'
+import { ENDPOINT_TYPE, type EndpointType, type Model, objectValues } from '../../types/model'
 import {
   ApiFeaturesSchema,
   type ApiKeyEntry,
@@ -20,6 +20,7 @@ import {
   ProviderSettingsSchema
 } from '../../types/provider'
 import type { OrderEndpoints } from './_endpointHelpers'
+import { CreateLogoSchema } from './logo'
 
 // ============================================================================
 // Field atoms
@@ -59,6 +60,12 @@ export const CreateProviderSchema = z.strictObject({
   presetProviderId: z.string().optional(),
   /** Display name (required on create) */
   name: z.string().min(1),
+  /**
+   * Custom logo for a user-defined provider — a preset key only
+   * (`{ kind: 'key', key }`). Uploaded images go through the `provider.set_logo`
+   * IpcApi command (bytes → file_entry main-side), not this DTO.
+   */
+  logo: CreateLogoSchema.optional(),
   /** Per-endpoint-type configuration */
   endpointConfigs: ProviderEndpointConfigsSchema.optional(),
   /** Default text generation endpoint (kebab-case `EndpointType` value) */
@@ -90,8 +97,14 @@ const ProviderMutableFieldsSchema = CreateProviderSchema.pick({
 })
 
 export const UpdateProviderSchema = ProviderMutableFieldsSchema.partial().extend({
-  /** Whether this provider is enabled */
+  /**
+   * Whether this provider is enabled. A persisted false-to-true transition also
+   * moves the provider to the first position atomically; redundant true updates
+   * preserve the existing order.
+   */
   isEnabled: z.boolean().optional()
+  // Logo edits (preset key / image upload / clear) go through the
+  // `provider.set_logo` IpcApi command, not this PATCH body.
 })
 export type UpdateProviderDto = z.infer<typeof UpdateProviderSchema>
 
@@ -110,6 +123,25 @@ export const ListProviderApiKeysQuerySchema = z.strictObject({
   enabled: z.boolean().optional()
 })
 export type ListProviderApiKeysQuery = z.infer<typeof ListProviderApiKeysQuerySchema>
+
+export const PROVIDER_PRESET_FIELDS = ['endpointConfigs', 'models'] as const
+export const ProviderPresetFieldSchema = z.enum(PROVIDER_PRESET_FIELDS)
+export type ProviderPresetField = z.infer<typeof ProviderPresetFieldSchema>
+
+/** Query parameters for the sparse provider preset projection. */
+export const ProviderPresetQuerySchema = z.strictObject({
+  fields: z.union([ProviderPresetFieldSchema, z.array(ProviderPresetFieldSchema).min(1)])
+})
+export type ProviderPresetQuery = z.infer<typeof ProviderPresetQuerySchema>
+
+/**
+ * Sparse provider-level registry projection. Only requested fields are present.
+ * A requested unavailable endpoint config is `null`; unavailable models are `[]`.
+ */
+export interface ProviderPreset {
+  endpointConfigs?: Partial<Record<EndpointType, EndpointConfig>> | null
+  models?: Model[]
+}
 
 /** POST /providers/:providerId/api-keys body */
 export const AddProviderApiKeySchema = z.strictObject({
@@ -229,6 +261,19 @@ export type ProviderSchemas = {
     GET: {
       params: { providerId: string }
       response: AuthConfig | null
+    }
+  }
+
+  /**
+   * Sparse provider-level projection of the effective registry preset.
+   * Unrequested fields are omitted.
+   * @example GET /providers/openai/preset?fields=endpointConfigs&fields=models
+   */
+  '/providers/:providerId/preset': {
+    GET: {
+      params: { providerId: string }
+      query: ProviderPresetQuery
+      response: ProviderPreset
     }
   }
 

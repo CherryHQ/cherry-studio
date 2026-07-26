@@ -15,7 +15,7 @@ vi.mock('@application', async () => {
   } as Record<string, unknown>)
 })
 
-vi.mock('@main/core/application', async () => {
+vi.mock('@application', async () => {
   return {
     application: {
       get: (name: string) => {
@@ -57,8 +57,8 @@ describe('syncMcpToolsToRegistry', () => {
 
   it('registers tools from every active server', async () => {
     const reg = new ToolRegistry()
-    list.mockResolvedValue({ items: [activeServer('s1'), activeServer('s2')] })
-    listTools.mockImplementation(async (serverId: string) =>
+    list.mockReturnValue({ items: [activeServer('s1'), activeServer('s2')] })
+    listTools.mockImplementation((serverId: string) =>
       serverId === 's1' ? [mcpTool('s1', 'a'), mcpTool('s1', 'b')] : [mcpTool('s2', 'c')]
     )
 
@@ -77,8 +77,8 @@ describe('syncMcpToolsToRegistry', () => {
   it('marks a force-prompt (approval-gated) tool defer:never so it stays inline for the SDK gate', async () => {
     const reg = new ToolRegistry()
     // Server disables auto-approve for tool 'a' (force-prompt); 'b' stays auto-approve.
-    list.mockResolvedValue({ items: [activeServer('s1', ['a'])] })
-    listTools.mockResolvedValue([mcpTool('s1', 'a'), mcpTool('s1', 'b')])
+    list.mockReturnValue({ items: [activeServer('s1', ['a'])] })
+    listTools.mockReturnValue([mcpTool('s1', 'a'), mcpTool('s1', 'b')])
 
     await syncMcpToolsToRegistry(reg)
 
@@ -97,8 +97,8 @@ describe('syncMcpToolsToRegistry', () => {
       tool: { description: '' } as unknown as Tool
     } satisfies ToolEntry)
 
-    list.mockResolvedValue({ items: [activeServer('s1')] })
-    listTools.mockResolvedValue([mcpTool('s1', 'a')])
+    list.mockReturnValue({ items: [activeServer('s1')] })
+    listTools.mockReturnValue([mcpTool('s1', 'a')])
 
     await syncMcpToolsToRegistry(reg)
 
@@ -108,12 +108,12 @@ describe('syncMcpToolsToRegistry', () => {
 
   it('replaces an existing entry when the schema changes (drift fix)', async () => {
     const reg = new ToolRegistry()
-    list.mockResolvedValue({ items: [activeServer('s1')] })
-    listTools.mockResolvedValueOnce([mcpTool('s1', 't', 'v1 desc')])
+    list.mockReturnValue({ items: [activeServer('s1')] })
+    listTools.mockReturnValueOnce([mcpTool('s1', 't', 'v1 desc')])
     await syncMcpToolsToRegistry(reg)
     expect(reg.getByName('mcp__s1__t')?.description).toBe('v1 desc')
 
-    listTools.mockResolvedValueOnce([mcpTool('s1', 't', 'v2 desc')])
+    listTools.mockReturnValueOnce([mcpTool('s1', 't', 'v2 desc')])
     await syncMcpToolsToRegistry(reg)
     expect(reg.getByName('mcp__s1__t')?.description).toBe('v2 desc')
     expect(reg.getAll().filter((e) => e.name === 'mcp__s1__t').length).toBe(1)
@@ -129,8 +129,8 @@ describe('syncMcpToolsToRegistry', () => {
       tool: { description: '' } as unknown as Tool
     } satisfies ToolEntry)
 
-    list.mockResolvedValue({ items: [] })
-    listTools.mockResolvedValue([])
+    list.mockReturnValue({ items: [] })
+    listTools.mockReturnValue([])
 
     await syncMcpToolsToRegistry(reg)
 
@@ -139,8 +139,8 @@ describe('syncMcpToolsToRegistry', () => {
 
   it('continues when a single server throws on listTools', async () => {
     const reg = new ToolRegistry()
-    list.mockResolvedValue({ items: [activeServer('broken'), activeServer('ok')] })
-    listTools.mockImplementation(async (serverId: string) => {
+    list.mockReturnValue({ items: [activeServer('broken'), activeServer('ok')] })
+    listTools.mockImplementation((serverId: string) => {
       if (serverId === 'broken') throw new Error('connection refused')
       return [mcpTool('ok', 't')]
     })
@@ -153,8 +153,8 @@ describe('syncMcpToolsToRegistry', () => {
 
   it('synced entry only applies when its id is in scope.mcpToolIds', async () => {
     const reg = new ToolRegistry()
-    list.mockResolvedValue({ items: [activeServer('gh')] })
-    listTools.mockResolvedValue([mcpTool('gh', 'search'), mcpTool('gh', 'fork')])
+    list.mockReturnValue({ items: [activeServer('gh')] })
+    listTools.mockReturnValue([mcpTool('gh', 'search'), mcpTool('gh', 'fork')])
     await syncMcpToolsToRegistry(reg)
 
     const searchEntry = reg.getByName('mcp__gh__search')!
@@ -166,8 +166,8 @@ describe('syncMcpToolsToRegistry', () => {
   describe('with selectedToolIds filter', () => {
     it('only calls listTools on servers whose tool ids appear in the selection', async () => {
       const reg = new ToolRegistry()
-      list.mockResolvedValue({ items: [activeServer('gh'), activeServer('jira'), activeServer('slack')] })
-      listTools.mockImplementation(async (serverId: string) => [mcpTool(serverId, 't')])
+      list.mockReturnValue({ items: [activeServer('gh'), activeServer('jira'), activeServer('slack')] })
+      listTools.mockImplementation((serverId: string) => [mcpTool(serverId, 't')])
 
       await syncMcpToolsToRegistry(reg, { selectedToolIds: new Set(['mcp__gh__t']) })
 
@@ -186,8 +186,8 @@ describe('syncMcpToolsToRegistry', () => {
         tool: { description: '' } as unknown as Tool
       } satisfies ToolEntry)
 
-      list.mockResolvedValue({ items: [activeServer('gh'), activeServer('jira')] })
-      listTools.mockImplementation(async (serverId: string) => [mcpTool(serverId, 'fresh')])
+      list.mockReturnValue({ items: [activeServer('gh'), activeServer('jira')] })
+      listTools.mockImplementation((serverId: string) => [mcpTool(serverId, 'fresh')])
 
       await syncMcpToolsToRegistry(reg, { selectedToolIds: new Set(['mcp__gh__fresh']) })
 
@@ -207,8 +207,8 @@ describe('syncMcpToolsToRegistry', () => {
         tool: { description: '' } as unknown as Tool
       } satisfies ToolEntry)
 
-      list.mockResolvedValue({ items: [activeServer('gh')] })
-      listTools.mockResolvedValue([mcpTool('gh', 't')])
+      list.mockReturnValue({ items: [activeServer('gh')] })
+      listTools.mockReturnValue([mcpTool('gh', 't')])
 
       await syncMcpToolsToRegistry(reg, { selectedToolIds: new Set(['mcp__gh__t']) })
 
@@ -217,8 +217,8 @@ describe('syncMcpToolsToRegistry', () => {
 
     it('empty selection → no servers synced, no listTools call', async () => {
       const reg = new ToolRegistry()
-      list.mockResolvedValue({ items: [activeServer('gh')] })
-      listTools.mockResolvedValue([mcpTool('gh', 't')])
+      list.mockReturnValue({ items: [activeServer('gh')] })
+      listTools.mockReturnValue([mcpTool('gh', 't')])
 
       await syncMcpToolsToRegistry(reg, { selectedToolIds: new Set() })
 
@@ -228,10 +228,10 @@ describe('syncMcpToolsToRegistry', () => {
     it('matches server name with camelCase normalisation (mirrors buildFunctionCallToolName)', async () => {
       const reg = new ToolRegistry()
       // Server name with separators — `mcp__myServer__t` is the id format.
-      list.mockResolvedValue({
+      list.mockReturnValue({
         items: [{ id: 'srv', name: 'my-server', isActive: true, disabledAutoApproveTools: [] }]
       })
-      listTools.mockResolvedValue([
+      listTools.mockReturnValue([
         {
           id: 'mcp__myServer__t',
           serverId: 'srv',

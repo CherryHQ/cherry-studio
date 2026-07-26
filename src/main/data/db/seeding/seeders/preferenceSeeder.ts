@@ -13,8 +13,8 @@ export class PreferenceSeeder implements ISeeder {
     this.version = hashObject(DefaultPreferences)
   }
 
-  async run(db: DbType): Promise<void> {
-    const preferences = await db.select().from(preferenceTable)
+  run(db: DbType): void {
+    const preferences = db.select().from(preferenceTable).all()
 
     // Convert existing preferences to a Map for quick lookup
     const existingPrefs = new Map(preferences.map((p) => [`${p.scope}.${p.key}`, p]))
@@ -46,9 +46,9 @@ export class PreferenceSeeder implements ISeeder {
       }
     }
 
-    // If there are new preferences to insert, do it in a transaction
+    // If there are new preferences to insert, do it
     if (newPreferences.length > 0) {
-      await db.insert(preferenceTable).values(newPreferences)
+      db.insert(preferenceTable).values(newPreferences).run()
     }
   }
 }

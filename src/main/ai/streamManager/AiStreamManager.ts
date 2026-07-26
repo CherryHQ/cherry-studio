@@ -1,36 +1,37 @@
 import { randomUUID } from 'node:crypto'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { DEFAULT_TIMEOUT } from '@main/ai/constants'
-import { application } from '@main/core/application'
+import { serializeError } from '@main/ai/utils/serializeError'
+import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import { context as otelContext, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import type {
-  AiStreamAbortRequest,
   AiStreamAttachRequest,
   AiStreamAttachResponse,
   AiStreamDetachRequest,
-  AiStreamOpenRequest,
   AiStreamOpenResponse
 } from '@shared/ai/transport'
+import { shouldDeferToolOutput } from '@shared/ai/transport'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { IpcChannel } from '@shared/IpcChannel'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
-import { serializeError } from '@shared/utils/error'
 import { type UIMessageChunk } from 'ai'
-import * as z from 'zod'
 
-import { isAgentSessionTopic } from '../agentSession/topic'
+import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
 import { applyTurnOutputAttributes } from '../observability'
-import type { AiStreamRequest, CallOverrides } from '../types/requests'
+import type { AiStreamRequest, CallOverrides } from '../types'
 import { buildCompactReplay } from './buildCompactReplay'
-import { dispatchStreamRequest, type MainDispatchRequest } from './context'
-import { KeyedMutex } from './KeyedMutex'
-import { createChatStreamLifecycle, promptStreamLifecycle, type StreamLifecycle } from './lifecycle'
+import { dispatchStreamRequest, type MainDispatchRequest } from './context/dispatch'
+import { createChatStreamLifecycle } from './lifecycle/ChatStreamLifecycle'
+import { promptStreamLifecycle } from './lifecycle/PromptStreamLifecycle'
+import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
 import { isRendererListener, WebContentsListener } from './listeners/WebContentsListener'
 import { pipeStreamLoop } from './pipeStreamLoop'
+import { projectStreamChunkPayloadForRenderer, projectStreamMessageForRenderer } from './rendererPayload'
 import type {
   ActiveStream,
   AiStreamManagerConfig,
@@ -46,22 +47,9 @@ import { withReasoningTimingMetadata } from './withReasoningTimingMetadata'
 
 const logger = loggerService.withContext('AiStreamManager')
 
-// ── IPC boundary validation ─────────────────────────────────────────
-// Renderer payloads are untrusted; reject malformed shapes before they
-// reach dispatch/attach. `safeParse` keeps the handlers free of throws on
-// the common path and lets us return/throw a sanitized error.
-
-/** Every stream channel keys on a non-empty `topicId`. */
-const TopicIdRequestSchema = z.object({ topicId: z.string().min(1) })
-
-/** `Ai_Stream_Open` — validates the discriminated trigger and its required fields. */
-const StreamOpenRequestSchema = z.intersection(
-  TopicIdRequestSchema,
-  z.discriminatedUnion('trigger', [
-    z.object({ trigger: z.literal('submit-message'), userMessageParts: z.array(z.unknown()) }),
-    z.object({ trigger: z.literal('regenerate-message'), parentAnchorId: z.string().min(1) })
-  ])
-)
+// Renderer→main stream requests (open/attach/detach/abort) are validated by the IpcApi
+// router against `aiRequestSchemas` (src/shared/ipc/schemas/ai.ts) before reaching the
+// handlers in `src/main/ipc/handlers/ai.ts`, which delegate to the public methods below.
 
 /**
  * Finalize the turn's `ai.turn` span: write the turn-boundary output (final answer + tool
@@ -94,6 +82,7 @@ export interface SendModelSpec {
   modelId: UniqueModelId
   request: AiStreamRequest
   rootSpan?: Span
+  abortController?: AbortController
 }
 
 export interface SendInput {
@@ -120,6 +109,7 @@ export interface StartRuntimeTurnInput {
   request: AiStreamRequest
   listeners: StreamListener[]
   rootSpan?: Span
+  abortController?: AbortController
 }
 
 // ── Inspection snapshots ────────────────────────────────────────────
@@ -150,6 +140,7 @@ const DEFAULT_CONFIG: AiStreamManagerConfig = {
   gracePeriodMs: 30_000,
   backgroundMode: 'continue',
   maxBufferChunks: 10_000,
+  maxDeferredOutputs: 64,
   // Generous (2 h) but bounded: a human can deliberate, yet a renderer that never responds (window
   // closed/crashed) can't leave the stream + subprocess hanging until app quit.
   approvalIdleTimeoutMs: 2 * 60 * 60 * 1000
@@ -209,12 +200,28 @@ export class AiStreamManager extends BaseService {
   private nextStreamTurnSequence = 0
   /** Per-topic FIFO of steer user-message ids persisted while a turn was live. Chat's analogue of
    *  the agent runtime's `pendingTurns`; drained one continuation turn at a time. */
-  private readonly pendingSteers = new Map<string, string[]>()
+  private readonly pendingSteers = new Map<
+    string,
+    Array<{ userMessageId: string; reasoningEffort?: ReasoningEffortOption }>
+  >()
   /** Topics whose steer continuation is mid-launch — dedups `scheduleNextChatTurn`, mirroring the
    *  agent runtime's `startingNextTurn`. */
   private readonly startingNextChatTopicIds = new Set<string>()
   /** Constructed once and reused — `dispatchStreamRequest` passes it through `send()`. */
   readonly chatLifecycle: StreamLifecycle
+
+  /**
+   * Resolves once `reconcileStalePendingMessages` has run. `dispatch` awaits it before
+   * writing any fresh PENDING placeholder, so a stream that opens during boot can't have
+   * its placeholder wrongly marked errored by the still-pending crash-orphan reconcile.
+   * The old `Ai_Stream_Open` handler enforced this by registering *after* reconcile in
+   * `onInit`; the IpcApi handler registers earlier (IpcApiService, BeforeReady), so the
+   * ordering guarantee moves onto this gate.
+   */
+  private markReconciled!: () => void
+  private readonly reconciled = new Promise<void>((resolve) => {
+    this.markReconciled = resolve
+  })
 
   constructor(config: Partial<AiStreamManagerConfig> = {}) {
     super()
@@ -225,59 +232,25 @@ export class AiStreamManager extends BaseService {
   protected async onInit(): Promise<void> {
     // Resolve crash-orphaned PENDING rows before any new stream can be opened — at boot the
     // in-memory registry is empty, so every still-`pending` assistant row is stale.
-    await this.reconcileStalePendingMessages()
-
-    this.ipcHandle(IpcChannel.Ai_Stream_Open, async (event, rawReq: unknown) => {
-      const parsed = StreamOpenRequestSchema.safeParse(rawReq)
-      if (!parsed.success) {
-        logger.warn('Ai_Stream_Open rejected: invalid request', { issues: parsed.error.issues })
-        throw new Error('Invalid Ai_Stream_Open request')
-      }
-      const req = rawReq as AiStreamOpenRequest
-      const subscriber = new WebContentsListener(event.sender, req.topicId)
-      return this.dispatch(subscriber, req)
-    })
-
-    this.ipcHandle(IpcChannel.Ai_Stream_Attach, (event, rawReq: unknown): AiStreamAttachResponse => {
-      const parsed = TopicIdRequestSchema.safeParse(rawReq)
-      if (!parsed.success) {
-        logger.warn('Ai_Stream_Attach rejected: invalid topicId', { issues: parsed.error.issues })
-        return { status: 'not-found' }
-      }
-      return this.attach(event.sender, rawReq as AiStreamAttachRequest)
-    })
-
-    this.ipcHandle(IpcChannel.Ai_Stream_Detach, (event, rawReq: unknown) => {
-      const parsed = TopicIdRequestSchema.safeParse(rawReq)
-      if (!parsed.success) {
-        logger.warn('Ai_Stream_Detach rejected: invalid topicId', { issues: parsed.error.issues })
-        return
-      }
-      this.detach(event.sender, rawReq as AiStreamDetachRequest)
-    })
-
-    this.ipcHandle(IpcChannel.Ai_Stream_Abort, (_, rawReq: unknown) => {
-      const parsed = TopicIdRequestSchema.safeParse(rawReq)
-      if (!parsed.success) {
-        logger.warn('Ai_Stream_Abort rejected: invalid topicId', { issues: parsed.error.issues })
-        return
-      }
-      this.abort((rawReq as AiStreamAbortRequest).topicId, 'user-requested')
-    })
-
+    this.reconcileStalePendingMessages()
+    this.markReconciled()
     logger.info('AiStreamManager initialized')
   }
 
   /**
-   * Single locked dispatch entry point for chat streams. Both `Ai_Stream_Open`
-   * and the tool-approval continue path (`AiService.Ai_ToolApproval_Respond`)
+   * Single locked dispatch entry point for chat streams. Both `ai.stream.open`
+   * and the tool-approval continue path (`AiService.respondToolApproval`)
    * route through here so the per-topic `dispatchLock` serialises every dispatch
    * on a topic — not just opens. `prepareDispatch` is async and writes a PENDING
    * placeholder off a `hasLiveStream` snapshot; without one lock covering both
    * entry points, a concurrent open and approval-continue on the same topic could
    * both see "no live stream" and orphan a row.
    */
-  dispatch(subscriber: StreamListener, req: MainDispatchRequest): Promise<AiStreamOpenResponse> {
+  async dispatch(subscriber: StreamListener, req: MainDispatchRequest): Promise<AiStreamOpenResponse> {
+    // Gate on the boot reconcile so a placeholder written here is never clobbered by it.
+    // No-op after boot (resolved promise); the only caller it can actually block is a
+    // stream opened in the boot window before reconcile finished.
+    await this.reconciled
     return this.withDispatchLock(req.topicId, () => dispatchStreamRequest(this, subscriber, req))
   }
 
@@ -300,12 +273,12 @@ export class AiStreamManager extends BaseService {
    * row stays `pending` forever and the UI shows a frozen "thinking" bubble. Runs once at boot,
    * before the open handler is registered, so it can never race a freshly created placeholder.
    */
-  private async reconcileStalePendingMessages(): Promise<void> {
+  private reconcileStalePendingMessages(): void {
     try {
-      const staleIds = await messageService.findPendingAssistantMessageIds()
+      const staleIds = messageService.findPendingAssistantMessageIds()
       if (staleIds.length === 0) return
       logger.info('Reconciling crash-orphaned pending assistant messages', { count: staleIds.length })
-      await messageService.markMessagesError(staleIds)
+      messageService.markMessagesError(staleIds)
     } catch (error) {
       logger.error('Failed to reconcile stale pending messages', { error })
     }
@@ -392,11 +365,18 @@ export class AiStreamManager extends BaseService {
     const isMultiModel = input.models.length > 1
     const executions = new Map<UniqueModelId, StreamExecution>()
 
-    for (const { modelId, request, rootSpan } of input.models) {
+    for (const { modelId, request, rootSpan, abortController } of input.models) {
       if (executions.has(modelId)) {
         throw new Error(`send() got duplicate modelId ${modelId} for topic ${input.topicId}`)
       }
-      const exec = this.createAndLaunchExecution(input.topicId, modelId, request, input.siblingsGroupId, rootSpan)
+      const exec = this.createAndLaunchExecution(
+        input.topicId,
+        modelId,
+        request,
+        input.siblingsGroupId,
+        rootSpan,
+        abortController
+      )
       executions.set(modelId, exec)
     }
 
@@ -415,6 +395,10 @@ export class AiStreamManager extends BaseService {
     this.activeStreams.set(input.topicId, stream)
     // Chat broadcasts to SharedCache so `useChatWithHistory.resumeActiveStream` can attach; prompt is silent.
     stream.lifecycle.onCreated(stream)
+
+    if ([...executions.values()].every((exec) => exec.abortController.signal.aborted)) {
+      stream.status = 'aborted'
+    }
 
     return {
       mode: 'started',
@@ -473,7 +457,14 @@ export class AiStreamManager extends BaseService {
 
     return this.send({
       topicId: input.topicId,
-      models: [{ modelId: input.modelId, request: input.request, rootSpan: input.rootSpan }],
+      models: [
+        {
+          modelId: input.modelId,
+          request: input.request,
+          rootSpan: input.rootSpan,
+          abortController: input.abortController
+        }
+      ],
       listeners: [...carriedListeners, ...input.listeners]
     })
   }
@@ -518,7 +509,7 @@ export class AiStreamManager extends BaseService {
 
   /** Enqueue a steer user message (already persisted by the provider). If the topic settled before
    *  this landed, start the continuation immediately. Mirrors `AgentSessionRuntimeService.enqueueUserMessage`. */
-  enqueuePendingSteer(topicId: string, userMessageId: string): void {
+  enqueuePendingSteer(topicId: string, userMessageId: string, reasoningEffort?: ReasoningEffortOption): void {
     // The turn may have settled between `prepareDispatch` and here (the loop's terminal hooks don't
     // hold the dispatch lock), so no hook would fire to chain this steer. Decide from the single
     // authority — the resolved `status` on the still-in-grace stream — not a separate shadow flag:
@@ -530,7 +521,7 @@ export class AiStreamManager extends BaseService {
     //   • aborted / error   → drop; the persisted user row stays for the user to resend.
     const status = this.activeStreams.get(topicId)?.status
     if (status && isLiveStatus(status)) {
-      this.appendPendingSteer(topicId, userMessageId)
+      this.appendPendingSteer(topicId, userMessageId, reasoningEffort)
       return
     }
     if (status === 'aborted' || status === 'error') {
@@ -541,14 +532,15 @@ export class AiStreamManager extends BaseService {
       })
       return
     }
-    this.appendPendingSteer(topicId, userMessageId)
+    this.appendPendingSteer(topicId, userMessageId, reasoningEffort)
     if (status !== 'awaiting-approval') this.scheduleNextChatTurn(topicId)
   }
 
-  private appendPendingSteer(topicId: string, userMessageId: string): void {
+  private appendPendingSteer(topicId: string, userMessageId: string, reasoningEffort?: ReasoningEffortOption): void {
     const queue = this.pendingSteers.get(topicId)
-    if (queue) queue.push(userMessageId)
-    else this.pendingSteers.set(topicId, [userMessageId])
+    const item = { userMessageId, reasoningEffort }
+    if (queue) queue.push(item)
+    else this.pendingSteers.set(topicId, [item])
   }
 
   // ── Public: listener management ───────────────────────────────────
@@ -560,9 +552,9 @@ export class AiStreamManager extends BaseService {
     // Replay buffered chunks from every execution's ring buffer so late
     // listeners catch up. Ordering within a single execution is preserved;
     // across executions chunks are interleaved in the order we see each
-    // execution's buffer (acceptable: the Renderer demuxes by executionId).
+    // execution's buffer (acceptable: the Renderer demuxes by executionId + anchor).
     for (const exec of stream.executions.values()) {
-      for (const chunk of exec.buffer) listener.onChunk(chunk.chunk, chunk.executionId)
+      for (const chunk of exec.buffer) listener.onChunk(chunk.chunk, chunk.executionId, chunk.anchorMessageId)
     }
     return true
   }
@@ -572,12 +564,37 @@ export class AiStreamManager extends BaseService {
     stream?.listeners.delete(listenerId)
   }
 
+  /**
+   * Clear a live runtime tool approval as soon as the user responds, before the
+   * tool's eventual output chunk arrives. Returns whether a tracked approval changed.
+   */
+  resolveToolApproval(topicId: string, toolCallId: string): boolean {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream || !isLiveStatus(stream.status)) return false
+
+    let changed = false
+    let pendingApprovalFlipped = false
+    for (const exec of stream.executions.values()) {
+      const pendingApprovals = exec.pendingApprovalToolCallIds
+      if (!pendingApprovals?.delete(toolCallId)) continue
+      changed = true
+      if (pendingApprovals.size === 0) pendingApprovalFlipped = true
+    }
+    if (pendingApprovalFlipped) stream.lifecycle.onApprovalPendingChanged(stream)
+    return changed
+  }
+
   // ── Public: abort ─────────────────────────────────────────────────
 
   /** Abort all executions in a topic. */
   abort(topicId: string, reason: string): void {
     const stream = this.activeStreams.get(topicId)
-    if (!stream || !isLiveStatus(stream.status)) return
+    if (!stream || !isLiveStatus(stream.status)) {
+      if (isAgentSessionTopic(topicId)) {
+        application.get('AgentSessionRuntimeService').abortPendingTurn(extractAgentSessionId(topicId), reason)
+      }
+      return
+    }
     logger.info('Aborting stream', { topicId, reason })
     for (const exec of stream.executions.values()) {
       if (exec.status === 'streaming') {
@@ -605,6 +622,7 @@ export class AiStreamManager extends BaseService {
 
     // Authoritative approval-lifecycle capture, keyed by toolCallId so a sibling tool's output never
     // clears another tool's still-pending approval; `resolveTerminalStatus` reads the set's size.
+    const hadPendingApprovals = (exec.pendingApprovalToolCallIds?.size ?? 0) > 0
     if (chunk.type === 'tool-approval-request') {
       ;(exec.pendingApprovalToolCallIds ??= new Set()).add(chunk.toolCallId)
     } else if (
@@ -614,11 +632,20 @@ export class AiStreamManager extends BaseService {
     ) {
       exec.pendingApprovalToolCallIds?.delete(chunk.toolCallId)
     }
+    // Broadcast payloads and consumers only care about "any pending?", so only
+    // the empty↔non-empty flip warrants a rebroadcast — size changes within
+    // parallel approvals would produce byte-identical payloads.
+    const hasPendingApprovals = (exec.pendingApprovalToolCallIds?.size ?? 0) > 0
+    const pendingApprovalFlipped = hadPendingApprovals !== hasPendingApprovals
 
-    // First chunk promotes `pending` → `streaming`.
+    // First chunk promotes `pending` → `streaming`; that broadcast already
+    // carries the anchors captured above, so only a mid-stream flip needs its
+    // own rebroadcast.
     if (stream.status === 'pending') {
       stream.status = 'streaming'
       stream.lifecycle.onPromotedToStreaming(stream)
+    } else if (pendingApprovalFlipped) {
+      stream.lifecycle.onApprovalPendingChanged(stream)
     }
 
     const sourceModelId = modelId
@@ -629,7 +656,19 @@ export class AiStreamManager extends BaseService {
       exec.buffer.shift()
       exec.droppedChunks += 1
     }
-    exec.buffer.push({ topicId, executionId: sourceModelId, chunk })
+    const anchorMessageId = exec.anchorMessageId
+    exec.buffer.push({ topicId, executionId: sourceModelId, anchorMessageId, chunk })
+
+    // Keeps stripped outputs resolvable until the message lands in SQLite. Bounded; an evicted
+    // entry just falls through to the persisted copy.
+    if (chunk.type === 'tool-output-available' && shouldDeferToolOutput(chunk.output)) {
+      const deferredOutputs = (exec.deferredOutputs ??= new Map())
+      deferredOutputs.set(chunk.toolCallId, chunk.output)
+      if (deferredOutputs.size > this.config.maxDeferredOutputs) {
+        const oldest = deferredOutputs.keys().next()
+        if (!oldest.done) deferredOutputs.delete(oldest.value)
+      }
+    }
 
     // Synchronous fan-out (listeners must not block the loop). Inline
     // liveness scrub so dead listeners go before the next onChunk runs.
@@ -640,7 +679,7 @@ export class AiStreamManager extends BaseService {
         continue
       }
       try {
-        listener.onChunk(chunk, sourceModelId)
+        listener.onChunk(chunk, sourceModelId, anchorMessageId)
       } catch (err) {
         logger.warn('Listener threw', { topicId, listenerId: id, event: 'onChunk', err })
       }
@@ -712,11 +751,16 @@ export class AiStreamManager extends BaseService {
     // to `output-error` by `finalizeInterruptedParts` at every projection
     // (persistence already, re-attach below). Must run before
     // `resolveTerminalStatus`.
+    const hadPendingApprovals = (exec.pendingApprovalToolCallIds?.size ?? 0) > 0
     exec.pendingApprovalToolCallIds?.clear()
 
     endRootSpan(exec, 'aborted')
     stream.status = this.resolveTerminalStatus(stream)
     const isTopicDone = !isLiveStatus(stream.status)
+
+    // A live sibling keeps the topic out of the terminal broadcast below, so
+    // the dropped approval anchor must reach the shared cache on its own.
+    if (hadPendingApprovals && !isTopicDone) stream.lifecycle.onApprovalPendingChanged(stream)
 
     await this.broadcastExecutionPaused(stream, exec, isTopicDone)
 
@@ -742,10 +786,15 @@ export class AiStreamManager extends BaseService {
 
     // Mirror of onExecutionPaused: clear the set so the status anchor drops;
     // the in-flight tool part is terminalized by `finalizeInterruptedParts`.
+    const hadPendingApprovals = (exec.pendingApprovalToolCallIds?.size ?? 0) > 0
     exec.pendingApprovalToolCallIds?.clear()
 
     stream.status = this.computeTopicStatus(stream)
     const isTopicDone = !isLiveStatus(stream.status)
+
+    // A live sibling keeps the topic out of the terminal broadcast below, so
+    // the dropped approval anchor must reach the shared cache on its own.
+    if (hadPendingApprovals && !isTopicDone) stream.lifecycle.onApprovalPendingChanged(stream)
     const finalMessage = ensureTerminalFinalMessage(exec)
 
     const result: StreamErrorResult = {
@@ -753,6 +802,7 @@ export class AiStreamManager extends BaseService {
       finalMessage,
       status: 'error',
       modelId: exec.modelId,
+      anchorMessageId: exec.anchorMessageId,
       isTopicDone,
       timings: { ...exec.timings }
     }
@@ -771,8 +821,13 @@ export class AiStreamManager extends BaseService {
    *  rows in the renderer is the renderer slice's responsibility, not handled here. */
   private dropPendingSteers(topicId: string, reason: 'aborted' | 'error'): void {
     const dropped = this.pendingSteers.get(topicId)
-    if (dropped?.length)
-      logger.warn('Dropping queued steers without answering', { topicId, reason, droppedIds: dropped })
+    if (dropped?.length) {
+      logger.warn('Dropping queued steers without answering', {
+        topicId,
+        reason,
+        droppedIds: dropped.map((item) => item.userMessageId)
+      })
+    }
     this.pendingSteers.delete(topicId)
   }
 
@@ -795,6 +850,32 @@ export class AiStreamManager extends BaseService {
         logger.warn('broadcastTopicError listener threw', { topicId, err })
       }
     }
+  }
+
+  /**
+   * Settle a topic stream that a chaining turn kept alive (`isTopicDone=false`, terminal lifecycle
+   * skipped) when the agent runtime's queued continuation could NOT be launched — e.g. its drain
+   * re-check found the agent model deleted. `broadcastTopicError` alone only notifies current
+   * subscribers: it leaves the held stream in `activeStreams` with its terminal lifecycle un-run, so
+   * the cross-window status cache stays `streaming` and a re-attaching window still sees the stale
+   * prior turn as live. Surface the error to transport subscribers (persistence skipped — the
+   * continuation turn never opened), write the terminal status, and run the terminal lifecycle so the
+   * status cache settles and the stream is evicted. Mirrors the chat path's `failChatContinuation`.
+   */
+  terminateHeldTopicStream(topicId: string, modelId: UniqueModelId | undefined, error: SerializedError): void {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream) return
+    const result: StreamErrorResult = { error, status: 'error', modelId, isTopicDone: true }
+    for (const listener of stream.listeners.values()) {
+      if (listener.id.startsWith('persistence:')) continue
+      try {
+        void listener.onError(result)
+      } catch (err) {
+        logger.warn('terminateHeldTopicStream listener threw', { topicId, err })
+      }
+    }
+    stream.status = 'error'
+    this.runTerminalLifecycle(stream)
   }
 
   /** Chat defers 30 s, prompt evicts immediately. */
@@ -825,8 +906,8 @@ export class AiStreamManager extends BaseService {
    */
   private async startNextChatTurn(topicId: string): Promise<void> {
     const queue = this.pendingSteers.get(topicId)
-    const userMessageId = queue?.[0]
-    if (!userMessageId) {
+    const pending = queue?.[0]
+    if (!pending) {
       this.pendingSteers.delete(topicId)
       return
     }
@@ -844,7 +925,8 @@ export class AiStreamManager extends BaseService {
     const carried = previous ? [...previous.listeners.values()].filter(isRendererListener) : []
     if (previous) this.evictStream(topicId)
 
-    const req: MainDispatchRequest = { trigger: 'steer-continuation', topicId, userMessageId }
+    const { userMessageId, reasoningEffort } = pending
+    const req: MainDispatchRequest = { trigger: 'steer-continuation', topicId, userMessageId, reasoningEffort }
     try {
       await this.dispatch(carried[0] ?? nullStreamListener, req)
     } catch (error) {
@@ -936,8 +1018,9 @@ export class AiStreamManager extends BaseService {
       let firstFinalMessage: CherryUIMessage | undefined
       for (const exec of stream.executions.values()) {
         if (!exec.finalMessage) continue
-        finalMessages[exec.modelId] = exec.finalMessage
-        if (!firstFinalMessage) firstFinalMessage = exec.finalMessage
+        const finalMessage = projectStreamMessageForRenderer(req.topicId, exec.finalMessage)
+        finalMessages[exec.modelId] = finalMessage
+        if (!firstFinalMessage) firstFinalMessage = finalMessage
       }
       return {
         status: stream.status === 'aborted' ? 'paused' : 'done',
@@ -974,13 +1057,26 @@ export class AiStreamManager extends BaseService {
 
     const bufferedChunks: StreamChunkPayload[] = []
     for (const exec of stream.executions.values()) {
-      bufferedChunks.push(...buildCompactReplay(exec.buffer))
+      bufferedChunks.push(...buildCompactReplay(exec.buffer).map(projectStreamChunkPayloadForRenderer))
     }
     return { status: 'attached', bufferedChunks }
   }
 
   detach(sender: Electron.WebContents, req: AiStreamDetachRequest): void {
     this.removeListener(req.topicId, `wc:${sender.id}:${req.topicId}`)
+  }
+
+  /** Full output of a deferred tool call, while the stream that produced it is still active. */
+  getDeferredToolOutput(topicId: string, toolCallId: string): { found: true; output: unknown } | { found: false } {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream) return { found: false }
+
+    for (const exec of stream.executions.values()) {
+      if (exec.deferredOutputs?.has(toolCallId)) {
+        return { found: true, output: exec.deferredOutputs.get(toolCallId) }
+      }
+    }
+    return { found: false }
   }
 
   // ── Internal helpers ──────────────────────────────────────────────
@@ -995,14 +1091,15 @@ export class AiStreamManager extends BaseService {
     modelId: UniqueModelId,
     request: AiStreamRequest,
     siblingsGroupId?: number,
-    rootSpan?: Span
+    rootSpan?: Span,
+    abortController?: AbortController
   ): StreamExecution {
     // `loopPromise` is overwritten right after launch; initialise to a resolved sentinel
     // so the `exec` object reference is stable inside the arrow function below.
     const exec: StreamExecution = {
       modelId,
       anchorMessageId: request.messageId,
-      abortController: new AbortController(),
+      abortController: abortController ?? new AbortController(),
       status: 'streaming',
       buffer: [],
       droppedChunks: 0,
@@ -1089,12 +1186,12 @@ export class AiStreamManager extends BaseService {
       if (signal.aborted) {
         logger.debug('Execution aborted', { topicId, modelId, reason: signal.reason })
       } else {
-        logger.error('Execution loop error', { topicId, modelId, err: result.threw })
+        logger.error('Execution loop error', { topicId, modelId, err: result.threw.error })
       }
       const serialized =
         result.streamErrorText !== undefined && !signal.aborted
           ? errorFromStreamChunk(result.streamErrorText)
-          : serializeError(result.threw)
+          : serializeError(result.threw.error)
       await this.onExecutionError(topicId, modelId, serialized)
       return
     }
@@ -1119,6 +1216,7 @@ export class AiStreamManager extends BaseService {
       finalMessage: exec.finalMessage,
       status: 'success',
       modelId: exec.modelId,
+      anchorMessageId: exec.anchorMessageId,
       isTopicDone,
       // Snapshot timings so listeners see a stable copy even if the
       // execution object is mutated after dispatch.
@@ -1136,6 +1234,7 @@ export class AiStreamManager extends BaseService {
       finalMessage: exec.finalMessage,
       status: 'paused' as const,
       modelId: exec.modelId,
+      anchorMessageId: exec.anchorMessageId,
       isTopicDone,
       timings: { ...exec.timings }
     }

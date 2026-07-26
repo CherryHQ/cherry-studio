@@ -1,7 +1,7 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
-import type { UIMessageChunk } from 'ai'
+import { APICallError, type UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AiStreamRequest } from '../../types/requests'
@@ -57,6 +57,8 @@ class FakeListener implements StreamListener {
 }
 
 // ── Mocks ───────────────────────────────────────────────────────────
+
+const mockAbortPendingTurn = vi.fn<(sessionId: string, reason: string) => boolean>(() => false)
 
 vi.mock('@main/data/services/MessageService', () => ({
   messageService: { create: vi.fn().mockResolvedValue({ id: 'msg-001' }) }
@@ -129,7 +131,7 @@ vi.mock('@application', async () => {
     AiService: { streamText: mockStreamText },
     CacheService: fakeCacheService,
     TraceStorageService: { saveSpans: mockSaveSpans },
-    AgentSessionRuntimeService: { willContinueTopic: mockWillContinueTopic }
+    AgentSessionRuntimeService: { willContinueTopic: mockWillContinueTopic, abortPendingTurn: mockAbortPendingTurn }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
 
@@ -175,11 +177,12 @@ function startSingle(
     request: AiStreamRequest
     listeners: StreamListener[]
     siblingsGroupId?: number
+    abortController?: AbortController
   }
 ) {
   manager.send({
     topicId: opts.topicId,
-    models: [{ modelId: opts.modelId, request: opts.request }],
+    models: [{ modelId: opts.modelId, request: opts.request, abortController: opts.abortController }],
     listeners: opts.listeners,
     siblingsGroupId: opts.siblingsGroupId
   })
@@ -202,6 +205,7 @@ describe('AiStreamManager', () => {
     )
     mockSaveSpans.mockResolvedValue(undefined)
     mockWillContinueTopic.mockReturnValue(false)
+    mockAbortPendingTurn.mockReturnValue(false)
     sharedCacheStore.clear()
   })
 
@@ -256,6 +260,53 @@ describe('AiStreamManager', () => {
 
       expect(result).toEqual({ mode: 'injected', executionIds: [] })
       expect(mgr.inspect('a')).toBeUndefined()
+    })
+
+    it('aborts the agent-session turn controller for a pre-stream stop request', async () => {
+      const turnAbortController = new AbortController()
+      mockAbortPendingTurn.mockImplementationOnce((_sessionId, reason) => {
+        turnAbortController.abort(reason)
+        return true
+      })
+      const listener = new FakeListener('l:agent')
+
+      mgr.abort('agent-session:session-1', 'user-requested')
+      const snap = startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: { ...req('agent-session:session-1'), messageId: 'assistant-paused' },
+        listeners: [listener],
+        abortController: turnAbortController
+      })
+
+      expect(mockAbortPendingTurn).toHaveBeenCalledWith('session-1', 'user-requested')
+      expect(snap.status).toBe('aborted')
+
+      await vi.advanceTimersByTimeAsync(0)
+      expect(listener.pausedResults).toHaveLength(1)
+    })
+
+    it('does not apply an old pre-stream stop request to a new agent-session turn controller', () => {
+      const oldTurnAbortController = new AbortController()
+      const newTurnAbortController = new AbortController()
+      mockAbortPendingTurn.mockImplementationOnce((_sessionId, reason) => {
+        oldTurnAbortController.abort(reason)
+        return true
+      })
+
+      mgr.abort('agent-session:session-1', 'user-requested')
+      const snap = startSingle(mgr, {
+        topicId: 'agent-session:session-1',
+        modelId: 'provider-a::model-a',
+        request: { ...req('agent-session:session-1'), messageId: 'assistant-new' },
+        listeners: [new FakeListener('l:agent')],
+        abortController: newTurnAbortController
+      })
+
+      expect(snap.status).toBe('pending')
+      expect(snap.executions[0].abortSignal.aborted).toBe(false)
+      expect(oldTurnAbortController.signal.aborted).toBe(true)
+      expect(newTurnAbortController.signal.aborted).toBe(false)
     })
 
     it('evicts finished stream and creates new one', async () => {
@@ -732,6 +783,58 @@ describe('AiStreamManager', () => {
     })
   })
 
+  describe('deferred tool output lookup', () => {
+    it('retains only outputs large enough to have been stripped on the way out', () => {
+      const topicId = 'agent-session:session-1'
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: { ...req(topicId), messageId: 'assistant-1' },
+        listeners: [new FakeListener('l:a')]
+      })
+      const large = { content: 'x'.repeat(64 * 1024) }
+      mgr.onChunk(topicId, 'provider-a::model-a', {
+        type: 'tool-output-available',
+        toolCallId: 'call-large',
+        output: large
+      } as UIMessageChunk)
+      mgr.onChunk(topicId, 'provider-a::model-a', {
+        type: 'tool-output-available',
+        toolCallId: 'call-small',
+        output: { content: 'tiny' }
+      } as UIMessageChunk)
+
+      expect(mgr.getDeferredToolOutput(topicId, 'call-large')).toEqual({ found: true, output: large })
+      // A small output travelled inline, so nothing needs to be resolvable for it.
+      expect(mgr.getDeferredToolOutput(topicId, 'call-small')).toEqual({ found: false })
+      expect(mgr.getDeferredToolOutput(topicId, 'missing')).toEqual({ found: false })
+    })
+
+    it('evicts the oldest retained output instead of growing without bound', () => {
+      const topicId = 'agent-session:session-1'
+      const cappedMgr = createManager({ maxDeferredOutputs: 2 })
+      startSingle(cappedMgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: { ...req(topicId), messageId: 'assistant-1' },
+        listeners: [new FakeListener('l:a')]
+      })
+      const large = (tag: string) => ({ content: tag.repeat(64 * 1024) })
+      for (const tag of ['a', 'b', 'c']) {
+        cappedMgr.onChunk(topicId, 'provider-a::model-a', {
+          type: 'tool-output-available',
+          toolCallId: `call-${tag}`,
+          output: large(tag)
+        } as UIMessageChunk)
+      }
+
+      // The evicted one is not lost — it resolves from SQLite once the message is persisted.
+      expect(cappedMgr.getDeferredToolOutput(topicId, 'call-a')).toEqual({ found: false })
+      expect(cappedMgr.getDeferredToolOutput(topicId, 'call-b')).toEqual({ found: true, output: large('b') })
+      expect(cappedMgr.getDeferredToolOutput(topicId, 'call-c')).toEqual({ found: true, output: large('c') })
+    })
+  })
+
   // ── grace period ────────────────────────────────────────────────
 
   describe('grace period', () => {
@@ -838,6 +941,41 @@ describe('AiStreamManager', () => {
       trigger: 'steer-continuation',
       topicId,
       userMessageId
+    })
+
+    it('rebroadcasts awaiting-approval anchors when a live stream pauses and resumes for tool approval', () => {
+      // No status transition happens on a mid-stream permission pause, so the shared-cache entry must
+      // be refreshed by the approval bookkeeping itself for cross-window consumers (session list badge).
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('wc:1')]
+      })
+      // Promote first so the approval request lands mid-stream (no status edge left to broadcast).
+      mgr.onChunk('a', 'provider-a::model-a', chunk('x'))
+
+      mgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-approval-request',
+        toolCallId: 'tc-1'
+      } as unknown as UIMessageChunk)
+      const paused = sharedCacheStore.get('topic.stream.statuses.a') as any
+      expect(paused?.status).toBe('streaming')
+      expect(paused?.awaitingApprovalAnchors).toHaveLength(1)
+
+      expect(mgr.resolveToolApproval('a', 'tc-1')).toBe(true)
+      const approved = sharedCacheStore.get('topic.stream.statuses.a') as any
+      expect(approved?.status).toBe('streaming')
+      expect(approved?.awaitingApprovalAnchors).toHaveLength(0)
+      expect(mgr.resolveToolApproval('a', 'tc-1')).toBe(false)
+
+      mgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-output-available',
+        toolCallId: 'tc-1'
+      } as unknown as UIMessageChunk)
+      const resumed = sharedCacheStore.get('topic.stream.statuses.a') as any
+      expect(resumed?.status).toBe('streaming')
+      expect(resumed?.awaitingApprovalAnchors).toHaveLength(0)
     })
 
     it('drains a steer that lands right after a clean `done` settle (inter-turn race)', async () => {
@@ -1229,6 +1367,34 @@ describe('AiStreamManager', () => {
       expect(listener.doneResults[0].isTopicDone).toBe(true)
       expect(mgr.hasLiveStream(topicId)).toBe(false)
     })
+
+    // The runtime's queued continuation could not launch (e.g. its drain re-check found the agent model
+    // deleted) after this stream was kept alive by the chaining path above. A bare error broadcast would
+    // leave the held stream in `activeStreams` with its status cache un-settled and still attachable —
+    // `terminateHeldTopicStream` must error the subscribers, settle the status cache, and evict it.
+    it('terminateHeldTopicStream settles and evicts a held agent-session stream whose continuation failed', async () => {
+      mockWillContinueTopic.mockReturnValue(true)
+      const topicId = 'agent-session:s3'
+      const listener = new FakeListener(`l:${topicId}`)
+      startSingle(mgr, { topicId, modelId: 'provider-a::model-a', request: req(topicId), listeners: [listener] })
+
+      // Prior turn finished but the runtime will continue → stream kept alive, terminal lifecycle skipped,
+      // so the status cache is NOT yet settled to a terminal state and the stream stays in activeStreams.
+      await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+      expect(mgr.inspect(topicId)).toBeDefined()
+      expect((sharedCacheStore.get(`topic.stream.statuses.${topicId}`) as any)?.status).not.toBe('error')
+
+      mgr.terminateHeldTopicStream(topicId, 'provider-a::model-a', error('no model configured'))
+
+      // Subscribers learn the topic errored, the cross-window status cache settles to 'error'…
+      expect(listener.errorResults).toHaveLength(1)
+      expect(listener.errorResults[0].isTopicDone).toBe(true)
+      expect((sharedCacheStore.get(`topic.stream.statuses.${topicId}`) as any)?.status).toBe('error')
+
+      // …and the terminal lifecycle's cleanup evicts the held stream so it's no longer attachable.
+      await vi.runAllTimersAsync()
+      expect(mgr.inspect(topicId)).toBeUndefined()
+    })
   })
 
   // ── idle timeout terminal classification ────────────────────────
@@ -1393,7 +1559,72 @@ describe('AiStreamManager', () => {
   // and `runExecutionLoop` routes it through `onExecutionError` with the
   // chunk text translated via `errorFromStreamChunk` (name: 'StreamError').
 
-  describe('mid-stream error chunk', () => {
+  describe('stream errors', () => {
+    it.each([
+      { statusCode: 400, isRetryable: false, message: 'Maximum context length exceeded' },
+      { statusCode: 503, isRetryable: true, message: 'Upstream unavailable' }
+    ])(
+      'serializes API error status $statusCode and retryability from a rejecting stream',
+      async ({ statusCode, isRetryable, message }) => {
+        vi.useRealTimers()
+
+        const apiError = new APICallError({
+          message,
+          url: 'https://api.example.com/chat/completions',
+          requestBodyValues: {},
+          statusCode,
+          responseHeaders: {},
+          responseBody: '',
+          isRetryable
+        })
+        mockStreamText.mockResolvedValueOnce(
+          new ReadableStream({
+            start(controller) {
+              controller.error(apiError)
+            }
+          })
+        )
+
+        const listener = new FakeListener('l:a')
+        startSingle(mgr, {
+          topicId: 'a',
+          modelId: 'provider-a::model-a',
+          request: req('a'),
+          listeners: [listener]
+        })
+
+        await new Promise((resolve) => setTimeout(resolve, 50))
+
+        expect(listener.errorResults).toHaveLength(1)
+        expect(listener.errorResults[0].error).toMatchObject({ statusCode, isRetryable, message })
+      }
+    )
+
+    it('does not treat an undefined stream rejection as successful completion', async () => {
+      vi.useRealTimers()
+
+      mockStreamText.mockResolvedValueOnce(
+        new ReadableStream({
+          start(controller) {
+            controller.error(undefined)
+          }
+        })
+      )
+
+      const listener = new FakeListener('l:a')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [listener]
+      })
+
+      await vi.waitFor(() => expect(listener.errorResults).toHaveLength(1))
+
+      expect(listener.errorResults[0].error).toMatchObject({ message: 'undefined' })
+      expect(mgr.inspect('a')!.status).toBe('error')
+    })
+
     it('routes a terminal error chunk through onExecutionError with the translated stream error', async () => {
       // readUIMessageStream's accumulator needs real microtask / timer
       // scheduling; fake timers starve its reader loop (see live finalMessage
@@ -1690,9 +1921,10 @@ describe('AiStreamManager', () => {
       mgr.onChunk('t', 'p::m', { type: 'tool-output-available' } as UIMessageChunk)
 
       // resolveTerminalStatus no longer finds a paused exec, so the terminal status is `done`,
-      // NOT stuck on `awaiting-approval`.
+      // NOT stuck on `awaiting-approval`. The extra 'streaming' write is the approval-resolution
+      // rebroadcast that drops the awaiting-approval anchor for cross-window consumers.
       await mgr.onExecutionDone('t', 'p::m')
-      expect(statusSequence('t')).toEqual(['pending', 'streaming', 'done'])
+      expect(statusSequence('t')).toEqual(['pending', 'streaming', 'streaming', 'done'])
       expect(mgr.inspect('t')!.status).toBe('done')
       expect(mgr.inspect('t')!.status).not.toBe('awaiting-approval')
     })
@@ -1757,6 +1989,51 @@ describe('AiStreamManager', () => {
       await mgr.onExecutionError('t', 'p::m', error('boom'))
 
       expect(mgr.inspect('t')!.status).toBe('error')
+      expect(anchorsOf('t')).toEqual([])
+    })
+
+    it('drops the anchor from the shared cache when the paused execution has a live sibling (topic stays live)', async () => {
+      // Multi-model: the topic never reaches the terminal lifecycle while a sibling streams, so the
+      // cleared approval set must be rebroadcast by the cleanup path itself — otherwise the session
+      // list badge keeps showing a stale "awaiting approval".
+      mgr.send({
+        topicId: 't',
+        models: [
+          { modelId: 'p::m', request: req('t') },
+          { modelId: 'p::m2', request: req('t') }
+        ],
+        listeners: [new FakeListener('l:t')]
+      })
+      // Keep the sibling visibly live.
+      mgr.onChunk('t', 'p::m2', chunk('sibling'))
+
+      const exec = startAwaitingApproval('t', 'p::m')
+      expect(anchorsOf('t')).toHaveLength(1)
+
+      exec.status = 'aborted'
+      await mgr.onExecutionPaused('t', 'p::m')
+
+      expect(mgr.inspect('t')!.status).toBe('streaming')
+      expect(anchorsOf('t')).toEqual([])
+    })
+
+    it('drops the anchor from the shared cache when the errored execution has a live sibling (topic stays live)', async () => {
+      mgr.send({
+        topicId: 't',
+        models: [
+          { modelId: 'p::m', request: req('t') },
+          { modelId: 'p::m2', request: req('t') }
+        ],
+        listeners: [new FakeListener('l:t')]
+      })
+      mgr.onChunk('t', 'p::m2', chunk('sibling'))
+
+      startAwaitingApproval('t', 'p::m')
+      expect(anchorsOf('t')).toHaveLength(1)
+
+      await mgr.onExecutionError('t', 'p::m', error('boom'))
+
+      expect(mgr.inspect('t')!.status).toBe('streaming')
       expect(anchorsOf('t')).toEqual([])
     })
 

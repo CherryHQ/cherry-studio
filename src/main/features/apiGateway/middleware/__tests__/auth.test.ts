@@ -101,6 +101,34 @@ describe('authorizeApiRequest', () => {
     })
   })
 
+  describe('Google API key authentication (fallback)', () => {
+    const validApiKey = 'valid-api-key-123'
+
+    beforeEach(() => {
+      mockPreferenceGet.mockReturnValue(validApiKey)
+    })
+
+    it('authenticates with a valid Google (x-goog-api-key / ?key=) credential', () => {
+      expect(authorizeApiRequest(undefined, undefined, validApiKey)).toBeUndefined()
+    })
+
+    it('returns 403 with an invalid Google credential', () => {
+      expect(authorizeApiRequest(undefined, undefined, 'invalid-key')).toEqual({ status: 403, error: 'Forbidden' })
+    })
+
+    it('returns 401 when no credential is present across all three sources', () => {
+      expect(authorizeApiRequest(undefined, undefined, undefined)).toEqual({
+        status: 401,
+        error: 'Unauthorized: missing credentials'
+      })
+    })
+
+    it('is lowest priority — x-api-key and Bearer win over the Google credential', () => {
+      expect(authorizeApiRequest(validApiKey, undefined, 'invalid-key')).toBeUndefined()
+      expect(authorizeApiRequest(undefined, validApiKey, 'invalid-key')).toBeUndefined()
+    })
+  })
+
   describe('Timing attack protection', () => {
     const validApiKey = 'valid-api-key-123'
 

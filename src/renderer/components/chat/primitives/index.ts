@@ -1,4 +1,21 @@
-export * from './ContextMenu'
+export {
+  ContextMenu,
+  ContextMenuCheckboxItem,
+  ContextMenuContent,
+  ContextMenuGroup,
+  ContextMenuItem,
+  ContextMenuItemContent,
+  ContextMenuLabel,
+  ContextMenuPortal,
+  ContextMenuRadioGroup,
+  ContextMenuRadioItem,
+  ContextMenuSeparator,
+  ContextMenuShortcut,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger
+} from './ContextMenu'
 export { Disclosure, type DisclosureProps } from './Disclosure'
 export { EmptyState, type EmptyStatePreset, type EmptyStateProps } from './EmptyState'
 export { ErrorState, type ErrorStateProps } from './ErrorState'

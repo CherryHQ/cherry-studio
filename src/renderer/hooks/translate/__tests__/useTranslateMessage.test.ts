@@ -1,6 +1,12 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+// AI stream calls go through ipcApi now; this suite only exercises the no-overlay no-op
+// path (no streams flow), so a static mock that never crashes is enough.
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: vi.fn().mockResolvedValue(undefined), on: vi.fn(() => () => {}) }
+}))
+
 import { useTranslateMessage } from '../useTranslateMessage'
 
 /**
@@ -15,8 +21,7 @@ describe('useTranslateMessage without a translation-overlay provider', () => {
   beforeEach(() => {
     vi.stubGlobal('window', {
       api: {
-        translate: { open: translateOpen },
-        ai: { streamAbort: vi.fn(), onStreamChunk: vi.fn(), onStreamDone: vi.fn(), onStreamError: vi.fn() }
+        translate: { open: translateOpen }
       }
     } as unknown as Window & typeof globalThis)
   })

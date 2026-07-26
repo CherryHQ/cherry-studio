@@ -1,6 +1,6 @@
 import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { useLanguages } from '@renderer/hooks/translate'
-import { cn } from '@renderer/utils'
+import { cn } from '@renderer/utils/style'
 import { UNKNOWN_LANG_CODE } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import { Check, ChevronDown } from 'lucide-react'
@@ -74,7 +74,7 @@ const LanguagePicker: FC<Props> = ({ value, onChange, disabled, className }) => 
           role="listbox"
           onScroll={handleScroll}
           style={{
-            scrollbarColor: isScrolling ? 'var(--color-scrollbar-thumb) transparent' : 'transparent transparent'
+            scrollbarColor: isScrolling ? 'var(--scrollbar-thumb) transparent' : 'transparent transparent'
           }}
           className="max-h-60 overflow-y-auto">
           {options.map((lang) => {

@@ -1,9 +1,8 @@
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
+import type { WebSearchProviderFeatureSection } from '@renderer/utils/webSearchProviderMeta'
+import { getWebSearchFeatureSections } from '@renderer/utils/webSearchProviderMeta'
 import type { WebSearchCapability, WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import { useMemo } from 'react'
-
-import type { WebSearchProviderFeatureSection } from '../utils/webSearchProviderMeta'
-import { getWebSearchFeatureSections } from '../utils/webSearchProviderMeta'
 
 export function useWebSearchProviderLists(): ReturnType<typeof useWebSearchProviders> & {
   keywordProviders: WebSearchProvider[]

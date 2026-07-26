@@ -7,7 +7,7 @@ const knowledgeServiceSearch = vi.fn()
 // so the mock below must reference an already-initialized fn.
 const loggerWarn = vi.hoisted(() => vi.fn())
 
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'KnowledgeService') return { search: knowledgeServiceSearch }
@@ -36,7 +36,7 @@ function makeAssistant(overrides: Partial<Assistant> = {}): Assistant {
 
 function callExecute(
   args: { query: string; baseIds: string[] },
-  ctx: { assistant?: Assistant; abortSignal?: AbortSignal } = {}
+  ctx: { knowledgeBaseIds?: string[]; abortSignal?: AbortSignal } = {}
 ): Promise<unknown> {
   const execute = entry.tool.execute as (
     args: { query: string; baseIds: string[] },
@@ -47,7 +47,7 @@ function callExecute(
     messages: [],
     experimental_context: {
       requestId: 'req-1',
-      assistant: ctx.assistant,
+      knowledgeBaseIds: ctx.knowledgeBaseIds ?? [],
       abortSignal: ctx.abortSignal ?? new AbortController().signal
     }
   } as ToolExecutionOptions)
@@ -59,26 +59,22 @@ describe('kb_search', () => {
     loggerWarn.mockReset()
   })
 
-  it('builds an entry with the agreed namespace + defer policy', () => {
+  it('builds an entry with the agreed namespace + defer policy and is auto-approved (read-only)', () => {
     expect(entry.name).toBe(KB_SEARCH_TOOL_NAME)
     expect(entry.namespace).toBe('kb')
-    expect(entry.defer).toBe('auto')
+    expect(entry.defer).toBe('never')
+    // kb_search only reads — no per-call approval prompt (the auto-approve half of the carve-out).
+    expect(entry.tool.needsApproval).toBeFalsy()
   })
 
   it('returns [] and does not search when every requested baseId is outside the assistant scope', async () => {
-    const result = await callExecute(
-      { query: 'foo', baseIds: ['kb-other'] },
-      { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
-    )
+    const result = await callExecute({ query: 'foo', baseIds: ['kb-other'] }, { knowledgeBaseIds: ['kb-1'] })
     expect(result).toEqual([])
     expect(knowledgeServiceSearch).not.toHaveBeenCalled()
   })
 
   it('warns about dropped baseIds even when the whole set is out of scope (warn before the early return)', async () => {
-    const result = await callExecute(
-      { query: 'foo', baseIds: ['kb-other', 'kb-gone'] },
-      { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
-    )
+    const result = await callExecute({ query: 'foo', baseIds: ['kb-other', 'kb-gone'] }, { knowledgeBaseIds: ['kb-1'] })
     expect(result).toEqual([])
     expect(knowledgeServiceSearch).not.toHaveBeenCalled()
     // The all-dropped case must still surface the rejection — the warn fires before the empty-target
@@ -91,17 +87,14 @@ describe('kb_search', () => {
 
   it('drops out-of-scope baseIds but still searches the in-scope ones', async () => {
     knowledgeServiceSearch.mockResolvedValue([])
-    await callExecute(
-      { query: 'q', baseIds: ['kb-1', 'kb-other'] },
-      { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
-    )
+    await callExecute({ query: 'q', baseIds: ['kb-1', 'kb-other'] }, { knowledgeBaseIds: ['kb-1'] })
     expect(knowledgeServiceSearch).toHaveBeenCalledTimes(1)
     expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-1', 'q')
   })
 
   it('trusts the requested baseIds when assistant scope is empty (future toggle path)', async () => {
     knowledgeServiceSearch.mockResolvedValue([])
-    await callExecute({ query: 'q', baseIds: ['kb-1', 'kb-2'] }, { assistant: makeAssistant({ knowledgeBaseIds: [] }) })
+    await callExecute({ query: 'q', baseIds: ['kb-1', 'kb-2'] }, { knowledgeBaseIds: [] })
     expect(knowledgeServiceSearch).toHaveBeenCalledTimes(2)
     expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-1', 'q')
     expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-2', 'q')
@@ -109,10 +102,7 @@ describe('kb_search', () => {
 
   it('queries every requested base when all are in-scope', async () => {
     knowledgeServiceSearch.mockResolvedValue([])
-    await callExecute(
-      { query: 'how does X work', baseIds: ['kb-1', 'kb-2'] },
-      { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1', 'kb-2'] }) }
-    )
+    await callExecute({ query: 'how does X work', baseIds: ['kb-1', 'kb-2'] }, { knowledgeBaseIds: ['kb-1', 'kb-2'] })
     expect(knowledgeServiceSearch).toHaveBeenCalledTimes(2)
     expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-1', 'how does X work')
     expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-2', 'how does X work')
@@ -135,7 +125,7 @@ describe('kb_search', () => {
 
     const result = (await callExecute(
       { query: 'q', baseIds: ['kb-1', 'kb-2'] },
-      { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1', 'kb-2'] }) }
+      { knowledgeBaseIds: ['kb-1', 'kb-2'] }
     )) as Array<{ id: number; content: string; score: number }>
 
     expect(result).toEqual([
@@ -152,7 +142,7 @@ describe('kb_search', () => {
     })
     const result = (await callExecute(
       { query: 'q', baseIds: ['broken', 'good'] },
-      { assistant: makeAssistant({ knowledgeBaseIds: ['broken', 'good'] }) }
+      { knowledgeBaseIds: ['broken', 'good'] }
     )) as Array<{ id: number; content: string }>
     expect(result).toEqual([{ id: 1, content: 'ok', score: 0.7 }])
   })
@@ -190,11 +180,47 @@ describe('kb_search', () => {
   })
 
   describe('applies', () => {
-    it('returns true only when the assistant has at least one knowledge base id', () => {
+    it('returns true only when a base exists AND at least one is in the effective scope', () => {
       const applies = entry.applies!
-      expect(applies({ assistant: undefined, mcpToolIds: new Set() })).toBe(false)
-      expect(applies({ assistant: makeAssistant({ knowledgeBaseIds: [] }), mcpToolIds: new Set() })).toBe(false)
-      expect(applies({ assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }), mcpToolIds: new Set() })).toBe(true)
+      // No base in the system → never applies, even with bound ids.
+      expect(
+        applies({
+          assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }),
+          mcpToolIds: new Set(),
+          hasAnyKnowledgeBase: false,
+          knowledgeBaseIds: ['kb-1']
+        })
+      ).toBe(false)
+      // A base exists but the effective scope is empty → does not apply.
+      expect(
+        applies({ assistant: undefined, mcpToolIds: new Set(), hasAnyKnowledgeBase: true, knowledgeBaseIds: [] })
+      ).toBe(false)
+      expect(
+        applies({
+          assistant: makeAssistant({ knowledgeBaseIds: [] }),
+          mcpToolIds: new Set(),
+          hasAnyKnowledgeBase: true,
+          knowledgeBaseIds: []
+        })
+      ).toBe(false)
+      // A base exists AND is bound to the assistant → applies.
+      expect(
+        applies({
+          assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }),
+          mcpToolIds: new Set(),
+          hasAnyKnowledgeBase: true,
+          knowledgeBaseIds: ['kb-1']
+        })
+      ).toBe(true)
+      // Assistant has no static binding, but the composer selected one for this turn → applies.
+      expect(
+        applies({
+          assistant: makeAssistant({ knowledgeBaseIds: [] }),
+          mcpToolIds: new Set(),
+          hasAnyKnowledgeBase: true,
+          knowledgeBaseIds: ['kb-selected-this-turn']
+        })
+      ).toBe(true)
     })
   })
 })

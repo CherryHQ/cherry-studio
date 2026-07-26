@@ -1,4 +1,4 @@
-import type * as FsUtils from '@main/utils/file/fs'
+import type * as FsUtils from '@main/utils/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { loadDataMock, readFileMock } = vi.hoisted(() => ({
@@ -11,7 +11,7 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
-vi.mock('@main/utils/file', () => ({
+vi.mock('@main/utils/legacyFile', () => ({
   getFileExt: (path: string) => path.slice(path.lastIndexOf('.'))
 }))
 
@@ -38,7 +38,7 @@ vi.mock('@vectorstores/readers/pdf', () => ({ PDFReader: class MockPDFReader {} 
 
 // The URL reader reads its snapshot file verbatim (minus the cherry
 // frontmatter) instead of going through a vectorstores reader.
-vi.mock('@main/utils/file/fs', async (importOriginal) => ({
+vi.mock('@main/utils/file', async (importOriginal) => ({
   ...(await importOriginal<typeof FsUtils>()),
   read: readFileMock
 }))

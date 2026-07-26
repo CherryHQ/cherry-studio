@@ -1,13 +1,17 @@
-import { Button, Input, PageSidePanelItem, Switch, Tooltip } from '@cherrystudio/ui'
+import { Input, PageSidePanelItem, Switch, Tooltip } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { cn } from '@renderer/utils'
+import { toast } from '@renderer/services/toast'
+import { cn } from '@renderer/utils/style'
+import {
+  ANTHROPIC_CACHE_DEFAULT_LAST_N_MESSAGES,
+  ANTHROPIC_CACHE_DEFAULT_TOKEN_THRESHOLD
+} from '@shared/ai/anthropicCache'
 import type { Provider, RuntimeApiFeatures } from '@shared/data/types/provider'
 import { isAnthropicSupportedProvider } from '@shared/utils/provider'
 import { Info } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import ProviderActions from '../primitives/ProviderActions'
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { drawerClasses } from '../primitives/ProviderSettingsPrimitives'
 import { getProviderApiOptionsVisibility } from '../utils/providerApiOptions'
@@ -63,8 +67,9 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
   const { provider, updateProvider } = useProvider(providerId)
 
   const cacheControl = provider?.settings?.cacheControl
-  const cacheTokenThreshold = cacheControl?.tokenThreshold ?? 0
-  const cacheLastNMessages = cacheControl?.cacheLastNMessages ?? 0
+  const cacheTokenThreshold =
+    cacheControl?.enabled === false ? 0 : (cacheControl?.tokenThreshold ?? ANTHROPIC_CACHE_DEFAULT_TOKEN_THRESHOLD)
+  const cacheLastNMessages = cacheControl?.cacheLastNMessages ?? ANTHROPIC_CACHE_DEFAULT_LAST_N_MESSAGES
   const [tokenThresholdDraft, setTokenThresholdDraft] = useState(String(cacheTokenThreshold))
   const [cacheLastNDraft, setCacheLastNDraft] = useState(String(cacheLastNMessages))
   const effectiveCacheTokenThreshold = clampInteger(tokenThresholdDraft, 0, CACHE_TOKEN_THRESHOLD_MAX)
@@ -129,7 +134,7 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
   }, [openAIOptions, provider, t])
 
   const handleSaveError = useCallback(() => {
-    window.toast.error(t('settings.provider.save_failed'))
+    toast.error(t('settings.provider.save_failed'))
   }, [t])
 
   const updateApiFeature = useCallback(
@@ -154,9 +159,9 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
       }
 
       const next = {
-        tokenThreshold: 0,
+        tokenThreshold: ANTHROPIC_CACHE_DEFAULT_TOKEN_THRESHOLD,
         cacheSystemMessage: true,
-        cacheLastNMessages: 0,
+        cacheLastNMessages: ANTHROPIC_CACHE_DEFAULT_LAST_N_MESSAGES,
         ...provider.settings.cacheControl,
         ...updates
       }
@@ -193,14 +198,6 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
     })
   }, [cacheLastNDraft, effectiveCacheTokenThreshold, updateCacheSettings])
 
-  const footer = (
-    <ProviderActions className={drawerClasses.footer}>
-      <Button type="button" variant="outline" onClick={onClose}>
-        {t('common.close')}
-      </Button>
-    </ProviderActions>
-  )
-
   if (!provider) {
     return <ProviderSettingsDrawer open={open} onClose={onClose} title={t('settings.provider.api.options.label')} />
   }
@@ -214,31 +211,34 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
       open={open}
       onClose={onClose}
       title={t('settings.provider.api.options.label')}
-      footer={footer}>
-      <div className="flex min-w-0 flex-col gap-5">
-        <div className="flex flex-col gap-5">
-          {options.map((item) => {
-            const id = apiOptionId(providerId, item.key)
-            return (
-              <PageSidePanelItem
-                key={item.key}
-                title={<OptionTitle id={id} label={item.label} help={item.help} />}
-                action={
-                  <Switch
-                    id={id}
-                    checked={provider.apiFeatures[item.key]}
-                    onCheckedChange={(checked) => updateApiFeature(item.key, checked)}
-                  />
-                }
-              />
-            )
-          })}
-        </div>
+      headerClassName="px-6 pt-4 pb-2"
+      bodyClassName="space-y-0 px-6 pt-1 pb-6">
+      <div className="flex min-w-0 flex-col gap-4">
+        {options.length > 0 ? (
+          <div className="flex flex-col gap-4">
+            {options.map((item) => {
+              const id = apiOptionId(providerId, item.key)
+              return (
+                <PageSidePanelItem
+                  key={item.key}
+                  title={<OptionTitle id={id} label={item.label} help={item.help} />}
+                  action={
+                    <Switch
+                      id={id}
+                      checked={provider.apiFeatures[item.key]}
+                      onCheckedChange={(checked) => updateApiFeature(item.key, checked)}
+                    />
+                  }
+                />
+              )
+            })}
+          </div>
+        ) : null}
 
         {isSupportAnthropicPromptCache ? (
           <>
-            <div className={drawerClasses.divider} />
-            <div className="flex flex-col gap-5">
+            {options.length > 0 ? <div className={drawerClasses.divider} /> : null}
+            <div className="flex flex-col gap-4">
               <PageSidePanelItem
                 title={
                   <OptionTitle
@@ -261,36 +261,13 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
                         event.currentTarget.blur()
                       }
                     }}
-                    className={cn(drawerClasses.input, 'h-9 w-28 shrink-0 text-right')}
+                    className={cn(drawerClasses.input, 'h-9 w-24 shrink-0 text-center')}
                   />
                 }
               />
 
               {showCacheDetailOptions ? (
                 <>
-                  <PageSidePanelItem
-                    title={
-                      <OptionTitle
-                        id={apiOptionId(providerId, 'cache-system-message')}
-                        label={t('settings.provider.api.options.anthropic_cache.cache_system')}
-                        help={t('settings.provider.api.options.anthropic_cache.cache_system_help')}
-                      />
-                    }
-                    action={
-                      <Switch
-                        id={apiOptionId(providerId, 'cache-system-message')}
-                        checked={cacheSystemMessage}
-                        onCheckedChange={(checked) =>
-                          updateCacheSettings({
-                            enabled: effectiveCacheTokenThreshold > 0,
-                            tokenThreshold: effectiveCacheTokenThreshold,
-                            cacheSystemMessage: checked
-                          })
-                        }
-                      />
-                    }
-                  />
-
                   <PageSidePanelItem
                     title={
                       <OptionTitle
@@ -313,7 +290,30 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
                             event.currentTarget.blur()
                           }
                         }}
-                        className={cn(drawerClasses.input, 'h-9 w-20 shrink-0 text-right')}
+                        className={cn(drawerClasses.input, 'h-9 w-24 shrink-0 text-center')}
+                      />
+                    }
+                  />
+
+                  <PageSidePanelItem
+                    title={
+                      <OptionTitle
+                        id={apiOptionId(providerId, 'cache-system-message')}
+                        label={t('settings.provider.api.options.anthropic_cache.cache_system')}
+                        help={t('settings.provider.api.options.anthropic_cache.cache_system_help')}
+                      />
+                    }
+                    action={
+                      <Switch
+                        id={apiOptionId(providerId, 'cache-system-message')}
+                        checked={cacheSystemMessage}
+                        onCheckedChange={(checked) =>
+                          updateCacheSettings({
+                            enabled: effectiveCacheTokenThreshold > 0,
+                            tokenThreshold: effectiveCacheTokenThreshold,
+                            cacheSystemMessage: checked
+                          })
+                        }
                       />
                     }
                   />

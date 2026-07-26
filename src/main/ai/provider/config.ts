@@ -3,29 +3,36 @@
  * Always async because `providerService.getRotatedApiKey` is async.
  */
 
+import { application } from '@application'
 import { formatPrivateKey, hasProviderConfig, type StringKeys } from '@cherrystudio/ai-core/provider'
 import type { CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
 import { providerService } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
 import { defaultAppHeaders } from '@main/utils/http'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { OPENAI_CODEX_PROVIDER_ID } from '@shared/data/presets/codex'
+import { GROK_CLI_PROVIDER_ID } from '@shared/data/presets/grokCli'
+import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost, formatOllamaApiHost, isWithTrailingSharp } from '@shared/utils/api'
 import { isGenerateImageModel } from '@shared/utils/model'
-import { isAzureOpenAIProvider, isGeminiProvider, isOllamaProvider } from '@shared/utils/provider'
+import { isAzureOpenAIProvider, isGeminiProvider, isOllamaProvider, matchesPreset } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
-import { isEmpty } from 'lodash'
+import { isEmpty } from 'es-toolkit/compat'
 
 import type { ProviderConfig } from '../types'
 import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'
 import { customFetch } from '../utils/customFetch'
 import { getBaseUrl, getExtraHeaders, routeToEndpoint } from '../utils/provider'
 import { generateSignature } from './cherryai'
+import { buildCodexRequestHeaders, coerceCodexRequestBody } from './codex'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiProvider'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from './endpoint'
+import { buildGrokCliRequestHeaders, rewriteGrokCliResponsesBody } from './grokCli'
+import { isVertexMaasModelId, normalizeVertexCredentials } from './vertex'
 
 interface BaseConfig {
   baseURL: string
@@ -36,8 +43,13 @@ interface BuilderContext {
   actualProvider: Provider
   model: Model
   baseConfig: BaseConfig
+  endpointType?: EndpointType
   endpoint?: string
   aiSdkProviderId: StringKeys<AppProviderSettingsMap>
+}
+
+interface ProviderToAiSdkConfigOptions {
+  apiKeyOverride?: string
 }
 
 /** Applies endpoint-/provider-specific formatting (API version, Ollama/Gemini paths). */
@@ -83,26 +95,42 @@ type ConfigBuilderEntry = {
 }
 
 /** Endpoint priority: `model.endpointTypes[0]` > `provider.defaultChatEndpoint` > fallback. */
-export async function providerToAiSdkConfig(provider: Provider, model: Model): Promise<ProviderConfig> {
+export async function providerToAiSdkConfig(
+  provider: Provider,
+  model: Model,
+  options?: ProviderToAiSdkConfigOptions
+): Promise<ProviderConfig> {
   const { endpointType, baseUrl } = resolveEffectiveEndpoint(provider, model)
 
   const aiSdkProviderId = appProviderIds[resolveAiSdkProviderId(provider, endpointType)]
 
   const formattedBaseUrl = formatBaseURL(baseUrl, provider, endpointType)
   const { baseURL, endpoint } = routeToEndpoint(formattedBaseUrl)
-  const apiKey = await providerService.getRotatedApiKey(provider.id)
+  const apiKey = options?.apiKeyOverride ?? providerService.getRotatedApiKey(provider.id)
 
   const ctx: BuilderContext = {
     actualProvider: provider,
     model,
     baseConfig: { baseURL, apiKey },
+    endpointType,
     endpoint,
     aiSdkProviderId
   }
 
   const builders: ConfigBuilderEntry[] = [
     { match: (p) => p.id === SystemProviderIds.copilot, build: buildCopilotConfig },
+    { match: (p) => p.id === OPENAI_CODEX_PROVIDER_ID, build: buildCodexConfig },
+    { match: (p) => p.id === GROK_CLI_PROVIDER_ID, build: buildGrokCliConfig },
     { match: (p) => p.id === CHERRYAI_PROVIDER_ID, build: buildCherryAIConfig },
+    // Local embedding runs fully in-process (transformers.js in a worker): no
+    // endpoint, baseURL, or apiKey. Without this entry it falls through to the
+    // openai-compatible builder, which hands ai-core an empty baseURL and throws
+    // "Invalid URL". Route it to its own registered provider so embed calls reach
+    // LocalEmbeddingModel.doEmbed directly.
+    {
+      match: (p) => p.id === LOCAL_EMBEDDING_PROVIDER_ID,
+      build: (ctx) => ({ providerId: LOCAL_EMBEDDING_PROVIDER_ID, endpoint: ctx.endpoint, providerSettings: {} })
+    },
     { match: (p) => isOllamaProvider(p), build: buildOllamaConfig },
     { match: (p) => isAzureOpenAIProvider(p), build: buildAzureConfig },
     // DashScope chat is OpenAI-compatible, but Bailian rerank uses a provider-specific URL.
@@ -111,22 +139,28 @@ export async function providerToAiSdkConfig(provider: Provider, model: Model): P
       match: (p, id) => p.id === SystemProviderIds.dashscope && id === 'openai-compatible',
       build: buildDashScopeConfig
     },
-    // modelscope / ppio / dmxapi: chat & embedding are OpenAI-compatible, but IMAGE
-    // generation needs the bespoke submit/poll transport inside the extension provider
-    // (createXProvider().imageModel()). Override the resolved `openai-compatible` id to
-    // the extension id for image models only — chat/embedding fall through to the generic
+    // modelscope / ppio / doubao / dmxapi: chat & embedding are OpenAI-compatible, but IMAGE
+    // generation needs the bespoke transport inside the extension provider
+    // (createXProvider().imageModel()) — a submit/poll loop for most, Ark's own
+    // `/images/generations` protocol for doubao. Override the resolved `openai-compatible` id
+    // to the extension id for image models only — chat/embedding fall through to the generic
     // openai-compatible builder (which keeps `includeUsage`). provider.id is the extension
-    // id here, since the match requires it.
+    // id here, since the match requires it. Routing here is also what makes the vendor
+    // params land under the `providerOptions` key the image model reads: the delivery
+    // adapter keys the body by this `providerId`, which the generic branch would leave as
+    // `openai-compatible` while the model looked under the provider's own id.
     {
       match: (p, id) =>
         id === 'openai-compatible' &&
         isGenerateImageModel(model) &&
         (p.id === SystemProviderIds.modelscope ||
           p.id === SystemProviderIds.ppio ||
+          p.id === SystemProviderIds.silicon ||
+          p.id === SystemProviderIds.doubao ||
           (p.id === SystemProviderIds.dmxapi && dmxapiUsesCustomTransport(model.apiModelId ?? model.id))),
       // provider.id is guaranteed to be one of these by the match above.
       build: (ctx) => ({
-        providerId: ctx.actualProvider.id as 'modelscope' | 'ppio' | 'dmxapi',
+        providerId: ctx.actualProvider.id as 'modelscope' | 'ppio' | 'silicon' | 'doubao' | 'dmxapi',
         endpoint: ctx.endpoint,
         providerSettings: {
           ...ctx.baseConfig,
@@ -139,11 +173,7 @@ export async function providerToAiSdkConfig(provider: Provider, model: Model): P
     // too — `buildVertexConfig` branches on `isAnthropic`. Otherwise it falls through to the
     // generic builder, dropping project/location/googleCredentials and the publisher baseURL.
     { match: (_, id) => id === 'google-vertex' || id === 'google-vertex-anthropic', build: buildVertexConfig },
-    // Match on the provider id, not the resolved aiSdkProviderId: the resolver upgrades the
-    // default chat endpoint to the `cherryin-chat` variant, so `id === 'cherryin'` is never true
-    // for the common path and the request would fall through to the generic builder, dropping the
-    // relay-resolved anthropic/gemini baseURLs and the `/v1` segment. (Mirrors `cherryai`/`copilot`.)
-    { match: (p) => p.id === SystemProviderIds.cherryin, build: buildCherryinConfig },
+    { match: (p) => matchesPreset(p, SystemProviderIds.cherryin), build: buildCherryinConfig },
     { match: (_, id) => id === 'newapi', build: buildNewApiConfig },
     { match: (_, id) => id === 'aihubmix', build: buildAiHubMixConfig }
   ]
@@ -159,7 +189,7 @@ export async function providerToAiSdkConfig(provider: Provider, model: Model): P
   }
 
   // Default every provider to the proxy-aware net.fetch base so the app proxy
-  // (ProxyManager → session.setProxy) applies to provider HTTP traffic. Builders
+  // (ProxyService → session.setProxy) applies to provider HTTP traffic. Builders
   // that install their own fetch wrapper (e.g. CherryAI request signing) compose
   // on top of customFetch; `??=` preserves them rather than clobbering them.
   config.providerSettings.fetch ??= customFetch
@@ -183,6 +213,122 @@ async function buildCopilotConfig(ctx: BuilderContext): Promise<ProviderConfig<'
       headers: { ...headers, ...getExtraHeaders(ctx.actualProvider) },
       name: ctx.actualProvider.id
     }
+  }
+}
+
+/**
+ * OpenAI Codex routes through the standard OpenAI Responses adapter, but against
+ * the ChatGPT backend codex endpoint (`…/backend-api/codex/responses`, no `/v1`
+ * segment) with OAuth bearer auth instead of an API key. The per-request `fetch`
+ * is the single place that (1) injects a freshly-refreshed OAuth token + account
+ * header, and (2) coerces the body to what the codex backend demands —
+ * `store: false` plus encrypted-reasoning round-tripping — neither of which the
+ * generic Responses adapter sets on its own.
+ */
+function buildCodexConfig(ctx: BuilderContext): ProviderConfig<'openai'> {
+  // Use the raw configured baseURL (the adapter appends `/responses`); the
+  // formatted one in baseConfig has `/v1` tacked on, which the codex path rejects.
+  const rawBaseUrl =
+    getBaseUrl(ctx.actualProvider, ENDPOINT_TYPE.OPENAI_RESPONSES) || 'https://chatgpt.com/backend-api/codex'
+  const baseURL = rawBaseUrl.replace(/\/+$/, '')
+
+  return {
+    providerId: 'openai',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      baseURL,
+      // The SDK rejects an empty key; the real bearer token is injected per
+      // request in the custom fetch below, overriding this placeholder.
+      apiKey: 'codex-oauth',
+      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
+      fetch: buildCodexFetch()
+    }
+  }
+}
+
+function buildCodexFetch() {
+  // Token fetch + not-signed-in guard + 401 force-refresh retry live in
+  // OAuthRuntimeService.authenticatedFetch; this wrapper only shapes the codex
+  // request (headers + body coercion), re-applied with the fresh token on retry.
+  return (input: RequestInfo | URL, init?: RequestInit): Promise<Response> =>
+    application.get('OAuthRuntimeService').authenticatedFetch(
+      OPENAI_CODEX_PROVIDER_ID,
+      (creds) => ({
+        input,
+        init: {
+          ...init,
+          headers: buildCodexRequestHeaders(init?.headers, {
+            accessToken: creds.accessToken,
+            accountId: creds.accountId ?? null
+          }),
+          body: coerceCodexRequestBody(init?.body)
+        }
+      }),
+      customFetch,
+      { notSignedInMessage: 'Not signed in to OpenAI Codex. Open the provider settings and sign in again.' }
+    )
+}
+
+/**
+ * Grok CLI routes through the OpenAI Responses adapter against xAI's Grok CLI
+ * proxy (`cli-chat-proxy.grok.com/v1/responses`) with OAuth bearer auth. The
+ * per-request `fetch` injects a freshly-refreshed token + the Grok-CLI proxy
+ * headers, and rewrites the body into the shape the proxy accepts (hoisting
+ * system turns into `instructions`, dropping reasoning knobs) — none of which
+ * the generic Responses adapter does on its own.
+ */
+function buildGrokCliConfig(ctx: BuilderContext): ProviderConfig<'openai'> {
+  // Use the raw configured baseURL (already `…/v1`; the adapter appends
+  // `/responses`); the formatted one in baseConfig would double the `/v1`.
+  const rawBaseUrl =
+    getBaseUrl(ctx.actualProvider, ENDPOINT_TYPE.OPENAI_RESPONSES) || 'https://cli-chat-proxy.grok.com/v1'
+  const baseURL = rawBaseUrl.replace(/\/+$/, '')
+
+  return {
+    providerId: 'openai',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      baseURL,
+      // The SDK rejects an empty key; the real bearer token is injected per
+      // request in the custom fetch below, overriding this placeholder.
+      apiKey: 'grok-cli-oauth',
+      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
+      fetch: buildGrokCliFetch()
+    }
+  }
+}
+
+function buildGrokCliFetch() {
+  // See buildCodexFetch: shared token/refresh/401-retry lives in
+  // OAuthRuntimeService.authenticatedFetch; this only shapes the Grok request.
+  return (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    let modelId = ''
+    let body = init?.body
+    if (typeof body === 'string') {
+      try {
+        const json = JSON.parse(body)
+        modelId = typeof json.model === 'string' ? json.model : ''
+        body = JSON.stringify(rewriteGrokCliResponsesBody(json))
+      } catch {
+        // Non-JSON body (shouldn't happen for responses) — leave untouched.
+      }
+    }
+
+    return application.get('OAuthRuntimeService').authenticatedFetch(
+      GROK_CLI_PROVIDER_ID,
+      (creds) => ({
+        input,
+        init: {
+          ...init,
+          headers: buildGrokCliRequestHeaders(init?.headers, { accessToken: creds.accessToken, modelId }),
+          body
+        }
+      }),
+      customFetch,
+      { notSignedInMessage: 'Not signed in to Grok CLI. Open the provider settings and sign in again.' }
+    )
   }
 }
 
@@ -237,8 +383,8 @@ function buildOllamaConfig(ctx: BuilderContext): ProviderConfig<'ollama'> {
   }
 }
 
-async function buildBedrockConfig(ctx: BuilderContext): Promise<ProviderConfig<'bedrock'>> {
-  const authConfig = await providerService.getAuthConfig(ctx.actualProvider.id)
+function buildBedrockConfig(ctx: BuilderContext): ProviderConfig<'bedrock'> {
+  const authConfig = providerService.getAuthConfig(ctx.actualProvider.id)
   const base = { providerId: 'bedrock' as const, endpoint: ctx.endpoint }
 
   // SDK treats `""` as a valid baseURL → every request hits `""/model/...`. Guard region too.
@@ -263,28 +409,10 @@ async function buildBedrockConfig(ctx: BuilderContext): Promise<ProviderConfig<'
   return { ...base, providerSettings: { ...ctx.baseConfig, baseURL } }
 }
 
-/**
- * Vertex service-account credentials may arrive with either camelCase
- * (`privateKey`/`clientEmail`) or snake_case (`private_key`/`client_email`)
- * keys depending on how the JSON key file was stored. Normalize both shapes to
- * the camelCase form the Vertex SDK expects. Shared with the model-listing path
- * (`createVertexModelListRequest`).
- */
-export function normalizeVertexCredentials(credentials: Record<string, unknown> | undefined): {
-  privateKey?: string
-  clientEmail?: string
-} {
-  if (!credentials) return {}
-  const privateKey = (credentials.privateKey ?? credentials.private_key) as string | undefined
-  const clientEmail = (credentials.clientEmail ?? credentials.client_email) as string | undefined
-  return {
-    ...(privateKey !== undefined && { privateKey }),
-    ...(clientEmail !== undefined && { clientEmail })
-  }
-}
-
-async function buildVertexConfig(ctx: BuilderContext): Promise<ProviderConfig<'google-vertex'>> {
-  const authConfig = await providerService.getAuthConfig(ctx.actualProvider.id)
+function buildVertexConfig(
+  ctx: BuilderContext
+): ProviderConfig<'google-vertex'> | ProviderConfig<'google-vertex-maas'> {
+  const authConfig = providerService.getAuthConfig(ctx.actualProvider.id)
 
   if (authConfig?.type !== 'iam-gcp') {
     throw new Error('VertexAI requires iam-gcp auth configuration.')
@@ -293,19 +421,43 @@ async function buildVertexConfig(ctx: BuilderContext): Promise<ProviderConfig<'g
   const { project, location, credentials } = authConfig
   const googleCredentials = credentials as Record<string, string> | undefined
 
+  const { privateKey, clientEmail } = normalizeVertexCredentials(googleCredentials)
+  const creds = googleCredentials
+    ? { ...googleCredentials, clientEmail, privateKey: formatPrivateKey(privateKey ?? '') }
+    : undefined
+
   const modelId = ctx.model.apiModelId ?? ctx.model.id
   const isAnthropic = ctx.aiSdkProviderId === 'google-vertex-anthropic' || modelId.startsWith('claude')
+
+  // MaaS open/partner models (Llama, DeepSeek, Qwen, GLM, Kimi, gpt-oss) are served over
+  // Vertex's OpenAI-compatible Chat Completions endpoint, not the Gemini generateContent
+  // SDK that `google-vertex` uses. They carry a `{publisher}/{model}` id — the model listing
+  // bakes the publisher prefix in (§listModels/vertex), and that same id is the `model` the
+  // OpenAI-compatible endpoint expects. Route them to the dedicated MaaS adapter, which mints
+  // the GCP bearer token itself from the iam-gcp credentials.
+  // Manually-added MaaS models must use the same `publisher/model-maas` form as listed models.
+  if (!isAnthropic && isVertexMaasModelId(modelId)) {
+    return {
+      providerId: 'google-vertex-maas',
+      endpoint: ctx.endpoint,
+      providerSettings: {
+        project,
+        location,
+        // Standard providers leave baseURL empty so the adapter derives the aiplatform host
+        // from project+location; a custom host (proxy) passes through untouched.
+        ...(ctx.baseConfig.baseURL && { baseURL: ctx.baseConfig.baseURL }),
+        ...(creds && { googleCredentials: creds }),
+        headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
+      }
+    } as ProviderConfig<'google-vertex-maas'>
+  }
+
   // Standard Vertex providers leave baseURL empty. Appending the publisher suffix to `''`
   // yields a truthy host-less URL (`/publishers/google`), which the Vertex SDK's `?? ` default
   // does NOT override — so it must stay `undefined` to let the SDK derive the full aiplatform
   // host. Only append the suffix when a custom host is actually configured.
   const baseURL = ctx.baseConfig.baseURL
     ? ctx.baseConfig.baseURL + (isAnthropic ? '/publishers/anthropic/models' : '/publishers/google')
-    : undefined
-
-  const { privateKey, clientEmail } = normalizeVertexCredentials(googleCredentials)
-  const creds = googleCredentials
-    ? { ...googleCredentials, clientEmail, privateKey: formatPrivateKey(privateKey ?? '') }
     : undefined
 
   return {
@@ -341,19 +493,12 @@ function mapCherryinEndpointType(epType: string | undefined): CherryInProviderSe
   }
 }
 
-async function buildCherryinConfig(ctx: BuilderContext): Promise<ProviderConfig> {
-  let anthropicBaseURL: string | undefined
-  let geminiBaseURL: string | undefined
-  try {
-    const cherryinProvider = await providerService.getByProviderId(SystemProviderIds.cherryin)
-    anthropicBaseURL = formatApiHost(cherryinProvider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl)
-    geminiBaseURL = formatApiHost(getBaseUrl(cherryinProvider, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT), true, 'v1beta')
-  } catch {
-    // CherryIn provider may not exist
-  }
+function buildCherryinConfig(ctx: BuilderContext): ProviderConfig {
+  const provider = ctx.actualProvider
+  const anthropicBaseURL = formatApiHost(provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl)
+  const geminiBaseURL = formatApiHost(getBaseUrl(provider, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT), true, 'v1beta')
 
-  const endpointType = ctx.model.endpointTypes?.[0]
-  const cherryinEndpointType = mapCherryinEndpointType(endpointType)
+  const cherryinEndpointType = mapCherryinEndpointType(ctx.endpointType)
 
   return {
     providerId: ctx.aiSdkProviderId,
@@ -377,7 +522,7 @@ function buildAzureConfig(
   ctx: BuilderContext
 ): ProviderConfig<'azure'> | ProviderConfig<'azure-anthropic'> | ProviderConfig<'azure-responses'> {
   const modelId = ctx.model.apiModelId ?? ctx.model.id
-  const endpointType = ctx.model.endpointTypes?.[0]
+  const endpointType = ctx.endpointType
 
   // Azure + Claude model → azure-anthropic
   if (modelId.startsWith('claude') || endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
@@ -487,7 +632,7 @@ function formatNewApiBaseURL(baseURL: string, endpointType: EndpointType | undef
 }
 
 function buildNewApiConfig(ctx: BuilderContext): ProviderConfig<'newapi'> {
-  const endpointType = ctx.model.endpointTypes?.[0]
+  const endpointType = ctx.endpointType
   let rawBaseURL: string
 
   if (endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {

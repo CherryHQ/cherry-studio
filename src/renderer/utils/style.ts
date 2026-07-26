@@ -1,5 +1,4 @@
-import type { HexColor } from '@renderer/types'
-import { isHexColor } from '@renderer/types'
+import { type HexColor, isHexColor } from '@renderer/utils/color'
 import { clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 

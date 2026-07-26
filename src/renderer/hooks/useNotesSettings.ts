@@ -1,6 +1,7 @@
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import type { EditorView } from '@renderer/types'
+import { toast } from '@renderer/services/toast'
+import type { EditorView } from '@renderer/types/app'
 import type { NotesSortType } from '@renderer/types/note'
 import { useTranslation } from 'react-i18next'
 
@@ -46,21 +47,21 @@ export const useNotesSettings = () => {
   const updateSettings = (newSettings: Partial<NotesSettings>) => {
     void setValues(newSettings).catch((error) => {
       logger.error('Failed to update notes settings', error as Error)
-      window.toast.error(t('notes.settings.save_failed'))
+      toast.error(t('notes.settings.save_failed'))
     })
   }
 
   const updateNotesPath = (path: string) => {
     void setValues({ notesPath: path }).catch((error) => {
       logger.error('Failed to update notes path', error as Error)
-      window.toast.error(t('notes.settings.save_failed'))
+      toast.error(t('notes.settings.save_failed'))
     })
   }
 
   const updateSortType = (value: NotesSortType) => {
     void setValues({ sortType: value }).catch((error) => {
       logger.error('Failed to update notes sort type', error as Error)
-      window.toast.error(t('notes.settings.save_failed'))
+      toast.error(t('notes.settings.save_failed'))
     })
   }
 

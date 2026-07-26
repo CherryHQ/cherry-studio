@@ -1,5 +1,5 @@
-import { isMac, platform } from '@renderer/config/constant'
 import { resolveCommandDisplayState } from '@renderer/utils/command'
+import { isMac, platform } from '@renderer/utils/platform'
 import type { MenuLocation, ResolvedMenuModel, SupportedPlatform } from '@shared/types/command'
 import {
   type CommandId,

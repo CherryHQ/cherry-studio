@@ -1,7 +1,8 @@
-import { application } from '@main/core/application'
+import { application } from '@application'
 import type { StopCondition, ToolSet } from 'ai'
 
 import { isAgentSessionTopic } from '../../../../agentSession/topic'
+import { trackSteerYieldStopCondition } from '../../loop/toolLoopTermination'
 import type { RequestFeature } from '../feature'
 
 /**
@@ -21,6 +22,6 @@ export const steerYieldFeature: RequestFeature = {
   contributeStopConditions: (scope): StopCondition<ToolSet>[] => {
     const topicId = scope.request.chatId
     if (!topicId) return []
-    return [() => application.get('AiStreamManager').hasPendingSteer(topicId)]
+    return [trackSteerYieldStopCondition(() => application.get('AiStreamManager').hasPendingSteer(topicId))]
   }
 }

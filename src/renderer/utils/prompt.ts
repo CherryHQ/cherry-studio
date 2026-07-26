@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { preferenceService } from '@renderer/data/PreferenceService'
-import store from '@renderer/store'
+import { ipcApi } from '@renderer/ipc'
 import { defaultLanguage } from '@shared/utils/languages'
 
 const logger = loggerService.withContext('Utils:Prompt')
@@ -67,7 +67,7 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
 
   if (userSystemPrompt.includes('{{system}}')) {
     try {
-      const systemType = await window.api.system.getDeviceType()
+      const systemType = await ipcApi.request('system.get_device_type')
       userSystemPrompt = userSystemPrompt.replace(/{{system}}/g, systemType)
     } catch (error) {
       logger.error('Failed to get system type:', error as Error)
@@ -87,7 +87,7 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
 
   if (userSystemPrompt.includes('{{arch}}')) {
     try {
-      const appInfo = await window.api.getAppInfo()
+      const appInfo = await ipcApi.request('app.get_info')
       userSystemPrompt = userSystemPrompt.replace(/{{arch}}/g, appInfo.arch)
     } catch (error) {
       logger.error('Failed to get architecture:', error as Error)
@@ -95,14 +95,8 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
     }
   }
 
-  if (userSystemPrompt.includes('{{model_name}}')) {
-    try {
-      const name = modelName || store.getState().llm.defaultModel?.name
-      userSystemPrompt = userSystemPrompt.replace(/{{model_name}}/g, name)
-    } catch (error) {
-      logger.error('Failed to get model name:', error as Error)
-      userSystemPrompt = userSystemPrompt.replace(/{{model_name}}/g, 'Unknown Model')
-    }
+  if (modelName && userSystemPrompt.includes('{{model_name}}')) {
+    userSystemPrompt = userSystemPrompt.replace(/{{model_name}}/g, modelName)
   }
 
   return userSystemPrompt

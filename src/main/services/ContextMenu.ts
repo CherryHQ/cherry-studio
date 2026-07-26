@@ -1,4 +1,4 @@
-import { getI18n } from '@main/utils/language'
+import { getI18n } from '@main/i18n'
 import type { MenuItemConstructorOptions } from 'electron'
 import { Menu } from 'electron'
 

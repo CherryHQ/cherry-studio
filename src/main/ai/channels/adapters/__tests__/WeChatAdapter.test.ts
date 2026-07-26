@@ -36,7 +36,8 @@ const mockBot = {
   send: vi.fn().mockResolvedValue(undefined),
   reply: vi.fn().mockResolvedValue(undefined),
   sendTyping: vi.fn().mockResolvedValue(undefined),
-  stopTyping: vi.fn().mockResolvedValue(undefined)
+  stopTyping: vi.fn().mockResolvedValue(undefined),
+  sendImage: vi.fn().mockResolvedValue(undefined)
 }
 
 vi.mock('../wechat/WeChatProtocol', () => ({
@@ -69,6 +70,7 @@ describe('WeChatAdapter', () => {
     mockBot.reply.mockClear().mockResolvedValue(undefined)
     mockBot.sendTyping.mockClear().mockResolvedValue(undefined)
     mockBot.stopTyping.mockClear().mockResolvedValue(undefined)
+    mockBot.sendImage.mockClear().mockResolvedValue(undefined)
   })
 
   afterEach(() => {
@@ -130,6 +132,34 @@ describe('WeChatAdapter', () => {
     expect(mockBot.send).toHaveBeenCalledTimes(2)
     expect(mockBot.send.mock.calls[0][1]).toHaveLength(2000)
     expect(mockBot.send.mock.calls[1][1]).toHaveLength(1000)
+  })
+
+  it('sendFile() forwards an image via bot.sendImage()', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    const data = Buffer.from('png-bytes').toString('base64')
+    await adapter.sendFile('user-123', { filename: 'chart.png', data, media_type: 'image/png', size: 9 })
+
+    expect(mockBot.sendImage).toHaveBeenCalledTimes(1)
+    const [chatId, buffer] = mockBot.sendImage.mock.calls[0]
+    expect(chatId).toBe('user-123')
+    expect(buffer.toString()).toBe('png-bytes')
+  })
+
+  it('sendFile() rejects non-image files', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    await expect(
+      adapter.sendFile('user-123', {
+        filename: 'report.pdf',
+        data: '',
+        media_type: 'application/pdf',
+        size: 0
+      })
+    ).rejects.toThrow('WeChat can only forward image files')
+    expect(mockBot.sendImage).not.toHaveBeenCalled()
   })
 
   it('sendTypingIndicator() calls bot.sendTyping()', async () => {

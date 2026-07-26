@@ -1,13 +1,17 @@
+import { modelMatchesDisplayTag } from '@renderer/components/tags/Model'
+import { modelFilterIncludesAgentOnlyProviders } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useModels } from '@renderer/hooks/useModel'
 import { usePins } from '@renderer/hooks/usePins'
 import { useProviders } from '@renderer/hooks/useProvider'
-import { getSearchMatchScore } from '@renderer/utils/modelSearch'
+import { getSearchMatchScore } from '@renderer/utils/model'
+import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { sortBy } from 'lodash'
+import { isExternalCliProvider } from '@shared/utils/provider'
+import { sortBy } from 'es-toolkit/compat'
 import { useCallback, useMemo } from 'react'
 
-import { matchesModelTag, MODEL_SELECTOR_TAGS, type ModelSelectorTag, useModelTagFilter } from './filters'
+import { MODEL_SELECTOR_TAGS, type ModelSelectorTag, useModelTagFilter } from './filters'
 import type {
   FlatListItem,
   ModelSelectorModelItem,
@@ -73,8 +77,8 @@ export function useModelSelectorData({
   showPinnedModels = true,
   prioritizedProviderIds = []
 }: UseModelSelectorDataOptions): UseModelSelectorDataResult {
-  const { providers, isLoading: isProvidersLoading } = useProviders({ enabled: true })
-  const { models, isLoading: isModelsLoading } = useModels({ enabled: true })
+  const { providers, isLoading: isProvidersLoading, refetch: refetchProviders } = useProviders({ enabled: true })
+  const { models, isLoading: isModelsLoading, refetch: refetchModels } = useModels({ enabled: true })
   const {
     isLoading: isPinsLoading,
     isRefreshing: isPinsRefreshing,
@@ -90,6 +94,17 @@ export function useModelSelectorData({
   const availableModels = models
 
   const baseModelFilter = useCallback((model: Model) => filter?.(model) ?? true, [filter])
+
+  // Agent-only providers (e.g. `claude-code`, login-based, no API key) are hidden
+  // from general selectors; only agent pickers (whose filter is marked) surface them.
+  const includeAgentOnlyProviders = useMemo(() => modelFilterIncludesAgentOnlyProviders(filter), [filter])
+
+  // A provider whose credentials come from an external CLI login carries no API
+  // key and cannot serve a normal chat request — it is agent-only.
+  const agentOnlyProviderIds = useMemo(
+    () => new Set(availableProviders.filter(isExternalCliProvider).map((p) => p.id)),
+    [availableProviders]
+  )
 
   const sortedProviders = useMemo(
     () => sortProvidersByPriority(availableProviders, prioritizedProviderIds),
@@ -107,6 +122,10 @@ export function useModelSelectorData({
         continue
       }
 
+      if (!includeAgentOnlyProviders && agentOnlyProviderIds.has(model.providerId)) {
+        continue
+      }
+
       const existingModels = grouped.get(model.providerId)
       if (existingModels) {
         existingModels.push(model)
@@ -116,7 +135,7 @@ export function useModelSelectorData({
     }
 
     return grouped
-  }, [availableModels, baseModelFilter, sortedProviders])
+  }, [availableModels, agentOnlyProviderIds, baseModelFilter, includeAgentOnlyProviders, sortedProviders])
 
   const availableTags = useMemo(() => {
     const selectableModels = [...modelsByProvider.values()].flat()
@@ -124,7 +143,7 @@ export function useModelSelectorData({
       return EMPTY_TAGS
     }
 
-    return MODEL_SELECTOR_TAGS.filter((tag) => selectableModels.some((model) => matchesModelTag(model, tag)))
+    return MODEL_SELECTOR_TAGS.filter((tag) => selectableModels.some((model) => modelMatchesDisplayTag(model, tag)))
   }, [modelsByProvider])
 
   const selectableModelsById = useMemo(() => {
@@ -191,11 +210,10 @@ export function useModelSelectorData({
         modelId,
         modelIdentifier: getModelIdentifier(model),
         isPinned,
-        isSelected: visibleSelectedModelIdSet.has(modelId),
         showIdentifier
       }
     },
-    [visibleSelectedModelIdSet]
+    []
   )
 
   const { listItems, modelItems } = useMemo(() => {
@@ -257,7 +275,7 @@ export function useModelSelectorData({
         title: getProviderDisplayName(provider),
         groupKind: 'provider',
         provider,
-        canNavigateToSettings: provider.id !== 'cherryai'
+        canNavigateToSettings: provider.id !== CHERRYAI_PROVIDER_ID
       })
 
       items.push(
@@ -278,8 +296,8 @@ export function useModelSelectorData({
     baseModelFilter,
     createModelItem,
     pinnedIds,
-    selectableModelsById,
     searchFilter,
+    selectableModelsById,
     searchText.length,
     showPinnedModels,
     showTagFilter,
@@ -294,7 +312,9 @@ export function useModelSelectorData({
     listItems,
     modelItems,
     pinnedIds,
+    refetchModels,
     refetchPinnedModels,
+    refetchProviders,
     resetTags,
     resolvedSelectedModelIds,
     selectableModelsById,
@@ -302,6 +322,7 @@ export function useModelSelectorData({
     sortedProviders,
     tagSelection,
     togglePin,
-    toggleTag
+    toggleTag,
+    visibleSelectedModelIdSet
   }
 }

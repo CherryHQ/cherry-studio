@@ -31,6 +31,9 @@ export function buildPathRegistry() {
   // Intermediate vars (primitives only — no object literals in this file).
   const appUserData = app.getPath('userData')
   const appUserDataData = path.join(appUserData, 'Data')
+  const appUserDataRuntime = path.join(appUserData, 'Runtime')
+  const appUserDataToolchain = path.join(appUserData, 'Toolchain')
+  const appUserDataToolchainMise = path.join(appUserDataToolchain, 'mise')
   const appSession = app.getPath('sessionData')
   const sysTemp = app.getPath('temp')
   const appTemp = path.join(sysTemp, 'CherryStudio')
@@ -86,6 +89,21 @@ export function buildPathRegistry() {
       ? path.join(appExtraResources, 'provider-registry')
       : path.join(__dirname, '../../packages/provider-registry/data'),
 
+    // Local embedding model cache (transformers.js HF cache root, downloaded on first use)
+    'feature.embedding.models': path.join(appUserDataRuntime, 'models', 'qwen3-embedding'),
+
+    // onnxruntime-node native binary (napi addon + shared lib), downloaded on first
+    // use of local embedding or local OCR — see OnnxRuntimeBinaryService.
+    'feature.onnxruntime.binary': path.join(appUserDataToolchain, 'onnxruntime'),
+
+    // BinaryManager (tool manager)
+    'feature.binary.data': appUserDataToolchainMise,
+    // Windows-only: %LOCALAPPDATA%/%APPDATA% relocated into the isolated install
+    // home so mise's aqua signature verification resolves its cache/config dirs
+    // without reading the user's real values (see getBinaryIsolatedHomeEnv).
+    'feature.binary.data.isolated.localappdata': path.join(appUserDataToolchainMise, 'localappdata'),
+    'feature.binary.data.isolated.appdata': path.join(appUserDataToolchainMise, 'appdata'),
+
     // MCP
     'feature.mcp': path.join(CHERRY_HOME, 'mcp'),
     'feature.mcp.oauth': path.join(CHERRY_HOME, 'config', 'mcp', 'oauth'),
@@ -122,9 +140,24 @@ export function buildPathRegistry() {
 
     // OCR
     'feature.ocr.tesseract': path.join(appUserData, 'tesseract'),
+    // Local OCR model files (PaddleOCR / ppu-paddle-ocr, downloaded on demand)
+    'feature.ocr.paddleocr': path.join(appUserDataRuntime, 'models', 'pp-ocrv6'),
 
     // Version log
     'feature.version_log.file': path.join(appUserData, 'version.log'),
+
+    // Backup restore promotion — the journal sidecar is owned by
+    // src/main/data/db/restore/ (see its README.md); the staging tree's
+    // content is owned by BackupService.
+    // INVARIANT: the journal file must stay in the SAME directory as
+    // 'app.database.file' — every journal write fsyncs their shared parent,
+    // which is what makes a commit-step marker imply the DB rename is
+    // durable (see restoreJournal.ts). Never relocate the two independently.
+    'feature.backup.restore.file': path.join(appUserData, 'restore-journal.json'),
+    'feature.backup.restore.staging': path.join(appUserData, 'restore-staging'),
+
+    // Stored in the profile it authorizes for reset.
+    'feature.data_reset.marker_file': path.join(appUserData, 'data-reset.pending.json'),
 
     // Protocol deep-link (Linux .desktop entry for cherrystudio:// scheme)
     'feature.protocol.desktop_entries': path.join(os.homedir(), '.local', 'share', 'applications'),

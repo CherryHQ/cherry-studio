@@ -1,11 +1,9 @@
-import { EnterOutlined } from '@ant-design/icons'
-import Scrollbar from '@renderer/components/Scrollbar'
-import { Col } from 'antd'
-import { FileText, Languages, Lightbulb, MessageSquare } from 'lucide-react'
+import { Scrollbar } from '@cherrystudio/ui'
+import { cn } from '@renderer/utils/style'
+import { CornerDownLeft, FileText, Languages, Lightbulb, MessageSquare } from 'lucide-react'
 import type { Dispatch, SetStateAction } from 'react'
 import { useImperativeHandle, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface FeatureMenusProps {
   text: string
@@ -32,7 +30,7 @@ const FeatureMenus = ({
   const features = useMemo(
     () => [
       {
-        icon: <MessageSquare size={16} color="var(--color-text)" />,
+        icon: <MessageSquare className="size-4 text-foreground" />,
         title: t('quickAssistant.feature.chat'),
         active: true,
         onClick: () => {
@@ -43,12 +41,12 @@ const FeatureMenus = ({
         }
       },
       {
-        icon: <Languages size={16} color="var(--color-text)" />,
+        icon: <Languages className="size-4 text-foreground" />,
         title: t('quickAssistant.feature.translate'),
         onClick: () => text && setRoute('translate')
       },
       {
-        icon: <FileText size={16} color="var(--color-text)" />,
+        icon: <FileText className="size-4 text-foreground" />,
         title: t('quickAssistant.feature.summary'),
         onClick: () => {
           if (text) {
@@ -58,7 +56,7 @@ const FeatureMenus = ({
         }
       },
       {
-        icon: <Lightbulb size={16} color="var(--color-text)" />,
+        icon: <Lightbulb className="size-4 text-foreground" />,
         title: t('quickAssistant.feature.explanation'),
         onClick: () => {
           if (text) {
@@ -87,69 +85,26 @@ const FeatureMenus = ({
   }))
 
   return (
-    <FeatureList>
-      <FeatureListWrapper>
+    <Scrollbar className="h-auto shrink-0 [-webkit-app-region:no-drag]">
+      <div className="flex cursor-pointer flex-col gap-1">
         {features.map((feature, index) => (
-          <Col span={24} key={index}>
-            <FeatureItem onClick={feature.onClick} className={index === selectedIndex ? 'active' : ''}>
-              <FeatureIcon>{feature.icon}</FeatureIcon>
-              <FeatureTitle>{feature.title}</FeatureTitle>
-              {index === selectedIndex && <EnterOutlined />}
-            </FeatureItem>
-          </Col>
+          <button
+            type="button"
+            key={index}
+            onClick={feature.onClick}
+            className={cn(
+              'flex w-full cursor-pointer select-none flex-row items-center gap-3 rounded-lg border-0 bg-transparent px-4 py-2 text-left transition-colors [-webkit-app-region:no-drag] hover:bg-accent',
+              index === selectedIndex && 'bg-accent'
+            )}>
+            <span className="flex shrink-0 items-center justify-center">{feature.icon}</span>
+            <span className="m-0 flex-1 text-foreground text-sm">{feature.title}</span>
+            {index === selectedIndex && <CornerDownLeft className="size-4 text-muted-foreground" />}
+          </button>
         ))}
-      </FeatureListWrapper>
-    </FeatureList>
+      </div>
+    </Scrollbar>
   )
 }
 FeatureMenus.displayName = 'FeatureMenus'
-
-const FeatureList = styled(Scrollbar)`
-  flex-shrink: 0;
-  height: auto;
-  -webkit-app-region: none;
-`
-
-const FeatureListWrapper = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  cursor: pointer;
-`
-
-const FeatureItem = styled.div`
-  display: flex;
-  flex-direction: row;
-  cursor: pointer;
-  transition: background-color 0s;
-  background: transparent;
-  border: none;
-  padding: 8px 16px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  -webkit-app-region: none;
-  border-radius: 8px;
-  user-select: none;
-
-  &:hover {
-    background: var(--color-background-mute);
-  }
-
-  &.active {
-    background: var(--color-background-mute);
-  }
-`
-
-const FeatureIcon = styled.div`
-  color: #fff;
-  display: flex;
-`
-
-const FeatureTitle = styled.h3`
-  margin: 0;
-  font-size: 14px;
-  flex-basis: 100%;
-`
 
 export default FeatureMenus

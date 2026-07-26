@@ -6,15 +6,21 @@ import { describe, expect, it, vi } from 'vitest'
 
 import DataSourcePanelHeader from '../DataSourcePanelHeader'
 
-vi.mock('@renderer/pages/knowledge/utils', () => ({
+vi.mock('@renderer/utils/time', () => ({
   formatRelativeTime: () => '刚刚'
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
-    <button {...props}>{children}</button>
+  Button: ({ children, variant, ...props }: { children: ReactNode; variant?: string; [key: string]: unknown }) => (
+    <button type="button" data-variant={variant} {...props}>
+      {children}
+    </button>
   ),
-  MenuItem: ({ label, ...props }: { label: string; [key: string]: unknown }) => <button {...props}>{label}</button>,
+  MenuItem: ({ label, ...props }: { label: string; [key: string]: unknown }) => (
+    <button type="button" {...props}>
+      {label}
+    </button>
+  ),
   MenuList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   Popover: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   PopoverContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -56,8 +62,11 @@ describe('DataSourcePanelHeader', () => {
   it('renders the updated time and add button in the default state', () => {
     render(<DataSourcePanelHeader {...baseProps} selectedCount={0} />)
 
-    expect(screen.getByText('更新于 刚刚')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '添加' })).toBeInTheDocument()
+    expect(screen.getByText('更新于 刚刚')).toHaveClass('pl-1')
+    const addButton = screen.getByRole('button', { name: '添加' })
+
+    expect(addButton).toHaveAttribute('data-variant', 'outline')
+    expect(addButton).toHaveClass('h-7', 'gap-1', 'rounded-md', 'px-2', 'text-xs')
   })
 
   it('switches to the bulk toolbar when rows are selected', () => {

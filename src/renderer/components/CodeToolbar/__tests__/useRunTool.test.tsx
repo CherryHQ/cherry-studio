@@ -27,8 +27,8 @@ vi.mock('lucide-react', () => ({
   CirclePlay: () => <div>CirclePlay</div>
 }))
 
-vi.mock('@renderer/components/Icons', () => ({
-  LoadingIcon: () => <div>Loading</div>
+vi.mock('@renderer/components/icons/LoadingIcon', () => ({
+  default: () => <div>Loading</div>
 }))
 
 vi.mock('@renderer/components/ActionTools', () => ({

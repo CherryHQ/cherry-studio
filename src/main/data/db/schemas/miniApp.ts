@@ -32,11 +32,18 @@ export const miniAppTable = sqliteTable(
 
     name: text().notNull(),
     url: text().notNull(),
-    logo: text(),
+
+    /**
+     * Preset/bundled logo reference — a `getMiniAppsLogo` icon id (e.g.
+     * `'application'`) or a custom app's URL. A user-uploaded custom logo has no
+     * key here: it lives solely in the `mini_app_logo_file_ref` table (the
+     * single source of truth), resolved back via `getLogoFileId`.
+     */
+    logoKey: text('logo_key'),
 
     status: text().$type<MiniAppStatus>().notNull().default('enabled'),
 
-    // Fractional-indexing order key, scoped per status (see data-ordering-guide.md)
+    // Fractional-indexing order key. Enabled + pinned share visible scope; disabled is separate.
     ...orderKeyColumns,
 
     bordered: integer({ mode: 'boolean' }).notNull().default(true),

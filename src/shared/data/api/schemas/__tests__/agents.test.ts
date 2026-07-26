@@ -43,4 +43,45 @@ describe('AgentEntitySchema', () => {
     ).toEqual(['Bash', 'Read'])
     expect(UpdateAgentSchema.parse({ disabledTools: ['Read', 'Read'] }).disabledTools).toEqual(['Read'])
   })
+
+  it('deduplicates create skillIds at the API parse boundary', () => {
+    expect(
+      CreateAgentSchema.parse({
+        type: 'claude-code',
+        name: 'Agent',
+        model: 'openai::gpt-4',
+        skillIds: ['skill-a', 'skill-b', 'skill-a']
+      }).skillIds
+    ).toEqual(['skill-a', 'skill-b'])
+    expect(UpdateAgentSchema.safeParse({ skillIds: ['skill-b'] }).success).toBe(false)
+  })
+
+  it('validates and deduplicates knowledgeBaseIds at the API parse boundary', () => {
+    expect(
+      CreateAgentSchema.parse({
+        type: 'claude-code',
+        name: 'Agent',
+        model: 'openai::gpt-4',
+        knowledgeBaseIds: ['kb-a', 'kb-b', 'kb-a']
+      }).knowledgeBaseIds
+    ).toEqual(['kb-a', 'kb-b'])
+    expect(UpdateAgentSchema.parse({ knowledgeBaseIds: ['kb-b', 'kb-b'] }).knowledgeBaseIds).toEqual(['kb-b'])
+    expect(UpdateAgentSchema.parse({ knowledgeBaseIds: [] }).knowledgeBaseIds).toEqual([])
+    expect(UpdateAgentSchema.safeParse({ knowledgeBaseIds: [''] }).success).toBe(false)
+  })
+
+  it('deduplicates update skillUpdates at the API parse boundary', () => {
+    expect(
+      UpdateAgentSchema.parse({
+        skillUpdates: [
+          { skillId: 'skill-a', isEnabled: true },
+          { skillId: 'skill-b', isEnabled: true },
+          { skillId: 'skill-a', isEnabled: false }
+        ]
+      }).skillUpdates
+    ).toEqual([
+      { skillId: 'skill-a', isEnabled: false },
+      { skillId: 'skill-b', isEnabled: true }
+    ])
+  })
 })

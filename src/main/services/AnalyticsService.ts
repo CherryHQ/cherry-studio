@@ -5,7 +5,6 @@ import { loggerService } from '@logger'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
-import { IpcChannel } from '@shared/IpcChannel'
 import { APP_NAME } from '@shared/utils/constants'
 import { app } from 'electron'
 
@@ -38,8 +37,6 @@ export class AnalyticsService extends BaseService implements Activatable {
   })
 
   protected async onInit() {
-    this.registerIpcHandlers()
-
     // The reconciler is the sole driver of activate/deactivate (latest-wins): a re-enable that lands
     // while the async onDeactivate (`await client.destroy()`) is in flight must not be dropped by the
     // shared `_activating` guard. The reconciler holds no OS resources and is a construct-once field
@@ -94,10 +91,6 @@ export class AnalyticsService extends BaseService implements Activatable {
       this.client = null
     }
     logger.info('Analytics service deactivated')
-  }
-
-  private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.Analytics_TrackTokenUsage, (_, data: TokenUsageData) => this.trackTokenUsage(data))
   }
 
   public trackTokenUsage(data: TokenUsageData): void {

@@ -55,7 +55,7 @@ describe('WorkspaceMemoryServer', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetAgent.mockResolvedValue(agent)
+    mockGetAgent.mockReturnValue(agent)
     mockMkdir.mockResolvedValue(undefined)
     mockWriteFile.mockResolvedValue(undefined)
     mockRename.mockResolvedValue(undefined)
@@ -173,7 +173,7 @@ describe('WorkspaceMemoryServer', () => {
   })
 
   it('should error when agent is missing', async () => {
-    mockGetAgent.mockResolvedValueOnce(null)
+    mockGetAgent.mockReturnValueOnce(null)
 
     const server = createServer('agent_1')
     const result = await callTool(server, { action: 'update', content: 'test' })

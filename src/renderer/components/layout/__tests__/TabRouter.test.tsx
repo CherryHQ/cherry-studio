@@ -4,51 +4,41 @@ import '@testing-library/jest-dom/vitest'
 // Import the real component from its source path: the `@cherrystudio/ui` barrel
 // is globally mocked for renderer tests, but this deeper specifier is not.
 import { PageSidePanel } from '@cherrystudio/ui/components/composites/page-side-panel'
+import { Combobox } from '@cherrystudio/ui/components/primitives/combobox'
+import { Dialog, DialogContent } from '@cherrystudio/ui/components/primitives/dialog'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
-import { createMemoryHistory } from '@tanstack/react-router'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { createMemoryHistory, createRouter } from '@tanstack/react-router'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import * as React from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 const knobs = vi.hoisted(() => ({
-  isMac: false,
   renderPage: (() => null) as (url: string) => React.ReactNode
 }))
 
 const routerMocks = vi.hoisted(() => ({
-  portalContainer: {
-    current: null as HTMLElement | null
-  },
   navigate: vi.fn(),
   subscribe: vi.fn(() => vi.fn())
 }))
 
-vi.mock('@renderer/config/constant', () => ({
-  get isMac() {
-    return knobs.isMac
-  }
-}))
-
-vi.mock('@cherrystudio/ui', () => ({
-  PortalContainerProvider: ({ children, container }: { children: React.ReactNode; container: HTMLElement | null }) => {
-    routerMocks.portalContainer.current = container
-    return (
-      <div
-        data-has-portal-container={String(container instanceof HTMLElement)}
-        data-portal-container-is-body={String(container === document.body)}
-        data-testid="portal-container-provider">
-        {children}
-      </div>
-    )
-  },
-  usePortalContainer: () => routerMocks.portalContainer.current
-}))
+// PageSidePanel scopes to its owning tab by reading the SAME PortalContainerContext that
+// TabRouter's provider sets. PageSidePanel pulls the hook from the deep path while TabRouter
+// pulls the provider from the barrel; mock the deep path to the real module so every importer
+// resolves to one context instance, then re-export it from the barrel (otherwise the global
+// @cherrystudio/ui stub shadows it).
+vi.mock('@cherrystudio/ui/components/primitives/portal-container', async (importOriginal) => importOriginal())
+vi.mock('@cherrystudio/ui', async () => {
+  const { DialogPortalContainerProvider, PortalContainerProvider, usePortalContainer } = await import(
+    '@cherrystudio/ui/components/primitives/portal-container'
+  )
+  return { DialogPortalContainerProvider, PortalContainerProvider, usePortalContainer }
+})
 
 vi.mock('@renderer/routeTree.gen', () => ({ routeTree: {} }))
 
-// Stub the router so TabRouter can mount without the real route tree. Each tab's
-// history carries its url so the injected page can tell tabs apart, and the
-// provider exposes the resolved portal container for the scoping assertions.
+// Stub the router so TabRouter can mount without the real route tree. Each tab's history
+// carries its url so the injected page can tell tabs apart, and the provider exposes the
+// resolved portal container for the scoping assertions.
 vi.mock('@tanstack/react-router', async () => {
   const { usePortalContainer } = await import('@cherrystudio/ui')
 
@@ -69,6 +59,7 @@ vi.mock('@tanstack/react-router', async () => {
       return (
         <div
           data-testid="router-provider"
+          data-router-url={router.state.location.href}
           data-has-portal-container={String(container instanceof HTMLElement)}
           data-portal-container-is-body={String(container === document.body)}>
           {knobs.renderPage(router.state.location.href)}
@@ -78,6 +69,7 @@ vi.mock('@tanstack/react-router', async () => {
   }
 })
 
+import { RouteErrorFallback } from '../RouteErrorFallback'
 import { TabRouter } from '../TabRouter'
 
 const tab = (id: string, url: string): Tab => ({ id, url, title: url, type: 'route' }) as Tab
@@ -88,97 +80,160 @@ beforeAll(() => {
     unobserve() {}
     disconnect() {}
   } as unknown as typeof ResizeObserver
+  Element.prototype.scrollIntoView = vi.fn()
 })
 
 afterEach(() => {
   cleanup()
-  knobs.isMac = false
   knobs.renderPage = () => null
-  routerMocks.portalContainer.current = null
   vi.clearAllMocks()
 })
 
-describe('TabRouter page side panel root', () => {
-  it('exposes the scoped root on the active tab subtree outside macOS', () => {
-    const { container } = render(<TabRouter tab={tab('a', '/a')} isActive onUrlChange={() => {}} />)
-    expect(container.querySelector('[data-page-side-panel-root="true"]')).toBeInTheDocument()
-  })
+describe('TabRouter route error containment wiring', () => {
+  it('wires RouteErrorFallback as the router defaultErrorComponent', () => {
+    render(<TabRouter tab={tab('a', '/a')} isActive onUrlChange={() => {}} />)
 
-  it('does not expose the scoped root on an inactive tab', () => {
-    const { container } = render(<TabRouter tab={tab('a', '/a')} isActive={false} onUrlChange={() => {}} />)
-    expect(container.querySelector('[data-page-side-panel-root="true"]')).not.toBeInTheDocument()
-  })
-
-  it('does not expose a scoped root on macOS', () => {
-    knobs.isMac = true
-    const { container } = render(<TabRouter tab={tab('a', '/a')} isActive onUrlChange={() => {}} />)
-    expect(container.querySelector('[data-page-side-panel-root="true"]')).not.toBeInTheDocument()
-  })
-})
-
-describe('TabRouter PageSidePanel portal isolation', () => {
-  // Regression for the non-mac scoped portal: a PageSidePanel opened in one tab
-  // must not stay visible after switching to another tab.
-  it('hides a still-open panel from the previous tab after switching tabs', () => {
-    function Page({ url }: { url: string }) {
-      const [open] = React.useState(url === '/a')
-      return <PageSidePanel open={open} onClose={() => {}} title={`panel ${url}`} />
-    }
-    knobs.renderPage = (url) => <Page url={url} />
-
-    function Shell({ activeId }: { activeId: string }) {
-      return (
-        <main>
-          <TabRouter tab={tab('a', '/a')} isActive={activeId === 'a'} onUrlChange={() => {}} />
-          <TabRouter tab={tab('b', '/b')} isActive={activeId === 'b'} onUrlChange={() => {}} />
-        </main>
-      )
-    }
-
-    const { rerender } = render(<Shell activeId="a" />)
-
-    let roots = document.querySelectorAll('[data-page-side-panel-root="true"]')
-    expect(roots).toHaveLength(1)
-    const aRoot = roots[0] as HTMLElement
-    expect(aRoot.querySelector('[role="dialog"]')).toBeInTheDocument()
-
-    rerender(<Shell activeId="b" />)
-
-    roots = document.querySelectorAll('[data-page-side-panel-root="true"]')
-    expect(roots).toHaveLength(1)
-    expect(roots[0]).not.toBe(aRoot)
-
-    expect(aRoot.querySelector('[role="dialog"]')).toBeInTheDocument()
-    expect(aRoot.style.display).toBe('none')
-    expect(roots[0].querySelector('[role="dialog"]')).not.toBeInTheDocument()
-  })
-})
-
-describe('TabRouter', () => {
-  it('provides the tab root as scoped portal containers', async () => {
-    render(
-      <TabRouter
-        tab={{
-          id: 'translate-tab',
-          type: 'route',
-          url: '/app/translate',
-          title: 'Translate',
-          lastAccessTime: 1,
-          isDormant: false
-        }}
-        isActive
-        onUrlChange={vi.fn()}
-      />
+    expect(vi.mocked(createRouter)).toHaveBeenCalledWith(
+      expect.objectContaining({ defaultErrorComponent: RouteErrorFallback })
     )
+  })
+})
+
+describe('TabRouter portal container', () => {
+  it('provides the tab root as a scoped portal container, not document.body', async () => {
+    render(<TabRouter tab={tab('a', '/a')} isActive onUrlChange={() => {}} />)
 
     await waitFor(() =>
       expect(screen.getByTestId('router-provider')).toHaveAttribute('data-has-portal-container', 'true')
     )
     expect(screen.getByTestId('router-provider')).toHaveAttribute('data-portal-container-is-body', 'false')
-    expect(screen.getByTestId('portal-container-provider')).toHaveAttribute('data-has-portal-container', 'true')
-    expect(screen.getByTestId('portal-container-provider')).toHaveAttribute('data-portal-container-is-body', 'false')
+  })
+})
+
+describe('TabRouter PageSidePanel portal isolation', () => {
+  function Page({ url }: { url: string }) {
+    const [open] = React.useState(url === '/b')
+    return <PageSidePanel open={open} onClose={() => {}} title={`panel ${url}`} />
+  }
+
+  function Shell({ activeId }: { activeId: string }) {
+    return (
+      <main>
+        <TabRouter tab={tab('a', '/a')} isActive={activeId === 'a'} onUrlChange={() => {}} />
+        <TabRouter tab={tab('b', '/b')} isActive={activeId === 'b'} onUrlChange={() => {}} />
+      </main>
+    )
+  }
+
+  // The real PortalContainerProvider renders no DOM, so each router-provider's parent IS the
+  // owning tab's content root — the element the panel portals into.
+  const tabRoot = (url: string) =>
+    document.querySelector<HTMLElement>(`[data-router-url="${url}"]`)?.parentElement as HTMLElement
+
+  // Core regression: a background tab's open panel must never surface inside the active tab.
+  // Open b's panel while b is active so b captures its own root, then switch to a.
+  it('keeps a panel opened on the active tab scoped to that tab after switching away', async () => {
+    knobs.renderPage = (url) => <Page url={url} />
+
+    const { rerender } = render(<Shell activeId="b" />)
+    const aRoot = tabRoot('/a')
+    const bRoot = tabRoot('/b')
+    expect(aRoot).toBeInstanceOf(HTMLElement)
+    expect(bRoot).toBeInstanceOf(HTMLElement)
+    await waitFor(() => expect(bRoot.querySelector('[role="dialog"]')).toBeInTheDocument())
+
+    rerender(<Shell activeId="a" />)
+
+    // b's panel stays in b's now-hidden root; it never migrates to active a.
+    expect(bRoot.querySelector('[role="dialog"]')).toBeInTheDocument()
+    expect(bRoot.style.display).toBe('none')
+    expect(aRoot.querySelector('[role="dialog"]')).not.toBeInTheDocument()
   })
 
+  it('keeps a Dialog opened on the active tab scoped to that tab after switching away', async () => {
+    function PageWithDialog({ url }: { url: string }) {
+      const [open] = React.useState(url === '/b')
+      return (
+        <Dialog open={open}>
+          <DialogContent data-testid="test-dialog-content">Dialog {url}</DialogContent>
+        </Dialog>
+      )
+    }
+
+    knobs.renderPage = (url) => <PageWithDialog url={url} />
+
+    const { rerender } = render(<Shell activeId="b" />)
+    const aRoot = tabRoot('/a')
+    const bRoot = tabRoot('/b')
+    expect(aRoot).toBeInstanceOf(HTMLElement)
+    expect(bRoot).toBeInstanceOf(HTMLElement)
+
+    await waitFor(() => expect(screen.getByTestId('test-dialog-content')).toBeInTheDocument())
+
+    rerender(<Shell activeId="a" />)
+
+    // b's dialog stays in b's now-hidden root; it never migrates to active a.
+    expect(bRoot.querySelector('[data-testid="test-dialog-content"]')).toBeInTheDocument()
+    expect(bRoot.style.display).toBe('none')
+    expect(aRoot.querySelector('[data-testid="test-dialog-content"]')).not.toBeInTheDocument()
+  })
+
+  it('keeps a trigger-search Combobox anchored after switching away and back', async () => {
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: HTMLElement
+    ) {
+      if (this.matches('[data-slot="popover-anchor"]'))
+        return DOMRect.fromRect({ x: 120, y: 40, width: 260, height: 36 })
+      if (this.matches('[role="combobox"]')) return DOMRect.fromRect({ x: 120, y: 40, width: 100, height: 36 })
+      return DOMRect.fromRect({ x: 0, y: 0, width: 100, height: 40 })
+    })
+
+    function PageWithCombobox({ url }: { url: string }) {
+      if (url !== '/b') return null
+
+      return (
+        <Combobox
+          options={[
+            { value: 'alpha', label: 'Alpha' },
+            { value: 'beta', label: 'Beta' }
+          ]}
+          searchPlacement="trigger"
+          placeholder="Choose font"
+          emptyText="No fonts"
+        />
+      )
+    }
+
+    const anchorWidth = (root: HTMLElement) =>
+      root
+        .querySelector<HTMLElement>('[data-slot="popover-content"]')
+        ?.parentElement?.style.getPropertyValue('--radix-popper-anchor-width')
+
+    try {
+      knobs.renderPage = (url) => <PageWithCombobox url={url} />
+
+      const { rerender } = render(<Shell activeId="b" />)
+      const bRoot = tabRoot('/b')
+      const trigger = screen.getByRole('combobox')
+
+      fireEvent.click(trigger)
+      await waitFor(() => expect(anchorWidth(bRoot)).toBe('260px'))
+
+      fireEvent.keyDown(trigger, { key: 'Escape' })
+      await waitFor(() => expect(bRoot.querySelector('[data-slot="popover-content"]')).not.toBeInTheDocument())
+
+      rerender(<Shell activeId="a" />)
+      rerender(<Shell activeId="b" />)
+
+      fireEvent.click(screen.getByRole('combobox'))
+      await waitFor(() => expect(anchorWidth(bRoot)).toBe('260px'))
+    } finally {
+      rectSpy.mockRestore()
+    }
+  })
+})
+
+describe('TabRouter', () => {
   it('uses the tab entry URL even when instance metadata points to another key', () => {
     render(
       <TabRouter

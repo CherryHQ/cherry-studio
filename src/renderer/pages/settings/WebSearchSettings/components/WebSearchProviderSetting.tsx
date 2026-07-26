@@ -1,21 +1,4 @@
 import { Button, ButtonGroup, Flex, InfoTooltip, Input, Label, Tooltip } from '@cherrystudio/ui'
-import { useTheme } from '@renderer/context/ThemeProvider'
-import type { WebSearchBasicAuthPatch } from '@renderer/hooks/useWebSearch'
-import { formatApiKeys, splitApiKeyString, withoutTrailingSlash } from '@renderer/utils/api'
-import type {
-  WebSearchCapability,
-  WebSearchProvider,
-  WebSearchProviderId,
-  WebSearchProviderOverride,
-  WebSearchProviderOverrides
-} from '@shared/data/preference/preferenceTypes'
-import { useNavigate } from '@tanstack/react-router'
-import { isEmpty } from 'lodash'
-import { ExternalLink, List } from 'lucide-react'
-import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-
 import {
   SettingDivider,
   SettingGroup,
@@ -26,15 +9,32 @@ import {
   SettingSubtitle,
   SettingTitle,
   SettingTitleExternalLink
-} from '../..'
-import { useWebSearchPersist } from '../hooks/useWebSearchPersist'
-import { useWebSearchProviderCheck } from '../hooks/useWebSearchProviderCheck'
+} from '@renderer/components/SettingsPrimitives'
+import { useTheme } from '@renderer/hooks/useTheme'
+import type { WebSearchBasicAuthPatch } from '@renderer/hooks/useWebSearch'
+import { formatApiKeys, splitApiKeyString, withoutTrailingSlash } from '@renderer/utils/api'
 import {
   getWebSearchProviderApiKeyWebsite,
   getWebSearchProviderDescriptionKey,
   getWebSearchProviderOfficialWebsite,
   type WebSearchProviderMenuEntry
-} from '../utils/webSearchProviderMeta'
+} from '@renderer/utils/webSearchProviderMeta'
+import type {
+  WebSearchCapability,
+  WebSearchProvider,
+  WebSearchProviderId,
+  WebSearchProviderOverride,
+  WebSearchProviderOverrides
+} from '@shared/data/preference/preferenceTypes'
+import { useNavigate } from '@tanstack/react-router'
+import { isEmpty } from 'es-toolkit/compat'
+import { ExternalLink, List } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { useWebSearchPersist } from '../hooks/useWebSearchPersist'
+import { useWebSearchProviderCheck } from '../hooks/useWebSearchProviderCheck'
 import { WebSearchApiKeyListPopup } from './WebSearchApiKeyList'
 
 const providerFormClassName = 'flex w-full flex-col gap-4'
@@ -341,7 +341,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    className="text-icon hover:text-foreground"
+                    className="text-muted-foreground hover:text-foreground"
                     aria-label={t('settings.provider.api.key.list.open')}
                     onClick={openApiKeyList}>
                     <List size={14} />
@@ -412,7 +412,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
                   content={t('settings.provider.basic_auth.tip')}
                   iconProps={{
                     size: 16,
-                    color: 'var(--color-icon)',
+                    color: 'var(--muted-foreground)',
                     className: 'ml-1 cursor-pointer'
                   }}
                 />

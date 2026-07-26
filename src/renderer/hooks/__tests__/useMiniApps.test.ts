@@ -1,17 +1,56 @@
 import { dataApiService } from '@data/DataApiService'
+import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+import { MockUseDataApi, MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mockTabs = vi.hoisted(() => ({
+  tabs: [] as Array<{ id: string; url: string }>,
+  hasContext: true,
+  closeTab: vi.fn(),
+  updateTab: vi.fn()
+}))
+
+const mocks = vi.hoisted(() => ({ request: vi.fn() }))
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
+
+vi.mock('@renderer/hooks/tab', () => ({
+  useOptionalTabsContext: () =>
+    mockTabs.hasContext
+      ? {
+          tabs: mockTabs.tabs,
+          closeTab: mockTabs.closeTab,
+          updateTab: mockTabs.updateTab
+        }
+      : null
+}))
+
+vi.mock('@renderer/utils/webviewStateManager', () => ({
+  clearWebviewState: vi.fn(),
+  setWebviewLoaded: vi.fn()
+}))
 
 import { __resetRegionDetectionForTesting, useMiniApps } from '../useMiniApps'
 import { appFixtures, createCnOnlyApp, createGlobalApp, createMiniApp } from './fixtures/miniApp'
 
 /** Helper: return the array directly since list() now returns a bare MiniApp[] */
 const paginated = (items: MiniApp[]) => items
+const mockClearWebviewState = vi.mocked(clearWebviewState)
+const mockSetWebviewLoaded = vi.mocked(setWebviewLoaded)
+
+/** Control the `system.get_ip_country` route on the ipcApi facade for region-detection tests. */
+const mockIpCountry = (result: string | Error) => {
+  mocks.request.mockImplementation((route: string) => {
+    if (route === 'system.get_ip_country') {
+      return result instanceof Error ? Promise.reject(result) : Promise.resolve(result)
+    }
+    return Promise.resolve(undefined)
+  })
+}
 
 describe('useMiniApps', () => {
   beforeEach(() => {
@@ -20,8 +59,17 @@ describe('useMiniApps', () => {
     MockUseDataApiUtils.resetMocks()
     MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
 
+    mocks.request.mockReset()
+    mockIpCountry('CN')
+
     // Reset module-level regionDetectionPromise to ensure fresh detection in each test
     __resetRegionDetectionForTesting()
+    mockTabs.tabs = []
+    mockTabs.hasContext = true
+    mockTabs.closeTab.mockClear()
+    mockTabs.updateTab.mockClear()
+    mockClearWebviewState.mockClear()
+    mockSetWebviewLoaded.mockClear()
   })
 
   // === Data Loading ===
@@ -216,6 +264,16 @@ describe('useMiniApps', () => {
       // Check cache values directly since mock useCache doesn't trigger re-renders
       expect(MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive')).toEqual(newApps)
     })
+
+    it('should resolve a functional updater against the latest mocked value (mock parity)', async () => {
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [createMiniApp('a'), createMiniApp('b')])
+      const { result } = renderHook(() => useMiniApps())
+      await act(async () => {
+        result.current.setOpenedKeepAliveMiniApps((prev) => prev.filter((app) => app.appId !== 'a'))
+      })
+      const stored = MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive') ?? []
+      expect(stored.map((a) => a.appId)).toEqual(['b'])
+    })
   })
 
   // === Mutations ===
@@ -228,6 +286,133 @@ describe('useMiniApps', () => {
       expect(typeof result.current.createCustomMiniApp).toBe('function')
       expect(typeof result.current.removeCustomMiniApp).toBe('function')
       expect(typeof result.current.reorderMiniApps).toBe('function')
+    })
+
+    it('should sync opened cache, tab metadata, and webview state after updating a custom miniapp', async () => {
+      const existing = createMiniApp('custom-app', {
+        name: 'Old App',
+        url: 'https://old.example.com',
+        logo: 'old-logo',
+        presetMiniAppId: null
+      })
+      const other = createMiniApp('other-app')
+      const updated = {
+        ...existing,
+        name: 'New App',
+        url: 'https://new.example.com',
+        logo: 'new-logo'
+      }
+      const trigger = vi.fn().mockResolvedValue(updated)
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/mini-apps/:appId', trigger)
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [other, existing])
+      MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', existing)
+      mockTabs.tabs = [
+        { id: 'tab-1', url: '/app/mini-app/custom-app' },
+        { id: 'tab-2', url: '/app/mini-app/custom-app-extra' }
+      ]
+
+      const { result } = renderHook(() => useMiniApps())
+
+      await act(async () => {
+        await result.current.updateCustomMiniApp('custom-app', {
+          name: 'New App',
+          url: 'https://new.example.com'
+        })
+      })
+
+      // Logo edits go through the `mini_app.set_logo` command, not this PATCH;
+      // the tab icon still resolves from the service's returned `logo`.
+      expect(trigger).toHaveBeenCalledWith({
+        params: { appId: 'custom-app' },
+        body: {
+          name: 'New App',
+          url: 'https://new.example.com'
+        }
+      })
+      expect(MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive')).toEqual([other, updated])
+      expect(MockUseCacheUtils.getCacheValue('mini_app.opened_oneoff')).toEqual(updated)
+      expect(mockSetWebviewLoaded).toHaveBeenCalledWith('custom-app', false)
+      expect(mockTabs.updateTab).toHaveBeenCalledWith('tab-1', { title: 'New App', icon: 'new-logo' })
+      expect(mockTabs.updateTab).not.toHaveBeenCalledWith('tab-2', expect.anything())
+    })
+
+    it('uses the service-resolved logoSrc as the file:// tab icon when syncing', async () => {
+      const storedId = '0190f3c4-1a2b-7c3d-8e4f-5a6b7c8d9e0f'
+      const existing = createMiniApp('custom-app', { presetMiniAppId: null })
+      // The service returns an uploaded logo pre-resolved onto `logoSrc`.
+      const updated = { ...existing, name: 'New App', logoSrc: `file:///files/${storedId}.webp` }
+      const trigger = vi.fn().mockResolvedValue(updated)
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/mini-apps/:appId', trigger)
+      mockTabs.tabs = [{ id: 'tab-1', url: '/app/mini-app/custom-app' }]
+
+      const { result } = renderHook(() => useMiniApps())
+
+      await act(async () => {
+        await result.current.updateCustomMiniApp('custom-app', {
+          name: 'New App'
+        })
+      })
+
+      expect(trigger).toHaveBeenCalledWith({
+        params: { appId: 'custom-app' },
+        body: { name: 'New App' }
+      })
+      expect(mockTabs.updateTab).toHaveBeenCalledWith('tab-1', {
+        title: 'New App',
+        icon: `file:///files/${storedId}.webp`
+      })
+    })
+
+    it('should clean opened cache, tabs, and webview state after removing a custom miniapp', async () => {
+      const existing = createMiniApp('custom-app', { presetMiniAppId: null })
+      const other = createMiniApp('other-app')
+      const trigger = vi.fn().mockResolvedValue(undefined)
+      MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/mini-apps/:appId', trigger)
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [existing, other])
+      MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', existing)
+      MockUseCacheUtils.setCacheValue('mini_app.current_id', 'custom-app')
+      MockUseCacheUtils.setCacheValue('mini_app.show', true)
+      mockTabs.tabs = [
+        { id: 'tab-1', url: '/app/mini-app/custom-app' },
+        { id: 'tab-2', url: '/app/mini-app/custom-app-extra' }
+      ]
+
+      const { result } = renderHook(() => useMiniApps())
+
+      await act(async () => {
+        await result.current.removeCustomMiniApp('custom-app')
+      })
+
+      expect(trigger).toHaveBeenCalledWith({ params: { appId: 'custom-app' } })
+      expect(MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive')).toEqual([other])
+      expect(MockUseCacheUtils.getCacheValue('mini_app.opened_oneoff')).toBeNull()
+      expect(MockUseCacheUtils.getCacheValue('mini_app.current_id')).toBe('')
+      expect(MockUseCacheUtils.getCacheValue('mini_app.show')).toBe(false)
+      expect(mockClearWebviewState).toHaveBeenCalledWith('custom-app')
+      expect(mockTabs.closeTab).toHaveBeenCalledWith('tab-1')
+      expect(mockTabs.closeTab).not.toHaveBeenCalledWith('tab-2')
+    })
+
+    it('should remove deleted custom miniapps from sidebar favorites', async () => {
+      const trigger = vi.fn().mockResolvedValue(undefined)
+      MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/mini-apps/:appId', trigger)
+      MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', [
+        { type: 'app', id: 'assistants' },
+        { type: 'mini_app', id: 'custom-app' },
+        { type: 'mini_app', id: 'other-app' }
+      ])
+
+      const { result } = renderHook(() => useMiniApps())
+
+      await act(async () => {
+        await result.current.removeCustomMiniApp('custom-app')
+      })
+
+      expect(trigger).toHaveBeenCalledWith({ params: { appId: 'custom-app' } })
+      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites')).toEqual([
+        { type: 'app', id: 'assistants' },
+        { type: 'mini_app', id: 'other-app' }
+      ])
     })
   })
 
@@ -330,6 +515,38 @@ describe('useMiniApps', () => {
       expect(typeof result.current.reorderMiniApps).toBe('function')
       expect(typeof result.current.reorderMiniAppsByStatus).toBe('function')
     })
+
+    it('should reorder visible apps against the displayed subset orderKey baseline', async () => {
+      const patchOrderTrigger = vi.fn().mockResolvedValue(undefined)
+      const patchBatchTrigger = vi.fn().mockResolvedValue(undefined)
+      MockUseDataApi.useMutation.mockImplementation((method, path) => {
+        if (method === 'PATCH' && path === '/mini-apps/:id/order') {
+          return { trigger: patchOrderTrigger, isLoading: false, error: undefined }
+        }
+        if (method === 'PATCH' && path === '/mini-apps/order:batch') {
+          return { trigger: patchBatchTrigger, isLoading: false, error: undefined }
+        }
+        return { trigger: vi.fn().mockResolvedValue({ success: true }), isLoading: false, error: undefined }
+      })
+
+      const enabled = createGlobalApp('enabled', { status: 'enabled', orderKey: 'a0' })
+      const regionHidden = createCnOnlyApp('region-hidden', { status: 'enabled', orderKey: 'a1' })
+      const pinned = createGlobalApp('pinned', { status: 'pinned', orderKey: 'b0' })
+      const hidden = createMiniApp('hidden', { status: 'disabled', orderKey: 'a0' })
+      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([pinned, enabled, regionHidden, hidden]))
+      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'Global')
+
+      const { result } = renderHook(() => useMiniApps())
+
+      expect(result.current.miniApps.map((app) => app.appId)).toEqual(['enabled', 'pinned'])
+
+      await act(async () => {
+        await result.current.reorderMiniAppsByStatus('visible', [pinned, enabled])
+      })
+
+      expect(patchOrderTrigger).toHaveBeenCalledWith({ params: { id: 'pinned' }, body: { position: 'first' } })
+      expect(patchBatchTrigger).not.toHaveBeenCalled()
+    })
   })
 
   // === Edge Cases ===
@@ -385,13 +602,7 @@ describe('useMiniApps', () => {
       MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
 
-      // Mock window.api.getIpCountry to resolve 'CN'
-      const originalGetIpCountry = window.api?.getIpCountry
-      Object.defineProperty(window, 'api', {
-        value: { getIpCountry: vi.fn().mockResolvedValue('CN') },
-        writable: true,
-        configurable: true
-      })
+      mockIpCountry('CN')
 
       renderHook(() => useMiniApps())
 
@@ -401,15 +612,6 @@ describe('useMiniApps', () => {
       })
 
       expect(MockUseCacheUtils.getCacheValue('mini_app.detected_region')).toBe('CN')
-
-      // Restore
-      if (originalGetIpCountry) {
-        Object.defineProperty(window, 'api', {
-          value: { getIpCountry: originalGetIpCountry },
-          writable: true,
-          configurable: true
-        })
-      }
     })
 
     it('should call setDetectedRegion with Global when IP resolves to US', async () => {
@@ -417,12 +619,7 @@ describe('useMiniApps', () => {
       MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
 
-      const originalGetIpCountry = window.api?.getIpCountry
-      Object.defineProperty(window, 'api', {
-        value: { getIpCountry: vi.fn().mockResolvedValue('US') },
-        writable: true,
-        configurable: true
-      })
+      mockIpCountry('US')
 
       renderHook(() => useMiniApps())
 
@@ -431,14 +628,6 @@ describe('useMiniApps', () => {
       })
 
       expect(MockUseCacheUtils.getCacheValue('mini_app.detected_region')).toBe('Global')
-
-      if (originalGetIpCountry) {
-        Object.defineProperty(window, 'api', {
-          value: { getIpCountry: originalGetIpCountry },
-          writable: true,
-          configurable: true
-        })
-      }
     })
 
     it('should fallback to CN when IP detection rejects', async () => {
@@ -446,12 +635,7 @@ describe('useMiniApps', () => {
       MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
 
-      const originalGetIpCountry = window.api?.getIpCountry
-      Object.defineProperty(window, 'api', {
-        value: { getIpCountry: vi.fn().mockRejectedValue(new Error('Network error')) },
-        writable: true,
-        configurable: true
-      })
+      mockIpCountry(new Error('Network error'))
 
       renderHook(() => useMiniApps())
 
@@ -460,14 +644,6 @@ describe('useMiniApps', () => {
       })
 
       expect(MockUseCacheUtils.getCacheValue('mini_app.detected_region')).toBe('CN')
-
-      if (originalGetIpCountry) {
-        Object.defineProperty(window, 'api', {
-          value: { getIpCountry: originalGetIpCountry },
-          writable: true,
-          configurable: true
-        })
-      }
     })
 
     it('should not call detectUserRegion when region is explicitly set', async () => {
@@ -475,13 +651,7 @@ describe('useMiniApps', () => {
       MockUseCacheUtils.setCacheValue('mini_app.detected_region', null)
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([]))
 
-      const getIpCountryMock = vi.fn().mockResolvedValue('US')
-      const originalGetIpCountry = window.api?.getIpCountry
-      Object.defineProperty(window, 'api', {
-        value: { getIpCountry: getIpCountryMock },
-        writable: true,
-        configurable: true
-      })
+      mockIpCountry('US')
 
       renderHook(() => useMiniApps())
 
@@ -490,15 +660,7 @@ describe('useMiniApps', () => {
       })
 
       // IP detection should not be called when region is explicitly set
-      expect(getIpCountryMock).not.toHaveBeenCalled()
-
-      if (originalGetIpCountry) {
-        Object.defineProperty(window, 'api', {
-          value: { getIpCountry: originalGetIpCountry },
-          writable: true,
-          configurable: true
-        })
-      }
+      expect(mocks.request).not.toHaveBeenCalledWith('system.get_ip_country')
     })
   })
 

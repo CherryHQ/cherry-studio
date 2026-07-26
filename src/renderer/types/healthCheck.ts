@@ -1,4 +1,5 @@
-import type { Model, Provider } from '@types'
+import type { Model } from '@renderer/types/model'
+import type { Provider } from '@renderer/types/provider'
 
 import type { SerializedError } from './error'
 

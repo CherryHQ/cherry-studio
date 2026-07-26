@@ -1,31 +1,7 @@
 export { BaseService } from './BaseService'
-export {
-  allOf,
-  anyOf,
-  createConditionContext,
-  not,
-  onArch,
-  onCpuVendor,
-  onEnvVar,
-  onPlatform,
-  when
-} from './conditions'
-export {
-  Conditional,
-  DependsOn,
-  ErrorHandling,
-  getConditions,
-  getDependencies,
-  getErrorStrategy,
-  getPhase,
-  getPriority,
-  getServiceName,
-  Injectable,
-  isInjectable,
-  Priority,
-  ServicePhase
-} from './decorators'
-export { CircularDependencyError, DependencyResolver, type PhaseAdjustment } from './DependencyResolver'
+export { allOf, anyOf, not, onArch, onCpuVendor, onEnvVar, onPlatform, when } from './conditions'
+export { SHUTDOWN_TIMEOUT_MS } from './constants'
+export { Conditional, DependsOn, ErrorHandling, Injectable, Priority, ServicePhase } from './decorators'
 export { type Disposable, Emitter, type Event, toDisposable } from './event'
 export { LifecycleManager } from './LifecycleManager'
 export { ServiceContainer } from './ServiceContainer'
@@ -35,8 +11,6 @@ export {
   type ConditionContext,
   type DependencyNode,
   type ErrorStrategy,
-  isActivatable,
-  isPausable,
   type LifecycleEvent,
   type LifecycleEventPayload,
   LifecycleEvents,

@@ -10,11 +10,20 @@ interface UsePaintingInitialSelectionInput {
   setCurrentPainting: (painting: PaintingData) => void
 }
 
+function isUntouchedDraft(painting: PaintingData) {
+  return (
+    !painting.persistedAt &&
+    !painting.model &&
+    !painting.prompt &&
+    painting.files.length === 0 &&
+    (painting.inputFiles?.length ?? 0) === 0 &&
+    Object.keys(painting.params ?? {}).length === 0 &&
+    !painting.generationStatus
+  )
+}
+
 /**
- * Bootstrap the page's first painting while `currentPainting` is still the
- * untouched mount-time draft (reference equality — every mutation path
- * replaces the reference, so once the user touches anything no branch fires
- * again):
+ * Bootstrap the page's first painting once:
  *
  *   - History resolved non-empty → adopt the most recent persisted painting.
  *   - Fresh user (no history) → re-seed the draft on the resolved provider.
@@ -29,21 +38,33 @@ export function usePaintingInitialSelection({
   initialProviderId,
   setCurrentPainting
 }: UsePaintingInitialSelectionInput) {
-  const initialDraftRef = useRef(currentPainting)
+  const bootstrappedRef = useRef(false)
+  const bootstrapDraftIdRef = useRef(currentPainting.id)
 
   useEffect(() => {
-    if (currentPainting !== initialDraftRef.current) return
+    if (bootstrappedRef.current) return
 
     if (historyItems.length > 0) {
-      setCurrentPainting(historyItems[0])
+      bootstrappedRef.current = true
+      if (
+        currentPainting.id === bootstrapDraftIdRef.current &&
+        !historyItems.some((item) => item.id === currentPainting.id) &&
+        isUntouchedDraft(currentPainting)
+      ) {
+        setCurrentPainting(historyItems[0])
+      }
+      return
+    }
+
+    if (currentPainting.persistedAt || !isUntouchedDraft(currentPainting)) {
+      bootstrappedRef.current = true
       return
     }
 
     if (initialProviderId && currentPainting.providerId !== initialProviderId) {
-      // Track the re-seeded draft so a later history load still replaces it.
-      const reseeded = createDefaultPainting(initialProviderId)
-      initialDraftRef.current = reseeded
-      setCurrentPainting(reseeded)
+      const nextPainting = createDefaultPainting(initialProviderId)
+      bootstrapDraftIdRef.current = nextPainting.id
+      setCurrentPainting(nextPainting)
     }
   }, [currentPainting, historyItems, initialProviderId, setCurrentPainting])
 }

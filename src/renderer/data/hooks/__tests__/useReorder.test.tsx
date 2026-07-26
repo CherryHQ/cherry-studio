@@ -1,4 +1,4 @@
-import type * as RendererConstantModule from '@renderer/config/constant'
+import type * as RendererConstantModule from '@renderer/utils/platform'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import React from 'react'
@@ -12,7 +12,7 @@ vi.unmock('@data/hooks/useDataApi')
 // Force `isDev` to false so the dev-only concurrency warning (from template
 // path mutations with different params) does not pollute the test log when
 // multiple `move` calls share the same hook instance.
-vi.mock('@renderer/config/constant', async (importOriginal) => {
+vi.mock('@renderer/utils/platform', async (importOriginal) => {
   const actual = await importOriginal<typeof RendererConstantModule>()
   return { ...actual, isDev: false }
 })

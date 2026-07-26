@@ -1,13 +1,17 @@
-import type { FetchFunction, ProviderOptions } from '@ai-sdk/provider-utils'
+import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import { application } from '@application'
 import type { AiPlugin } from '@cherrystudio/ai-core'
+import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
+import { loggerService } from '@logger'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@main/ai/constants'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import type { Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
-import { stepCountIs, type StopCondition, type ToolSet } from 'ai'
+import { stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
 
+import { collectFileAttachments } from '../../../messages/attachmentRouting'
+import type { FileAttachmentRef } from '../../../messages/attachmentTypes'
 import { createHttpTraceFetch } from '../../../observability'
 import { providerToAiSdkConfig } from '../../../provider/config'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../../provider/endpoint'
@@ -15,10 +19,11 @@ import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import { applyDeferExposition } from '../../../tools/adapters/aiSdk/exposition/applyDeferExposition'
 import { syncMcpToolsToRegistry } from '../../../tools/adapters/aiSdk/mcp/mcpTools'
 import { resolveAssistantMcpToolIds } from '../../../tools/adapters/aiSdk/mcp/resolveAssistantMcpTools'
-import { registry } from '../../../tools/adapters/aiSdk/registry'
+import { registry, ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
 import { createAiRepair } from '../../../tools/adapters/aiSdk/repair'
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
-import type { AiBaseRequest, CallOverrides } from '../../../types/requests'
+import { resolveConfiguredPaintingModel } from '../../../tools/painting'
+import type { AiBaseRequest, CallOverrides } from '../../../types'
 import { filterStandardParams } from '../../../utils/modelParameters'
 import {
   buildCapabilityProviderOptions,
@@ -26,19 +31,25 @@ import {
   mergeCustomProviderParameters
 } from '../../../utils/options'
 import { getCustomParameters } from '../../../utils/reasoning'
-import type { AgentLoopHooks, AgentOptions } from '../loop'
+import { resolveReasoningInvocation } from '../../../utils/reasoningSerializers'
+import { createToolCallLimitStopCondition } from '../loop/toolLoopTermination'
+import type { AgentLoopHooks, AgentOptions } from '../loop/types'
 import { assembleSystemPrompt } from './assembleSystemPrompt'
 import { buildTelemetry } from './buildTelemetry'
 import { resolveCapabilities } from './capabilities'
 import { collectFromFeatures } from './collectFromFeatures'
 import type { RequestFeature } from './feature'
-import { INTERNAL_FEATURES } from './features'
+import { INTERNAL_FEATURES } from './features/internalFeatures'
+import { type NativeFileSupport, resolveNativeFileSupport } from './nativeFileSupport'
 import type { RequestScope, SdkConfig } from './scope'
+
+const logger = loggerService.withContext('buildAgentParams')
 
 export interface BuildAgentParamsInput {
   request: AiBaseRequest & {
     chatId?: string
     messageId?: string
+    messages?: UIMessage[]
   }
   signal: AbortSignal | undefined
   provider: Provider
@@ -56,26 +67,49 @@ export interface BuiltAgentParams {
   options: AgentOptions
   /** Hook contributions from features — caller composes with its own internal hooks. */
   hookParts: ReadonlyArray<Partial<AgentLoopHooks>>
+  /** Attachment routing inputs for `prepareChatMessages` (chat path). */
+  nativeFileSupport: NativeFileSupport
+  fileAttachments: FileAttachmentRef[]
 }
 
 export async function buildAgentParams(input: BuildAgentParamsInput): Promise<BuiltAgentParams> {
   const { request, signal, provider, model, assistant, extraFeatures } = input
 
-  const sdkConfig = await resolveSdkConfig(provider, model)
+  const sdkConfig = await resolveSdkConfig(provider, model, request.apiKeyOverride)
   applyHttpTrace(sdkConfig, request.chatId, model)
+  const fileAttachments = collectFileAttachments(request.messages)
+  const hasFileAttachments = fileAttachments.length > 0
+  const knowledgeBaseIds = resolveKnowledgeBaseIds(assistant, request.knowledgeBaseIds)
   const { tools, deferredEntries, mcpToolIds } = canModelConsumeTools(model)
-    ? await resolveTools(request, assistant, model)
+    ? await resolveTools(request, assistant, model, hasFileAttachments, knowledgeBaseIds)
     : { tools: undefined, deferredEntries: [] as ToolEntry[], mcpToolIds: new Set<string>() }
   const capabilities = assistant ? resolveCapabilities(model, provider, assistant) : undefined
 
   const { endpointType } = resolveEffectiveEndpoint(provider, model)
   const aiSdkProviderId = resolveAiSdkProviderId(provider, endpointType)
+  const runtimeProviderId = sdkConfig.providerId
+  const reasoningEndpointType =
+    runtimeProviderId === 'google-vertex-maas' ? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS : endpointType
+  const reasoningProfile = providerRegistryService.resolveReasoningProfile(provider, model, reasoningEndpointType)
+  const invocationModel = reasoningProfile.support
+    ? { ...model, reasoning: projectRuntimeReasoning(reasoningProfile.support, reasoningProfile.wire) }
+    : model
+  const reasoning = resolveReasoningInvocation({
+    selection: request.reasoningEffort ?? assistant?.settings.reasoning_effort ?? 'default',
+    model: invocationModel,
+    profile: reasoningProfile.wire,
+    maxTokens: resolveReasoningMaxTokens(request.callOverrides?.maxOutputTokens, assistant, model),
+    assistantSummary: provider.settings.summaryText
+  })
+  const nativeFileSupport = resolveNativeFileSupport(provider, model, aiSdkProviderId)
 
   const requestContext: RequestContext = {
     requestId: request.messageId ?? crypto.randomUUID(),
     topicId: request.chatId,
     assistant,
-    abortSignal: signal
+    abortSignal: signal,
+    fileAttachments,
+    knowledgeBaseIds
   }
 
   const scope: RequestScope = {
@@ -89,8 +123,12 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     sdkConfig,
     endpointType,
     aiSdkProviderId,
+    reasoningProfile,
+    reasoning,
     requestContext,
-    mcpToolIds
+    mcpToolIds,
+    hasFileAttachments,
+    knowledgeBaseIds
   }
 
   const features = extraFeatures?.length ? [...INTERNAL_FEATURES, ...extraFeatures] : INTERNAL_FEATURES
@@ -105,20 +143,35 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     plugins: contributions.modelAdapters,
     system,
     options,
-    hookParts: contributions.hookParts
+    hookParts: contributions.hookParts,
+    nativeFileSupport,
+    fileAttachments
   }
 }
 
-async function resolveSdkConfig(provider: Provider, model: Model): Promise<SdkConfig> {
+export function resolveReasoningMaxTokens(
+  requestMaxOutputTokens: number | undefined,
+  assistant: Assistant | undefined,
+  model: Model
+): number | undefined {
+  if (requestMaxOutputTokens !== undefined) return requestMaxOutputTokens
+
+  const enableMaxTokens = assistant?.settings.enableMaxTokens ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxTokens
+  if (enableMaxTokens) return assistant?.settings.maxTokens ?? DEFAULT_ASSISTANT_SETTINGS.maxTokens
+
+  return model.maxOutputTokens
+}
+
+async function resolveSdkConfig(provider: Provider, model: Model, apiKeyOverride?: string): Promise<SdkConfig> {
   return {
-    ...(await providerToAiSdkConfig(provider, model)),
+    ...(await providerToAiSdkConfig(provider, model, { apiKeyOverride })),
     modelId: model.apiModelId ?? model.id
   }
 }
 
 export function applyHttpTrace(sdkConfig: SdkConfig, topicId: string | undefined, model: Model): void {
   if (!application.get('PreferenceService').get('app.developer_mode.enabled')) return
-  const settings = sdkConfig.providerSettings as { fetch?: FetchFunction }
+  const settings = sdkConfig.providerSettings
   settings.fetch = createHttpTraceFetch(settings.fetch ?? globalThis.fetch, {
     topicId,
     modelName: model.name ?? model.id
@@ -144,10 +197,12 @@ function canModelConsumeTools(model: Model): boolean {
  * sync the MCP entries into the registry, then materialise the active
  * `ToolSet` via `applies` predicates and defer exposition.
  */
-async function resolveTools(
+export async function resolveTools(
   request: BuildAgentParamsInput['request'],
   assistant: Assistant | undefined,
-  model: Model
+  model: Model,
+  hasFileAttachments: boolean,
+  knowledgeBaseIds: readonly string[]
 ): Promise<{
   tools: ToolSet | undefined
   deferredEntries: ToolEntry[]
@@ -165,7 +220,16 @@ async function resolveTools(
     await syncMcpToolsToRegistry(undefined, { selectedToolIds: mcpToolIds })
   }
 
-  const activeEntries = registry.selectActive({ assistant, mcpToolIds })
+  const hasAnyKnowledgeBase = resolveHasAnyKnowledgeBase()
+  const paintingModel = resolveConfiguredPaintingModel()
+  const activeEntries = registry.selectActive({
+    assistant,
+    paintingModel: paintingModel ?? undefined,
+    mcpToolIds,
+    hasFileAttachments,
+    hasAnyKnowledgeBase,
+    knowledgeBaseIds
+  })
   let tools: ToolSet | undefined
   if (activeEntries.length > 0) {
     tools = {}
@@ -176,10 +240,44 @@ async function resolveTools(
   // path instead of being mutated onto raw SDK params.
   const clientTools = request.callOverrides?.tools
   if (clientTools && Object.keys(clientTools).length > 0) {
-    tools = { ...tools, ...clientTools }
+    tools = {
+      ...tools,
+      ...clientTools
+    }
   }
-  const exposed = applyDeferExposition(tools, registry, model.contextWindow)
+  // Meta-tools must see request-materialized entries rather than the process-wide static entries.
+  const requestRegistry = new ToolRegistry()
+  for (const entry of activeEntries) requestRegistry.register(entry)
+  const exposed = applyDeferExposition(tools, requestRegistry, model.contextWindow)
   return { tools: exposed.tools, deferredEntries: exposed.deferredEntries, mcpToolIds }
+}
+
+/**
+ * Whether the user has any knowledge base, used to gate the `kb_*` tools in `selectActive`. Fail-open:
+ * a transient count error must not suppress the KB tools for users who do have bases (the tools
+ * themselves steer gracefully when a lookup fails), so an error is treated as "present".
+ */
+function resolveHasAnyKnowledgeBase(): boolean {
+  try {
+    return application.get('KnowledgeService').hasAnyBase()
+  } catch (error) {
+    logger.warn('Failed to check for knowledge bases during tool resolution; treating as present', { error })
+    return true
+  }
+}
+
+/**
+ * Effective knowledge base scope for this request. When the assistant has its own static binding,
+ * that binding IS the scope — the composer's per-turn selection can never expand it, since main
+ * cannot trust a renderer/IPC-supplied id list to stay within the assistant's configured bases (the
+ * composer UI happens to restrict picks to that set today, but that's a UI nicety, not a security
+ * boundary). Only an assistant with no static binding lets the per-turn selection define the scope —
+ * which is the actual gap this resolves: composer-only, ad-hoc knowledge base use.
+ */
+export function resolveKnowledgeBaseIds(assistant: Assistant | undefined, requestIds: string[] | undefined): string[] {
+  const assistantIds = assistant?.knowledgeBaseIds ?? []
+  if (assistantIds.length > 0) return assistantIds
+  return Array.from(new Set(requestIds ?? []))
 }
 
 /**
@@ -189,17 +287,40 @@ async function resolveTools(
  * and the tool-call repair function.
  */
 function buildAgentOptions(scope: RequestScope, featureStopConditions: StopCondition<ToolSet>[]): AgentOptions {
-  const { assistant, capabilities, model, provider, sdkConfig, requestContext, request, aiSdkProviderId } = scope
+  const {
+    assistant,
+    capabilities,
+    model,
+    provider,
+    sdkConfig,
+    requestContext,
+    request,
+    aiSdkProviderId,
+    endpointType,
+    reasoning
+  } = scope
 
   let providerOptions =
-    assistant && capabilities ? buildCapabilityProviderOptions(assistant, model, provider, capabilities) : {}
+    assistant && capabilities
+      ? buildCapabilityProviderOptions(assistant, model, provider, capabilities, {
+          aiSdkProviderId,
+          runtimeProviderId: sdkConfig.providerId,
+          endpointType,
+          reasoning
+        })
+      : {}
   let standardParams: Partial<Record<string, unknown>> = {}
   if (assistant) {
     const customParams = getCustomParameters(assistant)
     if (Object.keys(customParams).length > 0) {
       const split = extractAiSdkStandardParams(customParams)
       standardParams = filterStandardParams(split.standardParams, model)
-      providerOptions = mergeCustomProviderParameters(providerOptions, split.providerParams, aiSdkProviderId)
+      providerOptions = mergeCustomProviderParameters(
+        providerOptions,
+        split.providerParams,
+        provider.id,
+        sdkConfig.providerId === 'google-vertex-maas' ? 'openai-compatible' : aiSdkProviderId
+      )
     }
   }
 
@@ -210,7 +331,8 @@ function buildAgentOptions(scope: RequestScope, featureStopConditions: StopCondi
   providerOptions = overridden.providerOptions as typeof providerOptions
 
   const { headers, maxRetries } = request.requestOptions ?? {}
-  const baseStopWhen = assistant ? resolveStopWhenForAssistant(assistant) : undefined
+  const toolCallLimit = resolveToolCallLimit(assistant)
+  const baseStopWhen = createToolCallLimitStopCondition(toolCallLimit)
   const stopWhen = composeStopWhen(baseStopWhen, featureStopConditions)
   const telemetry = buildTelemetry(scope)
 
@@ -283,13 +405,14 @@ export function composeStopWhen(
   return [base, ...featureStopConditions]
 }
 
-function resolveStopWhenForAssistant(assistant: Assistant): ReturnType<typeof stepCountIs> {
+export function resolveToolCallLimit(assistant: Assistant | undefined): number {
+  if (!assistant) return SDK_DEFAULT_STEP_COUNT
+
   const enableMaxToolCalls = assistant.settings?.enableMaxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls
   if (!enableMaxToolCalls) {
-    return stepCountIs(DEFAULT_ASSISTANT_SETTINGS.maxToolCalls)
+    return DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
   }
   const raw = assistant.settings?.maxToolCalls
   const valid = raw !== undefined && raw >= MIN_TOOL_CALLS && raw <= MAX_TOOL_CALLS
-  const count = valid ? raw : DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
-  return stepCountIs(count)
+  return valid ? raw : DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
 }

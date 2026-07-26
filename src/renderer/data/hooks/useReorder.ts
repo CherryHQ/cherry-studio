@@ -22,9 +22,9 @@
 import { useInvalidateCache, useMutation, useReadCache, useWriteCache } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { computeMinimalMoves, reorderLocally } from '@renderer/data/utils/reorder'
-import type { TemplateApiPaths } from '@shared/data/api/apiPaths'
-import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
+import type { TemplateApiPaths } from '@shared/data/api/paths'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
+import type { ConcreteApiPaths } from '@shared/data/api/types'
 import { useCallback, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useReorder')

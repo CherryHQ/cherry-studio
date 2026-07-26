@@ -1,10 +1,11 @@
-import type * as FsUtils from '@main/utils/file/fs'
+import type * as FsUtils from '@main/utils/file'
 import type { KnowledgeItemOf } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fetchMock = vi.hoisted(() => vi.fn())
 const loggerWarnMock = vi.hoisted(() => vi.fn())
 const customReaderSpies = vi.hoisted(() => ({
+  doc: vi.fn(async (filePath: string) => [{ metadata: { reader: 'doc', filePath } }]),
   drafts: vi.fn(async (filePath: string) => [{ metadata: { reader: 'drafts', filePath } }]),
   epub: vi.fn(async (filePath: string) => [{ metadata: { reader: 'epub', filePath } }])
 }))
@@ -82,6 +83,12 @@ vi.mock('@vectorstores/readers/text', () => ({
   }
 }))
 
+vi.mock('../files/DocReader', () => ({
+  DocReader: class {
+    loadData = customReaderSpies.doc
+  }
+}))
+
 vi.mock('../files/DraftsExportReader', () => ({
   DraftsExportReader: class {
     loadData = customReaderSpies.drafts
@@ -96,7 +103,7 @@ vi.mock('../files/EpubReader', () => ({
 
 // The URL reader reads its snapshot verbatim via fs, not a vectorstores reader.
 const readFileMock = vi.hoisted(() => vi.fn())
-vi.mock('@main/utils/file/fs', async (importOriginal) => ({
+vi.mock('@main/utils/file', async (importOriginal) => ({
   ...(await importOriginal<typeof FsUtils>()),
   read: readFileMock
 }))
@@ -230,6 +237,19 @@ describe('loadKnowledgeItemDocuments', () => {
     expect(docs[0]).toMatchObject({
       metadata: {
         source: '/tmp/source.pdf'
+      }
+    })
+  })
+
+  it('uses the doc reader for legacy binary .doc files', async () => {
+    const item = createFileItem('.doc')
+
+    const docs = await loadKnowledgeItemDocuments(item)
+
+    expect(customReaderSpies.doc).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/base-1/raw/sample.doc')
+    expect(docs[0]).toMatchObject({
+      metadata: {
+        source: '/tmp/sample.doc'
       }
     })
   })

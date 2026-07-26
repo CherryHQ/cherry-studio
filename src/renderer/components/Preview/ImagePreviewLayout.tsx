@@ -1,5 +1,5 @@
-import { useImageTools } from '@renderer/components/ActionTools/hooks/useImageTools'
-import { LoadingIcon } from '@renderer/components/Icons'
+import { useImageTools } from '@renderer/components/ActionTools'
+import LoadingIcon from '@renderer/components/icons/LoadingIcon'
 import { memo, useImperativeHandle } from 'react'
 
 import ImageToolbar from './ImageToolbar'
@@ -16,6 +16,8 @@ interface ImagePreviewLayoutProps {
   enableToolbar?: boolean
   className?: string
 }
+
+const IMAGE_PREVIEW_LOADING_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
 
 const ImagePreviewLayout = ({
   children,
@@ -49,7 +51,7 @@ const ImagePreviewLayout = ({
     <PreviewContainer className={`image-preview-layout flex-col ${className ?? ''}`}>
       {loading && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-background-subtle">
-          <LoadingIcon color="var(--color-foreground-secondary)" />
+          <LoadingIcon color={IMAGE_PREVIEW_LOADING_COLOR} />
         </div>
       )}
       {error && <PreviewError>{error}</PreviewError>}

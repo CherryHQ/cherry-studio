@@ -41,7 +41,7 @@ Both dev and packaged runs write to the **app logs directory** (`~/Library/Logs/
 | Phase service spans | `[Diagnostics]` | `LifecycleManager.startPhase` | Each service's start/end offset from the phase epoch. A whole layer ending at the same instant ⇒ one service holds the thread. |
 | Event-loop lag | `[Diagnostics]` | `LifecycleManager.startPhase` | `totalLag` high ⇒ loop blocked by sync work; near-zero over a long span ⇒ IO/macrotask bound. `fires=0` ⇒ pure microtask cascade (timer never ran). |
 | whenReady CPU profile | `[Diagnostics] CPU profile written to …` | `LifecycleManager.startPhase` | V8 sampling profile of the whenReady phase. Self-time by function — the only reliable attribution when startup is one microtask chain. |
-| Slow DB queries | `[Diagnostics/slow-query]` | `DbService.installSlowQueryProbe` | Any query >15ms: duration, row count, SQL, caller stack. Covers single statements, batches, and interactive-transaction interiors. |
+| Slow DB queries | `[Diagnostics/slow-query]` | `DbService.installSlowQueryProbe` | Any query >15ms: duration, row count, SQL, caller stack. Covers single statements, multi-statement `exec` blocks, and transaction interiors. |
 | Slow IPC handlers | `[Diagnostics/ipc]` | `BaseService.ipcHandle` | Any service IPC handler >50ms: duration + channel. Covers handlers registered via `this.ipcHandle()` (most); direct `ipcMain.handle` in `ipc.ts` is not covered. |
 | Window creation | `[Diagnostics/window]` | `WindowManager.createWindow` | Per window: synchronous construction cost, then `ready-to-show` paint latency from the same start. |
 | Slow DataApi requests | `[Diagnostics/dataapi]` | `ApiServer.handleRequest` | Any DataApi request >50ms: duration + `method path`. Duration is measured monotonically (`performance.now()`) and only computed when enabled. |
@@ -58,7 +58,7 @@ Sampling interval is 1000µs (V8 default). Do not lower it — 100µs oversample
 ## Caveats
 
 - **Per-service `_doInit` timing is contaminated in parallel layers.** Services in one layer run via `Promise.allSettled`; `await this.onReady()` yields a microtask during which a sibling's synchronous body runs to completion and is billed to whichever service is being measured. Trust the CPU profile's self-time for real attribution, not the per-service numbers.
-- **The slow-query probe wraps libsql, not drizzle.** drizzle's own `logger` option logs every statement (including transaction interiors) but carries no timing, so it cannot flag *slow* queries. The probe instead wraps the libsql `client.execute`/`batch` plus the `tx.execute`/`tx.batch` of each `client.transaction()` — every path drizzle issues queries through. Not wrapped: raw `executeMultiple` and the migration `client.migrate` (neither is a normal query path).
+- **The slow-query probe wraps better-sqlite3, not drizzle.** drizzle's own `logger` option logs every statement (including transaction interiors) but carries no timing, so it cannot flag *slow* queries. The probe instead wraps the better-sqlite3 connection's `prepare` and `exec` — every path drizzle issues queries through.
 
 ## Adding a new diagnostic
 

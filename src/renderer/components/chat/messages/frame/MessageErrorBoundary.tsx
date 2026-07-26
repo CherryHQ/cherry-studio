@@ -1,4 +1,4 @@
-import { isProd } from '@renderer/config/constant'
+import { isProd } from '@renderer/utils/platform'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 

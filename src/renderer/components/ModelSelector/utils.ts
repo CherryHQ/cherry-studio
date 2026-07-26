@@ -1,5 +1,5 @@
-import i18n from '@renderer/i18n'
 import { getProviderLabelKey } from '@renderer/i18n/label'
+import i18n from '@renderer/i18n/resolver'
 import type { Provider } from '@shared/data/types/provider'
 
 /**

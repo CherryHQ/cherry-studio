@@ -6,8 +6,9 @@
 
 import { loggerService } from '@logger'
 import type { AiStreamOpenRequest, AiStreamOpenResponse, ApprovalDecision } from '@shared/ai/transport'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
-import { isAgentSessionWorkspaceError } from '../../runtime/claudeCode/settingsBuilder'
+import { isAgentSessionWorkspaceError } from '../../runtime/claudeCode'
 import type { AiStreamManager } from '../AiStreamManager'
 import type { StreamListener } from '../types'
 import { agentChatContextProvider } from './AgentChatContextProvider'
@@ -38,9 +39,21 @@ export interface MainSteerContinuationRequest {
   topicId: string
   /** The already-persisted steer user message to answer. */
   userMessageId: string
+  /** Selection captured with the original busy submit. */
+  reasoningEffort?: ReasoningEffortOption
 }
 
-export type MainDispatchRequest = AiStreamOpenRequest | MainContinueConversationRequest | MainSteerContinuationRequest
+export type MainDispatchRequest = (
+  | AiStreamOpenRequest
+  | MainContinueConversationRequest
+  | MainSteerContinuationRequest
+) & {
+  /**
+   * Main-only dispatch flag: the run has no interactive responder (channel message, scheduled
+   * task), so runtimes must not enable ask-the-user tools. Never set on renderer requests.
+   */
+  headless?: boolean
+}
 
 const logger = loggerService.withContext('chatContextDispatch')
 
@@ -104,7 +117,7 @@ export async function dispatchStreamRequest(
   // explicit `pendingSteerUserMessageId`. Enqueue it so the running turn yields (`hasPendingSteer`)
   // and `onExecutionDone` chains a `steer-continuation` to answer it.
   if (prepared.pendingSteerUserMessageId) {
-    manager.enqueuePendingSteer(req.topicId, prepared.pendingSteerUserMessageId)
+    manager.enqueuePendingSteer(req.topicId, prepared.pendingSteerUserMessageId, prepared.pendingSteerReasoningEffort)
   } else if (
     provider.name === persistentChatContextProvider.name &&
     prepared.models.length === 0 &&

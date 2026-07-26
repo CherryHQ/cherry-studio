@@ -1,3 +1,4 @@
+import { SafeExtSchema } from '@shared/types/file'
 import { describe, expect, it } from 'vitest'
 
 import { FileEntryIdSchema, FileEntrySchema, SafeNameSchema } from '../file'
@@ -247,8 +248,10 @@ describe('FileEntrySchema size/ext boundaries', () => {
     expect(FileEntrySchema.safeParse(makeInternal({ ext: '' })).success).toBe(false)
   })
 
-  it('rejects ext with leading dot (convention: bare extension)', () => {
+  it('rejects ext with any dot (convention: bare extension)', () => {
     expect(FileEntrySchema.safeParse(makeInternal({ ext: '.pdf' })).success).toBe(false)
+    expect(FileEntrySchema.safeParse(makeInternal({ ext: 'pdf.' })).success).toBe(false)
+    expect(FileEntrySchema.safeParse(makeInternal({ ext: 'tar.gz' })).success).toBe(false)
     expect(FileEntrySchema.safeParse(makeExternal({ ext: '.md' })).success).toBe(false)
   })
 
@@ -261,11 +264,14 @@ describe('FileEntrySchema size/ext boundaries', () => {
     expect(FileEntrySchema.safeParse(makeInternal({ ext: 'pdf\0evil' })).success).toBe(false)
   })
 
-  it('rejects whitespace-only ext (use null for extensionless files)', () => {
+  it('rejects ext with any whitespace', () => {
     expect(FileEntrySchema.safeParse(makeInternal({ ext: '   ' })).success).toBe(false)
+    expect(FileEntrySchema.safeParse(makeInternal({ ext: 'exe ' })).success).toBe(false)
+    expect(FileEntrySchema.safeParse(makeInternal({ ext: 'ex e' })).success).toBe(false)
+    expect(SafeExtSchema.safeParse('pdf\t').success).toBe(false)
   })
 
-  it('accepts ext with internal dots (e.g. tar.gz convention lives in name, not ext)', () => {
+  it('accepts bare extensions', () => {
     // `.tar.gz` is split as name='archive.tar', ext='gz' by splitName — this
     // test just confirms the schema itself allows bare multi-letter extensions.
     expect(FileEntrySchema.safeParse(makeInternal({ ext: 'gz' })).success).toBe(true)

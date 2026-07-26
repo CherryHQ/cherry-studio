@@ -1,4 +1,4 @@
-import { ErrorCode } from '@shared/data/api'
+import { ErrorCode } from '@shared/data/api/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -85,7 +85,7 @@ describe('agentChannelHandlers', () => {
 
   describe('/agent-channels', () => {
     it('GET returns all channels when no filter is provided', async () => {
-      listChannelsMock.mockResolvedValueOnce([mockChannel])
+      listChannelsMock.mockReturnValueOnce([mockChannel])
 
       const result = await agentChannelHandlers['/agent-channels'].GET({ query: undefined } as never)
 
@@ -94,7 +94,7 @@ describe('agentChannelHandlers', () => {
     })
 
     it('GET passes agentId filter to listChannels', async () => {
-      listChannelsMock.mockResolvedValueOnce([mockChannel])
+      listChannelsMock.mockReturnValueOnce([mockChannel])
 
       const result = await agentChannelHandlers['/agent-channels'].GET({ query: { agentId: AGENT_ID } } as never)
 
@@ -103,7 +103,7 @@ describe('agentChannelHandlers', () => {
     })
 
     it('GET passes type filter to listChannels', async () => {
-      listChannelsMock.mockResolvedValueOnce([mockChannel])
+      listChannelsMock.mockReturnValueOnce([mockChannel])
 
       const result = await agentChannelHandlers['/agent-channels'].GET({ query: { type: 'telegram' } } as never)
 
@@ -152,7 +152,7 @@ describe('agentChannelHandlers', () => {
 
   describe('/agent-channels/:channelId', () => {
     it('GET returns channel when found', async () => {
-      getChannelMock.mockResolvedValueOnce(mockChannel)
+      getChannelMock.mockReturnValueOnce(mockChannel)
 
       const result = await agentChannelHandlers['/agent-channels/:channelId'].GET({
         params: { channelId: CHANNEL_ID }
@@ -163,7 +163,7 @@ describe('agentChannelHandlers', () => {
     })
 
     it('GET throws NOT_FOUND when channel does not exist', async () => {
-      getChannelMock.mockResolvedValueOnce(null)
+      getChannelMock.mockReturnValueOnce(null)
 
       await expect(
         agentChannelHandlers['/agent-channels/:channelId'].GET({ params: { channelId: CHANNEL_ID } } as never)
@@ -235,8 +235,8 @@ describe('agentHandlers — task logs', () => {
 
   describe('/agents/:agentId/tasks/:taskId/logs', () => {
     it('GET returns paginated logs for a task', async () => {
-      getTaskMock.mockResolvedValueOnce({ id: TASK_ID, agentId: AGENT_ID })
-      getTaskLogsMock.mockResolvedValueOnce({ logs: [mockLog], total: 1 })
+      getTaskMock.mockReturnValueOnce({ id: TASK_ID, agentId: AGENT_ID })
+      getTaskLogsMock.mockReturnValueOnce({ logs: [mockLog], total: 1 })
 
       const result = await agentHandlers['/agents/:agentId/tasks/:taskId/logs'].GET({
         params: { agentId: AGENT_ID, taskId: TASK_ID },
@@ -249,8 +249,8 @@ describe('agentHandlers — task logs', () => {
     })
 
     it('GET uses default pagination when no query is provided', async () => {
-      getTaskMock.mockResolvedValueOnce({ id: TASK_ID, agentId: AGENT_ID })
-      getTaskLogsMock.mockResolvedValueOnce({ logs: [], total: 0 })
+      getTaskMock.mockReturnValueOnce({ id: TASK_ID, agentId: AGENT_ID })
+      getTaskLogsMock.mockReturnValueOnce({ logs: [], total: 0 })
 
       const result = await agentHandlers['/agents/:agentId/tasks/:taskId/logs'].GET({
         params: { agentId: AGENT_ID, taskId: TASK_ID }
@@ -261,7 +261,7 @@ describe('agentHandlers — task logs', () => {
     })
 
     it('GET throws NOT_FOUND when the task does not belong to the agent', async () => {
-      getTaskMock.mockResolvedValueOnce(null)
+      getTaskMock.mockReturnValueOnce(null)
 
       await expect(
         agentHandlers['/agents/:agentId/tasks/:taskId/logs'].GET({
@@ -274,7 +274,7 @@ describe('agentHandlers — task logs', () => {
     })
 
     it('GET rejects invalid pagination query', async () => {
-      getTaskMock.mockResolvedValueOnce({ id: TASK_ID, agentId: AGENT_ID })
+      getTaskMock.mockReturnValueOnce({ id: TASK_ID, agentId: AGENT_ID })
 
       await expect(
         agentHandlers['/agents/:agentId/tasks/:taskId/logs'].GET({

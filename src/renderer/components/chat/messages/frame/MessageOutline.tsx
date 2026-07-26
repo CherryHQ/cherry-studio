@@ -7,12 +7,13 @@ import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 import { visit } from 'unist-util-visit'
 
-import { useMessageParts } from '../blocks'
+import { useMessageParts } from '../blocks/MessagePartsContext'
 import type { MessageListItem } from '../types'
 
 interface MessageOutlineProps {
   message: MessageListItem
   multiModelMessageStyle: MultiModelMessageStyle
+  onNavigateToElement(element: HTMLElement): void
 }
 
 interface HeadingItem {
@@ -21,7 +22,7 @@ interface HeadingItem {
   text: string
 }
 
-const MessageOutline: FC<MessageOutlineProps> = ({ message, multiModelMessageStyle }) => {
+const MessageOutline: FC<MessageOutlineProps> = ({ message, multiModelMessageStyle, onNavigateToElement }) => {
   const messageParts = useMessageParts(message.id)
 
   const headings: HeadingItem[] = useMemo(() => {
@@ -80,8 +81,14 @@ const MessageOutline: FC<MessageOutlineProps> = ({ message, multiModelMessageSty
     if (messageContentContainer) {
       const headingElement = messageContentContainer.querySelector<HTMLElement>(`#${id}`)
       if (headingElement) {
-        const scrollBlock = ['horizontal', 'grid'].includes(multiModelMessageStyle) ? 'nearest' : 'start'
-        scrollIntoView(headingElement, { behavior: 'smooth', block: scrollBlock, container: 'nearest' })
+        if (multiModelMessageStyle === 'horizontal') {
+          // The heading lives inside the message's own scroll container
+          // (`.message-content-container` is the nearest scrollable ancestor in
+          // this layout); the outer list scroller cannot reveal it.
+          scrollIntoView(headingElement, { behavior: 'smooth', block: 'nearest', container: 'nearest' })
+        } else {
+          onNavigateToElement(headingElement)
+        }
       }
     }
   }

@@ -8,6 +8,7 @@ import type { ModelSelectorTag } from './filters'
 export type ModelSelectorSide = 'top' | 'right' | 'bottom' | 'left'
 export type ModelSelectorAlign = 'start' | 'center' | 'end'
 export type ModelSelectorSelectionType = 'model' | 'id'
+export type ModelSelectorMountStrategy = 'destroy' | 'lazy-keep'
 
 interface ModelSelectorCommonProps {
   trigger: ReactNode
@@ -22,10 +23,12 @@ interface ModelSelectorCommonProps {
   align?: ModelSelectorAlign
   sideOffset?: number
   contentClassName?: string
-  listVisibleCount?: number
+  portalContainer?: HTMLElement | null
+  mountStrategy?: ModelSelectorMountStrategy
   multiSelectMode?: boolean
   defaultMultiSelectMode?: boolean
   onMultiSelectModeChange?: (enabled: boolean) => void
+  onSettingsNavigate?: (navigate: () => void) => void
   shortcut?: CommandId
 }
 
@@ -83,7 +86,6 @@ export interface ModelSelectorModelItem {
   modelId: UniqueModelId
   modelIdentifier: string
   isPinned: boolean
-  isSelected: boolean
   showIdentifier: boolean
 }
 
@@ -106,7 +108,9 @@ export interface UseModelSelectorDataResult {
   listItems: FlatListItem[]
   modelItems: ModelSelectorModelItem[]
   pinnedIds: readonly UniqueModelId[]
+  refetchModels: () => Promise<unknown>
   refetchPinnedModels: () => Promise<unknown>
+  refetchProviders: () => Promise<unknown>
   resetTags: () => void
   resolvedSelectedModelIds: UniqueModelId[]
   selectableModelsById: ReadonlyMap<UniqueModelId, Model>
@@ -115,4 +119,5 @@ export interface UseModelSelectorDataResult {
   tagSelection: Record<ModelSelectorTag, boolean>
   togglePin: (modelId: UniqueModelId) => Promise<void>
   toggleTag: (tag: ModelSelectorTag) => void
+  visibleSelectedModelIdSet: ReadonlySet<UniqueModelId>
 }

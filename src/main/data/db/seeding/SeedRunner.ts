@@ -16,12 +16,12 @@ interface SeedJournal {
 export class SeedRunner {
   constructor(private readonly db: DbType) {}
 
-  async runAll(seeders: ISeeder[]): Promise<void> {
+  runAll(seeders: ISeeder[]): void {
     if (seeders.length === 0) return
 
     const journalKeys = seeders.map((s) => `${SEED_KEY_PREFIX}${s.name}`)
-    const journalMap = await this.loadJournals(journalKeys)
-    const bootstrapCompleted = await this.hasBootstrapCompleted()
+    const journalMap = this.loadJournals(journalKeys)
+    const bootstrapCompleted = this.hasBootstrapCompleted()
 
     for (const seeder of seeders) {
       if (seeder.executionPolicy === 'bootstrap-only' && bootstrapCompleted) {
@@ -37,9 +37,9 @@ export class SeedRunner {
         continue
       }
 
-      await seeder.run(this.db)
+      seeder.run(this.db)
 
-      await this.db
+      this.db
         .insert(appStateTable)
         .values({
           key,
@@ -52,26 +52,28 @@ export class SeedRunner {
             updatedAt: Date.now()
           }
         })
+        .run()
 
       logger.info(`Seed "${seeder.name}" applied (v${seeder.version}) - ${seeder.description}`)
     }
 
     if (!bootstrapCompleted) {
-      await this.markBootstrapCompleted()
+      this.markBootstrapCompleted()
     }
   }
 
-  private async hasBootstrapCompleted(): Promise<boolean> {
-    const [row] = await this.db
+  private hasBootstrapCompleted(): boolean {
+    const [row] = this.db
       .select({ key: appStateTable.key })
       .from(appStateTable)
       .where(eq(appStateTable.key, BOOTSTRAP_MARKER_KEY))
       .limit(1)
+      .all()
     return row !== undefined
   }
 
-  private async markBootstrapCompleted(): Promise<void> {
-    await this.db
+  private markBootstrapCompleted(): void {
+    this.db
       .insert(appStateTable)
       .values({
         key: BOOTSTRAP_MARKER_KEY,
@@ -79,13 +81,15 @@ export class SeedRunner {
         description: 'Set after the first fully-successful seeding pass; bootstrap-only seeders never run once present'
       })
       .onConflictDoNothing()
+      .run()
   }
 
-  private async loadJournals(keys: string[]): Promise<Map<string, SeedJournal>> {
-    const rows = await this.db
+  private loadJournals(keys: string[]): Map<string, SeedJournal> {
+    const rows = this.db
       .select({ key: appStateTable.key, value: appStateTable.value })
       .from(appStateTable)
       .where(inArray(appStateTable.key, keys))
+      .all()
 
     const map = new Map<string, SeedJournal>()
     for (const row of rows) {

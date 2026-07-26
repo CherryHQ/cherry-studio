@@ -28,14 +28,14 @@ export class MiniAppSeeder implements ISeeder {
     this.presetDefaultOrderKeys = new Map(PRESETS_MINI_APPS.map((p, i) => [p.id, keys[i]]))
   }
 
-  async run(db: DbType): Promise<void> {
+  run(db: DbType): void {
     for (const preset of PRESETS_MINI_APPS) {
       const insertRow: InsertMiniAppRow = {
         appId: preset.id,
         presetMiniAppId: preset.id,
         name: preset.name,
         url: preset.url,
-        logo: preset.logo ?? null,
+        logoKey: preset.logo ?? null,
         bordered: preset.bordered ?? true,
         background: preset.background ?? null,
         supportedRegions: preset.supportedRegions ?? null,
@@ -49,15 +49,14 @@ export class MiniAppSeeder implements ISeeder {
       // A custom row whose appId happens to collide with a preset id (e.g. a
       // migrated v1 custom app) keeps its own name/url/logo. status, orderKey,
       // and presetMiniAppId stay untouched on every existing row.
-      await db
-        .insert(miniAppTable)
+      db.insert(miniAppTable)
         .values(insertRow)
         .onConflictDoUpdate({
           target: miniAppTable.appId,
           set: {
             name: insertRow.name,
             url: insertRow.url,
-            logo: insertRow.logo,
+            logoKey: insertRow.logoKey,
             bordered: insertRow.bordered,
             background: insertRow.background,
             supportedRegions: insertRow.supportedRegions,
@@ -65,6 +64,7 @@ export class MiniAppSeeder implements ISeeder {
           },
           setWhere: isNotNull(miniAppTable.presetMiniAppId)
         })
+        .run()
     }
   }
 }

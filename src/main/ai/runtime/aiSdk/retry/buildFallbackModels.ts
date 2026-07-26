@@ -23,16 +23,18 @@ import type { Assistant } from '@shared/data/types/assistant'
 import { isUniqueModelId, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { isFunctionCallingModel, isVisionModel } from '@shared/utils/model'
 
-import type { AppProviderSettingsMap } from '../../../types'
-import type { AgentOptions } from '../loop'
-import { buildAgentParams, type BuildAgentParamsInput } from '../params/buildAgentParams'
+import type { AiBaseRequest, AppProviderSettingsMap } from '../../../types'
+import type { AgentOptions } from '../loop/types'
+import { buildAgentParams } from '../params/buildAgentParams'
 import type { RequestFeature } from '../params/feature'
 import type { FallbackCallOptions, FallbackResolver, RetryFallback } from './createRetryableWrap'
 
 const logger = loggerService.withContext('ModelRetry')
 
 export interface BuildFallbackModelsArgs {
-  request: BuildAgentParamsInput['request']
+  // Base request shape accepted by `buildAgentParams`; kept `messages`-agnostic so
+  // both streamText (UIMessage[]) and generateText (ModelMessage[]) requests fit.
+  request: AiBaseRequest & { chatId?: string; messageId?: string }
   assistant: Assistant | undefined
   signal: AbortSignal | undefined
   /** Primary model's stored UniqueModelId — fallbacks equal to it are dropped. */
@@ -79,8 +81,8 @@ async function resolveFallback(
 ): Promise<RetryFallback | null> {
   try {
     const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-    const provider = await providerService.getByProviderId(providerId)
-    const model = await modelService.getByKey(providerId, modelId)
+    const provider = providerService.getByProviderId(providerId)
+    const model = modelService.getByKey(providerId, modelId)
 
     if (args.requestHasImages && !isVisionModel(model)) {
       logger.info('skipping fallback without vision for an image request', { uniqueModelId })

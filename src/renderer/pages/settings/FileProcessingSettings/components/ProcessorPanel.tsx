@@ -1,16 +1,25 @@
 import { Badge, Button, type ComboboxOption, Input, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import {
+  SettingHelpLink,
+  SettingHelpText,
+  SettingHelpTextRow,
+  SettingRow,
+  SettingRowTitle,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
 import { useLanguages } from '@renderer/hooks/translate'
-import { formatApiKeys, splitApiKeyString, validateApiHost } from '@renderer/utils/api'
+import { toast } from '@renderer/services/toast'
+import { formatApiKeys, joinApiKeyString, splitApiKeyString, validateApiHost } from '@renderer/utils/api'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { List, SquareCheckBig } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingRow, SettingRowTitle, SettingTitle } from '../..'
 import {
   type FileProcessingMenuEntry,
   getProcessorApiKeyWebsite,
+  getProcessorDescriptionKey,
   getProcessorNameKey,
   getTesseractLanguageCode,
   shouldShowLanguageOptions,
@@ -62,12 +71,12 @@ export function ProcessorPanel({
       ? defaultImageProcessor === processor.id
       : defaultDocumentProcessor === processor.id
 
-  const [apiKeysInput, setApiKeysInput] = useState(() => processor.apiKeys?.join(', ') ?? '')
+  const [apiKeysInput, setApiKeysInput] = useState(() => joinApiKeyString(processor.apiKeys ?? []))
   const [apiHostInput, setApiHostInput] = useState(entry.capability.apiHost ?? '')
   const [modelIdInput, setModelIdInput] = useState(entry.capability.modelId ?? '')
 
   useEffect(() => {
-    setApiKeysInput(processor.apiKeys?.join(', ') ?? '')
+    setApiKeysInput(joinApiKeyString(processor.apiKeys ?? []))
     setApiHostInput(entry.capability.apiHost ?? '')
     setModelIdInput(entry.capability.modelId ?? '')
   }, [entry.key])
@@ -108,7 +117,7 @@ export function ProcessorPanel({
         await action()
       } catch (error) {
         logger.error(`Failed to ${actionName}`, error as Error)
-        window.toast.error(t('settings.tool.file_processing.errors.save_failed'))
+        toast.error(t('settings.tool.file_processing.errors.save_failed'))
       }
     },
     [t]
@@ -122,7 +131,10 @@ export function ProcessorPanel({
     await FileProcessingApiKeyListPopup.show({
       processorId: processor.id,
       apiKeys: splitApiKeyString(formatApiKeys(apiKeysInput)),
-      onSetApiKeys,
+      onSetApiKeys: async (processorId, apiKeys) => {
+        await onSetApiKeys(processorId, apiKeys)
+        setApiKeysInput(joinApiKeyString(apiKeys))
+      },
       title: `${processorName} ${t('settings.provider.api.key.list.title')}`
     })
   }, [apiKeysInput, onSetApiKeys, processor.id, processorName, t])
@@ -131,7 +143,7 @@ export function ProcessorPanel({
     const trimmedApiHost = apiHostInput.trim()
     setApiHostInput(trimmedApiHost)
     if (!validateApiHost(trimmedApiHost)) {
-      window.toast.warning(t('settings.tool.file_processing.errors.invalid_api_host'))
+      toast.warning(t('settings.tool.file_processing.errors.invalid_api_host'))
       return
     }
     await persist(() => onSetCapabilityField(processor.id, entry.feature, 'apiHost', trimmedApiHost), 'save API host')
@@ -252,6 +264,20 @@ export function ProcessorPanel({
       ) : null}
 
       {processor.id === 'paddleocr' ? <PaddleOcrDeploymentInfo /> : null}
+
+      {processor.id === 'local-paddleocr' ? (
+        <div className="flex flex-col gap-3 border-border-muted border-t pt-4">
+          <SettingRow className="items-start justify-start gap-2 py-1">
+            <SquareCheckBig size={13} className="mt-0.5 shrink-0 text-emerald-500" />
+            <div className="min-w-0 flex-1">
+              <SettingRowTitle className="font-medium text-emerald-600 text-xs dark:text-emerald-400">
+                {t('settings.tool.file_processing.processors.local_paddleocr.status.local')}
+              </SettingRowTitle>
+              <SettingHelpText className="mt-1 text-xs">{t(getProcessorDescriptionKey(processor.id))}</SettingHelpText>
+            </div>
+          </SettingRow>
+        </div>
+      ) : null}
 
       {processor.id === 'system' ? (
         <div className="flex flex-col gap-3 border-border-muted border-t pt-4">

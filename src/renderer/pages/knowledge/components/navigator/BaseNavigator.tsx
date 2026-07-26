@@ -1,23 +1,28 @@
-import { buildKnowledgeBaseGroupSections, DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/pages/knowledge/utils'
+import { Button, PageHeader } from '@cherrystudio/ui'
+import {
+  buildKnowledgeBaseGroupSections,
+  DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY
+} from '@renderer/pages/knowledge/utils/group'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import { Plus } from 'lucide-react'
 import type { MouseEvent as ReactMouseEvent } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import BaseNavigatorContent from './BaseNavigatorContent'
-import BaseNavigatorCreateMenu from './BaseNavigatorCreateMenu'
 import BaseNavigatorResizeHandle from './BaseNavigatorResizeHandle'
 import BaseNavigatorSearch from './BaseNavigatorSearch'
 
 interface BaseNavigatorProps {
   bases: KnowledgeBaseListItem[]
   groups: Group[]
+  isLoading: boolean
   width: number
   selectedBaseId: string
   onSelectBase: (baseId: string) => void
-  onCreateGroup: () => void
+  onCreateGroup: (baseId: string) => void
   onCreateBase: (groupId?: string) => void
   onMoveBase: (baseId: string, groupId: string | null) => Promise<void> | void
   onRenameBase: (base: Pick<KnowledgeBase, 'id' | 'name'>) => void
@@ -30,6 +35,7 @@ interface BaseNavigatorProps {
 const BaseNavigator = ({
   bases,
   groups,
+  isLoading,
   width,
   selectedBaseId,
   onSelectBase,
@@ -67,15 +73,29 @@ const BaseNavigator = ({
 
   return (
     <div style={{ width }} className="relative h-full min-h-0 shrink-0">
-      <aside className="flex size-full min-h-0 flex-col border-border-muted border-r">
-        <div className="flex shrink-0 items-center gap-2 p-3">
-          <div className="min-w-0 flex-1">
-            <BaseNavigatorSearch value={searchValue} onValueChange={setSearchValue} />
-          </div>
-          <BaseNavigatorCreateMenu onCreateBase={onCreateBase} onCreateGroup={onCreateGroup} />
+      <aside className="flex size-full min-h-0 flex-col border-border border-r-[0.5px]">
+        <PageHeader
+          title={t('knowledge.title')}
+          action={
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t('knowledge.add.title')}
+              title={t('knowledge.add.title')}
+              className="size-6 text-muted-foreground hover:text-foreground"
+              onClick={() => onCreateBase()}>
+              <Plus className="size-4" />
+            </Button>
+          }
+        />
+        <div className="shrink-0 px-2.5 pb-2">
+          <BaseNavigatorSearch value={searchValue} onValueChange={setSearchValue} />
         </div>
 
         <BaseNavigatorContent
+          isLoading={isLoading}
+          hasBases={bases.length > 0}
           sections={knowledgeBaseGroupSections}
           groups={groups}
           groupById={groupById}
@@ -86,6 +106,7 @@ const BaseNavigator = ({
           onRenameBase={onRenameBase}
           onRenameGroup={onRenameGroup}
           onCreateBaseInGroup={onCreateBase}
+          onCreateGroup={onCreateGroup}
           onDeleteGroup={onDeleteGroup}
           onDeleteBase={onDeleteBase}
         />

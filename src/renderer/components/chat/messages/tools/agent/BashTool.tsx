@@ -1,14 +1,14 @@
 import { useTranslation } from 'react-i18next'
 
-import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
-import { truncateOutput } from '../shared/truncateOutput'
-import { SkeletonValue, ToolHeader, TruncatedIndicator } from './GenericTools'
-import { TerminalOutput } from './TerminalOutput'
 import {
   AgentToolsType,
   type BashToolInput as BashToolInputType,
   type BashToolOutput as BashToolOutputType
-} from './types'
+} from '../shared/agentToolTypes'
+import { SkeletonValue, ToolHeader, TruncatedIndicator } from '../shared/GenericTools'
+import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
+import { truncateOutput } from '../shared/truncateOutput'
+import { TerminalOutput } from './TerminalOutput'
 
 export function BashTool({
   input,

@@ -1,5 +1,6 @@
-import { resolveSidebarAppTabEntryUrl } from '@renderer/config/sidebar'
-import type { Tab } from '@renderer/hooks/useTabs'
+import type { Tab } from '@renderer/hooks/tab'
+import { ipcApi } from '@renderer/ipc'
+import { resolveSidebarAppTabEntryUrl } from '@renderer/utils/sidebar'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -60,7 +61,9 @@ export function useTabDrag({
     tabType: 'normal' as 'pinned' | 'normal',
     detachedCreated: false,
     tabClosed: false,
-    originalRects: new Map<string, { left: number; width: number }>()
+    originalRects: new Map<string, { left: number; width: number }>(),
+    grabOffsetX: 0,
+    grabOffsetY: 0
   })
 
   // Prevent onClick from firing after drag ends
@@ -156,7 +159,9 @@ export function useTabDrag({
         tabType,
         detachedCreated: false,
         tabClosed: false,
-        originalRects
+        originalRects,
+        grabOffsetX: e.screenX - window.screenX,
+        grabOffsetY: e.screenY - window.screenY
       }
 
       didDragRef.current = false
@@ -218,7 +223,7 @@ export function useTabDrag({
           const allTabs = [...pinnedTabs, ...normalTabs]
           const tab = allTabs.find((t) => t.id === dragState.tabId)
           if (tab) {
-            window.electron.ipcRenderer.send(IpcChannel.Tab_Detach, {
+            void ipcApi.request('tab.detach', {
               ...tab,
               url: resolveSidebarAppTabEntryUrl(tab),
               x: e.screenX - 400,
@@ -276,7 +281,7 @@ export function useTabDrag({
         if (!dragRef.current.tabClosed && dragRef.current.tabType === 'normal') {
           closeTab(dragState.tabId)
         }
-        window.electron.ipcRenderer.send(IpcChannel.Tab_DragEnd)
+        void ipcApi.request('tab.drag_end')
       }
 
       if (rafId.current !== null) {

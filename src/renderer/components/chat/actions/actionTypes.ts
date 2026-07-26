@@ -20,6 +20,10 @@ export type ActionText<TContext> = string | ((context: TContext) => string)
 
 export type ActionSurfaceSpec = ActionSurface | readonly ActionSurface[]
 
+export type ActionChildren<TContext> =
+  | readonly ActionDescriptor<TContext>[]
+  | ((context: TContext) => readonly ActionDescriptor<TContext>[])
+
 export interface ActionConfirm<TContext = unknown> {
   title: ActionNode<TContext>
   description?: ActionNode<TContext>
@@ -54,7 +58,7 @@ export interface ActionDescriptor<TContext> {
   surface?: ActionSurfaceSpec
   danger?: boolean
   shortcut?: string
-  children?: readonly ActionDescriptor<TContext>[]
+  children?: ActionChildren<TContext>
   confirm?: ActionConfirm<TContext> | ((context: TContext) => ActionConfirm<TContext> | undefined)
   availability?: ActionAvailabilityResolver<TContext>
 }

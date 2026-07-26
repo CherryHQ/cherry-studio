@@ -48,6 +48,13 @@ interface StubbornInput {
 let scheduler: SchedulerService
 let jobManager: JobManager
 
+// PowerService stub: JobManager acquires a sleep-prevention hold per attempt and
+// releases it in the finally. Shared spies let the end-to-end test assert acquire/release.
+const sleepHoldDispose = vi.fn()
+const mockPowerService = {
+  preventSleep: vi.fn(() => ({ dispose: sleepHoldDispose }))
+}
+
 function makeEchoHandler(): JobHandler<EchoInput> {
   return {
     recovery: 'abandon',
@@ -129,6 +136,8 @@ describe('JobManager smoke (dummy.echo)', () => {
           return scheduler
         case 'JobManager':
           return jobManager
+        case 'PowerService':
+          return mockPowerService
       }
       throw new Error(`Unexpected application.get('${name}')`)
     })
@@ -163,10 +172,13 @@ describe('JobManager smoke (dummy.echo)', () => {
   afterEach(async () => {
     await drainTrailingDispatch()
     MockMainCacheServiceUtils.resetMocks()
+    // Reset the sleep-prevention spies so each test asserts its own acquire/release counts.
+    mockPowerService.preventSleep.mockClear()
+    sleepHoldDispose.mockClear()
   })
 
   it('runs a job end-to-end (pending → running → completed)', async () => {
-    const handle = await jobManager.enqueue('dummy.echo' as never, { message: 'hello' } as never)
+    const handle = jobManager.enqueue('dummy.echo' as never, { message: 'hello' } as never)
     expect(handle.snapshot.status).toBe('pending')
 
     const settled = await handle.finished
@@ -176,12 +188,22 @@ describe('JobManager smoke (dummy.echo)', () => {
     expect(settled.startedAt).not.toBeNull()
     expect(settled.finishedAt).not.toBeNull()
     expect(settled.error).toBeNull()
+
+    // The hold is released in the task's finally, which runs after finalizeJob resolves
+    // handle.finished — drain so that trailing continuation has executed before asserting.
+    await drainTrailingDispatch()
+
+    // JobManager acquired exactly one sleep-prevention hold for the single attempt and
+    // released it on completion. Reason is `job:<type>:<id>` — id is dynamic, match prefix.
+    expect(mockPowerService.preventSleep).toHaveBeenCalledTimes(1)
+    expect(mockPowerService.preventSleep).toHaveBeenCalledWith(expect.stringMatching(/^job:dummy\.echo:/))
+    expect(sleepHoldDispose).toHaveBeenCalledTimes(1)
   })
 
   it('publishes state + progress through CacheService', async () => {
     const setShared = MockMainCacheServiceExport.cacheService.setShared
 
-    const handle = await jobManager.enqueue('dummy.echo' as never, { message: 'progress' } as never)
+    const handle = jobManager.enqueue('dummy.echo' as never, { message: 'progress' } as never)
     await handle.finished
 
     const stateKey = `${JOB_STATE_KEY_PREFIX}${handle.id}`
@@ -198,7 +220,7 @@ describe('JobManager smoke (dummy.echo)', () => {
   })
 
   it('cancels an in-flight job (handler observes abort → outcome cancelled)', async () => {
-    const handle = await jobManager.enqueue('dummy.echo' as never, { message: 'long', sleepMs: 500 } as never)
+    const handle = jobManager.enqueue('dummy.echo' as never, { message: 'long', sleepMs: 500 } as never)
     // Wait for dispatch tx to fully commit before launching the next write.
     await drainTrailingDispatch()
     // Give the handler time to actually enter its abortable await.
@@ -215,10 +237,14 @@ describe('JobManager smoke (dummy.echo)', () => {
       retryable: false,
       message: expect.stringContaining('user requested')
     })
+
+    await drainTrailingDispatch()
+    // A cancelled (non-completed) job must still release its hold via the task finally.
+    expect(sleepHoldDispose).toHaveBeenCalledTimes(1)
   })
 
   it('reports timed-out when the handler ignores the abort past cancelTimeoutMs', async () => {
-    const handle = await jobManager.enqueue('dummy.stubborn' as never, { sleepMs: 600 } as never)
+    const handle = jobManager.enqueue('dummy.stubborn' as never, { sleepMs: 600 } as never)
     await drainTrailingDispatch()
     // Give the handler time to enter its (un-abortable) sleep before cancelling.
     await new Promise((r) => setTimeout(r, 50))
@@ -234,10 +260,12 @@ describe('JobManager smoke (dummy.echo)', () => {
 
     await executed
     await drainTrailingDispatch()
+    // Even on the force-timeout terminal the hold is released once the late handler settles.
+    expect(sleepHoldDispose).toHaveBeenCalledTimes(1)
   }, 10_000)
 
   it('reports cancelled for a not-in-flight delayed job', async () => {
-    const handle = await jobManager.enqueue(
+    const handle = jobManager.enqueue(
       'dummy.echo' as never,
       { message: 'later' } as never,
       {
@@ -249,12 +277,12 @@ describe('JobManager smoke (dummy.echo)', () => {
     const result = await jobManager.cancel(handle.id)
     expect(result).toEqual({ outcome: 'cancelled' })
 
-    const row = await jobService.getById(handle.id)
+    const row = jobService.getById(handle.id)
     expect(row?.status).toBe('cancelled')
   })
 
   it('reports not-cancellable for an already-terminal job', async () => {
-    const handle = await jobManager.enqueue('dummy.echo' as never, { message: 'done' } as never)
+    const handle = jobManager.enqueue('dummy.echo' as never, { message: 'done' } as never)
     const settled = await handle.finished
     expect(settled.status).toBe('completed')
     await drainTrailingDispatch()
@@ -265,13 +293,13 @@ describe('JobManager smoke (dummy.echo)', () => {
 
   it('reuses an existing handle when idempotencyKey matches a non-terminal job', async () => {
     const key = `idem-${Date.now()}-${Math.random().toString(36).slice(2)}`
-    const first = await jobManager.enqueue(
+    const first = jobManager.enqueue(
       'dummy.echo' as never,
       { message: 'unique', sleepMs: 500 } as never,
       { idempotencyKey: key } as never
     )
     await drainTrailingDispatch()
-    const second = await jobManager.enqueue(
+    const second = jobManager.enqueue(
       'dummy.echo' as never,
       { message: 'unique', sleepMs: 500 } as never,
       { idempotencyKey: key } as never
@@ -286,16 +314,16 @@ describe('JobManager smoke (dummy.echo)', () => {
   })
 
   it('GETs jobs through JobService after enqueue', async () => {
-    const handle = await jobManager.enqueue('dummy.echo' as never, { message: 'listed' } as never)
+    const handle = jobManager.enqueue('dummy.echo' as never, { message: 'listed' } as never)
     await handle.finished
     await drainTrailingDispatch()
 
-    const row = await jobService.getById(handle.id)
+    const row = jobService.getById(handle.id)
     expect(row).not.toBeNull()
     expect(row?.type).toBe('dummy.echo')
     expect(row?.status).toBe('completed')
 
-    const all = await jobService.list({ type: 'dummy.echo' })
+    const all = jobService.list({ type: 'dummy.echo' })
     expect(all.some((r) => r.id === handle.id)).toBe(true)
   })
 
@@ -343,11 +371,11 @@ describe('JobManager smoke (dummy.echo)', () => {
     }
     jobManager.registerHandler('dummy.inflight.guard' as never, gateHandler as JobHandler)
 
-    const handle = await jobManager.enqueue('dummy.inflight.guard' as never, { message: 'once' } as never)
+    const handle = jobManager.enqueue('dummy.inflight.guard' as never, { message: 'once' } as never)
     await drainTrailingDispatch()
     expect(executeCount).toBe(1)
 
-    const row = await jobService.getById(handle.id)
+    const row = jobService.getById(handle.id)
     const firstExecuted = inFlightExecutedOf(handle.id)
 
     // Simulate a stray re-dispatch invoking spawnExecute for an id already

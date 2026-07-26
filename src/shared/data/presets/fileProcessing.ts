@@ -1,3 +1,4 @@
+import { FILE_TYPE, FileTypeSchema } from '@shared/types/file'
 import * as z from 'zod'
 
 import {
@@ -13,7 +14,6 @@ import {
   type FileProcessorOverrides,
   type FileProcessorType
 } from '../preference/preferenceTypes'
-import { FILE_TYPE, FileTypeSchema } from '../types/file'
 
 export const FileProcessorTypeSchema = z.enum(FILE_PROCESSOR_TYPES)
 
@@ -204,6 +204,10 @@ export const FILE_PROCESSOR_PRESET_MAP = {
         modelId: 'PaddleOCR-VL-1.5'
       }
     ]
+  },
+  'local-paddleocr': {
+    type: 'builtin',
+    capabilities: [{ feature: 'image_to_text', inputs: ['image'], output: 'text' }]
   },
   ovocr: {
     type: 'builtin',

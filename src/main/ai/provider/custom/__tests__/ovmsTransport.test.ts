@@ -31,7 +31,11 @@ describe('OvmsTransport', () => {
       ...baseInput,
       modelId: 'sd',
       prompt: 'a cat',
-      providerParams: { model: 'sd', size: '768x768', numInferenceSteps: 8, rngSeed: 7 }
+      size: '768x768',
+      // Production shape: native seed via `input.seed`; steps via the WireProfile
+      // diffusion profile's snake_case `num_inference_steps` in the bag.
+      seed: 7,
+      providerParams: { model: 'sd', num_inference_steps: 8 }
     })
 
     const call = fetchMock.mock.calls[0]

@@ -4,14 +4,17 @@ import type { FocusEvent, MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import RecallHistoryList from './RecallHistoryList'
-import { useRecallTest } from './RecallTestProvider'
+import { useRecallQuery, useRecallResult } from './RecallTestProvider'
 
 const RecallSearchBar = () => {
   const { t } = useTranslation()
   const {
-    state: { query, historyItems, isHistoryOpen, isSearching },
+    state: { query, historyItems, isHistoryOpen },
     actions: { setQuery, setHistoryOpen, runSearch }
-  } = useRecallTest()
+  } = useRecallQuery()
+  const {
+    state: { isSearching }
+  } = useRecallResult()
   const canSearch = query.trim().length > 0 && !isSearching
   const hasHistory = historyItems.length > 0
 
@@ -35,7 +38,7 @@ const RecallSearchBar = () => {
           clipped by the panel's `overflow-x-hidden` ancestor (and overlapped by the open
           history dropdown), leaving the lower/right edge incomplete. Drawing it inset keeps
           the whole focus border within the wrapper, so it always renders fully. */}
-      <div className="relative flex flex-1 items-center gap-1.5 rounded-lg border border-border-subtle bg-background px-2.5 py-1.25 transition-all focus-within:border-border-active focus-within:ring-1 focus-within:ring-ring/50 focus-within:ring-inset">
+      <div className="relative flex flex-1 items-center gap-1.5 rounded-lg border border-border-subtle bg-transparent px-2.5 py-1.25 transition-all focus-within:border-border-active focus-within:ring-1 focus-within:ring-ring/50 focus-within:ring-inset">
         <Search className="size-3.5 shrink-0 text-foreground-muted" />
         <Input
           value={query}

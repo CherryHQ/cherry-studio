@@ -1,6 +1,6 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
-import { toDataApiError } from '@shared/data/api'
+import { toDataApiError } from '@shared/data/api/errors'
 import {
   ActiveAgentChannelConfigSchemasByType,
   AgentChannelConfigSchemasByType,
@@ -13,18 +13,20 @@ const logger = loggerService.withContext('AgentChannelWorkflowService')
 
 export class AgentChannelWorkflowService {
   async createChannel(data: Parameters<typeof agentChannelService.createChannel>[0]) {
-    const channel = await agentChannelService.createChannel(data)
+    const channel = agentChannelService.createChannel(data)
 
     try {
       await application.get('ChannelManager').syncChannel(channel.id, { awaitConnect: true, strictDisconnect: true })
       return channel
     } catch (error) {
-      await agentChannelService.deleteChannel(channel.id).catch((cleanupError) => {
+      try {
+        agentChannelService.deleteChannel(channel.id)
+      } catch (cleanupError) {
         logger.warn('Failed to clean up channel after sync failure', {
           channelId: channel.id,
           cleanupError: cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
         })
-      })
+      }
       await application
         .get('ChannelManager')
         .disconnectChannel(channel.id)
@@ -39,7 +41,7 @@ export class AgentChannelWorkflowService {
   }
 
   async updateChannel(channelId: string, updates: UpdateAgentChannelDto) {
-    const existing = await agentChannelService.getChannel(channelId)
+    const existing = agentChannelService.getChannel(channelId)
     if (!existing) return null
 
     const validatedConfig =
@@ -62,10 +64,16 @@ export class AgentChannelWorkflowService {
       ...(validatedConfig?.success ? { config: validatedConfig.data } : {})
     }
 
-    const channel = await agentChannelService.updateChannel(channelId, serviceUpdates)
+    const channel = agentChannelService.updateChannel(channelId, serviceUpdates)
     if (!channel) {
       logger.warn('updateChannel: row disappeared mid-update', { channelId })
       return null
+    }
+    const agentIdChanged = updates.agentId !== undefined && updates.agentId !== (existing.agentId ?? null)
+    const subscribedTaskIds = agentIdChanged ? agentChannelService.getSubscribedTasks(channelId) : []
+    if (agentIdChanged) {
+      // Restored on successful rollback; kept cleared only if the row restore fails to prevent wrong-agent delivery.
+      agentChannelService.clearTaskSubscriptionsForChannel(channelId)
     }
 
     try {
@@ -86,12 +94,21 @@ export class AgentChannelWorkflowService {
         permissionMode: existing.permissionMode ?? null
       }
 
-      await agentChannelService.updateChannel(channelId, restoreUpdates).catch((restoreError) => {
+      try {
+        agentChannelService.updateChannel(channelId, restoreUpdates)
+        if (agentIdChanged) {
+          // Re-clear subscriptions created during the transient rebind window, then restore the old-agent snapshot.
+          agentChannelService.clearTaskSubscriptionsForChannel(channelId)
+          for (const taskId of subscribedTaskIds) {
+            agentChannelService.subscribeToTask(channelId, taskId)
+          }
+        }
+      } catch (restoreError) {
         logger.warn('Failed to restore channel after sync failure', {
           channelId,
           restoreError: restoreError instanceof Error ? restoreError.message : String(restoreError)
         })
-      })
+      }
       await application
         .get('ChannelManager')
         .syncChannel(channelId)
@@ -106,12 +123,12 @@ export class AgentChannelWorkflowService {
   }
 
   async deleteChannel(channelId: string) {
-    const existing = await agentChannelService.getChannel(channelId)
+    const existing = agentChannelService.getChannel(channelId)
     if (!existing) return false
 
     await application.get('ChannelManager').disconnectChannel(channelId, { suppressErrors: false })
     try {
-      return await agentChannelService.deleteChannel(channelId)
+      return agentChannelService.deleteChannel(channelId)
     } catch (error) {
       await application
         .get('ChannelManager')

@@ -2,13 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createAihubmixFluxTransport } from '../aihubmix/aihubmixFlux'
 
-vi.mock('i18next', () => ({
-  default: {
-    t: (key: string) => key
-  }
-}))
-
-vi.mock('@renderer/i18n', () => ({ default: { t: (k: string) => k } }))
+vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
 /**
  * Covers the AiHubMix BFL async FLUX transport: submit task-id extraction and

@@ -1,14 +1,15 @@
 import { Button, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { getMessageDeleteUnavailableText } from '@renderer/components/chat/messages/utils/messageDeleteAvailability'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
+import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import { Columns2, Folder, Grid2X2, RotateCcw, Rows3, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { usePartsMap } from '../blocks'
+import { usePartsMap } from '../blocks/MessagePartsContext'
 import { useMessageListActions } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
 import MessageGroupModelList from './MessageGroupModelList'
@@ -34,12 +35,17 @@ const MessageGroupMenuBar: FC<Props> = ({
   const { t } = useTranslation()
   const partsMap = usePartsMap()
   const actions = useMessageListActions()
+  const groupParentId = messages[0]?.parentId
+  const deleteAvailability = groupParentId ? actions.getMessageDeleteAvailability?.(groupParentId) : undefined
+  const isDeleteDisabled = deleteAvailability?.enabled === false
+  const deleteDisabledReason = isDeleteDisabled
+    ? getMessageDeleteUnavailableText(deleteAvailability.reason, t)
+    : undefined
 
   const handleDeleteGroup = async () => {
-    const parentId = messages[0]?.parentId
-    if (!parentId || !actions.deleteMessageGroupWithConfirm) return
+    if (!groupParentId || !actions.deleteMessageGroupWithConfirm || isDeleteDisabled) return
 
-    await actions.deleteMessageGroupWithConfirm(parentId)
+    await actions.deleteMessageGroupWithConfirm(groupParentId)
   }
 
   const isFailedMessage = (m: MessageListItem) => {
@@ -131,9 +137,16 @@ const MessageGroupMenuBar: FC<Props> = ({
           </Tooltip>
         )}
         {actions.deleteMessageGroupWithConfirm && (
-          <Button variant="ghost" size="sm" onClick={handleDeleteGroup} className="size-7 min-w-7 p-0">
-            <Trash2 size={14} color="var(--color-error-base)" />
-          </Button>
+          <Tooltip content={deleteDisabledReason ?? t('common.delete')}>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={isDeleteDisabled}
+              onClick={handleDeleteGroup}
+              className="size-7 min-w-7 p-0">
+              <Trash2 size={14} className="text-error" />
+            </Button>
+          </Tooltip>
         )}
       </ActionContainer>
     </GroupMenuBar>

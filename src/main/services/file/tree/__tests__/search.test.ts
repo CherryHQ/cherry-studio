@@ -3,8 +3,12 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { tryTestRipgrepPath } from './ripgrepTestUtils'
+
+const ripgrepAvailable = tryTestRipgrepPath() !== null
 
 // Hoisted mocks for the two `node:fs` surfaces `search.ts` consults:
 //   - `existsSync` drives ripgrep binary discovery
@@ -26,6 +30,25 @@ vi.mock('node:fs', async (importOriginal) => {
     }
   }
 })
+
+// Production resolves ripgrep via BinaryManager (`getBinaryPath('rg')`), which
+// reads cherry.bin / mise shims — neither is populated under vitest. Point it
+// at the test ripgrep binary so scans spawn a real ripgrep; `existsSync` (mocked
+// above) still governs the "binary not available" branch.
+vi.mock('@main/utils/binaryResolver', async () => {
+  const { tryTestRipgrepPath } = await import('./ripgrepTestUtils')
+  // When ripgrep is unavailable, return a non-existent sentinel path so
+  // `resolveRipgrepBinary`'s existsSync check (not testRipgrepPath) governs
+  // binary availability — keeping the error-path test's assertion correct.
+  const resolvedRgPath = tryTestRipgrepPath() ?? '/nonexistent/rg'
+  return {
+    getBinaryPath: async (name?: string) => (name === 'rg' ? resolvedRgPath : (name ?? ''))
+  }
+})
+
+vi.mock('@main/utils/binaryEnv', () => ({
+  getBinaryExecutionEnv: () => ({})
+}))
 
 const { listDirectory } = await import('../search')
 
@@ -51,7 +74,7 @@ const writeMany = async (root: string, count: number, prefix = 'file', ext = '.t
   return created
 }
 
-describe('listDirectory (list mode, no searchPattern)', () => {
+describe.skipIf(!ripgrepAvailable)('listDirectory (list mode, no searchPattern)', () => {
   let tmp: string
   beforeEach(async () => {
     tmp = await mkdtemp(path.join(tmpdir(), 'cherry-search-list-'))
@@ -64,20 +87,17 @@ describe('listDirectory (list mode, no searchPattern)', () => {
     // 75 files exercises the > 50 threshold called out in the PR plan and
     // would have been chopped to 20 under the old `maxEntries` default.
     await writeMany(tmp, 75)
-    const results = await listDirectory(tmp as FilePath)
+    const results = await listDirectory(tmp as AbsoluteFilePath)
     expect(results.length).toBe(75)
   })
 
-  it('locates the vendored @cherrystudio/ripgrep binary before PATH fallback', async () => {
+  it('uses the BinaryManager-resolved ripgrep path', async () => {
     await writeFile(path.join(tmp, 'root.md'), 'root')
 
-    await listDirectory(tmp as FilePath)
+    await listDirectory(tmp as AbsoluteFilePath)
 
     const checkedPaths = mockExistsSync.mock.calls.map(([p]) => String(p).replace(/\\/g, '/'))
-    expect(checkedPaths.some((p) => p.includes('node_modules/@cherrystudio/ripgrep/vendor/ripgrep/'))).toBe(true)
-    expect(checkedPaths.some((p) => p.includes('node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep/'))).toBe(
-      false
-    )
+    expect(checkedPaths.some((p) => path.basename(p) === (process.platform === 'win32' ? 'rg.exe' : 'rg'))).toBe(true)
   })
 
   it('lists nested directories and files alongside top-level entries', async () => {
@@ -85,7 +105,7 @@ describe('listDirectory (list mode, no searchPattern)', () => {
     await mkdir(path.join(tmp, 'sub'))
     await writeFile(path.join(tmp, 'sub', 'inner.md'), 'inner')
 
-    const results = await listDirectory(tmp as FilePath)
+    const results = await listDirectory(tmp as AbsoluteFilePath)
     const basenames = results.map((p) => path.basename(p))
     expect(basenames).toContain('root.md')
     expect(basenames).toContain('inner.md')
@@ -96,10 +116,10 @@ describe('listDirectory (list mode, no searchPattern)', () => {
     await writeFile(path.join(tmp, 'visible.txt'), '1')
     await writeFile(path.join(tmp, '.hidden'), '2')
 
-    const defaultRun = await listDirectory(tmp as FilePath)
+    const defaultRun = await listDirectory(tmp as AbsoluteFilePath)
     expect(defaultRun.some((p) => p.endsWith('/.hidden'))).toBe(false)
 
-    const withHidden = await listDirectory(tmp as FilePath, { includeHidden: true })
+    const withHidden = await listDirectory(tmp as AbsoluteFilePath, { includeHidden: true })
     expect(withHidden.some((p) => p.endsWith('/.hidden'))).toBe(true)
   })
 
@@ -108,14 +128,14 @@ describe('listDirectory (list mode, no searchPattern)', () => {
     await mkdir(path.join(tmp, 'sub'))
     await writeFile(path.join(tmp, 'sub', 'nested.md'), 'nested')
 
-    const results = await listDirectory(tmp as FilePath, { maxDepth: 1 })
+    const results = await listDirectory(tmp as AbsoluteFilePath, { maxDepth: 1 })
     const basenames = results.map((p) => path.basename(p))
     expect(basenames).toContain('top.md')
     expect(basenames).not.toContain('nested.md')
   })
 })
 
-describe('listDirectory (search mode, fuzzy + maxEntries)', () => {
+describe.skipIf(!ripgrepAvailable)('listDirectory (search mode, fuzzy + maxEntries)', () => {
   let tmp: string
   beforeEach(async () => {
     tmp = await mkdtemp(path.join(tmpdir(), 'cherry-search-search-'))
@@ -129,7 +149,7 @@ describe('listDirectory (search mode, fuzzy + maxEntries)', () => {
     for (let i = 0; i < 12; i++) {
       await writeFile(path.join(tmp, `updater-${i}.ts`), 'x')
     }
-    const results = await listDirectory(tmp as FilePath, {
+    const results = await listDirectory(tmp as AbsoluteFilePath, {
       searchPattern: 'updater',
       maxEntries: 5
     })
@@ -145,7 +165,7 @@ describe('listDirectory (search mode, fuzzy + maxEntries)', () => {
     await mkdir(path.join(tmp, 'misc'))
     await writeFile(path.join(tmp, 'misc', 'inner-updater.ts'), 'c')
 
-    const results = await listDirectory(tmp as FilePath, {
+    const results = await listDirectory(tmp as AbsoluteFilePath, {
       searchPattern: 'updater',
       maxEntries: 10
     })
@@ -164,15 +184,15 @@ describe('listDirectory (error paths)', () => {
     await rm(tmp, { recursive: true, force: true })
   })
 
-  it('throws "Ripgrep binary not available" when the vendored binary cannot be located', async () => {
-    // Force the parent-walk in getRipgrepBinaryPath() to exhaust without
-    // ever finding the binary or its asar-unpacked sibling. `stat` keeps
-    // its passthrough so the directory check still succeeds — the throw
-    // must come from the binary-availability branch (search.ts:541-543),
-    // not from a stat failure masquerading as a missing binary.
+  it('throws "Ripgrep binary not available" when the test ripgrep binary cannot be located', async () => {
+    // Force `resolveRipgrepBinary()` to treat the resolved path as missing:
+    // `existsSync` returns false, so the binary check fails. `stat` keeps its
+    // passthrough so the directory check still succeeds — the throw must come
+    // from the binary-availability branch, not a stat failure masquerading as
+    // a missing binary.
     mockExistsSync.mockReturnValue(false)
 
-    await expect(listDirectory(tmp as FilePath)).rejects.toThrow(/Ripgrep binary not available/)
+    await expect(listDirectory(tmp as AbsoluteFilePath)).rejects.toThrow(/Ripgrep binary not available/)
   })
 
   it('throws when the root path is not readable (EACCES from fs.promises.stat)', async () => {
@@ -184,6 +204,6 @@ describe('listDirectory (error paths)', () => {
     }) as NodeJS.ErrnoException
     mockPromisesStat.mockRejectedValueOnce(eaccesErr)
 
-    await expect(listDirectory('/some/locked/path' as FilePath)).rejects.toBe(eaccesErr)
+    await expect(listDirectory('/some/locked/path' as AbsoluteFilePath)).rejects.toBe(eaccesErr)
   })
 })

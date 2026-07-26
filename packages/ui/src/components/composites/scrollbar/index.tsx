@@ -1,6 +1,6 @@
 // Original: src/renderer/components/scrollbar/index.tsx
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { throttle } from 'lodash'
+import { throttle } from 'es-toolkit/compat'
 import * as React from 'react'
 
 export interface ScrollbarProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onScroll'> {
@@ -60,7 +60,7 @@ const Scrollbar = ({
       onScroll={combinedOnScroll}
       style={{
         ...style,
-        scrollbarColor: isScrolling ? 'var(--color-scrollbar-thumb) transparent' : 'transparent transparent'
+        scrollbarColor: isScrolling ? 'var(--scrollbar-thumb) transparent' : 'transparent transparent'
       }}>
       {children}
     </div>

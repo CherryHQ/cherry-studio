@@ -1,5 +1,5 @@
 /**
- * FileManager — sole public entry point for all file operations.
+ * FileManager — public facade for entry-aware file operations.
  *
  * Registered as a lifecycle service (`@Injectable('FileManager')`,
  * `@ServicePhase(Phase.WhenReady)`); resolved at runtime via
@@ -11,12 +11,11 @@
  *
  * ## Facade pattern
  *
- * FileManager is a **thin facade** — it exposes the public IPC-backed API and
+ * FileManager is a **thin facade** — it exposes the public entry-native API and
  * delegates every method to pure-function modules under `./internal/*`. The
  * class only owns:
- * - lifecycle (`onInit` / `onStop`; IPC handler registration via `BaseService`)
+ * - lifecycle (`onInit` / `onStop`; remaining legacy IPC handlers via `BaseService`)
  * - per-instance `versionCache` (LRU backing `writeIfUnchanged` / `getVersion`)
- * - `FileHandle.kind` dispatch at the IPC boundary
  *
  * External Main callers go through the lifecycle-managed singleton via
  * `application.get('FileManager')`. The `internal/*` tree is a private
@@ -33,35 +32,30 @@
  *
  * At the IPC boundary, the renderer speaks `FileHandle` (a tagged union whose
  * variants select the *reference form* — `FileEntryHandle` routes through the
- * entry system, `FilePathHandle` hits `@main/utils/file/*` directly). The
- * design plan is for the IPC adapter to dispatch on `handle.kind` via a
+ * entry system, `FilePathHandle` routes through path-arm helpers under
+ * `utils/*`). The IPC adapter dispatches on `handle.kind` via a
  * `dispatchHandle` helper, with the dispatch logic treated as the adapter's
  * legitimate responsibility (translating request shape), not business
  * orchestration.
  *
- * **Current status (through Batch 0)**: `dispatchHandle` lives in
- * `internal/dispatch.ts` and is wired by exactly one IPC handler today —
- * `File_PermanentDelete`, which accepts a `FileHandle` and routes
- * `{ kind: 'entry' }` to `FileManager.permanentDelete` and `{ kind: 'path' }`
- * to `@main/utils/file/fs.remove`. The Phase 1 dangling channels
- * (`File_GetDanglingState` / `File_BatchGetDanglingStates`) and the Phase 2
- * entry-shaped channels (`File_CreateInternalEntry`, `File_EnsureExternalEntry`,
- * `File_GetPhysicalPath`) take typed params directly and bypass the dispatcher
- * because their semantics are entry-only by design. When `FileHandle`-accepting
- * read/write/metadata channels land in later batches, they will follow the
- * same pattern as `File_PermanentDelete`:
+ * **Current status**: the IpcApi adapter in `src/main/ipc/handlers/file.ts`
+ * dispatches read, metadata, open, and show-in-folder routes. Entry arms call
+ * FileManager; path arms call helpers under `utils/*`. ArtifactPane's
+ * `file.write_if_unchanged` route remains path-only. The legacy
+ * `File_PermanentDelete` handler still uses the same dispatcher here until its
+ * remaining preload consumers migrate:
  *
  * - `{ kind: 'entry', entryId }` → the corresponding FileManager public
- *   method (e.g. `this.read(entryId, opts)`)
- * - `{ kind: 'path', path }`     → the `*ByPath` variant exported from
- *   `internal/*` (e.g. `contentRead.readByPath(deps, path, opts)`)
+ *   method (e.g. `this.open(entryId)`)
+ * - `{ kind: 'path', path }`     → the `*ByPath` variant in `utils/*`
+ *   (e.g. `getMetadataByPath(path)`) or a narrow path helper such as `safeOpen`
  *
  * `*ByPath` variants are not exposed on the FileManager class — Main-side
- * callers have no use for them (they hold FileEntry, not arbitrary paths).
+ * callers use the documented `utils/*` path API directly when needed.
  *
  * New handle kinds (e.g. `virtual` for zip members) extend `dispatchHandle`
- * and each IPC handler within this file; the public API surface and
- * `internal/*` pure-function structure both stay stable.
+ * and each handler in `src/main/ipc/handlers/file.ts`; the public API surface
+ * and `internal/*` pure-function structure both stay stable.
  *
  * See `docs/references/file/file-manager-architecture.md §1.6.5` for the
  * full dispatch convention.
@@ -133,23 +127,21 @@ import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { orphanCheckerRegistry } from '@main/services/file/orphanCheckerRegistry'
-import { remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
-import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
-import { AbsolutePathSchema, FileEntryIdSchema } from '@shared/data/types/file'
-import { SafeExtSchema, SafeNameSchema } from '@shared/data/types/file/essential'
+import { remove as fsRemove, stat as fsStat } from '@main/utils/file'
+import type { DanglingState, FileEntry, FileEntryId, FileHandle } from '@shared/data/types/file'
+import { FileEntryIdSchema, FileHandleSchema, SafeNameSchema } from '@shared/data/types/file'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
+  AbsoluteFilePath,
   BatchCreateResult,
   BatchMutationResult,
   CreateInternalEntryIpcParams,
   EnsureExternalEntryIpcParams,
-  FilePath,
-  FileURLString,
+  FileUrlString,
   PhysicalFileMetadata
 } from '@shared/types/file'
-import type { FileHandle } from '@shared/types/file/handle'
-import { FileHandleSchema } from '@shared/types/file/handle'
+import { AbsoluteFilePathSchema, SafeExtSchema } from '@shared/types/file'
+import { canonicalizeFilePath } from '@shared/utils/file'
 import mime from 'mime'
 import * as z from 'zod'
 
@@ -172,6 +164,7 @@ import {
   batchPermanentDelete as internalBatchPermanentDelete,
   batchRestore as internalBatchRestore,
   batchTrash as internalBatchTrash,
+  emptyTrash as internalEmptyTrash,
   permanentDelete as internalPermanentDelete,
   restore as internalRestore,
   trash as internalTrash
@@ -185,9 +178,11 @@ import {
   runDbSweep,
   runFileSweep
 } from './internal/orphanSweep'
-import { open as internalShellOpen, showInFolder as internalShellShowInFolder } from './internal/system/shell'
+import { showInFolder as internalShellShowInFolder } from './internal/system/shell'
 import { withTempCopy as internalWithTempCopy } from './internal/system/tempCopy'
-import { canonicalizeExternalPath, resolvePhysicalPath } from './utils/pathResolver'
+import { safeOpen } from './system'
+import { getMetadataByPath } from './utils/metadata'
+import { resolvePhysicalPath } from './utils/pathResolver'
 import { createVersionCacheImpl, type VersionCache } from './versionCache'
 
 const fileManagerLogger = loggerService.withContext('FileManager')
@@ -208,7 +203,9 @@ function summariseFsSweepIssue(report: FileSweepReport): string | undefined {
         report.failedSamples.length > 0 ? ` (first: ${report.failedSamples[0]})` : ''
       }`
     case 'aborted':
-      return `FS sweep aborted by safety threshold (${report.abortReason})`
+      return report.abortReason === 'pending-restore'
+        ? 'FS sweep stood aside: a staged backup restore is pending promotion'
+        : `FS sweep aborted by safety threshold (${report.abortReason})`
     case 'failed':
       return `FS sweep failed: ${report.errorMessage}`
   }
@@ -224,26 +221,13 @@ export type EnsureExternalEntryParams = EnsureExternalEntryIpcParams
 
 // ─── File IPC input schemas ───
 
-/**
- * Maximum number of entry ids a single `File_BatchGetDanglingStates` call may
- * carry. Mirrors `REF_COUNTS_MAX_ENTRY_IDS` from the DataApi side — the batch
- * still fans out one `findById` per id, so the renderer-side cap protects the
- * event loop and connection pool from runaway requests.
- */
-export const FILE_BATCH_DANGLING_MAX_IDS = 500
-
-export const GetDanglingStateIpcSchema = z.strictObject({ id: FileEntryIdSchema })
-export const BatchGetDanglingStatesIpcSchema = z.strictObject({
-  ids: z.array(FileEntryIdSchema).max(FILE_BATCH_DANGLING_MAX_IDS)
-})
-
 // Phase 2 schemas — reuse the canonical essential.ts validators so the IPC
 // boundary is the gate (path-traversal / null bytes / whitespace-only names
 // rejected here, before downstream factories see them).
 const SafeExtNullableSchema = SafeExtSchema.nullable()
 
 export const CreateInternalEntryIpcSchema = z.discriminatedUnion('source', [
-  z.strictObject({ source: z.literal('path'), path: AbsolutePathSchema }),
+  z.strictObject({ source: z.literal('path'), path: AbsoluteFilePathSchema }),
   z.strictObject({ source: z.literal('url'), url: z.url() }),
   z.strictObject({ source: z.literal('base64'), data: z.string().min(1), name: SafeNameSchema.optional() }),
   z.strictObject({
@@ -254,7 +238,7 @@ export const CreateInternalEntryIpcSchema = z.discriminatedUnion('source', [
   })
 ])
 
-export const EnsureExternalEntryIpcSchema = z.strictObject({ externalPath: AbsolutePathSchema })
+export const EnsureExternalEntryIpcSchema = z.strictObject({ externalPath: AbsoluteFilePathSchema })
 
 export const GetPhysicalPathIpcSchema = z.strictObject({ id: FileEntryIdSchema })
 
@@ -365,7 +349,7 @@ export class StaleVersionError extends Error {
 
 /**
  * Public surface of `FileManager` for Main-side business services and the
- * future Phase 2 IPC layer. The class below declares `implements IFileManager`
+ * entry arms of the File IPC adapter. The class below declares `implements IFileManager`
  * so a method declared here but missing on the class (or mis-typed) is a
  * compile error.
  *
@@ -565,6 +549,7 @@ export interface IFileManager {
   /** Batch internal-only — external ids fail like `restore`. */
   batchRestore(ids: FileEntryId[]): Promise<BatchMutationResult>
   batchPermanentDelete(ids: FileEntryId[]): Promise<BatchMutationResult>
+  emptyTrash(): Promise<BatchMutationResult>
 
   // ─── Stream ───
 
@@ -581,10 +566,10 @@ export interface IFileManager {
   // ─── Path / URL resolution ───
 
   /** Resolve an entry to its `file://` URL with the danger-file safety wrap. */
-  getUrl(id: FileEntryId): Promise<FileURLString>
+  getUrl(id: FileEntryId): FileUrlString
 
   /** Resolve an entry to its absolute filesystem path. */
-  getPhysicalPath(id: FileEntryId): Promise<FilePath>
+  getPhysicalPath(id: FileEntryId): AbsoluteFilePath
 
   // ─── Dangling state ───
 
@@ -606,7 +591,7 @@ export interface IFileManager {
 
   /**
    * Run both the FS-level orphan sweep (architecture §10) and the DB-level
-   * orphan-ref / entry sweep (§7 Layer 3) concurrently, returning a single
+   * temp-session ref prune / entry report (§7 Layer 3) concurrently, returning a single
    * `OrphanReport` once both settle. The `outcome` discriminator on the
    * report distinguishes `'completed'` / `'partial'` / `'failed'` so the
    * renderer cannot read a failed run as a healthy zero.
@@ -627,7 +612,7 @@ export interface IFileManager {
 
   // ─── System ───
 
-  /** Open with the system default application. */
+  /** Open with the system default application. Unsafe executable/script types are blocked. */
   open(id: FileEntryId): Promise<void>
 
   /** Reveal in the system file manager. */
@@ -661,8 +646,7 @@ export class FileManager extends BaseService implements IFileManager {
     fileEntryService,
     fileRefService,
     danglingCache,
-    versionCache: this._versionCache,
-    orphanRegistry: orphanCheckerRegistry
+    versionCache: this._versionCache
   }
 
   protected override async onInit(): Promise<void> {
@@ -671,25 +655,17 @@ export class FileManager extends BaseService implements IFileManager {
   }
 
   /**
-   * Register all File_* IPC handlers (Phase 1 dangling-state + Phase 2
-   * entry CRUD / sweep). Kept as a dedicated helper so `onInit` stays a
-   * narrow two-step sequence (init → register).
+   * Register legacy File_* IPC handlers that are still consumed through
+   * `window.api.file.*`. Files-page batch operations have moved to IpcApi
+   * (`src/main/ipc/handlers/file.ts`) and must not be re-registered here.
    *
    * Every handler Zod-parses its `params` before delegating, matching the
-   * DataApi handler discipline (`b8709c964` / `2437c1104`). Without this the
-   * batch fan-out is unbounded: a 100k-id `Promise.all` over `findById`
-   * would saturate the event loop and the DB connection pool.
+   * DataApi handler discipline (`b8709c964` / `2437c1104`).
    */
   private registerIpcHandlers(): void {
     // Handlers are async so a synchronous `Schema.parse` throw becomes a
     // Promise rejection at the IPC boundary (matching Electron's contract
     // for `ipcMain.handle` listeners).
-    this.ipcHandle(IpcChannel.File_GetDanglingState, async (_e, params: unknown) =>
-      this.getDanglingState(GetDanglingStateIpcSchema.parse(params))
-    )
-    this.ipcHandle(IpcChannel.File_BatchGetDanglingStates, async (_e, params: unknown) =>
-      this.batchGetDanglingStates(BatchGetDanglingStatesIpcSchema.parse(params))
-    )
     this.ipcHandle(IpcChannel.File_GetMetadata, async (_e, params: unknown) => {
       const handle = FileHandleSchema.parse(params) as FileHandle
       return dispatchHandle(
@@ -697,14 +673,14 @@ export class FileManager extends BaseService implements IFileManager {
         async () => {
           throw new Error('getMetadata(FileEntryHandle) is not yet wired (@phase 2)')
         },
-        (path) => this.getMetadataByPath(path)
+        getMetadataByPath
       )
     })
     // Phase 2 channels.
     //
     // Zod outputs the structural shapes (`{ path: string }`, `{ kind: 'path';
     // path: string }`, etc.). The TS-side param types use template literal
-    // brands (`FilePath`, `FileHandle`) that Zod can't reproduce without a
+    // brands (`AbsoluteFilePath`, `FileHandle`) that Zod can't reproduce without a
     // `.transform()` per field. The cast at this single boundary keeps the
     // brand-as-doc convention intact while letting runtime validation (Zod)
     // remain the actual gate — same pattern used by every other IPC handler
@@ -731,7 +707,7 @@ export class FileManager extends BaseService implements IFileManager {
 
   /**
    * Run the FS-level orphan sweep (file-manager-architecture §10) and
-   * the DB-level orphan-ref / entry sweep (file-manager-architecture §7
+   * the DB-level temp-session ref prune / entry report (file-manager-architecture §7
    * Layer 3) concurrently, returning a single `OrphanReport` once both
    * settle. User-triggered via the `File_RunSweep` IPC channel; there is
    * no startup auto-run.
@@ -742,8 +718,8 @@ export class FileManager extends BaseService implements IFileManager {
    * - DB sweep collapse → `outcome: 'failed'` (counts are meaningless;
    *   `errorMessage` carries the cause). FS sweep status no longer
    *   matters in this branch.
-   * - DB sweep per-sourceType checker throws → `outcome: 'partial'` with
-   *   `errorsByType`.
+   * - DB sweep `partial` is preserved in the wire type for compatibility,
+   *   but the current DB implementation returns only `completed` or `failed`.
    * - DB sweep clean BUT FS sweep returned `'partial'` / `'aborted'` /
    *   `'failed'` (or threw before producing a report) → umbrella degrades
    *   to `'partial'` with empty `errorsByType` and a populated
@@ -780,13 +756,15 @@ export class FileManager extends BaseService implements IFileManager {
       }
     )
 
-    const dbSweepPromise = runDbSweep({
-      fileEntryService: this.deps.fileEntryService,
-      fileRefService: this.deps.fileRefService,
-      registry: this.deps.orphanRegistry
-    }).catch((err): DbSweepReport => {
-      fileManagerLogger.error('DB orphan sweep failed', err)
-      return {
+    let dbReport: DbSweepReport
+    try {
+      dbReport = runDbSweep({
+        fileEntryService: this.deps.fileEntryService,
+        fileRefService: this.deps.fileRefService
+      })
+    } catch (err) {
+      fileManagerLogger.error('DB orphan sweep failed', err as Error)
+      dbReport = {
         outcome: 'failed',
         errorMessage: err instanceof Error ? err.message : String(err),
         orphanRefsByType: {},
@@ -795,9 +773,9 @@ export class FileManager extends BaseService implements IFileManager {
         orphanEntriesTotal: 0,
         scanDurationMs: 0
       }
-    })
+    }
 
-    const [fsReport, dbReport] = await Promise.all([fsSweepPromise, dbSweepPromise])
+    const fsReport = await fsSweepPromise
     const lastRunAt = startedAt
     const counts = {
       orphanRefsByType: dbReport.orphanRefsByType,
@@ -823,6 +801,12 @@ export class FileManager extends BaseService implements IFileManager {
           ...(fsSweepIssue !== undefined && { fsSweepIssue }),
           lastRunAt
         }
+      case 'aborted':
+        // Deliberate stand-aside for a pending restore. Both branches check
+        // the same journal microseconds apart, so the FS half aborted too in
+        // every realistic run — surface it as an abort, not a degraded
+        // 'partial' (this is expected behavior, not a half-finished sweep).
+        return { ...counts, outcome: 'aborted', abortReason: dbReport.abortReason, lastRunAt }
       case 'failed':
         // DB-level collapse dominates: counts are meaningless either way,
         // so the FS sweep's status doesn't change the umbrella.
@@ -840,8 +824,8 @@ export class FileManager extends BaseService implements IFileManager {
     return this.deps.fileEntryService.findById(id)
   }
 
-  async findByExternalPath(rawPath: string): Promise<FileEntry | null> {
-    return this.deps.fileEntryService.findByExternalPath(canonicalizeExternalPath(rawPath))
+  async findByExternalPath(path: AbsoluteFilePath): Promise<FileEntry | null> {
+    return this.deps.fileEntryService.findByExternalPath(canonicalizeFilePath(path))
   }
 
   async ensureExternalEntry(params: EnsureExternalEntryParams): Promise<FileEntry> {
@@ -869,7 +853,7 @@ export class FileManager extends BaseService implements IFileManager {
    * expected to tolerate their absence until enrichment lands.
    */
   async getMetadata(id: FileEntryId): Promise<PhysicalFileMetadata> {
-    const entry = await this.deps.fileEntryService.getById(id)
+    const entry = this.deps.fileEntryService.getById(id)
     const physicalPath = resolvePhysicalPath(entry)
     const s = await observeExternalAccess(this.deps, entry, physicalPath, () => fsStat(physicalPath))
     if (s.isDirectory) {
@@ -893,7 +877,7 @@ export class FileManager extends BaseService implements IFileManager {
   }
 
   async getVersion(id: FileEntryId): Promise<FileVersion> {
-    const entry = await this.deps.fileEntryService.getById(id)
+    const entry = this.deps.fileEntryService.getById(id)
     const physicalPath = resolvePhysicalPath(entry)
     const s = await observeExternalAccess(this.deps, entry, physicalPath, () => fsStat(physicalPath))
     return { mtime: s.modifiedAt, size: s.size }
@@ -903,29 +887,14 @@ export class FileManager extends BaseService implements IFileManager {
     return internalHash(this.deps, id)
   }
 
-  async getUrl(id: FileEntryId): Promise<FileURLString> {
-    const entry = await this.deps.fileEntryService.getById(id)
+  getUrl(id: FileEntryId): FileUrlString {
+    const entry = this.deps.fileEntryService.getById(id)
     const physicalPath = resolvePhysicalPath(entry)
-    return pathToFileURL(physicalPath).toString() as FileURLString
+    return pathToFileURL(physicalPath).toString() as FileUrlString
   }
 
-  private async getMetadataByPath(path: FilePath): Promise<PhysicalFileMetadata> {
-    const s = await fsStat(path)
-    if (s.isDirectory) {
-      return { kind: 'directory', size: s.size, createdAt: s.createdAt || s.modifiedAt, modifiedAt: s.modifiedAt }
-    }
-    return {
-      kind: 'file',
-      type: 'other',
-      size: s.size,
-      createdAt: s.createdAt || s.modifiedAt,
-      modifiedAt: s.modifiedAt,
-      mime: mime.getType(path) ?? 'application/octet-stream'
-    }
-  }
-
-  async getPhysicalPath(id: FileEntryId): Promise<FilePath> {
-    const entry = await this.deps.fileEntryService.getById(id)
+  getPhysicalPath(id: FileEntryId): AbsoluteFilePath {
+    const entry = this.deps.fileEntryService.getById(id)
     return resolvePhysicalPath(entry)
   }
 
@@ -946,19 +915,22 @@ export class FileManager extends BaseService implements IFileManager {
   async batchEnsureExternalEntries(items: EnsureExternalEntryParams[]): Promise<BatchCreateResult> {
     // Within-batch path duplicates resolve to the same entry per the public
     // contract; the second occurrence reuses the just-inserted row. The
-    // canonical-path memoization here ensures both items end up in
-    // `succeeded` even though only one DB insert happens — and each carries
-    // its own `sourceRef`, so the caller can still correlate every input.
+    // in-memory memo keys on the branded `externalPath` directly — no re-parse,
+    // trusting the already-validated `AbsoluteFilePath` param. Byte-identical inputs
+    // dedup here; any canonically-equal-but-byte-different pair still coalesces
+    // one level down (`ensureExternalEntry` canonicalizes and hits the DB
+    // upsert). Both items end up in `succeeded` even though only one DB insert
+    // happens — and each carries its own `sourceRef`, so the caller can still
+    // correlate every input.
     const seen = new Map<string, FileEntry>()
     const succeeded: BatchCreateResult['succeeded'] = []
     const failed: BatchCreateResult['failed'] = []
     for (const params of items) {
       const sourceRef = params.externalPath
       try {
-        const canonical = canonicalizeExternalPath(params.externalPath)
-        const cached = seen.get(canonical)
+        const cached = seen.get(params.externalPath)
         const entry = cached ?? (await this.ensureExternalEntry(params))
-        if (!cached) seen.set(canonical, entry)
+        if (!cached) seen.set(params.externalPath, entry)
         succeeded.push({ id: entry.id, sourceRef })
       } catch (err) {
         // Wire format only carries `.message`; preserve the stack via the
@@ -971,7 +943,7 @@ export class FileManager extends BaseService implements IFileManager {
   }
 
   async createReadStream(id: FileEntryId): Promise<Readable> {
-    const entry = await this.deps.fileEntryService.getById(id)
+    const entry = this.deps.fileEntryService.getById(id)
     const physicalPath = resolvePhysicalPath(entry)
     const stream = nodeCreateReadStream(physicalPath)
     if (entry.origin === 'external') {
@@ -1041,6 +1013,10 @@ export class FileManager extends BaseService implements IFileManager {
     return internalBatchPermanentDelete(this.deps, ids)
   }
 
+  async emptyTrash(): Promise<BatchMutationResult> {
+    return internalEmptyTrash(this.deps)
+  }
+
   async rename(id: FileEntryId, newName: string): Promise<FileEntry> {
     return internalRename(this.deps, id, newName)
   }
@@ -1054,12 +1030,12 @@ export class FileManager extends BaseService implements IFileManager {
   }
 
   async open(id: FileEntryId): Promise<void> {
-    const entry = await this.deps.fileEntryService.getById(id)
-    return internalShellOpen(resolvePhysicalPath(entry))
+    const entry = this.deps.fileEntryService.getById(id)
+    return safeOpen(resolvePhysicalPath(entry))
   }
 
   async showInFolder(id: FileEntryId): Promise<void> {
-    const entry = await this.deps.fileEntryService.getById(id)
+    const entry = this.deps.fileEntryService.getById(id)
     return internalShellShowInFolder(resolvePhysicalPath(entry))
   }
 
@@ -1071,7 +1047,7 @@ export class FileManager extends BaseService implements IFileManager {
    * miss. Unknown ids resolve to `'unknown'`.
    */
   async getDanglingState(params: { id: FileEntryId }): Promise<DanglingState> {
-    const entry = await this.deps.fileEntryService.findById(params.id)
+    const entry = this.deps.fileEntryService.findById(params.id)
     if (!entry) return 'unknown'
     return this.deps.danglingCache.check(entry)
   }

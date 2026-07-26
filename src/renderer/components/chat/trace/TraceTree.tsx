@@ -1,7 +1,7 @@
 import { Button } from '@cherrystudio/ui'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import * as React from 'react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 import { ProgressBar } from './ProgressBar'
 import { TRACE_ROW_GRID, type TraceNode } from './traceNode'
@@ -38,13 +38,7 @@ export const convertTime = (time: number | null): string => {
 const TraceTree: React.FC<TraceTreeProps> = ({ node, handleClick, treeData, paddingLeft = 2 }) => {
   const [isOpen, setIsOpen] = useState(true)
   const hasChildren = node.children && node.children.length > 0
-  const [usedTime, setUsedTime] = useState('--')
-
-  // Recalculate while the span is still running.
-  useEffect(() => {
-    const endTime = node.endTime || Date.now()
-    setUsedTime(convertTime(endTime - node.startTime))
-  }, [node])
+  const usedTime = convertTime((node.endTime || Date.now()) - node.startTime)
 
   return (
     <div className="w-full min-w-0 text-xs">

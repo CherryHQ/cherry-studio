@@ -2,12 +2,12 @@ import { Badge } from '@cherrystudio/ui'
 import { CheckCircle, Terminal, XCircle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import type { BashOutputToolInput, BashOutputToolOutput } from '../shared/agentToolTypes'
+import { AgentToolsType } from '../shared/agentToolTypes'
+import { ToolHeader, TruncatedIndicator } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { truncateOutput } from '../shared/truncateOutput'
-import { ToolHeader, TruncatedIndicator } from './GenericTools'
 import { TerminalOutput } from './TerminalOutput'
-import type { BashOutputToolInput, BashOutputToolOutput } from './types'
-import { AgentToolsType } from './types'
 
 interface ParsedBashOutput {
   status?: string

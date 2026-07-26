@@ -21,7 +21,7 @@ import * as React from 'react'
 const comboboxTriggerVariants = cva(
   cn(
     'inline-flex items-center justify-between rounded-md border-1 text-sm transition-colors outline-none font-normal',
-    'bg-zinc-50 dark:bg-zinc-900',
+    'bg-muted/20',
     'text-foreground'
   ),
   {
@@ -50,7 +50,7 @@ const comboboxItemVariants = cva(
     variants: {
       state: {
         default: 'hover:bg-accent data-[selected=true]:bg-accent',
-        selected: 'bg-success/10 text-success-foreground',
+        selected: 'bg-primary/10 text-primary',
         disabled: 'opacity-50 cursor-not-allowed pointer-events-none'
       }
     },
@@ -361,13 +361,13 @@ export function Combobox<TExtra extends object = Record<never, never>>({
                 'bg-primary/10 text-primary',
                 'gap-1 px-2 py-0.5',
                 'inline-flex items-center rounded',
-                'text-success-foreground text-xs'
+                'text-xs'
               )}>
               {option.label}
               <button
                 type="button"
                 aria-label={getRemoveTagAriaLabel(option.label)}
-                className="inline-flex size-3 cursor-pointer items-center justify-center hover:text-success"
+                className="inline-flex size-3 cursor-pointer items-center justify-center opacity-70 hover:text-foreground hover:opacity-100"
                 onClick={(e) => handleRemoveTag(option.value, e)}
                 onKeyDown={(e) => handleRemoveTagKeyDown(option.value, e)}>
                 <X className="size-3" />
@@ -418,7 +418,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
               onKeyDown={handleTriggerInputKeyDown}
               style={triggerStyle}
               className={cn(
-                'w-full rounded-md border-1 bg-zinc-50 pr-8 shadow-none transition-colors dark:bg-zinc-900',
+                'w-full rounded-md border-1 bg-muted/20 pr-8 shadow-none transition-colors',
                 'focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/20',
                 error && 'border-destructive! focus-visible:ring-red-600/20',
                 disabled && 'cursor-not-allowed opacity-50',
@@ -482,7 +482,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
           <div className="truncate">{option.label}</div>
           {option.description && <div className="text-xs text-muted-foreground truncate">{option.description}</div>}
         </div>
-        {isSelected(option.value) && <Check className="size-4 shrink-0 text-success" />}
+        {isSelected(option.value) && <Check className="size-4 shrink-0 text-primary" />}
       </>
     )
   }
@@ -491,6 +491,10 @@ export function Combobox<TExtra extends object = Record<never, never>>({
 
   const state = disabled ? 'disabled' : error ? 'error' : 'default'
   const triggerWidth = width ? (typeof width === 'number' ? `${width}px` : width) : undefined
+  const popoverWidth =
+    typeof triggerWidth === 'string' && triggerWidth.trim().endsWith('%')
+      ? 'var(--radix-popover-trigger-width)'
+      : triggerWidth
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
@@ -517,7 +521,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
         className={cn('p-0 rounded-md', popoverClassName)}
         align={popoverAlign}
         portalContainer={portalContainer}
-        style={{ width: triggerWidth }}
+        style={{ width: popoverWidth }}
         onOpenAutoFocus={(event) => {
           if (!triggerSearchEnabled) {
             return

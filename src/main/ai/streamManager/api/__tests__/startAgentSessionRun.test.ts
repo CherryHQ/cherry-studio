@@ -33,7 +33,7 @@ vi.mock('../../context/AgentChatContextProvider', () => ({
 // startAgentSessionRun reaches for `application.get('AiStreamManager')`; hand it a real
 // manager so the actual `withDispatchLock` / `dispatchLock` serialization is exercised.
 const managerHolder: { current: unknown } = { current: undefined }
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
       if (name === 'AiStreamManager') return managerHolder.current

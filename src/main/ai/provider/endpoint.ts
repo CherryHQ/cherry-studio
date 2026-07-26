@@ -55,3 +55,18 @@ export function resolveAiSdkProviderId(provider: Provider, endpointType: Endpoin
   }
   return appProviderIds['openai-compatible']
 }
+
+/**
+ * Maps the registered runtime provider id to the namespace its AI SDK model
+ * reads from `providerOptions`.
+ */
+export function resolveProviderOptionsKey(providerId: AppProviderId): string {
+  if (
+    providerId === 'google-vertex' ||
+    providerId === 'google-vertex-anthropic' ||
+    providerId === 'google-vertex-maas'
+  ) {
+    return 'vertex'
+  }
+  return providerId
+}

@@ -1,9 +1,8 @@
 /**
- * Write content to a managed FileEntry or a raw FilePath.
+ * Write content to a managed FileEntry.
  *
- * Pure functions taking `FileManagerDeps` as the first argument. Each entry-
- * aware write goes through `atomicWriteFile` (or `atomicWriteIfUnchanged`)
- * and updates DB / versionCache accordingly:
+ * Each write goes through `atomicWriteFile` (or
+ * `atomicWriteIfUnchanged`) and updates DB / versionCache accordingly:
  * - internal origin: DB `size` is updated to the new byte count
  * - external origin: DB `size` stays `null` (CHECK enforces) — only mtime
  *   changes are observable, so the row is left untouched
@@ -13,16 +12,15 @@
  */
 
 import { loggerService } from '@logger'
-import type { AtomicWriteStream } from '@main/utils/file/fs'
+import type { AtomicWriteStream } from '@main/utils/file'
 import {
   atomicWriteFile,
   atomicWriteIfUnchanged,
   createAtomicWriteStream,
   PathStaleVersionError,
   stat as fsStat
-} from '@main/utils/file/fs'
+} from '@main/utils/file'
 import type { FileEntryId } from '@shared/data/types/file'
-import type { FilePath } from '@shared/types/file'
 
 import { type FileVersion, StaleVersionError } from '../../FileManager'
 import { resolvePhysicalPath } from '../../utils/pathResolver'
@@ -31,7 +29,7 @@ import type { FileManagerDeps } from '../deps'
 const logger = loggerService.withContext('file/internal/write')
 
 export async function write(deps: FileManagerDeps, id: FileEntryId, data: string | Uint8Array): Promise<FileVersion> {
-  const entry = await deps.fileEntryService.getById(id)
+  const entry = deps.fileEntryService.getById(id)
   const physical = resolvePhysicalPath(entry)
   await atomicWriteFile(physical, data)
   // The atomic write committed; everything below is post-commit metadata
@@ -45,7 +43,7 @@ export async function write(deps: FileManagerDeps, id: FileEntryId, data: string
     const s = await fsStat(physical)
     const version: FileVersion = { mtime: s.modifiedAt, size: s.size }
     if (entry.origin === 'internal') {
-      await deps.fileEntryService.update(id, { size: version.size })
+      deps.fileEntryService.update(id, { size: version.size })
     }
     deps.versionCache.set(id, version)
     return version
@@ -62,7 +60,7 @@ export async function writeIfUnchanged(
   expected: FileVersion,
   expectedContentHash?: string
 ): Promise<FileVersion> {
-  const entry = await deps.fileEntryService.getById(id)
+  const entry = deps.fileEntryService.getById(id)
   const physical = resolvePhysicalPath(entry)
   let next: FileVersion
   try {
@@ -80,7 +78,7 @@ export async function writeIfUnchanged(
   // failed".
   try {
     if (entry.origin === 'internal') {
-      await deps.fileEntryService.update(id, { size: next.size })
+      deps.fileEntryService.update(id, { size: next.size })
     }
     deps.versionCache.set(id, next)
     return next
@@ -90,8 +88,8 @@ export async function writeIfUnchanged(
   }
 }
 
-export async function createWriteStream(deps: FileManagerDeps, id: FileEntryId): Promise<AtomicWriteStream> {
-  const entry = await deps.fileEntryService.getById(id)
+export function createWriteStream(deps: FileManagerDeps, id: FileEntryId): AtomicWriteStream {
+  const entry = deps.fileEntryService.getById(id)
   const physical = resolvePhysicalPath(entry)
   const stream = createAtomicWriteStream(physical)
   stream.once('finish', async () => {
@@ -99,7 +97,7 @@ export async function createWriteStream(deps: FileManagerDeps, id: FileEntryId):
       const s = await fsStat(physical)
       const version: FileVersion = { mtime: s.modifiedAt, size: s.size }
       if (entry.origin === 'internal') {
-        await deps.fileEntryService.update(id, { size: version.size })
+        deps.fileEntryService.update(id, { size: version.size })
       }
       deps.versionCache.set(id, version)
     } catch (err) {
@@ -118,18 +116,4 @@ export async function createWriteStream(deps: FileManagerDeps, id: FileEntryId):
     }
   })
   return stream
-}
-
-export async function writeByPath(_deps: FileManagerDeps, target: FilePath, data: string | Uint8Array): Promise<void> {
-  await atomicWriteFile(target, data)
-}
-
-export async function writeIfUnchangedByPath(
-  _deps: FileManagerDeps,
-  target: FilePath,
-  data: string | Uint8Array,
-  expected: { mtime: number; size: number },
-  expectedContentHash?: string
-): Promise<{ mtime: number; size: number }> {
-  return atomicWriteIfUnchanged(target, data, expected, expectedContentHash)
 }

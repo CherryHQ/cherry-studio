@@ -2,6 +2,8 @@
 
 Canonical spec for any sortable resource in the DataApi system. Uses a single fractional-indexing design ([fractional-indexing](https://www.npmjs.com/package/fractional-indexing), Rocicorp, ~2 KB gzip) — `PATCH /{resource}/:id/order` with an anchor body. Scales from tens to thousands of rows without background rebalancing; applies uniformly whether the view is paginated or not. Replaces the two incompatible predecessors (`PATCH /mini-apps` absolute `sortOrder` integers and `PATCH /mcp-servers` full `orderedIds` list).
 
+Provider enablement is transition-aware: `PATCH /providers/:providerId` moves a provider to the first position in the same transaction only when `isEnabled` changes from `false` to `true`. Redundant `true` updates preserve the user's existing order, while explicit reorder requests continue to use the canonical order routes.
+
 Every sortable resource stores its position as a string `order_key` column. A reorder is always **relative** against an anchor (another row's id, or a `first` / `last` sentinel), never an absolute index. The server computes a new key between neighbours in one transaction; the renderer optimistically reorders its local cache and revalidates on completion.
 
 ## Quickstart — The Four Layers
@@ -159,7 +161,7 @@ Moves apply **sequentially in one transaction**; each anchor resolves against th
 - **Index**: required. Use `orderKeyIndex(tableName)(t)` for whole-table or `scopedOrderKeyIndex(tableName, scopeColumn)(t)` for partitioned tables.
 - **Known partition dimensions** in the codebase:
   - Live (active consumers): `group.entityType`, `pin.entityType`, `user_model.providerId`, `miniapp.status`.
-  - Planned / hypothetical: `topic.groupId` (adopted when `topic` migrates to the spec).
+  - Planned / hypothetical: none currently.
 - **No secondary order axes**. Each sortable table exposes exactly one `order_key`. Orthogonal user intents — e.g. "in a group" vs "pinned" — are modelled as separate tables, not as overloaded scope values on a shared column. Resource-specific design (polymorphic shape, purge contracts, concurrency semantics) lives in each schema / service's JSDoc, not here — this guide scopes to the ordering mechanism only.
 
 ---
@@ -188,12 +190,6 @@ Binding semantics:
 Scoped usage:
 
 ```typescript
-// Topic: groupId is nullable, both NULL and non-NULL are real partitions
-await insertWithOrderKey(tx, topicTable, values, {
-  pkColumn: topicTable.id,
-  scope: values.groupId ? eq(topicTable.groupId, values.groupId) : isNull(topicTable.groupId),
-})
-
 // user_model: scope by providerId
 await applyMoves(tx, userModelTable, moves, {
   pkColumn: userModelTable.id,
@@ -343,7 +339,7 @@ Pure-function helpers `assignOrderKeysInSequence` / `assignOrderKeysByScope` sta
 - **DB column**: `order_key` (SQL) / `orderKey` (TS), always `TEXT NOT NULL`. No nullable variants.
 - **Type names**: every order-related export prefixed with `Order` (`OrderRequest`, `OrderRequestSchema`, `OrderBatchRequest`, `OrderBatchRequestSchema`, `OrderEndpoints`). No `Sort*` / `Position*` / `Rank*` aliases — the `Order` prefix is what keeps `_endpointHelpers.ts` classifiable as it grows.
 
-**Disallowed**: `POST /{res}:reorder`, `POST /{res}/reorder`, `PUT /{res}/order` (rejected full-list design), collection-level `PATCH /{res}` for reordering, nested URLs like `/groups/:gid/topics/:id/order` (group dimension travels in the body, not the path).
+**Disallowed**: `POST /{res}:reorder`, `POST /{res}/reorder`, `PUT /{res}/order` (rejected full-list design), collection-level `PATCH /{res}` for reordering, nested ordering URLs like `/parents/:parentId/items/:id/order`.
 
 ---
 
@@ -358,8 +354,7 @@ Complete in one PR:
    - `pin`: `eq(pinTable.entityType, entityType)` — live (`PinService.reorder` / `reorderBatch` via `applyScopedMoves`).
    - `user_model`: `eq(userModelTable.providerId, providerId)`.
    - `miniapp`: `eq(miniappTable.status, status)`.
-   - `topic`: `topic.groupId ? eq(topicTable.groupId, groupId) : isNull(topicTable.groupId)` — hypothetical, pending `topic` migration.
-   - `user_provider` / `mcp_server`: whole-table (`scope: undefined`).
+   - `topic` / `user_provider` / `mcp_server`: whole-table (`scope: undefined`), except topic service may narrow to non-deleted rows.
 
    New scoped consumers should prefer `applyScopedMoves` (which handles scope lookup and rejects cross-scope batches) over composing `applyMoves` with a manually assembled `eq(...)` scope.
 4. **Migrator**: replace legacy `sortOrder = index` with `assignOrderKeysByScope` (or `assignOrderKeysInSequence` for whole-table). Drop `index` / `sortOrder` parameters from `transform*` functions.
@@ -374,7 +369,7 @@ Complete in one PR:
 
 **Is `order:reset` safe under concurrent calls?** Yes. Reset is deterministic (same preset + row data → same keys via `generateOrderKeySequence`). SQLite's write lock serializes concurrent resets; the second overwrites the first and the end state is consistent.
 
-**Known boundary — fractional-indexing collisions.** Two transactions reading the same anchor pair could call `generateKeyBetween` and produce **identical** new keys. `order_key` is not `UNIQUE`, so both rows would succeed — the effect is a tie in `ORDER BY order_key` (two rows alternate in the UI). No data loss; the next drag self-repairs. It is extremely rare in practice: a single libsql connection issuing `BEGIN IMMEDIATE` serializes write intent, so concurrent same-anchor inserts cannot each read the old neighborhood and insert against it. Cursor pagination now applies a deterministic `(order_key, id)` tiebreaker through the shared `keysetOrdering` (`services/utils/keysetCursor.ts`), so keyset page-walking stays deterministic under an `order_key` tie **by construction**, rather than relying on `order_key` being unique — this is pagination determinism, not a fix for an observed skip/dup. Read/display paths that sort by `order_key` **alone** (no id tiebreaker) can still briefly alternate two tied rows until the next drag. The composite `(order_key, pk)` index from the original "future fix" is still **not** added (negligible at single-user scale; avoids schema↔migration drift) — only the deterministic tiebreaker landed, applied at the query layer.
+**Known boundary — fractional-indexing collisions.** Two transactions reading the same anchor pair could call `generateKeyBetween` and produce **identical** new keys. `order_key` is not `UNIQUE`, so both rows would succeed — the effect is a tie in `ORDER BY order_key` (two rows alternate in the UI). No data loss; the next drag self-repairs. It is extremely rare in practice: the single synchronous better-sqlite3 connection runs each write transaction to completion in one JS turn, so same-anchor inserts serialize by construction and cannot each read the old neighborhood and insert against it (the serialization comes from the synchronous single connection, not `BEGIN IMMEDIATE`). Cursor pagination now applies a deterministic `(order_key, id)` tiebreaker through the shared `keysetOrdering` (`services/utils/keysetCursor.ts`), so keyset page-walking stays deterministic under an `order_key` tie **by construction**, rather than relying on `order_key` being unique — this is pagination determinism, not a fix for an observed skip/dup. Read/display paths that sort by `order_key` **alone** (no id tiebreaker) can still briefly alternate two tied rows until the next drag. The composite `(order_key, pk)` index from the original "future fix" is still **not** added (negligible at single-user scale; avoids schema↔migration drift) — only the deterministic tiebreaker landed, applied at the query layer.
 
 **Known boundary — multi-window drag flicker.** Window A mid-drag receives window B's cache invalidation → revalidates with server state (not yet including A's in-flight reorder) → optimistic value overwritten → UI snaps back → A's PATCH returns → another revalidate brings new order in → UI jumps forward. ~150–300 ms, visual-only, no data loss. Future fix: suspend external revalidations while an in-flight PATCH holds the key.
 

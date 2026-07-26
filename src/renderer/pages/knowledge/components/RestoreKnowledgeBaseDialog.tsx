@@ -1,5 +1,7 @@
-import { Dialog, DialogContent, FieldError, Input, Label } from '@cherrystudio/ui'
+import { Dialog, DialogContent, DialogDescription, FieldError, Input, Label } from '@cherrystudio/ui'
+import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import type { RestoreKnowledgeBaseInput } from '@renderer/hooks/useKnowledgeBase'
+import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeBase, RestoreKnowledgeBaseResult } from '@shared/data/types/knowledge'
 import type { FormEvent } from 'react'
@@ -7,6 +9,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useEmbeddingDimensions } from '../hooks/useEmbeddingDimensions'
+import { getKnowledgeBaseFailureReason } from '../utils/error'
 import CreateKnowledgeBaseDialog from './CreateKnowledgeBaseDialog'
 import { KnowledgeDialogBody, KnowledgeDialogField } from './KnowledgeDialogLayout'
 import { isEmbeddingModel, KnowledgeModelSelect } from './KnowledgeModelSelect'
@@ -45,12 +48,14 @@ const RestoreKnowledgeBaseDialog = ({
 }: RestoreKnowledgeBaseDialogProps) => {
   const { t } = useTranslation()
   const defaultName = t('knowledge.restore.default_name', { name: base.name })
+  const failureReason = base.status === 'failed' ? getKnowledgeBaseFailureReason(base, t) : null
   const [values, setValues] = useState<RestoreKnowledgeBaseFormValues>(() =>
     createInitialValues(defaultName, initialEmbeddingModelId)
   )
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const { fetchDimensions, isFetchingDimensions } = useEmbeddingDimensions()
+  const handleSettingsNavigate = useCloseBeforeAction(onOpenChange)
 
   useEffect(() => {
     setValues(createInitialValues(defaultName, initialEmbeddingModelId))
@@ -98,7 +103,7 @@ const RestoreKnowledgeBaseDialog = ({
     // Restore drops root items whose source is gone (a v1-migrated directory child's virtual path,
     // a deleted file). Tell the user instead of silently restoring fewer items than expected.
     if (result.skippedMissingSourceCount > 0) {
-      window.toast.warning(t('knowledge.restore.skipped_missing_sources', { count: result.skippedMissingSourceCount }))
+      toast.warning(t('knowledge.restore.skipped_missing_sources', { count: result.skippedMissingSourceCount }))
     }
 
     onRestored(result.base)
@@ -107,11 +112,12 @@ const RestoreKnowledgeBaseDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="lg">
+      <DialogContent closeOnOverlayClick={false} size="lg">
         <CreateKnowledgeBaseDialog.Header title={t('knowledge.restore.title')} />
 
         <CreateKnowledgeBaseDialog.Form onSubmit={handleSubmit}>
           <KnowledgeDialogBody>
+            {failureReason ? <DialogDescription>{failureReason}</DialogDescription> : null}
             <KnowledgeDialogField>
               <Label htmlFor="knowledge-restore-name">{t('common.name')}</Label>
               <Input
@@ -134,6 +140,7 @@ const RestoreKnowledgeBaseDialog = ({
                 placeholder={t('knowledge.not_set')}
                 filter={isEmbeddingModel}
                 invalid={hasAttemptedSubmit && !values.embeddingModelId}
+                onSettingsNavigate={handleSettingsNavigate}
                 onChange={handleEmbeddingModelChange}
               />
               {hasAttemptedSubmit && !values.embeddingModelId ? (

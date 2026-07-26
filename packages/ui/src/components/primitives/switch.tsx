@@ -75,7 +75,7 @@ const switchThumbVariants = cva(
   }
 )
 
-const switchThumbSvgVariants = cva(['transition-all'], {
+const switchThumbSvgVariants = cva(['size-full', 'transition-all'], {
   variants: {
     loading: {
       false: null,
@@ -109,8 +109,6 @@ function Switch({ loading = false, size = 'md', className, classNames, ...props 
         data-slot="switch-thumb"
         className={cn(switchThumbVariants({ size, loading }), classNames?.thumb)}>
         <svg
-          width="inherit"
-          height="inherit"
           viewBox="0 0 19 19"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
@@ -145,8 +143,8 @@ const DescriptionSwitch = ({
   const isLeftSide = position === 'left'
   const id = useId()
   return (
-    <div className={cn('flex w-full gap-3 justify-between p-4xs', isLeftSide && 'flex-row-reverse')}>
-      <label className={cn('flex flex-col gap-5xs cursor-pointer')} htmlFor={id}>
+    <div className={cn('flex w-full gap-3 justify-between p-2', isLeftSide && 'flex-row-reverse')}>
+      <label className={cn('flex flex-col gap-1 cursor-pointer')} htmlFor={id}>
         {/* TODO: use standard typography component */}
         <p
           className={cn(
@@ -163,7 +161,7 @@ const DescriptionSwitch = ({
         {/* TODO: use standard typography component */}
         {description && (
           <span
-            className={cn('text-foreground-secondary', {
+            className={cn('text-muted-foreground', {
               'text-[10px] leading-3': size === 'sm',
               'text-xs leading-3.5': size === 'md',
               'text-sm leading-4': size === 'lg'

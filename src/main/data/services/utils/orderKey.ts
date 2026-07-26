@@ -11,7 +11,7 @@
  */
 
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import { and, type AnyColumn, asc, desc, eq, getTableName, gt, inArray, lt, ne, type SQL } from 'drizzle-orm'
 import type { AnySQLiteColumn, SQLiteTable } from 'drizzle-orm/sqlite-core'
@@ -29,7 +29,7 @@ const logger = loggerService.withContext('orderKey')
  * transaction callback argument — they share the same query-builder surface
  * for `insert`, `select`, and `update`. Typed as `any` on purpose: the helpers
  * are schema-agnostic and must accept any sortable Drizzle SQLite table, and
- * Drizzle's `LibSQLDatabase<TSchema>` generic parameter would otherwise force
+ * Drizzle's `BetterSQLite3Database<TSchema>` generic parameter would otherwise force
  * call-site casts with no safety benefit.
  */
 // biome-ignore lint: intentionally loose — see JSDoc above.
@@ -49,7 +49,7 @@ interface InsertWithOrderKeyOptions {
   pkColumn: AnyColumn
   /** Where to insert relative to existing rows. Defaults to `'last'`. */
   position?: 'first' | 'last'
-  /** Optional scope predicate narrowing the neighborhood (e.g. `eq(topic.groupId, gid)`). */
+  /** Optional scope predicate narrowing the neighborhood (e.g. `eq(userModel.providerId, providerId)`). */
   scope?: SQL
 }
 
@@ -126,13 +126,13 @@ export function generateOrderKeySequenceBetween(before: string | null, after: st
  * never write `tx.insert(table).values({ orderKey: ... })` directly. For
  * bulk creation prefer `insertManyWithOrderKey` to avoid N boundary-lookups.
  */
-export async function insertWithOrderKey<TTable extends TableWithOrderKey, TValues extends Record<string, unknown>>(
+export function insertWithOrderKey<TTable extends TableWithOrderKey, TValues extends Record<string, unknown>>(
   tx: TxLike,
   table: TTable,
   values: ValuesWithoutOrderKey<TValues>,
   options: InsertWithOrderKeyOptions
-): Promise<Record<string, unknown>> {
-  const [row] = await insertManyWithOrderKey(tx, table, [values], options)
+): Record<string, unknown> {
+  const [row] = insertManyWithOrderKey(tx, table, [values], options)
   if (!row) {
     throw new Error('insertWithOrderKey: insert returned no rows')
   }
@@ -148,12 +148,12 @@ export async function insertWithOrderKey<TTable extends TableWithOrderKey, TValu
  * Returns the inserted rows (via `.returning()`) in the same order as
  * `valuesList`. Empty input is a no-op that returns `[]` without touching DB.
  */
-export async function insertManyWithOrderKey<TTable extends TableWithOrderKey, TValues extends Record<string, unknown>>(
+export function insertManyWithOrderKey<TTable extends TableWithOrderKey, TValues extends Record<string, unknown>>(
   tx: TxLike,
   table: TTable,
   valuesList: Array<ValuesWithoutOrderKey<TValues>>,
   options: InsertManyWithOrderKeyOptions
-): Promise<Record<string, unknown>[]> {
+): Record<string, unknown>[] {
   if (valuesList.length === 0) return []
 
   const position = options.position ?? 'last'
@@ -161,15 +161,15 @@ export async function insertManyWithOrderKey<TTable extends TableWithOrderKey, T
 
   let keys: string[]
   if (position === 'last') {
-    const largest = await selectBoundaryKey(tx, table, 'last', scope)
+    const largest = selectBoundaryKey(tx, table, 'last', scope)
     keys = generateOrderKeySequenceBetween(largest, null, valuesList.length)
   } else {
-    const smallest = await selectBoundaryKey(tx, table, 'first', scope)
+    const smallest = selectBoundaryKey(tx, table, 'first', scope)
     keys = generateOrderKeySequenceBetween(null, smallest, valuesList.length)
   }
 
   const rowsToInsert = valuesList.map((values, i) => ({ ...values, orderKey: keys[i] }))
-  const inserted = await tx.insert(table).values(rowsToInsert).returning()
+  const inserted = tx.insert(table).values(rowsToInsert).returning().all()
   return inserted as Record<string, unknown>[]
 }
 
@@ -195,12 +195,12 @@ export async function insertManyWithOrderKey<TTable extends TableWithOrderKey, T
  * Correctness is preserved (final ordering is unchanged); only a redundant
  * write is issued. Acceptable at single-user scale; deferred optimisation.
  */
-export async function applyMoves(
+export function applyMoves(
   tx: TxLike,
   table: TableWithOrderKey,
   moves: Array<{ id: string; anchor: OrderRequest }>,
   options: ApplyMovesOptions
-): Promise<void> {
+): void {
   const { deduped, droppedCount } = dedupMoves(moves)
   if (droppedCount > 0) {
     logger.warn('applyMoves: dropped duplicate move entries, keeping last occurrence', {
@@ -215,12 +215,12 @@ export async function applyMoves(
   for (const move of deduped) {
     assertAnchorNotSelf(move.id, move.anchor)
 
-    const currentRow = await selectRowByPk(tx, table, pkColumn, move.id, scope)
+    const currentRow = selectRowByPk(tx, table, pkColumn, move.id, scope)
     if (!currentRow) {
       throw DataApiErrorFactory.notFound(getTableName(table), move.id)
     }
 
-    const newKey = await computeNewOrderKey(tx, table, move.anchor, {
+    const newKey = computeNewOrderKey(tx, table, move.anchor, {
       pkColumn,
       scope,
       excludePkValue: move.id
@@ -230,10 +230,10 @@ export async function applyMoves(
       continue
     }
 
-    await tx
-      .update(table)
+    tx.update(table)
       .set({ orderKey: newKey })
       .where(scope ? and(eq(pkColumn, move.id), scope) : eq(pkColumn, move.id))
+      .run()
   }
 }
 
@@ -253,21 +253,22 @@ export async function applyMoves(
  *
  * Empty `moves` is a no-op (no DB access).
  */
-export async function applyScopedMoves<T extends TableWithOrderKey>(
+export function applyScopedMoves<T extends TableWithOrderKey>(
   tx: TxLike,
   table: T,
   moves: Array<{ id: string; anchor: OrderRequest }>,
   options: { pkColumn: AnySQLiteColumn; scopeColumn: AnySQLiteColumn }
-): Promise<void> {
+): void {
   if (moves.length === 0) return
 
   const { pkColumn, scopeColumn } = options
   const ids = moves.map((m) => m.id)
 
-  const rows = (await tx
+  const rows = tx
     .select({ id: pkColumn, scope: scopeColumn })
     .from(table)
-    .where(inArray(pkColumn, ids))) as Array<{ id: string; scope: unknown }>
+    .where(inArray(pkColumn, ids))
+    .all() as Array<{ id: string; scope: unknown }>
 
   // All requested ids are missing — drizzle would reject `eq(scopeColumn, undefined)`
   // at the driver layer before applyMoves can issue its own NOT_FOUND. Surface
@@ -289,7 +290,7 @@ export async function applyScopedMoves<T extends TableWithOrderKey>(
   }
 
   const [scopeValue] = [...scopes]
-  await applyMoves(tx, table, moves, {
+  applyMoves(tx, table, moves, {
     pkColumn,
     scope: eq(scopeColumn, scopeValue)
   })
@@ -302,12 +303,12 @@ export async function applyScopedMoves<T extends TableWithOrderKey>(
  * Each row's primary-key value is read via `row[pkColumn.name]`. Missing
  * values throw — a silent `undefined` pk would cause an unscoped UPDATE.
  */
-export async function resetOrder<T extends Record<string, unknown>>(
+export function resetOrder<T extends Record<string, unknown>>(
   tx: TxLike,
   table: TableWithOrderKey,
   orderedRows: T[],
   options: ResetOrderOptions
-): Promise<void> {
+): void {
   if (orderedRows.length === 0) return
 
   const keys = generateOrderKeySequence(orderedRows.length)
@@ -316,7 +317,7 @@ export async function resetOrder<T extends Record<string, unknown>>(
   for (let i = 0; i < orderedRows.length; i++) {
     const row = orderedRows[i] as Record<string, unknown>
     const pkValue = resolvePkValue(row, pkColumn)
-    await tx.update(table).set({ orderKey: keys[i] }).where(eq(pkColumn, pkValue))
+    tx.update(table).set({ orderKey: keys[i] }).where(eq(pkColumn, pkValue)).run()
   }
 }
 
@@ -324,36 +325,36 @@ export async function resetOrder<T extends Record<string, unknown>>(
  * Compute the new order key for a single move without writing.
  * Exported for unit tests; `applyMoves` uses it internally.
  */
-export async function computeNewOrderKey(
+export function computeNewOrderKey(
   tx: TxLike,
   table: TableWithOrderKey,
   request: OrderRequest,
   options: ComputeOptions
-): Promise<string> {
+): string {
   const { pkColumn, scope, excludePkValue } = options
   const exclusion = excludePkValue !== undefined ? buildExclusion(pkColumn, excludePkValue, scope) : scope
 
   if ('position' in request) {
     if (request.position === 'first') {
-      const smallest = await selectBoundaryKey(tx, table, 'first', exclusion)
+      const smallest = selectBoundaryKey(tx, table, 'first', exclusion)
       return generateOrderKeyBetween(null, smallest)
     }
     // 'last'
-    const largest = await selectBoundaryKey(tx, table, 'last', exclusion)
+    const largest = selectBoundaryKey(tx, table, 'last', exclusion)
     return generateOrderKeyBetween(largest, null)
   }
 
   if ('before' in request) {
     const anchorId = request.before
-    const anchorKey = await requireOrderKey(tx, table, pkColumn, anchorId, scope)
-    const predecessor = await selectAdjacentKey(tx, table, 'predecessor', anchorKey, exclusion)
+    const anchorKey = requireOrderKey(tx, table, pkColumn, anchorId, scope)
+    const predecessor = selectAdjacentKey(tx, table, 'predecessor', anchorKey, exclusion)
     return generateOrderKeyBetween(predecessor, anchorKey)
   }
 
   // 'after'
   const anchorId = request.after
-  const anchorKey = await requireOrderKey(tx, table, pkColumn, anchorId, scope)
-  const successor = await selectAdjacentKey(tx, table, 'successor', anchorKey, exclusion)
+  const anchorKey = requireOrderKey(tx, table, pkColumn, anchorId, scope)
+  const successor = selectAdjacentKey(tx, table, 'successor', anchorKey, exclusion)
   return generateOrderKeyBetween(anchorKey, successor)
 }
 
@@ -407,19 +408,15 @@ function assertAnchorNotSelf(moveId: string, anchor: OrderRequest): void {
  * Select the first (smallest) or last (largest) `orderKey` in scope.
  * Returns `null` when the scope is empty.
  */
-async function selectBoundaryKey(
-  tx: TxLike,
-  table: TableWithOrderKey,
-  which: 'first' | 'last',
-  scope?: SQL
-): Promise<string | null> {
+function selectBoundaryKey(tx: TxLike, table: TableWithOrderKey, which: 'first' | 'last', scope?: SQL): string | null {
   const orderExpr = which === 'first' ? asc(table.orderKey) : desc(table.orderKey)
-  const rows = await tx
+  const rows = tx
     .select({ orderKey: table.orderKey })
     .from(table)
     .where(scope ?? undefined)
     .orderBy(orderExpr)
     .limit(1)
+    .all()
   const first = rows[0] as { orderKey: string | null } | undefined
   return first?.orderKey ?? null
 }
@@ -432,19 +429,19 @@ async function selectBoundaryKey(
  * fractional-indexing keys are ASCII-only, so SQL lexicographic compares
  * match the intended total order.
  */
-async function selectAdjacentKey(
+function selectAdjacentKey(
   tx: TxLike,
   table: TableWithOrderKey,
   side: 'predecessor' | 'successor',
   anchorKey: string,
   scope?: SQL
-): Promise<string | null> {
+): string | null {
   const column = table.orderKey
   const predicate = side === 'predecessor' ? lt(column, anchorKey) : gt(column, anchorKey)
   const where = scope ? and(predicate, scope) : predicate
   const orderExpr = side === 'predecessor' ? desc(column) : asc(column)
 
-  const rows = await tx.select({ orderKey: column }).from(table).where(where).orderBy(orderExpr).limit(1)
+  const rows = tx.select({ orderKey: column }).from(table).where(where).orderBy(orderExpr).limit(1).all()
   const first = rows[0] as { orderKey: string | null } | undefined
   return first?.orderKey ?? null
 }
@@ -453,29 +450,29 @@ async function selectAdjacentKey(
  * Resolve an anchor id to its `orderKey`, constrained to the given scope.
  * Throws if absent.
  */
-async function requireOrderKey(
+function requireOrderKey(
   tx: TxLike,
   table: TableWithOrderKey,
   pkColumn: AnyColumn,
   id: string,
   scope: SQL | undefined
-): Promise<string> {
-  const row = await selectRowByPk(tx, table, pkColumn, id, scope)
+): string {
+  const row = selectRowByPk(tx, table, pkColumn, id, scope)
   if (!row) {
     throw DataApiErrorFactory.notFound(getTableName(table), id)
   }
   return row.orderKey
 }
 
-async function selectRowByPk(
+function selectRowByPk(
   tx: TxLike,
   table: TableWithOrderKey,
   pkColumn: AnyColumn,
   id: string,
   scope?: SQL
-): Promise<{ orderKey: string } | null> {
+): { orderKey: string } | null {
   const where = scope ? and(eq(pkColumn, id), scope) : eq(pkColumn, id)
-  const rows = await tx.select({ orderKey: table.orderKey }).from(table).where(where).limit(1)
+  const rows = tx.select({ orderKey: table.orderKey }).from(table).where(where).limit(1).all()
   const first = rows[0] as { orderKey: string } | undefined
   return first ?? null
 }

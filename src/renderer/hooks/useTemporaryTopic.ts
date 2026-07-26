@@ -21,12 +21,13 @@
  * Main-side leaks.
  */
 
-import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
+import { clampSurrogateBoundary } from '@shared/utils/text'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useTemporaryTopic')
+const TEMPORARY_TOPIC_NAME_MAX_LENGTH = 30
 
 export interface UseTemporaryTopicOptions {
   /**
@@ -38,9 +39,9 @@ export interface UseTemporaryTopicOptions {
    */
   enabled?: boolean
   /**
-   * Optional assistant id to bind the temp topic to. `undefined` means the
-   * topic has no associated assistant — main composes capabilities from the
-   * default model preference. Not a sentinel: do NOT pass DEFAULT_ASSISTANT_ID.
+   * Optional persisted assistant id to bind the temp topic to. `undefined`
+   * means the topic has no associated assistant — main composes capabilities
+   * from the default model preference.
    */
   assistantId?: string
 }
@@ -103,10 +104,6 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
         void dataApiService.delete(`/temporary/topics/${idToCleanup}`).catch((err) => {
           logger.warn('Failed to release temporary topic on unmount', err as Error)
         })
-
-        if ((cacheService.get('topic.active') as { id: string } | null)?.id === idToCleanup) {
-          cacheService.set('topic.active', null)
-        }
       }
     }
   }, [enabled, assistantId, epoch])
@@ -126,7 +123,12 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
     const trimmed = initialName?.trim()
     if (trimmed) {
       try {
-        await dataApiService.patch(`/topics/${id}`, { body: { name: trimmed.slice(0, 30) } })
+        await dataApiService.patch(`/topics/${id}`, {
+          body: {
+            name: trimmed.slice(0, clampSurrogateBoundary(trimmed, TEMPORARY_TOPIC_NAME_MAX_LENGTH)),
+            isNameManuallyEdited: false
+          }
+        })
       } catch (err) {
         logger.warn('Failed to seed placeholder topic name', err as Error)
       }

@@ -13,5 +13,5 @@ export default defineConfig({
   clean: true,
   dts: true,
   tsconfig: 'tsconfig.json',
-  external: ['react', 'react-dom', 'framer-motion', 'tailwindcss', 'unist-util-visit']
+  external: ['react', 'react-dom', 'motion', 'tailwindcss', 'unist-util-visit']
 })

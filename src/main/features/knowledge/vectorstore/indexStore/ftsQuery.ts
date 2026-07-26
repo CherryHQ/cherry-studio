@@ -6,7 +6,7 @@
  * no trigram and a MATCH would silently return nothing. For such queries the
  * store falls back to a LIKE substring scan ({@link needsLikeFallback} /
  * {@link toFtsLikePattern}) — decision A3; only a *real* CJK tokenizer is left to
- * v2.x. MATCH-path token handling mirrors the legacy LibSQLVectorStore so BM25
+ * v2.x. MATCH-path token handling mirrors the legacy v1 vector store so BM25
  * behavior carries over unchanged.
  */
 

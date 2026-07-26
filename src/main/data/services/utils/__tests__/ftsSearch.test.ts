@@ -19,11 +19,11 @@ describe('searchWithCursor', () => {
   it('uses caller-provided snippet construction', async () => {
     const fetchRows = vi
       .fn()
-      .mockResolvedValueOnce([{ id: 'message-1', createdAt: 100, searchableText: '**needle**' }])
-      .mockResolvedValueOnce([])
+      .mockReturnValueOnce([{ id: 'message-1', createdAt: 100, searchableText: '**needle**' }])
+      .mockReturnValueOnce([])
     const buildSnippet = vi.fn(() => 'custom snippet')
 
-    const result = await searchWithCursor<TestSearchRow, TestSearchItem>({
+    const result = searchWithCursor<TestSearchRow, TestSearchItem>({
       q: 'needle',
       cursorConfig: {
         fieldMessage: 'must be a valid search cursor',
@@ -50,9 +50,10 @@ describe('searchWithCursor', () => {
   })
 
   it('rejects an empty raw cursor before fetching rows', async () => {
-    const fetchRows = vi.fn(async () => [])
+    const fetchRows = vi.fn(() => [])
 
-    await expect(
+    let err: unknown
+    try {
       searchWithCursor({
         q: 'needle',
         cursor: '',
@@ -75,7 +76,10 @@ describe('searchWithCursor', () => {
           }
         })
       })
-    ).rejects.toMatchObject({
+    } catch (e) {
+      err = e
+    }
+    expect(err).toMatchObject({
       code: 'VALIDATION_ERROR',
       message: 'Invalid message cursor'
     })
@@ -86,11 +90,11 @@ describe('searchWithCursor', () => {
   it('continues scanning into a later chunk when the first candidates fail regex validation', async () => {
     const fetchRows = vi
       .fn()
-      .mockResolvedValueOnce([{ id: 'rejected-1', createdAt: 300, searchableText: 'haystack only' }])
-      .mockResolvedValueOnce([{ id: 'accepted-1', createdAt: 200, searchableText: 'needle appears here' }])
-      .mockResolvedValueOnce([])
+      .mockReturnValueOnce([{ id: 'rejected-1', createdAt: 300, searchableText: 'haystack only' }])
+      .mockReturnValueOnce([{ id: 'accepted-1', createdAt: 200, searchableText: 'needle appears here' }])
+      .mockReturnValueOnce([])
 
-    const result = await searchWithCursor<TestSearchRow, TestSearchItem>({
+    const result = searchWithCursor<TestSearchRow, TestSearchItem>({
       q: 'needle',
       cursorConfig: {
         fieldMessage: 'must be a valid search cursor',
@@ -118,13 +122,13 @@ describe('searchWithCursor', () => {
   })
 
   it('uses the last returned item as the next cursor boundary when limit plus one matches exist', async () => {
-    const fetchRows = vi.fn().mockResolvedValueOnce([
+    const fetchRows = vi.fn().mockReturnValueOnce([
       { id: 'c', createdAt: 300, searchableText: 'needle newest' },
       { id: 'b', createdAt: 200, searchableText: 'needle middle' },
       { id: 'a', createdAt: 100, searchableText: 'needle oldest' }
     ])
 
-    const result = await searchWithCursor<TestSearchRow, TestSearchItem>({
+    const result = searchWithCursor<TestSearchRow, TestSearchItem>({
       q: 'needle',
       limit: 2,
       cursorConfig: {
@@ -152,9 +156,9 @@ describe('searchWithCursor', () => {
   })
 
   it('passes undefined createdAtFromMs when createdAtFrom is not a valid date string', async () => {
-    const fetchRows = vi.fn().mockResolvedValueOnce([])
+    const fetchRows = vi.fn().mockReturnValueOnce([])
 
-    await searchWithCursor<TestSearchRow, TestSearchItem>({
+    searchWithCursor<TestSearchRow, TestSearchItem>({
       q: 'needle',
       createdAtFrom: 'today',
       cursorConfig: {
@@ -182,12 +186,12 @@ describe('searchWithCursor', () => {
 
   it('stops scanning when the candidate ceiling is reached without enough regex-confirmed results', async () => {
     mockMainLoggerService.warn.mockClear()
-    const fetchRows = vi.fn().mockResolvedValueOnce([
+    const fetchRows = vi.fn().mockReturnValueOnce([
       { id: 'rejected-1', createdAt: 300, searchableText: 'haystack one' },
       { id: 'rejected-2', createdAt: 200, searchableText: 'haystack two' }
     ])
 
-    const result = await searchWithCursor<TestSearchRow, TestSearchItem>({
+    const result = searchWithCursor<TestSearchRow, TestSearchItem>({
       q: 'needle',
       maxCandidates: 2,
       cursorConfig: {

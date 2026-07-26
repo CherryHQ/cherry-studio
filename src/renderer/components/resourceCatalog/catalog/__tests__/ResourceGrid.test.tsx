@@ -1,0 +1,1027 @@
+import { AssistantPresetPreviewDialog } from '@renderer/components/resourceCatalog/dialogs/detail/AssistantPresetPreviewDialog'
+import { toast } from '@renderer/services/toast'
+import type { ResourceItem } from '@renderer/types/resourceCatalog'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import type * as ReactModule from 'react'
+import type { ComponentProps, ReactNode } from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { ResourceCardMenu } from '../ResourceCardMenu'
+import { ResourceCard } from '../ResourceCards'
+import { ResourceGrid } from '../ResourceGrid'
+
+const { deleteGroupMock, updateGroupMock, updateAssistantMock } = vi.hoisted(() => ({
+  deleteGroupMock: vi.fn(),
+  updateGroupMock: vi.fn(),
+  updateAssistantMock: vi.fn()
+}))
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) =>
+      (
+        ({
+          'assistants.groups.delete': '删除分组',
+          'assistants.groups.deleteConfirm': '确定要删除这个分组吗？',
+          'common.delete': '删除',
+          'common.rename': '重命名',
+          'common.save': '保存',
+          'chat.add.assistant.title': '添加助手',
+          'assistants.presets.import.action': '导入助手',
+          'library.assistant_catalog.add': '添加',
+          'library.assistant_catalog.title': '助手库',
+          'library.assistant_catalog.go_to_chat': '去对话',
+          'library.create_menu.create': '新建助手',
+          'library.skill_add.add': '添加技能',
+          'library.skill_add.local_import': '本地导入',
+          'library.skill_add.online_search': '在线搜索',
+          'library.skill_add.system_search': '系统搜索',
+          'library.toolbar.all_groups': '全部分组',
+          'library.toolbar.group_button': '分组',
+          'library.type.assistant': '助手',
+          'library.type.skill': '技能'
+        }) satisfies Record<string, string>
+      )[key] ?? key
+  })
+}))
+
+vi.mock('@cherrystudio/ui', async () => {
+  const React = await vi.importActual<typeof ReactModule>('react')
+  const PopoverContext = React.createContext<{
+    open: boolean
+    setOpen: (open: boolean) => void
+  }>({
+    open: false,
+    setOpen: () => {}
+  })
+  const ContextMenuContext = React.createContext<{
+    open: boolean
+    setOpen: (open: boolean) => void
+  }>({
+    open: false,
+    setOpen: () => {}
+  })
+  const DropdownMenuContext = React.createContext<{
+    open: boolean
+    setOpen: (open: boolean) => void
+  }>({
+    open: false,
+    setOpen: () => {}
+  })
+  const DropdownMenuSubContext = React.createContext<{
+    open: boolean
+    setOpen: (open: boolean) => void
+  }>({
+    open: false,
+    setOpen: () => {}
+  })
+
+  return {
+    Badge: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
+    Button: ({
+      children,
+      loading,
+      size,
+      variant,
+      ...props
+    }: ComponentProps<'button'> & { loading?: boolean; size?: string; variant?: string }) => {
+      void loading
+      void size
+      void variant
+      return (
+        <button type="button" {...props}>
+          {children}
+        </button>
+      )
+    },
+    ConfirmDialog: ({
+      cancelText,
+      confirmText,
+      confirmLoading,
+      description,
+      onConfirm,
+      open,
+      title
+    }: {
+      cancelText?: string
+      confirmText?: string
+      confirmLoading?: boolean
+      description?: ReactNode
+      onConfirm?: () => void | Promise<void>
+      open?: boolean
+      title?: ReactNode
+    }) =>
+      open ? (
+        <div role="dialog">
+          {title && <h2>{title}</h2>}
+          {description && <div>{description}</div>}
+          {cancelText && <button type="button">{cancelText}</button>}
+          {confirmText && (
+            <button type="button" disabled={confirmLoading} onClick={() => void onConfirm?.()}>
+              {confirmText}
+            </button>
+          )}
+        </div>
+      ) : null,
+    ContextMenu: ({ children }: { children?: ReactNode }) => {
+      const [open, setOpen] = React.useState(false)
+      return <ContextMenuContext value={{ open, setOpen }}>{children}</ContextMenuContext>
+    },
+    ContextMenuContent: ({ children }: { children?: ReactNode }) => {
+      const { open } = React.use(ContextMenuContext)
+      return open ? <div role="menu">{children}</div> : null
+    },
+    ContextMenuItem: ({
+      children,
+      onSelect,
+      variant,
+      ...props
+    }: ComponentProps<'button'> & {
+      onSelect?: (event: React.MouseEvent<HTMLButtonElement>) => void
+      variant?: string
+    }) => {
+      void variant
+      return (
+        <button type="button" onClick={(event) => onSelect?.(event)} {...props}>
+          {children}
+        </button>
+      )
+    },
+    ContextMenuItemContent: ({ children, icon }: { children?: ReactNode; icon?: ReactNode }) => (
+      <>
+        {icon}
+        <span>{children}</span>
+      </>
+    ),
+    ContextMenuTrigger: ({ asChild, children }: { asChild?: boolean; children?: ReactNode }) => {
+      const { setOpen } = React.use(ContextMenuContext)
+      void asChild
+      return (
+        <span
+          onContextMenu={(event) => {
+            event.preventDefault()
+            setOpen(true)
+          }}>
+          {children}
+        </span>
+      )
+    },
+    EmptyState: ({ description, title }: { description?: string; title?: string }) => (
+      <div data-testid="empty-state">
+        {title && <div>{title}</div>}
+        {description && <div>{description}</div>}
+      </div>
+    ),
+    Dialog: ({ children, open }: { children?: ReactNode; open?: boolean }) => (open ? <>{children}</> : null),
+    DialogContent: ({ children }: { children?: ReactNode }) => <div role="dialog">{children}</div>,
+    DialogDescription: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+    DialogFooter: ({ children }: { children?: ReactNode }) => <footer>{children}</footer>,
+    DialogHeader: ({ children }: { children?: ReactNode }) => <header>{children}</header>,
+    DialogTitle: ({ children }: { children?: ReactNode }) => <h2>{children}</h2>,
+    DropdownMenu: ({
+      children,
+      open,
+      onOpenChange
+    }: {
+      children?: ReactNode
+      open?: boolean
+      onOpenChange?: (open: boolean) => void
+    }) => {
+      const [internalOpen, setInternalOpen] = React.useState(open ?? false)
+      const actualOpen = open ?? internalOpen
+      const setOpen = (nextOpen: boolean) => {
+        if (open === undefined) setInternalOpen(nextOpen)
+        onOpenChange?.(nextOpen)
+      }
+
+      return <DropdownMenuContext value={{ open: actualOpen, setOpen }}>{children}</DropdownMenuContext>
+    },
+    DropdownMenuCheckboxItem: ({
+      children,
+      checked,
+      disabled,
+      onCheckedChange
+    }: {
+      children?: ReactNode
+      checked?: boolean
+      disabled?: boolean
+      onCheckedChange?: (checked: boolean) => void
+    }) => (
+      <button
+        type="button"
+        role="menuitemcheckbox"
+        aria-checked={checked}
+        aria-disabled={disabled || undefined}
+        disabled={disabled}
+        onClick={() => onCheckedChange?.(!checked)}>
+        {children}
+      </button>
+    ),
+    DropdownMenuContent: ({ children }: { children?: ReactNode }) => {
+      const { open } = React.use(DropdownMenuContext)
+      return open ? <div role="menu">{children}</div> : null
+    },
+    DropdownMenuItem: ({
+      children,
+      disabled,
+      onSelect,
+      variant,
+      ...props
+    }: ComponentProps<'button'> & {
+      disabled?: boolean
+      onSelect?: (event: React.MouseEvent<HTMLButtonElement>) => void
+      variant?: string
+    }) => {
+      void variant
+      return (
+        <button
+          type="button"
+          role="menuitem"
+          disabled={disabled}
+          aria-disabled={disabled || undefined}
+          onClick={(event) => onSelect?.(event)}
+          {...props}>
+          {children}
+        </button>
+      )
+    },
+    DropdownMenuSeparator: () => <div data-testid="menu-divider" />,
+    DropdownMenuSub: ({ children }: { children?: ReactNode }) => {
+      const [open, setOpen] = React.useState(false)
+      return <DropdownMenuSubContext value={{ open, setOpen }}>{children}</DropdownMenuSubContext>
+    },
+    DropdownMenuSubContent: ({ children }: { children?: ReactNode }) => {
+      const { open } = React.use(DropdownMenuSubContext)
+      return open ? <div role="menu">{children}</div> : null
+    },
+    DropdownMenuSubTrigger: ({ children, disabled }: { children?: ReactNode; disabled?: boolean }) => {
+      const { setOpen } = React.use(DropdownMenuSubContext)
+      return (
+        <button type="button" aria-disabled={disabled || undefined} disabled={disabled} onClick={() => setOpen(true)}>
+          {children}
+        </button>
+      )
+    },
+    DropdownMenuTrigger: ({ asChild, children }: { asChild?: boolean; children?: ReactNode }) => {
+      const { open, setOpen } = React.use(DropdownMenuContext)
+      if (asChild) return <span onClickCapture={() => setOpen(!open)}>{children}</span>
+
+      return (
+        <button type="button" onClick={() => setOpen(!open)}>
+          {children}
+        </button>
+      )
+    },
+    Input: (props: ComponentProps<'input'> & { className?: string }) => <input {...props} />,
+    MenuDivider: () => <div data-testid="menu-divider" />,
+    MenuList: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+    MenuItem: ({
+      icon,
+      label,
+      onClick,
+      suffix,
+      ...props
+    }: {
+      icon?: ReactNode
+      label: ReactNode
+      onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void
+      suffix?: ReactNode
+    }) => (
+      <button type="button" onClick={onClick} {...props}>
+        {icon}
+        <span>{label}</span>
+        {suffix}
+      </button>
+    ),
+    Popover: ({
+      children,
+      open,
+      onOpenChange
+    }: {
+      children?: ReactNode
+      open?: boolean
+      onOpenChange?: (open: boolean) => void
+    }) => {
+      const [internalOpen, setInternalOpen] = React.useState(open ?? false)
+      const actualOpen = open ?? internalOpen
+      const setOpen = (nextOpen: boolean) => {
+        if (open === undefined) setInternalOpen(nextOpen)
+        onOpenChange?.(nextOpen)
+      }
+
+      return <PopoverContext value={{ open: actualOpen, setOpen }}>{children}</PopoverContext>
+    },
+    PopoverContent: ({ children }: { children?: ReactNode }) => {
+      const { open } = React.use(PopoverContext)
+      return open ? <div>{children}</div> : null
+    },
+    PopoverTrigger: ({ children, asChild }: { children?: ReactNode; asChild?: boolean }) => {
+      const { open, setOpen } = React.use(PopoverContext)
+      void asChild
+
+      return <span onPointerDownCapture={() => setOpen(!open)}>{children}</span>
+    },
+    Separator: () => <div />,
+    Scrollbar: ({ children, ...props }: ComponentProps<'div'>) => <div {...props}>{children}</div>,
+    Skeleton: (props: ComponentProps<'div'>) => <div data-testid="skeleton" {...props} />,
+    Tabs: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+    TabsList: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+    TabsTrigger: ({ children }: { children?: ReactNode }) => <div>{children}</div>
+  }
+})
+
+vi.mock('@renderer/hooks/resourceCatalog', () => ({
+  useAssistantMutationsById: () => ({
+    updateAssistant: updateAssistantMock
+  })
+}))
+
+vi.mock('@renderer/hooks/useGroups', () => ({
+  useGroupMutations: () => ({
+    deleteGroup: deleteGroupMock,
+    updateGroup: updateGroupMock
+  })
+}))
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
+
+const assistantGroups = [
+  {
+    id: 'group-alpha',
+    entityType: 'assistant' as const,
+    name: 'alpha',
+    orderKey: 'a0',
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z'
+  },
+  {
+    id: 'group-beta',
+    entityType: 'assistant' as const,
+    name: 'beta',
+    orderKey: 'a1',
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z'
+  }
+]
+
+function createAssistantResource(overrides: Partial<Extract<ResourceItem, { type: 'assistant' }>> = {}): ResourceItem {
+  return {
+    id: 'assistant-1',
+    type: 'assistant',
+    name: 'Assistant',
+    description: '',
+    avatar: 'A',
+    createdAt: '2026-05-06T00:00:00.000Z',
+    updatedAt: '2026-05-06T00:00:00.000Z',
+    raw: {} as Extract<ResourceItem, { type: 'assistant' }>['raw'],
+    ...overrides
+  }
+}
+
+function createAgentResource(): ResourceItem {
+  return {
+    id: 'agent-1',
+    type: 'agent',
+    name: 'Agent',
+    description: '',
+    avatar: 'A',
+    createdAt: '2026-05-06T00:00:00.000Z',
+    updatedAt: '2026-05-06T00:00:00.000Z',
+    raw: {} as Extract<ResourceItem, { type: 'agent' }>['raw']
+  }
+}
+
+function createSkillResource(): ResourceItem {
+  return {
+    id: 'skill-1',
+    type: 'skill',
+    name: 'Skill',
+    description: '',
+    avatar: 'S',
+    createdAt: '2026-05-06T00:00:00.000Z',
+    updatedAt: '2026-05-06T00:00:00.000Z',
+    raw: {} as Extract<ResourceItem, { type: 'skill' }>['raw']
+  }
+}
+
+function createPromptResource(): ResourceItem {
+  return {
+    id: 'prompt-1',
+    type: 'prompt',
+    name: 'Prompt',
+    description: '',
+    avatar: 'Aa',
+    createdAt: '2026-05-06T00:00:00.000Z',
+    updatedAt: '2026-05-06T00:00:00.000Z',
+    raw: {} as Extract<ResourceItem, { type: 'prompt' }>['raw']
+  }
+}
+
+function renderResourceGrid(props: Partial<ComponentProps<typeof ResourceGrid>> = {}) {
+  return render(
+    <ResourceGrid
+      resources={[]}
+      isLoading={false}
+      activeResourceType="assistant"
+      search=""
+      onSearchChange={vi.fn()}
+      onEdit={vi.fn()}
+      onDuplicate={vi.fn()}
+      onDelete={vi.fn()}
+      onExport={vi.fn()}
+      onCreate={vi.fn()}
+      onImportAssistant={vi.fn()}
+      onOpenSkillMarketplace={vi.fn()}
+      groups={[]}
+      activeGroupId={null}
+      onGroupFilter={vi.fn()}
+      onAddGroup={vi.fn()}
+      allGroups={[]}
+      {...props}
+    />
+  )
+}
+
+function getResourceCardProps(overrides: Partial<ComponentProps<typeof ResourceCard>> = {}) {
+  return {
+    allGroups: [],
+    onDelete: vi.fn(),
+    onDuplicate: vi.fn(),
+    onEdit: vi.fn(),
+    onExport: vi.fn(),
+    ...overrides
+  }
+}
+
+describe('ResourceGrid empty state copy', () => {
+  it('uses the standalone resource toolbar spacing', () => {
+    renderResourceGrid()
+
+    const searchInput = screen.getByPlaceholderText('library.toolbar.search_placeholder')
+    const toolbar = searchInput.parentElement?.parentElement
+
+    expect(toolbar).toHaveClass('h-12', 'px-5')
+  })
+
+  it('renders the optional toolbar leading slot before the search box', () => {
+    renderResourceGrid({
+      toolbarLeading: <button type="button">Toggle sidebar</button>
+    })
+
+    const toggle = screen.getByRole('button', { name: 'Toggle sidebar' })
+    const searchInput = screen.getByPlaceholderText('library.toolbar.search_placeholder')
+
+    expect(toggle.compareDocumentPosition(searchInput)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+  })
+
+  it('shows loading placeholders before the empty state while data is loading', () => {
+    renderResourceGrid({ isLoading: true })
+
+    expect(screen.getByTestId('resource-grid-loading')).toBeInTheDocument()
+    expect(screen.queryByTestId('empty-state')).not.toBeInTheDocument()
+  })
+
+  it('uses the generic resource empty copy when there is no search', () => {
+    renderResourceGrid()
+
+    expect(screen.getByTestId('empty-state')).toBeInTheDocument()
+    expect(screen.getByText('library.empty_state.title')).toBeInTheDocument()
+    expect(screen.getByText('library.empty_state.description')).toBeInTheDocument()
+    expect(screen.queryByText('library.empty_state.empty_title')).not.toBeInTheDocument()
+    expect(screen.queryByText('library.empty_state.empty_description')).not.toBeInTheDocument()
+  })
+
+  it('uses the no-match copy when search has no results', () => {
+    renderResourceGrid({ search: 'missing' })
+
+    expect(screen.getByText('library.empty_state.no_match_title')).toBeInTheDocument()
+    expect(screen.getByText('library.empty_state.no_match_description')).toBeInTheDocument()
+  })
+})
+
+describe('ResourceGrid assistant add actions', () => {
+  it('renders assistant actions inline and dispatches the selected action', async () => {
+    const user = userEvent.setup()
+    const onCreate = vi.fn()
+    const onImportAssistant = vi.fn()
+    const onOpenAssistantLibrary = vi.fn()
+
+    renderResourceGrid({
+      onCreate,
+      onImportAssistant,
+      onOpenAssistantLibrary
+    })
+
+    expect(screen.getByRole('button', { name: '新建助手' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '助手库' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '导入助手' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /添加助手/ })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '助手库' }))
+
+    expect(onOpenAssistantLibrary).toHaveBeenCalledTimes(1)
+    expect(onCreate).not.toHaveBeenCalled()
+    expect(onImportAssistant).not.toHaveBeenCalled()
+  })
+
+  it('hides the assistant library action when the handler is unavailable', () => {
+    renderResourceGrid()
+
+    expect(screen.getByRole('button', { name: '新建助手' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '助手库' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '导入助手' })).toBeInTheDocument()
+  })
+})
+
+describe('ResourceGrid skill add actions', () => {
+  it('renders skill actions inline and dispatches online, system, or local actions', async () => {
+    const user = userEvent.setup()
+    const onCreate = vi.fn()
+    const onOpenSkillMarketplace = vi.fn()
+    const onOpenSystemSkills = vi.fn()
+
+    renderResourceGrid({
+      activeResourceType: 'skill',
+      onCreate,
+      onOpenSkillMarketplace,
+      onOpenSystemSkills
+    })
+
+    expect(screen.getByRole('button', { name: '添加技能' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '添加技能' }))
+
+    expect(screen.getByRole('menuitem', { name: '在线搜索' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: '本地导入' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: '系统搜索' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('menuitem', { name: '在线搜索' }))
+
+    expect(onOpenSkillMarketplace).toHaveBeenCalledTimes(1)
+    expect(onCreate).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('menuitem', { name: '本地导入' }))
+
+    expect(onCreate).toHaveBeenCalledWith('skill')
+
+    await user.click(screen.getByRole('menuitem', { name: '系统搜索' }))
+
+    expect(onOpenSystemSkills).toHaveBeenCalledTimes(1)
+  })
+
+  it('hides system search when no current agent is available', () => {
+    renderResourceGrid({ activeResourceType: 'skill' })
+
+    fireEvent.click(screen.getByRole('button', { name: '添加技能' }))
+
+    expect(screen.queryByRole('menuitem', { name: '系统搜索' })).not.toBeInTheDocument()
+  })
+})
+
+describe('ResourceGrid group toolbar management', () => {
+  beforeEach(() => {
+    deleteGroupMock.mockReset()
+    updateGroupMock.mockReset()
+  })
+
+  it('keeps unused groups collapsed behind the arrow before the add-group button', async () => {
+    const user = userEvent.setup()
+
+    renderResourceGrid({
+      groups: [{ id: 'group-alpha', name: 'alpha', count: 1 }],
+      allGroups: [
+        {
+          id: 'group-beta',
+          entityType: 'assistant',
+          name: 'beta',
+          orderKey: 'a0',
+          createdAt: '2024-01-01T00:00:00.000Z',
+          updatedAt: '2024-01-01T00:00:00.000Z'
+        },
+        {
+          id: 'group-alpha',
+          entityType: 'assistant',
+          name: 'alpha',
+          orderKey: 'a1',
+          createdAt: '2024-01-01T00:00:00.000Z',
+          updatedAt: '2024-01-01T00:00:00.000Z'
+        }
+      ]
+    })
+
+    const alphaGroup = screen.getByRole('button', { name: /alpha/ })
+    const expandButton = screen.getByRole('button', { name: '全部分组' })
+    const addGroupButton = screen.getByRole('button', { name: '分组' })
+
+    expect(screen.queryByRole('button', { name: /beta/ })).not.toBeInTheDocument()
+    expect(alphaGroup.compareDocumentPosition(expandButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(expandButton.compareDocumentPosition(addGroupButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+
+    await user.click(expandButton)
+
+    const betaGroup = screen.getByRole('button', { name: /beta/ })
+    const expandedAlphaGroup = screen.getByRole('button', { name: /alpha/ })
+    expect(betaGroup.compareDocumentPosition(expandedAlphaGroup)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(betaGroup.compareDocumentPosition(screen.getByRole('button', { name: '全部分组' }))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    )
+  })
+
+  it('renames a group from the right-click menu', async () => {
+    const user = userEvent.setup()
+    const onGroupFilter = vi.fn()
+    updateGroupMock.mockResolvedValueOnce({
+      id: 'group-alpha',
+      entityType: 'assistant',
+      name: 'renamed',
+      orderKey: 'a0',
+      createdAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-01-01T00:00:00.000Z'
+    })
+
+    renderResourceGrid({
+      activeGroupId: 'group-alpha',
+      onGroupFilter,
+      groups: [{ id: 'group-alpha', name: 'alpha', count: 1 }]
+    })
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: /alpha/ }), { clientX: 20, clientY: 30 })
+    await user.click(screen.getByRole('button', { name: '重命名' }))
+    fireEvent.change(screen.getByLabelText('重命名'), { target: { value: 'renamed' } })
+    await user.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() => expect(updateGroupMock).toHaveBeenCalledWith('group-alpha', { name: 'renamed' }))
+    expect(onGroupFilter).not.toHaveBeenCalled()
+  })
+
+  it('confirms before deleting a group from the right-click menu', async () => {
+    const user = userEvent.setup()
+    const onGroupFilter = vi.fn()
+
+    renderResourceGrid({
+      activeGroupId: 'group-alpha',
+      onGroupFilter,
+      groups: [{ id: 'group-alpha', name: 'alpha', count: 1 }]
+    })
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: /alpha/ }), { clientX: 20, clientY: 30 })
+    await user.click(screen.getByRole('button', { name: '删除分组' }))
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('确定要删除这个分组吗？')
+    expect(deleteGroupMock).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: '删除' }))
+
+    await waitFor(() => expect(deleteGroupMock).toHaveBeenCalledWith('group-alpha'))
+    expect(onGroupFilter).toHaveBeenCalledWith(null)
+  })
+
+  it('keeps the add-group editor open and clears pending state when creation fails', async () => {
+    const user = userEvent.setup()
+    const onAddGroup = vi.fn().mockRejectedValueOnce(new Error('create failed'))
+
+    renderResourceGrid({ onAddGroup })
+
+    await user.click(screen.getByRole('button', { name: '分组' }))
+    const input = screen.getByPlaceholderText('library.toolbar.add_group_placeholder')
+    await user.type(input, 'work{Enter}')
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('create failed'))
+    expect(input).toBeInTheDocument()
+    expect(input).toHaveValue('work')
+    await waitFor(() => expect(input).not.toBeDisabled())
+  })
+
+  it('keeps the rename dialog open and clears pending state when rename fails', async () => {
+    const user = userEvent.setup()
+    updateGroupMock.mockRejectedValueOnce(new Error('rename failed'))
+
+    renderResourceGrid({ groups: [{ id: 'group-alpha', name: 'alpha', count: 1 }] })
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: /alpha/ }), { clientX: 20, clientY: 30 })
+    await user.click(screen.getByRole('button', { name: '重命名' }))
+    const input = screen.getByLabelText('重命名')
+    await user.clear(input)
+    await user.type(input, 'renamed')
+    await user.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('rename failed'))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(input).toHaveValue('renamed')
+    await waitFor(() => expect(input).not.toBeDisabled())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'common.cancel' })).not.toBeDisabled())
+  })
+
+  it('keeps the delete dialog and active filter when deletion fails, then allows retry', async () => {
+    const user = userEvent.setup()
+    const onGroupFilter = vi.fn()
+    deleteGroupMock.mockRejectedValueOnce(new Error('delete failed')).mockResolvedValueOnce(undefined)
+
+    renderResourceGrid({
+      activeGroupId: 'group-alpha',
+      onGroupFilter,
+      groups: [{ id: 'group-alpha', name: 'alpha', count: 1 }]
+    })
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: /alpha/ }), { clientX: 20, clientY: 30 })
+    await user.click(screen.getByRole('button', { name: '删除分组' }))
+    await user.click(screen.getByRole('button', { name: '删除' }))
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('delete failed'))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(onGroupFilter).not.toHaveBeenCalled()
+
+    const confirmButton = screen.getByRole('button', { name: '删除' })
+    await waitFor(() => expect(confirmButton).not.toBeDisabled())
+    await user.click(confirmButton)
+    await waitFor(() => expect(deleteGroupMock).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(onGroupFilter).toHaveBeenCalledWith(null))
+  })
+})
+
+describe('ResourceGrid card actions', () => {
+  it('shows the overflow menu only for assistant cards', () => {
+    render(<ResourceCard resource={createAssistantResource()} {...getResourceCardProps()} />)
+
+    expect(screen.getByRole('button', { name: /common.more/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '删除' })).not.toBeInTheDocument()
+  })
+
+  it('shows a direct delete action when delete is the only card action', async () => {
+    const user = userEvent.setup()
+    const resource = createAgentResource()
+    const onDelete = vi.fn()
+
+    render(<ResourceCard resource={resource} {...getResourceCardProps({ onDelete })} />)
+
+    expect(screen.queryByRole('button', { name: /common.more/ })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '删除' }))
+
+    expect(onDelete).toHaveBeenCalledWith(resource)
+  })
+
+  it('shows only one assistant group in the compact card layout', () => {
+    render(<ResourceCard resource={createAssistantResource({ groupName: 'alpha' })} {...getResourceCardProps()} />)
+
+    expect(screen.getByText('alpha')).toBeInTheDocument()
+    expect(screen.queryByText('beta')).not.toBeInTheDocument()
+    expect(screen.queryByText('+2')).not.toBeInTheDocument()
+  })
+})
+
+describe('Assistant preset preview dialog actions', () => {
+  const preset = {
+    id: '550e8400-e29b-41d4-a716-446655440000',
+    name: 'Catalog Assistant',
+    prompt: 'Prompt',
+    group: ['Tools']
+  }
+
+  it('adds a preset from the preview dialog', async () => {
+    const user = userEvent.setup()
+    const onAdd = vi.fn()
+    const onOpenChange = vi.fn()
+
+    render(
+      <AssistantPresetPreviewDialog
+        preset={preset}
+        open
+        onOpenChange={onOpenChange}
+        onAdd={onAdd}
+        onOpenChat={vi.fn()}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: '添加' }))
+    expect(onAdd).toHaveBeenCalled()
+    expect(onOpenChange).not.toHaveBeenCalled()
+  })
+
+  it('opens chat for an added preset from the preview dialog', async () => {
+    const user = userEvent.setup()
+    const onAdd = vi.fn()
+    const onOpenChat = vi.fn()
+    const onOpenChange = vi.fn()
+
+    render(
+      <AssistantPresetPreviewDialog
+        preset={preset}
+        open
+        addedAssistantId="assistant-created"
+        onOpenChange={onOpenChange}
+        onAdd={onAdd}
+        onOpenChat={onOpenChat}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: '去对话' }))
+    expect(onOpenChat).toHaveBeenCalledWith('assistant-created')
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(onAdd).not.toHaveBeenCalled()
+  })
+})
+
+describe('ResourceCardMenu group binding', () => {
+  beforeEach(() => {
+    updateAssistantMock.mockReset()
+  })
+
+  it('does not show a group count in the single-select group menu trigger', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <ResourceCardMenu
+        resource={createAssistantResource({ groupId: 'group-alpha', groupName: 'alpha' })}
+        onClose={vi.fn()}
+        onDuplicate={vi.fn()}
+        onDelete={vi.fn()}
+        onExport={vi.fn()}
+        allGroups={assistantGroups}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: /common.more/ }))
+    expect(screen.getByRole('button', { name: /library.action.manage_groups/ })).not.toHaveTextContent(/\b1\b/)
+  })
+
+  it('blocks a second group write while the first one is still pending', async () => {
+    const user = userEvent.setup()
+    const pendingUpdate = createDeferred<unknown>()
+    updateAssistantMock.mockReturnValueOnce(pendingUpdate.promise)
+
+    render(
+      <ResourceCardMenu
+        resource={createAssistantResource()}
+        onClose={vi.fn()}
+        onDuplicate={vi.fn()}
+        onDelete={vi.fn()}
+        onExport={vi.fn()}
+        allGroups={assistantGroups}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: /common.more/ }))
+    await user.click(screen.getByRole('button', { name: /library.action.manage_groups/ }))
+    await user.click(screen.getByRole('menuitem', { name: 'alpha' }))
+
+    await user.click(screen.getByRole('button', { name: /common.more/ }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /library.action.manage_groups/ })).toHaveAttribute(
+        'aria-disabled',
+        'true'
+      )
+    )
+    expect(updateAssistantMock).toHaveBeenCalledTimes(1)
+
+    pendingUpdate.resolve({})
+
+    await waitFor(() => {
+      expect(updateAssistantMock).toHaveBeenCalledWith({ groupId: 'group-alpha' })
+    })
+    expect(updateAssistantMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('disables the current assistant group in the command submenu', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <ResourceCardMenu
+        resource={createAssistantResource({ groupId: 'group-alpha', groupName: 'alpha' })}
+        onClose={vi.fn()}
+        onDuplicate={vi.fn()}
+        onDelete={vi.fn()}
+        onExport={vi.fn()}
+        allGroups={assistantGroups}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: /common.more/ }))
+    await user.click(screen.getByRole('button', { name: /library.action.manage_groups/ }))
+
+    expect(screen.getByRole('menuitem', { name: 'alpha' })).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByRole('menuitem', { name: 'beta' })).not.toHaveAttribute('aria-disabled')
+  })
+
+  it('refreshes the disabled assistant group when the resource group changes', async () => {
+    const user = userEvent.setup()
+    const menuProps = {
+      onClose: vi.fn(),
+      onDuplicate: vi.fn(),
+      onDelete: vi.fn(),
+      onExport: vi.fn(),
+      allGroups: assistantGroups
+    }
+
+    const { rerender } = render(
+      <ResourceCardMenu
+        resource={createAssistantResource({ groupId: 'group-alpha', groupName: 'alpha' })}
+        {...menuProps}
+      />
+    )
+
+    rerender(
+      <ResourceCardMenu
+        resource={createAssistantResource({ groupId: 'group-beta', groupName: 'beta' })}
+        {...menuProps}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: /common.more/ }))
+    await user.click(screen.getByRole('button', { name: /library.action.manage_groups/ }))
+
+    expect(screen.getByRole('menuitem', { name: 'alpha' })).not.toHaveAttribute('aria-disabled')
+    expect(screen.getByRole('menuitem', { name: 'beta' })).toHaveAttribute('aria-disabled', 'true')
+  })
+
+  it('replaces the current assistant group when a different group is selected', async () => {
+    const user = userEvent.setup()
+    updateAssistantMock.mockResolvedValue({})
+
+    render(
+      <ResourceCardMenu
+        resource={createAssistantResource({ groupId: 'group-alpha', groupName: 'alpha' })}
+        onClose={vi.fn()}
+        onDuplicate={vi.fn()}
+        onDelete={vi.fn()}
+        onExport={vi.fn()}
+        allGroups={assistantGroups}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: /common.more/ }))
+    await user.click(screen.getByRole('button', { name: /library.action.manage_groups/ }))
+    await user.click(screen.getByRole('menuitem', { name: 'beta' }))
+
+    await waitFor(() => {
+      expect(updateAssistantMock).toHaveBeenCalledWith({ groupId: 'group-beta' })
+    })
+  })
+
+  it('does not expose group management for agent, skill, or prompt resources', async () => {
+    const user = userEvent.setup()
+    const menuProps = {
+      onClose: vi.fn(),
+      onDuplicate: vi.fn(),
+      onDelete: vi.fn(),
+      onExport: vi.fn(),
+      allGroups: assistantGroups
+    }
+
+    for (const resource of [createAgentResource(), createSkillResource(), createPromptResource()]) {
+      const { unmount } = render(<ResourceCardMenu resource={resource} {...menuProps} />)
+
+      await user.click(screen.getByRole('button', { name: /common.more/ }))
+      expect(screen.queryByRole('button', { name: /library.action.manage_groups/ })).not.toBeInTheDocument()
+
+      unmount()
+    }
+  })
+
+  it('keeps uninstall available for skill resources without extra menu actions', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <ResourceCardMenu
+        resource={createSkillResource()}
+        onClose={vi.fn()}
+        onDuplicate={vi.fn()}
+        onDelete={vi.fn()}
+        onExport={vi.fn()}
+        allGroups={[]}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: /common.more/ }))
+    expect(screen.getByRole('menuitem', { name: /library.action.uninstall/ })).toBeInTheDocument()
+    expect(screen.queryByTestId('menu-divider')).not.toBeInTheDocument()
+  })
+
+  it('keeps the divider when assistant resources have actions before delete', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <ResourceCardMenu
+        resource={createAssistantResource()}
+        onClose={vi.fn()}
+        onDuplicate={vi.fn()}
+        onDelete={vi.fn()}
+        onExport={vi.fn()}
+        allGroups={[]}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: /common.more/ }))
+    expect(screen.queryByRole('button', { name: /common.edit/ })).not.toBeInTheDocument()
+    expect(screen.getByTestId('menu-divider')).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: '删除' })).toBeInTheDocument()
+  })
+})

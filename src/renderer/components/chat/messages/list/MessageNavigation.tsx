@@ -1,7 +1,7 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { ArrowDown, ArrowUp, ChevronsDown, ChevronsUp, X } from 'lucide-react'
-import type { ComponentPropsWithoutRef, FC } from 'react'
+import type { ComponentPropsWithoutRef, FC, RefObject } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -10,7 +10,6 @@ import type { MessageListItem } from '../types'
 const EXCLUDED_SELECTORS = [
   '.MessageFooter',
   '.code-toolbar',
-  '.ant-collapse-header',
   '.group-menu-bar',
   '.code-block',
   '.message-editor',
@@ -21,16 +20,22 @@ const RIGHT_GAP = 16
 const TRIGGER_WIDTH = 60
 
 interface MessageNavigationProps {
-  containerId: string
+  scrollContainerRef: RefObject<HTMLElement | null>
+  getMessageElement: (messageId: string) => HTMLElement | null
   messages: MessageListItem[]
   scrollToMessageId: (messageId: string) => void
+  scrollToTop: () => void
+  scrollToBottom: () => void
 }
 
-const getScrollContainer = (container: HTMLElement | null): HTMLElement | null => {
-  return container?.querySelector<HTMLElement>('[data-message-virtual-list-scroller]') ?? container
-}
-
-const MessageNavigation: FC<MessageNavigationProps> = ({ containerId, messages, scrollToMessageId }) => {
+const MessageNavigation: FC<MessageNavigationProps> = ({
+  scrollContainerRef,
+  getMessageElement,
+  messages,
+  scrollToMessageId,
+  scrollToTop,
+  scrollToBottom
+}) => {
   const { t } = useTranslation()
   const [isVisible, setIsVisible] = useState(false)
   const timerKey = 'hide'
@@ -74,20 +79,21 @@ const MessageNavigation: FC<MessageNavigationProps> = ({ containerId, messages, 
     scheduleHide(500)
   }, [scheduleHide])
 
-  const scrollToTop = () => {
-    const scrollContainer = getScrollContainer(document.getElementById(containerId))
-    scrollContainer?.scrollTo({ top: 0, behavior: 'smooth' })
-  }
-
-  const scrollToBottom = () => {
-    const scrollContainer = getScrollContainer(document.getElementById(containerId))
-    scrollContainer?.scrollTo({ top: scrollContainer.scrollHeight, behavior: 'smooth' })
-  }
-
-  const getCurrentVisibleIndex = (direction: 'up' | 'down') => {
+  const getCurrentVisibleIndex = () => {
     const userMessages = messages.filter((message) => message.role === 'user')
     const assistantMessages = messages.filter((message) => message.role === 'assistant')
-    const scrollContainer = getScrollContainer(document.getElementById(containerId))
+    const userIndexById = new Map(userMessages.map((message, index) => [message.id, index]))
+    const precedingUserIndexByAssistantId = new Map<string, number>()
+    let precedingUserIndex: number | undefined
+
+    for (const message of messages) {
+      if (message.role === 'user') {
+        precedingUserIndex = userIndexById.get(message.id)
+      } else if (message.role === 'assistant' && precedingUserIndex !== undefined) {
+        precedingUserIndexByAssistantId.set(message.id, precedingUserIndex)
+      }
+    }
+    const scrollContainer = scrollContainerRef.current
 
     if (!scrollContainer) return -1
 
@@ -97,7 +103,7 @@ const MessageNavigation: FC<MessageNavigationProps> = ({ containerId, messages, 
     let visibleIndices: number[] = []
 
     for (let i = 0; i < userMessages.length; i++) {
-      const messageElement = document.getElementById(`message-${userMessages[i].id}`)
+      const messageElement = getMessageElement(userMessages[i].id)
       if (!messageElement) continue
 
       const messageRect = messageElement.getBoundingClientRect()
@@ -109,25 +115,29 @@ const MessageNavigation: FC<MessageNavigationProps> = ({ containerId, messages, 
     }
 
     if (visibleIndices.length > 0) {
-      return direction === 'up' ? Math.max(...visibleIndices) : Math.min(...visibleIndices)
+      return Math.min(...visibleIndices)
     }
 
     visibleIndices = []
     for (let i = 0; i < assistantMessages.length; i++) {
-      const messageElement = document.getElementById(`message-${assistantMessages[i].id}`)
+      const assistantMessage = assistantMessages[i]
+      const messageElement = getMessageElement(assistantMessage.id)
       if (!messageElement) continue
 
       const messageRect = messageElement.getBoundingClientRect()
       const visibleHeight =
         Math.min(messageRect.bottom, containerRect.bottom) - Math.max(messageRect.top, containerRect.top)
       if (visibleHeight > 0 && visibleHeight >= Math.min(messageRect.height, visibleThreshold)) {
-        visibleIndices.push(i)
+        const userIndex =
+          assistantMessage.parentId != null
+            ? userIndexById.get(assistantMessage.parentId)
+            : precedingUserIndexByAssistantId.get(assistantMessage.id)
+        if (userIndex !== undefined) visibleIndices.push(userIndex)
       }
     }
 
     if (visibleIndices.length > 0) {
-      const assistantIndex = direction === 'up' ? Math.max(...visibleIndices) : Math.min(...visibleIndices)
-      return assistantIndex < userMessages.length ? assistantIndex : userMessages.length - 1
+      return Math.min(...visibleIndices)
     }
 
     return -1
@@ -158,11 +168,11 @@ const MessageNavigation: FC<MessageNavigationProps> = ({ containerId, messages, 
 
     if (userMessages.length === 0 && assistantMessages.length === 0) return scrollToBottom()
 
-    const visibleIndex = getCurrentVisibleIndex('down')
+    const visibleIndex = getCurrentVisibleIndex()
     if (visibleIndex === -1) return scrollToBottom()
 
-    const targetIndex = visibleIndex - 1
-    if (targetIndex < 0) return scrollToBottom()
+    const targetIndex = visibleIndex + 1
+    if (targetIndex >= userMessages.length) return scrollToBottom()
 
     scrollToMessageId(userMessages[targetIndex].id)
   }
@@ -173,20 +183,19 @@ const MessageNavigation: FC<MessageNavigationProps> = ({ containerId, messages, 
     const assistantMessages = messages.filter((message) => message.role === 'assistant')
     if (userMessages.length === 0 && assistantMessages.length === 0) return scrollToTop()
 
-    const visibleIndex = getCurrentVisibleIndex('up')
+    const visibleIndex = getCurrentVisibleIndex()
     if (visibleIndex === -1) return scrollToTop()
 
-    const targetIndex = visibleIndex + 1
-    if (targetIndex >= userMessages.length) return scrollToTop()
+    const targetIndex = visibleIndex - 1
+    if (targetIndex < 0) return scrollToTop()
 
     scrollToMessageId(userMessages[targetIndex].id)
   }
 
   useEffect(() => {
-    const container = document.getElementById(containerId)
-    const scrollContainer = getScrollContainer(container)
+    const scrollContainer = scrollContainerRef.current
 
-    if (!container || !scrollContainer) return
+    if (!scrollContainer) return
 
     const handleScroll = () => {
       if (isPointerInTriggerAreaRef.current || isHoveringNavigationRef.current) {
@@ -201,7 +210,7 @@ const MessageNavigation: FC<MessageNavigationProps> = ({ containerId, messages, 
       if (now - lastMoveTime.current < 50) return
       lastMoveTime.current = now
 
-      const containerRect = container.getBoundingClientRect()
+      const containerRect = scrollContainer.getBoundingClientRect()
       const rightPosition = containerRect.right - RIGHT_GAP - TRIGGER_WIDTH
       const topPosition = containerRect.top + containerRect.height * 0.35
       const height = containerRect.height * 0.3
@@ -237,15 +246,15 @@ const MessageNavigation: FC<MessageNavigationProps> = ({ containerId, messages, 
         scheduleHide(500)
       }
     }
-    container.addEventListener('mouseleave', handleMessagesMouseLeave)
+    scrollContainer.addEventListener('mouseleave', handleMessagesMouseLeave)
 
     return () => {
       scrollContainer.removeEventListener('scroll', handleScroll)
       window.removeEventListener('mousemove', handleMouseMove)
-      container.removeEventListener('mouseleave', handleMessagesMouseLeave)
+      scrollContainer.removeEventListener('mouseleave', handleMessagesMouseLeave)
       clearHideTimer()
     }
-  }, [containerId, manuallyClosedUntil, scheduleHide, showNavigation, clearHideTimer])
+  }, [scrollContainerRef, manuallyClosedUntil, scheduleHide, showNavigation, clearHideTimer])
 
   return (
     <NavigationContainer
@@ -301,7 +310,7 @@ const NavigationContainer = ({
   ...props
 }: ComponentPropsWithoutRef<'div'> & NavigationContainerProps) => (
   <div
-    className={['absolute top-1/2 right-4 z-[1000] transition-[transform,opacity] duration-300 ease-in-out', className]
+    className={['absolute top-1/2 right-4 z-[80] transition-[transform,opacity] duration-300 ease-in-out', className]
       .filter(Boolean)
       .join(' ')}
     style={{
@@ -349,7 +358,7 @@ const NavigationButton = ({ className, ...props }: ComponentPropsWithoutRef<type
 )
 
 const Divider = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={['m-0 h-px bg-(--color-border)', className].filter(Boolean).join(' ')} {...props} />
+  <div className={['m-0 h-px bg-border', className].filter(Boolean).join(' ')} {...props} />
 )
 
 export default MessageNavigation

@@ -118,7 +118,7 @@ vi.mock('../S3Storage', () => ({
 }))
 
 vi.mock('archiver', () => ({
-  default: vi.fn()
+  ZipArchive: vi.fn()
 }))
 
 vi.mock('node-stream-zip', () => ({

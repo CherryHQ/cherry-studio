@@ -2,7 +2,8 @@ import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@ch
 import { useProvider } from '@renderer/hooks/useProvider'
 import { fieldClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { replaceEndpointConfigDomain } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
-import { cn } from '@renderer/utils'
+import { toast } from '@renderer/services/toast'
+import { cn } from '@renderer/utils/style'
 import { Check, ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
@@ -14,18 +15,13 @@ interface CherryInSettingsProps {
 
 const API_HOST_OPTIONS = [
   {
-    value: 'open.cherryin.cc',
-    labelKey: 'settings.provider.cherryin.api_host.acceleration',
-    description: 'open.cherryin.cc'
-  },
-  {
     value: 'open.cherryin.net',
-    labelKey: 'settings.provider.cherryin.api_host.international',
+    labelKey: 'settings.provider.cherryin.api_host.acceleration',
     description: 'open.cherryin.net'
   },
   {
     value: 'open.cherryin.ai',
-    labelKey: 'settings.provider.cherryin.api_host.backup',
+    labelKey: 'settings.provider.cherryin.api_host.international',
     description: 'open.cherryin.ai'
   }
 ]
@@ -56,7 +52,7 @@ const CherryInSettings: FC<CherryInSettingsProps> = ({ providerId }) => {
       try {
         await updateProvider({ endpointConfigs: newEndpointConfigs })
       } catch {
-        window.toast.error(t('settings.provider.save_failed'))
+        toast.error(t('settings.provider.save_failed'))
       }
     },
     [provider?.endpointConfigs, t, updateProvider]

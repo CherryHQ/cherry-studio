@@ -5,7 +5,8 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { WindowType } from '@main/core/window/types'
 import type { AgentChannelEntity as ChannelRow, AgentChannelType } from '@shared/data/api/schemas/agentChannels'
 import type { ChannelConfig } from '@shared/data/types/channel'
-import { IpcChannel } from '@shared/IpcChannel'
+import type { IpcEventName } from '@shared/ipc/schemas/ipcSchemas'
+import type { EventPayload } from '@shared/ipc/types'
 
 import type { ChannelAdapter } from './ChannelAdapter'
 import { ChannelLogBuffer } from './ChannelLogBuffer'
@@ -74,7 +75,7 @@ export class ChannelManager extends BaseService {
   async start(): Promise<void> {
     let channels: Awaited<ReturnType<typeof channelService.listChannels>>
     try {
-      channels = await channelService.listChannels()
+      channels = channelService.listChannels()
     } catch (error) {
       logger.error('Failed to list channels during startup', {
         error: error instanceof Error ? error.message : String(error)
@@ -172,8 +173,8 @@ export class ChannelManager extends BaseService {
     return result
   }
 
-  private sendToRenderer(channel: string, data: unknown): void {
-    application.get('WindowManager').broadcastToType(WindowType.Main, channel, data)
+  private sendToRenderer<E extends IpcEventName>(event: E, data: EventPayload<E>): void {
+    application.get('IpcApiService').broadcastToType(WindowType.Main, event, data)
   }
 
   /** Disconnect the adapter for a single channel without reconnecting. */
@@ -211,7 +212,7 @@ export class ChannelManager extends BaseService {
     await this.disconnectChannel(channelId, { suppressErrors: !strictDisconnect })
 
     // Re-read from DB and reconnect if active
-    const channel = await channelService.getChannel(channelId)
+    const channel = channelService.getChannel(channelId)
     if (channel && channel.isActive && channel.agentId) {
       await ensureAdapterLoaded(channel.type)
       await this.connectChannelFromRow(channel, { awaitConnect })
@@ -252,11 +253,11 @@ export class ChannelManager extends BaseService {
     channelId: string,
     creds: { appId: string; appSecret: string }
   ): Promise<void> {
-    const channel = await channelService.getChannel(channelId)
+    const channel = channelService.getChannel(channelId)
     if (!channel) return
 
     const config = channel.config as ChannelConfig & Record<string, unknown>
-    await channelService.updateChannel(channelId, {
+    channelService.updateChannel(channelId, {
       config: { ...config, app_id: creds.appId, app_secret: creds.appSecret } as ChannelConfig
     })
 
@@ -289,13 +290,15 @@ export class ChannelManager extends BaseService {
         if (hasAllowedIds) return
         if (adapter.notifyChatIds.includes(chatId)) return
         adapter.notifyChatIds.push(chatId)
-        channelService.addActiveChatId(row.id, chatId).catch((err) => {
+        try {
+          channelService.addActiveChatId(row.id, chatId)
+        } catch (err) {
           logger.warn('Failed to persist activeChatId', {
             channelId: row.id,
             chatId,
             error: err instanceof Error ? err.message : String(err)
           })
-        })
+        }
       }
 
       adapter.on('message', (msg) => {
@@ -352,12 +355,12 @@ export class ChannelManager extends BaseService {
       // Forward log & status events to renderer via IPC
       adapter.on('log', (entry) => {
         this.channelLogs.append(entry.channelId, entry)
-        this.sendToRenderer(IpcChannel.Channel_Log, entry)
+        this.sendToRenderer('channel.log', entry)
       })
 
       adapter.on('statusChange', (status) => {
         this.channelStatuses.set(status.channelId, status)
-        this.sendToRenderer(IpcChannel.Channel_StatusChange, status)
+        this.sendToRenderer('channel.status_changed', status)
       })
 
       // Register adapter immediately so it's discoverable. Callers can either
@@ -398,7 +401,7 @@ export class ChannelManager extends BaseService {
         error: error instanceof Error ? error.message : String(error)
       }
       this.channelStatuses.set(row.id, errorStatus)
-      this.sendToRenderer(IpcChannel.Channel_StatusChange, errorStatus)
+      this.sendToRenderer('channel.status_changed', errorStatus)
       if (options.awaitConnect) {
         throw error
       }

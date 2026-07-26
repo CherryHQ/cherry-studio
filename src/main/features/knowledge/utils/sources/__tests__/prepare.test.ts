@@ -105,8 +105,8 @@ describe('prepareKnowledgeItem', () => {
     vi.clearAllMocks()
 
     expandDirectoryOwnerToTreeMock.mockResolvedValue({ pathPrefix: 'docs', children: [] })
-    knowledgeItemGetItemsByBaseIdMock.mockResolvedValue([])
-    knowledgeItemCreateMock.mockImplementation(async (_baseId: string, item: Partial<KnowledgeItem>) => ({
+    knowledgeItemGetItemsByBaseIdMock.mockReturnValue([])
+    knowledgeItemCreateMock.mockImplementation((_baseId: string, item: Partial<KnowledgeItem>) => ({
       id: `${item.type}-created`,
       baseId,
       groupId: item.groupId ?? null,
@@ -118,7 +118,7 @@ describe('prepareKnowledgeItem', () => {
       updatedAt: '2026-04-08T00:00:00.000Z'
     }))
     knowledgeItemUpdateStatusMock.mockImplementation(
-      async (id: string, status: KnowledgeItem['status'], update: { error?: string | null } = {}) => ({
+      (id: string, status: KnowledgeItem['status'], update: { error?: string | null } = {}) => ({
         id,
         baseId,
         groupId: null,
@@ -145,8 +145,8 @@ describe('prepareKnowledgeItem', () => {
     const root = createDirectoryItem('dir-root')
     const childDir = createDirectoryItem('dir-child', root.id)
     const childFile = createFileItem('file-child', childDir.id)
-    knowledgeItemCreateMock.mockResolvedValueOnce(childDir).mockResolvedValueOnce(childFile)
-    knowledgeItemUpdateStatusMock.mockResolvedValueOnce(childDir).mockResolvedValueOnce(childFile)
+    knowledgeItemCreateMock.mockReturnValueOnce(childDir).mockReturnValueOnce(childFile)
+    knowledgeItemUpdateStatusMock.mockReturnValueOnce(childDir).mockReturnValueOnce(childFile)
     expandDirectoryOwnerToTreeMock.mockResolvedValueOnce({
       pathPrefix: 'dir-root-prefix',
       children: [
@@ -190,7 +190,7 @@ describe('prepareKnowledgeItem', () => {
     // Pin the container's own prefix, as if it had already been indexed once.
     root.data = { source: '/abs/docs', relativePath: 'docs' }
     const sibling = createFileItem('file-sibling') // top-level relativePath `file-sibling.md`
-    knowledgeItemGetItemsByBaseIdMock.mockResolvedValueOnce([root, sibling])
+    knowledgeItemGetItemsByBaseIdMock.mockReturnValueOnce([root, sibling])
     expandDirectoryOwnerToTreeMock.mockResolvedValueOnce({
       pathPrefix: 'docs',
       children: [{ type: 'file', data: { source: '/abs/docs/a.md', relativePath: 'docs/a.md' } }]
@@ -242,8 +242,10 @@ describe('prepareKnowledgeItem', () => {
       pathPrefix: 'dir-root',
       children: [{ type: 'file', data: fileChild.data }]
     })
-    knowledgeItemCreateMock.mockResolvedValueOnce(fileChild)
-    knowledgeItemUpdateStatusMock.mockRejectedValueOnce(new Error('status failed'))
+    knowledgeItemCreateMock.mockReturnValueOnce(fileChild)
+    knowledgeItemUpdateStatusMock.mockImplementationOnce(() => {
+      throw new Error('status failed')
+    })
 
     await expect(prepareKnowledgeItem(createPrepareOptions(root, onCreatedItem))).rejects.toThrow('status failed')
 

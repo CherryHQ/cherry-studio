@@ -3,7 +3,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 
 import { CdpBrowserController } from './controller'
-import { toolDefinitions, toolHandlers } from './tools'
+import { toolDefinitions, toolHandlers } from './tools/registry'
 
 export class BrowserServer {
   public mcpServer: McpServer

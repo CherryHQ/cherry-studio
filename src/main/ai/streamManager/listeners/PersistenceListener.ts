@@ -6,14 +6,16 @@
  */
 
 import { loggerService } from '@logger'
+import { serializeError } from '@main/ai/utils/serializeError'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
-import { serializeError } from '@shared/utils/error'
 import type { UIMessageChunk } from 'ai'
 
 import { normalizeAssistantMessageCitations } from '../persistence/normalizeCitations'
 import {
+  dropEmptyContentParts,
+  finalizeInterruptedParts,
   type PersistenceBackend,
   statsFromTerminal,
   stripTransientStatusParts
@@ -78,19 +80,19 @@ export class PersistenceListener implements StreamListener {
 
   async onDone(result: StreamDoneResult): Promise<void> {
     if (!this.owns(result.modelId)) return
-    await this.persistAssistant(result.finalMessage, 'success', result.timings)
+    this.persistAssistant(result.finalMessage, 'success', result.timings)
   }
 
   async onPaused(result: StreamPausedResult): Promise<void> {
     if (!this.owns(result.modelId)) return
-    await this.persistAssistant(result.finalMessage, 'paused', result.timings)
+    this.persistAssistant(result.finalMessage, 'paused', result.timings)
   }
 
   async onError(result: StreamErrorResult): Promise<void> {
     if (!this.owns(result.modelId)) return
     // Folded once here so backends see a uniform UIMessage shape, not `SerializedError`.
     const withErrorPart = mergeErrorIntoMessage(result.finalMessage, result.error)
-    await this.persistAssistant(withErrorPart, 'error', result.timings)
+    this.persistAssistant(withErrorPart, 'error', result.timings)
   }
 
   isAlive(): boolean {
@@ -101,12 +103,12 @@ export class PersistenceListener implements StreamListener {
     return !modelId || !this.opts.modelId || modelId === this.opts.modelId
   }
 
-  private async persistAssistant(
+  private persistAssistant(
     finalMessage: CherryUIMessage | undefined,
     status: 'success' | 'paused' | 'error',
     transportTimings: TransportTimings | undefined
-  ): Promise<void> {
-    if (!finalMessage && status !== 'error') {
+  ): void {
+    if (!finalMessage && (status === 'success' || !this.opts.backend.canPersistEmptyTerminal)) {
       logger.warn('Terminal event without finalMessage, skipping persistence', {
         backend: this.opts.backend.kind,
         topicId: this.opts.topicId,
@@ -116,17 +118,24 @@ export class PersistenceListener implements StreamListener {
     }
 
     // Strip transient status parts (e.g. data-retry) so they never reach storage.
-    const persistableMessage = finalMessage
+    const strippedMessage = finalMessage
       ? ({
           ...finalMessage,
           parts: stripTransientStatusParts(finalMessage.parts as CherryMessagePart[])
         } as CherryUIMessage)
       : finalMessage
 
-    const finalMessageForPersistence =
-      status === 'success' && persistableMessage
-        ? normalizeAssistantMessageCitations(persistableMessage)
-        : persistableMessage
+    const normalizedMessage =
+      status === 'success' && strippedMessage ? normalizeAssistantMessageCitations(strippedMessage) : strippedMessage
+    // Strip empty text/reasoning parts so invisible (zero-height) message blocks
+    // are never written to storage. Applied for all statuses. The `normalizedMessage`
+    // guard is for the typed-undefined error path (no finalMessage).
+    const finalMessageForPersistence = normalizedMessage
+      ? {
+          ...normalizedMessage,
+          parts: finalizeInterruptedParts(dropEmptyContentParts(normalizedMessage.parts as CherryMessagePart[]), status)
+        }
+      : normalizedMessage
 
     const stats = statsFromTerminal(
       finalMessageForPersistence,
@@ -134,7 +143,7 @@ export class PersistenceListener implements StreamListener {
     )
 
     try {
-      await this.opts.backend.persistAssistant({
+      this.opts.backend.persistAssistant({
         finalMessage: finalMessageForPersistence,
         status,
         modelId: this.opts.modelId,
@@ -155,7 +164,7 @@ export class PersistenceListener implements StreamListener {
       // The placeholder row stays `pending` forever (boot-time reconcile aside), so on reload it
       // shows a frozen loading bubble. Best-effort drive it to a terminal `error` state instead.
       try {
-        await this.opts.backend.markTerminalError?.()
+        this.opts.backend.markTerminalError?.()
       } catch (markErr) {
         logger.error('Failed to mark assistant message as terminal error after persist failure', {
           backend: this.opts.backend.kind,

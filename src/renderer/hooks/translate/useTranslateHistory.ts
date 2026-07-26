@@ -8,7 +8,7 @@ import {
 } from '@shared/data/preference/preferenceTypes'
 import { useCallback } from 'react'
 
-import { type MutationFeedbackOptions, useMutationFeedback } from './_mutationFeedback'
+import { type MutationFeedbackOptions, useMutationFeedback } from './useMutationFeedback'
 
 const logger = loggerService.withContext('translate/useTranslateHistory')
 

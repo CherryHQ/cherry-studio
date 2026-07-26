@@ -33,20 +33,21 @@ const bm25Row = (unitId: string, materialId: string, score: number): Record<stri
  */
 function createFakeDriver(vectorRows: Array<Record<string, SqlValue>>, bm25Rows: Array<Record<string, SqlValue>>) {
   const limits: { vector?: number; bm25?: number } = {}
-  const execute = vi.fn(async (sql: string, args: SqlValue[] = []): Promise<SqlQueryResult> => {
+  const execute = vi.fn((sql: string, args: SqlValue[] = []): SqlQueryResult => {
     const limit = Number(args[args.length - 1])
     if (sql.includes('search_text_fts MATCH')) {
       limits.bm25 = limit
-      return { rows: bm25Rows }
+      return { rows: bm25Rows, changes: 0 }
     }
     limits.vector = limit
-    return { rows: vectorRows }
+    return { rows: vectorRows, changes: 0 }
   })
   const driver: SqliteDriver = {
     execute,
-    transaction: async (fn) => fn({ execute }),
+    transaction: (fn) => fn({ execute }),
+    reclaim: () => ({ vacuumed: false, reclaimedBytes: 0 }),
     isClosed: () => false,
-    close: async () => undefined
+    close: () => undefined
   }
   return { driver, limits }
 }

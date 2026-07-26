@@ -2,7 +2,7 @@ import type { Painting } from '@shared/data/types/painting'
 import { PaintingFilesSchema } from '@shared/data/types/painting'
 import * as z from 'zod'
 
-import type { CursorPaginationParams, CursorPaginationResponse } from '../apiTypes'
+import type { CursorPaginationParams, CursorPaginationResponse } from '../types'
 import type { OrderEndpoints } from './_endpointHelpers'
 
 export const PAINTINGS_DEFAULT_LIMIT = 20

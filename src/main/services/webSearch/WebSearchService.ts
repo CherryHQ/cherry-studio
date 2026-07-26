@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isAbortError } from '@main/utils/error'
 import { TraceMethod } from '@mcp-trace/trace-core'
 import type { WebSearchCapability, WebSearchProvider } from '@shared/data/preference/preferenceTypes'
 import type {
@@ -15,9 +16,9 @@ import type { WebSearchProviderDriver } from './providers/factory'
 import { createWebSearchProvider } from './providers/factory'
 import { filterWebSearchResponseWithBlacklist } from './utils/blacklist'
 import { getProviderForCapability, getRuntimeConfig } from './utils/config'
-import { isAbortError } from './utils/errors'
 import { normalizeWebSearchKeywords, normalizeWebSearchUrls } from './utils/input'
 import { ApiKeyRotationState } from './utils/provider'
+import { WebSearchConfigError } from './WebSearchConfigError'
 
 const logger = loggerService.withContext('MainWebSearchService')
 
@@ -70,7 +71,10 @@ export class WebSearchService extends BaseService {
     const capabilityRunner = context.providerDriver[context.capability]
 
     if (!capabilityRunner) {
-      throw new Error(`Web search provider ${context.provider.id} does not implement capability ${context.capability}`)
+      throw new WebSearchConfigError(
+        'capability_unsupported',
+        `Web search provider ${context.provider.id} does not implement capability ${context.capability}`
+      )
     }
 
     return Promise.allSettled(

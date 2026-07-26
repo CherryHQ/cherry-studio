@@ -4,7 +4,7 @@ import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
-import { getFileExt } from '@main/utils/file'
+import { getFileExt } from '@main/utils/legacyFile'
 import { FileProcessorIdSchema } from '@shared/data/presets/fileProcessing'
 import {
   type CreateKnowledgeItemDto,
@@ -66,14 +66,14 @@ export class KnowledgeWorkflowService {
       return { status: 'added' }
     }
 
-    const base = await knowledgeBaseService.getById(baseId)
+    const base = knowledgeBaseService.getById(baseId)
 
     // rename (the default, and every internal caller — restore/migrator): keep all,
     // auto-rename on collision. detect/replace first resolve same-name conflicts
     // against the existing root items and earlier items in the same batch.
     let itemsToAdd = inputs
     if (conflictStrategy !== 'rename') {
-      const existingRoots = await knowledgeItemService.getRootItemsByBaseId(base.id)
+      const existingRoots = knowledgeItemService.getRootItemsByBaseId(base.id)
       const resolution = resolveKnowledgeAddConflicts(inputs, existingRoots)
       if (conflictStrategy === 'detect') {
         if (resolution.conflicts.length > 0) {
@@ -113,7 +113,7 @@ export class KnowledgeWorkflowService {
         // claim a collision-free name (auto-renaming with a numeric suffix)
         // against the same growing set, so a same-named batch add no longer
         // throws — earlier inputs are visible when deduping later ones.
-        const reservedPaths = await this.loadReservedKnowledgeFilePaths(base.id, base.fileProcessorId)
+        const reservedPaths = this.loadReservedKnowledgeFilePaths(base.id, base.fileProcessorId)
         for (const input of itemsToAdd) {
           const createInput = await this.prepareRuntimeAddItemInput(base.id, base.fileProcessorId, input, reservedPaths)
           // A url restore copies its snapshot to raw/{relativePath} under type 'url',
@@ -123,16 +123,16 @@ export class KnowledgeWorkflowService {
           if (createInput.type === 'file' || (createInput.type === 'url' && createInput.data.relativePath)) {
             copiedFileItems.push(createInput)
           }
-          const createdItem = await knowledgeItemService.create(base.id, createInput)
+          const createdItem = knowledgeItemService.create(base.id, createInput)
           acceptedItems.push(createdItem)
-          const activeItem = await knowledgeItemService.updateStatus(
+          const activeItem = knowledgeItemService.updateStatus(
             createdItem.id,
             isContainerKnowledgeItem(createdItem) ? 'preparing' : 'processing'
           )
           acceptedItems[acceptedItems.length - 1] = activeItem
         }
       } catch (error) {
-        await this.rollbackAcceptedItems(base.id, acceptedItems, error)
+        this.rollbackAcceptedItems(base.id, acceptedItems, error)
         // Best-effort cleanup so a failed delete (EACCES/EBUSY/...) cannot
         // mask the original error that triggered the rollback.
         await deleteKnowledgeItemFilesBestEffort(base.id, copiedFileItems, {
@@ -150,7 +150,7 @@ export class KnowledgeWorkflowService {
         completedSchedulingItemIds.add(item.id)
       }
     } catch (error) {
-      await this.markUnscheduledAcceptedItemsFailed(base.id, acceptedItems, completedSchedulingItemIds, error)
+      this.markUnscheduledAcceptedItemsFailed(base.id, acceptedItems, completedSchedulingItemIds, error)
       throw error
     }
 
@@ -165,19 +165,19 @@ export class KnowledgeWorkflowService {
    * the caller outside the lock.
    */
   private async purgeConflictingExistingItems(base: KnowledgeBase, itemsToAdd: KnowledgeAddItemInput[]): Promise<void> {
-    const currentRoots = await knowledgeItemService.getRootItemsByBaseId(base.id)
+    const currentRoots = knowledgeItemService.getRootItemsByBaseId(base.id)
     const { conflictingExistingRootIds } = resolveKnowledgeAddConflicts(itemsToAdd, currentRoots)
     if (conflictingExistingRootIds.length === 0) {
       return
     }
-    const subtreeItems = await knowledgeItemService.getSubtreeItems(base.id, conflictingExistingRootIds, {
+    const subtreeItems = knowledgeItemService.getSubtreeItems(base.id, conflictingExistingRootIds, {
       includeRoots: true
     })
     await purgeKnowledgeSubtreeWithinLock(base, subtreeItems, { baseId: base.id, reason: 'knowledge-add-replace' })
   }
 
   async deleteItems(baseId: string, itemIds: string[]): Promise<void> {
-    await knowledgeBaseService.getById(baseId)
+    knowledgeBaseService.getById(baseId)
     const rootItemIds = [...new Set(itemIds)]
     const knowledgeBaseId = toKnowledgeBaseId(baseId)
     const knowledgeRootItemIds = toKnowledgeItemIds(rootItemIds)
@@ -186,7 +186,7 @@ export class KnowledgeWorkflowService {
     )
     try {
       const jobManager = application.get('JobManager')
-      await jobManager.enqueue(
+      jobManager.enqueue(
         'knowledge.delete-subtree',
         { baseId, rootItemIds },
         {
@@ -205,12 +205,12 @@ export class KnowledgeWorkflowService {
   }
 
   async reindexItems(baseId: string, itemIds: string[]): Promise<void> {
-    await knowledgeBaseService.getById(baseId)
+    knowledgeBaseService.getById(baseId)
     const rootItemIds = [...new Set(itemIds)]
     const knowledgeBaseId = toKnowledgeBaseId(baseId)
     const knowledgeRootItemIds = toKnowledgeItemIds(rootItemIds)
     const jobManager = application.get('JobManager')
-    await jobManager.enqueue(
+    jobManager.enqueue(
       'knowledge.reindex-subtree',
       { baseId, rootItemIds },
       {
@@ -225,8 +225,8 @@ export class KnowledgeWorkflowService {
     itemId: KnowledgeItemId,
     parentJobId: string | null = null
   ): Promise<void> {
-    const base = await knowledgeBaseService.getById(baseId)
-    const item = await knowledgeItemService.getById(itemId)
+    const base = knowledgeBaseService.getById(baseId)
+    const item = knowledgeItemService.getById(itemId)
     if (item.baseId !== baseId) {
       throw new Error(`Knowledge item '${itemId}' does not belong to base '${baseId}'`)
     }
@@ -236,13 +236,13 @@ export class KnowledgeWorkflowService {
 
     const plan = planKnowledgeItemSource(base, item)
     if (plan.kind === 'invalid') {
-      await knowledgeItemService.updateStatus(itemId, 'failed', { error: plan.reason })
+      knowledgeItemService.updateStatus(itemId, 'failed', { error: plan.reason })
       return
     }
 
     const jobManager = application.get('JobManager')
     if (plan.kind === 'prepare-root') {
-      await jobManager.enqueue(
+      jobManager.enqueue(
         'knowledge.prepare-root',
         { baseId, itemId },
         {
@@ -263,7 +263,7 @@ export class KnowledgeWorkflowService {
       const sourcePath = getKnowledgeBaseFilePath(baseId, item.data.relativePath)
       const processedRelativePath = getProcessedMarkdownRelativePath(item.data.relativePath)
       if (item.data.indexedRelativePath !== processedRelativePath) {
-        await this.assertKnowledgeRelativePathNotReserved(baseId, base.fileProcessorId, item.id, processedRelativePath)
+        this.assertKnowledgeRelativePathNotReserved(baseId, base.fileProcessorId, item.id, processedRelativePath)
         await assertKnowledgeFileTargetAvailable(baseId, processedRelativePath)
       }
       const processedPath = getKnowledgeBaseFilePath(baseId, processedRelativePath)
@@ -312,7 +312,7 @@ export class KnowledgeWorkflowService {
   ): Promise<void> {
     const { pollRound, firstScheduledAt, parentJobId } = options
     const jobManager = application.get('JobManager')
-    await jobManager.enqueue(
+    jobManager.enqueue(
       'knowledge.check-file-processing-result',
       {
         baseId,
@@ -342,7 +342,7 @@ export class KnowledgeWorkflowService {
     parentJobId: string | null = null
   ): Promise<void> {
     const jobManager = application.get('JobManager')
-    await jobManager.enqueue(
+    jobManager.enqueue(
       'knowledge.index-documents',
       { baseId, itemId, parentJobId },
       {
@@ -353,10 +353,10 @@ export class KnowledgeWorkflowService {
     )
   }
 
-  private async rollbackAcceptedItems(baseId: string, items: KnowledgeItem[], originalError: unknown): Promise<void> {
+  private rollbackAcceptedItems(baseId: string, items: KnowledgeItem[], originalError: unknown): void {
     for (const item of items) {
       try {
-        await knowledgeItemService.delete(item.id)
+        knowledgeItemService.delete(item.id)
       } catch (cleanupError) {
         logger.error(
           'Failed to rollback accepted knowledge item after addItems failure',
@@ -429,35 +429,32 @@ export class KnowledgeWorkflowService {
     }
   }
 
-  private async loadReservedKnowledgeFilePaths(
-    baseId: string,
-    fileProcessorId: string | null | undefined
-  ): Promise<Set<string>> {
-    const items = await knowledgeItemService.getItemsByBaseId(baseId)
+  private loadReservedKnowledgeFilePaths(baseId: string, fileProcessorId: string | null | undefined): Set<string> {
+    const items = knowledgeItemService.getItemsByBaseId(baseId)
     return collectKnowledgeReservedRelativePaths(items, { fileProcessorId })
   }
 
-  private async assertKnowledgeRelativePathNotReserved(
+  private assertKnowledgeRelativePathNotReserved(
     baseId: string,
     fileProcessorId: string | null | undefined,
     itemId: string,
     relativePath: string
-  ): Promise<void> {
-    const items = await knowledgeItemService.getItemsByBaseId(baseId)
+  ): void {
+    const items = knowledgeItemService.getItemsByBaseId(baseId)
     const reserved = collectKnowledgeReservedRelativePaths(items, { fileProcessorId, excludeItemId: itemId })
     if (reserved.has(relativePath)) {
       throw new Error(`Knowledge file already exists: ${relativePath}`)
     }
   }
 
-  private async markUnscheduledAcceptedItemsFailed(
+  private markUnscheduledAcceptedItemsFailed(
     baseId: string,
     items: KnowledgeItem[],
     completedSchedulingItemIds: Set<string>,
     originalError: unknown
-  ): Promise<void> {
+  ): void {
     const message = originalError instanceof Error ? originalError.message : String(originalError)
-    await markUnscheduledKnowledgeItemsFailed({
+    markUnscheduledKnowledgeItemsFailed({
       baseId,
       items,
       completedItemIds: completedSchedulingItemIds,

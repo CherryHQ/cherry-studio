@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { uuid } from '@renderer/utils'
+import { uuid } from '@renderer/utils/uuid'
 import { IpcChannel } from '@shared/IpcChannel'
 
 const logger = loggerService.withContext('PyodideService')

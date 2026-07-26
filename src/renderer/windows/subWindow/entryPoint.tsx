@@ -1,10 +1,12 @@
 import '@renderer/assets/styles/index.css'
 import '@renderer/assets/styles/tailwind.css'
-import '@ant-design/v5-patch-for-react-19'
 
+import { prepareWindow } from '@renderer/windows/prepareWindow'
 import { createRoot } from 'react-dom/client'
 
 import SubWindowApp from './SubWindowApp'
+
+await prepareWindow({ preference: 'all' })
 
 const root = createRoot(document.getElementById('root') as HTMLElement)
 root.render(<SubWindowApp />)

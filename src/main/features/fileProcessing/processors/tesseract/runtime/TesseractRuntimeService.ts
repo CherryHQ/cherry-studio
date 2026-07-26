@@ -4,7 +4,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { loadOcrImage } from '@main/features/fileProcessing/utils/ocr'
-import { getIpCountry } from '@main/utils/ipService'
+import { regionService } from '@main/services/RegionService'
 import { MB } from '@shared/utils/constants'
 import PQueue from 'p-queue'
 import type { LanguageCode } from 'tesseract.js'
@@ -233,7 +233,7 @@ export class TesseractRuntimeService extends BaseService {
   }
 
   private async getLangPath(): Promise<string> {
-    const country = await getIpCountry()
+    const country = await regionService.getCountry()
     return country.toLowerCase() === 'cn' ? TESSERACT_LANGS_DOWNLOAD_URL_CN : ''
   }
 

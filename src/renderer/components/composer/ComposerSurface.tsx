@@ -1,0 +1,2334 @@
+import { Button, Tooltip } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
+import { getPathBasename } from '@renderer/components/chat/panes/artifactPanePath'
+import type {
+  QuickPanelInputAdapter,
+  QuickPanelInputEvent,
+  QuickPanelListItem,
+  QuickPanelOpenOptions,
+  QuickPanelTriggerInfo
+} from '@renderer/components/QuickPanel'
+import { QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
+import { useRichTextEditorKernel } from '@renderer/components/RichEditor/useRichTextEditorKernel'
+import SendMessageButton from '@renderer/components/SendMessageButton'
+import { usePreference } from '@renderer/data/hooks/usePreference'
+import { useTimer } from '@renderer/hooks/useTimer'
+import { toast } from '@renderer/services/toast'
+import { isPastedTextFileMetadata } from '@renderer/types/file'
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import {
+  createComposerRichClipboardContentFromDraft,
+  readComposerClipboardFragmentFromDataTransfer,
+  readComposerClipboardFragmentFromSessionCache,
+  writeComposerClipboardData
+} from '@renderer/utils/message/composerClipboard'
+import { createComposerSecureRandomId } from '@renderer/utils/message/composerFileTokenSource'
+import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
+import type { ComposerMessageToken } from '@shared/data/types/uiParts'
+import type { JSONContent } from '@tiptap/core'
+import type { EditorView } from '@tiptap/pm/view'
+import type { Editor } from '@tiptap/react'
+import { EditorContent, type NodeViewProps } from '@tiptap/react'
+import { CirclePause, LocateFixed, Maximize2, Minimize2, Pencil, X } from 'lucide-react'
+import React, { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import ComposerControlsLoading from './ComposerControlsLoading'
+import { COMPOSER_INPUT_MAX_LENGTH, createComposerDocumentContent, serializeComposerDocument } from './composerDraft'
+import {
+  getComposerClipboardPasteOverride,
+  getComposerPlainTextPasteOverride,
+  LONG_TEXT_PASTE_THRESHOLD
+} from './composerPaste'
+import { createComposerEditorPreset } from './composerPreset'
+import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './ComposerTokenNode'
+import { ComposerToolMenu, useComposerPinnedTools } from './ComposerToolRuntime'
+import { type InputHistoryDirection, shouldHandleInputHistoryNavigation } from './inputHistoryNavigation'
+import pasteHandling from './paste/pasteHandling'
+import { useFileDragDrop } from './paste/useFileDragDrop'
+import { usePasteHandler } from './paste/usePasteHandler'
+import {
+  createPromptVariableContent,
+  createPromptVariableInlineContent,
+  getNextPromptVariableIndex,
+  getSelectedPromptVariableToken,
+  selectPromptVariableToken,
+  tokenizePromptVariablesInEditor,
+  updateSelectedPromptVariableToken
+} from './promptVariables'
+import {
+  COMPOSER_SUPPRESS_SUGGESTION_META,
+  ComposerPanelSymbol,
+  type ComposerSuggestionSource,
+  type ComposerUnifiedPanelControl,
+  type ComposerUnifiedPanelResourceProvider,
+  type ComposerUnifiedPanelSelectHandler,
+  createComposerSuggestionQuickPanelItem,
+  createUnifiedQuickPanelOpenOptions,
+  getComposerCursorTextOffset,
+  getComposerInputLeafText,
+  getComposerInputText,
+  getComposerPositionAtTextOffset,
+  getComposerSuggestionTriggerContext,
+  hasComposerQuickPanelTriggerBoundary,
+  hasUnifiedQuickPanelRootContent,
+  ROOT_QUICK_PANEL_ALLOWED_PREFIXES
+} from './quickPanel'
+import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from './tokens'
+import { FileComposerToken } from './tokenView'
+import type { ComposerToolLauncher } from './toolLauncher'
+import { useCompactComposerPresentation } from './useCompactComposerPresentation'
+import {
+  COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT_CLASS,
+  COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT_CLASS,
+  useComposerEditorFrameSizing
+} from './useComposerEditorFrameSizing'
+
+const ROOT_QUICK_PANEL_TRIGGER_SOURCES = [
+  { char: ComposerPanelSymbol.Root, pluginKey: 'composer-root-suggestion' },
+  { char: '、', pluginKey: 'composer-root-ideographic-comma-suggestion' }
+] as const
+const EMPTY_SUGGESTION_SOURCES: readonly ComposerSuggestionSource[] = []
+interface ComposerClipboardCopyView {
+  state: {
+    selection: {
+      empty: boolean
+      content: () => {
+        content: {
+          toJSON: () => unknown
+        }
+      }
+    }
+  }
+}
+
+interface ComposerFocusRestoreSnapshot {
+  activeElement: Element | null
+  pointerDownVersion: number
+}
+
+export interface ComposerSurfaceActions {
+  focus: (position?: 'start' | 'end' | 'all' | number | boolean | null) => void
+  onTextChange: (updater: string | ((prev: string) => string)) => void
+  replaceDraft: (draft: ComposerSerializedDraft) => void
+  toggleExpanded: (nextState?: boolean) => void
+  removeToken: (tokenId: string) => void
+  insertToken: (token: ComposerDraftToken) => void
+  getDraft: () => ComposerSerializedDraft
+}
+
+export interface ComposerSurfaceEditingState {
+  messageId: string
+  highlightKey?: number
+  onCancel: () => void
+  onLocate?: () => void
+}
+
+type ComposerSurfaceSendAccessoryRenderer = (
+  inputAdapter?: QuickPanelInputAdapter,
+  unifiedPanelControl?: ComposerUnifiedPanelControl
+) => React.ReactNode
+
+export interface ComposerSurfaceProps {
+  text: string
+  onTextChange: (text: string) => void
+  tokens: readonly ComposerDraftToken[]
+  draftTokens?: readonly ComposerSerializedToken[]
+  managedTokenKinds: readonly ComposerDraftToken['kind'][]
+  onTokensChange: (tokens: readonly ComposerSerializedToken[]) => void
+  placeholder: string
+  sendDisabled: boolean
+  sendBlockedReason?: string
+  isLoading: boolean
+  onSendDraft: (draft: ComposerSerializedDraft) => void | Promise<void>
+  onPause: () => void | Promise<void>
+  supportedExts: string[]
+  setFiles: React.Dispatch<React.SetStateAction<ComposerAttachment[]>>
+  filesCount: number
+  isExpanded: boolean
+  onExpandedChange: (expanded: boolean) => void
+  quickPanelEnabled: boolean
+  enableDragDrop: boolean
+  enableSpellCheck: boolean
+  editable?: boolean
+  fontSize: number
+  narrowMode: boolean
+  onFocus?: () => void
+  onActionsChange?: (actions: ComposerSurfaceActions) => void
+  isInputHistoryActive?: boolean
+  onInputHistoryNavigate?: (direction: InputHistoryDirection) => boolean
+  editingState?: ComposerSurfaceEditingState
+  getToolLaunchers?: () => ComposerToolLauncher[]
+  toolLaunchersVersion?: number
+  resolveSkillMarker?: (marker: string) => ComposerDraftToken | null | undefined
+  resolveKnowledgeBaseMarker?: (marker: string) => ComposerDraftToken | null | undefined
+  suggestionSources?: readonly ComposerSuggestionSource[]
+  resourceProvider?: ComposerUnifiedPanelResourceProvider
+  queueContent?: React.ReactNode
+  rootPanelLeadingItems?: readonly QuickPanelListItem[]
+  rootPanelAdditionalItems?: readonly QuickPanelListItem[]
+  onRootPanelOpen?: () => void
+  onToolLauncherSelect?: ComposerUnifiedPanelSelectHandler
+  renderLeftControls?: (
+    inputAdapter?: QuickPanelInputAdapter,
+    unifiedPanelControl?: ComposerUnifiedPanelControl
+  ) => React.ReactNode
+  renderBelowControls?: (
+    inputAdapter?: QuickPanelInputAdapter,
+    unifiedPanelControl?: ComposerUnifiedPanelControl
+  ) => React.ReactNode
+  /** Custom content pinned above the editor, inside the input frame (e.g. a reference-image strip). */
+  topContent?: React.ReactNode
+  /** Custom content pinned to the left of the editor, on the same row (e.g. an add-image button). */
+  leadingContent?: React.ReactNode
+  compactWhenSingleLine?: boolean
+  renderCompactControls?: (
+    inputAdapter?: QuickPanelInputAdapter,
+    unifiedPanelControl?: ComposerUnifiedPanelControl
+  ) => React.ReactNode
+  sendAccessory?: React.ReactNode | ComposerSurfaceSendAccessoryRenderer
+  deferDynamicControls?: boolean
+}
+
+function getQuickPanelItemText(value: React.ReactNode | string | undefined) {
+  return typeof value === 'string' || typeof value === 'number' ? String(value) : ''
+}
+
+function getQuickPanelItemsSignature(items?: readonly QuickPanelListItem[]) {
+  return (items ?? [])
+    .map((item, index) =>
+      [
+        item.id ?? index,
+        getQuickPanelItemText(item.label),
+        getQuickPanelItemText(item.description),
+        item.filterText ?? '',
+        item.disabled ? '1' : '0',
+        item.hidden ? '1' : '0',
+        item.isSelected ? '1' : '0',
+        item.isMenu ? '1' : '0',
+        item.alwaysVisible ? '1' : '0'
+      ].join('\u001f')
+    )
+    .join('\u001e')
+}
+
+function removeComposerTokens(editor: Editor, shouldRemove: (token: ComposerSerializedToken) => boolean) {
+  const ranges: Array<{ from: number; to: number }> = []
+
+  editor.state.doc.descendants((node, position) => {
+    if (node.type.name !== COMPOSER_TOKEN_NODE_NAME) return
+    const draft = serializeComposerDocument({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: COMPOSER_TOKEN_NODE_NAME, attrs: node.attrs }] }]
+    })
+    const token = draft.tokens[0]
+    if (token && shouldRemove(token)) {
+      ranges.push({ from: position, to: position + node.nodeSize })
+    }
+  })
+
+  if (!ranges.length) return
+
+  const transaction = editor.state.tr
+  for (const range of ranges.reverse()) {
+    transaction.delete(range.from, range.to)
+  }
+  editor.view.dispatch(transaction)
+}
+
+function addMissingToken(
+  editor: Editor,
+  token: ComposerDraftToken,
+  existingTokens: readonly ComposerSerializedToken[]
+) {
+  if (existingTokens.some((existing) => existing.id === token.id)) return
+  insertComposerTokenAtCursor(editor, token)
+}
+
+function hasComposerTokenBeforeSelection(editor: Editor) {
+  const selection = editor.state.selection
+  const selectedNode = (selection as { node?: { type?: { name?: string } } }).node
+  if (selectedNode?.type?.name === COMPOSER_TOKEN_NODE_NAME) return true
+  if (!selection.empty) return false
+
+  return selection.$from.nodeBefore?.type.name === COMPOSER_TOKEN_NODE_NAME
+}
+
+function insertComposerTokenAtCursor(
+  editor: Editor,
+  token: ComposerDraftToken,
+  options: { insertSeparator?: boolean } = {}
+) {
+  const chain = editor.chain().focus().insertComposerToken(token)
+  if (options.insertSeparator === false) {
+    chain.run()
+    return
+  }
+
+  chain.insertContent(' ').run()
+}
+
+function createFolderComposerToken(path: string): ComposerDraftToken {
+  return {
+    id: createComposerSecureRandomId('folder-token'),
+    kind: 'folder',
+    label: getPathBasename(path),
+    description: path,
+    promptText: path
+  }
+}
+
+function isComposerSendKeyPressed(event: KeyboardEvent, shortcut: SendMessageShortcut) {
+  switch (shortcut) {
+    case 'Enter':
+      return !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey
+    case 'Ctrl+Enter':
+      return event.ctrlKey && !event.shiftKey && !event.metaKey && !event.altKey
+    case 'Command+Enter':
+      return event.metaKey && !event.shiftKey && !event.ctrlKey && !event.altKey
+    case 'Alt+Enter':
+      return event.altKey && !event.shiftKey && !event.ctrlKey && !event.metaKey
+    case 'Shift+Enter':
+      return event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey
+  }
+}
+
+function deleteComposerTextRange(editor: Editor, range: { from: number; to: number }) {
+  const fromOffset = Math.max(0, Math.min(range.from, range.to))
+  const toOffset = Math.max(fromOffset, range.to)
+  if (fromOffset === toOffset) return
+
+  const from = getComposerPositionAtTextOffset(editor, fromOffset)
+  const to = getComposerPositionAtTextOffset(editor, toOffset)
+  if (to <= from) return
+
+  editor.chain().focus().deleteRange({ from, to }).run()
+}
+
+function createComposerInputAdapter(editor: Editor): QuickPanelInputAdapter {
+  return {
+    getText: () => getComposerInputText(editor),
+    getCursorOffset: () => getComposerCursorTextOffset(editor),
+    insertText: (insertedText) => {
+      editor
+        .chain()
+        .focus()
+        .insertContent(
+          createPromptVariableInlineContent(insertedText, { startIndex: getNextPromptVariableIndex(editor) })
+        )
+        .run()
+    },
+    insertToken: (token) => {
+      insertComposerTokenAtCursor(editor, token as ComposerDraftToken)
+    },
+    deleteTriggerRange: (range) => {
+      deleteComposerTextRange(editor, range)
+    },
+    focus: () => {
+      editor.commands.focus()
+    }
+  }
+}
+
+function getComposerUnifiedPanelSearchText(
+  inputAdapter: QuickPanelInputAdapter | undefined,
+  queryAnchor: number | undefined,
+  triggerInfo: QuickPanelTriggerInfo | undefined
+) {
+  if (!inputAdapter || queryAnchor === undefined) return ''
+
+  const text = inputAdapter.getText()
+  const cursorOffset = inputAdapter.getCursorOffset?.() ?? text.length
+  if (cursorOffset <= queryAnchor) return ''
+
+  const rawSearchText = text.slice(queryAnchor, cursorOffset)
+  const triggerSymbol = triggerInfo?.type === 'input' ? triggerInfo.originalText?.slice(0, 1) : undefined
+
+  if (triggerSymbol && rawSearchText.startsWith(triggerSymbol)) {
+    return rawSearchText.slice(triggerSymbol.length)
+  }
+  return rawSearchText
+}
+
+const getTokenIds = (tokens: readonly ComposerDraftToken[]) => new Set(tokens.map((token) => token.id))
+const getManagedTokenSignature = (
+  tokens: readonly ComposerSerializedToken[],
+  managedTokenKindSet: ReadonlySet<ComposerDraftToken['kind']>
+) =>
+  tokens
+    .filter((token) => managedTokenKindSet.has(token.kind))
+    .map((token) => `${token.kind}:${token.id}:${token.index}:${token.textOffset}`)
+    .join('\n')
+
+function shouldDelegateLongTextPasteToFileHandler(text: string) {
+  return Boolean(text && text.length > LONG_TEXT_PASTE_THRESHOLD)
+}
+
+function insertComposerPastedContent(editor: Editor, content: JSONContent[]) {
+  editor.chain().focus().setMeta(COMPOSER_SUPPRESS_SUGGESTION_META, true).insertContent(content).run()
+}
+
+function exceedsComposerInputMaxLength(currentText: string, nextText: string, replacedText = '') {
+  return currentText.length - replacedText.length + nextText.length > COMPOSER_INPUT_MAX_LENGTH
+}
+
+function getComposerInputTextWithinLimit(currentText: string, nextText: string, replacedText = '') {
+  const remainingLength = COMPOSER_INPUT_MAX_LENGTH - (currentText.length - replacedText.length)
+  if (remainingLength <= 0) return ''
+  return nextText.slice(0, remainingLength)
+}
+
+function getComposerReplacementText(view: EditorView | null, from: number, to: number) {
+  if (!view || from >= to) return ''
+  return view.state.doc.textBetween(from, to, '\n', getComposerInputLeafText)
+}
+
+function getComposerSelectedText(editor: Editor) {
+  const { from, to } = editor.state.selection
+  if (from >= to) return ''
+  return editor.state.doc.textBetween(from, to, '\n', getComposerInputLeafText)
+}
+
+function readComposerPayloadObject(payload: unknown): Record<string, unknown> | null {
+  return typeof payload === 'object' && payload !== null && !Array.isArray(payload)
+    ? (payload as Record<string, unknown>)
+    : null
+}
+
+function readComposerPayloadPath(payload: unknown): string | undefined {
+  const payloadObject = readComposerPayloadObject(payload)
+  const path = payloadObject?.path
+  return typeof path === 'string' ? path : undefined
+}
+
+function mergeLiveFileTokenPayload(
+  token: ComposerSerializedToken,
+  liveTokenById: ReadonlyMap<string, ComposerDraftToken>
+): ComposerSerializedToken {
+  if (token.kind !== 'file' || readComposerPayloadPath(token.payload)) return token
+
+  const liveToken = liveTokenById.get(token.id)
+  if (liveToken?.kind !== 'file') return token
+
+  const livePath = readComposerPayloadPath(liveToken.payload)
+  if (!livePath) return token
+
+  return {
+    ...token,
+    payload: {
+      ...readComposerPayloadObject(liveToken.payload),
+      ...readComposerPayloadObject(token.payload),
+      path: livePath
+    }
+  }
+}
+
+function createComposerDraftFromSelectedContent(view: ComposerClipboardCopyView): ComposerSerializedDraft | null {
+  const { selection } = view.state
+  if (selection.empty) return null
+
+  const content = selection.content().content.toJSON()
+  if (!Array.isArray(content) || content.length === 0) return null
+
+  return serializeComposerDocument({ type: 'doc', content: content as JSONContent[] })
+}
+
+function handleComposerCopy(
+  view: ComposerClipboardCopyView,
+  event: ClipboardEvent,
+  liveTokenById: ReadonlyMap<string, ComposerDraftToken>
+) {
+  if (!event.clipboardData) return false
+
+  const draft = createComposerDraftFromSelectedContent(view)
+  const richContent = draft
+    ? createComposerRichClipboardContentFromDraft({
+        ...draft,
+        tokens: draft.tokens.map((token) => mergeLiveFileTokenPayload(token, liveTokenById))
+      })
+    : null
+  if (!richContent) return false
+
+  event.preventDefault()
+  event.clipboardData.clearData()
+  writeComposerClipboardData(event.clipboardData, richContent)
+  return true
+}
+
+function mergeComposerClipboardFiles(prev: ComposerAttachment[], files: readonly ComposerAttachment[]) {
+  if (!files.length) return prev
+
+  const existing = new Set(prev.map((file) => `${file.fileTokenSourceId}:${file.path}`))
+  const next = [...prev]
+  let changed = false
+
+  for (const file of files) {
+    const key = `${file.fileTokenSourceId}:${file.path}`
+    if (existing.has(key)) continue
+    existing.add(key)
+    next.push(file)
+    changed = true
+  }
+
+  return changed ? next : prev
+}
+
+function isRestorableDraftToken(
+  token: ComposerSerializedToken
+): token is ComposerSerializedToken & ComposerMessageToken {
+  return token.kind !== 'promptVariable'
+}
+
+function getRestorableDraftTokens(draftTokens: readonly ComposerSerializedToken[] | undefined): ComposerMessageToken[] {
+  return (draftTokens ?? [])
+    .filter(isRestorableDraftToken)
+    .map(({ id, kind, label, icon, description, index, textOffset, promptText, payload }) => ({
+      id,
+      kind,
+      label,
+      ...(icon && { icon }),
+      ...(description && { description }),
+      index,
+      textOffset,
+      ...(promptText && { promptText }),
+      ...(payload !== undefined && { payload })
+    }))
+}
+
+function createComposerEditorContent(text: string, draftTokens: readonly ComposerSerializedToken[] | undefined) {
+  const restorableTokens = getRestorableDraftTokens(draftTokens)
+  if (restorableTokens.length) {
+    return createComposerDocumentContent(text, { version: 1, tokens: restorableTokens })
+  }
+
+  return createPromptVariableContent(text)
+}
+
+function getComposerSelectionState(view: EditorView, key: 'ArrowUp' | 'ArrowDown', isInputHistoryActive: boolean) {
+  const { doc, selection } = view.state
+  // ProseMirror positions are token-based: `doc.content.size` is one past the
+  // trailing block-close token, so the caret at end-of-text sits at
+  // `content.size - 1` for non-empty text. Empty text only has a single
+  // selectable position (`1`), which is what `Math.max(1, ...)` normalizes.
+  const lastSelectablePosition = Math.max(1, doc.content.size - 1)
+  const isCursorAtEnd = selection.empty && selection.from === lastSelectablePosition
+  let isCursorAtHistoryBoundary = false
+
+  if (isCursorAtEnd) {
+    if (key === 'ArrowUp' && isInputHistoryActive) {
+      // Replacing the draft with a history item leaves the caret at the document end.
+      // Continue browsing from that unchanged position even when the item wraps visually.
+      isCursorAtHistoryBoundary = true
+    } else {
+      const topLevelBlockIndex = selection.$head.index(0)
+      const isAtDocumentEdgeBlock =
+        key === 'ArrowUp' ? topLevelBlockIndex === 0 : topLevelBlockIndex === doc.childCount - 1
+      const direction = key === 'ArrowUp' ? 'up' : 'down'
+      isCursorAtHistoryBoundary = isAtDocumentEdgeBlock && view.endOfTextblock(direction)
+    }
+  }
+
+  return {
+    isAllSelected: !selection.empty && selection.from <= 1 && selection.to >= lastSelectablePosition,
+    isCursorAtHistoryBoundary
+  }
+}
+
+const COMPOSER_EDITING_BORDER_HIGHLIGHT_MS = 900
+const COMPOSER_EDITING_BORDER_HIGHLIGHT_TIMER_KEY = 'composerEditingBorderHighlight'
+
+function useComposerDynamicControlsReady(deferDynamicControls: boolean) {
+  const [controlsReady, setControlsReady] = useState(!deferDynamicControls)
+
+  useLayoutEffect(() => {
+    if (!deferDynamicControls || controlsReady) return
+
+    let controlsFrame = 0
+    const editorFrame = window.requestAnimationFrame(() => {
+      controlsFrame = window.requestAnimationFrame(() => {
+        startTransition(() => setControlsReady(true))
+      })
+    })
+
+    return () => {
+      window.cancelAnimationFrame(editorFrame)
+      if (controlsFrame) window.cancelAnimationFrame(controlsFrame)
+    }
+  }, [controlsReady, deferDynamicControls])
+
+  return !deferDynamicControls || controlsReady
+}
+
+export default function ComposerSurface({
+  text,
+  onTextChange,
+  tokens,
+  draftTokens,
+  managedTokenKinds,
+  onTokensChange,
+  placeholder,
+  sendDisabled,
+  sendBlockedReason,
+  isLoading,
+  onSendDraft,
+  onPause,
+  supportedExts,
+  setFiles,
+  filesCount,
+  isExpanded,
+  onExpandedChange,
+  quickPanelEnabled,
+  enableDragDrop,
+  enableSpellCheck,
+  editable = true,
+  fontSize,
+  narrowMode,
+  onFocus,
+  onActionsChange,
+  isInputHistoryActive = false,
+  onInputHistoryNavigate,
+  editingState,
+  getToolLaunchers,
+  toolLaunchersVersion,
+  resolveSkillMarker,
+  resolveKnowledgeBaseMarker,
+  suggestionSources = EMPTY_SUGGESTION_SOURCES,
+  resourceProvider,
+  queueContent,
+  rootPanelLeadingItems,
+  rootPanelAdditionalItems,
+  onRootPanelOpen,
+  onToolLauncherSelect,
+  renderLeftControls,
+  renderBelowControls,
+  topContent,
+  leadingContent,
+  compactWhenSingleLine = false,
+  renderCompactControls,
+  sendAccessory,
+  deferDynamicControls = false
+}: ComposerSurfaceProps) {
+  const dynamicControlsReady = useComposerDynamicControlsReady(deferDynamicControls)
+  const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
+  const { t } = useTranslation()
+  const quickPanel = useQuickPanel()
+  const pinnedLauncherIds = useComposerPinnedTools()
+  const pinnedLauncherIdSet = useMemo(() => new Set(pinnedLauncherIds), [pinnedLauncherIds])
+  const quickPanelRef = useRef(quickPanel)
+  const { setTimeoutTimer } = useTimer()
+  const [isEditingBorderHighlighted, setEditingBorderHighlighted] = useState(false)
+  const editorRef = useRef<Editor | null>(null)
+  const textRef = useRef(text)
+  const pendingLocalTextEchoRef = useRef<string | null>(null)
+  const inputListenersRef = useRef(new Set<(event?: QuickPanelInputEvent) => void>())
+  const isSyncingTokensRef = useRef(false)
+  const managedTokenSignatureRef = useRef('')
+  const tokenByIdRef = useRef(new Map<string, ComposerDraftToken>())
+  const sendDisabledRef = useRef(sendDisabled)
+  const sendBlockedReasonRef = useRef(sendBlockedReason)
+  const sendMessageShortcutRef = useRef(sendMessageShortcut)
+  const setFilesRef = useRef(setFiles)
+  const onSendDraftRef = useRef(onSendDraft)
+  const isInputHistoryActiveRef = useRef(isInputHistoryActive)
+  const onInputHistoryNavigateRef = useRef(onInputHistoryNavigate)
+  const promptVariableEditRef = useRef<{ tokenId: string; started: boolean } | null>(null)
+  const promptVariableCompositionRef = useRef<{ tokenId: string; text: string } | null>(null)
+  const promptVariableSkipTextInputRef = useRef<{ tokenId: string; text: string } | null>(null)
+  const isExpandedRef = useRef(isExpanded)
+  const pointerDownVersionRef = useRef(0)
+  const filesCountRef = useRef(filesCount)
+  const managedTokenKindSet = useMemo(() => new Set(managedTokenKinds), [managedTokenKinds])
+
+  const editingHighlightKey = editingState?.highlightKey
+
+  useLayoutEffect(() => {
+    quickPanelRef.current = quickPanel
+    isExpandedRef.current = isExpanded
+    filesCountRef.current = filesCount
+    sendDisabledRef.current = sendDisabled
+    sendBlockedReasonRef.current = sendBlockedReason
+    sendMessageShortcutRef.current = sendMessageShortcut
+    setFilesRef.current = setFiles
+    onSendDraftRef.current = onSendDraft
+    isInputHistoryActiveRef.current = isInputHistoryActive
+    onInputHistoryNavigateRef.current = onInputHistoryNavigate
+  }, [
+    filesCount,
+    isExpanded,
+    isInputHistoryActive,
+    onInputHistoryNavigate,
+    onSendDraft,
+    quickPanel,
+    sendBlockedReason,
+    sendDisabled,
+    sendMessageShortcut,
+    setFiles
+  ])
+
+  useEffect(() => {
+    textRef.current = text
+  }, [text])
+
+  useEffect(() => {
+    tokenByIdRef.current = new Map(tokens.map((token) => [token.id, token]))
+  }, [tokens])
+
+  useEffect(() => {
+    const handlePointerDown = () => {
+      pointerDownVersionRef.current += 1
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown, true)
+    return () => document.removeEventListener('pointerdown', handlePointerDown, true)
+  }, [])
+
+  useEffect(() => {
+    if (editingHighlightKey === undefined) {
+      setEditingBorderHighlighted(false)
+      return
+    }
+
+    setEditingBorderHighlighted(true)
+
+    return setTimeoutTimer(
+      COMPOSER_EDITING_BORDER_HIGHLIGHT_TIMER_KEY,
+      () => setEditingBorderHighlighted(false),
+      COMPOSER_EDITING_BORDER_HIGHLIGHT_MS
+    )
+  }, [editingHighlightKey, setTimeoutTimer])
+
+  const showBlockedSendReason = useCallback(() => {
+    if (sendBlockedReasonRef.current) {
+      toast.error(sendBlockedReasonRef.current)
+    }
+  }, [])
+
+  const applyComposerText = useCallback(
+    (nextText: string) => {
+      const limitedText = nextText.slice(0, COMPOSER_INPUT_MAX_LENGTH)
+      const editor = editorRef.current
+      const currentText = editor && !editor.isDestroyed ? serializeComposerDocument(editor).text : textRef.current
+      // Rebuilding from plain text re-tokenizes only prompt variables, so a same-text update (e.g.
+      // pasteHandling re-applying the text after a long paste becomes a file) must skip the rebuild
+      // or quote/file/knowledge tokens degrade to their serialized text.
+      if (limitedText === currentText) return
+      textRef.current = limitedText
+      pendingLocalTextEchoRef.current = limitedText
+      onTextChange(limitedText)
+      editor?.commands.setContent(createPromptVariableContent(limitedText), { emitUpdate: false })
+    },
+    [onTextChange]
+  )
+
+  const setText = useCallback<React.Dispatch<React.SetStateAction<string>>>(
+    (value) => {
+      const nextText = typeof value === 'function' ? value(textRef.current) : value
+      applyComposerText(nextText)
+    },
+    [applyComposerText]
+  )
+
+  const pasteHandlerOptions = useMemo(
+    () => ({
+      supportedExts,
+      setFiles,
+      onResize: undefined,
+      t
+    }),
+    [supportedExts, setFiles, t]
+  )
+
+  const { handlePaste } = usePasteHandler(text, setText, pasteHandlerOptions)
+
+  const { handleDragEnter, handleDragLeave, handleDragOver, handleDrop, isDragging } = useFileDragDrop({
+    supportedExts,
+    setFiles,
+    onFolderPathDropped: (path) => {
+      const editor = editorRef.current
+      if (!editor || editor.isDestroyed) return
+      insertComposerTokenAtCursor(editor, createFolderComposerToken(path))
+    },
+    onTextDropped: (droppedText) => {
+      const editor = editorRef.current
+      if (!editor) return
+      editor
+        .chain()
+        .focus()
+        .insertContent(
+          createPromptVariableInlineContent(droppedText, { startIndex: getNextPromptVariableIndex(editor) })
+        )
+        .run()
+    },
+    enabled: enableDragDrop,
+    t
+  })
+
+  const focusEditor = useCallback((position?: 'start' | 'end' | 'all' | number | boolean | null) => {
+    editorRef.current?.commands.focus(position)
+  }, [])
+  const isEditorComposing = useCallback(() => editorRef.current?.view.composing ?? false, [])
+
+  const {
+    compactEditorContentStyle,
+    compactFrameStyle,
+    editorContentStyle,
+    editorElementStyle,
+    frameRef,
+    frameStyle,
+    handleResizeKeyDown,
+    handleTransitionEnd,
+    hasCustomHeight,
+    isResizing: isEditorResizing,
+    maxHeight: editorMaxHeight,
+    minHeight: editorMinHeight,
+    resizeHandleValue,
+    restoreDefaultHeight,
+    startResize: startEditorResize,
+    toggleExpanded: toggleEditorExpanded
+  } = useComposerEditorFrameSizing({
+    fontSize,
+    isExpanded,
+    onExpandedChange,
+    focusEditor,
+    setTimeoutTimer
+  })
+  const { isCompact, requestMeasurement: requestCompactMeasurement } = useCompactComposerPresentation({
+    enabled: compactWhenSingleLine && !hasCustomHeight,
+    frameRef,
+    isComposing: isEditorComposing
+  })
+  const createEditorFocusRestoreSnapshot = useCallback<() => ComposerFocusRestoreSnapshot>(
+    () => ({
+      activeElement: document.activeElement,
+      pointerDownVersion: pointerDownVersionRef.current
+    }),
+    []
+  )
+  const shouldRestoreEditorFocus = useCallback(
+    (snapshot: ComposerFocusRestoreSnapshot) => {
+      if (pointerDownVersionRef.current !== snapshot.pointerDownVersion || !document.hasFocus()) return false
+
+      const activeElement = document.activeElement
+      return (
+        activeElement === snapshot.activeElement ||
+        activeElement === document.body ||
+        (!!activeElement && !!frameRef.current?.contains(activeElement))
+      )
+    },
+    [frameRef]
+  )
+  const compactMeasurementInputsRef = useRef({
+    draftTokens,
+    fontSize,
+    renderCompactControls,
+    sendAccessory,
+    text,
+    tokens
+  })
+
+  useEffect(() => {
+    const previousInputs = compactMeasurementInputsRef.current
+    const inputsChanged =
+      previousInputs.draftTokens !== draftTokens ||
+      previousInputs.fontSize !== fontSize ||
+      previousInputs.renderCompactControls !== renderCompactControls ||
+      previousInputs.sendAccessory !== sendAccessory ||
+      previousInputs.text !== text ||
+      previousInputs.tokens !== tokens
+
+    compactMeasurementInputsRef.current = {
+      draftTokens,
+      fontSize,
+      renderCompactControls,
+      sendAccessory,
+      text,
+      tokens
+    }
+    if (inputsChanged) requestCompactMeasurement()
+  }, [draftTokens, fontSize, renderCompactControls, requestCompactMeasurement, sendAccessory, text, tokens])
+  const toggleEditorExpandedRef = useRef(toggleEditorExpanded)
+
+  useLayoutEffect(() => {
+    toggleEditorExpandedRef.current = toggleEditorExpanded
+  }, [toggleEditorExpanded])
+
+  const handleTextChangeFromTool = useCallback(
+    (updater: string | ((prev: string) => string)) => {
+      const currentText = editorRef.current ? serializeComposerDocument(editorRef.current).text : textRef.current
+      const nextText = typeof updater === 'function' ? updater(currentText) : updater
+      applyComposerText(nextText)
+    },
+    [applyComposerText]
+  )
+
+  const removeToken = useCallback((tokenId: string) => {
+    const editor = editorRef.current
+    if (!editor || editor.isDestroyed) return
+    removeComposerTokens(editor, (token) => token.id === tokenId)
+    editor.commands.focus()
+  }, [])
+
+  const handleShowPastedTextFileInInput = useCallback(
+    async (token: ComposerDraftToken, nodeViewProps: NodeViewProps) => {
+      const file = isPastedTextFileMetadata(token.payload) ? token.payload : undefined
+      const editor = editorRef.current
+      if (!file || !editor || editor.isDestroyed) return
+
+      try {
+        const fileText = await window.api.fs.readText(file.path)
+        const currentText = serializeComposerDocument(editor).text
+        const textToInsert = getComposerInputTextWithinLimit(currentText, fileText)
+        const position = typeof nodeViewProps.getPos === 'function' ? nodeViewProps.getPos() : undefined
+        const content = textToInsert
+          ? createPromptVariableInlineContent(textToInsert, { startIndex: getNextPromptVariableIndex(editor) })
+          : []
+
+        if (typeof position === 'number') {
+          const chain = editor
+            .chain()
+            .focus()
+            .deleteRange({ from: position, to: position + nodeViewProps.node.nodeSize })
+          if (content.length > 0) {
+            chain.insertContent(content)
+          }
+          chain.run()
+        } else {
+          removeComposerTokens(editor, (candidate) => candidate.id === token.id)
+          if (content.length > 0) {
+            editor.chain().focus().insertContent(content).run()
+          } else {
+            editor.commands.focus()
+          }
+        }
+
+        setFiles((prev) =>
+          prev.filter(
+            (candidate) => candidate.fileTokenSourceId !== file.fileTokenSourceId || candidate.path !== file.path
+          )
+        )
+      } catch {
+        toast.error(t('chat.input.file_error'))
+      }
+    },
+    [setFiles, t]
+  )
+
+  const insertToken = useCallback((token: ComposerDraftToken) => {
+    const editor = editorRef.current
+    if (!editor || editor.isDestroyed) return
+
+    insertComposerTokenAtCursor(editor, token)
+  }, [])
+
+  const getDraft = useCallback((): ComposerSerializedDraft => {
+    const editor = editorRef.current
+    if (!editor || editor.isDestroyed) return { text: textRef.current, tokens: [] }
+
+    return serializeComposerDocument(editor)
+  }, [])
+
+  const replaceDraft = useCallback(
+    (draft: ComposerSerializedDraft) => {
+      const editor = editorRef.current
+      if (!editor || editor.isDestroyed) return
+
+      textRef.current = draft.text
+      pendingLocalTextEchoRef.current = null
+      editor.commands.setContent(createComposerEditorContent(draft.text, draft.tokens), { emitUpdate: false })
+      managedTokenSignatureRef.current = getManagedTokenSignature(draft.tokens, managedTokenKindSet)
+    },
+    [managedTokenKindSet]
+  )
+
+  useEffect(() => {
+    onActionsChange?.({
+      focus: focusEditor,
+      onTextChange: handleTextChangeFromTool,
+      replaceDraft,
+      toggleExpanded: toggleEditorExpanded,
+      removeToken,
+      insertToken,
+      getDraft
+    })
+  }, [
+    focusEditor,
+    getDraft,
+    handleTextChangeFromTool,
+    insertToken,
+    onActionsChange,
+    removeToken,
+    replaceDraft,
+    toggleEditorExpanded
+  ])
+
+  const rootPanelOpenRefreshRequestedRef = useRef(false)
+  const unifiedResourceRequestRef = useRef(0)
+  const unifiedPanelListRefreshKeyRef = useRef<
+    | {
+        signature: string
+        leadingItems?: readonly QuickPanelListItem[]
+        additionalItems?: readonly QuickPanelListItem[]
+      }
+    | undefined
+  >(undefined)
+  const [unifiedResourceItems, setUnifiedResourceItems] = useState<QuickPanelListItem[]>([])
+  // Per-pluginKey record of the last generation the source itself was active at.
+  // Read by onExit so a stale exit cannot borrow another source's active generation
+  // (e.g. when two root sources' onActiveChange/onExit interleave across microtasks).
+  const lastActiveRootSuggestionSessionGenByPluginKeyRef = useRef<Record<string, number>>({})
+  const activeRootSuggestionSessionRef = useRef<{ pluginKey: string; generation: number } | null>(null)
+  const pendingRootSuggestionExitRef = useRef<{ pluginKey: string; generation: number } | null>(null)
+  const rootSuggestionStateRef = useRef({
+    getToolLaunchers,
+    onRootPanelOpen,
+    onToolLauncherSelect,
+    quickPanel,
+    resourceProvider,
+    rootPanelLeadingItems,
+    rootPanelAdditionalItems,
+    pinnedLauncherIdSet,
+    unifiedResourceItems
+  })
+
+  useLayoutEffect(() => {
+    rootSuggestionStateRef.current = {
+      getToolLaunchers,
+      onRootPanelOpen,
+      onToolLauncherSelect,
+      quickPanel,
+      resourceProvider,
+      rootPanelLeadingItems,
+      rootPanelAdditionalItems,
+      pinnedLauncherIdSet,
+      unifiedResourceItems
+    }
+  }, [
+    getToolLaunchers,
+    onRootPanelOpen,
+    onToolLauncherSelect,
+    pinnedLauncherIdSet,
+    quickPanel,
+    resourceProvider,
+    rootPanelAdditionalItems,
+    rootPanelLeadingItems,
+    unifiedResourceItems
+  ])
+
+  const createUnifiedPanelOptions = useCallback(
+    ({
+      initialSearchText,
+      inputAdapter,
+      queryAnchor,
+      resourceItems,
+      triggerInfo,
+      includePinnedLaunchers = false
+    }: {
+      initialSearchText?: string
+      inputAdapter?: QuickPanelInputAdapter
+      queryAnchor?: number
+      resourceItems?: readonly QuickPanelListItem[]
+      triggerInfo?: QuickPanelTriggerInfo
+      includePinnedLaunchers?: boolean
+    }): QuickPanelOpenOptions => {
+      const {
+        getToolLaunchers,
+        onToolLauncherSelect,
+        pinnedLauncherIdSet,
+        quickPanel,
+        rootPanelAdditionalItems,
+        rootPanelLeadingItems
+      } = rootSuggestionStateRef.current
+      const launchers = getToolLaunchers?.() ?? []
+      const isButtonRoot = (triggerInfo?.type ?? 'button') === 'button'
+
+      return createUnifiedQuickPanelOpenOptions(launchers, {
+        onToolLauncherSelect,
+        inputAdapter,
+        quickPanel,
+        title: t('settings.quickPanel.title'),
+        leadingItems: rootPanelLeadingItems,
+        additionalItems: rootPanelAdditionalItems,
+        resourceItems,
+        queryAnchor,
+        triggerInfo,
+        initialSearchText,
+        excludedLauncherIds: isButtonRoot && !includePinnedLaunchers ? pinnedLauncherIdSet : undefined
+      })
+    },
+    [t]
+  )
+
+  const loadUnifiedResourceItems = useCallback(
+    async ({
+      inputAdapter,
+      queryAnchor,
+      searchText,
+      triggerInfo
+    }: {
+      inputAdapter?: QuickPanelInputAdapter
+      queryAnchor?: number
+      searchText: string
+      triggerInfo?: QuickPanelTriggerInfo
+    }) => {
+      const trimmedQuery = searchText.trim()
+      const requestId = ++unifiedResourceRequestRef.current
+      const { quickPanel, resourceProvider } = rootSuggestionStateRef.current
+      const panelGeneration = quickPanel.getPanelGeneration()
+
+      if (!resourceProvider || trimmedQuery.length === 0) {
+        setUnifiedResourceItems([])
+        return
+      }
+
+      let resourceItems: QuickPanelListItem[]
+      try {
+        resourceItems = await resourceProvider(trimmedQuery, {
+          inputAdapter,
+          quickPanel,
+          queryAnchor,
+          searchText: trimmedQuery,
+          triggerInfo
+        })
+      } catch {
+        if (requestId !== unifiedResourceRequestRef.current) return
+        if (
+          quickPanel.getPanelGeneration() !== panelGeneration ||
+          !quickPanel.isVisible ||
+          quickPanel.symbol !== ComposerPanelSymbol.Root
+        ) {
+          return
+        }
+
+        setUnifiedResourceItems([])
+        quickPanel.updateList(
+          createUnifiedPanelOptions({
+            inputAdapter,
+            queryAnchor,
+            resourceItems: [],
+            triggerInfo
+          }).list
+        )
+        return
+      }
+      if (requestId !== unifiedResourceRequestRef.current) return
+      if (
+        quickPanel.getPanelGeneration() !== panelGeneration ||
+        !quickPanel.isVisible ||
+        quickPanel.symbol !== ComposerPanelSymbol.Root
+      ) {
+        return
+      }
+
+      setUnifiedResourceItems(resourceItems)
+      quickPanel.updateList(
+        createUnifiedPanelOptions({
+          inputAdapter,
+          queryAnchor,
+          resourceItems,
+          triggerInfo
+        }).list
+      )
+    },
+    [createUnifiedPanelOptions]
+  )
+
+  const openUnifiedComposerPanel = useCallback(
+    ({
+      initialSearchText,
+      inputAdapter,
+      queryAnchor,
+      requestRootPanelOpen = true,
+      triggerInfo
+    }: {
+      initialSearchText?: string
+      inputAdapter?: QuickPanelInputAdapter
+      queryAnchor?: number
+      requestRootPanelOpen?: boolean
+      triggerInfo?: QuickPanelTriggerInfo
+    }) => {
+      const { onRootPanelOpen, quickPanel } = rootSuggestionStateRef.current
+      if (requestRootPanelOpen) {
+        onRootPanelOpen?.()
+      }
+      setUnifiedResourceItems([])
+      quickPanel.open(
+        createUnifiedPanelOptions({
+          initialSearchText,
+          inputAdapter,
+          queryAnchor,
+          resourceItems: [],
+          triggerInfo
+        })
+      )
+    },
+    [createUnifiedPanelOptions]
+  )
+
+  const openUnifiedComposerLauncherSubmenu = useCallback(
+    ({
+      inputAdapter,
+      launcherId,
+      queryAnchor,
+      searchText,
+      triggerInfo
+    }: {
+      inputAdapter?: QuickPanelInputAdapter
+      launcherId: string
+      queryAnchor?: number
+      searchText?: string
+      triggerInfo?: QuickPanelTriggerInfo
+    }) => {
+      const { quickPanel } = rootSuggestionStateRef.current
+      // Opening a specific launcher is an explicit request, so it should not be filtered out by
+      // the pinned-launcher dedup that applies to the browsable root panel.
+      const rootPanelOptions = createUnifiedPanelOptions({
+        initialSearchText: searchText,
+        inputAdapter,
+        queryAnchor,
+        resourceItems: [],
+        triggerInfo,
+        includePinnedLaunchers: true
+      })
+      const launcherItem = rootPanelOptions.list.find((item) => item.id === launcherId)
+      if (!launcherItem?.isMenu || launcherItem.disabled) return false
+
+      launcherItem.action?.({
+        action: 'click',
+        context: { ...quickPanel, triggerInfo: rootPanelOptions.triggerInfo },
+        item: launcherItem,
+        parentPanel: rootPanelOptions,
+        queryAnchor,
+        searchText,
+        inputAdapter
+      })
+      return true
+    },
+    [createUnifiedPanelOptions]
+  )
+
+  const rootSuggestionSources = useMemo<ComposerSuggestionSource[]>(
+    () =>
+      ROOT_QUICK_PANEL_TRIGGER_SOURCES.map(({ char, pluginKey }) => ({
+        pluginKey,
+        char,
+        title: t('settings.quickPanel.title'),
+        renderMode: 'headless',
+        allowedPrefixes: ROOT_QUICK_PANEL_ALLOWED_PREFIXES,
+        items: () => [],
+        onActiveChange: ({ editor, query, range, text }) => {
+          const { onRootPanelOpen, quickPanel } = rootSuggestionStateRef.current
+          const { cursorOffset, queryAnchor, textBeforeTrigger, triggerText } = getComposerSuggestionTriggerContext(
+            editor,
+            {
+              range,
+              query,
+              text,
+              triggerChar: char
+            }
+          )
+
+          if (
+            !hasComposerQuickPanelTriggerBoundary(textBeforeTrigger) ||
+            cursorOffset !== queryAnchor + triggerText.length
+          ) {
+            const activeRootSuggestionSession = activeRootSuggestionSessionRef.current
+            const canCloseRootPanel =
+              !activeRootSuggestionSession || activeRootSuggestionSession.pluginKey === pluginKey
+
+            if (canCloseRootPanel) {
+              activeRootSuggestionSessionRef.current = null
+              pendingRootSuggestionExitRef.current = null
+              rootPanelOpenRefreshRequestedRef.current = false
+
+              if (quickPanel.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root) {
+                quickPanel.close('input_prefix_invalid')
+              }
+            }
+            return
+          }
+
+          const lastActiveGenForThisPluginKey =
+            (lastActiveRootSuggestionSessionGenByPluginKeyRef.current[pluginKey] ?? 0) + 1
+          const pendingRootSuggestionExit = pendingRootSuggestionExitRef.current
+          // "Restart" means: I exited (pending records that) and no one — including
+          // myself — has activated me since. So pending.generation must equal the
+          // last active gen I observed before this onActiveChange increments it.
+          const isRestartingExitedRootSource =
+            pendingRootSuggestionExit != null &&
+            pendingRootSuggestionExit.pluginKey === pluginKey &&
+            pendingRootSuggestionExit.generation === lastActiveGenForThisPluginKey - 1
+          if (isRestartingExitedRootSource) {
+            pendingRootSuggestionExitRef.current = null
+          }
+
+          lastActiveRootSuggestionSessionGenByPluginKeyRef.current[pluginKey] = lastActiveGenForThisPluginKey
+          activeRootSuggestionSessionRef.current = {
+            pluginKey,
+            generation: lastActiveGenForThisPluginKey
+          }
+
+          const triggerInfo = {
+            type: 'input',
+            position: queryAnchor,
+            originalText: triggerText
+          } as const
+
+          if (!rootPanelOpenRefreshRequestedRef.current || isRestartingExitedRootSource) {
+            rootPanelOpenRefreshRequestedRef.current = true
+            onRootPanelOpen?.()
+          }
+
+          openUnifiedComposerPanel({
+            inputAdapter: createComposerInputAdapter(editor),
+            queryAnchor,
+            requestRootPanelOpen: false,
+            triggerInfo
+          })
+        },
+        onKeyDown: ({ event }) => {
+          return rootSuggestionStateRef.current.quickPanel.dispatchKeyDown(event) ?? false
+        },
+        onExit: () => {
+          // Read this pluginKey's own last-active generation. @tiptap/suggestion
+          // only fires onExit when prev.active was true, so this should be at
+          // least 1; ?? 0 is a defensive fallback for the type system, not a
+          // reachable state.
+          const lastActiveGenForThisPluginKey = lastActiveRootSuggestionSessionGenByPluginKeyRef.current[pluginKey] ?? 0
+          const exitingRootSuggestionSession = { pluginKey, generation: lastActiveGenForThisPluginKey }
+          pendingRootSuggestionExitRef.current = exitingRootSuggestionSession
+
+          window.setTimeout(() => {
+            const activeRootSuggestionSession = activeRootSuggestionSessionRef.current
+            const isExitingSessionStillActive =
+              !activeRootSuggestionSession ||
+              (activeRootSuggestionSession.pluginKey === exitingRootSuggestionSession.pluginKey &&
+                activeRootSuggestionSession.generation === exitingRootSuggestionSession.generation)
+
+            if (!isExitingSessionStillActive) {
+              if (
+                pendingRootSuggestionExitRef.current?.pluginKey === exitingRootSuggestionSession.pluginKey &&
+                pendingRootSuggestionExitRef.current.generation === exitingRootSuggestionSession.generation
+              ) {
+                pendingRootSuggestionExitRef.current = null
+              }
+              return
+            }
+
+            activeRootSuggestionSessionRef.current = null
+            rootPanelOpenRefreshRequestedRef.current = false
+            if (
+              pendingRootSuggestionExitRef.current?.pluginKey === exitingRootSuggestionSession.pluginKey &&
+              pendingRootSuggestionExitRef.current.generation === exitingRootSuggestionSession.generation
+            ) {
+              pendingRootSuggestionExitRef.current = null
+            }
+
+            const { quickPanel } = rootSuggestionStateRef.current
+            if (quickPanel.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root) {
+              quickPanel.close()
+            }
+          }, 0)
+        }
+      })),
+    [openUnifiedComposerPanel, t]
+  )
+
+  const suggestionPanelStateRef = useRef({ quickPanel })
+
+  useLayoutEffect(() => {
+    suggestionPanelStateRef.current = { quickPanel }
+  }, [quickPanel])
+
+  const quickPanelSuggestionSources = useMemo<ComposerSuggestionSource[]>(
+    () =>
+      suggestionSources.map((source) => ({
+        ...source,
+        renderMode: 'headless',
+        onActiveChange: (options) => {
+          source.onActiveChange?.(options)
+
+          const { quickPanel } = suggestionPanelStateRef.current
+          const { cursorOffset, queryAnchor, textBeforeTrigger, triggerText } = getComposerSuggestionTriggerContext(
+            options.editor,
+            {
+              range: options.range,
+              query: options.query,
+              text: options.text,
+              triggerChar: source.char
+            }
+          )
+
+          if (
+            !hasComposerQuickPanelTriggerBoundary(textBeforeTrigger) ||
+            cursorOffset !== queryAnchor + triggerText.length
+          ) {
+            if (quickPanel.isVisible && quickPanel.symbol === source.char) {
+              quickPanel.close('input_prefix_invalid')
+            }
+            return
+          }
+
+          quickPanel.open({
+            title: typeof source.title === 'string' ? source.title : undefined,
+            list: options.items.map((item) =>
+              createComposerSuggestionQuickPanelItem(item, {
+                editor: options.editor,
+                query: options.query,
+                range: options.range
+              })
+            ),
+            symbol: source.char,
+            pageSize: source.pageSize,
+            multiple: source.multiple,
+            queryAnchor,
+            triggerInfo: {
+              type: 'input',
+              position: queryAnchor,
+              originalText: triggerText
+            },
+            trackInputQuery: true,
+            manageListExternally: true
+          })
+        },
+        onKeyDown: (props) => {
+          const handledByQuickPanel = suggestionPanelStateRef.current.quickPanel.dispatchKeyDown(props.event)
+          if (handledByQuickPanel) return true
+          return source.onKeyDown?.(props) ?? false
+        },
+        onExit: (options) => {
+          source.onExit?.(options)
+
+          window.setTimeout(() => {
+            const { quickPanel } = suggestionPanelStateRef.current
+            if (quickPanel.isVisible && quickPanel.symbol === source.char) {
+              quickPanel.close()
+            }
+          }, 0)
+        }
+      })),
+    [suggestionSources]
+  )
+
+  const activeSuggestionSources = useMemo(
+    () => (quickPanelEnabled ? [...rootSuggestionSources, ...quickPanelSuggestionSources] : []),
+    [quickPanelEnabled, rootSuggestionSources, quickPanelSuggestionSources]
+  )
+
+  const renderComposerToken = useCallback<ComposerTokenRenderer>(
+    (token, { selected, nodeViewProps }) => {
+      const currentToken = tokenByIdRef.current.get(token.id) ?? token
+      if (currentToken.kind !== 'file') return undefined
+
+      const fileToken = currentToken as ComposerDraftToken & { kind: 'file' }
+      const pastedTextToken = isPastedTextFileMetadata(fileToken.payload) ? fileToken : undefined
+      return (
+        <FileComposerToken
+          token={fileToken}
+          selected={selected}
+          imageIconPreview
+          onRemove={() => removeToken(fileToken.id)}
+          removeLabel={t('common.delete')}
+          tooltipActions={
+            pastedTextToken ? (
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                className="h-auto min-h-0 w-fit justify-start gap-0 border-0 p-0 text-left font-medium text-primary text-xs leading-4 shadow-none hover:text-primary-hover focus-visible:border-0 focus-visible:text-primary-hover focus-visible:underline focus-visible:ring-0 focus-visible:ring-offset-0"
+                onMouseDown={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                }}
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  void handleShowPastedTextFileInInput(pastedTextToken, nodeViewProps)
+                }}>
+                {t('chat.input.paste_text_file')}
+              </Button>
+            ) : undefined
+          }
+        />
+      )
+    },
+    [handleShowPastedTextFileInInput, removeToken, t]
+  )
+
+  const editorExtensions = useMemo(
+    () =>
+      createComposerEditorPreset({
+        placeholder,
+        renderToken: renderComposerToken,
+        suggestionSources: activeSuggestionSources
+      }),
+    [activeSuggestionSources, placeholder, renderComposerToken]
+  )
+
+  const memoizedEditorProps = useMemo(
+    () => ({
+      attributes: {
+        class: cn(
+          'composer-tiptap after:hidden! box-border block w-full overflow-auto whitespace-pre-wrap break-words rounded-none text-foreground outline-none transition-none! [&::-webkit-scrollbar]:w-[3px]',
+          hasCustomHeight ? COMPOSER_EDITOR_EXPANDED_MAX_HEIGHT_CLASS : COMPOSER_EDITOR_COLLAPSED_MAX_HEIGHT_CLASS,
+          hasCustomHeight && 'h-full'
+        ),
+        style: editorElementStyle
+      },
+      handleKeyDown: (view: EditorView, event: KeyboardEvent) => {
+        const isEnterPressed = (event.key === 'Enter' || event.key === 'NumpadEnter') && !event.isComposing
+        const isShiftEnterPressed =
+          isEnterPressed && event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey
+        const qp = quickPanelRef.current
+        if (
+          ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Tab', 'Enter', 'NumpadEnter', 'Escape'].includes(event.key)
+        ) {
+          const handled = qp.dispatchKeyDown(event)
+          if (handled) return true
+          if (qp.isVisible && isShiftEnterPressed) {
+            return false
+          }
+          if (qp.isVisible && isEnterPressed) {
+            event.preventDefault()
+            event.stopPropagation()
+            return true
+          }
+        }
+
+        if (
+          (event.key === 'ArrowUp' || event.key === 'ArrowDown') &&
+          !event.ctrlKey &&
+          !event.metaKey &&
+          !event.altKey &&
+          !event.shiftKey &&
+          shouldHandleInputHistoryNavigation({
+            ...getComposerSelectionState(view, event.key, isInputHistoryActiveRef.current),
+            isComposing: event.isComposing,
+            isQuickPanelVisible: qp.isVisible,
+            key: event.key,
+            text: textRef.current
+          })
+        ) {
+          const direction: InputHistoryDirection = event.key === 'ArrowUp' ? 'up' : 'down'
+          const handled = onInputHistoryNavigateRef.current?.(direction) ?? false
+          if (handled) {
+            event.preventDefault()
+            event.stopPropagation()
+            return true
+          }
+        }
+
+        if (event.key === 'Escape' && isExpandedRef.current) {
+          event.stopPropagation()
+          toggleEditorExpandedRef.current(false)
+          return true
+        }
+
+        if (event.key === 'Tab' && !event.isComposing && !quickPanelRef.current.isVisible) {
+          const targetToken = editorRef.current
+            ? selectPromptVariableToken(editorRef.current, event.shiftKey ? -1 : 1)
+            : null
+
+          if (targetToken) {
+            event.preventDefault()
+            event.stopPropagation()
+            promptVariableEditRef.current = { tokenId: targetToken.id, started: false }
+            return true
+          }
+        }
+
+        if (isEnterPressed && isComposerSendKeyPressed(event, sendMessageShortcutRef.current)) {
+          event.preventDefault()
+          if (event.repeat) return true
+
+          if (!sendDisabledRef.current && editorRef.current) {
+            const draft = serializeComposerDocument(editorRef.current)
+            const focusRestoreSnapshot = createEditorFocusRestoreSnapshot()
+            void Promise.resolve(onSendDraftRef.current(draft)).finally(() => {
+              if (shouldRestoreEditorFocus(focusRestoreSnapshot)) focusEditor()
+            })
+          } else {
+            showBlockedSendReason()
+          }
+          return true
+        }
+
+        if (isEnterPressed && view) {
+          const { from, to } = view.state.selection
+          const replacedText = getComposerReplacementText(view, from, to)
+          if (exceedsComposerInputMaxLength(textRef.current, '\n', replacedText)) {
+            event.preventDefault()
+            return true
+          }
+        }
+
+        if (
+          event.key === 'Backspace' &&
+          textRef.current.trim().length === 0 &&
+          filesCountRef.current > 0 &&
+          (!editorRef.current || !hasComposerTokenBeforeSelection(editorRef.current))
+        ) {
+          setFilesRef.current((prev) => prev.slice(0, -1))
+          event.preventDefault()
+          return true
+        }
+
+        return false
+      },
+      handleTextInput: (view, from, to, insertedText) => {
+        const editor = editorRef.current
+        if (!editor || editor.isDestroyed) return false
+        const selectedPromptVariable = getSelectedPromptVariableToken(editor)
+        if (!selectedPromptVariable) {
+          const replacedText = getComposerReplacementText(view, from, to)
+          if (!exceedsComposerInputMaxLength(textRef.current, insertedText, replacedText)) return false
+
+          const limitedInsertedText = getComposerInputTextWithinLimit(textRef.current, insertedText, replacedText)
+          if (limitedInsertedText && view) {
+            view.dispatch(view.state.tr.insertText(limitedInsertedText, from, to))
+          }
+          return true
+        }
+
+        const composingToken = promptVariableCompositionRef.current
+        if (editor.view.composing || composingToken?.tokenId === selectedPromptVariable.token.id) {
+          if (composingToken) composingToken.text = insertedText || composingToken.text
+          return true
+        }
+
+        const skippedTextInput = promptVariableSkipTextInputRef.current
+        if (skippedTextInput?.tokenId === selectedPromptVariable.token.id && skippedTextInput.text === insertedText) {
+          promptVariableSkipTextInputRef.current = null
+          return true
+        }
+
+        const editState = promptVariableEditRef.current
+        const shouldAppend = editState?.tokenId === selectedPromptVariable.token.id && editState.started
+        const baseText = shouldAppend ? (selectedPromptVariable.token.promptText ?? '') : ''
+        const nextPromptText = `${baseText}${insertedText}`
+        const limitedPromptText = getComposerInputTextWithinLimit(
+          textRef.current,
+          nextPromptText,
+          selectedPromptVariable.token.promptText ?? ''
+        )
+        if (!limitedPromptText) return true
+        updateSelectedPromptVariableToken(editor, limitedPromptText)
+        promptVariableEditRef.current = { tokenId: selectedPromptVariable.token.id, started: true }
+        return true
+      },
+      handleDOMEvents: {
+        copy: (view, event) => handleComposerCopy(view, event, tokenByIdRef.current),
+        cut: (view, event) => {
+          if (!handleComposerCopy(view, event, tokenByIdRef.current)) return false
+
+          const editor = editorRef.current
+          if (editor && !editor.isDestroyed && editor.isEditable) {
+            editor.chain().focus().deleteSelection().run()
+          }
+          return true
+        },
+        compositionstart: () => {
+          const editor = editorRef.current
+          if (!editor || editor.isDestroyed) return false
+          const selectedPromptVariable = getSelectedPromptVariableToken(editor)
+          if (!selectedPromptVariable) return false
+
+          promptVariableCompositionRef.current = { tokenId: selectedPromptVariable.token.id, text: '' }
+          promptVariableEditRef.current = { tokenId: selectedPromptVariable.token.id, started: false }
+          return false
+        },
+        compositionupdate: (_view, event) => {
+          const editor = editorRef.current
+          const composingToken = promptVariableCompositionRef.current
+          if (!editor || editor.isDestroyed || !composingToken) return false
+          const selectedPromptVariable = getSelectedPromptVariableToken(editor)
+          if (selectedPromptVariable?.token.id !== composingToken.tokenId) return false
+
+          const data = 'data' in event && typeof event.data === 'string' ? event.data : ''
+          composingToken.text = data || composingToken.text
+          return true
+        },
+        compositionend: (_view, event) => {
+          const editor = editorRef.current
+          const composingToken = promptVariableCompositionRef.current
+          promptVariableCompositionRef.current = null
+
+          if (!editor || editor.isDestroyed || !composingToken) return false
+          const selectedPromptVariable = getSelectedPromptVariableToken(editor)
+          if (selectedPromptVariable?.token.id !== composingToken.tokenId) return false
+
+          const data = 'data' in event && typeof event.data === 'string' ? event.data : ''
+          const nextValue = data || composingToken.text
+          if (!nextValue) return true
+          const limitedNextValue = getComposerInputTextWithinLimit(
+            textRef.current,
+            nextValue,
+            selectedPromptVariable.token.promptText ?? ''
+          )
+          if (!limitedNextValue) return true
+
+          updateSelectedPromptVariableToken(editor, limitedNextValue)
+          promptVariableEditRef.current = { tokenId: selectedPromptVariable.token.id, started: true }
+          promptVariableSkipTextInputRef.current = { tokenId: selectedPromptVariable.token.id, text: limitedNextValue }
+          return true
+        }
+      }
+    }),
+    [
+      createEditorFocusRestoreSnapshot,
+      editorElementStyle,
+      focusEditor,
+      hasCustomHeight,
+      shouldRestoreEditorFocus,
+      showBlockedSendReason
+    ]
+  )
+
+  const memoizedHandlePaste = useCallback(
+    (_view: EditorView, event: ClipboardEvent) => {
+      const pastedText = event.clipboardData?.getData('text/plain') || event.clipboardData?.getData('text') || ''
+      const pastedHtml = event.clipboardData?.getData('text/html') || ''
+      const editor = editorRef.current
+      const selectedPromptVariable = editor ? getSelectedPromptVariableToken(editor) : null
+      if (editor && selectedPromptVariable && pastedText) {
+        event.preventDefault()
+        const limitedPastedText = getComposerInputTextWithinLimit(
+          textRef.current,
+          pastedText,
+          selectedPromptVariable.token.promptText ?? ''
+        )
+        if (!limitedPastedText) return true
+        updateSelectedPromptVariableToken(editor, limitedPastedText)
+        promptVariableEditRef.current = { tokenId: selectedPromptVariable.token.id, started: true }
+        return true
+      }
+
+      if (shouldDelegateLongTextPasteToFileHandler(pastedText)) {
+        event.preventDefault()
+        void handlePaste(event)
+        return true
+      }
+
+      let textToInsert = pastedText
+      if (editor && pastedText) {
+        const selectedText = getComposerSelectedText(editor)
+        textToInsert = getComposerInputTextWithinLimit(textRef.current, pastedText, selectedText)
+        if (!textToInsert) {
+          event.preventDefault()
+          return true
+        }
+      }
+
+      if (editor && textToInsert === pastedText) {
+        const pasteOptions = {
+          promptVariableStartIndex: getNextPromptVariableIndex(editor),
+          resolveSkillMarker,
+          resolveKnowledgeBaseMarker
+        }
+        const clipboardPasteOverride =
+          getComposerClipboardPasteOverride(
+            readComposerClipboardFragmentFromDataTransfer(event.clipboardData),
+            pasteOptions
+          ) ??
+          getComposerClipboardPasteOverride(readComposerClipboardFragmentFromSessionCache(pastedText), pasteOptions)
+
+        if (clipboardPasteOverride !== null) {
+          event.preventDefault()
+          insertComposerPastedContent(editor, clipboardPasteOverride.content)
+          if (clipboardPasteOverride.files.length > 0) {
+            setFilesRef.current((prev) => mergeComposerClipboardFiles(prev, clipboardPasteOverride.files))
+          }
+          return true
+        }
+      }
+
+      const plainTextOverride = getComposerPlainTextPasteOverride(textToInsert, {
+        promptVariableStartIndex: editor ? getNextPromptVariableIndex(editor) : 0,
+        resolveSkillMarker,
+        resolveKnowledgeBaseMarker
+      })
+
+      if (plainTextOverride !== null) {
+        event.preventDefault()
+        const currentEditor = editorRef.current
+        if (currentEditor) {
+          insertComposerPastedContent(currentEditor, plainTextOverride)
+        }
+        return true
+      }
+
+      if (!pastedText && pastedHtml.includes('data-composer-token')) {
+        event.preventDefault()
+        return true
+      }
+
+      if (!pastedText && hasClipboardFiles(event.clipboardData)) {
+        event.preventDefault()
+        void handlePaste(event)
+        return true
+      }
+
+      void handlePaste(event)
+      return false
+    },
+    [handlePaste, resolveSkillMarker, resolveKnowledgeBaseMarker]
+  )
+
+  const editor = useRichTextEditorKernel({
+    extensions: editorExtensions,
+    content: createComposerEditorContent(text, draftTokens),
+    editable,
+    immediatelyRender: false,
+    enableSpellCheck,
+    editorProps: memoizedEditorProps,
+    handlePaste: memoizedHandlePaste,
+    onUpdate: ({ editor: updatedEditor }) => {
+      requestCompactMeasurement()
+      if (tokenizePromptVariablesInEditor(updatedEditor)) return
+
+      const draft = serializeComposerDocument(updatedEditor)
+      const nextText = draft.text
+      textRef.current = nextText
+      pendingLocalTextEchoRef.current = nextText
+      onTextChange(nextText)
+      const inputEventCause = isSyncingTokensRef.current ? 'state-sync' : 'user-input'
+      inputListenersRef.current.forEach((listener) =>
+        listener({ isComposing: updatedEditor.view.composing, cause: inputEventCause })
+      )
+
+      const nextManagedTokenSignature = getManagedTokenSignature(draft.tokens, managedTokenKindSet)
+      if (!isSyncingTokensRef.current) {
+        if (nextManagedTokenSignature !== managedTokenSignatureRef.current) {
+          managedTokenSignatureRef.current = nextManagedTokenSignature
+          onTokensChange(draft.tokens)
+        }
+      } else {
+        managedTokenSignatureRef.current = nextManagedTokenSignature
+      }
+    },
+    onCreate: ({ editor: createdEditor }) => {
+      const focusRestoreSnapshot = createEditorFocusRestoreSnapshot()
+      setTimeoutTimer(
+        'composerSurfaceFocus',
+        () => {
+          if (!createdEditor || createdEditor.isDestroyed || !shouldRestoreEditorFocus(focusRestoreSnapshot)) return
+          createdEditor.commands.focus('end')
+        },
+        0
+      )
+    }
+  })
+
+  useEffect(() => {
+    editorRef.current = editor
+  }, [editor])
+
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return
+    const currentText = serializeComposerDocument(editor).text
+    if (currentText === text) {
+      pendingLocalTextEchoRef.current = null
+      return
+    }
+    if (pendingLocalTextEchoRef.current === text) {
+      pendingLocalTextEchoRef.current = null
+      return
+    }
+    pendingLocalTextEchoRef.current = null
+    editor.commands.setContent(createComposerEditorContent(text, draftTokens), { emitUpdate: false })
+  }, [draftTokens, editor, text])
+
+  useEffect(() => {
+    if (editingHighlightKey === undefined) return
+    focusEditor()
+  }, [editingHighlightKey, focusEditor])
+
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return
+    const draft = serializeComposerDocument(editor)
+    const desiredTokenIds = getTokenIds(tokens)
+    isSyncingTokensRef.current = true
+
+    try {
+      for (const token of tokens) {
+        addMissingToken(editor, token, draft.tokens)
+      }
+
+      removeComposerTokens(editor, (token) => managedTokenKindSet.has(token.kind) && !desiredTokenIds.has(token.id))
+    } finally {
+      isSyncingTokensRef.current = false
+    }
+
+    managedTokenSignatureRef.current = getManagedTokenSignature(
+      serializeComposerDocument(editor).tokens,
+      managedTokenKindSet
+    )
+  }, [editor, managedTokenKindSet, tokens])
+
+  const inputAdapter = useMemo<QuickPanelInputAdapter | undefined>(() => {
+    if (!editor) return undefined
+
+    return {
+      getText: () => getComposerInputText(editor),
+      getCursorOffset: () => getComposerCursorTextOffset(editor),
+      insertText: (insertedText) => {
+        editor
+          .chain()
+          .focus()
+          .insertContent(
+            createPromptVariableInlineContent(insertedText, { startIndex: getNextPromptVariableIndex(editor) })
+          )
+          .run()
+      },
+      insertToken: (token) => {
+        insertComposerTokenAtCursor(editor, token as ComposerDraftToken)
+      },
+      deleteTriggerRange: (range) => {
+        deleteComposerTextRange(editor, range)
+      },
+      focus: () => {
+        editor.commands.focus()
+      },
+      subscribeInput: (listener) => {
+        inputListenersRef.current.add(listener)
+        return () => {
+          inputListenersRef.current.delete(listener)
+        }
+      }
+    }
+  }, [editor])
+
+  const isRootQuickPanelVisible =
+    quickPanelEnabled && quickPanel.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root
+  const rootQuickPanelQueryAnchor = quickPanel.queryAnchor
+  const rootQuickPanelTriggerInfo = quickPanel.triggerInfo
+  // Preserve the open-time category seed so a re-list keeps category views (opened via a toolbar
+  // shortcut) distinct from the bare root panel — e.g. it keeps the "customize toolbar" chrome hidden.
+  const rootQuickPanelInitialSearchText = quickPanel.initialSearchText
+  useEffect(() => {
+    if (!isRootQuickPanelVisible) {
+      unifiedPanelListRefreshKeyRef.current = undefined
+      return
+    }
+
+    const currentQuickPanel = quickPanelRef.current
+    const nextList = createUnifiedPanelOptions({
+      inputAdapter,
+      resourceItems: unifiedResourceItems,
+      initialSearchText: rootQuickPanelInitialSearchText,
+      queryAnchor: rootQuickPanelQueryAnchor,
+      triggerInfo: rootQuickPanelTriggerInfo
+    }).list
+    // Fold the launcher registry version into the dedup key so a launcher that re-registers with an
+    // identical display signature but a different action payload (e.g. the MCP status launcher after a
+    // status/scope change) still refreshes the open root panel instead of keeping its stale action closure.
+    const nextListSignature = `${toolLaunchersVersion}${getQuickPanelItemsSignature(nextList)}`
+    const previous = unifiedPanelListRefreshKeyRef.current
+    // Display-only signatures cannot see a static root item (e.g. an agent skill row) that is rebuilt with
+    // an unchanged display but a new action closure capturing fresh state (selectedSkills, active topic, ...).
+    // Also refresh whenever the leading/additional array identity changes so the open panel never keeps a
+    // stale closure. Both arrays are memoized upstream, so this only re-runs on genuine content changes.
+    if (
+      previous?.signature === nextListSignature &&
+      previous.leadingItems === rootPanelLeadingItems &&
+      previous.additionalItems === rootPanelAdditionalItems
+    ) {
+      return
+    }
+    unifiedPanelListRefreshKeyRef.current = {
+      signature: nextListSignature,
+      leadingItems: rootPanelLeadingItems,
+      additionalItems: rootPanelAdditionalItems
+    }
+    currentQuickPanel.updateList(nextList)
+  }, [
+    createUnifiedPanelOptions,
+    inputAdapter,
+    isRootQuickPanelVisible,
+    rootQuickPanelInitialSearchText,
+    rootQuickPanelQueryAnchor,
+    rootQuickPanelTriggerInfo,
+    rootPanelAdditionalItems,
+    rootPanelLeadingItems,
+    pinnedLauncherIdSet,
+    toolLaunchersVersion,
+    unifiedResourceItems
+  ])
+
+  useEffect(() => {
+    if (!isRootQuickPanelVisible || !inputAdapter) return
+
+    if (!resourceProvider) {
+      unifiedResourceRequestRef.current += 1
+      setUnifiedResourceItems((items) => (items.length === 0 ? items : []))
+      return
+    }
+
+    const syncResourceItems = () => {
+      void loadUnifiedResourceItems({
+        inputAdapter,
+        queryAnchor: rootQuickPanelQueryAnchor,
+        searchText: getComposerUnifiedPanelSearchText(
+          inputAdapter,
+          rootQuickPanelQueryAnchor,
+          rootQuickPanelTriggerInfo
+        ),
+        triggerInfo: rootQuickPanelTriggerInfo
+      })
+    }
+
+    syncResourceItems()
+    return inputAdapter.subscribeInput?.((event) => {
+      if (event?.isComposing) return
+      syncResourceItems()
+    })
+  }, [
+    inputAdapter,
+    isRootQuickPanelVisible,
+    loadUnifiedResourceItems,
+    resourceProvider,
+    rootQuickPanelQueryAnchor,
+    rootQuickPanelTriggerInfo
+  ])
+
+  useEffect(() => {
+    pasteHandling.init()
+    return pasteHandling.registerHandler('inputbar', handlePaste)
+  }, [handlePaste])
+
+  const sendDraft = useCallback(() => {
+    if (!editor) return
+    if (sendDisabled) {
+      showBlockedSendReason()
+      return
+    }
+    const draft = serializeComposerDocument(editor)
+    const focusRestoreSnapshot = createEditorFocusRestoreSnapshot()
+    void Promise.resolve(onSendDraft(draft)).finally(() => {
+      if (shouldRestoreEditorFocus(focusRestoreSnapshot)) focusEditor()
+    })
+  }, [
+    createEditorFocusRestoreSnapshot,
+    editor,
+    focusEditor,
+    onSendDraft,
+    sendDisabled,
+    shouldRestoreEditorFocus,
+    showBlockedSendReason
+  ])
+
+  const handleExpandControlClick = useCallback(() => {
+    if (hasCustomHeight) {
+      restoreDefaultHeight()
+      return
+    }
+
+    toggleEditorExpanded()
+  }, [hasCustomHeight, restoreDefaultHeight, toggleEditorExpanded])
+
+  const unifiedPanelAvailable = useMemo(() => {
+    // Recompute when runtime launchers register or unregister.
+    void toolLaunchersVersion
+    if (!dynamicControlsReady || !quickPanelEnabled) return false
+
+    return hasUnifiedQuickPanelRootContent(getToolLaunchers?.() ?? [], {
+      leadingItems: rootPanelLeadingItems,
+      additionalItems: rootPanelAdditionalItems
+    })
+  }, [
+    dynamicControlsReady,
+    getToolLaunchers,
+    quickPanelEnabled,
+    rootPanelAdditionalItems,
+    rootPanelLeadingItems,
+    toolLaunchersVersion
+  ])
+
+  const unifiedPanelControl = useMemo<ComposerUnifiedPanelControl>(
+    () => ({
+      available: unifiedPanelAvailable,
+      open: (options) => {
+        if (!unifiedPanelAvailable) return
+
+        const { quickPanel } = rootSuggestionStateRef.current
+        const requestedSearchText = options?.searchText ?? ''
+        const isButtonPanelVisible = quickPanel.isVisible && quickPanel.triggerInfo?.type === 'button'
+        // A launcher's action may open a panel whose symbol differs from its id (e.g.
+        // Knowledge Base opens '#'); compare against the declared panelSymbol so a second
+        // activation of the same pinned launcher toggles its panel closed.
+        const targetLauncher = options?.launcherId
+          ? getToolLaunchers?.().find((launcher) => launcher.id === options.launcherId)
+          : undefined
+        const expectedPanelSymbol = targetLauncher?.panelSymbol ?? options?.launcherId
+        const isSameLauncherPanel = Boolean(options?.launcherId && quickPanel.symbol === expectedPanelSymbol)
+        const isSameRootPanel =
+          quickPanel.symbol === ComposerPanelSymbol.Root && (quickPanel.initialSearchText ?? '') === requestedSearchText
+
+        if (isButtonPanelVisible && (isSameLauncherPanel || isSameRootPanel)) {
+          quickPanel.close('toggle')
+          inputAdapter?.focus()
+          return
+        }
+
+        const queryAnchor = inputAdapter?.getCursorOffset?.() ?? textRef.current.length
+        const triggerInfo = {
+          type: 'button',
+          position: queryAnchor
+        } as const
+        const didOpenLauncherSubmenu = options?.launcherId
+          ? openUnifiedComposerLauncherSubmenu({
+              inputAdapter,
+              launcherId: options.launcherId,
+              queryAnchor,
+              searchText: options.searchText,
+              triggerInfo
+            })
+          : false
+
+        if (!didOpenLauncherSubmenu) {
+          openUnifiedComposerPanel({
+            initialSearchText: options?.searchText,
+            inputAdapter,
+            queryAnchor,
+            triggerInfo
+          })
+        }
+
+        inputAdapter?.focus()
+      }
+    }),
+    [
+      getToolLaunchers,
+      inputAdapter,
+      openUnifiedComposerLauncherSubmenu,
+      openUnifiedComposerPanel,
+      unifiedPanelAvailable
+    ]
+  )
+
+  const quickPanelElement =
+    dynamicControlsReady && quickPanelEnabled ? <QuickPanelView inputAdapter={inputAdapter} /> : null
+  const showPauseButton = isLoading && sendDisabled
+  const leftControls = dynamicControlsReady ? (
+    renderLeftControls?.(inputAdapter, unifiedPanelControl)
+  ) : renderLeftControls ? (
+    <ComposerControlsLoading />
+  ) : null
+  const belowControls = dynamicControlsReady ? (
+    renderBelowControls?.(inputAdapter, unifiedPanelControl)
+  ) : renderBelowControls ? (
+    <ComposerControlsLoading />
+  ) : undefined
+  // No placeholder here: `sendAccessory` is always a truthy element but usually
+  // renders nothing (the context ring needs a live session), so reserving space
+  // for it would flash a skeleton dot that then disappears.
+  const sendAccessoryElement = dynamicControlsReady
+    ? typeof sendAccessory === 'function'
+      ? sendAccessory(inputAdapter, unifiedPanelControl)
+      : sendAccessory
+    : undefined
+  const compactControls = dynamicControlsReady ? (
+    renderCompactControls?.(inputAdapter, unifiedPanelControl)
+  ) : renderCompactControls ? (
+    <ComposerControlsLoading compact />
+  ) : null
+  const ExpandIcon = hasCustomHeight ? Minimize2 : Maximize2
+  const sendAction = showPauseButton ? (
+    <Tooltip content={t('chat.input.pause')} placement="top">
+      <button
+        type="button"
+        className="flex size-7.5 items-center justify-center rounded-full text-error-base hover:bg-accent"
+        aria-label={t('chat.input.pause')}
+        onClick={() => void onPause()}>
+        <CirclePause size={20} />
+      </button>
+    </Tooltip>
+  ) : (
+    <SendMessageButton sendMessage={sendDraft} disabled={sendDisabled} onDisabledClick={showBlockedSendReason} />
+  )
+  const editingModeHeader = editingState ? (
+    <div
+      role="status"
+      aria-live="polite"
+      aria-label={t('chat.input.editing_message')}
+      data-composer-editing-header=""
+      className="flex h-9 shrink-0 items-center justify-between border-border-subtle border-b bg-transparent px-3 text-foreground-secondary text-xs">
+      <div className="flex min-w-0 items-center gap-1.5">
+        <Pencil aria-hidden="true" data-composer-editing-icon="" className="size-3.5 shrink-0" />
+        <span className="min-w-0 truncate font-medium">{t('chat.input.editing')}</span>
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        {editingState.onLocate ? (
+          <Tooltip content={t('chat.input.locate_editing_message')}>
+            <Button
+              type="button"
+              onClick={editingState.onLocate}
+              variant="ghost"
+              size="icon-sm"
+              className="shrink-0 rounded-full text-foreground/70! hover:bg-accent hover:text-foreground!"
+              aria-label={t('chat.input.locate_editing_message')}>
+              <LocateFixed size={14} />
+            </Button>
+          </Tooltip>
+        ) : null}
+        <Tooltip content={t('chat.input.cancel_editing')}>
+          <Button
+            type="button"
+            onClick={editingState.onCancel}
+            variant="ghost"
+            size="icon-sm"
+            className="shrink-0 rounded-full text-foreground/70! hover:bg-accent hover:text-foreground!"
+            aria-label={t('chat.input.cancel_editing')}>
+            <X size={14} />
+          </Button>
+        </Tooltip>
+      </div>
+    </div>
+  ) : null
+  const inputbarElement = (
+    <div
+      id="inputbar"
+      data-composer-inputbar=""
+      data-composer-presentation={isCompact ? 'compact' : 'regular'}
+      className={cn(
+        'inputbar-container relative rounded-[20px] border-[0.5px] border-border bg-card shadow-sm transition-all duration-200 ease-in-out',
+        isCompact || editingState ? 'pt-0' : 'pt-2',
+        belowControls ? 'mb-0.5' : 'mb-3',
+        isEditingBorderHighlighted && !isDragging && 'border-primary ring-2 ring-primary/20',
+        isDragging &&
+          "border-2 border-[#2ecc71] border-dashed before:pointer-events-none before:absolute before:inset-0 before:z-5 before:rounded-[18px] before:bg-[rgba(46,204,113,0.03)] before:content-['']",
+        isExpanded && 'expanded'
+      )}>
+      {!isCompact ? (
+        <>
+          <div
+            data-composer-resize-handle=""
+            data-resizing={isEditorResizing || undefined}
+            role="separator"
+            aria-orientation="horizontal"
+            aria-valuemin={editorMinHeight}
+            aria-valuemax={editorMaxHeight}
+            aria-valuenow={resizeHandleValue}
+            aria-label={t('chat.input.resize_height')}
+            tabIndex={0}
+            onMouseDown={startEditorResize}
+            onKeyDown={handleResizeKeyDown}
+            className="group/composer-resize-handle absolute top-0 right-4 left-4 z-3 h-2 cursor-row-resize [-webkit-app-region:no-drag] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+            <div className="absolute top-0 right-0 left-0 h-0.5 rounded-full bg-primary/20 opacity-0 transition-opacity group-hover/composer-resize-handle:opacity-100 group-focus/composer-resize-handle:opacity-100 group-data-[resizing=true]/composer-resize-handle:bg-primary/35 group-data-[resizing=true]/composer-resize-handle:opacity-100" />
+          </div>
+          {!editingState ? (
+            <div data-composer-expand-corner="" className="group/expand-corner absolute top-px right-px z-4 size-8">
+              <span
+                aria-hidden="true"
+                data-composer-expand-corner-line=""
+                className="pointer-events-none absolute top-1 right-1 size-3 origin-top-right scale-100 rounded-tr-[16px] border-black/60 border-t-[1.5px] border-r-[1.5px] opacity-70 transition-[opacity,scale] duration-200 ease-out group-focus-within/expand-corner:scale-50 group-focus-within/expand-corner:opacity-0 group-hover/expand-corner:scale-50 group-hover/expand-corner:opacity-0 dark:border-white/60"
+              />
+              <Button
+                type="button"
+                onClick={handleExpandControlClick}
+                variant="ghost"
+                size="icon-sm"
+                className="-translate-y-2.5 [&_svg]:!size-3 pointer-events-none absolute top-1 right-1 size-5.5 translate-x-2.5 rotate-[-8deg] scale-80 rounded-full bg-transparent text-foreground-secondary/60 opacity-0 shadow-none transition-[opacity,translate,scale,rotate,color,background-color] duration-300 ease-out hover:bg-accent hover:text-foreground focus-visible:pointer-events-auto focus-visible:translate-x-0 focus-visible:translate-y-0 focus-visible:rotate-0 focus-visible:scale-100 focus-visible:bg-accent focus-visible:text-foreground focus-visible:opacity-100 group-focus-within/expand-corner:pointer-events-auto group-focus-within/expand-corner:translate-x-0 group-focus-within/expand-corner:translate-y-0 group-focus-within/expand-corner:rotate-0 group-focus-within/expand-corner:scale-100 group-focus-within/expand-corner:bg-accent/80 group-focus-within/expand-corner:text-foreground group-focus-within/expand-corner:opacity-100 group-hover/expand-corner:pointer-events-auto group-hover/expand-corner:translate-x-0 group-hover/expand-corner:translate-y-0 group-hover/expand-corner:rotate-0 group-hover/expand-corner:scale-100 group-hover/expand-corner:bg-accent/80 group-hover/expand-corner:text-foreground group-hover/expand-corner:opacity-100"
+                aria-pressed={hasCustomHeight}
+                aria-label={hasCustomHeight ? t('chat.input.restore') : t('chat.input.expand')}>
+                <ExpandIcon className="transition-[scale] duration-300 ease-out group-focus-within/expand-corner:scale-110 group-hover/expand-corner:scale-110" />
+              </Button>
+            </div>
+          ) : null}
+        </>
+      ) : null}
+      {editingModeHeader}
+      {topContent}
+      <div
+        data-composer-compact-row={isCompact ? '' : undefined}
+        className={
+          isCompact
+            ? 'grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1 px-2 py-1'
+            : leadingContent
+              ? 'flex items-start'
+              : 'contents'
+        }>
+        {isCompact ? (
+          dynamicControlsReady ? (
+            <ComposerToolMenu inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
+          ) : (
+            <ComposerControlsLoading compact />
+          )
+        ) : null}
+        {leadingContent ? <div className="shrink-0 pt-1.5 pl-3.5">{leadingContent}</div> : null}
+        <div
+          ref={frameRef}
+          data-composer-editor-frame=""
+          className={cn('min-w-0 flex-1 overflow-hidden transition-[height] ease-out', editingState && 'mt-2')}
+          onTransitionEnd={handleTransitionEnd}
+          style={isCompact ? compactFrameStyle : frameStyle}>
+          <EditorContent
+            editor={editor}
+            style={isCompact ? compactEditorContentStyle : editorContentStyle}
+            onFocus={() => {
+              onFocus?.()
+              pasteHandling.setLastFocusedComponent('inputbar')
+            }}
+          />
+        </div>
+        {isCompact ? (
+          <div className="flex shrink-0 flex-row items-center gap-1.5">
+            {compactControls}
+            {sendAccessoryElement}
+            {sendAction}
+          </div>
+        ) : null}
+      </div>
+
+      {!isCompact ? (
+        <div
+          data-composer-toolbar=""
+          className="relative z-2 flex h-10 shrink-0 flex-row justify-between gap-4 px-2 py-1.25">
+          <div className="flex min-w-0 flex-1 items-center overflow-hidden">{leftControls}</div>
+          <div className="flex flex-row items-center gap-1.5">
+            {sendAccessoryElement}
+            {sendAction}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+  const inputbarStack = (
+    <div className="relative">
+      {quickPanelElement}
+      {inputbarElement}
+    </div>
+  )
+
+  return (
+    <NarrowLayout narrowMode={narrowMode} withSidePadding style={{ width: '100%' }}>
+      <div className="w-full">
+        <div
+          className="inputbar relative z-2 flex flex-col pt-0"
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}>
+          {belowControls ? (
+            <div className="mb-6 rounded-[20px] bg-muted/45 pb-1.5 dark:bg-muted/25">
+              {queueContent}
+              {inputbarStack}
+              <div className="min-w-0 overflow-hidden px-2 pt-0.5">{belowControls}</div>
+            </div>
+          ) : (
+            <>
+              {queueContent}
+              {inputbarStack}
+            </>
+          )}
+        </div>
+      </div>
+    </NarrowLayout>
+  )
+}
+
+function hasClipboardFiles(data: DataTransfer | null | undefined) {
+  if (!data) return false
+  if (data.files?.length > 0) return true
+  return Array.from(data.items ?? []).some((item) => item.kind === 'file')
+}

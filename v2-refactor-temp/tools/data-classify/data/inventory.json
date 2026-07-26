@@ -815,7 +815,7 @@
       "sidebarIcons": {
         "file": "src/renderer/store/settings.ts",
         "type": "unknown",
-        "defaultValue": "{ visible: ['assistants', 'store', 'paintings', 'translate', 'mini_app', 'knowledge', 'files', 'code_tools', 'notes'], disabled: [] }"
+        "defaultValue": "{ visible: ['assistants', 'agents', 'paintings', 'translate', 'store'], disabled: [] }"
       },
       "visible": {
         "file": "src/renderer/store/settings.ts",

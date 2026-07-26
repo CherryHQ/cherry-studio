@@ -1,10 +1,122 @@
-import type { ProviderOptions } from '@ai-sdk/provider-utils'
-import type { StopCondition, ToolSet } from 'ai'
-import { describe, expect, it } from 'vitest'
+import path from 'node:path'
 
-import { makeModel } from '../../../../__tests__/fixtures'
+import type { ProviderOptions } from '@ai-sdk/provider-utils'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
+import type { StopCondition, Tool, ToolSet } from 'ai'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { makeAssistant, makeModel, makeProvider } from '../../../../__tests__/fixtures'
+import { registry } from '../../../../tools/adapters/aiSdk/registry'
+import type { ToolEntry } from '../../../../tools/adapters/aiSdk/types'
 import type { CallOverrides } from '../../../../types/requests'
-import { applyCallOverrides, composeStopWhen } from '../buildAgentParams'
+
+const { providerToAiSdkConfigMock } = vi.hoisted(() => ({
+  providerToAiSdkConfigMock: vi.fn()
+}))
+
+vi.mock('../../../../provider/config', () => ({
+  providerToAiSdkConfig: providerToAiSdkConfigMock
+}))
+
+vi.mock('@application', () => ({
+  application: {
+    getPath: (_namespace: string, filename: string) =>
+      path.join(process.cwd(), 'packages/provider-registry/data', filename),
+    get: (name: string) => {
+      if (name === 'KnowledgeService') return { hasAnyBase: () => true }
+      if (name === 'PreferenceService') return { get: () => null }
+      throw new Error(`unexpected service: ${name}`)
+    }
+  }
+}))
+
+const {
+  applyCallOverrides,
+  buildAgentParams,
+  composeStopWhen,
+  resolveKnowledgeBaseIds,
+  resolveReasoningMaxTokens,
+  resolveToolCallLimit,
+  resolveTools
+} = await import('../buildAgentParams')
+
+describe('buildAgentParams provider resolution', () => {
+  it('uses the resolved Vertex MaaS adapter, wire profile, and provider-options namespace', async () => {
+    providerToAiSdkConfigMock.mockResolvedValue({
+      providerId: 'google-vertex-maas',
+      providerSettings: { project: 'my-project', location: 'global' }
+    })
+    const provider = makeProvider({
+      id: 'vertex',
+      authType: 'iam-gcp',
+      defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google-vertex' }
+      }
+    })
+    const model = makeModel({
+      id: 'vertex::openai/gpt-oss-120b-maas',
+      providerId: 'vertex',
+      apiModelId: 'openai/gpt-oss-120b-maas',
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
+        selectableEfforts: ['low', 'medium', 'high']
+      }
+    })
+    const assistant = makeAssistant({
+      settings: {
+        reasoning_effort: 'high',
+        customParameters: [
+          {
+            name: 'chat_template_kwargs',
+            type: 'json',
+            value: JSON.stringify({ enable_thinking: true })
+          }
+        ]
+      }
+    })
+
+    const result = await buildAgentParams({
+      request: {},
+      signal: undefined,
+      provider,
+      model,
+      assistant
+    })
+
+    expect(result.sdkConfig.providerId).toBe('google-vertex-maas')
+    expect(result.options.providerOptions).toMatchObject({
+      vertex: {
+        reasoningEffort: 'high',
+        chat_template_kwargs: { enable_thinking: true }
+      }
+    })
+    expect(result.options.providerOptions).not.toHaveProperty('google')
+  })
+})
+
+describe('resolveReasoningMaxTokens', () => {
+  const model = makeModel({ maxOutputTokens: 64_000 })
+
+  it('ignores a stale assistant limit when max tokens are disabled', () => {
+    const assistant = makeAssistant({ settings: { enableMaxTokens: false, maxTokens: 4_096 } })
+
+    expect(resolveReasoningMaxTokens(undefined, assistant, model)).toBe(64_000)
+  })
+
+  it('uses an enabled assistant limit before the model default', () => {
+    const assistant = makeAssistant({ settings: { enableMaxTokens: true, maxTokens: 16_000 } })
+
+    expect(resolveReasoningMaxTokens(undefined, assistant, model)).toBe(16_000)
+  })
+
+  it('gives the per-request override highest precedence', () => {
+    const assistant = makeAssistant({ settings: { enableMaxTokens: true, maxTokens: 16_000 } })
+
+    expect(resolveReasoningMaxTokens(32_000, assistant, model)).toBe(32_000)
+  })
+})
 
 /**
  * Covers the first-class per-request override merge that replaced the old
@@ -97,5 +209,79 @@ describe('composeStopWhen', () => {
     // The injected fallback caps the tool loop at the SDK default of 20 steps.
     expect(await conditions[0]({ steps: new Array(20) } as never)).toBe(true)
     expect(await conditions[0]({ steps: new Array(19) } as never)).toBe(false)
+  })
+})
+
+describe('resolveToolCallLimit', () => {
+  it('uses the configured assistant limit', () => {
+    expect(resolveToolCallLimit(makeAssistant({ settings: { maxToolCalls: 7 } }))).toBe(7)
+  })
+
+  it('retains the effective default cap for assistant-less and disabled-limit requests', () => {
+    expect(resolveToolCallLimit(undefined)).toBe(20)
+    expect(resolveToolCallLimit(makeAssistant({ settings: { enableMaxToolCalls: false, maxToolCalls: 7 } }))).toBe(20)
+  })
+
+  it('falls back when the configured limit is outside the supported range', () => {
+    expect(resolveToolCallLimit(makeAssistant({ settings: { maxToolCalls: 101 } }))).toBe(20)
+  })
+})
+
+describe('resolveKnowledgeBaseIds', () => {
+  it('falls back to the assistant-bound bases when the request selects none', () => {
+    expect(resolveKnowledgeBaseIds(makeAssistant({ knowledgeBaseIds: ['kb-1'] }), undefined)).toEqual(['kb-1'])
+  })
+
+  it('trusts the request-selected bases when the assistant has no static binding', () => {
+    expect(resolveKnowledgeBaseIds(makeAssistant({ knowledgeBaseIds: [] }), ['kb-2'])).toEqual(['kb-2'])
+    expect(resolveKnowledgeBaseIds(undefined, ['kb-2'])).toEqual(['kb-2'])
+  })
+
+  it('drops request-selected bases outside the assistant scope instead of expanding it', () => {
+    // An assistant statically bound to `kb-public` must not become searchable for `kb-private`
+    // just because the renderer/IPC request asked for it — the assistant's own binding is the
+    // trust boundary, not whatever the composer UI happened to let the user pick.
+    expect(resolveKnowledgeBaseIds(makeAssistant({ knowledgeBaseIds: ['kb-public'] }), ['kb-private'])).toEqual([
+      'kb-public'
+    ])
+    expect(resolveKnowledgeBaseIds(makeAssistant({ knowledgeBaseIds: ['kb-1'] }), ['kb-1', 'kb-2'])).toEqual(['kb-1'])
+  })
+
+  it('returns an empty array when neither source selects a base', () => {
+    expect(resolveKnowledgeBaseIds(undefined, undefined)).toEqual([])
+    expect(resolveKnowledgeBaseIds(makeAssistant({ knowledgeBaseIds: [] }), undefined)).toEqual([])
+  })
+})
+
+describe('resolveTools knowledge-base wiring', () => {
+  const KB_GATED_TOOL_NAME = 'test-kb-gated-tool'
+
+  const kbGatedEntry: ToolEntry = {
+    name: KB_GATED_TOOL_NAME,
+    namespace: 'test',
+    description: 'test-only tool gated on knowledgeBaseIds',
+    defer: 'never',
+    tool: {} as Tool,
+    applies: (scope) => (scope.knowledgeBaseIds?.length ?? 0) > 0
+  }
+
+  afterEach(() => {
+    registry.deregister(KB_GATED_TOOL_NAME)
+  })
+
+  it('exposes a kb-gated tool when the effective knowledgeBaseIds is non-empty', async () => {
+    registry.register(kbGatedEntry)
+
+    const { tools } = await resolveTools({}, undefined, makeModel(), false, ['kb-1'])
+
+    expect(tools?.[KB_GATED_TOOL_NAME]).toBeDefined()
+  })
+
+  it('hides a kb-gated tool when the effective knowledgeBaseIds is empty', async () => {
+    registry.register(kbGatedEntry)
+
+    const { tools } = await resolveTools({}, undefined, makeModel(), false, [])
+
+    expect(tools?.[KB_GATED_TOOL_NAME]).toBeUndefined()
   })
 })

@@ -10,7 +10,7 @@ export function VolcengineAvatar({ size = 32, shape = 'circle', className }: Omi
       className={cn('overflow-hidden', shape === 'circle' ? 'rounded-full' : 'rounded-[20%]', className)}
       style={{ width: size, height: size }}>
       <AvatarFallback className="text-foreground bg-background">
-        <VolcengineLight style={{ width: size * 0.7, height: size * 0.7 }} />
+        <VolcengineLight style={{ width: size, height: size }} />
       </AvatarFallback>
     </Avatar>
   )

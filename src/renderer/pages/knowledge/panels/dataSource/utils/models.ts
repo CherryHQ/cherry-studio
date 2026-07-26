@@ -1,4 +1,4 @@
-import { formatRelativeTime } from '@renderer/pages/knowledge/utils'
+import { formatRelativeTime } from '@renderer/utils/time'
 import {
   getKnowledgeItemDisplayTitle,
   getKnowledgePathBasename,

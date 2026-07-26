@@ -1,11 +1,44 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { PortalContainerProvider } from '@cherrystudio/ui/components/primitives/portal-container'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import * as React from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { PageSidePanel, PageSidePanelItem, PageSidePanelSection } from '../index'
+
+const motionSnapshots = vi.hoisted(() => ({
+  propsBySlot: new Map<string, Record<string, unknown>>()
+}))
+
+vi.mock('motion/react', async () => {
+  const ReactActual = await vi.importActual<typeof React>('react')
+  const motionPropNames = new Set(['initial', 'animate', 'exit', 'transition'])
+  const createMotionComponent =
+    (tag: 'div' | 'aside') =>
+    ({
+      ref,
+      children,
+      ...props
+    }: Record<string, unknown> & { children?: React.ReactNode } & { ref?: React.RefObject<HTMLElement | null> }) => {
+      if (typeof props['data-slot'] === 'string') {
+        motionSnapshots.propsBySlot.set(props['data-slot'], props)
+      }
+
+      const domProps = Object.fromEntries(Object.entries(props).filter(([key]) => !motionPropNames.has(key)))
+      return ReactActual.createElement(tag, { ...domProps, ref }, children)
+    }
+
+  return {
+    AnimatePresence: ({ children }: { children: React.ReactNode }) =>
+      ReactActual.createElement(ReactActual.Fragment, null, children),
+    motion: {
+      aside: createMotionComponent('aside'),
+      div: createMotionComponent('div')
+    }
+  }
+})
 
 beforeAll(() => {
   globalThis.ResizeObserver = class {
@@ -17,6 +50,7 @@ beforeAll(() => {
 
 afterEach(() => {
   cleanup()
+  motionSnapshots.propsBySlot.clear()
 })
 
 describe('PageSidePanel', () => {
@@ -43,6 +77,13 @@ describe('PageSidePanel', () => {
       render(<PageSidePanel open={true} onClose={vi.fn()} />)
       const backdrop = document.querySelector('[data-slot="page-side-panel-backdrop"]')!
       expect(backdrop).toHaveClass('bg-black/50')
+    })
+
+    it('uses a non-spring panel transition to avoid close rebound', () => {
+      render(<PageSidePanel open={true} onClose={vi.fn()} />)
+      const panelProps = motionSnapshots.propsBySlot.get('page-side-panel')
+      expect(panelProps?.transition).toEqual({ duration: 0.18, ease: [0.16, 1, 0.3, 1] })
+      expect(panelProps?.transition).not.toMatchObject({ type: 'spring' })
     })
 
     it('calls onClose when close button is clicked', () => {
@@ -175,6 +216,20 @@ describe('PageSidePanel', () => {
   })
 
   describe('placement', () => {
+    function ScopedPanel() {
+      const [container, setContainer] = React.useState<HTMLDivElement | null>(null)
+
+      return (
+        <div data-testid="page-shell">
+          <div ref={setContainer} data-testid="panel-root">
+            <PortalContainerProvider container={container}>
+              <PageSidePanel open={true} onClose={vi.fn()} />
+            </PortalContainerProvider>
+          </div>
+        </div>
+      )
+    }
+
     it('uses the design shell classes by default', () => {
       render(
         <PageSidePanel open={true} onClose={vi.fn()} header={<span>Panel title</span>}>
@@ -217,15 +272,11 @@ describe('PageSidePanel', () => {
       expect(screen.getByRole('dialog')).toHaveClass('fixed')
     })
 
-    it('portals into a scoped page side panel root when present', () => {
-      const { container } = render(
-        <div data-testid="page-shell">
-          <div data-page-side-panel-root="true" data-testid="panel-root" />
-          <PageSidePanel open={true} onClose={vi.fn()} />
-        </div>
-      )
+    it('portals into a provided page side panel container', async () => {
+      const { container } = render(<ScopedPanel />)
 
       const root = screen.getByTestId('panel-root')
+      await waitFor(() => expect(root.querySelector('[data-slot="page-side-panel"]')).toBeInTheDocument())
       const panel = root.querySelector('[data-slot="page-side-panel"]')
       const backdrop = root.querySelector('[data-slot="page-side-panel-backdrop"]')
       expect(container).toContainElement(root)
@@ -235,15 +286,11 @@ describe('PageSidePanel', () => {
       expect(backdrop?.parentElement).toBe(root)
     })
 
-    it('uses absolute positioning when portaled into a scoped root', () => {
-      render(
-        <div data-page-side-panel-root="true">
-          <PageSidePanel open={true} onClose={vi.fn()} />
-        </div>
-      )
+    it('uses absolute positioning when portaled into a provided container', async () => {
+      render(<ScopedPanel />)
 
+      await waitFor(() => expect(screen.getByRole('dialog')).toHaveClass('absolute'))
       expect(document.querySelector('[data-slot="page-side-panel-backdrop"]')).toHaveClass('absolute')
-      expect(screen.getByRole('dialog')).toHaveClass('absolute')
     })
 
     it('applies design inset classes by default', () => {

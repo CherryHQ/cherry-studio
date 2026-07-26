@@ -29,6 +29,10 @@ function dispatchKey(key: string, init: KeyboardEventInit = {}) {
   window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init }))
 }
 
+function dispatchKeyFromTarget(target: HTMLElement, key: string, init: KeyboardEventInit = {}) {
+  target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init }))
+}
+
 interface RenderOptions {
   open?: boolean
   items?: Item[]
@@ -124,6 +128,34 @@ describe('useModelListKeyboardNav', () => {
       dispatchKey('Enter')
 
       expect(onSelectItem).not.toHaveBeenCalled()
+    })
+
+    it('does not select the focused item when Enter comes from a button target', () => {
+      const button = document.createElement('button')
+      document.body.appendChild(button)
+      const { onSelectItem } = renderNav({ items: makeItems(3), focusedItemKey: 'item-1' })
+
+      try {
+        dispatchKeyFromTarget(button, 'Enter')
+
+        expect(onSelectItem).not.toHaveBeenCalled()
+      } finally {
+        button.remove()
+      }
+    })
+
+    it('keeps selecting the focused item when Enter comes from an input target', () => {
+      const input = document.createElement('input')
+      document.body.appendChild(input)
+      const { onSelectItem } = renderNav({ items: makeItems(3), focusedItemKey: 'item-1' })
+
+      try {
+        dispatchKeyFromTarget(input, 'Enter')
+
+        expect(onSelectItem).toHaveBeenCalledWith({ key: 'item-1' })
+      } finally {
+        input.remove()
+      }
     })
 
     it('fires onClose on Escape', () => {

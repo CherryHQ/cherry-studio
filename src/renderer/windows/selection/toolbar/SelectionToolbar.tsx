@@ -1,128 +1,54 @@
-import './selection-toolbar.css'
-
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { AppLogo } from '@renderer/config/env'
+import SelectionToolbarView from '@renderer/components/selection/SelectionToolbarView'
 import { useTimer } from '@renderer/hooks/useTimer'
-import i18n from '@renderer/i18n'
-import { ipcApi } from '@renderer/ipc'
-import { useIpcOn } from '@renderer/ipc/useIpcOn'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
-import { defaultLanguage } from '@shared/utils/languages'
-import { ClipboardCheck, ClipboardCopy, ClipboardX, MessageSquareHeart } from 'lucide-react'
-import { DynamicIcon } from 'lucide-react/dynamic'
 import type { FC } from 'react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('SelectionToolbar')
 
+const getCssPixelValue = (value: string) => Number.parseFloat(value) || 0
+
+const getElementOuterSize = (element: HTMLElement) => {
+  const rect = element.getBoundingClientRect()
+  const style = window.getComputedStyle(element)
+
+  return {
+    width: rect.width + getCssPixelValue(style.marginLeft) + getCssPixelValue(style.marginRight),
+    height: rect.height + getCssPixelValue(style.marginTop) + getCssPixelValue(style.marginBottom)
+  }
+}
+
 //tell main the actual size of the content
-const updateWindowSize = () => {
+const updateWindowSize = (contentElement?: HTMLElement | null) => {
   const rootElement = document.getElementById('root')
-  if (!rootElement) {
-    logger.error('Root element not found')
+  const targetElement =
+    contentElement ??
+    (rootElement?.firstElementChild instanceof HTMLElement ? rootElement.firstElementChild : rootElement)
+
+  if (!targetElement) {
+    logger.error('Toolbar content element not found')
     return
   }
+
+  const { width, height } = getElementOuterSize(targetElement)
+
+  // ceil to whole pixels so the OS window never clips sub-pixel content
   void ipcApi.request('selection.determine_toolbar_size', {
-    width: rootElement.scrollWidth,
-    height: rootElement.scrollHeight
+    width: Math.ceil(width),
+    height: Math.ceil(height)
   })
 }
 
-/**
- * ActionIcons is a component that renders the action icons
- */
-const ActionIcons: FC<{
-  actionItems: SelectionActionItem[]
-  isCompact: boolean
-  handleAction: (action: SelectionActionItem) => void
-  copyIconStatus: 'normal' | 'success' | 'fail'
-  copyIconAnimation: 'none' | 'enter' | 'exit'
-}> = memo(({ actionItems, isCompact, handleAction, copyIconStatus, copyIconAnimation }) => {
-  const { t } = useTranslation()
-
-  const renderCopyIcon = useCallback(() => {
-    return (
-      <>
-        <ClipboardCopy
-          className={`btn-icon ${
-            copyIconAnimation === 'enter' ? 'icon-scale-out' : copyIconAnimation === 'exit' ? 'icon-fade-in' : ''
-          }`}
-        />
-        {copyIconStatus === 'success' && (
-          <ClipboardCheck
-            className={`btn-icon icon-success ${
-              copyIconAnimation === 'enter' ? 'icon-scale-in' : copyIconAnimation === 'exit' ? 'icon-fade-out' : ''
-            }`}
-          />
-        )}
-        {copyIconStatus === 'fail' && (
-          <ClipboardX
-            className={`btn-icon icon-fail ${
-              copyIconAnimation === 'enter' ? 'icon-scale-in' : copyIconAnimation === 'exit' ? 'icon-fade-out' : ''
-            }`}
-          />
-        )}
-      </>
-    )
-  }, [copyIconStatus, copyIconAnimation])
-
-  const renderActionButton = useCallback(
-    (action: SelectionActionItem) => {
-      const displayName = action.isBuiltIn ? t(action.name) : action.name
-
-      const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          handleAction(action)
-        }
-      }
-
-      return (
-        <ActionButton
-          key={action.id}
-          onClick={() => handleAction(action)}
-          onKeyDown={handleKeyDown}
-          title={isCompact ? displayName : undefined}
-          role="button"
-          aria-label={displayName}
-          tabIndex={0}>
-          <ActionIcon>
-            {action.id === 'copy' ? (
-              renderCopyIcon()
-            ) : (
-              <DynamicIcon
-                key={action.id}
-                name={action.icon as any}
-                className="btn-icon"
-                fallback={() => <MessageSquareHeart className="btn-icon" />}
-              />
-            )}
-          </ActionIcon>
-          {!isCompact && <ActionTitle className="btn-title">{displayName}</ActionTitle>}
-        </ActionButton>
-      )
-    },
-    [handleAction, isCompact, t, renderCopyIcon]
-  )
-
-  return <>{actionItems?.map(renderActionButton)}</>
-})
-
-/**
- * demo is used in the settings page
- */
-const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
-  const [language] = usePreference('app.language')
-  const [customCss] = usePreference('ui.custom_css')
+const SelectionToolbar: FC = () => {
   const [isCompact] = usePreference('feature.selection.compact')
   const [actionItems] = usePreference('feature.selection.action_items')
-  const [animateKey, setAnimateKey] = useState(0)
   const [copyIconStatus, setCopyIconStatus] = useState<'normal' | 'success' | 'fail'>('normal')
   const [copyIconAnimation, setCopyIconAnimation] = useState<'none' | 'enter' | 'exit'>('none')
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
+  const toolbarRef = useRef<HTMLDivElement>(null)
 
   const realActionItems = useMemo(() => {
     return actionItems?.filter((item) => item.enabled)
@@ -135,7 +61,6 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
   const onHideCleanUp = useCallback(() => {
     setCopyIconStatus('normal')
     setCopyIconAnimation('none')
-    clearTimeoutTimer('textSelection')
     clearTimeoutTimer('copyIcon')
   }, [clearTimeoutTimer])
 
@@ -143,43 +68,19 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
   useIpcOn('selection.text_selected', (selectionData) => {
     selectedText.current = selectionData.text
     isFullScreen.current = selectionData.isFullscreen ?? false
-    // make sure the animation is active; useTimer clears the same-key/unmounted timer
-    setTimeoutTimer('textSelection', () => setAnimateKey((prev) => prev + 1), 400)
   })
 
   useIpcOn('selection.toolbar_visibility_change', (isVisible) => {
     if (!isVisible) {
-      if (!demo) updateWindowSize()
+      updateWindowSize(toolbarRef.current)
       onHideCleanUp()
     }
   })
 
   //make sure the toolbar size is updated when the compact mode/actionItems is changed
   useEffect(() => {
-    if (!demo) updateWindowSize()
-  }, [demo, isCompact, actionItems])
-
-  useEffect(() => {
-    void (!demo && i18n.changeLanguage(language || navigator.language || defaultLanguage))
-  }, [language, demo])
-
-  useEffect(() => {
-    if (demo) return
-
-    let customCssElement = document.getElementById('user-defined-custom-css') as HTMLStyleElement
-    if (customCssElement) {
-      customCssElement.remove()
-    }
-
-    if (customCss) {
-      const newCustomCss = customCss.replace(/(^|\s)background(-image|-color)?\s*:[^;]+;/gi, '')
-
-      customCssElement = document.createElement('style')
-      customCssElement.id = 'user-defined-custom-css'
-      customCssElement.textContent = newCustomCss
-      document.head.appendChild(customCssElement)
-    }
-  }, [customCss, demo])
+    updateWindowSize(toolbarRef.current)
+  }, [isCompact, actionItems])
 
   /**
    * Check if text is a valid URI or file path
@@ -239,7 +140,7 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
       actionString = customUrl.replace('{{queryString}}', encodeURIComponent(selectedText))
     }
 
-    void window.api?.openWebsite(actionString)
+    void ipcApi.request('system.shell.open_website', actionString)
     void ipcApi.request('selection.hide_toolbar')
   }, [])
 
@@ -261,8 +162,6 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
 
   const handleAction = useCallback(
     (action: SelectionActionItem) => {
-      if (demo) return
-
       /** avoid mutating the original action, it will cause syncing issue */
       const newAction = { ...action, selectedText: selectedText.current }
 
@@ -281,229 +180,20 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
           break
       }
     },
-    [demo, handleCopy, handleSearch]
+    [handleCopy, handleSearch]
   )
 
   return (
-    <Container>
-      <LogoWrapper $draggable={!demo}>
-        <Logo src={AppLogo} key={animateKey} className="animate" draggable={false} />
-      </LogoWrapper>
-      <ActionWrapper>
-        <ActionIcons
-          actionItems={realActionItems}
-          isCompact={isCompact}
-          handleAction={handleAction}
-          copyIconStatus={copyIconStatus}
-          copyIconAnimation={copyIconAnimation}
-        />
-      </ActionWrapper>
-    </Container>
+    <SelectionToolbarView
+      ref={toolbarRef}
+      actionItems={realActionItems}
+      isCompact={isCompact}
+      handleAction={handleAction}
+      copyIconStatus={copyIconStatus}
+      copyIconAnimation={copyIconAnimation}
+      draggable
+    />
   )
 }
-
-const Container = styled.div`
-  display: inline-flex;
-  flex-direction: row;
-  align-items: stretch;
-  height: var(--selection-toolbar-height);
-  border-radius: var(--selection-toolbar-border-radius);
-  border: var(--selection-toolbar-border);
-  box-shadow: var(--selection-toolbar-box-shadow);
-  background: var(--selection-toolbar-background);
-  padding: var(--selection-toolbar-padding) !important;
-  margin: var(--selection-toolbar-margin) !important;
-  user-select: none;
-  box-sizing: border-box;
-  overflow: hidden;
-`
-
-const LogoWrapper = styled.div<{ $draggable: boolean }>`
-  display: var(--selection-toolbar-logo-display);
-  align-items: center;
-  justify-content: center;
-  margin: var(--selection-toolbar-logo-margin);
-  padding: var(--selection-toolbar-logo-padding);
-  background-color: var(--selection-toolbar-logo-background);
-  border-width: var(--selection-toolbar-logo-border-width);
-  border-style: var(--selection-toolbar-logo-border-style);
-  border-color: var(--selection-toolbar-logo-border-color);
-  border-radius: var(--selection-toolbar-border-radius) 0 0 var(--selection-toolbar-border-radius);
-  ${({ $draggable }) => $draggable && ' -webkit-app-region: drag;'};
-`
-
-const Logo = styled.img`
-  height: var(--selection-toolbar-logo-size);
-  width: var(--selection-toolbar-logo-size);
-  border-radius: 50%;
-  object-fit: cover;
-  &.animate {
-    animation: rotate 1s ease;
-  }
-  @keyframes rotate {
-    0% {
-      transform: rotate(0deg) scale(1);
-    }
-    25% {
-      transform: rotate(-15deg) scale(1.05);
-    }
-    75% {
-      transform: rotate(15deg) scale(1.05);
-    }
-    100% {
-      transform: rotate(0deg) scale(1);
-    }
-  }
-`
-
-const ActionWrapper = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  background-color: transparent;
-  border-width: var(--selection-toolbar-buttons-border-width);
-  border-style: var(--selection-toolbar-buttons-border-style);
-  border-color: var(--selection-toolbar-buttons-border-color);
-  border-radius: var(--selection-toolbar-buttons-border-radius);
-`
-const ActionButton = styled.div`
-  height: 100%;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  cursor: pointer !important;
-  margin: var(--selection-toolbar-button-margin);
-  padding: var(--selection-toolbar-button-padding);
-  background-color: var(--selection-toolbar-button-bgcolor);
-  border-radius: var(--selection-toolbar-button-border-radius);
-  border: var(--selection-toolbar-button-border);
-  box-shadow: var(--selection-toolbar-button-box-shadow);
-  transition: all 0.1s ease-in-out;
-  will-change: color, background-color;
-  &:last-child {
-    border-radius: 0 var(--selection-toolbar-border-radius) var(--selection-toolbar-border-radius) 0;
-    padding: var(--selection-toolbar-button-last-padding);
-  }
-
-  .btn-icon {
-    width: var(--selection-toolbar-button-icon-size);
-    height: var(--selection-toolbar-button-icon-size);
-    color: var(--selection-toolbar-button-icon-color);
-    background-color: transparent;
-    transition: color 0.1s ease-in-out;
-    will-change: color;
-  }
-  .btn-title {
-    color: var(--selection-toolbar-button-text-color);
-    transition: color 0.1s ease-in-out;
-    will-change: color;
-    line-height: 1.1;
-  }
-  &:hover {
-    .btn-icon {
-      color: var(--color-primary);
-    }
-    .btn-title {
-      color: var(--color-primary);
-    }
-    background-color: var(--selection-toolbar-button-bgcolor-hover);
-  }
-`
-const ActionIcon = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  height: var(--selection-toolbar-button-icon-size);
-  width: var(--selection-toolbar-button-icon-size);
-  background-color: transparent;
-
-  .btn-icon {
-    position: absolute;
-    top: 0;
-    left: 0;
-  }
-
-  .btn-icon:nth-child(2) {
-    top: 0px;
-    left: 0px;
-  }
-
-  .icon-fail {
-    color: var(--selection-toolbar-color-error);
-  }
-
-  .icon-success {
-    color: var(--selection-toolbar-color-primary);
-  }
-
-  .icon-scale-in {
-    animation: scaleIn 0.5s forwards;
-  }
-
-  .icon-scale-out {
-    animation: scaleOut 0.5s forwards;
-  }
-
-  .icon-fade-in {
-    animation: fadeIn 0.3s forwards;
-  }
-
-  .icon-fade-out {
-    animation: fadeOut 0.3s forwards;
-  }
-
-  @keyframes scaleIn {
-    from {
-      transform: scale(0);
-      opacity: 0;
-    }
-    to {
-      transform: scale(1);
-      opacity: 1;
-    }
-  }
-
-  @keyframes scaleOut {
-    from {
-      transform: scale(1);
-      opacity: 1;
-    }
-    to {
-      transform: scale(0);
-      opacity: 0;
-    }
-  }
-
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-
-  @keyframes fadeOut {
-    from {
-      opacity: 1;
-    }
-    to {
-      opacity: 0;
-    }
-  }
-`
-const ActionTitle = styled.span`
-  font-size: var(--selection-toolbar-font-size);
-  max-width: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  margin: var(--selection-toolbar-button-text-margin);
-  background-color: transparent;
-`
 
 export default SelectionToolbar

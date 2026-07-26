@@ -20,12 +20,14 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import CodeViewer from '@renderer/components/CodeViewer'
-import { CopyIcon, FilePngIcon } from '@renderer/components/Icons'
-import { isMac } from '@renderer/config/constant'
-import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import CopyIcon from '@renderer/components/icons/CopyIcon'
+import { FilePngIcon } from '@renderer/components/icons/FileIcons'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
+import { toast } from '@renderer/services/toast'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
-import { captureScrollableIframeAsBlob, captureScrollableIframeAsDataURL } from '@renderer/utils/image'
+import { captureScrollableIframeAsBlob, captureScrollableIframeAsDataUrl } from '@renderer/utils/image'
+import { isMac } from '@renderer/utils/platform'
 import { Camera, Check, Code, Eye, Maximize2, Minimize2, SaveIcon, SquareSplitHorizontal, X } from 'lucide-react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -81,7 +83,7 @@ const CodePanel = memo<CodePanelProps>(
             <Button
               variant="secondary"
               size="icon"
-              className="border border-border bg-popover text-popover-foreground shadow-[0_6px_16px_0_rgba(0,0,0,0.08),0_3px_6px_-4px_rgba(0,0,0,0.12),0_9px_28px_8px_rgba(0,0,0,0.05)] hover:bg-accent hover:text-accent-foreground"
+              className="border border-border bg-popover text-popover-foreground shadow-lg hover:bg-accent hover:text-accent-foreground"
               onClick={onClickSave}>
               {saved ? <Check size={16} className="text-success" /> : <SaveIcon size={16} />}
             </Button>
@@ -114,7 +116,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
   const { t } = useTranslation()
   const { activeCmTheme } = useCodeStyle()
   const [fontSize] = usePreference('chat.message.font_size')
-  const [viewMode, setViewMode] = useState<ViewMode>('split')
+  const [viewMode, setViewMode] = useState<ViewMode>('preview')
   const [isFullscreen, setIsFullscreen] = useState(true)
   const [saved, setSaved] = useTemporaryValue(false, 2000)
   const [splitSizes, setSplitSizes] = useState<[number, number]>([50, 50])
@@ -146,7 +148,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
         const fileName = getFileNameFromHtmlTitle(title) || 'html-artifact'
 
         if (to === 'file') {
-          const dataUrl = await captureScrollableIframeAsDataURL(previewFrameRef)
+          const dataUrl = await captureScrollableIframeAsDataUrl(previewFrameRef)
           if (dataUrl) {
             await window.api.file.saveImage(fileName, dataUrl)
           }
@@ -156,7 +158,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
           await captureScrollableIframeAsBlob(previewFrameRef, async (blob) => {
             if (blob) {
               await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
-              window.toast.success(t('message.copy.success'))
+              toast.success(t('message.copy.success'))
             }
           })
         }
@@ -237,6 +239,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
       }}>
       <DialogContent
         showCloseButton={false}
+        closeOnOverlayClick={false}
         overlayClassName={isFullscreen ? 'hidden' : 'bg-black/35 backdrop-blur-[2px]'}
         onPointerDownOutside={(event) => event.preventDefault()}
         className={cn(
@@ -295,13 +298,13 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
             </div>
 
             <div
-              className="flex flex-1 items-center justify-end gap-2 pr-3"
+              className="flex flex-1 items-center justify-end gap-2 pr-1"
               onDoubleClick={(event) => event.stopPropagation()}>
               <Popover open={captureOpen} onOpenChange={setCaptureOpen}>
                 <Tooltip content={t('html_artifacts.capture.label')}>
                   <PopoverTrigger asChild>
-                    <Button variant="ghost" size="icon" className="[-webkit-app-region:no-drag]">
-                      <Camera size={16} />
+                    <Button variant="ghost" size="icon-sm" className="[-webkit-app-region:no-drag]">
+                      <Camera className="size-3.5" />
                     </Button>
                   </PopoverTrigger>
                 </Tooltip>
@@ -323,12 +326,12 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
               <Button
                 onClick={() => setIsFullscreen(!isFullscreen)}
                 variant="ghost"
-                size="icon"
+                size="icon-sm"
                 className="[-webkit-app-region:no-drag]">
-                {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                {isFullscreen ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
               </Button>
-              <Button onClick={onClose} variant="ghost" size="icon" className="[-webkit-app-region:no-drag]">
-                <X size={16} />
+              <Button onClick={onClose} variant="ghost" size="icon-sm" className="[-webkit-app-region:no-drag]">
+                <X className="size-3.5" />
               </Button>
             </div>
           </header>

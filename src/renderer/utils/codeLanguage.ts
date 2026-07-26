@@ -3,6 +3,22 @@ import { codeLanguages } from '@shared/utils/codeLanguages'
 // Cache for extension to language mapping (built lazily)
 let extensionToLanguageCache: Map<string, string> | null = null
 
+// The linguist-generated `codeLanguages` table lists every language that
+// claims an extension. Cache-build resolves collisions by first-match-wins in
+// Object.entries order (alphabetical-ish), which picks the wrong owner for
+// common extensions — e.g. `.md` → 'GCC Machine Description', `.html` →
+// 'Ecmarkup', `.sql` → 'PLpgSQL'. Pin the conventional primary language for
+// the extensions where the alphabetical winner is clearly wrong.
+const PRIMARY_EXTENSION_OVERRIDES: Record<string, string> = {
+  md: 'Markdown',
+  yml: 'YAML',
+  yaml: 'YAML',
+  html: 'HTML',
+  sql: 'SQL',
+  rs: 'Rust',
+  txt: 'Text'
+}
+
 /**
  * Build a cache mapping extensions to language names
  */
@@ -37,6 +53,9 @@ export function getLanguageByExtension(extension: string): string {
 
   // Normalize extension: remove leading dot and lowercase
   const normalizedExt = extension.startsWith('.') ? extension.slice(1).toLowerCase() : extension.toLowerCase()
+
+  const override = PRIMARY_EXTENSION_OVERRIDES[normalizedExt]
+  if (override) return override
 
   const cache = buildExtensionCache()
   return cache.get(normalizedExt) || normalizedExt

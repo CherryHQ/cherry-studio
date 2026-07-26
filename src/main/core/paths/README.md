@@ -22,9 +22,10 @@ application.getPath('invalid.key')
 
 | File | Role |
 |------|------|
-| `constants.ts` | Earliest path constants (`CHERRY_HOME`, `BOOT_CONFIG_PATH`, `LOGS_DIR`) — used before the registry exists |
-| `pathRegistry.ts` | `buildPathRegistry()` + `PathKey` / `PathMap` types. ESLint-enforced key format |
-| `index.ts` | Re-exports types only. `buildPathRegistry` is imported via deep alias by `Application.ts` |
+| `constants.ts` | Earliest path constants (`CHERRY_HOME`, `BOOT_CONFIG_PATH`, `LOGS_DIR`) — used before the registry exists; imported directly by the pre-registry bootstrappers (`LoggerService`, `BootConfigService`) |
+| `pathRegistry.ts` | `buildPathRegistry()` + `shouldAutoEnsure` + `PathKey` / `PathMap` types. Imported directly by `Application.ts`. ESLint-enforced key format |
+
+**No barrel.** The module's public access point is `application.getPath()`, not an `index.ts` — its two files are independent building blocks imported directly by their specific consumers (per [Naming §6.4](../../../../docs/references/naming-conventions.md): a directory that merely aggregates independent sub-modules gets no barrel).
 
 ## Top-Level Namespaces
 

@@ -9,7 +9,7 @@ const Tng = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const TngIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Tng, {
   Avatar: TngAvatar,
-  colorPrimary: '#FDFEFE'
+  colorPrimary: '#306BA6'
 })
 
 export default TngIcon

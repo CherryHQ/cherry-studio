@@ -4,7 +4,7 @@
  * Main listener and closes all branch streams). Consumed by
  * `useExecutionOverlay`.
  */
-import { TopicStreamSubscription } from '@renderer/transport/TopicStreamSubscription'
+import { TopicStreamSubscription } from '@renderer/services/aiTransport'
 import { useEffect, useRef } from 'react'
 
 export function useTopicStreamSubscription(topicId: string): TopicStreamSubscription {
@@ -17,9 +17,14 @@ export function useTopicStreamSubscription(topicId: string): TopicStreamSubscrip
   const sub = ref.current.sub
 
   useEffect(() => {
-    sub.listen()
-    return () => sub.dispose()
-  }, [sub])
+    if (topicId) sub.listen()
+    return () => {
+      sub.dispose()
+      if (ref.current?.sub === sub) {
+        ref.current = null
+      }
+    }
+  }, [sub, topicId])
 
   return sub
 }

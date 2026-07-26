@@ -6,6 +6,10 @@
  *
  * USAGE GUIDANCE:
  * - `listByEntityType` is the canonical read path; `entityType` is always required.
+ * - `findByIdTx` is the cross-service lookup for relation validation inside a
+ *   caller-owned write transaction; the caller owns its expected entityType.
+ * - `findOrCreateByNameTx` supports legacy imports that must resolve a named
+ *   group and create their entity in one caller-owned transaction.
  * - `create` auto-assigns `orderKey` via `insertWithOrderKey` (scope=entityType)
  *   so consumers never touch the column directly.
  * - `reorder` / `reorderBatch` delegate to `applyScopedMoves`, which performs
@@ -15,13 +19,14 @@
 import { application } from '@application'
 import { groupTable } from '@data/db/schemas/group'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
+import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateGroupDto, UpdateGroupDto } from '@shared/data/api/schemas/groups'
 import type { EntityType } from '@shared/data/types/entityType'
 import type { Group } from '@shared/data/types/group'
-import { asc, eq } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 
 import { applyScopedMoves, insertWithOrderKey } from './utils/orderKey'
 import { timestampToISO } from './utils/rowMappers'
@@ -49,36 +54,81 @@ export class GroupService {
   /**
    * List groups for a given entityType, ordered by orderKey ASC.
    */
-  async listByEntityType(entityType: EntityType): Promise<Group[]> {
-    const rows = await this.db
+  listByEntityType(entityType: EntityType): Group[] {
+    const rows = this.db
       .select()
       .from(groupTable)
       .where(eq(groupTable.entityType, entityType))
       .orderBy(asc(groupTable.orderKey))
+      .all()
     return rows.map(rowToGroup)
   }
 
   /**
    * Get a group by ID.
    */
-  async getById(id: string): Promise<Group> {
-    const [row] = await this.db.select().from(groupTable).where(eq(groupTable.id, id)).limit(1)
+  getById(id: string): Group {
+    const group = this.findByIdTx(this.db, id)
 
-    if (!row) {
+    if (!group) {
       throw DataApiErrorFactory.notFound('Group', id)
     }
 
-    return rowToGroup(row)
+    return group
+  }
+
+  /**
+   * Nullable lookup for services composing Group validation inside their own
+   * write transaction. The caller owns its domain-specific entityType and
+   * validation error contract.
+   */
+  findByIdTx(tx: Pick<DbType, 'select'>, id: string): Group | null {
+    const [row] = tx.select().from(groupTable).where(eq(groupTable.id, id)).limit(1).all()
+    return row ? rowToGroup(row) : null
+  }
+
+  /**
+   * Resolve an exact group name inside a caller-owned write transaction,
+   * creating the group when no match exists.
+   *
+   * Names intentionally remain non-unique for normal group management. If
+   * historical data already contains duplicates, imports consistently reuse
+   * the first group in display order.
+   */
+  findOrCreateByNameTx(tx: DbOrTx, entityType: EntityType, name: string): Group {
+    const [existing] = tx
+      .select()
+      .from(groupTable)
+      .where(and(eq(groupTable.entityType, entityType), eq(groupTable.name, name)))
+      .orderBy(asc(groupTable.orderKey), asc(groupTable.id))
+      .limit(1)
+      .all()
+
+    if (existing) {
+      return rowToGroup(existing)
+    }
+
+    const inserted = insertWithOrderKey(
+      tx,
+      groupTable,
+      { entityType, name },
+      {
+        pkColumn: groupTable.id,
+        scope: eq(groupTable.entityType, entityType)
+      }
+    )
+
+    return rowToGroup(inserted as GroupRow)
   }
 
   /**
    * Create a new group. The new row is appended to the end of its entityType
    * bucket with a fresh fractional-indexing orderKey.
    */
-  async create(dto: CreateGroupDto): Promise<Group> {
-    const row = await withSqliteErrors(
+  create(dto: CreateGroupDto): Group {
+    const row = withSqliteErrors(
       () =>
-        this.db.transaction(async (tx) =>
+        this.db.transaction((tx) =>
           insertWithOrderKey(
             tx,
             groupTable,
@@ -100,7 +150,7 @@ export class GroupService {
   /**
    * Update an existing group. `entityType` is immutable — only `name` can change.
    */
-  async update(id: string, dto: UpdateGroupDto): Promise<Group> {
+  update(id: string, dto: UpdateGroupDto): Group {
     const updates: Partial<typeof groupTable.$inferInsert> = {}
     if (dto.name !== undefined) updates.name = dto.name
 
@@ -108,8 +158,8 @@ export class GroupService {
       return this.getById(id)
     }
 
-    const [row] = await withSqliteErrors(
-      () => this.db.update(groupTable).set(updates).where(eq(groupTable.id, id)).returning(),
+    const [row] = withSqliteErrors(
+      () => this.db.update(groupTable).set(updates).where(eq(groupTable.id, id)).returning().all(),
       defaultHandlersFor('Group', dto.name ?? id)
     )
 
@@ -124,8 +174,8 @@ export class GroupService {
   /**
    * Delete a group.
    */
-  async delete(id: string): Promise<void> {
-    const [row] = await this.db.delete(groupTable).where(eq(groupTable.id, id)).returning({ id: groupTable.id })
+  delete(id: string): void {
+    const [row] = this.db.delete(groupTable).where(eq(groupTable.id, id)).returning({ id: groupTable.id }).all()
 
     if (!row) {
       throw DataApiErrorFactory.notFound('Group', id)
@@ -138,8 +188,8 @@ export class GroupService {
    * Move a single group relative to an anchor. Scope (entityType) is inferred
    * from the target row — callers do not pass scope.
    */
-  async reorder(id: string, anchor: OrderRequest): Promise<void> {
-    await this.db.transaction(async (tx) =>
+  reorder(id: string, anchor: OrderRequest): void {
+    this.db.transaction((tx) =>
       applyScopedMoves(tx, groupTable, [{ id, anchor }], {
         pkColumn: groupTable.id,
         scopeColumn: groupTable.entityType
@@ -151,8 +201,8 @@ export class GroupService {
    * Apply a batch of moves atomically. `applyScopedMoves` rejects batches that
    * span multiple entityTypes with a VALIDATION_ERROR.
    */
-  async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
-    await this.db.transaction(async (tx) =>
+  reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): void {
+    this.db.transaction((tx) =>
       applyScopedMoves(tx, groupTable, moves, {
         pkColumn: groupTable.id,
         scopeColumn: groupTable.entityType

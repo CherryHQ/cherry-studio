@@ -23,7 +23,7 @@ export interface CopyEntryParams {
 }
 
 export async function copy(deps: FileManagerDeps, params: CopyEntryParams): Promise<FileEntry> {
-  const src = await deps.fileEntryService.getById(params.id)
+  const src = deps.fileEntryService.getById(params.id)
   const physical = resolvePhysicalPath(src)
   const dst = await createInternal(deps, { source: 'path', path: physical })
   if (params.newName === undefined || params.newName === dst.name) {
@@ -36,7 +36,7 @@ export async function copy(deps: FileManagerDeps, params: CopyEntryParams): Prom
   // either gets the renamed entry or nothing at all. Cleanup failure is
   // best-effort: warn-log and rethrow the original rename error.
   try {
-    return await deps.fileEntryService.update(dst.id, { name: params.newName })
+    return deps.fileEntryService.update(dst.id, { name: params.newName })
   } catch (renameErr) {
     try {
       await permanentDelete(deps, dst.id)

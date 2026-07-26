@@ -2,11 +2,12 @@ import path from 'node:path'
 
 import { application } from '@application'
 import type { JobContext } from '@main/core/job/types'
-import { toFileInfo } from '@main/services/file/toFileInfo'
-import { stat as fsStat } from '@main/utils/file/fs'
+import { toFileInfo } from '@main/services/file'
+import { stat as fsStat } from '@main/utils/file'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileProcessorInput, FileProcessorMerged } from '@shared/data/presets/fileProcessing'
-import { type FileHandle, type FileInfo, FileInfoSchema, type FilePath } from '@shared/types/file'
+import type { FileHandle } from '@shared/data/types/file'
+import { type AbsoluteFilePath, type FileInfo, FileInfoSchema } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
 import mime from 'mime'
 
@@ -160,7 +161,7 @@ export async function resolveFileProcessingFileInfo(file: FileHandle): Promise<F
  * difference is that path/name/ext come from the raw path instead of FileEntry
  * metadata.
  */
-async function resolveFileProcessingPathInfo(filePath: FilePath): Promise<FileInfo> {
+async function resolveFileProcessingPathInfo(filePath: AbsoluteFilePath): Promise<FileInfo> {
   const stats = await fsStat(filePath)
   if (stats.isDirectory) {
     throw new Error('File processing does not support directories')
@@ -177,5 +178,5 @@ async function resolveFileProcessingPathInfo(filePath: FilePath): Promise<FileIn
     type: getFileTypeByExt(ext ?? ''),
     createdAt: stats.createdAt || stats.modifiedAt,
     modifiedAt: stats.modifiedAt
-  }) as FileInfo
+  })
 }

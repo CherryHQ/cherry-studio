@@ -11,15 +11,24 @@ const YouLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
       width="1em"
       height="1em"
       fill="none"
-      viewBox="9 9 102 102"
+      viewBox="0 0 120 120"
       {...props}>
-      <g clipPath={`url(#${iconId}-youlight__a)`}>
-        <path fill={`url(#${iconId}-youlight__b)`} d="M18 18H102V102H18z" />
+      <mask
+        id={`${iconId}-youlight__a`}
+        width={65}
+        height={65}
+        x={27}
+        y={28}
+        maskUnits="userSpaceOnUse"
+        style={{
+          maskType: 'luminance'
+        }}>
+        <path fill="#fff" d="M92 28H27V93H92V28Z" />
+      </mask>
+      <g mask={`url(#${iconId}-youlight__a)`}>
+        <path fill={`url(#${iconId}-youlight__b)`} d="M92 28H27V93H92V28Z" />
       </g>
       <defs>
-        <clipPath id={`${iconId}-youlight__a`}>
-          <path fill="#fff" d="M0 0H84V84H0z" transform="translate(18 18)" />
-        </clipPath>
         <pattern id={`${iconId}-youlight__b`} width={1} height={1} patternContentUnits="objectBoundingBox">
           <use xlinkHref={`#${iconId}-youlight__c`} transform="scale(.01176 .0119)" />
         </pattern>

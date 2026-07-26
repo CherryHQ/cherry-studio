@@ -130,3 +130,115 @@ describe('splitTextWithOffsets', () => {
     }
   })
 })
+
+describe('splitTextWithOffsets — separator and strategy', () => {
+  it('splits by a custom separator in delimiter mode and stays verbatim', () => {
+    const text = 'Alpha block.\n\nBeta block.\n\nGamma block.\n\nDelta block.'
+    const chunks = splitTextWithOffsets(text, {
+      chunkSize: 4,
+      chunkOverlap: 0,
+      separator: '\n\n',
+      strategy: 'delimiter'
+    })
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expectVerbatimSlices(text, chunks)
+  })
+
+  it('treats an escaped separator the same as its literal characters', () => {
+    const text = 'Alpha block.\n\nBeta block.\n\nGamma block.'
+    const escaped = splitTextWithOffsets(text, {
+      chunkSize: 5,
+      chunkOverlap: 0,
+      separator: '\\n\\n',
+      strategy: 'delimiter'
+    })
+    const literal = splitTextWithOffsets(text, {
+      chunkSize: 5,
+      chunkOverlap: 0,
+      separator: '\n\n',
+      strategy: 'delimiter'
+    })
+
+    expect(escaped).toEqual(literal)
+    expectVerbatimSlices(text, escaped)
+  })
+
+  it('matches the structured strategy when called with default options', () => {
+    const text = '\n## Section\nbody line here for a while.'.repeat(20)
+    const withDefault = splitTextWithOffsets(text, { chunkSize: 30, chunkOverlap: 5 })
+    const withStructured = splitTextWithOffsets(text, { chunkSize: 30, chunkOverlap: 5, strategy: 'structured' })
+
+    expect(withDefault).toEqual(withStructured)
+  })
+
+  // The migrated/default base runs structured mode with chunkSeparator='\n\n' (the column
+  // default), not "no separator". That adds a paragraph-level break (score 30) just after
+  // each '\n\n', so the default is an *active* break, not a no-op: it keeps the chunk count
+  // but shifts some interior cut offsets versus a no-separator run, while staying verbatim.
+  // This is why "reproduces the previous behavior" only holds for already-indexed content
+  // (chunking affects newly-added content only), not byte-for-byte under re-chunking.
+  it('treats the migrated "\\n\\n" default as an active paragraph-level break in structured mode', () => {
+    const text = [
+      '# Title',
+      'First paragraph with several words to fill up some space here for chunking.',
+      'Second paragraph that also carries a fair amount of words for the splitter.',
+      'Third paragraph continuing the document with yet more filler content inside.',
+      'Fourth and final paragraph wrapping up this example body of text quite nicely.'
+    ].join('\n\n')
+
+    const withDefaultSeparator = splitTextWithOffsets(text, {
+      chunkSize: 12,
+      chunkOverlap: 4,
+      separator: '\\n\\n',
+      strategy: 'structured'
+    })
+    const withoutSeparator = splitTextWithOffsets(text, {
+      chunkSize: 12,
+      chunkOverlap: 4,
+      strategy: 'structured'
+    })
+
+    expect(withDefaultSeparator).not.toEqual(withoutSeparator)
+    expect(withDefaultSeparator.length).toBe(withoutSeparator.length)
+    expectVerbatimSlices(text, withDefaultSeparator)
+    expectVerbatimSlices(text, withoutSeparator)
+  })
+
+  it('keeps the invariant across strategies and separators (fuzz)', () => {
+    const fragments = [
+      'Hello world. ',
+      '一段中文。',
+      'A question? ',
+      '\n\n',
+      '## Head\n',
+      '```\ncode\n```\n',
+      '   ',
+      'tail',
+      '12.5 km. ',
+      '|'
+    ]
+    const separators = ['', '\\n\\n', '。', '. ', '|']
+    const strategies = ['structured', 'delimiter'] as const
+    // Deterministic LCG so the fuzz is reproducible without Math.random.
+    let seed = 0x13572468
+    const rand = () => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff
+      return seed / 0x7fffffff
+    }
+
+    for (let iter = 0; iter < 80; iter++) {
+      const pieces = Math.floor(rand() * 30)
+      let text = ''
+      for (let p = 0; p < pieces; p++) {
+        text += fragments[Math.floor(rand() * fragments.length)]
+      }
+      const chunkSize = 1 + Math.floor(rand() * 30)
+      const chunkOverlap = Math.floor(rand() * chunkSize)
+      const separator = separators[Math.floor(rand() * separators.length)]
+      const strategy = strategies[Math.floor(rand() * strategies.length)]
+      const chunks = splitTextWithOffsets(text, { chunkSize, chunkOverlap, separator, strategy })
+      expectVerbatimSlices(text, chunks)
+    }
+  })
+})

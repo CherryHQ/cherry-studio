@@ -32,6 +32,10 @@ vi.mock('@logger', () => ({
   }
 }))
 
+vi.mock('@main/services/readableContent', () => ({
+  readableContentService: { extractReadableMarkdown: vi.fn() }
+}))
+
 import { WebSearchService } from '../WebSearchService'
 
 const runtimeConfig: WebSearchExecutionConfig = {
@@ -417,9 +421,11 @@ describe('WebSearchService', () => {
   it('logs and throws when a default provider is not configured', async () => {
     setWebSearchPreferences({ defaultSearchKeywordsProvider: null })
 
-    await expect(webSearchService.searchKeywords({ keywords: ['hello'] })).rejects.toThrow(
-      'Default web search provider is not configured for capability searchKeywords'
-    )
+    await expect(webSearchService.searchKeywords({ keywords: ['hello'] })).rejects.toMatchObject({
+      name: 'WebSearchConfigError',
+      code: 'provider_not_configured',
+      message: 'Default web search provider is not configured for capability searchKeywords'
+    })
 
     expect(loggerErrorMock).toHaveBeenCalledWith(
       'Web search failed',
@@ -434,9 +440,11 @@ describe('WebSearchService', () => {
   })
 
   it('logs and throws when a provider does not implement the requested capability', async () => {
-    await expect(webSearchService.searchKeywords({ providerId: 'fetch', keywords: ['hello'] })).rejects.toThrow(
-      'Web search provider fetch does not support capability searchKeywords'
-    )
+    await expect(webSearchService.searchKeywords({ providerId: 'fetch', keywords: ['hello'] })).rejects.toMatchObject({
+      name: 'WebSearchConfigError',
+      code: 'capability_unsupported',
+      message: 'Web search provider fetch does not support capability searchKeywords'
+    })
 
     expect(loggerErrorMock).toHaveBeenCalledWith(
       'Web search failed',
@@ -453,9 +461,11 @@ describe('WebSearchService', () => {
   it('logs and throws when provider metadata supports a missing driver capability', async () => {
     createWebSearchProviderMock.mockReturnValue({})
 
-    await expect(webSearchService.searchKeywords({ providerId: 'tavily', keywords: ['hello'] })).rejects.toThrow(
-      'Web search provider tavily does not implement capability searchKeywords'
-    )
+    await expect(webSearchService.searchKeywords({ providerId: 'tavily', keywords: ['hello'] })).rejects.toMatchObject({
+      name: 'WebSearchConfigError',
+      code: 'capability_unsupported',
+      message: 'Web search provider tavily does not implement capability searchKeywords'
+    })
 
     expect(loggerErrorMock).toHaveBeenCalledWith(
       'Web search failed',

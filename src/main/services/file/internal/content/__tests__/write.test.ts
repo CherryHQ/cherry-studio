@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
@@ -22,8 +22,7 @@ const mockLoggerError = mockMainLoggerService.error
 const { application } = await import('@application')
 const { fileEntryService } = await import('@data/services/FileEntryService')
 const { fileRefService } = await import('@data/services/FileRefService')
-const { createDefaultOrphanCheckerRegistry } = await import('@main/services/file/orphanCheckerRegistry')
-const { write, writeIfUnchanged, writeByPath } = await import('../write')
+const { write, writeIfUnchanged } = await import('../write')
 const { createInternal, ensureExternal } = await import('../../entry/create')
 const { StaleVersionError } = await import('../../../FileManager')
 
@@ -72,8 +71,7 @@ describe('internal/content/write', () => {
           cacheStore.delete(id as string)
         }),
         clear: vi.fn(() => cacheStore.clear())
-      },
-      orphanRegistry: createDefaultOrphanCheckerRegistry()
+      }
     }
   })
 
@@ -92,7 +90,7 @@ describe('internal/content/write', () => {
       })
       const next = await write(deps, e.id, new Uint8Array([0x01, 0x02, 0x03]))
       expect(next.size).toBe(3)
-      const refreshed = await fileEntryService.getById(e.id)
+      const refreshed = fileEntryService.getById(e.id)
       if (refreshed.origin !== 'internal') throw new Error('expected internal entry')
       expect(refreshed.size).toBe(3)
       expect(cacheStore.get(e.id)).toEqual(next)
@@ -101,11 +99,11 @@ describe('internal/content/write', () => {
     it('overwrites external file content; DB size stays null for external rows', async () => {
       const file = path.join(tmp, 'ext.txt')
       await writeFile(file, 'old')
-      const e = await ensureExternal(deps, { externalPath: file as FilePath })
+      const e = await ensureExternal(deps, { externalPath: file as AbsoluteFilePath })
       const next = await write(deps, e.id, 'new-payload')
       expect(next.size).toBe('new-payload'.length)
       expect(await readFile(file, 'utf-8')).toBe('new-payload')
-      const refreshed = await fileEntryService.getById(e.id)
+      const refreshed = fileEntryService.getById(e.id)
       // External BO has no `size` field by construction (live values come
       // from File IPC `getMetadata`). The DB row still stores `size: null`.
       expect(refreshed.origin).toBe('external')
@@ -125,7 +123,9 @@ describe('internal/content/write', () => {
         ext: 'bin'
       })
       const updateErr = new Error('SQLITE_BUSY: database is locked')
-      vi.spyOn(fileEntryService, 'update').mockRejectedValueOnce(updateErr)
+      vi.spyOn(fileEntryService, 'update').mockImplementationOnce(() => {
+        throw updateErr
+      })
       mockLoggerError.mockClear()
 
       await expect(write(deps, e.id, new Uint8Array([0xaa, 0xbb, 0xcc]))).rejects.toBe(updateErr)
@@ -145,7 +145,7 @@ describe('internal/content/write', () => {
   describe('writeIfUnchanged', () => {
     it('writes when expected matches current', async () => {
       const e = await createInternal(deps, { source: 'bytes', data: new Uint8Array([1]), name: 'a', ext: 'bin' })
-      const physical = path.join(filesDir, `${e.id}.bin`) as FilePath
+      const physical = path.join(filesDir, `${e.id}.bin`) as AbsoluteFilePath
       const { stat: fsStat } = await import('node:fs/promises')
       const s = await fsStat(physical)
       const expected: FileVersion = { mtime: Math.floor(s.mtimeMs), size: s.size }
@@ -169,7 +169,7 @@ describe('internal/content/write', () => {
       })
       // Poison the cache with a stale version
       cacheStore.set(e.id, { mtime: 0, size: 9999 })
-      const physical = path.join(filesDir, `${e.id}.bin`) as FilePath
+      const physical = path.join(filesDir, `${e.id}.bin`) as AbsoluteFilePath
       const { stat: fsStat } = await import('node:fs/promises')
       const s = await fsStat(physical)
       const expected: FileVersion = { mtime: Math.floor(s.mtimeMs), size: s.size }
@@ -185,7 +185,7 @@ describe('internal/content/write', () => {
         name: 'a',
         ext: 'bin'
       })
-      const physical = path.join(filesDir, `${e.id}.bin`) as FilePath
+      const physical = path.join(filesDir, `${e.id}.bin`) as AbsoluteFilePath
       await utimes(physical, 1700000000, 1700000000)
       const expected: FileVersion = { mtime: 1700000000_000, size: 4 }
       const next = await writeIfUnchanged(deps, e.id, new Uint8Array([5, 6, 7, 8]), expected)
@@ -200,11 +200,11 @@ describe('internal/content/write', () => {
         name: 'hash-match',
         ext: 'bin'
       })
-      const physical = path.join(filesDir, `${e.id}.bin`) as FilePath
+      const physical = path.join(filesDir, `${e.id}.bin`) as AbsoluteFilePath
       await utimes(physical, 1700000000, 1700000000)
       // Caller pre-computed the hash from a prior read; supplies it to opt
       // into the hash fallback on this ambiguous-mtime filesystem.
-      const { hash } = await import('@main/utils/file/fs')
+      const { hash } = await import('@main/utils/file')
       const actualHash = await hash(physical)
       const expected: FileVersion = { mtime: 1700000000_000, size: 4 }
       const next = await writeIfUnchanged(deps, e.id, new Uint8Array([9, 8, 7, 6]), expected, actualHash)
@@ -219,7 +219,7 @@ describe('internal/content/write', () => {
         name: 'hash-mismatch',
         ext: 'bin'
       })
-      const physical = path.join(filesDir, `${e.id}.bin`) as FilePath
+      const physical = path.join(filesDir, `${e.id}.bin`) as AbsoluteFilePath
       await utimes(physical, 1700000000, 1700000000)
       const expected: FileVersion = { mtime: 1700000000_000, size: 4 }
       // Wrong xxhash-h64 hex (16 chars). With ambiguous mtime + matching size,
@@ -233,16 +233,6 @@ describe('internal/content/write', () => {
     })
   })
 
-  describe('writeByPath', () => {
-    it('writes content to a path without DB or cache mutation', async () => {
-      const target = path.join(tmp, 'naked.txt')
-      await writeFile(target, 'old')
-      await writeByPath(deps, target as FilePath, 'new-content')
-      expect(await readFile(target, 'utf-8')).toBe('new-content')
-      expect(cacheStore.size).toBe(0)
-    })
-  })
-
   describe('createWriteStream post-commit metadata sync', () => {
     it('updates DB size and version cache after the stream finishes (internal)', async () => {
       const { createWriteStream } = await import('../write')
@@ -252,7 +242,7 @@ describe('internal/content/write', () => {
         name: 'b',
         ext: 'bin'
       })
-      const stream = await createWriteStream(deps, e.id)
+      const stream = createWriteStream(deps, e.id)
       const payload = Buffer.from([0x10, 0x20, 0x30, 0x40, 0x50])
       stream.write(payload)
       stream.end()
@@ -265,7 +255,7 @@ describe('internal/content/write', () => {
       // round-tripping through Drizzle when `'finish'` fires. Poll the DB and
       // cache until the metadata sync lands (slow CI runners need this).
       await vi.waitFor(async () => {
-        const refreshed = await fileEntryService.getById(e.id)
+        const refreshed = fileEntryService.getById(e.id)
         if (refreshed.origin !== 'internal') throw new Error('expected internal entry')
         expect(refreshed.size).toBe(payload.length)
         expect(cacheStore.get(e.id)?.size).toBe(payload.length)
@@ -276,8 +266,8 @@ describe('internal/content/write', () => {
       const { createWriteStream } = await import('../write')
       const file = path.join(tmp, 'ext-stream.txt')
       await writeFile(file, 'seed')
-      const e = await ensureExternal(deps, { externalPath: file as FilePath })
-      const stream = await createWriteStream(deps, e.id)
+      const e = await ensureExternal(deps, { externalPath: file as AbsoluteFilePath })
+      const stream = createWriteStream(deps, e.id)
       stream.write(Buffer.from('updated payload'))
       stream.end()
       await new Promise<void>((resolve, reject) => {
@@ -290,7 +280,7 @@ describe('internal/content/write', () => {
       await vi.waitFor(() => {
         expect(cacheStore.get(e.id)?.size).toBe('updated payload'.length)
       })
-      const refreshed = await fileEntryService.getById(e.id)
+      const refreshed = fileEntryService.getById(e.id)
       // External BO has no `size` field by construction (live values come from
       // File IPC `getMetadata`); the DB still stores `size: null` per CHECK.
       expect(refreshed.origin).toBe('external')
@@ -304,7 +294,7 @@ describe('internal/content/write', () => {
       // Sentry can group these — a downgrade to .message string would slip
       // through CI without this assertion.
       const { createWriteStream } = await import('../write')
-      const fsModule = await import('@main/utils/file/fs')
+      const fsModule = await import('@main/utils/file')
       const e = await createInternal(deps, {
         source: 'bytes',
         data: new Uint8Array([0x01]),
@@ -314,7 +304,7 @@ describe('internal/content/write', () => {
       mockLoggerError.mockClear()
       const statErr = new Error('post-commit stat boom')
       vi.spyOn(fsModule, 'stat').mockRejectedValue(statErr)
-      const stream = await createWriteStream(deps, e.id)
+      const stream = createWriteStream(deps, e.id)
       stream.write(Buffer.from('payload'))
       stream.end()
       await new Promise<void>((resolve, reject) => {

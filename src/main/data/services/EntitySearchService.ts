@@ -4,7 +4,7 @@ import { assistantDataService } from '@data/services/AssistantService'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api'
+import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type {
   EntitySearchGroup,
   EntitySearchQuery,
@@ -38,7 +38,7 @@ function withTypeContext(type: EntitySearchType, error: unknown) {
 }
 
 export class EntitySearchService {
-  async search(query: EntitySearchQuery): Promise<EntitySearchResponse> {
+  search(query: EntitySearchQuery): EntitySearchResponse {
     const requestedTypes = new Set(query.types ?? entitySearchTypes)
     const types = entitySearchTypes.filter((type) => requestedTypes.has(type))
     const updatedAtFromMs = getUpdatedAtFromMs(query.updatedAtFrom)
@@ -46,7 +46,7 @@ export class EntitySearchService {
 
     // Federated entity search is all-or-nothing: one failed type makes the query fail
     // with type context instead of returning a silent partial read model.
-    const groups = await Promise.all(types.map((type) => this.searchType(type, query.q, limit, updatedAtFromMs)))
+    const groups = types.map((type) => this.searchType(type, query.q, limit, updatedAtFromMs))
 
     return {
       query: query.q,
@@ -54,34 +54,34 @@ export class EntitySearchService {
     }
   }
 
-  private async searchType(
+  private searchType(
     type: EntitySearchType,
     q: string,
     limit: number,
     updatedAtFromMs: number | undefined
-  ): Promise<EntitySearchGroup> {
+  ): EntitySearchGroup {
     const input = { q, limit, updatedAtFrom: updatedAtFromMs }
 
     try {
-      return await this.searchTypeUnchecked(type, input)
+      return this.searchTypeUnchecked(type, input)
     } catch (error) {
       logger.error('entity search type failed', { type, error })
       throw withTypeContext(type, error)
     }
   }
 
-  private async searchTypeUnchecked(type: EntitySearchType, input: EntitySearchInput): Promise<EntitySearchGroup> {
+  private searchTypeUnchecked(type: EntitySearchType, input: EntitySearchInput): EntitySearchGroup {
     switch (type) {
       case 'assistant':
-        return { type, items: await assistantDataService.search(input) }
+        return { type, items: assistantDataService.search(input) }
       case 'agent':
-        return { type, items: await agentService.search(input) }
+        return { type, items: agentService.search(input) }
       case 'topic':
-        return { type, items: await topicService.search(input) }
+        return { type, items: topicService.search(input) }
       case 'session':
-        return { type, items: await agentSessionService.search(input) }
+        return { type, items: agentSessionService.search(input) }
       case 'knowledge-base':
-        return { type, items: await knowledgeBaseService.search(input) }
+        return { type, items: knowledgeBaseService.search(input) }
       default: {
         const exhaustive: never = type
         throw new Error(`Unknown entity search type: ${exhaustive}`)

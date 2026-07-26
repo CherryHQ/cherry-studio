@@ -3,7 +3,7 @@ import { closestCenter } from '@dnd-kit/core'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import type { Provider } from '@shared/data/types/provider'
-import { type ReactNode, useMemo } from 'react'
+import { type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { groupProvidersByPreset } from './providerGrouping'
@@ -25,6 +25,7 @@ interface ProviderListContentProps {
   onDragStateChange: (nextDragging: boolean) => void
   onReorder: (reorderedProviders: Provider[]) => void | Promise<void>
   onReorderError?: (error: unknown) => void
+  addButton?: ReactNode
   renderItem: (provider: Provider, index: number, state: ProviderListContentItemState) => ReactNode
 }
 
@@ -100,15 +101,60 @@ export default function ProviderListContent({
   onDragStateChange,
   onReorder,
   onReorderError,
+  addButton,
   renderItem
 }: ProviderListContentProps) {
   const { t } = useTranslation()
+  const internalScrollerRef = useRef<HTMLDivElement | null>(null)
+  const mainContentRef = useRef<HTMLDivElement | null>(null)
+  const [showBottomAddButton, setShowBottomAddButton] = useState(false)
   const entries = useMemo(() => groupProvidersByPreset(visibleProviders), [visibleProviders])
   const hasResults = visibleProviders.length > 0
   const visibleIndexById = useMemo(
     () => new Map(visibleProviders.map((provider, index) => [provider.id, index])),
     [visibleProviders]
   )
+
+  const updateBottomAddVisibility = useCallback(() => {
+    const scroller = internalScrollerRef.current
+    const mainContent = mainContentRef.current
+    const shouldShow =
+      !!addButton && !!scroller && !!mainContent && mainContent.scrollHeight > scroller.clientHeight + 1
+    setShowBottomAddButton((prev) => (prev === shouldShow ? prev : shouldShow))
+  }, [addButton])
+
+  const setScrollbarRef = useCallback(
+    (element: HTMLDivElement | null) => {
+      internalScrollerRef.current = element
+      scrollerRef?.(element)
+    },
+    [scrollerRef]
+  )
+
+  useLayoutEffect(() => {
+    updateBottomAddVisibility()
+  })
+
+  useEffect(() => {
+    const scroller = internalScrollerRef.current
+    const mainContent = mainContentRef.current
+
+    if (!scroller || !mainContent) {
+      return
+    }
+
+    updateBottomAddVisibility()
+
+    if (typeof ResizeObserver === 'function') {
+      const resizeObserver = new ResizeObserver(updateBottomAddVisibility)
+      resizeObserver.observe(scroller)
+      resizeObserver.observe(mainContent)
+      return () => resizeObserver.disconnect()
+    }
+
+    window.addEventListener('resize', updateBottomAddVisibility)
+    return () => window.removeEventListener('resize', updateBottomAddVisibility)
+  }, [updateBottomAddVisibility])
 
   const renderFlat = () => (
     <ReorderableList
@@ -225,14 +271,18 @@ export default function ProviderListContent({
   const hasAnyGroup = entries.some((entry) => entry.kind === 'group')
 
   return (
-    <Scrollbar ref={scrollerRef} className={providerListClasses.scroller}>
-      {hasResults ? (
-        <div className={providerListClasses.sectionStack}>
-          <section className={providerListClasses.section}>{hasAnyGroup ? renderGrouped() : renderFlat()}</section>
+    <Scrollbar ref={setScrollbarRef} className={providerListClasses.scroller}>
+      <div className={providerListClasses.sectionStack}>
+        <div ref={mainContentRef} className={providerListClasses.sectionStack} data-provider-list-main-content>
+          {addButton}
+          {hasResults ? (
+            <section className={providerListClasses.section}>{hasAnyGroup ? renderGrouped() : renderFlat()}</section>
+          ) : (
+            <div className={providerListClasses.emptyState}>{t('common.no_results')}</div>
+          )}
         </div>
-      ) : (
-        <div className={providerListClasses.emptyState}>{t('common.no_results')}</div>
-      )}
+        {showBottomAddButton ? <div className={providerListClasses.addBottomWrap}>{addButton}</div> : null}
+      </div>
     </Scrollbar>
   )
 }

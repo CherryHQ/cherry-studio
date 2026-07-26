@@ -1,7 +1,7 @@
 import { noteTable } from '@data/db/schemas/note'
 import { NoteService, noteService } from '@data/services/NoteService'
-import type { DataApiError } from '@shared/data/api'
-import { ErrorCode } from '@shared/data/api'
+import type { DataApiError } from '@shared/data/api/errors'
+import { ErrorCode } from '@shared/data/api/errors'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
@@ -24,17 +24,17 @@ describe('NoteService', () => {
   })
 
   it('should upsert and list note scoped by root path', async () => {
-    const first = await noteService.upsert({
+    const first = noteService.upsert({
       rootPath: ROOT_A,
       path: NOTE,
       isStarred: true
     })
-    const second = await noteService.upsert({
+    const second = noteService.upsert({
       rootPath: ROOT_A,
       path: NOTE,
       isExpanded: true
     })
-    await noteService.upsert({
+    noteService.upsert({
       rootPath: ROOT_B,
       path: NOTE,
       isStarred: true
@@ -50,50 +50,56 @@ describe('NoteService', () => {
     expect(second.isStarred).toBe(true)
     expect(second.isExpanded).toBe(true)
 
-    const rows = await noteService.listByRoot(ROOT_A)
+    const rows = noteService.listByRoot(ROOT_A)
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({ rootPath: ROOT_A, path: NOTE, isStarred: true, isExpanded: true })
   })
 
   it('should reject note upserts without fields', async () => {
-    await expect(noteService.upsert({ rootPath: ROOT_A, path: NOTE })).rejects.toMatchObject({
+    let err: unknown
+    try {
+      noteService.upsert({ rootPath: ROOT_A, path: NOTE })
+    } catch (e) {
+      err = e
+    }
+    expect(err).toMatchObject({
       code: ErrorCode.VALIDATION_ERROR
     } satisfies Partial<DataApiError>)
   })
 
   it('should delete rows when all note flags are false', async () => {
-    await noteService.upsert({ rootPath: ROOT_A, path: NOTE, isStarred: true })
-    await expect(noteService.upsert({ rootPath: ROOT_A, path: NOTE, isStarred: false })).resolves.toBeNull()
+    noteService.upsert({ rootPath: ROOT_A, path: NOTE, isStarred: true })
+    expect(noteService.upsert({ rootPath: ROOT_A, path: NOTE, isStarred: false })).toBeNull()
 
-    expect(await noteService.listByRoot(ROOT_A)).toHaveLength(0)
+    expect(noteService.listByRoot(ROOT_A)).toHaveLength(0)
 
-    await noteService.upsert({ rootPath: ROOT_A, path: FOLDER, isExpanded: true })
-    await noteService.upsert({ rootPath: ROOT_A, path: FOLDER, isStarred: false })
+    noteService.upsert({ rootPath: ROOT_A, path: FOLDER, isExpanded: true })
+    noteService.upsert({ rootPath: ROOT_A, path: FOLDER, isStarred: false })
 
-    const expandedRows = await noteService.listByRoot(ROOT_A)
+    const expandedRows = noteService.listByRoot(ROOT_A)
     expect(expandedRows).toHaveLength(1)
     expect(expandedRows[0]).toMatchObject({ path: FOLDER, isStarred: false, isExpanded: true })
 
-    await expect(noteService.upsert({ rootPath: ROOT_A, path: FOLDER, isExpanded: false })).resolves.toBeNull()
+    expect(noteService.upsert({ rootPath: ROOT_A, path: FOLDER, isExpanded: false })).toBeNull()
 
-    expect(await noteService.listByRoot(ROOT_A)).toHaveLength(0)
+    expect(noteService.listByRoot(ROOT_A)).toHaveLength(0)
 
-    await expect(
+    expect(
       noteService.upsert({
         rootPath: ROOT_A,
         path: '/Users/test/Notes/missing.md',
         isStarred: false,
         isExpanded: false
       })
-    ).resolves.toBeNull()
-    await expect(
+    ).toBeNull()
+    expect(
       noteService.upsert({
         rootPath: ROOT_A,
         path: '/Users/test/Notes/other-missing.md',
         isExpanded: false
       })
-    ).resolves.toBeNull()
-    expect(await noteService.listByRoot(ROOT_A)).toHaveLength(0)
+    ).toBeNull()
+    expect(noteService.listByRoot(ROOT_A)).toHaveLength(0)
   })
 
   it('should reject note rows where both persisted flags are false', async () => {
@@ -108,11 +114,11 @@ describe('NoteService', () => {
   })
 
   it('should delete a path recursively when requested', async () => {
-    await noteService.upsert({ rootPath: ROOT_A, path: FOLDER, isExpanded: true })
-    await noteService.upsert({ rootPath: ROOT_A, path: NOTE, isStarred: true })
-    await noteService.upsert({ rootPath: ROOT_A, path: SIBLING_FOLDER, isExpanded: true })
+    noteService.upsert({ rootPath: ROOT_A, path: FOLDER, isExpanded: true })
+    noteService.upsert({ rootPath: ROOT_A, path: NOTE, isStarred: true })
+    noteService.upsert({ rootPath: ROOT_A, path: SIBLING_FOLDER, isExpanded: true })
 
-    await noteService.deleteByPath({ rootPath: ROOT_A, path: FOLDER, recursive: true })
+    noteService.deleteByPath({ rootPath: ROOT_A, path: FOLDER, recursive: true })
 
     const rows = await dbh.db.select().from(noteTable).where(eq(noteTable.rootPath, ROOT_A))
     expect(rows).toHaveLength(1)
@@ -120,10 +126,10 @@ describe('NoteService', () => {
   })
 
   it('should rewrite a single file path without touching descendants', async () => {
-    await noteService.upsert({ rootPath: ROOT_A, path: NOTE, isStarred: true })
-    await noteService.upsert({ rootPath: ROOT_A, path: `${NOTE}/child.md`, isStarred: true })
+    noteService.upsert({ rootPath: ROOT_A, path: NOTE, isStarred: true })
+    noteService.upsert({ rootPath: ROOT_A, path: `${NOTE}/child.md`, isStarred: true })
 
-    const result = await noteService.rewritePath({
+    const result = noteService.rewritePath({
       rootPath: ROOT_A,
       fromPath: NOTE,
       toPath: '/Users/test/Notes/Folder/b.md',
@@ -137,11 +143,11 @@ describe('NoteService', () => {
   })
 
   it('should rewrite folder paths recursively', async () => {
-    await noteService.upsert({ rootPath: ROOT_A, path: FOLDER, isExpanded: true })
-    await noteService.upsert({ rootPath: ROOT_A, path: NOTE, isStarred: true })
-    await noteService.upsert({ rootPath: ROOT_A, path: SIBLING_FOLDER, isExpanded: true })
+    noteService.upsert({ rootPath: ROOT_A, path: FOLDER, isExpanded: true })
+    noteService.upsert({ rootPath: ROOT_A, path: NOTE, isStarred: true })
+    noteService.upsert({ rootPath: ROOT_A, path: SIBLING_FOLDER, isExpanded: true })
 
-    const result = await noteService.rewritePath({
+    const result = noteService.rewritePath({
       rootPath: ROOT_A,
       fromPath: FOLDER,
       toPath: RENAMED_FOLDER,
@@ -155,10 +161,10 @@ describe('NoteService', () => {
   })
 
   it('should rewrite emoji folder paths recursively', async () => {
-    await noteService.upsert({ rootPath: ROOT_A, path: EMOJI_FOLDER, isExpanded: true })
-    await noteService.upsert({ rootPath: ROOT_A, path: EMOJI_NOTE, isStarred: true })
+    noteService.upsert({ rootPath: ROOT_A, path: EMOJI_FOLDER, isExpanded: true })
+    noteService.upsert({ rootPath: ROOT_A, path: EMOJI_NOTE, isStarred: true })
 
-    const result = await noteService.rewritePath({
+    const result = noteService.rewritePath({
       rootPath: ROOT_A,
       fromPath: EMOJI_FOLDER,
       toPath: RENAMED_EMOJI_FOLDER,
@@ -171,16 +177,16 @@ describe('NoteService', () => {
   })
 
   it('should rewrite paths when stale target note rows already exist', async () => {
-    await noteService.upsert({ rootPath: ROOT_A, path: FOLDER, isExpanded: true })
-    await noteService.upsert({ rootPath: ROOT_A, path: NOTE, isStarred: true })
-    await noteService.upsert({ rootPath: ROOT_A, path: RENAMED_FOLDER, isExpanded: true })
-    await noteService.upsert({
+    noteService.upsert({ rootPath: ROOT_A, path: FOLDER, isExpanded: true })
+    noteService.upsert({ rootPath: ROOT_A, path: NOTE, isStarred: true })
+    noteService.upsert({ rootPath: ROOT_A, path: RENAMED_FOLDER, isExpanded: true })
+    noteService.upsert({
       rootPath: ROOT_A,
       path: `${RENAMED_FOLDER}/a.md`,
       isStarred: true
     })
 
-    const result = await noteService.rewritePath({
+    const result = noteService.rewritePath({
       rootPath: ROOT_A,
       fromPath: FOLDER,
       toPath: RENAMED_FOLDER,

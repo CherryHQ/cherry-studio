@@ -109,7 +109,7 @@ const noopProps = {
   selectedIds: new Set<string>(),
   onToggleOne: () => undefined,
   onToggleAll: () => undefined,
-  onItemClick: () => undefined,
+  onActivate: () => undefined,
   onDelete: () => undefined,
   onPreviewSource: () => undefined,
   onReindex: () => undefined,
@@ -153,15 +153,15 @@ describe('KnowledgeItemList', () => {
     expect(screen.getByRole('button', { name: 'note-1' })).toBeInTheDocument()
   })
 
-  it('passes onItemClick through to the row click handler', () => {
-    const handleItemClick = vi.fn()
+  it('passes onActivate the full item through to the row click handler', () => {
+    const handleActivate = vi.fn()
     const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
 
-    render(<KnowledgeItemList items={[item]} isLoading={false} {...noopProps} onItemClick={handleItemClick} />)
+    render(<KnowledgeItemList items={[item]} isLoading={false} {...noopProps} onActivate={handleActivate} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'note-1' }))
 
-    expect(handleItemClick).toHaveBeenCalledWith('note-1')
+    expect(handleActivate).toHaveBeenCalledWith(item)
   })
 
   it('passes onDelete through to the row delete handler', () => {
@@ -368,5 +368,6 @@ describe('KnowledgeItemList', () => {
 
     expect(screen.getByRole('grid')).toBeInTheDocument()
     expect(screen.getAllByRole('columnheader').length).toBeGreaterThanOrEqual(5)
+    expect(screen.getAllByRole('columnheader')[0].parentElement).toHaveClass('h-11')
   })
 })

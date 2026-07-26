@@ -4,25 +4,36 @@
 
 import type { VersionBlockReason } from '@data/migration/v2/core/versionPolicy'
 import { loggerService } from '@logger'
-import LegacyBackupManager from '@main/services/LegacyBackupManager'
+import { validateSender } from '@main/core/security/validateSender'
 import {
+  type MigrationDiagnosticSavePayload,
+  type MigrationDiagnosticSaveResult,
+  type MigrationExportFileWriteMode,
   MigrationIpcChannels,
   type MigrationProgress,
   type MigrationResult,
+  type MigrationSummary,
   type StartMigrationPayload
 } from '@shared/data/migration/v2/types'
-import { app, dialog, ipcMain } from 'electron'
+import { app, dialog, ipcMain, type IpcMainInvokeEvent, shell } from 'electron'
 import fs from 'fs/promises'
 import path from 'path'
+import * as z from 'zod'
 
 import { migrationEngine } from '../core/MigrationEngine'
+import { isValidLocalDate } from '../utils/localDate'
 import { migrationWindowManager } from './MigrationWindowManager'
 
 const logger = loggerService.withContext('MigrationIpcHandler')
 const CONCURRENT_MIGRATION_ERROR = 'Migration is already in progress.'
 
 let inFlightMigration: Promise<MigrationResult> | null = null
-const backupManager = new LegacyBackupManager()
+let inFlightDiagnosticSave: Promise<MigrationDiagnosticSaveResult> | null = null
+// Set once a deferred quit has been registered, so repeated confirmations while a migration
+// write is in flight don't stack a second allSettled().then(confirmQuit).
+let quitScheduled = false
+
+let lastSavedDiagnosticBundlePath: string | null = null
 
 // Current migration progress
 let currentProgress: MigrationProgress = {
@@ -32,11 +43,29 @@ let currentProgress: MigrationProgress = {
   migrators: []
 }
 
+// Recovered non-default data directory to surface on the introduction screen.
+// Held separately from currentProgress so it survives Retry (which rebuilds the
+// introduction progress from scratch) instead of vanishing after a failed run.
+let dataLocationNotice: string | null = null
+
+function assertMigrationDiagnosticSender(event: IpcMainInvokeEvent): void {
+  if (!validateSender(event)) throw new Error('Unauthorized migration diagnostic IPC sender.')
+}
+
+const MigrationDiagnosticSavePayloadSchema: z.ZodType<MigrationDiagnosticSavePayload> = z.strictObject({
+  dialogTitle: z.string().trim().min(1).max(120),
+  logDate: z.string().refine(isValidLocalDate)
+})
+
 /**
  * Register all migration IPC handlers
  */
 export function registerMigrationIpcHandlers(userDataPath: string): void {
   logger.info('Registering migration IPC handlers')
+
+  // Wire the window manager's force-quit escape hatch (crash / hang / repeated close) to the same
+  // write-deferral the ConfirmQuit handler uses, so those paths never terminate mid-write.
+  migrationWindowManager.setQuitRequester(requestQuit)
 
   // Get user data path
   ipcMain.handle(MigrationIpcChannels.GetUserDataPath, () => {
@@ -61,114 +90,9 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   // Get last error
   ipcMain.handle(MigrationIpcChannels.GetLastError, async () => {
     try {
-      return await migrationEngine.getLastError()
+      return migrationEngine.getLastError()
     } catch (error) {
       logger.error('Error getting last error', error as Error)
-      throw error
-    }
-  })
-
-  // Proceed to backup stage
-  ipcMain.handle(MigrationIpcChannels.ProceedToBackup, async () => {
-    try {
-      updateProgress({
-        stage: 'backup_required',
-        overallProgress: 0,
-        currentMessage: 'Data backup is required before migration can proceed',
-        migrators: []
-      })
-      return true
-    } catch (error) {
-      logger.error('Error proceeding to backup', error as Error)
-      throw error
-    }
-  })
-
-  // Show Backup Dialog
-  ipcMain.handle(MigrationIpcChannels.ShowBackupDialog, async () => {
-    try {
-      logger.info('Opening backup dialog for migration')
-
-      // Update progress to indicate backup dialog is opening
-      updateProgress({
-        stage: 'backup_progress',
-        overallProgress: 10,
-        currentMessage: 'Opening backup dialog...',
-        migrators: []
-      })
-
-      const result = await dialog.showSaveDialog({
-        title: 'Save Migration Backup',
-        defaultPath: `cherry-studio-migration-backup-${new Date().toISOString().split('T')[0]}.zip`,
-        filters: [
-          { name: 'Backup Files', extensions: ['zip'] },
-          { name: 'All Files', extensions: ['*'] }
-        ]
-      })
-
-      if (!result.canceled && result.filePath) {
-        logger.info('User selected backup location', { filePath: result.filePath })
-        updateProgress({
-          stage: 'backup_progress',
-          overallProgress: 10,
-          currentMessage: 'Creating backup file...',
-          migrators: []
-        })
-
-        // Perform the actual backup to the selected location
-        const backupResult = await performBackupToFile(result.filePath)
-
-        if (backupResult.success) {
-          updateProgress({
-            stage: 'backup_confirmed',
-            overallProgress: 100,
-            currentMessage: 'Backup completed! Ready to start migration. Click "Start Migration" to continue.',
-            migrators: []
-          })
-        } else {
-          updateProgress({
-            stage: 'backup_required',
-            overallProgress: 0,
-            currentMessage: `Backup failed: ${backupResult.error}`,
-            migrators: []
-          })
-        }
-
-        return backupResult
-      } else {
-        logger.info('User cancelled backup dialog')
-        updateProgress({
-          stage: 'backup_required',
-          overallProgress: 0,
-          currentMessage: 'Backup cancelled. Please create a backup to continue.',
-          migrators: []
-        })
-        return { success: false, error: 'Backup cancelled by user' }
-      }
-    } catch (error) {
-      logger.error('Error showing backup dialog', error as Error)
-      updateProgress({
-        stage: 'backup_required',
-        overallProgress: 0,
-        currentMessage: 'Backup process failed',
-        migrators: []
-      })
-      throw error
-    }
-  })
-
-  // Backup completed
-  ipcMain.handle(MigrationIpcChannels.BackupCompleted, async () => {
-    try {
-      updateProgress({
-        stage: 'backup_confirmed',
-        overallProgress: 100,
-        currentMessage: 'Backup completed! Ready to start migration. Click "Start Migration" to continue.',
-        migrators: []
-      })
-      return true
-    } catch (error) {
-      logger.error('Error confirming backup', error as Error)
       throw error
     }
   })
@@ -176,16 +100,26 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
   // Write export file from Renderer
   ipcMain.handle(
     MigrationIpcChannels.WriteExportFile,
-    async (_event, exportPath: string, tableName: string, jsonData: string) => {
+    async (
+      _event,
+      exportPath: string,
+      tableName: string,
+      jsonData: string,
+      writeMode: MigrationExportFileWriteMode = 'overwrite'
+    ) => {
       try {
         // Ensure export directory exists
         await fs.mkdir(exportPath, { recursive: true })
 
         // Write table data to file
         const filePath = path.join(exportPath, `${tableName}.json`)
-        await fs.writeFile(filePath, jsonData, 'utf-8')
+        if (writeMode === 'append') {
+          await fs.appendFile(filePath, jsonData, 'utf-8')
+        } else {
+          await fs.writeFile(filePath, jsonData, 'utf-8')
+        }
 
-        logger.info('Export file written', { tableName, filePath })
+        logger.debug('Export file chunk written', { tableName, filePath, writeMode, chunkLength: jsonData.length })
         return true
       } catch (error) {
         logger.error('Error writing export file', error as Error)
@@ -193,6 +127,67 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
       }
     }
   )
+
+  ipcMain.handle(
+    MigrationIpcChannels.SaveDiagnosticBundle,
+    async (event: IpcMainInvokeEvent, payload: unknown): Promise<MigrationDiagnosticSaveResult> => {
+      assertMigrationDiagnosticSender(event)
+      const parsedPayload = MigrationDiagnosticSavePayloadSchema.safeParse(payload)
+      if (!parsedPayload.success) throw new Error('Invalid migration diagnostic save payload.')
+      const { dialogTitle, logDate } = parsedPayload.data
+      const stage = currentProgress.stage
+      if (stage !== 'error' && stage !== 'version_incompatible') {
+        throw new Error('Invalid migration diagnostic stage.')
+      }
+      if (inFlightDiagnosticSave) return { status: 'failed' }
+
+      const savePromise: Promise<MigrationDiagnosticSaveResult> = (async () => {
+        const { canceled, filePath } = await dialog.showSaveDialog({
+          title: dialogTitle,
+          defaultPath: 'cherry-studio-migration-diagnostics.zip',
+          filters: [{ name: 'ZIP', extensions: ['zip'] }],
+          properties: ['createDirectory', 'showOverwriteConfirmation']
+        })
+        if (canceled || !filePath) return { status: 'canceled' }
+
+        try {
+          const { saveMigrationDiagnosticBundle } = await import('../migrationDiagnosticBundle')
+          const logs = await saveMigrationDiagnosticBundle({
+            destination: filePath,
+            stage,
+            logDate
+          })
+          if (!logs) return { status: 'failed' }
+          lastSavedDiagnosticBundlePath = filePath
+          return { status: 'saved', logs }
+        } catch (error) {
+          logger.error('Failed to save migration diagnostic bundle', error as Error)
+          return { status: 'failed' }
+        }
+      })()
+      inFlightDiagnosticSave = savePromise
+      try {
+        return await savePromise
+      } finally {
+        if (inFlightDiagnosticSave === savePromise) {
+          inFlightDiagnosticSave = null
+        }
+      }
+    }
+  )
+
+  ipcMain.handle(MigrationIpcChannels.ShowDiagnosticBundleInFolder, async (event: IpcMainInvokeEvent) => {
+    assertMigrationDiagnosticSender(event)
+    if (!lastSavedDiagnosticBundlePath) return false
+    try {
+      await fs.access(lastSavedDiagnosticBundlePath)
+      shell.showItemInFolder(lastSavedDiagnosticBundlePath)
+      return true
+    } catch (error) {
+      logger.warn('Failed to show migration diagnostic bundle in folder', error as Error)
+      return false
+    }
+  })
 
   // Start the migration process
   ipcMain.handle(MigrationIpcChannels.StartMigration, async (_event, payload: StartMigrationPayload) => {
@@ -215,6 +210,18 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
         updateProgress(progress)
       })
 
+      // Flip to the protected `migration` stage before running the engine. run() synchronously
+      // clears all v2 tables (verifyAndClearNewTables) before emitting its first progress tick, so
+      // without this the destructive clear would execute while still on the unprotected
+      // `introduction` stage — a window close there would quit immediately, bypassing the
+      // ConfirmQuit write-deferral. The engine's first tick overwrites this shortly after.
+      updateProgress({
+        stage: 'migration',
+        overallProgress: 0,
+        currentMessage: 'Starting migration…',
+        migrators: []
+      })
+
       // Run migration
       runPromise = migrationEngine.run(reduxData, dexieExportPath, localStorageExportPath)
       inFlightMigration = runPromise
@@ -223,14 +230,15 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
 
       if (result.success) {
         updateProgress({
-          stage: 'migration_completed',
+          stage: 'completed',
           overallProgress: 100,
-          currentMessage: 'Migration completed successfully! Please confirm to continue.',
+          currentMessage: 'Migration completed successfully!',
           migrators: currentProgress.migrators.map((m) => ({
             ...m,
             status: 'completed'
           })),
-          warnings: result.migratorResults.flatMap((migratorResult) => migratorResult.warnings ?? [])
+          warnings: result.migratorResults.flatMap((migratorResult) => migratorResult.warnings ?? []),
+          summary: createMigrationSummary(result, currentProgress)
         })
       } else {
         updateProgress({
@@ -267,15 +275,29 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
     }
   })
 
+  // Mirror renderer-local failures into main so close handling sees the terminal error stage.
+  ipcMain.handle(MigrationIpcChannels.ReportError, (_event, message: string) => {
+    updateProgress({
+      stage: 'error',
+      overallProgress: currentProgress.overallProgress,
+      currentMessage: message,
+      migrators: currentProgress.migrators,
+      error: message
+    })
+    return true
+  })
+
   // Retry migration
   ipcMain.handle(MigrationIpcChannels.Retry, async () => {
     try {
-      // Reset to backup confirmed stage
+      // Reset to the introduction stage so the user can re-trigger migration from its Start button.
+      // Carry the data-location notice back so it doesn't disappear after a failed export.
       updateProgress({
-        stage: 'backup_confirmed',
+        stage: 'introduction',
         overallProgress: 0,
         currentMessage: 'Ready to retry migration',
-        migrators: []
+        migrators: [],
+        ...(dataLocationNotice ? { dataLocation: dataLocationNotice } : {})
       })
       return true
     } catch (error) {
@@ -322,6 +344,31 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
       throw error
     }
   })
+
+  // Minimize the migration window (custom control on Windows/Linux)
+  ipcMain.handle(MigrationIpcChannels.Minimize, () => {
+    migrationWindowManager.minimize()
+    return true
+  })
+
+  // Request a user-initiated close (custom control on Windows/Linux). Routes through the
+  // native close event so the in-flow confirmation applies.
+  ipcMain.handle(MigrationIpcChannels.CloseWindow, () => {
+    migrationWindowManager.requestClose()
+    return true
+  })
+
+  // User confirmed quit from the renderer's in-flow close dialog. Returns true when quitting
+  // immediately, false when deferred (an active write must settle first) — the renderer uses this
+  // to show the "app will close when the current step finishes" notice.
+  ipcMain.handle(MigrationIpcChannels.ConfirmQuit, () => requestQuit())
+
+  // Renderer dismissed the in-flow close dialog without quitting (Continue / Esc / backdrop).
+  // Drop the pending-close flag so the next close re-prompts instead of force-quitting.
+  ipcMain.handle(MigrationIpcChannels.CancelClose, () => {
+    migrationWindowManager.clearCloseConfirm()
+    return true
+  })
 }
 
 /**
@@ -334,14 +381,59 @@ export function unregisterMigrationIpcHandlers(): void {
   for (const channel of channels) {
     ipcMain.removeHandler(channel)
   }
+
+  migrationWindowManager.setQuitRequester(null)
 }
 
 /**
- * Update progress and broadcast to window
+ * Update progress and broadcast to window.
  */
 function updateProgress(progress: MigrationProgress): void {
   currentProgress = progress
+  migrationWindowManager.setStage(progress.stage)
   migrationWindowManager.send(MigrationIpcChannels.Progress, progress)
+}
+
+/**
+ * Request an app quit. If a migration write is still in flight, defer the quit until it settles so
+ * we never terminate mid-write (which would leave a half-applied migration). Returns true when
+ * quitting immediately, false when deferred.
+ *
+ * Shared by the ConfirmQuit IPC handler (renderer's in-flow dialog) and the window manager's
+ * force-quit escape hatch (crash / hang / repeated close), so every quit path inherits the same
+ * write-safety. The `quitScheduled` guard dedups repeated triggers into a single deferred quit.
+ */
+function requestQuit(): boolean {
+  const pending: Promise<unknown>[] = []
+  if (inFlightMigration) pending.push(inFlightMigration)
+
+  if (pending.length === 0) {
+    migrationWindowManager.confirmQuit()
+    return true
+  }
+
+  if (!quitScheduled) {
+    quitScheduled = true
+    logger.info('Quit requested during an active write; deferring until it settles')
+    void Promise.allSettled(pending).then(() => {
+      migrationWindowManager.confirmQuit()
+    })
+  }
+  return false
+}
+
+/**
+ * Seed completion-screen summary stats from the migration result + final progress.
+ * The renderer owns the user-visible migration-stage duration and may replace
+ * `durationMs` before rendering the completion screen.
+ */
+function createMigrationSummary(result: MigrationResult, progress: MigrationProgress): MigrationSummary {
+  return {
+    completedMigrators: result.migratorResults.length,
+    totalMigrators: progress.migrators.length || result.migratorResults.length,
+    itemsProcessed: result.migratorResults.reduce((sum, r) => sum + r.recordsProcessed, 0),
+    durationMs: result.totalDuration
+  }
 }
 
 /**
@@ -349,6 +441,10 @@ function updateProgress(progress: MigrationProgress): void {
  */
 export function resetMigrationData(): void {
   inFlightMigration = null
+  inFlightDiagnosticSave = null
+  quitScheduled = false
+  dataLocationNotice = null
+  lastSavedDiagnosticBundlePath = null
   currentProgress = {
     stage: 'introduction',
     overallProgress: 0,
@@ -373,39 +469,12 @@ export function setVersionIncompatible(reason: VersionBlockReason, details: Reco
 }
 
 /**
- * Perform backup to a specific file location
+ * Seed the recovered non-default data directory so the introduction screen can
+ * show a "data migration directory" notice. Must be called BEFORE
+ * registerMigrationIpcHandlers() so the renderer picks it up via GetProgress on
+ * mount. Also retained across Retry (see the Retry handler).
  */
-async function performBackupToFile(filePath: string): Promise<{ success: boolean; error?: string }> {
-  try {
-    logger.info('Performing backup to file', { filePath })
-
-    // Extract directory and filename from the full path
-    const destinationDir = path.dirname(filePath)
-    const fileName = path.basename(filePath)
-
-    // Use the existing backup manager to create a backup
-    const backupPath = await backupManager.backup(
-      null as any, // IpcMainInvokeEvent - we're calling directly so pass null
-      fileName,
-      destinationDir,
-      false // Don't skip backup files - full backup for migration safety
-    )
-
-    if (backupPath) {
-      logger.info('Backup created successfully', { path: backupPath })
-      return { success: true }
-    } else {
-      return {
-        success: false,
-        error: 'Backup process did not return a file path'
-      }
-    }
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    logger.error('Backup failed during migration:', error as Error)
-    return {
-      success: false,
-      error: errorMessage
-    }
-  }
+export function setDataLocationNotice(dataLocation: string): void {
+  dataLocationNotice = dataLocation
+  currentProgress = { ...currentProgress, dataLocation }
 }

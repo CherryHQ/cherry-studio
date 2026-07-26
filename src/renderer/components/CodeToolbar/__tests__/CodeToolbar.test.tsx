@@ -2,7 +2,7 @@ import type { ActionTool } from '@renderer/components/ActionTools'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import CodeToolbar from '../toolbar'
+import CodeToolbar from '../CodeToolbar'
 
 // Test constants
 const MORE_BUTTON_TOOLTIP = 'code_block.more'
@@ -35,7 +35,7 @@ const mocks = vi.hoisted(() => ({
   }))
 }))
 
-vi.mock('../button', () => ({
+vi.mock('../CodeToolButton', () => ({
   default: mocks.CodeToolButton
 }))
 
@@ -91,6 +91,20 @@ describe('CodeToolbar', () => {
   })
 
   describe('basic rendering', () => {
+    it('should use a sticky, pointer-events-transparent wrapper', () => {
+      const { container } = render(<CodeToolbar tools={createCoreOnlyTools()} />)
+      const wrapper = container.firstElementChild
+
+      expect(wrapper).toHaveClass('pointer-events-none', 'sticky', 'top-7', 'z-10', 'h-0')
+      expect(wrapper?.firstElementChild).toHaveClass(
+        'code-toolbar',
+        'pointer-events-auto',
+        'absolute',
+        'right-2',
+        'bottom-1'
+      )
+    })
+
     it('should match snapshot with mixed tools', () => {
       const { container } = render(<CodeToolbar tools={createMixedTools()} />)
       expect(container).toMatchSnapshot()

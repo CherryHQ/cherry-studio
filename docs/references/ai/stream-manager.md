@@ -181,8 +181,7 @@ src/main/ai/streamManager/
 ├── lifecycle/                         strategy: chat vs ad-hoc prompt
 │   ├── StreamLifecycle.ts             interface
 │   ├── ChatStreamLifecycle.ts         cross-window broadcast + 30 s grace period + attach
-│   ├── PromptStreamLifecycle.ts       silent, no attach, immediate eviction
-│   └── index.ts                       barrel
+│   └── PromptStreamLifecycle.ts       silent, no attach, immediate eviction
 │
 ├── listeners/
 │   ├── WebContentsListener.ts         chunks → renderer windows
@@ -210,7 +209,7 @@ each event by calling these methods uniformly:
 ```typescript
 interface StreamListener {
   readonly id: string
-  onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId): void
+  onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string): void
   onDone(result: StreamDoneResult): void | Promise<void>      // { finalMessage?, status: 'success', ... }
   onPaused(result: StreamPausedResult): void | Promise<void>  // { finalMessage?, status: 'paused',  ... }
   onError(result: StreamErrorResult): void | Promise<void>    // { finalMessage?, error, status: 'error', ... }
@@ -226,6 +225,12 @@ error-path partial a `partialMessage`; this turned out to be just a
 `finalMessage` that ended early. Unifying the shape means
 `PersistenceBackend` needs one `persistAssistant` method, not separate
 write paths per status.
+
+Renderer-facing listeners also receive `anchorMessageId`, the assistant
+row the execution writes to. This is part of the stream branch identity:
+`sourceModelId` distinguishes parallel model executions, while
+`anchorMessageId` distinguishes same-model chained turns such as steer
+continuations.
 
 ### Built-in implementations
 
@@ -374,15 +379,18 @@ steer queue/continuation, persistence-triggering, never "what is text /
 what is reasoning". AI SDK chunk type changes (vNext renames) only touch
 `PersistenceListener`; the manager stays stable.
 
-**Final projection.** `statsFromTerminal(finalMessage, mergedTimings)`
-is one function; the listener merges its `SemanticTimings` with
-`result.timings` (transport) before calling it:
+**Final projection.** The listener first terminalizes interrupted parts so
+their stabilized reasoning duration is available, then calls
+`statsFromTerminal(finalMessage, mergedTimings)`. It merges its
+`SemanticTimings` with `result.timings` (transport) before calling it:
 
 ```typescript
 // inside PersistenceListener
+const parts = finalizeInterruptedParts(finalMessage.parts, status)
+const finalMessageForPersistence = { ...finalMessage, parts }
 const mergedTimings = { ...result.timings, ...this.semanticTimings }
-const stats = statsFromTerminal(finalMessage, mergedTimings)
-await this.opts.backend.persistAssistant({ finalMessage, status, modelId, stats })
+const stats = statsFromTerminal(finalMessageForPersistence, mergedTimings)
+await this.opts.backend.persistAssistant({ finalMessage: finalMessageForPersistence, status, modelId, stats })
 ```
 
 Projected `MessageStats` fields:
@@ -392,10 +400,11 @@ Projected `MessageStats` fields:
 | `totalTokens / promptTokens / completionTokens / thoughtsTokens` | `finalMessage.metadata.*` |
 | `timeFirstTokenMs` | `round(firstTextAt - startedAt)` |
 | `timeCompletionMs` | `round(completedAt - startedAt)` |
-| `timeThinkingMs` | **not projected** — wall-clock `reasoningEndedAt - reasoningStartedAt` can include interleaved tool exec; see the `TODO(message-stats-redesign)` note in `PersistenceBackend.ts` |
+| `timeThinkingMs` | Sum of stabilized `providerMetadata.cherry.thinkingMs` values from persisted reasoning parts; does not use the reasoning wall-clock, which can include interleaved tool execution |
 
-Backends never derive stats themselves; they just write `input.stats`.
-One projection path, four backends, no duplication.
+Backends never terminalize parts or derive stats themselves; they write the
+listener-normalized `finalMessage` and `input.stats`. One projection path, four
+backends, no duplication.
 
 ## Public API
 

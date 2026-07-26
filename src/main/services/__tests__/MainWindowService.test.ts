@@ -24,7 +24,11 @@ const { platformState, prefValues, applicationMock, windowManagerMock, loggerMoc
     },
     onWindowCreatedByType: vi.fn(() => vi.fn()),
     onWindowDestroyedByType: vi.fn(() => vi.fn()),
-    open: vi.fn(() => 'mock-window-id')
+    open: vi.fn(() => 'mock-window-id'),
+    pushInitDataToType: vi.fn(),
+    // Bounds are restored declaratively by WindowManager; setupMainWindow reads
+    // the saved maximized flag back through this to re-apply maximize itself.
+    peekWindowBounds: vi.fn()
   }
   const loggerMock = {
     error: vi.fn(),
@@ -84,12 +88,6 @@ vi.mock('electron', () => ({
 
 vi.mock('@electron-toolkit/utils', () => ({ optimizer: { watchWindowShortcuts: vi.fn() } }))
 
-vi.mock('electron-window-state', () => ({
-  default: vi.fn(() => ({ x: 0, y: 0, width: 960, height: 600, isMaximized: false, manage: vi.fn() }))
-}))
-
-vi.mock('electron-devtools-installer', () => ({ default: vi.fn(), REACT_DEVELOPER_TOOLS: 'react-devtools' }))
-
 vi.mock('@main/utils/windowUtil', () => ({
   getWindowsBackgroundMaterial: vi.fn(() => undefined),
   replaceDevtoolsFont: vi.fn()
@@ -112,6 +110,10 @@ vi.mock('@main/core/lifecycle', async () => {
   return { ...actual, BaseService: StubBase }
 })
 
+import { WindowType } from '@main/core/window/types'
+import { app } from 'electron'
+
+import { contextMenu } from '../ContextMenu'
 import { MainWindowService } from '../MainWindowService'
 
 interface MockBrowserWindow extends EventEmitter {
@@ -124,9 +126,15 @@ interface MockBrowserWindow extends EventEmitter {
   show: ReturnType<typeof vi.fn>
   focus: ReturnType<typeof vi.fn>
   restore: ReturnType<typeof vi.fn>
+  maximize: ReturnType<typeof vi.fn>
   setVisibleOnAllWorkspaces: ReturnType<typeof vi.fn>
   setFullScreen: ReturnType<typeof vi.fn>
-  webContents: { reload: ReturnType<typeof vi.fn>; on: ReturnType<typeof vi.fn> }
+  webContents: {
+    reload: ReturnType<typeof vi.fn>
+    on: ReturnType<typeof vi.fn>
+    setWindowOpenHandler: ReturnType<typeof vi.fn>
+    session: { webRequest: { onHeadersReceived: ReturnType<typeof vi.fn> } }
+  }
 }
 
 function createMockWindow(): MockBrowserWindow {
@@ -140,12 +148,15 @@ function createMockWindow(): MockBrowserWindow {
   win.show = vi.fn()
   win.focus = vi.fn()
   win.restore = vi.fn()
+  win.maximize = vi.fn()
   win.setVisibleOnAllWorkspaces = vi.fn()
   win.setFullScreen = vi.fn()
   win.webContents = {
     reload: vi.fn(),
     // capture render-process-gone listener for crash-recovery tests
-    on: vi.fn()
+    on: vi.fn(),
+    setWindowOpenHandler: vi.fn(),
+    session: { webRequest: { onHeadersReceived: vi.fn() } }
   }
   return win
 }
@@ -186,6 +197,8 @@ describe('MainWindowService', () => {
     applicationMock.quit.mockReset()
     applicationMock.forceExit.mockReset()
     windowManagerMock.behavior.setMacShowInDockByType.mockReset()
+    windowManagerMock.open.mockClear()
+    windowManagerMock.pushInitDataToType.mockClear()
     loggerMock.error.mockReset()
 
     svc = new MainWindowService()
@@ -367,6 +380,32 @@ describe('MainWindowService', () => {
     })
   })
 
+  describe('showMainWindow init data', () => {
+    it('pushes init data to an existing main window', () => {
+      const initData = { kind: 'navigation' as const, to: '/settings/about' as const, requestId: 1 }
+      ;(svc as any).mainWindow = win
+
+      svc.showMainWindow(initData)
+
+      expect(windowManagerMock.pushInitDataToType).toHaveBeenCalledWith(WindowType.Main, initData)
+      expect(windowManagerMock.open).not.toHaveBeenCalled()
+    })
+
+    it('passes init data into WindowManager when creating the main window', () => {
+      const initData = { kind: 'navigation' as const, to: '/settings/provider' as const, requestId: 1 }
+
+      svc.showMainWindow(initData)
+
+      expect(windowManagerMock.open).toHaveBeenCalledWith(
+        WindowType.Main,
+        expect.objectContaining({
+          initData
+        })
+      )
+      expect(windowManagerMock.pushInitDataToType).not.toHaveBeenCalled()
+    })
+  })
+
   describe('crash recovery', () => {
     it('reloads webContents on first crash', () => {
       attachCrashMonitor(svc, win)
@@ -392,5 +431,145 @@ describe('MainWindowService', () => {
 
       expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
     })
+  })
+
+  // Maximize restore stays consumer-side (WindowManager restores position/size
+  // declaratively; the service re-applies the maximized flag on its own show
+  // schedule because tray-on-launch must defer it to the first show).
+  describe('setupMaximize restore', () => {
+    const setupMaximize = (isMaximized: boolean) => (svc as any).setupMaximize(win, isMaximized)
+
+    it('maximizes immediately when restoring a maximized window on a normal launch', () => {
+      prefValues['app.tray.on_launch'] = false
+      setupMaximize(true)
+      expect(win.maximize).toHaveBeenCalledTimes(1)
+    })
+
+    it('defers maximize to first show when launching to tray', () => {
+      prefValues['app.tray.on_launch'] = true
+      setupMaximize(true)
+
+      // Not yet — the window is still hidden in the tray.
+      expect(win.maximize).not.toHaveBeenCalled()
+
+      win.emit('show')
+      expect(win.maximize).toHaveBeenCalledTimes(1)
+    })
+
+    it('does nothing when the saved state was not maximized', () => {
+      prefValues['app.tray.on_launch'] = false
+      setupMaximize(false)
+      win.emit('show')
+      expect(win.maximize).not.toHaveBeenCalled()
+    })
+  })
+
+  // The wiring itself: setupMainWindow must read the saved maximized flag back
+  // from WindowManager (bounds are restored declaratively by WM; the service only
+  // re-applies maximize). Tested via setupMainWindow (not setupMaximize directly)
+  // so a regression that read the wrong type or dropped the call would be caught.
+  describe('setupMainWindow → maximize wiring', () => {
+    beforeEach(() => {
+      // Stub the other (heavy) setup steps so this isolates the read-back path.
+      for (const m of [
+        'setupSpellCheck',
+        'setupWindowEvents',
+        'setupWebContentsHandlers',
+        'setupWindowLifecycleEvents',
+        'setupMainWindowMonitor'
+      ]) {
+        vi.spyOn(svc as any, m).mockImplementation(() => {})
+      }
+      prefValues['app.tray.on_launch'] = false
+    })
+
+    it('reads the saved maximized flag from WindowManager and re-applies maximize', () => {
+      windowManagerMock.peekWindowBounds.mockReturnValue({
+        x: 0,
+        y: 0,
+        width: 800,
+        height: 600,
+        isMaximized: true,
+        displayBounds: { x: 0, y: 0, width: 1920, height: 1080 }
+      })
+
+      ;(svc as any).setupMainWindow(win)
+
+      expect(windowManagerMock.peekWindowBounds).toHaveBeenCalledWith(WindowType.Main)
+      expect(win.maximize).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not maximize when WindowManager has no saved bounds', () => {
+      windowManagerMock.peekWindowBounds.mockReturnValue(undefined)
+
+      ;(svc as any).setupMainWindow(win)
+
+      expect(windowManagerMock.peekWindowBounds).toHaveBeenCalledWith(WindowType.Main)
+      expect(win.maximize).not.toHaveBeenCalled()
+    })
+  })
+
+  // Context-menu attach is app-level: one 'web-contents-created' listener owned by
+  // onInit covers the main window's webContents and every webview. Guards the
+  // regression where per-window registration stacked one app listener per singleton
+  // main-window rebuild, popping duplicate menus.
+  describe('context menu registration', () => {
+    beforeEach(() => {
+      // Stub the heavy per-window setup steps; this block only cares about wiring.
+      for (const m of [
+        'setupSpellCheck',
+        'setupWindowEvents',
+        'setupWebContentsHandlers',
+        'setupWindowLifecycleEvents',
+        'setupMainWindowMonitor'
+      ]) {
+        vi.spyOn(svc as any, m).mockImplementation(() => {})
+      }
+      prefValues['app.tray.on_launch'] = false
+      windowManagerMock.peekWindowBounds.mockReturnValue(undefined)
+    })
+
+    const webContentsCreatedRegistrations = () =>
+      (app.on as unknown as ReturnType<typeof vi.fn>).mock.calls.filter((call) => call[0] === 'web-contents-created')
+
+    it('registers one app-level web-contents-created listener across main-window rebuilds', async () => {
+      await (svc as any).onInit()
+
+      expect(webContentsCreatedRegistrations()).toHaveLength(1)
+
+      const createdCallback = (windowManagerMock.onWindowCreatedByType.mock.calls as any[])[0]?.[1]
+      expect(createdCallback).toBeDefined()
+
+      // Singleton rebuild: destroy + recreate fires onWindowCreatedByType again.
+      createdCallback({ window: createMockWindow() })
+      createdCallback({ window: createMockWindow() })
+
+      expect(webContentsCreatedRegistrations()).toHaveLength(1)
+      // No direct per-window attach — the app-level handler owns it.
+      expect(contextMenu.contextMenu).not.toHaveBeenCalled()
+    })
+
+    it('attaches the context menu to each webContents via the app-level handler', async () => {
+      await (svc as any).onInit()
+
+      const handler = webContentsCreatedRegistrations()[0]?.[1]
+      expect(handler).toBeDefined()
+
+      const first = { id: 1 }
+      const second = { id: 2 }
+      handler(null, first)
+      handler(null, second)
+
+      expect(contextMenu.contextMenu).toHaveBeenNthCalledWith(1, first)
+      expect(contextMenu.contextMenu).toHaveBeenNthCalledWith(2, second)
+    })
+  })
+
+  it('does not inject the application preload into webviews', () => {
+    platformState.isDev = true
+
+    ;(svc as any).setupWebContentsHandlers(win)
+
+    expect(win.webContents.on.mock.calls.map(([event]) => event)).not.toContain('will-attach-webview')
   })
 })

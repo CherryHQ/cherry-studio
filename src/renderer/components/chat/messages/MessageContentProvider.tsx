@@ -1,4 +1,4 @@
-import type { Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types/topic'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { ReactNode } from 'react'
 import { useMemo } from 'react'

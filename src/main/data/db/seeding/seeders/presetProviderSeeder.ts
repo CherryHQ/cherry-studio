@@ -1,6 +1,6 @@
 import { application } from '@application'
 import type { ProtoProviderConfig } from '@cherrystudio/provider-registry'
-import { buildRuntimeEndpointConfigs, ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
+import { buildPersistedEndpointConfigs, ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { providerService } from '@data/services/ProviderService'
 import type { AuthConfig } from '@shared/data/types/provider'
@@ -67,7 +67,7 @@ function toDbRow(p: ProtoProviderConfig) {
     providerId: p.id,
     presetProviderId: p.presetProviderId ?? p.id,
     name: p.name,
-    endpointConfigs: buildRuntimeEndpointConfigs(p.endpointConfigs),
+    endpointConfigs: buildPersistedEndpointConfigs(p.endpointConfigs),
     defaultChatEndpoint: getSeedDefaultChatEndpoint(p.id, p.defaultChatEndpoint),
     authConfig: getSeedAuthConfig(p.id),
     apiFeatures
@@ -95,7 +95,7 @@ export class PresetProviderSeeder implements ISeeder {
     return this.getLoader().getProvidersVersion()
   }
 
-  async run(db: DbType): Promise<void> {
+  run(db: DbType): void {
     let rawProviders: ProtoProviderConfig[]
     try {
       rawProviders = this.getLoader().loadProviders()
@@ -107,6 +107,6 @@ export class PresetProviderSeeder implements ISeeder {
 
     const rows = rawProviders.map(toDbRow)
 
-    await db.transaction((tx) => providerService.batchUpsertTx(tx, rows))
+    db.transaction((tx) => providerService.batchUpsertTx(tx, rows))
   }
 }

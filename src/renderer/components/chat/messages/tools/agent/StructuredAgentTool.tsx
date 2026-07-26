@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
 
+import type { AgentToolsType, ToolInput, ToolOutput, ToolRendererFn } from '../shared/agentToolTypes'
+import { ToolHeader } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
-import { ToolHeader } from './GenericTools'
-import type { AgentToolsType, ToolInput, ToolOutput, ToolRendererFn } from './types'
 
 type StructuredAgentToolProps = {
   toolName: AgentToolsType

@@ -1,32 +1,21 @@
 /**
- * Thin facade — preserves existing DataApi/MCP IPC shape (ScheduledTaskEntity etc.).
- * Internally delegates to JobManager + jobScheduleService + jobService.
- * TODO: migrate callers (data/api/handlers/agents.ts, ai/mcp/servers/claw.ts) to the
- * generic Job/Scheduler API directly, then delete this facade.
+ * Read-side service for agent scheduled tasks: list / get / run logs plus the
+ * JobScheduleSnapshot → ScheduledTaskEntity mapping and subscription reads.
+ * All task mutations go through `AgentJobsService` (IpcApi `ai.agent.task.*`)
+ * — this service must not reach JobManager / SchedulerService / ChannelManager.
  */
 
-import { application } from '@application'
-import { agentTable as agentsTable } from '@data/db/schemas/agent'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
-import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api'
-import type { ListOptions } from '@shared/data/api/apiTypes'
-import type {
-  CreateTaskDto,
-  ScheduledTaskEntity,
-  TaskRunLogEntity,
-  UpdateTaskDto
-} from '@shared/data/api/schemas/agents'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
+import type { ScheduledTaskEntity, TaskRunLogEntity } from '@shared/data/api/schemas/agents'
 import {
   type AgentSessionWorkspaceSource,
   AgentSessionWorkspaceSourceSchema
 } from '@shared/data/api/schemas/agentWorkspaces'
-import type { JobScheduleSnapshot, JobSnapshot, UpdateJobScheduleDto } from '@shared/data/api/schemas/jobs'
-import { eq } from 'drizzle-orm'
-
-const logger = loggerService.withContext('AgentTaskService')
+import type { JobScheduleSnapshot, JobSnapshot } from '@shared/data/api/schemas/jobs'
+import type { ListOptions } from '@shared/data/api/types'
 
 const AGENT_TASK_TYPE = 'agent.task' as const
 const HEARTBEAT_TASK_NAME = 'heartbeat'
@@ -60,96 +49,51 @@ function deriveStatus(snapshot: JobScheduleSnapshot): 'active' | 'paused' | 'com
 }
 
 export class AgentTaskService {
-  /**
-   * Scheduled tasks require an autonomous agent — either Soul Mode
-   * (soul_enabled) or bypassPermissions permission mode — otherwise
-   * tool calls during task execution will fail with permission errors.
-   */
-  private async assertAutonomous(agentId: string): Promise<void> {
-    const database = application.get('DbService').getDb()
-    const [row] = await database
-      .select({ configuration: agentsTable.configuration })
-      .from(agentsTable)
-      .where(eq(agentsTable.id, agentId))
-      .limit(1)
-
-    if (!row) {
-      throw DataApiErrorFactory.notFound('Agent', agentId)
-    }
-
-    const config: Record<string, unknown> = row.configuration ?? {}
-
-    if (config.soul_enabled === true || config.permission_mode === 'bypassPermissions') {
-      return
-    }
-
-    throw DataApiErrorFactory.invalidOperation(
-      'Scheduled tasks require Soul Mode or Bypass Permissions mode. Update the agent settings first.'
-    )
-  }
-
-  async createTask(agentId: string, dto: CreateTaskDto): Promise<ScheduledTaskEntity> {
-    await this.assertAutonomous(agentId)
-
-    const timeoutMinutes = dto.timeoutMinutes ?? 2
-    const jobInputTemplate: AgentTaskJobInputTemplate = {
-      agentId,
-      prompt: dto.prompt,
-      timeoutMinutes,
-      workspace: dto.workspace
-    }
-
-    const { id } = await application.get('JobManager').registerJobSchedule({
-      type: AGENT_TASK_TYPE,
-      name: dto.name,
-      trigger: dto.trigger,
-      jobInputTemplate,
-      catchUpPolicy: { kind: 'skip-missed' }
-    })
-
-    if (dto.channelIds?.length) {
-      try {
-        await agentChannelService.replaceTaskSubscriptions(id, dto.channelIds)
-      } catch (error) {
-        try {
-          await application.get('JobManager').unregisterJobScheduleById(id)
-        } catch (rollbackError) {
-          logger.warn('Failed to rollback task schedule after channel subscription failure', {
-            taskId: id,
-            rollbackError
-          })
-        }
-        throw error
-      }
-    }
-
-    const snapshot = await jobScheduleService.getById(id)
-    if (!snapshot) {
-      throw DataApiErrorFactory.invalidOperation('create task', 'schedule disappeared after insert')
-    }
-
-    logger.info('Task created', { taskId: id, agentId })
-    return await this.toScheduledTaskEntity(snapshot)
-  }
-
-  async getTask(agentId: string, taskId: string): Promise<ScheduledTaskEntity | null> {
-    const snapshot = await jobScheduleService.getById(taskId)
+  getTaskById(taskId: string): ScheduledTaskEntity | null {
+    const snapshot = jobScheduleService.getById(taskId)
     if (!snapshot || snapshot.type !== AGENT_TASK_TYPE) return null
-    const template = normalizeAgentTaskTemplate(snapshot.jobInputTemplate)
-    if (!template || template.agentId !== agentId) return null
-    return await this.toScheduledTaskEntity(snapshot)
+    if (!normalizeAgentTaskTemplate(snapshot.jobInputTemplate)) return null
+    return this.toScheduledTaskEntity(snapshot)
   }
 
-  async listTasks(
+  /**
+   * Fetch one task, guarding identity in a single lookup: the row must exist,
+   * be an `agent.task` schedule, and belong to `agentId` — the three failure
+   * cases are indistinguishable (`null`) on purpose. AgentJobsService relies
+   * on this as the ownership/type guard for every by-id command.
+   */
+  getTask(agentId: string, taskId: string): ScheduledTaskEntity | null {
+    const task = this.getTaskById(taskId)
+    if (!task || task.agentId !== agentId) return null
+    return task
+  }
+
+  listTasks(
     agentId: string,
     options: ListOptions & { includeHeartbeat?: boolean } = {}
-  ): Promise<{ tasks: ScheduledTaskEntity[]; total: number }> {
-    const { includeHeartbeat = false, limit, offset } = options
-    const all = await jobScheduleService.listAll({ type: AGENT_TASK_TYPE })
+  ): { tasks: ScheduledTaskEntity[]; total: number } {
+    return this.queryTasks({ ...options, agentId })
+  }
+
+  /** Cross-agent listing for the settings overview — one scan instead of one per agent. */
+  listAllTasks(options: ListOptions & { includeHeartbeat?: boolean } = {}): {
+    tasks: ScheduledTaskEntity[]
+    total: number
+  } {
+    return this.queryTasks(options)
+  }
+
+  private queryTasks(options: ListOptions & { includeHeartbeat?: boolean; agentId?: string }): {
+    tasks: ScheduledTaskEntity[]
+    total: number
+  } {
+    const { agentId, includeHeartbeat = false, limit, offset } = options
+    const all = jobScheduleService.listAll({ type: AGENT_TASK_TYPE })
 
     const filtered = all.filter((s) => {
       const template = normalizeAgentTaskTemplate(s.jobInputTemplate)
-      if (!template || template.agentId !== agentId) return false
+      if (!template) return false
+      if (agentId !== undefined && template.agentId !== agentId) return false
       if (!includeHeartbeat && s.name === HEARTBEAT_TASK_NAME) return false
       return true
     })
@@ -163,66 +107,13 @@ export class AgentTaskService {
         : sorted
 
     return {
-      tasks: await Promise.all(sliced.map((s) => this.toScheduledTaskEntity(s))),
+      tasks: sliced.map((s) => this.toScheduledTaskEntity(s)),
       total: filtered.length
     }
   }
 
-  async updateTask(agentId: string, taskId: string, patch: UpdateTaskDto): Promise<ScheduledTaskEntity | null> {
-    const existing = await this.getTask(agentId, taskId)
-    if (!existing) return null
-
-    const existingSnapshot = await jobScheduleService.getById(taskId)
-    const existingTemplate = existingSnapshot ? normalizeAgentTaskTemplate(existingSnapshot.jobInputTemplate) : null
-    if (!existingSnapshot || !existingTemplate) return null
-
-    // Build the updated jobInputTemplate when prompt/timeoutMinutes changed.
-    const nextPrompt = patch.prompt ?? existingTemplate.prompt
-    const nextTimeoutMinutes = patch.timeoutMinutes ?? existingTemplate.timeoutMinutes
-    const nextWorkspace = patch.workspace ?? existingTemplate.workspace
-    const templateChanged =
-      (patch.prompt !== undefined && patch.prompt !== existingTemplate.prompt) ||
-      (patch.timeoutMinutes !== undefined && patch.timeoutMinutes !== existingTemplate.timeoutMinutes) ||
-      patch.workspace !== undefined
-
-    const updatePatch: UpdateJobScheduleDto = {}
-    if (patch.name !== undefined) updatePatch.name = patch.name
-    if (patch.trigger !== undefined) updatePatch.trigger = patch.trigger
-    if (patch.enabled !== undefined) updatePatch.enabled = patch.enabled
-    if (templateChanged) {
-      updatePatch.jobInputTemplate = {
-        agentId: existingTemplate.agentId,
-        prompt: nextPrompt,
-        timeoutMinutes: nextTimeoutMinutes,
-        workspace: nextWorkspace
-      }
-    }
-
-    const updated = await application.get('JobManager').updateJobSchedule(taskId, updatePatch)
-    if (!updated) return null
-
-    if (patch.channelIds !== undefined) {
-      await agentChannelService.replaceTaskSubscriptions(taskId, patch.channelIds)
-    }
-
-    logger.info('Task updated', { taskId, agentId })
-    const refreshed = await jobScheduleService.getById(taskId)
-    if (!refreshed) return null
-    return await this.toScheduledTaskEntity(refreshed)
-  }
-
-  async deleteTask(agentId: string, taskId: string): Promise<boolean> {
-    const existing = await this.getTask(agentId, taskId)
-    if (!existing) return false
-    const deleted = await application.get('JobManager').unregisterJobScheduleById(taskId)
-    if (deleted) {
-      logger.info('Task deleted', { taskId, agentId })
-    }
-    return deleted
-  }
-
-  async getTaskLogs(taskId: string, options: ListOptions = {}): Promise<{ logs: TaskRunLogEntity[]; total: number }> {
-    const jobs = await jobService.list({ scheduleId: taskId })
+  getTaskLogs(taskId: string, options: ListOptions = {}): { logs: TaskRunLogEntity[]; total: number } {
+    const jobs = jobService.list({ scheduleId: taskId })
     const total = jobs.length
     const sliced =
       options.limit !== undefined
@@ -241,12 +132,12 @@ export class AgentTaskService {
   // Mappers (snapshot → entity)
   // ------------------------------------------------------------------
 
-  private async toScheduledTaskEntity(snapshot: JobScheduleSnapshot): Promise<ScheduledTaskEntity> {
+  private toScheduledTaskEntity(snapshot: JobScheduleSnapshot): ScheduledTaskEntity {
     const tmpl = normalizeAgentTaskTemplate(snapshot.jobInputTemplate)
     if (!tmpl) {
       throw DataApiErrorFactory.invalidOperation('read task', 'invalid agent task template')
     }
-    const channelRows = await agentChannelService.getSubscribedChannels(snapshot.id)
+    const channelRows = agentChannelService.getSubscribedChannels(snapshot.id)
     return {
       id: snapshot.id,
       agentId: tmpl.agentId,

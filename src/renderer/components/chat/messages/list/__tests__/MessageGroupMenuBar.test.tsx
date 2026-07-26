@@ -10,9 +10,15 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, ...props }: ComponentPropsWithoutRef<'button'>) => <button {...props}>{children}</button>,
+  Button: ({ children, ...props }: ComponentPropsWithoutRef<'button'>) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
   RowFlex: ({ children, className }: ComponentPropsWithoutRef<'div'>) => <div className={className}>{children}</div>,
-  Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
+  Tooltip: ({ children, content }: { children: ReactNode; content?: ReactNode }) => (
+    <span data-tooltip-content={typeof content === 'string' ? content : undefined}>{children}</span>
+  )
 }))
 
 vi.mock('react-i18next', () => ({
@@ -86,5 +92,30 @@ describe('MessageGroupMenuBar', () => {
     )
 
     expect(screen.queryByRole('button')).toBeNull()
+  })
+
+  it.each([
+    ['first-turn', 'message.delete.first_turn_not_supported'],
+    ['root-unavailable', 'message.delete.root_unavailable'],
+    ['message-unavailable', 'message.delete.root_unavailable']
+  ] as const)('disables group deletion for %s', (reason, tooltip) => {
+    mocks.actions = {
+      deleteMessageGroupWithConfirm: vi.fn(),
+      getMessageDeleteAvailability: vi.fn(() => ({ enabled: false, reason }))
+    }
+
+    render(
+      <MessageGroupMenuBar
+        multiModelMessageStyle="horizontal"
+        setMultiModelMessageStyle={vi.fn()}
+        messages={messages}
+        selectMessageId="assistant-1"
+        setSelectedMessage={vi.fn()}
+      />
+    )
+
+    const deleteButton = screen.getByRole('button')
+    expect(deleteButton).toBeDisabled()
+    expect(deleteButton.parentElement).toHaveAttribute('data-tooltip-content', tooltip)
   })
 })

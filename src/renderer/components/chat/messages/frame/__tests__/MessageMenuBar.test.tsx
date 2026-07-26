@@ -1,4 +1,4 @@
-import type { Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types/topic'
 import { render } from '@testing-library/react'
 import type React from 'react'
 import type { ReactNode } from 'react'
@@ -20,29 +20,30 @@ vi.mock('../MessageMenuBarToolbar', () => ({
   )
 }))
 
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/style', () => ({
   classNames: (...values: unknown[]) => values.filter(Boolean).join(' ')
 }))
 
+vi.mock('@renderer/services/ExportService', () => ({
+  getMessageTitle: vi.fn(),
+  messageToMarkdown: vi.fn()
+}))
+
 vi.mock('@renderer/utils/export', () => ({
-  messageToMarkdown: vi.fn(),
   messageToPlainText: vi.fn()
 }))
 
 vi.mock('@renderer/utils/image', () => ({
   captureScrollableAsBlob: vi.fn(),
-  captureScrollableAsDataURL: vi.fn()
+  captureScrollableAsDataUrl: vi.fn()
 }))
 
-vi.mock('@renderer/utils/messageUtils/partsHelpers', () => ({
+vi.mock('@renderer/utils/message/partsHelpers', () => ({
+  canEditAssistantMessageParts: () => true,
   getTranslationFromParts: () => undefined,
   getTextFromParts: () => 'hello',
   hasTextParts: () => true,
   hasTranslationParts: () => false
-}))
-
-vi.mock('@renderer/services/MessagesService', () => ({
-  getMessageTitle: vi.fn()
 }))
 
 vi.mock('react-i18next', () => ({
@@ -51,7 +52,9 @@ vi.mock('react-i18next', () => ({
     init: vi.fn()
   },
   useTranslation: () => ({
-    t: (key: string) => key
+    t: (key: string, options?: { value?: string }) =>
+      key === 'chat.message.token_details.tokens' ? `${options?.value} Tokens` : key,
+    i18n: { resolvedLanguage: 'en-US' }
   })
 }))
 
@@ -80,7 +83,7 @@ const assistantMessage = {
   }
 } as MessageListItem
 
-function renderWithProvider(children: ReactNode) {
+function renderWithProvider(children: ReactNode, renderConfig: Partial<typeof defaultMessageRenderConfig> = {}) {
   const value: MessageListProviderValue = {
     state: {
       topic,
@@ -96,7 +99,8 @@ function renderWithProvider(children: ReactNode) {
       loadingResetDelayMs: 0,
       renderConfig: {
         ...defaultMessageRenderConfig,
-        messageStyle: 'bubble'
+        messageStyle: 'bubble',
+        ...renderConfig
       },
       selection: {
         enabled: false,
@@ -125,7 +129,7 @@ function renderWithProvider(children: ReactNode) {
 }
 
 describe('MessageMenuBar', () => {
-  it('shows assistant token usage in the bubble footer toolbar', () => {
+  it('hides token usage when estimated tokens are disabled', () => {
     const { container } = renderWithProvider(
       <MessageMenuBar
         message={assistantMessage}
@@ -137,6 +141,22 @@ describe('MessageMenuBar', () => {
       />
     )
 
-    expect(container.querySelector('.message-tokens')?.textContent).toContain('Tokens:0.0K')
+    expect(container.querySelector('.message-tokens')).toBeNull()
+  })
+
+  it('shows assistant token usage in the bubble footer toolbar', () => {
+    const { container } = renderWithProvider(
+      <MessageMenuBar
+        message={assistantMessage}
+        topic={topic}
+        isLastMessage
+        isAssistantMessage
+        isProcessing={false}
+        messageContainerRef={{ current: null } as unknown as React.RefObject<HTMLDivElement>}
+      />,
+      { showEstimatedTokens: true }
+    )
+
+    expect(container.querySelector('.message-tokens')).toHaveTextContent('42 Tokens')
   })
 })

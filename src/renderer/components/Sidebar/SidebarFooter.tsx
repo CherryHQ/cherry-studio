@@ -5,24 +5,30 @@ import { UserAvatar } from './primitives'
 import { SidebarTooltip } from './Tooltip'
 import type { SidebarUser, SidebarVisibleLayout } from './types'
 
+export type SidebarFooterActions = React.ReactNode | ((layout: SidebarVisibleLayout) => React.ReactNode)
+
 export interface SidebarFooterProps {
   layout: SidebarVisibleLayout
   user?: SidebarUser
-  actions?: React.ReactNode
+  actions?: SidebarFooterActions
   extensionsLabel?: string
   onExtensionsClick?: () => void
 }
 
-export function SidebarFooter({ layout, ...props }: SidebarFooterProps) {
-  if (layout === 'icon') return <IconFooter {...props} />
-  return <FullFooter {...props} />
+export function SidebarFooter({ layout, actions, ...props }: SidebarFooterProps) {
+  const resolvedActions = typeof actions === 'function' ? actions(layout) : actions
+
+  if (layout === 'icon') return <IconFooter actions={resolvedActions} {...props} />
+  return <FullFooter actions={resolvedActions} {...props} />
 }
 
-type FooterProps = Omit<SidebarFooterProps, 'layout'>
+type FooterProps = Omit<SidebarFooterProps, 'layout' | 'actions'> & {
+  actions?: React.ReactNode
+}
 
 function IconFooter({ user, actions, extensionsLabel, onExtensionsClick }: FooterProps) {
   return (
-    <div className="flex flex-col items-center gap-1 px-1.5 pt-2 pb-5 [-webkit-app-region:no-drag]">
+    <div className="flex flex-col items-center gap-1 px-1.5 pt-2 pb-3 [-webkit-app-region:no-drag]">
       {extensionsLabel && (
         <SidebarTooltip content={extensionsLabel}>
           <button

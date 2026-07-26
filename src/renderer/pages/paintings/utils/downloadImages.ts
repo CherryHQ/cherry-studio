@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
-import type { FileMetadata } from '@renderer/types'
+import { toast } from '@renderer/services/toast'
+import type { FileMetadata } from '@renderer/types/file'
 import i18next from 'i18next'
 
 import { fileEntryToMetadata } from './fileEntryAdapter'
@@ -19,7 +20,7 @@ export async function downloadImages(urls: string[], options?: DownloadImagesOpt
       try {
         if (!url?.trim()) {
           logger.error('Image URL is empty, possibly due to prohibited prompt')
-          window.toast.warning(i18next.t('message.empty_url'))
+          toast.warning(i18next.t('message.empty_url'))
           return null
         }
         const entry =
@@ -39,9 +40,9 @@ export async function downloadImages(urls: string[], options?: DownloadImagesOpt
           error instanceof Error &&
           (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
         ) {
-          window.toast.warning(i18next.t('message.empty_url'))
+          toast.warning(i18next.t('message.empty_url'))
         } else if (showProxyWarning) {
-          window.toast.warning(i18next.t('paintings.proxy_required'))
+          toast.warning(i18next.t('paintings.proxy_required'))
         }
         return null
       }

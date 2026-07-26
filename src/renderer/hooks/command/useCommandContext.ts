@@ -1,4 +1,4 @@
-import { platform } from '@renderer/config/constant'
+import { platform } from '@renderer/utils/platform'
 import type { ContextReader, ContextValue } from '@shared/types/command'
 import { createContext, use, useEffect } from 'react'
 

@@ -69,7 +69,7 @@ row-write time:
 
 1. **Catalog (new installs)** — `packages/provider-registry/data/providers.json`
    declares `adapterFamily` per endpoint per provider. The seeder copies
-   it through via `buildRuntimeEndpointConfigs`.
+   it through via `buildPersistedEndpointConfigs`.
 2. **v1 → v2 migration (existing users)** —
    `src/main/data/migration/v2/migrators/mappings/ProviderModelMappings.ts`
    looks up the catalog by legacy id and, on a miss, calls
@@ -107,7 +107,7 @@ mirrors this for catalog entries.
 | `inferAdapterFamily` | `packages/provider-registry/src/__tests__/registry-utils.test.ts` | 5 |
 | Migrator backfill | `src/main/data/migration/v2/migrators/mappings/__tests__/ProviderModelMappings.test.ts` | 4 |
 | Runtime resolver | `src/main/ai/provider/__tests__/endpoint.test.ts` | 54 |
-| `buildRuntimeEndpointConfigs` | `packages/provider-registry/src/__tests__/registry-utils.test.ts` | 10 |
+| `buildPersistedEndpointConfigs` | `packages/provider-registry/src/__tests__/registry-utils.test.ts` | 10 |
 
 ## Where to read more
 

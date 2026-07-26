@@ -41,7 +41,7 @@ vi.mock('../../MessageListProvider', () => ({
   useOptionalMessageListUi: () => mocks.messageListUi
 }))
 
-vi.mock('@renderer/config/constant', () => ({
+vi.mock('@renderer/utils/platform', () => ({
   get isWin() {
     return mocks.isWin
   }
@@ -55,18 +55,16 @@ vi.mock('streamdown', () => ({
   useIsCodeFenceIncomplete: () => mocks.isCodeFenceIncomplete
 }))
 
-vi.mock('@renderer/components/CodeBlockView', () => ({
-  CodeBlockView: mocks.CodeBlockView,
-  HtmlArtifactsCard: mocks.HtmlArtifactsCard
+vi.mock('@renderer/components/CodeBlockView/CodeBlockView', () => ({
+  CodeBlockView: mocks.CodeBlockView
 }))
 
-// Mock message parts context — returns null by default
-vi.mock('@renderer/components/chat/messages/blocks', () => ({
-  useResolveBlock: vi.fn(() => null)
+vi.mock('@renderer/components/CodeBlockView/HtmlArtifactsCard', () => ({
+  default: mocks.HtmlArtifactsCard
 }))
 
 // Mock ClickableFilePath
-vi.mock('@renderer/components/chat/messages/tools/agent/ClickableFilePath', () => ({
+vi.mock('@renderer/components/chat/messages/tools/shared/ClickableFilePath', () => ({
   ClickableFilePath: ({ path }: { path: string }) => <span data-testid="clickable-file-path">{path}</span>
 }))
 
@@ -235,6 +233,32 @@ describe('CodeBlock', () => {
       expect(mocks.CodeBlockView).toHaveBeenCalledWith(
         expect.objectContaining({
           editable: false
+        }),
+        undefined
+      )
+    })
+
+    it('should pass Streamdown incomplete fence state to standard code blocks', () => {
+      mocks.isCodeFenceIncomplete = true
+
+      render(<CodeBlock {...defaultProps} />)
+
+      expect(mocks.CodeBlockView).toHaveBeenCalledWith(
+        expect.objectContaining({
+          isStreaming: true
+        }),
+        undefined
+      )
+    })
+
+    it('should pass parent streaming state to standard code blocks after the fence is complete', () => {
+      mocks.isCodeFenceIncomplete = false
+
+      render(<CodeBlock {...defaultProps} isStreaming />)
+
+      expect(mocks.CodeBlockView).toHaveBeenCalledWith(
+        expect.objectContaining({
+          isStreaming: true
         }),
         undefined
       )

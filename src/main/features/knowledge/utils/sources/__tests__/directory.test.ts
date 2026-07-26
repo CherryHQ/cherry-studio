@@ -200,10 +200,13 @@ describe('expandDirectoryOwnerToTree', () => {
       }
     ])
     expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledTimes(1)
+    // The expansion copy threads the abort signal (so a hung file can be interrupted)
+    // and sets overwrite so a retry re-copies over its own orphans from a prior attempt.
     expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledWith(
       'kb-1',
       path.join(rootDir, 'readme.md'),
-      'workspace/readme.md'
+      'workspace/readme.md',
+      { signal: expect.any(AbortSignal), overwrite: true }
     )
   })
 

@@ -17,7 +17,7 @@ const translateTextMock =
       signal?: AbortSignal
     ) => Promise<string>
   >()
-vi.mock('@renderer/services/TranslateService', () => ({
+vi.mock('@renderer/utils/translate/translateText', () => ({
   translateText: (...args: any[]) => translateTextMock(...(args as Parameters<typeof translateTextMock>))
 }))
 
@@ -30,6 +30,8 @@ vi.mock('@renderer/utils/error', () => ({
   isAbortError: (err: unknown) => isAbortErrorMock(err)
 }))
 
+import { toast } from '@renderer/services/toast'
+
 import { useTranslate } from '../useTranslate'
 
 const TARGET = {
@@ -40,15 +42,12 @@ const TARGET = {
   updatedAt: '2026-01-01T00:00:00.000Z'
 } as TranslateLanguage
 
-const toast = { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }
-
 // The shared logger mock exposes `error` as a regular method, not a spy.
 // Wrap it here so the test can assert call counts.
 let loggerErrorSpy: ReturnType<typeof vi.spyOn>
 
 beforeEach(() => {
   vi.clearAllMocks()
-  Object.defineProperty(window, 'toast', { value: toast, writable: true, configurable: true })
   isAbortErrorMock.mockReturnValue(false)
   translateTextMock.mockReset()
   loggerErrorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})

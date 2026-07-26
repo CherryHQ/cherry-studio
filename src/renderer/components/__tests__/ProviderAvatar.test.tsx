@@ -6,14 +6,16 @@ import type { CSSProperties } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 // Resolve only `openai` to a recognizable stand-in icon; everything else is unknown.
-vi.mock('@cherrystudio/ui/icons', () => ({
-  resolveProviderIcon: (id: string) =>
-    id === 'openai'
-      ? ({ style, variant }: { style?: CSSProperties; variant?: string }) => (
-          <span data-testid="brand-icon" data-variant={variant} style={style} />
-        )
-      : undefined
-}))
+vi.mock('@cherrystudio/ui/icons', () => {
+  const BrandIcon = ({ style, variant }: { style?: CSSProperties; variant?: string }) => (
+    <span data-testid="brand-icon" data-variant={variant} style={style} />
+  )
+  return {
+    resolveProviderIconRef: (id: string) =>
+      id === 'openai' ? { kind: 'provider', key: id, meta: { id, colorPrimary: '#000' } } : undefined,
+    useIcon: (ref: unknown) => (ref ? BrandIcon : undefined)
+  }
+})
 
 import { ProviderAvatarPrimitive } from '../ProviderAvatar'
 
@@ -41,7 +43,7 @@ describe('ProviderAvatarPrimitive', () => {
     expect(document.querySelector('img')).toBeNull()
   })
 
-  it('sizes built-in icons relative to the avatar container', () => {
+  it('fills the avatar container with built-in icons', () => {
     render(
       <ProviderAvatarPrimitive
         providerId="custom"
@@ -51,7 +53,24 @@ describe('ProviderAvatarPrimitive', () => {
       />
     )
 
-    expect(screen.getByTestId('brand-icon')).toHaveStyle({ width: '70%', height: '70%' })
+    expect(screen.getByTestId('brand-icon')).toHaveStyle({ width: '100%', height: '100%' })
+  })
+
+  it('applies a caller-provided display style to built-in icons', () => {
+    render(
+      <ProviderAvatarPrimitive
+        providerId="custom"
+        providerName="Custom"
+        logo="icon:openai"
+        iconStyle={{ width: '71.42857142857143%', height: '71.42857142857143%', borderRadius: '5px' }}
+      />
+    )
+
+    expect(screen.getByTestId('brand-icon')).toHaveStyle({
+      width: '71.42857142857143%',
+      height: '71.42857142857143%',
+      borderRadius: '5px'
+    })
   })
 
   it('falls back to the name initial when an `icon:<id>` reference is unknown', () => {

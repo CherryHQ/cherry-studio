@@ -73,6 +73,7 @@ describe('reduceAtBottom', () => {
       const next = reduceAtBottom(prev, {
         type: 'user-scroll',
         direction: 'down',
+        userInitiated: true,
         ...atBottom(495, 1000, 500)
       })
       expect(next).toEqual({ atBottom: true, reason: 'scrolled-to-bottom' })
@@ -83,12 +84,13 @@ describe('reduceAtBottom', () => {
       const next = reduceAtBottom(prev, {
         type: 'user-scroll',
         direction: 'up',
+        userInitiated: true,
         ...atBottom(200, 1000, 500)
       })
       expect(next).toEqual({ atBottom: false, reason: 'user-scrolled-up' })
     })
 
-    it('downward scroll that does not reach bottom does NOT latch user-scrolled-up', () => {
+    it('programmatic downward scroll preserves the active bottom-follow latch', () => {
       // End-of-animation scroll events (programmatic) fire with direction='down'
       // when the smooth-scroll lands at what was the bottom moments ago but is
       // no longer close due to newer content. Latching user-scrolled-up there
@@ -97,9 +99,10 @@ describe('reduceAtBottom', () => {
       const next = reduceAtBottom(prev, {
         type: 'user-scroll',
         direction: 'down',
+        userInitiated: false,
         ...atBottom(300, 1000, 500)
       })
-      expect(next).toEqual({ atBottom: false, reason: 'scrolled-not-bottom' })
+      expect(next).toBe(prev)
     })
 
     it('programmatic scroll (direction none) preserves prior user latch', () => {
@@ -107,6 +110,21 @@ describe('reduceAtBottom', () => {
       const next = reduceAtBottom(prev, {
         type: 'user-scroll',
         direction: 'none',
+        userInitiated: false,
+        ...atBottom(200, 1000, 500)
+      })
+      expect(next).toBe(prev)
+    })
+
+    it('downward scroll that does not reach bottom preserves prior user latch', () => {
+      // virtua's remeasure compensation reports direction 'down' with no user
+      // input; clearing the latch here would let the next in-tolerance size
+      // change re-engage auto-stick behind the user's back.
+      const prev: AtBottomState = { atBottom: false, reason: 'user-scrolled-up' }
+      const next = reduceAtBottom(prev, {
+        type: 'user-scroll',
+        direction: 'down',
+        userInitiated: false,
         ...atBottom(200, 1000, 500)
       })
       expect(next).toBe(prev)
@@ -117,8 +135,48 @@ describe('reduceAtBottom', () => {
       const next = reduceAtBottom(prev, {
         type: 'user-scroll',
         direction: 'down',
+        userInitiated: true,
         ...atBottom(495, 1000, 500)
       })
+      expect(next).toBe(prev)
+    })
+
+    it('user upward scroll latches out even within the at-bottom tolerance', () => {
+      // Right after a top-pin releases, the viewport still measures within the
+      // effective bottom's tolerance. A small upward user gesture there is an
+      // intent to read — it must not be re-latched into bottom-follow.
+      const prev: AtBottomState = { atBottom: true, reason: 'stuck-on-grow' }
+      const next = reduceAtBottom(prev, {
+        type: 'user-scroll',
+        direction: 'up',
+        userInitiated: true,
+        ...atBottom(470, 1000, 500)
+      })
+      expect(next).toEqual({ atBottom: false, reason: 'user-scrolled-up' })
+    })
+
+    it('programmatic upward jump within tolerance keeps following', () => {
+      // virtua's remeasure compensation moves scrollTop backward mid-stream with
+      // no user input; treating it as intent would kill an active bottom-follow.
+      const prev: AtBottomState = { atBottom: true, reason: 'stuck-on-grow' }
+      const next = reduceAtBottom(prev, {
+        type: 'user-scroll',
+        direction: 'up',
+        userInitiated: false,
+        ...atBottom(470, 1000, 500)
+      })
+      expect(next).toBe(prev)
+    })
+
+    it('programmatic upward jump outside tolerance also keeps following', () => {
+      const prev: AtBottomState = { atBottom: true, reason: 'stuck-on-grow' }
+      const next = reduceAtBottom(prev, {
+        type: 'user-scroll',
+        direction: 'up',
+        userInitiated: false,
+        ...atBottom(200, 1000, 500)
+      })
+
       expect(next).toBe(prev)
     })
   })
@@ -130,8 +188,7 @@ describe('reduceAtBottom', () => {
         type: 'size-change',
         offset: 1495,
         scrollSize: 2000,
-        viewportSize: 500,
-        prevScrollSize: 1500
+        viewportSize: 500
       })
       expect(next).toBe(prev)
     })
@@ -142,8 +199,7 @@ describe('reduceAtBottom', () => {
         type: 'size-change',
         offset: 995,
         scrollSize: 2000,
-        viewportSize: 500,
-        prevScrollSize: 1500
+        viewportSize: 500
       })
       expect(next).toEqual({ atBottom: false, reason: 'size-grew-past-viewport' })
     })
@@ -154,8 +210,20 @@ describe('reduceAtBottom', () => {
         type: 'size-change',
         offset: 100,
         scrollSize: 2000,
-        viewportSize: 500,
-        prevScrollSize: 1000
+        viewportSize: 500
+      })
+      expect(next).toBe(prev)
+    })
+
+    it('preserves user-scrolled-up latch even within the at-bottom tolerance', () => {
+      // A short expanded block near the live edge keeps the viewport within
+      // tolerance; that geometry must not re-engage auto-stick over the latch.
+      const prev: AtBottomState = { atBottom: false, reason: 'user-scrolled-up' }
+      const next = reduceAtBottom(prev, {
+        type: 'size-change',
+        offset: 1460,
+        scrollSize: 2000,
+        viewportSize: 500
       })
       expect(next).toBe(prev)
     })
@@ -166,10 +234,33 @@ describe('reduceAtBottom', () => {
         type: 'size-change',
         offset: 1495,
         scrollSize: 2000,
-        viewportSize: 500,
-        prevScrollSize: 1500
+        viewportSize: 500
       })
       expect(next).toEqual({ atBottom: true, reason: 'size-stayed-at-bottom' })
+    })
+  })
+
+  describe('user-took-control input', () => {
+    it('latches user-scrolled-up from at-bottom (expand during bottom-follow)', () => {
+      const prev: AtBottomState = { atBottom: true, reason: 'stuck-on-grow' }
+      const next = reduceAtBottom(prev, { type: 'user-took-control' })
+      expect(next).toEqual({ atBottom: false, reason: 'user-scrolled-up' })
+    })
+
+    it('is idempotent when already latched', () => {
+      const prev: AtBottomState = { atBottom: false, reason: 'user-scrolled-up' }
+      expect(reduceAtBottom(prev, { type: 'user-took-control' })).toBe(prev)
+    })
+
+    it('user-scroll back to the bottom releases the latch', () => {
+      let s = reduceAtBottom({ atBottom: true, reason: 'stuck-on-grow' }, { type: 'user-took-control' })
+      s = reduceAtBottom(s, {
+        type: 'user-scroll',
+        direction: 'down',
+        userInitiated: true,
+        ...atBottom(495, 1000, 500)
+      })
+      expect(s).toEqual({ atBottom: true, reason: 'scrolled-to-bottom' })
     })
   })
 
@@ -196,8 +287,7 @@ describe('reduceAtBottom', () => {
       type: 'size-change',
       offset: 495,
       scrollSize: 1200,
-      viewportSize: 500,
-      prevScrollSize: 1000
+      viewportSize: 500
     })
     expect(s).toEqual({ atBottom: false, reason: 'size-grew-past-viewport' })
 
@@ -207,6 +297,7 @@ describe('reduceAtBottom', () => {
     s = reduceAtBottom(s, {
       type: 'user-scroll',
       direction: 'up',
+      userInitiated: true,
       ...atBottom(400, 1200, 500)
     })
     expect(s).toEqual({ atBottom: false, reason: 'user-scrolled-up' })
@@ -215,14 +306,14 @@ describe('reduceAtBottom', () => {
       type: 'size-change',
       offset: 400,
       scrollSize: 1500,
-      viewportSize: 500,
-      prevScrollSize: 1200
+      viewportSize: 500
     })
     expect(s).toEqual({ atBottom: false, reason: 'user-scrolled-up' })
 
     s = reduceAtBottom(s, {
       type: 'user-scroll',
       direction: 'down',
+      userInitiated: true,
       ...atBottom(995, 1500, 500)
     })
     expect(s).toEqual({ atBottom: true, reason: 'scrolled-to-bottom' })

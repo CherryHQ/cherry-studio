@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock i18n before importing the module
-vi.mock('@renderer/i18n', () => ({
+vi.mock('@renderer/i18n/resolver', () => ({
   default: {
     t: vi.fn((key: string) => {
       const translations: Record<string, string> = {
         'common.chat': '聊天',
         'agent.session.group.conversation': '对话',
         'agent.sidebar_title': '任务',
-        'title.store': '资源',
+        'title.work': '工作',
         'title.paintings': '绘画',
         'title.translate': '翻译',
         'title.apps': '小程序',
@@ -16,7 +16,6 @@ vi.mock('@renderer/i18n', () => ({
         'title.files': '文件',
         'title.code': 'Code',
         'title.notes': '笔记',
-        'title.openclaw': 'OpenClaw',
         'title.settings': '设置'
       }
       return translations[key] || key
@@ -41,7 +40,7 @@ describe('routeTitle', () => {
     describe('exact route matches', () => {
       it.each([
         ['/app/chat', '对话'],
-        ['/app/agents', '任务'],
+        ['/app/agents', '工作'],
         ['/app/paintings', '绘画'],
         ['/app/translate', '翻译'],
         ['/app/mini-app', '小程序'],
@@ -49,7 +48,6 @@ describe('routeTitle', () => {
         ['/app/files', '文件'],
         ['/app/code', 'Code'],
         ['/app/notes', '笔记'],
-        ['/app/openclaw', 'OpenClaw'],
         ['/settings', '设置']
       ])('should return correct title for %s', (url, expectedTitle) => {
         expect(getDefaultRouteTitle(url)).toBe(expectedTitle)
@@ -59,7 +57,7 @@ describe('routeTitle', () => {
     describe('nested route matches', () => {
       it('should match base path for nested routes', () => {
         expect(getDefaultRouteTitle('/app/chat/topic-123')).toBe('对话')
-        expect(getDefaultRouteTitle('/app/agents/session-123')).toBe('任务')
+        expect(getDefaultRouteTitle('/app/agents/session-123')).toBe('工作')
         expect(getDefaultRouteTitle('/settings/provider')).toBe('设置')
         expect(getDefaultRouteTitle('/settings/mcp/servers')).toBe('设置')
         expect(getDefaultRouteTitle('/app/paintings/zhipu')).toBe('绘画')
@@ -84,6 +82,7 @@ describe('routeTitle', () => {
     describe('unknown routes', () => {
       it('should return last segment for unknown routes', () => {
         expect(getDefaultRouteTitle('/unknown')).toBe('unknown')
+        expect(getDefaultRouteTitle('/app/openclaw')).toBe('openclaw')
         expect(getDefaultRouteTitle('/foo/bar/baz')).toBe('baz')
       })
 
@@ -116,8 +115,7 @@ describe('routeTitle', () => {
     describe('exact matches', () => {
       it.each([
         ['/app/chat', 'agent.session.group.conversation'],
-        ['/app/agents', 'agent.sidebar_title'],
-        ['/app/openclaw', 'title.openclaw'],
+        ['/app/agents', 'title.work'],
         ['/settings', 'title.settings']
       ])('should return i18n key for %s', (url, expectedKey) => {
         expect(getRouteTitleKey(url)).toBe(expectedKey)
@@ -127,7 +125,7 @@ describe('routeTitle', () => {
     describe('base path matches', () => {
       it('should return base path key for nested routes', () => {
         expect(getRouteTitleKey('/app/chat/topic-123')).toBe('agent.session.group.conversation')
-        expect(getRouteTitleKey('/app/agents/session-123')).toBe('agent.sidebar_title')
+        expect(getRouteTitleKey('/app/agents/session-123')).toBe('title.work')
         expect(getRouteTitleKey('/settings/provider')).toBe('title.settings')
       })
     })
@@ -135,6 +133,7 @@ describe('routeTitle', () => {
     describe('unknown routes', () => {
       it('should return undefined for unknown routes', () => {
         expect(getRouteTitleKey('/unknown')).toBeUndefined()
+        expect(getRouteTitleKey('/app/openclaw')).toBeUndefined()
         expect(getRouteTitleKey('/foo/bar')).toBeUndefined()
       })
     })

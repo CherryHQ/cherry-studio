@@ -1,5 +1,14 @@
 import { vi } from 'vitest'
 
+// Electron Vite turns `?nodeWorker` imports into Worker factories in production.
+// Vitest otherwise evaluates the worker entry as a regular Node module, where
+// `parentPort` is unavailable. Tests that invoke the factory must mock it locally.
+vi.mock('@main/services/readableContent/readableContentWorker?nodeWorker', () => ({
+  default: vi.fn(() => {
+    throw new Error('Readable content worker factory must be mocked by tests that invoke it')
+  })
+}))
+
 // Mock LoggerService globally for main process tests
 vi.mock('@logger', async () => {
   const { MockMainLoggerService, mockMainLoggerService } = await import('./__mocks__/MainLoggerService')
@@ -65,7 +74,9 @@ vi.mock('electron', () => {
             return '/mock/unknown'
         }
       }),
-      getVersion: vi.fn(() => '1.0.0')
+      getVersion: vi.fn(() => '1.0.0'),
+      getLocale: vi.fn(() => 'en-US'),
+      getPreferredSystemLanguages: vi.fn(() => ['en-US'])
     },
     ipcMain: {
       handle: vi.fn(),
@@ -84,12 +95,16 @@ vi.mock('electron', () => {
     },
     shell: {
       openExternal: vi.fn(),
-      showItemInFolder: vi.fn()
+      showItemInFolder: vi.fn(),
+      trashItem: vi.fn()
     },
     session: {
       defaultSession: {
         clearCache: vi.fn(),
-        clearStorageData: vi.fn()
+        clearStorageData: vi.fn(),
+        webRequest: {
+          onBeforeSendHeaders: vi.fn()
+        }
       }
     },
     webContents: {
@@ -169,7 +184,7 @@ vi.mock('electron-store', () => {
 //
 // The fs/os/path modules are passed through to their real implementations
 // (`...await vi.importActual(...)`) so that third-party libraries such as
-// `drizzle-orm/libsql/migrator` can read files from disk. Historically these
+// `drizzle-orm/better-sqlite3/migrator` can read files from disk. Historically these
 // modules were replaced wholesale with vi.fn() stubs, which caused any code
 // reading migration files, tmp directories, or real paths to silently break.
 //

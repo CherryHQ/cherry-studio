@@ -34,6 +34,7 @@ import { loggerService } from '@logger'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryUIMessageChunk, CherryUIMessageMetadata } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
+import { isMcpContentBlock } from '@shared/utils/mcp'
 
 import type { McpToolDisplayMetadata } from './types'
 
@@ -85,6 +86,10 @@ type StreamContext = {
   toolBlocksByIndex: Map<number, string>
   toolInputAccumulators: Map<string, string>
   toolResultsEmitted: Set<string>
+  /** Tool calls the CLI auto-denied (`system/permission_denied`), reported as denied rather than failed. */
+  deniedToolUseIds: Set<string>
+  /** Set when the SDK flags an assistant message as interrupt-truncated (`aborted`). */
+  sawAbortedMessage: boolean
   textBlocksByIndex: Map<number, string>
   reasoningBlocksByIndex: Map<number, string>
   currentReasoningPartId: string | undefined
@@ -133,6 +138,64 @@ function isClaudeCodeTruncationError(error: unknown, bufferedText: string): bool
 
 function isSubagentToolName(toolName: string): boolean {
   return toolName === 'Task' || toolName === 'Agent'
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function stringifyJsonValue(value: unknown): string {
+  if (typeof value === 'string') return value
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+function getContentArray(value: unknown): unknown[] | undefined {
+  if (Array.isArray(value)) return value
+  if (isRecord(value) && Array.isArray(value.content)) return value.content
+  return undefined
+}
+
+function normalizeMcpContentBlock(block: unknown): JSONObject {
+  if (isMcpContentBlock(block)) return block as JSONObject
+
+  if (!isRecord(block)) {
+    return { type: 'text', text: stringifyJsonValue(block) }
+  }
+
+  if (block.type === 'image') {
+    const source = block.source
+    if (isRecord(source) && source.type === 'base64' && typeof source.data === 'string') {
+      return {
+        type: 'image',
+        data: source.data,
+        mimeType: typeof source.media_type === 'string' ? source.media_type : 'image/png'
+      }
+    }
+  }
+
+  return { type: 'text', text: stringifyJsonValue(block) }
+}
+
+function normalizeMcpToolContent(value: unknown): JSONValue[] {
+  const content = getContentArray(value)
+  if (content) return content.map(normalizeMcpContentBlock)
+
+  return [{ type: 'text', text: stringifyJsonValue(value) }]
+}
+
+function hasMcpNonTextContent(value: unknown): boolean {
+  const content = getContentArray(value)
+  if (!content) return false
+
+  return content.some((block) => {
+    if (!isRecord(block)) return false
+    if (block.type === 'image' || block.type === 'audio') return true
+    return block.type === 'resource' && isRecord(block.resource) && typeof block.resource.blob === 'string'
+  })
 }
 
 function createEmptyUsage(): LanguageModelV3Usage {
@@ -226,6 +289,8 @@ export class ClaudeCodeStreamAdapter {
       toolBlocksByIndex: new Map(),
       toolInputAccumulators: new Map(),
       toolResultsEmitted: new Set(),
+      deniedToolUseIds: new Set(),
+      sawAbortedMessage: false,
       textBlocksByIndex: new Map(),
       reasoningBlocksByIndex: new Map(),
       currentReasoningPartId: undefined,
@@ -265,7 +330,7 @@ export class ClaudeCodeStreamAdapter {
   }
 
   handleTruncationError(error: unknown): boolean {
-    if (!isClaudeCodeTruncationError(error, this.ctx.accumulatedText)) return false
+    if (!this.ctx.sawAbortedMessage && !isClaudeCodeTruncationError(error, this.ctx.accumulatedText)) return false
 
     logger.warn(
       `Detected truncated stream response, returning ${this.ctx.accumulatedText.length} chars of buffered text`
@@ -536,6 +601,14 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private handleAssistantMessage(message: SDKAssistantMessage, ctx: StreamContext): void {
+    // The SDK's own interrupt signal: set when the message was truncated before `stop_reason`
+    // arrived. `isClaudeCodeTruncationError` can only infer this from a mid-token JSON parse
+    // failure, so a clean truncation would otherwise go unnoticed.
+    if (message.aborted) {
+      ctx.sawAbortedMessage = true
+      logger.warn('Assistant message was truncated by an interrupt')
+    }
+
     if (!message.message?.content) return
 
     const sdkParentToolUseId = message.parent_tool_use_id
@@ -694,7 +767,7 @@ export class ClaudeCodeStreamAdapter {
     state.name = toolName
 
     const normalizedResult = this.normalizeToolResult(result.content)
-    const rawResult =
+    const errorText =
       typeof result.content === 'string'
         ? result.content
         : (() => {
@@ -708,15 +781,17 @@ export class ClaudeCodeStreamAdapter {
     this.emitToolCall(result.tool_use_id, state, ctx)
     if (isSubagentToolName(toolName)) ctx.activeTaskTools.delete(result.tool_use_id)
 
-    const providerMetadata = this.buildToolProviderMetadata(state, {
-      rawResult
-    })
+    const providerMetadata = this.buildToolProviderMetadata(state)
     const isError = this.isToolResultError(result)
-    if (isError) {
+    if (ctx.deniedToolUseIds.has(result.tool_use_id)) {
+      // The chunk schema is strict — `toolCallId` is the only accepted field, so the rejection
+      // text stays in the log written by `handlePermissionDeniedSystemMessage`.
+      ctx.sink.enqueue({ type: 'tool-output-denied', toolCallId: result.tool_use_id })
+    } else if (isError) {
       ctx.sink.enqueue({
         type: 'tool-output-error',
         toolCallId: result.tool_use_id,
-        errorText: rawResult,
+        errorText,
         dynamic: true,
         providerExecuted: true,
         providerMetadata
@@ -725,7 +800,7 @@ export class ClaudeCodeStreamAdapter {
       ctx.sink.enqueue({
         type: 'tool-output-available',
         toolCallId: result.tool_use_id,
-        output: this.buildToolOutput(normalizedResult, state),
+        output: this.buildToolOutput(normalizedResult, state, result.content),
         dynamic: true,
         providerExecuted: true,
         providerMetadata
@@ -798,12 +873,18 @@ export class ClaudeCodeStreamAdapter {
       case 'thinking_tokens':
         this.handleThinkingTokensSystemMessage(message, ctx)
         return
+      case 'permission_denied':
+        this.handlePermissionDeniedSystemMessage(message, ctx)
+        return
       case 'api_retry':
+        // Defensive fallback for future non-driver consumers. ClaudeCodeRuntimeDriver intercepts
+        // api_retry before this adapter and emits it as an ephemeral runtime event, so nothing is
+        // emitted into the message stream here (retry status is never persisted conversation content).
+        return
       case 'hook_started':
       case 'hook_progress':
       case 'hook_response':
       case 'session_state_changed':
-      case 'permission_denied':
       case 'memory_recall':
       case 'local_command_output':
       case 'elicitation_complete':
@@ -816,6 +897,22 @@ export class ClaudeCodeStreamAdapter {
         logger.debug(`Received system message subtype: ${message.subtype}`, { message })
         return
     }
+  }
+
+  private handlePermissionDeniedSystemMessage(
+    message: Extract<SDKMessage, { subtype: 'permission_denied' }>,
+    ctx: StreamContext
+  ): void {
+    // Auto-denials (deny rule, classifier, dontAsk) never reach `canUseTool`, and the tool_result
+    // that follows only carries `is_error: true` — indistinguishable from a real tool failure.
+    // Record the id so `handleToolResult` reports it as denied, and log the reason here since the
+    // `tool-output-denied` chunk has no field to carry it.
+    ctx.deniedToolUseIds.add(message.tool_use_id)
+    logger.info(`Tool call auto-denied: ${message.tool_name}`, {
+      toolUseId: message.tool_use_id,
+      reasonType: message.decision_reason_type,
+      reason: message.decision_reason ?? message.message
+    })
   }
 
   private handleInitSystemMessage(message: Extract<SDKMessage, { subtype: 'init' }>, ctx: StreamContext): void {
@@ -1099,18 +1196,12 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
-  private buildToolProviderMetadata(
-    state: ToolStreamState,
-    extra: Record<string, JSONValue | undefined> = {}
-  ): Record<string, JSONObject> {
+  private buildToolProviderMetadata(state: ToolStreamState): Record<string, JSONObject> {
     const claudeCode: JSONObject = {
       parentToolCallId: state.parentToolCallId ?? null,
       ...(state.sdkBlockType ? { sdkBlockType: state.sdkBlockType } : {}),
       ...(state.serverName ? { serverName: state.serverName } : {}),
       ...(state.serverId ? { serverId: state.serverId } : {})
-    }
-    for (const [key, value] of Object.entries(extra)) {
-      if (value !== undefined) claudeCode[key] = value
     }
 
     return {
@@ -1128,10 +1219,14 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
-  private buildToolOutput(result: NonNullable<JSONValue>, state: ToolStreamState): NonNullable<JSONValue> {
+  private buildToolOutput(
+    result: NonNullable<JSONValue>,
+    state: ToolStreamState,
+    rawContent?: ClaudeToolResultBlock['content']
+  ): NonNullable<JSONValue> {
     if (state.toolType !== 'mcp') return result
     return {
-      content: result,
+      content: hasMcpNonTextContent(rawContent) ? normalizeMcpToolContent(rawContent) : result,
       metadata: {
         type: 'mcp',
         ...(state.displayName ? { name: state.displayName } : {}),
@@ -1235,7 +1330,7 @@ export class ClaudeCodeStreamAdapter {
       providerExecuted: true,
       dynamic: true,
       title: this.getToolTitle(state),
-      providerMetadata: this.buildToolProviderMetadata(state, { rawInput: serializedInput })
+      providerMetadata: this.buildToolProviderMetadata(state)
     })
     state.inputStarted = true
     state.inputClosed = true
@@ -1257,12 +1352,18 @@ export class ClaudeCodeStreamAdapter {
     const promptTokens = usage.inputTokens.total ?? 0
     const completionTokens = usage.outputTokens.total ?? 0
     const thoughtsTokens = usage.outputTokens.reasoning
+    const noCacheTokens = usage.inputTokens.noCache
+    const cacheReadTokens = usage.inputTokens.cacheRead
+    const cacheWriteTokens = usage.inputTokens.cacheWrite
     return {
       modelId: this.modelId,
       totalTokens: promptTokens + completionTokens,
       promptTokens,
       completionTokens,
-      ...(thoughtsTokens !== undefined ? { thoughtsTokens } : {})
+      ...(thoughtsTokens !== undefined ? { thoughtsTokens } : {}),
+      ...(noCacheTokens !== undefined ? { noCacheTokens } : {}),
+      ...(cacheReadTokens !== undefined ? { cacheReadTokens } : {}),
+      ...(cacheWriteTokens !== undefined ? { cacheWriteTokens } : {})
     }
   }
 }

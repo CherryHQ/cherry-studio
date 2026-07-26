@@ -37,7 +37,9 @@ const ConfirmActionButton = ({
   const [open, setOpen] = useState(false)
 
   const handleOpenChange = (nextOpen: boolean) => {
-    if (disabled) return
+    // Only block opening when disabled — never block closing, or a disable that
+    // lands while the dialog is open (e.g. streaming starts) would trap it open.
+    if (nextOpen && disabled) return
     setOpen(nextOpen)
     onOpenChange?.(nextOpen)
   }
@@ -133,19 +135,24 @@ const DeleteToolbarAction = ({
   softHoverBg: boolean
 }) => {
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
+  const unavailableReason = action.availability.reason
 
   return (
     <ActionButtonWithConfirm
       action={action}
       executeAction={executeAction}
       icon={
-        <Tooltip content={action.label} delay={1000} isOpen={showDeleteTooltip} onOpenChange={setShowDeleteTooltip}>
-          {action.icon}
-        </Tooltip>
+        unavailableReason ? (
+          action.icon
+        ) : (
+          <Tooltip content={action.label} delay={1000} isOpen={showDeleteTooltip} onOpenChange={setShowDeleteTooltip}>
+            {action.icon}
+          </Tooltip>
+        )
       }
       onConfirmOpen={() => setShowDeleteTooltip(false)}
       softHoverBg={softHoverBg}
-      tooltip={false}
+      tooltip={unavailableReason ?? false}
     />
   )
 }

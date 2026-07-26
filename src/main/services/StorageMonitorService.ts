@@ -93,7 +93,7 @@ export class StorageMonitorService extends BaseService {
   /**
    * Re-arm the timer at the interval that matches the current free space. Same
    * band => keep the existing timer (no churn); band change => dispose and
-   * re-register at the new interval (mirrors ProxyManager's pattern).
+   * re-register at the new interval (mirrors ProxyService's pattern).
    */
   private scheduleNext(): void {
     const nextMs = intervalForFree(this.health.freeBytes)

@@ -1,5 +1,5 @@
 import { usePreference } from '@data/hooks/usePreference'
-import { isMac } from '@renderer/config/constant'
+import { isMac } from '@renderer/utils/platform'
 
 function useMacTransparentWindow() {
   const [windowStyle] = usePreference('ui.window_style')

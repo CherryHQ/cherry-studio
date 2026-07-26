@@ -7,13 +7,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock side-effect dependencies BEFORE importing the hook
 vi.mock('@renderer/utils/webviewStateManager', () => ({
-  clearWebviewState: vi.fn()
+  clearWebviewState: vi.fn(),
+  setWebviewLoaded: vi.fn()
 }))
 
-const mockWindowApi = vi.hoisted(() => ({
-  openWebsite: vi.fn(),
-  openPath: vi.fn()
-}))
+const mocks = vi.hoisted(() => ({ request: vi.fn() }))
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: mocks.request } }))
 
 // TabsContext is consumed by useMiniAppPopup to open AppShell tabs and to find
 // pinned miniapp route tabs that are exempt from keep-alive eviction. The test
@@ -21,10 +20,20 @@ const mockWindowApi = vi.hoisted(() => ({
 const mockTabs = vi.hoisted(() => ({
   tabs: [] as Array<{ id: string; url: string; isPinned?: boolean; type: 'route' }>,
   hasContext: true,
-  openTab: vi.fn()
+  closeTab: vi.fn(),
+  openTab: vi.fn(),
+  updateTab: vi.fn()
 }))
-vi.mock('@renderer/context/TabsContext', () => ({
-  useOptionalTabsContext: () => (mockTabs.hasContext ? { tabs: mockTabs.tabs, openTab: mockTabs.openTab } : null)
+vi.mock('@renderer/hooks/tab', () => ({
+  useOptionalTabsContext: () =>
+    mockTabs.hasContext
+      ? {
+          tabs: mockTabs.tabs,
+          closeTab: mockTabs.closeTab,
+          openTab: mockTabs.openTab,
+          updateTab: mockTabs.updateTab
+        }
+      : null
 }))
 
 // Import mocked modules
@@ -71,17 +80,15 @@ describe('useMiniAppPopup', () => {
     mockClearWebviewState.mockClear()
     mockTabs.tabs = []
     mockTabs.hasContext = true
+    mockTabs.closeTab.mockClear()
     mockTabs.openTab.mockClear()
-    mockWindowApi.openWebsite.mockReset()
-    mockWindowApi.openPath.mockReset()
-    mockWindowApi.openWebsite.mockResolvedValue(undefined)
-    mockWindowApi.openPath.mockResolvedValue(undefined)
+    mockTabs.updateTab.mockClear()
+    mocks.request.mockReset()
+    mocks.request.mockResolvedValue(undefined)
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
-        ...window.api,
-        openWebsite: mockWindowApi.openWebsite,
-        openPath: mockWindowApi.openPath
+        ...window.api
       }
     })
   })
@@ -468,8 +475,8 @@ describe('useMiniAppPopup', () => {
         })
       })
 
-      expect(mockWindowApi.openWebsite).toHaveBeenCalledWith('https://example.com/help')
-      expect(mockWindowApi.openPath).not.toHaveBeenCalled()
+      expect(mocks.request).toHaveBeenCalledWith('system.shell.open_website', 'https://example.com/help')
+      expect(mocks.request).not.toHaveBeenCalledWith('system.shell.open_path', expect.anything())
       expect(mockTabs.openTab).not.toHaveBeenCalled()
       expect(getKeepAlive()).toEqual([])
     })
@@ -488,8 +495,11 @@ describe('useMiniAppPopup', () => {
         })
       })
 
-      expect(mockWindowApi.openPath).toHaveBeenCalledWith('/Applications/Cherry Studio/resources/releases.html')
-      expect(mockWindowApi.openWebsite).not.toHaveBeenCalled()
+      expect(mocks.request).toHaveBeenCalledWith(
+        'system.shell.open_path',
+        '/Applications/Cherry Studio/resources/releases.html'
+      )
+      expect(mocks.request).not.toHaveBeenCalledWith('system.shell.open_website', expect.anything())
       expect(mockTabs.openTab).not.toHaveBeenCalled()
       expect(getKeepAlive()).toEqual([])
     })

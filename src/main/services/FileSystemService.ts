@@ -1,4 +1,4 @@
-import { readTextFileWithAutoEncoding } from '@main/utils/file'
+import { readTextFileWithAutoEncoding } from '@main/utils/legacyFile'
 import { TraceMethod } from '@mcp-trace/trace-core'
 import fs from 'fs/promises'
 

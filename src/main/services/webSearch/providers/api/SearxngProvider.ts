@@ -1,10 +1,10 @@
 import { loggerService } from '@logger'
+import { isAbortError } from '@main/utils/error'
 import { defaultAppHeaders, isValidUrl } from '@main/utils/http'
 import type { WebSearchExecutionConfig, WebSearchResponse, WebSearchResult } from '@shared/data/types/webSearch'
 import { net } from 'electron'
 import * as z from 'zod'
 
-import { isAbortError } from '../../utils/errors'
 import { fetchWebSearchContent } from '../../utils/fetchContent'
 import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
 import type { UrlSearchContext } from '../base/context'
@@ -164,7 +164,7 @@ export class SearxngProvider extends BaseWebSearchProvider {
 
     const abortResult = rejectedResults.find((item) => isAbortError(item.reason))
 
-    if (abortResult) {
+    if (abortResult && context.signal?.aborted) {
       throw abortResult.reason
     }
 

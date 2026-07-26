@@ -1,0 +1,249 @@
+/**
+ * DirectoryWatcher — generic FS-monitoring primitive.
+ *
+ * Wraps `chokidar@4` with a minimal event surface (`add` / `unlink` /
+ * `change` / `ready` / `error`) and auto-wires `add` / `unlink` events into
+ * the file-module's `DanglingCache` singleton so external-entry presence
+ * tracking stays coherent across all watchers.
+ *
+ * ## Positioning
+ *
+ * - **Not a lifecycle service.** Business modules (e.g. a future NoteService)
+ *   instantiate their own watcher via `createDirectoryWatcher(path)` and
+ *   dispose it themselves; the factory transparently forwards events into
+ *   `DanglingCache`.
+ * - **Open to the entire main process.** Like `@main/utils/file/*` primitives,
+ *   the watcher has no entry-system awareness; it is a thin wrapper over
+ *   `chokidar` with house conventions (built-in OS-junk ignores, optional
+ *   debounce window).
+ *
+ * ## Deviation from `file-manager-architecture.md §8.2`
+ *
+ * The architecture doc specifies a richer API (separate `onAdd` / `onAddDir`
+ * / `onUnlink` / `onUnlinkDir` / `onRename` / `onError` / `onReady` events
+ * with rename-detection options). This module currently ships only the
+ * events that have a consumer in the current scope:
+ * - directory add/remove not surfaced (no consumer needs it)
+ * - rename detection deferred (paired with `onRename` deliverable)
+ *
+ * Future expansions can additively grow the `WatcherEvent` union without
+ * breaking existing subscribers.
+ *
+ * See [file-manager-architecture.md §8](../../../../docs/references/file/file-manager-architecture.md)
+ * for the full design.
+ */
+
+import path from 'node:path'
+
+import { loggerService } from '@logger'
+import { Emitter } from '@main/core/lifecycle'
+import { isWin } from '@main/core/platform'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import { type FSWatcher, watch as chokidarWatch } from 'chokidar'
+
+import { danglingCache } from './danglingCache'
+
+const logger = loggerService.withContext('file/watcher')
+
+/**
+ * Normalized FS event. Rename is represented as `unlink` + `add` — consumers
+ * that need "rename" semantics correlate the pair themselves (see
+ * §8.3 "Rename Detection Semantics" in file-manager-architecture.md).
+ *
+ * Directory variants `addDir` / `unlinkDir` were added when the
+ * `DirectoryTreeBuilder` primitive landed (see
+ * `docs/references/file/directory-tree.md`) — without them, folder
+ * creation / deletion would never reach a subscribed tree builder because
+ * chokidar reports those on dedicated channels.
+ */
+export type WatcherEvent =
+  | { readonly kind: 'add'; readonly path: AbsoluteFilePath }
+  | { readonly kind: 'addDir'; readonly path: AbsoluteFilePath }
+  | { readonly kind: 'unlink'; readonly path: AbsoluteFilePath }
+  | { readonly kind: 'unlinkDir'; readonly path: AbsoluteFilePath }
+  | { readonly kind: 'change'; readonly path: AbsoluteFilePath }
+  | { readonly kind: 'ready' }
+  | { readonly kind: 'error'; readonly error: Error }
+
+export type WatcherListener = (event: WatcherEvent) => void
+
+/** Internal shape before AbsoluteFilePath validation. */
+type RawWatcherPathEvent = {
+  readonly kind: 'add' | 'addDir' | 'unlink' | 'unlinkDir' | 'change'
+  readonly path: string
+}
+
+export interface DirectoryWatcher {
+  /**
+   * Subscribe to normalized FS events. Returns an unsubscribe function.
+   * Multiple subscribers are supported; delivery order across subscribers is
+   * unspecified.
+   */
+  onEvent(listener: WatcherListener): () => void
+
+  /**
+   * Stop watching and release all OS-level resources. Idempotent.
+   */
+  close(): Promise<void>
+}
+
+export interface CreateDirectoryWatcherOptions {
+  /** Recurse into subdirectories. Default: `true`. */
+  readonly recursive?: boolean
+  /** Maximum recursion depth when `recursive` is enabled. `undefined` keeps chokidar's default unlimited depth. */
+  readonly maxDepth?: number
+  /** Custom ignore predicate. Built-in ignores (`.DS_Store`, `Thumbs.db`, etc.) always apply. */
+  readonly ignore?: (path: AbsoluteFilePath) => boolean
+  /** Stability window for `awaitWriteFinish` (ms). Default: 200. Set to 0 to disable. */
+  readonly stabilityThresholdMs?: number
+}
+
+/** OS-junk basenames suppressed regardless of caller's `ignore` predicate. */
+const BUILTIN_IGNORE_BASENAMES = new Set(['.DS_Store', '.localized', 'Thumbs.db', 'desktop.ini'])
+
+class DirectoryWatcherImpl implements DirectoryWatcher {
+  private fsw: FSWatcher
+  private readonly emitter = new Emitter<WatcherEvent>()
+  private readonly root: AbsoluteFilePath
+  private readonly opts: CreateDirectoryWatcherOptions
+  private usingPolling = false
+  private closed = false
+
+  constructor(root: AbsoluteFilePath, opts: CreateDirectoryWatcherOptions = {}) {
+    this.root = root
+    this.opts = opts
+    this.fsw = this.createWatcher(false)
+  }
+
+  private createWatcher(usePolling: boolean): FSWatcher {
+    const builtinIgnore = (p: string) => BUILTIN_IGNORE_BASENAMES.has(path.basename(p))
+    const userIgnore = this.opts.ignore
+    const recursive = this.opts.recursive !== false
+    const stability = this.opts.stabilityThresholdMs ?? 200
+    const depth = recursive ? this.opts.maxDepth : 0
+
+    const fsw = chokidarWatch(this.root, {
+      ignored: userIgnore
+        ? [
+            builtinIgnore,
+            (p) => {
+              const parsed = this.parseChokidarPath(p)
+              return !parsed || userIgnore(parsed)
+            }
+          ]
+        : [builtinIgnore],
+      ignoreInitial: true,
+      depth,
+      awaitWriteFinish: stability > 0 ? { stabilityThreshold: stability, pollInterval: 100 } : false,
+      usePolling
+    })
+
+    fsw.on('add', (p) => this.handle({ kind: 'add', path: p }))
+    fsw.on('addDir', (p) => this.handle({ kind: 'addDir', path: p }))
+    fsw.on('change', (p) => this.handle({ kind: 'change', path: p }))
+    fsw.on('unlink', (p) => this.handle({ kind: 'unlink', path: p }))
+    fsw.on('unlinkDir', (p) => this.handle({ kind: 'unlinkDir', path: p }))
+    fsw.on('ready', () => this.emitter.fire({ kind: 'ready' }))
+    fsw.on('error', (err) => this.handleError(err as Error))
+
+    return fsw
+  }
+
+  private handleError(err: Error): void {
+    const code = (err as NodeJS.ErrnoException).code
+    const isWindowsEperm = isWin && (code === 'EPERM' || err.message.includes('EPERM'))
+    const shouldFallbackToPolling = code === 'EMFILE' || err.message.includes('EMFILE') || isWindowsEperm
+    if (!this.closed && !this.usingPolling && shouldFallbackToPolling) {
+      logger.warn(`chokidar native watcher hit ${code ?? 'an OS error'}; falling back to polling`, err)
+      const oldWatcher = this.fsw
+      oldWatcher.removeAllListeners()
+      this.usingPolling = true
+      this.fsw = this.createWatcher(true)
+      void oldWatcher.close().catch((closeErr) => logger.warn('Failed to close native watcher', closeErr as Error))
+      return
+    }
+
+    if (!this.closed) {
+      // Log proactively: chokidar errors (EMFILE, lost permissions on a
+      // parent dir, etc.) silently stop event delivery; without this log a
+      // dead watcher leaves the cache stale with no diagnostic trace.
+      logger.error('chokidar error', err)
+      this.emitter.fire({ kind: 'error', error: err })
+    }
+  }
+
+  /**
+   * Validate a path emitted by chokidar. chokidar's public types only promise
+   * `string`, but in our configuration (absolute root, no `cwd`) the emitted
+   * paths should always satisfy `AbsoluteFilePathSchema`. This helper turns that
+   * assumption into a checked invariant and returns `null` for any unexpected
+   * value so callers can drop or ignore it safely.
+   */
+  private parseChokidarPath(raw: string): AbsoluteFilePath | null {
+    const result = AbsoluteFilePathSchema.safeParse(raw)
+    return result.success ? result.data : null
+  }
+
+  /**
+   * Forward chokidar's `add` / `unlink` / `change` events to subscribers AND
+   * mirror presence transitions into DanglingCache. `change` is intentionally
+   * not mirrored — the file is still present; only mtime drift, which the
+   * cache doesn't track.
+   *
+   * AbsoluteFilePath validation happens here, at the boundary between chokidar's
+   * `string` events and the AbsoluteFilePath-typed consumers (`DanglingCache`,
+   * `WatcherEvent` subscribers). Invalid paths are logged and dropped.
+   *
+   * DanglingCache's reverse index is keyed **byte-faithful**: it is populated
+   * by `ensureExternalEntry`, whose `externalPath` is stored exactly as the OS
+   * handed it (byte-faithful lexical form, no NFC). So the watcher matches
+   * chokidar events by **raw byte equality** — no normalization on either leg.
+   * (The NFC step that used to sit here existed only to bridge to the old
+   * NFC-canonical keys; it is removed together with them.) On Linux the raw
+   * event byte-matches the stored key by construction; on macOS/Windows it
+   * matches when the path source and chokidar agree on Unicode form.
+   *
+   * `check()` — which stats the byte-faithful stored path directly — is the
+   * correctness baseline, so a missed watcher match is never a correctness
+   * bug: it only delays a badge update until the next `check()`, which is
+   * benign and self-healing. See
+   * `docs/references/file/file-manager-architecture.md §11.3 "Watcher
+   * Auto-Wiring"`.
+   */
+  private handle(ev: RawWatcherPathEvent): void {
+    if (this.closed) return
+    const path = this.parseChokidarPath(ev.path)
+    if (!path) {
+      logger.warn('chokidar emitted a path that does not satisfy AbsoluteFilePathSchema', { path: ev.path })
+      return
+    }
+    if (ev.kind === 'add' || ev.kind === 'unlink') {
+      const presence = ev.kind === 'add' ? 'present' : 'missing'
+      danglingCache.onFsEvent(path, presence, 'watcher')
+    }
+    this.emitter.fire({ kind: ev.kind, path })
+  }
+
+  onEvent(listener: WatcherListener): () => void {
+    const subscription = this.emitter.event(listener)
+    return () => subscription.dispose()
+  }
+
+  async close(): Promise<void> {
+    if (this.closed) return
+    this.closed = true
+    await this.fsw.close()
+    this.emitter.dispose()
+  }
+}
+
+/**
+ * Create a watcher rooted at `root`. The returned instance is ready to
+ * subscribe immediately; a `'ready'` event fires once the initial scan
+ * completes. The factory auto-wires `add` / `unlink` events into
+ * `danglingCache.onFsEvent` so external-entry presence tracking is updated
+ * regardless of whether the watcher's own subscriber consumes those events.
+ */
+export function createDirectoryWatcher(root: AbsoluteFilePath, opts?: CreateDirectoryWatcherOptions): DirectoryWatcher {
+  return new DirectoryWatcherImpl(root, opts)
+}

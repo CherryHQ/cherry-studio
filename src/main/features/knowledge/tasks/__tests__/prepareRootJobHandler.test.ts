@@ -8,7 +8,7 @@ import {
   createPrepareRootJobHandler,
   deleteItemsByIdsMock,
   deleteKnowledgeItemFilesBestEffortMock,
-  deleteMaterialMock,
+  deleteMaterialsMock,
   getJobMock,
   knowledgeItemGetByIdMock,
   knowledgeItemGetSubtreeItemsMock,
@@ -23,7 +23,7 @@ import {
 describe('prepare-root job handler', () => {
   it('clears stale expansion and schedules recreated leaves', async () => {
     const handler = createPrepareRootJobHandler(knowledgeLockManager as never, workflowService as never)
-    knowledgeItemGetByIdMock.mockResolvedValue(createDirectoryItem())
+    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
 
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
 
@@ -37,14 +37,14 @@ describe('prepare-root job handler', () => {
   it('clears stale expansion vectors before deleting rows', async () => {
     const handler = createPrepareRootJobHandler(knowledgeLockManager as never, workflowService as never)
     const activeChild = createNoteItem('active-note', 'dir-1')
-    knowledgeItemGetByIdMock.mockResolvedValue(createDirectoryItem())
-    knowledgeItemGetSubtreeItemsMock.mockResolvedValue([activeChild])
+    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([activeChild])
 
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
 
-    expect(deleteMaterialMock).toHaveBeenCalledWith('active-note')
+    expect(deleteMaterialsMock).toHaveBeenCalledWith(['active-note'])
     expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['active-note'])
-    expect(deleteMaterialMock.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(deleteMaterialsMock.mock.invocationCallOrder[0]).toBeLessThan(
       deleteItemsByIdsMock.mock.invocationCallOrder[0]
     )
   })
@@ -52,8 +52,8 @@ describe('prepare-root job handler', () => {
   it('routes stale-expansion cleanup through best-effort delete before deleting rows', async () => {
     const handler = createPrepareRootJobHandler(knowledgeLockManager as never, workflowService as never)
     const activeChild = createNoteItem('active-note', 'dir-1')
-    knowledgeItemGetByIdMock.mockResolvedValue(createDirectoryItem())
-    knowledgeItemGetSubtreeItemsMock.mockResolvedValue([activeChild])
+    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([activeChild])
 
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
 
@@ -72,22 +72,22 @@ describe('prepare-root job handler', () => {
     const handler = createPrepareRootJobHandler(knowledgeLockManager as never, workflowService as never)
     const activeChild = createNoteItem('active-note', 'dir-1')
     const deletingChild = createNoteItem('deleting-note', 'dir-1', 'deleting')
-    knowledgeItemGetByIdMock.mockResolvedValue(createDirectoryItem())
-    knowledgeItemGetSubtreeItemsMock.mockResolvedValue([activeChild, deletingChild])
+    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
+    knowledgeItemGetSubtreeItemsMock.mockReturnValue([activeChild, deletingChild])
 
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
 
-    expect(deleteMaterialMock).toHaveBeenCalledWith('active-note')
+    expect(deleteMaterialsMock).toHaveBeenCalledWith(['active-note'])
     expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['active-note'])
-    expect(deleteMaterialMock).not.toHaveBeenCalledWith('deleting-note')
+    expect(deleteMaterialsMock).not.toHaveBeenCalledWith(expect.arrayContaining(['deleting-note']))
     expect(deleteItemsByIdsMock).not.toHaveBeenCalledWith('kb-1', expect.arrayContaining(['deleting-note']))
   })
 
   it('skips expansion when the root becomes deleting inside the mutation lock', async () => {
     const handler = createPrepareRootJobHandler(knowledgeLockManager as never, workflowService as never)
     knowledgeItemGetByIdMock
-      .mockResolvedValueOnce(createDirectoryItem())
-      .mockResolvedValueOnce(createDirectoryItem('dir-1', 'deleting'))
+      .mockReturnValueOnce(createDirectoryItem())
+      .mockReturnValueOnce(createDirectoryItem('dir-1', 'deleting'))
 
     const ctx = createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job')
     await handler.execute(ctx)
@@ -100,7 +100,7 @@ describe('prepare-root job handler', () => {
 
   it('keeps terminal failure from an empty expansion', async () => {
     const handler = createPrepareRootJobHandler(knowledgeLockManager as never, workflowService as never)
-    knowledgeItemGetByIdMock.mockResolvedValue(createDirectoryItem())
+    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
     prepareKnowledgeItemMock.mockResolvedValue([])
 
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
@@ -116,7 +116,7 @@ describe('prepare-root job handler', () => {
       createNoteItem('leaf-2', 'dir-1'),
       createNoteItem('leaf-3', 'dir-1')
     ]
-    knowledgeItemGetByIdMock.mockResolvedValue(createDirectoryItem())
+    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
     prepareKnowledgeItemMock.mockResolvedValue(leaves)
     scheduleItemMock.mockResolvedValueOnce({ id: 'job-leaf-1' }).mockRejectedValueOnce(new Error('enqueue failed'))
 
@@ -139,12 +139,14 @@ describe('prepare-root job handler', () => {
   it('falls back to subtree failed status when marking an unscheduled leaf fails', async () => {
     const handler = createPrepareRootJobHandler(knowledgeLockManager as never, workflowService as never)
     const leaves = [createNoteItem('leaf-1', 'dir-1'), createNoteItem('leaf-2', 'dir-1')]
-    knowledgeItemGetByIdMock.mockResolvedValue(createDirectoryItem())
+    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
     prepareKnowledgeItemMock.mockResolvedValue(leaves)
     scheduleItemMock.mockRejectedValueOnce(new Error('enqueue failed'))
     knowledgeItemUpdateStatusMock
-      .mockResolvedValueOnce(createDirectoryItem('dir-1', 'processing'))
-      .mockRejectedValueOnce(new Error('status busy'))
+      .mockReturnValueOnce(createDirectoryItem('dir-1', 'processing'))
+      .mockImplementationOnce(() => {
+        throw new Error('status busy')
+      })
 
     await expect(handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))).rejects.toThrow(
       'enqueue failed'
@@ -161,13 +163,17 @@ describe('prepare-root job handler', () => {
   it('reports unrecovered leaves when failed status cleanup also fails', async () => {
     const handler = createPrepareRootJobHandler(knowledgeLockManager as never, workflowService as never)
     const leaves = [createNoteItem('leaf-1', 'dir-1')]
-    knowledgeItemGetByIdMock.mockResolvedValue(createDirectoryItem())
+    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem())
     prepareKnowledgeItemMock.mockResolvedValue(leaves)
     scheduleItemMock.mockRejectedValueOnce(new Error('enqueue failed'))
     knowledgeItemUpdateStatusMock
-      .mockResolvedValueOnce(createDirectoryItem('dir-1', 'processing'))
-      .mockRejectedValueOnce(new Error('status busy'))
-    knowledgeItemSetSubtreeStatusMock.mockRejectedValueOnce(new Error('subtree busy'))
+      .mockReturnValueOnce(createDirectoryItem('dir-1', 'processing'))
+      .mockImplementationOnce(() => {
+        throw new Error('status busy')
+      })
+    knowledgeItemSetSubtreeStatusMock.mockImplementationOnce(() => {
+      throw new Error('subtree busy')
+    })
 
     await expect(handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))).rejects.toThrow(
       'unrecovered item ids: leaf-1'
@@ -183,15 +189,18 @@ describe('prepare-root job handler', () => {
         input: { baseId: 'kb-1', itemId: 'dir-1' }
       })
     )
-    knowledgeItemGetByIdMock.mockResolvedValue(createDirectoryItem('dir-1', 'deleting'))
+    knowledgeItemGetByIdMock.mockReturnValue(createDirectoryItem('dir-1', 'deleting'))
 
     await handler.onSettled?.({
       jobId: 'prepare-job',
       type: 'knowledge.prepare-root',
       scheduleId: null,
+      parentId: null,
       status: 'cancelled',
+      input: { baseId: 'kb-1', itemId: 'dir-1' },
       error: { code: 'CANCELLED', message: 'cancelled', retryable: false },
-      attempt: 1
+      attempt: 1,
+      metadata: {}
     })
 
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith('dir-1', 'failed', expect.anything())

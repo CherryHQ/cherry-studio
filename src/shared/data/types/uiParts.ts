@@ -161,17 +161,38 @@ export interface CherryToolMeta {
   }
 }
 
+/** A single actionable step in an AI error diagnosis. */
+export interface DiagnosisStep {
+  text: string
+}
+
+/** AI-generated diagnosis of a chat error. Persisted on a data-error part so it survives popup close / reload. */
+export interface DiagnosisResult {
+  summary: string
+  category: string
+  explanation: string
+  steps: DiagnosisStep[]
+}
+
+/** Cherry metadata on a data-error DataUIPart. */
+export interface CherryErrorMeta {
+  /** Persisted AI error diagnosis, rehydrated into the error-detail popup after close / reload. */
+  diagnosis?: DiagnosisResult
+}
+
 /** Cherry metadata on a FileUIPart. */
 export interface CherryFileMeta {
   /**
    * FileEntryId for internal files (v1→v2 migrator preserves this from
    * `OldFileBlock.file.id` / `OldImageBlock.file.id`). External (user-path)
    * files have no fileEntryId. Consumed by `ChatMigrator` to backfill
-   * `file_ref` rows after migration.
+   * `chat_message_file_ref` rows after migration.
    */
   fileEntryId?: string
   /** Composer file token association identity. Not a path, filename, or file storage id. */
   fileTokenSourceId?: string
+  /** Safe composer-only source marker used to restore sent-message token previews. */
+  composerFileKind?: 'pasted-text'
 }
 
 /**
@@ -186,7 +207,9 @@ export type CherryMetaForPartType<T extends string> = T extends 'text'
       ? CherryToolMeta
       : T extends 'file'
         ? CherryFileMeta
-        : Record<string, never>
+        : T extends 'data-error'
+          ? CherryErrorMeta
+          : Record<string, never>
 
 /**
  * @deprecated Use `CherryTextMeta` / `CherryReasoningMeta` / `CherryToolMeta` / `CherryFileMeta`
@@ -210,7 +233,7 @@ const ComposerMessageFileTokenPayloadSchema: z.ZodType<ComposerMessageFileTokenP
 
 const ComposerMessageTokenSchema: z.ZodType<ComposerMessageToken> = z.object({
   id: z.string(),
-  kind: z.enum(['skill', 'file', 'command', 'knowledge', 'reference', 'quote']),
+  kind: z.enum(['skill', 'file', 'folder', 'command', 'knowledge', 'reference', 'quote']),
   label: z.string(),
   icon: z.string().optional(),
   description: z.string().optional(),
@@ -249,7 +272,23 @@ export const CherryToolMetaSchema: z.ZodType<CherryToolMeta> = z.object({
 
 export const CherryFileMetaSchema: z.ZodType<CherryFileMeta> = z.object({
   fileEntryId: z.string().optional(),
-  fileTokenSourceId: z.string().optional()
+  fileTokenSourceId: z.string().optional(),
+  composerFileKind: z.literal('pasted-text').optional()
+})
+
+const DiagnosisStepSchema: z.ZodType<DiagnosisStep> = z.object({
+  text: z.string()
+})
+
+const DiagnosisResultSchema: z.ZodType<DiagnosisResult> = z.object({
+  summary: z.string(),
+  category: z.string(),
+  explanation: z.string(),
+  steps: z.array(DiagnosisStepSchema)
+})
+
+export const CherryErrorMetaSchema: z.ZodType<CherryErrorMeta> = z.object({
+  diagnosis: DiagnosisResultSchema.optional()
 })
 
 // Table-driven dispatch — part `type` → schema. First match wins.
@@ -257,7 +296,8 @@ const SCHEMA_BY_PART_TYPE: ReadonlyArray<readonly [(t: string) => boolean, z.Zod
   [(t) => t === 'text', CherryTextMetaSchema],
   [(t) => t === 'reasoning', CherryReasoningMetaSchema],
   [(t) => t === 'dynamic-tool' || t.startsWith('tool-'), CherryToolMetaSchema],
-  [(t) => t === 'file', CherryFileMetaSchema]
+  [(t) => t === 'file', CherryFileMetaSchema],
+  [(t) => t === 'data-error', CherryErrorMetaSchema]
 ]
 
 function schemaForPartType(type: string): z.ZodTypeAny | null {
@@ -271,7 +311,7 @@ function schemaForPartType(type: string): z.ZodTypeAny | null {
 // Accessors — single read/write boundary for providerMetadata.cherry
 // ============================================================================
 
-export type ComposerMessageTokenKind = 'skill' | 'file' | 'command' | 'knowledge' | 'reference' | 'quote'
+export type ComposerMessageTokenKind = 'skill' | 'file' | 'folder' | 'command' | 'knowledge' | 'reference' | 'quote'
 
 export interface ComposerMessageFileTokenPayload {
   type?: FileType

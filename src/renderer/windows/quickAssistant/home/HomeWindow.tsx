@@ -1,35 +1,44 @@
 import { useChat } from '@ai-sdk/react'
+import { Separator } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { isMac } from '@renderer/config/constant'
-import { useTheme } from '@renderer/context/ThemeProvider'
-import { useAssistant, useDefaultAssistant } from '@renderer/hooks/useAssistant'
+import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
+import { useTheme } from '@renderer/hooks/useTheme'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import i18n from '@renderer/i18n'
-import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
-import { AssistantMessageStatus, UserMessageStatus } from '@renderer/types/newMessage'
-import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { ipcChatTransport } from '@renderer/services/aiTransport'
+import { toast } from '@renderer/services/toast'
+import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
+import { isMac } from '@renderer/utils/platform'
+import { cn } from '@renderer/utils/style'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { IpcChannel } from '@shared/IpcChannel'
-import { defaultLanguage } from '@shared/utils/languages'
-import { Divider } from 'antd'
-import { isEmpty } from 'lodash'
+import { type CherryReasoningMeta, readCherryMeta, withCherryMeta } from '@shared/data/types/uiParts'
+import { isEmpty } from 'es-toolkit/compat'
 import type { FC } from 'react'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
-import ChatWindow from '../chat/ChatWindow'
-import TranslateWindow from '../translate/TranslateWindow'
 import ClipboardPreview from './components/ClipboardPreview'
 import type { FeatureMenusRef } from './components/FeatureMenus'
 import FeatureMenus from './components/FeatureMenus'
 import Footer from './components/Footer'
 import InputBar from './components/InputBar'
+
+// Lazy boundaries (S6b): the chat/translate branches carry the heavy message
+// rendering chain (ChatMarkdown, CodeMirror, katex, mermaid). The default
+// 'home' route never renders them, so they stay out of the first paint and
+// only load when a feature is actually invoked.
+const ChatWindow = React.lazy(() => import('../chat/ChatWindow'))
+const TranslateWindow = React.lazy(() => import('../translate/TranslateWindow'))
+
+// Size-stable fallback: the shell (input bar / footer) renders synchronously
+// around it, so the brief local-chunk load must not collapse the layout.
+const LazyBranchFallback = () => <div className="flex-1" />
 
 const logger = loggerService.withContext('HomeWindow')
 
@@ -38,10 +47,37 @@ const EMPTY_UI_MESSAGES: CherryUIMessage[] = []
 
 type MiniRoute = 'home' | 'chat' | 'translate' | 'summary' | 'explanation'
 
+/**
+ * Finalize a list of live assistant messages: turn any still-streaming
+ * reasoning part into `state: 'done'`, deriving `thinkingMs` from
+ * `startedAt` if the upstream hasn't set it yet. Called when the execution
+ * transitions from active to inactive.
+ */
+const finalizeLiveMessages = (messages: CherryUIMessage[]): CherryUIMessage[] => {
+  return messages.map((msg) => {
+    if (!msg.parts) return msg
+    let changed = false
+    const newParts = msg.parts.map((part) => {
+      if (part.type !== 'reasoning' || part.state !== 'streaming') return part
+      const cherry = readCherryMeta(part)
+      const startedAt = cherry?.startedAt
+      const thinkingMs = cherry?.thinkingMs
+
+      let patch: Partial<CherryReasoningMeta> = {}
+      if (typeof startedAt === 'number' && Number.isFinite(startedAt) && typeof thinkingMs !== 'number') {
+        patch = { thinkingMs: Math.round(Math.max(0, Date.now() - startedAt)) }
+      }
+
+      changed = true
+      return withCherryMeta({ ...part, state: 'done' }, patch)
+    })
+    return changed ? { ...msg, parts: newParts } : msg
+  })
+}
+
 const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const [readClipboardAtStartup] = usePreference('feature.quick_assistant.read_clipboard_at_startup')
   const [quickAssistantId] = usePreference('feature.quick_assistant.assistant_id')
-  const [language] = usePreference('app.language')
   const [windowStyle] = usePreference('ui.window_style')
   const { theme } = useTheme()
   const { t } = useTranslation()
@@ -57,7 +93,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   // defer IPC by at least one render, opening a race where blur fires with
   // the main flag still stale.
   const setIsPinned = useCallback((next: boolean) => {
-    void window.api.quickAssistant.setPin(next)
+    void ipcApi.request('quick_assistant.set_pin', { isPinned: next })
     setIsPinnedState(next)
   }, [])
 
@@ -65,17 +101,13 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const inputBarRef = useRef<HTMLDivElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
 
-  const { assistant: defaultAssistant } = useDefaultAssistant()
   const { defaultModel: defaultApiModel } = useDefaultModel()
   const { assistant: chosenAssistant, model: chosenApiModel } = useAssistant(quickAssistantId ?? '')
-  const currentAssistant = chosenAssistant ?? defaultAssistant
+  const currentAssistant = chosenAssistant
   const currentModel = chosenApiModel ?? defaultApiModel
 
   // Lease a temporary topic for the quick-assistant conversation.
   // Lifecycle is tied to this component; resetting the conversation drops and leases a new one.
-  // currentAssistant may be the synthesised default — only pass a real
-  // persisted id (chosenAssistant) so main treats it as "no assistant" when
-  // the user hasn't picked one.
   const {
     topicId: temporaryTopicId,
     ready: isTopicReady,
@@ -131,7 +163,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       // Snapshots are retained after a reader tears down, so the final
       // frames are still in `liveAssistants` at this →0 transition.
       if (liveAssistants.length) {
-        setCompletedAssistants((done) => [...done, ...liveAssistants])
+        setCompletedAssistants((done) => [...done, ...finalizeLiveMessages(liveAssistants)])
         resetExecutionMessages()
       }
     }
@@ -146,61 +178,52 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     [completedAssistants, liveAssistants]
   )
 
-  const partsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
-    const map: Record<string, CherryMessagePart[]> = {}
-    for (const m of chatMessages) map[m.id] = m.parts as CherryMessagePart[]
-    for (const m of allAssistants) map[m.id] = m.parts as CherryMessagePart[]
-    return map
-  }, [chatMessages, allAssistants])
+  const partsByMessageId = useMemo<Record<string, CherryMessagePart[]>>(() => {
+    const next: Record<string, CherryMessagePart[]> = {}
+    for (const message of [...chatMessages, ...allAssistants]) {
+      next[message.id] = (message.parts ?? []) as CherryMessagePart[]
+    }
+    return next
+  }, [allAssistants, chatMessages])
 
   // Interleave user messages (from state.messages) with assistant turns
   // (accumulated completed + live). The assumption: users and assistants
   // alternate strictly — user[i] precedes assistant[i]. Temporary topics
   // are always a clean linear chat, no branches.
-  const adaptedMessages = useMemo(() => {
+  const displayMessages = useMemo<CherryUIMessage[]>(() => {
     const users = chatMessages.filter((m) => m.role === 'user')
     const latestAssistantId = liveAssistants[liveAssistants.length - 1]?.id
-    const out: {
-      id: string
-      role: 'user' | 'assistant'
-      assistantId: string
-      topicId: string
-      createdAt: string
-      status: UserMessageStatus | AssistantMessageStatus
-      blocks: never[]
-    }[] = []
+    const out: CherryUIMessage[] = []
     const turns = Math.max(users.length, allAssistants.length)
     for (let i = 0; i < turns; i++) {
       const u = users[i]
       if (u) {
-        out.push({
-          id: u.id,
-          role: 'user',
-          assistantId: '',
-          topicId: '',
-          createdAt: '',
-          status: UserMessageStatus.SUCCESS,
-          blocks: []
-        })
+        out.push(u)
       }
       const a = allAssistants[i]
       if (a) {
         out.push({
-          id: a.id,
-          role: 'assistant',
-          assistantId: '',
-          topicId: '',
-          createdAt: '',
-          status:
-            a.id === latestAssistantId && isPending
-              ? AssistantMessageStatus.PROCESSING
-              : AssistantMessageStatus.SUCCESS,
-          blocks: []
+          ...a,
+          metadata: {
+            ...a.metadata,
+            status: a.id === latestAssistantId && isPending ? 'pending' : 'success'
+          }
         })
       }
     }
     return out
   }, [chatMessages, allAssistants, liveAssistants, isPending])
+
+  const messageItems = useMemo(
+    () =>
+      displayMessages.map((message) =>
+        toMessageListItem(message, {
+          assistantId: currentAssistant?.id,
+          topicId: temporaryTopicId ?? ''
+        })
+      ),
+    [currentAssistant?.id, displayMessages, temporaryTopicId]
+  )
 
   const latestAssistantUIMsg = useMemo(() => allAssistants[allAssistants.length - 1], [allAssistants])
 
@@ -221,11 +244,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   }, [stopChat, setMessages, resetExecutionMessages])
 
   const isLoading = isPreparing || isStreaming
-  const isOutputted = adaptedMessages.some((message) => message.role === 'assistant')
-
-  useEffect(() => {
-    void i18n.changeLanguage(language || navigator.language || defaultLanguage)
-  }, [language])
+  const isOutputted = messageItems.some((message) => message.role === 'assistant')
 
   useEffect(() => {
     if (route === 'home') {
@@ -266,19 +285,13 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     focusInput()
   }, [readClipboard, focusInput])
 
-  useEffect(() => {
-    window.electron.ipcRenderer.on(IpcChannel.QuickAssistant_Shown, onWindowShow)
-
-    return () => {
-      window.electron.ipcRenderer.removeAllListeners(IpcChannel.QuickAssistant_Shown)
-    }
-  }, [onWindowShow])
+  useIpcOn('quick_assistant.shown', onWindowShow)
 
   useEffect(() => {
     void readClipboard()
   }, [readClipboard])
 
-  const handleCloseWindow = useCallback(() => window.api.quickAssistant.hide(), [])
+  const handleCloseWindow = useCallback(() => ipcApi.request('quick_assistant.hide'), [])
 
   const handleSendMessage = useCallback(
     async (prompt?: string) => {
@@ -332,7 +345,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const handleCopy = useCallback(() => {
     if (!content) return
     void navigator.clipboard.writeText(content)
-    window.toast.success(t('message.copy.success'))
+    toast.success(t('message.copy.success'))
   }, [content, t])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -386,7 +399,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     if (isMac && windowStyle === 'transparent' && theme === ThemeMode.light) {
       return 'transparent'
     }
-    return 'var(--color-background)'
+    return 'var(--background)'
   }, [windowStyle, theme])
 
   const inputPlaceholder = useMemo(() => {
@@ -414,12 +427,11 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     case 'summary':
     case 'explanation':
       return (
-        <Container style={{ backgroundColor }} $draggable={draggable}>
-          {route === 'chat' && currentAssistant && (
+        <div className={containerClassName(draggable)} style={{ backgroundColor }}>
+          {route === 'chat' && (currentAssistant || currentModel) && (
             <>
               <InputBar
                 text={userInputText}
-                assistant={currentAssistant}
                 model={currentModel}
                 referenceText={referenceText}
                 placeholder={inputPlaceholder}
@@ -428,44 +440,51 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
                 handleChange={handleChange}
                 ref={inputBarRef}
               />
-              <Divider style={{ margin: '10px 0' }} />
+              <Separator className="my-2.5" />
             </>
           )}
           {['summary', 'explanation'].includes(route) && (
-            <div style={{ marginTop: 10 }}>
+            <div className="mt-2.5">
               <ClipboardPreview referenceText={referenceText} clearClipboard={clearClipboard} t={t} />
             </div>
           )}
-          <ChatWindow
-            route={route}
-            assistant={currentAssistant ?? null}
-            isOutputted={isOutputted}
-            messages={adaptedMessages}
-            partsMap={partsMap}
-          />
-          {flowError && <ErrorMsg>{flowError}</ErrorMsg>}
+          <Suspense fallback={<LazyBranchFallback />}>
+            <ChatWindow
+              route={route}
+              assistant={currentAssistant ?? null}
+              isOutputted={isOutputted}
+              messages={messageItems}
+              partsByMessageId={partsByMessageId}
+            />
+          </Suspense>
+          {flowError && (
+            <div className="mb-3 break-all rounded border border-error-border bg-error-bg px-3 py-2 text-[13px] text-error-text">
+              {flowError}
+            </div>
+          )}
 
-          <Divider style={{ margin: '10px 0' }} />
+          <Separator className="my-2.5" />
           <Footer key="footer" {...baseFooterProps} onCopy={handleCopy} />
-        </Container>
+        </div>
       )
 
     case 'translate':
       return (
-        <Container style={{ backgroundColor }} $draggable={draggable}>
-          <TranslateWindow text={referenceText} />
-          <Divider style={{ margin: '10px 0' }} />
+        <div className={containerClassName(draggable)} style={{ backgroundColor }}>
+          <Suspense fallback={<LazyBranchFallback />}>
+            <TranslateWindow text={referenceText} />
+          </Suspense>
+          <Separator className="my-2.5" />
           <Footer key="footer" {...baseFooterProps} />
-        </Container>
+        </div>
       )
 
     default:
       return (
-        <Container style={{ backgroundColor }} $draggable={draggable}>
-          {currentAssistant && (
+        <div className={containerClassName(draggable)} style={{ backgroundColor }}>
+          {(currentAssistant || currentModel) && (
             <InputBar
               text={userInputText}
-              assistant={currentAssistant}
               model={currentModel}
               referenceText={referenceText}
               placeholder={inputPlaceholder}
@@ -475,54 +494,32 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
               ref={inputBarRef}
             />
           )}
-          <Divider style={{ margin: '10px 0' }} />
+          <Separator className="my-2.5" />
           <ClipboardPreview referenceText={referenceText} clearClipboard={clearClipboard} t={t} />
-          <Main>
+          <main className="flex flex-1 flex-col overflow-hidden">
             <FeatureMenus
               setRoute={setRoute}
               onSendMessage={handleSendMessage}
               text={userContent}
               ref={featureMenusRef}
             />
-          </Main>
-          <Divider style={{ margin: '10px 0' }} />
+          </main>
+          <Separator className="my-2.5" />
           <Footer
             key="footer"
             {...baseFooterProps}
             canUseBackspace={userInputText.length > 0 || clipboardText.length === 0}
             clearClipboard={clearClipboard}
           />
-        </Container>
+        </div>
       )
   }
 }
 
-const Container = styled.div<{ $draggable: boolean }>`
-  display: flex;
-  flex: 1;
-  height: 100%;
-  width: 100%;
-  flex-direction: column;
-  -webkit-app-region: ${({ $draggable }) => ($draggable ? 'drag' : 'no-drag')};
-  padding: 8px 10px;
-`
-
-const Main = styled.main`
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  overflow: hidden;
-`
-
-const ErrorMsg = styled.div`
-  color: var(--color-error);
-  background: rgba(255, 0, 0, 0.15);
-  border: 1px solid var(--color-error);
-  padding: 8px 12px;
-  border-radius: 4px;
-  margin-bottom: 12px;
-  font-size: 13px;
-  word-break: break-all;
-`
+const containerClassName = (draggable: boolean) =>
+  cn(
+    'flex h-full w-full flex-1 flex-col px-2.5 py-2',
+    draggable ? '[-webkit-app-region:drag]' : '[-webkit-app-region:no-drag]'
+  )
 
 export default HomeWindow

@@ -7,16 +7,16 @@
  * functions; the provider is resolved inside `WebSearchService` from the
  * user's configured default for each capability.
  *
- * Never throws on lookup failure: a failed lookup returns `{ error }` so the
- * surrounding agentic loop (AI-SDK or Claude Code) keeps running instead of
- * aborting. A cancellation (aborted signal) is the exception — it rethrows, so
- * it propagates as the cancellation it is rather than a retryable error.
+ * Never throws on lookup failure: a failed lookup returns a structured error
+ * so callers can distinguish transient failures from failures that cannot
+ * succeed without a configuration change. A cancellation (aborted signal) is
+ * the exception — it rethrows so it propagates as the cancellation it is.
  */
 
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
-import { isPermanentWebSearchConfigError } from '@main/services/webSearch/utils/config'
-import { isAbortError } from '@main/services/webSearch/utils/errors'
+import { isPermanentWebSearchConfigError, type WebSearchConfigErrorCode } from '@main/services/webSearch'
+import { isAbortError } from '@main/utils/error'
 import type { WebSearchOutput } from '@shared/ai/builtinTools'
 import type { WebSearchResponse } from '@shared/data/types/webSearch'
 import * as z from 'zod'
@@ -59,7 +59,13 @@ Cite sources by [id] in your final answer.`
  * would otherwise be `[]`. Success returns the results array (matching
  * `webSearchOutputSchema`); failure returns `{ error }`.
  */
-export const webLookupErrorSchema = z.object({ error: z.string() })
+export const webLookupErrorSchema = z.object({
+  error: z.string(),
+  retryable: z.boolean().optional(),
+  terminal: z.literal(true).optional(),
+  userMessage: z.string().optional(),
+  i18nKey: z.string().optional()
+})
 export type WebLookupError = z.infer<typeof webLookupErrorSchema>
 export type WebLookupResult = WebSearchOutput | WebLookupError
 
@@ -67,17 +73,106 @@ export type WebLookupResult = WebSearchOutput | WebLookupError
 export const WEB_LOOKUP_ERROR_NOTE = 'Web lookup failed (network/provider error); retry or inform the user.'
 
 /**
- * Permanent failure: no usable web-search provider for the requested capability — either none is
- * configured, or the configured one doesn't support it (`getProviderForCapability` throws for both;
- * see {@link isPermanentWebSearchConfigError}). Retrying can never succeed — the user has to fix the
- * config — so the note must steer away from a retry loop.
+ * Permanent failure: no usable web-search provider for the requested capability. Retrying can never
+ * succeed, so the note must steer away from a retry loop.
  */
 export const WEB_PROVIDER_NOT_CONFIGURED_NOTE =
   'No usable web search provider for this capability (none configured, or the configured one does not support it). Tell the user to configure one in Settings (Web Search); do not retry — it cannot succeed until then.'
 
-/** Branch the model-facing note: a permanent provider-config failure can't be retried; everything else is. */
-function webLookupNote(error: string): string {
-  return isPermanentWebSearchConfigError(error) ? WEB_PROVIDER_NOT_CONFIGURED_NOTE : WEB_LOOKUP_ERROR_NOTE
+export const WEB_PROVIDER_CONFIGURATION_ERROR_NOTE =
+  'The configured web search provider has a missing API key or a missing/invalid API host. Tell the user to fix it in Settings (Web Search); do not retry — it cannot succeed until then.'
+
+/** Keep the model-facing guidance generic while the internal classifier handles Fake-IP details. */
+export const WEB_NETWORK_ERROR_NOTE =
+  'Web access failed because of the current network environment. Tell the user to check their network connection and try again; do not retry automatically or provide configuration-specific guidance.'
+
+const WEB_NETWORK_ERROR_MESSAGE = 'Web access failed. Check your network connection and try again.'
+const WEB_PROVIDER_NOT_CONFIGURED_MESSAGE =
+  'Web search is unavailable because no compatible provider is configured. Configure one in Settings → Web Search, then try again.'
+const WEB_API_KEY_MISSING_MESSAGE =
+  'Web search is unavailable because the configured provider is missing an API key. Add one in Settings → Web Search, then try again.'
+const WEB_API_HOST_MISSING_MESSAGE =
+  'Web search is unavailable because the configured provider is missing an API host. Add one in Settings → Web Search, then try again.'
+const WEB_API_HOST_INVALID_MESSAGE =
+  "Web search is unavailable because the configured provider's API host is invalid. Enter a valid HTTP(S) URL in Settings → Web Search, then try again."
+
+const WEB_CONFIG_ERROR_PRESENTATION: Record<WebSearchConfigErrorCode, { userMessage: string; i18nKey: string }> = {
+  provider_not_configured: {
+    userMessage: WEB_PROVIDER_NOT_CONFIGURED_MESSAGE,
+    i18nKey: 'web_search_provider_unavailable'
+  },
+  provider_unknown: {
+    userMessage: WEB_PROVIDER_NOT_CONFIGURED_MESSAGE,
+    i18nKey: 'web_search_provider_unavailable'
+  },
+  capability_unsupported: {
+    userMessage: WEB_PROVIDER_NOT_CONFIGURED_MESSAGE,
+    i18nKey: 'web_search_provider_unavailable'
+  },
+  api_key_missing: {
+    userMessage: WEB_API_KEY_MISSING_MESSAGE,
+    i18nKey: 'web_search_api_key_missing'
+  },
+  api_host_missing: {
+    userMessage: WEB_API_HOST_MISSING_MESSAGE,
+    i18nKey: 'web_search_api_host_missing'
+  },
+  api_host_invalid: {
+    userMessage: WEB_API_HOST_INVALID_MESSAGE,
+    i18nKey: 'web_search_api_host_invalid'
+  }
+}
+
+/** Clash Fake-IP addresses use the RFC 2544 benchmarking range (198.18.0.0/15). */
+function isProxyFakeIpError(message: string): boolean {
+  return (
+    /Unsafe remote url: DNS resolved to local or private address/i.test(message) &&
+    /\b198\.(?:18|19)\.(?:\d{1,3})\.(?:\d{1,3})\b/.test(message)
+  )
+}
+
+function classifyWebLookupError(error: unknown): WebLookupError {
+  const message = error instanceof Error ? error.message : String(error)
+
+  if (isPermanentWebSearchConfigError(error)) {
+    const presentation = WEB_CONFIG_ERROR_PRESENTATION[error.code]
+    return {
+      error: message,
+      retryable: false,
+      terminal: true,
+      ...presentation
+    }
+  }
+
+  if (isProxyFakeIpError(message)) {
+    return {
+      error: WEB_NETWORK_ERROR_MESSAGE,
+      retryable: false,
+      terminal: true,
+      userMessage: WEB_NETWORK_ERROR_MESSAGE,
+      i18nKey: 'web_lookup_network_error'
+    }
+  }
+
+  return { error: message, retryable: true }
+}
+
+/** Branch the model-facing note: permanent failures must not trigger a retry loop. */
+function webLookupNote(error: WebLookupError): string {
+  if (error.i18nKey === 'web_lookup_network_error' || isProxyFakeIpError(error.error)) {
+    return WEB_NETWORK_ERROR_NOTE
+  }
+  if (error.i18nKey === 'web_search_provider_unavailable') {
+    return WEB_PROVIDER_NOT_CONFIGURED_NOTE
+  }
+  if (
+    error.i18nKey === 'web_search_api_key_missing' ||
+    error.i18nKey === 'web_search_api_host_missing' ||
+    error.i18nKey === 'web_search_api_host_invalid'
+  ) {
+    return WEB_PROVIDER_CONFIGURATION_ERROR_NOTE
+  }
+  return WEB_LOOKUP_ERROR_NOTE
 }
 
 export function isWebLookupError(output: WebLookupResult): output is WebLookupError {
@@ -91,7 +186,7 @@ export function webLookupModelOutput(
   output: WebLookupResult
 ): { type: 'text'; value: string } | { type: 'json'; value: WebSearchOutput } {
   if (isWebLookupError(output)) {
-    return { type: 'text', value: webLookupNote(output.error) }
+    return { type: 'text', value: webLookupNote(output) }
   }
   return { type: 'json', value: output }
 }
@@ -114,7 +209,7 @@ export async function searchWeb(query: string, signal?: AbortSignal): Promise<We
     // retryable error that keeps the tool loop running after the request was already aborted.
     if (signal?.aborted || isAbortError(error)) throw error
     logger.error('webSearchService.searchKeywords failed', error as Error, { query })
-    return { error: error instanceof Error ? error.message : String(error) }
+    return classifyWebLookupError(error)
   }
 }
 
@@ -127,6 +222,6 @@ export async function fetchWeb(urls: string[], signal?: AbortSignal): Promise<We
     // retryable error that keeps the tool loop running after the request was already aborted.
     if (signal?.aborted || isAbortError(error)) throw error
     logger.error('webSearchService.fetchUrls failed', error as Error, { urls })
-    return { error: error instanceof Error ? error.message : String(error) }
+    return classifyWebLookupError(error)
   }
 }

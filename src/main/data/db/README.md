@@ -17,6 +17,8 @@ src/main/data/db/
 │   ├── message.ts        # Message table + MESSAGE_FTS_STATEMENTS (FTS5 vtable & triggers)
 │   └── ...               # Other tables
 ├── seeding/              # Data seeding (see seeding/README.md)
+├── restore/              # Backup-restore promotion primitives (see restore/README.md)
+├── applyMigrations.ts    # Shared migration path (drizzle migrate + custom SQL replay)
 ├── customSqls.ts         # Custom SQL (triggers, virtual tables) — replayed every boot
 └── DbService.ts          # Database connection management
 ```

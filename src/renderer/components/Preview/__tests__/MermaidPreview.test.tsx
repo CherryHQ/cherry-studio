@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
-import { MermaidPreview } from '..'
+import MermaidPreview from '../MermaidPreview'
 
 const mocks = vi.hoisted(() => ({
   useMermaid: vi.fn(),
@@ -30,7 +30,7 @@ vi.mock('@renderer/components/Preview/hooks/useDebouncedRender', () => ({
 }))
 
 // Mock nanoid
-vi.mock('@reduxjs/toolkit', () => ({
+vi.mock('nanoid', () => ({
   nanoid: () => 'test-id-123456'
 }))
 

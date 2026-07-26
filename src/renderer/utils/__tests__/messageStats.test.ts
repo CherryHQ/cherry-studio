@@ -1,7 +1,7 @@
 import type { MessageStats } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
 
-import { statsToMetrics, statsToUsage } from '../messageStats'
+import { getCacheTokenStats, statsToMetrics, statsToUsage } from '../messageStats'
 
 describe('statsToUsage', () => {
   it('projects all token fields and keeps required fields defaulted to 0 when missing', () => {
@@ -10,6 +10,9 @@ describe('statsToUsage', () => {
       completionTokens: 12,
       totalTokens: 42,
       thoughtsTokens: 3,
+      noCacheTokens: 5,
+      cacheReadTokens: 20,
+      cacheWriteTokens: 5,
       cost: 0.000123
     }
 
@@ -18,6 +21,9 @@ describe('statsToUsage', () => {
       completion_tokens: 12,
       total_tokens: 42,
       thoughts_tokens: 3,
+      no_cache_tokens: 5,
+      cache_read_tokens: 20,
+      cache_write_tokens: 5,
       cost: 0.000123
     })
   })
@@ -43,6 +49,27 @@ describe('statsToUsage', () => {
     // by accident — OpenRouter's free-tier calls report cost: 0 and
     // swallowing that would hide a real value.
     expect(statsToUsage({ cost: 0 })).toMatchObject({ cost: 0 })
+  })
+})
+
+describe('getCacheTokenStats', () => {
+  it('computes cache hit rate and saved input tokens for one message', () => {
+    expect(getCacheTokenStats({ noCacheTokens: 10, cacheReadTokens: 70, cacheWriteTokens: 20 })).toEqual({
+      noCacheTokens: 10,
+      cacheReadTokens: 70,
+      cacheWriteTokens: 20,
+      totalInputTokens: 100,
+      hitRate: 0.7,
+      savedInputTokens: 70
+    })
+  })
+
+  it('returns undefined when no cache counters exist', () => {
+    expect(getCacheTokenStats({ promptTokens: 10 })).toBeUndefined()
+  })
+
+  it('returns undefined when only non-cache input tokens exist', () => {
+    expect(getCacheTokenStats({ noCacheTokens: 100 })).toBeUndefined()
   })
 })
 

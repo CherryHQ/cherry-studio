@@ -1,18 +1,27 @@
-import { FolderOpenOutlined, SaveOutlined, SyncOutlined } from '@ant-design/icons'
 import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
+import {
+  SettingDivider,
+  SettingGroup,
+  SettingHelpText,
+  SettingRow,
+  SettingRowTitle,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
 import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
 import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/WebdavModals'
-import { useTheme } from '@renderer/context/ThemeProvider'
-import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
-import { useAppSelector } from '@renderer/store'
+import { useTheme } from '@renderer/hooks/useTheme'
+import { getBackupSyncState, startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import dayjs from 'dayjs'
+import { FolderOpen, RefreshCw, Save } from 'lucide-react'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import { BackupUnavailableGate } from './BackupUnavailableGate'
+
+const SYNC_STATUS_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
 
 const WebDavSettings: FC = () => {
   const [, setWebdavAutoSync] = usePreference('data.backup.webdav.auto_sync')
@@ -31,7 +40,7 @@ const WebDavSettings: FC = () => {
 
   const { t } = useTranslation()
 
-  const { webdavSync } = useAppSelector((state) => state.backup)
+  const { webdavSync } = getBackupSyncState()
 
   // 把之前备份的文件定时上传到 webdav，首先先配置 webdav 的 host, port, user, pass, path
 
@@ -62,12 +71,12 @@ const WebDavSettings: FC = () => {
     if (!webdavHost) return null
 
     if (!webdavSync.lastSyncTime && !webdavSync.syncing && !webdavSync.lastSyncError) {
-      return <span style={{ color: 'var(--color-foreground-secondary)' }}>{t('settings.data.webdav.noSync')}</span>
+      return <span style={{ color: SYNC_STATUS_COLOR }}>{t('settings.data.webdav.noSync')}</span>
     }
 
     return (
       <RowFlex className="items-center gap-1.25">
-        {webdavSync.syncing && <SyncOutlined spin />}
+        {webdavSync.syncing && <RefreshCw className="animate-spin" size={14} />}
         {!webdavSync.syncing && webdavSync.lastSyncError && (
           <WarnTooltip
             content={`${t('settings.data.webdav.syncError')}: ${webdavSync.lastSyncError}`}
@@ -75,7 +84,7 @@ const WebDavSettings: FC = () => {
           />
         )}
         {webdavSync.lastSyncTime && (
-          <span style={{ color: 'var(--color-foreground-secondary)' }}>
+          <span style={{ color: SYNC_STATUS_COLOR }}>
             {t('settings.data.webdav.lastSync')}: {dayjs(webdavSync.lastSyncTime).format('HH:mm:ss')}
           </span>
         )}
@@ -98,153 +107,155 @@ const WebDavSettings: FC = () => {
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.webdav.title')}</SettingTitle>
       <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.webdav.host.label')}</SettingRowTitle>
-        <Input
-          placeholder={t('settings.data.webdav.host.placeholder')}
-          value={webdavHost}
-          onChange={(e) => setWebdavHost(e.target.value)}
-          style={{ width: 250 }}
-          type="url"
-          onBlur={() => setWebdavHost(webdavHost || '')}
-        />
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.webdav.user')}</SettingRowTitle>
-        <Input
-          placeholder={t('settings.data.webdav.user')}
-          value={webdavUser}
-          onChange={(e) => setWebdavUser(e.target.value)}
-          style={{ width: 250 }}
-          onBlur={() => setWebdavUser(webdavUser || '')}
-        />
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.webdav.password')}</SettingRowTitle>
-        <Input
-          type="password"
-          placeholder={t('settings.data.webdav.password')}
-          value={webdavPass}
-          onChange={(e) => setWebdavPass(e.target.value)}
-          style={{ width: 250 }}
-          onBlur={() => setWebdavPass(webdavPass || '')}
-        />
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.webdav.path.label')}</SettingRowTitle>
-        <Input
-          placeholder={t('settings.data.webdav.path.placeholder')}
-          value={webdavPath}
-          onChange={(e) => setWebdavPath(e.target.value)}
-          style={{ width: 250 }}
-          onBlur={() => setWebdavPath(webdavPath || '')}
-        />
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
-        <RowFlex className="justify-between gap-1.25">
-          <Button onClick={showBackupModal} disabled={backuping} variant="outline">
-            <SaveOutlined />
-            {t('settings.data.webdav.backup.button')}
-          </Button>
-          <Button onClick={showBackupManager} disabled={!webdavHost} variant="outline">
-            <FolderOpenOutlined />
-            {t('settings.data.webdav.restore.button')}
-          </Button>
-        </RowFlex>
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.webdav.autoSync.label')}</SettingRowTitle>
-        <Selector
-          size={14}
-          value={webdavSyncInterval}
-          onChange={onSyncIntervalChange}
-          disabled={!webdavHost}
-          options={[
-            { label: t('settings.data.webdav.autoSync.off'), value: 0 },
-            { label: t('settings.data.webdav.minute_interval', { count: 1 }), value: 1 },
-            { label: t('settings.data.webdav.minute_interval', { count: 5 }), value: 5 },
-            { label: t('settings.data.webdav.minute_interval', { count: 15 }), value: 15 },
-            { label: t('settings.data.webdav.minute_interval', { count: 30 }), value: 30 },
-            { label: t('settings.data.webdav.hour_interval', { count: 1 }), value: 60 },
-            { label: t('settings.data.webdav.hour_interval', { count: 2 }), value: 120 },
-            { label: t('settings.data.webdav.hour_interval', { count: 6 }), value: 360 },
-            { label: t('settings.data.webdav.hour_interval', { count: 12 }), value: 720 },
-            { label: t('settings.data.webdav.hour_interval', { count: 24 }), value: 1440 }
-          ]}
-        />
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.webdav.maxBackups')}</SettingRowTitle>
-        <Selector
-          size={14}
-          value={webdavMaxBackups}
-          onChange={onMaxBackupsChange}
-          disabled={!webdavHost}
-          options={[
-            { label: t('settings.data.local.maxBackups.unlimited'), value: 0 },
-            { label: '1', value: 1 },
-            { label: '3', value: 3 },
-            { label: '5', value: 5 },
-            { label: '10', value: 10 },
-            { label: '20', value: 20 },
-            { label: '50', value: 50 }
-          ]}
-        />
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-        <Switch checked={webdavSkipBackupFile} onCheckedChange={onSkipBackupFilesChange} />
-      </SettingRow>
-      <SettingRow>
-        <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.webdav.disableStream.title')}</SettingRowTitle>
-        <Switch checked={webdavDisableStream} onCheckedChange={onDisableStreamChange} />
-      </SettingRow>
-      <SettingRow>
-        <SettingHelpText>{t('settings.data.webdav.disableStream.help')}</SettingHelpText>
-      </SettingRow>
-      {webdavSync && webdavSyncInterval > 0 && (
+      <BackupUnavailableGate>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.webdav.host.label')}</SettingRowTitle>
+          <Input
+            placeholder={t('settings.data.webdav.host.placeholder')}
+            value={webdavHost}
+            onChange={(e) => setWebdavHost(e.target.value)}
+            style={{ width: 250 }}
+            type="url"
+            onBlur={() => setWebdavHost(webdavHost || '')}
+          />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.webdav.user')}</SettingRowTitle>
+          <Input
+            placeholder={t('settings.data.webdav.user')}
+            value={webdavUser}
+            onChange={(e) => setWebdavUser(e.target.value)}
+            style={{ width: 250 }}
+            onBlur={() => setWebdavUser(webdavUser || '')}
+          />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.webdav.password')}</SettingRowTitle>
+          <Input
+            type="password"
+            placeholder={t('settings.data.webdav.password')}
+            value={webdavPass}
+            onChange={(e) => setWebdavPass(e.target.value)}
+            style={{ width: 250 }}
+            onBlur={() => setWebdavPass(webdavPass || '')}
+          />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.webdav.path.label')}</SettingRowTitle>
+          <Input
+            placeholder={t('settings.data.webdav.path.placeholder')}
+            value={webdavPath}
+            onChange={(e) => setWebdavPath(e.target.value)}
+            style={{ width: 250 }}
+            onBlur={() => setWebdavPath(webdavPath || '')}
+          />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
+          <RowFlex className="justify-between gap-1.25">
+            <Button onClick={showBackupModal} disabled={backuping} variant="outline">
+              <Save size={14} />
+              {t('settings.data.webdav.backup.button')}
+            </Button>
+            <Button onClick={showBackupManager} disabled={!webdavHost} variant="outline">
+              <FolderOpen size={14} />
+              {t('settings.data.webdav.restore.button')}
+            </Button>
+          </RowFlex>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.webdav.autoSync.label')}</SettingRowTitle>
+          <Selector
+            size={14}
+            value={webdavSyncInterval}
+            onChange={onSyncIntervalChange}
+            disabled={!webdavHost}
+            options={[
+              { label: t('settings.data.webdav.autoSync.off'), value: 0 },
+              { label: t('settings.data.webdav.minute_interval', { count: 1 }), value: 1 },
+              { label: t('settings.data.webdav.minute_interval', { count: 5 }), value: 5 },
+              { label: t('settings.data.webdav.minute_interval', { count: 15 }), value: 15 },
+              { label: t('settings.data.webdav.minute_interval', { count: 30 }), value: 30 },
+              { label: t('settings.data.webdav.hour_interval', { count: 1 }), value: 60 },
+              { label: t('settings.data.webdav.hour_interval', { count: 2 }), value: 120 },
+              { label: t('settings.data.webdav.hour_interval', { count: 6 }), value: 360 },
+              { label: t('settings.data.webdav.hour_interval', { count: 12 }), value: 720 },
+              { label: t('settings.data.webdav.hour_interval', { count: 24 }), value: 1440 }
+            ]}
+          />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.webdav.maxBackups')}</SettingRowTitle>
+          <Selector
+            size={14}
+            value={webdavMaxBackups}
+            onChange={onMaxBackupsChange}
+            disabled={!webdavHost}
+            options={[
+              { label: t('settings.data.local.maxBackups.unlimited'), value: 0 },
+              { label: '1', value: 1 },
+              { label: '3', value: 3 },
+              { label: '5', value: 5 },
+              { label: '10', value: 10 },
+              { label: '20', value: 20 },
+              { label: '50', value: 50 }
+            ]}
+          />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
+          <Switch checked={webdavSkipBackupFile} onCheckedChange={onSkipBackupFilesChange} />
+        </SettingRow>
+        <SettingRow>
+          <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.webdav.disableStream.title')}</SettingRowTitle>
+          <Switch checked={webdavDisableStream} onCheckedChange={onDisableStreamChange} />
+        </SettingRow>
+        <SettingRow>
+          <SettingHelpText>{t('settings.data.webdav.disableStream.help')}</SettingHelpText>
+        </SettingRow>
+        {webdavSync && webdavSyncInterval > 0 && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.data.webdav.syncStatus')}</SettingRowTitle>
+              {renderSyncStatus()}
+            </SettingRow>
+          </>
+        )}
         <>
-          <SettingDivider />
-          <SettingRow>
-            <SettingRowTitle>{t('settings.data.webdav.syncStatus')}</SettingRowTitle>
-            {renderSyncStatus()}
-          </SettingRow>
-        </>
-      )}
-      <>
-        <WebdavBackupModal
-          isModalVisible={isModalVisible}
-          handleBackup={handleBackup}
-          handleCancel={handleCancel}
-          backuping={backuping}
-          customFileName={customFileName}
-          setCustomFileName={setCustomFileName}
-        />
+          <WebdavBackupModal
+            isModalVisible={isModalVisible}
+            handleBackup={handleBackup}
+            handleCancel={handleCancel}
+            backuping={backuping}
+            customFileName={customFileName}
+            setCustomFileName={setCustomFileName}
+          />
 
-        <WebdavBackupManager
-          visible={backupManagerVisible}
-          onClose={closeBackupManager}
-          webdavConfig={{
-            webdavHost,
-            webdavUser,
-            webdavPass,
-            webdavPath,
-            webdavDisableStream
-          }}
-        />
-      </>
+          <WebdavBackupManager
+            visible={backupManagerVisible}
+            onClose={closeBackupManager}
+            webdavConfig={{
+              webdavHost,
+              webdavUser,
+              webdavPass,
+              webdavPath,
+              webdavDisableStream
+            }}
+          />
+        </>
+      </BackupUnavailableGate>
     </SettingGroup>
   )
 }

@@ -38,15 +38,15 @@ describe('MessageService', () => {
 On the first test in a file the harness:
 
 1. Creates a unique temporary directory under `os.tmpdir()`.
-2. Opens a LibSQL file-backed database at `file://<tmp>/test.db` using
-   `pathToFileURL` (safe on Windows too).
+2. Opens a better-sqlite3 file-backed database at `<tmp>/test.db` and hands the
+   raw connection out as `dbh.sqlite`.
 3. Runs the production migrations (`migrations/sqlite-drizzle/`) and the
    project's `CUSTOM_SQL_STATEMENTS` (FTS5 virtual tables, triggers). The
    resulting schema is byte-for-byte identical to what the real app sees
    after `DbService.onInit`.
-4. Registers durable PRAGMAs (`foreign_keys = ON`, `synchronous = NORMAL`)
-   via the patched `@libsql/client` `setPragma()` so they survive the
-   transaction-induced connection recycle. See the "Gotchas" section.
+4. Sets durable PRAGMAs (`foreign_keys = ON`, `synchronous = NORMAL`) once on
+   the single persistent connection. better-sqlite3 keeps one connection open
+   for the database's lifetime, so PRAGMAs set here persist — no replay needed.
 5. Swaps the globally-mocked `DbService` to hand out the real database
    via `MockMainDbServiceUtils.setDb()`. Any production code that calls
    `application.get('DbService').getDb()` now transparently hits the test DB.
@@ -75,8 +75,6 @@ resets the mocks.
 - Handler tests that only verify wiring/routing — these legitimately mock
   the downstream service because the assertion is about the call shape,
   not the DB state.
-- LibSQL client-level contract tests (`pragmaReplay.test.ts`) — they need
-  direct control over the underlying client.
 - Migrator tests under `src/main/data/migration/v2/migrators/__tests__/*` —
   their mock context has been deliberately modelled to verify the
   migrator's orchestration logic (phase ordering, idempotency, source
@@ -199,23 +197,58 @@ or declare a local `vi.mock('node:fs', ...)` with the
 
 ## Gotchas
 
-### LibSQL transaction connection recycle
+### better-sqlite3 native module ABI
 
-`@libsql/client`'s `transaction()` releases the current connection and
-lazily creates a new one on the next operation. Without the project's
-patched `setPragma()` replay mechanism, per-connection PRAGMAs (like
-`foreign_keys = ON`) would silently revert after every transaction.
+better-sqlite3 is a native module, and unlike the repo's other natives it is
+NOT N-API — so it is ABI-specific and must be compiled for whichever runtime
+loads it. A native `.node` has a single build slot / one ABI, and the app
+(Electron) and the tests (system Node) want different ABIs.
 
-The harness correctly uses `setPragma()` to register durable settings
-(replayed on every reconnect), but uses one-shot `client.execute()` for
-transient settings (like temporarily toggling FK off during truncate) —
-otherwise the replay array would grow linearly with truncate cycles.
+We keep the module at the **Node ABI** for tests — that's what `pnpm install`
+produces and what Vitest (running under system Node) needs. The `main` project
+loads the real native module, so `pnpm test:main` first runs `pnpm rebuild:node`
+(via its `pretest:main` hook) to guarantee the Node ABI, then runs the suite;
+`pnpm test` does the same via its `pretest` hook. The other Vitest projects
+never load better-sqlite3, so their ABI is irrelevant.
 
-### `file:` URL on Windows
+The Electron-app entry scripts (`dev`, `dev:watch`, `debug`, `start`) and
+packaging need the **Electron ABI** instead; each of those scripts prepends
+`pnpm rebuild:electron` (`--force`, so it reliably re-flips even when a test run
+left the module at the Node ABI). Switching between the app and the DB tests
+therefore flips the ABI, but each flip is a **cached restore** (~0.3s to
+Electron, ~2s to Node — not a recompile) and happens automatically:
+`pretest`/`pretest:main` before tests, the app scripts before the app.
 
-A naive `'file:' + path.join(tmpdir(), 'test.db')` produces an illegal URL
-on Windows (`file:C:\path\to\db`). The harness uses
-`pathToFileURL(dbPath).href` which yields `file:///C:/path/to/db`.
+If you use an interactive runner (`pnpm test:watch`, `pnpm test:coverage`, an
+IDE's Vitest) right after `pnpm dev`, flip back first with `pnpm rebuild:node`
+(or just run `pnpm test:main` once). CI is unaffected: each job installs fresh
+(Node ABI) and runs under system Node; the general-test job's `pretest:main` is
+a ~2s no-op there.
+
+**Alternatives considered — why not run the tests under Electron?** Running the
+`main` project inside Electron-as-Node (`ELECTRON_RUN_AS_NODE=1 electron …vitest`)
+would pin one ABI and delete the flip entirely, and it was prototyped and passed
+(real better-sqlite3 + `vec0` loaded at the Electron ABI, no segfault). It was
+still rejected — the flip is the cheaper problem:
+
+- **Plain-Node runners could no longer run `main`.** `pnpm test`, a bare
+  `vitest`, and the IDE's Vitest extension all run under system Node; with the
+  module pinned to the Electron ABI they would fail to load it. The split keeps
+  `main` runnable from every one of those.
+- **It needs a cross-platform wrapper.** Setting `ELECTRON_RUN_AS_NODE=1` and
+  pointing Electron at Vitest portably needs either a new `cross-env` dependency
+  or a bespoke runner script (an inline `VAR=1 electron …` does not work in
+  Windows `cmd`). The wrapper's very existence is the friction signal.
+- **CI pays a cold electron-rebuild every run.** CI runners are ephemeral, so
+  their cache is always cold; pinning the Electron ABI would rebuild
+  better-sqlite3 to it on every job. The split runs `main` on the `pnpm install`
+  default Node ABI, so CI never electron-rebuilds.
+
+The flip's old pain was manual flipping plus `electron-rebuild`'s silent skip
+without `--force`; both are fixed (`--force`, and the app scripts prepend the
+rebuild), leaving a sub-second cached restore. Measured proof it is a restore,
+not a recompile: after `rm -rf build`, the rebuild took 0.28s and produced zero
+`.o` object files (a real compile takes tens of seconds and leaves many).
 
 ### FTS5 and NULL content
 

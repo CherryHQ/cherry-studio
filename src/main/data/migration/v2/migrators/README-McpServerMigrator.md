@@ -16,8 +16,7 @@ Migrates MCP server configurations from Redux to SQLite.
 
 | Field | Reason | V2 Target |
 |-------|--------|-----------|
-| `isUvInstalled` | Re-detected when MCP settings are accessed | `usePersistCache('feature.mcp.is_uv_installed')` |
-| `isBunInstalled` | Re-detected when MCP settings are accessed | `usePersistCache('feature.mcp.is_bun_installed')` |
+| `isUvInstalled`, `isBunInstalled` | Derived from live binary availability | Not persisted |
 
 ## Not Migrated (Regenerable Cache)
 
@@ -32,7 +31,7 @@ All McpServer fields are mapped 1:1 at the Drizzle ORM level (camelCase property
 | Source Field | Target Column | Transform |
 |---|---|---|
 | `id` | `id` | Direct (PK) |
-| `name` | `name` | Direct (NOT NULL) |
+| `name` | `name` | Uses source `name`; falls back to the generated `id` when missing/empty/whitespace-only |
 | `type` | `type` | Nullable passthrough |
 | `description` | `description` | Nullable passthrough |
 | `baseUrl` / `url` | `baseUrl` | Falls back from `url` if `baseUrl` is absent (legacy SSE servers) |
@@ -65,6 +64,7 @@ All McpServer fields are mapped 1:1 at the Drizzle ORM level (camelCase property
 
 - **Missing `id`**: Server is skipped with warning
 - **Empty `id`**: Server is skipped with warning
+- **Missing/empty/whitespace-only `name`**: Uses the generated `id` as the migrated name
 - **Duplicate `id`**: Second occurrence is skipped, first is kept
 - **Missing `isActive`**: Defaults to `false`
 - **`undefined`/`null` optional fields**: Stored as `null` in SQLite

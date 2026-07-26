@@ -40,6 +40,21 @@ function makeFinalMessage(partsText = 'hello'): CherryUIMessage {
   } as unknown as CherryUIMessage
 }
 
+function makeStreamingReasoningMessage(startedAt: number): CherryUIMessage {
+  return {
+    id: 'reasoning-message',
+    role: 'assistant',
+    parts: [
+      {
+        type: 'reasoning',
+        text: 'thinking...',
+        state: 'streaming',
+        providerMetadata: { cherry: { startedAt } }
+      }
+    ]
+  } as unknown as CherryUIMessage
+}
+
 function makeListener(modelId?: UniqueModelId) {
   return new PersistenceListener({
     topicId: 'abc',
@@ -47,7 +62,7 @@ function makeListener(modelId?: UniqueModelId) {
     backend: new TemporaryChatBackend({
       topicId: 'abc',
       modelId,
-      modelSnapshot: { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' }
+      messageSnapshot: { id: 'a1', name: 'A', emoji: '', model: { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' } }
     })
   })
 }
@@ -55,7 +70,7 @@ function makeListener(modelId?: UniqueModelId) {
 describe('PersistenceListener + TemporaryChatBackend', () => {
   beforeEach(() => {
     appendMessageMock.mockReset()
-    appendMessageMock.mockResolvedValue({ id: 'msg-a' })
+    appendMessageMock.mockReturnValue({ id: 'msg-a' })
   })
 
   it('appends the assistant message on onDone with status=success', async () => {
@@ -73,6 +88,30 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     expect(payload.id).toBeUndefined()
   })
 
+  it('strips empty text/reasoning parts before the backend write', async () => {
+    const listener = makeListener('openai::gpt-4o')
+
+    const finalMessage = {
+      id: 'ignored',
+      role: 'assistant',
+      parts: [
+        { type: 'reasoning', text: 'real thought', state: 'done' },
+        { type: 'reasoning', text: '', state: 'done' },
+        { type: 'text', text: 'answer' },
+        { type: 'text', text: '   \n  ' }
+      ]
+    } as unknown as CherryUIMessage
+
+    await listener.onDone({ finalMessage, status: 'success', modelId: 'openai::gpt-4o' })
+
+    const payload = appendMessageMock.mock.calls[0][1]
+    const parts = payload.data.parts as Array<{ type: string; text: string }>
+    expect(parts).toEqual([
+      { type: 'reasoning', text: 'real thought', state: 'done' },
+      { type: 'text', text: 'answer' }
+    ])
+  })
+
   it('derives all token stats fields from finalMessage.metadata', async () => {
     const listener = makeListener()
 
@@ -85,7 +124,10 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
         totalTokens: 42,
         promptTokens: 30,
         completionTokens: 12,
-        thoughtsTokens: 3
+        thoughtsTokens: 3,
+        noCacheTokens: 4,
+        cacheReadTokens: 20,
+        cacheWriteTokens: 6
       }
     } as unknown as CherryUIMessage
 
@@ -94,16 +136,18 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     expect(appendMessageMock).toHaveBeenCalledTimes(1)
     const payload = appendMessageMock.mock.calls[0][1]
     // statsFromTerminal projects 1:1 from UIMessage.metadata to MessageStats.
-    // Cache/breakdown fields are tracked in the MessageStats redesign TODO.
     expect(payload.stats).toEqual({
       totalTokens: 42,
       promptTokens: 30,
       completionTokens: 12,
-      thoughtsTokens: 3
+      thoughtsTokens: 3,
+      noCacheTokens: 4,
+      cacheReadTokens: 20,
+      cacheWriteTokens: 6
     })
   })
 
-  it('projects transport+semantic timings onto timeFirstTokenMs / timeCompletionMs', async () => {
+  it('projects transport timings and stabilized reasoning-part duration into stats', async () => {
     const listener = makeListener()
 
     // Semantic timings (firstTextAt / reasoning-*) are OWNED by the
@@ -121,7 +165,21 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     const finalMessage = {
       id: 'msg-z',
       role: 'assistant',
-      parts: [{ type: 'text', text: 'hi' }]
+      parts: [
+        {
+          type: 'reasoning',
+          text: 'first thought',
+          state: 'done',
+          providerMetadata: { cherry: { thinkingMs: 75 } }
+        },
+        {
+          type: 'reasoning',
+          text: 'second thought',
+          state: 'done',
+          providerMetadata: { cherry: { thinkingMs: 100 } }
+        },
+        { type: 'text', text: 'hi' }
+      ]
     } as unknown as CherryUIMessage
 
     // Transport timings come from the manager's execution loop and only
@@ -134,15 +192,13 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
 
     const payload = appendMessageMock.mock.calls[0][1]
     expect(payload.stats).toEqual({
+      // Per-part timing is stable and does not use the semantic reasoning wall-clock.
+      timeThinkingMs: 175,
       // Math.round: 1250.4 - 1000 = 250.4 → 250
       timeFirstTokenMs: 250,
       // Math.round: 2500.9 - 1000 = 1500.9 → 1501
       timeCompletionMs: 1501
     })
-    // `timeThinkingMs` is intentionally not projected: wall-clock reasoning
-    // may include interleaved tool execution. See the TODO(message-stats-redesign)
-    // rework in src/shared/data/types/message.ts.
-    expect(payload.stats).not.toHaveProperty('timeThinkingMs')
   })
 
   it('merges token metadata and timings into one stats record', async () => {
@@ -293,6 +349,25 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     expect(appendMessageMock.mock.calls[0][1].status).toBe('paused')
   })
 
+  it('terminalizes interrupted reasoning before composing paused stats', async () => {
+    const listener = makeListener()
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(7000)
+
+    await listener.onPaused({
+      finalMessage: makeStreamingReasoningMessage(2000),
+      status: 'paused'
+    })
+    nowSpy.mockRestore()
+
+    const payload = appendMessageMock.mock.calls[0][1]
+    expect(payload.data.parts[0]).toMatchObject({
+      type: 'reasoning',
+      state: 'done',
+      providerMetadata: { cherry: { startedAt: 2000, thinkingMs: 5000 } }
+    })
+    expect(payload.stats).toEqual({ timeThinkingMs: 5000 })
+  })
+
   it('onError folds the error into finalMessage.parts and persists as status=error', async () => {
     const listener = makeListener()
 
@@ -313,6 +388,27 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     const parts = payload.data.parts as Array<{ type: string }>
     expect(parts.some((p) => p.type === 'text')).toBe(true)
     expect(parts.some((p) => p.type === 'data-error')).toBe(true)
+  })
+
+  it('terminalizes interrupted reasoning before composing error stats', async () => {
+    const listener = makeListener()
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(9000)
+    const err: SerializedError = { name: 'Error', message: 'boom', stack: null }
+
+    await listener.onError({
+      status: 'error',
+      error: err,
+      finalMessage: makeStreamingReasoningMessage(3000)
+    })
+    nowSpy.mockRestore()
+
+    const payload = appendMessageMock.mock.calls[0][1]
+    expect(payload.data.parts[0]).toMatchObject({
+      type: 'reasoning',
+      state: 'done',
+      providerMetadata: { cherry: { startedAt: 3000, thinkingMs: 6000 } }
+    })
+    expect(payload.stats).toEqual({ timeThinkingMs: 6000 })
   })
 
   it('onError with no accumulated content still persists a single error part', async () => {
@@ -337,8 +433,22 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     expect(appendMessageMock).not.toHaveBeenCalled()
   })
 
+  it('skips persistence when onPaused arrives without a finalMessage and there is no placeholder row', async () => {
+    const listener = makeListener()
+
+    await listener.onPaused({
+      finalMessage: undefined,
+      status: 'paused',
+      timings: { startedAt: 1000, completedAt: 2500.9 }
+    })
+
+    expect(appendMessageMock).not.toHaveBeenCalled()
+  })
+
   it('swallows append errors so stream teardown is not disrupted', async () => {
-    appendMessageMock.mockRejectedValueOnce(new Error('write failed'))
+    appendMessageMock.mockImplementationOnce(() => {
+      throw new Error('write failed')
+    })
     const listener = makeListener()
 
     await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).resolves.toBeUndefined()
@@ -359,7 +469,11 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
 
   it('drives the placeholder row to status=error when the persist write fails', async () => {
     // First update() is persistAssistant (fails); second is markTerminalError (succeeds).
-    messageUpdateMock.mockRejectedValueOnce(new Error('write failed')).mockResolvedValueOnce({ id: 'assistant-1' })
+    messageUpdateMock
+      .mockImplementationOnce(() => {
+        throw new Error('write failed')
+      })
+      .mockReturnValueOnce({ id: 'assistant-1' })
     const listener = makeMessageServiceListener()
 
     await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).resolves.toBeUndefined()
@@ -370,7 +484,9 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
   })
 
   it('swallows a failure of the terminal-error recovery write itself', async () => {
-    messageUpdateMock.mockRejectedValue(new Error('db down'))
+    messageUpdateMock.mockImplementation(() => {
+      throw new Error('db down')
+    })
     const listener = makeMessageServiceListener()
 
     await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).resolves.toBeUndefined()
@@ -379,7 +495,11 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
   })
 
   it('notifies onPersistFailed so the live renderer can be corrected (C1)', async () => {
-    messageUpdateMock.mockRejectedValueOnce(new Error('write failed')).mockResolvedValueOnce({ id: 'assistant-1' })
+    messageUpdateMock
+      .mockImplementationOnce(() => {
+        throw new Error('write failed')
+      })
+      .mockReturnValueOnce({ id: 'assistant-1' })
     const onPersistFailed = vi.fn()
     const listener = new PersistenceListener({
       topicId: 'topic-1',

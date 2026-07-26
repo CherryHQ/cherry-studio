@@ -67,6 +67,7 @@
 | Document | Description |
 |----------|-------------|
 | [Message System](./references/messaging/message-system.md) | Message lifecycle, state management, operations |
+| [Composer Rich Clipboard](./references/messaging/composer-rich-clipboard.md) | Private composer token clipboard format and copy/paste flow |
 | [Message Tree](./references/chat/message-tree.md) | Chat message-tree model: adjacency list, per-topic virtual root, sibling groups, invariants, delete semantics, getTree / flow-canvas contract |
 | [Chat UI Design & Conventions](./references/chat/conventions.md) | How the chat UI is divided by responsibility (presentation / view-state / contracts / orchestration) and the conventions modules follow (context, refs, render stability) |
 | [Chat Adapters](./references/chat/adapters.md) | The chat contract layer: projecting topics / sessions / messages into stable UI shapes, the pane / action registries, and render-stability rules |
@@ -79,15 +80,6 @@
 | [Knowledge Technical Design](./references/knowledge/experiment/knowledge-technical-design.md) | Condensed per-base index.sqlite schema, index store contracts, and retrieval decisions (full version lives in Feishu) |
 | [KnowledgeService](./references/knowledge/knowledge-service.md) | Concurrency control and workload management |
 | [Knowledge Operation Guards](./references/knowledge/operation-guards.md) | Guard, enqueue failure, and recovery semantics for add/delete/reindex |
-
-### CherryClaw (Autonomous Agent)
-
-| Document | Description |
-|----------|-------------|
-| [CherryClaw Overview](./references/cherryclaw/overview.md) | Architecture, memory system, API |
-| [Channel System](./references/cherryclaw/channels.md) | IM integration (Telegram, etc.) |
-| [Claw MCP Server](./references/cherryclaw/mcp-claw.md) | Built-in MCP tools (cron, notify, skills, memory) |
-| [Scheduler](./references/cherryclaw/scheduler.md) | Task-based polling scheduler |
 
 ### Components
 
@@ -105,3 +97,4 @@
 | [Feishu Notify](./references/feishu-notify.md) | Feishu notification integration |
 | [Fuzzy Search](./references/fuzzy-search.md) | Fuzzy search implementation |
 | [LAN Transfer Protocol](./references/lan-transfer-protocol.md) | LAN file transfer protocol spec |
+| [Remote Fetch Safety](./references/security/remote-fetch.md) | Main-process direct URL fetch SSRF guardrails |

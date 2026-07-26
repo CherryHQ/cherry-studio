@@ -19,16 +19,16 @@ import type { Stats } from 'node:fs'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { WindowType } from '@main/core/window/types'
+import { isPathInside, resolveAndValidatePath } from '@main/utils/legacyFile'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { S3Config, WebDavConfig } from '@shared/types/backup'
-import archiver from 'archiver'
+import { ZipArchive } from 'archiver'
 import { app } from 'electron'
 import * as fs from 'fs-extra'
 import StreamZip from 'node-stream-zip'
 import * as path from 'path'
 import type { CreateDirectoryOptions, FileStat } from 'webdav'
 
-import { isPathInside, resolveAndValidatePath } from '../utils/file'
 import S3Storage from './S3Storage'
 import WebDav from './WebDav'
 
@@ -86,7 +86,7 @@ class BackupManager {
     // path registry — every path it touches is hand-rolled from
     // app.getPath('userData'). Two reasons:
     //
-    //   1. handleStartupRestore (this method) runs from src/main/index.ts
+    //   1. handleStartupRestore (this method) runs from src/main/main.ts
     //      BEFORE application.bootstrap() — it has to move restore markers
     //      off disk before any service grabs file handles. Calling
     //      application.getPath() pre-bootstrap throws.
@@ -245,7 +245,7 @@ class BackupManager {
       // Step 5: Create ZIP archive
       const backupedFilePath = path.join(destinationPath, fileName)
       const output = fs.createWriteStream(backupedFilePath)
-      const archive = archiver('zip', {
+      const archive = new ZipArchive({
         zlib: { level: 1 }, // Use lowest compression level for speed (same as legacy backup)
         zip64: true
       })
@@ -343,7 +343,7 @@ class BackupManager {
       const output = fs.createWriteStream(backupedFilePath)
 
       // Create archiver instance, enable ZIP64 support
-      const archive = archiver('zip', {
+      const archive = new ZipArchive({
         zlib: { level: 1 }, // Use lowest compression level for speed
         zip64: true // Enable ZIP64 support for large files
       })
@@ -578,7 +578,7 @@ class BackupManager {
    * Restore from direct backup format (version 6+).
    * Writes to `*.restore` directories; `handleStartupRestore` performs the atomic
    * swap on next launch, before any DB connection or window opens. Avoids
-   * overwriting live IndexedDB / libsql files (issue #14774).
+   * overwriting live IndexedDB / SQLite database files (issue #14774).
    */
   private async restoreDirect(): Promise<void> {
     const onProgress = this.onProgress(IpcChannel.RestoreProgress, true)
@@ -917,7 +917,7 @@ class BackupManager {
 
   /**
    * Stage an empty Data directory; handleStartupRestore swaps it in on next launch.
-   * Avoids races with libsql / MemoryService / KnowledgeService recreating files
+   * Avoids races with the SQLite DB / MemoryService / KnowledgeService recreating files
    * before relaunch.
    */
   public async resetData() {

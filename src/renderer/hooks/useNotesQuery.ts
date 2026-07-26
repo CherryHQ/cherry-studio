@@ -1,6 +1,5 @@
 import type { NotesTreeNode } from '@renderer/types/note'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback, useMemo } from 'react'
+import { useMemo } from 'react'
 
 // 查找节点的工具函数
 export const findNodeByPath = (tree: NotesTreeNode[], targetPath: string): NotesTreeNode | null => {
@@ -29,53 +28,4 @@ export function useActiveNode(notesTree: NotesTreeNode[], activeFilePath?: strin
     activeNode,
     hasActiveFile: !!activeFilePath
   }
-}
-
-/**
- * 文件内容同步的 hook - 用于手动失效文件内容缓存
- */
-export function useFileContentSync() {
-  const queryClient = useQueryClient()
-
-  const invalidateFileContent = useCallback(
-    (filePath: string) => {
-      void queryClient.invalidateQueries({
-        queryKey: ['fileContent', filePath],
-        exact: true
-      })
-    },
-    [queryClient]
-  )
-
-  const refetchFileContent = useCallback(
-    async (filePath: string) => {
-      await queryClient.refetchQueries({
-        queryKey: ['fileContent', filePath],
-        exact: true
-      })
-    },
-    [queryClient]
-  )
-
-  return {
-    invalidateFileContent,
-    refetchFileContent
-  }
-}
-
-/**
- * 读取文件内容的 hook - 使用React Query管理
- */
-export function useFileContent(filePath?: string) {
-  return useQuery({
-    queryKey: ['fileContent', filePath],
-    queryFn: async () => {
-      if (!filePath) return ''
-      return await window.api.file.readExternal(filePath)
-    },
-    enabled: !!filePath,
-    staleTime: 30 * 1000,
-    refetchOnWindowFocus: false,
-    retry: 1
-  })
 }

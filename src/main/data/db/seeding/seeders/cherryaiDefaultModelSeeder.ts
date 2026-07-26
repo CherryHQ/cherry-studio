@@ -88,22 +88,23 @@ function createCherryAiDefaultModelRow(): CherryAiDefaultModelRow {
 }
 
 // Exported solely for v1->v2 migration reuse; make private when migration support is dropped.
-export async function ensureCherryAiDefaultProviderAndModelTx(tx: TxLike): Promise<void> {
-  const insertedProviderCount = await providerService.batchUpsertTx(tx, [createCherryAiProviderRow()])
+export function ensureCherryAiDefaultProviderAndModelTx(tx: TxLike): void {
+  const insertedProviderCount = providerService.batchUpsertTx(tx, [createCherryAiProviderRow()])
   if (insertedProviderCount > 0) {
     logger.warn('Self-healed missing CherryAI default provider', { providerId: CHERRYAI_PROVIDER_ID })
   }
 
-  const [existing] = await tx
+  const [existing] = tx
     .select({ id: userModelTable.id })
     .from(userModelTable)
     .where(eq(userModelTable.id, CHERRYAI_DEFAULT_UNIQUE_MODEL_ID))
     .limit(1)
+    .all()
 
   if (existing) return
 
   logger.warn('Self-healed missing CherryAI default model', { modelId: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID })
-  await insertManyWithOrderKey(tx, userModelTable, [createCherryAiDefaultModelRow()], {
+  insertManyWithOrderKey(tx, userModelTable, [createCherryAiDefaultModelRow()], {
     pkColumn: userModelTable.id,
     scope: eq(userModelTable.providerId, CHERRYAI_PROVIDER_ID)
   })
@@ -117,28 +118,31 @@ function createDefaultModelPreferenceRows(): DefaultModelPreferenceRow[] {
   }))
 }
 
-async function ensureDefaultModelPreferencesTx(tx: TxLike): Promise<void> {
+function ensureDefaultModelPreferencesTx(tx: TxLike): void {
   for (const { scope, key, value } of createDefaultModelPreferenceRows()) {
-    const [existing] = await tx
+    const [existing] = tx
       .select({ value: preferenceTable.value })
       .from(preferenceTable)
       .where(and(eq(preferenceTable.scope, scope), eq(preferenceTable.key, key)))
       .limit(1)
+      .all()
 
     if (!existing) {
       logger.warn('Self-healed missing default model preference', { key, value })
-      await tx.insert(preferenceTable).values({
-        scope,
-        key,
-        value
-      })
+      tx.insert(preferenceTable)
+        .values({
+          scope,
+          key,
+          value
+        })
+        .run()
     }
   }
 }
 
-async function ensureCherryAiDefaultModelSetupTx(tx: TxLike): Promise<void> {
-  await ensureCherryAiDefaultProviderAndModelTx(tx)
-  await ensureDefaultModelPreferencesTx(tx)
+function ensureCherryAiDefaultModelSetupTx(tx: TxLike): void {
+  ensureCherryAiDefaultProviderAndModelTx(tx)
+  ensureDefaultModelPreferencesTx(tx)
 }
 
 export class CherryAiDefaultModelSeeder implements ISeeder {
@@ -154,7 +158,7 @@ export class CherryAiDefaultModelSeeder implements ISeeder {
     })
   }
 
-  async run(db: DbType): Promise<void> {
-    await db.transaction((tx) => ensureCherryAiDefaultModelSetupTx(tx))
+  run(db: DbType): void {
+    db.transaction((tx) => ensureCherryAiDefaultModelSetupTx(tx))
   }
 }

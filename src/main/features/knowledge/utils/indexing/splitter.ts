@@ -1,3 +1,4 @@
+import type { KnowledgeChunkStrategy } from '@shared/data/types/knowledge'
 import { estimateTokenCount } from 'tokenx'
 
 /**
@@ -21,6 +22,19 @@ export interface SplitOptions {
   chunkSize: number
   /** Tokens of trailing context repeated at the start of the next chunk. */
   chunkOverlap: number
+  /**
+   * Primary break delimiter in escaped form (e.g. `"\\n\\n"`, `"。"`). Unescaped
+   * before use. When set, cuts are preferred at its boundaries. Defaults to none.
+   */
+  separator?: string
+  /**
+   * Chunking strategy. `'structured'` (default) snaps cuts to markdown
+   * heading / code-fence / rule / paragraph breaks, never splits a code fence,
+   * and treats `separator` as a paragraph-level break. `'delimiter'` splits the
+   * text purely by `separator` then a fallback delimiter chain, ignoring
+   * markdown structure.
+   */
+  strategy?: KnowledgeChunkStrategy
 }
 
 /** A candidate place to cut, scored by how clean a boundary it is. */
@@ -64,6 +78,33 @@ const WINDOW_RATIO = 0.22
 const DECAY_FACTOR = 0.7
 
 /**
+ * Score for the user separator in structure-aware mode: paragraph-level, so
+ * headings / code-fence / rule breaks still dominate while the chosen delimiter
+ * is mildly preferred over plain newlines.
+ */
+const STRUCTURED_SEPARATOR_SCORE = 30
+/** Score for the user separator in pure-delimiter mode — the primary cut. */
+const DELIMITER_SEPARATOR_SCORE = 100
+/**
+ * Fallback delimiter chain for pure-delimiter mode, tried by descending score
+ * when the user separator leaves an oversized segment (paragraph, line,
+ * CJK/Latin sentence, word) before the hard character cut.
+ */
+const DELIMITER_FALLBACKS: ReadonlyArray<{ separator: string; score: number }> = [
+  { separator: '\n\n', score: 20 },
+  { separator: '\n', score: 12 },
+  { separator: '。', score: 10 },
+  { separator: '. ', score: 8 },
+  { separator: ' ', score: 3 }
+]
+
+const SEPARATOR_ESCAPES: Record<string, string> = { n: '\n', t: '\t', r: '\r', '\\': '\\' }
+/** Convert a user-typed escaped delimiter (`"\\n\\n"`, `"\\t"`) into its literal characters. */
+function unescapeSeparator(raw: string): string {
+  return raw.replace(/\\([ntr\\])/g, (_match, code: string) => SEPARATOR_ESCAPES[code])
+}
+
+/**
  * Split `text` into overlapping, structure-aware chunks sized by token count,
  * returning each chunk's exact offsets into `text`. Replaces the upstream
  * `SentenceSplitter`, which trims and rewrites chunk text (so its output is not
@@ -86,14 +127,16 @@ export function splitTextWithOffsets(text: string, options: SplitOptions): TextC
 
   const chunkSize = Math.max(1, options.chunkSize)
   const chunkOverlap = Math.max(0, Math.min(options.chunkOverlap, chunkSize - 1))
+  const strategy = options.strategy ?? 'structured'
+  const separator = options.separator ? unescapeSeparator(options.separator) : ''
 
   const charsPerToken = text.length / Math.max(1, estimateTokenCount(text))
   const maxChars = Math.max(1, Math.round(chunkSize * charsPerToken))
   const overlapChars = Math.min(Math.round(chunkOverlap * charsPerToken), maxChars - 1)
   const windowChars = Math.max(1, Math.round(maxChars * WINDOW_RATIO))
 
-  const breakPoints = scanBreakPoints(text)
-  const codeFences = findCodeFences(text)
+  const breakPoints = scanBreakPoints(text, { strategy, separator })
+  const codeFences = strategy === 'structured' ? findCodeFences(text) : []
 
   const chunks: TextChunk[] = []
   let cursor = 0
@@ -121,8 +164,14 @@ export function splitTextWithOffsets(text: string, options: SplitOptions): TextC
   return chunks
 }
 
-/** Collect every candidate break, keeping the highest score at each position; sorted by position. */
-function scanBreakPoints(text: string): BreakPoint[] {
+/**
+ * Collect every candidate break, keeping the highest score at each position;
+ * sorted by position. In structure-aware mode the markdown patterns drive the
+ * cuts and the user separator is added as a paragraph-level break. In
+ * delimiter mode the user separator is the primary break, backed by a fallback
+ * delimiter chain so oversized segments still split before the hard cut.
+ */
+function scanBreakPoints(text: string, options: { strategy: KnowledgeChunkStrategy; separator: string }): BreakPoint[] {
   const best = new Map<number, number>()
   const consider = (pos: number, score: number) => {
     const existing = best.get(pos)
@@ -131,12 +180,42 @@ function scanBreakPoints(text: string): BreakPoint[] {
     }
   }
 
-  for (const { pattern, score } of BREAK_PATTERNS) {
-    for (const match of text.matchAll(pattern)) {
-      consider(match.index, score)
+  if (options.strategy === 'structured') {
+    for (const { pattern, score } of BREAK_PATTERNS) {
+      for (const match of text.matchAll(pattern)) {
+        consider(match.index, score)
+      }
+    }
+    addLiteralBreaks(text, options.separator, STRUCTURED_SEPARATOR_SCORE, consider)
+  } else {
+    addLiteralBreaks(text, options.separator, DELIMITER_SEPARATOR_SCORE, consider)
+    for (const { separator, score } of DELIMITER_FALLBACKS) {
+      addLiteralBreaks(text, separator, score, consider)
     }
   }
+
   return [...best.entries()].map(([pos, score]) => ({ pos, score })).sort((a, b) => a.pos - b.pos)
+}
+
+/**
+ * Add a break after each occurrence of the literal `separator`, so the
+ * delimiter stays at the end of the preceding chunk (trimmed away when it is
+ * whitespace). A no-op for an empty separator.
+ */
+function addLiteralBreaks(
+  text: string,
+  separator: string,
+  score: number,
+  consider: (pos: number, score: number) => void
+): void {
+  if (!separator) {
+    return
+  }
+  let index = text.indexOf(separator)
+  while (index !== -1) {
+    consider(index + separator.length, score)
+    index = text.indexOf(separator, index + separator.length)
+  }
 }
 
 /** Pair up `\`\`\`` fences into regions; an unclosed fence extends to end of text. */

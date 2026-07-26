@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
-import { getFileDirectory } from '@renderer/utils'
+import { getFileDirectory } from '@renderer/utils/file'
 import type { TreeDirRoot, TreeNode } from '@shared/utils/file'
 
 const logger = loggerService.withContext('NotesService')
@@ -116,8 +117,8 @@ export interface ResolvedNotesPath {
 
 async function getDefaultNotesPath(): Promise<string> {
   if (!defaultNotesPathPromise) {
-    defaultNotesPathPromise = window.api
-      .getAppInfo()
+    defaultNotesPathPromise = ipcApi
+      .request('app.get_info')
       .then((appInfo) => normalizePath(appInfo.notesPath))
       .catch((error) => {
         defaultNotesPathPromise = null

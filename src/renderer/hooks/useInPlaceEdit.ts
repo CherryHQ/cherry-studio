@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -37,6 +38,7 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
   const originalValueRef = useRef('')
+  const isSavingRef = useRef(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const startEdit = useCallback((initialValue: string) => {
@@ -55,7 +57,7 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
   }, [autoSelectOnStart, isEditing])
 
   const saveEdit = useCallback(async () => {
-    if (isSaving) return
+    if (isSavingRef.current) return
 
     const finalValue = trimOnSave ? editValue.trim() : editValue
     if (finalValue === originalValueRef.current) {
@@ -63,6 +65,7 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
       return
     }
 
+    isSavingRef.current = true
     setIsSaving(true)
 
     try {
@@ -76,12 +79,13 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
       if (onError) {
         onError(error)
       } else {
-        window.toast.error(t('common.save_failed') || 'Failed to save')
+        toast.error(t('common.save_failed') || 'Failed to save')
       }
     } finally {
       setIsSaving(false)
+      isSavingRef.current = false
     }
-  }, [isSaving, trimOnSave, editValue, onSave, onError, t])
+  }, [trimOnSave, editValue, onSave, onError, t])
 
   const cancelEdit = useCallback(() => {
     setIsEditing(false)
@@ -99,6 +103,8 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
         e.preventDefault()
         e.stopPropagation()
         cancelEdit()
+      } else if (e.key === ' ' || e.key === 'Spacebar') {
+        e.stopPropagation()
       }
     },
     [saveEdit, cancelEdit]
@@ -113,10 +119,10 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
     // 如果点击了“取消”按钮，可能会先触发 Blur 保存。
     // 通常 InPlaceEdit 的逻辑是 Blur 即 Save。
     // 如果不想 Blur 保存，可以去掉这一行，或者判断 relatedTarget。
-    if (!isSaving) {
+    if (!isSavingRef.current) {
       void saveEdit()
     }
-  }, [saveEdit, isSaving])
+  }, [saveEdit])
 
   return {
     isEditing,

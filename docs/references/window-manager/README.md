@@ -35,6 +35,18 @@ Per-type metadata in `windowRegistry.ts` is split into three layers. Each field 
 
 ---
 
+## Bounds Persistence
+
+`rememberBounds` is a per-type metadata flag — a sibling of `showMode` / `lifecycle`, **not** part of the three configuration layers above. When set, WindowManager persists the window's position/size on teardown and restores them on the next open, onto the display it was last on (clamping into that display's work area if a monitor was removed or resized — never resetting to the primary display). It is backed by the main-process persist cache (`window.bounds` key); old geometry is loseable, so there is no migration.
+
+**Singleton-only.** Bounds answer "where does this window reopen?", which has a unique answer only when window identity equals window type — i.e. a single instance. The flag is ignored (with a dev warning) for non-singleton types. Multi-instance types would need a per-instance *content identity* (e.g. a tab id) plus reopen-restore and stale-id GC; that is a documented future extension.
+
+**Maximize stays consumer-side.** The maximized flag is persisted, but re-applying `maximize()` is left to the consumer (read it back via [`peekWindowBounds`](./window-manager-api-reference.md#bounds-persistence)). Geometry is injected declaratively at construction (`x/y/width/height` are `BrowserWindow` constructor options), but Electron has no `maximized` constructor option — so maximize is a post-construction imperative call whose correct timing is coupled to each window's show choreography (e.g. Main defers it to first show when launching to tray). The split: WindowManager owns saving + restoring geometry; the consumer owns re-applying maximize.
+
+**Runtime toggle.** [`wm.setRememberBounds(type, enabled)`](./window-manager-api-reference.md#bounds-persistence) overrides the registry flag at runtime and is orthogonal to it — it can disable a flag-on type or enable a type that declares no flag. Switching it off also drops the saved record immediately, so the next open uses the registry default. Fullscreen is neither persisted nor restored.
+
+---
+
 ## WM Does Not Know "Pin"
 
 **Cherry Studio windows do not share a single "pin" concept** — the three pinnable windows each mean something different by it:

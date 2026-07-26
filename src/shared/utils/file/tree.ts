@@ -15,11 +15,12 @@
  * from the same module so they can never drift.
  *
  * The tree is a **runtime / render-layer** concern — not coupled to
- * `file_entry` / `file_ref`. Notes joins its sparse-state `noteTable`
- * renderer-side after the tree mirror has been built — see directory-tree.md §9.
+ * `file_entry` or FileManager ref association tables. Notes joins its
+ * sparse-state `noteTable` renderer-side after the tree mirror has been built —
+ * see directory-tree.md §9.
  */
 
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import * as z from 'zod'
 
 // ─── Wire DTOs ──────────────────────────────────────────────────────────────
@@ -71,7 +72,13 @@ export const DirectoryTreeOptionsSchema = z.strictObject({
   withStats: z.boolean().optional(),
 
   /** Max depth from root. Default unlimited. */
-  maxDepth: z.int().nonnegative().optional()
+  maxDepth: z.int().nonnegative().optional(),
+
+  /**
+   * Treat an absent root as an empty tree while continuing to watch for it.
+   * Intended for app-owned directories that are created lazily.
+   */
+  watchMissingRoot: z.boolean().optional()
 })
 
 export type DirectoryTreeOptions = z.infer<typeof DirectoryTreeOptionsSchema>
@@ -125,7 +132,7 @@ export interface TreeMutationPushPayload {
   readonly event: TreeMutationEvent
 }
 
-export type TreeRootPath = FilePath | string
+export type TreeRootPath = AbsoluteFilePath | string
 
 // ─── Class hierarchy (shared between main and renderer) ─────────────────────
 

@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import { parsePersistedLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateHistory as TranslateHistoryItem, TranslateLanguage } from '@shared/data/types/translate'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -49,7 +50,7 @@ vi.mock('@renderer/hooks/translate', () => ({
   useTranslateHistory: () => translateHistoryMock.useTranslateHistory()
 }))
 
-vi.mock('@renderer/utils', () => ({
+vi.mock('@renderer/utils/style', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
 
@@ -67,15 +68,19 @@ vi.mock('@cherrystudio/ui', () => ({
   PageSidePanel: ({
     children,
     header,
+    headerClassName,
     open
   }: {
     children: React.ReactNode
     header?: React.ReactNode
+    headerClassName?: string
     open?: boolean
   }) =>
     open ? (
       <div>
-        {header}
+        <div data-testid="page-side-panel-header" className={headerClassName}>
+          {header}
+        </div>
         {children}
       </div>
     ) : null
@@ -148,14 +153,6 @@ describe('TranslateHistory', () => {
       }
     })
 
-    ;(window as any).toast = {
-      error: vi.fn(),
-      warning: vi.fn(),
-      info: vi.fn(),
-      loading: vi.fn(),
-      success: vi.fn()
-    }
-
     translateHistoryMock.useTranslateHistory.mockReturnValue({
       clear: clearMock,
       update: updateMock,
@@ -178,6 +175,12 @@ describe('TranslateHistory', () => {
     expect(screen.getByText('hello')).toBeInTheDocument()
     expect(screen.getByText('bye')).toBeInTheDocument()
     expect(translateHistoryMock.useTranslateHistory).toHaveBeenCalledTimes(1)
+  })
+
+  it('localizes compact header spacing to the translate history drawer', () => {
+    render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
+
+    expect(screen.getByTestId('page-side-panel-header')).toHaveClass('pb-0')
   })
 
   it('opens detail and supports reuse', () => {
@@ -215,11 +218,17 @@ describe('TranslateHistory', () => {
     render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
 
     fireEvent.click(screen.getByText('hello'))
+    const actionLabels = screen
+      .getAllByRole('button')
+      .map((button) => button.getAttribute('aria-label') ?? button.textContent)
+    const detailStarIndex = actionLabels.lastIndexOf('translate.history.filter.starred')
+    expect(actionLabels.indexOf('translate.history.delete')).toBeLessThan(detailStarIndex)
     const copyTargetButton = screen.getByRole('button', { name: 'translate.history.copy_target' })
+    expect(copyTargetButton).toHaveClass('text-primary-foreground')
     fireEvent.click(copyTargetButton)
 
     await waitFor(() => expect(writeTextMock).toHaveBeenCalledWith('你好'))
-    expect((window as any).toast.success).toHaveBeenCalledWith('translate.copied')
+    expect(toast.success).toHaveBeenCalledWith('translate.copied')
   })
 
   it('shows copy failure toast when clipboard write rejects', async () => {
@@ -229,7 +238,7 @@ describe('TranslateHistory', () => {
     fireEvent.click(screen.getByText('hello'))
     fireEvent.click(screen.getByRole('button', { name: 'translate.history.copy_target' }))
 
-    await waitFor(() => expect((window as any).toast.error).toHaveBeenCalledWith('common.copy_failed'))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('common.copy_failed'))
   })
 
   it('invokes delete mutation from detail confirm dialog flow', async () => {

@@ -160,7 +160,7 @@ page.locator('[data-testid="submit-button"]')
 page.locator('button[role="submit"]')
 page.locator('[aria-label="Send message"]')
 
-// 3. 类名模糊匹配（适应 CSS Modules / styled-components）
+// 3. 类名模糊匹配（适应 CSS Modules / generated class names）
 page.locator('[class*="SendButton"]')
 page.locator('[class*="send-button"]')
 

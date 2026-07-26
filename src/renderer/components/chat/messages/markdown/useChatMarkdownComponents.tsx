@@ -30,13 +30,19 @@ interface Options {
   blockId: string
   /** Set true when the source contains a `<style>` element to enable shadow-DOM isolation. */
   hasStyleElement?: boolean
+  /** True while the owning markdown block is still receiving stream chunks. */
+  isStreaming?: boolean
 }
 
-export function useChatMarkdownComponents({ blockId, hasStyleElement = false }: Options): Partial<Components> {
+export function useChatMarkdownComponents({
+  blockId,
+  hasStyleElement = false,
+  isStreaming = false
+}: Options): Partial<Components> {
   return useMemo(() => {
     const result: Partial<Components> = {
       a: (props: any) => <Link {...props} />,
-      code: (props: any) => <CodeBlock {...props} blockId={blockId} />,
+      code: (props: any) => <CodeBlock {...props} blockId={blockId} isStreaming={isStreaming} />,
       table: (props: any) => <Table {...props} blockId={blockId} />,
       img: (props: any) => <ImageViewer style={{ maxWidth: 500, maxHeight: 500 }} {...props} />,
       pre: (props: any) => <pre style={{ overflow: 'visible' }} {...props} />,
@@ -51,5 +57,5 @@ export function useChatMarkdownComponents({ blockId, hasStyleElement = false }: 
       result.style = MarkdownShadowDomRenderer as Components['style']
     }
     return result
-  }, [blockId, hasStyleElement])
+  }, [blockId, hasStyleElement, isStreaming])
 }

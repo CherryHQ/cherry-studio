@@ -1,11 +1,14 @@
-import type { BaseTool, McpTool, McpToolResponse, McpToolResponseStatus, NormalToolResponse } from '@renderer/types'
+import type { McpToolResponse, McpToolResponseStatus, NormalToolResponse } from '@renderer/types/mcpTool'
+import type { BaseTool, McpTool } from '@renderer/types/tool'
+import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import { isMcpContentBlock } from '@shared/utils/mcp'
 import type { DynamicToolUIPart, ProviderMetadata, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
 import { getToolName, isToolUIPart } from 'ai'
 
-import { AgentToolsType } from './agent/types'
 import { isMetaToolName } from './meta/metaToolNames'
+import { AgentToolsType } from './shared/agentToolTypes'
 
 /** AI-SDK-v6 ToolUIPart approval-state string literals. */
 export const APPROVAL_REQUESTED = 'approval-requested'
@@ -41,6 +44,10 @@ function isToolType(value: unknown): value is ToolType {
   return value === 'mcp' || value === 'builtin' || value === 'provider'
 }
 
+function isMcpContentArray(value: unknown): value is unknown[] {
+  return Array.isArray(value) && value.every(isMcpContentBlock)
+}
+
 function normalizeToolName(part: ToolResponsePart): string {
   const toolName = getToolName(part)
   return toolName.trim() || 'unknown'
@@ -67,8 +74,7 @@ function mapPartStateToStatus(state: string | undefined): McpToolResponseStatus 
   }
 }
 
-function extractOutputMetadata(part: ToolResponsePart): { response: unknown; metadata?: ToolMetadata } {
-  const output = part.output
+function extractOutputMetadata(output: unknown): { response: unknown; metadata?: ToolMetadata } {
   if (!isRecord(output)) return { response: output }
 
   const metadata = isRecord(output.metadata) ? output.metadata : undefined
@@ -82,10 +88,15 @@ function extractOutputMetadata(part: ToolResponsePart): { response: unknown; met
           type: isToolType(metadata.type) ? metadata.type : undefined
         }
       : undefined
-    return { response: output.content, metadata: normalizedMeta }
+    const response = normalizedMeta?.type === 'mcp' && isMcpContentArray(output.content) ? output : output.content
+    return { response, metadata: normalizedMeta }
   }
 
   return { response: output }
+}
+
+export function normalizeToolOutputResponse(output: unknown): unknown {
+  return extractOutputMetadata(output).response
 }
 
 function hasProviderMetadata(part: ToolResponsePart, provider: string): boolean {
@@ -142,6 +153,7 @@ function resolveToolType(part: ToolResponsePart, toolName: string, metadata?: To
   if (isMetaToolName(toolName)) return 'builtin'
   if (metadata?.type) return metadata.type
   if (parseFunctionCallToolName(toolName)) return 'mcp'
+  if (toolName === GENERATE_IMAGE_TOOL_NAME) return 'builtin'
   if (hasProviderMetadata(part, 'claude-code')) return 'provider'
   if (hasCherryTransport(part.callProviderMetadata)) return 'provider'
   if (part.type === 'dynamic-tool' && isLegacyAgentToolName(toolName)) return 'provider'
@@ -175,12 +187,16 @@ function buildBaseToolDescriptor(toolType: Exclude<ToolType, 'mcp'>, toolCallId:
   return baseTool
 }
 
-function normalizeErrorOutput(part: ToolResponsePart): unknown {
-  if (part.state !== 'output-error') return undefined
+export function normalizeToolErrorResponse(errorText: string): unknown {
   return {
     isError: true,
-    content: [{ type: 'text', text: part.errorText || 'Error' }]
+    content: [{ type: 'text', text: errorText || 'Error' }]
   }
+}
+
+function normalizeErrorOutput(part: ToolResponsePart): unknown {
+  if (part.state !== 'output-error') return undefined
+  return normalizeToolErrorResponse(part.errorText)
 }
 
 export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: string): ToolResponseLike | null {
@@ -192,7 +208,7 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
   const toolName = normalizeToolName(toolPart)
   const status = mapPartStateToStatus(toolPart.state)
 
-  const { response: rawResponse, metadata: outputMetadata } = extractOutputMetadata(toolPart)
+  const { response: rawResponse, metadata: outputMetadata } = extractOutputMetadata(toolPart.output)
   const cherryMetadata = extractCherryToolMetadata(toolPart)
   const metadata = outputMetadata ?? cherryMetadata
   const toolType = resolveToolType(toolPart, toolName, metadata)

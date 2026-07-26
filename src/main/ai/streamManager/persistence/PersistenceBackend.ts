@@ -3,14 +3,19 @@
  * `PersistenceListener`. Concrete backends live near the storage domain
  * they write to; stream-manager only owns the generic contract.
  *
- * The listener attaches error parts and composes `MessageStats` before
- * calling the backend — backends never synthesise UIMessages or repeat
- * projection logic.
+ * The listener attaches error parts, terminalizes interrupted parts, and
+ * composes `MessageStats` before calling the backend — backends never
+ * synthesise UIMessages or repeat projection logic.
  */
 
 import type { CherryMessagePart, CherryUIMessage, MessageStats } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { type CherryReasoningMeta, readCherryMeta, withCherryMeta } from '@shared/data/types/uiParts'
+import {
+  type AgentTaskEventPartData,
+  type CherryReasoningMeta,
+  readCherryMeta,
+  withCherryMeta
+} from '@shared/data/types/uiParts'
 
 import type { SemanticTimings, TransportTimings } from '../types'
 
@@ -37,7 +42,9 @@ export function finalizeInterruptedParts(
   status: 'success' | 'paused' | 'error'
 ): CherryMessagePart[] {
   if (status === 'success') return parts
-  const reason = status === 'paused' ? 'Interrupted by user' : 'Stream errored before tool completed'
+  const interruptionReason = status === 'paused' ? 'Interrupted by user' : 'Stream errored'
+  const taskError = status === 'paused' ? interruptionReason : `${interruptionReason} before task completed`
+  const toolError = status === 'paused' ? interruptionReason : `${interruptionReason} before tool completed`
   return parts.map((part) => {
     if (part.type === 'reasoning') {
       if (part.state === 'streaming') {
@@ -65,11 +72,45 @@ export function finalizeInterruptedParts(
       return part
     }
 
+    if (part.type === 'data-agent-task-event') {
+      const taskPart = part as CherryMessagePart & { data: AgentTaskEventPartData }
+      if (taskPart.data.status !== 'in_progress') return part
+      return {
+        ...taskPart,
+        data: {
+          ...taskPart.data,
+          status: 'error',
+          error: taskPart.data.error ?? taskError
+        }
+      } as CherryMessagePart
+    }
+
     if (!isToolPart(part)) return part
     const toolPart = part as CherryMessagePart & { state?: string; errorText?: string }
     if (toolPart.state && TERMINAL_TOOL_STATES.has(toolPart.state)) return part
-    return { ...toolPart, state: 'output-error', errorText: toolPart.errorText ?? reason } as CherryMessagePart
+    return {
+      ...toolPart,
+      state: 'output-error',
+      errorText: toolPart.errorText ?? toolError
+    } as CherryMessagePart
   })
+}
+
+/**
+ * Drop parts that carry no renderable content — empty/whitespace-only `text`
+ * and `reasoning` parts. The AI SDK accumulator can leave these behind at step
+ * boundaries (e.g. a final text step that produced no output); persisting them
+ * yields invisible message blocks that still inject layout spacing on render.
+ *
+ * Returns the original array by reference when nothing is dropped, so a clean
+ * turn keeps a stable identity (matching `finalizeInterruptedParts`).
+ */
+export function dropEmptyContentParts(parts: CherryMessagePart[]): CherryMessagePart[] {
+  const filtered = parts.filter((part) => {
+    if (part.type !== 'text' && part.type !== 'reasoning') return true
+    return part.text.trim().length > 0
+  })
+  return filtered.length === parts.length ? parts : filtered
 }
 
 export type StatsTimings = TransportTimings & SemanticTimings
@@ -87,7 +128,13 @@ export interface PersistenceBackend {
   /** Tag for logging (e.g. "sqlite", "temp", "agents-db"). */
   readonly kind: string
 
-  persistAssistant(input: PersistAssistantInput): Promise<void>
+  /**
+   * True for backends that finalize a pre-created placeholder row. They must
+   * still write terminal status when a stream is paused before producing chunks.
+   */
+  readonly canPersistEmptyTerminal?: boolean
+
+  persistAssistant(input: PersistAssistantInput): void
 
   /**
    * Best-effort recovery when `persistAssistant` throws: drive the backing
@@ -95,7 +142,7 @@ export interface PersistenceBackend {
    * bubble instead of a frozen `pending` one. Only backends that finalize a
    * pre-existing placeholder (e.g. `MessageServiceBackend`) implement this.
    */
-  markTerminalError?(): Promise<void>
+  markTerminalError?(): void
 
   /** Best-effort post-success hook; failures are swallowed by the listener. */
   afterPersist?(finalMessage: CherryUIMessage): Promise<void>
@@ -103,13 +150,11 @@ export interface PersistenceBackend {
 
 /**
  * Token counts come from `finalMessage.metadata` (populated by
- * agentLoop's `messageMetadata` on the `finish` chunk). Durations come
- * from the merged `StatsTimings`, rounded to integer ms.
- *
- * `timeThinkingMs` is deliberately not projected: the
- * `reasoningStartedAt → reasoningEndedAt` wall-clock can include
- * interleaved tool execution. The subtraction path lands with the
- * `TODO(message-stats-redesign)` rework in `src/shared/data/types/message.ts`.
+ * agentLoop's `messageMetadata` on the `finish` chunk). Request durations
+ * come from the merged `StatsTimings`; thinking duration is the sum of the
+ * stabilized per-reasoning-part metadata. We deliberately do not subtract
+ * `reasoningStartedAt` from `reasoningEndedAt`, because that wall-clock can
+ * include interleaved tool execution.
  */
 export function statsFromTerminal(
   finalMessage: CherryUIMessage | undefined,
@@ -123,6 +168,22 @@ export function statsFromTerminal(
     if (typeof meta.promptTokens === 'number') stats.promptTokens = meta.promptTokens
     if (typeof meta.completionTokens === 'number') stats.completionTokens = meta.completionTokens
     if (typeof meta.thoughtsTokens === 'number') stats.thoughtsTokens = meta.thoughtsTokens
+    if (typeof meta.noCacheTokens === 'number') stats.noCacheTokens = meta.noCacheTokens
+    if (typeof meta.cacheReadTokens === 'number') stats.cacheReadTokens = meta.cacheReadTokens
+    if (typeof meta.cacheWriteTokens === 'number') stats.cacheWriteTokens = meta.cacheWriteTokens
+  }
+
+  let thinkingDurationMs = 0
+  let hasThinkingDuration = false
+  for (const part of finalMessage?.parts ?? []) {
+    if (part.type !== 'reasoning') continue
+    const thinkingMs = readCherryMeta(part)?.thinkingMs
+    if (thinkingMs === undefined || !Number.isFinite(thinkingMs) || thinkingMs < 0) continue
+    thinkingDurationMs += thinkingMs
+    hasThinkingDuration = true
+  }
+  if (hasThinkingDuration) {
+    stats.timeThinkingMs = Math.round(thinkingDurationMs)
   }
 
   if (timings) {

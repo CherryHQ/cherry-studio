@@ -1,12 +1,7 @@
 import { sql } from 'drizzle-orm'
 import { check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
-import {
-  createUpdateDeleteTimestamps,
-  createUpdateTimestamps,
-  uuidPrimaryKey,
-  uuidPrimaryKeyOrdered
-} from './_columnHelpers'
+import { createUpdateDeleteTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
 
 /**
  * NOTE: `file_upload` (AI provider upload cache) is intentionally NOT included
@@ -77,10 +72,11 @@ export const fileEntryTable = sqliteTable(
     // Windows NTFS default) `/foo/A.txt` and `/foo/a.txt` *are* the same
     // file, and this index correctly forbids a second entry. On
     // case-sensitive filesystems (Linux ext4, case-sensitive APFS volumes)
-    // those are two different files — `ensureExternalEntry` resolves the
-    // disambiguation at the application layer via `fs.realpath` before
-    // any insert is attempted, so the DB constraint never fires
-    // user-visibly on legitimate distinct-file references. See
+    // those are two different files, and this index forbids referencing
+    // both. `ensureExternalEntry` runs an `fs.realpath` probe before the
+    // insert, so what the user sees is a descriptive `case-collision` error
+    // rather than an opaque SQLITE_CONSTRAINT — the application layer
+    // improves the diagnostic, it does not lift the restriction. See
     // `file-manager-architecture.md §1.2 Duplicate-entry detection on
     // insert`.
     uniqueIndex('fe_external_path_lower_unique_idx').on(sql`lower(${t.externalPath})`),
@@ -110,44 +106,5 @@ export const fileEntryTable = sqliteTable(
       'fe_size_internal_only',
       sql`(${t.origin} = 'internal' AND ${t.size} IS NOT NULL AND ${t.size} >= 0) OR (${t.origin} = 'external' AND ${t.size} IS NULL)`
     )
-  ]
-)
-
-/**
- * File reference table — tracks which business entities reference which file entries.
- *
- * Polymorphic association: sourceType + sourceId identify the referencing entity.
- * No FK constraint on sourceId (polymorphic). Application-layer cleanup required
- * when source entities are deleted.
- *
- * fileEntryId has CASCADE delete: removing a file entry auto-removes its references.
- */
-export const fileRefTable = sqliteTable(
-  'file_ref',
-  {
-    id: uuidPrimaryKey(),
-
-    // Referenced file entry ID
-    fileEntryId: text()
-      .notNull()
-      .references(() => fileEntryTable.id, { onDelete: 'cascade' }),
-
-    // Business source type — registered variants live in
-    // `src/shared/data/types/file/ref/index.ts#allSourceTypes`; today
-    // 'temp_session' and 'knowledge_item'. Stored as free-form text at the DB
-    // layer so adding a new variant doesn't require a schema migration.
-    sourceType: text().notNull(),
-    // Business object ID (polymorphic, no FK constraint)
-    sourceId: text().notNull(),
-    // Reference role (e.g. 'attachment', 'source', 'asset')
-    role: text().notNull(),
-
-    // ─── Timestamps ───
-    ...createUpdateTimestamps
-  },
-  (t) => [
-    index('file_ref_entry_id_idx').on(t.fileEntryId),
-    index('file_ref_source_idx').on(t.sourceType, t.sourceId),
-    uniqueIndex('file_ref_unique_idx').on(t.fileEntryId, t.sourceType, t.sourceId, t.role)
   ]
 )

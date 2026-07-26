@@ -61,7 +61,7 @@ describe('buildFallbackModels', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     MockMainPreferenceServiceUtils.resetMocks()
-    getByProviderId.mockResolvedValue(makeProvider({ id: 'anthropic' }))
+    getByProviderId.mockReturnValue(makeProvider({ id: 'anthropic' }))
     resolveLanguageModel.mockImplementation(async (_pid, _settings, modelId) => ({ modelId, _resolved: true }))
   })
 
@@ -72,7 +72,7 @@ describe('buildFallbackModels', () => {
 
   it('is lazy — no provider/model/buildAgentParams work until a resolver is invoked', () => {
     setPrefs(['anthropic::claude'])
-    getByKey.mockResolvedValue(makeModel({ id: 'anthropic::claude', providerId: 'anthropic', apiModelId: 'claude-x' }))
+    getByKey.mockReturnValue(makeModel({ id: 'anthropic::claude', providerId: 'anthropic', apiModelId: 'claude-x' }))
     stubBuildAgentParams('claude-x')
 
     const resolvers = buildFallbackModels({ ...baseArgs, primaryUniqueModelId: 'openai::gpt-4' })
@@ -85,7 +85,7 @@ describe('buildFallbackModels', () => {
 
   it('resolves a fallback with its OWN plugins and lifts its OWN param overrides', async () => {
     setPrefs(['anthropic::claude'])
-    getByKey.mockResolvedValue(makeModel({ id: 'anthropic::claude', providerId: 'anthropic', apiModelId: 'claude-x' }))
+    getByKey.mockReturnValue(makeModel({ id: 'anthropic::claude', providerId: 'anthropic', apiModelId: 'claude-x' }))
     const plugins = stubBuildAgentParams('claude-x')
 
     const [resolve] = buildFallbackModels({ ...baseArgs, primaryUniqueModelId: 'openai::gpt-4' })
@@ -105,7 +105,7 @@ describe('buildFallbackModels', () => {
 
   it('resolves to null for a non-vision fallback when the request has image input', async () => {
     setPrefs(['anthropic::text-only'])
-    getByKey.mockResolvedValue(makeModel({ id: 'anthropic::text-only', providerId: 'anthropic', capabilities: [] }))
+    getByKey.mockReturnValue(makeModel({ id: 'anthropic::text-only', providerId: 'anthropic', capabilities: [] }))
 
     const [resolve] = buildFallbackModels({
       ...baseArgs,
@@ -119,7 +119,7 @@ describe('buildFallbackModels', () => {
 
   it('keeps a vision fallback when the request has image input', async () => {
     setPrefs(['anthropic::vision'])
-    getByKey.mockResolvedValue(makeModel({ id: 'anthropic::vision', providerId: 'anthropic', capabilities: [VISION] }))
+    getByKey.mockReturnValue(makeModel({ id: 'anthropic::vision', providerId: 'anthropic', capabilities: [VISION] }))
     stubBuildAgentParams('vision-x')
 
     const [resolve] = buildFallbackModels({
@@ -133,7 +133,7 @@ describe('buildFallbackModels', () => {
 
   it('resolves to null for a non-function-calling fallback when the request has active tools', async () => {
     setPrefs(['anthropic::no-fc'])
-    getByKey.mockResolvedValue(makeModel({ id: 'anthropic::no-fc', providerId: 'anthropic', capabilities: [] }))
+    getByKey.mockReturnValue(makeModel({ id: 'anthropic::no-fc', providerId: 'anthropic', capabilities: [] }))
 
     const [resolve] = buildFallbackModels({
       ...baseArgs,
@@ -147,7 +147,9 @@ describe('buildFallbackModels', () => {
 
   it('resolves to null when the fallback cannot be resolved, without throwing', async () => {
     setPrefs(['gone::deleted'])
-    getByProviderId.mockRejectedValue(new Error('provider deleted'))
+    getByProviderId.mockImplementation(() => {
+      throw new Error('provider deleted')
+    })
 
     const [resolve] = buildFallbackModels({ ...baseArgs, primaryUniqueModelId: 'openai::gpt-4' })
 

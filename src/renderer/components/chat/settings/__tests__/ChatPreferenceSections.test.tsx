@@ -11,7 +11,6 @@ const mocks = vi.hoisted(() => ({
     'chat.message.font_size': 14,
     'chat.input.send_message_shortcut': 'Enter',
     'chat.message.font': 'system',
-    'chat.message.show_prompt': true,
     'chat.message.confirm_delete': true,
     'chat.message.navigation_mode': 'none',
     'chat.narrow_mode': true,
@@ -54,11 +53,11 @@ vi.mock('@data/hooks/usePreference', () => ({
   ]
 }))
 
-vi.mock('@renderer/context/ThemeProvider', () => ({
+vi.mock('@renderer/hooks/useTheme', () => ({
   useTheme: () => ({ theme: 'light' })
 }))
 
-vi.mock('@renderer/context/CodeStyleProvider', () => ({
+vi.mock('@renderer/hooks/useCodeStyle', () => ({
   useCodeStyle: () => ({ themeNames: ['auto', 'github'] })
 }))
 
@@ -67,7 +66,11 @@ vi.mock('@cherrystudio/ui/lib/utils', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  CustomTag: ({ children }: PropsWithChildren) => <span>{children}</span>,
   Divider: ({ className }: { className?: string }) => <hr className={className} />,
+  Flex: ({ children, className }: PropsWithChildren<{ className?: string }>) => (
+    <div className={className}>{children}</div>
+  ),
   Select: ({ children }: PropsWithChildren) => <div>{children}</div>,
   SelectContent: ({ children }: PropsWithChildren) => <div>{children}</div>,
   SelectItem: ({ children, value }: PropsWithChildren<{ value: string }>) => <div data-value={value}>{children}</div>,
@@ -105,7 +108,7 @@ describe('ChatPreferenceSections', () => {
     mocks.setPreference.mockClear()
   })
 
-  it('renders chat preferences', () => {
+  it('renders shared chat preferences without assistant-only controls by default', () => {
     render(<ChatPreferenceSections />)
 
     expect(screen.getByText('settings.messages.use_serif_font')).toBeInTheDocument()
@@ -113,7 +116,6 @@ describe('ChatPreferenceSections', () => {
     expect(screen.queryByText('settings.math.engine.label')).toBeNull()
     expect(screen.getByText('settings.math.single_dollar.label')).toBeInTheDocument()
     expect(screen.getByText('chat.settings.code_fancy_block.label')).toBeInTheDocument()
-    expect(screen.getByText('settings.messages.prompt')).toBeInTheDocument()
     expect(screen.getByText('settings.messages.show_message_outline')).toBeInTheDocument()
     expect(screen.getByText('message.message.multi_model_style.label')).toBeInTheDocument()
     expect(screen.getByText('settings.messages.input.show_estimated_tokens')).toBeInTheDocument()

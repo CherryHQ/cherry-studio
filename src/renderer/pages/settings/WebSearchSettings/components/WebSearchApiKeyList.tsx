@@ -1,7 +1,8 @@
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Tooltip } from '@cherrystudio/ui'
-import { EditIcon } from '@renderer/components/Icons'
+import EditIcon from '@renderer/components/icons/EditIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { TopView } from '@renderer/components/TopView'
+import { createPopup, popup, type PopupInjectedProps } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { maskApiKey } from '@renderer/utils/api'
 import { cn } from '@renderer/utils/style'
 import type { WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
@@ -50,7 +51,7 @@ const WebSearchApiKeyItem: FC<WebSearchApiKeyItemProps> = ({ item, onUpdate, onR
     }
 
     if (!result.value.isValid) {
-      window.toast.warning(result.value.error)
+      toast.warning(result.value.error)
       return
     }
 
@@ -70,12 +71,12 @@ const WebSearchApiKeyItem: FC<WebSearchApiKeyItemProps> = ({ item, onUpdate, onR
   const handleCopy = () => {
     navigator.clipboard
       .writeText(item.key)
-      .then(() => window.toast.success(t('message.copy.success')))
-      .catch(() => window.toast.error(t('message.copy.failed')))
+      .then(() => toast.success(t('message.copy.success')))
+      .catch(() => toast.error(t('message.copy.failed')))
   }
 
   const handleRemove = async () => {
-    const confirmed = await window.modal.confirm({
+    const confirmed = await popup.confirm({
       title: t('common.delete_confirm'),
       centered: true,
       okText: t('common.confirm'),
@@ -215,31 +216,14 @@ interface ShowParams {
   title?: string
 }
 
-interface PopupProps extends ShowParams {
-  resolve: (value: unknown) => void
-}
+type PopupProps = ShowParams & PopupInjectedProps<null>
 
-const PopupContainer: FC<PopupProps> = ({ providerId, title, resolve }) => {
-  const [open, setOpen] = useState(true)
+const PopupContainer: FC<PopupProps> = ({ providerId, title, open, resolve }) => {
   const { t } = useTranslation()
-  const resolvedRef = useRef(false)
-
-  const closePopup = () => {
-    if (resolvedRef.current) {
-      return
-    }
-
-    resolvedRef.current = true
-    setOpen(false)
-    window.setTimeout(() => {
-      resolve(null)
-      TopView.hide(TopViewKey)
-    }, 200)
-  }
 
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => (nextOpen ? setOpen(true) : closePopup())}>
-      <DialogContent className="sm:max-w-150">
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && resolve(null)}>
+      <DialogContent closeOnOverlayClick={false} className="sm:max-w-150">
         <DialogHeader>
           <DialogTitle className="text-sm">{title || t('settings.provider.api.key.list.title')}</DialogTitle>
         </DialogHeader>
@@ -249,20 +233,4 @@ const PopupContainer: FC<PopupProps> = ({ providerId, title, resolve }) => {
   )
 }
 
-const TopViewKey = 'WebSearchApiKeyListPopup'
-
-export class WebSearchApiKeyListPopup {
-  static show(props: ShowParams) {
-    return new Promise<unknown>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          {...props}
-          resolve={(value) => {
-            resolve(value)
-          }}
-        />,
-        TopViewKey
-      )
-    })
-  }
-}
+export const WebSearchApiKeyListPopup = createPopup<ShowParams, null>(PopupContainer, { dismissResult: null })

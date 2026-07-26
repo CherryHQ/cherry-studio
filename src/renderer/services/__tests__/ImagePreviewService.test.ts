@@ -2,42 +2,30 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ImagePreviewService } from '../ImagePreviewService'
 
-// Mock dependencies
+// The service no longer processes inputs itself: it delegates input→URL resolution to
+// `imageInputToPreviewUrl` (in @renderer/utils/image) and then hands the URL to a
+// createPopup popup. So the test mocks both seams and asserts the delegation contract,
+// not the (now-relocated) SVG/blob conversion details.
 const mocks = vi.hoisted(() => ({
-  svgToPngBlob: vi.fn(),
-  svgToSvgBlob: vi.fn(),
-  TopView: {
-    show: vi.fn(),
-    hide: vi.fn()
-  },
-  ImageViewer: vi.fn(() => null),
-  createObjectURL: vi.fn(),
-  revokeObjectURL: vi.fn()
+  imageInputToPreviewUrl: vi.fn(),
+  popupShow: vi.fn(async () => undefined)
 }))
 
 vi.mock('@renderer/utils/image', () => ({
-  svgToPngBlob: mocks.svgToPngBlob,
-  svgToSvgBlob: mocks.svgToSvgBlob
+  imageInputToPreviewUrl: mocks.imageInputToPreviewUrl
 }))
 
-vi.mock('@renderer/components/TopView', () => ({
-  TopView: mocks.TopView
+// Opt out of the global popup mock with a locally controllable createPopup so the test
+// can observe the URL forwarded to the popup's show().
+vi.mock('@renderer/services/popup', () => ({
+  createPopup: vi.fn(() => ({ show: mocks.popupShow, hide: vi.fn() }))
 }))
-
-vi.mock('@renderer/components/ImageViewer', () => ({
-  default: mocks.ImageViewer
-}))
-
-// Mock URL.createObjectURL and URL.revokeObjectURL
-Object.assign(global.URL, {
-  createObjectURL: mocks.createObjectURL,
-  revokeObjectURL: mocks.revokeObjectURL
-})
 
 describe('ImagePreviewService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.createObjectURL.mockReturnValue('blob:mock-url')
+    mocks.imageInputToPreviewUrl.mockResolvedValue('blob:mock-url')
+    mocks.popupShow.mockResolvedValue(undefined)
   })
 
   afterEach(() => {
@@ -45,75 +33,71 @@ describe('ImagePreviewService', () => {
   })
 
   describe('show', () => {
-    it('should handle SVG element input with PNG format', async () => {
+    it('should delegate SVG element input with PNG format/scale to imageInputToPreviewUrl and show the popup', async () => {
       const mockSvgElement = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
-      const mockBlob = new Blob(['mock'], { type: 'image/png' })
+      const options = { format: 'png', scale: 2 } as const
 
-      mocks.svgToPngBlob.mockResolvedValue(mockBlob)
+      await expect(ImagePreviewService.show(mockSvgElement, options)).resolves.toBeUndefined()
 
-      await ImagePreviewService.show(mockSvgElement, { format: 'png', scale: 2 })
-
-      expect(mocks.svgToPngBlob).toHaveBeenCalledWith(mockSvgElement, 2)
-      expect(mocks.createObjectURL).toHaveBeenCalledWith(mockBlob)
-      expect(mocks.TopView.show).toHaveBeenCalledWith(expect.any(Function), 'image-preview')
+      expect(mocks.imageInputToPreviewUrl).toHaveBeenCalledWith(mockSvgElement, options)
+      expect(mocks.popupShow).toHaveBeenCalledWith({ src: 'blob:mock-url' })
     })
 
-    it('should handle SVG element input with SVG format', async () => {
+    it('should delegate SVG element input with SVG format to imageInputToPreviewUrl and show the popup', async () => {
       const mockSvgElement = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
-      const mockBlob = new Blob(['mock'], { type: 'image/svg+xml' })
+      const options = { format: 'svg' } as const
 
-      mocks.svgToSvgBlob.mockReturnValue(mockBlob)
+      await expect(ImagePreviewService.show(mockSvgElement, options)).resolves.toBeUndefined()
 
-      await ImagePreviewService.show(mockSvgElement, { format: 'svg' })
-
-      expect(mocks.svgToSvgBlob).toHaveBeenCalledWith(mockSvgElement)
-      expect(mocks.createObjectURL).toHaveBeenCalledWith(mockBlob)
-      expect(mocks.TopView.show).toHaveBeenCalled()
+      expect(mocks.imageInputToPreviewUrl).toHaveBeenCalledWith(mockSvgElement, options)
+      expect(mocks.popupShow).toHaveBeenCalledWith({ src: 'blob:mock-url' })
     })
 
-    it('should handle string URL input', async () => {
+    it('should delegate string URL input to imageInputToPreviewUrl and show the popup', async () => {
       const imageUrl = 'https://example.com/image.png'
+      mocks.imageInputToPreviewUrl.mockResolvedValueOnce(imageUrl)
 
-      await ImagePreviewService.show(imageUrl)
+      await expect(ImagePreviewService.show(imageUrl)).resolves.toBeUndefined()
 
-      expect(mocks.TopView.show).toHaveBeenCalled()
-      expect(mocks.createObjectURL).not.toHaveBeenCalled()
+      expect(mocks.imageInputToPreviewUrl).toHaveBeenCalledWith(imageUrl, {})
+      expect(mocks.popupShow).toHaveBeenCalledWith({ src: imageUrl })
     })
 
-    it('should handle Blob input', async () => {
+    it('should delegate Blob input to imageInputToPreviewUrl and show the popup', async () => {
       const mockBlob = new Blob(['mock'], { type: 'image/png' })
 
-      await ImagePreviewService.show(mockBlob)
+      await expect(ImagePreviewService.show(mockBlob)).resolves.toBeUndefined()
 
-      expect(mocks.createObjectURL).toHaveBeenCalledWith(mockBlob)
-      expect(mocks.TopView.show).toHaveBeenCalled()
+      expect(mocks.imageInputToPreviewUrl).toHaveBeenCalledWith(mockBlob, {})
+      expect(mocks.popupShow).toHaveBeenCalledWith({ src: 'blob:mock-url' })
     })
 
-    it('should handle HTMLImageElement input', async () => {
+    it('should delegate HTMLImageElement input to imageInputToPreviewUrl and show the popup', async () => {
       const mockImg = document.createElement('img')
       mockImg.src = 'https://example.com/image.png'
+      mocks.imageInputToPreviewUrl.mockResolvedValueOnce(mockImg.src)
 
-      await ImagePreviewService.show(mockImg)
+      await expect(ImagePreviewService.show(mockImg)).resolves.toBeUndefined()
 
-      expect(mocks.TopView.show).toHaveBeenCalled()
-      expect(mocks.createObjectURL).not.toHaveBeenCalled()
+      expect(mocks.imageInputToPreviewUrl).toHaveBeenCalledWith(mockImg, {})
+      expect(mocks.popupShow).toHaveBeenCalledWith({ src: mockImg.src })
     })
 
-    it('should throw error for unsupported input type', async () => {
+    it('should reject and not show the popup when imageInputToPreviewUrl rejects (unsupported input type)', async () => {
+      mocks.imageInputToPreviewUrl.mockRejectedValueOnce(new Error('Unsupported input type'))
       const unsupportedInput = { invalid: 'input' } as any
 
       await expect(ImagePreviewService.show(unsupportedInput)).rejects.toThrow('Unsupported input type')
+
+      expect(mocks.popupShow).not.toHaveBeenCalled()
     })
 
-    it('should use default scale when not provided', async () => {
+    it('should default options to an empty object when not provided', async () => {
       const mockSvgElement = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
-      const mockBlob = new Blob(['mock'], { type: 'image/png' })
-
-      mocks.svgToPngBlob.mockResolvedValue(mockBlob)
 
       await ImagePreviewService.show(mockSvgElement)
 
-      expect(mocks.svgToPngBlob).toHaveBeenCalledWith(mockSvgElement, 3) // default scale
+      expect(mocks.imageInputToPreviewUrl).toHaveBeenCalledWith(mockSvgElement, {})
     })
   })
 })

@@ -1,6 +1,6 @@
 import type { GroundingSupport } from '@google/genai'
-import type { Citation } from '@renderer/types'
-import { WEB_SEARCH_SOURCE } from '@renderer/types'
+import type { Citation } from '@renderer/types/message'
+import { WEB_SEARCH_SOURCE } from '@renderer/types/webSearchProvider'
 import { describe, expect, it, vi } from 'vitest'
 
 import {

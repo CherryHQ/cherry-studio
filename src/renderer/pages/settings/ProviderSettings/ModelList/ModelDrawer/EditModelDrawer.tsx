@@ -1,22 +1,22 @@
 import {
   Button,
-  DescriptionSwitch,
   Input,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue
+  SelectValue,
+  Switch,
+  Tooltip
 } from '@cherrystudio/ui'
-import CopyIcon from '@renderer/components/Icons/CopyIcon'
+import CopyIcon from '@renderer/components/icons/CopyIcon'
 import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { getDefaultGroupName } from '@renderer/utils'
+import { toast } from '@renderer/services/toast'
+import { getDefaultGroupName } from '@renderer/utils/naming'
 import { CURRENCY, type Currency, type EndpointType, type Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
-import { isNewApiProvider } from '@shared/utils/provider'
-import { ChevronDown, ChevronUp, SaveIcon } from 'lucide-react'
-import type { FormEvent } from 'react'
+import { ChevronDown, ChevronUp, CircleHelp } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -26,16 +26,33 @@ import ProviderSection from '../../primitives/ProviderSection'
 import ProviderSettingsDrawer from '../../primitives/ProviderSettingsDrawer'
 import { drawerClasses, fieldClasses } from '../../primitives/ProviderSettingsPrimitives'
 import {
-  getInitialSelectedCapabilities,
+  areModelClassificationsEqual,
+  buildModelCapabilities,
+  buildModelInputModalities,
+  getInitialModelClassification,
   getModelApiId,
   MODEL_DRAWER_CURRENCY_SYMBOLS,
-  readCurrency,
-  toggleSetToCaps
+  readCurrency
 } from './helpers'
 import { ModelBasicFields } from './ModelBasicFields'
-import { ModelCapabilityToggles } from './ModelCapabilityToggles'
+import { ModelClassificationControls } from './ModelClassificationControls'
 import { ModelContextWindowFields } from './ModelContextWindowFields'
-import type { ModelCapabilityToggle, ModelDrawerMode } from './types'
+import {
+  applyModelPurpose,
+  getInitialChatEndpointType,
+  getModelDrawerMode,
+  getProviderChatEndpointTypes,
+  inferModelPurpose,
+  type ModelPurposeFields
+} from './modelPurpose'
+import { ModelPurposeFields as ModelPurposeFieldsControl } from './ModelPurposeFields'
+import type {
+  ModelCapabilityToggle,
+  ModelClassificationState,
+  ModelDrawerMode,
+  ModelInputModality,
+  ModelPrimaryType
+} from './types'
 
 interface EditModelDrawerProps {
   providerId: string
@@ -45,7 +62,11 @@ interface EditModelDrawerProps {
 }
 
 interface BuildPatchOverrides {
-  caps?: Set<ModelCapabilityToggle>
+  name?: string
+  group?: string
+  endpointTypes?: EndpointType[]
+  purposeFields?: ModelPurposeFields
+  classification?: ModelClassificationState
   supportsStreaming?: boolean
   currencySymbol?: ModelDrawerCurrencySymbol
   inputPrice?: string
@@ -53,6 +74,12 @@ interface BuildPatchOverrides {
   contextWindow?: string
   maxInputTokens?: string
   maxOutputTokens?: string
+}
+
+interface AutoSaveQueueItem {
+  providerId: string
+  modelId: string
+  patch: Partial<Model>
 }
 
 type ModelDrawerCurrencySymbol = (typeof MODEL_DRAWER_CURRENCY_SYMBOLS)[number]
@@ -77,7 +104,7 @@ const currencyToSymbol = (currency: string): ModelDrawerCurrencySymbol | undefin
 export default function EditModelDrawer({ providerId, open, model: modelProp, onClose }: EditModelDrawerProps) {
   const { t } = useTranslation()
   const { provider } = useProvider(providerId)
-  const { deleteModel, updateModel } = useModelMutations()
+  const { updateModel } = useModelMutations()
   // Keep the last opened model around so `PageSidePanel`'s exit animation has stable content
   // after the parent clears its `editingModel` selection on close.
   const previousModelRef = useRef<Model | null>(modelProp)
@@ -88,9 +115,9 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [name, setName] = useState('')
   const [group, setGroup] = useState('')
   const [endpointTypes, setEndpointTypes] = useState<EndpointType[]>([])
-  const [showMoreSettings, setShowMoreSettings] = useState(false)
-  const [selectedCaps, setSelectedCaps] = useState<Set<ModelCapabilityToggle>>(new Set())
-  const [hasUserModified, setHasUserModified] = useState(false)
+  const [purposeFields, setPurposeFields] = useState<ModelPurposeFields>({})
+  const [showMoreSettings, setShowMoreSettings] = useState(true)
+  const [classification, setClassification] = useState<ModelClassificationState>(() => getInitialModelClassification())
   const [supportsStreaming, setSupportsStreaming] = useState<Model['supportsStreaming']>(true)
   const [currencySymbol, setCurrencySymbol] = useState<ModelDrawerCurrencySymbol>('$')
   const [inputPrice, setInputPrice] = useState('0')
@@ -98,14 +125,17 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [contextWindow, setContextWindow] = useState('')
   const [maxInputTokens, setMaxInputTokens] = useState('')
   const [maxOutputTokens, setMaxOutputTokens] = useState('')
-  const [endpointTypeTouched, setEndpointTypeTouched] = useState(false)
+  const autoSavePendingItemsRef = useRef(new Map<string, AutoSaveQueueItem>())
+  const autoSaveRunningRef = useRef(false)
 
-  const mode: ModelDrawerMode = provider && isNewApiProvider(provider) ? 'new-api' : 'legacy'
+  const mode: ModelDrawerMode = provider ? getModelDrawerMode(provider) : 'legacy'
+  const providerChatEndpointTypes = provider ? getProviderChatEndpointTypes(provider) : []
+  const defaultChatEndpoint = providerChatEndpointTypes[0]
+  const modelPurpose = inferModelPurpose(purposeFields)
+  const chatEndpointType = getInitialChatEndpointType(purposeFields, defaultChatEndpoint)
   const apiModelId = useMemo(() => (model ? getModelApiId(model) : ''), [model])
-  const savedCaps = useMemo(
-    () => (model ? getInitialSelectedCapabilities(model) : new Set<ModelCapabilityToggle>()),
-    [model]
-  )
+  const savedClassification = useMemo(() => getInitialModelClassification(model), [model])
+  const hasClassificationChanges = !areModelClassificationsEqual(classification, savedClassification)
 
   useEffect(() => {
     if (!open || !model) {
@@ -118,9 +148,14 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     setName(model.name)
     setGroup(model.group ?? '')
     setEndpointTypes(model.endpointTypes?.length ? [...model.endpointTypes] : [])
-    setShowMoreSettings(false)
-    setSelectedCaps(getInitialSelectedCapabilities(model))
-    setHasUserModified(false)
+    setPurposeFields({
+      endpointTypes: model.endpointTypes,
+      capabilities: model.capabilities,
+      inputModalities: model.inputModalities,
+      outputModalities: model.outputModalities
+    })
+    setShowMoreSettings(true)
+    setClassification(getInitialModelClassification(model))
     setSupportsStreaming(model.supportsStreaming)
     setCurrencySymbol(nextCurrencySymbol ?? '$')
     setInputPrice(String(model.pricing?.input?.perMillionTokens ?? 0))
@@ -128,20 +163,16 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     setContextWindow(model.contextWindow != null ? String(model.contextWindow) : '')
     setMaxInputTokens(model.maxInputTokens != null ? String(model.maxInputTokens) : '')
     setMaxOutputTokens(model.maxOutputTokens != null ? String(model.maxOutputTokens) : '')
-    setEndpointTypeTouched(false)
   }, [model, open])
 
   const handleUpdateModel = useCallback(
-    async (patch: Partial<Model>) => {
-      if (!model) {
-        return
-      }
-
-      const { modelId } = parseUniqueModelId(model.id)
-      await updateModel(model.providerId ?? providerId, modelId, {
+    async ({ providerId, modelId, patch }: AutoSaveQueueItem) => {
+      await updateModel(providerId, modelId, {
         name: patch.name,
         group: patch.group,
         capabilities: patch.capabilities,
+        inputModalities: patch.inputModalities,
+        outputModalities: patch.outputModalities,
         supportsStreaming: patch.supportsStreaming,
         endpointTypes: patch.endpointTypes,
         contextWindow: patch.contextWindow,
@@ -150,7 +181,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         pricing: patch.pricing
       })
     },
-    [model, providerId, updateModel]
+    [updateModel]
   )
 
   const buildPatch = useCallback(
@@ -162,15 +193,62 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       const nextCurrencySymbol = overrides?.currencySymbol ?? currencySymbol
       const finalCurrency: ModelDrawerCurrency =
         symbolToCurrency(nextCurrencySymbol) ?? symbolToCurrency(readCurrency(model)) ?? CURRENCY.USD
+      const nextName = overrides?.name ?? name
+      const nextGroup = overrides?.group ?? group
+      const hasEndpointTypesOverride = overrides != null && Object.hasOwn(overrides, 'endpointTypes')
+      const hasPurposeFieldsOverride = overrides != null && Object.hasOwn(overrides, 'purposeFields')
+      const nextPurposeFields = overrides?.purposeFields ?? purposeFields
+      const nextClassification = overrides?.classification
+      const shouldApplyPurpose = mode === 'purpose' && (hasPurposeFieldsOverride || nextClassification != null)
+      const effectiveClassification = nextClassification ?? classification
+      const classifiedCapabilities =
+        shouldApplyPurpose || nextClassification
+          ? buildModelCapabilities(model.capabilities ?? [], effectiveClassification)
+          : undefined
+      const classifiedInputModalities =
+        shouldApplyPurpose || nextClassification
+          ? buildModelInputModalities(model.inputModalities ?? [], effectiveClassification)
+          : undefined
+      const resolvedPurposeFields =
+        shouldApplyPurpose && classifiedCapabilities && classifiedInputModalities
+          ? applyModelPurpose(
+              {
+                ...nextPurposeFields,
+                capabilities: classifiedCapabilities,
+                inputModalities: classifiedInputModalities
+              },
+              inferModelPurpose(nextPurposeFields),
+              {
+                previousPurpose: inferModelPurpose(nextPurposeFields),
+                chatEndpointType: getInitialChatEndpointType(nextPurposeFields, defaultChatEndpoint)
+              }
+            )
+          : null
 
       return {
-        name: name || model.name,
-        group: group || model.group,
-        endpointTypes: mode === 'new-api' && endpointTypes.length ? [...endpointTypes] : undefined,
-        capabilities: toggleSetToCaps(
-          model.capabilities ?? [],
-          overrides?.caps ?? selectedCaps
-        ) as Model['capabilities'],
+        name: nextName || model.name,
+        group: nextGroup || model.group,
+        ...(hasPurposeFieldsOverride && resolvedPurposeFields
+          ? { endpointTypes: [...resolvedPurposeFields.endpointTypes] }
+          : hasEndpointTypesOverride
+            ? {
+                endpointTypes: mode === 'endpoint-types' ? [...(overrides.endpointTypes ?? [])] : undefined
+              }
+            : {}),
+        ...(resolvedPurposeFields
+          ? {
+              capabilities: resolvedPurposeFields.capabilities,
+              inputModalities: resolvedPurposeFields.inputModalities
+            }
+          : nextClassification && classifiedCapabilities && classifiedInputModalities
+            ? {
+                capabilities: classifiedCapabilities,
+                inputModalities: classifiedInputModalities
+              }
+            : {}),
+        ...(hasPurposeFieldsOverride && resolvedPurposeFields
+          ? { outputModalities: resolvedPurposeFields.outputModalities }
+          : {}),
         supportsStreaming: overrides?.supportsStreaming ?? supportsStreaming,
         contextWindow: Number(overrides?.contextWindow ?? contextWindow) || undefined,
         maxInputTokens: Number(overrides?.maxInputTokens ?? maxInputTokens) || undefined,
@@ -189,7 +267,6 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     },
     [
       currencySymbol,
-      endpointTypes,
       group,
       contextWindow,
       inputPrice,
@@ -199,114 +276,115 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       model,
       name,
       outputPrice,
-      selectedCaps,
+      purposeFields,
+      classification,
+      defaultChatEndpoint,
       supportsStreaming
     ]
   )
 
+  const processAutoSaveQueue = useCallback(async () => {
+    if (autoSaveRunningRef.current) {
+      return
+    }
+
+    autoSaveRunningRef.current = true
+    try {
+      while (autoSavePendingItemsRef.current.size > 0) {
+        const [key, item] = autoSavePendingItemsRef.current.entries().next().value!
+        autoSavePendingItemsRef.current.delete(key)
+
+        try {
+          await handleUpdateModel(item)
+        } catch {
+          toast.error(t('common.error'))
+        }
+      }
+    } finally {
+      autoSaveRunningRef.current = false
+    }
+  }, [handleUpdateModel, t])
+
   const autoSave = useCallback(
     (overrides?: BuildPatchOverrides) => {
-      void handleUpdateModel(buildPatch(overrides)).catch(() => {
-        window.toast.error(t('common.error'))
-      })
+      if (!model) {
+        return
+      }
+
+      const { modelId } = parseUniqueModelId(model.id)
+      const item = {
+        providerId: model.providerId ?? providerId,
+        modelId,
+        patch: buildPatch(overrides)
+      }
+      autoSavePendingItemsRef.current.set(`${item.providerId}/${item.modelId}`, item)
+      void processAutoSaveQueue()
     },
-    [buildPatch, handleUpdateModel, t]
+    [buildPatch, model, processAutoSaveQueue, providerId]
   )
 
-  const handleToggleCapability = useCallback((type: ModelCapabilityToggle) => {
-    setHasUserModified(true)
-    setSelectedCaps((current) => {
-      const next = new Set(current)
+  const commitClassification = useCallback(
+    (next: ModelClassificationState) => {
+      setClassification(next)
+      autoSave({ classification: next })
+    },
+    [autoSave]
+  )
 
-      if (next.has(type)) {
-        next.delete(type)
+  const handlePrimaryTypeChange = useCallback(
+    (primaryType: ModelPrimaryType) => {
+      commitClassification({ ...classification, primaryType })
+    },
+    [classification, commitClassification]
+  )
+
+  const handleToggleCapability = useCallback(
+    (capability: ModelCapabilityToggle) => {
+      const capabilities = new Set(classification.capabilities)
+      if (capabilities.has(capability)) {
+        capabilities.delete(capability)
       } else {
-        next.add(type)
+        capabilities.add(capability)
       }
-
-      return next
-    })
-  }, [])
-
-  const handleResetCapabilities = useCallback(() => {
-    setSelectedCaps(new Set(savedCaps))
-    setHasUserModified(false)
-  }, [savedCaps])
-
-  const saveModel = useCallback(async () => {
-    if (mode === 'new-api' && endpointTypes.length === 0) {
-      setEndpointTypeTouched(true)
-      return
-    }
-
-    await handleUpdateModel(buildPatch())
-    setShowMoreSettings(false)
-    onClose()
-  }, [buildPatch, endpointTypes.length, handleUpdateModel, mode, onClose])
-
-  const handleFormSubmit = useCallback(
-    async (event: FormEvent<HTMLFormElement>) => {
-      event.preventDefault()
-      await saveModel()
+      commitClassification({ ...classification, capabilities })
     },
-    [saveModel]
+    [classification, commitClassification]
   )
 
-  const handleDeleteModel = useCallback(async () => {
-    if (!model) {
-      return
-    }
-
-    const { modelId } = parseUniqueModelId(model.id)
-
-    window.modal.confirm({
-      title: t('common.delete_confirm'),
-      content: t('settings.models.manage.remove_model'),
-      okButtonProps: { danger: true },
-      okText: t('common.delete'),
-      centered: true,
-      onOk: async () => {
-        await deleteModel(model.providerId ?? providerId, modelId)
-        window.toast.success(t('common.delete_success'))
-        onClose()
+  const handleToggleInputModality = useCallback(
+    (modality: ModelInputModality) => {
+      const inputModalities = new Set(classification.inputModalities)
+      if (inputModalities.has(modality)) {
+        inputModalities.delete(modality)
+      } else {
+        inputModalities.add(modality)
       }
+      commitClassification({ ...classification, inputModalities })
+    },
+    [classification, commitClassification]
+  )
+
+  const handleResetClassification = useCallback(() => {
+    commitClassification({
+      ...savedClassification,
+      capabilities: new Set(savedClassification.capabilities),
+      inputModalities: new Set(savedClassification.inputModalities)
     })
-  }, [deleteModel, model, onClose, providerId, t])
+  }, [commitClassification, savedClassification])
 
   if (!provider || !model) {
     return <ProviderSettingsDrawer open={open} onClose={onClose} title={t('models.edit')} />
   }
 
-  const footer = (
-    <ProviderActions className={drawerClasses.footer}>
-      {!model.isEnabled ? (
-        <Button
-          type="button"
-          variant="ghost"
-          className="mr-auto px-2.5 text-destructive shadow-none hover:bg-error-bg hover:text-error-text"
-          onClick={() => void handleDeleteModel()}>
-          {t('common.delete')}
-        </Button>
-      ) : null}
-      <Button variant="outline" onClick={onClose}>
-        {t('common.cancel')}
-      </Button>
-      <Button type="button" onClick={() => void saveModel()}>
-        <SaveIcon aria-hidden className="size-4 shrink-0 text-current" />
-        {t('common.save')}
-      </Button>
-    </ProviderActions>
-  )
-
   const currentCurrency = currencySymbol || '$'
 
   return (
-    <ProviderSettingsDrawer open={open} onClose={onClose} title={t('models.edit')} footer={footer}>
+    <ProviderSettingsDrawer open={open} onClose={onClose} title={t('models.edit')}>
       <form
         id="provider-settings-model-edit-form"
         data-testid="provider-settings-model-edit-drawer-content"
         className="flex min-h-0 flex-col gap-4 py-0"
-        onSubmit={(event) => void handleFormSubmit(event)}>
+        onSubmit={(event) => event.preventDefault()}>
         <ProviderSection className={drawerClasses.section}>
           <div className={drawerClasses.fieldList}>
             <ModelBasicFields
@@ -319,32 +397,70 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                 maxOutputTokens,
                 endpointTypes
               }}
-              showEndpointType={mode === 'new-api'}
+              showEndpointType={mode === 'endpoint-types'}
+              endpointTypeControl="chips"
               modelIdDisabled
               modelIdAction={
                 <button
                   type="button"
                   aria-label={t('message.copied')}
-                  className={fieldClasses.iconButton}
+                  className={fieldClasses.inputActionButton}
                   onClick={() => {
                     void navigator.clipboard.writeText(apiModelId)
-                    window.toast.success(t('message.copied'))
+                    toast.success(t('message.copied'))
                   }}>
                   <CopyIcon size={14} />
                 </button>
               }
-              endpointTypeError={endpointTypeTouched ? t('settings.models.add.endpoint_type.required') : undefined}
               onModelIdChange={(value) => {
                 setName(value)
                 setGroup(getDefaultGroupName(value))
               }}
               onNameChange={setName}
+              onNameBlur={() => autoSave({ name })}
               onGroupChange={setGroup}
+              onGroupBlur={() => autoSave({ group })}
               onEndpointTypesChange={(next) => {
-                setEndpointTypeTouched(false)
-                setEndpointTypes([...next])
+                const nextEndpointTypes = [...next]
+                setEndpointTypes(nextEndpointTypes)
+                autoSave({ endpointTypes: nextEndpointTypes })
               }}
             />
+            {mode === 'purpose' && (
+              <ModelPurposeFieldsControl
+                purpose={modelPurpose}
+                chatEndpointType={chatEndpointType}
+                chatEndpointTypes={providerChatEndpointTypes}
+                onPurposeChange={(nextPurpose) => {
+                  const nextPurposeFields = applyModelPurpose(purposeFields, nextPurpose, {
+                    previousPurpose: modelPurpose,
+                    chatEndpointType
+                  })
+                  const nextClassification = {
+                    ...classification,
+                    primaryType:
+                      nextPurpose === 'chat'
+                        ? classification.primaryType === 'image'
+                          ? ('text' as const)
+                          : classification.primaryType
+                        : ('image' as const)
+                  }
+                  setPurposeFields(nextPurposeFields)
+                  setEndpointTypes(nextPurposeFields.endpointTypes)
+                  setClassification(nextClassification)
+                  autoSave({ purposeFields: nextPurposeFields, classification: nextClassification })
+                }}
+                onChatEndpointTypeChange={(nextEndpointType) => {
+                  const nextPurposeFields = applyModelPurpose(purposeFields, 'chat', {
+                    previousPurpose: modelPurpose,
+                    chatEndpointType: nextEndpointType
+                  })
+                  setPurposeFields(nextPurposeFields)
+                  setEndpointTypes(nextPurposeFields.endpointTypes)
+                  autoSave({ purposeFields: nextPurposeFields })
+                }}
+              />
+            )}
           </div>
         </ProviderSection>
 
@@ -363,11 +479,13 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
           <ProviderSection className={drawerClasses.section}>
             <div data-testid="provider-settings-model-more-settings" className="space-y-4">
               <div className={drawerClasses.sectionCard}>
-                <ModelCapabilityToggles
-                  selectedCaps={selectedCaps}
-                  hasUserModified={hasUserModified}
-                  onToggle={handleToggleCapability}
-                  onReset={handleResetCapabilities}
+                <ModelClassificationControls
+                  value={classification}
+                  hasChanges={hasClassificationChanges}
+                  onPrimaryTypeChange={handlePrimaryTypeChange}
+                  onCapabilityToggle={handleToggleCapability}
+                  onInputModalityToggle={handleToggleInputModality}
+                  onReset={handleResetClassification}
                 />
               </div>
 
@@ -377,17 +495,29 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                   maxInputTokens={maxInputTokens}
                   maxOutputTokens={maxOutputTokens}
                   onContextWindowChange={setContextWindow}
+                  onContextWindowBlur={() => autoSave({ contextWindow })}
                   onMaxInputTokensChange={setMaxInputTokens}
+                  onMaxInputTokensBlur={() => autoSave({ maxInputTokens })}
                   onMaxOutputTokensChange={setMaxOutputTokens}
+                  onMaxOutputTokensBlur={() => autoSave({ maxOutputTokens })}
                 />
               </div>
 
-              <div className={drawerClasses.sectionCard}>
-                <div className={drawerClasses.switchCard}>
-                  <DescriptionSwitch
+              <div className={drawerClasses.switchCard}>
+                <div className="flex min-w-0 items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <span className="truncate font-normal text-[13px] text-foreground-secondary leading-5">
+                      {t('settings.models.add.supported_text_delta.label')}
+                    </span>
+                    <Tooltip content={t('settings.models.add.supported_text_delta.tooltip')}>
+                      <span className="inline-flex h-5 w-4 shrink-0 items-center justify-center text-muted-foreground">
+                        <CircleHelp aria-hidden className="size-3" />
+                      </span>
+                    </Tooltip>
+                  </div>
+                  <Switch
                     size="sm"
-                    label={t('settings.models.add.supported_text_delta.label')}
-                    description={t('settings.models.add.supported_text_delta.tooltip')}
+                    aria-label={t('settings.models.add.supported_text_delta.label')}
                     checked={supportsStreaming ?? false}
                     onCheckedChange={(checked) => {
                       setSupportsStreaming(checked)

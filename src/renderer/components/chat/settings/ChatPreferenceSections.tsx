@@ -1,11 +1,13 @@
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider } from '@cherrystudio/ui'
+import { Flex, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider, Switch } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
-import EditableNumber from '@renderer/components/EditableNumber'
+import Selector from '@renderer/components/Selector'
 import { SettingGroup as PageSettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
-import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
-import { useTheme } from '@renderer/context/ThemeProvider'
-import type { CodeStyleVarious } from '@renderer/types'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
+import { useTheme } from '@renderer/hooks/useTheme'
+import { ipcApi } from '@renderer/ipc'
+import type { CodeStyleVarious } from '@renderer/types/app'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
+import { isMac } from '@renderer/utils/platform'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { FC, ReactNode } from 'react'
@@ -24,13 +26,33 @@ type SelectOption<T extends string = string> = {
   value: T
   label: string
 }
+type SpellCheckOption = { readonly value: string; readonly label: string; readonly flag: string }
 
-const ChatPreferenceSections: FC = () => {
+type ChatPreferenceSectionsProps = {
+  sectionClassName?: string
+}
+
+const spellCheckLanguageOptions: readonly SpellCheckOption[] = [
+  { value: 'en-US', label: 'English (US)', flag: '🇺🇸' },
+  { value: 'es', label: 'Español', flag: '🇪🇸' },
+  { value: 'fr', label: 'Français', flag: '🇫🇷' },
+  { value: 'de', label: 'Deutsch', flag: '🇩🇪' },
+  { value: 'it', label: 'Italiano', flag: '🇮🇹' },
+  { value: 'pt', label: 'Português', flag: '🇵🇹' },
+  { value: 'ru', label: 'Русский', flag: '🇷🇺' },
+  { value: 'nl', label: 'Nederlands', flag: '🇳🇱' },
+  { value: 'pl', label: 'Polski', flag: '🇵🇱' },
+  { value: 'sk', label: 'Slovenčina', flag: '🇸🇰' },
+  { value: 'el', label: 'Ελληνικά', flag: '🇬🇷' }
+]
+
+const ChatPreferenceSections: FC<ChatPreferenceSectionsProps> = ({ sectionClassName }) => {
   const [messageStyle, setMessageStyle] = usePreference('chat.message.style')
   const [fontSize, setFontSize] = usePreference('chat.message.font_size')
   const [sendMessageShortcut, setSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
+  const [enableSpellCheck, setEnableSpellCheck] = usePreference('app.spell_check.enabled')
+  const [spellCheckLanguages, setSpellCheckLanguages] = usePreference('app.spell_check.languages')
   const [messageFont, setMessageFont] = usePreference('chat.message.font')
-  const [showPrompt, setShowPrompt] = usePreference('chat.message.show_prompt')
   const [confirmDeleteMessage, setConfirmDeleteMessage] = usePreference('chat.message.confirm_delete')
   const [messageNavigation, setMessageNavigation] = usePreference('chat.message.navigation_mode')
   const [narrowMode, setNarrowMode] = usePreference('chat.narrow_mode')
@@ -45,7 +67,6 @@ const ChatPreferenceSections: FC = () => {
   const [codeShowLineNumbers, setCodeShowLineNumbers] = usePreference('chat.code.show_line_numbers')
   const [codeCollapsible, setCodeCollapsible] = usePreference('chat.code.collapsible')
   const [codeWrappable, setCodeWrappable] = usePreference('chat.code.wrappable')
-  const [codeImageTools, setCodeImageTools] = usePreference('chat.code.image_tools')
   const [codeEditor, setCodeEditor] = useMultiplePreferences({
     enabled: 'chat.code.editor.enabled',
     themeLight: 'chat.code.editor.theme_light',
@@ -59,10 +80,6 @@ const ChatPreferenceSections: FC = () => {
     themeLight: 'chat.code.viewer.theme_light',
     themeDark: 'chat.code.viewer.theme_dark'
   })
-  const [codeExecution, setCodeExecution] = useMultiplePreferences({
-    enabled: 'chat.code.execution.enabled',
-    timeoutMinutes: 'chat.code.execution.timeout_minutes'
-  })
   const [codeFancyBlock, setCodeFancyBlock] = usePreference('chat.code.fancy_block')
   const wideMode = !narrowMode
   const setWideMode = (checked: boolean) => setNarrowMode(!checked)
@@ -75,6 +92,11 @@ const ChatPreferenceSections: FC = () => {
   useEffect(() => {
     setFontSizeValue(fontSize)
   }, [fontSize])
+
+  const handleSpellCheckChange = (checked: boolean) => {
+    void setEnableSpellCheck(checked)
+    void ipcApi.request('app.set_spell_check_enabled', checked)
+  }
 
   const messageStyleItems = useMemo<SelectOption<'plain' | 'bubble'>[]>(
     () => [
@@ -136,7 +158,7 @@ const ChatPreferenceSections: FC = () => {
   )
 
   const renderSection = (title: string, children: ReactNode) => (
-    <PageSettingGroup theme={theme}>
+    <PageSettingGroup theme={theme} className={sectionClassName}>
       <SettingTitle>{title}</SettingTitle>
       <SettingDivider />
       <SettingGroup>{children}</SettingGroup>
@@ -148,6 +170,49 @@ const ChatPreferenceSections: FC = () => {
       {renderSection(
         t('settings.messages.input.title'),
         <>
+          <SettingRow>
+            <SettingRowTitleSmall>{t('settings.messages.input.send_shortcuts')}</SettingRowTitleSmall>
+            <Select value={sendMessageShortcut} onValueChange={setSendMessageShortcut}>
+              <SelectTrigger size="sm" className="w-[220px] text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="text-sm">
+                {sendMessageShortcutItems.map((item) => (
+                  <SelectItem className="text-sm" key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <Flex className="mr-4 flex-1 items-center justify-between">
+              <SettingRowTitleSmall>{t('settings.general.spell_check.label')}</SettingRowTitleSmall>
+              {enableSpellCheck && !isMac && (
+                <Selector<string>
+                  size={14}
+                  multiple
+                  value={spellCheckLanguages}
+                  placeholder={t('settings.general.spell_check.languages')}
+                  onChange={(selectedLanguages) => void setSpellCheckLanguages(selectedLanguages)}
+                  options={spellCheckLanguageOptions.map((lang) => ({
+                    value: lang.value,
+                    label: (
+                      <Flex className="items-center gap-2">
+                        <span role="img" aria-label={lang.flag}>
+                          {lang.flag}
+                        </span>
+                        {lang.label}
+                      </Flex>
+                    )
+                  }))}
+                />
+              )}
+            </Flex>
+            <Switch checked={enableSpellCheck} onCheckedChange={handleSpellCheckChange} />
+          </SettingRow>
+          <SettingDivider />
           <SettingRow>
             <SettingSwitch
               checked={showInputEstimatedTokens}
@@ -171,31 +236,11 @@ const ChatPreferenceSections: FC = () => {
               label={t('settings.messages.input.confirm_delete_message')}
             />
           </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <SettingRowTitleSmall>{t('settings.messages.input.send_shortcuts')}</SettingRowTitleSmall>
-            <Select value={sendMessageShortcut} onValueChange={setSendMessageShortcut}>
-              <SelectTrigger size="sm" className="w-[220px] text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="text-sm">
-                {sendMessageShortcutItems.map((item) => (
-                  <SelectItem className="text-sm" key={item.value} value={item.value}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </SettingRow>
         </>
       )}
       {renderSection(
         t('settings.messages.title'),
         <>
-          <SettingRow>
-            <SettingSwitch checked={showPrompt} onCheckedChange={setShowPrompt} label={t('settings.messages.prompt')} />
-          </SettingRow>
-          <SettingDivider />
           <SettingRow>
             <SettingSwitch checked={wideMode} onCheckedChange={setWideMode} label={t('settings.messages.wide_mode')} />
           </SettingRow>
@@ -283,7 +328,7 @@ const ChatPreferenceSections: FC = () => {
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.font_size.title')}</SettingRowTitleSmall>
           </SettingRow>
-          <div className="w-full pt-(--cs-size-3xs)">
+          <div className="w-full pt-3">
             <Slider
               value={[fontSizeValue]}
               onValueChange={(values) => setFontSizeValue(values[0])}
@@ -340,34 +385,6 @@ const ChatPreferenceSections: FC = () => {
               hint={t('chat.settings.code_fancy_block.tip')}
             />
           </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <SettingSwitch
-              checked={codeExecution.enabled}
-              onCheckedChange={(checked) => setCodeExecution({ enabled: checked })}
-              label={t('chat.settings.code_execution.title')}
-              hint={t('chat.settings.code_execution.tip')}
-            />
-          </SettingRow>
-          {codeExecution.enabled && (
-            <>
-              <SettingDivider />
-              <SettingRow className="pl-2">
-                <SettingRowTitleSmall hint={t('chat.settings.code_execution.timeout_minutes.tip')}>
-                  {t('chat.settings.code_execution.timeout_minutes.label')}
-                </SettingRowTitleSmall>
-                <EditableNumber
-                  size="small"
-                  className="w-20 text-sm"
-                  min={1}
-                  max={60}
-                  step={1}
-                  value={codeExecution.timeoutMinutes}
-                  onChange={(value) => setCodeExecution({ timeoutMinutes: value ?? 1 })}
-                />
-              </SettingRow>
-            </>
-          )}
           <SettingDivider />
           <SettingRow>
             <SettingSwitch
@@ -434,15 +451,6 @@ const ChatPreferenceSections: FC = () => {
               checked={codeWrappable}
               onCheckedChange={setCodeWrappable}
               label={t('chat.settings.code_wrappable')}
-            />
-          </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <SettingSwitch
-              checked={codeImageTools}
-              onCheckedChange={setCodeImageTools}
-              label={t('chat.settings.code_image_tools.label')}
-              hint={t('chat.settings.code_image_tools.tip')}
             />
           </SettingRow>
         </>

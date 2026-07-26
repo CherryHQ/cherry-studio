@@ -138,7 +138,7 @@ describe('ClaudeCodeStreamAdapter', () => {
 
     const result = adapter.handleMessage({
       type: 'system',
-      subtype: 'api_retry',
+      subtype: 'hook_started',
       session_id: 'sdk-control',
       uuid: crypto.randomUUID()
     } as any)
@@ -146,9 +146,29 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(result).toEqual({ type: 'continue' })
     expect(parts).toEqual([])
     expect(loggerMocks.debug).toHaveBeenCalledWith(
-      expect.stringContaining('Received system message subtype: api_retry'),
+      expect.stringContaining('Received system message subtype: hook_started'),
       expect.anything()
     )
+  })
+
+  it('drops api_retry silently — the driver intercepts it as an ephemeral runtime event', () => {
+    const { adapter, parts } = createAdapter()
+
+    const result = adapter.handleMessage({
+      type: 'system',
+      subtype: 'api_retry',
+      session_id: 'sdk-control',
+      uuid: crypto.randomUUID(),
+      attempt: 3,
+      max_retries: 10,
+      retry_delay_ms: 1234,
+      error_status: 500,
+      error: 'server_error'
+    } as any)
+
+    expect(result).toEqual({ type: 'continue' })
+    expect(parts).toEqual([])
+    expect(loggerMocks.debug).not.toHaveBeenCalledWith(expect.stringContaining('Received system message subtype:'))
   })
 
   it('maps thinking token estimates to message metadata', () => {
@@ -478,6 +498,96 @@ describe('ClaudeCodeStreamAdapter', () => {
     })
   })
 
+  it('keeps JSON text MCP tool results parsed for dedicated tool cards', () => {
+    const { adapter, parts } = createAdapter()
+    const results = [{ id: 1, title: 'Cherry Studio', url: 'https://example.com', content: 'result' }]
+
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_start',
+        index: 0,
+        content_block: {
+          type: 'mcp_tool_use',
+          id: 'mcp-search',
+          name: 'web_search',
+          server_name: 'cherry-tools',
+          input: { query: 'Cherry Studio' }
+        }
+      })
+    )
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_start',
+        index: 1,
+        content_block: {
+          type: 'mcp_tool_result',
+          tool_use_id: 'mcp-search',
+          is_error: false,
+          content: [{ type: 'text', text: JSON.stringify(results) }]
+        }
+      })
+    )
+
+    expect(parts.at(-1)).toMatchObject({
+      type: 'tool-output-available',
+      toolCallId: 'mcp-search',
+      output: {
+        content: results,
+        metadata: { type: 'mcp', serverName: 'cherry-tools', serverId: 'cherry-tools' }
+      }
+    })
+  })
+
+  it('normalizes Claude MCP image tool results to MCP content blocks', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_start',
+        index: 0,
+        content_block: {
+          type: 'mcp_tool_use',
+          id: 'mcp-image',
+          name: 'config',
+          server_name: 'cherry-tools',
+          input: {}
+        }
+      })
+    )
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_start',
+        index: 1,
+        content_block: {
+          type: 'mcp_tool_result',
+          tool_use_id: 'mcp-image',
+          is_error: false,
+          content: [
+            { type: 'text', text: 'QR code generated' },
+            {
+              type: 'image',
+              source: { type: 'base64', media_type: 'image/png', data: 'iVBORw0KGgo=' }
+            }
+          ]
+        }
+      })
+    )
+
+    expect(parts.at(-1)).toMatchObject({
+      type: 'tool-output-available',
+      toolCallId: 'mcp-image',
+      output: {
+        content: [
+          { type: 'text', text: 'QR code generated' },
+          { type: 'image', data: 'iVBORw0KGgo=', mimeType: 'image/png' }
+        ],
+        metadata: { type: 'mcp', serverName: 'cherry-tools', serverId: 'cherry-tools' }
+      }
+    })
+  })
+
   it('uses MCP display metadata for Claude Code MCP tool ids', () => {
     const { adapter, parts } = createAdapter({
       mcpToolMetadata: {
@@ -635,7 +745,10 @@ describe('ClaudeCodeStreamAdapter', () => {
           modelId: 'sonnet',
           totalTokens: 26,
           promptTokens: 21,
-          completionTokens: 5
+          completionTokens: 5,
+          noCacheTokens: 3,
+          cacheReadTokens: 11,
+          cacheWriteTokens: 7
         })
       })
     ])
@@ -671,5 +784,100 @@ describe('ClaudeCodeStreamAdapter', () => {
       finishReason: 'length',
       messageMetadata: expect.objectContaining({ modelId: 'sonnet' })
     })
+  })
+
+  it('treats an aborted assistant message as truncation even when the error is not a parse failure', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'hi' } })
+    )
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      aborted: true,
+      message: { content: [{ type: 'text', text: 'hi' }] }
+    } as any)
+
+    // Short text and a non-SyntaxError: the string heuristic alone would return false.
+    const handled = adapter.handleTruncationError(new Error('stream closed'))
+
+    expect(handled).toBe(true)
+    expect(parts.at(-1)).toMatchObject({ type: 'finish', finishReason: 'length' })
+  })
+
+  it('does not report truncation for a normal error when no message was aborted', () => {
+    const { adapter } = createAdapter()
+
+    expect(adapter.handleTruncationError(new Error('stream closed'))).toBe(false)
+  })
+
+  it('reports an auto-denied tool call as denied rather than failed', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage({
+      type: 'assistant',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: {
+        content: [{ type: 'tool_use', id: 'tool-9', name: 'Bash', input: { command: 'rm -rf /' } }]
+      }
+    } as any)
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'permission_denied',
+      tool_name: 'Bash',
+      tool_use_id: 'tool-9',
+      decision_reason_type: 'rule',
+      message: 'Permission to use Bash has been denied.',
+      uuid: crypto.randomUUID(),
+      session_id: 'sdk-1'
+    } as any)
+    adapter.handleMessage({
+      type: 'user',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: {
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: 'tool-9',
+            content: 'Permission to use Bash has been denied.',
+            is_error: true
+          }
+        ]
+      }
+    } as any)
+
+    // `is_error: true` would otherwise render as a generic tool failure.
+    expect(parts.map((part) => part.type)).toEqual([
+      'tool-input-start',
+      'tool-input-delta',
+      'tool-input-available',
+      'tool-output-denied'
+    ])
+    // The chunk schema is strict: only `toolCallId` may accompany the type.
+    expect(parts.at(-1)).toEqual({ type: 'tool-output-denied', toolCallId: 'tool-9' })
+  })
+
+  it('still reports a genuine tool failure as an error', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage({
+      type: 'user',
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: {
+        content: [{ type: 'tool_result', tool_use_id: 'tool-10', content: 'boom', is_error: true }]
+      }
+    } as any)
+
+    expect(parts.map((part) => part.type)).toContain('tool-output-error')
+    expect(parts.map((part) => part.type)).not.toContain('tool-output-denied')
   })
 })
