@@ -49,7 +49,7 @@ interface InsertWithOrderKeyOptions {
   pkColumn: AnyColumn
   /** Where to insert relative to existing rows. Defaults to `'last'`. */
   position?: 'first' | 'last'
-  /** Optional scope predicate narrowing the neighborhood (e.g. `eq(topic.groupId, gid)`). */
+  /** Optional scope predicate narrowing the neighborhood (e.g. `eq(userModel.providerId, providerId)`). */
   scope?: SQL
 }
 

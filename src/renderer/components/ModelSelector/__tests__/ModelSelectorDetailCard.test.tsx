@@ -1,4 +1,3 @@
-import type * as ModelModule from '@renderer/utils/model'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { act, render, screen } from '@testing-library/react'
@@ -8,13 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ModelSelectorDetailCard } from '../ModelSelectorDetailCard'
 import type { ModelSelectorModelItem } from '../types'
 
-const {
-  mockGetModelSupportedReasoningEffortOptions,
-  mockHoverCardContentProps,
-  mockHoverCardProps,
-  mockHoverCardOpenChange
-} = vi.hoisted(() => ({
-  mockGetModelSupportedReasoningEffortOptions: vi.fn(),
+const { mockHoverCardContentProps, mockHoverCardProps, mockHoverCardOpenChange } = vi.hoisted(() => ({
   mockHoverCardContentProps: [] as Array<{
     className?: string
     side?: string
@@ -31,11 +24,6 @@ const {
   mockHoverCardOpenChange: { current: undefined as ((open: boolean) => void) | undefined }
 }))
 
-vi.mock('@renderer/utils/model', async (importOriginal) => ({
-  ...(await importOriginal<typeof ModelModule>()),
-  getModelSupportedReasoningEffortOptions: mockGetModelSupportedReasoningEffortOptions
-}))
-
 vi.mock('@renderer/i18n/label', () => ({
   getProviderLabel: (id: string) => id
 }))
@@ -47,6 +35,7 @@ vi.mock('react-i18next', () => ({
       const labels: Record<string, string> = {
         'assistants.settings.reasoning_effort.default': 'Default',
         'assistants.settings.reasoning_effort.label': 'Reasoning Effort',
+        'assistants.settings.reasoning_effort.max': 'Max',
         'assistants.settings.reasoning_effort.xhigh': 'Extra High',
         'models.detail.context_window': 'Context window',
         'models.detail.max_input_tokens': 'Max input tokens',
@@ -158,7 +147,6 @@ describe('ModelSelectorDetailCard', () => {
   })
 
   beforeEach(() => {
-    mockGetModelSupportedReasoningEffortOptions.mockReturnValue([])
     mockHoverCardContentProps.length = 0
     mockHoverCardProps.length = 0
     mockHoverCardOpenChange.current = undefined
@@ -300,18 +288,15 @@ describe('ModelSelectorDetailCard', () => {
     expect(mockHoverCardContentProps.at(-1)?.collisionBoundary).toBeUndefined()
   })
 
-  it('renders reasoning options from getModelSupportedReasoningEffortOptions', () => {
+  it('renders reasoning options derived from the descriptor', () => {
     const model = makeModel({
       id: 'openai::gpt-5-codex-max' as UniqueModelId,
       apiModelId: 'gpt-5-codex-max',
       name: 'GPT-5 Codex Max',
       reasoning: {
-        type: 'openai-responses',
-        supportedEfforts: ['max']
+        selectableEfforts: ['max']
       }
     })
-
-    mockGetModelSupportedReasoningEffortOptions.mockReturnValue(['default', 'xhigh'])
 
     render(
       <ModelSelectorDetailCard item={makeItem(model)} provider={provider}>
@@ -319,9 +304,9 @@ describe('ModelSelectorDetailCard', () => {
       </ModelSelectorDetailCard>
     )
 
-    expect(mockGetModelSupportedReasoningEffortOptions).toHaveBeenCalledWith(model)
+    // Derived from the descriptor via deriveThinkingOptions ('default' is
+    // filtered out of the display; 'max' renders its i18n label).
     expect(screen.getByText('Reasoning Effort')).toBeInTheDocument()
-    expect(screen.getByText('Default, Extra High')).toBeInTheDocument()
-    expect(screen.queryByText('max')).not.toBeInTheDocument()
+    expect(screen.getByText('Max')).toBeInTheDocument()
   })
 })

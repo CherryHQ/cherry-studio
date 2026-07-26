@@ -83,6 +83,7 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => {
     cleanup = mocks.pdfViewerCleanup
     private currentPageNumberValue = 1
     private scale = 1
+    private currentScaleValueInternal = ''
     private eventBus: MockEventBus
     firstPagePromise: Promise<void>
     pageColors: unknown
@@ -119,7 +120,12 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => {
       return this.scale
     }
 
+    get currentScaleValue() {
+      return this.currentScaleValueInternal
+    }
+
     set currentScaleValue(value: string) {
+      this.currentScaleValueInternal = value
       mocks.pdfViewerScaleValues.push(value)
       const numericScale = Number(value)
       this.scale = Number.isFinite(numericScale) ? numericScale : 1
@@ -129,6 +135,7 @@ vi.mock('pdfjs-dist/web/pdf_viewer.mjs', () => {
     increaseScale = (options?: unknown) => {
       mocks.pdfViewerIncreaseScale(options)
       this.scale = Number((this.scale + 0.1).toFixed(2))
+      this.currentScaleValueInternal = String(this.scale)
       this.eventBus.dispatch('scalechanging', { scale: this.scale })
     }
 
@@ -215,7 +222,6 @@ describe('PdfPreviewPanel', () => {
     mocks.pdfViewerScaleValues.length = 0
     mocks.nextFirstPagePromises.length = 0
     mocks.pdfDocument.numPages = 1
-    document.documentElement.style.setProperty('--color-background', 'rgb(10, 11, 12)')
 
     mocks.pdfDocument.destroy = mocks.pdfDocumentDestroy
     mocks.fsRead.mockResolvedValue(new Uint8Array([0x25, 0x50, 0x44, 0x46]))
@@ -236,10 +242,17 @@ describe('PdfPreviewPanel', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
-    document.documentElement.style.removeProperty('--color-background')
   })
 
   it('loads the PDF and initializes the pdf.js viewer with the resolved theme background', async () => {
+    const getPropertyValue = CSSStyleDeclaration.prototype.getPropertyValue
+    vi.spyOn(CSSStyleDeclaration.prototype, 'getPropertyValue').mockImplementation(function (
+      this: CSSStyleDeclaration,
+      property: string
+    ) {
+      return property === '--background' ? 'rgb(10, 11, 12)' : getPropertyValue.call(this, property)
+    })
+
     await renderPdfPreviewPanel({ filePath: '/tmp/workspace/paper.pdf', fileName: 'paper.pdf', refreshKey: 0 })
 
     await waitFor(() => expect(mocks.pdfViewerSetDocument).toHaveBeenCalledWith(mocks.pdfDocument))
@@ -590,6 +603,85 @@ describe('PdfPreviewPanel', () => {
 
     expect(staleDocument.destroy).toHaveBeenCalled()
     expect(screen.getByTestId('pdf-preview-panel')).toBeInTheDocument()
+  })
+
+  it('re-fits a page-width scale when the container is resized by surrounding layout', async () => {
+    const observerInstances: Array<{ callback: ResizeObserverCallback; observe: ReturnType<typeof vi.fn> }> = []
+    const originalResizeObserver = globalThis.ResizeObserver
+    globalThis.ResizeObserver = vi.fn((callback: ResizeObserverCallback) => {
+      const instance = { callback, observe: vi.fn(), disconnect: vi.fn() }
+      observerInstances.push(instance)
+      return { observe: instance.observe, disconnect: instance.disconnect } as unknown as ResizeObserver
+    }) as unknown as typeof ResizeObserver
+
+    try {
+      await renderPdfPreviewPanel({ filePath: '/tmp/workspace/paper.pdf', fileName: 'paper.pdf', refreshKey: 0 })
+      await act(async () => {
+        await Promise.resolve()
+      })
+      mocks.pdfViewerScaleValues.length = 0
+
+      const container = screen.getByTestId('pdfjs-viewer-container').parentElement as HTMLElement
+      const instance = observerInstances.find((candidate) =>
+        candidate.observe.mock.calls.some(([target]) => target instanceof HTMLElement)
+      )
+      if (!instance) throw new Error('Expected the panel to observe its container')
+
+      act(() => {
+        instance.callback(
+          [{ target: container, contentRect: new DOMRect(0, 0, 480, 600) } as unknown as ResizeObserverEntry],
+          {} as ResizeObserver
+        )
+      })
+
+      await waitFor(() => expect(mocks.pdfViewerScaleValues).toEqual(['page-width']))
+    } finally {
+      globalThis.ResizeObserver = originalResizeObserver
+    }
+  })
+
+  it('never overrides a user-chosen numeric zoom on container resize', async () => {
+    const observerInstances: Array<{ callback: ResizeObserverCallback; observe: ReturnType<typeof vi.fn> }> = []
+    const originalResizeObserver = globalThis.ResizeObserver
+    globalThis.ResizeObserver = vi.fn((callback: ResizeObserverCallback) => {
+      const instance = { callback, observe: vi.fn(), disconnect: vi.fn() }
+      observerInstances.push(instance)
+      return { observe: instance.observe, disconnect: instance.disconnect } as unknown as ResizeObserver
+    }) as unknown as typeof ResizeObserver
+
+    try {
+      await renderPdfPreviewPanel({ filePath: '/tmp/workspace/paper.pdf', fileName: 'paper.pdf', refreshKey: 0 })
+      await act(async () => {
+        await Promise.resolve()
+      })
+      // User zooms in: currentScaleValue becomes numeric, replacing page-width.
+      const viewer = mocks.pdfViewerInstances.at(-1)
+      if (!viewer) throw new Error('Expected a pdf.js viewer instance')
+      act(() => {
+        viewer.increaseScale({})
+      })
+      mocks.pdfViewerScaleValues.length = 0
+
+      const container = screen.getByTestId('pdfjs-viewer-container').parentElement as HTMLElement
+      const instance = observerInstances.find((candidate) =>
+        candidate.observe.mock.calls.some(([target]) => target instanceof HTMLElement)
+      )
+      if (!instance) throw new Error('Expected the panel to observe its container')
+
+      act(() => {
+        instance.callback(
+          [{ target: container, contentRect: new DOMRect(0, 0, 480, 600) } as unknown as ResizeObserverEntry],
+          {} as ResizeObserver
+        )
+      })
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 250))
+      })
+
+      expect(mocks.pdfViewerScaleValues).toEqual([])
+    } finally {
+      globalThis.ResizeObserver = originalResizeObserver
+    }
   })
 
   it('detaches the pdf.js viewer and destroys the loaded document on cleanup', async () => {

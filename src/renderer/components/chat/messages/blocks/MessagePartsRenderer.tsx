@@ -25,14 +25,15 @@ import { getDisplayComposerTokens } from '@renderer/utils/message/composerTokens
 import { convertReferencesToCitationReferences, convertReferencesToCitations } from '@renderer/utils/partsToBlocks'
 import { classifyTurn } from '@shared/ai/transport'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
-import type { CherryProviderMetadata, ComposerMessageToken, ErrorPartData } from '@shared/data/types/uiParts'
+import type { CherryProviderMetadata, ComposerMessageToken } from '@shared/data/types/uiParts'
+import { readCherryMeta } from '@shared/data/types/uiParts'
 import { getToolName, isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { useMemo } from 'react'
 
 import MessageAttachments from '../frame/MessageAttachments'
 import MessageVideo from '../frame/MessageVideo'
-import { useMessageRenderConfig } from '../MessageListProvider'
+import { useMessageListActiveTurnStatus, useMessageRenderConfig } from '../MessageListProvider'
 import { isReportArtifactsToolResponse, MessageReportArtifacts } from '../tools/agent'
 import MessageTools, { canRenderMessageTool } from '../tools/MessageTools'
 import { isAskUserQuestionToolName } from '../tools/shared/agentToolTypes'
@@ -419,23 +420,24 @@ function getCherryMeta(part: CherryMessagePart): CherryProviderMetadata | undefi
 }
 
 /**
- * Memoized adapter from `ErrorPartData` (with optional name/message/stack) to
- * the normalized `SerializedError` shape `ErrorBlock` consumes. Lives here —
- * not inline in the switch — so the normalized object's identity is tied to
- * `rawData`, not to whichever render of the parent triggered it. Keeping
- * identity stable lets `React.memo(ErrorBlock)` and the downstream `useMemo`s
- * actually do their job; an inline spread would mint a fresh object every
- * render and silently break memoization.
+ * Memoized adapter from a `data-error` part to the normalized `SerializedError`
+ * shape `ErrorBlock` consumes, plus the persisted AI diagnosis it rehydrates.
+ * Takes the whole `part` — not pre-extracted props — so both the normalized
+ * error and the parsed `cachedDiagnosis` derive their identity from the part,
+ * not from whichever render of the parent triggered it. Keeping identity stable
+ * lets `React.memo(ErrorBlock)` and the downstream `useMemo`s actually do their
+ * job; passing a freshly-parsed object every render would break memoization.
  */
 const ErrorPartView = React.memo(function ErrorPartView({
   partId,
-  rawData,
+  part,
   message
 }: {
   partId: string
-  rawData: ErrorPartData
+  part: Extract<CherryMessagePart, { type: 'data-error' }>
   message: MessageListItem
 }) {
+  const rawData = part.data
   const error = useMemo(
     () => ({
       ...rawData,
@@ -445,7 +447,8 @@ const ErrorPartView = React.memo(function ErrorPartView({
     }),
     [rawData]
   )
-  return <ErrorBlock partId={partId} error={error} message={message} />
+  const cachedDiagnosis = useMemo(() => readCherryMeta(part)?.diagnosis, [part])
+  return <ErrorBlock partId={partId} error={error} message={message} cachedDiagnosis={cachedDiagnosis} />
 })
 
 /**
@@ -548,9 +551,9 @@ function renderPart(
     }
 
     case 'data-error': {
-      const rawData = 'data' in part ? part.data : undefined
-      if (!rawData) return null
-      return <ErrorPartView key={partId} partId={partId} rawData={rawData} message={message} />
+      const errorPart = part
+      if (!errorPart.data) return null
+      return <ErrorPartView key={partId} partId={partId} part={errorPart} message={message} />
     }
 
     case 'data-video': {
@@ -793,11 +796,15 @@ function renderGroupedEntry(
   const rendered = renderPart(entry.part, partId, message, isStreaming, isTranslationOverlayActive, options)
   if (!rendered) return null
 
+  const wrapperClassName =
+    entry.part.type === 'text'
+      ? 'text-black dark:text-foreground'
+      : isReasoningMessagePart(entry.part)
+        ? 'message-thought-wrapper'
+        : undefined
+
   return (
-    <AnimatedBlockWrapper
-      key={partId}
-      enableAnimation={enableAnimation}
-      className={isReasoningMessagePart(entry.part) ? 'message-thought-wrapper' : undefined}>
+    <AnimatedBlockWrapper key={partId} enableAnimation={enableAnimation} className={wrapperClassName}>
       {rendered}
     </AnimatedBlockWrapper>
   )
@@ -1131,9 +1138,7 @@ const MessageProcessLayout = React.memo(function MessageProcessLayout({
 
   if (!completedLayout) return null
 
-  const completedHistoryEntries = collapseHistory
-    ? completedLayout.historyEntries.filter((entry) => !isReasoningMessagePart(entry.part))
-    : completedLayout.historyEntries
+  const completedHistoryEntries = completedLayout.historyEntries
 
   const renderCompletedHistory = (isExpanded: boolean) =>
     isExpanded
@@ -1246,6 +1251,9 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   messageParts
 }: MessagePartsRendererContentProps) {
   const requestFollowRecovery = useRequestScrollFollowRecovery()
+  // Inline ephemeral status for the live turn (e.g. agent api-retry). Only the active-turn message
+  // renders it; the node itself renders nothing when there is no such state.
+  const activeTurnStatus = useMessageListActiveTurnStatus()
   const wasActiveTurnProcessingRef = React.useRef(isActiveTurnProcessing)
   React.useEffect(() => {
     if (wasActiveTurnProcessingRef.current && !isActiveTurnProcessing) requestFollowRecovery()
@@ -1304,12 +1312,15 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
   // But if the message is processing (pending/streaming), show the loading placeholder
   if (partEntries.length === 0 || (!hasVisibleEntry && reportArtifactToolResponses.length === 0)) {
     if (isActiveTurnProcessing) {
+      const placeholder = (
+        <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
+          <PlaceholderBlock isProcessing={true} createdAt={message.createdAt} status={placeholderStatus} />
+        </AnimatedBlockWrapper>
+      )
+      // The status renderer replaces the placeholder while active (e.g. an api-retry line) and falls
+      // back to it otherwise.
       return (
-        <AnimatePresence mode="sync">
-          <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
-            <PlaceholderBlock isProcessing={true} createdAt={message.createdAt} status={placeholderStatus} />
-          </AnimatedBlockWrapper>
-        </AnimatePresence>
+        <AnimatePresence mode="sync">{activeTurnStatus ? activeTurnStatus(placeholder) : placeholder}</AnimatePresence>
       )
     }
     return null
@@ -1327,6 +1338,7 @@ const MessagePartsRendererContent = React.memo(function MessagePartsRendererCont
         message={message}
         renderOptions={renderOptions}
       />
+      {isActiveTurnProcessing && activeTurnStatus?.(null)}
       {reportArtifactToolResponses.length > 0 && (
         <AnimatedBlockWrapper key={`report-artifacts-${message.id}`} enableAnimation={isStreamLive} animation="fade">
           <MessageReportArtifacts toolResponses={reportArtifactToolResponses} />

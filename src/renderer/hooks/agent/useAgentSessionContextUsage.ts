@@ -1,4 +1,4 @@
-import { useSharedCache } from '@renderer/data/hooks/useCache'
+import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
   type AgentSessionContextUsage
@@ -15,7 +15,7 @@ export function useAgentSessionContextUsage(
   sessionId: string | undefined,
   expectedModels?: readonly (string | null | undefined)[]
 ): AgentSessionContextUsageState {
-  const [cachedUsage] = useSharedCache(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId ?? EMPTY_SESSION_ID))
+  const cachedUsage = useSharedCacheValue(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId ?? EMPTY_SESSION_ID))
   const sessionUsage = sessionId ? (cachedUsage ?? null) : null
   const effectiveUsage = isExpectedModelUsage(sessionUsage, expectedModels) ? sessionUsage : null
   const percentage =

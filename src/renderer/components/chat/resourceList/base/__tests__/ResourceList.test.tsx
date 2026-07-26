@@ -24,6 +24,7 @@ const virtualMocks = vi.hoisted(() => ({
         size: 40
       })),
     getTotalSize: () => options.count * 40,
+    measure: vi.fn(),
     measureElement: vi.fn(),
     scrollElement: null,
     scrollToIndex: virtualMocks.scrollToIndex
@@ -1332,9 +1333,53 @@ describe('ResourceList', () => {
     expect(screen.getByTestId('session-icon')).toBeInTheDocument()
     expect(screen.getByTestId('topic-icon')).toBeInTheDocument()
     expect(screen.getByTestId('session-icon')).toHaveAttribute('data-collapsed', 'false')
+    expect(screen.getByTestId('session-icon').closest('[data-resource-list-leading-slot="true"]')).not.toHaveClass(
+      '[&_svg]:stroke-current'
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'session' }))
     expect(screen.getByTestId('session-icon')).toHaveAttribute('data-collapsed', 'true')
+  })
+
+  it('uses the icon visibility predicate without constructing icons for item alignment', () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const getGroupHeaderIcon = vi.fn((group: { id: string }) => <span data-testid={`${group.id}-icon`}>#</span>)
+    const isGroupHeaderIconVisible = vi.fn(() => true)
+    const renderList = (items: TestItem[]) => (
+      <Provider
+        items={items}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        getGroupHeaderIcon={getGroupHeaderIcon}
+        isGroupHeaderIconVisible={isGroupHeaderIconVisible}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    const view = render(renderList(ITEMS))
+
+    expect(screen.getByTestId('session-icon')).toBeInTheDocument()
+    expect(screen.getByTestId('topic-icon')).toBeInTheDocument()
+    expect(isGroupHeaderIconVisible).toHaveBeenCalled()
+
+    // Adding a row re-runs per-item alignment. Alignment must consult the
+    // predicate, never the icon getter — the getter only re-runs when a group
+    // header re-renders (at most twice per header here), so its call count
+    // stays independent of the row count. An alignment leak would add one call
+    // per rendered row on top of that and push the count past this bound.
+    getGroupHeaderIcon.mockClear()
+    isGroupHeaderIconVisible.mockClear()
+    view.rerender(renderList([...ITEMS, { id: 'delta', name: 'Delta', kind: 'topic', pinned: false, updatedAt: 4 }]))
+
+    expect(isGroupHeaderIconVisible).toHaveBeenCalled()
+    expect(getGroupHeaderIcon.mock.calls.length).toBeLessThanOrEqual(4)
   })
 
   it('omits the group header icon slot when no icon is provided', () => {
@@ -1868,7 +1913,7 @@ describe('ResourceList', () => {
           <ResourceList.Header
             actions={
               <ResourceList.SectionToggleMenuItem
-                sectionId="assistants"
+                sectionIds={['assistants']}
                 expandLabel="Expand all"
                 collapseLabel="Collapse all"
               />
@@ -1901,6 +1946,73 @@ describe('ResourceList', () => {
 
     expect(screen.getByRole('button', { name: 'Alpha' })).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('button', { name: 'Beta' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('Alpha 1')).toBeInTheDocument()
+    expect(screen.getByText('Beta 1')).toBeInTheDocument()
+  })
+
+  it('collapses groups across multiple sections when any target group is expanded', () => {
+    const Provider = ResourceList.Provider<TestItem & { groupId: string; sectionId: string }>
+    const items = [
+      {
+        id: 'alpha-1',
+        name: 'Alpha 1',
+        kind: 'topic' as const,
+        updatedAt: 2,
+        groupId: 'alpha',
+        sectionId: 'work'
+      },
+      {
+        id: 'beta-1',
+        name: 'Beta 1',
+        kind: 'topic' as const,
+        updatedAt: 1,
+        groupId: 'beta',
+        sectionId: 'home'
+      }
+    ]
+
+    function MultipleSectionsHarness() {
+      const [collapsedState, setCollapsedState] = useState<string[]>(['beta'])
+
+      return (
+        <Provider
+          items={items}
+          collapsedState={collapsedState}
+          onCollapsedStateChange={setCollapsedState}
+          groupBy={(item) => ({ id: item.groupId, label: item.groupId })}
+          sectionBy={(item) => ({ id: item.sectionId, label: item.sectionId })}>
+          <ResourceList.Frame>
+            <ResourceList.Header
+              actions={
+                <ResourceList.SectionToggleMenuItem
+                  sectionIds={['work', 'home']}
+                  expandLabel="Expand all"
+                  collapseLabel="Collapse all"
+                />
+              }
+            />
+            <ResourceList.VirtualItems<TestItem & { groupId: string; sectionId: string }>
+              renderItem={(item) => (
+                <ResourceList.Item item={item}>
+                  <span>{item.name}</span>
+                </ResourceList.Item>
+              )}
+            />
+          </ResourceList.Frame>
+        </Provider>
+      )
+    }
+
+    render(<MultipleSectionsHarness />)
+
+    expect(screen.getByText('Alpha 1')).toBeInTheDocument()
+    expect(screen.queryByText('Beta 1')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }))
+
+    expect(screen.queryByText('Alpha 1')).not.toBeInTheDocument()
+    expect(screen.queryByText('Beta 1')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Expand all' }))
+
     expect(screen.getByText('Alpha 1')).toBeInTheDocument()
     expect(screen.getByText('Beta 1')).toBeInTheDocument()
   })

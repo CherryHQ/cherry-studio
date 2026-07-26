@@ -1,8 +1,7 @@
-import type * as JsdomModule from 'jsdom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fetchRemoteTextMock = vi.hoisted(() => vi.fn())
-const jsdomConstructorMock = vi.hoisted(() => vi.fn())
+const extractReadableMarkdownMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -19,26 +18,17 @@ vi.mock('@main/utils/remoteFetch', () => ({
   fetchRemoteText: fetchRemoteTextMock
 }))
 
-vi.mock('jsdom', async () => {
-  const actual = await vi.importActual<JsdomModule>('jsdom')
-
-  return {
-    ...actual,
-    JSDOM: vi.fn().mockImplementation(function (
-      ...args: ConstructorParameters<typeof actual.JSDOM>
-    ): InstanceType<typeof actual.JSDOM> {
-      jsdomConstructorMock(...args)
-      return new actual.JSDOM(...args)
-    })
-  }
-})
+vi.mock('@main/services/readableContent', () => ({
+  readableContentService: { extractReadableMarkdown: extractReadableMarkdownMock }
+}))
 
 import { fetchWebSearchContent } from '../fetchContent'
 
 describe('fetchWebSearchContent', () => {
   beforeEach(() => {
     fetchRemoteTextMock.mockReset()
-    jsdomConstructorMock.mockReset()
+    extractReadableMarkdownMock.mockReset()
+    extractReadableMarkdownMock.mockResolvedValue({ title: '', content: '' })
   })
 
   it('normalizes empty readability output to an empty string', async () => {
@@ -54,13 +44,17 @@ describe('fetchWebSearchContent', () => {
     })
   })
 
-  it('uses a safe synthetic URL for JSDOM instead of the remote document URL', async () => {
+  it('parses fetched HTML in the shared worker and passes through the abort signal', async () => {
     const html = '<html><body><article><p>hello</p></article></body></html>'
+    const controller = new AbortController()
     fetchRemoteTextMock.mockResolvedValue(html)
+    extractReadableMarkdownMock.mockResolvedValue({ title: 'Worker title', content: 'hello' })
 
-    await fetchWebSearchContent('https://example.com/article')
+    const result = await fetchWebSearchContent('https://example.com/article', { signal: controller.signal })
 
-    expect(jsdomConstructorMock).toHaveBeenCalledWith(html, { url: 'http://localhost/' })
+    expect(extractReadableMarkdownMock).toHaveBeenCalledWith(html, { signal: controller.signal })
+    expect(result.title).toBe('Worker title')
+    expect(result.content).toBe('hello')
   })
 
   it('passes the default user-agent to the remote fetch helper', async () => {
@@ -84,5 +78,13 @@ describe('fetchWebSearchContent', () => {
     fetchRemoteTextMock.mockRejectedValue(new Error('Unsafe remote url: local or private addresses are not allowed'))
 
     await expect(fetchWebSearchContent('http://169.254.169.254/latest/meta-data/')).rejects.toThrow(/local or private/)
+  })
+
+  it('propagates caller aborts from the shared worker', async () => {
+    const abortError = Object.assign(new Error('request aborted'), { name: 'AbortError' })
+    fetchRemoteTextMock.mockResolvedValue('<html><body><article><p>hello</p></article></body></html>')
+    extractReadableMarkdownMock.mockRejectedValue(abortError)
+
+    await expect(fetchWebSearchContent('https://example.com/article')).rejects.toBe(abortError)
   })
 })

@@ -82,7 +82,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, editable = true, isStreami
         <div>
           {isStreaming && !hasContent ? (
             <div className="flex min-h-19.5 items-center justify-center gap-2 p-5">
-              <ClipLoader size={20} color="var(--color-primary)" />
+              <ClipLoader size={20} color="var(--primary)" />
               <div className="text-muted-foreground text-sm">
                 {t('html_artifacts.generating', 'Generating content...')}
               </div>

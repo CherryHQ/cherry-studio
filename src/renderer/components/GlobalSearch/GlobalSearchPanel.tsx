@@ -530,11 +530,11 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
 
   const openTopicMessageById = useCallback(
     async (topicId: string, messageId: string) => {
-      const apiTopic = await dataApiService.get(`/topics/${topicId}`)
       const messagePathEndpoint = `/topics/${topicId}/path` as const
-      const messagePath = await dataApiService.get(messagePathEndpoint, {
-        query: { nodeId: messageId }
-      })
+      const [apiTopic, messagePath] = await Promise.all([
+        dataApiService.get(`/topics/${topicId}`),
+        dataApiService.get(messagePathEndpoint, { query: { nodeId: messageId } })
+      ])
       const activeNodeId = Array.isArray(messagePath)
         ? (messagePath[messagePath.length - 1]?.id ?? messageId)
         : messageId
@@ -570,7 +570,6 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
 
   const openSessionMessageById = useCallback(
     async (sessionId: string, messageId: string) => {
-      await dataApiService.get(`/agent-sessions/${sessionId}`)
       await invalidateCache([
         '/agent-sessions',
         `/agent-sessions/${sessionId}`,

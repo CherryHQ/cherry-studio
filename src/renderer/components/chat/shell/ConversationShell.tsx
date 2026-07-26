@@ -3,9 +3,8 @@ import { useWindowFrame } from '@renderer/hooks/useWindowFrame'
 import { cn } from '@renderer/utils/style'
 import type { ReactNode, Ref } from 'react'
 
-import { ChatMaximizedOverlayInsetProvider } from '../layout/ChatViewportInsetContext'
-import { useOptionalShellState } from '../panes/Shell'
-import { ChatAppShell } from './ChatAppShell'
+import { useOptionalRightPanelState } from '../panes/Shell'
+import { ChatAppShell, type PaneManualToggleSignal } from './ChatAppShell'
 import { ConversationTopBarPortalProvider } from './ConversationTopBarPortal'
 import type { ChatPanePosition } from './paneLayout'
 
@@ -30,6 +29,7 @@ export interface ConversationShellProps {
   centerClassName?: string
   onPaneCollapse?: () => void
   onPaneAutoCollapseChange?: (collapsed: boolean) => void
+  paneManualToggle?: PaneManualToggleSignal
 }
 
 export default function ConversationShell({
@@ -51,7 +51,8 @@ export default function ConversationShell({
   centerRef,
   centerClassName,
   onPaneCollapse,
-  onPaneAutoCollapseChange
+  onPaneAutoCollapseChange,
+  paneManualToggle
 }: ConversationShellProps) {
   const { mode } = useWindowFrame()
   const isWindow = mode === 'window'
@@ -64,37 +65,36 @@ export default function ConversationShell({
     topBar
   )
   return (
-    <ChatMaximizedOverlayInsetProvider>
-      <div
-        id={id}
-        className={cn(
-          'relative flex flex-1 overflow-hidden bg-background',
-          isWindow ? 'h-full' : 'h-[calc(100vh-var(--navbar-height)-6px)] rounded-tl-[10px] rounded-bl-[10px]',
-          className
-        )}>
-        <QuickPanelProvider>
-          <ConversationTopBarPortalProvider>
-            <ChatAppShell
-              pane={pane}
-              paneOpen={paneOpen}
-              panePosition={panePosition}
-              topBar={resolvedTopBar}
-              centerContent={center}
-              sidePanel={sidePanel}
-              centerOverlay={centerOverlay}
-              centerTopOverlay={centerTopOverlay}
-              overlay={overlay}
-              centerId={centerId}
-              centerRef={centerRef}
-              centerClassName={centerClassName}
-              onPaneCollapse={onPaneCollapse}
-              onPaneAutoCollapseChange={onPaneAutoCollapseChange}
-            />
-          </ConversationTopBarPortalProvider>
-        </QuickPanelProvider>
-        {rightPane}
-      </div>
-    </ChatMaximizedOverlayInsetProvider>
+    <div
+      id={id}
+      className={cn(
+        'relative flex flex-1 overflow-hidden bg-background',
+        isWindow ? 'h-full' : 'h-[calc(100vh-var(--navbar-height)-6px)] rounded-tl-[10px] rounded-bl-[10px]',
+        className
+      )}>
+      <QuickPanelProvider>
+        <ConversationTopBarPortalProvider>
+          <ChatAppShell
+            pane={pane}
+            paneOpen={paneOpen}
+            panePosition={panePosition}
+            topBar={resolvedTopBar}
+            centerContent={center}
+            sidePanel={sidePanel}
+            centerOverlay={centerOverlay}
+            centerTopOverlay={centerTopOverlay}
+            rightPane={rightPane}
+            overlay={overlay}
+            centerId={centerId}
+            centerRef={centerRef}
+            centerClassName={centerClassName}
+            onPaneCollapse={onPaneCollapse}
+            onPaneAutoCollapseChange={onPaneAutoCollapseChange}
+            paneManualToggle={paneManualToggle}
+          />
+        </ConversationTopBarPortalProvider>
+      </QuickPanelProvider>
+    </div>
   )
 }
 
@@ -105,9 +105,9 @@ type TopBarProps = {
 }
 
 const ConversationShellTopBar = ({ topRightTool, showTopRightToolWhenPaneOpen, children }: TopBarProps) => {
-  const shellState = useOptionalShellState()
-  const maximized = shellState?.maximized ?? false
-  const open = shellState?.open ?? false
+  const presentationState = useOptionalRightPanelState()
+  const maximized = presentationState?.presentationMaximized ?? false
+  const open = presentationState?.presentationOpen ?? false
   const shouldShowTopRightTool = Boolean(topRightTool) && !maximized && (!open || showTopRightToolWhenPaneOpen)
   return (
     <div

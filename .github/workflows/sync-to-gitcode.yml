@@ -25,16 +25,31 @@ jobs:
     runs-on: [self-hosted, windows-signing]
     outputs:
       tag: ${{ steps.get-tag.outputs.tag }}
+      update_manifest: ${{ steps.get-tag.outputs.update_manifest }}
     steps:
       - name: Get tag name
         id: get-tag
         shell: bash
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+            TAG="${{ github.event.inputs.tag }}"
           else
-            echo "tag=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+            TAG="${{ github.event.release.tag_name }}"
           fi
+
+          VERSION="${TAG#v}"
+          if [[ "$VERSION" == *-* ]]; then
+            PRERELEASE="${VERSION#*-}"
+            CHANNEL="${PRERELEASE%%.*}"
+            UPDATE_MANIFEST="${CHANNEL}.yml"
+          else
+            UPDATE_MANIFEST="latest.yml"
+          fi
+
+          {
+            echo "tag=$TAG"
+            echo "update_manifest=$UPDATE_MANIFEST"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Check out Git repository
         uses: actions/checkout@v6
@@ -68,6 +83,22 @@ jobs:
         shell: bash
         run: rm -rf node_modules
 
+      - name: Configure Windows package architectures
+        shell: pwsh
+        run: |
+          $workspaceConfig = Get-Content pnpm-workspace.yaml -Raw
+          $currentArchitectures = "supportedArchitectures:\r?\n  os:\r?\n    - current\r?\n  cpu:\r?\n    - current"
+          $windowsArchitectures = @'
+          supportedArchitectures:
+            os:
+              - current
+            cpu:
+              - current
+              - arm64
+          '@
+          $workspaceConfig = $workspaceConfig -replace $currentArchitectures, $windowsArchitectures
+          Set-Content pnpm-workspace.yaml $workspaceConfig
+
       - name: Install Dependencies
         shell: bash
         run: pnpm install
@@ -76,6 +107,7 @@ jobs:
         shell: bash
         run: pnpm build:win
         env:
+          ELECTRON_BUILDER_7Z_FILTER: BCJ
           WIN_SIGN: true
           CHERRY_CERT_PATH: ${{ secrets.CHERRY_CERT_PATH }}
           CHERRY_CERT_KEY: ${{ secrets.CHERRY_CERT_KEY }}
@@ -89,9 +121,11 @@ jobs:
 
       - name: List built Windows artifacts
         shell: bash
+        env:
+          UPDATE_MANIFEST: ${{ steps.get-tag.outputs.update_manifest }}
         run: |
           echo "Built Windows artifacts:"
-          ls -la dist/*.exe dist/latest*.yml
+          ls -la dist/*.exe "dist/$UPDATE_MANIFEST"
 
       - name: Upload signed Windows artifacts
         uses: actions/upload-artifact@v7
@@ -99,7 +133,7 @@ jobs:
           name: signed-windows-artifacts
           path: |
             dist/*.exe
-            dist/latest.yml
+            dist/${{ steps.get-tag.outputs.update_manifest }}
           if-no-files-found: error
           retention-days: 1
 
@@ -140,6 +174,8 @@ jobs:
 
       - name: Replace Windows files with signed versions
         shell: bash
+        env:
+          UPDATE_MANIFEST: ${{ needs.build-windows-signed.outputs.update_manifest }}
         run: |
           echo "Replacing Windows files with signed versions..."
 
@@ -148,17 +184,20 @@ jobs:
             echo "ERROR: No signed .exe files found in signed-windows-artifacts/"
             exit 1
           fi
-          if [ ! -f signed-windows-artifacts/latest.yml ]; then
-            echo "ERROR: No signed latest.yml found in signed-windows-artifacts/"
+          if [ ! -f "signed-windows-artifacts/$UPDATE_MANIFEST" ]; then
+            echo "ERROR: No signed $UPDATE_MANIFEST found in signed-windows-artifacts/"
             exit 1
           fi
 
           # Remove unsigned Windows files from downloaded assets
-          rm -f release-assets/*.exe release-assets/latest.yml 2>/dev/null || true
+          rm -f release-assets/*.exe "release-assets/$UPDATE_MANIFEST" 2>/dev/null || true
 
           # Copy signed Windows files with error checking
           cp signed-windows-artifacts/*.exe release-assets/ || { echo "ERROR: Failed to copy .exe files"; exit 1; }
-          cp signed-windows-artifacts/latest.yml release-assets/ || { echo "ERROR: Failed to copy latest.yml"; exit 1; }
+          cp "signed-windows-artifacts/$UPDATE_MANIFEST" release-assets/ || {
+            echo "ERROR: Failed to copy $UPDATE_MANIFEST"
+            exit 1
+          }
 
           echo "Final release assets:"
           ls -la release-assets/
@@ -173,12 +212,27 @@ jobs:
           LC_ALL: C.UTF-8
         run: |
           # Always use gh cli to avoid special character issues
-          RELEASE_NAME=$(gh release view "$TAG_NAME" --repo "${{ github.repository }}" --json name -q '.name')
+          RELEASE_INFO=$(gh release view "$TAG_NAME" --repo "${{ github.repository }}" --json name,isPrerelease)
+          RELEASE_NAME=$(echo "$RELEASE_INFO" | jq -r '.name')
+          IS_PRERELEASE=$(echo "$RELEASE_INFO" | jq -r '.isPrerelease')
+
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            RELEASE_STATUS="pre"
+          else
+            LATEST_TAG=$(gh api "repos/${{ github.repository }}/releases/latest" --jq '.tag_name')
+            if [ "$LATEST_TAG" = "$TAG_NAME" ]; then
+              RELEASE_STATUS="latest"
+            else
+              RELEASE_STATUS=""
+            fi
+          fi
+
           # Use delimiter to safely handle special characters in release name
           {
             echo 'name<<EOF'
             echo "$RELEASE_NAME"
             echo 'EOF'
+            echo "release_status=$RELEASE_STATUS"
           } >> $GITHUB_OUTPUT
           # Extract releaseNotes from electron-builder.yml (from releaseNotes: | to end of file, remove 4-space indent)
           sed -n '/releaseNotes: |/,$ { /releaseNotes: |/d; s/^    //; p }' electron-builder.yml > release_body.txt
@@ -191,6 +245,7 @@ jobs:
           GITCODE_REPO: ${{ vars.GITCODE_REPO }}
           GITCODE_API_URL: ${{ vars.GITCODE_API_URL }}
           TAG_NAME: ${{ needs.build-windows-signed.outputs.tag }}
+          RELEASE_STATUS: ${{ steps.release-info.outputs.release_status }}
           RELEASE_NAME: ${{ steps.release-info.outputs.name }}
           LANG: C.UTF-8
           LC_ALL: C.UTF-8
@@ -200,12 +255,14 @@ jobs:
           echo "Dry run enabled. Skipping GitCode release creation and asset upload."
           echo "GitCode API URL: $API_URL"
           echo "Tag: $TAG_NAME"
+          echo "Release status: ${RELEASE_STATUS:-not set}"
           echo "Release name: $RELEASE_NAME"
           echo "Repo: ${GITCODE_OWNER:-<unset>}/${GITCODE_REPO:-<unset>}"
           echo
           echo "Release payload preview:"
           jq -n \
             --arg tag "$TAG_NAME" \
+            --arg release_status "$RELEASE_STATUS" \
             --arg name "$RELEASE_NAME" \
             --rawfile body release_body.txt \
             '{
@@ -213,7 +270,7 @@ jobs:
               name: $name,
               body: $body,
               target_commitish: "main"
-            }'
+            } | if $release_status == "" then . else .release_status = $release_status end'
           echo
           echo "Files that would be uploaded:"
           find release-assets -maxdepth 1 -type f -print | sort
@@ -227,6 +284,7 @@ jobs:
           GITCODE_REPO: ${{ vars.GITCODE_REPO }}
           GITCODE_API_URL: ${{ vars.GITCODE_API_URL }}
           TAG_NAME: ${{ needs.build-windows-signed.outputs.tag }}
+          RELEASE_STATUS: ${{ steps.release-info.outputs.release_status }}
           RELEASE_NAME: ${{ steps.release-info.outputs.name }}
           LANG: C.UTF-8
           LC_ALL: C.UTF-8
@@ -249,12 +307,14 @@ jobs:
 
           echo "Creating GitCode release..."
           echo "Tag: $TAG_NAME"
+          echo "Release status: ${RELEASE_STATUS:-not set}"
           echo "Repo: $GITCODE_OWNER/$GITCODE_REPO"
 
           # Step 1: Create release
           # Use --rawfile to read body directly from file, avoiding shell variable encoding issues
           jq -n \
             --arg tag "$TAG_NAME" \
+            --arg release_status "$RELEASE_STATUS" \
             --arg name "$RELEASE_NAME" \
             --rawfile body release_body.txt \
             '{
@@ -262,7 +322,7 @@ jobs:
               name: $name,
               body: $body,
               target_commitish: "main"
-            }' > /tmp/release_payload.json
+            } | if $release_status == "" then . else .release_status = $release_status end' > /tmp/release_payload.json
 
           RELEASE_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
             --connect-timeout 30 --max-time 60 \

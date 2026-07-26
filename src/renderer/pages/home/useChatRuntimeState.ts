@@ -17,11 +17,13 @@ import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/
 import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
 import { useToolApprovalBridge } from '@renderer/hooks/useToolApprovalBridge'
 import { useTopicOverlayHandoffOnTerminal } from '@renderer/hooks/useTopicStreamStatus'
+import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useChatWriteActions } from './hooks/useChatWriteActions'
@@ -36,6 +38,7 @@ export interface ChatTurnInput {
     mentionedModels?: UniqueModelId[]
     knowledgeBaseIds?: string[]
     userMessageParts?: CherryMessagePart[]
+    reasoningEffort?: ReasoningEffortOption
   }
 }
 
@@ -49,6 +52,7 @@ interface UseChatRuntimeStateParams {
   /** Topic's virtual-root id — authoritative first-turn signal (parentId === rootId). */
   rootId: string | null
   messagesCacheMutate: UseTopicMessagesCacheParams['mutate']
+  assistant?: Assistant
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
   clearBranchDraft?: () => void
   getBranchDraftAnchorId?: () => string | null
@@ -99,6 +103,7 @@ export function useChatRuntimeState({
   activeNodeId,
   rootId,
   messagesCacheMutate,
+  assistant,
   onBranchLiveStateChange,
   clearBranchDraft,
   getBranchDraftAnchorId
@@ -255,7 +260,8 @@ export function useChatRuntimeState({
       parentAnchorId: conversation.parentAnchorId ?? undefined,
       userMessageParts: options?.userMessageParts ?? [{ type: 'text', text }],
       mentionedModelIds: options?.mentionedModels,
-      knowledgeBaseIds: options?.knowledgeBaseIds
+      knowledgeBaseIds: options?.knowledgeBaseIds,
+      reasoningEffort: options?.reasoningEffort
     }),
     refreshMetadata: ({ topicId }) => invalidateCache(['/topics', `/topics/${topicId}`])
   })
@@ -359,7 +365,8 @@ export function useChatRuntimeState({
     stop,
     refresh,
     cache,
-    seedReservedMessages
+    seedReservedMessages,
+    assistant
   })
 
   const sendMessage = useCallback(

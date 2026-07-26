@@ -11,6 +11,8 @@ import { useTranslation } from 'react-i18next'
 
 import SelectionActionIcon from './SelectionActionIcon'
 
+const COPY_ICON_CLASS_NAME = 'absolute inset-0 size-4 transition-[color,opacity,transform] duration-300'
+
 /**
  * ActionIcons is a component that renders the action icons
  */
@@ -23,12 +25,6 @@ const ActionIcons: FC<{
 }> = memo(({ actionItems, isCompact, handleAction, copyIconStatus, copyIconAnimation }) => {
   const { t } = useTranslation()
 
-  const copyBaseClassName = cn(
-    'absolute inset-0 transition-[color,opacity,transform] duration-300',
-    '[height:var(--selection-toolbar-button-icon-size,16px)]',
-    '[width:var(--selection-toolbar-button-icon-size,16px)]'
-  )
-
   const renderCopyIcon = useCallback(() => {
     const shouldShowStatus = copyIconStatus !== 'normal'
 
@@ -37,7 +33,7 @@ const ActionIcons: FC<{
         <ClipboardCopy
           className={cn(
             'btn-icon',
-            copyBaseClassName,
+            COPY_ICON_CLASS_NAME,
             copyIconAnimation === 'enter' && shouldShowStatus && 'scale-0 opacity-0',
             copyIconAnimation !== 'enter' && 'scale-100 opacity-100'
           )}
@@ -46,7 +42,7 @@ const ActionIcons: FC<{
           <ClipboardCheck
             className={cn(
               'btn-icon text-primary',
-              copyBaseClassName,
+              COPY_ICON_CLASS_NAME,
               copyIconAnimation === 'enter' && 'scale-100 opacity-100',
               copyIconAnimation !== 'enter' && 'scale-0 opacity-0'
             )}
@@ -56,7 +52,7 @@ const ActionIcons: FC<{
           <ClipboardX
             className={cn(
               'btn-icon text-error-base',
-              copyBaseClassName,
+              COPY_ICON_CLASS_NAME,
               copyIconAnimation === 'enter' && 'scale-100 opacity-100',
               copyIconAnimation !== 'enter' && 'scale-0 opacity-0'
             )}
@@ -64,7 +60,7 @@ const ActionIcons: FC<{
         )}
       </>
     )
-  }, [copyBaseClassName, copyIconAnimation, copyIconStatus])
+  }, [copyIconAnimation, copyIconStatus])
 
   const renderActionButton = useCallback(
     (action: SelectionActionItem) => {
@@ -78,25 +74,14 @@ const ActionIcons: FC<{
           title={isCompact ? displayName : undefined}
           aria-label={displayName}
           className={cn(
-            'group flex h-full cursor-pointer! flex-row items-center justify-center gap-0.5 border-none bg-transparent transition-colors duration-100 [-webkit-app-region:no-drag]',
-            '[background-color:var(--selection-toolbar-button-bgcolor,transparent)]',
-            '[border-radius:var(--selection-toolbar-button-border-radius,0)]',
-            '[border:var(--selection-toolbar-button-border,0)]',
-            '[box-shadow:var(--selection-toolbar-button-box-shadow,none)]',
-            '[margin:var(--selection-toolbar-button-margin,0)]',
-            '[padding:var(--selection-toolbar-button-padding,0_8px)]',
-            'last:rounded-r-[var(--selection-toolbar-border-radius,10px)]',
-            'last:[padding:var(--selection-toolbar-button-last-padding,0_12px_0_8px)]',
-            'hover:[background-color:var(--selection-toolbar-button-bgcolor-hover,rgb(0_0_0_/_0.04))]',
-            'dark:hover:[background-color:var(--selection-toolbar-button-bgcolor-hover,#333333)]'
+            'group m-0 flex h-full cursor-pointer! flex-row items-center justify-center gap-0.5 rounded-none border-0 bg-transparent px-2 py-0 shadow-none transition-colors duration-100 [-webkit-app-region:no-drag]',
+            'last:rounded-r-[10px] last:py-0 last:pr-3 last:pl-2',
+            'hover:bg-black/[0.04] dark:hover:bg-[#333333]'
           )}>
           <span
             className={cn(
-              'relative flex items-center justify-center bg-transparent',
-              '[height:var(--selection-toolbar-button-icon-size,16px)]',
-              '[width:var(--selection-toolbar-button-icon-size,16px)]',
-              '[&_svg]:[color:var(--selection-toolbar-button-icon-color,rgb(0_0_0))]',
-              'dark:[&_svg]:[color:var(--selection-toolbar-button-icon-color,rgb(255_255_245_/_0.9))]',
+              'relative flex size-4 items-center justify-center bg-transparent',
+              '[&_svg]:text-black dark:[&_svg]:text-[rgb(255_255_245_/_0.9)]',
               'group-hover:[&_svg]:text-primary'
             )}>
             {action.id === 'copy' ? (
@@ -114,11 +99,7 @@ const ActionIcons: FC<{
           {!isCompact && (
             <span
               className={cn(
-                'btn-title max-w-[120px] overflow-hidden text-ellipsis whitespace-nowrap bg-transparent leading-[1.1] transition-colors duration-100',
-                '[color:var(--selection-toolbar-button-text-color,rgb(0_0_0))]',
-                'dark:[color:var(--selection-toolbar-button-text-color,rgb(255_255_245_/_0.9))]',
-                '[font-size:var(--selection-toolbar-font-size,14px)]',
-                '[margin:var(--selection-toolbar-button-text-margin,0)]',
+                'btn-title m-0 max-w-[120px] overflow-hidden text-ellipsis whitespace-nowrap bg-transparent text-black text-sm leading-[1.1] transition-colors duration-100 dark:text-[rgb(255_255_245_/_0.9)]',
                 'group-hover:text-primary'
               )}>
               {displayName}
@@ -167,46 +148,22 @@ const SelectionToolbarView = ({
     <div
       ref={ref}
       className={cn(
-        'box-border inline-flex select-none flex-row items-stretch overflow-hidden font-[var(--font-family-body)]',
-        '[background:var(--selection-toolbar-background,rgb(245_245_245_/_0.95))]',
-        'dark:[background:var(--selection-toolbar-background,rgb(20_20_20_/_0.95))]',
-        '[border-radius:var(--selection-toolbar-border-radius,10px)]',
-        '[border:var(--selection-toolbar-border,0)]',
-        '[box-shadow:var(--selection-toolbar-box-shadow,0_2px_3px_rgb(50_50_50_/_0.1))]',
-        'dark:[box-shadow:var(--selection-toolbar-box-shadow,0_2px_3px_rgb(50_50_50_/_0.3))]',
-        '[height:var(--selection-toolbar-height,36px)]',
-        '[margin:var(--selection-toolbar-margin,2px_3px_5px_3px)!]',
-        '[padding:var(--selection-toolbar-padding,0)!]'
+        'm-[2px_3px_5px_3px]! box-border inline-flex h-9 select-none flex-row items-stretch overflow-hidden rounded-[10px] border-0 bg-card p-0! font-[var(--font-family-body)] shadow-[0_2px_3px_rgb(50_50_50_/_0.1)]',
+        'dark:shadow-[0_2px_3px_rgb(50_50_50_/_0.3)]'
       )}>
       <div
         className={cn(
-          'items-center justify-center',
-          '[background-color:var(--selection-toolbar-logo-background,transparent)]',
-          '[border-color:var(--selection-toolbar-logo-border-color,rgb(0_0_0_/_0.08))]',
-          'dark:[border-color:var(--selection-toolbar-logo-border-color,rgb(255_255_255_/_0.2))]',
-          '[border-style:var(--selection-toolbar-logo-border-style,solid)]',
-          '[border-width:var(--selection-toolbar-logo-border-width,0.5px_0_0.5px_0.5px)]',
-          '[display:var(--selection-toolbar-logo-display,flex)]',
-          '[margin:var(--selection-toolbar-logo-margin,0)]',
-          '[padding:var(--selection-toolbar-logo-padding,0_6px_0_8px)]',
-          'rounded-l-[var(--selection-toolbar-border-radius,10px)]',
+          'm-0 flex items-center justify-center rounded-l-[10px] border-[rgb(0_0_0_/_0.08)] border-solid bg-transparent [border-width:0.5px_0_0.5px_0.5px] [padding:0_6px_0_8px]',
+          'dark:border-[rgb(255_255_255_/_0.2)]',
           draggable && '[-webkit-app-region:drag]'
         )}>
-        <img
-          src={AppLogo}
-          className="rounded-full object-cover [height:var(--selection-toolbar-logo-size,22px)] [width:var(--selection-toolbar-logo-size,22px)]"
-          draggable={false}
-          alt=""
-        />
+        <img src={AppLogo} className="size-[22px] rounded-full object-cover" draggable={false} alt="" />
       </div>
       <div
         className={cn(
           'flex flex-row items-center justify-center bg-transparent [-webkit-app-region:no-drag]',
-          '[border-color:var(--selection-toolbar-buttons-border-color,rgb(0_0_0_/_0.08))]',
-          'dark:[border-color:var(--selection-toolbar-buttons-border-color,rgb(255_255_255_/_0.2))]',
-          '[border-radius:var(--selection-toolbar-buttons-border-radius,0_var(--selection-toolbar-border-radius,10px)_var(--selection-toolbar-border-radius,10px)_0)]',
-          '[border-style:var(--selection-toolbar-buttons-border-style,solid)]',
-          '[border-width:var(--selection-toolbar-buttons-border-width,0.5px_0.5px_0.5px_0)]'
+          'rounded-[0_10px_10px_0] border-[rgb(0_0_0_/_0.08)] border-solid [border-width:0.5px_0.5px_0.5px_0]',
+          'dark:border-[rgb(255_255_255_/_0.2)]'
         )}>
         <ActionIcons
           actionItems={actionItems}

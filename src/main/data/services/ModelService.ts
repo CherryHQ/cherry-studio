@@ -9,12 +9,20 @@
 
 import { application } from '@application'
 import type { ModelLookupResult } from '@cherrystudio/provider-registry'
+import { inferReasoningOwnedBy } from '@cherrystudio/provider-registry'
 import type { InsertUserModelRow, UserModelRow } from '@data/db/schemas/userModel'
 import { isRegistryEnrichableField, userModelTable } from '@data/db/schemas/userModel'
 import { defaultHandlersFor, type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { pinService } from '@data/services/PinService'
-import { mergePresetModel, providerRegistryService } from '@data/services/ProviderRegistryService'
+import {
+  inferCustomModelReasoning,
+  mergePresetModel,
+  projectRuntimeReasoning,
+  providerRegistryService,
+  type ReasoningProviderContext,
+  type ResolvedReasoningProfile
+} from '@data/services/ProviderRegistryService'
 import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -32,8 +40,7 @@ import type {
   RuntimeParameterSupport,
   RuntimeReasoning
 } from '@shared/data/types/model'
-import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
-import type { ReasoningFormatType } from '@shared/data/types/provider'
+import { createUniqueModelId, MODEL_CAPABILITY, ReasoningConfigSchema } from '@shared/data/types/model'
 import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:ModelService')
@@ -120,8 +127,7 @@ function resolveCapabilities(
  * Defined explicitly (not via ReturnType) to avoid a circular import.
  */
 type CreateModelRegistryData = ModelLookupResult & {
-  reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
-  defaultChatEndpoint?: EndpointType
+  reasoningProfile: ResolvedReasoningProfile
 }
 
 type ReconcileRemovalFilterResult = {
@@ -253,7 +259,6 @@ export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateM
   'contextWindow',
   'maxInputTokens',
   'maxOutputTokens',
-  'reasoning',
   'pricing',
   'isEnabled',
   'isHidden',
@@ -279,7 +284,7 @@ function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
     maxInputTokens: dto.maxInputTokens ?? null,
     maxOutputTokens: dto.maxOutputTokens ?? null,
     supportsStreaming: dto.supportsStreaming ?? true,
-    reasoning: dto.reasoning ?? null,
+    reasoning: null,
     parameters: dto.parameterSupport ?? null,
     pricing: dto.pricing ?? null,
     isEnabled: true,
@@ -325,6 +330,8 @@ function mergedModelToNewUserModel(
  * this is a direct field mapping with no runtime merge needed.
  */
 function rowToRuntimeModel(row: UserModelRow): Model {
+  const reasoning = row.reasoning ? ReasoningConfigSchema.parse(row.reasoning) : undefined
+
   return {
     id: createUniqueModelId(row.providerId, row.modelId),
     providerId: row.providerId,
@@ -341,7 +348,9 @@ function rowToRuntimeModel(row: UserModelRow): Model {
     maxOutputTokens: row.maxOutputTokens ?? undefined,
     endpointTypes: row.endpointTypes ?? undefined,
     supportsStreaming: row.supportsStreaming,
-    reasoning: (row.reasoning ?? undefined) as RuntimeReasoning | undefined,
+    // Strip legacy fields (notably `type`) and materialize the runtime-only
+    // selection list until registry enrichment projects the active profile.
+    reasoning: reasoning ? { ...reasoning, selectableEfforts: reasoning.selectableEfforts ?? [] } : undefined,
     parameterSupport: (row.parameters ?? undefined) as RuntimeParameterSupport | undefined,
     pricing: row.pricing ?? undefined,
     isEnabled: row.isEnabled,
@@ -361,12 +370,22 @@ class ModelService {
         presetModel,
         registryData?.registryOverride ?? null,
         dto.providerId,
-        registryData?.reasoningFormatTypes,
-        registryData?.defaultChatEndpoint
+        registryData?.reasoningProfile.wire,
+        registryData?.reasoningProfile.support
       )
       const merged = applyUserOverlay(baseline, { ...dtoValues, name: dto.name ?? null })
 
       return mergedModelToNewUserModel(dto.providerId, dto.modelId, presetModel.id, merged)
+    }
+
+    // No preset: a custom model. When the id/capabilities say the model reasons,
+    // infer the controls from the registry heuristics so custom rows are
+    // descriptor-driven like catalog rows (#16598).
+    if (dtoValues.reasoning == null) {
+      const inferred = inferCustomModelReasoning(dto.modelId, registryData?.reasoningProfile.wire, {
+        declaredReasoning: (dtoValues.capabilities ?? []).includes(MODEL_CAPABILITY.REASONING)
+      })
+      if (inferred) dtoValues.reasoning = inferred
     }
 
     return { ...dtoValues, presetModelId: dto.presetModelId ?? null }
@@ -472,11 +491,32 @@ class ModelService {
       .orderBy(asc(userModelTable.providerId), asc(userModelTable.orderKey))
       .all()
 
-    let models = rows.map(rowToRuntimeModel)
+    let models = this.enrichRowsFromRegistry(rows)
+
+    // Post-filter by capability (JSON array column, can't filter in SQL easily)
+    if (query.capability !== undefined) {
+      const cap = query.capability as ModelCapability
+      models = models.filter((m) => m.capabilities.includes(cap))
+    }
+
+    return models
+  }
+
+  /**
+   * Registry enrichment shared by every row-serving path
+   * (`list`, `getByKey`, mutation results): recompute capabilities / imageGeneration and the
+   * reasoning descriptor (#16598) from the CURRENT registry. Capability
+   * enrichment honors `userOverrides`; reasoning is no longer user-editable
+   * and is always re-projected. Nothing is written back. Single-model consumers (the
+   * composer resolves the active model via `GET /models/:id`) must see the
+   * same view as the list — a stale stored descriptor otherwise starves
+   * them of registry updates.
+   */
+  private enrichRowsFromRegistry(rows: UserModelRow[]): Model[] {
+    let models: Model[] = rows.map(rowToRuntimeModel)
     const capabilityOverrideModelIds = new Set(
       rows.filter((row) => row.userOverrides?.includes('capabilities')).map((row) => row.id)
     )
-
     // Enrich with `imageGeneration` AND `capabilities` from the registry preset.
     // imageGeneration is preset-only metadata (not stored on user_model).
     // capabilities are unioned in unless the user explicitly overrode them: if registry says a model is `image-generation`
@@ -488,15 +528,12 @@ class ModelService {
     // Memoize the per-provider reasoning config so a list of N models in the
     // same provider resolves it once instead of issuing N identical
     // `getByProviderId` reads (the painting model picker lists one provider).
-    const reasoningConfigCache = new Map<
-      string,
-      { defaultChatEndpoint?: EndpointType; reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>> }
-    >()
+    const reasoningConfigCache = new Map<string, ReasoningProviderContext>()
     models = models.map((model) => {
       const presetId = model.presetModelId ?? model.apiModelId
       if (!presetId) return model
       try {
-        const { presetModel, registryOverride } = providerRegistryService.lookupModel(
+        const { presetModel, registryOverride, reasoningProfile } = providerRegistryService.lookupModel(
           model.providerId,
           presetId,
           reasoningConfigCache
@@ -504,6 +541,9 @@ class ModelService {
         const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
         const updates: Partial<Model> = {}
         if (imageGeneration) updates.imageGeneration = imageGeneration
+        const ownedBy =
+          registryOverride?.ownedBy ?? presetModel?.ownedBy ?? inferReasoningOwnedBy(model.apiModelId ?? presetId)
+        if (ownedBy) updates.ownedBy = ownedBy
         if (!capabilityOverrideModelIds.has(model.id)) {
           const capabilities = resolveCapabilities(
             presetModel?.capabilities,
@@ -515,6 +555,32 @@ class ModelService {
             capabilities.some((c: ModelCapability, i: number) => c !== model.capabilities[i])
           if (changed) updates.capabilities = capabilities
         }
+        // Reasoning re-enrichment (#16598): stored reasoning is frozen at
+        // creation, so recompute the descriptor from the CURRENT registry for
+        // preset-backed rows, and infer one for non-catalog rows that reason
+        // but have no descriptor (rows created before ingest-time inference).
+        // Read-time only — nothing is written back. Reasoning is no longer a
+        // user-overridable field, so legacy overrides are also re-projected
+        // through the current endpoint profile.
+        const capabilities = updates.capabilities ?? model.capabilities
+        let reasoning: RuntimeReasoning | undefined
+        if (presetModel) {
+          reasoning = mergePresetModel(
+            presetModel,
+            registryOverride,
+            model.providerId,
+            reasoningProfile.wire,
+            reasoningProfile.support
+          ).reasoning
+        } else if (model.reasoning?.controls?.length) {
+          reasoning = projectRuntimeReasoning(model.reasoning, reasoningProfile.wire)
+        } else {
+          reasoning = inferCustomModelReasoning(model.apiModelId ?? presetId, reasoningProfile.wire, {
+            declaredReasoning: capabilities.includes(MODEL_CAPABILITY.REASONING)
+          })
+        }
+        if (reasoning) updates.reasoning = reasoning
+        else if (model.reasoning) updates.reasoning = undefined
         return Object.keys(updates).length > 0 ? { ...model, ...updates } : model
       } catch (error) {
         // A registry-lookup failure must not silently strip a model's
@@ -528,12 +594,6 @@ class ModelService {
         return model
       }
     })
-
-    // Post-filter by capability (JSON array column, can't filter in SQL easily)
-    if (query.capability !== undefined) {
-      const cap = query.capability as ModelCapability
-      models = models.filter((m) => m.capabilities.includes(cap))
-    }
 
     return models
   }
@@ -602,7 +662,7 @@ class ModelService {
       throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
     }
 
-    return rowToRuntimeModel(row)
+    return this.enrichRowsFromRegistry([row])[0]
   }
 
   /**
@@ -707,7 +767,6 @@ class ModelService {
         ;(updates as Record<string, unknown>)[dbKey] = dto[dtoKey]
       }
     }
-
     // Track which registry-enrichable fields the user explicitly changed
     // Map DTO keys to DB column names (e.g. parameterSupport → parameters)
     const dtoToDbKey = (key: string): string => {
@@ -721,7 +780,7 @@ class ModelService {
     }
 
     if (Object.keys(updates).length === 0) {
-      return rowToRuntimeModel(existing)
+      return this.enrichRowsFromRegistry([existing])[0]
     }
 
     const [row] = db
@@ -733,7 +792,7 @@ class ModelService {
 
     logger.info('Updated model', { providerId, modelId, changes: Object.keys(dto) })
 
-    return rowToRuntimeModel(row)
+    return this.enrichRowsFromRegistry([row])[0]
   }
 
   /**
@@ -761,8 +820,8 @@ class ModelService {
       return mapping && Array.isArray(mapping) ? mapping[1] : key
     }
 
-    return db.transaction((tx) => {
-      const results: Model[] = []
+    const rows = db.transaction((tx) => {
+      const results: UserModelRow[] = []
 
       for (const { providerId, modelId, patch } of items) {
         const [existing] = tx
@@ -783,7 +842,6 @@ class ModelService {
             ;(updates as Record<string, unknown>)[dbKey] = patch[dtoKey]
           }
         }
-
         const changedEnrichableFields = Object.keys(patch).map(dtoToDbKey).filter(isRegistryEnrichableField)
         if (changedEnrichableFields.length > 0) {
           const existingOverrides = existing.userOverrides ?? []
@@ -791,7 +849,7 @@ class ModelService {
         }
 
         if (Object.keys(updates).length === 0) {
-          results.push(rowToRuntimeModel(existing))
+          results.push(existing)
           continue
         }
 
@@ -802,16 +860,18 @@ class ModelService {
           .returning()
           .all()
 
-        results.push(rowToRuntimeModel(row))
+        results.push(row)
       }
-
-      logger.info('Bulk updated models', {
-        count: results.length,
-        providers: [...new Set(items.map((item) => item.providerId))]
-      })
 
       return results
     })
+
+    logger.info('Bulk updated models', {
+      count: rows.length,
+      providers: [...new Set(items.map((item) => item.providerId))]
+    })
+
+    return this.enrichRowsFromRegistry(rows)
   }
 
   /**
@@ -1072,7 +1132,7 @@ class ModelService {
         }
 
         for (const [field, value] of Object.entries(enrichableFields)) {
-          if (!userOverrides?.has(field)) {
+          if (field === 'reasoning' || !userOverrides?.has(field)) {
             ;(set as Record<string, unknown>)[field] = value
           }
         }

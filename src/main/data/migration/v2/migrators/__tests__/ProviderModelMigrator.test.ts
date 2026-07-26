@@ -414,17 +414,12 @@ describe('ProviderModelMigrator', () => {
         .select()
         .from(userProviderTable)
         .where(eq(userProviderTable.providerId, 'openai'))
-      const endpointConfigs = providerRow.endpointConfigs as Record<
-        string,
-        { baseUrl?: string; reasoningFormatType?: string }
-      >
+      const endpointConfigs = providerRow.endpointConfigs as Record<string, { baseUrl?: string }>
 
-      // Legacy apiHost wins on the chat endpoint, registry reasoningFormat is preserved
+      // Legacy apiHost wins on the chat endpoint; reasoning profiles remain registry-only.
       expect(endpointConfigs['openai-chat-completions'].baseUrl).toBe('https://my-proxy.com/v1')
-      expect(endpointConfigs['openai-chat-completions'].reasoningFormatType).toBe('openai-chat')
       // Registry-only endpoint survives migration
       expect(endpointConfigs['openai-responses'].baseUrl).toBe('https://api.openai.com/v1')
-      expect(endpointConfigs['openai-responses'].reasoningFormatType).toBe('openai-responses')
       // apiFeatures baseline filled from registry
       expect(providerRow.apiFeatures).toEqual({ serviceTier: false })
     })

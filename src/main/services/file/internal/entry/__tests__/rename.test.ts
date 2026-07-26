@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -94,7 +94,7 @@ describe('internal/entry/rename', () => {
   it('renames external file on disk and updates DB externalPath + name', async () => {
     const original = path.join(tmp, 'before.txt')
     await writeFile(original, 'hello')
-    const entry = await ensureExternal(deps, { externalPath: original as FilePath })
+    const entry = await ensureExternal(deps, { externalPath: original as AbsoluteFilePath })
     const renamed = await rename(deps, entry.id, 'after')
     expect(renamed.name).toBe('after')
     const expectedPath = path.join(tmp, 'after.txt')
@@ -108,7 +108,7 @@ describe('internal/entry/rename', () => {
     const collision = path.join(tmp, 'b.txt')
     await writeFile(original, 'A')
     await writeFile(collision, 'B')
-    const entry = await ensureExternal(deps, { externalPath: original as FilePath })
+    const entry = await ensureExternal(deps, { externalPath: original as AbsoluteFilePath })
     await expect(rename(deps, entry.id, 'b')).rejects.toThrow()
     const stored = fileEntryService.getById(entry.id)
     expect(stored.name).toBe('a')
@@ -119,21 +119,22 @@ describe('internal/entry/rename', () => {
     expect(await readFile(collision, 'utf-8')).toBe('B')
   })
 
-  it('treats NFC/NFD-equivalent names as a no-op (no fs.rename, no DB write)', async () => {
-    // macOS HFS+/APFS surface filenames in NFD; renderer input is NFC.
-    // path.join produces a string whose codepoints differ from the stored
-    // (NFC) externalPath even though they refer to the same logical file.
-    // Canonicalization on both sides must collapse this difference.
-    // Explicit escape construction — relying on source-literal `é` is
-    // unreliable because editors/formatters may NFC-normalize on save.
-    const nfcName = 'qu\u00e9' // 'qué' — single codepoint U+00E9
-    const nfdName = 'qu\u0065\u0301' // 'qué' — e + combining acute
+  it('treats NFC and NFD spellings as distinct byte-faithful targets (renames, not a no-op)', async () => {
+    // externalPath is stored byte-faithful (no NFC), so an NFC-stored entry
+    // renamed to the NFD spelling of the same display name is a REAL rename to
+    // a byte-distinct target, not a short-circuited no-op. Explicit escape
+    // construction — relying on source-literal `é` is unreliable because
+    // editors/formatters may NFC-normalize on save.
+    const nfcName = 'qu\u00e9' // 'qué' — single codepoint U+00E9 (NFC)
+    const nfdName = 'qu\u0065\u0301' // 'qué' — e + combining acute (NFD)
     expect(nfcName).not.toBe(nfdName) // byte-distinct strings
     expect(nfcName.normalize('NFC')).toBe(nfdName.normalize('NFC'))
 
     const filePath = path.join(tmp, `${nfcName}.txt`)
     await writeFile(filePath, 'x')
-    const entry = await ensureExternal(deps, { externalPath: filePath as FilePath })
+    const entry = await ensureExternal(deps, { externalPath: filePath as AbsoluteFilePath })
+    if (entry.origin !== 'external') throw new Error('expected external entry')
+    expect(entry.externalPath).toBe(filePath) // byte-faithful NFC, no fold
 
     // Spy on the file module's `move` wrapper, not `node:fs/promises.rename`:
     // the latter is a Node native ESM namespace member and Vitest cannot
@@ -144,15 +145,18 @@ describe('internal/entry/rename', () => {
     const fsModule = await import('@main/utils/file')
     const moveSpy = vi.spyOn(fsModule, 'move')
 
-    // Re-rename to the NFD form — same logical name, different codepoints.
+    // Rename to the NFD spelling — same logical name, byte-distinct target.
     const result = await rename(deps, entry.id, nfdName)
 
-    expect(moveSpy).not.toHaveBeenCalled()
+    // The rename is NOT short-circuited: `move` runs and the DB row takes the
+    // byte-faithful NFD path (no NFC fold).
+    expect(moveSpy).toHaveBeenCalled()
     expect(result.id).toBe(entry.id)
     if (result.origin !== 'external' || entry.origin !== 'external') {
       throw new Error('expected external entries')
     }
-    expect(result.externalPath).toBe(entry.externalPath) // still NFC-canonical
+    expect(result.name).toBe(nfdName)
+    expect(result.externalPath).toBe(path.join(tmp, `${nfdName}.txt`)) // byte-faithful NFD
   })
 
   it('allows a case-only rename when the existing file at target is the same inode', async () => {
@@ -162,7 +166,7 @@ describe('internal/entry/rename', () => {
     // the test works on case-sensitive CI filesystems too.
     const original = path.join(tmp, 'CaseOnly.txt')
     await writeFile(original, 'C')
-    const entry = await ensureExternal(deps, { externalPath: original as FilePath })
+    const entry = await ensureExternal(deps, { externalPath: original as AbsoluteFilePath })
 
     // Force the "target exists" path: pretend the lowercased path exists,
     // and resolves to the same inode as the original.
@@ -182,7 +186,7 @@ describe('internal/entry/rename', () => {
     const collision = path.join(tmp, 'dst-collide.txt')
     await writeFile(original, 'S')
     await writeFile(collision, 'D')
-    const entry = await ensureExternal(deps, { externalPath: original as FilePath })
+    const entry = await ensureExternal(deps, { externalPath: original as AbsoluteFilePath })
 
     await expect(rename(deps, entry.id, 'dst-collide')).rejects.toThrow(/already exists/)
     // No DB or FS state change
@@ -196,7 +200,7 @@ describe('internal/entry/rename', () => {
   it('reindexes the DanglingCache reverse index on external rename (oldPath → newPath)', async () => {
     const original = path.join(tmp, 'reindex-old.txt')
     await writeFile(original, 'hi')
-    const entry = await ensureExternal(deps, { externalPath: original as FilePath })
+    const entry = await ensureExternal(deps, { externalPath: original as AbsoluteFilePath })
     vi.mocked(deps.danglingCache.removeEntry).mockClear()
     vi.mocked(deps.danglingCache.addEntry).mockClear()
     vi.mocked(deps.danglingCache.onFsEvent).mockClear()
@@ -214,7 +218,7 @@ describe('internal/entry/rename', () => {
     // physical file so they don't need this — only external does.
     const original = path.join(tmp, 'occ-stale.txt')
     await writeFile(original, 'v1')
-    const entry = await ensureExternal(deps, { externalPath: original as FilePath })
+    const entry = await ensureExternal(deps, { externalPath: original as AbsoluteFilePath })
     vi.mocked(deps.versionCache.invalidate).mockClear()
     await rename(deps, entry.id, 'occ-fresh')
     expect(deps.versionCache.invalidate).toHaveBeenCalledWith(entry.id)
@@ -228,7 +232,7 @@ describe('internal/entry/rename', () => {
     // silent on success.
     const original = path.join(tmp, 'rollback-old.txt')
     await writeFile(original, 'payload')
-    const entry = await ensureExternal(deps, { externalPath: original as FilePath })
+    const entry = await ensureExternal(deps, { externalPath: original as AbsoluteFilePath })
 
     const dbErr = new Error('UNIQUE constraint failed: file_entry.externalPath')
     const spy = vi.spyOn(deps.fileEntryService, 'setExternalPathAndName').mockImplementationOnce(() => {
@@ -260,7 +264,7 @@ describe('internal/entry/rename', () => {
     // rejected before `fsMove` or the SQL UPDATE runs.
     const original = path.join(tmp, 'safe.txt')
     await writeFile(original, 'payload')
-    const entry = await ensureExternal(deps, { externalPath: original as FilePath })
+    const entry = await ensureExternal(deps, { externalPath: original as AbsoluteFilePath })
 
     await expect(rename(deps, entry.id, '../evil')).rejects.toThrow()
 
@@ -278,7 +282,7 @@ describe('internal/entry/rename', () => {
   it('rejects newName with a path separator before any FS or DB side effect (external)', async () => {
     const original = path.join(tmp, 'safe2.txt')
     await writeFile(original, 'payload')
-    const entry = await ensureExternal(deps, { externalPath: original as FilePath })
+    const entry = await ensureExternal(deps, { externalPath: original as AbsoluteFilePath })
 
     await expect(rename(deps, entry.id, 'sub/path')).rejects.toThrow()
 

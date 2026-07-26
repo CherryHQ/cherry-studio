@@ -9,7 +9,7 @@ const Mcpso = ({ variant, className, ...props }: CompoundIconProps) => {
 
 export const McpsoIcon: CompoundIcon = /*#__PURE__*/ Object.assign(Mcpso, {
   Avatar: McpsoAvatar,
-  colorPrimary: '#3D5D83'
+  colorPrimary: '#F2F8FE'
 })
 
 export default McpsoIcon

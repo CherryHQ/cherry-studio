@@ -3,7 +3,12 @@ import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
 import { makeProvider } from '../../__tests__/fixtures'
-import { resolveAiSdkProviderId, resolveEffectiveEndpoint, resolveProviderVariant } from '../endpoint'
+import {
+  resolveAiSdkProviderId,
+  resolveEffectiveEndpoint,
+  resolveProviderOptionsKey,
+  resolveProviderVariant
+} from '../endpoint'
 
 const ENDPOINT_TYPES_USED = [
   ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
@@ -12,6 +17,19 @@ const ENDPOINT_TYPES_USED = [
   ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
   ENDPOINT_TYPE.OLLAMA_CHAT
 ] as const
+
+describe('resolveProviderOptionsKey', () => {
+  it.each(['google-vertex', 'google-vertex-anthropic', 'google-vertex-maas'])(
+    'maps the %s runtime adapter to the Vertex provider-options namespace',
+    (providerId) => {
+      expect(resolveProviderOptionsKey(providerId)).toBe('vertex')
+    }
+  )
+
+  it('preserves provider ids whose runtime namespace matches their registration', () => {
+    expect(resolveProviderOptionsKey('openai')).toBe('openai')
+  })
+})
 
 describe('resolveAiSdkProviderId', () => {
   describe('Catalog adapterFamily (highest priority)', () => {

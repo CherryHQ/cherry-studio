@@ -1,8 +1,7 @@
 /**
  * Topic entity types
  *
- * Topics are containers for messages. They reference the last-used assistant
- * and can be organized into groups.
+ * Topics are containers for messages. They reference the last-used assistant.
  */
 
 import * as z from 'zod'
@@ -19,7 +18,7 @@ export const TopicNameEntitySchema = z.string().max(255)
  *
  * Pin state lives in the polymorphic `pin` table (entityType='topic'); the
  * legacy `isPinned` / `pinnedOrder` fields were dropped during the v2.x
- * migration. Order is stored as a fractional-indexing `orderKey`, scoped by `groupId`.
+ * migration. Order is stored as a global fractional-indexing `orderKey`.
  */
 export const TopicSchema = z.strictObject({
   /** Topic ID */
@@ -32,11 +31,9 @@ export const TopicSchema = z.strictObject({
   assistantId: z.string().optional(),
   /** Active node ID in the message tree */
   activeNodeId: z.string().optional(),
-  /** Group ID for organization */
-  groupId: z.string().optional(),
   /** Container-level OTel trace id */
   traceId: TraceIdSchema.optional(),
-  /** Fractional-indexing order key, partitioned by groupId. */
+  /** Global fractional-indexing order key. */
   orderKey: z.string(),
   /** Creation timestamp (ISO string) */
   createdAt: z.iso.datetime(),

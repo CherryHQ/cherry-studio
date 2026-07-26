@@ -28,6 +28,7 @@ import type {
   MessageRuntime,
   MessageStreamingLayers
 } from '@renderer/components/chat/messages/types'
+import { parseMessagePartId, withMessagePartDiagnosis } from '@renderer/components/chat/messages/utils/messageDiagnosis'
 import {
   bindCaptureMessageImageRuntime,
   flushPendingMessageImageActions,
@@ -39,13 +40,14 @@ import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { SiblingsContext } from '@renderer/hooks/SiblingsContext'
 import { useLanguages } from '@renderer/hooks/translate'
-import { useAssistant } from '@renderer/hooks/useAssistant'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
+import type { DiagnosisResult } from '@renderer/utils/errorDiagnosis'
 import { updateCodeBlock } from '@renderer/utils/markdown'
 import { createComposerRichClipboardContentFromParts } from '@renderer/utils/message/composerClipboard'
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
@@ -72,6 +74,7 @@ const logger = loggerService.withContext('HomeMessageListAdapter')
 
 interface HomeMessageListParams {
   topic: Topic
+  assistant?: Assistant
   messages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
   streamingLayers?: MessageStreamingLayers
@@ -88,6 +91,7 @@ interface HomeMessageListParams {
 
 export function useHomeMessageListProviderValue({
   topic,
+  assistant,
   messages,
   partsByMessageId,
   streamingLayers,
@@ -104,7 +108,6 @@ export function useHomeMessageListProviderValue({
   const topicId = topic.id
   const assistantId = topic.assistantId
   const navigate = useNavigate()
-  const { assistant } = useAssistant(assistantId)
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
   const { t } = useTranslation()
   const { languages: translationLanguages, getLabel: getTranslationLanguageLabel } = useLanguages()
@@ -114,7 +117,6 @@ export function useHomeMessageListProviderValue({
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
   const menuConfig = useMessageMenuConfig()
   const exportActions = useMessageExportActions({ topicName: topic.name })
-  const errorActions = useMessageErrorActions()
   const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId, streamingLayers })
   const headerCapabilities = useMessageHeaderCapabilities()
   const messageUiStateCache = useMessageUiStateCache()
@@ -447,6 +449,18 @@ export function useHomeMessageListProviderValue({
     [requireChatWrite]
   )
 
+  const persistDiagnosis = useCallback(async (partId: string, diagnosis: DiagnosisResult) => {
+    const parsed = parseMessagePartId(partId)
+    if (!parsed) return
+
+    const persistedMessage = await dataApiService.get(`/messages/${parsed.messageId}`)
+    const updatedParts = withMessagePartDiagnosis(persistedMessage.data.parts ?? [], parsed.partIndex, diagnosis)
+    if (!updatedParts) return
+
+    await dataApiService.patch(`/messages/${parsed.messageId}`, { body: { data: { parts: updatedParts } } })
+  }, [])
+  const errorActions = useMessageErrorActions({ persistDiagnosis })
+
   const createTranslationUpdater = useCallback(
     async (
       messageId: string,
@@ -603,6 +617,11 @@ export function useHomeMessageListProviderValue({
 
   const deleteMessage = useCallback<NonNullable<MessageListActions['deleteMessage']>>(
     (messageId, traceOptions) => requireChatWrite('deleteMessage').deleteMessage(messageId, traceOptions),
+    [requireChatWrite]
+  )
+
+  const getMessageDeleteAvailability = useCallback<NonNullable<MessageListActions['getMessageDeleteAvailability']>>(
+    (messageId) => requireChatWrite('getMessageDeleteAvailability').getMessageDeleteAvailability(messageId),
     [requireChatWrite]
   )
 
@@ -788,6 +807,7 @@ export function useHomeMessageListProviderValue({
       updateRenderConfig,
       editMessage,
       startEditing,
+      getMessageDeleteAvailability,
       deleteMessage,
       startMessageBranch,
       setActiveBranch,
@@ -805,6 +825,7 @@ export function useHomeMessageListProviderValue({
       bindMessageGroupRuntime,
       bindMessageRuntime,
       bindRuntime,
+      getMessageDeleteAvailability,
       deleteMessage,
       deleteMessageGroup,
       deleteMessageGroupWithConfirm,

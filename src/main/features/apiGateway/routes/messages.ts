@@ -11,6 +11,18 @@ export interface CountTokensInput {
   system?: MessageCreateParams['system']
 }
 
+/**
+ * Rough token estimate for an image block. Anthropic bills images by decoded
+ * size, so we approximate from the base64 payload length; URL / unknown sources
+ * get a flat fallback. Shared by top-level and tool_result image blocks.
+ */
+function estimateImageTokens(source: { type?: unknown; data?: unknown } | null | undefined): number {
+  if (source?.type === 'base64' && typeof source.data === 'string') {
+    return Math.floor((source.data.length * 0.75) / 100)
+  }
+  return 1000
+}
+
 // TODO: unified token estimator
 export function estimateTokenCount(input: CountTokensInput): number {
   const { messages, system } = input
@@ -40,11 +52,7 @@ export function estimateTokenCount(input: CountTokensInput): number {
         if (block.type === 'text' && typeof block.text === 'string') {
           totalTokens += approximateTokenSize(block.text)
         } else if (block.type === 'image') {
-          if (block.source?.type === 'base64' && typeof block.source.data === 'string') {
-            totalTokens += Math.floor((block.source.data.length * 0.75) / 100)
-          } else {
-            totalTokens += 1000
-          }
+          totalTokens += estimateImageTokens(block.source)
         } else if (block.type === 'tool_use') {
           if (typeof block.name === 'string') totalTokens += approximateTokenSize(block.name)
           if (block.input !== undefined) totalTokens += approximateTokenSize(JSON.stringify(block.input))
@@ -58,6 +66,8 @@ export function estimateTokenCount(input: CountTokensInput): number {
                 totalTokens += approximateTokenSize(item)
               } else if (item && typeof item === 'object' && item.type === 'text' && typeof item.text === 'string') {
                 totalTokens += approximateTokenSize(item.text)
+              } else if (item && typeof item === 'object' && item.type === 'image') {
+                totalTokens += estimateImageTokens(item.source)
               }
             }
           }

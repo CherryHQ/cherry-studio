@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ChatContent from '../ChatContent'
 
-// The send path calls ipcApi.request('ai.stream_open', …); route it to the per-test
+// The send path calls ipcApi.request('ai.stream.open', …); route it to the per-test
 // `streamOpen` spy (a describe-level var asserted directly). `ipcMock.request` is
 // re-pointed in beforeEach (hoisted so the vi.mock factory can capture it).
 const { ipcMock } = vi.hoisted(() => ({
@@ -94,7 +94,8 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
     },
     model: undefined,
     setModel: vi.fn()
-  })
+  }),
+  useAssistantApiById: () => ({ assistant: { id: 'assistant-1', emoji: '😀' } })
 }))
 
 vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
@@ -165,22 +166,11 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
 }))
 
 vi.mock('@renderer/components/composer/ConversationComposerStage', () => ({
-  default: ({
-    placement,
-    main,
-    composer,
-    homeWelcomeText
-  }: {
-    placement: string
-    main: ReactNode
-    composer: ReactNode
-    homeWelcomeText?: string
-  }) => (
+  default: ({ placement, main, composer }: { placement: string; main: ReactNode; composer: ReactNode }) => (
     <div
       data-testid="composer-dock-frame"
       data-placement={placement}
       data-main-visible={String(placement === 'docked')}>
-      <div data-testid="composer-dock-home-header">{placement === 'home' ? homeWelcomeText : null}</div>
       <div data-testid="composer-dock-main">{main}</div>
       <div data-testid="composer-dock-composer">{composer}</div>
     </div>
@@ -257,9 +247,9 @@ describe('ChatContent', () => {
 
   beforeEach(() => {
     streamOpen = vi.fn().mockResolvedValue({ mode: 'started', userMessageId: 'user-1' })
-    // Route ai.stream_open through the spy; other stream routes/events are inert here
+    // Route ai.stream.open through the spy; other stream routes/events are inert here
     // (useChatWithHistory is mocked, so the real transport never runs).
-    ipcMock.request = (route, input) => (route === 'ai.stream_open' ? streamOpen(input) : Promise.resolve(undefined))
+    ipcMock.request = (route, input) => (route === 'ai.stream.open' ? streamOpen(input) : Promise.resolve(undefined))
     ipcMock.on = () => () => {}
     mockUseInvalidateCache.mockReturnValue(mockInvalidateCache)
     mockUseMutation.mockImplementation((method: string) => ({
@@ -333,6 +323,9 @@ describe('ChatContent', () => {
     })
 
     render(<ChatContent topic={topic} />)
+
+    // The composer is lazy-loaded; wait for it to mount and hand out onSend.
+    await waitFor(() => expect(capturedOnSend).toBeDefined())
 
     await act(async () => {
       await capturedOnSend?.('hello', { userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart] })
@@ -521,6 +514,60 @@ describe('ChatContent', () => {
     expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-placement', 'docked')
     expect(screen.getByTestId('composer-dock-frame')).toHaveAttribute('data-main-visible', 'true')
     expect(screen.getByTestId('composer-dock-composer')).toHaveTextContent('send')
+    // Loaded-and-empty is the greeting's show condition.
+    expect(screen.getByTestId('conversation-greeting')).toBeInTheDocument()
+  })
+
+  it('keeps the empty-conversation greeting hidden while topic history is loading', () => {
+    mockUseTopicMessages.mockReturnValue({
+      uiMessages: [],
+      siblingsMap: {},
+      isLoading: true,
+      refresh: vi.fn().mockResolvedValue([]),
+      activeNodeId: null,
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn().mockResolvedValue(undefined)
+    })
+    mockUseChatWithHistory.mockReturnValue({
+      sendMessage: vi.fn(),
+      regenerate: vi.fn(),
+      stop: vi.fn(),
+      error: null,
+      status: 'ready',
+      setMessages: vi.fn(),
+      activeExecutions: []
+    })
+
+    render(<ChatContent topic={topic} />)
+
+    expect(screen.queryByTestId('conversation-greeting')).toBeNull()
+  })
+
+  it('hides the empty-conversation greeting once the conversation has messages', () => {
+    mockUseTopicMessages.mockReturnValue({
+      uiMessages: [createUiMessage('history-user', 'user'), createUiMessage('history-assistant', 'assistant')],
+      siblingsMap: {},
+      isLoading: false,
+      refresh: vi.fn().mockResolvedValue([]),
+      activeNodeId: null,
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn().mockResolvedValue(undefined)
+    })
+    mockUseChatWithHistory.mockReturnValue({
+      sendMessage: vi.fn(),
+      regenerate: vi.fn(),
+      stop: vi.fn(),
+      error: null,
+      status: 'ready',
+      setMessages: vi.fn(),
+      activeExecutions: []
+    })
+
+    render(<ChatContent topic={topic} />)
+
+    expect(screen.queryByTestId('conversation-greeting')).toBeNull()
   })
 
   it('renders only uiMessages in the list (execution overlay affects parts, not the list itself)', async () => {

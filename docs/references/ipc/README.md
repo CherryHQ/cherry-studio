@@ -34,7 +34,7 @@ Decision rule: SQLite data → DataApi; user setting → Preference; losable/sha
 | Main coordinator | `IpcApiService` (`request` dispatch + `broadcast`/`send`) |
 | Preload bridge | `window.api.ipcApi` (`{ request, on }`) |
 | Renderer facade | `ipcApi` (`ipcApi.request('window.set_minimum_size', x)`) + `useIpcOn` |
-| Route / event names | dot **snake_case** (`file.read_doc`, `window.resized`); payload fields stay camelCase |
+| Route / event names | dot **snake_case**, any depth ≥ 2 (`file.read_doc`, `ai.agent.task.create`); resource path first, verb last; payload fields stay camelCase |
 | Request schemas | `*RequestSchemas` → `ipcRequestSchemas` / `IpcRoute` |
 | Event contracts (pure types) | `*EventSchemas` → `IpcEventSchemas` / `IpcEventName` |
 | Router / handlers / error | `IpcRouter` / `ipcHandlers` / `IpcError` |
@@ -51,7 +51,7 @@ Decision rule: SQLite data → DataApi; user setting → Preference; losable/sha
 | `src/shared/ipc/errors/<domain>.ts` | per-domain error-code maps (`as const`), imported directly by handler + renderer — `errors/` has no aggregating barrel |
 | `src/main/ipc/IpcRouter.ts` | request router (key lookup + zod parse + dispatch) |
 | `src/main/ipc/IpcApiService.ts` | `BeforeReady` coordinator: handler registration + `broadcast`/`send` |
-| `src/main/ipc/validateSender.ts` | source-trust gate (`validateSender` / `isTrustedSenderUrl`) |
+| `src/main/core/security/validateSender.ts` | source-trust gate (`validateSender` / `isTrustedSenderUrl`), shared with the DataApi `IpcAdapter` and the Preference/Cache subsystem handlers |
 | `src/main/ipc/handlers/ipcHandlers.ts` | global `ipcHandlers` (exhaustive, the audited exposure surface) |
 | `src/preload/ipc.ts` | generic forwarder → `window.api.ipcApi` |
 | `src/renderer/ipc/index.ts` | typed facade `ipcApi` |

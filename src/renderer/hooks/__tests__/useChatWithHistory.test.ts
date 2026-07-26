@@ -17,12 +17,12 @@ vi.mock('@ai-sdk/react', () => ({
   }
 }))
 
-// stop() now fires ipcApi.request('ai.stream_abort', …); route it to a spy for assertions.
+// stop() now fires ipcApi.request('ai.stream.abort', …); route it to a spy for assertions.
 const { streamAbortMock } = vi.hoisted(() => ({ streamAbortMock: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: async (route: string, input: unknown) =>
-      route === 'ai.stream_abort' ? streamAbortMock(input) : undefined,
+      route === 'ai.stream.abort' ? streamAbortMock(input) : undefined,
     on: () => () => {}
   }
 }))
@@ -105,6 +105,20 @@ describe('useChatWithHistory', () => {
   afterEach(() => {
     ;(window as any).api = originalApi
     vi.clearAllMocks()
+  })
+
+  it('creates a fresh Chat instance when the stable owner switches topics', () => {
+    const refresh = vi.fn().mockResolvedValue(refreshedMessages)
+    const { result, rerender } = renderHook(
+      ({ topicId }: { topicId: string }) => useChatWithHistory(topicId, [], refresh),
+      { initialProps: { topicId: 'topic-1' } }
+    )
+    const firstChat = result.current.chat
+
+    rerender({ topicId: 'topic-2' })
+
+    expect(result.current.chat.id).toBe('topic-2')
+    expect(result.current.chat).not.toBe(firstChat)
   })
 
   it('refreshes history before resuming the matching topic when another window starts streaming', async () => {

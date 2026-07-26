@@ -105,7 +105,7 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
   }
 
   return (
-    <div className="flex flex-col gap-3 pt-3.75">
+    <div className="flex flex-col gap-3">
       {loggedIn ? (
         <div className="flex items-center gap-3 rounded-lg border border-success/30 bg-success/10 p-3">
           <CheckCircle2 className="size-5 shrink-0 text-success" aria-hidden />

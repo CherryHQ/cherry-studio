@@ -24,6 +24,7 @@ const ROUTE_LABELS: Record<string, { icon: string; labelKey: string }> = {
   // Settings pages
   '/settings/provider': { icon: '🔑', labelKey: 'settings.provider.title' },
   '/settings/model': { icon: '🤖', labelKey: 'settings.model' },
+  '/settings/local-models': { icon: '📦', labelKey: 'settings.dependencies.localModels.title' },
   '/settings/appearance': { icon: '🎨', labelKey: 'settings.appearance.title' },
   '/settings/notifications': { icon: '🔔', labelKey: 'settings.notification.title' },
   '/settings/system': { icon: '⚙️', labelKey: 'settings.system.title' },
@@ -31,7 +32,11 @@ const ROUTE_LABELS: Record<string, { icon: string; labelKey: string }> = {
   '/settings/mcp': { icon: '🔌', labelKey: 'agent.settings.toolsMcp.mcp.tab' },
   '/settings/websearch': { icon: '🔍', labelKey: 'settings.tool.websearch.title' },
   '/settings/api-gateway': { icon: '🌐', labelKey: 'apiGateway.title' },
-  '/settings/file-processing': { icon: '📄', labelKey: 'settings.tool.file_processing.title' },
+  '/settings/file-processing': {
+    icon: '📄',
+    labelKey: 'settings.tool.file_processing.features.document_to_markdown.title'
+  },
+  '/settings/ocr': { icon: '🔤', labelKey: 'settings.tool.file_processing.features.image_to_text.title' },
   '/settings/shortcut': { icon: '⌨️', labelKey: 'settings.shortcuts.title' },
   '/settings/quick-assistant': { icon: '🪟', labelKey: 'settings.quickAssistant.title' },
   '/settings/selection-assistant': { icon: '✂️', labelKey: 'selection.name' },

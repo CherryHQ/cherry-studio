@@ -85,6 +85,10 @@ vi.mock('@renderer/hooks/useModel', async (importOriginal) => ({
   useDefaultModel: () => ({ defaultModel: undefined })
 }))
 
+vi.mock('@renderer/hooks/useCodeStyle', () => ({
+  useCodeStyle: () => ({ activeCmTheme: 'light' })
+}))
+
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProviderDisplayName: () => (providerId: string) => providerId,
   useProviders: useProvidersMock
@@ -478,6 +482,7 @@ describe('AgentSelector', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() =>
@@ -490,6 +495,7 @@ describe('AgentSelector', () => {
           smallModel: MODEL.id,
           description: 'Created from selector',
           instructions: '',
+          knowledgeBaseIds: [],
           skillIds: [],
           configuration: {
             avatar: '🤖',
@@ -519,6 +525,7 @@ describe('AgentSelector', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
 
     await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
@@ -532,6 +539,7 @@ describe('AgentSelector', () => {
 
     fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Created Agent' } })
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))

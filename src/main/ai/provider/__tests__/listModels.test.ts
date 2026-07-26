@@ -360,6 +360,91 @@ describe('listModels — ppioFetcher capability mapping', () => {
   })
 })
 
+describe('listModels — openRouterFetcher image models', () => {
+  function makeOpenRouterProvider() {
+    return makeProvider({
+      id: 'openrouter',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          adapterFamily: 'openrouter',
+          baseUrl: 'https://openrouter.ai/api/v1/',
+          modelsApiUrls: {
+            default: 'https://openrouter.example/models',
+            embedding: 'https://openrouter.example/embeddings/models',
+            image: 'https://openrouter.example/images/models'
+          }
+        },
+        [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]: {
+          adapterFamily: 'openrouter',
+          baseUrl: 'https://openrouter.ai/api/v1/'
+        }
+      }
+    })
+  }
+
+  it('unions the dedicated image catalog and marks duplicate image models for image routing', async () => {
+    const provider = makeOpenRouterProvider()
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) => {
+      if (url.endsWith('/embeddings/models')) {
+        return Promise.resolve({ value: { data: [{ id: 'openai/text-embedding-3-small' }] } })
+      }
+      if (url.endsWith('/images/models')) {
+        return Promise.resolve({
+          value: {
+            data: [
+              { id: 'openai/gpt-image-2', name: 'OpenAI: GPT Image 2' },
+              { id: 'sourceful/riverflow-v2.5-fast', name: 'Sourceful: Riverflow V2.5 Fast' }
+            ]
+          }
+        })
+      }
+      return Promise.resolve({ value: { data: [{ id: 'anthropic/claude-sonnet-4' }, { id: 'openai/gpt-image-2' }] } })
+    })
+
+    const models = await listModels(provider)
+
+    expect(aiSdkGetFromApiMock.mock.calls.map(([call]) => call.url)).toEqual([
+      'https://openrouter.example/models',
+      'https://openrouter.example/embeddings/models',
+      'https://openrouter.example/images/models'
+    ])
+    expect(models.map((model) => model.apiModelId)).toEqual([
+      'anthropic/claude-sonnet-4',
+      'openai/gpt-image-2',
+      'openai/text-embedding-3-small',
+      'sourceful/riverflow-v2.5-fast'
+    ])
+    expect(models.find((model) => model.apiModelId === 'openai/gpt-image-2')).toMatchObject({
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION]
+    })
+    expect(models.find((model) => model.apiModelId === 'sourceful/riverflow-v2.5-fast')).toMatchObject({
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION],
+      name: 'Sourceful: Riverflow V2.5 Fast'
+    })
+  })
+
+  it('keeps the primary and embedding catalogs when the image catalog fails in strict sync mode', async () => {
+    const provider = makeOpenRouterProvider()
+    aiSdkGetFromApiMock.mockImplementation(({ url }: { url: string }) => {
+      if (url.endsWith('/images/models')) {
+        return Promise.reject(new Error('image catalog unavailable'))
+      }
+      if (url.endsWith('/embeddings/models')) {
+        return Promise.resolve({ value: { data: [{ id: 'openai/text-embedding-3-small' }] } })
+      }
+      return Promise.resolve({ value: { data: [{ id: 'anthropic/claude-sonnet-4' }] } })
+    })
+
+    await expect(listModels(provider, undefined, { throwOnError: true })).resolves.toEqual([
+      expect.objectContaining({ apiModelId: 'anthropic/claude-sonnet-4' }),
+      expect.objectContaining({ apiModelId: 'openai/text-embedding-3-small' })
+    ])
+  })
+})
+
 describe('listModels — copied preset provider routing', () => {
   it('routes a copied GitHub provider through the GitHub catalog fetcher', async () => {
     const provider = makeProvider({
@@ -646,6 +731,53 @@ describe('listModels — vertexFetcher (per-publisher pagination)', () => {
     expect(models[0].ownedBy).toBe('google')
   })
 
+  it('bakes the publisher prefix into MaaS (non-google) model ids so the OpenAI-compatible endpoint gets the right model', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        publisherModels: [
+          { name: 'publishers/meta/models/llama-4-scout-17b-16e-instruct-maas', displayName: 'Llama 4 Scout' }
+        ]
+      }
+    })
+
+    const models = await listModels(makeVertexProvider())
+
+    // Same MaaS model deduped across the per-publisher fan-out → a single entry.
+    expect(models).toHaveLength(1)
+    // Publisher-prefixed id (survives the bare-name support filter) is what the request sends.
+    expect(models[0].apiModelId).toBe('meta/llama-4-scout-17b-16e-instruct-maas')
+    expect(models[0].ownedBy).toBe('meta')
+  })
+
+  it('preserves the publisher prefix for MaaS models published by Google', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        publisherModels: [{ name: 'publishers/google/models/gemma-4-26b-a4b-it-maas', displayName: 'Gemma 4 26B' }]
+      }
+    })
+
+    const models = await listModels(makeVertexProvider())
+
+    expect(models).toHaveLength(1)
+    expect(models[0].apiModelId).toBe('google/gemma-4-26b-a4b-it-maas')
+    expect(models[0].ownedBy).toBe('google')
+  })
+
+  it('filters non-google publisher models that do not use the MaaS id format', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        publisherModels: [
+          { name: 'publishers/meta/models/llama-4-scout-17b-16e-instruct-maas' },
+          { name: 'publishers/meta/models/llama-3.1-8b-instruct' }
+        ]
+      }
+    })
+
+    const models = await listModels(makeVertexProvider())
+
+    expect(models.map((model) => model.apiModelId)).toEqual(['meta/llama-4-scout-17b-16e-instruct-maas'])
+  })
+
   it('paginates a publisher via nextPageToken', async () => {
     // First call returns a page token; every subsequent call returns a final page.
     aiSdkGetFromApiMock
@@ -674,5 +806,38 @@ describe('listModels — vertexFetcher (per-publisher pagination)', () => {
 
     expect(models).toEqual([])
     expect(aiSdkGetFromApiMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('listModels — jinaFetcher (strips jina-ai/ prefix)', () => {
+  function makeJinaProvider() {
+    return makeProvider({
+      id: 'jina',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.jina.ai' }
+      }
+    })
+  }
+
+  // Jina's /v1/models returns `jina-ai/`-prefixed ids, but its inference endpoints and the registry
+  // catalog both key on the bare id. Capabilities/metadata come from the registry at enrich time.
+  it('strips the `jina-ai/` prefix so apiModelId matches the bare id (REGRESSION)', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          { id: 'jina-ai/jina-embeddings-v2-base-zh', name: 'Jina AI: Embeddings v2 Base ZH' },
+          { id: 'jina-ai/jina-reranker-m0' }
+        ]
+      }
+    })
+
+    const models = await listModels(makeJinaProvider())
+
+    const call = aiSdkGetFromApiMock.mock.calls[0][0] as { url: string }
+    expect(call.url).toBe('https://api.jina.ai/v1/models')
+    expect(models.map((m) => m.apiModelId)).toEqual(['jina-embeddings-v2-base-zh', 'jina-reranker-m0'])
+    // Forward the upstream display name; fall back to the bare id when absent.
+    expect(models.map((m) => m.name)).toEqual(['Jina AI: Embeddings v2 Base ZH', 'jina-reranker-m0'])
   })
 })

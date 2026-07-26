@@ -1,10 +1,12 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import ImageViewer from '@renderer/components/ImageViewer'
-import { ImageDown, ImageUp, RefreshCcw, RotateCcwSquare, RotateCwSquare, ZoomIn, ZoomOut } from 'lucide-react'
+import { ImageDown, ImageUp, Palette, RefreshCcw, RotateCcwSquare, RotateCwSquare, ZoomIn, ZoomOut } from 'lucide-react'
 import {
   type FC,
   type PointerEvent,
   type ReactNode,
+  type SyntheticEvent,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -13,9 +15,14 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { usePaintingSizeInfo } from '../hooks/usePaintingSizeInfo'
 import type { PaintingData } from '../model/types/paintingData'
 import { paintingClasses } from '../paintingPrimitives'
+import { computeImageNaturalSize } from '../utils/computeImageNaturalSize'
 import { getPaintingFileUrl } from '../utils/paintingFileUrl'
+import PaintingImageSkeleton from './PaintingImageSkeleton'
+
+const logger = loggerService.withContext('paintings/Artboard')
 
 const DEFAULT_IMAGE_SCALE = 1
 const MIN_IMAGE_SCALE = 0.25
@@ -31,36 +38,40 @@ type ImageDragState = {
   y: number
 }
 
+type RevealState =
+  // Loading finished before any file exists (e.g. still generating on another
+  // painting) — waiting for a file to arrive before starting the reveal.
+  | { status: 'awaiting' }
+  // A file exists; its natural size is still being decoded.
+  | { status: 'pending'; fileId: string; imageUrl: string }
+  // The natural size has resolved — enough to relock the box and drive the reveal.
+  | { status: 'ready'; fileId: string; imageUrl: string; naturalWidth: number; naturalHeight: number }
+
 export interface ArtboardProps {
   painting: PaintingData
   isLoading: boolean
-  onCancel: () => void
   imageCover?: ReactNode
-  loadText?: ReactNode
 }
 
-const InlineLoadingState: FC<{ text: ReactNode; onCancel: () => void; cancelLabel: string }> = ({
-  text,
-  onCancel,
-  cancelLabel
-}) => {
-  const progressLabel = typeof text === 'string' ? text : undefined
-
+/**
+ * Prompt + size strip. Rendered as a flex-col sibling directly above the
+ * skeleton/image box (see call sites) so it stretches to match that box's
+ * width rather than the full artboard — it travels with the artwork, not
+ * the canvas.
+ */
+const ArtboardPromptBar: FC<{ prompt: string; sizeLabel?: string }> = ({ prompt, sizeLabel }) => {
   return (
-    <div
-      className="flex w-full max-w-90 flex-col items-center gap-3 rounded-md bg-card px-5 py-4 text-card-foreground"
-      role="status"
-      aria-live="polite">
-      <div className="text-center font-medium text-[13px] text-foreground leading-5">{text}</div>
-      <div
-        className="relative h-1.5 w-full overflow-hidden rounded-full bg-muted"
-        role="progressbar"
-        aria-label={progressLabel}>
-        <span className="animation-migration-backup-progress-indeterminate absolute inset-y-0 left-0 w-1/3 min-w-20 rounded-full bg-linear-to-r from-primary/0 via-primary to-primary/0" />
-      </div>
-      <Button type="button" variant="outline" size="sm" onClick={onCancel} className="min-w-20">
-        {cancelLabel}
-      </Button>
+    <div className="mb-2 flex items-center justify-between gap-2 text-muted-foreground text-xs">
+      <Tooltip content={prompt} placement="bottom" delay={800}>
+        <span className="flex min-w-0 items-center gap-1.5">
+          <Palette className="size-3.5 shrink-0" aria-hidden />
+          {/* CSS `truncate` clips to the available width responsively — the full
+              prompt stays in the DOM (and in the tooltip) instead of a fixed-length
+              JS slice that shows the same ~10 chars on a wide artboard. */}
+          <span className="truncate">{prompt}</span>
+        </span>
+      </Tooltip>
+      {sizeLabel && <span className="shrink-0">{sizeLabel}</span>}
     </div>
   )
 }
@@ -87,20 +98,29 @@ const ArtboardToolButton: FC<{
   )
 }
 
-const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover, loadText }) => {
+const Artboard: FC<ArtboardProps> = ({ painting, isLoading, imageCover }) => {
   const { t } = useTranslation()
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [imageScale, setImageScale] = useState(DEFAULT_IMAGE_SCALE)
   const [imageRotation, setImageRotation] = useState(0)
   const [imageOffset, setImageOffset] = useState<ImageOffset>(DEFAULT_IMAGE_OFFSET)
   const [isDraggingImage, setIsDraggingImage] = useState(false)
+  const [revealState, setRevealState] = useState<RevealState | null>(null)
+  const [viewerContainer, setViewerContainer] = useState<{ width: number; height: number } | null>(null)
+  const [displayedNaturalSize, setDisplayedNaturalSize] = useState<{ width: number; height: number } | null>(null)
+  const [promptBarHeight, setPromptBarHeight] = useState(0)
   const imageDragRef = useRef<ImageDragState | null>(null)
+  const awaitingRevealRef = useRef(false)
+  const previousLoadingRef = useRef(isLoading)
+  const paintingIdRef = useRef(painting.id)
+  const viewerResizeObserverRef = useRef<ResizeObserver | null>(null)
+  const promptBarResizeObserverRef = useRef<ResizeObserver | null>(null)
   const displayedImageIndex = painting.files.length > 0 ? Math.min(currentImageIndex, painting.files.length - 1) : 0
   const currentFile = painting.files[displayedImageIndex]
+  const { sizeLabel } = usePaintingSizeInfo(painting)
   // TODO(#15353): swap for `cherrystudio://file/internal/${id}.${ext}` once the
   // custom-protocol handler is registered and paintings consume `FileEntry` directly.
   const currentImageUrl = currentFile ? getPaintingFileUrl(currentFile) : undefined
-  const loadingText = loadText || t('paintings.generating')
 
   const onPrevImage = useCallback(() => {
     setCurrentImageIndex((index) => (index > 0 ? index - 1 : Math.max(0, painting.files.length - 1)))
@@ -173,6 +193,76 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
     }
   }, [])
 
+  // Explicit contain-fit box for the idle (already-generated) image, mirroring
+  // PaintingImageSkeleton's lockedSize math. CSS auto-sizing a flex-col wrapper around
+  // the image can't be trusted here — ImageViewer nests the `<img>` behind a
+  // context-menu wrapper that breaks intrinsic-size propagation, leaving the
+  // wrapper (and the prompt bar stretched to it) wider than the rendered photo.
+  // Measuring explicitly is what lets the prompt bar match the image's real edges.
+  const onDisplayedImageLoad = useCallback((event: SyntheticEvent<HTMLImageElement>) => {
+    const { naturalWidth, naturalHeight } = event.currentTarget
+    if (naturalWidth > 0 && naturalHeight > 0) {
+      setDisplayedNaturalSize({ width: naturalWidth, height: naturalHeight })
+    }
+  }, [])
+
+  // A plain ref + mount-only effect would only ever attach once, when Artboard
+  // itself first mounts — but this wrapper only exists in the DOM once the idle
+  // (already-generated) branch renders, which usually happens later (after a
+  // generation completes) than Artboard's own mount. A callback ref re-attaches
+  // the observer every time the branch swaps this node in, not just the first time.
+  const setViewerContainerRef = useCallback((el: HTMLDivElement | null) => {
+    viewerResizeObserverRef.current?.disconnect()
+    viewerResizeObserverRef.current = null
+    if (!el) return
+    const measure = () => setViewerContainer({ width: el.clientWidth, height: el.clientHeight })
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    viewerResizeObserverRef.current = observer
+  }, [])
+
+  // `promptBar` renders inside the same transformed wrapper as the image (see
+  // below), so its own rendered height has to come out of the space
+  // `displayedImageBoxSize` treats as available — otherwise bar + image
+  // together can exceed `viewerContainer` and the image gets clipped instead
+  // of contain-fitting alongside the bar. `clientHeight` reflects layout size,
+  // unaffected by the wrapper's `transform: scale(...)`, so this stays correct
+  // at any zoom level.
+  const setPromptBarRef = useCallback((el: HTMLDivElement | null) => {
+    promptBarResizeObserverRef.current?.disconnect()
+    promptBarResizeObserverRef.current = null
+    if (!el) {
+      setPromptBarHeight(0)
+      return
+    }
+    const measure = () => setPromptBarHeight(el.clientHeight)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    promptBarResizeObserverRef.current = observer
+  }, [])
+
+  useEffect(() => {
+    setDisplayedNaturalSize(null)
+  }, [currentFile?.id])
+
+  const displayedImageBoxSize = (() => {
+    if (!displayedNaturalSize || !viewerContainer || viewerContainer.width <= 0) {
+      return null
+    }
+    const availableHeight = Math.max(0, viewerContainer.height - promptBarHeight)
+    if (availableHeight <= 0) {
+      return null
+    }
+    const scale = Math.min(
+      1,
+      viewerContainer.width / displayedNaturalSize.width,
+      availableHeight / displayedNaturalSize.height
+    )
+    return { width: displayedNaturalSize.width * scale, height: displayedNaturalSize.height * scale }
+  })()
+
   useEffect(() => {
     setCurrentImageIndex(0)
     resetImageTransform()
@@ -182,29 +272,164 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
     resetImageTransform()
   }, [currentFile?.id, resetImageTransform])
 
+  useLayoutEffect(() => {
+    // A new painting starts with a clean reveal machine. `revealState` and the
+    // loading/awaiting refs live across painting switches (Artboard is not
+    // remounted per painting), so without this reset the previous painting's
+    // in-flight reveal leaks in — stranding a file-less painting in a permanent
+    // fake "generating" skeleton, or replaying a reveal over an already-generated
+    // one. `wasLoading` is forced to this painting's own `isLoading` on a switch
+    // so a not-loading new painting never inherits the previous one's loading.
+    const paintingChanged = paintingIdRef.current !== painting.id
+    paintingIdRef.current = painting.id
+    if (paintingChanged) {
+      awaitingRevealRef.current = false
+      setRevealState(null)
+    }
+
+    const wasLoading = paintingChanged ? isLoading : previousLoadingRef.current
+    previousLoadingRef.current = isLoading
+
+    if (isLoading) {
+      awaitingRevealRef.current = false
+      setRevealState(null)
+      return
+    }
+
+    const shouldStartReveal = wasLoading || awaitingRevealRef.current
+
+    if (!shouldStartReveal) {
+      setRevealState((state) =>
+        state && state.status !== 'awaiting' && (state.fileId !== currentFile?.id || state.imageUrl !== currentImageUrl)
+          ? null
+          : state
+      )
+      return
+    }
+
+    if (!currentFile || !currentImageUrl) {
+      // A canceled or failed generation never produces a file — without this,
+      // stopping here would leave `revealState` stuck at `{ status: 'awaiting' }`
+      // forever, since none of this effect's deps change again to escape it.
+      if (painting.generationStatus === 'canceled' || painting.generationStatus === 'failed') {
+        awaitingRevealRef.current = false
+        setRevealState(null)
+        return
+      }
+      awaitingRevealRef.current = true
+      setRevealState((state) => (state?.status === 'awaiting' ? state : { status: 'awaiting' }))
+      return
+    }
+
+    let active = true
+    const target = { fileId: currentFile.id, imageUrl: currentImageUrl }
+    awaitingRevealRef.current = false
+    setRevealState({ ...target, status: 'pending' })
+
+    void computeImageNaturalSize(currentImageUrl)
+      .then((result) => {
+        if (!active) {
+          return
+        }
+
+        if (!result) {
+          setRevealState(null)
+          return
+        }
+
+        setRevealState({
+          ...target,
+          naturalWidth: result.naturalWidth,
+          naturalHeight: result.naturalHeight,
+          status: 'ready'
+        })
+      })
+      .catch((error) => {
+        logger.warn('Failed to prepare painting image reveal', { error })
+        if (active) {
+          setRevealState(null)
+        }
+      })
+
+    return () => {
+      active = false
+    }
+  }, [painting.id, currentFile, currentImageUrl, isLoading, painting.generationStatus])
+
+  const activeReveal = (() => {
+    if (isLoading || !revealState) {
+      return null
+    }
+    if (revealState.status === 'awaiting') {
+      return revealState
+    }
+    return currentFile?.id === revealState.fileId && currentImageUrl === revealState.imageUrl ? revealState : null
+  })()
+
+  const finishReveal = useCallback(() => {
+    setRevealState(null)
+  }, [])
+
+  const promptBar = painting.prompt ? <ArtboardPromptBar prompt={painting.prompt} sizeLabel={sizeLabel} /> : undefined
+
   return (
     <div className="flex min-h-0 w-full flex-1 flex-col p-2">
-      <div
-        className={`relative flex min-h-0 flex-1 flex-col items-center justify-center transition-opacity ${isLoading ? 'opacity-70' : 'opacity-100'}`}>
-        {painting.files.length > 0 && currentImageUrl ? (
-          <div className="relative flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden">
-            <ImageViewer
-              alt=""
-              className={`max-h-full max-w-full select-none rounded-md bg-secondary object-contain ${
-                isDraggingImage ? 'cursor-grabbing transition-none' : 'cursor-grab transition-transform duration-150'
+      <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center">
+        {isLoading || activeReveal ? (
+          <PaintingImageSkeleton
+            imageUrl={activeReveal?.status === 'ready' ? activeReveal.imageUrl : undefined}
+            naturalWidth={activeReveal?.status === 'ready' ? activeReveal.naturalWidth : undefined}
+            naturalHeight={activeReveal?.status === 'ready' ? activeReveal.naturalHeight : undefined}
+            onRevealReady={activeReveal?.status === 'ready' ? finishReveal : undefined}
+            painting={painting}
+            topBar={promptBar}
+          />
+        ) : painting.files.length > 0 && currentImageUrl ? (
+          <div
+            ref={setViewerContainerRef}
+            className="relative flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden">
+            {/* The prompt bar is a flex-col sibling of the image inside this transformed
+                wrapper (not the image itself) so it pans/zooms/rotates together with the
+                artwork as one rigid unit instead of staying pinned while the image moves.
+                The wrapper is sized explicitly (displayedImageBoxSize, which already
+                reserves the bar's own measured height — see setPromptBarRef) rather than
+                via CSS auto-sizing — ImageViewer nests the `<img>` behind a context-menu
+                wrapper that breaks intrinsic-size propagation, so an auto-sized flex-col
+                here ends up wider than the rendered photo, letterboxing the bar past its
+                real edges. */}
+            <div
+              data-testid="artboard-image-transform"
+              className={`flex max-h-full max-w-full flex-col items-stretch ${
+                isDraggingImage ? 'transition-none' : 'transition-transform duration-150'
               }`}
-              draggable={false}
-              onPointerCancel={stopImageDrag}
-              onPointerDown={onImagePointerDown}
-              onPointerMove={onImagePointerMove}
-              onPointerUp={stopImageDrag}
-              preview={false}
-              src={currentImageUrl}
               style={{
-                transform: `translate(${imageOffset.x}px, ${imageOffset.y}px) scale(${imageScale}) rotate(${imageRotation}deg)`,
-                touchAction: 'none'
-              }}
-            />
+                ...(displayedImageBoxSize ? { width: displayedImageBoxSize.width } : undefined),
+                transform: `translate(${imageOffset.x}px, ${imageOffset.y}px) scale(${imageScale}) rotate(${imageRotation}deg)`
+              }}>
+              {promptBar && (
+                <div ref={setPromptBarRef} data-testid="artboard-prompt-bar-measure">
+                  {promptBar}
+                </div>
+              )}
+              <ImageViewer
+                alt=""
+                className={`max-h-full min-h-0 max-w-full select-none rounded-md bg-secondary object-contain ${
+                  isDraggingImage ? 'cursor-grabbing' : 'cursor-grab'
+                }`}
+                draggable={false}
+                onLoad={onDisplayedImageLoad}
+                onPointerCancel={stopImageDrag}
+                onPointerDown={onImagePointerDown}
+                onPointerMove={onImagePointerMove}
+                onPointerUp={stopImageDrag}
+                preview={false}
+                src={currentImageUrl}
+                style={{
+                  touchAction: 'none',
+                  ...(displayedImageBoxSize ? { height: displayedImageBoxSize.height } : undefined)
+                }}
+              />
+            </div>
             <div
               className={`${paintingClasses.toolbarWrap} ${paintingClasses.toolbarRail}`}
               role="toolbar"
@@ -249,12 +474,6 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
         ) : imageCover ? (
           imageCover
         ) : null}
-
-        {isLoading && (
-          <div className="-translate-y-1/2 absolute inset-x-4 top-1/2 z-30 flex justify-center">
-            <InlineLoadingState text={loadingText} onCancel={onCancel} cancelLabel={t('common.cancel')} />
-          </div>
-        )}
       </div>
     </div>
   )

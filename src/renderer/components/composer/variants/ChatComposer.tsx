@@ -1,6 +1,4 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import {
   ConversationTopBarPortal,
@@ -8,6 +6,7 @@ import {
 } from '@renderer/components/chat/shell/ConversationTopBarPortal'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/composer/ComposerSurface'
 import {
+  ComposerPinnedToolsProvider,
   ComposerToolDerivedStateProvider,
   ComposerToolRuntimeHost,
   ComposerToolRuntimeProvider,
@@ -17,14 +16,11 @@ import {
   useComposerToolLauncherVersion,
   useComposerToolState
 } from '@renderer/components/composer/ComposerToolRuntime'
-import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
-import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
+import { ComposerPanelSymbol, getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
-import EmojiIcon from '@renderer/components/EmojiIcon'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
-import { ModelSelector } from '@renderer/components/ModelSelector'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
-import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
+import { ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
@@ -42,25 +38,24 @@ import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@rendere
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { canEditAssistantMessageParts } from '@renderer/utils/message/partsHelpers'
-import { canModelUseAssistantWebSearch } from '@renderer/utils/model'
-import { getLeadingEmoji } from '@renderer/utils/naming'
-import { cn } from '@renderer/utils/style'
+import { canModelUseAssistantWebSearch, resolveReasoningEffortForModel } from '@renderer/utils/model'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { isNonChatModel } from '@shared/utils/model'
-import { Bot, ChevronDown, Globe, Lightbulb } from 'lucide-react'
-import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
+import { Cable } from 'lucide-react'
+import React, { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { createComposerUserMessageParts } from '../composerDraft'
+import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
 import { useInputHistory } from '../useInputHistory'
+import { ChatConversationControls, type ChatConversationControlsProps } from './chat/ChatConversationControls'
 import { type ChatComposerDraftCache, readChatDraftCache, writeChatDraftCache } from './chat/chatDraftCache'
 import { createEditableMessageDraft, getEditableKnowledgeBases } from './chat/messageEditingDraft'
 import { useChatKnowledgeBaseScope } from './chat/useChatKnowledgeBaseScope'
@@ -71,13 +66,7 @@ import {
   getComposerTokenIds,
   knowledgeBaseToComposerToken
 } from './chatComposerTokens'
-import { SelectedModelsTrigger } from './SelectedModelsTrigger'
 import {
-  COMPOSER_BELOW_SELECTOR_BUTTON_CLASS,
-  COMPOSER_ICON_ONLY_LABEL_CLASS,
-  COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
-  COMPOSER_SELECTOR_BUTTON_CLASS,
-  COMPOSER_SEND_ACCESSORY_BUTTON_CLASS,
   COMPOSER_TOOLBAR_CLASS,
   ComposerBelowControls,
   ComposerToolbarControls,
@@ -86,24 +75,61 @@ import {
 import { type AddNewTopicPayload, emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import { buildComposerQueuedPayload, hasUnsyncedComposerAttachments } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
+import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
+import { useComposerToolbarPinnedTools } from './shared/useComposerToolbarPinnedTools'
+import { useEntityReferenceMentionSource } from './shared/useEntityReferenceMentionSource'
 import { useLatest } from './shared/useLatest'
 
 const logger = loggerService.withContext('ChatComposer')
 const CHAT_MANAGED_TOKEN_KINDS = ['file', 'knowledge'] as const satisfies readonly ComposerDraftToken['kind'][]
-const CHAT_MODEL_FILTER = (model: Model) => !isNonChatModel(model)
+const CHAT_NEW_CONVERSATION_TOOL_ID = 'composer:new-conversation'
+const EMPTY_MODELS: Model[] = []
+const CHAT_TOOLBAR_CUSTOM_TOOLS: readonly ComposerToolbarCustomTool[] = [
+  {
+    id: ComposerPanelSymbol.McpStatus,
+    label: 'MCP',
+    icon: <Cable size={18} aria-hidden />,
+    onSelect: ({ unifiedPanelControl }) =>
+      unifiedPanelControl?.open({ launcherId: ComposerPanelSymbol.McpStatus, searchText: 'MCP' })
+  }
+]
 
-interface ChatComposerProps {
+export type ChatComposerResolvedContext = Pick<
+  ReturnType<typeof useAssistant>,
+  'assistant' | 'isLoading' | 'model' | 'isModelPending' | 'isModelMissing' | 'setModel' | 'updateAssistantSettings'
+>
+
+export interface ChatConversationControlsSnapshot {
+  scopeKey: string
+  mentionedModels: Model[]
+  mentionedModelSelectorValue: Model[]
+  lockedMentionedModels: Model[]
+  mentionedModelMultiSelectMode: boolean
+  onModelSelect: (model: Model | undefined) => void
+  onMentionedModelsSelect: (models: Model[]) => void
+  onMentionedModelMultiSelectModeChange: (enabled: boolean) => void
+  onMentionedModelSelectorRestore: () => void
+}
+
+export type ChatConversationControlsChangeHandler = (snapshot: ChatConversationControlsSnapshot | null) => void
+
+export interface ChatComposerProps {
   topic?: Topic
   scopeKey?: string
   topicId?: string
   assistantId?: string
+  resolvedContext?: ChatComposerResolvedContext
+  resolvedProviders?: Provider[]
+  externalContextControls?: boolean
+  onConversationControlsChange?: ChatConversationControlsChangeHandler
   onSend: (
     text: string,
     options?: {
       mentionedModels?: UniqueModelId[]
       knowledgeBaseIds?: KnowledgeBase['id'][]
       userMessageParts?: CherryMessagePart[]
+      reasoningEffort?: ReasoningEffortOption
     }
   ) => void | Promise<void>
   sendDisabled?: boolean
@@ -143,177 +169,7 @@ const replaceComposerEditableMessageParts = (
   })
 }
 
-interface ChatComposerContextControlsProps {
-  assistantId: string | null
-  assistantName: string
-  assistantEmoji?: string
-  model?: Model
-  modelPending?: boolean
-  providers: Provider[]
-  mentionedModels: Model[]
-  mentionedModelSelectorValue: Model[]
-  lockedMentionedModels: Model[]
-  mentionedModelMultiSelectMode: boolean
-  selectModelLabel: string
-  useMentionedModelSelector?: boolean
-  shouldAutoSelectCreatedAssistant: boolean
-  side: 'top' | 'bottom'
-  iconOnly?: boolean
-  onDialogCloseAutoFocus?: () => void
-  onAssistantChange: (assistantId: string | null) => void | Promise<void>
-  onModelSelect: (model: Model | undefined) => void
-  onMentionedModelsSelect: (models: Model[]) => void
-  onMentionedModelMultiSelectModeChange: (enabled: boolean) => void
-  onMentionedModelSelectorRestore: () => void
-}
-
-const ChatComposerContextControls = ({
-  assistantId,
-  assistantName,
-  assistantEmoji,
-  model,
-  modelPending,
-  providers,
-  mentionedModels,
-  mentionedModelSelectorValue,
-  lockedMentionedModels,
-  mentionedModelMultiSelectMode,
-  selectModelLabel,
-  useMentionedModelSelector,
-  shouldAutoSelectCreatedAssistant,
-  side,
-  iconOnly = false,
-  onDialogCloseAutoFocus,
-  onAssistantChange,
-  onModelSelect,
-  onMentionedModelsSelect,
-  onMentionedModelMultiSelectModeChange,
-  onMentionedModelSelectorRestore
-}: ChatComposerContextControlsProps) => {
-  const assistantIcon = assistantEmoji || getLeadingEmoji(assistantName)
-  const triggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
-  const compactTriggerClassName = cn(triggerClassName, iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
-  const labelClassName = cn('truncate', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)
-  const modelTriggerClassName = cn(triggerClassName, iconOnly && model && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
-  const modelLabelClassName = cn('truncate', iconOnly && model && COMPOSER_ICON_ONLY_LABEL_CLASS)
-  const isMentionedModelSelectorLocked = lockedMentionedModels.length > 1
-  const selectedMentionedModels = isMentionedModelSelectorLocked
-    ? lockedMentionedModels
-    : useMentionedModelSelector
-      ? mentionedModelSelectorValue
-      : mentionedModels
-  const mentionedModelTriggerClassName = cn(
-    triggerClassName,
-    iconOnly && selectedMentionedModels.length > 0 && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS
-  )
-  const assistantModelLabel = model ? model.name : selectModelLabel
-  const modelLabel = assistantModelLabel
-  const [mentionedModelSelectorOpen, setMentionedModelSelectorOpen] = useState(false)
-  const handleMentionedModelSelect = useCallback(
-    (nextModels: Model[]) => {
-      onMentionedModelsSelect(nextModels)
-    },
-    [onMentionedModelsSelect]
-  )
-
-  const handleMentionedModelMultiSelectModeChange = useCallback(
-    (nextEnabled: boolean) => {
-      onMentionedModelMultiSelectModeChange(nextEnabled)
-    },
-    [onMentionedModelMultiSelectModeChange]
-  )
-
-  const assistantTrigger = (
-    <Button variant="ghost" size="sm" className={compactTriggerClassName}>
-      {assistantIcon ? <EmojiIcon emoji={assistantIcon} size={20} /> : iconOnly ? <Bot size={16} aria-hidden /> : null}
-      <span className={cn('max-w-40', labelClassName)}>{assistantName}</span>
-      <ChevronDown size={14} aria-hidden className={cn('text-muted-foreground', iconOnly && 'hidden')} />
-    </Button>
-  )
-
-  return (
-    <>
-      <AssistantSelector
-        multi={false}
-        value={assistantId}
-        onChange={onAssistantChange}
-        autoSelectOnCreate={shouldAutoSelectCreatedAssistant}
-        side={side}
-        align="start"
-        mountStrategy="lazy-keep"
-        onDialogCloseAutoFocus={onDialogCloseAutoFocus}
-        trigger={assistantTrigger}
-      />
-      {useMentionedModelSelector && isMentionedModelSelectorLocked ? (
-        <SelectedModelsTrigger
-          className={mentionedModelTriggerClassName}
-          disabled
-          iconOnly={iconOnly}
-          models={selectedMentionedModels}
-          assistantModel={model}
-          providers={providers}
-          fallbackLabel={selectModelLabel}
-          suppressSelectionPopover
-          onModelsChange={() => undefined}
-          onRestore={() => undefined}
-        />
-      ) : useMentionedModelSelector ? (
-        <ModelSelector
-          multiple
-          value={mentionedModelSelectorValue}
-          onSelect={handleMentionedModelSelect}
-          open={mentionedModelSelectorOpen}
-          onOpenChange={setMentionedModelSelectorOpen}
-          multiSelectMode={mentionedModelMultiSelectMode}
-          onMultiSelectModeChange={handleMentionedModelMultiSelectModeChange}
-          filter={CHAT_MODEL_FILTER}
-          shortcut="chat.model.select"
-          side={side}
-          align="start"
-          mountStrategy="lazy-keep"
-          trigger={
-            <SelectedModelsTrigger
-              className={mentionedModelTriggerClassName}
-              disabled={modelPending}
-              iconOnly={iconOnly}
-              models={selectedMentionedModels}
-              assistantModel={model}
-              providers={providers}
-              fallbackLabel={selectModelLabel}
-              suppressSelectionPopover={mentionedModelSelectorOpen}
-              onModelsChange={handleMentionedModelSelect}
-              onRestore={onMentionedModelSelectorRestore}
-            />
-          }
-        />
-      ) : (
-        <ModelSelector
-          multiple={false}
-          value={model}
-          onSelect={onModelSelect}
-          filter={CHAT_MODEL_FILTER}
-          shortcut="chat.model.select"
-          side={side}
-          align="start"
-          mountStrategy="lazy-keep"
-          trigger={
-            <Button variant="ghost" size="sm" className={modelTriggerClassName} disabled={modelPending}>
-              {model ? <ModelAvatar model={model} size={20} /> : null}
-              <span className={cn('max-w-52', modelLabelClassName)}>{modelLabel}</span>
-              <ChevronDown
-                size={14}
-                aria-hidden
-                className={cn('text-muted-foreground', iconOnly && model && 'hidden')}
-              />
-            </Button>
-          }
-        />
-      )}
-    </>
-  )
-}
-
-type ChatComposerControlProps = Omit<ChatComposerContextControlsProps, 'side'> & {
+type ChatComposerControlProps = Omit<ChatConversationControlsProps, 'side'> & {
   topBarPortalAvailable: boolean
   topBarPortalIconOnly: boolean
   leadingControl?: React.ReactNode
@@ -333,86 +189,13 @@ const restoreComposerInputFocus = (inputAdapter: ComposerInputAdapter) => {
   window.requestAnimationFrame(() => inputAdapter?.focus())
 }
 
-const ChatComposerPersistentToolShortcuts = ({
-  inputAdapter,
-  reasoningLabel,
-  reasoningLauncher,
-  unifiedPanelControl,
-  webSearchLabel,
-  webSearchLauncher,
-  onWebSearchLauncherClick
-}: {
-  inputAdapter?: ComposerInputAdapter
-  reasoningLabel: string
-  reasoningLauncher?: ComposerToolLauncher
-  unifiedPanelControl?: ComposerUnifiedPanelControl
-  webSearchLabel: string
-  webSearchLauncher?: ComposerToolLauncher
-  onWebSearchLauncherClick: (launcher: ComposerToolLauncher, inputAdapter?: ComposerInputAdapter) => void
-}) => {
-  const panelDisabled = !unifiedPanelControl?.available
-  const reasoningDisabled = panelDisabled || !reasoningLauncher || reasoningLauncher.disabled
-  const webSearchDisabled = !webSearchLauncher || webSearchLauncher.disabled
-  const reasoningTooltip =
-    reasoningDisabled && reasoningLauncher?.disabledReason ? reasoningLauncher.disabledReason : reasoningLabel
-  const webSearchTooltip =
-    webSearchDisabled && webSearchLauncher?.disabledReason ? webSearchLauncher.disabledReason : webSearchLabel
-  const reasoningIcon = reasoningLauncher?.icon ?? <Lightbulb size={18} aria-hidden />
-  const webSearchIcon = webSearchLauncher?.icon ?? <Globe size={18} aria-hidden />
-
-  return (
-    <>
-      <Tooltip content={reasoningTooltip} placement="top">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className={cn(
-            COMPOSER_SEND_ACCESSORY_BUTTON_CLASS,
-            'disabled:pointer-events-none disabled:opacity-40',
-            reasoningLauncher?.active && 'bg-accent'
-          )}
-          aria-label={reasoningLabel}
-          aria-haspopup="menu"
-          disabled={reasoningDisabled}
-          data-active={reasoningLauncher?.active || undefined}
-          onClick={() => unifiedPanelControl?.open({ launcherId: 'thinking', searchText: reasoningLabel })}>
-          {reasoningIcon}
-        </Button>
-      </Tooltip>
-      <Tooltip content={webSearchTooltip} placement="top">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className={cn(
-            COMPOSER_SEND_ACCESSORY_BUTTON_CLASS,
-            'disabled:pointer-events-none disabled:opacity-40',
-            webSearchLauncher?.active && 'bg-accent'
-          )}
-          aria-label={webSearchLabel}
-          aria-pressed={Boolean(webSearchLauncher?.active)}
-          disabled={webSearchDisabled}
-          data-active={webSearchLauncher?.active || undefined}
-          onClick={() => {
-            if (webSearchLauncher) {
-              onWebSearchLauncherClick(webSearchLauncher, inputAdapter)
-            }
-          }}>
-          {webSearchIcon}
-        </Button>
-      </Tooltip>
-    </>
-  )
-}
-
 const ChatComposerContextControlsWithAutoFocus = ({
   inputAdapter,
   ...props
 }: ChatComposerControlProps & { side: 'top' | 'bottom'; iconOnly?: boolean; inputAdapter: ComposerInputAdapter }) => {
   const onDialogCloseAutoFocus = useCallback(() => restoreComposerInputFocus(inputAdapter), [inputAdapter])
 
-  return <ChatComposerContextControls {...props} onDialogCloseAutoFocus={onDialogCloseAutoFocus} />
+  return <ChatConversationControls {...props} onDialogCloseAutoFocus={onDialogCloseAutoFocus} />
 }
 
 const renderChatComposerContextControls = (
@@ -452,6 +235,22 @@ const renderChatToolbarControls: ChatComposerControlsRenderer = (props) => ({
   }
 })
 
+const renderChatInputControls: ChatComposerControlsRenderer = (props) => ({
+  renderLeftControls: (inputAdapter, unifiedPanelControl) => (
+    <ComposerToolbarControls
+      inputAdapter={inputAdapter}
+      leading={
+        <>
+          {props.leadingControl}
+          {props.renderPersistentToolShortcuts?.({ inputAdapter, unifiedPanelControl })}
+        </>
+      }
+      unifiedPanelControl={unifiedPanelControl}
+      renderContextControls={() => null}
+    />
+  )
+})
+
 const renderChatHomeControls: ChatComposerControlsRenderer = (props) => ({
   renderLeftControls: (inputAdapter, unifiedPanelControl) => {
     const persistentToolShortcuts = props.renderPersistentToolShortcuts?.({ inputAdapter, unifiedPanelControl })
@@ -480,9 +279,20 @@ const renderChatHomeControls: ChatComposerControlsRenderer = (props) => ({
       )
 })
 
+const renderChatHomeInputControls: ChatComposerControlsRenderer = (props) => ({
+  renderLeftControls: (inputAdapter, unifiedPanelControl) => (
+    <div className={COMPOSER_TOOLBAR_CLASS}>
+      {props.leadingControl}
+      {props.renderPersistentToolShortcuts?.({ inputAdapter, unifiedPanelControl })}
+      <ComposerToolMenuControls inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
+    </div>
+  )
+})
+
 type ChatComposerRootProps = ChatComposerProps & {
   renderControls: ChatComposerControlsRenderer
   forceNarrowLayout?: boolean
+  deferDynamicControls?: boolean
 }
 
 type ChatPlacementDockedProps = Omit<ChatComposerProps, 'onDraftAssistantChange'>
@@ -495,6 +305,10 @@ const ChatComposerRoot = ({
   scopeKey,
   topicId,
   assistantId,
+  resolvedContext,
+  resolvedProviders,
+  externalContextControls,
+  onConversationControlsChange,
   onSend,
   sendDisabled,
   useMentionedModelSelector,
@@ -502,7 +316,8 @@ const ChatComposerRoot = ({
   onNewTopic,
   onCreateEmptyTopic,
   renderControls,
-  forceNarrowLayout = false
+  forceNarrowLayout = false,
+  deferDynamicControls = false
 }: ChatComposerRootProps) => {
   const resolvedScopeKey = scopeKey ?? topic?.id
   const resolvedTopicId = topicId ?? topic?.id
@@ -541,6 +356,10 @@ const ChatComposerRoot = ({
             scopeKey={resolvedScopeKey}
             topicId={resolvedTopicId}
             assistantId={resolvedAssistantId}
+            resolvedContext={resolvedContext}
+            resolvedProviders={resolvedProviders}
+            externalContextControls={externalContextControls}
+            onConversationControlsChange={onConversationControlsChange}
             initialDraft={initialDraft}
             actionsRef={actionsRef}
             onSend={onSend}
@@ -551,6 +370,7 @@ const ChatComposerRoot = ({
             onCreateEmptyTopic={onCreateEmptyTopic}
             renderControls={renderControls}
             forceNarrowLayout={forceNarrowLayout}
+            deferDynamicControls={deferDynamicControls}
           />
         ) : null}
       </ComposerToolRuntimeProvider>
@@ -564,12 +384,17 @@ interface ChatComposerInnerProps extends Omit<ChatComposerProps, 'scopeKey'> {
   actionsRef: React.RefObject<ProviderActionHandlers>
   renderControls: ChatComposerControlsRenderer
   forceNarrowLayout?: boolean
+  deferDynamicControls?: boolean
 }
 
 const ChatComposerInner = ({
   scopeKey,
   topicId,
   assistantId,
+  resolvedContext,
+  resolvedProviders,
+  externalContextControls = false,
+  onConversationControlsChange,
   initialDraft,
   actionsRef,
   onSend,
@@ -579,7 +404,8 @@ const ChatComposerInner = ({
   onNewTopic,
   onCreateEmptyTopic,
   renderControls,
-  forceNarrowLayout = false
+  forceNarrowLayout = false,
+  deferDynamicControls = false
 }: ChatComposerInnerProps) => {
   const streamScopeKey = topicId ?? scopeKey
   const awaitingApproval = useTopicAwaitingApproval(streamScopeKey)
@@ -589,19 +415,33 @@ const ChatComposerInner = ({
   const { setFiles, setMentionedModels, setSelectedKnowledgeBases, setIsExpanded } = useComposerToolDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherController()
   const toolLaunchersVersion = useComposerToolLauncherVersion()
+  const loadedContext = useAssistant(externalContextControls ? null : assistantId, {
+    loadDefaultModel: !externalContextControls
+  })
   const {
     assistant,
     isLoading: isAssistantLoading,
     model,
     isModelPending,
     isModelMissing,
-    setModel
-  } = useAssistant(assistantId)
+    setModel,
+    updateAssistantSettings
+  } = resolvedContext ?? loadedContext
   const { updateTopic } = useTopicMutations()
   const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases()
-  const { providers } = useProviders()
+  const { providers: loadedProviders } = useProviders(undefined, { enabled: !externalContextControls })
+  const providers = resolvedProviders ?? loadedProviders
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
+  const {
+    pinnedIds: pinnedToolIds,
+    setPinnedIds: setPinnedToolIds,
+    resetPinnedIds: resetPinnedToolIds,
+    isDefault: pinnedToolsAtDefault,
+    customizeOpen: customizeToolbarOpen,
+    setCustomizeOpen: setCustomizeToolbarOpen,
+    customizePanelItem
+  } = useComposerToolbarPinnedTools('chat.input.toolbar.pinned_tools')
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
   const { available: topBarPortalAvailable, iconOnly: topBarPortalIconOnly } = useConversationTopBarPortalLayout()
@@ -614,6 +454,7 @@ const ChatComposerInner = ({
   const staleEditingMessage = editingMessage && !editingMessageForCurrentTopic
   const { isPending, isFulfilled, markSeen } = useTopicStreamStatus(streamScopeKey)
   const [isSending, setIsSending] = useState(false)
+  const [savingEditingSessionId, setSavingEditingSessionId] = useState<number | null>(null)
   const [text, setText] = useState(() => initialDraft.text)
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[] | undefined>(() =>
     initialDraft.tokens.length ? initialDraft.tokens : undefined
@@ -621,6 +462,7 @@ const ChatComposerInner = ({
   const filesRef = useLatest(files)
   const selectedKnowledgeBasesRef = useLatest(selectedKnowledgeBases)
   const mentionedModelsRef = useLatest(mentionedModels)
+  const editingMessageForCurrentTopicRef = useLatest(editingMessageForCurrentTopic)
   const inputHistoryToolsRef = useRef<InputHistoryToolSnapshot | null>(null)
   const skipDraftCacheWriteForHistoryPreviewRef = useRef(false)
   const applyHistoryDraft = useCallback(
@@ -637,7 +479,6 @@ const ChatComposerInner = ({
           selectedKnowledgeBases: selectedKnowledgeBasesRef.current
         }
         setFiles([])
-        setMentionedModels([])
         setSelectedKnowledgeBases([])
         return
       }
@@ -659,9 +500,10 @@ const ChatComposerInner = ({
       setSelectedKnowledgeBases
     ]
   )
-  const { navigateHistory, resetHistoryIndex, takeDraftBeforeHistory, saveHistory } = useInputHistory({
-    applyDraft: applyHistoryDraft
-  })
+  const { isInputHistoryActive, navigateHistory, resetHistoryIndex, takeDraftBeforeHistory, saveHistory } =
+    useInputHistory({
+      applyDraft: applyHistoryDraft
+    })
   const handleInputHistoryNavigate = useCallback(
     (direction: InputHistoryDirection) => navigateHistory(direction, actionsRef.current.getDraft()),
     [actionsRef, navigateHistory]
@@ -676,14 +518,56 @@ const ChatComposerInner = ({
     [resetHistoryIndex]
   )
   const savedDraftBeforeEditingRef = useRef<SavedComposerDraft | null>(null)
+  const editSaveInFlightSessionIdRef = useRef<number | null>(null)
   const editingOriginalFilePartsByTokenIdRef = useRef(new Map<string, ComposerFilePart>())
   const restoredEditingSessionIdRef = useRef<number | null>(null)
+  const isSavingEdit = savingEditingSessionId === editingMessageForCurrentTopic?.editingSessionId
   const selectAssistantMessage = t('button.select_assistant')
   const displayAssistant = assistant
   const hasMissingPersistedAssistant = !!assistantId && !isAssistantLoading && !assistant
   const runtimeModel = assistant || !assistantId ? model : undefined
   const runtimeModelPending = isAssistantLoading || isModelPending
   const selectedAssistantId = assistant?.id ?? null
+  const canonicalReasoningEffort = (assistant?.settings.reasoning_effort ?? 'default') as ReasoningEffortOption
+  const [reasoningOverride, setReasoningOverride] = useState<{
+    assistantId: string
+    value: ReasoningEffortOption
+    version: number
+  } | null>(null)
+  const reasoningMutationVersionRef = useRef(0)
+  const reasoningEffort =
+    reasoningOverride?.assistantId === selectedAssistantId ? reasoningOverride.value : canonicalReasoningEffort
+
+  // A local override only bridges the latest PATCH/revalidation window. Do
+  // not retire it on an intermediate refresh from an older mutation.
+  useEffect(() => {
+    setReasoningOverride((current) => {
+      if (!current) return current
+      if (current.assistantId !== selectedAssistantId) return null
+      return current
+    })
+  }, [selectedAssistantId])
+
+  const handleReasoningEffortChange = useCallback(
+    (option: ReasoningEffortOption) => {
+      if (!selectedAssistantId) return
+      const version = ++reasoningMutationVersionRef.current
+      setReasoningOverride({
+        assistantId: selectedAssistantId,
+        value: option,
+        version
+      })
+      void updateAssistantSettings({ reasoning_effort: option })
+        .then(() => {
+          setReasoningOverride((current) => (current?.version === version ? null : current))
+        })
+        .catch((error) => {
+          setReasoningOverride((current) => (current?.version === version ? null : current))
+          logger.warn('Failed to persist reasoning effort', { error })
+        })
+    },
+    [selectedAssistantId, updateAssistantSettings]
+  )
 
   const handleModelSelect = useCallback(
     (nextModel: Model | undefined) => {
@@ -691,9 +575,36 @@ const ChatComposerInner = ({
       if (!assistant) return
 
       const enabledWebSearch = canModelUseAssistantWebSearch(nextModel)
-      return setModel(nextModel, { enableWebSearch: enabledWebSearch && assistant.settings.enableWebSearch })
+      const nextReasoningEffort = resolveReasoningEffortForModel(nextModel, reasoningEffort)
+      const version = ++reasoningMutationVersionRef.current
+      setReasoningOverride({
+        assistantId: assistant.id,
+        value: nextReasoningEffort ?? 'default',
+        version
+      })
+      const extraSettings: {
+        enableWebSearch: boolean
+        reasoning_effort?: ReasoningEffortOption
+      } = { enableWebSearch: enabledWebSearch && assistant.settings.enableWebSearch }
+      if (reasoningOverride?.assistantId === assistant.id) {
+        extraSettings.reasoning_effort = nextReasoningEffort
+      }
+      const update = setModel(nextModel, extraSettings)
+      return update
+        ?.then(() => {
+          setReasoningOverride((current) => (current?.version === version ? null : current))
+        })
+        .catch((error) => {
+          setReasoningOverride((current) => (current?.version === version ? null : current))
+          throw error
+        })
     },
-    [assistant, setModel]
+    [assistant, reasoningEffort, reasoningOverride, setModel]
+  )
+
+  const reasoningContext = useMemo(
+    () => ({ effort: reasoningEffort, onEffortChange: handleReasoningEffortChange }),
+    [handleReasoningEffortChange, reasoningEffort]
   )
 
   const {
@@ -753,7 +664,38 @@ const ChatComposerInner = ({
     editingMessageForCurrentTopic?.lockedMentionedModels &&
     editingMessageForCurrentTopic.lockedMentionedModels.length > 1
       ? editingMessageForCurrentTopic.lockedMentionedModels
-      : []
+      : EMPTY_MODELS
+  const conversationControlsSnapshot = useMemo<ChatConversationControlsSnapshot>(
+    () => ({
+      scopeKey,
+      mentionedModels,
+      mentionedModelSelectorValue,
+      lockedMentionedModels,
+      mentionedModelMultiSelectMode,
+      onModelSelect: handleModelSelect,
+      onMentionedModelsSelect: handleMentionedModelsSelect,
+      onMentionedModelMultiSelectModeChange: handleMentionedModelMultiSelectModeChange,
+      onMentionedModelSelectorRestore: handleMentionedModelSelectorRestore
+    }),
+    [
+      handleMentionedModelMultiSelectModeChange,
+      handleMentionedModelSelectorRestore,
+      handleMentionedModelsSelect,
+      handleModelSelect,
+      lockedMentionedModels,
+      mentionedModelMultiSelectMode,
+      mentionedModelSelectorValue,
+      mentionedModels,
+      scopeKey
+    ]
+  )
+  useLayoutEffect(() => {
+    onConversationControlsChange?.(conversationControlsSnapshot)
+  }, [conversationControlsSnapshot, onConversationControlsChange])
+  useLayoutEffect(() => {
+    if (!onConversationControlsChange) return
+    return () => onConversationControlsChange(null)
+  }, [onConversationControlsChange])
   const isMentionedModelSelectorLocked = lockedMentionedModels.length > 1
   const missingAssistantMessage = hasMissingPersistedAssistant ? selectAssistantMessage : undefined
   const missingModelMessage =
@@ -908,6 +850,11 @@ const ChatComposerInner = ({
   // knowledgeBaseTool prunes+re-adds knowledge bases (against the injected selectableKnowledgeBases).
   const handleTokensChange = useComposerTokenReconcile({ scope, assistant: displayAssistant, model: runtimeModel })
 
+  const { sources: entityReferenceSources, hasPendingReference } = useEntityReferenceMentionSource({
+    entityType: 'topic',
+    excludeId: topicId
+  })
+
   const onPause = useCallback(() => {
     chatWrite?.pause()
   }, [chatWrite])
@@ -958,7 +905,7 @@ const ChatComposerInner = ({
 
     return [
       {
-        id: 'composer:new-conversation',
+        id: CHAT_NEW_CONVERSATION_TOOL_ID,
         label,
         icon: <NewConversationIcon size={16} />,
         disabled: newTopicDisabled,
@@ -970,6 +917,27 @@ const ChatComposerInner = ({
       }
     ]
   }, [addNewTopic, hasNewTopicAction, newTopicDisabled, t])
+  const toolbarCustomTools = useMemo<ComposerToolbarCustomTool[]>(
+    () => [
+      ...(hasNewTopicAction
+        ? [
+            {
+              id: CHAT_NEW_CONVERSATION_TOOL_ID,
+              label: t('chat.conversation.new'),
+              icon: <NewConversationIcon size={18} aria-hidden />,
+              disabled: newTopicDisabled,
+              customizePlacement: 'leading' as const,
+              requiresPanel: false,
+              onSelect: () => addNewTopic()
+            }
+          ]
+        : []),
+      ...CHAT_TOOLBAR_CUSTOM_TOOLS
+    ],
+    [addNewTopic, hasNewTopicAction, newTopicDisabled, t]
+  )
+
+  const rootPanelCustomizeItems = useMemo(() => [customizePanelItem], [customizePanelItem])
 
   const handleSurfaceActionsChange = useCallback(
     (actions: ComposerSurfaceActions) => {
@@ -1010,11 +978,12 @@ const ChatComposerInner = ({
             mentionedModels: mentionedModels.length
               ? mentionedModels.map((currentModel) => currentModel.id)
               : undefined,
-            knowledgeBaseIds: knowledgeBaseIds.length ? knowledgeBaseIds : undefined
+            knowledgeBaseIds: knowledgeBaseIds.length ? knowledgeBaseIds : undefined,
+            reasoningEffort: assistantId ? reasoningEffort : 'default'
           }
         }
       }),
-    [files, mentionedModels, selectedKnowledgeBasesInScope]
+    [assistantId, files, mentionedModels, reasoningEffort, selectedKnowledgeBasesInScope]
   )
 
   const sendQueuedPayload = useCallback(
@@ -1027,7 +996,8 @@ const ChatComposerInner = ({
         await onSend(payload.text, {
           mentionedModels: payload.mentionedModels,
           knowledgeBaseIds: payload.knowledgeBaseIds,
-          userMessageParts: [...payload.userMessageParts, ...fileParts]
+          userMessageParts: [...payload.userMessageParts, ...fileParts],
+          reasoningEffort: payload.reasoningEffort
         })
         saveHistory(payload.text)
         return true
@@ -1045,7 +1015,7 @@ const ChatComposerInner = ({
     setText('')
     setDraftTokens(undefined)
     setFiles([])
-    setSelectedKnowledgeBases([])
+    // Knowledge base selection belongs to the conversation scope, not the individual draft.
     // Clearing the composer must also drop the input-history nav state: a
     // recalled draft that gets sent/queued without further edits would otherwise
     // leave useInputHistory pointing at that history entry, so the next
@@ -1053,7 +1023,7 @@ const ChatComposerInner = ({
     // from a stale index.
     resetHistoryIndex()
     inputHistoryToolsRef.current = null
-  }, [resetHistoryIndex, setFiles, setSelectedKnowledgeBases, setText])
+  }, [resetHistoryIndex, setFiles, setText])
 
   // Queue mode: while a turn streams, follow-ups go here instead of sending; the head auto-drains
   // (normal send) when the topic goes idle, and the dock steers/edits/removes individual items.
@@ -1090,14 +1060,15 @@ const ChatComposerInner = ({
 
   const buildEditedMessageParts = useCallback(
     async (draft: ComposerSerializedDraft) => {
-      const tokenIds = getComposerTokenIds(draft.tokens)
+      const normalizedDraft = trimComposerDraftBoundaryBlankLines(draft)
+      const tokenIds = getComposerTokenIds(normalizedDraft.tokens)
       const payloadFiles = files.filter((file) => tokenIds.has(chatComposerTokenId.file(file)))
       if (hasUnsyncedComposerAttachments(files, payloadFiles)) return null
 
       const originalFilePartsByTokenId = editingOriginalFilePartsByTokenIdRef.current
 
       const newFiles = payloadFiles.filter((file) => !originalFilePartsByTokenId.has(chatComposerTokenId.file(file)))
-      const [textPart] = createComposerUserMessageParts(draft)
+      const [textPart] = createComposerUserMessageParts(normalizedDraft)
       const newFileParts = await buildFilePartsForAttachments(newFiles)
       const rebuiltFileParts = new Map<string, CherryMessagePart>()
 
@@ -1130,6 +1101,9 @@ const ChatComposerInner = ({
       }
 
       if (editingMessageForCurrentTopic) {
+        const editingSessionId = editingMessageForCurrentTopic.editingSessionId
+        if (editSaveInFlightSessionIdRef.current === editingSessionId) return
+
         const isAssistantReply = editingMessageForCurrentTopic.message.role === 'assistant'
         const saveEditedMessage = isAssistantReply ? chatWrite?.editMessage : chatWrite?.forkAndResend
         if (!saveEditedMessage) {
@@ -1142,6 +1116,8 @@ const ChatComposerInner = ({
           return
         }
 
+        editSaveInFlightSessionIdRef.current = editingSessionId
+        setSavingEditingSessionId(editingSessionId)
         try {
           const editedParts = await buildEditedMessageParts(draft)
           if (!editedParts) return
@@ -1150,11 +1126,20 @@ const ChatComposerInner = ({
             ? replaceComposerEditableMessageParts(editingMessageForCurrentTopic.parts, editedParts)
             : editedParts
           await saveEditedMessage(editingMessageForCurrentTopic.message.id, savedParts)
-          restoreSavedDraft()
-          stopEditing()
+          if (editingMessageForCurrentTopicRef.current?.editingSessionId === editingSessionId) {
+            restoreSavedDraft()
+            stopEditing()
+          }
         } catch (error) {
           logger.warn('edited message save failed', { error, role: editingMessageForCurrentTopic.message.role })
           toast.error(t('message.error.operation_unavailable'))
+        } finally {
+          if (editSaveInFlightSessionIdRef.current === editingSessionId) {
+            editSaveInFlightSessionIdRef.current = null
+            setSavingEditingSessionId((currentSessionId) =>
+              currentSessionId === editingSessionId ? null : currentSessionId
+            )
+          }
         }
         return
       }
@@ -1218,6 +1203,7 @@ const ChatComposerInner = ({
       chatWrite,
       clearCurrentDraft,
       editingMessageForCurrentTopic,
+      editingMessageForCurrentTopicRef,
       enqueueFollowup,
       files,
       handleModelSelect,
@@ -1243,23 +1229,6 @@ const ChatComposerInner = ({
     ]
   )
 
-  const reasoningLauncher = useMemo(() => {
-    void toolLaunchersVersion
-    return getLaunchers().find((launcher) => launcher.id === 'thinking')
-  }, [getLaunchers, toolLaunchersVersion])
-
-  const webSearchLauncher = useMemo(() => {
-    void toolLaunchersVersion
-    return getLaunchers().find((launcher) => launcher.id === 'web-search')
-  }, [getLaunchers, toolLaunchersVersion])
-
-  const handleWebSearchShortcutClick = useCallback(
-    (launcher: ComposerToolLauncher, inputAdapter?: ComposerInputAdapter) => {
-      dispatchLauncher(launcher, { source: 'popover', inputAdapter })
-    },
-    [dispatchLauncher]
-  )
-
   const renderPersistentToolShortcuts = useCallback(
     ({
       inputAdapter,
@@ -1268,35 +1237,30 @@ const ChatComposerInner = ({
       inputAdapter?: ComposerInputAdapter
       unifiedPanelControl?: ComposerUnifiedPanelControl
     }) => (
-      <ChatComposerPersistentToolShortcuts
+      <ComposerToolbarShortcuts
+        pinnedIds={pinnedToolIds}
+        onPinnedIdsChange={setPinnedToolIds}
+        onResetPinnedIds={resetPinnedToolIds}
+        isDefault={pinnedToolsAtDefault}
+        customTools={toolbarCustomTools}
+        customizeOpen={customizeToolbarOpen}
+        onCustomizeOpenChange={setCustomizeToolbarOpen}
         inputAdapter={inputAdapter}
-        reasoningLabel={t('assistants.settings.reasoning_effort.label')}
-        reasoningLauncher={reasoningLauncher}
         unifiedPanelControl={unifiedPanelControl}
-        webSearchLabel={t('chat.input.web_search.label')}
-        webSearchLauncher={webSearchLauncher}
-        onWebSearchLauncherClick={handleWebSearchShortcutClick}
       />
     ),
-    [handleWebSearchShortcutClick, reasoningLauncher, t, webSearchLauncher]
+    [
+      customizeToolbarOpen,
+      pinnedToolIds,
+      pinnedToolsAtDefault,
+      resetPinnedToolIds,
+      setCustomizeToolbarOpen,
+      setPinnedToolIds,
+      toolbarCustomTools
+    ]
   )
 
   if (isMultiSelectMode) return null
-
-  const newTopicControl = hasNewTopicAction ? (
-    <Tooltip content={t('chat.conversation.new')} placement="top">
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        className={cn(COMPOSER_SEND_ACCESSORY_BUTTON_CLASS, '[&_.new-conversation-icon]:!size-5')}
-        disabled={newTopicDisabled}
-        aria-label={t('chat.conversation.new')}
-        onClick={() => addNewTopic()}>
-        <NewConversationIcon size={20} aria-hidden />
-      </Button>
-    </Tooltip>
-  ) : undefined
 
   const controlSlots = renderControls({
     assistantId: selectedAssistantId,
@@ -1314,7 +1278,6 @@ const ChatComposerInner = ({
     selectModelLabel: runtimeModelPending ? t('common.loading') : t('button.select_model'),
     topBarPortalAvailable,
     topBarPortalIconOnly,
-    leadingControl: newTopicControl,
     renderPersistentToolShortcuts,
     onAssistantChange: handleAssistantChange,
     onModelSelect: handleModelSelect,
@@ -1328,102 +1291,126 @@ const ChatComposerInner = ({
       extensions={supportedExts}
       selectableKnowledgeBases={selectableKnowledgeBases}>
       {displayAssistant && runtimeModel && (
-        <ComposerToolRuntimeHost scope={scope} assistant={displayAssistant} model={runtimeModel} />
+        <ComposerToolRuntimeHost
+          scope={scope}
+          assistant={displayAssistant}
+          model={runtimeModel}
+          reasoning={reasoningContext}
+        />
       )}
-      <ComposerSurface
-        text={text}
-        onTextChange={handleTextChange}
-        tokens={tokens}
-        draftTokens={draftTokens}
-        managedTokenKinds={CHAT_MANAGED_TOKEN_KINDS}
-        onTokensChange={handleTokensChange}
-        resolveKnowledgeBaseMarker={resolveKnowledgeBaseMarker}
-        placeholder={searching ? t('chat.input.translating') : placeholderText}
-        sendDisabled={
-          (text.trim().length === 0 && files.length === 0) ||
-          (loading && !canSteer) ||
-          sendDisabled ||
-          searching ||
-          runtimeModelPending ||
-          !!missingAssistantMessage ||
-          !!missingModelMessage ||
-          !!missingSelectedModelMessage
-        }
-        sendBlockedReason={
-          sendDisabled
-            ? t('common.loading')
-            : (missingAssistantMessage ?? missingModelMessage ?? missingSelectedModelMessage)
-        }
-        isLoading={loading}
-        onSendDraft={handleSendDraft}
-        editingState={
-          editingMessageForCurrentTopic
-            ? {
-                messageId: editingMessageForCurrentTopic.message.id,
-                highlightKey: editingMessageForCurrentTopic.editingSessionId,
-                onLocate: handleLocateEditingMessage,
-                onCancel: handleCancelEditing
-              }
-            : undefined
-        }
-        onPause={onPause}
-        queueContent={
-          queuedFollowups.length > 0 ? (
-            <QueuedFollowupsDock
-              items={queuedFollowups}
-              paused={followupPaused}
-              onTogglePause={() => setFollowupPaused(!followupPaused)}
-              onSteer={async (id) => {
-                const item = queuedFollowups.find((entry) => entry.id === id)
-                if (!item) return
-                // Only drop the item once the send actually succeeds; a failed manual
-                // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
-                const sent = await sendQueuedPayload(item.payload)
-                if (sent) removeFollowup(id)
-                else toast.error(t('chat.input.send_failed'))
-              }}
-              onEdit={(id) => {
-                const item = queuedFollowups.find((entry) => entry.id === id)
-                if (!item) return
-                restoreFollowupDraft(item)
-                removeFollowup(id)
-              }}
-              onRemove={removeFollowup}
-              onReorder={reorderFollowups}
-            />
-          ) : undefined
-        }
-        supportedExts={supportedExts}
-        setFiles={setFiles}
-        filesCount={files.length}
-        isExpanded={isExpanded}
-        onExpandedChange={setIsExpanded}
-        quickPanelEnabled={config.enableQuickPanel ?? true}
-        enableDragDrop={config.enableDragDrop ?? true}
-        enableSpellCheck={enableSpellCheck}
-        editable={!searching}
-        fontSize={fontSize}
-        narrowMode={forceNarrowLayout || narrowMode}
-        onFocus={() => setSearching(false)}
-        onActionsChange={handleSurfaceActionsChange}
-        onInputHistoryNavigate={handleInputHistoryNavigate}
-        getToolLaunchers={() => getLaunchers()}
-        toolLaunchersVersion={toolLaunchersVersion}
-        rootPanelLeadingItems={rootPanelLeadingItems}
-        onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
-        {...controlSlots}
-      />
+      <ResourceEditDialogEventHost />
+      <ComposerPinnedToolsProvider value={pinnedToolIds}>
+        <ComposerSurface
+          text={text}
+          onTextChange={handleTextChange}
+          tokens={tokens}
+          draftTokens={draftTokens}
+          managedTokenKinds={CHAT_MANAGED_TOKEN_KINDS}
+          onTokensChange={handleTokensChange}
+          suggestionSources={entityReferenceSources}
+          resolveKnowledgeBaseMarker={resolveKnowledgeBaseMarker}
+          placeholder={searching ? t('chat.input.translating') : placeholderText}
+          sendDisabled={
+            (text.trim().length === 0 && files.length === 0) ||
+            (loading && !canSteer) ||
+            isSavingEdit ||
+            sendDisabled ||
+            searching ||
+            runtimeModelPending ||
+            hasPendingReference ||
+            !!missingAssistantMessage ||
+            !!missingModelMessage ||
+            !!missingSelectedModelMessage
+          }
+          sendBlockedReason={
+            isSavingEdit || sendDisabled || hasPendingReference
+              ? t('common.loading')
+              : (missingAssistantMessage ?? missingModelMessage ?? missingSelectedModelMessage)
+          }
+          isLoading={loading}
+          onSendDraft={handleSendDraft}
+          editingState={
+            editingMessageForCurrentTopic
+              ? {
+                  messageId: editingMessageForCurrentTopic.message.id,
+                  highlightKey: editingMessageForCurrentTopic.editingSessionId,
+                  onLocate: handleLocateEditingMessage,
+                  onCancel: handleCancelEditing
+                }
+              : undefined
+          }
+          onPause={onPause}
+          queueContent={
+            queuedFollowups.length > 0 ? (
+              <QueuedFollowupsDock
+                items={queuedFollowups}
+                paused={followupPaused}
+                onTogglePause={() => setFollowupPaused(!followupPaused)}
+                onSteer={async (id) => {
+                  const item = queuedFollowups.find((entry) => entry.id === id)
+                  if (!item) return
+                  // Only drop the item once the send actually succeeds; a failed manual
+                  // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
+                  const sent = await sendQueuedPayload(item.payload)
+                  if (sent) removeFollowup(id)
+                  else toast.error(t('chat.input.send_failed'))
+                }}
+                onEdit={(id) => {
+                  const item = queuedFollowups.find((entry) => entry.id === id)
+                  if (!item) return
+                  restoreFollowupDraft(item)
+                  removeFollowup(id)
+                }}
+                onRemove={removeFollowup}
+                onReorder={reorderFollowups}
+              />
+            ) : undefined
+          }
+          supportedExts={supportedExts}
+          setFiles={setFiles}
+          filesCount={files.length}
+          isExpanded={isExpanded}
+          onExpandedChange={setIsExpanded}
+          quickPanelEnabled={config.enableQuickPanel ?? true}
+          enableDragDrop={config.enableDragDrop ?? true}
+          enableSpellCheck={enableSpellCheck}
+          editable={!searching}
+          fontSize={fontSize}
+          narrowMode={forceNarrowLayout || narrowMode}
+          onFocus={() => setSearching(false)}
+          onActionsChange={handleSurfaceActionsChange}
+          isInputHistoryActive={isInputHistoryActive}
+          onInputHistoryNavigate={handleInputHistoryNavigate}
+          getToolLaunchers={() => getLaunchers()}
+          toolLaunchersVersion={toolLaunchersVersion}
+          rootPanelLeadingItems={rootPanelLeadingItems}
+          rootPanelAdditionalItems={rootPanelCustomizeItems}
+          onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
+          deferDynamicControls={deferDynamicControls}
+          {...controlSlots}
+        />
+      </ComposerPinnedToolsProvider>
     </ComposerToolDerivedStateProvider>
   )
 }
 
 const ChatComposer = (props: ChatComposerProps) => {
-  return <ChatComposerRoot {...props} renderControls={renderChatToolbarControls} />
+  return (
+    <ChatComposerRoot
+      {...props}
+      renderControls={props.externalContextControls ? renderChatInputControls : renderChatToolbarControls}
+    />
+  )
 }
 
 export const ChatHomeComposer = (props: ChatComposerProps) => {
   return (
-    <ChatComposerRoot {...props} useMentionedModelSelector forceNarrowLayout renderControls={renderChatHomeControls} />
+    <ChatComposerRoot
+      {...props}
+      useMentionedModelSelector
+      forceNarrowLayout
+      renderControls={props.externalContextControls ? renderChatHomeInputControls : renderChatHomeControls}
+    />
   )
 }
 
@@ -1436,12 +1423,20 @@ export const ChatPlacementComposer = (props: ChatPlacementComposerProps) => {
         {...composerProps}
         useMentionedModelSelector
         forceNarrowLayout
-        renderControls={renderChatHomeControls}
+        deferDynamicControls
+        renderControls={composerProps.externalContextControls ? renderChatHomeInputControls : renderChatHomeControls}
       />
     )
   }
 
-  return <ChatComposerRoot {...composerProps} useMentionedModelSelector renderControls={renderChatToolbarControls} />
+  return (
+    <ChatComposerRoot
+      {...composerProps}
+      useMentionedModelSelector
+      deferDynamicControls
+      renderControls={composerProps.externalContextControls ? renderChatInputControls : renderChatToolbarControls}
+    />
+  )
 }
 
 export default ChatComposer

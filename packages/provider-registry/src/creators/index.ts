@@ -45,6 +45,7 @@ import reka from './reka'
 import runway from './runway'
 import sensetime from './sensetime'
 import sentence_transformers from './sentence-transformers'
+import sourceful from './sourceful'
 import stability from './stability'
 import stepfun from './stepfun'
 import streamlake from './streamlake'
@@ -107,6 +108,7 @@ export const CREATORS: Creator[] = [
   stability,
   stepfun,
   streamlake,
+  sourceful,
   suno,
   tencent,
   upstage,

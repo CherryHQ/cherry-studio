@@ -13,6 +13,7 @@ export const OpenAIModelsResponseSchema = z.object({
   data: z.array(
     z.looseObject({
       id: z.string(),
+      name: z.string().optional(),
       object: z.string().optional().default('model'),
       created: z.number().optional(),
       owned_by: z.string().optional()

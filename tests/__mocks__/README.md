@@ -79,6 +79,7 @@ Three-tier cache system with type-safe methods (and casual/dynamic key methods o
 | Memory (casual) | `deleteCasual` | `(key: string) => boolean` |
 | Memory (casual) | `hasTTLCasual` | `(key: string) => boolean` |
 | Shared (typed) | `getShared` | `<K>(key: K) => InferSharedCacheValue<K>` |
+| Shared (typed) | `getSharedSnapshot` | `<K>(key: K) => InferSharedCacheValue<K> \| undefined` (pure physical read, no TTL/eviction/default; **internal** — production callers live in `useCache.ts` only, tests may probe it freely) |
 | Shared (typed) | `setShared` | `<K>(key: K, value, ttl?) => void` |
 | Shared (typed) | `hasShared` | `<K>(key: K) => boolean` |
 | Shared (typed) | `deleteShared` | `<K>(key: K) => boolean` |
@@ -121,7 +122,7 @@ describe('Cache', () => {
 
 ### DataApiService
 
-HTTP client with subscriptions and retry configuration.
+HTTP client with data change notifications and retry configuration.
 
 #### Methods
 
@@ -132,10 +133,9 @@ HTTP client with subscriptions and retry configuration.
 | `put` | `(path, options) => Promise<any>` |
 | `patch` | `(path, options) => Promise<any>` |
 | `delete` | `(path, options?) => Promise<any>` |
-| `subscribe` | `(options, callback) => () => void` |
+| `onDataChanged` | `(endpoints, listener) => () => void` — functional fan-out, production semantics |
 | `configureRetry` | `(options) => void` |
 | `getRetryConfig` | `() => RetryOptions` |
-| `getRequestStats` | `() => { pendingRequests, activeSubscriptions }` |
 
 #### Usage
 
@@ -161,8 +161,17 @@ describe('API', () => {
     MockDataApiUtils.setErrorResponse('/topics', 'GET', new Error('Failed'))
     await expect(dataApiService.get('/topics')).rejects.toThrow('Failed')
   })
+
+  it('data change convergence', () => {
+    const listener = vi.fn()
+    dataApiService.onDataChanged('/topics', listener)
+    MockDataApiUtils.emitDataChange([{ endpoint: '/topics', kind: 'membership' }])
+    expect(listener).toHaveBeenCalledWith([{ endpoint: '/topics', kind: 'membership' }])
+  })
 })
 ```
+
+For hook consumers, the `useDataApi` mock exposes the same pair: `useDataChange` registers listeners and `MockUseDataApiUtils.emitDataChange(effects)` delivers a notification with production batch semantics. Both delegate to the `DataApiService` mock's fan-out (the production layering), so emitting through either utility reaches listeners registered through either module.
 
 ---
 
@@ -238,6 +247,8 @@ React hooks for cache operations.
 |------|-----------|---------|
 | `useCache` | `(key, initValue?)` | `[value, setValue]` |
 | `useSharedCache` | `(key, initValue?)` | `[value, setValue]` |
+| `useSharedCacheValue` | `(key)` | `value \| undefined` (read-only, never materializes a default) |
+| `useSharedCacheSelector` | `(keys, selector, isEqual?)` | `selector(values)` over the current mock shared values (read-only; like the other hook mocks it is per-render, not reactive) |
 | `usePersistCache` | `(key)` | `[value, setValue]` |
 
 `setValue` accepts a concrete value or a functional updater `(prev) => next` (mirrors production). The mock resolves the updater against the latest mocked value with the same default fallback, so functional-update call sites run unchanged under the mock.
@@ -295,6 +306,8 @@ All main-process tests get `application.get()` mocked globally via `tests/main.s
 | `mockApplicationFactory(overrides?)` | Returns full mock module `{ application, serviceList }` for `vi.mock()` |
 | `createMockApplication(overrides?)` | Returns just the mock `application` object |
 | `defaultServiceInstances` | Default mock instances for all registered services |
+
+> **`getOptional` mirrors real ServiceContainer semantics**: every default mock service is non-conditional, so `application.getOptional('Name')` **throws** (`use get()`), and unknown names return `undefined`. This catches code that wrongly falls back from `get()` to `getOptional()` for regular services. A mock still cannot prove container semantics — for code where get/getOptional choice is load-bearing, add a real-`ServiceContainer` smoke test (see `src/main/data/__tests__/dataApiDataChange.container.test.ts`).
 
 #### Usage
 

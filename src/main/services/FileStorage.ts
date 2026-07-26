@@ -2,6 +2,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { t } from '@main/i18n'
+import { decodeTextBufferIfText } from '@main/utils/file'
 import {
   checkName,
   getFileType as getFileTypeByExt,
@@ -14,14 +15,12 @@ import { FILE_TYPE } from '@shared/types/file'
 import { KB, MB } from '@shared/utils/constants'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { documentExts, imageExts } from '@shared/utils/file'
-import chardet from 'chardet'
 import * as crypto from 'crypto'
 import type { OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'electron'
 import { dialog, net, shell } from 'electron'
 import * as fs from 'fs'
 import { writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'
-import { isBinaryFile } from 'isbinaryfile'
 import officeParser from 'officeparser'
 import * as path from 'path'
 import { PDFDocument } from 'pdf-lib'
@@ -1027,11 +1026,6 @@ class FileStorage {
 
   private _isTextFile = async (filePath: string): Promise<boolean> => {
     try {
-      const isBinary = await isBinaryFile(filePath)
-      if (isBinary) {
-        return false
-      }
-
       const length = 8 * KB
       const fileHandle = await fs.promises.open(filePath, 'r')
       const buffer = Buffer.alloc(length)
@@ -1039,14 +1033,7 @@ class FileStorage {
       await fileHandle.close()
 
       const sampleBuffer = buffer.subarray(0, bytesRead)
-      const matches = chardet.analyse(sampleBuffer)
-
-      // 如果检测到的编码置信度较高，认为是文本文件
-      if (matches.length > 0 && matches[0].confidence > 0.8) {
-        return true
-      }
-
-      return false
+      return decodeTextBufferIfText(sampleBuffer) !== null
     } catch (error) {
       logger.error('Failed to check if file is text:', error as Error)
       return false

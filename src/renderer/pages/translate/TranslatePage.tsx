@@ -39,7 +39,7 @@ import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import { FileProcessingJobOutputSchema } from '@shared/data/types/fileProcessing'
 import { isUniqueModelId, type Model as SelectorModel, type UniqueModelId } from '@shared/data/types/model'
 import type { TranslateHistory } from '@shared/data/types/translate'
-import type { FilePath } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { MB } from '@shared/utils/constants'
 import { createFilePathHandle } from '@shared/utils/file'
 import { documentExts, imageExts, textExts } from '@shared/utils/file'
@@ -486,7 +486,7 @@ const TranslatePage: FC = () => {
       try {
         const snapshot = await ipcApi.request('file_processing.start_job', {
           feature: 'image_to_text',
-          file: createFilePathHandle(file.path as FilePath)
+          file: createFilePathHandle(AbsoluteFilePathSchema.parse(file.path))
         })
         jobId = snapshot.id
       } catch (error) {

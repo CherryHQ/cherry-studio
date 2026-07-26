@@ -31,7 +31,7 @@ import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { SettingContainer, SettingDivider, SettingTitle } from '@renderer/components/SettingsPrimitives'
-import { useSharedCache } from '@renderer/data/hooks/useCache'
+import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
 import { useMcpRuntimeStatus } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useMcpServer } from '@renderer/hooks/useMcpServer'
 import { useTheme } from '@renderer/hooks/useTheme'
@@ -119,6 +119,9 @@ type McpToolsCacheKey = `mcp.tools.${string}`
 
 const mcpToolsCacheKey = (serverId: string): McpToolsCacheKey => `mcp.tools.${serverId}`
 
+// Module-level so the cache-miss fallback keeps a stable reference across renders.
+const EMPTY_MCP_TOOLS: McpTool[] = []
+
 const McpSettings: React.FC = () => {
   const { t } = useTranslation()
   const params = useParams({ strict: false })
@@ -155,7 +158,8 @@ const McpSettings: React.FC = () => {
   const [loadingServer, setLoadingServer] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<TabKey>('settings')
   const [toolSearchText, setToolSearchText] = useState('')
-  const [tools] = useSharedCache(serverId ? mcpToolsCacheKey(serverId) : mcpToolsCacheKey('__draft__'), [] as McpTool[])
+  const tools =
+    useSharedCacheValue(serverId ? mcpToolsCacheKey(serverId) : mcpToolsCacheKey('__draft__')) ?? EMPTY_MCP_TOOLS
   const runtimeStatus = useMcpRuntimeStatus(server?.id, Boolean(server?.isActive))
 
   const [prompts, setPrompts] = useState<McpPrompt[]>([])

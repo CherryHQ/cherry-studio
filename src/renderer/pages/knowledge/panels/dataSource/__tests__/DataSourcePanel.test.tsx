@@ -1,19 +1,30 @@
 import { toast } from '@renderer/services/toast'
 import { KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import type { ComponentProps, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import DataSourcePanelImpl from '../DataSourcePanel'
+import DataSourcePanelComponent, { type DataSourcePanelProps } from '../DataSourcePanel'
 import { createDirectoryItem, createFileItem, createNoteItem, createUrlItem } from './testUtils'
 
 const mockUseQuery = vi.fn()
+const defaultOnPreviewFile = vi.fn()
 
-type DataSourcePanelProps = Omit<ComponentProps<typeof DataSourcePanelImpl>, 'onDeleteItems' | 'onReindexItems'> &
-  Partial<Pick<ComponentProps<typeof DataSourcePanelImpl>, 'onDeleteItems' | 'onReindexItems'>>
+type TestDataSourcePanelProps = Omit<DataSourcePanelProps, 'onDeleteItems' | 'onPreviewFile' | 'onReindexItems'> &
+  Partial<Pick<DataSourcePanelProps, 'onDeleteItems' | 'onPreviewFile' | 'onReindexItems'>>
 
-const DataSourcePanel = ({ onDeleteItems = vi.fn(), onReindexItems = vi.fn(), ...props }: DataSourcePanelProps) => (
-  <DataSourcePanelImpl {...props} onDeleteItems={onDeleteItems} onReindexItems={onReindexItems} />
+const DataSourcePanel = ({
+  onDeleteItems = vi.fn(),
+  onPreviewFile = defaultOnPreviewFile,
+  onReindexItems = vi.fn(),
+  ...props
+}: TestDataSourcePanelProps) => (
+  <DataSourcePanelComponent
+    {...props}
+    onDeleteItems={onDeleteItems}
+    onPreviewFile={onPreviewFile}
+    onReindexItems={onReindexItems}
+  />
 )
 
 vi.mock('@data/hooks/useDataApi', () => ({
@@ -238,8 +249,12 @@ vi.mock('@renderer/utils/error', () => ({
 
 // Isolate the panel's activate dispatch from the real system-open hook (which touches window.api).
 const previewSourceMock = vi.hoisted(() => vi.fn())
+const invalidatePreviewRequestsMock = vi.hoisted(() => vi.fn())
 vi.mock('../../../hooks/usePreviewKnowledgeSource', () => ({
-  usePreviewKnowledgeSource: () => ({ previewSource: previewSourceMock })
+  usePreviewKnowledgeSource: () => ({
+    invalidatePreviewRequests: invalidatePreviewRequestsMock,
+    previewSource: previewSourceMock
+  })
 }))
 
 vi.mock('react-i18next', () => ({
@@ -373,6 +388,25 @@ describe('DataSourcePanel', () => {
     expect(screen.getByRole('button', { name: '目录' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '链接' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '网站' })).not.toBeInTheDocument()
+  })
+
+  it('uses the same 44px band height as the surrounding dividers', () => {
+    render(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
+
+    const divider = screen.getByText(/更新于/).closest('.border-b')
+
+    expect(divider).toHaveClass('flex', 'h-11', 'items-center')
+    expect(divider?.parentElement).toHaveClass('px-3')
+    expect(divider?.parentElement).not.toHaveClass('pt-2')
   })
 
   it('guides users from the empty data source state into file or URL add flows', () => {
@@ -613,7 +647,7 @@ describe('DataSourcePanel', () => {
     expect(onDeleteItems).toHaveBeenCalledWith(['file-1'])
   })
 
-  it('opens the source with the system tool on a file row click instead of viewing chunks', () => {
+  it('dispatches a file row click to source preview instead of viewing chunks', () => {
     const onItemClick = vi.fn()
     const item = createFileItem({ id: 'file-1', originName: '季度报告.pdf' })
 
@@ -635,7 +669,7 @@ describe('DataSourcePanel', () => {
     expect(onItemClick).not.toHaveBeenCalled()
   })
 
-  it('opens the source with the system tool on a url row click', () => {
+  it('dispatches a URL row click to source preview', () => {
     const onItemClick = vi.fn()
     const item = createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })
 
@@ -699,6 +733,10 @@ describe('DataSourcePanel', () => {
 
     fireEvent.click(screen.getByText('本地资料夹'))
 
+    expect(invalidatePreviewRequestsMock).toHaveBeenCalledOnce()
+    expect(invalidatePreviewRequestsMock.mock.invocationCallOrder[0]).toBeLessThan(
+      onDrillIntoDirectory.mock.invocationCallOrder[0]
+    )
     expect(onDrillIntoDirectory).toHaveBeenCalledWith(item)
     expect(onItemClick).not.toHaveBeenCalled()
     expect(previewSourceMock).not.toHaveBeenCalled()
@@ -728,6 +766,10 @@ describe('DataSourcePanel', () => {
 
     fireEvent.click(backButton)
 
+    expect(invalidatePreviewRequestsMock).toHaveBeenCalledOnce()
+    expect(invalidatePreviewRequestsMock.mock.invocationCallOrder[0]).toBeLessThan(
+      onNavigateUp.mock.invocationCallOrder[0]
+    )
     expect(onNavigateUp).toHaveBeenCalledTimes(1)
   })
 

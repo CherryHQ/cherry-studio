@@ -39,6 +39,13 @@ describe('getQuickPanelHeights', () => {
         base.pageSize * ITEM + READONLY_CHROME
       )
     })
+
+    it('reserves a page slot for a bottom-fixed row', () => {
+      const { panelMaxHeight, listHeight } = getQuickPanelHeights({ ...base, fixedItemCount: 1 })
+
+      expect(panelMaxHeight).toBe(base.pageSize * ITEM + DEFAULT_CHROME)
+      expect(listHeight).toBe((base.pageSize - 1) * ITEM)
+    })
   })
 
   describe('fill (welcome / placement=home): panel prefers content height until it exceeds the available space', () => {
@@ -94,6 +101,20 @@ describe('getQuickPanelHeights', () => {
       expect(listHeight).toBe(3 * ITEM)
     })
 
+    it('keeps a bottom-fixed row outside the shrunken virtual list', () => {
+      const available = DEFAULT_CHROME + 3 * ITEM
+      const { panelMaxHeight, listHeight } = getQuickPanelHeights({
+        ...base,
+        fill: true,
+        fixedItemCount: 1,
+        itemCount: 50,
+        availableHeight: available
+      })
+
+      expect(panelMaxHeight).toBe(available)
+      expect(listHeight).toBe(2 * ITEM)
+    })
+
     it('never shrinks the panel below one row of chrome when the available space is tiny', () => {
       expect(getQuickPanelHeights({ ...base, fill: true, itemCount: 1, availableHeight: 10 }).panelMaxHeight).toBe(
         DEFAULT_CHROME + ITEM
@@ -108,6 +129,19 @@ describe('getQuickPanelHeights', () => {
         availableHeight: 400
       })
       expect(panelMaxHeight).toBe(DEFAULT_CHROME)
+      expect(listHeight).toBe(0)
+    })
+
+    it('keeps the bottom-fixed row visible when collapsed', () => {
+      const { panelMaxHeight, listHeight } = getQuickPanelHeights({
+        ...base,
+        fill: true,
+        collapsed: true,
+        fixedItemCount: 1,
+        availableHeight: 400
+      })
+
+      expect(panelMaxHeight).toBe(DEFAULT_CHROME + ITEM)
       expect(listHeight).toBe(0)
     })
   })

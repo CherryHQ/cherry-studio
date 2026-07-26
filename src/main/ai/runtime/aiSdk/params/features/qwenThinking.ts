@@ -68,8 +68,7 @@ export const qwenThinkingFeature: RequestFeature = {
     !isOllamaProvider(scope.provider) &&
     isSupportedThinkingTokenQwenModel(scope.model) &&
     !isQwen35to39Model(scope.model) &&
-    !isSupportEnableThinkingProvider(scope.provider),
-  contributeModelAdapters: (scope) => [
-    createQwenThinkingPlugin(scope.assistant!.settings?.reasoning_effort !== undefined)
-  ]
+    !isSupportEnableThinkingProvider(scope.provider) &&
+    scope.reasoning.kind !== 'omit',
+  contributeModelAdapters: (scope) => [createQwenThinkingPlugin(scope.reasoning.kind !== 'off')]
 }
