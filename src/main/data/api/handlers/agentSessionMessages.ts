@@ -3,7 +3,6 @@
  */
 
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
-import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { projectMessagePartsForRenderer } from '@shared/ai/transport'
 import { toDataApiError } from '@shared/data/api/errors'
 import {
@@ -22,7 +21,11 @@ import type { HandlersFor } from '@shared/data/api/types'
 function projectMessageForRenderer(message: AgentSessionMessageEntity, sessionId: string): AgentSessionMessageEntity {
   if (message.role !== 'assistant' || !message.data.parts) return message
 
-  const parts = projectMessagePartsForRenderer(message.data.parts, buildAgentSessionTopicId(sessionId), message.id)
+  // Built inline rather than through `@main/ai/agentSession/topic`: `data/` must not depend on
+  // `ai/` (main-process-architecture §3). The format already has copies in that module and in
+  // `@renderer/utils/agentSession`; unifying all three into `@shared` is tracked separately.
+  const topicId = `agent-session:${sessionId}`
+  const parts = projectMessagePartsForRenderer(message.data.parts, topicId, message.id)
   if (parts === message.data.parts) return message
   return { ...message, data: { ...message.data, parts } }
 }
