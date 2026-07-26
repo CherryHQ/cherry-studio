@@ -268,7 +268,7 @@ describe('QuickPanelView', () => {
       expect(panelBody.className).not.toContain('backdrop-saturate-')
       expect(panelBody.className).toContain('bg-[color:color-mix(in_srgb,var(--popover)_76%,transparent)]')
       expect(panelBody.className).toContain(
-        'dark:bg-[color:color-mix(in_srgb,color-mix(in_srgb,var(--popover)_86%,var(--foreground)_14%)_82%,transparent)]'
+        'dark:bg-[color:color-mix(in_srgb,color-mix(in_srgb,var(--popover)_86%,var(--foreground)_14%)_90%,transparent)]'
       )
       expect(panelBody).toHaveClass('shadow-none')
       expect(panelBody.className).not.toContain('bg-background')
