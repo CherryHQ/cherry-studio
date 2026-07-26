@@ -1,6 +1,5 @@
 import { application } from '@application'
 import type { ProtoProviderConfig } from '@cherrystudio/provider-registry'
-import { buildPersistedEndpointConfigs, ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { providerService } from '@data/services/ProviderService'
 import type { AuthConfig } from '@shared/data/types/provider'
@@ -8,34 +7,17 @@ import type { AuthConfig } from '@shared/data/types/provider'
 import type { DbType, ISeeder } from '../../types'
 
 /**
- * Registry entries for vertexai/azure-openai are skeletons (no defaultChatEndpoint,
- * no endpointConfigs) — they need an explicit seed value here.
+ * Seed rows are DELTA rows: registry-owned connection config
+ * (endpointConfigs, apiFeatures, defaultChatEndpoint) is NOT persisted —
+ * it resolves from the registry at read time (#17096), so registry updates
+ * reach existing installs without reconciliation. Only user-editable
+ * scaffolding is seeded: identity, display name, and the auth shell below.
  *
  * Per the v2 invariant in `ProviderSettings/utils/provider.ts` ("Azure/Vertex/Bedrock
  * reuse other vendors' endpoint protocols, so authType is the only reliable
- * discriminator"), we deliberately do NOT introduce dedicated endpoint types like
- * `azure-openai-chat-completions` / `vertex-generate-content`. Vendor URL routing is
- * driven by `authType` (`iam-azure` → AI SDK `createAzure`, `iam-gcp` → Vertex SDK).
- *
- * `defaultChatEndpoint` here only feeds the reasoning endpoint resolution inside
- * `ProviderRegistryService.mergePresetModel`, i.e. it picks the reasoning format
- * (`openai-chat`, `gemini`, `anthropic`, ...). So the seed must match each
- * provider's wire-format reasoning shape:
- *   - Vertex AI runs Gemini models → `google-generate-content` (gemini thinking)
- *   - Azure OpenAI runs OpenAI models → `openai-chat-completions` (openai effort)
+ * discriminator"), vendor URL routing for those providers is driven by
+ * `authType` (`iam-azure` → AI SDK `createAzure`, `iam-gcp` → Vertex SDK).
  */
-function getSeedDefaultChatEndpoint(providerId: string, presetDefault: ProtoProviderConfig['defaultChatEndpoint']) {
-  if (providerId === 'vertexai') {
-    return ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
-  }
-
-  if (providerId === 'azure-openai') {
-    return ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
-  }
-
-  return presetDefault ?? null
-}
-
 function getSeedAuthConfig(providerId: string): AuthConfig | null {
   if (providerId === 'vertexai') {
     return { type: 'iam-gcp', project: '', location: '' }
@@ -52,42 +34,12 @@ function getSeedAuthConfig(providerId: string): AuthConfig | null {
   return null
 }
 
-/**
- * Seed only the user-owned override shape: baseUrl per endpoint. Registry-owned
- * fields (adapterFamily, modelsApiUrls) and the endpoint key set resolve from
- * the registry at read time (#17096), so persisting them would freeze a
- * snapshot that goes stale.
- */
-function toSeedEndpointConfigs(endpointConfigs: ProtoProviderConfig['endpointConfigs']) {
-  const persisted = buildPersistedEndpointConfigs(endpointConfigs)
-  if (!persisted) return null
-
-  const result: Partial<Record<string, { baseUrl: string }>> = {}
-  for (const [endpointType, config] of Object.entries(persisted)) {
-    if (config?.baseUrl) result[endpointType] = { baseUrl: config.baseUrl }
-  }
-  return Object.keys(result).length > 0 ? result : null
-}
-
 function toDbRow(p: ProtoProviderConfig) {
-  const apiFeatures = p.apiFeatures
-    ? {
-        arrayContent: p.apiFeatures.arrayContent,
-        streamOptions: p.apiFeatures.streamOptions,
-        developerRole: p.apiFeatures.developerRole,
-        serviceTier: p.apiFeatures.serviceTier,
-        verbosity: p.apiFeatures.verbosity
-      }
-    : null
-
   return {
     providerId: p.id,
     presetProviderId: p.presetProviderId ?? p.id,
     name: p.name,
-    endpointConfigs: toSeedEndpointConfigs(p.endpointConfigs),
-    defaultChatEndpoint: getSeedDefaultChatEndpoint(p.id, p.defaultChatEndpoint),
-    authConfig: getSeedAuthConfig(p.id),
-    apiFeatures
+    authConfig: getSeedAuthConfig(p.id)
   }
 }
 

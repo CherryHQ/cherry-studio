@@ -14,6 +14,7 @@ import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteError
 import type { DbType } from '@data/db/types'
 import { getDataService, registerDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
+import { buildApiFeaturesBaseline, diffApiFeatures } from '@data/services/ProviderRegistryService'
 import {
   clearSingleFileRefTx,
   getLogoFileId,
@@ -109,21 +110,35 @@ function normalizeApiKeyEntries(apiKeys: ApiKeyEntry[]): ApiKeyEntry[] {
  */
 function projectEndpointConfigOverrides(
   configs: Partial<Record<EndpointType, EndpointConfigOverride>> | null | undefined,
+  providerId: string,
   presetProviderId: string | null
 ): Partial<Record<EndpointType, EndpointConfigOverride>> | null {
   if (!configs || Object.keys(configs).length === 0) return null
 
+  // Registry baseline for delta reduction. Renderer PATCHes echo the merged
+  // runtime snapshot, so without this every settings edit would re-freeze
+  // registry baseUrls into the row and defeat the delta.
+  const presetConfigs = getDataService('ProviderRegistryService').getProviderPreset(
+    providerId,
+    ['endpointConfigs'],
+    presetProviderId ?? undefined
+  ).endpointConfigs
+
   const result: Partial<Record<EndpointType, EndpointConfigOverride>> = {}
   for (const [key, config] of Object.entries(configs)) {
     if (!config) continue
+    const ep = key as EndpointType
+    const presetConfig = presetConfigs?.[ep]
     const override: EndpointConfigOverride = {}
-    if (config.baseUrl !== undefined) override.baseUrl = config.baseUrl
+    if (config.baseUrl !== undefined && config.baseUrl !== presetConfig?.baseUrl) override.baseUrl = config.baseUrl
     if (presetProviderId === null && config.adapterFamily !== undefined) override.adapterFamily = config.adapterFamily
-    // Keep empty entries: key presence marks a user-configured endpoint and
-    // feeds the read-time key union.
-    result[key as EndpointType] = override
+    // Drop entries fully covered by the registry; keep empty entries for
+    // endpoints the registry doesn't declare — key presence marks a
+    // user-configured endpoint and feeds the read-time key union.
+    if (Object.keys(override).length === 0 && presetConfig) continue
+    result[ep] = override
   }
-  return result
+  return Object.keys(result).length > 0 ? result : null
 }
 
 /**
@@ -146,9 +161,10 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
     authType = row.authConfig.type
   }
 
-  // Merge API features
+  // Merge API features: app defaults ← registry baseline ← row delta.
   const apiFeatures: RuntimeApiFeatures = {
     ...DEFAULT_API_FEATURES,
+    ...presetMetadata.apiFeatures,
     ...row.apiFeatures
   }
 
@@ -181,7 +197,7 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
         row.providerId,
         row.presetProviderId ?? undefined
       ) ?? undefined,
-    defaultChatEndpoint: row.defaultChatEndpoint ?? undefined,
+    defaultChatEndpoint: row.defaultChatEndpoint ?? presetMetadata.defaultChatEndpoint,
     modelListSource: presetMetadata.modelListSource,
     authMethods: presetMetadata.authMethods,
     authOptional: presetMetadata.authOptional,
@@ -256,7 +272,18 @@ class ProviderService {
   create(dto: CreateProviderDto): Provider {
     assertManagedCherryAiProviderMutationAllowed(dto.providerId, `create provider ${dto.providerId}`)
 
-    const endpointConfigs = projectEndpointConfigOverrides(dto.endpointConfigs, dto.presetProviderId ?? null)
+    const endpointConfigs = projectEndpointConfigOverrides(
+      dto.endpointConfigs,
+      dto.providerId,
+      dto.presetProviderId ?? null
+    )
+    const presetMetadata = getDataService('ProviderRegistryService').getProviderDisplayMetadata(
+      dto.providerId,
+      dto.presetProviderId ?? undefined
+    )
+    const apiFeatures = diffApiFeatures(dto.apiFeatures, buildApiFeaturesBaseline(presetMetadata.apiFeatures))
+    const defaultChatEndpoint =
+      dto.defaultChatEndpoint !== presetMetadata.defaultChatEndpoint ? (dto.defaultChatEndpoint ?? null) : null
 
     const row = withSqliteErrors(
       () =>
@@ -270,10 +297,10 @@ class ProviderService {
             name: dto.name,
             logoKey: logoCols.logoKey,
             endpointConfigs,
-            defaultChatEndpoint: dto.defaultChatEndpoint ?? null,
+            defaultChatEndpoint,
             apiKeys: dto.apiKeys ?? [],
             authConfig: dto.authConfig ?? null,
-            apiFeatures: dto.apiFeatures ?? null,
+            apiFeatures,
             providerSettings: dto.providerSettings ?? null,
             isEnabled: false
           }
@@ -312,6 +339,7 @@ class ProviderService {
       const [current] = tx
         .select({
           providerSettings: userProviderTable.providerSettings,
+          apiFeatures: userProviderTable.apiFeatures,
           isEnabled: userProviderTable.isEnabled,
           presetProviderId: userProviderTable.presetProviderId
         })
@@ -335,11 +363,36 @@ class ProviderService {
       // PATCH replaces endpointConfigs wholesale; only the user-owned override
       // shape is persisted — registry-owned fields resolve at read time.
       if (dto.endpointConfigs !== undefined) {
-        updates.endpointConfigs = projectEndpointConfigOverrides(dto.endpointConfigs, current.presetProviderId)
+        updates.endpointConfigs = projectEndpointConfigOverrides(
+          dto.endpointConfigs,
+          providerId,
+          current.presetProviderId
+        )
       }
-      if (dto.defaultChatEndpoint !== undefined) updates.defaultChatEndpoint = dto.defaultChatEndpoint
       if (dto.authConfig !== undefined) updates.authConfig = dto.authConfig
-      if (dto.apiFeatures !== undefined) updates.apiFeatures = dto.apiFeatures
+      const presetMetadata =
+        dto.defaultChatEndpoint !== undefined || dto.apiFeatures !== undefined
+          ? getDataService('ProviderRegistryService').getProviderDisplayMetadata(
+              providerId,
+              current.presetProviderId ?? undefined
+            )
+          : undefined
+      // A renderer may echo the merged runtime value while editing an unrelated
+      // field. Drop a baseline-equal endpoint instead of freezing that registry
+      // default into the row.
+      if (dto.defaultChatEndpoint !== undefined) {
+        updates.defaultChatEndpoint =
+          dto.defaultChatEndpoint === presetMetadata?.defaultChatEndpoint ? null : dto.defaultChatEndpoint
+      }
+      // apiFeatures follows the providerSettings pattern: shallow-merge the
+      // stored delta with the PATCH inside the tx (lost-update-safe), then
+      // reduce against the registry baseline so only real overrides persist.
+      if (dto.apiFeatures !== undefined) {
+        updates.apiFeatures = diffApiFeatures(
+          { ...current.apiFeatures, ...dto.apiFeatures },
+          buildApiFeaturesBaseline(presetMetadata?.apiFeatures)
+        )
+      }
       if (dto.providerSettings !== undefined) {
         updates.providerSettings = {
           ...(current.providerSettings as Partial<ProviderSettings> | null),

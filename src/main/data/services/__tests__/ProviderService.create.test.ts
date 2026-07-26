@@ -20,7 +20,8 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
           endpointConfigs: {
             'google-generate-content': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' },
             'openai-chat-completions': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' }
-          }
+          },
+          defaultChatEndpoint: 'openai-chat-completions'
         }
       ]
     }
@@ -78,6 +79,7 @@ describe('ProviderService.create — endpoint config overrides', () => {
     expect(row.endpointConfigs?.[ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]).toEqual({
       baseUrl: 'https://express-ent-admin.cherryin.ai/v1beta'
     })
+    expect(row.defaultChatEndpoint).toBeNull()
   })
 
   it('keeps an explicitly-set adapterFamily and defaults endpoints for a preset-less custom provider', async () => {

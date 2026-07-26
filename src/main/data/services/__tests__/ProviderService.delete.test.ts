@@ -129,6 +129,8 @@ describe('ProviderService.delete — preset protection boundary', () => {
         providerId: 'openai-work',
         modelId: 'gpt-4o',
         name: 'GPT-4o',
+        capabilities: [],
+        supportsStreaming: true,
         orderKey: gpt4oOrderKey
       },
       {
@@ -136,6 +138,8 @@ describe('ProviderService.delete — preset protection boundary', () => {
         providerId: 'openai-work',
         modelId: 'o3',
         name: 'o3',
+        capabilities: [],
+        supportsStreaming: true,
         orderKey: o3OrderKey
       },
       {
@@ -143,6 +147,8 @@ describe('ProviderService.delete — preset protection boundary', () => {
         providerId: 'anthropic-work',
         modelId: 'claude-3',
         name: 'Claude 3',
+        capabilities: [],
+        supportsStreaming: true,
         orderKey: claudeOrderKey
       }
     ])
@@ -186,9 +192,33 @@ describe('ProviderService.delete — preset protection boundary', () => {
       }
     ])
     await dbh.db.insert(userModelTable).values([
-      { id: gpt4, providerId: 'openai-work', modelId: 'gpt-4', name: 'GPT-4', orderKey: gpt4OrderKey },
-      { id: gpt35, providerId: 'openai-work', modelId: 'gpt-3.5', name: 'GPT-3.5', orderKey: gpt35OrderKey },
-      { id: claude, providerId: 'anthropic', modelId: 'claude-3', name: 'Claude 3', orderKey: claudeOrderKey }
+      {
+        id: gpt4,
+        providerId: 'openai-work',
+        modelId: 'gpt-4',
+        name: 'GPT-4',
+        capabilities: [],
+        supportsStreaming: true,
+        orderKey: gpt4OrderKey
+      },
+      {
+        id: gpt35,
+        providerId: 'openai-work',
+        modelId: 'gpt-3.5',
+        name: 'GPT-3.5',
+        capabilities: [],
+        supportsStreaming: true,
+        orderKey: gpt35OrderKey
+      },
+      {
+        id: claude,
+        providerId: 'anthropic',
+        modelId: 'claude-3',
+        name: 'Claude 3',
+        capabilities: [],
+        supportsStreaming: true,
+        orderKey: claudeOrderKey
+      }
     ])
     await dbh.db.insert(pinTable).values([
       { entityType: 'model', entityId: gpt4, orderKey: 'a0' },

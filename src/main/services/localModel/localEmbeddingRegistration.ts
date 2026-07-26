@@ -60,7 +60,6 @@ function createLocalEmbeddingModelRow(): LocalEmbeddingModelRow {
     inputModalities: null,
     outputModalities: null,
     endpointTypes: null,
-    customEndpointUrl: null,
     contextWindow: null,
     maxInputTokens: null,
     maxOutputTokens: null,
@@ -105,9 +104,9 @@ export async function registerLocalEmbeddingModel(): Promise<void> {
 
     // Inserted via the raw order-key primitive rather than through ModelService: the
     // provider row above nests in this outer withWriteTx via providerService.batchUpsertTx,
-    // but ModelService exposes only self-transacting create/batchUpsert (each opens its own
-    // transaction), so there is no composable *Tx form to nest here. Trade-off: this skips
-    // ModelService's guards/error-translation. If a ModelService.insertManyTx (mirroring
+    // but ModelService exposes only a self-transacting create operation, so there is no
+    // composable *Tx form to nest here. Trade-off: this skips ModelService's
+    // guards/error-translation. If a ModelService.insertManyTx (mirroring
     // ProviderService.batchUpsertTx) ever lands, route this through it.
     insertManyWithOrderKey(tx, userModelTable, [createLocalEmbeddingModelRow()], {
       pkColumn: userModelTable.id,

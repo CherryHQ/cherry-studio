@@ -50,7 +50,15 @@ import type {
   RuntimeReasoning
 } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
-import type { EndpointConfig, EndpointConfigOverride, Provider, ProviderWebsites } from '@shared/data/types/provider'
+import type {
+  ApiFeatures,
+  EndpointConfig,
+  EndpointConfigOverride,
+  Provider,
+  ProviderWebsites,
+  RuntimeApiFeatures
+} from '@shared/data/types/provider'
+import { DEFAULT_API_FEATURES } from '@shared/data/types/provider'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
 
@@ -65,6 +73,38 @@ export interface ProviderDisplayMetadata {
   authMethods?: ('api-key' | 'oauth' | 'external-cli')[]
   /** Registry capability: serves requests without any credential (default false). */
   authOptional?: boolean
+  /** Registry default API feature flags — the delta baseline under row overrides. */
+  apiFeatures?: ApiFeatures
+  /** Registry default chat endpoint, used when the row stores no override. */
+  defaultChatEndpoint?: EndpointType
+}
+
+/**
+ * The effective apiFeatures baseline for a preset: registry declarations
+ * layered over the app defaults. Rows store only deltas from this.
+ */
+export function buildApiFeaturesBaseline(presetApiFeatures: ApiFeatures | null | undefined): RuntimeApiFeatures {
+  return { ...DEFAULT_API_FEATURES, ...presetApiFeatures }
+}
+
+/**
+ * Reduce a (possibly full-snapshot) apiFeatures object to the delta against
+ * its baseline — key absence means "use the baseline". Returns null when
+ * nothing differs, so a renderer echoing the merged runtime snapshot
+ * degrades to a clean delta instead of freezing the baseline into the row.
+ */
+export function diffApiFeatures(
+  merged: ApiFeatures | null | undefined,
+  baseline: RuntimeApiFeatures
+): ApiFeatures | null {
+  if (!merged) return null
+  const delta: Record<string, boolean> = {}
+  for (const [key, value] of Object.entries(merged)) {
+    if (value !== undefined && value !== baseline[key as keyof RuntimeApiFeatures]) {
+      delta[key] = value
+    }
+  }
+  return Object.keys(delta).length > 0 ? (delta as ApiFeatures) : null
 }
 
 export interface ListProviderRegistryModelsOptions {
@@ -262,8 +302,8 @@ export function synthesizePresetFromOverride(override: ProtoProviderModelOverrid
 /**
  * Two-layer merge: preset → override. No user data involved.
  *
- * Used by `resolveModels` and (via composition with `applyUserOverlay` in ModelService)
- * by `ModelService.create` and the migrator.
+ * Used by registry resolution, ModelService delta comparison/read hydration,
+ * and the v2 migrator.
  */
 export function mergePresetModel(
   presetModel: ProtoModelConfig,
@@ -558,7 +598,9 @@ class ProviderRegistryService {
         websites: provider?.metadata?.website,
         modelListSource: provider?.modelListSource,
         authMethods: provider?.authMethods,
-        authOptional: provider?.authOptional
+        authOptional: provider?.authOptional,
+        apiFeatures: (provider?.apiFeatures as ApiFeatures | undefined) ?? undefined,
+        defaultChatEndpoint: provider?.defaultChatEndpoint ?? undefined
       }
     } catch (error) {
       logger.warn('Failed to load provider display metadata', { providerId, presetProviderId, error })

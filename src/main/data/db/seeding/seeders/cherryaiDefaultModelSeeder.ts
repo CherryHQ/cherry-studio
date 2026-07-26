@@ -71,7 +71,6 @@ function createCherryAiDefaultModelRow(): CherryAiDefaultModelRow {
     inputModalities: null,
     outputModalities: null,
     endpointTypes: null,
-    customEndpointUrl: null,
     contextWindow: null,
     maxInputTokens: null,
     maxOutputTokens: null,

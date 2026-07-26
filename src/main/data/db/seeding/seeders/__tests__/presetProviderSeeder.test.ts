@@ -7,7 +7,6 @@
  * provider IDs and only inserts genuinely new rows.
  */
 
-import { ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { PresetProviderSeeder } from '@data/db/seeding/seeders/presetProviderSeeder'
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
@@ -39,14 +38,6 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
   return { RegistryLoader }
 })
 
-vi.mock('@cherrystudio/provider-registry', async () => {
-  const actual: Record<string, unknown> = await vi.importActual('@cherrystudio/provider-registry')
-  return {
-    ...actual,
-    buildPersistedEndpointConfigs: vi.fn(() => null)
-  }
-})
-
 describe('PresetProviderSeeder.run — insert-only behavior', () => {
   const dbh = setupTestDatabase()
 
@@ -64,7 +55,7 @@ describe('PresetProviderSeeder.run — insert-only behavior', () => {
     expect(ids).not.toContain('cherryai')
   })
 
-  it('should seed special provider defaults without relying on providers.json endpoint metadata', async () => {
+  it('seeds only user-editable auth scaffolding; connection config stays registry-resolved', async () => {
     const seed = new PresetProviderSeeder()
     seed.run(dbh.db)
 
@@ -73,9 +64,14 @@ describe('PresetProviderSeeder.run — insert-only behavior', () => {
     const vertex = rows.find((r) => r.providerId === 'vertexai')
     const bedrock = rows.find((r) => r.providerId === 'aws-bedrock')
 
-    expect(azure?.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    // Delta rows: defaultChatEndpoint/endpointConfigs/apiFeatures are NOT
+    // seeded — they resolve from the registry at read time (#17096). Only the
+    // user-editable auth shell is materialized.
+    expect(azure?.defaultChatEndpoint).toBeNull()
+    expect(azure?.endpointConfigs).toBeNull()
+    expect(azure?.apiFeatures).toBeNull()
     expect(azure?.authConfig).toEqual({ type: 'iam-azure', apiVersion: '' })
-    expect(vertex?.defaultChatEndpoint).toBe(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)
+    expect(vertex?.defaultChatEndpoint).toBeNull()
     expect(vertex?.authConfig).toEqual({ type: 'iam-gcp', project: '', location: '' })
     expect(bedrock?.defaultChatEndpoint).toBeNull()
     expect(bedrock?.authConfig).toEqual({ type: 'iam-aws', region: '' })
@@ -99,32 +95,14 @@ describe('PresetProviderSeeder.run — insert-only behavior', () => {
     expect(ids).not.toContain('cherryai')
   })
 
-  it('seeds only the baseUrl override shape, never registry-owned fields', async () => {
-    const { buildPersistedEndpointConfigs } = await import('@cherrystudio/provider-registry')
-    vi.mocked(buildPersistedEndpointConfigs).mockReturnValue({
-      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
-        baseUrl: 'https://api.openai.com/v1',
-        adapterFamily: 'openai-compatible',
-        modelsApiUrls: { default: 'https://api.openai.com/v1/models' }
-      },
-      // No baseUrl → nothing user-owned to seed for this endpoint.
-      [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' }
-    } as never)
+  it('never seeds endpointConfigs — registry connection config resolves at read time', async () => {
+    const seed = new PresetProviderSeeder()
+    seed.run(dbh.db)
 
-    try {
-      const seed = new PresetProviderSeeder()
-      seed.run(dbh.db)
-
-      const rows = await dbh.db.select().from(userProviderTable)
-      const openai = rows.find((r) => r.providerId === 'openai')
-      // adapterFamily/modelsApiUrls resolve from the registry at read time
-      // (#17096) — persisting them would freeze a snapshot that goes stale.
-      expect(openai?.endpointConfigs).toEqual({
-        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.openai.com/v1' }
-      })
-    } finally {
-      vi.mocked(buildPersistedEndpointConfigs).mockReturnValue(null as never)
-    }
+    const rows = await dbh.db.select().from(userProviderTable)
+    // No row freezes a registry connection snapshot (#17096).
+    expect(rows.every((r) => r.endpointConfigs === null)).toBe(true)
+    expect(rows.every((r) => r.apiFeatures === null)).toBe(true)
   })
 
   it('should not insert anything when all registry providers already exist', async () => {

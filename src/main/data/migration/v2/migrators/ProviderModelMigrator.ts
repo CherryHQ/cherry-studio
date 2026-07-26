@@ -9,7 +9,7 @@
  */
 
 import { application } from '@application'
-import type { EndpointType, Modality, ModelCapability } from '@cherrystudio/provider-registry'
+import type { EndpointType } from '@cherrystudio/provider-registry'
 import { buildPersistedEndpointConfigs, ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
@@ -20,8 +20,12 @@ import type { InsertUserProviderRow } from '@data/db/schemas/userProvider'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { ensureCherryAiDefaultProviderAndModelTx } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
 import { assignOrderKeysByScope, assignOrderKeysInSequence } from '@data/migration/v2/utils/orderKey'
-import { applyUserOverlay } from '@data/services/ModelService'
-import { mergePresetModel, providerRegistryService } from '@data/services/ProviderRegistryService'
+import {
+  buildApiFeaturesBaseline,
+  diffApiFeatures,
+  mergePresetModel,
+  providerRegistryService
+} from '@data/services/ProviderRegistryService'
 import { generateOrderKeySequenceBetween } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import type { Provider as LegacyProvider } from '@main/data/migration/legacyTypes'
@@ -31,6 +35,7 @@ import { providerLogoRef } from '@shared/data/types/file'
 import { createUniqueModelId, isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiFeatures, EndpointConfig, EndpointConfigOverride } from '@shared/data/types/provider'
 import { desc, eq, ne, sql } from 'drizzle-orm'
+import { isEqual } from 'es-toolkit/compat'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
@@ -183,15 +188,13 @@ export class ProviderModelMigrator extends BaseMigrator {
   }
 
   /**
-   * Enrich a legacy-mapped provider row with registry preset baseline.
-   *
-   * `transformProvider` only derives from legacy data, so migrated rows for
-   * system providers (those present in providers.json) miss the registry
-   * baseline that fresh installs get from `PresetProviderSeeder`. Specifically
-   * this fills in non-default endpoint connection configs (e.g. an
-   * OPENAI_RESPONSES baseUrl + adapterFamily), `defaultChatEndpoint` precision, and `apiFeatures`
-   * defaults (e.g. providers that explicitly don't support `serviceTier`).
-   * Legacy fields win — they capture user customization from v1.
+   * Project a legacy-mapped provider row for a catalog-matched (system)
+   * provider down to its DELTA against the registry baseline. Registry-owned
+   * connection config resolves at read time (#17096), so migrated rows store
+   * only genuine v1 user customization: a baseUrl differing from the current
+   * registry default, apiFeatures keys differing from the registry baseline,
+   * and a legacy defaultChatEndpoint differing from the registry default.
+   * Custom (no-catalog) providers pass through untouched.
    */
   private enrichProviderRow(row: NewUserProviderInput, legacy: LegacyProvider): NewUserProviderInput {
     const preset = this.getLoader()
@@ -203,6 +206,8 @@ export class ProviderModelMigrator extends BaseMigrator {
       Record<EndpointType, EndpointConfig>
     > | null
     let userEndpointConfigs = row.endpointConfigs ?? null
+    // together's v1 default baseUrl is stale — normalize it to the current
+    // registry default so the delta projection below drops it (registry wins).
     const togetherChatEndpoint = userEndpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
     const togetherPresetBaseUrl = presetEndpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.baseUrl
     const normalizedTogetherBaseUrl = togetherChatEndpoint?.baseUrl?.replace(/\/+$/, '').replace(/\/v1$/, '')
@@ -215,39 +220,35 @@ export class ProviderModelMigrator extends BaseMigrator {
         }
       }
     }
-    // Persist only the user-owned override shape for catalog-matched rows:
-    // baseUrl (legacy value wins over the preset default). Registry-owned
-    // fields (adapterFamily, modelsApiUrls) resolve at read time (#17096).
-    const allEndpointKeys = new Set([
-      ...Object.keys(presetEndpointConfigs ?? {}),
-      ...Object.keys(userEndpointConfigs ?? {})
-    ])
-    const mergedEndpointConfigs: Partial<Record<EndpointType, EndpointConfigOverride>> = {}
-    for (const k of allEndpointKeys) {
+    const deltaEndpointConfigs: Partial<Record<EndpointType, EndpointConfigOverride>> = {}
+    for (const [k, config] of Object.entries(userEndpointConfigs ?? {})) {
       const ep = k as EndpointType
-      const baseUrl = userEndpointConfigs?.[ep]?.baseUrl ?? presetEndpointConfigs?.[ep]?.baseUrl
-      mergedEndpointConfigs[ep] = baseUrl !== undefined ? { baseUrl } : {}
+      const presetConfig = presetEndpointConfigs?.[ep]
+      const baseUrl = config?.baseUrl
+      if (baseUrl !== undefined && baseUrl !== presetConfig?.baseUrl) {
+        deltaEndpointConfigs[ep] = { baseUrl }
+      } else if (!presetConfig) {
+        // Key presence marks a legacy-configured endpoint the registry
+        // doesn't declare — keep it for the read-time key union.
+        deltaEndpointConfigs[ep] = {}
+      }
     }
 
     const presetApiFeatures = (preset.apiFeatures ?? null) as ApiFeatures | null
-    const mergedApiFeatures = presetApiFeatures || row.apiFeatures ? { ...presetApiFeatures, ...row.apiFeatures } : null
 
     return {
       ...row,
-      endpointConfigs: Object.keys(mergedEndpointConfigs).length > 0 ? mergedEndpointConfigs : null,
-      defaultChatEndpoint: row.defaultChatEndpoint ?? preset.defaultChatEndpoint ?? null,
-      apiFeatures: mergedApiFeatures
+      endpointConfigs: Object.keys(deltaEndpointConfigs).length > 0 ? deltaEndpointConfigs : null,
+      defaultChatEndpoint: row.defaultChatEndpoint === preset.defaultChatEndpoint ? null : row.defaultChatEndpoint,
+      apiFeatures: diffApiFeatures(row.apiFeatures, buildApiFeaturesBaseline(presetApiFeatures))
     }
   }
 
   /**
    * Enrich a legacy-mapped model row with registry preset data.
    *
-   * Legacy v1 rows leave registry-derived fields (modalities, contextWindow,
-   * limits, etc.) null. Without enrichment, migrated users end up with
-   * skeleton model rows. Composes `mergePresetModel` (registry preset →
-   * override) with `applyUserOverlay` (user fields win) — the same chain
-   * `ModelService.create` uses for new models.
+   * Registry-matched rows store only genuine v1 deltas. All unowned config
+   * columns remain null so future registry changes flow through at read time.
    */
   private enrichModelRow(
     row: Omit<InsertUserModelRow, 'orderKey'>,
@@ -274,26 +275,34 @@ export class ProviderModelMigrator extends BaseMigrator {
       reasoningProfile.support
     )
 
-    const overlayName = row.name && row.name !== row.modelId ? row.name : null
-    const merged = applyUserOverlay(baseline, { ...row, name: overlayName })
+    const userOverrides = new Set(row.userOverrides ?? [])
+    if (row.name !== row.modelId && row.name !== baseline.name) userOverrides.add('name')
+    if (row.description != null && row.description !== baseline.description) userOverrides.add('description')
+    if (row.group != null && row.group !== baseline.group) userOverrides.add('group')
+    if (row.endpointTypes != null && !isEqual(row.endpointTypes, baseline.endpointTypes)) {
+      userOverrides.add('endpointTypes')
+    }
+    if (row.supportsStreaming !== baseline.supportsStreaming) userOverrides.add('supportsStreaming')
+    if (row.pricing != null && !isEqual(row.pricing, baseline.pricing)) userOverrides.add('pricing')
 
     return {
       ...row,
       presetModelId: presetModel.id,
-      name: merged.name,
-      description: merged.description ?? null,
-      capabilities: row.userOverrides?.includes('capabilities')
-        ? (row.capabilities ?? [])
-        : (merged.capabilities as ModelCapability[]),
-      inputModalities: (merged.inputModalities ?? null) as Modality[] | null,
-      outputModalities: (merged.outputModalities ?? null) as Modality[] | null,
-      endpointTypes: (merged.endpointTypes ?? null) as EndpointType[] | null,
-      contextWindow: merged.contextWindow ?? null,
-      maxInputTokens: merged.maxInputTokens ?? null,
-      maxOutputTokens: merged.maxOutputTokens ?? null,
-      supportsStreaming: merged.supportsStreaming,
-      reasoning: merged.reasoning ?? null,
-      pricing: merged.pricing ?? row.pricing
+      name: userOverrides.has('name') ? row.name : null,
+      description: userOverrides.has('description') ? row.description : null,
+      group: userOverrides.has('group') ? row.group : null,
+      capabilities: userOverrides.has('capabilities') ? row.capabilities : null,
+      inputModalities: null,
+      outputModalities: null,
+      endpointTypes: userOverrides.has('endpointTypes') ? row.endpointTypes : null,
+      contextWindow: null,
+      maxInputTokens: null,
+      maxOutputTokens: null,
+      supportsStreaming: userOverrides.has('supportsStreaming') ? row.supportsStreaming : null,
+      reasoning: null,
+      parameters: null,
+      pricing: userOverrides.has('pricing') ? row.pricing : null,
+      userOverrides: userOverrides.size > 0 ? [...userOverrides] : null
     }
   }
 

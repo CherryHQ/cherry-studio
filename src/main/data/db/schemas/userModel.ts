@@ -1,9 +1,9 @@
 /**
  * User Model table schema
  *
- * Stores custom models and compatibility snapshots for preset-backed models.
+ * Stores complete custom models and user-owned deltas for preset-backed models.
  * Preset-backed runtime models resolve from the current registry on every read;
- * `userOverrides` identifies the snapshot fields that remain user-owned.
+ * `userOverrides` identifies which nullable config columns contain a delta.
  *
  * - presetModelId: traceability marker (which preset this came from, if any)
  * - Single PK: id = "providerId::modelId" (deterministic UniqueModelId)
@@ -19,7 +19,8 @@ import type {
   ReasoningConfig,
   RuntimeModelPricing
 } from '@shared/data/types/model'
-import { index, integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
+import { sql } from 'drizzle-orm'
+import { check, index, integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, orderKeyColumns, scopedOrderKeyIndex } from './_columnHelpers'
 import { userProviderTable } from './userProvider'
@@ -47,7 +48,6 @@ export const REGISTRY_ENRICHABLE_FIELDS = [
   'maxInputTokens',
   'maxOutputTokens',
   'supportsStreaming',
-  'reasoning',
   'parameters',
   'pricing'
 ] as const
@@ -82,8 +82,8 @@ export const userModelTable = sqliteTable(
     /** Associated preset model ID (for traceability) */
     presetModelId: text(),
 
-    /** Display name (override or complete) */
-    name: text().notNull(),
+    /** Display name (custom value or preset override; null inherits the preset) */
+    name: text(),
 
     /** Description */
     description: text(),
@@ -91,11 +91,8 @@ export const userModelTable = sqliteTable(
     /** UI grouping */
     group: text(),
 
-    /** Compatibility snapshot, or the exact user override when tracked */
-    capabilities: text({ mode: 'json' })
-      .$type<ModelCapability[]>()
-      .notNull()
-      .$defaultFn(() => []),
+    /** Custom capabilities or an exact preset override; null inherits the preset */
+    capabilities: text({ mode: 'json' }).$type<ModelCapability[]>(),
 
     /** Supported input modalities (e.g., TEXT, VISION, AUDIO, VIDEO) */
     inputModalities: text({ mode: 'json' }).$type<Modality[]>(),
@@ -106,9 +103,6 @@ export const userModelTable = sqliteTable(
     /** Endpoint types (optional, override Provider default) */
     endpointTypes: text({ mode: 'json' }).$type<EndpointType[]>(),
 
-    /** Custom endpoint URL (optional, complete override) */
-    customEndpointUrl: text(),
-
     /** Context window size */
     contextWindow: integer(),
 
@@ -118,8 +112,8 @@ export const userModelTable = sqliteTable(
     /** Maximum output tokens */
     maxOutputTokens: integer(),
 
-    /** Streaming support */
-    supportsStreaming: integer({ mode: 'boolean' }).notNull().default(true),
+    /** Streaming support (null inherits the preset) */
+    supportsStreaming: integer({ mode: 'boolean' }),
 
     /** Reasoning configuration */
     reasoning: text({ mode: 'json' }).$type<ReasoningConfig>(),
@@ -154,6 +148,10 @@ export const userModelTable = sqliteTable(
     ...createUpdateTimestamps
   },
   (t) => [
+    check(
+      'user_model_custom_config_check',
+      sql`${t.presetModelId} IS NOT NULL OR (${t.name} IS NOT NULL AND ${t.capabilities} IS NOT NULL AND ${t.supportsStreaming} IS NOT NULL)`
+    ),
     unique('user_model_provider_model_unique').on(t.providerId, t.modelId),
     index('user_model_preset_idx').on(t.presetModelId),
     index('user_model_provider_enabled_idx').on(t.providerId, t.isEnabled),

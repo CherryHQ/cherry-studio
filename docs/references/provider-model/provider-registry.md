@@ -55,8 +55,8 @@ POST /models [{ providerId: 'openai', modelId: 'gpt-4o' }]
     → returns { presetModel, registryOverride, reasoningProfile }
   → handler: modelService.create(items)
     → mergePresetModel(preset, override, ...)
-    → applyUserOverlay(baseline, explicit DTO fields)
-    → INSERT compatibility snapshot + userOverrides into user_model
+    → compare explicit DTO fields with the registry baseline
+    → INSERT only differing fields + userOverrides into user_model
   → list/get/mutation response
     → rebuild current registry baseline
     → apply only fields named by userOverrides
@@ -84,7 +84,7 @@ Three separate functions for three distinct use cases:
 | Function | Use Case | Layers |
 |----------|----------|--------|
 | `mergePresetModel` | Registry queries, resolveModels | preset → override |
-| `applyUserOverlay` | Model create/read with explicit user deltas | merged registry baseline → user |
+| `applyUserOverlay` | Model reads with explicit user deltas | merged registry baseline → user |
 | `createCustomModel` | No registry match | modelId only |
 
 Shared logic extracted to `applyPresetAndOverride` (preset + override merge) and `resolveReasoning` (reasoning config resolution).
@@ -96,8 +96,9 @@ userOverrides-selected fields  >  provider-models.json  >  models.json
         highest                       middle                  lowest
 ```
 
-Stored snapshot fields not named by `userOverrides` are ignored on preset-backed
-reads. This lets catalog changes reach existing rows without a data migration.
+Preset-backed rows store only fields named by `userOverrides`; every other
+registry-enrichable column is null. Custom rows store their complete config.
+This lets catalog changes reach existing rows without a data migration.
 Explicit empty strings and arrays remain valid overrides.
 
 ### User Override Protection
@@ -107,8 +108,23 @@ is recorded in `userOverrides`. Read-time resolution starts from the current
 registry and applies only those fields from the row. Create/PATCH compare
 incoming values with the current registry baseline, so renderer echoes do not
 freeze catalog values; restoring a value to the baseline removes its override.
-`batchUpsert()` also avoids overwriting tracked fields, but it is not the source
-of runtime freshness.
+
+**Adding a model field later:**
+
+- *Registry-owned (not user-editable):* add it to the registry schema, runtime
+  `Model`, and `mergePresetModel`. Do not add a `user_model` column or
+  `userOverrides` entry. Existing preset rows receive it on their next read
+  with zero schema migration or data backfill.
+- *User-editable preset field:* give it a nullable delta column, include it in
+  the create/PATCH overlay mapping, and add it to `REGISTRY_ENRICHABLE_FIELDS`.
+  A schema migration adds the column, but existing rows need no data backfill:
+  a missing marker means inherit the current registry value.
+- *Custom-model field:* custom rows own complete configuration. A newly
+  required custom field needs either a runtime default or a custom-row
+  backfill; this is the intentional exception to the preset inheritance rule.
+- A column shared by custom and preset rows may therefore be required for
+  custom rows while remaining null for preset rows (for example
+  `capabilities` and `reasoning`).
 
 ## RegistryLoader
 
@@ -187,31 +203,61 @@ Implemented in `normalizeModelId()` (`packages/provider-registry/src/utils/norma
 | `id` | Deterministic PK: `providerId::modelId` |
 | `providerId` + `modelId` | Unique model identity within a provider |
 | `presetModelId` | Links to models.json entry (null = custom model) |
-| `capabilities` | JSON array: function-call, reasoning, image-recognition, ... |
-| `inputModalities` / `outputModalities` | JSON array: text, image, audio, video |
-| `contextWindow` / `maxOutputTokens` | Numeric limits |
-| `reasoning` | JSON: intrinsic controls/token limits plus materialized selectable efforts |
-| `pricing` | JSON: input/output/cacheRead/cacheWrite per million tokens |
-| `parameters` | JSON: parameter support config (temperature, topP, etc.) |
-| `userOverrides` | JSON array of snapshot fields owned by the user |
+| `name` / `capabilities` / `supportsStreaming` | Required for custom rows; nullable preset deltas |
+| `inputModalities` / `outputModalities` | Complete custom config or nullable preset deltas |
+| `contextWindow` / `maxOutputTokens` | Complete custom config or nullable preset deltas |
+| `reasoning` | Custom-model intrinsic controls/token limits; preset rows resolve it from the registry |
+| `pricing` | Complete custom config or nullable preset delta |
+| `parameters` | Complete custom config or nullable preset delta |
+| `userOverrides` | JSON array naming the populated preset-delta columns |
 | `orderKey` | Fractional order key in the provider's model list |
 | `notes` | User notes about this model |
 
 ## Provider Configuration Merge
 
-Provider configs also follow a layered merge (`mergeProviderConfig()`):
+Provider connection config follows the same layered, read-time merge as
+models. The `user_provider` row is a **delta**: it stores only what the user
+explicitly set; key absence means "use the registry value". The merge happens
+in `rowToRuntimeProvider` (ProviderService) via
+`ProviderRegistryService.mergeEndpointConfigs` / `getProviderDisplayMetadata`:
 
 ```
-user_provider (DB)  >  providers.json (preset)  >  DEFAULT_API_FEATURES
+user_provider (DB, delta)  >  providers.json (registry)  >  app defaults
 ```
 
-```typescript
-const apiFeatures = {
-  ...DEFAULT_API_FEATURES,        // { arrayContent: true, streamOptions: true, ... }
-  ...presetProvider?.apiFeatures,  // from providers.json (null = use defaults)
-  ...userProvider?.apiFeatures     // user customization wins
-}
-```
+| field | ownership | resolution |
+| --- | --- | --- |
+| `endpointConfigs[ep].baseUrl` | user | row > registry |
+| `endpointConfigs[ep].adapterFamily` | registry | registry > row (custom-provider hint) > `inferAdapterFamily(ep)` |
+| `endpointConfigs[ep].modelsApiUrls` | registry | registry only |
+| endpoint-type key set | registry ∪ user | union of registry and row keys |
+| `apiFeatures` | mixed | `{...DEFAULT_API_FEATURES, ...registry, ...row}` |
+| `defaultChatEndpoint` | mixed | row > registry |
+
+Because registry-owned facts are never frozen into rows, registry updates
+(new endpoint types, changed adapter families, feature-flag changes) reach
+existing installs with **zero data migration** (#17096). Write paths enforce
+the delta: `EndpointConfigOverride` is the only persistable endpoint shape,
+and PATCH normalization drops values equal to the registry baseline.
+
+**Adding a registry field later:**
+
+- *Registry-owned (not user-editable):* add it to the read-time merge output
+  only. For endpoint config fields, do not add it to
+  `EndpointConfigOverride` — zod strips it from write DTOs automatically.
+  Zero migration.
+- *User-editable endpoint field (mixed ownership):* add it to
+  `EndpointConfigOverrideSchema` (the `keyof` set is the authoritative
+  ownership declaration), add a `row.x ?? registry.x` rule to the merge, and
+  optionally drop baseline-equal values on write. Zero migration — absent
+  keys fall back to the registry.
+- *User-editable provider field:* if it belongs in an existing JSON delta such
+  as `apiFeatures`, extend that schema and merge rule with zero migration.
+  Otherwise choose an explicit persisted override home. A new standalone
+  column is a schema change; this design does not make arbitrary top-level
+  fields migration-free.
+- Never persist registry-owned values as row snapshots: that is exactly how a
+  registry update becomes stale.
 
 ## Reasoning Configuration
 

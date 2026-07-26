@@ -372,7 +372,7 @@ describe('ProviderModelMigrator', () => {
       expect(assistant?.modelId).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
     })
 
-    it('enriches provider rows with registry baseline (endpointConfigs/apiFeatures/defaultChatEndpoint)', async () => {
+    it('projects system provider rows to their delta against the registry baseline', async () => {
       registryFixtures.providers = [
         {
           id: 'openai',
@@ -417,12 +417,19 @@ describe('ProviderModelMigrator', () => {
         .where(eq(userProviderTable.providerId, 'openai'))
       const endpointConfigs = providerRow.endpointConfigs as Record<string, { baseUrl?: string }>
 
-      // Legacy apiHost wins on the chat endpoint; reasoning profiles remain registry-only.
-      expect(endpointConfigs['openai-chat-completions'].baseUrl).toBe('https://my-proxy.com/v1')
-      // Registry-only endpoint survives migration
-      expect(endpointConfigs['openai-responses'].baseUrl).toBe('https://api.openai.com/v1')
-      // apiFeatures baseline filled from registry
-      expect(providerRow.apiFeatures).toEqual({ serviceTier: false })
+      // Only the genuine v1 customization persists: a baseUrl differing from
+      // the registry default. Registry-only facts stay out of the row and
+      // resolve at read time (#17096).
+      expect(endpointConfigs).toEqual({ 'openai-chat-completions': { baseUrl: 'https://my-proxy.com/v1' } })
+      // Registry-equal values are not frozen into the row...
+      expect(providerRow.apiFeatures).toBeNull()
+      expect(providerRow.defaultChatEndpoint).toBeNull()
+      // ...but the runtime read supplies them from the registry.
+      const runtime = providerService.getByProviderId('openai')
+      expect(runtime.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.baseUrl).toBe('https://my-proxy.com/v1')
+      expect(runtime.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_RESPONSES]?.baseUrl).toBe('https://api.openai.com/v1')
+      expect(runtime.apiFeatures.serviceTier).toBe(false)
+      expect(runtime.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     })
 
     it('leaves custom provider rows untouched when registry has no matching preset', async () => {
@@ -580,16 +587,20 @@ describe('ProviderModelMigrator', () => {
       const result = await migrator.execute(migrationContext)
 
       expect(result.success).toBe(true)
-      // The row persists only the user-owned override shape (no adapterFamily)...
+      // The legacy baseUrl equals the registry default → nothing user-owned
+      // remains, so the row stores no endpoint config at all...
       const [providerRow] = await dbh.db
         .select()
         .from(userProviderTable)
         .where(eq(userProviderTable.providerId, 'aihubmix'))
-      const endpointConfigs = providerRow.endpointConfigs as Record<string, { adapterFamily?: string }>
-      expect(endpointConfigs['anthropic-messages']).toEqual({ baseUrl: 'https://aihubmix.com' })
-      // ...while the runtime read supplies the catalog family, not a generic fallback.
+      expect(providerRow.endpointConfigs).toBeNull()
+      // ...while the runtime read supplies the catalog baseUrl and family,
+      // not a generic fallback.
       const runtime = providerService.getByProviderId('aihubmix')
-      expect(runtime.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.adapterFamily).toBe('aihubmix')
+      expect(runtime.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]).toEqual({
+        baseUrl: 'https://aihubmix.com',
+        adapterFamily: 'aihubmix'
+      })
     })
 
     it('backfills the anthropic adapterFamily for a custom relay with no catalog match', async () => {
@@ -632,7 +643,7 @@ describe('ProviderModelMigrator', () => {
       expect(runtime.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.adapterFamily).toBe('anthropic')
     })
 
-    it('enriches model rows with registry preset metadata when a preset is found', async () => {
+    it('stores no registry-owned model fields when a preset is found', async () => {
       registryFixtures.models.set('gpt-4o', {
         id: 'gpt-4o',
         name: 'GPT-4o',
@@ -656,12 +667,77 @@ describe('ProviderModelMigrator', () => {
 
       const [modelRow] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'openai::gpt-4o'))
       expect(modelRow.presetModelId).toBe('gpt-4o')
-      expect(modelRow.contextWindow).toBe(128_000)
-      expect(modelRow.maxOutputTokens).toBe(16_384)
-      expect(modelRow.inputModalities).toEqual(['text', 'image'])
-      expect(modelRow.outputModalities).toEqual(['text'])
-      expect(modelRow.capabilities).toEqual(['function-call', 'image-recognition'])
-      expect(modelRow.description).toBe('OpenAI flagship model')
+      expect(modelRow.name).toBeNull()
+      expect(modelRow.description).toBeNull()
+      expect(modelRow.capabilities).toBeNull()
+      expect(modelRow.inputModalities).toBeNull()
+      expect(modelRow.outputModalities).toBeNull()
+      expect(modelRow.contextWindow).toBeNull()
+      expect(modelRow.maxOutputTokens).toBeNull()
+      expect(modelRow.supportsStreaming).toBeNull()
+      expect(modelRow.userOverrides).toBeNull()
+    })
+
+    it('marks only genuine legacy model deltas as user overrides', async () => {
+      registryFixtures.models.set('gpt-4o', {
+        id: 'gpt-4o',
+        name: 'GPT-4o',
+        description: 'Registry description',
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+        contextWindow: 128_000,
+        maxOutputTokens: 16_384,
+        pricing: {
+          input: { perMillionTokens: 5 },
+          output: { perMillionTokens: 15 }
+        }
+      })
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            {
+              id: 'openai',
+              name: 'OpenAI',
+              type: 'openai',
+              enabled: true,
+              models: [
+                {
+                  id: 'gpt-4o',
+                  name: 'My GPT-4o',
+                  description: 'Registry description',
+                  group: 'My Models',
+                  supported_endpoint_types: ['openai-response'],
+                  supported_text_delta: false,
+                  pricing: {
+                    input_per_million_tokens: 1,
+                    output_per_million_tokens: 2
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+      const [modelRow] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'openai::gpt-4o'))
+      expect(modelRow.userOverrides).toEqual(['name', 'group', 'endpointTypes', 'supportsStreaming', 'pricing'])
+      expect(modelRow).toMatchObject({
+        name: 'My GPT-4o',
+        description: null,
+        group: 'My Models',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+        supportsStreaming: false,
+        capabilities: null,
+        contextWindow: null,
+        maxOutputTokens: null,
+        pricing: {
+          input: { perMillionTokens: 1 },
+          output: { perMillionTokens: 2 }
+        }
+      })
     })
 
     it('leaves rows untouched when no registry preset matches', async () => {
