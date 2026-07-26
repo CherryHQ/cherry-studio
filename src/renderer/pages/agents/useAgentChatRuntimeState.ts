@@ -17,11 +17,7 @@ import { useTopicOverlayHandoffOnTerminal, useTopicStreamStatus } from '@rendere
 import { ipcApi } from '@renderer/ipc'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
-import {
-  type AiStreamOpenRequest,
-  type AiToolApprovalRespondResponse,
-  isDeferredToolOutput
-} from '@shared/ai/transport'
+import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { isToolUIPart } from 'ai'
@@ -71,8 +67,6 @@ function getAskUserQuestionAnswers(value: unknown): Record<string, string> | und
 }
 
 function hasAskUserQuestionAnswers(part: AskUserQuestionApprovalPart): boolean {
-  if (isDeferredToolOutput(part.output)) return true
-
   const outputContent =
     typeof part.output === 'object' && part.output !== null && 'content' in part.output
       ? part.output.content
