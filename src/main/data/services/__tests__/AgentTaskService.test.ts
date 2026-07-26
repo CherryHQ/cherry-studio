@@ -90,6 +90,12 @@ describe('AgentTaskService (read side)', () => {
   })
 
   describe('getTask', () => {
+    it('returns a task by id without requiring the owning agent id', () => {
+      vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSnapshot())
+
+      expect(agentTaskService.getTaskById(TASK_ID)).toMatchObject({ id: TASK_ID, agentId: AGENT_ID })
+    })
+
     it('returns the entity when agentId matches the snapshot template', () => {
       vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSnapshot())
 
@@ -184,6 +190,26 @@ describe('AgentTaskService (read side)', () => {
       const result = agentTaskService.listTasks(AGENT_ID, { includeHeartbeat: true })
 
       expect(result.tasks).toHaveLength(2)
+    })
+  })
+
+  describe('listAllTasks', () => {
+    it('returns tasks across agents, excludes heartbeat tasks, and paginates after sorting', () => {
+      vi.mocked(jobScheduleService.listAll).mockReturnValueOnce([
+        makeSnapshot({ id: 'older', createdAt: '2026-05-20T00:00:00.000Z' }),
+        makeSnapshot({
+          id: 'newer',
+          createdAt: '2026-05-22T00:00:00.000Z',
+          jobInputTemplate: { agentId: 'other', prompt: 'x', timeoutMinutes: 2, workspace: taskWorkspace }
+        }),
+        makeSnapshot({ id: 'heartbeat', name: 'heartbeat', createdAt: '2026-05-23T00:00:00.000Z' })
+      ])
+
+      const result = agentTaskService.listAllTasks({ limit: 1, offset: 0 })
+
+      expect(result.total).toBe(2)
+      expect(result.tasks).toHaveLength(1)
+      expect(result.tasks[0]).toMatchObject({ id: 'newer', agentId: 'other' })
     })
   })
 
