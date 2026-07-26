@@ -3,7 +3,6 @@ import path from 'node:path'
 
 import { listDirectoryEntries } from '@main/services/file'
 import { readTextFileWithAutoEncoding } from '@main/utils/legacyFile'
-import type { FilePath } from '@shared/types/file'
 import { isBinaryFile } from 'isbinaryfile'
 
 const MAX_TEXT_PREVIEW_BYTES = 2 * 1024 * 1024
@@ -280,7 +279,7 @@ export async function listWebUiWorkspaceFiles(
     throw new WebUiWorkspaceFileError(400, 'WEBUI_WORKSPACE_NOT_DIRECTORY', 'Workspace path is not a directory')
   }
 
-  const entries = await listDirectoryEntries(target.requestedRealPath as FilePath, {
+  const entries = await listDirectoryEntries(target.requestedRealPath, {
     includeHidden: false,
     includeFiles: true,
     includeDirectories: true,
