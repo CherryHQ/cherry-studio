@@ -1,9 +1,12 @@
 import type { Options, WarmQuery } from '@anthropic-ai/claude-agent-sdk'
 import { startup } from '@anthropic-ai/claude-agent-sdk'
 import { application } from '@application'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { deriveRootSpanId } from '@shared/data/types/trace'
 
+import { buildAgentSessionTopicId } from '../../agentSession/topic'
 import { buildClaudeCodeWarmQueryRequestForAgentSession } from './agentSessionWarmup'
 
 const logger = loggerService.withContext('ClaudeCodeWarmQueryManager')
@@ -120,18 +123,39 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
   // delegate to the public methods below; this service registers no IPC of its own.
 
   async prewarmAgentSession(sessionId: string): Promise<void> {
-    if (application.get('ClaudeCodeTraceBridgeService').isTraceModeEnabled()) {
-      this.closeAll()
-      return
-    }
-
     try {
       const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession(sessionId)
       if (!warmRequest) return
-      this.prewarm(warmRequest)
+      this.prewarm(await this.withTraceEnv(sessionId, warmRequest))
     } catch (error) {
       logger.warn('Failed to prewarm agent session', { sessionId, error })
     }
+  }
+
+  /**
+   * Spawn the parked subprocess into the session's container trace. Telemetry env is fixed at spawn
+   * and is part of the warm signature, so a park built without it can never serve a traced turn —
+   * prewarm and the turn must derive the same env or trace mode never gets a warm start.
+   *
+   * Everything the turn's trace context contributes to env is derivable from the session id alone:
+   * the trace id is persisted on the session row and the root span id is derived from it. `modelName`
+   * is left out because it never reaches env — the turn registers the real one at connect.
+   */
+  private async withTraceEnv(sessionId: string, request: WarmQueryRequest): Promise<WarmQueryRequest> {
+    const traceBridge = application.get('ClaudeCodeTraceBridgeService')
+    if (!traceBridge.isTraceModeEnabled()) return request
+
+    const traceId = agentSessionService.ensureTraceId(sessionId)
+    const traceEnv = await traceBridge.prepareTrace({
+      topicId: buildAgentSessionTopicId(sessionId),
+      traceId,
+      rootSpanId: deriveRootSpanId(traceId),
+      sessionId,
+      turnId: ''
+    })
+    if (!traceEnv) return request
+
+    return { ...request, options: { ...request.options, env: { ...request.options.env, ...traceEnv } } }
   }
 
   closeAgentSessionWarm(sessionId: string): void {
