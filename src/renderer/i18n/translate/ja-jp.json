@@ -378,6 +378,11 @@
         "label": "事前承認済みツール",
         "placeholder": "事前承認するツールを選択"
       },
+      "api_retry": {
+        "reason": "リクエストに失敗しました（{{error}}、HTTP {{status}}）— 再試行しています",
+        "retrying": "再試行中 {{attempt}}/{{max}}…",
+        "retrying_in": "{{attempt}}/{{max}}回目の再試行、{{seconds}}秒後"
+      },
       "auto_rename": "タスク名を生成",
       "create": {
         "error": {
@@ -678,6 +683,7 @@
         "deleteFailed": "タスクの削除に失敗しました",
         "loadFailed": "タスクの読み込みに失敗しました",
         "runFailed": "タスクの実行に失敗しました",
+        "triggerInvalid": "無効なスケジュール: 式、タイムゾーン、または間隔範囲を確認してください",
         "updateFailed": "タスクの更新に失敗しました"
       },
       "frequency": {
@@ -869,7 +875,7 @@
       "expired": "期限切れ",
       "inputPreview": "ツール入力プレビュー",
       "pending": "保留中（{{seconds}}秒）",
-      "pendingBadge": "[to be translated]:Pending",
+      "pendingBadge": "保留中",
       "permissionExpired": "許可リクエストの期限が切れました。新しい指示を待っています...",
       "requiresElevatedPermissions": "このツールは昇格した権限が必要です。",
       "suggestion": {
@@ -1427,21 +1433,21 @@
       "placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",
       "placeholder_without_triggers": "ここにメッセージを入力し、{{key}} を押して送信...",
       "reference_panel": {
-        "load_failed": "[to be translated]:Failed to load the referenced conversation",
-        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "load_failed": "参照された会話の読み込みに失敗しました",
+        "no_room": "メッセージにこの会話を追加するための十分な空き容量がありません",
         "session": {
           "no_results": {
-            "description": "[to be translated]:No sessions match your search",
-            "label": "[to be translated]:No Sessions Found"
+            "description": "検索条件に一致するセッションがありません",
+            "label": "セッションが見つかりません"
           },
-          "title": "[to be translated]:Sessions"
+          "title": "セッション"
         },
         "topic": {
           "no_results": {
-            "description": "[to be translated]:No topics match your search",
-            "label": "[to be translated]:No Topics Found"
+            "description": "検索条件に一致するトピックはありません",
+            "label": "トピックが見つかりません"
           },
-          "title": "[to be translated]:Topics"
+          "title": "トピックス"
         }
       },
       "resize_height": "入力の高さを変更",
@@ -2293,7 +2299,7 @@
     "provider": "プロバイダー",
     "reasoning_content": "深く考察済み",
     "refresh": "更新",
-    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
+    "refresh_failed": "リストを更新できませんでした。最後に読み込んだバージョンを表示しています。",
     "regenerate": "再生成",
     "remove_image": "画像を削除",
     "rename": "名前を変更",
@@ -2609,7 +2615,7 @@
     "empty": {
       "no_match_description": "現在のフィルターに一致するファイルはありません",
       "no_match_title": "一致するファイルが見つかりません",
-      "title": "[to be translated]:No files yet"
+      "title": "まだファイルがありません"
     },
     "empty_trash": "ゴミ箱を空にする",
     "error": {
@@ -3781,6 +3787,8 @@
         "title": "削除確認"
       },
       "failed": "削除に失敗しました",
+      "first_turn_not_supported": "最初のユーザーメッセージは削除できません。",
+      "root_unavailable": "メッセージはまだ読み込み中のため、まだ削除できません。",
       "success": "削除が成功しました"
     },
     "dialog": {

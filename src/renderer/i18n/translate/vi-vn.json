@@ -378,6 +378,11 @@
         "label": "Công cụ được phê duyệt trước",
         "placeholder": "Chọn công cụ được phê duyệt trước"
       },
+      "api_retry": {
+        "reason": "Yêu cầu thất bại ({{error}}, HTTP {{status}}) — đang thử lại",
+        "retrying": "Đang thử lại {{attempt}}/{{max}}…",
+        "retrying_in": "Đang thử lại {{attempt}}/{{max}} sau {{seconds}} giây"
+      },
       "auto_rename": "Tạo tên nhiệm vụ",
       "create": {
         "error": {
@@ -678,6 +683,7 @@
         "deleteFailed": "Không xóa được tác vụ",
         "loadFailed": "Không tải được nhiệm vụ",
         "runFailed": "Không thể chạy tác vụ",
+        "triggerInvalid": "Lịch trình không hợp lệ: kiểm tra biểu thức, múi giờ hoặc phạm vi khoảng thời gian",
         "updateFailed": "Không thể cập nhật tác vụ"
       },
       "frequency": {
@@ -869,7 +875,7 @@
       "expired": "Hết hạn",
       "inputPreview": "Xem trước đầu vào công cụ",
       "pending": "Đang chờ phê duyệt",
-      "pendingBadge": "[to be translated]:Pending",
+      "pendingBadge": "Đang chờ xử lý",
       "permissionExpired": "Yêu cầu quyền đã hết hạn. Đang chờ hướng dẫn mới...",
       "requiresElevatedPermissions": "Công cụ này yêu cầu quyền truy cập nâng cao.",
       "suggestion": {
@@ -1427,21 +1433,21 @@
       "placeholder": "Nhập tin nhắn của bạn ở đây, nhấn {{key}} để gửi - @ để Chọn Mô hình, / để Bao gồm Công cụ",
       "placeholder_without_triggers": "Nhập tin nhắn của bạn ở đây, nhấn {{key}} để gửi",
       "reference_panel": {
-        "load_failed": "[to be translated]:Failed to load the referenced conversation",
-        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "load_failed": "Không thể tải cuộc trò chuyện được tham chiếu",
+        "no_room": "Không còn đủ chỗ trong tin nhắn để thêm cuộc trò chuyện này",
         "session": {
           "no_results": {
-            "description": "[to be translated]:No sessions match your search",
-            "label": "[to be translated]:No Sessions Found"
+            "description": "Không có phiên nào phù hợp với tìm kiếm của bạn",
+            "label": "Không Tìm Thấy Phiên Làm Việc"
           },
-          "title": "[to be translated]:Sessions"
+          "title": "Phiên"
         },
         "topic": {
           "no_results": {
-            "description": "[to be translated]:No topics match your search",
-            "label": "[to be translated]:No Topics Found"
+            "description": "Không có chủ đề nào phù hợp với tìm kiếm của bạn",
+            "label": "Không Tìm Thấy Chủ Đề Nào"
           },
-          "title": "[to be translated]:Topics"
+          "title": "Chủ đề"
         }
       },
       "resize_height": "Điều chỉnh chiều cao đầu vào",
@@ -2293,7 +2299,7 @@
     "provider": "Nhà cung cấp",
     "reasoning_content": "Reasoning profundo",
     "refresh": "Làm mới",
-    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
+    "refresh_failed": "Không thể làm mới danh sách. Đang hiển thị phiên bản đã tải lần cuối.",
     "regenerate": "Tái tạo",
     "remove_image": "Xóa hình ảnh",
     "rename": "Đổi tên",
@@ -2609,7 +2615,7 @@
     "empty": {
       "no_match_description": "Không có tệp nào khớp với bộ lọc hiện tại",
       "no_match_title": "Không tìm thấy tệp phù hợp",
-      "title": "[to be translated]:No files yet"
+      "title": "Chưa có tệp nào"
     },
     "empty_trash": "Xóa thùng rác",
     "error": {
@@ -3781,6 +3787,8 @@
         "title": "Xác nhận xóa"
       },
       "failed": "Xóa thất bại",
+      "first_turn_not_supported": "Tin nhắn của người dùng đầu tiên không thể bị xóa.",
+      "root_unavailable": "Tin nhắn vẫn đang tải và chưa thể xóa.",
       "success": "Xóa thành công"
     },
     "dialog": {

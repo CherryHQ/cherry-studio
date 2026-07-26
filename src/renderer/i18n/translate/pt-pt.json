@@ -378,6 +378,11 @@
         "label": "Ferramentas pré-aprovadas",
         "placeholder": "Selecionar ferramentas pré-aprovadas"
       },
+      "api_retry": {
+        "reason": "Falha na solicitação ({{error}}, HTTP {{status}}) — tentando novamente",
+        "retrying": "Tentando novamente {{attempt}}/{{max}}…",
+        "retrying_in": "Tentando novamente {{attempt}}/{{max}} em {{seconds}}s"
+      },
       "auto_rename": "Gerar nome da tarefa",
       "create": {
         "error": {
@@ -678,6 +683,7 @@
         "deleteFailed": "Falha ao excluir tarefa",
         "loadFailed": "Falha ao carregar tarefas",
         "runFailed": "Falha ao executar a tarefa",
+        "triggerInvalid": "Agenda inválida: verifique a expressão, o fuso horário ou o intervalo",
         "updateFailed": "Falha ao atualizar a tarefa"
       },
       "frequency": {
@@ -869,7 +875,7 @@
       "expired": "Expirado",
       "inputPreview": "Pré-visualização da entrada da ferramenta",
       "pending": "Pendente ({{seconds}}s)",
-      "pendingBadge": "[to be translated]:Pending",
+      "pendingBadge": "Pendente",
       "permissionExpired": "Solicitação de permissão expirou. Aguardando novas instruções...",
       "requiresElevatedPermissions": "Esta ferramenta requer permissões elevadas.",
       "suggestion": {
@@ -1427,21 +1433,21 @@
       "placeholder": "Digite sua mensagem aqui...",
       "placeholder_without_triggers": "Escreve a tua mensagem aqui, pressiona {{key}} para enviar",
       "reference_panel": {
-        "load_failed": "[to be translated]:Failed to load the referenced conversation",
-        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "load_failed": "Falha ao carregar a conversa referenciada",
+        "no_room": "Não há espaço suficiente restante na mensagem para adicionar esta conversa",
         "session": {
           "no_results": {
-            "description": "[to be translated]:No sessions match your search",
-            "label": "[to be translated]:No Sessions Found"
+            "description": "Nenhuma sessão corresponde à sua pesquisa",
+            "label": "Nenhuma Sessão Encontrada"
           },
-          "title": "[to be translated]:Sessions"
+          "title": "Sessões"
         },
         "topic": {
           "no_results": {
-            "description": "[to be translated]:No topics match your search",
-            "label": "[to be translated]:No Topics Found"
+            "description": "Nenhum tópico corresponde à sua pesquisa",
+            "label": "Nenhum Tópico Encontrado"
           },
-          "title": "[to be translated]:Topics"
+          "title": "Tópicos"
         }
       },
       "resize_height": "Redimensionar altura da entrada",
@@ -2293,7 +2299,7 @@
     "provider": "Fornecedor",
     "reasoning_content": "Pensamento profundo concluído",
     "refresh": "Atualizar",
-    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
+    "refresh_failed": "Não foi possível atualizar a lista. Exibindo a última versão carregada.",
     "regenerate": "Regenerar",
     "remove_image": "Remover imagem",
     "rename": "Renomear",
@@ -2609,7 +2615,7 @@
     "empty": {
       "no_match_description": "Nenhum arquivo corresponde aos filtros atuais",
       "no_match_title": "Nenhum arquivo correspondente encontrado",
-      "title": "[to be translated]:No files yet"
+      "title": "Nenhum arquivo ainda"
     },
     "empty_trash": "Esvaziar lixeira",
     "error": {
@@ -3781,6 +3787,8 @@
         "title": "Confirmação de Exclusão"
       },
       "failed": "Falha ao excluir",
+      "first_turn_not_supported": "A primeira mensagem do usuário não pode ser excluída.",
+      "root_unavailable": "As mensagens ainda estão a carregar e não podem ser eliminadas ainda.",
       "success": "Excluído com sucesso"
     },
     "dialog": {

@@ -378,6 +378,11 @@
         "label": "預先授權工具",
         "placeholder": "選擇預先授權的工具"
       },
+      "api_retry": {
+        "reason": "請求失敗（{{error}}，HTTP {{status}}）— 正在重試",
+        "retrying": "重試 {{attempt}}/{{max}}…",
+        "retrying_in": "在 {{seconds}} 秒後重試 {{attempt}}/{{max}}"
+      },
       "auto_rename": "產生任務名",
       "create": {
         "error": {
@@ -678,6 +683,7 @@
         "deleteFailed": "無法刪除任務",
         "loadFailed": "載入任務失敗",
         "runFailed": "無法執行任務",
+        "triggerInvalid": "排程無效：請檢查表達式、時區或間隔範圍",
         "updateFailed": "更新任務失敗"
       },
       "frequency": {
@@ -1427,21 +1433,21 @@
       "placeholder": "輸入訊息，按 {{key}} 傳送，輸入 / 選擇工具或操作",
       "placeholder_without_triggers": "在此輸入您的訊息，按 {{key}} 傳送",
       "reference_panel": {
-        "load_failed": "[to be translated]:Failed to load the referenced conversation",
-        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "load_failed": "無法載入引用的對話",
+        "no_room": "訊息中沒有足夠的空間來加入這個對話",
         "session": {
           "no_results": {
-            "description": "[to be translated]:No sessions match your search",
-            "label": "[to be translated]:No Sessions Found"
+            "description": "沒有符合您搜尋條件的會話",
+            "label": "未找到任何會議"
           },
-          "title": "[to be translated]:Sessions"
+          "title": "會議"
         },
         "topic": {
           "no_results": {
-            "description": "[to be translated]:No topics match your search",
-            "label": "[to be translated]:No Topics Found"
+            "description": "沒有符合您搜尋的主題",
+            "label": "找不到主題"
           },
-          "title": "[to be translated]:Topics"
+          "title": "主題"
         }
       },
       "resize_height": "調整輸入框高度",
@@ -2293,7 +2299,7 @@
     "provider": "供應商",
     "reasoning_content": "已深度思考",
     "refresh": "重新整理",
-    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
+    "refresh_failed": "無法重新整理清單。正在顯示上次載入的版本。",
     "regenerate": "重新產生",
     "remove_image": "移除圖片",
     "rename": "重新命名",
@@ -2609,7 +2615,7 @@
     "empty": {
       "no_match_description": "目前篩選條件下沒有檔案",
       "no_match_title": "找不到符合的檔案",
-      "title": "[to be translated]:No files yet"
+      "title": "尚無檔案"
     },
     "empty_trash": "清空回收站",
     "error": {
@@ -3781,6 +3787,8 @@
         "title": "刪除確認"
       },
       "failed": "刪除失敗",
+      "first_turn_not_supported": "第一個使用者訊息無法刪除。",
+      "root_unavailable": "訊息仍在載入中，尚無法刪除。",
       "success": "刪除成功"
     },
     "dialog": {

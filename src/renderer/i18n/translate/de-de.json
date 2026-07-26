@@ -378,6 +378,11 @@
         "label": "Vorab autorisierte Tools",
         "placeholder": "Vorab autorisierte Tools auswählen"
       },
+      "api_retry": {
+        "reason": "Anfrage fehlgeschlagen ({{error}}, HTTP {{status}}) — wird erneut versucht",
+        "retrying": "Wiederholung {{attempt}}/{{max}}…",
+        "retrying_in": "Erneuter Versuch {{attempt}}/{{max}} in {{seconds}}s"
+      },
       "auto_rename": "Aufgabenname generieren",
       "create": {
         "error": {
@@ -678,6 +683,7 @@
         "deleteFailed": "Fehler beim Löschen der Aufgabe",
         "loadFailed": "Aufgaben konnten nicht geladen werden",
         "runFailed": "Aufgabe konnte nicht ausgeführt werden",
+        "triggerInvalid": "Ungültiger Zeitplan: Überprüfen Sie den Ausdruck, die Zeitzone oder den Intervallbereich",
         "updateFailed": "Aktualisierung der Aufgabe fehlgeschlagen"
       },
       "frequency": {
@@ -869,7 +875,7 @@
       "expired": "Abgelaufen",
       "inputPreview": "Vorschau der Werkzeugeingabe",
       "pending": "Ausstehend ({{seconds}}s)",
-      "pendingBadge": "[to be translated]:Pending",
+      "pendingBadge": "Ausstehend",
       "permissionExpired": "Berechtigungsanfrage abgelaufen. Warte auf neue Anweisungen...",
       "requiresElevatedPermissions": "Dieses Tool erfordert erhöhte Berechtigungen.",
       "suggestion": {
@@ -1427,21 +1433,21 @@
       "placeholder": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden - @ für Modellauswahl, / für Tools",
       "placeholder_without_triggers": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden",
       "reference_panel": {
-        "load_failed": "[to be translated]:Failed to load the referenced conversation",
-        "no_room": "[to be translated]:Not enough room left in the message to add this conversation",
+        "load_failed": "Fehler beim Laden der referenzierten Konversation",
+        "no_room": "Nicht genug Platz in der Nachricht, um dieses Gespräch hinzuzufügen",
         "session": {
           "no_results": {
-            "description": "[to be translated]:No sessions match your search",
-            "label": "[to be translated]:No Sessions Found"
+            "description": "Keine Sitzungen entsprechen Ihrer Suche",
+            "label": "Keine Sitzungen gefunden"
           },
-          "title": "[to be translated]:Sessions"
+          "title": "Sessions"
         },
         "topic": {
           "no_results": {
-            "description": "[to be translated]:No topics match your search",
-            "label": "[to be translated]:No Topics Found"
+            "description": "Keine Themen entsprechen Ihrer Suche",
+            "label": "Keine Themen gefunden"
           },
-          "title": "[to be translated]:Topics"
+          "title": "Themen"
         }
       },
       "resize_height": "Eingabehöhe ändern",
@@ -2293,7 +2299,7 @@
     "provider": "Anbieter",
     "reasoning_content": "Tiefgehend nachgedacht",
     "refresh": "Aktualisieren",
-    "refresh_failed": "[to be translated]:Couldn't refresh the list. Showing the last loaded version.",
+    "refresh_failed": "Die Liste konnte nicht aktualisiert werden. Es wird die zuletzt geladene Version angezeigt.",
     "regenerate": "Neu generieren",
     "remove_image": "Bild entfernen",
     "rename": "Umbenennen",
@@ -2609,7 +2615,7 @@
     "empty": {
       "no_match_description": "Keine Dateien entsprechen den aktuellen Filtern",
       "no_match_title": "Keine passenden Dateien gefunden",
-      "title": "[to be translated]:No files yet"
+      "title": "Noch keine Dateien vorhanden"
     },
     "empty_trash": "Papierkorb leeren",
     "error": {
@@ -3781,6 +3787,8 @@
         "title": "Löschen bestätigen"
       },
       "failed": "Löschen fehlgeschlagen",
+      "first_turn_not_supported": "Die erste Benutzernachricht kann nicht gelöscht werden.",
+      "root_unavailable": "Nachrichten werden noch geladen und können noch nicht gelöscht werden.",
       "success": "Erfolgreich gelöscht"
     },
     "dialog": {
