@@ -986,9 +986,26 @@ export class ClaudeCodeStreamAdapter {
       case 'mirror_error':
       case 'notification':
       case 'plugin_install':
-        // TODO: Implement handling for these system message subtypes as needed. For now, they are acknowledged at debug level in the logger to avoid being silently ignored.
+      case 'model_refusal_fallback':
+      case 'model_refusal_no_fallback':
+      case 'control_request_progress':
+      case 'informational':
+      case 'worker_shutting_down':
+        // TODO: Implement handling for these system message subtypes as needed. For now, they are
+        // acknowledged at debug level in the logger to avoid being silently ignored. The two
+        // `model_refusal_*` ones are the most worth surfacing to the user: the model declined and the
+        // CLI either fell back or gave up, which today reads as the answer simply going strange.
         logger.debug(`Received system message subtype: ${message.subtype}`, { message })
         return
+      default: {
+        // A subtype the SDK added since this switch was last reviewed. Failing the build is the
+        // point — it is how a new signal gets a decision instead of vanishing. Deliberately not
+        // thrown: the CLI may ship subtypes ahead of us, and a crashed stream is worse than a log.
+        const _exhaustive: never = message
+        void _exhaustive
+        logger.debug('Received an unknown system message subtype', { message })
+        return
+      }
     }
   }
 
