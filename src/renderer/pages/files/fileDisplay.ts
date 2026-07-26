@@ -92,19 +92,19 @@ export const typeIcons: Record<FileType, FC<{ size?: number; strokeWidth?: numbe
 }
 
 export const typeIconColors: Record<FileType, string> = {
-  image: 'text-pink-500/50',
-  video: 'text-violet-500/50',
-  audio: 'text-amber-500/50',
-  text: 'text-cyan-500/50',
-  document: 'text-blue-500/50',
-  other: 'text-muted-foreground/40'
+  image: 'text-muted-foreground',
+  video: 'text-muted-foreground',
+  audio: 'text-muted-foreground',
+  text: 'text-muted-foreground',
+  document: 'text-muted-foreground',
+  other: 'text-muted-foreground'
 }
 
 export const typeBgColors: Record<FileType, string> = {
-  image: 'bg-pink-500/[0.04]',
-  video: 'bg-violet-500/[0.04]',
-  audio: 'bg-amber-500/[0.04]',
-  text: 'bg-cyan-500/[0.04]',
-  document: 'bg-blue-500/[0.04]',
-  other: 'bg-muted/20'
+  image: 'bg-muted',
+  video: 'bg-muted',
+  audio: 'bg-muted',
+  text: 'bg-muted',
+  document: 'bg-muted',
+  other: 'bg-muted'
 }

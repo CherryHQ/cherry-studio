@@ -56,6 +56,7 @@ const taskMutationMocks = vi.hoisted(() => ({
   createTask: vi.fn(),
   deleteTask: vi.fn(),
   runTask: vi.fn(),
+  setTaskEnabled: vi.fn(),
   updateTask: vi.fn()
 }))
 
@@ -100,6 +101,7 @@ vi.mock('@renderer/hooks/agent/useTasks', () => ({
   useCreateTask: () => ({ createTask: taskMutationMocks.createTask }),
   useDeleteTask: () => ({ deleteTask: taskMutationMocks.deleteTask }),
   useRunTask: () => ({ runTask: taskMutationMocks.runTask }),
+  useSetTaskEnabled: () => ({ setTaskEnabled: taskMutationMocks.setTaskEnabled }),
   useTaskLogs: () => taskLogsMock,
   useUpdateTask: () => ({ updateTask: taskMutationMocks.updateTask })
 }))
@@ -415,6 +417,7 @@ describe('TasksSettings task logs', () => {
     taskDataMock.task = { ...taskDataMock.defaultTask }
     channelDataMock.channels = []
     taskMutationMocks.runTask.mockResolvedValue(true)
+    taskMutationMocks.setTaskEnabled.mockResolvedValue(taskDataMock.task)
     taskMutationMocks.updateTask.mockResolvedValue(taskDataMock.task)
     dataApiMock.get.mockImplementation((path: string) => {
       if (path === '/agents') {
@@ -570,7 +573,7 @@ describe('TasksSettings task logs', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
 
-    await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('task-1'))
+    await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('agent-1', 'task-1'))
   })
 
   it('applies the updated task response without reloading all task data', async () => {
@@ -701,7 +704,7 @@ describe('TasksSettings task logs', () => {
 
     await act(async () => save.resolve(taskDataMock.task))
 
-    await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('task-1'))
+    await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('agent-1', 'task-1'))
   })
 
   it('does not run the task when the pending save fails', async () => {
@@ -778,7 +781,7 @@ describe('TasksSettings task logs', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
     fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
 
-    await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('task-1'))
+    await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('agent-1', 'task-1'))
   })
 
   it('preserves an unblurred prompt draft when another field save fails', async () => {
@@ -842,7 +845,7 @@ describe('TasksSettings task logs', () => {
     fireEvent.blur(nameInput)
 
     await act(async () => firstSave.resolve(taskDataMock.task))
-    await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('task-1'))
+    await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('agent-1', 'task-1'))
 
     expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1)
 
@@ -871,7 +874,7 @@ describe('TasksSettings task logs', () => {
       fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
 
       await act(async () => {})
-      expect(taskMutationMocks.runTask).toHaveBeenCalledWith('task-1')
+      expect(taskMutationMocks.runTask).toHaveBeenCalledWith('agent-1', 'task-1')
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(1000)
@@ -914,14 +917,12 @@ describe('TasksSettings task logs', () => {
 
       fireEvent.click(screen.getByRole('switch', { name: 'agent.tasks.status.active' }))
 
-      expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1)
+      expect(taskMutationMocks.setTaskEnabled).not.toHaveBeenCalled()
 
       await act(async () => save.resolve(taskDataMock.task))
 
       await waitFor(() =>
-        expect(taskMutationMocks.updateTask).toHaveBeenNthCalledWith(2, 'agent-1', 'task-1', {
-          enabled: nextEnabled
-        })
+        expect(taskMutationMocks.setTaskEnabled).toHaveBeenCalledWith('agent-1', 'task-1', nextEnabled)
       )
     }
   )
@@ -947,7 +948,7 @@ describe('TasksSettings task logs', () => {
 
     await act(async () => {})
     expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1)
-    expect(taskMutationMocks.updateTask).not.toHaveBeenCalledWith('agent-1', 'task-1', { enabled: true })
+    expect(taskMutationMocks.setTaskEnabled).not.toHaveBeenCalled()
   })
 
   it('pauses when a preceding configuration save fails', async () => {
@@ -964,9 +965,7 @@ describe('TasksSettings task logs', () => {
     fireEvent.click(screen.getByRole('switch', { name: 'agent.tasks.status.active' }))
     await act(async () => save.resolve(undefined))
 
-    await waitFor(() =>
-      expect(taskMutationMocks.updateTask).toHaveBeenNthCalledWith(2, 'agent-1', 'task-1', { enabled: false })
-    )
+    await waitFor(() => expect(taskMutationMocks.setTaskEnabled).toHaveBeenCalledWith('agent-1', 'task-1', false))
   })
 
   it('toggles the selected task status from the header switch', async () => {
@@ -976,20 +975,18 @@ describe('TasksSettings task logs', () => {
 
     fireEvent.click(screen.getByRole('switch', { name: 'agent.tasks.status.active' }))
 
-    await waitFor(() =>
-      expect(taskMutationMocks.updateTask).toHaveBeenCalledWith('agent-1', 'task-1', { enabled: false })
-    )
+    await waitFor(() => expect(taskMutationMocks.setTaskEnabled).toHaveBeenCalledWith('agent-1', 'task-1', false))
   })
 
   it('waits for an in-flight status toggle before running the task', async () => {
     const toggle = createDeferred<typeof taskDataMock.task>()
-    taskMutationMocks.updateTask.mockReturnValueOnce(toggle.promise)
+    taskMutationMocks.setTaskEnabled.mockReturnValueOnce(toggle.promise)
 
     render(<TasksSettings />)
 
     await screen.findByText('agent.tasks.logs.viewSession')
     fireEvent.click(screen.getByRole('switch', { name: 'agent.tasks.status.active' }))
-    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(taskMutationMocks.setTaskEnabled).toHaveBeenCalledTimes(1))
 
     fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
     fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
@@ -999,18 +996,18 @@ describe('TasksSettings task logs', () => {
 
     await act(async () => toggle.resolve({ ...taskDataMock.task, enabled: false, status: 'paused' }))
 
-    await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('task-1'))
+    await waitFor(() => expect(taskMutationMocks.runTask).toHaveBeenCalledWith('agent-1', 'task-1'))
   })
 
   it('does not run the task when an in-flight status toggle fails', async () => {
     const toggle = createDeferred<typeof taskDataMock.task | undefined>()
-    taskMutationMocks.updateTask.mockReturnValueOnce(toggle.promise)
+    taskMutationMocks.setTaskEnabled.mockReturnValueOnce(toggle.promise)
 
     render(<TasksSettings />)
 
     await screen.findByText('agent.tasks.logs.viewSession')
     fireEvent.click(screen.getByRole('switch', { name: 'agent.tasks.status.active' }))
-    await waitFor(() => expect(taskMutationMocks.updateTask).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(taskMutationMocks.setTaskEnabled).toHaveBeenCalledTimes(1))
 
     fireEvent.click(screen.getByRole('button', { name: 'common.more' }))
     fireEvent.click(screen.getByRole('button', { name: 'agent.tasks.run' }))
