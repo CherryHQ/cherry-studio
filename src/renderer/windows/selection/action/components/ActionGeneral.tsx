@@ -48,11 +48,13 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
 
   const shouldSaveToAssistantHistory = Boolean(chosenAssistantId) && (action.saveToAssistantHistory ?? true)
   const persistedTopicRef = useRef<string | null>(null)
+  const historyTopicName = action.isBuiltIn ? t(action.name) : action.name
 
   // The topic starts in memory and is promoted only after a successful response.
   const {
     topicId: temporaryTopicId,
     ready,
+    reset,
     persist
   } = useTemporaryTopic({
     enabled: !waitingForConfiguredAssistant,
@@ -130,12 +132,17 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
     }
 
     persistedTopicRef.current = temporaryTopicId
-    void persist().catch((error) => {
+    void persist({
+      aggregate: {
+        key: `selection-action:${action.id}`,
+        name: historyTopicName
+      }
+    }).catch((error) => {
       persistedTopicRef.current = null
       logger.error('Failed to persist selection assistant topic', error as Error)
       toast.error(t('common.save_failed'))
     })
-  }, [persist, shouldSaveToAssistantHistory, status, t, temporaryTopicId])
+  }, [action.id, historyTopicName, persist, shouldSaveToAssistantHistory, status, t, temporaryTopicId])
 
   const latestAssistantUIMsg = useMemo<CherryUIMessage | undefined>(() => liveAssistants.at(-1), [liveAssistants])
 
@@ -189,12 +196,20 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
     fetchResult()
   }, [fetchResult])
 
+  useEffect(
+    () => () => {
+      void stopChat()
+    },
+    [stopChat]
+  )
+
   const handlePause = () => {
     void stopChat()
   }
 
   const handleRegenerate = () => {
-    fetchResult()
+    void stopChat()
+    reset()
   }
 
   return (

@@ -19,8 +19,8 @@ import ActionTranslate from './components/ActionTranslate'
 
 /**
  * Outer shell. Pulls the current action payload via `useWindowInitData`, which
- * transparently handles both cold-start (pooled warmup / first mount) and
- * reuse (`window.reused` payload on pool recycle). The window shell stays
+ * transparently handles both cold-start (singleton warmup / first mount) and
+ * reuse (`window.reused` payload on singleton reopen). The window shell stays
  * mounted, while the action-specific subtree is keyed by `invocationId` so
  * every selection receives a fresh temporary conversation.
  */
@@ -32,8 +32,8 @@ const ActionWindow: FC = () => {
 
 /**
  * Controlled content component. All selection-action UI state lives here;
- * `action` is supplied by the parent and updated on every pool recycle /
- * singleton re-use without unmounting. A consolidated `useEffect([action])`
+ * `action` is supplied by the parent and updated on every singleton reuse
+ * without unmounting. A consolidated `useEffect([action])`
  * (keyed on the reference, not `.id`) resets per-session state (pin, opacity,
  * slider, scroll) so old state doesn't bleed into the new session, even when
  * the next action happens to be the same type as the previous one.
@@ -103,7 +103,7 @@ const SelectionActionContent: FC<{ action: SelectionActionInvocation }> = ({ act
 
   useEffect(() => {
     // Register the scroll listener exactly once on mount. The content DOM node
-    // does not change across pool reuses (we never unmount), and
+    // does not change across singleton reuses (we never unmount), and
     // `handleUserScroll` only reads from refs, so a single subscription is
     // sufficient; per-session scrollTop / lastScrollHeight reset lives in the
     // `[action]` reset effect above.

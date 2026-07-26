@@ -202,12 +202,6 @@ export class SelectionService extends BaseService implements Activatable {
     try {
       const wm = application.get('WindowManager')
 
-      // Resume the action pool in case a prior deactivate/activate cycle suspended it.
-      // With registry warmup: 'eager', the pool auto-creates idle windows at app start,
-      // so the first user-triggered action recycles instantly instead of going through
-      // the fresh-path (create + load HTML + wait for React to mount).
-      wm.resumePool(WindowType.SelectionAction)
-
       // Open the toolbar (singleton) — registry's show: false ensures no auto-show here,
       // showToolbarAtPosition controls positioning and visibility.
       this.toolbarWindowId = wm.open(WindowType.SelectionToolbar)
@@ -253,10 +247,8 @@ export class SelectionService extends BaseService implements Activatable {
       })
     )
 
-    // Per-instance resized listener for action windows. Must live inside
-    // onWindowCreatedByType — pool recycle paths do not re-fire the event,
-    // so attaching at the open() call site would either miss recycled instances
-    // or accumulate duplicates across reuses.
+    // Per-instance resized listener for the singleton action window. It belongs
+    // in onWindowCreatedByType so retained singleton reopens never duplicate it.
     this.registerDisposable(
       wm.onWindowCreatedByType(WindowType.SelectionAction, (mw) => {
         mw.window.on('resized', () => {
@@ -1197,9 +1189,8 @@ export class SelectionService extends BaseService implements Activatable {
    * for efficient reactivation. Safe to call even if onActivate() never ran or partially ran.
    *
    * Note on action windows: we intentionally DO NOT destroy in-use action windows —
-   * users may still be reading those results. The WindowManager pool is suspended
-   * (idle windows destroyed, no further warmup), but in-use windows stay alive until
-   * the user closes them (suspendPool only destroys idle, never managed).
+   * users may still be reading those results. The retained singleton stays alive
+   * and is reused if the feature is activated again.
    */
   private releaseActivationResources(): void {
     if (this.selectionHook) {
@@ -1227,11 +1218,6 @@ export class SelectionService extends BaseService implements Activatable {
       wm.destroy(this.toolbarWindowId)
       // toolbarWindow / toolbarWindowId are cleared by the onWindowDestroyed handler in onInit().
     }
-
-    // Suspend the action pool — destroys idle windows and disables further warmup until
-    // resumePool() is called on next activate. In-use windows are NOT destroyed here,
-    // preserving user-visible results.
-    wm.suspendPool(WindowType.SelectionAction)
   }
 
   /**
@@ -1247,8 +1233,8 @@ export class SelectionService extends BaseService implements Activatable {
     }
 
     // open({ initData }) atomically stores the action payload and, for the
-    // pool-recycle path, emits window.reused with the same payload so
-    // the renderer can update in-place. For recycled windows the renderer has
+    // retained-singleton path, emits window.reused with the same payload so
+    // the renderer can update in-place. For retained singleton windows the renderer has
     // been mounted and its listener registered since warmup, so the DOM is
     // ready on the next tick. For fresh windows the renderer mounts,
     // `useWindowInitData` pulls the payload via `getInitData`, and React

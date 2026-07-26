@@ -114,7 +114,7 @@ describe('SelectionService.processAction', () => {
     vi.restoreAllMocks()
   })
 
-  it('adds a fresh runtime invocation id to every pooled-window payload', () => {
+  it('adds a fresh runtime invocation id to every singleton replacement payload', () => {
     const service = new SelectionService()
     const windowManager = application.get('WindowManager')
     const action: SelectionActionItem = {

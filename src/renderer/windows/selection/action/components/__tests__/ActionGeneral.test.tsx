@@ -1,7 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   assistant: undefined as { id: string } | undefined,
   sendMessage: vi.fn(),
   stopChat: vi.fn(),
+  resetTopic: vi.fn(),
   persist: vi.fn(),
   streamStatus: undefined as 'done' | 'error' | 'aborted' | 'streaming' | undefined,
   temporaryTopicOptions: [] as Array<{ enabled?: boolean; assistantId?: string; initialName?: string }>,
@@ -49,8 +50,8 @@ vi.mock('@renderer/hooks/useTemporaryTopic', () => ({
   useTemporaryTopic: (options: { enabled?: boolean; assistantId?: string; initialName?: string }) => {
     state.temporaryTopicOptions.push(options)
     return options.enabled === false
-      ? { topicId: null, ready: false, persist: state.persist }
-      : { topicId: 'temp-topic', ready: true, persist: state.persist }
+      ? { topicId: null, ready: false, reset: state.resetTopic, persist: state.persist }
+      : { topicId: 'temp-topic', ready: true, reset: state.resetTopic, persist: state.persist }
   }
 }))
 
@@ -95,7 +96,11 @@ vi.mock('@renderer/components/CopyButton', () => ({
 }))
 
 vi.mock('../WindowFooter', () => ({
-  default: () => <div data-testid="window-footer" />
+  default: ({ onRegenerate }: { onRegenerate: () => void }) => (
+    <button type="button" data-testid="window-footer" onClick={onRegenerate}>
+      regenerate
+    </button>
+  )
 }))
 
 vi.mock('@renderer/services/aiTransport', () => ({
@@ -124,7 +129,8 @@ describe('ActionGeneral', () => {
     state.assistant = undefined
     state.sendMessage.mockClear()
     state.stopChat.mockClear()
-    state.persist.mockReset().mockResolvedValue(undefined)
+    state.resetTopic.mockClear()
+    state.persist.mockReset().mockResolvedValue({ topicId: 'aggregate-topic', messageCount: 2 })
     state.streamStatus = undefined
     state.temporaryTopicOptions = []
     state.useChatIds = []
@@ -192,6 +198,12 @@ describe('ActionGeneral', () => {
     rerender(<ActionGeneral action={{ ...action }} />)
 
     await waitFor(() => expect(state.persist).toHaveBeenCalledTimes(1))
+    expect(state.persist).toHaveBeenCalledWith({
+      aggregate: {
+        key: 'selection-action:summary',
+        name: 'Summary:'
+      }
+    })
 
     state.streamStatus = 'streaming'
     rerender(<ActionGeneral action={{ ...action }} />)
@@ -239,6 +251,24 @@ describe('ActionGeneral', () => {
 
     await waitFor(() => expect(state.toastError).toHaveBeenCalledWith('common.save_failed:'))
     expect(screen.queryByText('write failed')).not.toBeInTheDocument()
+  })
+
+  it('stops the current request and leases a fresh temporary topic for regeneration', async () => {
+    render(<ActionGeneral action={createAction({ assistantId: '' })} />)
+
+    await waitFor(() => expect(state.sendMessage).toHaveBeenCalledTimes(1))
+    fireEvent.click(screen.getByTestId('window-footer'))
+
+    expect(state.stopChat).toHaveBeenCalledTimes(1)
+    expect(state.resetTopic).toHaveBeenCalledTimes(1)
+  })
+
+  it('stops an in-flight request when a newer invocation replaces the subtree', () => {
+    const { unmount } = render(<ActionGeneral action={createAction({ assistantId: '' })} />)
+
+    unmount()
+
+    expect(state.stopChat).toHaveBeenCalledTimes(1)
   })
 
   it('localizes a known error and leaves space above it', () => {

@@ -252,6 +252,19 @@ describe('WINDOW_TYPE_REGISTRY SelectionAction window — macOS traffic lights',
   })
 })
 
+describe('WINDOW_TYPE_REGISTRY SelectionAction window — replacement contract', () => {
+  it('retains one eagerly warmed singleton instead of allowing pooled concurrent results', () => {
+    const metadata = WINDOW_TYPE_REGISTRY[WindowType.SelectionAction]
+
+    expect(metadata).toBeDefined()
+    if (!metadata) throw new Error('SelectionAction metadata is missing')
+    expect(metadata.lifecycle).toBe('singleton')
+    if (metadata.lifecycle !== 'singleton') throw new Error('SelectionAction must be a singleton')
+    expect(metadata.singletonConfig).toEqual({ warmup: 'eager', retentionTime: -1 })
+    expect('poolConfig' in metadata).toBe(false)
+  })
+})
+
 describe('WINDOW_TYPE_REGISTRY Print window — domain-loaded print surface', () => {
   it('leaves content loading and visibility to PrintService', () => {
     const metadata = WINDOW_TYPE_REGISTRY[WindowType.Print]

@@ -382,11 +382,16 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     }
   },
 
-  // Action result window — pooled for instant reuse.
+  // Action result window — one eagerly warmed singleton. A new selection
+  // replaces the previous result even when that window is pinned.
   // Managed by SelectionService: processAction uses wm.open({ initData }) to hand each action to a renderer.
   [WindowType.SelectionAction]: {
     type: WindowType.SelectionAction,
-    lifecycle: 'pooled',
+    lifecycle: 'singleton',
+    singletonConfig: {
+      warmup: 'eager',
+      retentionTime: -1
+    },
     htmlPath: 'windows/selection/action/index.html',
     // preload omitted → defaults to 'preload.js'.
     // SelectionService controls visibility itself via showActionWindow (computes bounds + fullscreen handling).
@@ -431,24 +436,6 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     // so clearHover / reapplyAlwaysOnTop do not participate in its lifecycle.
     quirks: {
       macRestoreFocusOnHide: true
-    },
-    poolConfig: {
-      // Producer axis: always keep one pre-warmed idle window. On every open(),
-      // an async setImmediate replacement is scheduled so the next action recycles
-      // instantly — the action window is user-facing and must not block on create.
-      standbySize: 1,
-      // Consumer axis: allow a small burst of concurrent action windows to be
-      // recycled for reuse (triggered when a second action fires while the first
-      // is still open). Beyond 3, close destroys.
-      recycleMaxSize: 3,
-      // Burst cleanup: after the pool grew above standbySize due to bursts,
-      // shed one extra idle window per minute back down toward standbySize.
-      decayInterval: 60,
-      // Full idle release: after 5 minutes of no action, trim the recycle
-      // buffer down to the standby window. standbySize is preserved as a
-      // permanent availability commitment.
-      inactivityTimeout: 300,
-      warmup: 'eager'
     }
   }
 }

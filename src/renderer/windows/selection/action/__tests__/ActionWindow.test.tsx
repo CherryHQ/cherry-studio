@@ -78,7 +78,7 @@ describe('ActionWindow surface', () => {
     HTMLElement.prototype.scrollTo = vi.fn()
   })
 
-  it('remounts the AI action subtree for each pooled-window invocation', () => {
+  it('remounts the AI action subtree for each singleton-window replacement', () => {
     const { rerender } = render(<ActionWindow />)
     expect(screen.getByTestId('general-action')).toHaveAttribute('data-mount-id', '1')
 
